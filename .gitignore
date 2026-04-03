@@ -2,8 +2,3 @@
 *.swp
 *.swo
 *~
-
-# Private project config
-CLAUDE.md
-.claude/
-.context-handoff.md

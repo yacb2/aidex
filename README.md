@@ -106,7 +106,7 @@ project/.context/
 
 ```bash
 # Clone the repo anywhere
-git clone https://github.com/YOUR_USER/aidex.git
+git clone https://github.com/YACB2/aidex.git
 cd aidex
 
 # Install (copies to ~/.aidex/, creates symlinks in ~/.claude/)
