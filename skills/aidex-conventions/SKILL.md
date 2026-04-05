@@ -1,6 +1,6 @@
 ---
 name: aidex-conventions
-description: Documentation and skill conventions for AI assistant ecosystems. Use when asked about documentation structure, .context/ conventions, skill format, plan templates, or CLAUDE.md best practices. Do NOT use for auditing — use the aidex skill instead.
+description: Documentation and skill conventions for AI assistant ecosystems. MUST be used whenever the user wants to create, structure, or organize project documentation — plans, references, docs, requests, decisions, research, issues, backlog, or CLAUDE.md. Also activates when the user describes a new task, feature request, product requirement, or stakeholder ask (suggest creating a formal request or escalating to a plan). Activates when the user mentions a technical or architectural decision they made or need to make (suggest creating a decision record). Use for any .context/ directory conventions, skill format questions, or plan templates. Do NOT use for auditing — use the aidex skill instead.
 user-invocable: false
 ---
 
@@ -10,7 +10,7 @@ Standards for consistent documentation structure in Claude Code projects.
 
 ## Overview
 
-This skill defines conventions for five documentation types:
+This skill defines conventions for seven documentation types:
 
 | Type | Purpose | Structure |
 |------|---------|-----------|
@@ -18,6 +18,8 @@ This skill defines conventions for five documentation types:
 | **Docs** | Library/dependency documentation | Same as references |
 | **Skills** | Claude capability extensions | `SKILL.md` + `references/`, <500 lines, tested triggers, gotchas, behavioral evals via `skill-creator` |
 | **Plans** | Multi-session implementation tracking | Phases with checkboxes |
+| **Requests** | Incoming tasks and product requirements | Single dated file |
+| **Decisions** | Architecture/product decision records | Single dated file with context, options, outcome |
 | **CLAUDE.md** | Project context for Claude | Concise knowledge base |
 
 ## Quick Reference
@@ -27,6 +29,7 @@ This skill defines conventions for five documentation types:
 | Reference module | [reference-conventions.md](references/reference-conventions.md) |
 | Skill | [skill-conventions.md](references/skill-conventions.md) |
 | Implementation plan | [plan-conventions.md](references/plan-conventions.md) |
+| Request / Decision | [request-decision-conventions.md](references/request-decision-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 
@@ -71,6 +74,7 @@ All generated content uses **English** for consistency.
 | Issues | `.context/issues/` | `ISSUE-NNN-description.md` + `00-index.md` |
 | Roadmap | `.context/roadmap/` | `README.md` + `NN-phase-name.md` |
 | Requests | `.context/requests/` | `YYYYMMDD-description.md` + `_archive/` |
+| Decisions | `.context/decisions/` | `YYYYMMDD-description.md` + `_archive/` |
 | Global references | `~/.context/references/<topic>/` | Numbered (00-index.md, 01-*.md) |
 | Project references | `.context/references/<topic>/` | Numbered |
 | Library docs | `.context/docs/<library>/` | Numbered |
@@ -111,6 +115,23 @@ Project context: tech stack overview, critical conventions, links to detailed do
 
 **Characteristics:** Concise (<300 lines), reference-focused.
 
+### Requests
+
+Incoming tasks, product requirements, or change requests from stakeholders. A request is a **single document** — if it needs deeper analysis, escalate to a plan or research.
+
+**Characteristics:** Dated file, origin (who asked), description, priority/urgency, outcome (became plan, deferred, rejected).
+
+**Interception behavior:** When the user describes a new task, feature request, or product requirement during a conversation, suggest:
+1. "Create a formal request?" → `.context/requests/YYYYMMDD-description.md`
+2. "Or create a plan directly?" → `.context/plans/YYYYMMDD-description/`
+3. "Or launch a research/investigation?" → `.context/research/`
+
+### Decisions
+
+Architecture or product decision records. Documents **what** was decided, **why**, what alternatives were considered, and the outcome. Prevents revisiting the same debates.
+
+**Characteristics:** Dated file, context/problem, options considered, decision taken, rationale, status (active/superseded/reversed).
+
 ### Plan: Modular vs Single-File
 
 **Single-file** (default):
@@ -131,6 +152,7 @@ aidex-conventions provides structural conventions for documentation. To create o
 - **Plans:** Read [plan-conventions.md](references/plan-conventions.md), follow the template, save to `.context/plans/`
 - **Skills:** Read [skill-conventions.md](references/skill-conventions.md), follow the template
 - **References/Docs:** Read [reference-conventions.md](references/reference-conventions.md), follow numbered file structure
+- **Requests/Decisions:** Read [request-decision-conventions.md](references/request-decision-conventions.md), follow the template
 - **CLAUDE.md:** Read [claudemd-conventions.md](references/claudemd-conventions.md), validate against conventions
 
 Complementary skills (e.g., skill-creator for behavioral testing, TDD workflows) can extend these conventions with execution tracking.

@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: AI ecosystem orchestrator. Audits .context/, skills, symlinks, MEMORY.md, and registry. Suggests and applies fixes. Use when asked to audit, check project health, clean up, reorganize, optimize the AI assistant ecosystem, or when detecting stale docs, broken symlinks, or bloated MEMORY.md.
+description: AI ecosystem orchestrator — audits and fixes .context/, skills, symlinks, MEMORY.md, CLAUDE.md, and the skill registry. Use this skill whenever the user asks to audit project health, check documentation freshness, find broken symlinks, clean up MEMORY.md, list or inventory installed skills, verify CLAUDE.md links, reorganize .context/ structure, detect stale or outdated references, check skill relevance for the current project stack, or optimize their Claude Code ecosystem. Also activates when the user says their project is messy, disorganized, or needs cleanup. Triggers on /aidex. Do NOT use for creating documentation — use aidex-conventions instead.
 disable-model-invocation: false
 ---
 
@@ -12,7 +12,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 
 | Domain | Location | What it checks |
 |--------|----------|---------------|
-| **Context structure** | `.context/` | References, docs, plans, backlog, issues, roadmap, requests — numbering, metadata, index coverage, reorganization suggestions |
+| **Context structure** | `.context/` | References, docs, plans, backlog, issues, roadmap, requests, decisions — numbering, metadata, index coverage, reorganization suggestions |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/`, `~/.aidex/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization |
@@ -28,7 +28,7 @@ Before launching any subagent, scan what exists in the project:
 
 ```
 Check for:
-- .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/)
+- .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/, decisions/)
 - .claude/ (skills/, CLAUDE.md, MEMORY.md)
 - ~/.aidex/ (shared skills, registry)
 - ~/.claude/skills/ (global skills)
