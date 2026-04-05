@@ -1,6 +1,6 @@
 ---
 name: context-auditor
-description: Audits .context/ project content (references, docs, plans, issues, roadmap, requests) for structural compliance
+description: Audits .context/ project content (references, docs, plans, issues, roadmap, requests, decisions) for structural compliance
 model: haiku
 allowed-tools: Read, Glob, Grep
 context: fork
@@ -55,6 +55,13 @@ Read conventions at runtime:
 - **[QA] Naming**: Files match `YYYYMMDD-description.md` pattern.
 - **[QB] Archive**: Completed requests moved to `_archive/` subdirectory.
 
+### Decisions (scan `.context/decisions/`)
+
+- **[DA] Naming**: Files match `YYYYMMDD-description.md` pattern.
+- **[DB] Status field**: Each decision has a Status field (Active/Superseded/Reversed).
+- **[DC] Superseded link**: Decisions with status "Superseded" must include a `Superseded by:` link.
+- **[DD] Archive**: Reversed or superseded decisions optionally moved to `_archive/`.
+
 ### Cross-cutting checks (apply to ALL directories)
 
 - **[AG] Anti-patterns**:
@@ -84,6 +91,7 @@ Beyond compliance checks, actively detect patterns that should be reorganized:
 | `README.md` inside `docs/` | Same as above — redundant with 00-index.md per module |
 | No `roadmap/` directory | Suggest creating one if the project has multiple phases or milestones |
 | No `requests/` directory | Suggest creating one if the project receives external change requests |
+| No `decisions/` directory | Suggest creating one if the project has non-obvious architectural or product decisions |
 | Files in mixed languages | Flag — convention is English only for generated content |
 | Informal documents ("should become a skill/reference") | Flag as formalization candidates |
 | Empty directories | Flag for cleanup |
@@ -102,7 +110,7 @@ If `.context/` exists but is missing standard directories, suggest them:
 Return ONE block per domain scanned:
 
 ```
-DOMAIN: [refs|docs|plans|backlog|issues|roadmap|requests]
+DOMAIN: [refs|docs|plans|backlog|issues|roadmap|requests|decisions]
 INVENTORY: [N items found]
 
 ISSUES:

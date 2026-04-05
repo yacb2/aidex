@@ -62,7 +62,8 @@ project/.context/
 ├── backlog/         # Pending work items, tech debt
 ├── research/        # Spikes, analysis, exploration
 ├── issues/          # Known bugs, pending decisions
-└── blogs/           # Relevant articles
+├── requests/        # Incoming tasks and product requirements
+└── decisions/       # Architecture/product decision records
 ```
 
 ## What's included

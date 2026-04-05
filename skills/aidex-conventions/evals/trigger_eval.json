@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Elena me acaba de pedir que agreguemos la funcionalidad de exportar bookings a Excel. Dice que lo necesita para el cierre de mes, o sea para el 30 de abril.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating a formal request in .context/requests/ or escalating to a plan"
+  },
+  {
+    "query": "Necesito crear una referencia para documentar cómo funciona el sistema de pagos, incluyendo los flujos de Stripe y las webhooks.",
+    "should_trigger": true,
+    "expected_behavior": "Should follow reference-conventions.md to create a numbered module in .context/references/payment-system/"
+  },
+  {
+    "query": "Estamos decidiendo si usar PostgreSQL o MongoDB para el nuevo microservicio de analytics. Postgres nos da consistencia pero Mongo sería más flexible para los esquemas variables. Ya cambiamos de opinión dos veces.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating a decision record in .context/decisions/ to document the choice and prevent future flip-flopping"
+  },
+  {
+    "query": "Quiero planificar la migración del auth middleware. Hay que tocar backend, frontend y los tests e2e. Van a ser como 4 fases.",
+    "should_trigger": true,
+    "expected_behavior": "Should follow plan-conventions.md to create a multi-file plan in .context/plans/YYYYMMDD-auth-middleware-migration/"
+  },
+  {
+    "query": "Create a plan for implementing the new booking calendar component. It needs drag-and-drop, time slot selection, and recurring events support.",
+    "should_trigger": true,
+    "expected_behavior": "Should follow plan-conventions.md to create a plan in .context/plans/"
+  },
+  {
+    "query": "El cliente de Panamá nos pidió que el dashboard tenga un filtro por fecha de creación además del que ya tiene por fecha de booking. No es urgente pero lo quieren para la próxima release.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating a request in .context/requests/ with low/medium priority"
+  },
+  {
+    "query": "We decided to drop support for Node 18 and go all-in on Node 22. The main reason is that we need the native fetch API and the new test runner, and maintaining backwards compat was costing us too much time.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating a decision record documenting the Node version choice"
+  },
+  {
+    "query": "Necesito investigar cómo funciona la API de Gemini para generación de video. No sé si Veo 3 ya tiene soporte para prompts de estilo o si hay que usar otro approach.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating a research document in .context/research/ for the investigation"
+  },
+  {
+    "query": "Documenta cómo está configurado el pipeline de CI/CD con GitHub Actions, incluyendo los secrets, los environments y el deploy a Vercel.",
+    "should_trigger": true,
+    "expected_behavior": "Should follow reference-conventions.md to create documentation in .context/references/cicd/"
+  },
+  {
+    "query": "La semana pasada decidimos usar Tailwind en vez de styled-components. Pero ahora Juan dice que Tailwind no soporta bien los temas dinámicos que necesitamos. Quiero documentar por qué tomamos esa decisión y si debemos revertirla.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating a decision record, noting it may supersede a previous decision"
+  },
+  {
+    "query": "Hey, el botón de submit no funciona en el formulario de bookings. Cuando hago click no pasa nada, no hay errores en consola tampoco.",
+    "should_trigger": false,
+    "expected_behavior": "This is a bug to debug, not a documentation/conventions task"
+  },
+  {
+    "query": "Agrega un campo 'notes' al modelo Booking en Django. Que sea TextField, nullable, y que aparezca en el serializer y en el admin.",
+    "should_trigger": false,
+    "expected_behavior": "This is a direct implementation task, not documentation"
+  },
+  {
+    "query": "Run the tests for the payment module and tell me if they pass.",
+    "should_trigger": false,
+    "expected_behavior": "This is a test execution request, not documentation"
+  },
+  {
+    "query": "Hazme un git commit con los cambios que tengo staged. El mensaje debería ser algo como 'feat: add export functionality'.",
+    "should_trigger": false,
+    "expected_behavior": "This is a git operation, not documentation"
+  },
+  {
+    "query": "Can you review this PR? I want to make sure the code quality is good and there aren't any security issues. The PR is #47.",
+    "should_trigger": false,
+    "expected_behavior": "This is a code review request, not documentation"
+  },
+  {
+    "query": "Actualiza la dependencia de Django de 5.0 a 5.1. Revisa los breaking changes y ajusta lo que haga falta.",
+    "should_trigger": false,
+    "expected_behavior": "This is a dependency update task, not documentation"
+  },
+  {
+    "query": "Despliega la rama feature/new-calendar a preview en Vercel para que el equipo lo pueda probar.",
+    "should_trigger": false,
+    "expected_behavior": "This is a deployment task, not documentation"
+  },
+  {
+    "query": "Refactoriza el componente BookingTable para que use server components de Next.js en vez de client components. El data fetching debería pasar al servidor.",
+    "should_trigger": false,
+    "expected_behavior": "This is a refactoring task, not documentation"
+  },
+  {
+    "query": "Me sale un error de CORS cuando intento hacer fetch desde el frontend al backend en dev. El error dice 'Access-Control-Allow-Origin' missing.",
+    "should_trigger": false,
+    "expected_behavior": "This is a debugging task, not documentation"
+  },
+  {
+    "query": "Quiero cambiar el color del header de azul a verde oscuro. El hex exacto es #1B5E20.",
+    "should_trigger": false,
+    "expected_behavior": "This is a trivial CSS change, not documentation"
+  }
+]

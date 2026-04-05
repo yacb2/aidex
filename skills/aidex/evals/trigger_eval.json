@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Revisa la salud de mi proyecto. Quiero saber si tengo documentación desactualizada, symlinks rotos o skills que no deberían estar.",
+    "should_trigger": true,
+    "expected_behavior": "Should launch full ecosystem audit with parallel subagents"
+  },
+  {
+    "query": "I think my .context/ folder is a mess. There are files everywhere with no structure. Can you check it and suggest how to reorganize?",
+    "should_trigger": true,
+    "expected_behavior": "Should launch context-auditor and suggest reorganization"
+  },
+  {
+    "query": "Mi MEMORY.md tiene como 120 líneas y siento que la mitad ya no aplica. Ayúdame a limpiarlo.",
+    "should_trigger": true,
+    "expected_behavior": "Should launch memory-auditor and suggest cleanup"
+  },
+  {
+    "query": "Creo que tengo symlinks rotos en .claude/skills/. Ayer eliminé un skill de ~/.aidex/ y no sé si los links quedaron colgando.",
+    "should_trigger": true,
+    "expected_behavior": "Should launch symlink-checker to find broken links"
+  },
+  {
+    "query": "Quiero ver qué skills tengo instalados, cuáles son globales y cuáles son de este proyecto. Dame un inventario completo.",
+    "should_trigger": true,
+    "expected_behavior": "Should launch skills-auditor and registry-builder"
+  },
+  {
+    "query": "Las referencias en .context/references/ llevan meses sin actualizarse pero el código ha cambiado mucho. Revisa qué está desactualizado.",
+    "should_trigger": true,
+    "expected_behavior": "Should launch freshness-checker to detect stale content"
+  },
+  {
+    "query": "Tengo skills de React instalados globalmente pero este proyecto es solo backend Python. Debería moverlos o quitarlos?",
+    "should_trigger": true,
+    "expected_behavior": "Should launch registry-builder to analyze skill relevance and suggest migrations"
+  },
+  {
+    "query": "/aidex",
+    "should_trigger": true,
+    "expected_behavior": "Direct invocation should always trigger"
+  },
+  {
+    "query": "Organiza mi ecosistema de Claude Code. Siento que tengo todo desordenado entre skills, docs y context.",
+    "should_trigger": true,
+    "expected_behavior": "Should trigger full audit with all applicable subagents"
+  },
+  {
+    "query": "Check if my CLAUDE.md has any broken links or references to files that don't exist anymore.",
+    "should_trigger": true,
+    "expected_behavior": "Should check CLAUDE.md link integrity as part of inline checks"
+  },
+  {
+    "query": "Crea un plan para implementar el sistema de notificaciones push con Firebase Cloud Messaging.",
+    "should_trigger": false,
+    "expected_behavior": "This is a plan creation task — aidex-conventions handles this, not aidex"
+  },
+  {
+    "query": "Necesito crear una referencia para el sistema de deployment. Incluye los pasos de Vercel, los secrets y los environments.",
+    "should_trigger": false,
+    "expected_behavior": "This is documentation creation — aidex-conventions handles this, not aidex"
+  },
+  {
+    "query": "Fix the login bug where users get a 403 after their JWT expires but before the refresh token kicks in.",
+    "should_trigger": false,
+    "expected_behavior": "This is a bug fix, not an ecosystem audit"
+  },
+  {
+    "query": "Actualiza el componente BookingForm para que valide el email con un regex más estricto.",
+    "should_trigger": false,
+    "expected_behavior": "This is a code change, not an audit"
+  },
+  {
+    "query": "Haz deploy de la rama main a producción en Vercel.",
+    "should_trigger": false,
+    "expected_behavior": "This is a deployment task, not an audit"
+  },
+  {
+    "query": "Quiero crear un nuevo skill para manejar las convenciones de Tailwind en mis proyectos.",
+    "should_trigger": false,
+    "expected_behavior": "This is skill creation — skill-creator handles this, not aidex"
+  },
+  {
+    "query": "Ejecuta los tests de la feature de payments y dime si pasan.",
+    "should_trigger": false,
+    "expected_behavior": "This is test execution, not an audit"
+  },
+  {
+    "query": "Elena del equipo de producto nos pasó estos requisitos para la nueva pantalla de reportes. Captúralo como un request formal.",
+    "should_trigger": false,
+    "expected_behavior": "This is a request capture — aidex-conventions handles this, not aidex"
+  },
+  {
+    "query": "Documenta la decisión de usar Postgres en vez de MongoDB para el servicio de analytics.",
+    "should_trigger": false,
+    "expected_behavior": "This is a decision record — aidex-conventions handles this, not aidex"
+  },
+  {
+    "query": "Revisa mi PR #34 antes de hacer merge. Quiero asegurarme que no hay issues de seguridad.",
+    "should_trigger": false,
+    "expected_behavior": "This is a PR review, not an ecosystem audit"
+  }
+]

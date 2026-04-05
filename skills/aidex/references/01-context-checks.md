@@ -82,6 +82,20 @@ Files match `YYYYMMDD-description.md` pattern.
 ### QB. Archive
 Completed requests moved to `_archive/` subdirectory.
 
+## Checks DA-DD (Decisions)
+
+### DA. Naming
+Files match `YYYYMMDD-description.md` pattern.
+
+### DB. Status Field
+Each decision has a Status field (Active / Superseded / Reversed).
+
+### DC. Superseded Link
+Decisions with status "Superseded" must include a `Superseded by:` link to the newer decision.
+
+### DD. Archive
+Reversed or superseded decisions moved to `_archive/` subdirectory (optional — may keep in main dir for visibility).
+
 ## Report Format
 
 ```
