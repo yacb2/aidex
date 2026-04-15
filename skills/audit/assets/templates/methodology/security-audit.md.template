@@ -1,0 +1,127 @@
+# Security Audit Playbook
+
+Structure: **OWASP-style categories × assets.** Walk each security category, apply to every asset, record findings.
+
+Based on [OWASP Top 10](https://owasp.org/Top10/) and [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/).
+
+---
+
+## When to run
+
+- Fixed cadence (quarterly or bi-annual)
+- Before shipping a feature touching auth, payments, user data, or admin surfaces
+- After a dependency CVE disclosure affecting your stack
+- Incident retrospective — what else is vulnerable to the same class?
+
+---
+
+## Preparation
+
+1. List assets: web endpoints, APIs, background jobs, admin surfaces, data stores.
+2. Collect current threat model (if any).
+3. Access to logs, error tracking, and a staging environment for reproducers.
+4. Dependency scan output (`pnpm audit`, `pip-audit`, `npm audit`, Snyk, etc.).
+
+---
+
+## Category checklist
+
+### A01 — Broken Access Control
+
+- [ ] Every endpoint enforces auth (public endpoints documented as such)
+- [ ] Role/permission checks on every sensitive action
+- [ ] IDOR — user A can't read / modify user B's resources by guessing IDs
+- [ ] Admin routes protected at middleware level (not only in UI)
+
+### A02 — Cryptographic Failures
+
+- [ ] HTTPS enforced end-to-end (including internal services)
+- [ ] Secrets in env / vault, never in repo or logs
+- [ ] Passwords hashed with modern algorithm (argon2 / bcrypt with modern params)
+- [ ] Session tokens sufficiently random, rotated on privilege change
+- [ ] PII encrypted at rest where required
+
+### A03 — Injection
+
+- [ ] Parameterized queries everywhere (no string interpolation in SQL)
+- [ ] User input sanitized before rendering (XSS)
+- [ ] No shell execution with user-controlled strings
+- [ ] Templating engines auto-escape by default
+
+### A04 — Insecure Design
+
+- [ ] Rate limiting on auth endpoints, sign-up, password reset
+- [ ] Guardrails against enumeration (sign-up, password reset respond identically)
+- [ ] Business-logic checks can't be bypassed client-side
+- [ ] Destructive actions require re-authentication or confirmation
+
+### A05 — Security Misconfiguration
+
+- [ ] CSP, HSTS, X-Frame-Options, Referrer-Policy headers present
+- [ ] Error pages don't leak stack traces in production
+- [ ] Admin panels not exposed on public internet unnecessarily
+- [ ] Default credentials removed / rotated
+
+### A06 — Vulnerable Components
+
+- [ ] Dependency scan clean (no open critical CVEs)
+- [ ] Dependencies pinned (lockfile committed)
+- [ ] Update cadence documented (see `python-dependency-updater` / `npm-dependency-updater` skills)
+
+### A07 — Authentication Failures
+
+- [ ] Brute-force protection on login
+- [ ] 2FA available for high-privilege accounts
+- [ ] Session timeout enforced
+- [ ] Remember-me tokens revocable
+
+### A08 — Data Integrity Failures
+
+- [ ] CI/CD pipeline access restricted
+- [ ] Deploy artifacts signed or verified
+- [ ] Third-party CDN subresource integrity used
+
+### A09 — Logging & Monitoring
+
+- [ ] Auth events logged (login, logout, password change)
+- [ ] Admin actions logged with actor
+- [ ] Logs retained per policy, scrubbed of secrets/PII
+- [ ] Alerts on anomalies (failed logins, privilege escalation attempts)
+
+### A10 — SSRF
+
+- [ ] No user-controlled URLs fetched server-side without allowlist
+- [ ] Internal metadata endpoints blocked from outbound requests
+
+---
+
+## Recording findings
+
+Each failure becomes a row in `../INVENTORY.md`:
+
+```
+| BUG-<CATEGORY>-<N> | bug or risk | <asset> | <summary> | open | P0 or P1 | {{DATE}} | {{DATE}} | {{DATE}} | — |
+```
+
+**Severity defaults in security:**
+- **P0** — exploitable now, data/funds at risk → fix immediately, consider disclosure
+- **P1** — exploitable with effort or under conditions → fix this cycle
+- **P2** — hardening, defense-in-depth → backlog
+- **P3** — theoretical or very low impact → consider, may drop
+
+---
+
+## Output artifacts
+
+- `index.md` — run context, scope, auditor credentials if external
+- `findings.md` — grouped by OWASP category
+- Optional: `evidence/<id>.md` — proof-of-concept or detailed reproducer (private if sensitive)
+
+---
+
+## Tips
+
+- **Share P0 findings immediately.** Don't wait for the audit report; they may need emergency response.
+- **Keep PoCs private.** `evidence/` folder can be `.gitignore`d or encrypted if findings are severe.
+- **Disclose responsibly** if externally reported — link your security policy (`SECURITY.md`).
+- **Follow up.** Use `/audit new retest` after fixes to verify. Security fixes are notoriously prone to regression.

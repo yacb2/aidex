@@ -1,6 +1,6 @@
 ---
 name: aidex-conventions
-description: Documentation and skill conventions for AI assistant ecosystems. MUST be used whenever the user wants to create, structure, or organize project documentation — plans, references, docs, requests, decisions, research, issues, backlog, or CLAUDE.md. Also activates when the user describes a new task, feature request, product requirement, or stakeholder ask (suggest creating a formal request or escalating to a plan). Activates when the user mentions a technical or architectural decision they made or need to make (suggest creating a decision record). Use for any .context/ directory conventions, skill format questions, or plan templates. Do NOT use for auditing — use the aidex skill instead.
+description: Documentation and skill conventions for AI assistant ecosystems. MUST be used whenever the user wants to create, structure, or organize project documentation — plans, references, docs, requests, decisions, research, issues, backlog, audits, or CLAUDE.md. Also activates when the user describes a new task, feature request, product requirement, or stakeholder ask (suggest creating a formal request or escalating to a plan). Activates when the user mentions a technical or architectural decision they made or need to make (suggest creating a decision record). Activates when the user wants to catalog the state of a project (bugs, gaps, opportunities) — suggest creating an audit. Use for any .context/ directory conventions, skill format questions, or plan templates. Do NOT use for auditing the Claude Code ecosystem (skills, symlinks, CLAUDE.md health) — use the aidex skill instead. For operating on audits (scaffold, validate, escalate findings), delegate to the audit skill.
 user-invocable: false
 ---
 
@@ -10,7 +10,7 @@ Standards for consistent documentation structure in Claude Code projects.
 
 ## Overview
 
-This skill defines conventions for seven documentation types:
+This skill defines conventions for eight documentation types:
 
 | Type | Purpose | Structure |
 |------|---------|-----------|
@@ -20,6 +20,7 @@ This skill defines conventions for seven documentation types:
 | **Plans** | Multi-session implementation tracking | Phases with checkboxes |
 | **Requests** | Incoming tasks and product requirements | Single dated file |
 | **Decisions** | Architecture/product decision records | Single dated file with context, options, outcome |
+| **Audits** | State-of-project catalogs with INVENTORY + dated runs | `INVENTORY.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYYMMDD-<slug>/` folders |
 | **CLAUDE.md** | Project context for Claude | Concise knowledge base |
 
 ## Quick Reference
@@ -30,6 +31,7 @@ This skill defines conventions for seven documentation types:
 | Skill | [skill-conventions.md](references/skill-conventions.md) |
 | Implementation plan | [plan-conventions.md](references/plan-conventions.md) |
 | Request / Decision | [request-decision-conventions.md](references/request-decision-conventions.md) |
+| Audit | [audit-conventions.md](references/audit-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 
@@ -75,6 +77,7 @@ All generated content uses **English** for consistency.
 | Roadmap | `.context/roadmap/` | `README.md` + `NN-phase-name.md` |
 | Requests | `.context/requests/` | `YYYYMMDD-description.md` + `_archive/` |
 | Decisions | `.context/decisions/` | `YYYYMMDD-description.md` + `_archive/` |
+| Audits | `.context/audits/` | `INVENTORY.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYYMMDD-<slug>/` |
 | Global references | `~/.context/references/<topic>/` | Numbered (00-index.md, 01-*.md) |
 | Project references | `.context/references/<topic>/` | Numbered |
 | Library docs | `.context/docs/<library>/` | Numbered |
@@ -132,6 +135,14 @@ Architecture or product decision records. Documents **what** was decided, **why*
 
 **Characteristics:** Dated file, context/problem, options considered, decision taken, rationale, status (active/superseded/reversed).
 
+### Audits
+
+State-of-project catalogs. An audit describes what **is** (findings, gaps, risks, opportunities), distinct from plans which describe what **will be**. Every finding lives in a canonical `INVENTORY.md` and is referenced (not copied) from per-run `findings.md` views.
+
+**Characteristics:** `INVENTORY.md` as source of truth, `METHODOLOGY.md` as living playbook with `CHANGELOG.md`, dated per-run folders (`YYYYMMDD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
+
+**Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `audit` skill (`/audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
+
 ### Plan: Modular vs Single-File
 
 **Single-file** (default):
@@ -153,6 +164,7 @@ aidex-conventions provides structural conventions for documentation. To create o
 - **Skills:** Read [skill-conventions.md](references/skill-conventions.md), follow the template
 - **References/Docs:** Read [reference-conventions.md](references/reference-conventions.md), follow numbered file structure
 - **Requests/Decisions:** Read [request-decision-conventions.md](references/request-decision-conventions.md), follow the template
+- **Audits:** Read [audit-conventions.md](references/audit-conventions.md); for scaffolding and validation, delegate to the `audit` skill
 - **CLAUDE.md:** Read [claudemd-conventions.md](references/claudemd-conventions.md), validate against conventions
 
 Complementary skills (e.g., skill-creator for behavioral testing, TDD workflows) can extend these conventions with execution tracking.

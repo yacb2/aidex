@@ -1,0 +1,45 @@
+# Audit Methodology Changelog
+
+All notable changes to the audit methodology of this project. Format: [Keep a Changelog](https://keepachangelog.com/).
+
+Versioning is semantic at the methodology level:
+- **MAJOR** — incompatible changes (renamed IDs, removed statuses)
+- **MINOR** — new check added, new audit type added
+- **PATCH** — clarifications, typo fixes
+
+---
+
+## [Unreleased]
+
+### Added
+
+- *(Nothing yet.)*
+
+---
+
+## [1.0.0] — {{DATE}}
+
+### Added
+
+- Initial methodology based on AIDEX audit-conventions.
+- Six core principles (Finding ≠ Issue ≠ Task; INVENTORY as SoT; living methodology; findings never deleted; escalation flow; shared concerns flagged).
+- Status lifecycle: open → triaged → escalated → in-progress → closed / dropped.
+- Severity levels: P0 / P1 / P2 / P3.
+
+<!-- Entry template for future changes:
+
+## [X.Y.Z] — YYYY-MM-DD
+
+### Added
+- [New check or audit type, with rationale]
+
+### Changed
+- [Modified check, with why and impact on existing findings]
+
+### Removed
+- [Dropped check, with why and what replaced it]
+
+### Deprecated
+- [Check kept for compatibility but marked stale]
+
+-->

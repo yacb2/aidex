@@ -12,7 +12,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 
 | Domain | Location | What it checks |
 |--------|----------|---------------|
-| **Context structure** | `.context/` | References, docs, plans, backlog, issues, roadmap, requests, decisions — numbering, metadata, index coverage, reorganization suggestions |
+| **Context structure** | `.context/` | References, docs, plans, backlog, issues, roadmap, requests, decisions, audits — numbering, metadata, index coverage, reorganization suggestions |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/`, `~/.aidex/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization |
@@ -28,7 +28,7 @@ Before launching any subagent, scan what exists in the project:
 
 ```
 Check for:
-- .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/, decisions/)
+- .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/, decisions/, audits/)
 - .claude/ (skills/, CLAUDE.md, MEMORY.md)
 - ~/.aidex/ (shared skills, registry)
 - ~/.claude/skills/ (global skills)

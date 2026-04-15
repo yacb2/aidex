@@ -1,6 +1,6 @@
 # Context Audit Checks (.context/)
 
-Detailed checks for `.context/references/`, `.context/docs/`, `.context/plans/`, `.context/backlog/`, `.context/issues/`, `.context/roadmap/`, and `.context/requests/`.
+Detailed checks for `.context/references/`, `.context/docs/`, `.context/plans/`, `.context/backlog/`, `.context/issues/`, `.context/roadmap/`, `.context/requests/`, `.context/decisions/`, and `.context/audits/`.
 
 ## Inventory Phase
 
@@ -95,6 +95,37 @@ Decisions with status "Superseded" must include a `Superseded by:` link to the n
 
 ### DD. Archive
 Reversed or superseded decisions moved to `_archive/` subdirectory (optional — may keep in main dir for visibility).
+
+## Checks UA-UH (Audits)
+
+### UA. Canonical Files
+`INVENTORY.md`, `METHODOLOGY.md`, `CHANGELOG.md` all present at the root of `.context/audits/`.
+
+### UB. Run Folder Naming
+Subfolders follow `YYYYMMDD-<slug>/` pattern. Exceptions allowed only for `methodology/` and `_archive/`.
+
+### UC. Run Folder Content
+Each `YYYYMMDD-<slug>/` contains both `index.md` and `findings.md`.
+
+### UD. INVENTORY Integrity
+- No duplicate IDs in INVENTORY
+- Every row has a non-empty Status
+- Rows with status `escalated`, `in-progress`, or `closed` have non-empty `Escalated To` column
+
+### UE. Orphan Finding References
+IDs mentioned in per-run `findings.md` must exist in INVENTORY (detects findings added to a view but not to the canonical source).
+
+### UF. Orphan Backlog References
+Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check `origin_ref: audit/<run>/<id>`).
+
+### UG. Playbook For Declared Type
+If a run's `index.md` declares `Type: <type>` with a known type, `methodology/<type>.md` must exist.
+
+### UH. CHANGELOG Freshness
+`CHANGELOG.md` present and non-empty. Warn if last entry > 6 months old AND INVENTORY has grown >20% since — likely methodology has evolved without being logged.
+
+### Fast implementation hint
+Prefer shelling out to `~/.aidex/skills/audit/scripts/validate-audit.sh --json <audits-dir>` when available; it produces the same violations in JSON. Fall back to manual checks only when the script is missing.
 
 ## Report Format
 

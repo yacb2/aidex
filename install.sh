@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIDEX_DIR="$HOME/.aidex"
 CLAUDE_DIR="$HOME/.claude"
 MANIFEST="$AIDEX_DIR/.manifest"
-VERSION="0.1.0"
+VERSION="0.2.0"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -246,8 +246,11 @@ do_install() {
     info "Initialized skill-registry.json"
   fi
 
-  # Ensure scripts are executable
-  chmod +x "$AIDEX_DIR/skills/aidex/scripts/"*.sh 2>/dev/null || true
+  # Ensure scripts in any skill are executable
+  for scripts_dir in "$AIDEX_DIR"/skills/*/scripts; do
+    [ -d "$scripts_dir" ] || continue
+    chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
+  done
 
   # Write manifest and version
   write_manifest "${items[@]}"
@@ -426,8 +429,11 @@ do_update() {
     info "Initialized skill-registry.json"
   fi
 
-  # Ensure scripts are executable
-  chmod +x "$AIDEX_DIR/skills/aidex/scripts/"*.sh 2>/dev/null || true
+  # Ensure scripts in any skill are executable
+  for scripts_dir in "$AIDEX_DIR"/skills/*/scripts; do
+    [ -d "$scripts_dir" ] || continue
+    chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
+  done
 
   # Update manifest
   local all_items=()
@@ -436,7 +442,11 @@ do_update() {
   done < <(collect_repo_items)
   write_manifest "${all_items[@]}"
 
+  # Update version
+  echo "$VERSION" > "$AIDEX_DIR/.version"
+
   header "Done"
+  echo "  Updated to v$VERSION"
   echo "  Restart Claude Code to load changes."
 }
 

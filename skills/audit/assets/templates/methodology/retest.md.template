@@ -1,0 +1,72 @@
+# Re-test Audit Playbook
+
+Structure: **Previous findings × validating commits.** Confirm whether each previously open finding is actually fixed.
+
+---
+
+## When to run
+
+- After a batch of P0/P1 fixes has landed
+- Before closing out a sprint or milestone
+- Periodically on any finding aged >30 days (findings can silently reappear)
+- Before marking a large epic "done"
+
+---
+
+## Preparation
+
+1. Pull the list of findings to re-test. Default: all `open`, `triaged`, or `in-progress` from `../INVENTORY.md`.
+2. Get the list of commits merged since the last audit of this type.
+3. Have staging / prod accessible or ability to run the product at those commits.
+
+---
+
+## Process per finding
+
+For each finding in scope, classify:
+
+| Result | INVENTORY action |
+|---|---|
+| **Fixed** — reproducer no longer reproduces | Status → `closed`, add link to verifying commit |
+| **Still reproduces** | Status stays `open`, append this run's date to Audit Runs column |
+| **Regression** — was closed, now back | New row as `REGRESSION-<parent-id>-<n>`, status `open`, link to original |
+| **New adjacent finding** — found while re-testing | New row in INVENTORY with standard ID |
+| **Can't reproduce** | Status stays, add note "could not reproduce on {{DATE}}, needs steps" |
+
+---
+
+## Evidence
+
+For each classification, record evidence in the run's `findings.md`:
+
+- Fixed — commit SHA(s) that fixed it
+- Still reproduces — reproducer steps (or link to screen recording)
+- Regression — diff between when it was closed and now
+- Can't reproduce — what was tried, what didn't work
+
+---
+
+## Recording
+
+In `../INVENTORY.md`, update existing rows in place:
+
+- Set `Status` column to the new state
+- Append this run's `YYYYMMDD` to the `Audit Runs` column
+- Update `Last Updated` to {{DATE}}
+- For `closed`, put the verifying commit short-SHA in `Escalated To` column as `fix:abc1234`
+
+---
+
+## Output artifacts
+
+- `index.md` — run context, scope (finding IDs re-tested), summary
+- `findings.md` — three sections: **Fixed this run** / **Still open** / **Regressions and new**
+
+---
+
+## Tips
+
+- **Don't re-test in the same session that fixed it.** Let a day or deploy pass.
+- **Different auditor helps.** Fresh eyes catch edge cases the fixer missed.
+- **Keep the original reproducer.** If it's not repeatable you can't truly verify.
+- **Regression ≠ fix was wrong.** Could be new code re-introduced the issue. Link both.

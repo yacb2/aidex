@@ -1,0 +1,54 @@
+# Audit Inventory — {{PROJECT_NAME}}
+
+Canonical deduplicated list of every finding across every audit run. Per-run `findings.md` files are filtered **views** — do not add findings there, add them here.
+
+**Last updated:** {{DATE}}
+**Audit runs recorded:** 0
+
+---
+
+## How to read this file
+
+| Column | Meaning |
+|---|---|
+| **ID** | Unique identifier. Format: `<CATEGORY>-<MODULE>-<N>` or `<PREFIX>-<N>`. See methodology for convention. |
+| **Type** | `bug`, `gap`, `idea`, `risk`, `opportunity`, `regression` |
+| **Module** | Area of the codebase (or `[SHARED]` for cross-module) |
+| **Summary** | One-line description |
+| **Status** | open · triaged · escalated · in-progress · closed · dropped |
+| **Severity** | P0 (critical) · P1 (high) · P2 (medium) · P3 (low) |
+| **First Seen** | YYYYMMDD — audit run that first recorded it |
+| **Last Updated** | YYYYMMDD — most recent change to this row |
+| **Audit Runs** | Comma-separated list of audit runs that confirmed this finding |
+| **Escalated To** | Link to backlog entry, plan, or decision (when status is `escalated` or later) |
+
+---
+
+## Findings
+
+<!--
+EXAMPLE ROWS (remove once you have real findings):
+
+| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To |
+|---|---|---|---|---|---|---|---|---|---|
+| EX-01-1 | bug | auth | Session token stored in URL query string | open | P0 | 20260410 | 20260415 | 20260410, 20260415 | — |
+| EX-FF-2 | idea | features | Export to CSV on dashboard | triaged | P2 | 20260410 | 20260412 | 20260410 | [backlog/20260412-export-csv.md](../backlog/20260412-export-csv.md) |
+| EX-05-1 | gap | tests | No E2E coverage for checkout flow | escalated | P1 | 20260410 | 20260414 | 20260410, 20260414 | [plans/20260414-checkout-e2e/](../plans/20260414-checkout-e2e/) |
+-->
+
+| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To |
+|---|---|---|---|---|---|---|---|---|---|
+| — | — | — | *No findings yet. Run `/audit new <type> <slug>` to start.* | — | — | — | — | — | — |
+
+---
+
+## Statistics
+
+- **Open:** 0
+- **Triaged:** 0
+- **Escalated:** 0
+- **In progress:** 0
+- **Closed:** 0
+- **Dropped:** 0
+
+Regenerate this section via `/audit validate`.
