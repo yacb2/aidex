@@ -63,17 +63,20 @@ project/.context/
 ├── research/        # Spikes, analysis, exploration
 ├── issues/          # Known bugs, pending decisions
 ├── requests/        # Incoming tasks and product requirements
-└── decisions/       # Architecture/product decision records
+├── decisions/       # Architecture/product decision records
+└── audits/          # Project-state catalogs (INVENTORY + per-run folders)
 ```
 
 ## What's included
 
-### 2 skills — that's it
+### 4 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
-| **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits `.context/`, skills, symlinks, MEMORY.md, registry. Launches parallel subagents, reports findings, suggests and applies fixes. |
-| **`aidex-conventions`** | Context-triggered (passive) | The brain. Conventions for creating and structuring references, docs, plans, skills, and CLAUDE.md. Activates when Claude detects you're creating or working with documentation. |
+| **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits `.context/` (including `audits/`), skills, symlinks, MEMORY.md, registry. Launches parallel subagents, reports findings, suggests and applies fixes. |
+| **`aidex-conventions`** | Context-triggered (passive) | The brain. Conventions for creating and structuring references, docs, plans, audits, skills, and CLAUDE.md. Activates when Claude detects you're creating or working with documentation. |
+| **`audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/audit new <type> <slug>` · `/audit validate` · `/audit escalate <id>` · `/audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
+| **`backlog-register`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/audit escalate` to close the audit→backlog loop. |
 
 ### How it works
 
@@ -85,6 +88,10 @@ project/.context/
 
 "Create a reference for the payment API"  
 → Creates .context/references/payment-api/ with 00-index.md + 01-overview.md
+
+"/audit new ux login-redesign"
+→ Scaffolds .context/audits/20260402-login-redesign/ with index, findings,
+  and materializes INVENTORY/METHODOLOGY/CHANGELOG + ux-audit playbook on first use
 ```
 
 **Auditing** — ask or invoke `/aidex`:

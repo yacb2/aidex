@@ -1,0 +1,118 @@
+# Performance Audit Playbook
+
+Structure: **Lighthouse categories + backend metrics.** Measure, compare against budgets, record deviations.
+
+---
+
+## When to run
+
+- Pre-release (don't ship perf regressions)
+- Pre-scaling (traffic growth expected)
+- After major framework / library upgrade
+- Cadence every N months on the critical paths
+
+---
+
+## Preparation
+
+1. List critical user journeys (top 5–10 by traffic or revenue).
+2. Define performance budgets if none exist:
+   - LCP ≤ 2.5s (p75)
+   - INP ≤ 200ms (p75)
+   - CLS ≤ 0.1 (p75)
+   - TTFB ≤ 600ms (p75)
+   - API p95 ≤ defined per endpoint class (e.g., read <300ms, write <1s)
+3. Access to: Lighthouse (CLI or web), real-user monitoring (RUM), APM, database query logs.
+4. Staging environment that approximates prod.
+
+---
+
+## Frontend checks (Lighthouse + RUM)
+
+### Core Web Vitals
+
+- [ ] LCP within budget on p75 real users
+- [ ] INP within budget
+- [ ] CLS within budget
+- [ ] TTFB within budget
+
+### Loading performance
+
+- [ ] JS bundle size reasonable (critical path <200KB gzipped)
+- [ ] Images responsive + modern format (WebP/AVIF) + lazy-loaded below fold
+- [ ] Fonts preloaded + `font-display: swap`
+- [ ] Critical CSS inlined or first-paint blocks removed
+- [ ] No render-blocking third-party scripts above fold
+
+### Runtime performance
+
+- [ ] Long tasks profiled; no >200ms tasks on interaction
+- [ ] Virtualization on long lists
+- [ ] Debounce/throttle on input-driven expensive operations
+- [ ] Memory leaks absent on SPA navigation (heap stays stable)
+
+---
+
+## Backend checks
+
+### Request handling
+
+- [ ] p95 latency within budget per endpoint class
+- [ ] No endpoints with >2s tail (p99) except documented long-running
+- [ ] N+1 queries absent (ORM debug mode, query counts per request)
+- [ ] Database query p95 acceptable (<100ms for hot paths)
+
+### Caching
+
+- [ ] HTTP cache headers correct on static assets
+- [ ] CDN hit rate >80% on eligible assets
+- [ ] App-level caching (Redis/memcached) for hot reads
+- [ ] Cache invalidation strategy documented
+
+### Background work
+
+- [ ] Long operations moved to async queue
+- [ ] Queue depth monitored, alerts configured
+- [ ] Retry/backoff configured on external calls
+
+### Database
+
+- [ ] Slow query log reviewed; any query >500ms has an explain plan annotated
+- [ ] Missing indices identified (via explain / query analyzer)
+- [ ] Connection pool sized appropriately
+- [ ] Replica lag acceptable if read replicas used
+
+---
+
+## Recording findings
+
+Each budget breach or concern becomes a row in `../INVENTORY.md`:
+
+```
+| PERF-<AREA>-<N> | bug or risk | <area> | <metric> was <observed>, budget <target> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+```
+
+**Severity guide:**
+- **P0** — breaks the product under current traffic (timeouts, OOMs)
+- **P1** — breaches budget on hot path for many users
+- **P2** — breaches budget on cold path or small user segment
+- **P3** — theoretical future concern
+
+---
+
+## Output artifacts
+
+- `index.md` — run context, scope (URLs/endpoints measured), device/network profile used
+- `findings.md` — grouped by frontend vs backend
+- Optional: `reports/lighthouse-<url>-<date>.html` — raw Lighthouse reports
+- Optional: `reports/load-test-<scenario>.json` — load test outputs
+
+---
+
+## Tips
+
+- **Measure on representative hardware.** Lighthouse on your M2 Pro doesn't reflect users.
+- **p75 / p95, not averages.** Averages hide tail behavior.
+- **Measure both synthetic and real.** Synthetic catches regressions; real catches what users actually feel.
+- **Budget per page type.** Home ≠ dashboard ≠ checkout. Don't average budgets across them.
+- **Track trends, not snapshots.** One-off measurements are noise; compare to last run.

@@ -1,0 +1,78 @@
+# AI Opportunities Audit Playbook
+
+Structure: **Phases × [AI-EXISTS / MISSING / FLOW].** Walk each phase of the user journey and classify AI involvement.
+
+---
+
+## When to run
+
+- Defining scope for a new AI capability
+- At the end of a major product phase (what AI opportunities did we miss?)
+- When the AI landscape shifts (new models, cheaper inference) — re-evaluate
+- Before pitching to stakeholders where AI is the proposition
+
+---
+
+## Preparation
+
+1. Map the user journey into 5–10 phases (e.g., discover → sign up → onboard → first value → retention → expansion).
+2. For each phase, list the main screens or tasks.
+3. Know the current model / infra stack (LLMs available, cost tolerance, latency budget).
+
+---
+
+## Classification per phase
+
+For each phase, each screen/task is classified into one of three buckets:
+
+| Bucket | Meaning | Record as |
+|---|---|---|
+| **AI-EXISTS** | AI is already doing something here | `idea` (for enhancement) or finding if broken |
+| **MISSING** | AI could add clear value but isn't present | `opportunity` (→ backlog candidate) |
+| **FLOW** | Manual flow that AI could replace end-to-end | `opportunity` with flag `[end-to-end]` |
+
+---
+
+## Evaluation questions per phase
+
+When deciding MISSING vs FLOW, ask:
+
+1. **What data does the user provide here?** (If lots of free text → LLM candidate.)
+2. **What decision does the user make?** (If it's pattern-matching → AI candidate.)
+3. **What's the cost of being wrong?** (High cost → augment, don't replace. Low → can automate.)
+4. **Is there ground truth to evaluate?** (No ground truth → hard to improve systematically.)
+5. **Latency budget?** (Sub-second → embedding/classifier. Seconds → LLM. Minutes → batch.)
+6. **Already a regulatory concern?** (If yes, AI adds more. Tread carefully.)
+
+---
+
+## Recording findings
+
+Each opportunity becomes a row in `../INVENTORY.md`:
+
+```
+| IDEA-<PHASE>-<N> | opportunity | <phase> | <what AI would do here> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+```
+
+Severity in this context = **business priority**:
+- **P0** — strategic, would shift the product positioning
+- **P1** — clear ROI, obvious ship
+- **P2** — nice to have, improves specific workflow
+- **P3** — speculative, would need validation
+
+---
+
+## Output artifacts
+
+- `index.md` — run context, scope, auditor, summary
+- `findings.md` — opportunities grouped by phase and severity
+- Optional: `phases/<name>.md` — detailed phase analysis for large audits
+
+---
+
+## Tips
+
+- **Don't design solutions yet.** This audit inventories opportunities. Solutions belong in a follow-up plan.
+- **Size each opportunity** (XS/S/M/L) — helps triage later.
+- **Mark `[validated]` vs `[speculative]`** — validated means there's evidence (user feedback, analytics) this matters.
+- **Flag `[cost-sensitive]`** when LLM usage would be hot-path for every user.

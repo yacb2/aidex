@@ -1,0 +1,66 @@
+# Findings — {{SLUG}} ({{DATE}})
+
+Filtered view of [../INVENTORY.md](../INVENTORY.md) for this audit run.
+
+> **Do not add findings directly here.** Add them to `INVENTORY.md` and reference IDs from this file. This keeps INVENTORY as the single source of truth.
+
+---
+
+## By severity
+
+### P0 — Critical
+
+<!-- EXAMPLE (remove before first real finding):
+- **EX-01-1** — Session token stored in URL query string ([INVENTORY](../INVENTORY.md#ex-01-1))
+- **EX-05-2** — SQL injection in search endpoint ([INVENTORY](../INVENTORY.md#ex-05-2))
+-->
+
+*None.*
+
+### P1 — High
+
+*None.*
+
+### P2 — Medium
+
+*None.*
+
+### P3 — Low
+
+*None.*
+
+---
+
+## By module
+
+<!-- Optional grouping. Regenerate via `/audit validate --regen-views`. -->
+
+### [SHARED] — Cross-module
+
+*None.*
+
+### auth
+
+*None.*
+
+### <!-- add modules as you find findings -->
+
+---
+
+## New this run
+
+Findings first recorded in this audit (not previously in INVENTORY).
+
+*None.*
+
+## Confirmed this run
+
+Findings that existed before and were re-observed (kept open).
+
+*None.*
+
+## Resolved this run
+
+Findings that existed before and are now verified fixed.
+
+*None.*

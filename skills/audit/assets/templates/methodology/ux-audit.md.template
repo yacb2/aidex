@@ -1,0 +1,85 @@
+# UX Audit Playbook
+
+Structure: **Modules × Checks matrix.** Walk each module in scope, apply each check, record findings.
+
+---
+
+## When to run
+
+- Before a major release (feature-complete gate)
+- When UX drift is suspected (design system out of sync)
+- Onboarding a new designer — capture current state
+- Cadence every N months for established products
+
+---
+
+## Preparation
+
+1. List modules in scope. A module ≈ a screen, flow, or domain area.
+2. Open the design system / style guide.
+3. Have the product running locally (or staging).
+4. Screen-record the walkthrough if possible — useful for re-tests.
+
+---
+
+## Checks matrix
+
+For each module × each check, note whether it passes, fails, or is not applicable. Failures become findings in `INVENTORY.md`.
+
+### Core checks (apply to every module)
+
+| # | Check | Fail = finding type |
+|---|---|---|
+| 1 | **Visual consistency** — typography, spacing, colors match the design system | `bug` or `gap` |
+| 2 | **Interactive states** — hover, focus, active, disabled, loading all defined | `bug` |
+| 3 | **Empty states** — what does the user see when there's no data? | `gap` |
+| 4 | **Error states** — every failure path shows a message the user understands | `gap` or `bug` |
+| 5 | **Responsive** — works at mobile (375), tablet (768), desktop (1280), wide (1920) | `bug` |
+| 6 | **Keyboard navigation** — all actions reachable, focus visible, shortcuts documented | `bug` |
+| 7 | **Copy** — clear, consistent voice, no placeholder lorem, no "TODO" strings | `bug` or `idea` |
+| 8 | **Loading feedback** — any operation >200ms has a loading indicator | `bug` or `gap` |
+| 9 | **Destructive action guardrails** — confirmations, undo where possible | `risk` |
+| 10 | **First-run / onboarding** — new users understand what to do | `gap` |
+
+### Advanced checks (apply selectively)
+
+| # | Check | When |
+|---|---|---|
+| 11 | **Dark mode parity** | If dark mode is offered |
+| 12 | **Internationalization** — strings externalized, RTL tested | If i18n is shipped |
+| 13 | **Print stylesheet** | If users print |
+| 14 | **Browser parity** — Chrome, Safari, Firefox, mobile Safari | Pre-release |
+| 15 | **Animation / motion** — respects `prefers-reduced-motion` | If heavy animation |
+
+---
+
+## Recording findings
+
+Each failure becomes a row in `../INVENTORY.md`:
+
+```
+| BUG-<MODULE>-<N> | bug | <module> | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+```
+
+Severity guide:
+- **P0** — blocks usage (broken flow, illegible text)
+- **P1** — degrades trust (inconsistent UI, wrong errors, mobile broken)
+- **P2** — annoying but usable (minor visual drift, awkward copy)
+- **P3** — polish (micro-animations, rare edge cases)
+
+---
+
+## Output artifacts
+
+- `index.md` — this run's context, scope, auditor, summary
+- `findings.md` — filtered view linking to INVENTORY
+- Optional: `modules/<name>.md` — per-module notes if the audit is large
+
+---
+
+## Tips
+
+- **Timebox.** One hour per module works for most products. If you need more, split into two runs.
+- **Two-pass.** First pass collect findings fast. Second pass triage severity.
+- **Photo evidence.** Attach screenshots in `modules/<name>/` when the issue is visual.
+- **Don't fix on the fly.** This audit catalogs; fixes go to backlog or plans via `/audit escalate`.

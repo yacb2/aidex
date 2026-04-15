@@ -1,0 +1,47 @@
+# {{AUDIT_TYPE}} — {{SLUG}}
+
+**Date:** {{DATE}}
+**Type:** {{AUDIT_TYPE}}
+**Status:** in-progress
+**Scope:** <!-- what was covered: modules, pages, features -->
+**Auditor:** <!-- who ran it (person, team, tool) -->
+**Method:** See [../methodology/{{AUDIT_TYPE}}.md](../methodology/{{AUDIT_TYPE}}.md)
+
+---
+
+## Context
+
+<!-- Why this audit now? What prompted it? What constraints or deadlines? -->
+
+## Scope in / out
+
+**In scope:**
+- <!-- e.g., auth module, checkout flow, dashboard -->
+
+**Out of scope:**
+- <!-- e.g., admin panel (audited separately in 20260401-admin), third-party embeds -->
+
+## Summary
+
+<!-- One paragraph. Written AFTER findings are recorded. Key themes, counts, urgency. -->
+
+## Findings
+
+See [findings.md](findings.md) for this run's filtered view.
+Canonical source: [../INVENTORY.md](../INVENTORY.md).
+
+**Counts (this run):**
+- P0: 0
+- P1: 0
+- P2: 0
+- P3: 0
+
+## Next steps
+
+- <!-- Who triages, when -->
+- <!-- Re-test planned for YYYYMMDD -->
+- <!-- Related backlog entries, plans, or decisions -->
+
+## References
+
+<!-- Links to PRs, issues, external reports, screenshots, recordings -->

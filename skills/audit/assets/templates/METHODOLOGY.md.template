@@ -1,0 +1,95 @@
+# Audit Methodology — {{PROJECT_NAME}}
+
+Shared principles across all audit types in this project, plus index of per-type playbooks.
+
+**Last updated:** {{DATE}}
+
+See [CHANGELOG.md](CHANGELOG.md) for evolution of this methodology.
+
+---
+
+## Shared Principles
+
+### 1. Finding ≠ Issue ≠ Task
+
+Three distinct objects with links, not copies:
+
+- **Finding** — observation in an audit, lives in [INVENTORY.md](INVENTORY.md)
+- **Backlog entry** — the finding queued for work, lives in `.context/backlog/`
+- **Task/plan** — active work, lives in `.context/plans/`
+
+### 2. INVENTORY is single source of truth
+
+Every finding has exactly one canonical row in `INVENTORY.md`. Per-run `findings.md` files are filtered views. Never add findings directly to a per-run file.
+
+### 3. Living methodology
+
+This file evolves. When you add, remove, or change a check, log it in [CHANGELOG.md](CHANGELOG.md) with the reason. Without the *why*, the checklist rots.
+
+### 4. Findings are never deleted
+
+Use status transitions: `open` → `triaged` → `escalated` → `in-progress` → `closed` / `dropped`. A dropped finding keeps its row with the drop reason.
+
+### 5. Escalation flow
+
+```
+audit run → INVENTORY finding → backlog entry → plan → commit → re-test audit → finding closed
+```
+
+### 6. Shared concerns flagged
+
+Cross-module findings are tagged `[SHARED]` in the Module column.
+
+---
+
+## ID Convention
+
+<!-- Choose one, document here, stay consistent across the project. -->
+
+**This project uses:** `<CATEGORY>-<MODULE>-<N>` (structured)
+<!-- or: `<PREFIX>-<N>` (global) -->
+
+**Categories used:**
+- `BUG` — defect
+- `GAP` — missing capability
+- `IDEA` — opportunity / enhancement
+- `RISK` — potential future problem
+- `REGRESSION` — previously closed finding reopened
+
+---
+
+## Playbooks
+
+Per-type methodology lives in `methodology/<type>.md`. AIDEX ships with six stock playbooks:
+
+| Type | File | When to run |
+|---|---|---|
+| UX audit | [methodology/ux-audit.md](methodology/ux-audit.md) | Pre-release, UX drift suspected |
+| AI opportunities | [methodology/ia-opportunities.md](methodology/ia-opportunities.md) | New AI capability scope, phase end |
+| Re-test | [methodology/retest.md](methodology/retest.md) | After a batch of P0/P1 fixes |
+| Security audit | [methodology/security-audit.md](methodology/security-audit.md) | Fixed cadence or post sensitive feature |
+| Performance audit | [methodology/perf-audit.md](methodology/perf-audit.md) | Pre-release, pre-scaling |
+| Accessibility audit | [methodology/a11y-audit.md](methodology/a11y-audit.md) | Compliance cadence |
+
+Only the playbooks you've actually used are present. `/audit new <type> <slug>` materializes one on first use.
+
+---
+
+## Audit Run Workflow
+
+1. **Create** — `/audit new <type> <slug>` scaffolds `YYYYMMDD-<slug>/` with `index.md` and `findings.md`.
+2. **Apply playbook** — follow `methodology/<type>.md` for that audit type.
+3. **Record findings** — add rows to `INVENTORY.md`, reference IDs from `findings.md`.
+4. **Triage** — update status from `open` to `triaged` after assessment.
+5. **Escalate** — `/audit escalate <id>` creates backlog entry and flips status to `escalated`.
+6. **Re-test** — run `/audit new retest <next-slug>` after fixes land; findings that still reproduce stay open.
+7. **Validate** — `/audit validate` checks coherence INVENTORY ↔ findings ↔ backlog.
+
+---
+
+## Anti-patterns
+
+- **Audits inside `.context/plans/`** — use `/audit migrate` to move them.
+- **Per-run findings without INVENTORY link** — run `/audit validate` to detect.
+- **Mixed ID conventions** — pick one, stick with it.
+- **Methodology edits without CHANGELOG entry** — future-you will not remember why.

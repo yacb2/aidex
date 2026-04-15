@@ -1,6 +1,6 @@
 ---
 name: context-auditor
-description: Audits .context/ project content (references, docs, plans, issues, roadmap, requests, decisions) for structural compliance
+description: Audits .context/ project content (references, docs, plans, issues, roadmap, requests, decisions, audits) for structural compliance
 model: haiku
 allowed-tools: Read, Glob, Grep
 context: fork
@@ -62,6 +62,19 @@ Read conventions at runtime:
 - **[DC] Superseded link**: Decisions with status "Superseded" must include a `Superseded by:` link.
 - **[DD] Archive**: Reversed or superseded decisions optionally moved to `_archive/`.
 
+### Audits (scan `.context/audits/`)
+
+- **[UA] Canonical files**: `INVENTORY.md`, `METHODOLOGY.md`, `CHANGELOG.md` all present at the root of `.context/audits/`.
+- **[UB] Run folder naming**: Subfolders follow `YYYYMMDD-<slug>/` pattern (no other top-level folders except `methodology/`, `_archive/`).
+- **[UC] Run folder content**: Each `YYYYMMDD-<slug>/` has `index.md` AND `findings.md`.
+- **[UD] INVENTORY integrity**: No duplicate IDs in INVENTORY. Every row has non-empty Status. Rows with status `escalated`, `in-progress`, or `closed` require non-empty `Escalated To` column.
+- **[UE] Orphan finding references**: IDs mentioned in per-run `findings.md` must exist in INVENTORY.
+- **[UF] Orphan backlog references**: Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check the `origin_ref` field).
+- **[UG] Playbook for declared type**: If any run's `index.md` declares `Type: <type>` (a known type), `methodology/<type>.md` must exist.
+- **[UH] CHANGELOG freshness**: `CHANGELOG.md` present and non-empty (has at least the initial entry). Warn if last entry > 6 months old AND INVENTORY has grown >20% since.
+
+Fast implementation hint: shell out to `~/.aidex/skills/audit/scripts/validate-audit.sh --json <audits-dir>` when available — it produces the same violations in JSON. Parse and map to check codes above. Fall back to manual checks only if the script is missing.
+
 ### Cross-cutting checks (apply to ALL directories)
 
 - **[AG] Anti-patterns**:
@@ -102,6 +115,7 @@ If `.context/` exists but is missing standard directories, suggest them:
 - No `issues/` → "Consider adding .context/issues/ with 00-index.md for tracking bugs and problems"
 - No `backlog/` → "Consider adding .context/backlog/ for pending work items"
 - No `plans/` and project has active development → "Consider .context/plans/ for multi-session tracking"
+- No `audits/` but `plans/` contains folders with `findings.md` / `issues.md` / `methodology.md` → "Consider running `/audit migrate` to separate audits from plans"
 
 **Key principle:** Suggest the aidex convention, explain why, but let the user decide. Don't just report what's wrong — propose what's better.
 
@@ -110,7 +124,7 @@ If `.context/` exists but is missing standard directories, suggest them:
 Return ONE block per domain scanned:
 
 ```
-DOMAIN: [refs|docs|plans|backlog|issues|roadmap|requests|decisions]
+DOMAIN: [refs|docs|plans|backlog|issues|roadmap|requests|decisions|audits]
 INVENTORY: [N items found]
 
 ISSUES:
