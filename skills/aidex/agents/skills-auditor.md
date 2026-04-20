@@ -26,6 +26,8 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-convention
 - **[SC] Size**: SKILL.md under 500 lines. Code blocks under 5 lines (move to references/).
 - **[SD] Orphaned references**: Files in `references/` not linked from SKILL.md.
 - **[SE] Description quality**: Description >50 chars, includes trigger phrases, has negative triggers.
+- **[SG] User↔project overlap** (check code `CB-DU`): For each skill present in BOTH `~/.claude/skills/` and `<project>/.claude/skills/`, read both frontmatters. If `name` matches AND `description` Jaccard similarity on word sets exceeds 0.7, report WARNING. Propose either deleting the local copy (accept global) or unlinking the global (keep the override). Keeping both pays metadata cost twice.
+- **[SH] Stack relevance**: If `~/.aidex/skill-registry.json` exists and project stack is detectable (via `CLAUDE.md` text or config files), list global skills whose `tags` in the registry do not intersect the project stack. Severity INFO — candidate to move from global to `library` scope (opt-in).
 
 ### Security (scan SKILL.md AND all files in references/)
 

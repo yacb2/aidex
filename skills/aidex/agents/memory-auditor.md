@@ -40,6 +40,14 @@ For each `## heading` or `- [Title](link)` entry:
   - Permanent constraint → CLAUDE.md
   - Research/analysis → `.context/research/`
 
+**DOCS-DISGUISED-AS-MEMORY** (flag `CB-MD`, severity CRITICAL) if any apply:
+- Title matches `Patterns|Gotchas|Architecture|How to|Stack|Workflow|Conventions`
+- Body names file paths, function names, or class names as the subject (not just as context)
+- Body describes "how X works" or "when editing X, do Y" beyond a one-line gotcha
+- Entry exceeds 3 lines of substantive prose
+
+Auto-memory policy allows only four types (user, feedback, project, reference). Technical documentation masquerading as memory pays a token cost on every turn. Treat as EXTERNALIZE with forced destination `.context/references/<topic>/NN-topic.md`; replace the MEMORY entry with a 1-line link or delete.
+
 **KEEP** if:
 - Already a 1-line link
 - Critical gotcha not documented elsewhere
@@ -61,6 +69,7 @@ CLASSIFICATION:
 - REMOVE: N entries [list names]
 - CONDENSE: N entries [list names]
 - EXTERNALIZE: N entries [list names + destinations]
+- DOCS-DISGUISED [CB-MD]: N entries [list names + proposed .context/references/ path]
 - KEEP: N entries
 
 STALE REFERENCES: [list entries with broken refs]

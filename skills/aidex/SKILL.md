@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: AI ecosystem orchestrator — audits and fixes .context/, skills, symlinks, MEMORY.md, CLAUDE.md, and the skill registry. Use this skill whenever the user asks to audit project health, check documentation freshness, find broken symlinks, clean up MEMORY.md, list or inventory installed skills, verify CLAUDE.md links, reorganize .context/ structure, detect stale or outdated references, check skill relevance for the current project stack, or optimize their Claude Code ecosystem. Also activates when the user says their project is messy, disorganized, or needs cleanup. Triggers on /aidex. Do NOT use for creating documentation — use aidex-conventions instead.
+description: AI ecosystem orchestrator — audits and fixes .context/, skills, symlinks, MEMORY.md, CLAUDE.md, plugins, and the skill registry. Use this skill whenever the user asks to audit project health, check documentation freshness, find broken symlinks, clean up MEMORY.md, list or inventory installed skills, verify CLAUDE.md links, reorganize .context/ structure, detect stale or outdated references, check skill relevance for the current project stack, diagnose a bloated /context footprint, reduce initial token cost, audit installed plugins, or optimize their Claude Code ecosystem. Also activates when the user says their project is messy, disorganized, needs cleanup, or "opens heavy" / "wastes too much context". Triggers on /aidex and /aidex context. Do NOT use for creating documentation — use aidex-conventions instead.
 disable-model-invocation: false
 ---
 
@@ -19,6 +19,36 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Registry** | `~/.aidex/skill-registry.json` | Stack detection, skill relevance, noise, migration candidates |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
+| **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
+| **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
+
+---
+
+## Sub-action: `/aidex context`
+
+Focused audit of the session's **idle token footprint** (everything loaded before the user types anything). Use when the user:
+
+- Pastes `/context` output and asks why it's heavy.
+- Reports a project opening at >20% context used.
+- Asks to "reduce initial tokens", "audit plugins", or "why does this waste so much context".
+
+### Inputs
+
+- Pasted `/context` breakdown (text) OR path to a file containing it.
+- Current project path (to locate project CLAUDE.md, local skills, MEMORY.md).
+
+### Flow
+
+1. **Parse** the breakdown inline (or defer to `context-cost-analyzer`). Surface idle total and per-category token counts immediately.
+2. **Launch in parallel** (single message, `run_in_background: true`):
+   - `context-cost-analyzer` — cross-references all drivers, produces priority-ordered savings list.
+   - `plugin-auditor` — enumerates plugin agent cost vs. recent usage.
+   - `memory-auditor` — focused on `CB-MD` (docs disguised as memory).
+   - `skills-auditor` — focused on `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
+3. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
+4. **Never auto-execute**. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) for user approval one by one.
+
+Heuristics live in [references/06-context-budget.md](references/06-context-budget.md).
 
 ---
 
@@ -54,6 +84,8 @@ Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass the
 | [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | haiku | Read, Glob, Grep |
 | [freshness-checker](agents/freshness-checker.md) | `.context/references/` or `.context/docs/` exist | sonnet | Read, Glob, Grep, Bash |
 | [registry-builder](agents/registry-builder.md) | `~/.aidex/skills/` exists | sonnet | Read, Glob, Grep, Bash |
+| [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | Read, Glob, Grep, Bash |
+| [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | Read, Glob, Grep, Bash |
 
 Example launch pattern (all in one message):
 ```
@@ -186,3 +218,4 @@ In context-triggered mode, suggest a focused audit rather than a full one:
 - [03-memory-workflow.md](references/03-memory-workflow.md) — Memory classification and externalization workflow
 - [04-registry-operations.md](references/04-registry-operations.md) — Registry scan, recommend, migrate operations
 - [05-fix-procedures.md](references/05-fix-procedures.md) — Safe and destructive fix procedures
+- [06-context-budget.md](references/06-context-budget.md) — Idle token budget, drivers, and `/aidex context` heuristics
