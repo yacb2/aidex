@@ -42,15 +42,28 @@ Grep transcripts for invocations. Use `rg` on `~/.claude/projects/*/` for each c
 
 Count matches within the last 30 days (filter by file mtime or by the transcript's embedded timestamps — use file mtime as a fast proxy). 0 matches → unused.
 
-### 5. Classify
+### 5. Detect plugin scope
+
+For each plugin, read `installed_plugins.json` and check the `scope` field (or equivalent — typically `user` for global installs, `project` for `.claude/plugins/`-local installs). Scope dictates the right remediation:
+
+- `scope: user` (global) → uninstall affects ALL projects. If the plugin is irrelevant *only* for the current project but used elsewhere, **do not propose uninstall** — propose project-scoped `skillOverrides` in `<project>/.claude/settings.local.json` instead (delegate to `skills-auditor` patch A). Uninstall is only appropriate when the plugin is unused across the user's entire history.
+- `scope: project` → uninstall only affects this project. Safe to propose `claude plugin uninstall` for project-local irrelevance.
+
+When the right action is "override, not uninstall," emit it as INFO and reference the skills-auditor's patch A so the user gets a single consolidated fix.
+
+### 6. Classify
 
 | Condition | Classification | Action |
 |---|---|---|
 | 0 agents | `OK` | keep |
 | 1–2 agents, any use in 30 days | `OK` | keep |
-| ≥3 agents, 0 use in 30 days | `CRITICAL CB-PL` | propose uninstall |
+| ≥3 agents, 0 use in 30 days, scope=project | `CRITICAL CB-PL` | propose uninstall |
+| ≥3 agents, 0 use in 30 days, scope=user, evidence of use elsewhere | `WARNING CB-PL` | propose project override (not uninstall) |
+| ≥3 agents, 0 use anywhere in 30 days, scope=user | `CRITICAL CB-PL` | propose uninstall |
 | ≥3 agents, used <3 times in 30 days | `WARNING CB-PL` | flag low-ROI |
 | 1–2 agents, 0 use in 30 days | `INFO CB-PL` | note but don't push |
+
+"Use elsewhere" check: grep transcripts in `~/.claude/projects/*/` excluding the current project's transcript dir. If matches found, the plugin is in use globally — override beats uninstall.
 
 ## Output format
 
