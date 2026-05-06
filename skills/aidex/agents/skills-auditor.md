@@ -39,9 +39,11 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-convention
 
   **Decision matrix** (per skill, after detection):
   - Skill domain matches stack → KEEP `full`
-  - Skill domain unrelated but cheap (small SKILL.md, lazy refs) → KEEP `full`
-  - Skill domain unrelated and heavy (long SKILL.md, multiple refs always loaded) → propose `name-only`
-  - Skill domain provably unused (e.g. `ai-vue-frontend` on a Django-only project, no `package.json` at all) → propose `off`
+  - Skill domain **categorically excluded** by stack (project lacks the prerequisite — no `package.json` for any JS/TS skill, no `pyproject.toml` for Python skills, no Docker for container skills, no web framework for frontend skills) → propose `off`. `name-only` still costs metadata tokens; if there's no plausible scenario where the skill could trigger, `off` is correct.
+  - Skill domain unrelated but **cross-cutting plausible** (e.g. user might paste a PDF, ask for a diagram, request a doc export, even on a non-doc project) → propose `name-only`. Reserve this bucket for content/tooling skills that can fire from any project.
+  - Skill domain unrelated AND cheap (small SKILL.md under ~80 tokens, no refs) → KEEP `full` (savings not worth the override clutter).
+
+  **Bias toward `off` over `name-only`** when stack is narrow (e.g. bash-only, no package manifest at all). `name-only` is for skills with plausible cross-cutting use, not for "maybe someday".
 
   **Patch emission** — always emit BOTH options, they are different mechanisms:
   - **Override patch** (project-scoped, reversible): JSON snippet for `<project>/.claude/settings.local.json` `skillOverrides` field. Best when the skill is irrelevant for THIS project but valuable elsewhere.
