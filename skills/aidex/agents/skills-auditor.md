@@ -27,7 +27,27 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-convention
 - **[SD] Orphaned references**: Files in `references/` not linked from SKILL.md.
 - **[SE] Description quality**: Description >50 chars, includes trigger phrases, has negative triggers.
 - **[SG] User↔project overlap** (check code `CB-DU`): For each skill present in BOTH `~/.claude/skills/` and `<project>/.claude/skills/`, read both frontmatters. If `name` matches AND `description` Jaccard similarity on word sets exceeds 0.7, report WARNING. Propose either deleting the local copy (accept global) or unlinking the global (keep the override). Keeping both pays metadata cost twice.
-- **[SH] Stack relevance**: If `~/.aidex/skill-registry.json` exists and project stack is detectable (via `CLAUDE.md` text or config files), list global skills whose `tags` in the registry do not intersect the project stack. Severity INFO — candidate to move from global to `library` scope (opt-in).
+- **[SH] Stack relevance** (CB-SR): Detect project stack from disk, then rank global/aidex skills by relevance.
+
+  **Stack detection signals** (in order of authority):
+  - `package.json` `dependencies` + `devDependencies` keys → JS/TS frameworks (vue, react, next, svelte, payload), tooling (vite, vitest, playwright)
+  - `pyproject.toml` `[tool.poetry.dependencies]` or `[project.dependencies]` → python frameworks (django, fastapi, flask), AI libs (langchain, pgvector, langfuse, google-genai), async stacks (django-q2)
+  - `Cargo.toml`, `go.mod`, `Gemfile` → other ecosystems
+  - `docker-compose.yml` services → postgres, redis, langfuse, mailhog
+  - File presence: `*.tex`, `*.docx`, `*.pptx` outputs → document skills relevant; absence → skip
+  - `CLAUDE.md` Tech Stack section as tiebreaker, never sole source
+
+  **Decision matrix** (per skill, after detection):
+  - Skill domain matches stack → KEEP `full`
+  - Skill domain unrelated but cheap (small SKILL.md, lazy refs) → KEEP `full`
+  - Skill domain unrelated and heavy (long SKILL.md, multiple refs always loaded) → propose `name-only`
+  - Skill domain provably unused (e.g. `ai-vue-frontend` on a Django-only project, no `package.json` at all) → propose `off`
+
+  **Patch emission** — always emit BOTH options, they are different mechanisms:
+  - **Override patch** (project-scoped, reversible): JSON snippet for `<project>/.claude/settings.local.json` `skillOverrides` field. Best when the skill is irrelevant for THIS project but valuable elsewhere.
+  - **Disable-flag patch** (skill-scoped, global): `disable-model-invocation: true` in the skill's frontmatter. Best when the skill should never auto-trigger anywhere — only via explicit `/skill-name`. Do NOT propose this for skills installed from third-party plugins; it gets overwritten on plugin update.
+
+  Severity: WARNING when proposing `off`, INFO when proposing `name-only`. Never auto-apply.
 
 ### Security (scan SKILL.md AND all files in references/)
 
@@ -49,9 +69,21 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-convention
 ```
 DOMAIN: skills
 INVENTORY: [N skills found across all scopes]
+DETECTED STACK: [list, e.g. python/django, postgres, langfuse]
 
 ISSUES:
 [severity] [check-code] [scope:skill-name] description
+
+STACK RELEVANCE [SH/CB-SR]:
+KEEP (full): [skill-list]
+DEMOTE (name-only): [skill-list — rationale]
+DISABLE (off):       [skill-list — rationale]
+
+PROPOSED PATCHES:
+A. settings.local.json (project: <path>):
+   { "skillOverrides": { "<skill>": "name-only", ... } }
+B. disable-model-invocation flips (per skill):
+   <skill-path>/SKILL.md → set disable-model-invocation: true
 
 COUNTS: critical=N warning=N info=N
 ```
