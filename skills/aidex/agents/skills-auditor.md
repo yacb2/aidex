@@ -38,10 +38,10 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-convention
   - `CLAUDE.md` Tech Stack section as tiebreaker, never sole source
 
   **Decision matrix** (per skill, after detection):
-  - Skill domain matches stack → KEEP `full`
+  - Skill domain matches stack → KEEP `on`
   - Skill domain **categorically excluded** by stack (project lacks the prerequisite — no `package.json` for any JS/TS skill, no `pyproject.toml` for Python skills, no Docker for container skills, no web framework for frontend skills) → propose `off`. `name-only` still costs metadata tokens; if there's no plausible scenario where the skill could trigger, `off` is correct.
   - Skill domain unrelated but **cross-cutting plausible** (e.g. user might paste a PDF, ask for a diagram, request a doc export, even on a non-doc project) → propose `name-only`. Reserve this bucket for content/tooling skills that can fire from any project.
-  - Skill domain unrelated AND cheap (small SKILL.md under ~80 tokens, no refs) → KEEP `full` (savings not worth the override clutter).
+  - Skill domain unrelated AND cheap (small SKILL.md under ~80 tokens, no refs) → KEEP `on` (savings not worth the override clutter).
 
   **Bias toward `off` over `name-only`** when stack is narrow (e.g. bash-only, no package manifest at all). `name-only` is for skills with plausible cross-cutting use, not for "maybe someday".
 
