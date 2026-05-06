@@ -50,6 +50,33 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
 
 Heuristics live in [references/06-context-budget.md](references/06-context-budget.md).
 
+### Apply phase (optional)
+
+After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
+
+1. **Write audit doc.** Save the full report to `.context/audits/YYYYMMDD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `audit` skill if available, else write directly).
+2. **Backup.** Before any mutation, copy to `.aidex-backups/<timestamp>/`:
+   - `settings.local.json` (project and user, if touched)
+   - the entire memory directory
+   - any SKILL.md files about to be edited
+   Add `.aidex-backups/` to `.gitignore` if missing.
+3. **Apply per-item.** Print a numbered diff and ask `apply? [y/n/skip]` per change. Never auto-apply. Patch order (highest savings first):
+   - Plugin uninstall commands
+   - SKILL.md `disable-model-invocation: true` flips for irrelevant skills
+   - `settings.local.json` skillOverrides for `name-only` / `off`
+   - Memory file deletes / MEMORY.md edits
+   - CLAUDE.md trims
+4. **Log.** Append each applied/skipped change to the audit doc's "Actions taken" section so the doc reflects final state.
+
+**Guardrails for apply phase:**
+- Always confirm per item. No batch apply without prompts.
+- Never edit `feedback_*.md` files automatically (MEM-STALE is human-review only).
+- Never delete `~/.aidev-tools/` or other large external trees — escalate to backlog instead.
+- If `.context/decisions/` exists and an entry overlaps (MEM-DEC), prefer linking from MEMORY.md to the decision doc over deleting silently.
+- For third-party plugin skills, do NOT propose `disable-model-invocation` flips — get overwritten on plugin update. Use `settings.local.json` overrides instead.
+
+Memory-specific rules in [references/03-memory-workflow.md](references/03-memory-workflow.md).
+
 ---
 
 ## Phase 0: Discovery
