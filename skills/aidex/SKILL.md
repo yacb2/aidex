@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: AI ecosystem orchestrator — audits and fixes .context/, skills, symlinks, MEMORY.md, CLAUDE.md, plugins, and the skill registry. Use this skill whenever the user asks to audit project health, check documentation freshness, find broken symlinks, clean up MEMORY.md, list or inventory installed skills, verify CLAUDE.md links, reorganize .context/ structure, detect stale or outdated references, check skill relevance for the current project stack, diagnose a bloated /context footprint, reduce initial token cost, audit installed plugins, or optimize their Claude Code ecosystem. Also activates when the user says their project is messy, disorganized, needs cleanup, or "opens heavy" / "wastes too much context". Triggers on /aidex and /aidex context. Do NOT use for creating documentation — use aidex-conventions instead.
+description: AI ecosystem orchestrator — audits and fixes .context/, skills, symlinks, MEMORY.md, CLAUDE.md, and plugins. Use this skill whenever the user asks to audit project health, check documentation freshness, find broken symlinks, clean up MEMORY.md, list or inventory installed skills, verify CLAUDE.md links, reorganize .context/ structure, detect stale or outdated references, check skill relevance for the current project stack, diagnose a bloated /context footprint, reduce initial token cost, audit installed plugins, or optimize their Claude Code ecosystem. Also activates when the user says their project is messy, disorganized, needs cleanup, or "opens heavy" / "wastes too much context". Triggers on /aidex and /aidex context. Do NOT use for creating documentation — use aidex-conventions instead.
 disable-model-invocation: false
 ---
 
@@ -17,7 +17,6 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
-| **Registry** | `~/.aidex/skill-registry.json` | Stack detection, skill relevance, noise, migration candidates |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
 | **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
@@ -87,7 +86,7 @@ Before launching any subagent, scan what exists in the project:
 Check for:
 - .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/, decisions/, audits/)
 - .claude/ (skills/, CLAUDE.md, MEMORY.md)
-- ~/.aidex/ (shared skills, registry)
+- ~/.aidex/ (shared skills storage)
 - ~/.claude/skills/ (global skills)
 ```
 
@@ -110,7 +109,6 @@ Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass the
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | Read, Glob, Bash |
 | [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | haiku | Read, Glob, Grep |
 | [freshness-checker](agents/freshness-checker.md) | `.context/references/` or `.context/docs/` exist | sonnet | Read, Glob, Grep, Bash |
-| [registry-builder](agents/registry-builder.md) | `~/.aidex/skills/` exists | sonnet | Read, Glob, Grep, Bash |
 | [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | Read, Glob, Grep, Bash |
 | [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | Read, Glob, Grep, Bash |
 
@@ -119,7 +117,6 @@ Example launch pattern (all in one message):
 Agent(description="Audit .context/ structure", model=haiku, run_in_background=true, prompt="[context-auditor instructions + project path]")
 Agent(description="Audit skills", model=haiku, run_in_background=true, prompt="[skills-auditor instructions + project path]")
 Agent(description="Check symlinks", model=haiku, run_in_background=true, prompt="[symlink-checker instructions + project path]")
-Agent(description="Scan registry", model=sonnet, run_in_background=true, prompt="[registry-builder instructions + project path]")
 ```
 
 **Wait for ALL launched agents to complete before proceeding to Phase 2.**
@@ -168,7 +165,7 @@ After the report, present actionable suggestions grouped by priority. **Be presc
 ⚠️  Recommended:
   2. [description] → [what aidex will do]
   3. Deep-sync [stale reference] → launches sync subagent
-  4. Migrate [N] irrelevant skills → removes global symlinks
+  4. Silence [N] irrelevant skills → emits skillOverrides patch for settings.local.json
 
 💡 Reorganize:
   5. Consolidate bugs/ + fixes/ → issues/ with ISSUE-NNN format
@@ -204,7 +201,6 @@ For each approved action, execute directly or launch a specialized subagent:
 **Subagent execution (complex operations):**
 - Deep-sync stale references → sonnet subagent with WebFetch + Context7
 - Memory cleanup (full workflow) → haiku subagent
-- Skill migration → sonnet subagent with Bash for symlink operations
 
 **Destructive actions (per-item approval):**
 - Delete orphaned files
@@ -243,6 +239,5 @@ In context-triggered mode, suggest a focused audit rather than a full one:
 - [01-context-checks.md](references/01-context-checks.md) — Detailed .context/ audit checks (A-F)
 - [02-skills-checks.md](references/02-skills-checks.md) — Skills audit checks (A-J) and scope decision matrix
 - [03-memory-workflow.md](references/03-memory-workflow.md) — Memory classification and externalization workflow
-- [04-registry-operations.md](references/04-registry-operations.md) — Registry scan, recommend, migrate operations
 - [05-fix-procedures.md](references/05-fix-procedures.md) — Safe and destructive fix procedures
 - [06-context-budget.md](references/06-context-budget.md) — Idle token budget, drivers, and `/aidex context` heuristics

@@ -72,10 +72,10 @@ Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable conte
 
 ### 6. Stack-irrelevant global skills
 
-A skill loaded globally but unused for the current project stack still pays metadata cost. Cross-reference with `~/.aidex/skill-registry.json` `stacks` mapping (see [04-registry-operations.md](./04-registry-operations.md)).
+A skill loaded globally but unused for the current project stack still pays metadata cost.
 
-- Detect project stack from the project's `CLAUDE.md` or config files.
-- Skills in `~/.claude/skills/` whose tags don't intersect the stack → candidates to move to `library` scope (opt-in per project).
+- Detect project stack from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `docker-compose.yml`, and the project's `CLAUDE.md` Tech Stack section as a tiebreaker.
+- For each global skill in `~/.claude/skills/` whose domain doesn't match the stack, propose a per-project `skillOverrides` patch in `<project>/.claude/settings.local.json` (`name-only` for cross-cutting plausible skills; `off` when categorically excluded). The skill stays installed, just silenced for this project. See `skills-auditor` for the full decision matrix.
 
 ## Parsing `/context` output
 

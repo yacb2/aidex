@@ -40,7 +40,7 @@ For each non-trivial category, identify the contributors:
 
 **skills** — detect duplicates and stack-irrelevant:
 - For each pair (`~/.claude/skills/X`, `<project>/.claude/skills/X`), read both `SKILL.md` frontmatter. If `name` matches, compute Jaccard similarity on `description` words. >0.7 → `CB-DU` WARNING.
-- Check `~/.aidex/skill-registry.json` if present; if project stack is detected, list global skills with tags not intersecting the stack.
+- Detect project stack from `package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod` / `docker-compose.yml`. List global skills under `~/.claude/skills/` whose domain doesn't match the detected stack as `CB-SR` candidates for `skillOverrides` (`name-only` or `off`).
 
 ### 4. Inspect MEMORY.md for disguised docs
 

@@ -20,16 +20,15 @@ aidex solves this with two pillars:
 
 ## Architecture
 
-### Pillar 1: Assistant Configuration (3 Scopes + Symlinks)
+### Pillar 1: Assistant Configuration (storage + symlinks + per-project overrides)
 
 ```
-~/.aidex/                                <-- Installed copy (shared skills)
+~/.aidex/                                <-- Canonical storage
 ├── .manifest                            <-- Tracks what aidex installed
-├── skills/
-│   ├── aidex/                           <-- The orchestrator (from aidex)
-│   ├── aidex-conventions/               <-- Conventions (from aidex)
-│   └── my-personal-skill/              <-- Your own (not in manifest)
-└── skill-registry.json
+└── skills/
+    ├── aidex/                           <-- The orchestrator (from aidex)
+    ├── aidex-conventions/               <-- Conventions (from aidex)
+    └── my-personal-skill/               <-- Your own (not in manifest)
         │
         │  symlinks
         ▼
@@ -39,16 +38,18 @@ aidex solves this with two pillars:
 ├── my-personal-skill -> ~/.aidex/skills/my-personal-skill
 └── ...
 
-project/.claude/skills/                  <-- Project-specific (opt-in)
-├── gsap-core -> ~/.aidex/skills/gsap-core
+project/.claude/skills/                  <-- Project-specific (real files)
 └── local-only-skill/SKILL.md
+
+project/.claude/settings.local.json      <-- Per-project skill silencing
+{ "skillOverrides": { "noisy-skill": "off", "doc-skill": "name-only" } }
 ```
 
 | Scope | Location | Loaded in | Use for |
 |-------|----------|-----------|---------|
-| **Global** | `~/.claude/skills/` (symlink) | All projects | Universal tools |
-| **Library** | `~/.aidex/skills/` (no symlink) | Only projects that opt-in | Stack-specific |
+| **Global** | `~/.aidex/skills/` symlinked into `~/.claude/skills/` | All projects | Personal + reusable skills |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific |
+| **Per-project silencing** | `project/.claude/settings.local.json` `skillOverrides` | That project only | Hide a global skill where it's noise — values: `name-only`, `user-invocable-only`, `off`. Shipped in Claude Code 2.1.131. |
 
 ### Pillar 2: Structured Project Context (`.context/`)
 
@@ -73,7 +74,7 @@ project/.context/
 
 | Skill | Type | What it does |
 |-------|------|-------------|
-| **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits `.context/` (including `audits/`), skills, symlinks, MEMORY.md, registry. Launches parallel subagents, reports findings, suggests and applies fixes. |
+| **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits `.context/` (including `audits/`), skills, symlinks, MEMORY.md, plugins, and the session's idle context budget. Launches parallel subagents, reports findings, suggests and applies fixes. |
 | **`aidex-conventions`** | Context-triggered (passive) | The brain. Conventions for creating and structuring references, docs, plans, audits, skills, and CLAUDE.md. Activates when Claude detects you're creating or working with documentation. |
 | **`audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/audit new <type> <slug>` · `/audit validate` · `/audit escalate <id>` · `/audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
 | **`backlog-register`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/audit escalate` to close the audit→backlog loop. |
@@ -103,7 +104,8 @@ project/.context/
   - symlink-checker (haiku): verifies all symlinks
   - memory-auditor (haiku): checks MEMORY.md bloat
   - freshness-checker (sonnet): detects stale docs
-  - registry-builder (sonnet): analyzes skill placement
+  - plugin-auditor (haiku): flags unused plugin agents
+  - context-cost-analyzer (haiku): attributes idle token cost
 
 → Reports findings with health score
 → Suggests fixes: "Want me to clean MEMORY.md? Archive old plans? Fix broken symlinks?"
