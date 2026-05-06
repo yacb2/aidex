@@ -22,7 +22,7 @@
   {
     "query": "Quiero ver qué skills tengo instalados, cuáles son globales y cuáles son de este proyecto. Dame un inventario completo.",
     "should_trigger": true,
-    "expected_behavior": "Should launch skills-auditor and registry-builder"
+    "expected_behavior": "Should launch skills-auditor for full skill inventory"
   },
   {
     "query": "Las referencias en .context/references/ llevan meses sin actualizarse pero el código ha cambiado mucho. Revisa qué está desactualizado.",
@@ -32,7 +32,7 @@
   {
     "query": "Tengo skills de React instalados globalmente pero este proyecto es solo backend Python. Debería moverlos o quitarlos?",
     "should_trigger": true,
-    "expected_behavior": "Should launch registry-builder to analyze skill relevance and suggest migrations"
+    "expected_behavior": "Should launch skills-auditor to analyze stack relevance and propose skillOverrides patches"
   },
   {
     "query": "/aidex",

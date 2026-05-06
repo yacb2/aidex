@@ -30,19 +30,15 @@ Check for `evals/evals.json` → INFO if missing.
 ### H. Symlink Validation
 All symlinks resolve to existing targets.
 
-### I. Registry Consistency
-Skills in registry match what's on disk. Flag unregistered skills.
-
-### J. Migration Candidates
-- Global skills used by 0-1 projects → candidate for library or archive
-- Stack-specific globals → candidate for opt-in
+### I. Stack Relevance
+Skills loaded globally but irrelevant to the project stack → propose `skillOverrides` patch in `<project>/.claude/settings.local.json`. See [skills-auditor agent](../agents/skills-auditor.md) for the full decision matrix and override values.
 
 ## Scope Decision Matrix
 
-| Signal | Shared (~/.aidex/) | Global (~/.claude/) | Local (.claude/) |
-|--------|-------------------|--------------------|--------------------|
-| Reusable toolkit skill | ✓ | | |
-| Personal, all projects | | ✓ | |
-| Project-specific paths | | | ✓ |
-| Stack-specific, 2+ projects | ✓ (library) | | |
-| Universal devtools | | ✓ | |
+| Signal | Storage in `~/.aidex/skills/` | Symlinked global (`~/.claude/skills/`) | Project local (`.claude/skills/`) |
+|--------|:--:|:--:|:--:|
+| Personal skill, all projects | ✓ | ✓ | |
+| Project-specific paths or behavior | | | ✓ |
+| Stack-specific, irrelevant in some projects | ✓ | ✓ | per-project `skillOverrides` to silence |
+
+There is a single canonical storage (`~/.aidex/skills/`) plus symlinks. Per-project relevance is handled at runtime via `skillOverrides` in `settings.local.json` (`name-only`, `user-invocable-only`, `off`), not by moving files between scopes.

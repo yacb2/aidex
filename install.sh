@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIDEX_DIR="$HOME/.aidex"
 CLAUDE_DIR="$HOME/.claude"
 MANIFEST="$AIDEX_DIR/.manifest"
-VERSION="0.3.0"
+VERSION="0.4.0"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -238,14 +238,6 @@ do_install() {
     fi
   done
 
-  # Bootstrap skill-registry.json if it doesn't exist
-  local registry_template="$AIDEX_DIR/skills/aidex/assets/skill-registry.template.json"
-  local registry_file="$AIDEX_DIR/skill-registry.json"
-  if [ ! -f "$registry_file" ] && [ -f "$registry_template" ]; then
-    cp "$registry_template" "$registry_file"
-    info "Initialized skill-registry.json"
-  fi
-
   # Ensure scripts in any skill are executable
   for scripts_dir in "$AIDEX_DIR"/skills/*/scripts; do
     [ -d "$scripts_dir" ] || continue
@@ -421,12 +413,11 @@ do_update() {
       ;;
   esac
 
-  # Bootstrap skill-registry.json on upgrade if missing
-  local registry_template="$AIDEX_DIR/skills/aidex/assets/skill-registry.template.json"
-  local registry_file="$AIDEX_DIR/skill-registry.json"
-  if [ ! -f "$registry_file" ] && [ -f "$registry_template" ]; then
-    cp "$registry_template" "$registry_file"
-    info "Initialized skill-registry.json"
+  # v0.4.0: registry concept removed. Clean up stale skill-registry.json from older installs.
+  local stale_registry="$AIDEX_DIR/skill-registry.json"
+  if [ -f "$stale_registry" ]; then
+    rm -f "$stale_registry"
+    warn "Removed obsolete skill-registry.json (registry concept dropped in v0.4.0)"
   fi
 
   # Ensure scripts in any skill are executable
