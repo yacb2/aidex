@@ -115,6 +115,10 @@ npm run build     # Production build
 
 CLAUDE.md should link to `.context/` for detailed documentation instead of inlining content:
 
+### Canonical types (recognized by aidex)
+
+All canonical types are **optional** — create only when relevant. Their **absence is not a problem**, and a canonical directory that exists but is empty also indicates health, not bloat. Auditors must NOT suggest deleting an empty canonical directory.
+
 | Directory | Purpose |
 |-----------|---------|
 | `.context/references/` | Project-specific guides (deployment, architecture, setup) |
@@ -125,6 +129,20 @@ CLAUDE.md should link to `.context/` for detailed documentation instead of inlin
 | `.context/issues/` | Bugs, problems, and their fixes (see structure below) |
 | `.context/roadmap/` | Project phases, milestones, what's next |
 | `.context/requests/` | Change requests, meeting notes, external asks |
+| `.context/decisions/` | Architectural / product decisions with status (Active/Superseded/Reversed) |
+| `.context/audits/` | Audit runs (INVENTORY.md, METHODOLOGY.md, CHANGELOG.md, run folders) |
+
+### Acceptable non-canonical types
+
+These are valid when needed but not recognized by aidex auditors. Acceptable if **gitignored** OR **documented in CLAUDE.md** with their purpose.
+
+| Directory | Typical use |
+|-----------|-------------|
+| `.context/drafts/` | In-progress writing not yet ready for a canonical home |
+| `.context/experiments/` | Throwaway exploration, prototypes |
+| `.context/data/` | Sample data, fixtures, exported artifacts |
+
+If an empty directory is **not** in either list above, the auditor may suggest removing it.
 
 ### Issues Structure
 

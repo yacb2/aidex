@@ -21,6 +21,12 @@ Do **NOT** create a `README.md` inside `references/` or `docs/`. Each module has
 
 **Entry point chain:** `CLAUDE.md` → `module/00-index.md` → `module/NN-topic.md`
 
+## Accepted alias: `00-overview.md` in `research/`
+
+The canonical master file name is `00-index.md` everywhere. The single accepted alias is `00-overview.md` **only inside `.context/research/<topic>/`**, where the semantic of "overview of an exploration" reads more naturally than "index of a finished module". Auditors must report this alias as **INFO**, not WARNING.
+
+In all other directories (`audits/`, `decisions/`, `plans/`, `references/`, `docs/`, `roadmap/`), `00-index.md` is the only acceptable name and any other prefix-zero file is a WARNING.
+
 ## File Naming
 
 ### Numbering Rules

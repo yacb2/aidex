@@ -79,8 +79,14 @@ Fast implementation hint: shell out to `~/.aidex/skills/audit/scripts/validate-a
 
 - **[AG] Anti-patterns**:
   - `README.md` inside `references/` or `docs/` → WARNING. Convention: each module has `00-index.md`, CLAUDE.md is the top-level entry point. The README is a maintenance burden that desynchronizes.
-  - Empty directories (0 files) → WARNING. Clean up or explain.
+  - Empty directories — apply this decision matrix (per `~/.aidex/skills/aidex-conventions/references/claudemd-conventions.md` § Project Context Directory):
+    - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs`) → **no finding** (empty canonical is healthy).
+    - Empty + acceptable non-canonical (`drafts, experiments, data`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
+    - Empty + unrecognized → WARNING, suggest removal.
   - Pluralized directory names (`backlogs/` instead of `backlog/`) → WARNING.
+  - `00-overview.md` outside `research/` → WARNING (only `00-index.md` allowed). Inside `research/<topic>/` → INFO (accepted alias).
+
+- **[AI] Workspace `.gitignore` suppression**: Before emitting any finding that suggests adding an entry to `.gitignore` for files under `.context/`, walk up from the directory containing the target until either `.git` is found (emit normally) or the filesystem root is reached. If no `.git` ancestor exists (typical of `*_ws/` workspace roots that aggregate independent repos), **suppress the finding entirely** — there is nothing to gitignore.
 
 - **[AH] Language compliance**: Files with significant content in a language other than English → WARNING. Convention requires English for all generated documentation. **Use Grep deterministically** — do NOT rely on reading and reasoning about the content. Run this search across ALL .md files in .context/:
   
@@ -107,7 +113,7 @@ Beyond compliance checks, actively detect patterns that should be reorganized:
 | No `decisions/` directory | Suggest creating one if the project has non-obvious architectural or product decisions |
 | Files in mixed languages | Flag — convention is English only for generated content |
 | Informal documents ("should become a skill/reference") | Flag as formalization candidates |
-| Empty directories | Flag for cleanup |
+| Empty directories | Apply the [AG] decision matrix — canonical empty = healthy, no flag |
 
 ### Missing Structure Suggestions
 

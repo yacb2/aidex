@@ -1,7 +1,7 @@
 ---
 name: freshness-checker
 description: Detects stale documentation by comparing Last Updated dates against recent project activity
-model: sonnet
+model: haiku
 allowed-tools: Read, Glob, Grep, Bash
 context: fork
 user-invocable: false
@@ -37,6 +37,21 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/reference-conven
 - Use WebFetch to verify (skip if >10 URLs to avoid rate limits)
 - WARNING for 404s or redirects
 
+### Roadmap staleness (`.context/roadmap/` only):
+
+Roadmaps are checkboxed source-of-truth documents. Auto-editing checkbox state from inferred signals is dangerous (can fabricate completion). Detect staleness and flag for human refresh — never auto-mark.
+
+**[F5] Roadmap header age:**
+- Apply [F1] (commits since `Last Updated:`) with the same thresholds.
+
+**[F6] Roadmap structural staleness:**
+- Read each `roadmap/*.md` file. Extract its header `date:` (or `Last Updated:`).
+- Look for plans, audits, or decisions in `.context/plans/`, `.context/audits/*/index.md`, and `.context/decisions/` whose own `date:` is **after** the roadmap's date AND that mention modules / phases referenced in the roadmap.
+- If at least one match is found AND the roadmap still has unchecked `- [ ]` items in the affected phase: emit `WARNING [F6]` with text:
+  - `⚠️ Roadmap refresh pending — <plan-or-audit-or-decision-path> (date: YYYY-MM-DD) post-dates <roadmap-file> and may indicate completed/changed phases.`
+- Include up to 3 pointer paths per roadmap finding.
+- **Never auto-edit checkboxes.** The user reviews and updates.
+
 ### Version checks (`.context/docs/` only):
 
 **[V1] Package versions:**
@@ -52,6 +67,7 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/reference-conven
 | 3-10 commits since update | WARNING |
 | URL returns 404 | WARNING |
 | Version mismatch | WARNING |
+| Roadmap post-dated by plan/audit/decision (F6) | WARNING |
 | <3 commits, minor drift | INFO |
 
 ## Output Format
