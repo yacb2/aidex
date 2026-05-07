@@ -38,9 +38,12 @@ For each non-trivial category, identify the contributors:
 - Scan `~/.claude/plugins/cache/*/*/*/agents/*.md`, group by plugin directory.
 - For each plugin with N ≥ 3 agents, estimate cost = N × 600 tokens, grep recent transcripts under `~/.claude/projects/*/` for invocation of the plugin's command names. Zero matches in last 30 days → flag `CB-PL` CRITICAL.
 
-**skills** — detect duplicates and stack-irrelevant:
+**skills** — detect duplicates, stack-irrelevant, and always-resident bloat:
 - For each pair (`~/.claude/skills/X`, `<project>/.claude/skills/X`), read both `SKILL.md` frontmatter. If `name` matches, compute Jaccard similarity on `description` words. >0.7 → `CB-DU` WARNING.
 - Detect project stack from `package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod` / `docker-compose.yml`. List global skills under `~/.claude/skills/` whose domain doesn't match the detected stack as `CB-SR` candidates for `skillOverrides` (`name-only` or `off`).
+- **Post-compaction budget model.** Claude Code keeps recent skill invocations in context across turns: after auto-compaction, the most recent invocation of each skill is preserved (~5,000 tokens cap per skill, ~25,000 tokens combined budget). Skills not invoked recently can be dropped entirely. This means the *real* cost of an installed skill depends on whether it is **always resident** (built-in or MCP-pinned, loaded every session) or **lifecycle-managed** (auto-trigger or user-invocable, only persists post-invocation).
+- **`CB-SKILL-DESC-RESIDENT` finding** (new): for skills that are always resident — built-ins and any skill pinned via MCP `alwaysLoad: true` — measure their `description` length in `SKILL.md` frontmatter. Report WARNING when description >800 characters; these tokens are paid every session. For lifecycle-managed skills, do NOT emit this finding even with long descriptions: the cost is bounded by the 5k cap and amortized across invocations.
+- When ranking `CB-SR` and `CB-DU` savings, downweight non-resident skills proportionally (their max contribution is `min(skill_size, 5k)` per session, not full size).
 
 ### 4. Inspect MEMORY.md for disguised docs
 
@@ -77,6 +80,7 @@ BREAKDOWN:
 DRIVERS:
 ❌ CRITICAL [CB-XX] description — est savings: ~N,NNN
 ⚠️  WARNING  [CB-XX] description — est savings: ~N,NNN
+⚠️  WARNING  [CB-SKILL-DESC-RESIDENT] <skill> — description ~N chars, always-resident — est savings: ~N
 ℹ️  INFO     [CB-XX] description — est savings: ~N,NNN
 
 SUGGESTED ACTIONS (ordered by savings):
