@@ -1,0 +1,102 @@
+[
+  {
+    "query": "I want to do a full UX audit of the checkout flow. We've been getting complaints for months that users abandon at the payment step, and now that we're about to launch the mobile version I want to catalog everything that's broken before we touch it.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a new ux-audit run and propose using the ux playbook"
+  },
+  {
+    "query": "Before we ship the v2 release next month, I want to do a full security audit of the API surface — auth flows, rate limiting, input validation, the works. Where do we typically catalog this kind of thing?",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a security-audit run and reference the security playbook"
+  },
+  {
+    "query": "The listing pages are super slow, especially the bookings page with 500+ items. I want to do a full performance audit: TTFB, Core Web Vitals, query analysis, the whole thing.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a perf-audit run"
+  },
+  {
+    "query": "We need to be WCAG 2.1 AA compliant for the public-sector client contract. We have to run a complete accessibility audit of the app.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold an a11y-audit run"
+  },
+  {
+    "query": "It's been 5 sprints since the last UX audit of the onboarding flow. I want to retest the open findings to see which ones got fixed and which ones are still there.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a retest run referencing the previous audit"
+  },
+  {
+    "query": "I just noticed the timeout error on the export modal isn't documented anywhere. I want to register it as a finding under the audit we have open: 20260415-checkout-redesign.",
+    "should_trigger": true,
+    "expected_behavior": "Should add a finding to the existing audit's INVENTORY.md"
+  },
+  {
+    "query": "Finding BUG-03-2 from last week's audit is now prioritized for the next sprint. Push it to the backlog so the team can pick it up.",
+    "should_trigger": true,
+    "expected_behavior": "Should call /audit escalate to move the finding to backlog"
+  },
+  {
+    "query": "I want to catalog all the bugs, gaps and opportunities that the reports module currently has. This isn't a fix — it's understanding the full state of the module before we plan the rework.",
+    "should_trigger": true,
+    "expected_behavior": "Should suggest creating an audit (state-of-project catalog)"
+  },
+  {
+    "query": "After last week's audit we changed our severity criteria. I want to update the methodology and log it in the changelog so future audits follow the new criteria.",
+    "should_trigger": true,
+    "expected_behavior": "Should update METHODOLOGY.md and append to CHANGELOG.md"
+  },
+  {
+    "query": "We have several folders inside .context/plans/ that are actually old audits (UX-checkout-2025, security-review-q3). We should migrate them to the new format under .context/audits/.",
+    "should_trigger": true,
+    "expected_behavior": "Should run /audit migrate to detect and move legacy audit folders"
+  },
+  {
+    "query": "My Claude Code setup is a mess — I have skills from old projects, a 200-line MEMORY.md, symlinks I'm not sure still work. Audit my whole ecosystem and tell me what to clean.",
+    "should_trigger": false,
+    "expected_behavior": "This is a Claude ecosystem audit, not a project-state audit — should route to aidex"
+  },
+  {
+    "query": "Create a plan to implement push notifications with Firebase Cloud Messaging. I need 3 phases: backend, mobile and testing.",
+    "should_trigger": false,
+    "expected_behavior": "This is plan creation — should route to aidex-conventions"
+  },
+  {
+    "query": "Document the decision to stick with PostgreSQL instead of migrating to CockroachDB. I want a formal ADR with context, options, outcome.",
+    "should_trigger": false,
+    "expected_behavior": "This is a decision record — should route to aidex-conventions"
+  },
+  {
+    "query": "Reminder: add to the backlog the idea of migrating the frontend to Vite at some point. Not a priority but I don't want to lose it.",
+    "should_trigger": false,
+    "expected_behavior": "This is a backlog entry — should route to backlog-register"
+  },
+  {
+    "query": "There's a bug in the bookings form: when the user submits with an empty field, the error doesn't show up in the UI even though it comes back from the backend. Fix it.",
+    "should_trigger": false,
+    "expected_behavior": "This is a direct bug fix, not an audit"
+  },
+  {
+    "query": "Review my PR #128 before merging. I want to make sure the changes to the payment service don't break anything.",
+    "should_trigger": false,
+    "expected_behavior": "This is a code/PR review, not an audit"
+  },
+  {
+    "query": "Run the auth module tests and tell me if they all pass. If not, what failed and why.",
+    "should_trigger": false,
+    "expected_behavior": "This is test execution, not an audit"
+  },
+  {
+    "query": "Deploy the feature/new-pricing branch to staging so the QA team can test it tomorrow in the client demo.",
+    "should_trigger": false,
+    "expected_behavior": "This is a deployment task, not an audit"
+  },
+  {
+    "query": "Refactor the UserDashboard component to use server components instead of client-side fetch. Keep the same functionality but improve the rendering.",
+    "should_trigger": false,
+    "expected_behavior": "This is a refactor, not an audit"
+  },
+  {
+    "query": "Update Next.js from 14 to 15. Check the breaking changes and adjust whatever needs adjusting.",
+    "should_trigger": false,
+    "expected_behavior": "This is a dependency update, not an audit"
+  }
+]
