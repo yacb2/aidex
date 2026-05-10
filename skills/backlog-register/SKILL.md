@@ -1,6 +1,6 @@
 ---
 name: backlog-register
-description: Register items in .context/backlog/ with consistent front-matter. Auto-detects origin when called from the audit skill. Triggers on /backlog-register, or phrases like "add to backlog", "park this", "defer", "queue for later", "backlog this idea". Do NOT use for creating plans (that's aidex-conventions) or for auditing.
+description: Registers items in .context/backlog/ with consistent front-matter (title, status, origin, priority, estimate). Auto-detects origin when called from the audit skill via /audit escalate. Triggers on /backlog-register, /backlog-register --list, and on natural-language asks like — "add to backlog" / "add this to the backlog" / "park this for later" / "park this idea" / "defer this" / "shelve this" / "queue this for later" / "track this for later" / "we'll do this later" / "not now but don't forget" / "backlog this idea" / "tech debt entry" / "remind me to do X later". Do NOT use for: creating plans or roadmap items → use aidex-conventions; project-state audits or finding registration → use audit; ecosystem audits → use aidex.
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
