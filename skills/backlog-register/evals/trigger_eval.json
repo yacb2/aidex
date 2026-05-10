@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Add to the backlog the idea of migrating from Webpack to Vite. It's not urgent but I want to track it so we don't forget when we have bandwidth.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a backlog entry with origin=manual and low priority"
+  },
+  {
+    "query": "Park this for next quarter: replacing the current notification queue with something based on Redis Streams. We discussed it today but it's not a fit for this sprint.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a backlog entry capturing the deferred work"
+  },
+  {
+    "query": "Quick reminder so I don't forget: we should refactor the date-picker component to use react-aria. Track it for later, no specific deadline.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a backlog item titled around the date-picker refactor"
+  },
+  {
+    "query": "We're not going to do this right now but don't lose it: the admin panel needs proper role-based access control. Tech debt entry, P2 priority.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a tech-debt backlog entry with P2 priority"
+  },
+  {
+    "query": "Defer this one: the email template overhaul. We can revisit when the marketing team is back from offsite.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a deferred backlog entry"
+  },
+  {
+    "query": "Queue this for later — we want eventually to have proper i18n with locale-specific currency formatting. Not now though, the team is heads-down on the launch.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a backlog entry for the i18n work"
+  },
+  {
+    "query": "Show me what's currently in the backlog. Want to see the open items and their priorities before tomorrow's planning.",
+    "should_trigger": true,
+    "expected_behavior": "Should run /backlog-register --list to display open items"
+  },
+  {
+    "query": "Finding BUG-04-3 from yesterday's UX audit is approved for the next sprint. Move it to the backlog with origin=audit and the right reference.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a backlog entry with origin=audit and origin_ref pointing to the finding"
+  },
+  {
+    "query": "Shelve the new analytics dashboard idea — leadership wants us to focus on retention features for the next two months. Keep it tracked though.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a shelved/deferred backlog entry"
+  },
+  {
+    "query": "Track this for later: someone in the dev channel suggested we should expose webhook signatures with HMAC verification. Reasonable idea, not urgent.",
+    "should_trigger": true,
+    "expected_behavior": "Should register a backlog entry with origin=manual"
+  },
+  {
+    "query": "Create a plan to implement the new booking calendar. It needs drag-and-drop, time-slot selection, and recurring events. Multi-phase work.",
+    "should_trigger": false,
+    "expected_behavior": "This is plan creation — should route to aidex-conventions"
+  },
+  {
+    "query": "We need to do a UX audit of the signup flow. Activation rates dropped 15% this month and we want to find what changed.",
+    "should_trigger": false,
+    "expected_behavior": "This is an audit run — should route to audit"
+  },
+  {
+    "query": "My Claude Code setup feels heavy — every project opens at like 22% context. Audit my ecosystem and find what to trim.",
+    "should_trigger": false,
+    "expected_behavior": "This is an ecosystem audit — should route to aidex"
+  },
+  {
+    "query": "Document the decision to use Postgres instead of MongoDB for analytics. I want a proper ADR with the trade-offs we considered.",
+    "should_trigger": false,
+    "expected_behavior": "This is a decision record — should route to aidex-conventions"
+  },
+  {
+    "query": "Implement the password reset flow now. Use the new email service, send a magic link, expire it after 30 minutes.",
+    "should_trigger": false,
+    "expected_behavior": "This is direct implementation work, not a backlog entry"
+  },
+  {
+    "query": "There's a CORS issue when the frontend in dev tries to hit the backend. The error mentions Access-Control-Allow-Origin missing. Help me debug.",
+    "should_trigger": false,
+    "expected_behavior": "This is a debugging task, not a backlog entry"
+  },
+  {
+    "query": "Run the e2e tests for the checkout module and tell me if they pass.",
+    "should_trigger": false,
+    "expected_behavior": "This is test execution, not a backlog entry"
+  },
+  {
+    "query": "Commit the changes I have staged with a message about the rate-limiting middleware fix.",
+    "should_trigger": false,
+    "expected_behavior": "This is a git operation, not a backlog entry"
+  },
+  {
+    "query": "The product manager just sent over the requirements for the new analytics dashboard. Capture this as a formal request with the deadline she mentioned (April 30th).",
+    "should_trigger": false,
+    "expected_behavior": "This is a request capture — should route to aidex-conventions"
+  },
+  {
+    "query": "Investigate how Stripe handles partial refunds with split payments. I need to understand it before I plan the implementation.",
+    "should_trigger": false,
+    "expected_behavior": "This is research — should route to aidex-conventions"
+  }
+]
