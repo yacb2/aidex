@@ -19,7 +19,8 @@ Create consistent, machine-readable entries in `.context/backlog/` with origin t
 | `/backlog-register --origin manual --title "<title>"` | same | Non-interactive manual entry |
 | `/backlog-register --origin audit --finding <id>` | same | From an audit finding (called by `/audit escalate`) |
 | `/backlog-register --origin issue --issue <id>` | same | From an issue tracker ID |
-| `/backlog-register --list` | same | List current open entries |
+| `/backlog-register --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
+| `bash scripts/migrate-priorities.sh [--dry-run]` | [scripts/migrate-priorities.sh](scripts/migrate-priorities.sh) | Idempotent: normalize legacy `**Priority**: High/Low/...` to P0–P3 codes |
 
 ---
 
@@ -43,7 +44,8 @@ title: <one-line title>
 status: open | doing | done | dropped
 origin: manual | audit | issue | request
 origin_ref: <reference — finding ID, issue ID, request file, or empty>
-priority: P0 | P1 | P2 | P3
+priority: P0 | P1 | P2 | P3   # code only, never free text — see references/01-backlog-conventions.md
+blocked_by: ""                # optional, when waiting on third party (priority stays)
 estimate: XS | S | M | L | XL
 created: YYYY-MM-DD
 updated: YYYY-MM-DD

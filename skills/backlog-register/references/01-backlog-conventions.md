@@ -28,6 +28,7 @@ status: open
 origin: audit
 origin_ref: audit/20260415-ux-review/IDEA-FF-2
 priority: P2
+blocked_by: ""
 estimate: M
 created: 2026-04-15
 updated: 2026-04-15
@@ -40,10 +41,37 @@ updated: 2026-04-15
 | `status` | `open` · `doing` · `done` · `dropped` | Use transitions, don't skip |
 | `origin` | `manual` · `audit` · `issue` · `request` | Where this came from |
 | `origin_ref` | Reference string or empty | Format depends on origin — see below |
-| `priority` | `P0` · `P1` · `P2` · `P3` | P0 = critical, P3 = nice to have |
-| `estimate` | `XS` · `S` · `M` · `L` · `XL` | T-shirt sizing, not hours |
+| `priority` | `P0` · `P1` · `P2` · `P3` | Use the code, never free text. See [Priority taxonomy](#priority-taxonomy) below |
+| `blocked_by` | Free text or empty | Optional modifier — when set, priority stays but item is parked waiting on third party |
+| `estimate` | `XS` · `S` · `M` · `L` · `XL` | T-shirt sizing, not hours. Independent of priority |
 | `created` | `YYYY-MM-DD` | Immutable |
 | `updated` | `YYYY-MM-DD` | Updated on every status change |
+
+---
+
+## Priority taxonomy
+
+The `priority` field is a **code**, never free text. Four levels plus a `blocked_by` modifier.
+
+| Level | Label | Criteria | Target time |
+|---|---|---|---|
+| **P0** | Critical | Production bug breaking operations · active security breach · CI blocked · data loss | This week |
+| **P1** | High | Blocking feature for a flow · data quality/correctness · severe regression · external commitment | Next 2 weeks |
+| **P2** | Medium | Important non-blocking improvement · scoped tech debt · significant UX issue | Next release |
+| **P3** | Low | Nice-to-have · cosmetic refactor · pull-driven | No date |
+
+**Blocked modifier:** when an item is waiting on a third party or unresolved dependency, keep its `priority` (do NOT downgrade) and set `blocked_by: "<who/what>"`. Listings surface it under a separate "Blocked" section.
+
+Re-evaluate priorities every two weeks. If you find yourself wanting `P1.5` or `Medium-High`, pick one — the taxonomy is intentionally coarse.
+
+### Legacy mapping (auto-applied by `migrate-priorities.sh`)
+
+| Legacy value | → | New code |
+|---|---|---|
+| `Critical`, `Urgent`, `URGENT` | → | `P0` |
+| `High`, `high` | → | `P1` |
+| `Medium`, `medium`, `Planned` | → | `P2` |
+| `Low`, `low` | → | `P3` |
 
 ### `origin_ref` formats
 
