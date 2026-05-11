@@ -10,11 +10,12 @@
 #   --audit-run <slug>             (when --origin audit) run folder name
 #   --issue <id>                   (when --origin issue) issue ID
 #   --request <file>               (when --origin request) request file path
-#   --priority <P0|P1|P2|P3>       default: P2
+#   --priority <P0|P1|P2|P3>       default: P2 (code only — see references/01-backlog-conventions.md)
+#   --blocked-by "<who/what>"      optional Blocked modifier; priority is kept, item listed under Blocked
 #   --estimate <XS|S|M|L|XL>       default: M
 #   --status <open|doing|done|dropped>  default: open
 #   --slug <kebab-case>            override auto-generated slug
-#   --list                         list open entries and exit
+#   --list                         list open entries grouped by priority (P0 → P3 + Blocked)
 #
 # Interactive mode (no args): prompts for title, origin, priority.
 #
@@ -65,7 +66,8 @@ FINDING=""
 AUDIT_RUN=""
 ISSUE=""
 REQUEST=""
-PRIORITY="P2"
+PRIORITY=""
+BLOCKED_BY=""
 ESTIMATE="M"
 STATUS="open"
 SLUG_OVERRIDE=""
@@ -80,6 +82,7 @@ while [[ $# -gt 0 ]]; do
     --issue)       ISSUE="$2"; shift 2 ;;
     --request)     REQUEST="$2"; shift 2 ;;
     --priority)    PRIORITY="$2"; shift 2 ;;
+    --blocked-by)  BLOCKED_BY="$2"; shift 2 ;;
     --estimate)    ESTIMATE="$2"; shift 2 ;;
     --status)      STATUS="$2"; shift 2 ;;
     --slug)        SLUG_OVERRIDE="$2"; shift 2 ;;
@@ -95,27 +98,64 @@ done
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
 
-# --- handle --list ---
+# --- handle --list (grouped by priority, with Blocked section) ---
 if [[ $LIST_ONLY -eq 1 ]]; then
   if [[ ! -d "$BACKLOG_DIR" ]]; then
     warn "no backlog directory at $BACKLOG_DIR"
     exit 0
   fi
-  printf '%sOpen backlog entries:%s\n\n' "$C_BOLD" "$C_RESET"
-  found=0
+
+  read_field() {
+    awk -F': ' -v key="$1" '
+      $1 == key { sub(/^[^:]*: */, ""); gsub(/^"|"$/, ""); print; exit }
+    ' "$2" | xargs
+  }
+
+  declare -a P0=() P1=() P2=() P3=() PUNK=() BLOCKED=()
   for f in "$BACKLOG_DIR"/*.md; do
     [[ -f "$f" ]] || continue
-    status="$(awk -F': ' '/^status:/ {gsub(/"/, "", $2); print $2; exit}' "$f" | xargs)"
+    status="$(read_field status "$f")"
     [[ "$status" == "open" ]] || continue
-    title="$(awk -F': ' '/^title:/ {gsub(/"/, "", $2); print $2; exit}' "$f" | xargs)"
-    priority="$(awk -F': ' '/^priority:/ {gsub(/"/, "", $2); print $2; exit}' "$f" | xargs)"
-    origin="$(awk -F': ' '/^origin:/ {gsub(/"/, "", $2); print $2; exit}' "$f" | xargs)"
-    printf '  %s[%s]%s %s %s(%s)%s\n    %s%s%s\n\n' \
-      "$C_YELLOW" "${priority:-??}" "$C_RESET" "$title" "$C_DIM" "$origin" "$C_RESET" \
-      "$C_DIM" "$f" "$C_RESET"
-    found=1
+    title="$(read_field title "$f")"
+    priority="$(read_field priority "$f")"
+    origin="$(read_field origin "$f")"
+    blocked="$(read_field blocked_by "$f")"
+    line="$(printf '  - %s %s(%s)%s\n      %s%s%s' \
+      "${title:-(untitled)}" "$C_DIM" "${origin:-?}" "$C_RESET" \
+      "$C_DIM" "$f" "$C_RESET")"
+    if [[ -n "$blocked" ]]; then
+      BLOCKED+=("$(printf '  - [%s] %s — blocked by: %s\n      %s%s%s' \
+        "${priority:-??}" "${title:-(untitled)}" "$blocked" "$C_DIM" "$f" "$C_RESET")")
+      continue
+    fi
+    case "$priority" in
+      P0) P0+=("$line") ;;
+      P1) P1+=("$line") ;;
+      P2) P2+=("$line") ;;
+      P3) P3+=("$line") ;;
+      *)  PUNK+=("$(printf '  - [%s] %s\n      %s%s%s' \
+            "${priority:-??}" "${title:-(untitled)}" "$C_DIM" "$f" "$C_RESET")") ;;
+    esac
   done
-  [[ $found -eq 0 ]] && printf '  (no open entries)\n'
+
+  print_section() {
+    local title="$1" color="$2"; shift 2
+    local items=("$@")
+    [[ ${#items[@]} -eq 0 ]] && return
+    printf '\n%s%s%s\n' "$color$C_BOLD" "$title" "$C_RESET"
+    printf '%s\n' "${items[@]}"
+  }
+
+  printf '%sOpen backlog entries (grouped by priority):%s\n' "$C_BOLD" "$C_RESET"
+  print_section "P0 — Critical"   "$C_RED"    "${P0[@]:-}"
+  print_section "P1 — High"       "$C_YELLOW" "${P1[@]:-}"
+  print_section "P2 — Medium"     "$C_BLUE"   "${P2[@]:-}"
+  print_section "P3 — Low"        "$C_DIM"    "${P3[@]:-}"
+  print_section "Blocked (third-party)" "$C_DIM" "${BLOCKED[@]:-}"
+  print_section "Unclassified (legacy — run migrate-priorities.sh)" "$C_RED" "${PUNK[@]:-}"
+
+  total=$((${#P0[@]} + ${#P1[@]} + ${#P2[@]} + ${#P3[@]} + ${#PUNK[@]} + ${#BLOCKED[@]}))
+  [[ $total -eq 0 ]] && printf '\n  (no open entries)\n'
   exit 0
 fi
 
@@ -138,11 +178,23 @@ if [[ -z "$TITLE" && -t 0 ]]; then
 fi
 [[ -z "$TITLE" ]] && die "--title is required (or run interactively)"
 
-if [[ "$PRIORITY" == "P2" && -t 0 && $# -eq 0 ]]; then
-  : # keep default silently when running under TTY with no args, already handled
+if [[ -z "$PRIORITY" && -t 0 ]]; then
+  printf '\n%sPriority taxonomy:%s\n' "$C_BOLD" "$C_RESET" >&2
+  printf '  %sP0%s — Critical   Production bug · security breach · CI blocked · data loss        (this week)\n' "$C_RED" "$C_RESET" >&2
+  printf '  %sP1%s — High       Blocking flow · data quality · severe regression · external SLA  (2 weeks)\n' "$C_YELLOW" "$C_RESET" >&2
+  printf '  %sP2%s — Medium     Important non-blocking · scoped tech debt · significant UX       (next release)\n' "$C_BLUE" "$C_RESET" >&2
+  printf '  %sP3%s — Low        Nice-to-have · cosmetic refactor · pull-driven                   (no date)\n' "$C_DIM" "$C_RESET" >&2
+  printf '\nPriority [P0/P1/P2/P3] (default: P2): ' >&2
+  read -r PRIORITY
+  PRIORITY="${PRIORITY:-P2}"
 fi
+PRIORITY="${PRIORITY:-P2}"
 
-case "$PRIORITY" in P0|P1|P2|P3) ;; *) die "invalid priority: $PRIORITY" ;; esac
+case "$PRIORITY" in
+  P0|P1|P2|P3) ;;
+  p0|p1|p2|p3) PRIORITY="$(echo "$PRIORITY" | tr '[:lower:]' '[:upper:]')" ;;
+  *) die "invalid priority: '$PRIORITY' (must be P0, P1, P2, or P3 — see references/01-backlog-conventions.md)" ;;
+esac
 case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
 case "$STATUS"   in open|doing|done|dropped) ;; *) die "invalid status: $STATUS" ;; esac
 
@@ -197,6 +249,7 @@ status: $STATUS
 origin: $ORIGIN
 origin_ref: ${ORIGIN_REF:-}
 priority: $PRIORITY
+blocked_by: "$BLOCKED_BY"
 estimate: $ESTIMATE
 created: $DATE_ISO
 updated: $DATE_ISO
