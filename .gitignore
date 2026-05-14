@@ -5,7 +5,7 @@
 
 # Workspace-private (per CLAUDE.md)
 .claude/
-.context/
+/.context/
 .aidex-backups/
 .dt/
 CLAUDE.md

@@ -24,6 +24,20 @@ fi
 
 [[ -d "$AUDITS_DIR" ]] || die "no audits directory at $AUDITS_DIR"
 
+# Strip trailing slash for consistent basename matching.
+AUDITS_DIR="${AUDITS_DIR%/}"
+
+# If user passed a run sub-folder (e.g. .context/audits/20260513-frontend-architecture/),
+# resolve up to the parent .context/audits/ that holds the canonical INVENTORY/METHODOLOGY/CHANGELOG.
+AUDITS_BASENAME="$(basename "$AUDITS_DIR")"
+if [[ "$AUDITS_BASENAME" =~ ^[0-9]+- ]]; then
+  PARENT_DIR="$(dirname "$AUDITS_DIR")"
+  if [[ -f "$PARENT_DIR/INVENTORY.md" ]]; then
+    info "resolved run folder '$AUDITS_BASENAME' → audits root '$PARENT_DIR'"
+    AUDITS_DIR="$PARENT_DIR"
+  fi
+fi
+
 VIOLATIONS=()
 WARNINGS=()
 runs=0

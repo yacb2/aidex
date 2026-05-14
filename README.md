@@ -25,9 +25,11 @@ aidex solves this with two pillars:
 ```
 ~/.aidex/                                <-- Canonical storage
 ├── .manifest                            <-- Tracks what aidex installed
+├── rules/                               <-- Global session rules (auto-loaded by Claude Code)
+│   └── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
 └── skills/
     ├── aidex/                           <-- The orchestrator (from aidex)
-    ├── aidex-conventions/               <-- Conventions (from aidex)
+    ├── aidex-conventions/               <-- Conventions skill (from aidex)
     └── my-personal-skill/               <-- Your own (not in manifest)
         │
         │  symlinks
@@ -69,6 +71,10 @@ project/.context/
 ```
 
 ## What's included
+
+### Global rule
+
+`rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
 
 ### 4 skills
 

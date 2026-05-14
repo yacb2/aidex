@@ -1,0 +1,92 @@
+# {{METHODOLOGY_NAME}} Methodology — {{PROJECT_NAME}}
+
+Playbook and shared principles for **{{METHODOLOGY}}** audits in this project.
+
+**Last updated:** {{DATE}}
+
+See [`00-changelog.md`](00-changelog.md) for evolution of this methodology.
+
+> Shared rules (date format, archive, language, cross-references, front-matter) live in [`00-global.md`](../../../skills/aidex-conventions/references/00-global.md). This file only declares what is specific to **{{METHODOLOGY}}**.
+
+---
+
+## Shared principles
+
+### 1. Finding ≠ Issue ≠ Task
+
+- **Finding** — observation, lives in [`00-inventory.md`](00-inventory.md).
+- **Backlog entry** — the finding queued for work, lives in `.context/backlog/`.
+- **Task/plan** — active work, lives in `.context/plans/`.
+
+### 2. `00-inventory.md` is single source of truth
+
+Every finding has exactly one canonical row in this methodology's `00-inventory.md`. Per-run `findings.md` files are filtered views. Never add findings directly to a per-run file.
+
+### 3. Living methodology
+
+This file evolves. When you add, remove, or change a check, log it in [`00-changelog.md`](00-changelog.md) with the reason.
+
+### 4. Findings are never deleted
+
+Use status transitions per [`00-global.md` §6](../../../skills/aidex-conventions/references/00-global.md#6-status-vocabulary): `open` → `doing` → `done` / `dropped`. A dropped finding keeps its row with the drop reason in `Notes`.
+
+### 5. Escalation flow
+
+```
+audit run → finding row → backlog entry → plan → commit → re-test → finding done
+```
+
+The `Escalated To` column carries the cross-reference (`<type>/<filename>` per [§3](../../../skills/aidex-conventions/references/00-global.md#3-cross-references-d-03)).
+
+### 6. Shared concerns flagged
+
+Cross-module findings within this methodology are tagged `[SHARED]` in the Module column.
+
+---
+
+## ID convention
+
+<!-- Choose one, document here, stay consistent within this methodology. -->
+
+**This methodology uses:** `<CATEGORY>-<MODULE>-<N>` (structured)
+<!-- or: `<PREFIX>-<N>` (global) -->
+
+**Categories used:**
+- `BUG` — defect
+- `GAP` — missing capability
+- `IDEA` — opportunity / enhancement
+- `RISK` — potential future problem
+- `REGRESSION` — previously closed finding reopened
+
+IDs are namespaced by this methodology folder — `BUG-01-3` here is different from `BUG-01-3` in another methodology.
+
+---
+
+## Checks
+
+<!-- Replace with the actual checks this methodology runs. -->
+
+| Check | What it looks for | When to flag |
+|---|---|---|
+| <!-- e.g., Auth boundaries --> | <!-- description --> | <!-- threshold --> |
+
+---
+
+## Audit run workflow
+
+1. **Create** — `/audit new {{METHODOLOGY}} <slug>` scaffolds `YYYY-MM-DD-<slug>/` inside this methodology folder with `index.md` and `findings.md`.
+2. **Apply playbook** — follow the checks above.
+3. **Record findings** — add rows to [`00-inventory.md`](00-inventory.md), reference IDs from the run's `findings.md`.
+4. **Triage** — update `Notes` after assessment; status stays `open` until escalated.
+5. **Escalate** — `/audit escalate <id>` creates a backlog entry and sets `Escalated To` + `status: done` in the row.
+6. **Re-test** — `/audit new retest <next-slug>` after fixes land; findings that still reproduce stay `open`.
+7. **Validate** — `/audit validate` checks coherence inventory ↔ findings ↔ backlog.
+
+---
+
+## Anti-patterns
+
+- **Audits inside `.context/plans/`** — use `/audit migrate`.
+- **Per-run findings without inventory link** — run `/audit validate`.
+- **Mixed ID conventions within this methodology** — pick one.
+- **Methodology edits without `00-changelog.md` entry** — future-you will not remember why.

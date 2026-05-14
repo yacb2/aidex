@@ -2,116 +2,112 @@
 
 Standards for cataloging the state of a project — bugs, gaps, opportunities, risks — and tracking their lifecycle from discovery to resolution.
 
+> **Read [`00-global.md`](00-global.md) first.** This document only declares what is genuinely audit-specific. Filename dates, archive policy, cross-reference format, language, and minimum front-matter all live in `00-global.md`.
+
+---
+
 ## Purpose
 
 An **audit** describes what **is** (the current state). A **plan** describes what **will be** (the intended work). These two are distinct and must not be mixed in the same document tree.
 
 When audits and plans blur into each other, findings get lost, duplicated across audit runs, or silently outdated. The `.context/audits/` convention separates them cleanly.
 
+---
+
 ## When to use what
 
-| You have... | Create a... | Location |
+| You have… | Create a… | Location |
 |---|---|---|
-| A project-wide review listing issues, gaps, or risks | Audit | `.context/audits/YYYYMMDD-<slug>/` |
-| A specific bug, opportunity, or issue discovered during an audit | Finding (row in INVENTORY) | `.context/audits/INVENTORY.md` |
-| An actionable unit of work to fix or ship something | Plan | `.context/plans/YYYYMMDD-<slug>/` |
-| An architectural or product decision | Decision | `.context/decisions/YYYYMMDD-<slug>.md` |
-| A stakeholder ask | Request | `.context/requests/YYYYMMDD-<slug>.md` |
+| A project-wide review listing issues, gaps, or risks for one methodology | Audit run | `.context/audits/<methodology>/YYYY-MM-DD-<slug>/` |
+| A specific bug, opportunity, or issue discovered during a run | Finding (row) | `.context/audits/<methodology>/00-inventory.md` |
+| An actionable unit of work to fix or ship something | Plan | `.context/plans/YYYY-MM-DD-<slug>/` |
+| An architectural or product decision | Decision | `.context/decisions/YYYY-MM-DD-<slug>.md` |
+| A stakeholder ask | Request | `.context/requests/YYYY-MM-DD-<slug>.md` |
 | Evergreen project knowledge (architecture, conventions) | Reference | `.context/references/<topic>/` |
 
-An audit produces findings → a finding escalated to work becomes a backlog entry or a plan. The audit entry stays as the historical record.
+A finding escalated to work becomes a backlog entry or a plan via `escalated_to: backlog/<…>` or `escalated_to: plan/<…>`. The finding row stays as the historical record.
 
-## Core Principles
+---
+
+## Canonical structure (D-02)
+
+ADR: [`2026-05-14-audit-grouped-by-methodology.md`](../../../.context/decisions/2026-05-14-audit-grouped-by-methodology.md)
+
+Audits are grouped **by methodology**. There is no global `INVENTORY.md`, `METHODOLOGY.md`, or `CHANGELOG.md` at `.context/audits/`.
+
+```
+.context/audits/
+├── ux/
+│   ├── 00-methodology.md            # Playbook for UX audits in this project
+│   ├── 00-inventory.md              # Canonical findings list — ALL UX findings
+│   ├── 00-changelog.md              # Keep-a-Changelog for the methodology
+│   └── 2026-05-14-pre-release/      # One audit run (immutable)
+│       ├── index.md
+│       └── findings.md              # Filtered view of 00-inventory.md
+├── security/
+│   ├── 00-methodology.md
+│   ├── 00-inventory.md
+│   ├── 00-changelog.md
+│   └── 2026-05-01-owasp-baseline/
+└── perf/
+    └── …
+```
+
+**Why per-methodology?** A P0 in security ("auth bypass") and a P0 in UX ("primary CTA hidden on mobile") share a label but not a meaning. Comparing them in one inventory is misleading. Each methodology has its own severity rubric, cadence, and owner.
+
+**Why lowercase `00-*.md` filenames?** Aligns with `00-index.md` everywhere else; the leading `00-` keeps them sorted to the top of the methodology folder.
+
+**Audit run folder name:** `YYYY-MM-DD-<slug>/` per D-01.
+
+---
+
+## Core principles
 
 ### 1. Finding ≠ Issue ≠ Task
 
 Three distinct objects with links, not copies:
 
-- **Finding** — an observation in an audit (lives in `INVENTORY.md`, referenced from `findings.md` views)
-- **Backlog entry** — the finding queued for later work (lives in `.context/backlog/`)
-- **Task/plan** — active work executing on one or more findings (lives in `.context/plans/`)
+- **Finding** — observation in an audit. Lives in `audits/<methodology>/00-inventory.md`, surfaced from a run's `findings.md`.
+- **Backlog entry** — the finding queued for later work. Lives in `.context/backlog/`.
+- **Task/plan** — active work executing on one or more findings. Lives in `.context/plans/`.
 
-A single finding may escalate to multiple tasks, or be dropped. Its state in INVENTORY reflects that.
+A single finding may escalate to multiple tasks, or be dropped. Its row in the per-methodology inventory reflects that.
 
-**Status values (plain text, no emojis):** `open`, `triaged`, `escalated`, `in-progress`, `closed`, `dropped`.
+### 2. Per-methodology inventory as single source of truth
 
-### 2. INVENTORY as single source of truth
+`00-inventory.md` inside a methodology folder is the canonical deduplicated list of every finding across every run of that methodology. Per-run `findings.md` files are **filtered views**, not independent copies.
 
-`INVENTORY.md` is the canonical deduplicated list of every finding across every audit run. Per-audit `findings.md` files are filtered **views** of INVENTORY, not independent copies.
+- New audit run → add rows to `00-inventory.md`, link IDs from the run's `findings.md`.
+- Re-test confirms a finding persists → update the row, don't duplicate.
+- Finding closed → row stays with `status: done`, never delete.
 
-- New audit run → add rows to INVENTORY, reference IDs from the audit's `findings.md`
-- Re-test confirms finding persists → update status in INVENTORY, don't duplicate
-- Finding closed → keep the row with status `closed`, never delete
+### 3. Living methodology with `00-changelog.md`
 
-### 3. Living methodology with CHANGELOG
-
-`METHODOLOGY.md` is not frozen. As you learn what checks matter (or don't), update it and log the change in `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/).
-
-This preserves the *why* behind every check. Without it, methodology rots into a checklist nobody follows.
+`00-methodology.md` is not frozen. As you learn which checks matter (or don't), update it and log the change in `00-changelog.md` following [Keep a Changelog](https://keepachangelog.com/). This preserves the *why* behind every check.
 
 ### 4. Every finding is registered
 
-Findings are never deleted, only transitioned:
-
-- `open` — observed, not yet acted on
-- `triaged` — assessed, priority assigned
-- `escalated` — moved to backlog (link to entry)
-- `in-progress` — active plan executing
-- `closed` — verified fixed (link to commit or re-test audit)
-- `dropped` — won't fix, with reason
-
-This creates an audit trail of decisions.
+Findings are never deleted, only transitioned. See §"Status map" below.
 
 ### 5. Escalation flow
 
 ```
-audit run → finding in INVENTORY → backlog entry → plan → commit → re-test audit → finding closed
+audit run → finding row → backlog entry → plan → commit → re-test audit → finding done
 ```
 
-Each step links forward and back. The INVENTORY row accumulates these links over the finding's life.
+Each step links forward and back via `escalated_to` and `origin_ref` (D-03 format).
 
 ### 6. Shared concerns flagged
 
-When a finding spans multiple modules, tag it `[SHARED]` in INVENTORY. Cross-module concerns tend to be structural and deserve visibility at the inventory level, not buried in one module's findings.
+When a finding spans multiple modules within the methodology, tag it `[SHARED]` in the inventory `Module` column.
 
-## Canonical Structure
+---
 
-```
-.context/audits/
-├── INVENTORY.md              # Master source of truth
-├── METHODOLOGY.md            # Shared principles + index of playbooks
-├── CHANGELOG.md              # Keep-a-Changelog for methodology evolution
-├── methodology/              # Playbook per audit type
-│   ├── ux-audit.md
-│   ├── security-audit.md
-│   └── ...
-├── YYYYMMDD-<slug>/          # One folder per audit run (immutable)
-│   ├── index.md              # Context, scope, dates, auditors
-│   ├── findings.md           # Filtered view of INVENTORY for this run
-│   └── (status.md, modules/ if needed)
-└── _archive/                 # Implementation plans already executed (optional)
-```
+## ID conventions
 
-Why uppercase filenames (`INVENTORY.md`, `METHODOLOGY.md`, `CHANGELOG.md`)? UNIX convention — canonical, long-lived, authoritative files get uppercase (like `LICENSE`, `README`, `CONTRIBUTING`). They signal "this is the source of truth" at a glance.
+IDs are **scoped to a methodology** so that `BUG-01-3` in `ux/` and `BUG-01-3` in `security/` are different findings without ambiguity. The methodology folder is the namespace.
 
-## Audit Types
-
-AIDEX ships with six playbook templates. Each sits in `methodology/<type>.md` of the audit directory and is generated on first use via `/audit new <type> <slug>`.
-
-| Type | When to run | Playbook shape |
-|---|---|---|
-| `ux-audit` | Before major release, UX drift suspected | Modules × checks matrix |
-| `ia-opportunities` | New AI capability scoped, phase end | Phases × `[AI-EXISTS / MISSING / FLOW]` |
-| `retest` | After a batch of P0/P1 fixes lands | Original findings × validating commits |
-| `security-audit` | Fixed cadence or post sensitive feature | OWASP-style checklist |
-| `perf-audit` | Pre-release, pre-scaling | Lighthouse categories + backend metrics |
-| `a11y-audit` | Fixed cadence or compliance requirement | WCAG criteria × page |
-
-Custom types are allowed — pass `custom` as the type and provide your own playbook.
-
-## ID Conventions
-
-Two patterns, both valid. Pick one per project and stay consistent.
+Two patterns, both valid. Pick one per methodology and stay consistent inside that methodology.
 
 ### Structured IDs
 
@@ -121,38 +117,66 @@ Examples:
 - `BUG-01-3` — bug in module 01, third one
 - `IDEA-FF-2` — idea in "features" module, second one
 
-**Use when:** modules/phases are stable and finite; visual grouping helps navigation; reviewers scan by module.
+**Use when:** modules/phases are stable and finite; visual grouping helps; reviewers scan by module.
 
 ### Global IDs
 
-Format: `<PREFIX>-<N>` (flat numbering)
+Format: `<PREFIX>-<N>` (flat numbering inside the methodology)
 
 Examples:
-- `F-042` — finding number 42
-- `BUG-127` — bug number 127
+- `F-042` — finding number 42 in this methodology
+- `BUG-127` — bug number 127 in this methodology
 
-**Use when:** modules are fluid; cross-cutting findings dominate; simpler to enforce uniqueness.
+**Use when:** modules are fluid; cross-cutting findings dominate.
 
-## Document Templates
+---
 
-### INVENTORY row
+## Status map
+
+Audit findings use the base lifecycle (`open` · `doing` · `done` · `dropped`) from [`00-global.md` §6](00-global.md#6-status-vocabulary). The legacy audit vocabulary maps as follows:
+
+| Legacy | Maps to | Notes |
+|---|---|---|
+| `open` | `status: open` | — |
+| `triaged` | `status: open` | Add an internal note in the row's `Notes` column. Triage is a sub-state, not a top-level status. |
+| `escalated` | `status: done` + `escalated_to: backlog/<…>` (or `plan/<…>`) | The finding's work is now tracked elsewhere. |
+| `in-progress` | `status: doing` | — |
+| `closed` | `status: done` | Link the verifying commit or re-test run in `Notes`. |
+| `dropped` | `status: dropped` | Reason in `Notes`. |
+
+---
+
+## Document templates
+
+### `00-inventory.md` row
+
+Audit findings are **exempt** from per-file front-matter (D-07). They live in this table.
 
 ```markdown
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To |
-|---|---|---|---|---|---|---|---|---|---|
-| BUG-01-3 | bug | auth | Session token stored in URL | open | P1 | 20260410 | 20260415 | 20260410, 20260415 | — |
+| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| BUG-01-3 | bug | auth | Session token stored in URL | open | P1 | 2026-04-10 | 2026-04-15 | 2026-04-10, 2026-04-15 | — | — |
+| BUG-02-1 | bug | search | SQL injection in q param | done | P0 | 2026-04-10 | 2026-04-20 | 2026-04-10, 2026-04-20 | backlog/2026-04-10-fix-sqli-search | Closed: commit abc123 |
 ```
+
+Dates are `YYYY-MM-DD` (D-01). The `Escalated To` column uses the cross-reference format from [`00-global.md` §3](00-global.md#3-cross-references-d-03).
 
 ### Audit run `index.md`
 
 ```markdown
-# [Audit type] — [slug]
+---
+title: "UX audit — pre-release 2026-05-14"
+status: done
+created: 2026-05-14
+updated: 2026-05-14
+methodology: ux
+---
 
-**Date:** YYYY-MM-DD
-**Type:** ux-audit | security-audit | ...
+# UX audit — pre-release 2026-05-14
+
 **Scope:** [what was covered]
 **Auditor:** [who ran it]
-**Method:** [brief — see methodology/<type>.md for full playbook]
+**Method:** see [../00-methodology.md](../00-methodology.md)
 
 ---
 
@@ -162,7 +186,7 @@ Examples:
 
 ## Findings
 
-See [findings.md](findings.md) for filtered view, or [../INVENTORY.md](../INVENTORY.md) for canonical.
+See [findings.md](findings.md) for the filtered view, or [../00-inventory.md](../00-inventory.md) for canonical.
 
 ## Next steps
 
@@ -172,66 +196,75 @@ See [findings.md](findings.md) for filtered view, or [../INVENTORY.md](../INVENT
 
 ### Audit run `findings.md`
 
-Filtered view of INVENTORY, grouped by severity or module. Not a copy — a link table.
+Filtered view of `00-inventory.md`, grouped by severity or module. Not a copy — a link table.
 
 ```markdown
-# Findings — [slug] ([YYYY-MM-DD])
+# Findings — pre-release 2026-05-14
 
-Filtered view of [../INVENTORY.md](../INVENTORY.md). Do not add findings directly here — add them to INVENTORY.
+Filtered view of [../00-inventory.md](../00-inventory.md). Do not add findings directly here.
 
-## P0 (Critical)
+## P0
 
-- **BUG-01-3** — Session token stored in URL ([INVENTORY](../INVENTORY.md#BUG-01-3))
-- **BUG-05-1** — SQL injection in search ([INVENTORY](../INVENTORY.md#BUG-05-1))
+- **BUG-02-1** — SQL injection in search ([inventory](../00-inventory.md#BUG-02-1))
 
-## P1 (High)
+## P1
 
-...
+- **BUG-01-3** — Session token in URL ([inventory](../00-inventory.md#BUG-01-3))
 ```
 
-## Lifecycle Summary
+---
 
-```
-open --triage--> triaged --accept--> escalated
-                                         |
-                                     start work
-                                         v
-                  closed <--verify-- in-progress
-```
+## Audit types (methodologies)
 
-Or from any state → `dropped` with a documented reason.
+AIDEX ships playbook templates for the following methodologies. Each becomes a folder under `.context/audits/<methodology>/` on first use via `/audit new <methodology> <slug>`.
 
-## Integration with Other Doc Types
+| Methodology | When to run | Playbook shape |
+|---|---|---|
+| `ux` | Before major release, UX drift suspected | Modules × checks matrix |
+| `ai-opportunities` | New AI capability scoped, phase end | Phases × `[AI-EXISTS / MISSING / FLOW]` |
+| `retest` | After a batch of P0/P1 fixes lands | Original findings × validating commits |
+| `security` | Fixed cadence or post sensitive feature | OWASP-style checklist |
+| `perf` | Pre-release, pre-scaling | Lighthouse categories + backend metrics |
+| `a11y` | Fixed cadence or compliance requirement | WCAG criteria × page |
 
-- **From plans:** When a plan is completed, its closing commit(s) update the related findings' status in INVENTORY.
-- **From decisions:** When an audit forces an architectural decision, cite the decision from the finding row (`Escalated To` can point to a decision file).
-- **From backlog:** Backlog entries with `Origen: audit/<run>/<id>` create the back-reference. The `audit` skill enforces this when escalating.
+Custom methodologies are allowed — `/audit new custom <slug>` with your own playbook.
+
+---
+
+## Integration with other doc types
+
+- **From plans:** when a plan completes, its closing commit(s) update the related findings' status in the methodology inventory.
+- **From decisions:** when an audit forces an architectural decision, cite the decision from the finding's `Escalated To` column.
+- **From backlog:** backlog entries with `origin: audit` and `origin_ref: audit/<methodology>/<run>/<id>` create the back-reference. The `audit` skill enforces this on escalation.
+
+---
 
 ## Tooling
 
-The `audit` skill provides scaffolding and validation:
+- `/audit new <methodology> <slug>` — scaffold a new audit run inside the methodology folder.
+- `/audit validate` — check coherence inventory ↔ run findings ↔ backlog.
+- `/audit escalate <finding-id>` — move finding to backlog.
+- `/audit migrate` — move legacy audit-like folders out of `plans/` and reshape into the per-methodology layout.
 
-- `/audit new <type> <slug>` — scaffold a new audit run
-- `/audit validate` — check coherence INVENTORY ↔ findings ↔ backlog
-- `/audit escalate <finding-id>` — move finding to backlog
-- `/audit migrate` — move legacy audit-like folders out of `plans/`
+`/backlog-register --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
 
-The `backlog-register` skill handles the other side of escalation:
-
-- `/backlog-register --origin audit --finding <id>` — create backlog entry with correct origin
+---
 
 ## Anti-patterns
 
-- **Audits inside `plans/`** — mixes "what is" with "what will be". Migrate via `/audit migrate`.
-- **Deleting findings** — breaks the audit trail. Use `dropped` with a reason.
-- **Per-run findings files without INVENTORY link** — creates silent duplication. Always link to canonical IDs.
-- **Methodology without CHANGELOG** — loses the *why*. Every methodology change must be logged.
-- **Mixing ID conventions within a project** — inconsistent references break tooling. Pick one.
+- **Audits inside `plans/`** — mixes "what is" with "what will be". Use `/audit migrate`.
+- **Global `INVENTORY.md`** — pre-D-02 layout; reshape into per-methodology inventories.
+- **Deleting findings** — breaks the audit trail. Use `status: dropped` with reason.
+- **Per-run findings files without a link to the methodology inventory** — silent duplication.
+- **Methodology without `00-changelog.md`** — loses the *why*.
+- **Mixing ID conventions inside one methodology** — pick one (structured or global) per methodology.
+
+---
 
 ## Related
 
-- **Skill `audit`** — operations (scaffold, validate, escalate, migrate)
-- **Skill `backlog-register`** — registers items with audit origin
-- **Skill `aidex`** — audits the audits directory itself for coherence
-- **[plan-conventions.md](plan-conventions.md)** — how plans differ from audits
-- **[request-decision-conventions.md](request-decision-conventions.md)** — how decisions cite findings
+- [`00-global.md`](00-global.md) — shared rules.
+- [`plan-conventions.md`](plan-conventions.md) — how plans differ.
+- [`request-decision-conventions.md`](request-decision-conventions.md) — how decisions cite findings.
+- Skill `audit` — operations.
+- Skill `backlog-register` — registers items with audit origin.

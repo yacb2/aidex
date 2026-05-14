@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: Audits and fixes the Claude Code ecosystem — skills, .context/ structure, symlinks, MEMORY.md, CLAUDE.md, plugins, and idle context budget. Triggers on /aidex, /aidex context, and natural asks like "audit my project / check my project's health / review the ecosystem / my project is messy / clean up MEMORY.md / find broken symlinks / stale documentation / what skills do I have / verify CLAUDE.md links / reorganize .context/ / this project opens heavy / wastes too much context / reduce initial token cost / audit installed plugins / this skill doesn't apply to this stack / optimize my Claude Code setup / organize my ecosystem". Also auto-activates when Claude notices a broken symlink, MEMORY.md exceeds ~80 lines, or a referenced file in a skill is missing. Do NOT use for: creating documentation (plans, decisions, requests, references) → aidex-conventions; project-state audits (UX/security/perf/a11y) → audit; backlog entries → backlog-register.
+description: Audits and fixes the Claude Code ecosystem — skills, .context/ structure and conventions, symlinks, MEMORY.md, CLAUDE.md, plugins, and idle context budget. Triggers on /aidex, /aidex context, and natural asks like "audit my project / check my project's health / review the ecosystem / my project is messy / clean up MEMORY.md / find broken symlinks / stale documentation / check .context/ conventions / is my context folder consistent / audit my project's conventions / what skills do I have / verify CLAUDE.md links / reorganize .context/ / this project opens heavy / wastes too much context / reduce initial token cost / audit installed plugins / this skill doesn't apply to this stack / optimize my Claude Code setup / organize my ecosystem". Also auto-activates when Claude notices a broken symlink, MEMORY.md exceeds ~80 lines, or a referenced file in a skill is missing. Do NOT use for: creating documentation (plans, decisions, requests, references) → aidex-conventions; project-state audits (UX/security/perf/a11y) → audit; backlog entries → backlog-register.
 disable-model-invocation: false
 ---
 
@@ -105,6 +105,7 @@ Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass the
 | Subagent | Launches when | Model | Tools |
 |----------|--------------|-------|-------|
 | [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | Read, Glob, Grep |
+| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.aidex/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | Read, Bash |
 | [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | Read, Glob, Grep |
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | Read, Glob, Bash |
 | [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | haiku | Read, Glob, Grep |
@@ -133,7 +134,7 @@ Also check inline (no subagent needed):
 
 Collect all subagent reports. Produce unified report split into two top-level findings sections — **structural cleanup** (safe, mechanical fixes) vs **token savings** (toggle-preferred, reversible config). Each finding goes into one or the other based on its check code:
 
-- **Structural cleanup** — codes WITHOUT `CB-` / `PL-SCHEMA` prefix: `[A]–[F]`, `[PA]–[PD]`, `[IA]–[ID]`, `[RA]–[RC]`, `[QA]–[QB]`, `[DA]–[DD]`, `[UA]–[UH]`, `[AG]`, `[AH]`, `[AI]`, `[F1]–[F6]`, `[V1]`, freshness, broken symlinks, missing indexes, pluralized names, anti-patterns. These are mechanical and reversible by editing one file at a time.
+- **Structural cleanup** — codes WITHOUT `CB-` / `PL-SCHEMA` prefix: `[A]–[F]`, `[PA]–[PD]`, `[IA]–[ID]`, `[RA]–[RC]`, `[QA]–[QB]`, `[DA]–[DD]`, `[UA]–[UH]`, `[CV-*]` (from `conventions-auditor`), `[AG]`, `[AH]`, `[AI]`, `[F1]–[F6]`, `[V1]`, freshness, broken symlinks, missing indexes, pluralized names, anti-patterns. These are mechanical and reversible by editing one file at a time. `[CV-*]` findings are deterministic (produced by `validate.py`) — prefer them over heuristic codes when they overlap on the same file.
 - **Token savings** — codes WITH `CB-` prefix (`CB-PL`, `CB-SR`, `CB-DU`, `CB-MD`, `CB-CM`, `CB-SKILL-DESC-RESIDENT`) and `PL-SCHEMA`. These suggest config toggles (`enabledPlugins: false`, `skillOverrides: name-only/off`, MEMORY trims, plugin manifest cleanup). Always **prefer toggle over uninstall/delete**.
 
 ```

@@ -1,0 +1,54 @@
+# {{METHODOLOGY_NAME}} Audit Inventory — {{PROJECT_NAME}}
+
+Canonical deduplicated list of every finding across every audit run of this methodology. Per-run `findings.md` files are filtered **views** — do not add findings there, add them here.
+
+**Methodology:** {{METHODOLOGY}}
+**Last updated:** {{DATE}}
+**Audit runs recorded:** 0
+
+---
+
+## How to read this file
+
+| Column | Meaning |
+|---|---|
+| **ID** | Unique within this methodology. Format: `<CATEGORY>-<MODULE>-<N>` or `<PREFIX>-<N>`. See `00-methodology.md`. |
+| **Type** | `bug`, `gap`, `idea`, `risk`, `opportunity`, `regression` |
+| **Module** | Area of the codebase (or `[SHARED]` for cross-module) |
+| **Summary** | One-line description |
+| **Status** | `open` · `doing` · `done` · `dropped` (see [`00-global.md` §6](../../../skills/aidex-conventions/references/00-global.md#6-status-vocabulary)) |
+| **Severity** | P0 (critical) · P1 (high) · P2 (medium) · P3 (low) |
+| **First Seen** | `YYYY-MM-DD` — audit run that first recorded it |
+| **Last Updated** | `YYYY-MM-DD` — most recent change to this row |
+| **Audit Runs** | Comma-separated list of run folders that confirmed this finding |
+| **Escalated To** | `<type>/<filename>` (D-03) — backlog entry, plan, or decision. Empty when not yet escalated. |
+| **Notes** | Triage notes, reason for `dropped`, closing commit, etc. |
+
+---
+
+## Findings
+
+<!--
+EXAMPLE ROWS (remove once you have real findings):
+
+| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| EX-01-1 | bug | auth | Session token stored in URL query string | open | P0 | 2026-04-10 | 2026-04-15 | 2026-04-10, 2026-04-15 | — | triaged 2026-04-12 |
+| EX-FF-2 | idea | features | Export to CSV on dashboard | done | P2 | 2026-04-10 | 2026-04-12 | 2026-04-10 | backlog/2026-04-12-export-csv | escalated to backlog |
+| EX-05-1 | gap | tests | No E2E coverage for checkout flow | doing | P1 | 2026-04-10 | 2026-04-14 | 2026-04-10, 2026-04-14 | plan/2026-04-14-checkout-e2e | plan in progress |
+-->
+
+| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| — | — | — | *No findings yet. Run `/audit new {{METHODOLOGY}} <slug>` to start.* | — | — | — | — | — | — | — |
+
+---
+
+## Statistics
+
+- **Open:** 0
+- **Doing:** 0
+- **Done:** 0
+- **Dropped:** 0
+
+Regenerate this section via `/audit validate`.

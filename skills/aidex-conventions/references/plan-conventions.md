@@ -1,44 +1,55 @@
 # Plan Conventions
 
-Standards for creating implementation plans with checkbox tracking for multi-session work.
+Standards for implementation plans with checkbox tracking for multi-session work.
 
-## Structure Pattern
+> **Read [`00-global.md`](00-global.md) first.** Filename dates, archive, language, cross-references, and minimum front-matter live there. This file only declares plan-specific structure.
 
-### Multi-File Plan (Default)
+---
 
-For plans with **3 or more phases**, use a folder structure:
+## Structure pattern
 
-```
-.context/plans/YYYYMMDD-<feature-name>/
-├── 00-index.md              # Master index with overview
-├── 01-<phase-1-name>.md     # Phase 1 details
-├── 02-<phase-2-name>.md     # Phase 2 details
-└── ...
-```
-
-**Naming:**
-- Date format: `YYYYMMDD` (no dashes, e.g., `20260119`)
-- Feature name: kebab-case (e.g., `audit-system`)
-- Phase files: numbered with descriptive name (e.g., `01-backend-models.md`)
-
-### Single-File Plan (Simple Tasks)
-
-For plans with **1-2 phases only**:
+### Multi-file plan (default for ≥3 phases)
 
 ```
-.context/plans/YYYYMMDD-<feature-name>.md
+.context/plans/YYYY-MM-DD-<feature>/
+├── 00-index.md           # Master index
+├── 01-<phase>.md         # Phase 1
+├── 02-<phase>.md         # Phase 2
+└── …
 ```
 
-## Index File Template (00-index.md)
+### Single-file plan (1–2 phases)
+
+```
+.context/plans/YYYY-MM-DD-<feature>.md
+```
+
+Folder/filename date: `YYYY-MM-DD` (D-01). Slug: kebab-case, describes the feature.
+
+### Archive
+
+Per D-05, completed plans move to `.context/plans/_archive/` on `status: done`. Inbound references resolve via the two-folder lookup in [`00-global.md` §3](00-global.md#3-cross-references-d-03), so no inbound edits are required.
+
+---
+
+## `00-index.md` template
 
 ```markdown
+---
+title: "Feature name"
+status: open | doing | done | dropped
+current-phase: 0
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+---
+
 # [Feature Name] Implementation Plan
 
-**Goal:** [One sentence describing what this builds]
+**Goal:** [One sentence — what this builds]
 
 **Architecture:**
-- [Key architectural decision 1]
-- [Key architectural decision 2]
+- [Key decision 1]
+- [Key decision 2]
 
 **Tech Stack:**
 - Backend: [technologies]
@@ -49,7 +60,7 @@ For plans with **1-2 phases only**:
 ## Phases Overview
 
 | Phase | File | Description | Tasks |
-|-------|------|-------------|-------|
+|---|---|---|---|
 | 1 | [01-phase-name.md](01-phase-name.md) | Brief description | N |
 | 2 | [02-phase-name.md](02-phase-name.md) | Brief description | N |
 
@@ -57,17 +68,21 @@ For plans with **1-2 phases only**:
 
 ## Session Checkpoint
 
-**Status:** Planning | In Progress | Completed
+**Status:** [open/doing/done/dropped — matches front-matter]
 
-**Plan Documentation Complete:**
-- [ ] Phase 1: [Name] (N tasks)
-- [ ] Phase 2: [Name] (N tasks)
+**Phases:**
+- [ ] Phase 1: [name] (N tasks)
+- [ ] Phase 2: [name] (N tasks)
 
-**Total:** X tasks across N phases
-**Next:** Start with Phase 1, Task 1.1
+**Total:** X tasks across N phases.
+**Next:** Phase 1, Task 1.1.
 ```
 
-## Phase File Template (NN-phase-name.md)
+The `status` field uses the base lifecycle from [`00-global.md` §6](00-global.md#6-status-vocabulary): `open` (not started), `doing` (in progress), `done` (complete), `dropped` (abandoned). `blocked_by`, `escalated_to`, `superseded_by` are layered modifiers per §6.
+
+---
+
+## Phase file template
 
 ```markdown
 # Phase N: [Phase Name]
@@ -84,114 +99,115 @@ For plans with **1-2 phases only**:
 
 **Step 1: [Action description]**
 
-```python
-# Full code snippet - not just reference
-from module import something
-
-class MyClass:
-    def method(self):
-        pass
-```
+\`\`\`python
+# Full code snippet — not just a reference
+\`\`\`
 
 **Step 2: [Next action]**
 
-[Continue with implementation steps...]
+[Continue with implementation steps…]
 
 **Verify:**
 
-```bash
+\`\`\`bash
 command-to-verify
-```
+\`\`\`
 
 Expected: `OK`
 
 ---
 
-## Task N.2: [Next Task Name]
-
-[Same format as Task N.1...]
+## Task N.2: …
 
 ---
 
 ## Phase N Checkpoint
 
 **Completed:**
-- [ ] Task N.1: [Brief description]
-- [ ] Task N.2: [Brief description]
+- [ ] Task N.1: [brief]
+- [ ] Task N.2: [brief]
 
-**Next:** [Phase N+1: Name](0N+1-phase-name.md)
+**Next:** [Phase N+1](0N+1-phase-name.md)
 ```
 
-## Task Format Rules
+---
 
-### Step Granularity
+## Task format rules
 
-Each step should be **2-5 minutes** of work:
+### Step granularity
 
-| Good (Atomic) | Bad (Too Large) |
-|---------------|-----------------|
+Each step is **2–5 minutes** of work.
+
+| Good (atomic) | Bad (too large) |
+|---|---|
 | Create directory structure | Implement authentication |
 | Create serializer class | Add user management |
-| Update __init__.py exports | Set up the backend |
+| Update `__init__.py` exports | Set up the backend |
 | Verify import works | Fix all bugs |
 
-### Code Inclusion
+### Code inclusion
 
-**Always include full code** in steps, not just references. Show the actual implementation, not "follow the pattern in `other_file.py`".
+Always include **full code** in steps, not references. Show the implementation, not "follow the pattern in `other_file.py`".
 
-## Status Tracking
-
-### Frontmatter (in 00-index.md)
-
-```yaml
 ---
-status: planning | in-progress | blocked | completed
-current-phase: 1
-last-updated: 2026-01-19
+
+## Phase organization
+
+Group tasks by layer (models → serializers → views → URLs → tests), feature area (one component end-to-end), or dependency order (what must exist before what). Example phase names: `01-backend-models.md`, `02-backend-api.md`, `03-frontend-components.md`, `04-testing-verification.md`.
+
 ---
-```
 
-### Session Checkpoint Format
+## Session checkpoint
 
-At end of each work session, update:
+At end of each work session, update `00-index.md`'s checkpoint section:
 
 ```markdown
 ## Session Checkpoint
 
-**Date:** 2026-01-19
-**Session:** 3
+**Status:** doing
+**Phase:** 2 (in progress)
+**Updated:** 2026-05-14
 
 **Completed:**
-- [x] Task 1.1: TreeNodeSerializer
-- [ ] Task 1.3: URL registration (50% complete)
+- [x] Phase 1
+- [ ] Phase 2 (Task 2.3 in progress)
 
 **Blockers:** None
 
-**Next Session:**
-- [ ] Complete Task 1.3
-- [ ] Task 1.4: Tests
+**Next:**
+- Finish Task 2.3
+- Begin Task 2.4
 ```
 
-## Phase Organization
+Also bump the front-matter `updated:` date and `current-phase:` integer.
 
-Group tasks by layer (models → serializers → views → URLs → tests), feature area (one component end-to-end), or dependency order (what must exist before what). Example phase names: `01-backend-models.md`, `02-backend-api.md`, `03-frontend-components.md`, `04-testing-verification.md`.
+---
 
-## Validation Checklist
+## Validation checklist
 
-### Index File (00-index.md)
-- [ ] Title, Goal, Architecture, Tech Stack
+### Index file (`00-index.md`)
+- [ ] Front-matter has `title`, `status`, `created`, `updated`, `current-phase`
+- [ ] Title, Goal, Architecture, Tech Stack sections
 - [ ] Phases Overview table with links
 - [ ] Session Checkpoint section
 
-### Phase Files
-- [ ] Phase title with number and name
+### Phase files
+- [ ] Phase title with number
 - [ ] Link back to index
-- [ ] Tasks numbered as N.1, N.2, etc.
+- [ ] Tasks numbered `N.1`, `N.2`, …
 - [ ] Each task has Files section
 - [ ] Each step has full code (not references)
 - [ ] Phase Checkpoint at end
 
-### Task Checks
-- [ ] Steps are atomic (2-5 minutes each)
+### Task checks
+- [ ] Steps are atomic (2–5 minutes)
 - [ ] Code is complete (not placeholders)
-- [ ] Verification included where appropriate
+- [ ] Verification step included where appropriate
+
+---
+
+## Related
+
+- [`00-global.md`](00-global.md) — shared rules.
+- [`audit-conventions.md`](audit-conventions.md) — when work begins as an audit finding.
+- [`request-decision-conventions.md`](request-decision-conventions.md) — when a plan supersedes a request.

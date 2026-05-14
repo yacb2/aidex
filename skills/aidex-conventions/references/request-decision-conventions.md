@@ -2,36 +2,69 @@
 
 Standards for capturing incoming requirements and recording architectural/product decisions.
 
+> **Read [`00-global.md`](00-global.md) first.** Filename dates, archive, language, cross-references, and minimum front-matter live there. This file only declares what is specific to requests and decisions.
+
+---
+
 ## Requests
 
 ### Purpose
 
 A request captures an incoming task, feature request, or product requirement. It is always a **single file** — not a module. If a request needs deeper analysis, it escalates to a plan or research.
 
-### Location & Naming
+### Location & naming
 
 ```
 .context/requests/
-├── YYYYMMDD-description.md
-├── YYYYMMDD-description.md
+├── YYYY-MM-DD-<slug>.md
 └── _archive/
-    └── YYYYMMDD-description.md
+    └── YYYY-MM-DD-<slug>.md
 ```
 
-- Date format: `YYYYMMDD` (no dashes, e.g., `20260402`)
-- Description: kebab-case (e.g., `20260402-add-export-csv.md`)
+Date format `YYYY-MM-DD` (D-01). Slug kebab-case.
 
-### Template
+### Front-matter
+
+```yaml
+---
+title: "Add CSV export to dashboard"
+status: open
+created: 2026-05-14
+updated: 2026-05-14
+origin: stakeholder
+origin_ref: ""
+priority: medium
+escalated_to: ""
+blocked_by: ""
+---
+```
+
+| Field | Values | Notes |
+|---|---|---|
+| `title` | Free text, quoted | H1 heading derives from this. |
+| `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](00-global.md#6-status-vocabulary). |
+| `origin` | `manual` · `stakeholder` · `meeting` · `user-feedback` | Where it came from. |
+| `origin_ref` | `<type>/<filename>` or empty | If the origin is another artifact. |
+| `priority` | `high` · `medium` · `low` | Lowercase. |
+| `escalated_to` | `<type>/<filename>` or empty | If escalated to a plan, research, or decision. |
+| `blocked_by` | Free text or `<type>/<filename>` | When deferred pending something. |
+
+### Legacy status mapping
+
+The previous request vocabulary maps to the base lifecycle as follows:
+
+| Legacy | Maps to |
+|---|---|
+| `Open` | `status: open` |
+| `In Progress` | `status: doing` |
+| `Escalated to Plan` | `status: done` + `escalated_to: plan/<filename>` |
+| `Deferred` | `status: open` + `blocked_by: <reason>` |
+| `Rejected` | `status: dropped` (reason in body) |
+
+### Body template
 
 ```markdown
 # [Request Title]
-
-**Date:** YYYY-MM-DD
-**Origin:** [Who requested — person, team, meeting, user feedback]
-**Priority:** High | Medium | Low
-**Status:** Open | In Progress | Escalated to Plan | Deferred | Rejected
-
----
 
 ## Description
 
@@ -39,7 +72,7 @@ A request captures an incoming task, feature request, or product requirement. It
 
 ## Context
 
-[Why this came up now. Any constraints, deadlines, or dependencies.]
+[Why this came up now. Any constraints, deadlines, dependencies.]
 
 ## Acceptance Criteria
 
@@ -48,29 +81,35 @@ A request captures an incoming task, feature request, or product requirement. It
 
 ## Outcome
 
-**Decision:** [What happened with this request]
-**Escalated to:** [Link to plan/research if applicable]
+[What happened with this request. Link to plan/research if escalated. Mirror the front-matter `escalated_to` here for readers who don't expand front-matter.]
 ```
 
 ### Lifecycle
 
-1. **Open** — Captured, not yet acted on
-2. **In Progress** — Being worked on directly (simple enough, no plan needed)
-3. **Escalated to Plan** — Too complex for direct work → link to `.context/plans/`
-4. **Deferred** — Valid but not now → stays in requests with reason
-5. **Rejected** — Won't do → document why, move to `_archive/`
-6. Completed requests → move to `_archive/`
+```
+open ──▶ doing ──▶ done
+  │        │
+  └────────┴────▶ dropped
+```
 
-### Interception Behavior
+- **Open:** captured, not yet acted on.
+- **Doing:** being worked on directly (simple enough, no plan needed).
+- **Done + `escalated_to: plan/<…>`:** too complex for direct work, formalized as a plan.
+- **Open + `blocked_by: <…>`:** valid but deferred.
+- **Dropped:** won't do; document why in Outcome.
 
-When aidex-conventions detects the user describing something that sounds like a product requirement, task assignment, or change request, it should offer a routing choice:
+Per D-05, completed requests (`done`, `dropped`) move to `_archive/`.
+
+### Interception behavior
+
+When `aidex-conventions` detects the user describing a new requirement, it should offer:
 
 > "This sounds like a new requirement. Would you like to:"
-> 1. **Create a formal request** — quick capture in `.context/requests/`
-> 2. **Create a plan directly** — if you already know the scope and want to break it into phases
-> 3. **Launch a research/investigation** — if this needs exploration before committing to a plan
+> 1. **Create a formal request** — quick capture in `.context/requests/`.
+> 2. **Create a plan directly** — if scope is known and you want phases.
+> 3. **Launch research/investigation** — if this needs exploration before committing.
 
-This keeps the user in control of the depth of formalization.
+The user controls the depth of formalization.
 
 ---
 
@@ -80,31 +119,50 @@ This keeps the user in control of the depth of formalization.
 
 A decision record documents **what** was decided, **why**, what alternatives were considered, and the rationale. This prevents the cycle of deciding → reverting → re-deciding without remembering the original reasoning.
 
-Inspired by the ADR (Architecture Decision Record) pattern, adapted for broader use (product decisions, tech choices, workflow changes).
+Inspired by the ADR pattern, adapted for broader use (product, tech, workflow).
 
-### Location & Naming
+### Location & naming
 
 ```
 .context/decisions/
-├── YYYYMMDD-description.md
-├── YYYYMMDD-description.md
+├── YYYY-MM-DD-<slug>.md
 └── _archive/
-    └── YYYYMMDD-description.md
+    └── YYYY-MM-DD-<slug>.md
 ```
 
-- Date format: `YYYYMMDD` (no dashes, e.g., `20260402`)
-- Description: kebab-case (e.g., `20260402-use-postgres-over-mysql.md`)
+Date format `YYYY-MM-DD` (D-01). Slug kebab-case.
 
-### Template
+### Front-matter
+
+```yaml
+---
+title: "Use Postgres over MySQL"
+status: accepted
+created: 2026-05-14
+updated: 2026-05-14
+superseded_by: ""
+---
+```
+
+Decisions are the **only artifact type** that does not use the base `open/doing/done/dropped` vocabulary. They use the ADR-standard enum:
+
+| Value | Meaning |
+|---|---|
+| `accepted` | Current decision in effect (synonym for the legacy `Active`). |
+| `superseded` | Replaced by a newer decision; set `superseded_by: decision/<filename>`. |
+| `dropped` | Reversed without replacement (legacy `Reversed`). |
+
+Other optional fields:
+
+| Field | Purpose |
+|---|---|
+| `superseded_by` | Pointer to newer decision (`decision/<filename>`). |
+| `origin` / `origin_ref` | If the decision came from an audit, request, or research. |
+
+### Body template
 
 ```markdown
 # [Decision Title]
-
-**Date:** YYYY-MM-DD
-**Status:** Active | Superseded | Reversed
-**Superseded by:** [Link to newer decision, if applicable]
-
----
 
 ## Context
 
@@ -121,8 +179,6 @@ Inspired by the ADR (Architecture Decision Record) pattern, adapted for broader 
 - **Cons:** [disadvantages]
 
 ### Option C: [Name] (if applicable)
-- **Pros:** [advantages]
-- **Cons:** [disadvantages]
 
 ## Decision
 
@@ -132,26 +188,38 @@ Inspired by the ADR (Architecture Decision Record) pattern, adapted for broader 
 
 ## Consequences
 
-- [What this decision enables]
-- [What this decision limits or trades off]
+- [What this enables]
+- [What this limits or trades off]
 - [What to watch for — when would we revisit this?]
 ```
 
-### Status Lifecycle
+### Lifecycle
 
-1. **Active** — Current decision in effect
-2. **Superseded** — Replaced by a newer decision (link to it)
-3. **Reversed** — Went back on this decision (document why in a new decision)
+```
+accepted ──▶ superseded   (newer decision replaces it)
+   │
+   └───────▶ dropped       (reversed without replacement)
+```
 
-### When to Create a Decision Record
+Per D-05, decisions in `superseded` or `dropped` status move to `_archive/`.
 
-- Choosing between technologies, libraries, or approaches
-- Changing an established pattern or convention
-- Trade-off decisions where the reasoning isn't obvious from the code
-- Any decision you've reversed before or might reverse again
+### When to create a decision
 
-### When NOT to Create One
+- Choosing between technologies, libraries, or approaches.
+- Changing an established pattern or convention.
+- Trade-off decisions where the reasoning isn't obvious from the code.
+- Any decision you've reversed before or might reverse again.
 
-- Obvious choices with no real alternatives
-- Implementation details that are self-evident from the code
-- Temporary/throwaway decisions during prototyping
+### When NOT to create one
+
+- Obvious choices with no real alternatives.
+- Implementation details self-evident from the code.
+- Temporary/throwaway decisions during prototyping.
+
+---
+
+## Related
+
+- [`00-global.md`](00-global.md) — shared rules.
+- [`plan-conventions.md`](plan-conventions.md) — when a request escalates to a plan.
+- [`audit-conventions.md`](audit-conventions.md) — when a decision is forced by an audit finding.

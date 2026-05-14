@@ -49,10 +49,10 @@ fi
 # Delegate to backlog-register. Resolve its script path.
 REGISTER=""
 for candidate in \
-  "$HOME/.aidex/skills/backlog-register/scripts/register-item.sh" \
-  "$HOME/.claude/skills/backlog-register/scripts/register-item.sh" \
+  "$SKILL_DIR/../backlog-register/scripts/register-item.sh" \
   "$ROOT/skills/backlog-register/scripts/register-item.sh" \
-  "$SKILL_DIR/../backlog-register/scripts/register-item.sh"
+  "$HOME/.aidex/skills/backlog-register/scripts/register-item.sh" \
+  "$HOME/.claude/skills/backlog-register/scripts/register-item.sh"
 do
   if [[ -f "$candidate" && -x "$candidate" ]]; then
     REGISTER="$candidate"
@@ -64,9 +64,10 @@ if [[ -z "$REGISTER" ]]; then
   die "backlog-register script not found. Run './install.sh --update' to install it."
 fi
 
-# Extract the Summary (4th data column) to use as the backlog title.
+# Extract Summary (cell 5) and Severity (cell 7) for the finding row.
+# Output: "<summary>\t<severity>" — tab-separated so summaries with spaces survive.
 # Skip HTML comment blocks so example rows in the template don't pollute the match.
-SUMMARY="$(awk -v id="$FINDING_ID" '
+ROW_DATA="$(awk -v id="$FINDING_ID" '
   BEGIN { in_comment = 0 }
   {
     line = $0
@@ -94,19 +95,41 @@ SUMMARY="$(awk -v id="$FINDING_ID" '
     gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[2])
     if (cells[2] == id) {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[5])
-      # Must also have a real-looking status to avoid matching reference tables
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[6])
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[7])
+      # Must also have a real-looking status to avoid matching reference tables
       if (cells[6] ~ /open|triaged|escalated|in-progress|closed|dropped/) {
-        print cells[5]
+        print cells[5] "\t" cells[7]
         exit
       }
     }
   }
 ' "$INVENTORY")"
-[[ -z "$SUMMARY" ]] && SUMMARY="Escalated from $FINDING_ID"
+
+SUMMARY="${ROW_DATA%%$'\t'*}"
+SEVERITY="${ROW_DATA##*$'\t'}"
+[[ "$SEVERITY" == "$ROW_DATA" ]] && SEVERITY=""  # no tab → no severity extracted
+
+if [[ -z "$SUMMARY" ]]; then
+  warn "could not extract Summary for $FINDING_ID from INVENTORY — falling back to ID-based slug. Check the row's status column matches one of: open, triaged, escalated, in-progress, closed, dropped."
+  SUMMARY="Escalated from $FINDING_ID"
+fi
+
+# Map Severity → backlog priority. Default P2 when severity is missing or unrecognized.
+case "$SEVERITY" in
+  P0|P1|P2|P3) PRIORITY_ARG=(--priority "$SEVERITY") ;;
+  "")
+    warn "no Severity found for $FINDING_ID — backlog entry will default to P2"
+    PRIORITY_ARG=()
+    ;;
+  *)
+    warn "unrecognized Severity '$SEVERITY' for $FINDING_ID — backlog entry will default to P2"
+    PRIORITY_ARG=()
+    ;;
+esac
 
 info "Creating backlog entry for $FINDING_ID via backlog-register"
-BACKLOG_FILE="$("$REGISTER" --origin audit --finding "$FINDING_ID" --audit-run "$AUDIT_RUN" --title "$SUMMARY")"
+BACKLOG_FILE="$("$REGISTER" --origin audit --finding "$FINDING_ID" --audit-run "$AUDIT_RUN" --title "$SUMMARY" "${PRIORITY_ARG[@]}")"
 
 if [[ -z "$BACKLOG_FILE" || ! -f "$BACKLOG_FILE" ]]; then
   die "backlog-register did not return a valid entry path"
