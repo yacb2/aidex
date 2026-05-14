@@ -122,6 +122,8 @@ Each type maps its prior vocabulary onto the base + modifiers:
 
 **Decisions are the only exception to the four-value vocabulary** — they use `accepted` (alive), `superseded`, `dropped` because "accepted" is the load-bearing word for an ADR and substituting `done` would mislead. Validators treat decision statuses as a separate enum.
 
+**References are exempt from the status vocabulary check** — `references/` artifacts are documentation, not work items, and have no task lifecycle. The `status` field is optional for references; when present, documentation-oriented values (`living`, `current`, `superseded`, etc.) are allowed and not validated. Supersession of a reference is still recorded via the `superseded_by` field per §5.
+
 ---
 
 ## 7. Front-matter minimum (D-07)
