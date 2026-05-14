@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIDEX_DIR="$HOME/.aidex"
 CLAUDE_DIR="$HOME/.claude"
 MANIFEST="$AIDEX_DIR/.manifest"
-VERSION="0.7.0"
+VERSION="0.8.0"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -82,7 +82,24 @@ collect_repo_items() {
     items+=("skills/$(basename "$skill_dir")")
   done
 
+  # Rules (individual .md files copied into ~/.aidex/rules/, no symlinks).
+  # Claude Code auto-loads everything under ~/.aidex/rules/ as session context.
+  if [ -d "$SCRIPT_DIR/rules" ]; then
+    for rule_file in "$SCRIPT_DIR"/rules/*.md; do
+      [ -f "$rule_file" ] || continue
+      items+=("rules/$(basename "$rule_file")")
+    done
+  fi
+
   printf '%s\n' "${items[@]}"
+}
+
+# Items under rules/ are copied only (no symlink into ~/.claude/).
+is_symlinkable() {
+  case "$1" in
+    rules/*) return 1 ;;
+    *) return 0 ;;
+  esac
 }
 
 # Read manifest into array
@@ -213,6 +230,7 @@ do_install() {
 
   # Ensure directories exist
   mkdir -p "$AIDEX_DIR/skills"
+  mkdir -p "$AIDEX_DIR/rules"
   mkdir -p "$CLAUDE_DIR/skills"
 
   local items=()
@@ -231,6 +249,9 @@ do_install() {
   header "Creating symlinks in ~/.claude/"
 
   for item in "${items[@]}"; do
+    if ! is_symlinkable "$item"; then
+      continue
+    fi
     if create_symlink "$item"; then
       info "$item"
     else
@@ -359,7 +380,7 @@ do_update() {
       # Apply all
       for item in ${modified[@]+"${modified[@]}"} ${new_items[@]+"${new_items[@]}"}; do
         copy_item "$item"
-        create_symlink "$item" 2>/dev/null || true
+        is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
         info "Updated: $item"
       done
       for item in ${removed[@]+"${removed[@]}"}; do
@@ -382,7 +403,7 @@ do_update() {
         apply=$(ask_choice "Apply this change? (y/n)" "y")
         if [ "$apply" = "y" ]; then
           copy_item "$item"
-          create_symlink "$item" 2>/dev/null || true
+          is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
           info "Updated: $item"
         else
           warn "Skipped: $item"
@@ -393,7 +414,7 @@ do_update() {
         apply=$(ask_choice "Install new item: $item? (y/n)" "y")
         if [ "$apply" = "y" ]; then
           copy_item "$item"
-          create_symlink "$item" 2>/dev/null || true
+          is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
           info "Installed: $item"
         fi
       done

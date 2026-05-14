@@ -2,6 +2,8 @@
 
 Standards for creating effective CLAUDE.md project context files.
 
+> **Read [`00-global.md`](00-global.md) first** for shared rules (date format, archive, language, cross-references, front-matter minimum). This file declares CLAUDE.md-specific structure and size constraints.
+
 ## Purpose
 
 CLAUDE.md provides concise project context for Claude. It is:
@@ -129,8 +131,8 @@ All canonical types are **optional** — create only when relevant. Their **abse
 | `.context/issues/` | Bugs, problems, and their fixes (see structure below) |
 | `.context/roadmap/` | Project phases, milestones, what's next |
 | `.context/requests/` | Change requests, meeting notes, external asks |
-| `.context/decisions/` | Architectural / product decisions with status (Active/Superseded/Reversed) |
-| `.context/audits/` | Audit runs (INVENTORY.md, METHODOLOGY.md, CHANGELOG.md, run folders) |
+| `.context/decisions/` | Architectural / product decisions (status: `accepted` / `superseded` / `dropped`) |
+| `.context/audits/` | Audit runs grouped by methodology (`audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`) |
 
 ### Acceptable non-canonical types
 
@@ -174,7 +176,7 @@ Roadmap organizes work into phases or milestones:
 
 ```
 .context/roadmap/
-├── README.md              # Overview + current phase
+├── 00-index.md            # Overview + current phase
 ├── 00-phase-name.md       # Phase 0 details
 ├── 01-phase-name.md       # Phase 1 details
 └── ...
@@ -188,9 +190,11 @@ Change requests, meeting notes, and external asks:
 
 ```
 .context/requests/
-├── YYYYMMDD-brief-description.md
-└── _archive/              # Completed requests
+├── YYYY-MM-DD-brief-description.md
+└── _archive/              # Completed/rejected requests
 ```
+
+Filename date format is `YYYY-MM-DD` per D-01 ([`00-global.md` §1](00-global.md#1-naming--dates-d-01)).
 
 **Rule:** If a section in CLAUDE.md grows beyond 10 lines, move it to `.context/` and replace with a link.
 

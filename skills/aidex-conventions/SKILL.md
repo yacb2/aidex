@@ -36,6 +36,38 @@ This skill defines conventions for eight documentation types:
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 
+## Migrating an existing `.context/` to the unified canon
+
+For projects that pre-date these conventions (mixed `YYYYMMDD-` / `YYYY-MM-DD-` filenames, missing front-matter, legacy status terms like `completed`/`Rejected`), run the migration helper:
+
+```bash
+# Dry-run (default) — prints every change without writing:
+~/.aidex/skills/aidex-conventions/scripts/migrate-conventions.sh /path/to/project/.context
+
+# Apply when satisfied:
+~/.aidex/skills/aidex-conventions/scripts/migrate-conventions.sh /path/to/project/.context --apply
+```
+
+What it does (idempotent — re-running on a clean tree is a no-op):
+
+- Renames legacy `YYYYMMDD-<slug>.md` → `YYYY-MM-DD-<slug>.md`. Sanitizes slugs (lowercase, `[a-z0-9-]+`). Prepends a date to files with none, using `created`/`date`/`updated` front-matter or today.
+- Injects minimal front-matter (`title`, `status`, `created`, `updated`) where the YAML block is missing. Archived files default to `status: done`.
+- Maps legacy status vocabulary: `completed` → `done`, `Rejected` → `dropped`, `Proposed` → `open`, `Pendiente` → `open`, `In Progress` → `doing`.
+- Rewrites cross-references (front-matter fields + body) to renamed basenames.
+- Creates `_archive/` directories in `backlog/`, `plans/`, `requests/`, `decisions/` if absent.
+
+Recommended workflow:
+
+1. Back up the project's `.context/` before applying (a `cp -r` or commit if tracked).
+2. Run `--dry-run` and read the plan — pay attention to the front-matter changes and the cross-ref rewrites.
+3. Apply with `--apply`.
+4. Re-run the validator: `~/.aidex/skills/aidex-conventions/scripts/validate.sh /path/to/project/.context`. Expect 0 violations.
+
+Edge cases the migration cannot decide for you:
+
+- Custom legacy status values not in the table above — fix manually after dry-run.
+- Audit folders that pre-date D-02 (single `INVENTORY.md` at root rather than per-methodology). The migration only normalizes filenames and front-matter; it does not restructure audit folders — do that by hand using the new templates in `audit/assets/templates/`.
+
 ## Core Principles
 
 ### Progressive Disclosure

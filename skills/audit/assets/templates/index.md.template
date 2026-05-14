@@ -1,11 +1,16 @@
-# {{AUDIT_TYPE}} — {{SLUG}}
+---
+title: "{{METHODOLOGY_NAME}} audit — {{SLUG}}"
+status: doing
+created: {{DATE}}
+updated: {{DATE}}
+methodology: {{METHODOLOGY}}
+---
 
-**Date:** {{DATE}}
-**Type:** {{AUDIT_TYPE}}
-**Status:** in-progress
-**Scope:** <!-- what was covered: modules, pages, features -->
-**Auditor:** <!-- who ran it (person, team, tool) -->
-**Method:** See [../methodology/{{AUDIT_TYPE}}.md](../methodology/{{AUDIT_TYPE}}.md)
+# {{METHODOLOGY_NAME}} audit — {{SLUG}}
+
+**Scope:** <!-- modules, pages, features covered -->
+**Auditor:** <!-- person, team, or tool -->
+**Method:** See [`../00-methodology.md`](../00-methodology.md)
 
 ---
 
@@ -19,7 +24,7 @@
 - <!-- e.g., auth module, checkout flow, dashboard -->
 
 **Out of scope:**
-- <!-- e.g., admin panel (audited separately in 20260401-admin), third-party embeds -->
+- <!-- e.g., admin panel (audited separately), third-party embeds -->
 
 ## Summary
 
@@ -27,8 +32,8 @@
 
 ## Findings
 
-See [findings.md](findings.md) for this run's filtered view.
-Canonical source: [../INVENTORY.md](../INVENTORY.md).
+See [`findings.md`](findings.md) for this run's filtered view.
+Canonical source: [`../00-inventory.md`](../00-inventory.md).
 
 **Counts (this run):**
 - P0: 0
@@ -39,7 +44,7 @@ Canonical source: [../INVENTORY.md](../INVENTORY.md).
 ## Next steps
 
 - <!-- Who triages, when -->
-- <!-- Re-test planned for YYYYMMDD -->
+- <!-- Re-test planned for YYYY-MM-DD -->
 - <!-- Related backlog entries, plans, or decisions -->
 
 ## References

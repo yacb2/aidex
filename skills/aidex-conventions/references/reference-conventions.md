@@ -1,127 +1,163 @@
 # Reference Module Conventions
 
-Standards for creating numbered reference documentation modules.
+Standards for creating numbered reference documentation modules (also covers `research/`).
 
-## Structure Pattern
+> **Read [`00-global.md`](00-global.md) first.** Filename dates, language, cross-references, and minimum front-matter live there. This file only declares structure rules specific to references and research.
+
+---
+
+## Structure pattern
 
 ```
-<topic>/
-├── 00-index.md              # Master index with quick reference
-├── 01-<first-topic>.md      # First module
-├── 02-<second-topic>.md     # Second module
-├── ...
-├── NN-<final-topic>.md      # Final module
-└── _archive/                # Superseded versions (optional)
-    └── YYYY-MM-DD-<old-file>.md
+references/<topic>/
+├── 00-index.md           # Master index
+├── 01-<first-topic>.md
+├── 02-<second-topic>.md
+├── …
+└── NN-<final-topic>.md
 ```
 
-## No README.md at Root Level
+### No archive folder (D-05)
 
-Do **NOT** create a `README.md` inside `references/` or `docs/`. Each module has its own `00-index.md` for navigation, and `CLAUDE.md` serves as the top-level entry point linking to modules. A README at the references root becomes a maintenance burden that desynchronizes with the actual module count.
+References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/2026-05-14-archive-folder-convention.md).
 
-**Entry point chain:** `CLAUDE.md` → `module/00-index.md` → `module/NN-topic.md`
+When superseding content:
+
+1. Update the existing module in place. Bump `Version` and `Last Updated`.
+2. If the old content has historical value, keep it in a clearly-labelled section (e.g., "### Legacy: pre-2026 setup") rather than relocating the file.
+3. If a module is wholly replaced by another, add a top-of-file note linking forward and update inbound references.
+
+```markdown
+> **Note** This module replaces the legacy approach previously in `01-old-flow.md`. See Version History.
+```
+
+---
+
+## No README.md at root level
+
+Do **NOT** create `README.md` inside `references/` or `docs/`. Each topic has its own `00-index.md`; `CLAUDE.md` is the top-level entry point linking to topics.
+
+**Entry chain:** `CLAUDE.md` → `<topic>/00-index.md` → `<topic>/NN-<slug>.md`
+
+---
 
 ## Accepted alias: `00-overview.md` in `research/`
 
-The canonical master file name is `00-index.md` everywhere. The single accepted alias is `00-overview.md` **only inside `.context/research/<topic>/`**, where the semantic of "overview of an exploration" reads more naturally than "index of a finished module". Auditors must report this alias as **INFO**, not WARNING.
+The canonical master file name is `00-index.md`. The single accepted alias is `00-overview.md` **only inside `.context/research/<topic>/`**, where the semantics of "overview of an exploration" reads more naturally than "index of a finished module". Auditors report this alias as **INFO**, not WARNING.
 
-In all other directories (`audits/`, `decisions/`, `plans/`, `references/`, `docs/`, `roadmap/`), `00-index.md` is the only acceptable name and any other prefix-zero file is a WARNING.
+In all other directories (`audits/` per [`audit-conventions.md`](audit-conventions.md), `decisions/`, `plans/`, `references/`, `docs/`, `roadmap/`), `00-index.md` is the only acceptable name and any other prefix-zero file is a WARNING.
 
-## File Naming
+---
 
-### Numbering Rules
+## File naming
 
-- **Two-digit prefix**: `00-` through `99-`
-- **Index always 00**: `00-index.md` is the master entry point
-- **Sequential numbering**: No gaps (01, 02, 03... not 01, 03, 05)
-- **Separator**: Single hyphen after number
+### Numbering
 
-### Name Format
+- **Two-digit prefix:** `00-` through `99-`
+- **Index always `00-`:** `00-index.md` is the master entry point
+- **Sequential:** no gaps (01, 02, 03 — not 01, 03, 05)
+- **Separator:** single hyphen after number
+
+### Name format
 
 ```
 NN-<kebab-case-description>.md
-
-Examples:
-- 00-index.md
-- 01-environment-setup.md
-- 02-deployment-steps.md
-- 11-troubleshooting.md
 ```
 
-### Category Prefixes (Optional)
+Examples: `00-index.md`, `01-environment-setup.md`, `02-deployment-steps.md`, `11-troubleshooting.md`.
 
-For larger references, use number ranges:
+### Category prefixes (optional)
 
 | Range | Category |
-|-------|----------|
+|---|---|
 | 00 | Index |
-| 01-09 | Core workflow/phases |
-| 10-19 | Architecture/concepts |
-| 20-29 | Operations/maintenance |
-| 30+ | Reference/appendix |
+| 01–09 | Core workflow / phases |
+| 10–19 | Architecture / concepts |
+| 20–29 | Operations / maintenance |
+| 30+ | Reference / appendix |
 
-## 00-index.md Template
+Reference modules do **not** carry a date in the filename — only audits, backlog, plans, requests, and decisions do. Reference modules are evergreen and updated in place.
+
+---
+
+## `00-index.md` template
 
 ```markdown
+---
+title: "Topic name reference"
+status: doing
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+version: 1.0.0
+---
+
 # [Topic Name] Reference
 
-**Version:** 1.0.0
-**Last Updated:** YYYY-MM-DD
-**Context:** [Brief description of what this reference covers]
+**Context:** [What this reference covers]
 
 ---
 
 ## Quick Reference
 
 | Action | Document | Section |
-|--------|----------|---------|
+|---|---|---|
 | [Task 1] | [01-filename](./01-filename.md) | [Section](#anchor) |
 | [Task 2] | [02-filename](./02-filename.md) | [Section](#anchor) |
 
-## Documents in This Reference
+## Documents in this reference
 
 | # | Document | Description |
-|---|----------|-------------|
+|---|---|---|
 | 00 | This index | Master reference and navigation |
-| 01 | [First Topic](./01-topic.md) | Brief description |
-| 02 | [Second Topic](./02-topic.md) | Brief description |
+| 01 | [First topic](./01-topic.md) | Brief description |
+| 02 | [Second topic](./02-topic.md) | Brief description |
 
 ## Prerequisites
 
 - [Prerequisite 1]
 - [Prerequisite 2]
 
-## Key Information
+## Key information
 
-[Critical information that applies to all modules - server URLs, credentials location, etc.]
+[Critical information that applies to all modules — server URLs, credentials location, etc.]
 
-## Related References
+## Related references
 
-- [Related Reference 1](../related/00-index.md)
+- [Related topic](../related/00-index.md)
 
 ---
 
-## Version History
+## Version history
 
 | Version | Date | Changes |
-|---------|------|---------|
+|---|---|---|
 | 1.0.0 | YYYY-MM-DD | Initial version |
 ```
 
-## Module Template (01-NN)
+`status` for references typically stays `doing` (under active maintenance) or `done` (frozen, e.g., legacy system docs). `dropped` means superseded outright.
+
+---
+
+## Module template (`01-NN`)
 
 ```markdown
+---
+title: "Module title"
+status: doing
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+version: 1.0.0
+---
+
 # [Module Title]
 
-**Version:** 1.0.0
-**Last Updated:** YYYY-MM-DD
 **Context:** [Module-specific context]
 
 ---
 
 ## Overview
 
-[1-2 paragraph overview of this module's content and purpose]
+[1–2 paragraphs — purpose, scope]
 
 ## Prerequisites
 
@@ -130,31 +166,20 @@ For larger references, use number ranges:
 
 ---
 
-## [Main Section 1]
+## [Main section]
 
-### [Subsection 1.1]
+### [Subsection]
 
-[Content with code examples]
-
-```bash
+\`\`\`bash
 # Example command
 command --flag value
-```
+\`\`\`
 
-**Expected Output:**
-```
+**Expected output:**
+
+\`\`\`
 Output here
-```
-
-### [Subsection 1.2]
-
-[More content]
-
----
-
-## [Main Section 2]
-
-[Content]
+\`\`\`
 
 ---
 
@@ -162,35 +187,33 @@ Output here
 
 - [ ] Check 1
 - [ ] Check 2
-- [ ] Check 3
 
 ## Troubleshooting
 
-### [Issue 1]
+### [Issue]
 
-**Symptom:** [What user sees]
-
+**Symptom:** [What you see]
 **Cause:** [Why it happens]
-
 **Solution:**
-```bash
-# Fix command
-```
+
+\`\`\`bash
+# Fix
+\`\`\`
 
 ---
 
-## Next Steps
+## Next steps
 
 - [Next document](./NN-next.md)
 
-## See Also
+## See also
 
 - [Related document](./NN-related.md#section)
 ```
 
-## Warning Format
+---
 
-Use blockquotes with bold prefix:
+## Warning format
 
 ```markdown
 > **Warning** Deploy CMS before frontend to avoid build failures.
@@ -200,103 +223,56 @@ Use blockquotes with bold prefix:
 > **Note** This step is optional for development environments.
 ```
 
-## Cross-Reference Format
+---
 
-### Within Same Reference
+## Cross-reference format
 
-```markdown
-[See Setup Steps](./01-setup.md#configuration)
-```
-
-### To Other References
+For links **inside the same reference module**, use relative file paths:
 
 ```markdown
-[See Related Reference](../other-topic/00-index.md)
+[See setup steps](./01-setup.md#configuration)
+[See related reference](../other-topic/00-index.md)
+[Troubleshooting](./08-troubleshooting.md#database-connection-issues)
 ```
 
-### With Anchors
+For cross-references to **other artifact types** (backlog, plans, decisions, etc.), use the `<type>/<filename>` form from [`00-global.md` §3](00-global.md#3-cross-references-d-03).
 
-```markdown
-[Troubleshooting section](./08-troubleshooting.md#database-connection-issues)
-```
+---
 
-## Archive Convention
+## Code block standards
 
-When superseding a document:
+- Always include a language hint (`bash`, `typescript`, `json`, `python`, …).
+- Show expected output for commands when the output matters.
 
-1. Create `_archive/` directory if not exists
-2. Move old file with date prefix: `YYYY-MM-DD-original-name.md`
-3. Add note at top of archived file:
+---
 
-```markdown
-> **Archived** Superseded by [new-file](../NN-new-file.md) on YYYY-MM-DD
-```
+## Validation rules
 
-## Code Block Standards
-
-### Always Include Language Hint
-
-```markdown
-```bash
-# Shell commands
-```
-
-```typescript
-// TypeScript code
-```
-
-```json
-// JSON config
-```
-```
-
-### Include Expected Output
-
-```markdown
-```bash
-npm run build
-```
-
-**Expected Output:**
-```
-Build completed successfully
-```
-```
-
-## Metadata Requirements
-
-Every file MUST include:
-
-| Field | Required | Format |
-|-------|----------|--------|
-| Version | Yes | Semantic (X.Y.Z) |
-| Last Updated | Yes | YYYY-MM-DD |
-| Context | Recommended | Brief description |
-
-## Validation Rules
-
-### Structure Checks
-
-- [ ] `00-index.md` exists
+### Structure
+- [ ] `00-index.md` (or `00-overview.md` in `research/`) exists
 - [ ] Files numbered sequentially (no gaps)
 - [ ] File names use kebab-case
-- [ ] `_archive/` used correctly (if present)
+- [ ] No `_archive/` folder (D-05)
 
-### Metadata Checks
+### Metadata
+- [ ] Front-matter has `title`, `status`, `created`, `updated`, `version`
+- [ ] Version follows semantic format (`X.Y.Z`)
+- [ ] Dates use `YYYY-MM-DD` (D-01)
 
-- [ ] Version field in all files
-- [ ] Last Updated field in all files
-- [ ] Version follows semantic format
-
-### Content Checks
-
+### Content
 - [ ] Overview section in each module
-- [ ] Prerequisites section present
-- [ ] Quick Reference table in index
-- [ ] Documents table in index complete
+- [ ] Prerequisites section present where applicable
+- [ ] Quick Reference table in `00-index.md`
+- [ ] Documents table in `00-index.md` complete
 
-### Link Checks
-
+### Links
 - [ ] All cross-references resolve
 - [ ] No broken anchor links
-- [ ] Relative paths used (not absolute)
+- [ ] Relative paths, not absolute
+
+---
+
+## Related
+
+- [`00-global.md`](00-global.md) — shared rules.
+- [`claudemd-conventions.md`](claudemd-conventions.md) — how CLAUDE.md links to references.
