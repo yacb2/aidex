@@ -70,7 +70,7 @@ After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply al
 **Guardrails for apply phase:**
 - Always confirm per item. No batch apply without prompts.
 - Never edit `feedback_*.md` files automatically (MEM-STALE is human-review only).
-- Never delete `~/.aidev-tools/` or other large external trees — escalate to backlog instead.
+- Never delete large external trees outside the aidex-managed roots (`~/.aidex/`, `~/.claude/skills/`, `~/.claude/commands/`) — escalate to backlog instead.
 - If `.context/decisions/` exists and an entry overlaps (MEM-DEC), prefer linking from MEMORY.md to the decision doc over deleting silently.
 - For third-party plugin skills, do NOT propose `disable-model-invocation` flips — get overwritten on plugin update. Use `settings.local.json` overrides instead.
 
