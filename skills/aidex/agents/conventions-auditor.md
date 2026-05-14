@@ -25,9 +25,8 @@ references) remain in `validate-audit.sh` and are handled by `context-auditor`.
 
 ## Setup
 
-Read the validator's stable JSON contract:
-- `~/.aidex/skills/aidex-conventions/references/04-validators.md` if available
-  (lists rule IDs, severities, and applicability).
+The validator's stable JSON contract is documented inline below (see "Parse
+and emit"). Rule IDs surface verbatim in the `rule` field.
 
 If `~/.aidex/skills/aidex-conventions/scripts/validate.sh` does not exist OR
 `python3` is unavailable, emit:

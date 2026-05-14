@@ -213,6 +213,12 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
     findings: list[Finding] = []
     if type_name == "audits" and path.name in ("00-inventory.md", "00-methodology.md", "00-changelog.md"):
         return findings  # tabular/freeform — exempt
+    # Type-level aggregator index (e.g. backlog/00-index.md) is auto-generated
+    # by register-item.sh / similar tooling and intentionally carries no front-matter.
+    # Sub-folder indexes (plans/<date>-feature/00-index.md, references/<topic>/00-index.md)
+    # are NOT exempt — those are the artifact's main file and must declare metadata.
+    if path.name == "00-index.md" and path.parent.name == type_name:
+        return findings
     if is_subdocument(type_name, path):
         return findings  # sub-document of a 00-index.md
     if fm is None:

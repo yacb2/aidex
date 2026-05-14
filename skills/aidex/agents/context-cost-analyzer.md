@@ -11,7 +11,7 @@ You analyze a Claude Code session's idle context cost. Input is a `/context` bre
 
 ## Setup
 
-Read the budget heuristics: `~/.aidex/skills/aidex/references/06-context-budget.md`.
+Read the budget heuristics: `~/.aidex/skills/aidex/references/05-context-budget.md`.
 
 ## Steps
 
@@ -24,7 +24,7 @@ Tolerant regex: category name (case-insensitive, space or hyphen) followed by di
 
 ### 2. Classify against budget
 
-Use the targets in `06-context-budget.md` § Budget targets. Mark each tunable category `OK`, `WARN`, or `CRIT`.
+Use the targets in `05-context-budget.md` § Budget targets. Mark each tunable category `OK`, `WARN`, or `CRIT`.
 
 ### 3. Attribute cost
 
@@ -47,7 +47,7 @@ For each non-trivial category, identify the contributors:
 
 ### 4. Inspect MEMORY.md for disguised docs
 
-Read the project's MEMORY.md (commonly `~/.claude/projects/<project-slug>/memory/MEMORY.md` or `<project>/.claude/MEMORY.md`). For each entry, apply the signals from `06-context-budget.md` § 3:
+Read the project's MEMORY.md (commonly `~/.claude/projects/<project-slug>/memory/MEMORY.md` or `<project>/.claude/MEMORY.md`). For each entry, apply the signals from `05-context-budget.md` § 3:
 
 - Title matches `Patterns|Gotchas|Architecture|How to|Stack|Workflow` → `CB-MD` candidate.
 - Body >3 lines and names files, functions, or classes as subject → `CB-MD` candidate.
@@ -61,7 +61,7 @@ For each CLAUDE.md found:
 
 ### 6. Emit report
 
-Follow the exact output shape in `06-context-budget.md` § Output shape. Order `SUGGESTED ACTIONS` by estimated savings descending, with risk tag `low` (reversible config change), `medium` (affects a dir of files), `high` (removes user data like MEMORY.md content — always require approval).
+Follow the exact output shape in `05-context-budget.md` § Output shape. Order `SUGGESTED ACTIONS` by estimated savings descending, with risk tag `low` (reversible config change), `medium` (affects a dir of files), `high` (removes user data like MEMORY.md content — always require approval).
 
 ## Output format
 
