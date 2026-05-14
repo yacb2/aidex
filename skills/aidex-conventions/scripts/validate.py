@@ -220,6 +220,9 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
                                 "no YAML front-matter block (--- ... ---)"))
         return findings
     for field_name in REQUIRED_FIELDS:
+        # references/ are documentation, not work items — status is optional (canon §6 exemption)
+        if type_name == "references" and field_name == "status":
+            continue
         if field_name not in fm or not fm[field_name]:
             findings.append(Finding(type_name, str(path), "frontmatter-field-missing", "violation",
                                     f"required field '{field_name}' missing or empty"))
@@ -233,6 +236,8 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
 def check_status(type_name: str, path: Path, fm: dict | None) -> Finding | None:
     if fm is None or "status" not in fm:
         return None
+    if type_name == "references":
+        return None  # canon §6: references are documentation, not work items
     val = fm["status"]
     if type_name == "decisions":
         if val not in DECISION_STATUS:
