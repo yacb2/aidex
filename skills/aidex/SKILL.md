@@ -47,7 +47,7 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
 3. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
 4. **Never auto-execute**. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) for user approval one by one.
 
-Heuristics live in [references/06-context-budget.md](references/06-context-budget.md).
+Heuristics live in [references/05-context-budget.md](references/05-context-budget.md).
 
 ### Apply phase (optional)
 
@@ -255,5 +255,5 @@ In context-triggered mode, suggest a focused audit rather than a full one:
 - [01-context-checks.md](references/01-context-checks.md) — Detailed .context/ audit checks (A-F)
 - [02-skills-checks.md](references/02-skills-checks.md) — Skills audit checks (A-J) and scope decision matrix
 - [03-memory-workflow.md](references/03-memory-workflow.md) — Memory classification and externalization workflow
-- [05-fix-procedures.md](references/05-fix-procedures.md) — Safe and destructive fix procedures
-- [06-context-budget.md](references/06-context-budget.md) — Idle token budget, drivers, and `/aidex context` heuristics
+- [04-fix-procedures.md](references/04-fix-procedures.md) — Safe and destructive fix procedures
+- [05-context-budget.md](references/05-context-budget.md) — Idle token budget, drivers, and `/aidex context` heuristics

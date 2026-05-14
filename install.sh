@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIDEX_DIR="$HOME/.aidex"
 CLAUDE_DIR="$HOME/.claude"
 MANIFEST="$AIDEX_DIR/.manifest"
-VERSION="0.8.1"
+VERSION="0.8.2"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
