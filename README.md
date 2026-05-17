@@ -28,15 +28,24 @@ aidex solves this with two pillars:
 ├── rules/                               <-- Global session rules (auto-loaded by Claude Code)
 │   └── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
 └── skills/
-    ├── aidex/                           <-- The orchestrator (from aidex)
-    ├── aidex-conventions/               <-- Conventions skill (from aidex)
-    └── my-personal-skill/               <-- Your own (not in manifest)
+    ├── aidex/                       <-- The orchestrator (from aidex)
+    ├── aidex-conventions/           <-- Canon hub, non-invocable (from aidex)
+    ├── aidex-plan/                  <-- (from aidex)
+    ├── aidex-decision/              <-- (from aidex)
+    ├── aidex-request/               <-- (from aidex)
+    ├── aidex-research/              <-- (from aidex)
+    ├── aidex-reference/             <-- (from aidex)
+    ├── aidex-skill/                 <-- (from aidex)
+    ├── aidex-audit/                 <-- (from aidex)
+    ├── aidex-backlog-register/      <-- (from aidex)
+    └── my-personal-skill/           <-- Your own (not in manifest)
         │
         │  symlinks
         ▼
 ~/.claude/skills/                        <-- What Claude Code reads
 ├── aidex -> ~/.aidex/skills/aidex
 ├── aidex-conventions -> ~/.aidex/skills/aidex-conventions
+├── aidex-plan, aidex-decision, … -> ~/.aidex/skills/<each aidex skill>
 ├── my-personal-skill -> ~/.aidex/skills/my-personal-skill
 └── ...
 
@@ -76,27 +85,34 @@ project/.context/
 
 `rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
 
-### 4 skills
+### 10 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
-| **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits `.context/` (including `audits/`), skills, symlinks, MEMORY.md, plugins, and the session's idle context budget. Launches parallel subagents, reports findings, suggests and applies fixes. |
-| **`aidex-conventions`** | Context-triggered (passive) | The brain. Conventions for creating and structuring references, docs, plans, audits, skills, and CLAUDE.md. Activates when Claude detects you're creating or working with documentation. |
-| **`audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/audit new <type> <slug>` · `/audit validate` · `/audit escalate <id>` · `/audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
-| **`backlog-register`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/audit escalate` to close the audit→backlog loop. |
+| **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits the Claude Code ecosystem — `.context/` (including `audits/`), skills, symlinks, MEMORY.md, plugins, and the session's idle context budget. Launches parallel subagents, reports findings, suggests and applies fixes. |
+| **`aidex-conventions`** | Passive canon hub (non-invocable) | The canon. Full `.context/` and skill conventions that the invocable siblings below cite. Degraded to a non-invocable reference hub — it no longer auto-triggers; the siblings carry the triggers. |
+| **`aidex-plan`** | User-invoked + context-triggered | Creates `.context/plans/` — multi-phase implementation plans with numbered files, phases, and checkbox tracking. |
+| **`aidex-decision`** | User-invoked + context-triggered | Records `.context/decisions/` ADRs — what was chosen, why, the alternatives, and the consequences. |
+| **`aidex-request`** | User-invoked + context-triggered | Captures incoming stakeholder/client requests into `.context/requests/` before anyone acts on them. |
+| **`aidex-research`** | User-invoked + context-triggered | Investigation and spike notes into `.context/research/` before a plan or implementation. |
+| **`aidex-reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
+| **`aidex-skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
+| **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
+| **`aidex-backlog-register`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
 
 ### How it works
 
 **Creating things** — just ask naturally:
 ```
 "Create a plan for the auth migration"
-→ Claude loads aidex-conventions, creates .context/plans/20260402-auth-migration/
+→ Claude loads aidex-plan, creates .context/plans/20260402-auth-migration/
   with numbered files, phases, checkboxes, following all conventions
 
 "Create a reference for the payment API"  
-→ Creates .context/references/payment-api/ with 00-index.md + 01-overview.md
+→ Claude loads aidex-reference, creates .context/references/payment-api/
+  with 00-index.md + 01-overview.md
 
-"/audit new ux login-redesign"
+"/aidex-audit new ux login-redesign"
 → Scaffolds .context/audits/20260402-login-redesign/ with index, findings,
   and materializes INVENTORY/METHODOLOGY/CHANGELOG + ux-audit playbook on first use
 ```
