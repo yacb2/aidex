@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Create a plan for implementing the new booking calendar component. It needs drag-and-drop, time slot selection, and recurring events support.",
+    "should_trigger": true,
+    "expected_behavior": "Should follow plan-conventions.md to create a plan in .context/plans/. Canonical plan-create imperative (carried verbatim from the aidex-conventions baseline inventory #5)."
+  },
+  {
+    "query": "Quiero planificar la migración del auth middleware. Hay que tocar backend, frontend y los tests e2e. Van a ser como 4 fases.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-file plan in .context/plans/YYYYMMDD-auth-middleware-migration/. Canonical ES plan-create imperative (carried verbatim from aidex-conventions baseline inventory #4)."
+  },
+  {
+    "query": "Let's plan the migration from REST to GraphQL. Multi-phase: schema design, resolver layer, client migration, then deprecation.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-file plan with the four named phases"
+  },
+  {
+    "query": "Necesito un plan para reescribir el módulo de reportes. Es grande, toca varias capas y lo van a trabajar dos personas en sesiones distintas.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-file plan (multi-layer + multi-session ⇒ modular)"
+  },
+  {
+    "query": "We need to plan the rollout of the new permissions system. There's a backend RBAC layer, frontend gating, and a data migration.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-file plan covering the three layers"
+  },
+  {
+    "query": "Planifiquemos la integración con Stripe Connect: onboarding de cuentas, split payments, payouts y webhooks. Son varias fases.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-phase plan in .context/plans/"
+  },
+  {
+    "query": "I want to plan the v2 of the dashboard before we touch code. It's a big refactor across the data layer and the UI.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a plan before implementation; multi-layer ⇒ likely modular"
+  },
+  {
+    "query": "Hagamos un plan para el proyecto de internacionalización: extraer strings, locale routing, y formato de moneda y fechas por región.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-phase i18n plan in .context/plans/"
+  },
+  {
+    "query": "Plan the database sharding work. It spans schema changes, a dual-write phase, a backfill, and the cutover.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-phase plan with the named phases"
+  },
+  {
+    "query": "Antes de implementar, armemos un plan multi-fase para mover el procesamiento de imágenes a un worker asíncrono.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a multi-phase plan in .context/plans/"
+  },
+  {
+    "query": "We decided to drop support for Node 18 and go all-in on Node 22. The main reason is we need native fetch and the new test runner. Document this decision.",
+    "should_trigger": false,
+    "expected_behavior": "This is a decision record — should route to aidex-conventions (decisions), NOT aidex-plan. Split-boundary precision check."
+  },
+  {
+    "query": "El cliente de Panamá nos pidió que el dashboard tenga un filtro por fecha de creación. No es urgente pero lo quieren para la próxima release. Captúralo como request.",
+    "should_trigger": false,
+    "expected_behavior": "This is a request capture — should route to aidex-conventions (requests), NOT aidex-plan. Split-boundary precision check."
+  },
+  {
+    "query": "Necesito investigar cómo funciona la API de Gemini para generación de video antes de planificar nada. No sé si Veo 3 ya soporta prompts de estilo.",
+    "should_trigger": false,
+    "expected_behavior": "This is research — should route to aidex-conventions (research). Note the 'antes de planificar' distractor: the actual intent is investigation, not plan creation. Split-boundary precision check."
+  },
+  {
+    "query": "Documenta cómo está configurado el pipeline de CI/CD con GitHub Actions, incluyendo los secrets, los environments y el deploy a Vercel.",
+    "should_trigger": false,
+    "expected_behavior": "This is a reference doc — should route to aidex-conventions (references), NOT aidex-plan. Split-boundary precision check."
+  },
+  {
+    "query": "Park this for next quarter: replacing the current notification queue with something based on Redis Streams. We discussed it today but it's not a fit for this sprint.",
+    "should_trigger": false,
+    "expected_behavior": "This is a defer/park — should route to backlog-register, NOT aidex-plan"
+  },
+  {
+    "query": "Quick reminder so I don't forget: we should refactor the date-picker component to use react-aria. Track it for later, no specific deadline.",
+    "should_trigger": false,
+    "expected_behavior": "This is a track-for-later — should route to backlog-register, NOT aidex-plan"
+  },
+  {
+    "query": "We need to do a UX audit of the signup flow. Activation rates dropped 15% this month and we want to find what changed.",
+    "should_trigger": false,
+    "expected_behavior": "This is an audit run — should route to audit, NOT aidex-plan"
+  },
+  {
+    "query": "My Claude Code setup feels heavy — every project opens at like 22% context. Audit my ecosystem and find what to trim.",
+    "should_trigger": false,
+    "expected_behavior": "This is an ecosystem audit — should route to aidex, NOT aidex-plan"
+  },
+  {
+    "query": "Implement the password reset flow now. Use the new email service, send a magic link, and expire it after 30 minutes.",
+    "should_trigger": false,
+    "expected_behavior": "This is direct implementation with no plan doc needed, NOT aidex-plan"
+  },
+  {
+    "query": "There's a CORS issue when the frontend in dev tries to hit the backend. The error mentions Access-Control-Allow-Origin missing. Help me debug.",
+    "should_trigger": false,
+    "expected_behavior": "This is a debugging task, NOT aidex-plan"
+  }
+]

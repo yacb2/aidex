@@ -1,8 +1,10 @@
 ---
 name: aidex
-description: Audits and fixes the Claude Code ecosystem — skills, .context/ structure and conventions, symlinks, MEMORY.md, CLAUDE.md, plugins, and idle context budget. Triggers on /aidex, /aidex context, and natural asks like "audit my project / check my project's health / review the ecosystem / my project is messy / clean up MEMORY.md / find broken symlinks / stale documentation / check .context/ conventions / is my context folder consistent / audit my project's conventions / what skills do I have / verify CLAUDE.md links / reorganize .context/ / this project opens heavy / wastes too much context / reduce initial token cost / audit installed plugins / this skill doesn't apply to this stack / optimize my Claude Code setup / organize my ecosystem". Also auto-activates when Claude notices a broken symlink, MEMORY.md exceeds ~80 lines, or a referenced file in a skill is missing. Do NOT use for: creating documentation (plans, decisions, requests, references) → aidex-conventions; project-state audits (UX/security/perf/a11y) → audit; backlog entries → backlog-register.
+description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "organiza mi ecosistema", "revisa la salud de mi proyecto", "creo que tengo symlinks rotos", "mi MEMORY.md está desactualizado", "mi .context/ es un desastre", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog-register).
 disable-model-invocation: false
 ---
+
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Aidex — Ecosystem Orchestrator
 
@@ -53,7 +55,7 @@ Heuristics live in [references/05-context-budget.md](references/05-context-budge
 
 After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
 
-1. **Write audit doc.** Save the full report to `.context/audits/YYYYMMDD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `audit` skill if available, else write directly).
+1. **Write audit doc.** Save the full report to `.context/audits/YYYYMMDD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
 2. **Backup.** Before any mutation, copy to `.aidex-backups/<timestamp>/`:
    - `settings.local.json` (project and user, if touched)
    - the entire memory directory

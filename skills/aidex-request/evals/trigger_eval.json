@@ -1,0 +1,102 @@
+[
+  {
+    "query": "The client asked for a CSV export on the reports page. Capture this as a request.",
+    "should_trigger": true,
+    "expected_behavior": "Should create .context/requests/YYYY-MM-DD-<slug>.md per request-decision-conventions.md (Requests)."
+  },
+  {
+    "query": "El cliente de Panamá nos pidió un filtro por fecha de creación en el dashboard. Captúralo como request.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a single dated request file in .context/requests/ per the canon (Requests)."
+  },
+  {
+    "query": "Elena from product wants the onboarding flow to skip step 3 for returning users. Log this requirement.",
+    "should_trigger": true,
+    "expected_behavior": "Should capture a stakeholder request in .context/requests/ with origin: stakeholder."
+  },
+  {
+    "query": "El stakeholder pidió que el export de facturas incluya el IVA desglosado. Registra este requerimiento.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a request file per request-decision-conventions.md (Requests)."
+  },
+  {
+    "query": "We got a request from the sales team to add a 'duplicate quote' button. File it as a request.",
+    "should_trigger": true,
+    "expected_behavior": "Should create .context/requests/YYYY-MM-DD-<slug>.md with the acceptance criteria template."
+  },
+  {
+    "query": "En la reunión de hoy el cliente pidió soporte para pagos con PIX en Brasil. Crea un request formal.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a request file with origin: meeting per the canon."
+  },
+  {
+    "query": "Capture this incoming requirement: the marketing team needs UTM parameters preserved through signup.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a request capturing the requirement and acceptance criteria."
+  },
+  {
+    "query": "Nos pidieron agregar un modo oscuro a la app móvil. Documéntalo como request en .context/requests.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a single request file in .context/requests/ per the canon."
+  },
+  {
+    "query": "Record the stakeholder ask: support bulk user import via CSV for enterprise accounts.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a request file with Description, Context, Acceptance Criteria, Outcome."
+  },
+  {
+    "query": "El cliente quiere poder exportar el historial de pedidos a Excel. Captura el requerimiento.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a request file per request-decision-conventions.md (Requests)."
+  },
+  {
+    "query": "Let's plan the migration from REST to GraphQL — schema design, resolver layer, client migration, deprecation. Multi-phase.",
+    "should_trigger": false,
+    "expected_behavior": "Plan creation → aidex-plan, NOT aidex-request. Split-boundary precision check."
+  },
+  {
+    "query": "We decided to drop Node 18 and standardize on Node 22 for native fetch and the new test runner. Document this decision.",
+    "should_trigger": false,
+    "expected_behavior": "Decision record → aidex-decision, NOT aidex-request. Split-boundary precision check."
+  },
+  {
+    "query": "Investiga cómo funciona la API de Stripe Connect para split payments antes de planificar nada.",
+    "should_trigger": false,
+    "expected_behavior": "Research/investigation → aidex-research, NOT aidex-request. Split-boundary precision check."
+  },
+  {
+    "query": "Documenta cómo está configurado el pipeline de CI/CD con GitHub Actions, los secrets y el deploy a Vercel.",
+    "should_trigger": false,
+    "expected_behavior": "Reference doc → aidex-reference, NOT aidex-request. Split-boundary precision check."
+  },
+  {
+    "query": "Park this for next quarter: replacing the notification queue with Redis Streams. Not a fit for this sprint.",
+    "should_trigger": false,
+    "expected_behavior": "Defer/park → backlog-register, NOT aidex-request."
+  },
+  {
+    "query": "Recordatorio para no olvidar: deberíamos migrar el date-picker a react-aria. Anótalo para después, sin fecha.",
+    "should_trigger": false,
+    "expected_behavior": "Track-for-later → backlog-register, NOT aidex-request."
+  },
+  {
+    "query": "My Claude Code setup feels heavy — every project opens at 22% context. Audit my ecosystem and find what to trim.",
+    "should_trigger": false,
+    "expected_behavior": "Ecosystem audit → aidex, NOT aidex-request."
+  },
+  {
+    "query": "We need a UX audit of the signup flow. Activation rates dropped 15% this month and we want to find what changed.",
+    "should_trigger": false,
+    "expected_behavior": "Project-state audit → audit, NOT aidex-request."
+  },
+  {
+    "query": "Implement the password reset flow now. Use the new email service, send a magic link, expire it after 30 minutes.",
+    "should_trigger": false,
+    "expected_behavior": "Direct implementation, NOT aidex-request."
+  },
+  {
+    "query": "There's a CORS error when the dev frontend hits the backend — Access-Control-Allow-Origin missing. Help me debug.",
+    "should_trigger": false,
+    "expected_behavior": "Debugging task, NOT aidex-request."
+  }
+]

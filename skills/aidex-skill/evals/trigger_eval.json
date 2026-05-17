@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Review this skill against our house standards — does its front-matter follow our conventions?",
+    "should_trigger": true,
+    "expected_behavior": "Should read skill-conventions.md READ-ONLY and produce a gap report for the target skill."
+  },
+  {
+    "query": "Revisa este skill contra nuestros estándares de la casa: la descripción y el allowed-tools.",
+    "should_trigger": true,
+    "expected_behavior": "Should check the skill's front-matter against the house skill-conventions canon."
+  },
+  {
+    "query": "Check whether the new audit skill follows our skill patterns and tell me the gaps.",
+    "should_trigger": true,
+    "expected_behavior": "Should produce a conventions gap report against skill-conventions.md."
+  },
+  {
+    "query": "Estructura este skill como lo hacemos nosotros: front-matter, body y evals.",
+    "should_trigger": true,
+    "expected_behavior": "Should structure the target skill per the house canon (read-only canon, writes only the target skill)."
+  },
+  {
+    "query": "Audit this skill's description against our trigger-first rule and char budget.",
+    "should_trigger": true,
+    "expected_behavior": "Should check the description against skill-conventions.md (trigger-first, char budget)."
+  },
+  {
+    "query": "¿Este skill sigue nuestros patrones? Compáralo con nuestras convenciones de skills.",
+    "should_trigger": true,
+    "expected_behavior": "Should compare the skill against the house conventions and report differences."
+  },
+  {
+    "query": "Bring this skill in line with our conventions — check the marker-block and the evals layout.",
+    "should_trigger": true,
+    "expected_behavior": "Should apply house conventions to the target skill's own files only."
+  },
+  {
+    "query": "Revisa que este skill cumpla con nuestras convenciones internas y reporta qué falta.",
+    "should_trigger": true,
+    "expected_behavior": "Should produce a gap report against skill-conventions.md."
+  },
+  {
+    "query": "Validate this skill's structure against our house skill-conventions and list what's off.",
+    "should_trigger": true,
+    "expected_behavior": "Should validate structure against the canon and list deviations."
+  },
+  {
+    "query": "Aplica nuestras convenciones de skills a este skill que estoy armando y dime los gaps.",
+    "should_trigger": true,
+    "expected_behavior": "Should apply house conventions to the in-progress skill and report gaps."
+  },
+  {
+    "query": "Create a new skill from scratch that posts release notes to Slack.",
+    "should_trigger": false,
+    "expected_behavior": "Skill creation from scratch → skill-creator, NOT aidex-skill. Split-boundary precision check (primary sibling)."
+  },
+  {
+    "query": "Optimize this skill's description so it triggers more reliably — run the eval and tune it.",
+    "should_trigger": false,
+    "expected_behavior": "Description optimization + eval running → skill-creator, NOT aidex-skill. Split-boundary precision check (primary sibling)."
+  },
+  {
+    "query": "Let's plan the v2 of the dashboard before we touch code. It's a big multi-layer refactor.",
+    "should_trigger": false,
+    "expected_behavior": "Plan creation → aidex-plan, NOT aidex-skill. Split-boundary precision check."
+  },
+  {
+    "query": "We decided to split the mega-skill into single-purpose skills. Document the decision and why.",
+    "should_trigger": false,
+    "expected_behavior": "Decision record → aidex-decision, NOT aidex-skill. Split-boundary precision check."
+  },
+  {
+    "query": "El cliente pidió un botón de exportar a PDF en el reporte. Captúralo como request.",
+    "should_trigger": false,
+    "expected_behavior": "Request capture → aidex-request, NOT aidex-skill."
+  },
+  {
+    "query": "Investiga cómo funciona el sistema de skills de Claude Code antes de proponer nada.",
+    "should_trigger": false,
+    "expected_behavior": "Research about the skills system → aidex-research, NOT aidex-skill (not a conventions check of a target skill)."
+  },
+  {
+    "query": "Documenta cómo funciona nuestro install.sh y los symlinks como referencia.",
+    "should_trigger": false,
+    "expected_behavior": "Reference doc → aidex-reference, NOT aidex-skill."
+  },
+  {
+    "query": "Track for later: we should add evals to all the skills eventually. No deadline.",
+    "should_trigger": false,
+    "expected_behavior": "Track-for-later → backlog-register, NOT aidex-skill."
+  },
+  {
+    "query": "Audit my Claude Code ecosystem — unused skills, broken symlinks, bloated MEMORY.md.",
+    "should_trigger": false,
+    "expected_behavior": "Ecosystem audit → aidex, NOT aidex-skill."
+  },
+  {
+    "query": "This skill isn't triggering at all in a session — help me debug why it never fires.",
+    "should_trigger": false,
+    "expected_behavior": "Live trigger debugging → skill-creator/debugging, NOT aidex-skill (not a house-conventions check)."
+  }
+]

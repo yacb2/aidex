@@ -125,7 +125,7 @@ If a run's `index.md` declares `Type: <type>` with a known type, `methodology/<t
 `CHANGELOG.md` present and non-empty. Warn if last entry > 6 months old AND INVENTORY has grown >20% since — likely methodology has evolved without being logged.
 
 ### Fast implementation hint
-Prefer shelling out to `~/.aidex/skills/audit/scripts/validate-audit.sh --json <audits-dir>` when available; it produces the same violations in JSON. Fall back to manual checks only when the script is missing.
+Prefer shelling out to `~/.aidex/skills/aidex-audit/scripts/validate-audit.sh --json <audits-dir>` when available; it produces the same violations in JSON. Fall back to manual checks only when the script is missing.
 
 ## Report Format
 

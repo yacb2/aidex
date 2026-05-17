@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Research how the Gemini video-generation API handles style prompts before we plan anything.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a .context/research/<topic>/ module per reference-conventions.md research rules."
+  },
+  {
+    "query": "Investiga cómo funciona el rate-limiting de la API de OpenAI para nuestro caso de uso por lotes.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research module with 00-index.md (or 00-overview.md) + NN-<slug>.md files."
+  },
+  {
+    "query": "Spike on whether Postgres logical replication can do our zero-downtime migration. Capture the findings.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research/spike module capturing the findings."
+  },
+  {
+    "query": "Necesito investigar cómo manejan los webhooks de Stripe los reintentos y la idempotencia.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a .context/research/<topic>/ module per the canon."
+  },
+  {
+    "query": "Look into how Next.js App Router streaming works with Suspense — document what you find.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research module documenting the investigation."
+  },
+  {
+    "query": "Averigua cómo se hace la autenticación con passkeys (WebAuthn) y deja las notas de investigación.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research module with the findings per the canon."
+  },
+  {
+    "query": "Investigate the options for real-time presence (WebSocket vs SSE vs Liveblocks) and write up the research.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research module comparing the options."
+  },
+  {
+    "query": "Haz un spike de cómo integrar pagos con PIX en Brasil y registra los hallazgos en research.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a .context/research/<topic>/ spike module."
+  },
+  {
+    "query": "Research the trade-offs between Drizzle and Prisma for our schema before we commit to one.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research module on the trade-offs (pre-decision exploration)."
+  },
+  {
+    "query": "Investiga cómo funciona el caching de prompts en la API de Anthropic y documenta lo que encuentres.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a research module per reference-conventions.md research rules."
+  },
+  {
+    "query": "Necesito un plan para reescribir el módulo de reportes. Es grande, toca varias capas y lo van a trabajar dos personas en sesiones distintas.",
+    "should_trigger": false,
+    "expected_behavior": "Plan creation → aidex-plan, NOT aidex-research. Split-boundary precision check."
+  },
+  {
+    "query": "We settled on Postgres over MySQL for the new service. Write up the decision and the alternatives we considered.",
+    "should_trigger": false,
+    "expected_behavior": "Decision record → aidex-decision, NOT aidex-research. Split-boundary precision check."
+  },
+  {
+    "query": "El cliente pidió que el dashboard tenga export a Excel. Captúralo como request.",
+    "should_trigger": false,
+    "expected_behavior": "Request capture → aidex-request, NOT aidex-research. Split-boundary precision check."
+  },
+  {
+    "query": "Document how our existing auth middleware works — the token refresh and the session store.",
+    "should_trigger": false,
+    "expected_behavior": "Settled reference doc → aidex-reference, NOT aidex-research. Split-boundary precision check."
+  },
+  {
+    "query": "Track for later, no deadline: we should refactor the date-picker to react-aria.",
+    "should_trigger": false,
+    "expected_behavior": "Track-for-later → backlog-register, NOT aidex-research."
+  },
+  {
+    "query": "Para el próximo trimestre: reemplazar la cola de notificaciones por Redis Streams. Anótalo nomás.",
+    "should_trigger": false,
+    "expected_behavior": "Defer/park → backlog-register, NOT aidex-research."
+  },
+  {
+    "query": "Audit my ecosystem — broken symlinks in .claude/skills and a stale MEMORY.md.",
+    "should_trigger": false,
+    "expected_behavior": "Ecosystem audit → aidex, NOT aidex-research."
+  },
+  {
+    "query": "Run a security audit of the file-upload endpoint before the release.",
+    "should_trigger": false,
+    "expected_behavior": "Project-state audit → audit, NOT aidex-research."
+  },
+  {
+    "query": "Add the magic-link password reset now and expire it after 30 minutes.",
+    "should_trigger": false,
+    "expected_behavior": "Direct implementation, NOT aidex-research."
+  },
+  {
+    "query": "The build fails intermittently with 'out of memory' in CI. Help me figure out why it's happening.",
+    "should_trigger": false,
+    "expected_behavior": "Live debugging of a failure, NOT a research-note module. Precision distractor (looks investigative)."
+  }
+]
