@@ -9,10 +9,10 @@ if [[ "${1:-}" == "escalate" ]]; then shift; fi
 
 if [[ $# -lt 1 ]]; then
   cat <<EOF >&2
-Usage: /audit escalate <finding-id>
+Usage: /aidex-audit escalate <finding-id>
 
 Example:
-  /audit escalate BUG-01-3
+  /aidex-audit escalate BUG-01-3
 EOF
   exit 2
 fi
@@ -20,14 +20,19 @@ fi
 FINDING_ID="$1"
 ROOT="$(find_project_root)"
 AUDITS_DIR="$ROOT/.context/audits"
-INVENTORY="$AUDITS_DIR/INVENTORY.md"
+# Canonical inventory filename per D-02 is 00-inventory.md; legacy INVENTORY.md still accepted.
+if [[ -f "$AUDITS_DIR/00-inventory.md" ]]; then
+  INVENTORY="$AUDITS_DIR/00-inventory.md"
+elif [[ -f "$AUDITS_DIR/INVENTORY.md" ]]; then
+  INVENTORY="$AUDITS_DIR/INVENTORY.md"
+else
+  die "inventory not found: expected $AUDITS_DIR/00-inventory.md (or legacy INVENTORY.md)"
+fi
 BACKLOG_DIR="$ROOT/.context/backlog"
-
-[[ -f "$INVENTORY" ]] || die "INVENTORY.md not found at $INVENTORY"
 
 # Verify finding exists
 if ! grep -qE "^\|[[:space:]]*${FINDING_ID}[[:space:]]*\|" "$INVENTORY"; then
-  die "finding $FINDING_ID not found in INVENTORY.md"
+  die "finding $FINDING_ID not found in $(basename "$INVENTORY")"
 fi
 
 # Find which audit run(s) recorded this finding (for Origen path)
@@ -46,13 +51,13 @@ if [[ -z "$AUDIT_RUN" ]]; then
 fi
 [[ -z "$AUDIT_RUN" ]] && AUDIT_RUN="unknown-run"
 
-# Delegate to backlog-register. Resolve its script path.
+# Delegate to aidex-backlog-register. Resolve its script path.
 REGISTER=""
 for candidate in \
-  "$SKILL_DIR/../backlog-register/scripts/register-item.sh" \
-  "$ROOT/skills/backlog-register/scripts/register-item.sh" \
-  "$HOME/.aidex/skills/backlog-register/scripts/register-item.sh" \
-  "$HOME/.claude/skills/backlog-register/scripts/register-item.sh"
+  "$SKILL_DIR/../aidex-backlog-register/scripts/register-item.sh" \
+  "$ROOT/skills/aidex-backlog-register/scripts/register-item.sh" \
+  "$HOME/.aidex/skills/aidex-backlog-register/scripts/register-item.sh" \
+  "$HOME/.claude/skills/aidex-backlog-register/scripts/register-item.sh"
 do
   if [[ -f "$candidate" && -x "$candidate" ]]; then
     REGISTER="$candidate"
@@ -61,7 +66,7 @@ do
 done
 
 if [[ -z "$REGISTER" ]]; then
-  die "backlog-register script not found. Run './install.sh --update' to install it."
+  die "aidex-backlog-register script not found. Run './install.sh --update' to install it."
 fi
 
 # Extract Summary (cell 5) and Severity (cell 7) for the finding row.
@@ -128,11 +133,11 @@ case "$SEVERITY" in
     ;;
 esac
 
-info "Creating backlog entry for $FINDING_ID via backlog-register"
+info "Creating backlog entry for $FINDING_ID via aidex-backlog-register"
 BACKLOG_FILE="$("$REGISTER" --origin audit --finding "$FINDING_ID" --audit-run "$AUDIT_RUN" --title "$SUMMARY" "${PRIORITY_ARG[@]}")"
 
 if [[ -z "$BACKLOG_FILE" || ! -f "$BACKLOG_FILE" ]]; then
-  die "backlog-register did not return a valid entry path"
+  die "aidex-backlog-register did not return a valid entry path"
 fi
 
 # Compute relative path from INVENTORY to the backlog file
@@ -208,4 +213,4 @@ mv "$TMP" "$INVENTORY"
 ok "$FINDING_ID escalated"
 printf '  backlog entry: %s\n' "$BACKLOG_FILE" >&2
 printf '  INVENTORY row: status -> escalated, Escalated To -> %s\n' "$REL_BACKLOG" >&2
-printf '\nNext: /audit validate\n' >&2
+printf '\nNext: /aidex-audit validate\n' >&2

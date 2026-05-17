@@ -1,9 +1,11 @@
 ---
-name: audit
-description: Project-state auditing — scaffold, validate, escalate, and migrate audits under .context/audits/. Triggers on /audit, /audit new, /audit validate, /audit escalate, /audit migrate, and natural asks like "create an audit / start a new audit / UX audit / security audit / performance audit / a11y audit / accessibility audit / IA opportunities audit / re-test the findings / register a finding / escalate to backlog / audit methodology / catalog the state of the project / list bugs and gaps / inventory opportunities and risks / review project state". Do NOT use for: auditing the Claude Code ecosystem itself (skills, symlinks, CLAUDE.md, MEMORY.md) → aidex; creating plans, decisions, requests, references, research → aidex-conventions; backlog entries → backlog-register.
+name: aidex-audit
+description: Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog-register).
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
+
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Audit — Project State Catalog
 
@@ -19,11 +21,11 @@ Dispatch by first argument:
 
 | Command | Script | Purpose |
 |---|---|---|
-| `/audit` | — | Show help + current state of `.context/audits/` |
-| `/audit new <type> <slug>` | [scripts/new-audit.sh](scripts/new-audit.sh) | Scaffold a new audit run |
-| `/audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog |
-| `/audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
-| `/audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
+| `/aidex-audit` | — | Show help + current state of `.context/audits/` |
+| `/aidex-audit new <type> <slug>` | [scripts/new-audit.sh](scripts/new-audit.sh) | Scaffold a new audit run |
+| `/aidex-audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog |
+| `/aidex-audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
+| `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
 
 ### Supported audit types (for `new`)
 
@@ -66,7 +68,7 @@ fi
 ### Starting fresh
 
 ```
-/audit new ux login-redesign
+/aidex-audit new ux login-redesign
 ```
 
 Scaffolds:
@@ -88,14 +90,14 @@ Scaffolds:
 ### After the audit
 
 ```
-/audit validate          # verify coherence
-/audit escalate BUG-01-1 # one finding at a time → backlog
+/aidex-audit validate          # verify coherence
+/aidex-audit escalate BUG-01-1 # one finding at a time → backlog
 ```
 
 ### Re-testing
 
 ```
-/audit new retest post-sprint-5
+/aidex-audit new retest post-sprint-5
 ```
 
 Open the retest playbook; for each previously-open finding, classify (fixed / still open / regression / new adjacent) and update INVENTORY in place.
@@ -105,7 +107,7 @@ Open the retest playbook; for each previously-open finding, classify (fixed / st
 If audits have accumulated inside `.context/plans/`:
 
 ```
-/audit migrate
+/aidex-audit migrate
 ```
 
 Launches the `audit-migrator` subagent to detect candidates, proposes moves, then runs `inventory-seeder` to generate initial INVENTORY from existing findings.
@@ -155,5 +157,5 @@ All templates in [assets/templates/](assets/templates/):
 ## Related
 
 - **aidex-conventions** — defines the audit convention itself
-- **backlog-register** — handles the other side of escalation (`/backlog-register --origin audit --finding <id>`)
+- **aidex-backlog-register** — handles the other side of escalation (`/aidex-backlog-register --origin audit --finding <id>`)
 - **aidex** — audits the audits directory for coherence as part of overall ecosystem health

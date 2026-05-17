@@ -12,13 +12,13 @@ if [[ "${1:-}" == "new" ]]; then shift; fi
 
 if [[ $# -lt 2 ]]; then
   cat <<EOF >&2
-Usage: /audit new <type> <slug>
+Usage: /aidex-audit new <type> <slug>
 
 Types:
   ux-audit, ia-opportunities, retest, security-audit, perf-audit, a11y-audit, custom
 
 Example:
-  /audit new ux login-redesign
+  /aidex-audit new ux login-redesign
 EOF
   exit 2
 fi
@@ -39,22 +39,24 @@ PROJECT_NAME="$(basename "$ROOT")"
 # Ensure top-level structure
 mkdir -p "$AUDITS_DIR/methodology"
 
-# Bootstrap canonical files if missing
-if [[ ! -f "$AUDITS_DIR/INVENTORY.md" ]]; then
-  info "Creating INVENTORY.md"
-  render_template "$TEMPLATES_DIR/INVENTORY.md.template" "$AUDITS_DIR/INVENTORY.md" \
+# Bootstrap canonical files if missing.
+# Canonical filenames per D-02: 00-inventory.md, 00-methodology.md, 00-changelog.md.
+# Pre-existing legacy files (INVENTORY.md etc.) are left untouched; validator accepts both.
+if [[ ! -f "$AUDITS_DIR/00-inventory.md" && ! -f "$AUDITS_DIR/INVENTORY.md" ]]; then
+  info "Creating 00-inventory.md"
+  render_template "$TEMPLATES_DIR/00-inventory.md.template" "$AUDITS_DIR/00-inventory.md" \
     PROJECT_NAME="$PROJECT_NAME" DATE="$DATE_ISO"
 fi
 
-if [[ ! -f "$AUDITS_DIR/METHODOLOGY.md" ]]; then
-  info "Creating METHODOLOGY.md"
-  render_template "$TEMPLATES_DIR/METHODOLOGY.md.template" "$AUDITS_DIR/METHODOLOGY.md" \
+if [[ ! -f "$AUDITS_DIR/00-methodology.md" && ! -f "$AUDITS_DIR/METHODOLOGY.md" ]]; then
+  info "Creating 00-methodology.md"
+  render_template "$TEMPLATES_DIR/00-methodology.md.template" "$AUDITS_DIR/00-methodology.md" \
     PROJECT_NAME="$PROJECT_NAME" DATE="$DATE_ISO"
 fi
 
-if [[ ! -f "$AUDITS_DIR/CHANGELOG.md" ]]; then
-  info "Creating CHANGELOG.md"
-  render_template "$TEMPLATES_DIR/CHANGELOG.md.template" "$AUDITS_DIR/CHANGELOG.md" \
+if [[ ! -f "$AUDITS_DIR/00-changelog.md" && ! -f "$AUDITS_DIR/CHANGELOG.md" ]]; then
+  info "Creating 00-changelog.md"
+  render_template "$TEMPLATES_DIR/00-changelog.md.template" "$AUDITS_DIR/00-changelog.md" \
     DATE="$DATE_ISO"
 fi
 
@@ -92,7 +94,7 @@ if [[ "$TYPE" == "custom" ]]; then
     cat > "$CUSTOM_PLAYBOOK" <<EOF
 # Custom Playbook — $SLUG
 
-<!-- Fill in the six standard sections. See ~/.aidex/skills/audit/references/04-playbooks.md for structure. -->
+<!-- Fill in the six standard sections. See ~/.aidex/skills/aidex-audit/references/04-playbooks.md for structure. -->
 
 ## When to run
 
@@ -116,8 +118,8 @@ cat >&2 <<EOF
 Next steps:
   1. Open the playbook: $AUDITS_DIR/methodology/$TYPE.md
   2. Edit the run index: $RUN_DIR/index.md (set scope, auditor, context)
-  3. As you find issues, add rows to: $AUDITS_DIR/INVENTORY.md
+  3. As you find issues, add rows to: $AUDITS_DIR/00-inventory.md (or legacy INVENTORY.md if pre-existing)
   4. Reference IDs from: $RUN_DIR/findings.md
-  5. When ready to escalate: /audit escalate <finding-id>
-  6. Validate any time: /audit validate
+  5. When ready to escalate: /aidex-audit escalate <finding-id>
+  6. Validate any time: /aidex-audit validate
 EOF

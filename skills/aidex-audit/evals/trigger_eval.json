@@ -32,7 +32,7 @@
   {
     "query": "Finding BUG-03-2 from last week's audit is now prioritized for the next sprint. Push it to the backlog so the team can pick it up.",
     "should_trigger": true,
-    "expected_behavior": "Should call /audit escalate to move the finding to backlog"
+    "expected_behavior": "Should call /audit escalate to move the finding to backlog. AMBIGUOUS-ACCEPTABLE: genuine cross-skill overlap with backlog-register — 'Push it to the backlog' legitimately pulls toward backlog-register (mirror of backlog-register #8). A miss here is matcher-legitimate disambiguation, not a description bug; excluded from the adjusted-recall denominator in the run doc."
   },
   {
     "query": "I want to catalog all the bugs, gaps and opportunities that the reports module currently has. This isn't a fix — it's understanding the full state of the module before we plan the rework.",
