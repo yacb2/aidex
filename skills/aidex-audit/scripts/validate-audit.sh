@@ -32,7 +32,7 @@ AUDITS_DIR="${AUDITS_DIR%/}"
 AUDITS_BASENAME="$(basename "$AUDITS_DIR")"
 if [[ "$AUDITS_BASENAME" =~ ^[0-9]+- ]]; then
   PARENT_DIR="$(dirname "$AUDITS_DIR")"
-  if [[ -f "$PARENT_DIR/INVENTORY.md" ]]; then
+  if [[ -f "$PARENT_DIR/00-inventory.md" || -f "$PARENT_DIR/INVENTORY.md" ]]; then
     info "resolved run folder '$AUDITS_BASENAME' → audits root '$PARENT_DIR'"
     AUDITS_DIR="$PARENT_DIR"
   fi
@@ -54,9 +54,33 @@ is_legacy=0
 add_violation() { VIOLATIONS+=("$1"); }
 add_warning()   { WARNINGS+=("$1"); }
 
-# --- Check 1: canonical files exist ---
-for f in INVENTORY.md METHODOLOGY.md CHANGELOG.md; do
-  [[ -f "$AUDITS_DIR/$f" ]] || add_violation "missing canonical file: $f"
+# --- Check 1: canonical files exist (accept 00- prefix or legacy) ---
+# Each pair: modern (preferred per D-02) | legacy. Prefer modern when both exist; warn on duplicate.
+# Inlined (not factored into a function) so add_warning/add_violation mutate the parent shell's
+# arrays — a $(subshell) function would lose them.
+INVENTORY_PATH=""
+METHODOLOGY_PATH=""
+CHANGELOG_PATH=""
+for pair in \
+    "00-inventory.md|INVENTORY.md|INVENTORY_PATH" \
+    "00-methodology.md|METHODOLOGY.md|METHODOLOGY_PATH" \
+    "00-changelog.md|CHANGELOG.md|CHANGELOG_PATH"; do
+  modern="${pair%%|*}"
+  rest="${pair#*|}"
+  legacy="${rest%%|*}"
+  var_name="${rest#*|}"
+  modern_path="$AUDITS_DIR/$modern"
+  legacy_path="$AUDITS_DIR/$legacy"
+  if [[ -f "$modern_path" && -f "$legacy_path" ]]; then
+    add_warning "both $modern and $legacy exist; preferring $modern. Remove $legacy after confirming content is migrated."
+    printf -v "$var_name" '%s' "$modern_path"
+  elif [[ -f "$modern_path" ]]; then
+    printf -v "$var_name" '%s' "$modern_path"
+  elif [[ -f "$legacy_path" ]]; then
+    printf -v "$var_name" '%s' "$legacy_path"
+  else
+    add_violation "missing canonical file: $modern (or legacy $legacy)"
+  fi
 done
 
 # --- Check 2: each run folder has index.md + findings.md ---
@@ -124,7 +148,7 @@ has_legacy_inventory() {
   [[ "$total_pipe_rows" -gt 0 ]] && [[ "$findings_in_inventory" -eq 0 ]]
 }
 
-if [[ -f "$AUDITS_DIR/INVENTORY.md" ]]; then
+if [[ -n "$INVENTORY_PATH" ]]; then
   # Match rows that look like: | ID | Type | Module | Summary | Status | ...
   while IFS= read -r line; do
     # Skip header and separator lines
@@ -183,12 +207,12 @@ if [[ -f "$AUDITS_DIR/INVENTORY.md" ]]; then
         fi
         ;;
     esac
-  done < <(strip_html_comments "$AUDITS_DIR/INVENTORY.md")
+  done < <(strip_html_comments "$INVENTORY_PATH")
 
   # --- Legacy-schema detection: has pipe rows but none parsed as canonical findings ---
   if has_legacy_inventory; then
     is_legacy=1
-    add_warning "INVENTORY.md uses a legacy schema ($total_pipe_rows pipe-rows detected, 0 parse as canonical). Expected columns: | ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To |. Migrate with /audit migrate or adapt manually."
+    add_warning "$(basename "$INVENTORY_PATH") uses a legacy schema ($total_pipe_rows pipe-rows detected, 0 parse as canonical). Expected columns: | ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To |. Migrate with /aidex-audit migrate or adapt manually."
   fi
 
   # --- Check 4: IDs mentioned in per-run findings.md exist in INVENTORY ---

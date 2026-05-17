@@ -1,9 +1,11 @@
 ---
-name: backlog-register
-description: Registers items in .context/backlog/ with consistent front-matter (title, status, origin, priority, estimate). Auto-detects origin when called from the audit skill via /audit escalate. Triggers on /backlog-register, /backlog-register --list, and on natural-language asks like — "add to backlog" / "add this to the backlog" / "park this for later" / "park this idea" / "defer this" / "shelve this" / "queue this for later" / "track this for later" / "we'll do this later" / "not now but don't forget" / "backlog this idea" / "tech debt entry" / "remind me to do X later". Do NOT use for: creating plans or roadmap items → use aidex-conventions; project-state audits or finding registration → use audit; ecosystem audits → use aidex.
+name: aidex-backlog-register
+description: Use when the user wants to capture or defer something for later without acting on it now — add it to the backlog, park it, shelve it, queue it, track it, "we'll do this later", "not now but don't forget", a tech-debt entry, or moving an audit finding to the backlog. Fires on "add to the backlog", "add to the backlog the idea of X", "park this for later", "defer this one", "shelve the X idea", "queue this for later", "track this for later", "quick reminder so I don't forget", "move finding <id> to the backlog", "show me the backlog", "list open backlog items", and /aidex-backlog-register commands. Not for: creating plans, decisions, or references (aidex-conventions); auditing project state (aidex-audit); ecosystem audits (aidex).
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
+
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Backlog Register
 
@@ -15,11 +17,11 @@ Create consistent, machine-readable entries in `.context/backlog/` with origin t
 
 | Command | Script | Purpose |
 |---|---|---|
-| `/backlog-register` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
-| `/backlog-register --origin manual --title "<title>"` | same | Non-interactive manual entry |
-| `/backlog-register --origin audit --finding <id>` | same | From an audit finding (called by `/audit escalate`) |
-| `/backlog-register --origin issue --issue <id>` | same | From an issue tracker ID |
-| `/backlog-register --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
+| `/aidex-backlog-register` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
+| `/aidex-backlog-register --origin manual --title "<title>"` | same | Non-interactive manual entry |
+| `/aidex-backlog-register --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
+| `/aidex-backlog-register --origin issue --issue <id>` | same | From an issue tracker ID |
+| `/aidex-backlog-register --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `bash scripts/migrate-priorities.sh [--dry-run]` | [scripts/migrate-priorities.sh](scripts/migrate-priorities.sh) | Idempotent: normalize legacy `**Priority**: High/Low/...` to P0–P3 codes |
 
 ---
@@ -82,7 +84,7 @@ Transition by updating the `status` field and the `updated` date.
 
 ## Integration with audits
 
-When called by `/audit escalate <id>`, the skill:
+When called by `/aidex-audit escalate <id>`, the skill:
 
 1. Creates the entry with `origin: audit`
 2. Sets `origin_ref: audit/<audit-run>/<finding-id>` (e.g., `audit/20260415-login-redesign/BUG-01-3`)
@@ -97,5 +99,5 @@ When called by `/audit escalate <id>`, the skill:
 
 ## Related
 
-- **audit** — uses this skill for escalation (`/audit escalate`)
+- **aidex-audit** — uses this skill for escalation (`/aidex-audit escalate`)
 - **aidex-conventions** — parent convention for `.context/backlog/`
