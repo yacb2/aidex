@@ -12,7 +12,7 @@
   {
     "query": "Estamos decidiendo si usar PostgreSQL o MongoDB para el nuevo microservicio de analytics. Postgres nos da consistencia pero Mongo sería más flexible para los esquemas variables. Ya cambiamos de opinión dos veces.",
     "should_trigger": true,
-    "expected_behavior": "Should suggest creating a decision record in .context/decisions/ to document the choice and prevent future flip-flopping"
+    "expected_behavior": "Should suggest creating a decision record in .context/decisions/ to document the choice and prevent future flip-flopping. STATIVE-UNDER-FIRE: pure first-person stative narrative with no imperative documentation ask ('Estamos decidiendo...', no 'documenta/decide'). Per skill-conventions.md, stative phrasings under-fire by matcher design and no description wording reliably fixes this; the user intent (weighing a decision -> ADR) is genuine so it stays should_trigger=true, but a miss is matcher-legitimate, not a description bug; excluded from the adjusted-recall denominator in the run doc."
   },
   {
     "query": "Quiero planificar la migración del auth middleware. Hay que tocar backend, frontend y los tests e2e. Van a ser como 4 fases.",

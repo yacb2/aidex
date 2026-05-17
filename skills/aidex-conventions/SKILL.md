@@ -1,11 +1,23 @@
 ---
 name: aidex-conventions
-description: Creates and structures project knowledge under .context/ — plans (single-file or modular YYYYMMDD-feature/00-index.md + phase files), decisions/ADRs, requests, research, references, audits, backlog, and CLAUDE.md. Triggers PROACTIVELY when the user says "create a plan / let's plan / I need to plan X" → plans; "ADR / decision record / we decided / document this decision" → decisions; "stakeholder asked / client requested / capture as a request" → requests; "research how X works / investigate X / spike on X" → research; "create a reference / document how X works / write up the X architecture" → references. Whenever the user describes a new task, technical decision, or area to investigate — propose the right .context/ artifact BEFORE implementing. Multi-phase or multi-layer work → use modular plan format. Do NOT use for: auditing the Claude Code ecosystem (skills, MEMORY.md) → aidex; existing audits (scaffold/validate/escalate) → audit; backlog entries → backlog-register.
-disable-model-invocation: false
+description: NOT auto-invoked. Shared documentation-canon hub for the aidex-* family — holds the .context/ convention references (references/*.md) that the single-purpose sibling skills delegate into. Routing — plan multi-step work → aidex-plan; record a decision/ADR → aidex-decision; capture a stakeholder/client request → aidex-request; investigate/research how something works → aidex-research; document a settled system reference → aidex-reference; check a skill against house conventions → aidex-skill. This skill is the canon home, not an entry point; the siblings are the entry points.
+disable-model-invocation: true
 user-invocable: false
 ---
 
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
+
 # Documentation Standards
+
+> **Canon hub — NOT model-invoked (`disable-model-invocation: true`).** This
+> skill is no longer an entry point. It exists to **own and host the shared
+> `.context/` convention canon** in `references/*.md`, which the single-purpose
+> sibling skills read and delegate into. To actually create an artifact, the
+> matching sibling fires: planning → **aidex-plan**, decisions →
+> **aidex-decision**, requests → **aidex-request**, research →
+> **aidex-research**, references → **aidex-reference**, skill-conventions
+> checks → **aidex-skill**. Everything below is the canon index, not an
+> active workflow.
 
 Standards for consistent documentation structure in Claude Code projects.
 
@@ -174,7 +186,7 @@ State-of-project catalogs. An audit describes what **is** (findings, gaps, risks
 
 **Characteristics:** `INVENTORY.md` as source of truth, `METHODOLOGY.md` as living playbook with `CHANGELOG.md`, dated per-run folders (`YYYYMMDD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
 
-**Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `audit` skill (`/audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
+**Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `aidex-audit` skill (`/aidex-audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
 
 ### Plan: Modular vs Single-File
 
@@ -197,7 +209,7 @@ aidex-conventions provides structural conventions for documentation. To create o
 - **Skills:** Read [skill-conventions.md](references/skill-conventions.md), follow the template
 - **References/Docs:** Read [reference-conventions.md](references/reference-conventions.md), follow numbered file structure
 - **Requests/Decisions:** Read [request-decision-conventions.md](references/request-decision-conventions.md), follow the template
-- **Audits:** Read [audit-conventions.md](references/audit-conventions.md); for scaffolding and validation, delegate to the `audit` skill
+- **Audits:** Read [audit-conventions.md](references/audit-conventions.md); for scaffolding and validation, delegate to the `aidex-audit` skill
 - **CLAUDE.md:** Read [claudemd-conventions.md](references/claudemd-conventions.md), validate against conventions
 
 Complementary skills (e.g., skill-creator for behavioral testing, TDD workflows) can extend these conventions with execution tracking.

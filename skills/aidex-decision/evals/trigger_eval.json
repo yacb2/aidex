@@ -1,0 +1,102 @@
+[
+  {
+    "query": "We decided to use Postgres over MySQL for the main datastore — we need JSONB and better write concurrency. Document this decision.",
+    "should_trigger": true,
+    "expected_behavior": "Should follow request-decision-conventions.md (Decisions) to create .context/decisions/YYYY-MM-DD-postgres-over-mysql.md. Canonical decision-record imperative."
+  },
+  {
+    "query": "Decidimos migrar de REST a GraphQL para la API pública. La razón principal es el over-fetching en mobile. Registremos esta decisión.",
+    "should_trigger": true,
+    "expected_behavior": "Should create .context/decisions/YYYY-MM-DD-rest-to-graphql.md with context + rationale. Canonical ES decision-record imperative."
+  },
+  {
+    "query": "Write an ADR: we're standardizing on pnpm across all repos and dropping npm and yarn. Rationale is workspace support and disk usage.",
+    "should_trigger": true,
+    "expected_behavior": "Should create an ADR-style decision record. Explicit 'write an ADR' imperative."
+  },
+  {
+    "query": "Documenta la decisión de adoptar feature flags con Unleash en lugar de la solución casera. Quedó definido en la reunión de arquitectura.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a decision record with alternatives (custom solution) and rationale. ES imperative."
+  },
+  {
+    "query": "We settled on an event-driven design over polling for the notification service. Capture why we chose it and what we rejected.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a decision record capturing chosen option, rationale, and rejected alternative."
+  },
+  {
+    "query": "Registremos la decisión: el tenant isolation va a ser por schema en Postgres, no por base de datos separada. Hay tradeoffs que quiero dejar escritos.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a decision record with the tradeoffs in Consequences. ES imperative."
+  },
+  {
+    "query": "Log the decision to drop IE11 support entirely. We weighed the analytics and it's under 0.2% of traffic.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a decision record with the analytics as deciding factor."
+  },
+  {
+    "query": "Hay que dejar registrada la decisión de usar Tailwind en vez de CSS modules para el nuevo frontend. Documenta el porqué y las alternativas.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a decision record (chosen: Tailwind; alternative: CSS modules). ES imperative."
+  },
+  {
+    "query": "Record our decision to move authentication to a third-party provider (Clerk) instead of maintaining our own. Note the alternatives we considered.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a decision record with alternatives and rationale."
+  },
+  {
+    "query": "Decidimos que el procesamiento de pagos se hace de forma asíncrona vía cola. Escribe el ADR con el contexto y las consecuencias.",
+    "should_trigger": true,
+    "expected_behavior": "Should create an ADR with Context and Consequences sections. ES imperative."
+  },
+  {
+    "query": "We need to plan the migration from REST to GraphQL. Multi-phase: schema design, resolver layer, client migration, then deprecation.",
+    "should_trigger": false,
+    "expected_behavior": "This is a plan — should route to aidex-plan, NOT aidex-decision. Split-boundary precision check (plan vs decision)."
+  },
+  {
+    "query": "El cliente de Panamá nos pidió que el dashboard tenga un filtro por fecha de creación. No es urgente pero lo quieren para la próxima release. Captúralo como request.",
+    "should_trigger": false,
+    "expected_behavior": "This is a request capture — should route to aidex-conventions (requests), NOT aidex-decision. Decisive split-boundary precision check (request vs decision — the canon combines them)."
+  },
+  {
+    "query": "Necesito investigar cómo funciona la API de Gemini para generación de video. No sé si Veo 3 ya soporta prompts de estilo.",
+    "should_trigger": false,
+    "expected_behavior": "This is research — should route to aidex-conventions (research), NOT aidex-decision. Split-boundary precision check."
+  },
+  {
+    "query": "Documenta cómo está configurado el pipeline de CI/CD con GitHub Actions, incluyendo los secrets, los environments y el deploy a Vercel.",
+    "should_trigger": false,
+    "expected_behavior": "This is a reference doc — should route to aidex-conventions (references), NOT aidex-decision. Split-boundary precision check."
+  },
+  {
+    "query": "Park this for next quarter: replacing the current notification queue with something based on Redis Streams. We discussed it today but it's not a fit for this sprint.",
+    "should_trigger": false,
+    "expected_behavior": "This is a defer/park — should route to backlog-register, NOT aidex-decision. 'discussed' is not 'decided'."
+  },
+  {
+    "query": "Quick reminder so I don't forget: we should refactor the date-picker component to use react-aria. Track it for later, no specific deadline.",
+    "should_trigger": false,
+    "expected_behavior": "This is a track-for-later — should route to backlog-register, NOT aidex-decision."
+  },
+  {
+    "query": "We need to do a UX audit of the signup flow. Activation rates dropped 15% this month and we want to find what changed.",
+    "should_trigger": false,
+    "expected_behavior": "This is an audit run — should route to audit, NOT aidex-decision."
+  },
+  {
+    "query": "My Claude Code setup feels heavy — every project opens at like 22% context. Audit my ecosystem and find what to trim.",
+    "should_trigger": false,
+    "expected_behavior": "This is an ecosystem audit — should route to aidex, NOT aidex-decision."
+  },
+  {
+    "query": "Implement the password reset flow now. Use the new email service, send a magic link, and expire it after 30 minutes.",
+    "should_trigger": false,
+    "expected_behavior": "This is direct implementation with no decision to record, NOT aidex-decision."
+  },
+  {
+    "query": "There's a CORS issue when the frontend in dev tries to hit the backend. The error mentions Access-Control-Allow-Origin missing. Help me debug.",
+    "should_trigger": false,
+    "expected_behavior": "This is a debugging task, NOT aidex-decision."
+  }
+]

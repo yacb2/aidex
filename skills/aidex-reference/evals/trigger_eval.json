@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Create a reference for how our deployment pipeline works — build, migrate, deploy, rollback.",
+    "should_trigger": true,
+    "expected_behavior": "Should create .context/references/<topic>/ with 00-index.md + NN-<slug>.md per reference-conventions.md."
+  },
+  {
+    "query": "Documenta cómo funciona el sistema de permisos RBAC del backend y deja una referencia.",
+    "should_trigger": true,
+    "expected_behavior": "Should create an evergreen reference module per the canon."
+  },
+  {
+    "query": "Write up the architecture of the notification service — queues, workers, retry policy.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a reference module documenting the architecture."
+  },
+  {
+    "query": "Necesito una referencia de cómo está configurado el entorno de staging y sus variables.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a .context/references/<topic>/ module per reference-conventions.md."
+  },
+  {
+    "query": "Document the configuration of our Cloudflare setup: DNS, WAF rules, and cache settings.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a reference module with the configuration documented."
+  },
+  {
+    "query": "Escribe la arquitectura del módulo de facturación como referencia evergreen.",
+    "should_trigger": true,
+    "expected_behavior": "Should create an evergreen reference module (no date in filename, versioned in place)."
+  },
+  {
+    "query": "Write a runbook for restoring the production database from a backup.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a reference/runbook module per the canon module template."
+  },
+  {
+    "query": "Haz un runbook de cómo rotar los secrets de producción sin downtime.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a reference runbook module in .context/references/."
+  },
+  {
+    "query": "Create a reference module documenting how the multi-tenant data isolation works.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a reference module per reference-conventions.md."
+  },
+  {
+    "query": "Documenta cómo se integra el SSO con Okta y cómo se mapean los grupos a roles.",
+    "should_trigger": true,
+    "expected_behavior": "Should create a reference module documenting the SSO integration."
+  },
+  {
+    "query": "Plan the database sharding work. It spans schema changes, a dual-write phase, a backfill, and the cutover.",
+    "should_trigger": false,
+    "expected_behavior": "Plan creation → aidex-plan, NOT aidex-reference. Split-boundary precision check."
+  },
+  {
+    "query": "Decidimos usar tRPC en vez de REST para el servicio interno. Documenta la decisión y por qué.",
+    "should_trigger": false,
+    "expected_behavior": "Decision record → aidex-decision, NOT aidex-reference. Split-boundary precision check."
+  },
+  {
+    "query": "Elena quiere que agreguemos filtros por región al reporte. Captúralo como request.",
+    "should_trigger": false,
+    "expected_behavior": "Request capture → aidex-request, NOT aidex-reference. Split-boundary precision check."
+  },
+  {
+    "query": "Investiga si conviene migrar de Webpack a Vite antes de decidir nada.",
+    "should_trigger": false,
+    "expected_behavior": "Research/investigation → aidex-research, NOT aidex-reference. Split-boundary precision check."
+  },
+  {
+    "query": "Park for next quarter: rewriting the search with Typesense. Not this sprint.",
+    "should_trigger": false,
+    "expected_behavior": "Defer/park → backlog-register, NOT aidex-reference."
+  },
+  {
+    "query": "Anota para después, sin fecha: deberíamos extraer el cliente de email a un paquete.",
+    "should_trigger": false,
+    "expected_behavior": "Track-for-later → backlog-register, NOT aidex-reference."
+  },
+  {
+    "query": "My projects open heavy — audit my Claude Code ecosystem and trim what's unused.",
+    "should_trigger": false,
+    "expected_behavior": "Ecosystem audit → aidex, NOT aidex-reference."
+  },
+  {
+    "query": "We need an accessibility audit of the checkout flow before launch.",
+    "should_trigger": false,
+    "expected_behavior": "Project-state audit → audit, NOT aidex-reference."
+  },
+  {
+    "query": "Just add a health-check endpoint at /healthz that returns 200 now.",
+    "should_trigger": false,
+    "expected_behavior": "Direct implementation, NOT aidex-reference."
+  },
+  {
+    "query": "Production is throwing 502s intermittently behind the load balancer. Help me debug it.",
+    "should_trigger": false,
+    "expected_behavior": "Debugging task, NOT aidex-reference."
+  }
+]

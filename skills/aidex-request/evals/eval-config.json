@@ -1,0 +1,21 @@
+{
+  "skill": "aidex-request",
+  "model": "claude-sonnet-4-6",
+  "setup": {
+    "env": {
+      "AIDEX_TRIGGER_EVAL_MARKER": "{{HOME}}/.claude/tmp/aidex-request-fired-{{TEST_ID}}"
+    },
+    "permissions_allow": [
+      "Bash(printenv:*)",
+      "Bash(touch:*)"
+    ]
+  },
+  "success_check": {
+    "type": "file_exists",
+    "path": "{{HOME}}/.claude/tmp/aidex-request-fired-{{TEST_ID}}"
+  },
+  "cleanup_paths": [
+    "{{HOME}}/.claude/tmp/aidex-request-fired-{{TEST_ID}}"
+  ],
+  "queries_file": "./trigger_eval.json"
+}

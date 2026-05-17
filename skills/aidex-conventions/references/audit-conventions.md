@@ -216,7 +216,7 @@ Filtered view of [../00-inventory.md](../00-inventory.md). Do not add findings d
 
 ## Audit types (methodologies)
 
-AIDEX ships playbook templates for the following methodologies. Each becomes a folder under `.context/audits/<methodology>/` on first use via `/audit new <methodology> <slug>`.
+AIDEX ships playbook templates for the following methodologies. Each becomes a folder under `.context/audits/<methodology>/` on first use via `/aidex-audit new <methodology> <slug>`.
 
 | Methodology | When to run | Playbook shape |
 |---|---|---|
@@ -227,7 +227,7 @@ AIDEX ships playbook templates for the following methodologies. Each becomes a f
 | `perf` | Pre-release, pre-scaling | Lighthouse categories + backend metrics |
 | `a11y` | Fixed cadence or compliance requirement | WCAG criteria × page |
 
-Custom methodologies are allowed — `/audit new custom <slug>` with your own playbook.
+Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your own playbook.
 
 ---
 
@@ -235,24 +235,24 @@ Custom methodologies are allowed — `/audit new custom <slug>` with your own pl
 
 - **From plans:** when a plan completes, its closing commit(s) update the related findings' status in the methodology inventory.
 - **From decisions:** when an audit forces an architectural decision, cite the decision from the finding's `Escalated To` column.
-- **From backlog:** backlog entries with `origin: audit` and `origin_ref: audit/<methodology>/<run>/<id>` create the back-reference. The `audit` skill enforces this on escalation.
+- **From backlog:** backlog entries with `origin: audit` and `origin_ref: audit/<methodology>/<run>/<id>` create the back-reference. The `aidex-audit` skill enforces this on escalation.
 
 ---
 
 ## Tooling
 
-- `/audit new <methodology> <slug>` — scaffold a new audit run inside the methodology folder.
-- `/audit validate` — check coherence inventory ↔ run findings ↔ backlog.
-- `/audit escalate <finding-id>` — move finding to backlog.
-- `/audit migrate` — move legacy audit-like folders out of `plans/` and reshape into the per-methodology layout.
+- `/aidex-audit new <methodology> <slug>` — scaffold a new audit run inside the methodology folder.
+- `/aidex-audit validate` — check coherence inventory ↔ run findings ↔ backlog.
+- `/aidex-audit escalate <finding-id>` — move finding to backlog.
+- `/aidex-audit migrate` — move legacy audit-like folders out of `plans/` and reshape into the per-methodology layout.
 
-`/backlog-register --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
+`/aidex-backlog-register --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
 
 ---
 
 ## Anti-patterns
 
-- **Audits inside `plans/`** — mixes "what is" with "what will be". Use `/audit migrate`.
+- **Audits inside `plans/`** — mixes "what is" with "what will be". Use `/aidex-audit migrate`.
 - **Global `INVENTORY.md`** — pre-D-02 layout; reshape into per-methodology inventories.
 - **Deleting findings** — breaks the audit trail. Use `status: dropped` with reason.
 - **Per-run findings files without a link to the methodology inventory** — silent duplication.
@@ -266,5 +266,5 @@ Custom methodologies are allowed — `/audit new custom <slug>` with your own pl
 - [`00-global.md`](00-global.md) — shared rules.
 - [`plan-conventions.md`](plan-conventions.md) — how plans differ.
 - [`request-decision-conventions.md`](request-decision-conventions.md) — how decisions cite findings.
-- Skill `audit` — operations.
-- Skill `backlog-register` — registers items with audit origin.
+- Skill `aidex-audit` — operations.
+- Skill `aidex-backlog-register` — registers items with audit origin.

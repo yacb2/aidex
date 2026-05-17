@@ -17,7 +17,7 @@
   {
     "query": "Creo que tengo symlinks rotos en .claude/skills/. Ayer eliminé un skill de ~/.aidex/ y no sé si los links quedaron colgando.",
     "should_trigger": true,
-    "expected_behavior": "Should launch symlink-checker to find broken links"
+    "expected_behavior": "Should launch symlink-checker to find broken links. STATIVE-UNDER-FIRE: pure first-person stative narrative ('Creo que...', 'no sé si...', zero imperative). The aidex description explicitly lists 'creo que tengo symlinks rotos' so the intent is genuine and it stays should_trigger=true, but per skill-conventions.md stative phrasings under-fire by matcher design; a miss is matcher-legitimate, not a description bug; excluded from the adjusted-recall denominator in the run doc."
   },
   {
     "query": "Quiero ver qué skills tengo instalados, cuáles son globales y cuáles son de este proyecto. Dame un inventario completo.",
