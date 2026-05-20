@@ -1,6 +1,7 @@
 ---
 name: aidex-backlog-register
 description: Use when the user wants to capture or defer something for later without acting on it now — add it to the backlog, park it, shelve it, queue it, track it, "we'll do this later", "not now but don't forget", a tech-debt entry, or moving an audit finding to the backlog. Fires on "add to the backlog", "add to the backlog the idea of X", "park this for later", "defer this one", "shelve the X idea", "queue this for later", "track this for later", "quick reminder so I don't forget", "move finding <id> to the backlog", "show me the backlog", "list open backlog items", and /aidex-backlog-register commands. Not for: creating plans, decisions, or references (aidex-conventions); auditing project state (aidex-audit); ecosystem audits (aidex).
+argument-hint: "[--list | --origin manual --title \"<title>\" | --origin audit --finding <id>]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---

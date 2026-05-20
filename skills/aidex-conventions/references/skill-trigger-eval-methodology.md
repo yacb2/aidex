@@ -1,12 +1,17 @@
 # Skill Trigger Eval — Methodology & Optimization (empirical record)
 
-Durable record of what the 2026-05-15/16 trigger-eval campaign (runs 1–4) established
-about **how to measure skill triggering correctly and cheaply**, and about **which
-levers actually move recall**. Evidence-backed only — no untested hypotheses. Read
-this before running `skill-trigger-eval` again or before "improving" a skill for recall.
+Durable record of what the 2026-05 trigger-eval campaign (runs 1–6 + the 2026-05-18
+instrument/discipline thread) established about **how to measure skill triggering
+correctly and cheaply**, **which levers actually move recall**, and **how to run a
+trigger-eval campaign without fooling yourself**. Evidence-backed only — no untested
+hypotheses. Read this before running `skill-trigger-eval` again, before "improving" a
+skill for recall, or before designing any A/B over skill descriptions.
 
 Companion to `skill-conventions.md` (the authoring canon). This file is the *testing
-methodology + findings*; the canon is the *authoring rules*. Not normative — empirical.
+methodology + findings + experiment discipline*; the canon is the *authoring rules*.
+Not normative — empirical. Sections §1–§5 are the runs-1–6 record; §6–§7 are the
+2026-05-18 instrument-instability + anti-motivated-design discipline (the most
+portable part — applies to any project, any skill).
 
 ---
 
@@ -147,3 +152,219 @@ config splitting does **not** even perfect precision (FP 4–6/10; the pilots'
 §1 unchanged. Full record:
 `.context/audits/2026-05-15-skill-trigger-eval/run-6-realistic-modular.md`
 (+ `run-6-realistic-modular-logs/`).
+
+---
+
+## 6. The instrument is not a stable point estimate (2026-05-18 — the biggest measurement finding)
+
+§2 established parallelism corrupts the number. The 2026-05-18 thread established
+something deeper and more dangerous, because it bites even a "clean" sequential run:
+
+**A single sequential single-skill trigger-eval run is NOT a stable cross-session
+point estimate.** Same skill, same description (git-proven unchanged — `git log
+--follow` ruled out drift), same 20-case set, same model, same harness, **same
+predicate path**: `aidex-decision` measured **5 TP** in the run-6 session
+(2026-05-17) and **1–2 TP** in the 2026-05-18 session. Not a ±10 pp coin-flip — a
+3–5× swing on identical inputs. Mechanism: the harness child `claude` loads the
+*full ambient set* (every installed skill + every MCP server); a heavier or
+differently-warmed ambient set lowers the measured floor (attention dilution).
+Ambient/session state is an **uncontrolled, dominant** variable.
+
+Consequences (mandatory, portable to any project):
+
+- **No single run is "the recall."** Neither the high one nor the low one. Citing
+  any single-run figure as the skill's recall is forbidden — it is one draw from a
+  high-variance distribution whose mean shifts with ambient state.
+- **Any recall claim requires multi-run, session-state-controlled baselining.**
+  A vs B as one-run-each is uninterpretable. The unit of evidence is a
+  *distribution*, compared within one session (see §7).
+- This does **not** reopen the §1 closed levers. A less-stable-than-thought
+  *instrument* changes how cheaply/precisely you can measure — not what is
+  measured. The recall *ceiling* (wording DEAD / inventory EXHAUSTED / structure
+  REFUTED) is untouched. Provenance: `04-thread1-verdict.md`.
+
+### `claude -p` instrument facts (use the right harness)
+
+- The `run_eval.py` / `skill-creator` **`claude -p` slash-command shim** is blind
+  to context-triggered skills — it only exercises *user-invocable* skills and
+  reports ~0% for context-triggered ones regardless of true recall. Do not use it
+  to measure a context-triggered skill. Use `eval-pty.sh` (real interactive PTY).
+- `claude -p` **non-shim** (raw NL prompt, skill in context) **does** fire
+  context-triggered skill bodies — trace-proven (`TOOL_USE Skill:` under
+  `--output-format stream-json`). The historical "claude -p can't fire skills"
+  belief was a property of the *shim*, not of `claude -p`.
+- But under `claude -p --permission-mode default`, writes into the `~/.claude/**`
+  tree hit a **sensitive-path guard** that the `permissions.allow` overlay does
+  not override and print-mode cannot prompt past. A file-marker predicate located
+  there scores 0 by *predicate denial*, not trigger-blindness — and the model may
+  narrate success after its write was denied (**prose is not a side effect; only
+  the predicate file is**). If you compare `claude -p` to `eval-pty.sh`, drive
+  both to the **same non-sensitive predicate path** via the skill probe's env var,
+  and clear a same-session faithfulness gate first (§7). Provenance:
+  `03-pilot-precommit.md` Thread-1 redesign, `04-thread1-verdict.md`.
+
+## 7. Anti-motivated-design discipline (the most portable lesson — applies to every project)
+
+A trigger-eval over a hypothesis you have a stake in (a description rewrite, a
+multilingual-padding removal, "I bet structure helps") is, by default, a motivated
+experiment. These rules are what make it falsifiable. They cost no compute and
+prevent the most expensive failure mode: an uninterpretable or self-confirming run.
+
+1. **Write the pre-commit BEFORE any run and BEFORE any skill edit.** A dated doc
+   containing: the exact variant text, N, the protocol, and the decision rule. If
+   the variant text is authored *after* seeing which queries failed, the test is
+   dead on arrival (you tuned to the sample). Authored-from-principle, committed to
+   disk first, never re-touched after seeing results.
+
+2. **Lock a win condition that can fail your hypothesis.** Minimum four named
+   outcomes, and naming the **null** and the **instrument-problem** outcomes is
+   mandatory — without them the experiment can only confirm:
+   - (1) effect in the hypothesized direction;
+   - (2) **null — no movement within the noise band** (this must be a *named,
+     acceptable* result, often the most useful one — it *closes* a lane);
+   - (3) a secondary axis moves but not the primary (e.g. precision, not recall);
+   - (4) **noisy/divergent → instrument-reconciliation problem, NOT "the old
+     numbers were wrong."**
+   Pre-read outcome (4) *before* interpreting any result; reading divergence as
+   "the effect was there" is the canonical self-deception.
+
+3. **One pass, not a loop.** A single principled rewrite + isolated re-test is a
+   clean test. Inspect-failures → re-edit → re-run is the guarded ≤5-iteration
+   loop that produced runs 1–4's flat ~35% — it feels like progress and produces
+   none. Disqualify any automated "optimization loop" that internally measures via
+   the context-blind `claude -p` shim.
+
+4. **Faithfulness gate on `|Δ|`, never on absolute level.** Before trusting a
+   baseline, run it **k≥2 times in the same session** and require
+   `|run1_TP − run2_TP| ≤ 2` (the established ±2-case noise band) **and**
+   `min(TP) ≥ 1`. Gating instead on "is it near the historical 50%?" is
+   self-defeating — that gates on exactly the cross-session-unstable quantity §6
+   proved you cannot trust. If the within-session gate fails, **stop and report
+   outcome (4)** — do not proceed with "the baseline is just lower this time, we
+   can still compare." That is the motivated-design trap the gate exists to catch.
+   Gate failure after a pre-committed exit is a *disciplined result*, not a
+   partial failure.
+
+5. **Interleaved-paired beats block-paired.** For an A/B, the dominant confound is
+   ambient drift over session time (§6). Running "all of A, then all of B"
+   confounds arm with time-in-session. Instead, for each (query, repeat) pair
+   invoke the harness **twice back-to-back** (A then B, order block-randomized per
+   pair), each a single-query invocation. Analyze paired outcomes
+   (`McNemar` / sign test on the N×Q pairs), not aggregate-vs-aggregate.
+
+6. **Isolation invariant: neutralize the WHOLE competing family, not one sibling.**
+   A partially-controlled isolation is not a refutation. Stage the variant via an
+   ephemeral project-local `.claude/skills/` override (it shadows global by name)
+   so neither the repo nor the installed copy is touched; in that staged CWD set
+   *every* competing sibling to `disable-model-invocation: true` (minimum-touch:
+   matcher field preserved, skill removed from the invocation pool). Smoke-test
+   the override itself first (a mutated clearly-non-triggering description must
+   score a clean negative) — if the override does not override, the whole
+   experiment is invalid.
+
+7. **One manipulated variable.** If the "B" variant changes wording *and* removes
+   an exclusion tail *and* broadens scope, a delta is unattributable. Hold the
+   body byte-identical; change exactly the one frontmatter field under test;
+   verify byte-identity of everything else programmatically before running.
+
+> **Status (2026-05-18, resolved for `aidex-decision` only — bounded).** The
+> single-variable ES-strip A/B on `aidex-decision` (30 paired obs/arm, McNemar
+> `|b−c|`=1, exact p=1.0) shows **no measurable recall difference** between
+> ES-inclusive and ES-stripped descriptions **in the observed 2026-05-18
+> low-ambient regime** (`A` baseline ~13%). A weak, single-query precision nudge
+> (`+2 FP` for the ES-stripped arm, mostly one query q14) is reported but **not
+> robust** — and is the *only* directional signal, pointing mildly *against*
+> "ES is waste". Result: `05-multilingual-precommit.md` →
+> `06-multilingual-result.md` (bounded outcome 2). Bounds: **1 sibling, 1
+> regime, 1 variable** — does **not** generalize to the other 5 modular
+> siblings or to high-ambient sessions. §1's closed levers (monolith wording,
+> inventory, structure) are untouched. The broader methodology-completion lane
+> memory `feedback_skill_recall_ceiling_native_affordance` flags (other
+> siblings, regime-portability) **remains OPEN**.
+
+## 8. Concurrent-execution invalidation (2026-05-19 — the most expensive lesson)
+
+§2 forbade parallel `eval-pty.sh` runs ("recall corrupted via MCP cold-start
+contention"). The 2026-05-19 5-sibling extension attempt established two
+*environmental* concurrency failure modes that bite even a single-author
+sequential design — both produced ~10.5 h of unusable output before being
+caught. Provenance: `07-multilingual-siblings-precommit.md` (valid design)
+→ `08-multilingual-siblings-result.md` (execution invalidated, no scientific
+outcome drawn). Lessons (mandatory, portable to any project):
+
+### Failure mode A — dual-orchestrator from a launch wrapper
+
+Launching a long-running background job as `nohup … & ; sleep 3` inside a
+harness-tracked background tool **does not detach the way it looks**.
+`nohup` correctly survives the wrapper's exit, but the wrapper exiting in
+seconds also makes the harness report the *task* "completed" — which is
+trivially misread as "the orchestrator died" if a follow-up `ps` snapshot
+catches the orchestrator shell inside a non-matching subprocess frame. A
+relaunch under that misreading produces two concurrent orchestrators on
+the same shared `/tmp` tree for the full intended duration. Mitigation:
+
+- **Launch the orchestrator directly as the background command**; never a
+  short-lived wrapper that exits early. Harness "task completed" should
+  mean the orchestrator completed, not a wrapper.
+- **Hard singleton guard inside the orchestrator** (not just the launcher):
+  `mkdir`-lock or `flock` at start; if held and the pid is alive, log
+  `ALREADY-RUNNING` and exit. Release on exit. This is non-optional.
+
+### Failure mode B — external concurrent actor mutating the shared repo / installed copies
+
+An A/B that stages from the live repo (the `feedback_skill_split_test_isolation`
+mechanism — read `REPO/<name>/SKILL.md`, write `/tmp/.claude/skills/`) assumes
+the repo is stable for the duration of staging. A benign third party — the
+user's other Claude session, a scheduled job, a different agent — editing
+the repo or the installed `~/.aidex/` copies *during* the run violates that
+assumption silently. The 2026-05-19 attempt observed coordinated repo edits
+mid-run that were the user's own work from another session — not malicious,
+not relevant to the experiment, and still **invalidating**, because some
+siblings staged before the edit and some after. Mitigation:
+
+- **Stage from a frozen snapshot, not the live repo.** At start, copy the
+  whole `skills/` tree to a content-addressed snapshot under the run base
+  (e.g. `/tmp/<run-id>/snapshot/`); `stage.py` reads only from the
+  snapshot. The shared repo can be edited mid-run without disturbing the
+  A/B. The pre-commit must cite the snapshot's hash.
+- **Watchdog UUID, not just a lock.** Each run generates a UUID at start;
+  every `PROGRESS.log` line carries it. A periodic check (every N min)
+  greps the live `PROGRESS.log` for any other UUID; if found, abort
+  immediately and write `CONTAMINATED.flag`. Lock prevents the failure;
+  watchdog ensures discovery in minutes instead of after the full run.
+
+### The disciplined response to contamination
+
+When evidence of either failure mode appears (doubled timestamps,
+contradictory `STATUS-*` files, unexpected mtimes on the staging source,
+`STATE_FAIL` flags, etc.) the response is fixed and non-negotiable:
+
+1. **Invalidate the entire run.** Not just the affected sibling. Cross-run
+   MCP contention and shared-`/tmp` rmtree races are not scoped to one
+   sibling's logs — the whole tree's `eval-pty` sessions ran in a
+   contaminated ambient set.
+2. **Do not interpret the numbers.** Even logs that look complete (full
+   120-pair matrices, clean-looking McNemar) were collected in the
+   contaminated environment; reporting them is reporting corrupted data.
+   No salvage attempt — MCP contention corrupts both instances symmetrically,
+   there is no clean attribution.
+3. **Document the failure, not the data.** A result note in this case
+   reports the integrity failure (evidence, root cause, mitigations needed)
+   and explicitly refuses to draw an outcome. The methodology-completion
+   lane state is **unchanged** from before the run — the contaminated run
+   added zero evidence.
+4. **Do not auto-rerun.** The original case for spending the compute budget
+   was specific (e.g. "close the lane with N nulls"); a re-run at 2× total
+   cost on the same null prior is a different decision and must be
+   re-authorized by the user with the new cost on the table. Treating
+   contamination as a retry license is the meta-experiment-design version
+   of §7.3's "loop until the number moves" trap.
+
+> **Status (2026-05-19, lesson canonized).** First triggered by the failed
+> 5-sibling extension (`08-multilingual-siblings-result.md`): dual-orchestrator
+> (mode A) + user's own concurrent session edits (mode B) compounded to
+> invalidate the 10.5 h run before any number was interpreted. User chose to
+> stop with the methodology-completion lane OPEN rather than re-run at 2×
+> total cost on the unchanged null prior from `06` — the disciplined call.
+> Future trigger-eval campaigns must implement the snapshot + singleton +
+> watchdog mitigations *before* launching multi-hour panels.

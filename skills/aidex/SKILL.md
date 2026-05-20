@@ -1,6 +1,7 @@
 ---
 name: aidex
 description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "organiza mi ecosistema", "revisa la salud de mi proyecto", "creo que tengo symlinks rotos", "mi MEMORY.md está desactualizado", "mi .context/ es un desastre", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog-register).
+argument-hint: "[context]"
 disable-model-invocation: false
 ---
 
@@ -110,7 +111,7 @@ Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass the
 | [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.aidex/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | Read, Bash |
 | [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | Read, Glob, Grep |
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | Read, Glob, Bash |
-| [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | haiku | Read, Glob, Grep |
+| [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | sonnet | Read, Glob, Grep |
 | [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | Read, Glob, Grep, Bash |
 | [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | Read, Glob, Grep, Bash |
 | [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | Read, Glob, Grep, Bash |
@@ -218,7 +219,7 @@ For each approved action, execute directly or launch a specialized subagent:
 
 **Subagent execution (complex operations):**
 - Deep-sync stale references → sonnet subagent with WebFetch + Context7
-- Memory cleanup (full workflow) → haiku subagent
+- Memory cleanup (full workflow) → sonnet subagent
 
 **Destructive actions (per-item approval):**
 - Delete orphaned files
