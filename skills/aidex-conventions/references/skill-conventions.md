@@ -49,6 +49,7 @@ description: Complete description including WHEN to use this skill.
 | `description` | Recommended | **Trigger-first**: start with "Use when…", describe only when to use (NOT what it does). Claude uses this for auto-invocation. Single field preferred. Target <500 chars, <900 max before splitting. |
 | `when_to_use` | Optional | Extra trigger phrasings if `description` would exceed ~900 chars. Concatenated into the listing (1,536-char combined cap). Prefer folding into `description`. |
 | `argument-hint` | No | Hint for autocomplete (e.g., `[issue-number]`). |
+| `arguments` | No | Named positional arguments for `$name` substitution in the body; names map to positions in order. Space-separated string or YAML list. |
 | `model` | No | Model override: `sonnet`, `opus`, `haiku`, or `inherit`. |
 | `allowed-tools` | No | Tools Claude can use without permission when this skill is active. |
 | `context` | No | Set to `fork` to run in a forked subagent context. |
@@ -57,7 +58,7 @@ description: Complete description including WHEN to use this skill.
 | `user-invocable` | No | `false` to hide from `/` menu. Default: `true`. |
 | `hooks` | No | Lifecycle hooks (PreToolUse, PostToolUse, Stop) scoped to this skill. Exit code 2 blocks the operation. |
 | `paths` | No | Glob patterns for selective activation (e.g., `**/*.rs`). Skill loads only for matching files. |
-| `effort` | No | Override reasoning effort: `low`, `medium`, `high`, `max`. |
+| `effort` | No | Override reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`. |
 | `memory` | No | Persistent memory scope: `user`, `project`, or `local`. |
 | `shell` | No | Shell for `!command` injection: `bash` (default) or `powershell`. |
 
@@ -341,6 +342,8 @@ Challenge every paragraph: "Does Claude really need this?" Default assumption: C
 ## Triggering Tests
 
 Skill descriptions deserve empirical testing. Inspection-only review is unreliable — descriptions that "read fine" can have <20% recall on realistic queries.
+
+> **Companion:** [skill-trigger-eval-methodology.md](skill-trigger-eval-methodology.md) is the empirical record + experiment discipline — which recall levers are exhausted, the instrument's cross-session instability, and the anti-motivated-design rules (pre-commit, win-condition lock, faithfulness gate, interleaved-paired A/B). Read it before running an eval campaign or designing any description A/B. This section is the *quick* protocol; that doc is the *why* and the *traps*.
 
 ### Recommended: PTY-based recall/precision eval
 

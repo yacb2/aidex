@@ -1,7 +1,7 @@
 ---
 name: memory-auditor
 description: Audits MEMORY.md for bloat, stale entries, dead links, duplicates, orphan files, decisions overlap, and contradictions between feedback and project memories
-model: haiku
+model: sonnet
 allowed-tools: Read, Glob, Grep
 context: fork
 user-invocable: false
