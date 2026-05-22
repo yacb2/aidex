@@ -39,6 +39,8 @@ LEGACY_FILENAME = re.compile(r"^\d{8}-")
 CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref")
 CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research)/.+$")
 REQUIRED_FIELDS = ("title", "status", "created", "updated")
+# Audit "board" files: living dashboards (per-methodology rollups), not work items.
+AUDIT_BOARD_FILES = {"00-methodology.md", "00-inventory.md", "00-changelog.md"}
 
 # ---------- Finding type ----------
 
@@ -187,6 +189,10 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
     if type_name == "audits":
         if path.name in ("index.md", "findings.md"):
             return None
+        # Run-internal sub-documents (notes, logs, stage write-ups) are free-form;
+        # the dated naming applies to the run folder, not files within it.
+        if is_audit_subdoc(type_name, path):
+            return None
     if LEGACY_FILENAME.match(name):
         return Finding(type_name, str(path), "filename-format", "violation",
                        f"filename uses legacy YYYYMMDD format; expected YYYY-MM-DD-<slug>.md")
@@ -194,6 +200,17 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
         return Finding(type_name, str(path), "filename-format", "violation",
                        f"filename {name!r} does not match YYYY-MM-DD-<slug>.md")
     return None
+
+def is_audit_subdoc(type_name: str, path: Path) -> bool:
+    """An audit file nested inside a run/methodology folder (parent is not `audits`
+    itself) and not a canonical board file is a working sub-document — free-form
+    run write-ups, logs, stage notes. The dated unit is the run folder, not these.
+    """
+    if type_name != "audits":
+        return False
+    if path.name in AUDIT_BOARD_FILES:
+        return False
+    return path.parent.name != "audits"
 
 def is_subdocument(type_name: str, path: Path) -> bool:
     """NN-*.md files inside modular plan folders, references/<topic>/, research/<topic>/
@@ -211,8 +228,10 @@ def is_subdocument(type_name: str, path: Path) -> bool:
 
 def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) -> list[Finding]:
     findings: list[Finding] = []
-    if type_name == "audits" and path.name in ("00-inventory.md", "00-methodology.md", "00-changelog.md"):
-        return findings  # tabular/freeform — exempt
+    if type_name == "audits" and path.name in AUDIT_BOARD_FILES:
+        return findings  # tabular/freeform board — exempt
+    if is_audit_subdoc(type_name, path):
+        return findings  # run-internal note/log/write-up — exempt
     # Type-level aggregator index (e.g. backlog/00-index.md) is auto-generated
     # by register-item.sh / similar tooling and intentionally carries no front-matter.
     # Sub-folder indexes (plans/<date>-feature/00-index.md, references/<topic>/00-index.md)
@@ -244,6 +263,13 @@ def check_status(type_name: str, path: Path, fm: dict | None) -> Finding | None:
         return None
     if type_name == "references":
         return None  # canon §6: references are documentation, not work items
+    # Non-work-item files don't own a task status — the owning artifact does:
+    #   - plan phase files / research|reference sub-sections → the topic 00-index.md
+    #   - audit board files (00-inventory/changelog/methodology) → living dashboards
+    #   - audit run sub-documents → notes inside a dated run
+    if is_subdocument(type_name, path) or is_audit_subdoc(type_name, path) \
+            or (type_name == "audits" and path.name in AUDIT_BOARD_FILES):
+        return None
     val = fm["status"]
     if type_name == "decisions":
         if val not in DECISION_STATUS:

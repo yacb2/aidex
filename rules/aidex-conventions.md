@@ -18,8 +18,8 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 - Front-matter minimum on every file artifact: `title`, `status`, `created`, `updated`.
 - Status base vocabulary: `open` · `doing` · `done` · `dropped`. Decisions are the one exception: `accepted` · `superseded` · `dropped` (ADR norm).
 - Cross-references use `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research}`. `<type>/pending` is valid for a not-yet-created target.
-- Archive when finished: `backlog/`, `plans/`, `requests/`, `decisions/` all have an `_archive/`. Move `done` / `dropped` / `superseded` artifacts there.
-- Audits group by methodology: `audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`. Run folders are immutable — no `_archive/` inside `audits/`.
+- Archive on close (D-10): `backlog/`, `plans/`, `requests/`, `decisions/` all have an `_archive/`. Move `done` / `dropped` / `superseded` artifacts there immediately on close (no delay). Backlog `00-index.md` keeps closed items as one-liners under `## Closed`; full bodies live in `_archive/`.
+- Audits group by methodology: `audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`. A run folder archives to `audits/_archive/` once its cycle closes (all in-scope findings `closed`/escalated); the rolling inventory may stay as a live board (D-10).
 - References and research are versioned in place. Record supersession in a top-of-file note linking to the new version, not by relocation.
 
 ## Quick reference
@@ -33,7 +33,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 | Decision (ADR) | `decisions/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Reference | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
 | Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
-| Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | N/A (immutable) |
+| Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | `audits/_archive/` on cycle close (D-10) |
 
 ## Overrides
 
@@ -41,4 +41,4 @@ A project's `CLAUDE.md` may override `Language` (e.g., direct `.context/` artifa
 
 ## ADR canon
 
-D-01 dates · D-02 audit grouping · D-03 cross-refs · D-04 language · D-05 archive · D-07 front-matter. See `.context/decisions/2026-05-14-*.md` in the aidex repo and `~/.claude/skills/aidex-conventions/references/00-global.md` for the full text.
+D-01 dates · D-02 audit grouping · D-03 cross-refs · D-04 language · D-05 archive (amended by D-10) · D-07 front-matter · D-10 archive-on-close. See `.context/decisions/2026-05-*.md` in the aidex repo and `~/.claude/skills/aidex-conventions/references/00-global.md` for the full text.

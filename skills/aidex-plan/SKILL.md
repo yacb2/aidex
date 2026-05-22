@@ -1,6 +1,6 @@
 ---
 name: aidex-plan
-description: Use when the user is about to plan multi-step or multi-phase implementation work and it should become a written `.context/` plan before coding starts — a feature build, a migration, a refactor spanning backend/frontend/infra, or any task with phases and checkboxes. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "quiero planificar X", "necesito un plan para X", "planifiquemos X", "hagamos un plan de X", "armemos un plan multi-fase". Not for: deferring or parking an idea for later (aidex-backlog-register); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
+description: Use when the user is about to plan multi-step or multi-phase implementation work and it should become a written `.context/` plan before coding starts — a feature build, a migration, a refactor spanning backend/frontend/infra, or any task with phases and checkboxes. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "quiero planificar X", "necesito un plan para X", "planifiquemos X", "hagamos un plan de X", "armemos un plan multi-fase". Not for: deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -30,11 +30,24 @@ the formatting canon lives in the shared `aidex-conventions` reference package
    verification step per phase.
 4. Save under `.context/plans/` with the dated naming the canon specifies.
 
+## Closing a plan
+
+When a plan completes (or is superseded/dropped), close it atomically rather than
+hand-editing `status` — this stamps `updated`, records resolving commits where the
+work happened (D-09), and archives the plan to `plans/_archive/` (D-10):
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/close-plan.sh" <slug> [--commit <sha>] [--status dropped] [--superseded-by <type/ref>]
+```
+
+After closing, run the shared `reconcile.sh` to surface upstream backlog items /
+audit findings this plan resolved that may now be closeable (closure propagation).
+
 ## Boundaries
 
 | The user wants to… | Route to |
 |---|---|
-| Defer / park / shelve an idea for later | `aidex-backlog-register` |
+| Defer / park / shelve an idea for later | `aidex-backlog` |
 | Record a decision / ADR | `aidex-decision` |
 | Capture a stakeholder/client request | `aidex-request` |
 | Investigate / research how something works | `aidex-research` |

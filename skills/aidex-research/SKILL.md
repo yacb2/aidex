@@ -1,6 +1,6 @@
 ---
 name: aidex-research
-description: Use when the user needs to investigate, explore, or spike on how something works and the findings should land as written `.context/research/` notes before any plan or implementation. Fires on "research how X works", "investigate X", "spike on X", "look into how X is done", "I need to understand X before planning", "investiga cómo funciona X", "necesito investigar X", "haz un spike de X", "averigua cómo se hace X", "quiero entender X antes de planificar". Not for: planning multi-step work once the approach is known (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); documenting a settled, stable reference (aidex-reference); deferring/parking an idea (aidex-backlog-register); ecosystem audits (aidex); project-state audits (aidex-audit).
+description: Use when the user needs to investigate, explore, or spike on how something works and the findings should land as written `.context/research/` notes before any plan or implementation. Fires on "research how X works", "investigate X", "spike on X", "look into how X is done", "I need to understand X before planning", "investiga cómo funciona X", "necesito investigar X", "haz un spike de X", "averigua cómo se hace X", "quiero entender X antes de planificar". Not for: planning multi-step work once the approach is known (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); documenting a settled, stable reference (aidex-reference); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -39,7 +39,7 @@ implementation. This skill is the single-purpose entry point for
 | Record a decision / ADR | `aidex-decision` |
 | Capture a stakeholder/client request | `aidex-request` |
 | Document a settled system reference | `aidex-reference` |
-| Defer / park / shelve an idea for later | `aidex-backlog-register` |
+| Defer / park / shelve an idea for later | `aidex-backlog` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 

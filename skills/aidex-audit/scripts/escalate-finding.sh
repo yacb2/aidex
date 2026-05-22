@@ -51,13 +51,13 @@ if [[ -z "$AUDIT_RUN" ]]; then
 fi
 [[ -z "$AUDIT_RUN" ]] && AUDIT_RUN="unknown-run"
 
-# Delegate to aidex-backlog-register. Resolve its script path.
+# Delegate to aidex-backlog. Resolve its script path.
 REGISTER=""
 for candidate in \
-  "$SKILL_DIR/../aidex-backlog-register/scripts/register-item.sh" \
-  "$ROOT/skills/aidex-backlog-register/scripts/register-item.sh" \
-  "$HOME/.aidex/skills/aidex-backlog-register/scripts/register-item.sh" \
-  "$HOME/.claude/skills/aidex-backlog-register/scripts/register-item.sh"
+  "$SKILL_DIR/../aidex-backlog/scripts/register-item.sh" \
+  "$ROOT/skills/aidex-backlog/scripts/register-item.sh" \
+  "$HOME/.aidex/skills/aidex-backlog/scripts/register-item.sh" \
+  "$HOME/.claude/skills/aidex-backlog/scripts/register-item.sh"
 do
   if [[ -f "$candidate" && -x "$candidate" ]]; then
     REGISTER="$candidate"
@@ -66,7 +66,7 @@ do
 done
 
 if [[ -z "$REGISTER" ]]; then
-  die "aidex-backlog-register script not found. Run './install.sh --update' to install it."
+  die "aidex-backlog script not found. Run './install.sh --update' to install it."
 fi
 
 # Extract Summary (cell 5) and Severity (cell 7) for the finding row.
@@ -133,11 +133,11 @@ case "$SEVERITY" in
     ;;
 esac
 
-info "Creating backlog entry for $FINDING_ID via aidex-backlog-register"
+info "Creating backlog entry for $FINDING_ID via aidex-backlog"
 BACKLOG_FILE="$("$REGISTER" --origin audit --finding "$FINDING_ID" --audit-run "$AUDIT_RUN" --title "$SUMMARY" "${PRIORITY_ARG[@]}")"
 
 if [[ -z "$BACKLOG_FILE" || ! -f "$BACKLOG_FILE" ]]; then
-  die "aidex-backlog-register did not return a valid entry path"
+  die "aidex-backlog did not return a valid entry path"
 fi
 
 # Compute relative path from INVENTORY to the backlog file
