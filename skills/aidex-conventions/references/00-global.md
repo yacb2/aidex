@@ -65,20 +65,20 @@ ADR: [`2026-05-14-english-default-language.md`](../../../.context/decisions/2026
 
 ---
 
-## 5. Archive (D-05)
+## 5. Archive (D-05, amended by D-10)
 
-ADR: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/2026-05-14-archive-folder-convention.md)
+ADRs: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/2026-05-14-archive-folder-convention.md) (D-05) · [`2026-05-22-lifecycle-archive-on-close.md`](../../../.context/decisions/2026-05-22-lifecycle-archive-on-close.md) (D-10).
 
 `_archive/` is **required** in:
 
-- `backlog/` — move `done` or `dropped` entries ≥30 days old.
+- `backlog/` — move `done` or `dropped` entries **on close** (immediately, not after a delay). `00-index.md` keeps every closed item as a one-liner under a `## Closed` section (plain text, no symbols); full bodies live in `_archive/`.
 - `plans/` — move on completion (`status: done`).
 - `requests/` — move on `rejected`, `escalated` (to a plan), or completed.
 - `decisions/` — move on `superseded` or `reversed`.
+- `audits/` — move a **run folder** to `_archive/` once the cycle closes (all in-scope findings `closed` or escalated). The rolling cross-run inventory may stay as a live board; only completed run folders archive.
 
 `_archive/` is **not used** in:
 
-- `audits/` — runs are immutable historical records; the run folder stays in place.
 - `references/`, `research/` — versioned in place; supersession is recorded in a top-of-file note linking to the new version, not by relocation.
 
 Cross-references resolve via the two-folder lookup in §3 — archiving is a zero-edit operation for inbound links.

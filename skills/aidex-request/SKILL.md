@@ -1,6 +1,6 @@
 ---
 name: aidex-request
-description: Use when the user relays an incoming stakeholder, client, or product request that should be captured as a written `.context/requests/` item before anyone acts on it — a feature ask, a requirement from a meeting, user feedback to formalize. Fires on "the client asked for X", "Elena/the stakeholder wants X", "capture this as a request", "log this requirement", "we got a request to add X", "el cliente pidió X", "Elena/el cliente quiere X", "captúralo como request", "registra este requerimiento", "nos pidieron agregar X". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); investigating how something works (aidex-research); documenting a settled reference (aidex-reference); deferring/parking an idea (aidex-backlog-register); ecosystem audits (aidex); project-state audits (aidex-audit).
+description: Use when the user relays an incoming stakeholder, client, or product request that should be captured as a written `.context/requests/` item before anyone acts on it — a feature ask, a requirement from a meeting, user feedback to formalize. Fires on "the client asked for X", "Elena/the stakeholder wants X", "capture this as a request", "log this requirement", "we got a request to add X", "el cliente pidió X", "Elena/el cliente quiere X", "captúralo como request", "registra este requerimiento", "nos pidieron agregar X". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); investigating how something works (aidex-research); documenting a settled reference (aidex-reference); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -37,7 +37,7 @@ lives in the shared `aidex-conventions` reference package (not forked here).
 | Record a decision / ADR | `aidex-decision` |
 | Investigate / research how something works | `aidex-research` |
 | Document a settled system reference | `aidex-reference` |
-| Defer / park / shelve an idea for later | `aidex-backlog-register` |
+| Defer / park / shelve an idea for later | `aidex-backlog` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 

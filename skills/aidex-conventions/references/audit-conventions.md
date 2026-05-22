@@ -246,7 +246,7 @@ Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your 
 - `/aidex-audit escalate <finding-id>` — move finding to backlog.
 - `/aidex-audit migrate` — move legacy audit-like folders out of `plans/` and reshape into the per-methodology layout.
 
-`/aidex-backlog-register --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
+`/aidex-backlog --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
 
 ---
 
@@ -267,4 +267,4 @@ Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your 
 - [`plan-conventions.md`](plan-conventions.md) — how plans differ.
 - [`request-decision-conventions.md`](request-decision-conventions.md) — how decisions cite findings.
 - Skill `aidex-audit` — operations.
-- Skill `aidex-backlog-register` — registers items with audit origin.
+- Skill `aidex-backlog` — registers items with audit origin.

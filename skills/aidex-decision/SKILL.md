@@ -1,6 +1,6 @@
 ---
 name: aidex-decision
-description: Use when the user has made an architectural, technical, or product decision and wants it recorded as a written `.context/decisions/` ADR — what was chosen, why, the alternatives, and the consequences — so the team does not re-litigate it later. Fires on "we decided X", "document this decision", "write an ADR", "record the decision to X", "log why we chose X", "we settled on X, write it up", "decidimos X", "documenta esta decisión", "escribe un ADR para X", "registremos la decisión de X", "deja registrada la decisión de X". Not for: planning multi-step work (aidex-plan); deferring or parking an idea for later (aidex-backlog-register); capturing a stakeholder/client request, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit).
+description: Use when the user has made an architectural, technical, or product decision and wants it recorded as a written `.context/decisions/` ADR — what was chosen, why, the alternatives, and the consequences — so the team does not re-litigate it later. Fires on "we decided X", "document this decision", "write an ADR", "record the decision to X", "log why we chose X", "we settled on X, write it up", "decidimos X", "documenta esta decisión", "escribe un ADR para X", "registremos la decisión de X", "deja registrada la decisión de X". Not for: planning multi-step work (aidex-plan); deferring or parking an idea for later (aidex-backlog); capturing a stakeholder/client request, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit).
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -35,7 +35,7 @@ lives in the shared `aidex-conventions` reference package (not forked here).
 | The user wants to… | Route to |
 |---|---|
 | Plan multi-step / multi-phase implementation work | `aidex-plan` |
-| Defer / park / shelve an idea for later | `aidex-backlog-register` |
+| Defer / park / shelve an idea for later | `aidex-backlog` |
 | Capture a stakeholder/client request | `aidex-request` |
 | Investigate / research how something works | `aidex-research` |
 | Document a system reference | `aidex-reference` |

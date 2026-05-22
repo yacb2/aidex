@@ -37,7 +37,7 @@ aidex solves this with two pillars:
     ├── aidex-reference/             <-- (from aidex)
     ├── aidex-skill/                 <-- (from aidex)
     ├── aidex-audit/                 <-- (from aidex)
-    ├── aidex-backlog-register/      <-- (from aidex)
+    ├── aidex-backlog/      <-- (from aidex)
     └── my-personal-skill/           <-- Your own (not in manifest)
         │
         │  symlinks
@@ -98,7 +98,7 @@ project/.context/
 | **`aidex-reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
 | **`aidex-skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
 | **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
-| **`aidex-backlog-register`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
+| **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
 
 ### How it works
 

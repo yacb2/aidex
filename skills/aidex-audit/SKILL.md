@@ -1,6 +1,6 @@
 ---
 name: aidex-audit
-description: Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog-register).
+description: Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog).
 argument-hint: "[new <type> <slug> | validate [path] | escalate <finding-id> | migrate [project-dir]]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep
@@ -27,6 +27,7 @@ Dispatch by first argument:
 | `/aidex-audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog |
 | `/aidex-audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
+| `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
 
 ### Supported audit types (for `new`)
 
@@ -158,5 +159,5 @@ All templates in [assets/templates/](assets/templates/):
 ## Related
 
 - **aidex-conventions** — defines the audit convention itself
-- **aidex-backlog-register** — handles the other side of escalation (`/aidex-backlog-register --origin audit --finding <id>`)
+- **aidex-backlog** — handles the other side of escalation (`/aidex-backlog --origin audit --finding <id>`)
 - **aidex** — audits the audits directory for coherence as part of overall ecosystem health
