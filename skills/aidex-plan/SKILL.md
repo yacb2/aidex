@@ -46,14 +46,14 @@ audit findings this plan resolved that may now be closeable (closure propagation
 ## Offer to execute (multi-phase plans only)
 
 After writing a plan with **≥ 2 phases**, offer phase-by-phase execution via
-`plan-execution` (review → commit → handoff between phases). Single-phase or
+`aidex-plan-exec` (review → commit → handoff between phases). Single-phase or
 trivial plans skip this — do not add noise.
 
-1. Detect whether `plan-execution` is installed: check `~/.claude/skills/plan-execution/`,
-   `~/.aidex/skills/plan-execution/`, and any installed plugins.
+1. Detect whether `aidex-plan-exec` is installed: check `~/.claude/skills/aidex-plan-exec/`,
+   `~/.aidex/skills/aidex-plan-exec/`, and any installed plugins.
 2. If present → offer: "Execute this plan phase-by-phase with review/commit/handoff
-   via `plan-execution`?"
-3. If absent → one-line mention only: a `plan-execution` skill exists for running
+   via `aidex-plan-exec`?"
+3. If absent → one-line mention only: a `aidex-plan-exec` skill exists for running
    multi-phase plans, if they want to install it.
 
 ## Boundaries
@@ -68,7 +68,7 @@ trivial plans skip this — do not add noise.
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 | Make one phase iterate-until-green against a machine gate (tests/typecheck/build) | `aidex-loop` (spec it, hand off execution) |
-| Execute / implement an already-written multi-phase plan | `plan-execution` |
+| Execute / implement an already-written multi-phase plan | `aidex-plan-exec` |
 | Implement directly with no plan doc needed | (just do the work) |
 
 ## Related

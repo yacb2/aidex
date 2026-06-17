@@ -1,12 +1,12 @@
 ---
-name: bug-fix-workflow
+name: aidex-bugfix
 description: >
   Use when fixing a bug, resolving a reported issue, or when something is broken and needs a
   test-driven fix — investigate root cause, write a failing regression test (RED), implement the
   minimum fix, confirm the test passes (GREEN), then commit test and fix together. Fires on "fix
   this bug", "this is broken", "it's not working", "there's a regression", "resolve this issue",
   or a reference to a bug report. Not for: planning multi-step work (aidex-plan); executing a
-  written plan phase-by-phase (plan-execution); recording why a fix was chosen as an ADR
+  written plan phase-by-phase (aidex-plan-exec); recording why a fix was chosen as an ADR
   (aidex-decision); pure refactors with no bug.
 ---
 
@@ -21,7 +21,7 @@ Test-driven bug fixing methodology that ensures every fix includes a regression 
 - User reports a bug or broken behavior
 - User references a bug report or issue tracker
 - You discover a bug while working on something else
-- User says `/bug-fix` (full guided workflow)
+- User says `/aidex-bugfix` (full guided workflow)
 
 ## Core Principle
 
@@ -29,7 +29,7 @@ Test-driven bug fixing methodology that ensures every fix includes a regression 
 
 ## Quick Reference
 
-If not using the full `/bug-fix` command, follow this checklist:
+If not using the full `/aidex-bugfix` command, follow this checklist:
 
 1. Investigate root cause (don't guess)
 2. Write test that reproduces bug (must FAIL)

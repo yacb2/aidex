@@ -257,7 +257,7 @@ Reference taxonomy for classifying skills. Identifying a skill's category during
 | 5 | Code Scaffolding & Templates | `vue-component-builder`, `frontend-page-creation` |
 | 6 | Code Quality & Review | `code-quality`, `simplify` |
 | 7 | CI/CD & Deployment | `deployments-cicd`, `vercel-cli` |
-| 8 | Runbooks | `bug-fix-workflow`, `systematic-debugging` |
+| 8 | Runbooks | `aidex-bugfix`, `systematic-debugging` |
 | 9 | Infrastructure Operations | `workspace-architecture`, `test-e2e-setup` |
 
 ## On-Demand Hooks

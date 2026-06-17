@@ -8,7 +8,7 @@
   { "query": "Esto está roto: el modal no cierra al hacer clic afuera.", "should_trigger": true, "expected_behavior": "ES 'está roto' with repro — cross-lingual bug-fix." },
   { "query": "Tenemos una regresión: el orden de columnas no se conserva.", "should_trigger": true, "expected_behavior": "ES 'regresión' — should drive the TDD bug-fix loop." },
   { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning, no bug — belongs to aidex-plan. Must NOT fire." },
-  { "query": "Implement the plan in .context/plans/2026-06-17-checkout.", "should_trigger": false, "expected_behavior": "Plan execution — belongs to plan-execution. Precision check." },
+  { "query": "Implement the plan in .context/plans/2026-06-17-checkout.", "should_trigger": false, "expected_behavior": "Plan execution — belongs to aidex-plan-exec. Precision check." },
   { "query": "We decided to use Postgres over MySQL; document this decision.", "should_trigger": false, "expected_behavior": "Decision/ADR — aidex-decision. Precision check." },
   { "query": "Refactor this module to extract the validation helpers.", "should_trigger": false, "expected_behavior": "Pure refactor, no bug — should not start the bug-fix workflow." }
 ]
