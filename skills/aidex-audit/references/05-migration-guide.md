@@ -18,7 +18,7 @@ You have the problem if:
 ## Automated migration
 
 ```
-/audit migrate
+/aidex-audit migrate
 ```
 
 This launches the full flow:
@@ -29,7 +29,7 @@ This launches the full flow:
 4. **Seed INVENTORY** — the `inventory-seeder` subagent reads the moved folders and generates rows in `.context/audits/INVENTORY.md` in canonical format.
 5. **Methodology bootstrap** — if any audit had its own methodology notes, they're extracted into `methodology/<type>.md` files.
 6. **CHANGELOG entry** — records the migration with date and list of migrated folders.
-7. **Validation** — runs `/audit validate` automatically. Any issues are reported but not blocking.
+7. **Validation** — runs `/aidex-audit validate` automatically. Any issues are reported but not blocking.
 
 ---
 
@@ -46,7 +46,7 @@ mkdir -p .context/audits/methodology
 ### Step 2: Initialize canonical files
 
 ```bash
-/audit new <type> <slug>
+/aidex-audit new <type> <slug>
 ```
 
 This creates `INVENTORY.md`, `METHODOLOGY.md`, `CHANGELOG.md`, and `methodology/<type>.md` from templates. Delete the scaffolded audit run if you just want the skeleton.
@@ -78,7 +78,7 @@ Add to `CHANGELOG.md`:
 ### Step 6: Validate
 
 ```bash
-/audit validate
+/aidex-audit validate
 ```
 
 Fix anything flagged.
@@ -98,7 +98,7 @@ Some "audits" in `.context/plans/` really are plans — they audited, then plann
 
 ## What to keep in `plans/`
 
-After migration, `.context/plans/` should only contain work-in-progress or completed implementations. If a folder there still looks audit-like after migration, you missed one — re-run `/audit migrate`.
+After migration, `.context/plans/` should only contain work-in-progress or completed implementations. If a folder there still looks audit-like after migration, you missed one — re-run `/aidex-audit migrate`.
 
 ---
 
@@ -122,7 +122,7 @@ Then try again, possibly manual instead of automated.
 - [ ] `.context/audits/METHODOLOGY.md` references the playbooks in use
 - [ ] `.context/audits/CHANGELOG.md` has a migration entry
 - [ ] `.context/plans/` contains no audit-like folders
-- [ ] `/audit validate` exits 0
+- [ ] `/aidex-audit validate` exits 0
 - [ ] Cross-references (backlog entries, decisions) updated to point at audit IDs instead of plan paths
 - [ ] Team knows the new convention (link them to `audit-conventions.md`)
 
@@ -130,4 +130,4 @@ Then try again, possibly manual instead of automated.
 
 ## Preventing recurrence
 
-After migration, update your workflow to call `/audit new` instead of creating a plan folder with `findings.md` in it. If unsure whether an artifact is an audit or a plan, use the decision flow in [04-playbooks.md](04-playbooks.md) or ask: "am I describing what *is*, or what *will be*?" If it's "what is" — it's an audit.
+After migration, update your workflow to call `/aidex-audit new` instead of creating a plan folder with `findings.md` in it. If unsure whether an artifact is an audit or a plan, use the decision flow in [04-playbooks.md](04-playbooks.md) or ask: "am I describing what *is*, or what *will be*?" If it's "what is" — it's an audit.

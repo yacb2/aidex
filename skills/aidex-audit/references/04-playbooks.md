@@ -36,7 +36,7 @@ Is the concern AI integration landscape? ──▶ ia-opportunities
 Anything visual, interactive, or product-level ──▶ ux-audit
 ```
 
-For anything that doesn't fit, pass `custom` to `/audit new` and write your own methodology/<slug>.md.
+For anything that doesn't fit, pass `custom` to `/aidex-audit new` and write your own methodology/<slug>.md.
 
 ---
 
@@ -68,7 +68,7 @@ You don't have to accept the stock playbook as-is. First time you run a type, th
 If none of the six fits:
 
 ```
-/audit new custom <slug>
+/aidex-audit new custom <slug>
 ```
 
 This creates `methodology/<slug>.md` from a minimal stub. Fill it in following the shape above. Six sections, concise, actionable.
@@ -96,4 +96,4 @@ You can run one audit per type per date, or combine types into a single scope (e
 
 ## Not every project needs every playbook
 
-Don't materialize a playbook until you need it. `METHODOLOGY.md` indexes them as "available"; the file gets copied only on `/audit new <type> <slug>` first use. Keeps your `methodology/` folder lean.
+Don't materialize a playbook until you need it. `METHODOLOGY.md` indexes them as "available"; the file gets copied only on `/aidex-audit new <type> <slug>` first use. Keeps your `methodology/` folder lean.

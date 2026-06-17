@@ -29,7 +29,7 @@ Three distinct objects at three distinct points in the lifecycle:
 **Practical:**
 - New run observes a finding → check if it exists in INVENTORY. If yes, update `Audit Runs` column; if no, add a new row.
 - Per-run `findings.md` cites IDs and links back to INVENTORY.
-- `/audit validate` catches findings mentioned in per-run files but missing from INVENTORY.
+- `/aidex-audit validate` catches findings mentioned in per-run files but missing from INVENTORY.
 
 ---
 
@@ -64,7 +64,7 @@ audit run
    ▼
 INVENTORY finding
    │
-   ▼ (via /audit escalate)
+   ▼ (via /aidex-audit escalate)
 backlog entry
    │
    ▼ (via planning)
@@ -73,7 +73,7 @@ plan
    ▼ (via commits)
 code changes
    │
-   ▼ (via /audit new retest)
+   ▼ (via /aidex-audit new retest)
 re-test audit
    │
    ▼
@@ -83,7 +83,7 @@ finding closed
 **Why:** the linear flow makes it obvious where a concern is in its lifecycle. Any link in the chain can be queried: "what findings are escalated but not yet planned?" (in INVENTORY with `escalated` status but no plan link) is answerable in seconds.
 
 **Practical:** each transition adds a link back to the finding. The INVENTORY row accumulates these over the finding's life:
-- `Escalated To: [backlog/20260412-csv.md](...)` after `/audit escalate`
+- `Escalated To: [backlog/20260412-csv.md](...)` after `/aidex-audit escalate`
 - `Escalated To: [plans/20260415-export/](...)` when planning starts
 - `Escalated To: fix:abc1234` when a commit closes it
 
@@ -107,4 +107,4 @@ When a finding spans multiple modules, tag it `[SHARED]` in the `Module` column.
 | METHODOLOGY changes without CHANGELOG entry | Add the entry retroactively, next time enforce via review |
 | Duplicate findings across audit runs with different IDs | Consolidate: keep oldest ID, mark newer as duplicates in their Notes column, regenerate views |
 | `Status: deleted` or rows disappearing | Restore from git history, transition to `dropped` instead |
-| Audits under `.context/plans/` | Run `/audit migrate` |
+| Audits under `.context/plans/` | Run `/aidex-audit migrate` |

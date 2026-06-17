@@ -115,6 +115,12 @@ command-to-verify
 
 Expected: `OK`
 
+> If a phase's Verify step is a machine gate the work should *iterate against*
+> (e.g. "make all tests pass", "typecheck clean", "remove every call to X"),
+> consider spawning a loop-spec via `aidex-loop` and handing off execution rather
+> than hand-running the loop. This stays a pointer — do **not** add a per-phase
+> loop-suitability field to the phase template; it fails the litmus for most phases.
+
 ---
 
 ## Task N.2: …

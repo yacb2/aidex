@@ -124,4 +124,4 @@ Each failure becomes a row in `../INVENTORY.md`:
 - **Share P0 findings immediately.** Don't wait for the audit report; they may need emergency response.
 - **Keep PoCs private.** `evidence/` folder can be `.gitignore`d or encrypted if findings are severe.
 - **Disclose responsibly** if externally reported — link your security policy (`SECURITY.md`).
-- **Follow up.** Use `/audit new retest` after fixes to verify. Security fixes are notoriously prone to regression.
+- **Follow up.** Use `/aidex-audit new retest` after fixes to verify. Security fixes are notoriously prone to regression.

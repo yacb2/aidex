@@ -74,19 +74,19 @@ IDs are namespaced by this methodology folder — `BUG-01-3` here is different f
 
 ## Audit run workflow
 
-1. **Create** — `/audit new {{METHODOLOGY}} <slug>` scaffolds `YYYY-MM-DD-<slug>/` inside this methodology folder with `index.md` and `findings.md`.
+1. **Create** — `/aidex-audit new {{METHODOLOGY}} <slug>` scaffolds `YYYY-MM-DD-<slug>/` inside this methodology folder with `index.md` and `findings.md`.
 2. **Apply playbook** — follow the checks above.
 3. **Record findings** — add rows to [`00-inventory.md`](00-inventory.md), reference IDs from the run's `findings.md`.
 4. **Triage** — update `Notes` after assessment; status stays `open` until escalated.
-5. **Escalate** — `/audit escalate <id>` creates a backlog entry and sets `Escalated To` + `status: done` in the row.
-6. **Re-test** — `/audit new retest <next-slug>` after fixes land; findings that still reproduce stay `open`.
-7. **Validate** — `/audit validate` checks coherence inventory ↔ findings ↔ backlog.
+5. **Escalate** — `/aidex-audit escalate <id>` creates a backlog entry and sets `Escalated To` + `status: done` in the row.
+6. **Re-test** — `/aidex-audit new retest <next-slug>` after fixes land; findings that still reproduce stay `open`.
+7. **Validate** — `/aidex-audit validate` checks coherence inventory ↔ findings ↔ backlog.
 
 ---
 
 ## Anti-patterns
 
-- **Audits inside `.context/plans/`** — use `/audit migrate`.
-- **Per-run findings without inventory link** — run `/audit validate`.
+- **Audits inside `.context/plans/`** — use `/aidex-audit migrate`.
+- **Per-run findings without inventory link** — run `/aidex-audit validate`.
 - **Mixed ID conventions within this methodology** — pick one.
 - **Methodology edits without `00-changelog.md` entry** — future-you will not remember why.

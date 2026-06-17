@@ -1,6 +1,6 @@
 ---
 name: aidex-plan
-description: Use when the user is about to plan multi-step or multi-phase implementation work and it should become a written `.context/` plan before coding starts — a feature build, a migration, a refactor spanning backend/frontend/infra, or any task with phases and checkboxes. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "quiero planificar X", "necesito un plan para X", "planifiquemos X", "hagamos un plan de X", "armemos un plan multi-fase". Not for: deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
+description: Use when the user is about to plan multi-step or multi-phase implementation work and it should become a written `.context/` plan before coding starts — a feature build, a migration, a refactor spanning backend/frontend/infra, or any task with phases and checkboxes. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let's build a multi-phase plan". Not for: deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -21,9 +21,9 @@ the formatting canon lives in the shared `aidex-conventions` reference package
    (or `.claude/skills/aidex-conventions/references/plan-conventions.md` if a
    project-level copy exists).
 2. Decide single-file vs modular per that canon:
-   - **Single-file** (`.context/plans/YYYYMMDD-<feature>.md`): ≤ 4 phases,
+   - **Single-file** (`.context/plans/YYYY-MM-DD-<feature>.md`): ≤ 4 phases,
      < 20 tasks, small-medium scope.
-   - **Multi-file** (`.context/plans/YYYYMMDD-<feature>/` with `00-index.md`):
+   - **Multi-file** (`.context/plans/YYYY-MM-DD-<feature>/` with `00-index.md`):
      5+ phases, 20+ tasks, multi-layer (backend + frontend + infra), or phases
      executed by different sessions/teammates.
 3. Follow the template in the canon: phases with checkboxes, exact file paths,
@@ -54,6 +54,7 @@ audit findings this plan resolved that may now be closeable (closure propagation
 | Document a system reference | `aidex-reference` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
+| Make one phase iterate-until-green against a machine gate (tests/typecheck/build) | `aidex-loop` (spec it, hand off execution) |
 | Implement directly with no plan doc needed | (just do the work) |
 
 ## Related

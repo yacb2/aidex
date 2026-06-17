@@ -33,7 +33,7 @@ Filtered view of [`../00-inventory.md`](../00-inventory.md) for this audit run.
 
 ## By module
 
-<!-- Optional grouping. Regenerate via `/audit validate --regen-views`. -->
+<!-- Optional grouping. Regenerate via `/aidex-audit validate --regen-views`. -->
 
 ### [SHARED] — Cross-module
 
