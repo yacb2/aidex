@@ -27,7 +27,8 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    `priority`, `escalated_to`, `blocked_by`.
 4. Body per the canon template: **Description**, **Context**,
    **Acceptance Criteria**, **Outcome**. A request is always a single file;
-   if it needs depth it escalates to a plan or research.
+   if it needs depth it escalates to a plan or research. Write the artifact
+   in English (canon §Language).
 
 ## Boundaries
 
@@ -37,6 +38,7 @@ lives in the shared `aidex-conventions` reference package (not forked here).
 | Record a decision / ADR | `aidex-decision` |
 | Investigate / research how something works | `aidex-research` |
 | Document a settled system reference | `aidex-reference` |
+| Capture a received/sent communication (email/WhatsApp/call) | `aidex-comm` |
 | Defer / park / shelve an idea for later | `aidex-backlog` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |

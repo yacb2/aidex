@@ -24,6 +24,8 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10) |
+| `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
+| `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
 | `bash scripts/sweep.sh [--apply]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default |
 | `bash scripts/reconcile.sh` | [scripts/reconcile.sh](scripts/reconcile.sh) | Read-only cross-artifact drift detector (shared): flags open backlog whose plan is done (close candidates) + done-without-commits. Exit 1 on actionable drift |
 | `bash scripts/migrate-ids.sh [--apply]` | [scripts/migrate-ids.sh](scripts/migrate-ids.sh) | Backfill stable `id: BL-NNN` into items predating the id scheme (D-09). Idempotent |
@@ -81,12 +83,29 @@ updated: YYYY-MM-DD
 
 ## Lifecycle
 
-1. **open** — entry created, not yet scheduled
-2. **doing** — active work; a plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `aidex-loop` loop-spec in `.context/loops/`. Default stays a plan.
-3. **done** — shipped; archived to `_archive/` **on close** (D-10), not after a delay
-4. **dropped** — won't do; reason in Notes; archived on close
+```
+open ⇄ _deferred (blocked) → doing → done / dropped
+```
 
-Closing an item is an atomic operation (status → record commit → move to `_archive/` → rebuild index). Use the `close` sub-action rather than editing `status` by hand. The `00-index.md` keeps a one-liner per closed item under `## Closed`; full bodies live in `_archive/`.
+1. **open** — entry created, not yet scheduled
+2. **_deferred (blocked)** — open but cannot start: an external blocker exists. The
+   item is moved to `backlog/_deferred/`, `status` stays `open`, and `blocked_by`
+   MUST be populated. It is **not** in the active queue and is **not** `_archive/`
+   (archive is terminal). Use `defer` to park it and `reactivate` to bring it back.
+3. **doing** — active work; a plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `aidex-loop` loop-spec in `.context/loops/`. Default stays a plan.
+4. **done** — shipped; archived to `_archive/` **on close** (D-10), not after a delay
+5. **dropped** — won't do; reason in Notes; archived on close
+
+Deferring is reversible (open ⇄ `_deferred/`); closing is terminal (→ `_archive/`).
+
+- **Defer/reactivate** moves the file between the active root and `backlog/_deferred/`,
+  sets/clears `blocked_by`, stamps `updated`, and rebuilds the index. The `00-index.md`
+  lists deferred items under `## Deferred`. Use the `defer` / `reactivate` sub-actions
+  rather than moving files or editing `blocked_by` by hand.
+- **Closing** an item is an atomic operation (status → record commit → move to
+  `_archive/` → rebuild index). Use the `close` sub-action rather than editing
+  `status` by hand. The `00-index.md` keeps a one-liner per closed item under
+  `## Closed`; full bodies live in `_archive/`.
 
 ---
 

@@ -38,6 +38,10 @@ aidex solves this with two pillars:
     ├── aidex-skill/                 <-- (from aidex)
     ├── aidex-audit/                 <-- (from aidex)
     ├── aidex-backlog/      <-- (from aidex)
+    ├── aidex-loop/                  <-- (from aidex)
+    ├── aidex-comm/                  <-- (from aidex)
+    ├── plan-execution/              <-- (from aidex)
+    ├── bug-fix-workflow/            <-- (from aidex)
     └── my-personal-skill/           <-- Your own (not in manifest)
         │
         │  symlinks
@@ -76,7 +80,9 @@ project/.context/
 ├── issues/          # Known bugs, pending decisions
 ├── requests/        # Incoming tasks and product requirements
 ├── decisions/       # Architecture/product decision records
-└── audits/          # Project-state catalogs (INVENTORY + per-run folders)
+├── audits/          # Project-state catalogs (INVENTORY + per-run folders)
+├── loops/           # Agentic-loop specs (goal + verifiable gate + guardrails)
+└── communications/  # Inbound/outbound comms log (received/ + sent/, native language)
 ```
 
 ## What's included
@@ -85,7 +91,7 @@ project/.context/
 
 `rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
 
-### 11 skills
+### 14 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -100,6 +106,9 @@ project/.context/
 | **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
 | **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
 | **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex-loop design` · `new` · `run`. |
+| **`aidex-comm`** | User-invoked + context-triggered | Captures inbound/outbound communications into `.context/communications/{received,sent}/` — emails, WhatsApp, calls, meetings — with channel/direction/from/to front-matter. Body stays in the native language of the communication (exempt from English-only). |
+| **`plan-execution`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `aidex-plan` for plan creation. |
+| **`bug-fix-workflow`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
 
 ### How it works
 

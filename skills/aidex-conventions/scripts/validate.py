@@ -24,9 +24,20 @@ from typing import Iterable
 
 # ---------- Conventions canon ----------
 
-TYPES = ["backlog", "plans", "requests", "decisions", "references", "research", "audits"]
+TYPES = ["backlog", "plans", "requests", "decisions", "references", "research", "audits",
+         "communications"]
 TYPES_WITH_ARCHIVE = {"backlog", "plans", "requests", "decisions"}
 TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlog": True}
+# Acceptable-optional .context/ dirs: project-local, not scaffolded by any skill, may be
+# gitignored. The validator neither requires nor flags them — listed here so the canonical
+# model is explicit (auditors must not propose deleting these even when empty).
+OPTIONAL_TYPES = {"diagrams", "data", "experiments"}
+# Communications front-matter vocab (artifacts are EXEMPT from English-only; body is native).
+COMM_CHANNELS = {"email", "whatsapp", "call", "meeting", "other"}
+COMM_DIRECTIONS = {"received", "sent"}
+COMM_STATUS = {"draft", "sent"}
+COMM_REQUIRED_FIELDS = ("channel", "direction", "from", "to", "subject", "date", "status",
+                        "created", "updated")
 
 BASE_STATUS = {"open", "doing", "done", "dropped"}
 DECISION_STATUS = {"accepted", "superseded", "dropped"}
@@ -49,7 +60,7 @@ class Finding:
     type: str
     file: str
     rule: str
-    severity: str  # "violation" or "warning"
+    severity: str  # "violation", "warning", or "info"
     message: str
 
 # ---------- Front-matter parser (no pyyaml dependency) ----------
@@ -147,6 +158,13 @@ def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
         for path in base.rglob("*.md"):
             yield path
         return
+    if type_name == "communications":
+        # communications/{received,sent}/<YYYY-MM-DD>-<slug>/body.md
+        for path in base.rglob("*.md"):
+            if "/_archive/" in str(path):
+                continue
+            yield path
+        return
     if type_name == "plans":
         # Both single-file and modular plans
         for path in base.iterdir():
@@ -168,6 +186,12 @@ def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
     if archive.is_dir():
         for path in archive.glob("*.md"):
             yield path
+    # backlog/_deferred/: open-but-blocked items (known dir, like _archive/, never orphan).
+    if type_name == "backlog":
+        deferred = base / "_deferred"
+        if deferred.is_dir():
+            for path in deferred.glob("*.md"):
+                yield path
 
 # ---------- Checks ----------
 
@@ -186,6 +210,17 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
         if path.parent.name != "plans" and path.parent.name != "_archive":
             if re.match(r"^\d{2}-[a-z0-9-]+\.md$", name):
                 return None
+    if type_name == "communications":
+        # Dated unit is the <YYYY-MM-DD>-<slug>/ folder; the file inside is body.md.
+        # The folder lives under received/ or sent/.
+        if name == "body.md":
+            parent = path.parent
+            if parent.parent.name in COMM_DIRECTIONS and ISO_FOLDER.match(parent.name):
+                return None
+            return Finding(type_name, str(path), "communication-shape-invalid", "violation",
+                           "expected communications/{received,sent}/<YYYY-MM-DD>-<slug>/body.md")
+        return Finding(type_name, str(path), "communication-shape-invalid", "violation",
+                       f"unexpected file {name!r}; communications use body.md in a dated folder")
     if type_name == "audits":
         if path.name in ("index.md", "findings.md"):
             return None
@@ -244,6 +279,25 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
         findings.append(Finding(type_name, str(path), "frontmatter-missing", "violation",
                                 "no YAML front-matter block (--- ... ---)"))
         return findings
+    if type_name == "communications":
+        for field_name in COMM_REQUIRED_FIELDS:
+            if field_name not in fm or not fm[field_name]:
+                findings.append(Finding(type_name, str(path), "frontmatter-field-missing", "violation",
+                                        f"required field '{field_name}' missing or empty"))
+        ch = fm.get("channel", "")
+        if ch and ch not in COMM_CHANNELS:
+            findings.append(Finding(type_name, str(path), "communication-channel-invalid", "violation",
+                                    f"channel={ch!r} not in {sorted(COMM_CHANNELS)}"))
+        st = fm.get("status", "")
+        if st and st not in COMM_STATUS:
+            findings.append(Finding(type_name, str(path), "communication-status-invalid", "violation",
+                                    f"status={st!r} not in {sorted(COMM_STATUS)}"))
+        for date_field in ("created", "updated", "date"):
+            val = fm.get(date_field, "")
+            if val and not ISO_DATE.match(val):
+                findings.append(Finding(type_name, str(path), "date-format-invalid", "violation",
+                                        f"{date_field}={val!r} is not YYYY-MM-DD"))
+        return findings
     for field_name in REQUIRED_FIELDS:
         # references/ are documentation, not work items — status is optional (canon §6 exemption)
         if type_name == "references" and field_name == "status":
@@ -263,6 +317,8 @@ def check_status(type_name: str, path: Path, fm: dict | None) -> Finding | None:
         return None
     if type_name == "references":
         return None  # canon §6: references are documentation, not work items
+    if type_name == "communications":
+        return None  # comms status vocab (draft|sent) validated in check_frontmatter
     # Non-work-item files don't own a task status — the owning artifact does:
     #   - plan phase files / research|reference sub-sections → the topic 00-index.md
     #   - audit board files (00-inventory/changelog/methodology) → living dashboards
@@ -315,6 +371,17 @@ def check_backlog_priority(path: Path, fm: dict | None) -> Finding | None:
                        f"priority={val!r} not in {sorted(BACKLOG_PRIORITIES)}")
     return None
 
+def check_deferred_blocked_by(path: Path, fm: dict | None) -> Finding | None:
+    """Items in backlog/_deferred/ are open-but-blocked: blocked_by MUST be populated.
+    Warn (not error) if it's missing so existing deferred items aren't hard-failed.
+    """
+    if "/_deferred/" not in str(path).replace(os.sep, "/"):
+        return None
+    if fm and fm.get("blocked_by"):
+        return None
+    return Finding("backlog", str(path), "deferred-missing-blocked-by", "warning",
+                   "deferred item has no blocked_by — _deferred/ items must record their blocker")
+
 def check_plan_current_phase(plan_dir: Path) -> Finding | None:
     index = plan_dir / "00-index.md"
     if not index.is_file():
@@ -355,8 +422,13 @@ def check_index_files(context_dir: Path, type_name: str) -> list[Finding]:
     base = context_dir / type_name
     if not base.is_dir():
         return findings
-    # 00-overview.md only allowed in research/<topic>/
-    if type_name != "research":
+    # 00-index.md is canonical. 00-overview.md is accepted as an alias for research
+    # modules only (flagged at INFO, not a violation); misplaced elsewhere is a violation.
+    if type_name == "research":
+        for path in base.rglob("00-overview.md"):
+            findings.append(Finding(type_name, str(path), "index-overview-alias", "info",
+                                    "00-overview.md accepted as a research index alias for 00-index.md"))
+    else:
         for path in base.rglob("00-overview.md"):
             findings.append(Finding(type_name, str(path), "index-overview-misplaced", "violation",
                                     "00-overview.md is only valid inside research/<topic>/"))
@@ -384,6 +456,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
         type_files = 0
         type_v = 0
         type_w = 0
+        type_i = 0
 
         # Folder-level checks
         folder_findings: list[Finding] = []
@@ -425,10 +498,15 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                 bf = check_backlog_priority(path, fm)
                 if bf:
                     file_findings.append(bf)
+                df = check_deferred_blocked_by(path, fm)
+                if df:
+                    file_findings.append(df)
             findings.extend(file_findings)
             for fnd in file_findings:
                 if fnd.severity == "violation":
                     type_v += 1
+                elif fnd.severity == "info":
+                    type_i += 1
                 else:
                     type_w += 1
 
@@ -437,15 +515,19 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             findings.append(fnd)
             if fnd.severity == "violation":
                 type_v += 1
+            elif fnd.severity == "info":
+                type_i += 1
             else:
                 type_w += 1
 
-        summary_by_type[type_name] = {"files": type_files, "violations": type_v, "warnings": type_w}
+        summary_by_type[type_name] = {"files": type_files, "violations": type_v,
+                                      "warnings": type_w, "info": type_i}
 
     summary = {
         "files_scanned": files_scanned,
         "violations": sum(1 for f in findings if f.severity == "violation"),
         "warnings":   sum(1 for f in findings if f.severity == "warning"),
+        "info":       sum(1 for f in findings if f.severity == "info"),
         "by_type": summary_by_type,
     }
     return findings, summary
@@ -489,18 +571,21 @@ def main() -> int:
             "summary": summary,
             "violations": [asdict(f) for f in findings if f.severity == "violation"],
             "warnings":   [asdict(f) for f in findings if f.severity == "warning"],
+            "info":       [asdict(f) for f in findings if f.severity == "info"],
         }
         json.dump(out, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
         print(f"\nConventions validation — {context_dir}")
         print(f"  scanned: {summary['files_scanned']} files · "
-              f"violations: {summary['violations']} · warnings: {summary['warnings']}\n")
+              f"violations: {summary['violations']} · warnings: {summary['warnings']} · "
+              f"info: {summary['info']}\n")
         if not findings:
             print("OK — no violations")
         else:
             violations = [f for f in findings if f.severity == "violation"]
             warnings = [f for f in findings if f.severity == "warning"]
+            info = [f for f in findings if f.severity == "info"]
             if violations:
                 print(f"Violations ({len(violations)}):")
                 for f in violations:
@@ -508,6 +593,10 @@ def main() -> int:
             if warnings:
                 print(f"\nWarnings ({len(warnings)}):")
                 for f in warnings:
+                    print(f"  [{f.rule}] {f.file}: {f.message}")
+            if info:
+                print(f"\nInfo ({len(info)}):")
+                for f in info:
                     print(f"  [{f.rule}] {f.file}: {f.message}")
 
     return 1 if summary["violations"] > 0 else 0

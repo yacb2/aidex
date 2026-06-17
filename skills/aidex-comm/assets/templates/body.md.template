@@ -1,0 +1,15 @@
+---
+channel: {{CHANNEL}}          # email | whatsapp | call | meeting | other
+direction: {{DIRECTION}}       # received | sent
+from: ""
+to: ""
+subject: "{{SLUG}}"
+date: {{DATE}}
+status: {{STATUS}}             # draft | sent
+related: []                    # D-03 cross-refs to other .context/ artifacts
+created: {{DATE}}
+updated: {{DATE}}
+---
+
+<!-- Body text is in the NATIVE language of the communication.
+     Communications are EXEMPT from the English-only rule. -->
