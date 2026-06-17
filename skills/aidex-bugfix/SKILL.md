@@ -10,7 +10,7 @@ description: >
   (aidex-decision); pure refactors with no bug.
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-bugfix"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Bug Fix Workflow
 
@@ -68,6 +68,13 @@ test type. Adapt the categories to your stack — the framework names below are 
 - Defer to the project's own testing helpers/patterns for how to write the test
 - Follow the project's commit conventions for Phase 6 (detect them; `git-commit` if present)
 - If the project tracks a changelog, update it per the project's own rules
+- **Loop (opt-in):** once the RED test exists *and* the root cause is understood, a fix that needs
+  many mechanical variations to land green can be spec'd as an `aidex-loop` loop-spec (stop
+  condition = the RED test passes **and** the full suite stays green) and handed to `/goal` or
+  `ralph-loop`. Default stays the in-session RED→fix→GREEN cycle — do **not** make this skill a
+  loop runner. **Guardrail:** a single green test rewards overfitting, not a real fix — the gate
+  must be the test **plus** the Phase-1 root-cause hypothesis **plus** the full suite, ideally with
+  a maker≠checker split. Green-one-test ≠ bug fixed.
 
 ## Exception: Visual/CSS-only Bugs
 

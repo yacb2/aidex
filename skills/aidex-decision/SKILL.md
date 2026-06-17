@@ -5,7 +5,7 @@ disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-decision"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Decision
 

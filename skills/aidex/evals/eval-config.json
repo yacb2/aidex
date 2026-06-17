@@ -3,7 +3,7 @@
   "model": "claude-sonnet-4-6",
   "setup": {
     "env": {
-      "AIDEX_TRIGGER_EVAL_MARKER": "{{HOME}}/.claude/tmp/aidex-fired-{{TEST_ID}}"
+      "AIDEX_TRIGGER_EVAL_MARKER": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}"
     },
     "permissions_allow": [
       "Bash(printenv:*)",
@@ -12,10 +12,10 @@
   },
   "success_check": {
     "type": "file_exists",
-    "path": "{{HOME}}/.claude/tmp/aidex-fired-{{TEST_ID}}"
+    "path": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex"
   },
   "cleanup_paths": [
-    "{{HOME}}/.claude/tmp/aidex-fired-{{TEST_ID}}"
+    "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex"
   ],
   "queries_file": "./trigger_eval.json"
 }
