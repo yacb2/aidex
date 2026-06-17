@@ -1,6 +1,6 @@
 ---
 name: aidex-conventions
-description: NOT auto-invoked. Shared documentation-canon hub for the aidex-* family — holds the .context/ convention references (references/*.md) that the single-purpose sibling skills delegate into. Routing — plan multi-step work → aidex-plan; record a decision/ADR → aidex-decision; capture a stakeholder/client request → aidex-request; investigate/research how something works → aidex-research; document a settled system reference → aidex-reference; defer/park an idea for later → aidex-backlog; check a skill against house conventions → aidex-skill. This skill is the canon home, not an entry point; the siblings are the entry points.
+description: NOT auto-invoked. Shared documentation-canon hub for the aidex-* family — holds the .context/ convention references (references/*.md) that the single-purpose sibling skills delegate into. Routing — plan multi-step work → aidex-plan; record a decision/ADR → aidex-decision; capture a stakeholder/client request → aidex-request; investigate/research how something works → aidex-research; document a settled system reference → aidex-reference; defer/park an idea for later → aidex-backlog; capture/draft a communication received or to send → aidex-comm; check a skill against house conventions → aidex-skill. This skill is the canon home, not an entry point; the siblings are the entry points.
 disable-model-invocation: true
 user-invocable: false
 ---
@@ -23,7 +23,7 @@ Standards for consistent documentation structure in Claude Code projects.
 
 ## Overview
 
-This skill defines conventions for ten documentation types:
+This skill defines conventions for eleven documentation types:
 
 | Type | Purpose | Structure |
 |------|---------|-----------|
@@ -36,6 +36,7 @@ This skill defines conventions for ten documentation types:
 | **Backlog** | Deferred/parked ideas queued for later | Single dated file (`YYYY-MM-DD-<slug>.md`) |
 | **Research** | Investigation/spike notes captured before planning | Numbered files in a dated topic folder |
 | **Audits** | State-of-project catalogs with inventory + dated runs | `00-inventory.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYY-MM-DD-<slug>/` folders |
+| **Communications** | Log of emails/messages/calls received and sent | `{received,sent}/<YYYY-MM-DD>-<slug>/body.md` (native language) |
 | **CLAUDE.md** | Project context for Claude | Concise knowledge base |
 
 ## Quick Reference
@@ -47,6 +48,7 @@ This skill defines conventions for ten documentation types:
 | Implementation plan | [plan-conventions.md](references/plan-conventions.md) |
 | Request / Decision | [request-decision-conventions.md](references/request-decision-conventions.md) |
 | Audit | [audit-conventions.md](references/audit-conventions.md) |
+| Communication | [communication-conventions.md](references/communication-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 
@@ -110,7 +112,13 @@ Use relative markdown links with anchors:
 
 ### Language
 
-All generated content uses **English** for consistency.
+Language is **scoped by artifact kind** (see [`00-global.md` §4](references/00-global.md#4-language-d-04)):
+
+- **Knowledge artifacts → English (always):** plans, decisions, requests, research, references, docs, audits, backlog, loops, CLAUDE.md, and skill prose. This keeps cross-project uniformity and skill matching predictable.
+- **Communications → the language of the communication:** `communications/` bodies follow the interlocutor's language (never translate a Spanish client email to English). Front-matter keys stay English; values are as-is. See [communication-conventions.md](references/communication-conventions.md).
+- **Code + code comments → English** (unchanged).
+
+Skill **descriptions** stay English-only regardless (D-11). The assistant continues to *reply* in the user's spoken language; only the written artifacts above are constrained.
 
 ## Canonical File Locations
 
@@ -127,6 +135,7 @@ All generated content uses **English** for consistency.
 | Backlog | `.context/backlog/` | `YYYY-MM-DD-<slug>.md` + `_archive/` |
 | Research | `.context/research/` | `<topic>/` with numbered files (`00-index.md`, `01-*.md`) |
 | Audits | `.context/audits/` | `00-inventory.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `<methodology>/YYYY-MM-DD-<slug>/` |
+| Communications | `.context/communications/` | `{received,sent}/<YYYY-MM-DD>-<slug>/body.md` |
 | Global references | `~/.context/references/<topic>/` | Numbered (00-index.md, 01-*.md) |
 | Project references | `.context/references/<topic>/` | Numbered |
 | Library docs | `.context/docs/<library>/` | Numbered |
@@ -203,6 +212,12 @@ Deferred or parked ideas: work the team intends to do later but is not acting on
 Investigation or spike notes captured before a plan or implementation exists: how something works, what the options are, what an experiment found — created via the `aidex-research` skill.
 
 **Characteristics:** Numbered files in a dated topic folder (`<topic>/00-index.md`, `01-*.md`), findings referenced (not duplicated) by later plans/decisions.
+
+### Communications
+
+A log of emails, WhatsApp messages, calls, and meetings — received from or sent to a stakeholder/client — captured so the thread is searchable and cross-linkable to plans/decisions/requests. Created via the `aidex-comm` skill.
+
+**Characteristics:** `{received,sent}/<YYYY-MM-DD>-<slug>/body.md` (attachments alongside), front-matter (`channel`, `direction`, `from`/`to`, `subject`, `date`, `status` for the sent side, `related: []`, `created`, `updated`). Body text is in the **native language of the communication** — communications are exempt from the English-only rule (front-matter keys stay English). See [communication-conventions.md](references/communication-conventions.md).
 
 ### Plan: Modular vs Single-File
 

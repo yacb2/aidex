@@ -28,7 +28,7 @@ shared `aidex-conventions` reference package (not forked here).
    status-vocabulary check.
 4. Body per the canon module template: **Overview**, **Prerequisites**,
    main sections with language-hinted code blocks, **Verification**,
-   **Version history**.
+   **Version history**. Write the artifact in English (canon §Language).
 
 ## Boundaries
 

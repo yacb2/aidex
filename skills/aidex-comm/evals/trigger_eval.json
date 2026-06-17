@@ -1,0 +1,102 @@
+[
+  {
+    "query": "Save the email the client just sent us about the pricing for the spring catalog — I want it logged so we have a record of what they asked.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a received communication entry (channel=email)"
+  },
+  {
+    "query": "Log this WhatsApp message we got from the supplier confirming the delivery date. Keep it for the record.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a received communication with channel=whatsapp"
+  },
+  {
+    "query": "Draft an email to the landlord asking to renegotiate the lease terms. I'll review it before it goes out.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a sent communication with status=draft"
+  },
+  {
+    "query": "Write a reply to the client thanking them for the feedback and confirming we'll ship the change next week. Save it as a draft for now.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold an outgoing draft under sent/"
+  },
+  {
+    "query": "Record the call we had with the investor this morning — log the key points they raised so we don't lose them.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a received communication with channel=call"
+  },
+  {
+    "query": "Capture the email thread from the accountant about the Q2 filing. Keep the whole exchange logged.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a received communication (channel=email)"
+  },
+  {
+    "query": "Save the meeting notes from the kickoff with the new agency — log it as a communication so we have the trail.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a received communication with channel=meeting"
+  },
+  {
+    "query": "Draft the follow-up message to send the candidate after the interview, letting them know next steps. I'll edit before sending.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a sent draft"
+  },
+  {
+    "query": "Log the email we received from legal flagging the contract clause. Want it on record alongside the attachment they sent.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a received communication (channel=email) with room for an attachment"
+  },
+  {
+    "query": "The product manager just sent over the requirements for the new analytics dashboard. Capture this as a formal request with the April 30th deadline.",
+    "should_trigger": false,
+    "expected_behavior": "This is a stakeholder requirement to act on — should route to aidex-request, not a raw comms log"
+  },
+  {
+    "query": "Document the decision to use Postgres instead of MongoDB for analytics. I want a proper ADR with the trade-offs.",
+    "should_trigger": false,
+    "expected_behavior": "This is a decision record — should route to aidex-decision"
+  },
+  {
+    "query": "Create a plan to implement the new booking calendar — drag-and-drop, time-slot selection, recurring events. Multi-phase work.",
+    "should_trigger": false,
+    "expected_behavior": "This is plan creation — should route to aidex-plan"
+  },
+  {
+    "query": "Add to the backlog the idea of migrating from Webpack to Vite. Not urgent, just track it so we don't forget.",
+    "should_trigger": false,
+    "expected_behavior": "This is a backlog entry — should route to aidex-backlog"
+  },
+  {
+    "query": "Investigate how Stripe handles partial refunds with split payments. I need to understand it before I plan the implementation.",
+    "should_trigger": false,
+    "expected_behavior": "This is research — should route to aidex-research"
+  },
+  {
+    "query": "Document how the email-sending pipeline works — the SMTP config, the retry queue, the templates. A reference doc.",
+    "should_trigger": false,
+    "expected_behavior": "This is a settled reference about a system — should route to aidex-reference, not a comms log"
+  },
+  {
+    "query": "My Claude Code setup feels heavy — every project opens at 22% context. Audit my ecosystem and find what to trim.",
+    "should_trigger": false,
+    "expected_behavior": "This is an ecosystem audit — should route to aidex"
+  },
+  {
+    "query": "Run the e2e tests for the checkout module and tell me if they pass.",
+    "should_trigger": false,
+    "expected_behavior": "This is test execution, not a communication log"
+  },
+  {
+    "query": "Commit the changes I have staged with a message about the rate-limiting middleware fix.",
+    "should_trigger": false,
+    "expected_behavior": "This is a git operation, not a communication log"
+  },
+  {
+    "query": "Send an email right now to notify all users about the maintenance window — actually fire it off via the API.",
+    "should_trigger": false,
+    "expected_behavior": "This is execution of sending mail (an action), not logging/drafting a communication record"
+  },
+  {
+    "query": "There's a CORS issue when the frontend in dev tries to hit the backend. Help me debug it.",
+    "should_trigger": false,
+    "expected_behavior": "This is a debugging task, not a communication log"
+  }
+]

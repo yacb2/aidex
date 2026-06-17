@@ -28,7 +28,8 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    one decision replaces another.
 4. Body per the canon template: **Context**, **Decision** (Chosen +
    Rationale), **Consequences**. Capture the alternatives considered and the
-   deciding factor, not just the verdict.
+   deciding factor, not just the verdict. Write the artifact in English
+   (canon §Language).
 
 ## Boundaries
 

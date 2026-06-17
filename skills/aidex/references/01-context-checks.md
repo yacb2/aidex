@@ -1,6 +1,18 @@
 # Context Audit Checks (.context/)
 
-Detailed checks for `.context/references/`, `.context/docs/`, `.context/plans/`, `.context/backlog/`, `.context/issues/`, `.context/roadmap/`, `.context/requests/`, `.context/decisions/`, and `.context/audits/`.
+Detailed checks for `.context/references/`, `.context/docs/`, `.context/plans/`, `.context/backlog/`, `.context/issues/`, `.context/roadmap/`, `.context/requests/`, `.context/decisions/`, `.context/research/`, `.context/audits/`, `.context/loops/`, and `.context/communications/`.
+
+## Canonical vs acceptable-optional tiers
+
+Two tiers govern whether an empty/unknown `.context/` dir is ever a deletion candidate:
+
+- **Canonical** (managed by an aidex skill; empty = healthy; never propose delete):
+  `references, docs, plans, requests, decisions, research, backlog, audits, loops, communications, issues, roadmap`.
+  - `backlog/_deferred/` (open-but-blocked items, `status: open` + `blocked_by` populated) and any `<type>/_archive/` (terminal: done/dropped) are part of their parent's canonical lifecycle — treat as healthy, NOT orphan.
+- **Acceptable-optional** (project-local; not scaffolded by any skill; may be gitignored):
+  `diagrams, data, experiments`. Report at INFO-at-most; never propose deletion.
+
+Before proposing deletion of any `.context/` dir, check BOTH tiers; only dirs in NEITHER tier qualify as deletion candidates.
 
 ## Inventory Phase
 

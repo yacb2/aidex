@@ -59,9 +59,16 @@ For audits, `<type>` is `audit` and the filename includes the methodology and ru
 
 ADR: [`2026-05-14-english-default-language.md`](../../../.context/decisions/2026-05-14-english-default-language.md)
 
-- All `.context/` content and all skill-emitted artifacts are **English**.
-- The assistant continues to *reply* in the user's spoken language. Only the written artifacts under `.context/` are constrained.
-- **Override:** the project's `CLAUDE.md` may explicitly direct another language (e.g., "Generate `.context/` artifacts in Spanish"). A local skill edit is the second supported override path.
+Language is **scoped by artifact kind** — there is no longer a blanket "all generated content is English" rule:
+
+- **Knowledge artifacts → English (always):** plans, decisions, requests, research, references, docs, audits, backlog, loops, `CLAUDE.md`, and skill prose. This is for cross-project uniformity and predictable skill matching.
+- **Communications → the native language of the communication:** `communications/` bodies follow the interlocutor's language (e.g., a Spanish client email stays Spanish — never translate it to English). Front-matter keys stay English; values are as-is. See [`communication-conventions.md`](communication-conventions.md).
+- **Code + code comments → English** (unchanged).
+- **Skill descriptions stay English-only** regardless of the above (D-11), because the cross-lingual matcher bridges native queries while the description text remains uniform.
+
+The assistant continues to *reply* in the user's spoken language; only the written knowledge artifacts above are constrained.
+
+- **Override:** the project's `CLAUDE.md` may explicitly direct another language for knowledge artifacts (e.g., "Generate `.context/` artifacts in Spanish"). A local skill edit is the second supported override path. The communications exemption needs no override — it is the default.
 
 ---
 
@@ -169,10 +176,51 @@ Type-specific fields (`priority`, `estimate`, `methodology`, `severity`, `phase`
 | Decision (ADR) | `decisions/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Reference module | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
 | Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
+| Communication | `communications/{received,sent}/<YYYY-MM-DD>-<slug>/` | `body.md` | — | No |
 
 ---
 
-## 9. ADR map
+## 9. Canonical vs acceptable-optional `.context/` types
+
+`.context/` directories fall into two tiers. **Before proposing deletion of any
+`.context/` directory, check it against BOTH tiers.** Only directories that match
+*neither* tier and are empty are deletion candidates.
+
+### Canonical (managed, never flag, empty = healthy, never propose delete)
+
+Each is scaffolded/managed by an aidex skill. An empty canonical directory is a
+healthy not-yet-used state, **not** a problem — never propose deleting it:
+
+```
+references · docs · plans · requests · decisions · research ·
+backlog · audits · loops · communications · issues · roadmap
+```
+
+### Acceptable-optional (project-local, don't flag, don't require)
+
+These are **not** scaffolded by any skill and may be gitignored. If a project
+uses them, document them in the project `CLAUDE.md`. Auditors treat them as
+INFO-at-most and never propose deleting them — but they are never *required* either:
+
+```
+diagrams · data · experiments
+```
+
+### Deletion rule
+
+A `.context/` directory is a deletion candidate **only** when it matches neither
+tier above **and** is empty. Anything in either tier is left alone regardless of
+whether it is currently empty.
+
+Sub-layers of a canonical type inherit its protection: `backlog/_archive/`,
+`plans/_archive/`, and the like are never deletion candidates, and an empty
+`backlog/_deferred/` layer is `_deferred-not-needed` (a healthy not-yet-used
+state), not a problem — it is part of the canonical `backlog/` type, not a
+stray directory.
+
+---
+
+## 10. ADR map
 
 | # | Topic | ADR |
 |---|---|---|

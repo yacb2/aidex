@@ -27,7 +27,7 @@ the formatting canon lives in the shared `aidex-conventions` reference package
      5+ phases, 20+ tasks, multi-layer (backend + frontend + infra), or phases
      executed by different sessions/teammates.
 3. Follow the template in the canon: phases with checkboxes, exact file paths,
-   verification step per phase.
+   verification step per phase. Write the artifact in English (canon §Language).
 4. Save under `.context/plans/` with the dated naming the canon specifies.
 
 ## Closing a plan
@@ -43,6 +43,19 @@ bash "${CLAUDE_SKILL_DIR}/scripts/close-plan.sh" <slug> [--commit <sha>] [--stat
 After closing, run the shared `reconcile.sh` to surface upstream backlog items /
 audit findings this plan resolved that may now be closeable (closure propagation).
 
+## Offer to execute (multi-phase plans only)
+
+After writing a plan with **≥ 2 phases**, offer phase-by-phase execution via
+`plan-execution` (review → commit → handoff between phases). Single-phase or
+trivial plans skip this — do not add noise.
+
+1. Detect whether `plan-execution` is installed: check `~/.claude/skills/plan-execution/`,
+   `~/.aidex/skills/plan-execution/`, and any installed plugins.
+2. If present → offer: "Execute this plan phase-by-phase with review/commit/handoff
+   via `plan-execution`?"
+3. If absent → one-line mention only: a `plan-execution` skill exists for running
+   multi-phase plans, if they want to install it.
+
 ## Boundaries
 
 | The user wants to… | Route to |
@@ -55,6 +68,7 @@ audit findings this plan resolved that may now be closeable (closure propagation
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 | Make one phase iterate-until-green against a machine gate (tests/typecheck/build) | `aidex-loop` (spec it, hand off execution) |
+| Execute / implement an already-written multi-phase plan | `plan-execution` |
 | Implement directly with no plan doc needed | (just do the work) |
 
 ## Related

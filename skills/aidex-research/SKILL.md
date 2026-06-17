@@ -31,7 +31,8 @@ implementation. This skill is the single-purpose entry point for
 4. Body per the module template: **Overview**, **Prerequisites**, findings
    sections, **Verification**. If a spike's finding is mechanically verifiable
    (a benchmark or test the follow-up work should iterate against), link out to an
-   `aidex-loop` loop-spec rather than describing a manual loop here.
+   `aidex-loop` loop-spec rather than describing a manual loop here. Write the
+   artifact in English (canon §Language).
 
 ## Boundaries
 
