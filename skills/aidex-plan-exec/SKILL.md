@@ -5,7 +5,7 @@ disable-model-invocation: false
 allowed-tools: Bash Read Write Edit
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-plan-exec"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Plan Execution
 
@@ -50,6 +50,13 @@ For each phase in order:
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.
 4. Mark the phase's checkboxes as done in the plan file.
+
+> **Loop (opt-in, per phase only):** if a single phase is mechanical and its verification is a
+> pure machine gate (e.g. "make all `<suite>` pass" / "type-check clean"), that one phase may be
+> spec'd as a loop via `aidex-loop` and run by `/goal`/`ralph-loop` — mirroring the `aidex-plan` →
+> `aidex-loop` pointer at the phase level. **Do not loop the executor itself:** the between-phase
+> checkpoint (review/commit/handoff) is judgment work, and irreversible steps (commit/release/
+> deploy) stay outside any auto-loop and human-gated.
 
 ### 2. Between-phase checkpoint (MANDATORY)
 
