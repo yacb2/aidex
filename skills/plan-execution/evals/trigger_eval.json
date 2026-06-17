@@ -1,0 +1,67 @@
+[
+  {
+    "query": "Implement the plan in .context/plans/2026-06-17-payments/00-index.md — start with phase 1 and go phase by phase.",
+    "should_trigger": true,
+    "expected_behavior": "Should drive execution of a written multi-phase plan: orient, execute phase 1, verify, review+commit between phases. Canonical execute-the-plan imperative."
+  },
+  {
+    "query": "Ejecuta el plan de migración a GraphQL. Está en .context/plans/ con varias fases y checkboxes.",
+    "should_trigger": true,
+    "expected_behavior": "Should execute the multi-phase plan with between-phase discipline. Canonical ES execute-the-plan imperative."
+  },
+  {
+    "query": "Let's execute the plan we wrote yesterday — it has four phases.",
+    "should_trigger": true,
+    "expected_behavior": "Should locate and drive the multi-phase plan phase by phase."
+  },
+  {
+    "query": "Sigamos con el plan. Quedamos en la fase 2, continúa desde ahí.",
+    "should_trigger": true,
+    "expected_behavior": "Should resume the plan at the current phase (phase 2). ES continue-the-plan imperative."
+  },
+  {
+    "query": "Continue with phase 3 of the refactor plan and commit between phases like we agreed.",
+    "should_trigger": true,
+    "expected_behavior": "Should continue at phase 3 and enforce the between-phase review+commit checkpoint."
+  },
+  {
+    "query": "Retomemos el plan que dejamos a medias y termínalo, fase por fase con review y commit.",
+    "should_trigger": true,
+    "expected_behavior": "Should resume and finish the multi-phase plan with between-phase discipline. ES imperative."
+  },
+  {
+    "query": "Implementa el plan de onboarding. Tiene fases de backend, frontend e infra con sus checkboxes.",
+    "should_trigger": true,
+    "expected_behavior": "Should execute the multi-phase plan. ES execute-the-plan imperative with explicit phases."
+  },
+  {
+    "query": "Run the implementation plan for the notifications service — verify each phase before moving on.",
+    "should_trigger": true,
+    "expected_behavior": "Should execute phases with per-phase verification before advancing."
+  },
+  {
+    "query": "We need to create a plan for migrating from REST to GraphQL — multi-phase: schema, resolvers, client, deprecation.",
+    "should_trigger": false,
+    "expected_behavior": "This is plan CREATION — should route to aidex-plan, NOT plan-execution. Split-boundary precision check."
+  },
+  {
+    "query": "There's a bug: the date filter returns yesterday's results off-by-one. Fix it with a regression test.",
+    "should_trigger": false,
+    "expected_behavior": "This is a bug fix — should route to bug-fix-workflow, NOT plan-execution."
+  },
+  {
+    "query": "Add a tooltip to the save button. Just a one-off small change, no plan involved.",
+    "should_trigger": false,
+    "expected_behavior": "One-shot task with no phases or plan document — NOT plan-execution."
+  },
+  {
+    "query": "Refactor this helper to use a switch instead of nested ifs. No plan, just clean it up.",
+    "should_trigger": false,
+    "expected_behavior": "Pure refactor with no plan document — NOT plan-execution."
+  },
+  {
+    "query": "We decided to use Postgres over MySQL. Document this decision as an ADR.",
+    "should_trigger": false,
+    "expected_behavior": "This is a decision record — should route to aidex-decision, NOT plan-execution."
+  }
+]

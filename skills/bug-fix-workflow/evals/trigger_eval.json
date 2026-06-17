@@ -1,0 +1,14 @@
+[
+  { "query": "There's a bug in the date formatter — fix it.", "should_trigger": true, "expected_behavior": "EN bug-fix request. Should investigate root cause, write a RED regression test, then fix." },
+  { "query": "This export feature is broken, it crashes on empty input.", "should_trigger": true, "expected_behavior": "EN 'broken' with a reproduction. Should drive the TDD bug-fix loop." },
+  { "query": "We have a regression: the filter no longer applies after the last release.", "should_trigger": true, "expected_behavior": "EN 'regression' — write a failing test reproducing it, then fix." },
+  { "query": "The login button isn't working — clicking it does nothing.", "should_trigger": true, "expected_behavior": "EN 'isn't working' with repro. Should investigate and add a regression test." },
+  { "query": "Resolve this issue: the API returns 500 when the cart is empty.", "should_trigger": true, "expected_behavior": "EN 'resolve this issue' — root-cause + RED test + fix." },
+  { "query": "Hay un bug en el cálculo del total, arréglalo.", "should_trigger": true, "expected_behavior": "ES bug-fix request — cross-lingual triggering of the English-only description (D-11)." },
+  { "query": "Esto está roto: el modal no cierra al hacer clic afuera.", "should_trigger": true, "expected_behavior": "ES 'está roto' with repro — cross-lingual bug-fix." },
+  { "query": "Tenemos una regresión: el orden de columnas no se conserva.", "should_trigger": true, "expected_behavior": "ES 'regresión' — should drive the TDD bug-fix loop." },
+  { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning, no bug — belongs to aidex-plan. Must NOT fire." },
+  { "query": "Implement the plan in .context/plans/2026-06-17-checkout.", "should_trigger": false, "expected_behavior": "Plan execution — belongs to plan-execution. Precision check." },
+  { "query": "We decided to use Postgres over MySQL; document this decision.", "should_trigger": false, "expected_behavior": "Decision/ADR — aidex-decision. Precision check." },
+  { "query": "Refactor this module to extract the validation helpers.", "should_trigger": false, "expected_behavior": "Pure refactor, no bug — should not start the bug-fix workflow." }
+]
