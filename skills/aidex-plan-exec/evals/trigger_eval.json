@@ -42,26 +42,26 @@
   {
     "query": "We need to create a plan for migrating from REST to GraphQL — multi-phase: schema, resolvers, client, deprecation.",
     "should_trigger": false,
-    "expected_behavior": "This is plan CREATION — should route to aidex-plan, NOT plan-execution. Split-boundary precision check."
+    "expected_behavior": "This is plan CREATION — should route to aidex-plan, NOT aidex-plan-exec. Split-boundary precision check."
   },
   {
     "query": "There's a bug: the date filter returns yesterday's results off-by-one. Fix it with a regression test.",
     "should_trigger": false,
-    "expected_behavior": "This is a bug fix — should route to bug-fix-workflow, NOT plan-execution."
+    "expected_behavior": "This is a bug fix — should route to aidex-bugfix, NOT aidex-plan-exec."
   },
   {
     "query": "Add a tooltip to the save button. Just a one-off small change, no plan involved.",
     "should_trigger": false,
-    "expected_behavior": "One-shot task with no phases or plan document — NOT plan-execution."
+    "expected_behavior": "One-shot task with no phases or plan document — NOT aidex-plan-exec."
   },
   {
     "query": "Refactor this helper to use a switch instead of nested ifs. No plan, just clean it up.",
     "should_trigger": false,
-    "expected_behavior": "Pure refactor with no plan document — NOT plan-execution."
+    "expected_behavior": "Pure refactor with no plan document — NOT aidex-plan-exec."
   },
   {
     "query": "We decided to use Postgres over MySQL. Document this decision as an ADR.",
     "should_trigger": false,
-    "expected_behavior": "This is a decision record — should route to aidex-decision, NOT plan-execution."
+    "expected_behavior": "This is a decision record — should route to aidex-decision, NOT aidex-plan-exec."
   }
 ]
