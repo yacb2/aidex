@@ -1,0 +1,88 @@
+---
+id: {{ID}}
+title: "{{SLUG}}"
+status: doing
+engine: undecided
+created: {{DATE}}
+updated: {{DATE}}
+---
+
+# Loop spec — {{SLUG}}
+
+## Goal
+
+<!-- One sentence: what should be true when this loop is done. -->
+
+## Loop-suitability (step 0)
+
+<!-- Is there a check the MACHINE can run to say pass/fail? If no, this is NOT a
+     loop — stop and do it interactively. Justify why a loop fits. -->
+
+- Verifiable gate exists: yes / no
+- Greenfield or existing code:
+- One task or many:
+- Must run with the machine off: yes / no
+- Budget ceiling:
+
+## Stop condition (the gate)
+
+<!-- The concrete, machine-checkable signal that ends the loop. e.g.
+     "pnpm test exits 0 AND pnpm typecheck exits 0". This is the heart of the loop. -->
+
+## Engine
+
+<!-- One of: goal | loop | ralph | claude-p | routine | channels.
+     Record the choice AND why, plus the runner-up. See
+     references/01-loop-engines.md decision matrix. -->
+
+- Chosen:
+- Why:
+- Runner-up:
+
+## Spec / PROMPT
+
+<!-- The fixed prompt or goal text fed to the engine. For Ralph: list specs/*,
+     the disposable plan, and AGENTS.md build/test commands. Name files and
+     interfaces involved. -->
+
+## State file
+
+<!-- "The agent forgets each run. The file does not." The loop's memory lives
+     OUTSIDE the conversation: a markdown file (STATE.md / a plan) or a Linear
+     board that records what's done and what's next, so the next run RESUMES
+     instead of restarting. For long runs that risk drift, pair it with a
+     standing spec (VISION.md / AGENTS.md) the agent re-reads each iteration:
+     state says where it IS, the spec says where it's GOING. Name the file. -->
+
+## Scope — out
+
+<!-- What this loop must NOT touch. Bounds prevent emergent scope creep, and
+     keep the loop on small machine-checkable changes (not architecture/judgment
+     calls — that is where comprehension debt accelerates). -->
+
+## Guardrails
+
+- [ ] max-iterations / turn cap set: ____
+- [ ] isolation (sandbox / git worktree): ____
+- [ ] scoped credentials / budget cap: ____
+- [ ] deterministic completion marker (e.g. `<promise>DONE</promise>`): ____
+- [ ] human approval gate before anything irreversible (merge/deploy/dep bump): ____
+- [ ] security: gate includes SAST/secret-scan if it ships code; re-audit permissions every 30 days: ____
+- [ ] human checkpoint cadence (read the diffs — comprehension debt compounds): ____
+
+## End-to-end verification step
+
+<!-- The final check that proves the feature actually works, beyond unit gates. -->
+
+## Run command
+
+<!-- The exact engine invocation. Filled when the engine is chosen. -->
+
+```
+```
+
+---
+
+## Notes / iteration log
+
+<!-- Observed failures become prompt-tuning signals. Record them here. -->

@@ -85,7 +85,7 @@ project/.context/
 
 `rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
 
-### 10 skills
+### 11 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -99,6 +99,7 @@ project/.context/
 | **`aidex-skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
 | **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate`. Ships 6 playbooks (ux, ia-opportunities, retest, security, perf, a11y). |
 | **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
+| **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex-loop design` · `new` · `run`. |
 
 ### How it works
 
