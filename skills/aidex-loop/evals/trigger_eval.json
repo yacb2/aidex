@@ -1,0 +1,17 @@
+[
+  { "query": "Design a loop to keep refactoring the parser until all tests pass.", "should_trigger": true, "expected_behavior": "EN imperative — loop design with a verifiable gate. Should scaffold a .context/loops/ loop-spec." },
+  { "query": "Should I use ralph or /goal to drive this migration to completion?", "should_trigger": true, "expected_behavior": "EN engine-choice question — the disambiguation aidex-loop owns." },
+  { "query": "Set up a loop that keeps building the API until typecheck is clean.", "should_trigger": true, "expected_behavior": "EN 'keep building until X' — loop with stop condition." },
+  { "query": "I want to scaffold a Ralph-style run for this greenfield service.", "should_trigger": true, "expected_behavior": "EN scaffold-a-Ralph-run intent." },
+  { "query": "Help me write a loop spec with a verifiable stop condition before I run it.", "should_trigger": true, "expected_behavior": "EN explicit loop-spec authoring." },
+  { "query": "Which engine should drive an unattended improvement loop — /goal, /loop, or ralph?", "should_trigger": true, "expected_behavior": "EN engine-selection among the native primitives." },
+  { "query": "Diseña un loop para iterar sobre el bug hasta que el test pase.", "should_trigger": true, "expected_behavior": "ES imperative — cross-lingual triggering of the English-only description (D-11 validation)." },
+  { "query": "¿Qué tipo de loop me conviene para correr esto toda la noche sin supervisión?", "should_trigger": true, "expected_behavior": "ES engine-choice question for an unattended overnight run." },
+  { "query": "Quiero armar un loop que siga construyendo el servicio hasta que los tests estén verdes.", "should_trigger": true, "expected_behavior": "ES 'keep building until tests green' — cross-lingual loop-with-gate." },
+  { "query": "Necesito decidir qué loop usar antes de lanzar una corrida larga de build.", "should_trigger": true, "expected_behavior": "ES decide-which-loop before a long build run." },
+  { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning, no loop — belongs to aidex-plan. aidex-loop must NOT fire." },
+  { "query": "We decided to use Postgres over MySQL; document this decision.", "should_trigger": false, "expected_behavior": "Decision/ADR — aidex-decision. Precision check." },
+  { "query": "Run /loop every 5 minutes to check the deploy status.", "should_trigger": false, "expected_behavior": "Direct execution of native /loop, not loop DESIGN. aidex-loop description excludes this." },
+  { "query": "Just start a ralph loop on this repo right now.", "should_trigger": false, "expected_behavior": "Direct execution — hand off to the ralph-loop plugin, not design. Sharp precision test." },
+  { "query": "Fix this null pointer bug in auth.ts.", "should_trigger": false, "expected_behavior": "One-off task, no stop condition / no loop. Should just do the work." }
+]
