@@ -10,6 +10,8 @@ description: >
   (aidex-decision); pure refactors with no bug.
 ---
 
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "$AIDEX_TRIGGER_EVAL_MARKER"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
+
 # Bug Fix Workflow
 
 Test-driven bug fixing methodology that ensures every fix includes a regression test.
