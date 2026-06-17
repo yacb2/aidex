@@ -1,6 +1,6 @@
 ---
 name: inventory-seeder
-description: Read scattered findings from legacy audit folders and generate canonical INVENTORY rows. Used by /audit migrate after folders have been moved.
+description: Read scattered findings from legacy audit folders and generate canonical INVENTORY rows. Used by /aidex-audit migrate after folders have been moved.
 model: sonnet
 tools: Read Write Edit Glob Grep
 ---
@@ -91,7 +91,7 @@ Return a summary:
 <list each with folder path, raw text, and reason for skipping>
 
 ## Next steps
-- Run `/audit validate` to verify coherence
+- Run `/aidex-audit validate` to verify coherence
 - Review ambiguous entries manually
 - Update the `methodology/` folder to reflect the methodology used in legacy runs if not already present
 ```

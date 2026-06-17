@@ -1,6 +1,6 @@
 ---
 name: aidex-conventions
-description: NOT auto-invoked. Shared documentation-canon hub for the aidex-* family — holds the .context/ convention references (references/*.md) that the single-purpose sibling skills delegate into. Routing — plan multi-step work → aidex-plan; record a decision/ADR → aidex-decision; capture a stakeholder/client request → aidex-request; investigate/research how something works → aidex-research; document a settled system reference → aidex-reference; check a skill against house conventions → aidex-skill. This skill is the canon home, not an entry point; the siblings are the entry points.
+description: NOT auto-invoked. Shared documentation-canon hub for the aidex-* family — holds the .context/ convention references (references/*.md) that the single-purpose sibling skills delegate into. Routing — plan multi-step work → aidex-plan; record a decision/ADR → aidex-decision; capture a stakeholder/client request → aidex-request; investigate/research how something works → aidex-research; document a settled system reference → aidex-reference; defer/park an idea for later → aidex-backlog; check a skill against house conventions → aidex-skill. This skill is the canon home, not an entry point; the siblings are the entry points.
 disable-model-invocation: true
 user-invocable: false
 ---
@@ -23,7 +23,7 @@ Standards for consistent documentation structure in Claude Code projects.
 
 ## Overview
 
-This skill defines conventions for eight documentation types:
+This skill defines conventions for ten documentation types:
 
 | Type | Purpose | Structure |
 |------|---------|-----------|
@@ -33,7 +33,9 @@ This skill defines conventions for eight documentation types:
 | **Plans** | Multi-session implementation tracking | Phases with checkboxes |
 | **Requests** | Incoming tasks and product requirements | Single dated file |
 | **Decisions** | Architecture/product decision records | Single dated file with context, options, outcome |
-| **Audits** | State-of-project catalogs with INVENTORY + dated runs | `INVENTORY.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYYMMDD-<slug>/` folders |
+| **Backlog** | Deferred/parked ideas queued for later | Single dated file (`YYYY-MM-DD-<slug>.md`) |
+| **Research** | Investigation/spike notes captured before planning | Numbered files in a dated topic folder |
+| **Audits** | State-of-project catalogs with inventory + dated runs | `00-inventory.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYY-MM-DD-<slug>/` folders |
 | **CLAUDE.md** | Project context for Claude | Concise knowledge base |
 
 ## Quick Reference
@@ -117,12 +119,14 @@ All generated content uses **English** for consistency.
 | Global skills | `~/.claude/skills/<name>/` | kebab-case |
 | Project skills | `.claude/skills/<name>/` | kebab-case |
 | Shared skills (aidex) | `~/.aidex/skills/<name>/` | kebab-case |
-| Plans | `.context/plans/` | `YYYYMMDD-<feature>.md` or `YYYYMMDD-<feature>/` |
+| Plans | `.context/plans/` | `YYYY-MM-DD-<feature>.md` or `YYYY-MM-DD-<feature>/` |
 | Issues | `.context/issues/` | `ISSUE-NNN-description.md` + `00-index.md` |
 | Roadmap | `.context/roadmap/` | `README.md` + `NN-phase-name.md` |
-| Requests | `.context/requests/` | `YYYYMMDD-description.md` + `_archive/` |
-| Decisions | `.context/decisions/` | `YYYYMMDD-description.md` + `_archive/` |
-| Audits | `.context/audits/` | `INVENTORY.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYYMMDD-<slug>/` |
+| Requests | `.context/requests/` | `YYYY-MM-DD-description.md` + `_archive/` |
+| Decisions | `.context/decisions/` | `YYYY-MM-DD-description.md` + `_archive/` |
+| Backlog | `.context/backlog/` | `YYYY-MM-DD-<slug>.md` + `_archive/` |
+| Research | `.context/research/` | `<topic>/` with numbered files (`00-index.md`, `01-*.md`) |
+| Audits | `.context/audits/` | `00-inventory.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `<methodology>/YYYY-MM-DD-<slug>/` |
 | Global references | `~/.context/references/<topic>/` | Numbered (00-index.md, 01-*.md) |
 | Project references | `.context/references/<topic>/` | Numbered |
 | Library docs | `.context/docs/<library>/` | Numbered |
@@ -167,26 +171,38 @@ Project context: tech stack overview, critical conventions, links to detailed do
 
 Incoming tasks, product requirements, or change requests from stakeholders. A request is a **single document** — if it needs deeper analysis, escalate to a plan or research.
 
-**Characteristics:** Dated file, origin (who asked), description, priority/urgency, outcome (became plan, deferred, rejected).
+**Characteristics:** Dated file, origin (who asked), description, priority/urgency, outcome (became plan, dropped).
 
 **Interception behavior:** When the user describes a new task, feature request, or product requirement during a conversation, suggest:
-1. "Create a formal request?" → `.context/requests/YYYYMMDD-description.md`
-2. "Or create a plan directly?" → `.context/plans/YYYYMMDD-description/`
+1. "Create a formal request?" → `.context/requests/YYYY-MM-DD-description.md`
+2. "Or create a plan directly?" → `.context/plans/YYYY-MM-DD-description/`
 3. "Or launch a research/investigation?" → `.context/research/`
 
 ### Decisions
 
 Architecture or product decision records. Documents **what** was decided, **why**, what alternatives were considered, and the outcome. Prevents revisiting the same debates.
 
-**Characteristics:** Dated file, context/problem, options considered, decision taken, rationale, status (active/superseded/reversed).
+**Characteristics:** Dated file, context/problem, options considered, decision taken, rationale, status (accepted/superseded/dropped).
 
 ### Audits
 
-State-of-project catalogs. An audit describes what **is** (findings, gaps, risks, opportunities), distinct from plans which describe what **will be**. Every finding lives in a canonical `INVENTORY.md` and is referenced (not copied) from per-run `findings.md` views.
+State-of-project catalogs. An audit describes what **is** (findings, gaps, risks, opportunities), distinct from plans which describe what **will be**. Every finding lives in a canonical `00-inventory.md` and is referenced (not copied) from per-run `findings.md` views.
 
-**Characteristics:** `INVENTORY.md` as source of truth, `METHODOLOGY.md` as living playbook with `CHANGELOG.md`, dated per-run folders (`YYYYMMDD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
+**Characteristics:** `00-inventory.md` as source of truth, `METHODOLOGY.md` as living playbook with `CHANGELOG.md`, dated per-run folders (`YYYY-MM-DD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
 
 **Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `aidex-audit` skill (`/aidex-audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
+
+### Backlog
+
+Deferred or parked ideas: work the team intends to do later but is not acting on now. A backlog entry captures the idea, why it is deferred, and what would trigger picking it up — created via the `aidex-backlog` skill.
+
+**Characteristics:** Single dated file, `status` lifecycle (`open` → `doing` → `done`/`dropped`), priority, optional link to the plan or loop-spec that picks it up.
+
+### Research
+
+Investigation or spike notes captured before a plan or implementation exists: how something works, what the options are, what an experiment found — created via the `aidex-research` skill.
+
+**Characteristics:** Numbered files in a dated topic folder (`<topic>/00-index.md`, `01-*.md`), findings referenced (not duplicated) by later plans/decisions.
 
 ### Plan: Modular vs Single-File
 

@@ -1,6 +1,6 @@
 ---
 name: aidex-skill
-description: Use when the user wants an existing or in-progress skill checked or structured against THIS project's house skill conventions — "what are our skill conventions", "review this skill against our standards", "does this skill follow our patterns", "structure this skill the way we do", "audit this skill's front-matter/description for our rules". Also "cuáles son nuestras convenciones de skills", "revisa este skill contra nuestros estándares", "este skill sigue nuestros patrones", "estructura este skill como lo hacemos nosotros". Not for: creating a skill from scratch, optimizing a skill's description for triggering, or running skill evals (all skill-creator); planning (aidex-plan); decisions (aidex-decision); requests (aidex-request); research (aidex-research); references (aidex-reference); ecosystem audits (aidex).
+description: Use when the user wants an existing or in-progress skill checked or structured against THIS project's house skill conventions — "what are our skill conventions", "review this skill against our standards", "does this skill follow our patterns", "structure this skill the way we do", "audit this skill's front-matter/description for our rules". Not for: creating a skill from scratch, optimizing a skill's description for triggering, or running skill evals (all skill-creator); planning (aidex-plan); decisions (aidex-decision); requests (aidex-request); research (aidex-research); references (aidex-reference); ecosystem audits (aidex).
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -24,8 +24,20 @@ READ-ONLY and never modifies it.
    or the `.claude/skills/...` project-level copy if one exists).
 2. Identify the target skill the user is reviewing or structuring.
 3. Produce a gap report against the canon: front-matter (trigger-first
-   `description`, char budget, `disable-model-invocation`, `allowed-tools`),
-   body structure, `evals/` presence, no per-skill `CHANGELOG.md`/`README.md`.
+   `description`, char budget, **English-only `description`**,
+   `disable-model-invocation`, `allowed-tools`), body structure, `evals/`
+   presence, no per-skill `CHANGELOG.md`/`README.md`.
+   - **English-only check** (canon `skill-conventions.md` rule 2): the
+     `description` must contain no Spanish/other-language phrasings or accented
+     tokens. The matcher bridges cross-lingually, so an English description still
+     fires on non-English queries; native-language queries belong in the
+     `evals/` query set, not the description. Detect with:
+     ```bash
+     desc=$(awk 'f&&/^[a-zA-Z_-]+:/{exit} /^description:/{f=1} f' <target>/SKILL.md)
+     printf '%s' "$desc" | grep -nE '[áéíóúñ¿¡]' && echo "GAP: non-English tokens in description"
+     ```
+     Flag any hit as a gap and rewrite the description English-only, preserving
+     semantic coverage (drop the foreign phrasings; keep their English equivalents).
 4. Apply non-canon fixes to the target skill's **own files only** (its
    `SKILL.md` / `evals`) — never to `references/*-conventions.md`.
 

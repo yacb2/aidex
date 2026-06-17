@@ -26,8 +26,16 @@ Dispatch by first argument:
 | `/aidex-audit new <type> <slug>` | [scripts/new-audit.sh](scripts/new-audit.sh) | Scaffold a new audit run |
 | `/aidex-audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog |
 | `/aidex-audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
+| `/aidex-audit escalate <finding-id> --loop` | [scripts/escalate-finding-to-loop.sh](scripts/escalate-finding-to-loop.sh) | Escalate a **bulk, machine-checkable** finding to an `aidex-loop` loop-spec instead of the backlog (see guard below) |
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
 | `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
+
+> **`--loop` guard (anti-cargo-cult).** Use `--loop` **ONLY** when the finding is
+> bulk + machine-checkable — a gate the machine can run to say pass/fail across many
+> sites (lint clean / contrast ratios / type-clean / remove-all-X). Single fixes and
+> ideas go to the backlog (plain `escalate`, no flag). **Never auto-loop**: the
+> operator still writes the exact Stop condition and picks an engine before the loop
+> runs. If there is no machine gate, it is not a loop — escalate to backlog.
 
 ### Supported audit types (for `new`)
 
@@ -42,14 +50,19 @@ See [references/04-playbooks.md](references/04-playbooks.md) for when to pick ea
 When invoked with arguments, the skill runs:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/${ACTION}.sh" "$@"
+# escalate routes to the loop variant when --loop is present; otherwise the table maps 1:1.
+if [ "$ACTION" = "escalate" ] && printf '%s\n' "$@" | grep -q -- '--loop'; then
+  bash "${CLAUDE_SKILL_DIR}/scripts/escalate-finding-to-loop.sh" "$@"
+else
+  bash "${CLAUDE_SKILL_DIR}/scripts/${ACTION}.sh" "$@"
+fi
 ```
 
 Where `${ACTION}` maps from the first argument:
 
 - `new` → `new-audit.sh <type> <slug>`
 - `validate` → `validate-audit.sh [path]`
-- `escalate` → `escalate-finding.sh <finding-id>`
+- `escalate` → `escalate-finding.sh <finding-id>` — unless `--loop` is present, then `escalate-finding-to-loop.sh <finding-id> --loop`
 - `migrate` → `migrate-audit.sh [project-dir]`
 
 If no arguments are given, show the help table above and run a status check:
@@ -58,7 +71,7 @@ If no arguments are given, show the help table above and run a status check:
 # Quick status (when invoked with no args):
 if [ -d .context/audits ]; then
   ls -1 .context/audits/*/index.md 2>/dev/null | wc -l  # audit run count
-  grep -c "^| " .context/audits/INVENTORY.md 2>/dev/null  # finding count
+  grep -c "^| " .context/audits/00-inventory.md 2>/dev/null  # finding count
   head -30 .context/audits/CHANGELOG.md 2>/dev/null  # latest methodology changes
 fi
 ```
@@ -76,24 +89,25 @@ fi
 Scaffolds:
 - `.context/audits/YYYYMMDD-login-redesign/index.md`
 - `.context/audits/YYYYMMDD-login-redesign/findings.md`
-- `.context/audits/INVENTORY.md` (if missing)
-- `.context/audits/METHODOLOGY.md` (if missing)
-- `.context/audits/CHANGELOG.md` (if missing)
+- `.context/audits/00-inventory.md` (if missing; legacy `INVENTORY.md` is left untouched and still accepted by the validator)
+- `.context/audits/00-methodology.md` (if missing)
+- `.context/audits/00-changelog.md` (if missing)
 - `.context/audits/methodology/ux-audit.md` (if missing)
 
 ### Running an audit
 
 1. Open the `methodology/<type>.md` playbook.
 2. Walk through checks in scope.
-3. Add rows to `INVENTORY.md` for each finding.
+3. Add rows to `00-inventory.md` for each finding.
 4. Reference IDs from this run's `findings.md` (filtered view).
 5. Close out `index.md` summary.
 
 ### After the audit
 
 ```
-/aidex-audit validate          # verify coherence
-/aidex-audit escalate BUG-01-1 # one finding at a time → backlog
+/aidex-audit validate              # verify coherence
+/aidex-audit escalate BUG-01-1     # one finding at a time → backlog
+/aidex-audit escalate A11Y-02-1 --loop  # bulk, machine-checkable finding → loop-spec
 ```
 
 ### Re-testing
@@ -153,7 +167,7 @@ Quick summary — full detail in [references/01-principles.md](references/01-pri
 
 All templates in [assets/templates/](assets/templates/):
 
-- Core: INVENTORY.md, METHODOLOGY.md, CHANGELOG.md, index.md, findings.md
+- Core: 00-inventory.md, 00-methodology.md, 00-changelog.md, index.md, findings.md
 - Playbooks: `methodology/<type>.md.template` for each of six stock types
 
 ## Related

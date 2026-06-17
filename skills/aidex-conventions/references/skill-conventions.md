@@ -86,7 +86,7 @@ Why it is not just style: when the description summarizes the workflow, Claude f
 **Canonical structure:**
 
 ```
-Use when the user <triggering condition / symptom / context>, <another>, or <another> — including <verbatim phrasings>, <language variants>. Not for: <competing capability> (<other-skill>); <another> (<another-skill>).
+Use when the user <triggering condition / symptom / context>, <another>, or <another> — including <verbatim phrasings>. Not for: <competing capability> (<other-skill>); <another> (<another-skill>).
 ```
 
 **Example (trigger-first rewrite of Anthropic's git-commit example, ~100 chars):**
@@ -100,7 +100,7 @@ Anthropic's *actual* shipped git example leads with capability — `Generate des
 **Example (aidex skill, iteration-4 final form):**
 
 ```yaml
-description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context. Also fires on "audit my project", "organize my ecosystem", "organiza mi ecosistema", "revisa la salud de mi proyecto", "mi .context/ es un desastre", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (audit); backlog items (backlog-register).
+description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context. Also fires on "audit my project", "organize my ecosystem", "health-check my project", "my .context/ is a mess", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).
 ```
 
 **`when_to_use` field:** Claude Code supports a separate `when_to_use` field (concatenated into the listing, 1,536-char combined cap). It is optional. Superpowers folds everything into a single trigger-first `description` for cross-tool portability (the agentskills.io standard has only `name` + `description`). Prefer the single-field form; use `when_to_use` only if `description` would otherwise exceed ~900 chars.
@@ -108,7 +108,7 @@ description: Use when the user wants to audit, organize, clean up, or health-che
 ### Rules (each empirically tested on the aidex ecosystem, 2026-05-15/16)
 
 1. **Start with "Use when…". Describe triggers, not capability.** Leading with "Audits and fixes…", "Captures…", "Registers…" is the dominant mistake — it cost the aidex ecosystem 3 wasted rewrite iterations that all plateaued at the same recall because they shared this anti-pattern.
-2. **Keyword coverage.** Include the words a user would actually type: symptoms ("flaky", "messy", "stale"), error strings, synonyms, tool/file names, and — if the query inventory is non-English-dominant — native-language phrasings. The matcher does semantic bridging but surface tokens still help on long narrative queries. **Match keyword abstraction to skill scope** (Superpowers `writing-skills`): a broad skill over-anchored on narrow tokens under-fires on the general problem; a technology- or environment-specific skill should name that anchor explicitly. (The aidex skills are Claude-Code-ecosystem-specific, so their concrete `.context/`/`MEMORY.md`/symlink tokens are correctly placed.)
+2. **Keyword coverage, English-only.** Include the words a user would actually type: symptoms ("flaky", "messy", "stale"), error strings, synonyms, tool/file names. **Write the `description` in English even when the user speaks another language.** Anthropic's skill-authoring guidance is not to mix languages, and the matcher does cross-lingual semantic bridging — an English description still fires on Spanish (or other-language) queries. The aidex 2026-05-18 multilingual A/B measured stripping Spanish from `aidex-decision` as **recall-neutral** (McNemar p=1.0): native-language phrasings buy no recall and only consume description budget. Keep native-language queries in the **eval query set**, not the description. **Match keyword abstraction to skill scope** (Superpowers `writing-skills`): a broad skill over-anchored on narrow tokens under-fires on the general problem; a technology- or environment-specific skill should name that anchor explicitly. (The aidex skills are Claude-Code-ecosystem-specific, so their concrete `.context/`/`MEMORY.md`/symlink tokens are correctly placed.)
 3. **No "pushy trigger" phrases** ("ALWAYS use this skill", "Make sure to use this skill whenever"). Verified to not improve recall; just consumes budget.
 4. **One sub-domain per skill.** A description that must enumerate 5+ unrelated sub-types is a mega-skill — Anthropic and Superpowers both name this anti-pattern. Split it. (In the aidex eval, the 5-sub-type `aidex-conventions` never cleared 2/10 across four iterations; the single-purpose `aidex-backlog` reached 7/10.)
 5. **Third person, concise.** The description is injected into the system prompt. <500 chars ideal, <900 before reaching for `when_to_use`, 1,024 hard target.
@@ -325,7 +325,8 @@ Challenge every paragraph: "Does Claude really need this?" Default assumption: C
 - [ ] `description` starts with "Use when…" and describes triggers, NOT what the skill does
 - [ ] `description` does not summarize the skill's workflow/process
 - [ ] `description` <900 chars (single field); `when_to_use` used only if it would exceed that, combined ≤ 1,536
-- [ ] Keyword-rich: symptoms, synonyms, tool/file names; native-language phrasings if the query inventory is non-English-dominant
+- [ ] Keyword-rich: symptoms, synonyms, tool/file names
+- [ ] **English-only**: no Spanish/other-language phrasings or accented tokens (`á é í ó ú ñ ¿ ¡`) in `description` — the matcher bridges cross-lingually; native-language queries belong in the eval set, not the description
 - [ ] Not a mega-skill: if `description` must enumerate 5+ unrelated sub-actions, split the skill
 
 ### Body Checks
@@ -399,7 +400,7 @@ These were observed across the aidex 2026-05-15/16 trigger-eval (4 iterations, 3
 | Problem | Cause | Fix |
 |---------|-------|-----|
 | Skill never triggers on natural phrasings | `description` leads with what the skill does, or summarizes workflow | Rewrite trigger-first: start with "Use when…", describe only triggering conditions, keyword-rich |
-| Skill triggers on imperatives but misses narrative ("I want to…", "Mi X tiene…") | Matcher reads stative phrasings as the user describing state, not requesting action | Add narrative + native-language phrasings, but accept this is a partial fix — it is a documented matcher limit, not fully description-fixable |
+| Skill triggers on imperatives but misses narrative ("I want to…", "My X has…") | Matcher reads stative phrasings as the user describing state, not requesting action | Add English narrative phrasings ("I want to…", "I need to…"), but accept this is a partial fix — it is a documented matcher limit, not fully description-fixable |
 | Skill recall plateaus (~35%) despite multiple rewrites | Mega-skill, ambiguous/mislabeled inventory queries, or matcher ceiling — NOT wording | Stop micro-tuning. Split if mega-skill; re-curate the inventory (separate read/list intents from create intents); accept ~70% is the practical ceiling for a clean skill |
 | Triggers too often (false positives) | Description scope too broad, or overlapping vocabulary with sibling skill | Add a precise disambiguator naming the specific confused surface form ("Not for: …") at the end of the description |
 | `/doctor` reports skill descriptions cut short | Global skill-listing budget overflow (default 1% of context window) | Raise `skillListingBudgetFraction`, set lower-priority skills to `name-only` via `skillOverrides`, or trim less-used skills |

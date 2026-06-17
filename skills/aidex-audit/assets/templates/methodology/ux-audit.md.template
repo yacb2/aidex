@@ -82,4 +82,4 @@ Severity guide:
 - **Timebox.** One hour per module works for most products. If you need more, split into two runs.
 - **Two-pass.** First pass collect findings fast. Second pass triage severity.
 - **Photo evidence.** Attach screenshots in `modules/<name>/` when the issue is visual.
-- **Don't fix on the fly.** This audit catalogs; fixes go to backlog or plans via `/audit escalate`.
+- **Don't fix on the fly.** This audit catalogs; fixes go to backlog or plans via `/aidex-audit escalate`.

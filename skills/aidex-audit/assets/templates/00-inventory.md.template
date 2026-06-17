@@ -40,7 +40,7 @@ EXAMPLE ROWS (remove once you have real findings):
 
 | ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| — | — | — | *No findings yet. Run `/audit new {{METHODOLOGY}} <slug>` to start.* | — | — | — | — | — | — | — |
+| — | — | — | *No findings yet. Run `/aidex-audit new {{METHODOLOGY}} <slug>` to start.* | — | — | — | — | — | — | — |
 
 ---
 
@@ -51,4 +51,4 @@ EXAMPLE ROWS (remove once you have real findings):
 - **Done:** 0
 - **Dropped:** 0
 
-Regenerate this section via `/audit validate`.
+Regenerate this section via `/aidex-audit validate`.

@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "organiza mi ecosistema", "revisa la salud de mi proyecto", "creo que tengo symlinks rotos", "mi MEMORY.md está desactualizado", "mi .context/ es un desastre", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).
+description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "check my project's health", "I think I have broken symlinks", "my .context/ is a mess", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).
 argument-hint: "[context]"
 disable-model-invocation: false
 ---
@@ -15,7 +15,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 
 | Domain | Location | What it checks |
 |--------|----------|---------------|
-| **Context structure** | `.context/` | References, docs, plans, backlog, issues, roadmap, requests, decisions, audits — numbering, metadata, index coverage, reorganization suggestions |
+| **Context structure** | `.context/` | References, docs, plans, backlog, issues, roadmap, requests, decisions, research, audits, loops — numbering, metadata, index coverage, reorganization suggestions |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/`, `~/.aidex/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization |
@@ -56,7 +56,7 @@ Heuristics live in [references/05-context-budget.md](references/05-context-budge
 
 After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
 
-1. **Write audit doc.** Save the full report to `.context/audits/YYYYMMDD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
+1. **Write audit doc.** Save the full report to `.context/audits/YYYY-MM-DD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
 2. **Backup.** Before any mutation, copy to `.aidex-backups/<timestamp>/`:
    - `settings.local.json` (project and user, if touched)
    - the entire memory directory
@@ -87,7 +87,7 @@ Before launching any subagent, scan what exists in the project:
 
 ```
 Check for:
-- .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/, decisions/, audits/)
+- .context/ (references/, docs/, plans/, backlog/, issues/, roadmap/, requests/, decisions/, research/, audits/, loops/)
 - .claude/ (skills/, CLAUDE.md, MEMORY.md)
 - ~/.aidex/ (shared skills storage)
 - ~/.claude/skills/ (global skills)
@@ -146,14 +146,14 @@ Collect all subagent reports. Produce unified report split into two top-level fi
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ## Summary
-| Domain | Items | ❌ | ⚠️ | ℹ️ |
-|--------|-------|----|----|----|
+| Domain | Items | FAIL | WARN | INFO |
+|--------|-------|------|------|------|
 [one row per domain audited]
 
-## Limpieza estructural (segura)
+## Structural cleanup (safe)
 [findings without CB- / PL-SCHEMA prefix, grouped by domain, severity-ordered]
 
-## Ahorro de tokens (preferir toggle)
+## Token savings (prefer toggle)
 [findings with CB- / PL-SCHEMA prefix, ordered by estimated savings descending; each annotated with risk: low | medium | high]
 
 ## Health Score
@@ -166,7 +166,7 @@ Collect all subagent reports. Produce unified report split into two top-level fi
 
 Before emitting any finding that proposes deleting a file/directory, uninstalling a plugin, or removing a skill from disk, verify the four gates below. Failing **any** gate downgrades the proposal to a softer alternative or suppresses it.
 
-1. **Canonical type?** If the target is an empty directory, is it in the canonical list (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs`)? If yes → do not propose deletion (empty canonical = healthy).
+1. **Canonical type?** If the target is an empty directory, is it in the canonical list (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops`)? If yes → do not propose deletion (empty canonical = healthy).
 2. **Protected marketplace?** If the target is a plugin, is its marketplace in `PROTECTED_MARKETPLACES` (`claude-plugins-official`, `anthropics`)? If yes → downgrade to INFO, never propose disable/uninstall.
 3. **Reversible local override exists?** Is there a softer alternative (`enabledPlugins: false`, `skillOverrides: name-only/off`, archive-instead-of-delete)? If yes → prefer it over the destructive action.
 4. **`.git` ancestor present?** For any `.gitignore` suggestion in `.context/`, walk up to find `.git`. If absent (typical of `*_ws/` workspace roots) → suppress the finding.
@@ -178,21 +178,21 @@ Before emitting any finding that proposes deleting a file/directory, uninstallin
 After the report, present actionable suggestions grouped by priority. **Be prescriptive, not just descriptive** — suggest the aidex way of organizing things, explain why, and let the user decide.
 
 ```
-❌ Critical (fix now):
+[FAIL] Critical (fix now):
   1. [description] → [what aidex will do]
 
-⚠️  Recommended:
+[WARN] Recommended:
   2. [description] → [what aidex will do]
   3. Deep-sync [stale reference] → launches sync subagent
   4. Silence [N] irrelevant skills → emits skillOverrides patch for settings.local.json
 
-💡 Reorganize:
+[TIP] Reorganize:
   5. Consolidate bugs/ + fixes/ → issues/ with ISSUE-NNN format
   6. Remove references/README.md — modules have 00-index.md, CLAUDE.md is entry point
   7. Create .context/roadmap/ — project has active phases but no roadmap
   8. Restructure issues/ files to ISSUE-NNN with status+root cause+fix
 
-ℹ️  Optional:
+[INFO] Optional:
   9. [description]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

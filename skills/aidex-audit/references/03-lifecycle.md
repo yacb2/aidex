@@ -10,7 +10,7 @@ State machine for findings in `INVENTORY.md`. Every row is always in exactly one
 |---|---|
 | `open` | Observed, not yet acted on |
 | `triaged` | Assessed, severity assigned, decision pending |
-| `escalated` | Accepted for work; backlog entry created |
+| `escalated` | Accepted for work; backlog entry created (or, for a bulk machine-checkable finding, a `loop/` loop-spec via `escalate --loop`) |
 | `in-progress` | Active plan is executing on this finding |
 | `closed` | Verified fixed; has a verifying reference |
 | `dropped` | Won't fix; has a documented reason |
@@ -40,8 +40,8 @@ closed --regression--> new REGRESSION-<parent>-<n> row (state: open, links to pa
 
 ### triaged → escalated
 
-- Backlog entry created
-- `Escalated To:` column updated with link to the entry
+- Backlog entry created — or, for a bulk machine-checkable finding, an `aidex-loop` loop-spec (`escalate --loop`)
+- `Escalated To:` column updated with the link (`backlog/…`, or `loop/…` for the loop path)
 
 ### escalated → in-progress
 
@@ -67,7 +67,7 @@ closed --regression--> new REGRESSION-<parent>-<n> row (state: open, links to pa
 
 ## Enforcement
 
-`/audit validate` checks:
+`/aidex-audit validate` checks:
 
 - Every row with status `escalated`, `in-progress`, or `closed` has a non-empty `Escalated To:`
 - Every `dropped` row has a reason recorded
