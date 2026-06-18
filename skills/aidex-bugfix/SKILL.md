@@ -35,7 +35,7 @@ If not using the full `/aidex-bugfix` command, follow this checklist:
 2. Write test that reproduces bug (must FAIL)
 3. Confirm test fails
 4. Implement minimum fix
-5. Confirm test passes
+5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)
 6. Run surrounding tests (no regressions)
 7. Commit test + fix together
 
@@ -68,6 +68,12 @@ test type. Adapt the categories to your stack — the framework names below are 
 - Defer to the project's own testing helpers/patterns for how to write the test
 - Follow the project's commit conventions for Phase 6 (detect them; `git-commit` if present)
 - If the project tracks a changelog, update it per the project's own rules
+- **Proof of done.** The GREEN test run *is* the proof the bug is fixed — don't
+  claim it without it. Capture the passing test command + output (or the CI log
+  path) and record it: paste it into the commit body, or for a larger capture
+  save it under `.context/proofs/bug-<slug>/` and reference it via `proof_links`
+  per `aidex-conventions` (`00-global.md` §7.1). This is a byproduct of Phase 5,
+  not a separate step.
 - **Loop (opt-in):** once the RED test exists *and* the root cause is understood, a fix that needs
   many mechanical variations to land green can be spec'd as an `aidex-loop` loop-spec (stop
   condition = the RED test passes **and** the full suite stays green) and handed to `/goal` or

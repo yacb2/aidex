@@ -157,10 +157,32 @@ updated: YYYY-MM-DD
 | `escalated_to` | Downstream artifact that picks up the work | `<type>/<filename>` per §3 |
 | `blocked_by` | Third party blocking progress | free text or `<type>/<filename>` |
 | `superseded_by` | Newer artifact replacing this one | `<type>/<filename>` per §3 |
+| `proof_links` | Evidence that the work actually works (see §7.1) | list of paths/URLs |
 
 Type-specific fields (`priority`, `estimate`, `methodology`, `severity`, `phase`, etc.) layer on top of this minimum.
 
 **Audit findings are exempt** from per-file front-matter — they live in tabular `00-inventory.md` rows. Per-run audit reports (`<run>/index.md` and similar) still carry the four required fields.
+
+### 7.1 Proof of done (`proof_links`)
+
+A *claim* that work is done is not the same as *evidence* it works. When an
+artifact records completed work, attach the proof — never assert "it works"
+without it (this materializes the global verification-before-claims rule).
+
+- **Field:** `proof_links: []` — a list of pointers to concrete evidence.
+- **What counts as proof:** a passing test's output or CI log path (backend
+  logic), a request/response payload (an API change), a screenshot or recording
+  of the flow (frontend/UX), a reproduction URL. The evidence type follows the
+  change: backend → request/response; frontend → screenshots of the flow.
+- **Where artifacts live:** small evidence sits beside the artifact (or under
+  its module folder); larger captures go in `.context/proofs/<slug>/` and are
+  referenced from `proof_links`. `proof_links` is **optional** and is **not** a
+  new canonical `.context/` tier — it is a front-matter field plus an optional
+  evidence folder, nothing more.
+- **Who sets it:** the skills that already produce or verify work fill it in as
+  a byproduct — e.g. `aidex-bugfix` (the GREEN test output), `aidex-plan-exec`
+  (per-phase commit SHAs / verification artifacts), `aidex-audit` (a `proof:`
+  reference per finding). It is never a separate capture step.
 
 ---
 

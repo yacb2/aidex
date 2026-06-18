@@ -49,7 +49,11 @@ For each phase in order:
    works (relevant test suite + type-check).
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.
-4. Mark the phase's checkboxes as done in the plan file.
+4. Mark the phase's checkboxes as done in the plan file. **Record the phase's
+   proof** — the verification output, the commit SHA, a request/response payload,
+   or a screenshot of the flow — in the plan front-matter `proof_links` (or under
+   `.context/proofs/<slug>/` for larger captures) per `aidex-conventions`
+   (`00-global.md` §7.1). Don't mark a phase done you can't show works.
 
 > **Loop (opt-in, per phase only):** if a single phase is mechanical and its verification is a
 > pure machine gate (e.g. "make all `<suite>` pass" / "type-check clean"), that one phase may be
@@ -67,6 +71,10 @@ After each phase passes verification, before starting the next phase:
    the project's `.claude/` config, available slash commands, or CLAUDE.md
    (e.g. a `/code-review`, `/simplify`, or equivalent). If none exists, review
    the diff yourself for correctness and obvious cleanups. Address findings.
+   **For high-risk or ambiguous phases**, route the diff through more than one
+   reviewer (e.g. the project's review command plus an independent second model)
+   and treat any disagreement between them as a high-priority finding to resolve
+   before committing — diverse reviewers catch what a single pass misses.
 2. **Commit.** Use the project's own commit command if one exists (detect it the
    same way — e.g. a `/commit`-style helper); otherwise craft a conventional
    commit message following the project's style. Stage only files relevant to
