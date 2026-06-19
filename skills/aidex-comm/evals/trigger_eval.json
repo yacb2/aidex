@@ -22,7 +22,7 @@
   {
     "query": "Record the call we had with the investor this morning — log the key points they raised so we don't lose them.",
     "should_trigger": true,
-    "expected_behavior": "Should scaffold a received communication with channel=call"
+    "expected_behavior": "Should scaffold a synchronous record under meetings/ with channel=call (participants, status=sent), not received/"
   },
   {
     "query": "Capture the email thread from the accountant about the Q2 filing. Keep the whole exchange logged.",
@@ -32,7 +32,12 @@
   {
     "query": "Save the meeting notes from the kickoff with the new agency — log it as a communication so we have the trail.",
     "should_trigger": true,
-    "expected_behavior": "Should scaffold a received communication with channel=meeting"
+    "expected_behavior": "Should scaffold a synchronous record under meetings/ with channel=meeting (participants, status=sent), not received/"
+  },
+  {
+    "query": "Log the phone call I just had with the supplier about the delivery date — just the two of us, capture what we agreed.",
+    "should_trigger": true,
+    "expected_behavior": "Should scaffold a synchronous record under meetings/ with channel=call and two participants"
   },
   {
     "query": "Draft the follow-up message to send the candidate after the interview, letting them know next steps. I'll edit before sending.",
