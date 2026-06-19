@@ -76,8 +76,9 @@ updated: {{DATE}}
 - **Pre-authorized (run without asking):** normally-prompting operations this
   loop may run unattended (pre-cleared in this interview): ____
 - **Always-ask (pause every time):** irreversible / outward-facing. Defaults:
-  `git push`/publish/deploy, `git commit`, dependency changes (install/update/
-  downgrade), DB migrations. Add/remove for this loop: ____
+  `git push`/publish/deploy/release, dependency changes (install/update/
+  downgrade), DB migrations. NOT `git commit` (local + reversible — commit
+  freely). Add/remove for this loop: ____
 - **Autonomous + log:** everything else that is safe, additive and non-breaking —
   including an unforeseen architectural micro-decision under your authorship.
   Proceed without stopping; the burden is to **verify the assumption (investigate,
