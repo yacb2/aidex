@@ -1,0 +1,16 @@
+---
+channel: {{CHANNEL}}          # meeting | call
+participants:                 # the people in the conversation — replaces from/to
+  - ""
+organizer: ""                 # optional — who convened it
+subject: "{{SLUG}}"
+date: {{DATE}}
+status: {{STATUS}}            # sent (a meeting/call already happened)
+related: []                   # D-03 cross-refs to other .context/ artifacts
+created: {{DATE}}
+updated: {{DATE}}
+---
+
+<!-- Synchronous, multi-party record (meeting or call) — no direction.
+     Body is in the NATIVE language of the conversation (English-only EXEMPT).
+     Suggested sections: Agenda · Notes · Decisions · Action items. -->
