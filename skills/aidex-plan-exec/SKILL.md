@@ -16,23 +16,29 @@ the workflow so the user does not have to repeat it in every prompt.
 
 ## Operating mode
 
-**Autonomous between phases.** This skill runs to the end without re-confirming
-its own mandated steps. Follow the shared autonomy canon
+**Front-loaded, then autonomous start-to-finish.** Resolve every question at
+**Orient** (phase 0); after that, run all phases without interrupting. Follow the
+shared autonomy canon
 ([autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md)).
 The operative rule here:
 
-- **Do not re-ask for steps this skill mandates.** Invoking plan-exec is your
-  authorization to code-review the diff, author the commit message, commit per
-  phase, and hand off when context grows. Do them — never stop to ask "should I
-  commit? is the message OK? should I review? should I hand off?" (`git commit`
-  is local and reversible; it is not gated.)
-- **Pause only for the always-ask set:** `git push`, publish, deploy, release
-  (and dependency changes / DB migrations) — unless the user pre-authorized them.
-- **Genuine judgment calls still pause:** an ambiguous requirement, two equally
-  valid approaches with material consequences, or a blocker you cannot resolve
-  (missing credentials, failing test whose intended behavior is unclear,
-  conflicting instructions). But a safe, additive, non-breaking decision under
-  your authorship is **proceed + verify + log**, not a stop.
+- **Ask everything up front, at Orient.** Surface clarifications and confirm any
+  publication the plan implies (deploy/publish/release) before phase 1. If the plan
+  did not pre-authorize a publish step, surface it at the **end** — not mid-run.
+- **Do not re-ask for steps this skill mandates.** Invoking plan-exec authorizes you
+  to code-review the diff, author the commit message, commit per phase, and hand off
+  when context grows. Do them — never stop to ask "should I commit? is the message
+  OK? should I review? should I hand off?"
+- **Planned migrations and dependency changes are autonomous.** If the plan calls
+  for a migration or a dep install/update/downgrade, run it — commit, deps, and
+  additive migrations are not gated. A **destructive migration** (data loss) is the
+  exception: it stays gated (global DB rule).
+- **A mid-run bifurcation that is not destructive → do it and document it** (in the
+  plan doc / final summary) so you can review it afterward. Don't stop for a doubt
+  that breaks nothing; verify the assumption (investigate, don't guess).
+- **Only stop for:** a `deny`-class destructive action (skip + document), an
+  un-pre-authorized publish (surface at the end), or a genuine hard blocker you
+  cannot resolve (missing credentials, truly unknowable intended behavior).
 
 Otherwise: proceed. The user will redirect if needed.
 

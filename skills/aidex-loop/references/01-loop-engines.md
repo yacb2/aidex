@@ -98,7 +98,7 @@ Map the loop's Autonomy surface to these three tiers:
 | Tier | Native primitive | Holds it |
 |---|---|---|
 | Destructive + ADR/code conflicts → never run | `deny` rules (+ base config) | survives every mode |
-| Irreversible/outward (push·publish·deploy·release·deps·migrations; NOT commit) → always pause | `ask` rules, pre-declared | survives every mode |
+| Outward publication (push·publish·deploy·release; NOT commit·deps·additive-migrations) → always pause | `ask` rules, pre-declared | survives every mode |
 | Safe + additive (incl. unforeseen non-breaking decisions) → proceed | broad `allow` / permissive mode | the default |
 
 **The doctrine for the third tier:** proceed without stopping; the burden is to

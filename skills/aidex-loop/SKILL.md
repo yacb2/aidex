@@ -68,8 +68,9 @@ Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
    §"Step 1.5". Use Claude Code's native `allow`/`ask`/`deny` — do NOT enumerate an
    allowlist. Pin three things: (a) any loop-specific **deny** beyond the base
    destructive config; (b) the **pre-authorized** ops that may run without asking;
-   (c) the **always-ask** set (defaults: push/publish/deploy/release, dep changes,
-   DB migrations — NOT commit, which is local + reversible). Everything else safe + additive is autonomous: proceed, verify the
+   (c) the **always-ask** set (defaults: push/publish/deploy/release only — NOT
+   commit, deps, or additive migrations, which are autonomous; a destructive
+   migration stays gated). Everything else safe + additive is autonomous: proceed, verify the
    assumption, log it. This is the lever that stops the loop from interrupting the
    user. (ADR `decision/2026-06-19-loop-autonomy-surface-native-permissions.md`.)
 6. **Scaffold.** Run `new-loop-spec.sh new <slug>`, then fill every section of the
@@ -100,8 +101,8 @@ condition or turn cap **without interrupting the user**:
   additive work proceeds — including an unforeseen, non-breaking architectural
   micro-decision that falls under your authorship.
 - **Pause only** for the **deny** set (blocked outright) and the **ask** set
-  (push/publish/deploy/release, dep changes, migrations, plus any the spec
-  declared). `git commit` is **not** in the ask-set — it is local + reversible.
+  (push/publish/deploy/release, plus any the spec declared). Commit, deps, and
+  additive migrations are **not** in the ask-set — only outward publication is.
 - **Proceed + log, don't halt:** on a safe additive decision, the burden is to
   **verify the assumption is correct (investigate, don't guess)** and **surface or
   log** what you decided — not to stop. You may investigate, read the DB, and take

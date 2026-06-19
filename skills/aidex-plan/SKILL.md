@@ -28,7 +28,15 @@ the formatting canon lives in the shared `aidex-conventions` reference package
      executed by different sessions/teammates.
 3. Follow the template in the canon: phases with checkboxes, exact file paths,
    verification step per phase. Write the artifact in English (canon §Language).
-4. Save under `.context/plans/` with the dated naming the canon specifies.
+4. **Front-load the autonomy surface** so execution needs no questions (see
+   [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md)).
+   This is the place to resolve every gate up front: which planned **migrations /
+   dependency changes** exec may run autonomously (additive ones are autonomous by
+   default — flag any destructive migration, which stays gated), any **deploy /
+   publish / release** the user pre-authorizes for the run, and anything to keep in
+   `deny`. Record it as a short **Autonomy** note in the plan so `aidex-plan-exec`
+   runs start-to-finish without interrupting.
+5. Save under `.context/plans/` with the dated naming the canon specifies.
 
 ## Closing a plan
 
