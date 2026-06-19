@@ -74,6 +74,44 @@ Four levels, escalating by setup:
 4. **Verifier subagent** — a fresh model tries to *refute* the result; the worker
    is not the grader.
 
+### Step 1.5 — Set the permission surface (the ask-set)
+
+A loop that interrupts you for routine, safe operations is not autonomous. Resolve
+the permission borders **before** the run using Claude Code's **native**
+`allow`/`ask`/`deny` model — do **not** invent a taxonomy or enumerate an
+allowlist.
+
+The load-bearing facts (verified against Anthropic's primary docs; the model is
+also the de-facto industry pattern — OpenAI Agents SDK `needsApproval`, LangGraph
+`interrupt_on` — though **no formal named standard exists**):
+
+- Precedence is fixed: `hooks → deny → ask → permission-mode → allow → canUseTool`.
+- `deny` and `ask` are evaluated **before** the mode → they hold **even under
+  `bypassPermissions`**. `allow` is evaluated **after** the mode → **an allowlist
+  alone cannot bound a permissive default** (`allowed_tools:["Read"]` +
+  `bypassPermissions` still approves `Bash`/`Write`/`Edit`).
+- So the levers that shape a permissive-by-default loop are **`deny` (always
+  block)** and **`ask` (always pause)**, not `allow`.
+
+Map the loop's Autonomy surface to these three tiers:
+
+| Tier | Native primitive | Holds it |
+|---|---|---|
+| Destructive + ADR/code conflicts → never run | `deny` rules (+ base config) | survives every mode |
+| Irreversible/outward (push·publish·commit·deps·migrations) → always pause | `ask` rules, pre-declared | survives every mode |
+| Safe + additive (incl. unforeseen non-breaking decisions) → proceed | broad `allow` / permissive mode | the default |
+
+**The doctrine for the third tier:** proceed without stopping; the burden is to
+**verify the assumption (investigate, don't guess)** and **log the decision** —
+not to halt on a doubt that breaks nothing. The loop may investigate, read the DB,
+and take a backup without asking. See ADR
+`decision/2026-06-19-loop-autonomy-surface-native-permissions.md` and
+`research/loop-autonomy-permission-models/`.
+
+Docs: [permissions](https://code.claude.com/docs/en/permissions) ·
+[agent-sdk/permissions](https://code.claude.com/docs/en/agent-sdk/permissions) ·
+[settings](https://code.claude.com/docs/en/settings).
+
 ### Step 2 — Spec, not a loose prompt
 
 Name the files/interfaces involved, state what is **out of scope**, end with an

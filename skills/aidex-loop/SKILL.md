@@ -63,7 +63,16 @@ Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
 4. **Engine.** Use the decision matrix in the reference to pick: `/goal` · `/loop`
    · `ralph-loop` · `claude -p` while-loop · Routines (`/schedule`) · Channels.
    Recommend one, name the runner-up, say why.
-5. **Scaffold.** Run `new-loop-spec.sh new <slug>`, then fill every section of the
+5. **Autonomy surface (step 1.5).** Resolve the permission borders so the loop runs
+   unattended. Walk [references/01-loop-engines.md](references/01-loop-engines.md)
+   §"Step 1.5". Use Claude Code's native `allow`/`ask`/`deny` — do NOT enumerate an
+   allowlist. Pin three things: (a) any loop-specific **deny** beyond the base
+   destructive config; (b) the **pre-authorized** ops that may run without asking;
+   (c) the **always-ask** set (defaults: push/publish, commit, dep changes, DB
+   migrations). Everything else safe + additive is autonomous: proceed, verify the
+   assumption, log it. This is the lever that stops the loop from interrupting the
+   user. (ADR `decision/2026-06-19-loop-autonomy-surface-native-permissions.md`.)
+6. **Scaffold.** Run `new-loop-spec.sh new <slug>`, then fill every section of the
    generated spec from the answers. Leave nothing as a placeholder. If a spec with
    that slug already exists (`new-loop-spec.sh` refuses to overwrite), **refine the
    existing spec in place** from the interview answers instead of re-scaffolding.
@@ -81,6 +90,23 @@ Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
    - `routine` → `/schedule …`
 4. Only execute it if the user explicitly asks you to start the loop now;
    otherwise print the command for them to run.
+
+### Run doctrine — autonomy during the run
+
+Once a spec's **Autonomy surface** is declared, the loop runs to its stop
+condition or turn cap **without interrupting the user**:
+
+- **Do not pause** for anything outside the declared ask-set. Routine, safe,
+  additive work proceeds — including an unforeseen, non-breaking architectural
+  micro-decision that falls under your authorship.
+- **Pause only** for the **deny** set (blocked outright) and the **ask** set
+  (push/publish, commit, dep changes, migrations, plus any the spec declared).
+- **Proceed + log, don't halt:** on a safe additive decision, the burden is to
+  **verify the assumption is correct (investigate, don't guess)** and **surface or
+  log** what you decided — not to stop. You may investigate, read the DB, and take
+  a backup without asking when it gives confidence to continue.
+- The failure mode being eliminated is the "architectural doubt that breaks
+  nothing yet stops the loop." Don't stop for things that don't need stopping.
 
 ---
 
