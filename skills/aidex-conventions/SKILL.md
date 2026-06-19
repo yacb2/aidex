@@ -49,6 +49,7 @@ This skill defines conventions for eleven documentation types:
 | Request / Decision | [request-decision-conventions.md](references/request-decision-conventions.md) |
 | Audit | [audit-conventions.md](references/audit-conventions.md) |
 | Communication | [communication-conventions.md](references/communication-conventions.md) |
+| Autonomy (proceed vs. pause) | [autonomy-conventions.md](references/autonomy-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 

@@ -16,15 +16,23 @@ the workflow so the user does not have to repeat it in every prompt.
 
 ## Operating mode
 
-**Autonomous between phases.** Do not stop to ask for permission at every
-checkpoint. Only pause when:
+**Autonomous between phases.** This skill runs to the end without re-confirming
+its own mandated steps. Follow the shared autonomy canon
+([autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md)).
+The operative rule here:
 
-- You genuinely need the user's opinion (ambiguous requirement, two equally
-  valid approaches, scope question).
-- You hit a blocker you cannot resolve yourself (missing credentials, failing
-  test whose intended behavior is unclear, conflicting instructions).
-- A risky action requires confirmation per global rules (destructive ops,
-  pushing to prod, dropping DB, etc.).
+- **Do not re-ask for steps this skill mandates.** Invoking plan-exec is your
+  authorization to code-review the diff, author the commit message, commit per
+  phase, and hand off when context grows. Do them — never stop to ask "should I
+  commit? is the message OK? should I review? should I hand off?" (`git commit`
+  is local and reversible; it is not gated.)
+- **Pause only for the always-ask set:** `git push`, publish, deploy, release
+  (and dependency changes / DB migrations) — unless the user pre-authorized them.
+- **Genuine judgment calls still pause:** an ambiguous requirement, two equally
+  valid approaches with material consequences, or a blocker you cannot resolve
+  (missing credentials, failing test whose intended behavior is unclear,
+  conflicting instructions). But a safe, additive, non-breaking decision under
+  your authorship is **proceed + verify + log**, not a stop.
 
 Otherwise: proceed. The user will redirect if needed.
 
@@ -59,8 +67,9 @@ For each phase in order:
 > pure machine gate (e.g. "make all `<suite>` pass" / "type-check clean"), that one phase may be
 > spec'd as a loop via `aidex-loop` and run by `/goal`/`ralph-loop` — mirroring the `aidex-plan` →
 > `aidex-loop` pointer at the phase level. **Do not loop the executor itself:** the between-phase
-> checkpoint (review/commit/handoff) is judgment work, and irreversible steps (commit/release/
-> deploy) stay outside any auto-loop and human-gated.
+> checkpoint (review/commit/handoff) is judgment work, and irreversible steps
+> (push/release/deploy) stay outside any auto-loop and human-gated. (`commit` is
+> not irreversible — it is part of the checkpoint, not a gated step.)
 
 ### 2. Between-phase checkpoint (MANDATORY)
 
