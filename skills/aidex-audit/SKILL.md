@@ -102,12 +102,14 @@ Scaffolds:
 4. Reference IDs from this run's `findings.md` (filtered view).
 5. Close out `index.md` summary.
 
-> **Sweep doctrine (autonomy).** Running an audit is an uninterrupted sweep.
-> Catalog each finding with your best-judgment severity and **log the assumption**
-> — do not stop to ask whether something is worth noting. Escalation to
-> backlog/loop is the explicit border (the separate `escalate` sub-action); for
-> security audits, active exploitation or destructive verification is `deny`.
-> Full rule: [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md).
+> **Sweep doctrine (autonomy).** Scope and borders are set at kickoff
+> (`/aidex-audit new`) — that is the initial phase where any question is asked.
+> After that the run is an **uninterrupted sweep**: catalog each finding with your
+> best-judgment severity and **log the assumption** — do not stop to ask whether
+> something is worth noting. Escalation to backlog/loop is the explicit border (the
+> separate `escalate` sub-action); for security audits, active exploitation or
+> destructive verification is `deny`. Full rule:
+> [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md).
 
 ### After the audit
 

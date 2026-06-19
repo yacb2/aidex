@@ -1,14 +1,20 @@
-# Autonomy — when to proceed vs. pause
+# Autonomy — front-loaded, then run start-to-finish
 
-Operating rule for any skill or loop that runs unattended (`aidex-loop`,
-`aidex-plan-exec`, `aidex-audit`). Full canon:
+Operating rule for any process that runs unattended (`aidex-plan-exec`,
+`aidex-audit`, `aidex-loop`). Full canon:
 `~/.claude/skills/aidex-conventions/references/autonomy-conventions.md`.
 
-Before pausing to ask, classify the action:
+**Core principle:** once a process starts, run it autonomously **start to finish**.
+All questions are asked in the **initial phase** (plan design / audit kickoff /
+loop design interview). The run itself does not stop to ask permission or opinion.
 
-1. **Deny** — destructive, or conflicts with a registered ADR or existing code → don't do it; report, don't ask.
-2. **Always-ask** — `git push`, publish, deploy, release, dependency changes, DB migrations → pause **unless** the user pre-authorized it for this run.
+During the run, classify before pausing:
+
+1. **Deny — never, even mid-run:** destructive / data-loss ops, DB deletion (never delete the DB without explicit confirmation), destructive migrations, or conflicts with an ADR or existing code → don't do it; **document the skip and surface it.**
+2. **Publication — pre-authorized at the initial phase:** `git push`, publish, deploy, release. Autonomous only if pre-authorized up front; if it comes up unplanned, don't publish and don't block — finish the safe work and surface it at the end.
 3. **A mandated step of the running skill** — code-review, commit, handoff, commit-message authoring → **do it, don't re-confirm.**
-4. **Otherwise safe + additive** (incl. an unforeseen non-breaking decision under your authorship) → **proceed + verify the assumption (investigate, don't guess) + log it.** Don't halt on a doubt that breaks nothing.
+4. **Otherwise safe + additive** — incl. dependency changes, additive migrations, and unforeseen non-breaking decisions → **proceed; if it's a bifurcation, execute and document it** for later review. Don't halt on a doubt that breaks nothing.
 
-**`git commit` is allowed without asking** — local and reversible. Only *publishing* a commit (push / deploy / release) is gated.
+A genuine **hard blocker** (missing credentials, truly unknowable intended behavior) still stops — that is being blocked, not asking permission.
+
+**Not gated:** `git commit` (local + reversible), dependency changes, additive migrations. Only *publishing* (push / deploy / release) is gated, and only at the initial phase.
