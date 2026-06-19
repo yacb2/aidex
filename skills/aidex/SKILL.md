@@ -57,11 +57,11 @@ Heuristics live in [references/05-context-budget.md](references/05-context-budge
 After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
 
 1. **Write audit doc.** Save the full report to `.context/audits/YYYY-MM-DD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
-2. **Backup.** Before any mutation, copy to `.aidex-backups/<timestamp>/`:
+2. **Backup.** Before any mutation, copy to `~/.aidex/backups/<project-name>/<timestamp>/` (user-level, outside the project tree — keeps backups out of every project and consolidated under the central aidex engine):
    - `settings.local.json` (project and user, if touched)
    - the entire memory directory
    - any SKILL.md files about to be edited
-   Add `.aidex-backups/` to `.gitignore` if missing.
+   Derive `<project-name>` from the current project directory's basename. No `.gitignore` step is needed since the backup lives outside the project.
 3. **Apply per-item.** Print a numbered diff and ask `apply? [y/n/skip]` per change. Never auto-apply. Patch order (highest savings first):
    - Plugin uninstall commands
    - SKILL.md `disable-model-invocation: true` flips for irrelevant skills
