@@ -34,10 +34,16 @@ TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlo
 OPTIONAL_TYPES = {"diagrams", "data", "experiments"}
 # Communications front-matter vocab (artifacts are EXEMPT from English-only; body is native).
 COMM_CHANNELS = {"email", "whatsapp", "call", "meeting", "other"}
-COMM_DIRECTIONS = {"received", "sent"}
+COMM_DIRECTIONS = {"received", "sent"}          # async, directional (from/to)
+COMM_MEETING_DIR = "meetings"                   # synchronous, participant-based (no direction)
+COMM_ASYNC_CHANNELS = {"email", "whatsapp", "other"}
+COMM_MEETING_CHANNELS = {"meeting", "call"}
 COMM_STATUS = {"draft", "sent"}
 COMM_REQUIRED_FIELDS = ("channel", "direction", "from", "to", "subject", "date", "status",
                         "created", "updated")
+# Synchronous records (meetings/) replace direction/from/to with a participants list.
+COMM_MEETING_REQUIRED_FIELDS = ("channel", "participants", "subject", "date", "status",
+                                "created", "updated")
 
 BASE_STATUS = {"open", "doing", "done", "dropped"}
 DECISION_STATUS = {"accepted", "superseded", "dropped"}
@@ -48,7 +54,7 @@ ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
 ISO_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$")
 LEGACY_FILENAME = re.compile(r"^\d{8}-")
 CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref")
-CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research)/.+$")
+CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication)/.+$")
 REQUIRED_FIELDS = ("title", "status", "created", "updated")
 # Audit "board" files: living dashboards (per-methodology rollups), not work items.
 AUDIT_BOARD_FILES = {"00-methodology.md", "00-inventory.md", "00-changelog.md"}
@@ -106,6 +112,7 @@ TYPE_FOLDER_TO_PREFIX = {
     "references": "reference",
     "research": "research",
     "audits": "audit",
+    "communications": "communication",
 }
 PREFIX_TO_FOLDER = {v: k for k, v in TYPE_FOLDER_TO_PREFIX.items()}
 
@@ -212,13 +219,13 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
                 return None
     if type_name == "communications":
         # Dated unit is the <YYYY-MM-DD>-<slug>/ folder; the file inside is body.md.
-        # The folder lives under received/ or sent/.
+        # The folder lives under received/, sent/ (async) or meetings/ (synchronous).
         if name == "body.md":
             parent = path.parent
-            if parent.parent.name in COMM_DIRECTIONS and ISO_FOLDER.match(parent.name):
+            if parent.parent.name in (COMM_DIRECTIONS | {COMM_MEETING_DIR}) and ISO_FOLDER.match(parent.name):
                 return None
             return Finding(type_name, str(path), "communication-shape-invalid", "violation",
-                           "expected communications/{received,sent}/<YYYY-MM-DD>-<slug>/body.md")
+                           "expected communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md")
         return Finding(type_name, str(path), "communication-shape-invalid", "violation",
                        f"unexpected file {name!r}; communications use body.md in a dated folder")
     if type_name == "audits":
@@ -280,14 +287,33 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
                                 "no YAML front-matter block (--- ... ---)"))
         return findings
     if type_name == "communications":
-        for field_name in COMM_REQUIRED_FIELDS:
-            if field_name not in fm or not fm[field_name]:
-                findings.append(Finding(type_name, str(path), "frontmatter-field-missing", "violation",
-                                        f"required field '{field_name}' missing or empty"))
-        ch = fm.get("channel", "")
-        if ch and ch not in COMM_CHANNELS:
-            findings.append(Finding(type_name, str(path), "communication-channel-invalid", "violation",
-                                    f"channel={ch!r} not in {sorted(COMM_CHANNELS)}"))
+        is_meeting = path.parent.parent.name == COMM_MEETING_DIR
+        if is_meeting:
+            # Synchronous record: participants replace direction/from/to.
+            for field_name in COMM_MEETING_REQUIRED_FIELDS:
+                # participants is a YAML list — the minimal parser only sees the bare
+                # key (value on following lines), so check key presence, not a scalar.
+                if field_name == "participants":
+                    if field_name not in fm:
+                        findings.append(Finding(type_name, str(path), "frontmatter-field-missing", "violation",
+                                                "required field 'participants' missing"))
+                    continue
+                if field_name not in fm or not fm[field_name]:
+                    findings.append(Finding(type_name, str(path), "frontmatter-field-missing", "violation",
+                                            f"required field '{field_name}' missing or empty"))
+            ch = fm.get("channel", "")
+            if ch and ch not in COMM_MEETING_CHANNELS:
+                findings.append(Finding(type_name, str(path), "communication-channel-invalid", "violation",
+                                        f"channel={ch!r} not in {sorted(COMM_MEETING_CHANNELS)} for meetings/"))
+        else:
+            for field_name in COMM_REQUIRED_FIELDS:
+                if field_name not in fm or not fm[field_name]:
+                    findings.append(Finding(type_name, str(path), "frontmatter-field-missing", "violation",
+                                            f"required field '{field_name}' missing or empty"))
+            ch = fm.get("channel", "")
+            if ch and ch not in COMM_ASYNC_CHANNELS:
+                findings.append(Finding(type_name, str(path), "communication-channel-invalid", "violation",
+                                        f"channel={ch!r} not in {sorted(COMM_ASYNC_CHANNELS)}"))
         st = fm.get("status", "")
         if st and st not in COMM_STATUS:
             findings.append(Finding(type_name, str(path), "communication-status-invalid", "violation",
