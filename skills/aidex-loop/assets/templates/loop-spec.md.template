@@ -60,6 +60,31 @@ updated: {{DATE}}
      keep the loop on small machine-checkable changes (not architecture/judgment
      calls — that is where comprehension debt accelerates). -->
 
+## Autonomy surface (the ask-set)
+
+<!-- The point of a loop is to run unattended to the stop condition — NOT to
+     interrupt the user for routine, safe operations. This uses Claude Code's
+     NATIVE allow/ask/deny model (the de-facto industry pattern; see the ADR
+     decision/2026-06-19-loop-autonomy-surface-native-permissions.md). Key fact:
+     `deny` and `ask` are evaluated BEFORE the permission mode, so they hold even
+     under bypassPermissions; an `allow` list CANNOT bound a permissive default.
+     So DON'T enumerate an allowlist — start from "everything safe runs" and only
+     resolve the borders below. -->
+
+- **Deny (never run):** base destructive config + anything conflicting with a
+  registered ADR or existing code. This-loop additions: ____
+- **Pre-authorized (run without asking):** normally-prompting operations this
+  loop may run unattended (pre-cleared in this interview): ____
+- **Always-ask (pause every time):** irreversible / outward-facing. Defaults:
+  `git push`/publish/deploy, `git commit`, dependency changes (install/update/
+  downgrade), DB migrations. Add/remove for this loop: ____
+- **Autonomous + log:** everything else that is safe, additive and non-breaking —
+  including an unforeseen architectural micro-decision under your authorship.
+  Proceed without stopping; the burden is to **verify the assumption (investigate,
+  don't guess)** and **log the decision**. Free to investigate, read the DB, and
+  take a backup without asking when it gives confidence to continue. Do NOT halt
+  on a doubt that breaks nothing.
+
 ## Guardrails
 
 - [ ] max-iterations / turn cap set: ____
