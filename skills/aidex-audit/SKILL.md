@@ -111,6 +111,13 @@ Scaffolds:
 > destructive verification is `deny`. Full rule:
 > [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md).
 >
+> **Don't pause at the escalate gate.** When net-new findings exist, escalating the
+> confirmed ones to backlog is the mandated next step — not an "escalate, or triage
+> yourself?" question. If a specific finding is genuinely ambiguous to escalate,
+> consult the [durability-arbiter](../aidex-conventions/agents/durability-arbiter.md)
+> (Agent tool, `model: sonnet`, read-only) per finding and batch any `ASK` to the
+> end — never stall the whole sweep on one finding.
+>
 > **Isolation.** An audit is read-mostly — usually no worktree (Tier 0/1). The
 > exception is a security audit that needs **destructive verification**: run it in an
 > isolated worktree + DB (Tier 2) so it never mutates real state. See

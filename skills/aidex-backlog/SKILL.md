@@ -45,6 +45,22 @@ When invoked with no arguments, the script prompts interactively. When invoked w
 
 ---
 
+## Autonomy — working / sweeping the backlog
+
+When asked to **work or sweep the backlog autonomously**, resolve every safe + additive
+item to completion before stopping. Do not halt with "the rest needs your decision":
+classify each open item first, and for any you would otherwise pause on, **consult the
+[durability-arbiter](../aidex-conventions/agents/durability-arbiter.md)** (Agent tool,
+`model: sonnet`, read-only) — pass the item + the standing autonomy surface + proof the
+fix is safe. Implement the ones it returns `CONTINUE` for (commit per item; deps and
+additive migrations are not gated), and **batch the `ASK`/`STOP` ones into a single
+end-of-run list** — never stop the sweep on the first item that needs you. If the arbiter
+errors, fall back to the [autonomy canon](../aidex-conventions/references/autonomy-conventions.md)
+and proceed. This is the gate that turns "I resolved 2, the other 15 need you" into "I
+resolved the 14 safe ones; here are the 3 that are genuinely yours."
+
+---
+
 ## Entry format
 
 Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-<slug>.md`.

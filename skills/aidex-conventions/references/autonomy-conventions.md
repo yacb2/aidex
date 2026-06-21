@@ -78,6 +78,51 @@ A genuine **hard blocker** (missing credentials, a test whose intended behavior 
 truly unknowable) is not "asking permission" — you literally cannot proceed. That
 still stops. Everything resolvable does not.
 
+## The durability-arbiter (active enforcement)
+
+The rules above are static; at a real mid-run boundary the executing agent still
+tends to default to "better ask". The **durability-arbiter** is the active
+enforcement of this canon: a focused subagent the executor consults *instead of*
+stopping to ask the user. It plays the user's standing posture — *"don't stop yet,
+you can do this, continue"* — but **with criterion**: it applies the allow/ask/deny
+classification plus a proof-of-safety gate, and returns `CONTINUE` / `ASK` / `STOP`.
+
+**Consult it only at an *ambiguous* would-stop boundary** — not every step. Clear
+cases are resolved inline by the rule above (a `commit` is never a question; a
+`push` is always the ask-set). Consult when the executor is about to pause on a
+judgment call it cannot cleanly classify.
+
+**The consultation passes:** the standing autonomy surface (allow/ask/deny fixed at
+the initial phase), the situation (what was just done; what it wants to do, or why
+it would stop), the **proof** the next step is safe (verification output; additive /
+reversible nature), and the stop condition / remaining work.
+
+**It returns:**
+- `CONTINUE` — proceed with the action; **log the bifurcation** for later review.
+- `ASK` — genuinely the user's call (unauthorized publication, deny-class ambiguity).
+  **Accumulate the question, finish all other safe work first, surface ONE batched
+  question at the end.** Never pause the run waiting on it.
+- `STOP` — the stop condition is met, or the action is deny-class / unsafe (skip + document).
+
+**The verification coupling** (what keeps "stop less" from becoming "clean up more"):
+a `CONTINUE` on a state-mutating action requires **proof it is safe** — verification
+output, an additive/reversible nature, a passing gate. No proof for a mutating step →
+the arbiter orders *verify first*, not *ask*. The gate is "do you have proof this is
+safe?", not merely "is it in the allow-set?".
+
+**Three guardrails so the arbiter never becomes the stall it prevents:**
+1. **Ambiguous boundaries only** — overhead is real; do not consult on clearly-classified steps.
+2. **Fail open to the canon, never block** — if the arbiter errors or returns nothing,
+   apply the inline rule above and proceed. It is a forcing function, not a single point of failure.
+3. **ASK is batched and deferred** — surfaced once, at the end, after all safe work is
+   done. The run never silently waits (the Stop-hook deadlock failure mode).
+
+The arbiter prompt lives at
+[`../agents/durability-arbiter.md`](../agents/durability-arbiter.md); consuming skills
+spawn it via the Agent tool with that prompt. It is consulted by the **main-loop
+executor** — where the stop-to-ask decision actually happens — not by short-lived leaf
+subagents.
+
 ## What is *not* gated (commit, deps, migrations)
 
 - **`git commit`** — local + reversible. Commit freely; never ask "should I commit?"
@@ -98,10 +143,20 @@ even that is resolved at the initial phase, never mid-run.
   every phase autonomously. Planned migrations/deps execute without asking; commit
   per phase, review, handoff are mandated (do them). Mid-run non-destructive
   bifurcation → do + document (in the plan doc / final summary). Only publish stays
-  gated, surfaced at the end if not pre-authorized.
+  gated, surfaced at the end if not pre-authorized. **Consult the durability-arbiter**
+  on an ambiguous mid-phase fork or before any would-stop at the between-phase
+  checkpoint, passing the phase's proof (verification output, commit SHA).
 - **aidex-audit** — scope and borders are set at `new` (phase 0). The run is an
   uninterrupted sweep: catalog each finding with best-judgment severity and **log
-  the assumption**. Escalation to backlog/loop is a separate explicit sub-action.
-  For security audits, active exploitation / destructive verification is `deny`.
+  the assumption**. Escalation to backlog/loop is a separate explicit sub-action;
+  when an escalate/sweep step would pause to ask "escalate or triage yourself?",
+  **consult the durability-arbiter** instead. For security audits, active
+  exploitation / destructive verification is `deny`.
 - **aidex-loop** — the design interview (Step 1.5) pre-declares the surface; the run
-  then proceeds to its stop condition without interrupting.
+  then proceeds to its stop condition without interrupting. If the loop is about to
+  pause on a consent point not in the declared ask-set, **consult the
+  durability-arbiter** rather than deadlocking on it.
+- **aidex-backlog** — an autonomous "work / sweep the backlog" pass resolves
+  safe+additive items to completion; before halting with "the rest needs your
+  decision", **consult the durability-arbiter** per item, halting only on the ones
+  it returns `ASK`/`STOP` for.

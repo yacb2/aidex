@@ -118,9 +118,16 @@ condition or turn cap **without interrupting the user**:
   a backup without asking when it gives confidence to continue.
 - The failure mode being eliminated is the "architectural doubt that breaks
   nothing yet stops the loop." Don't stop for things that don't need stopping.
+- **Ambiguous consent point not in the declared ask-set → consult the
+  durability-arbiter, do not deadlock.** This is the failure that once stalled a
+  loop for turns waiting on an OK. Read
+  [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md),
+  pass it to the Agent tool (`model: sonnet`, read-only) with the situation + the
+  spec's autonomy surface + proof, and follow its verdict; batch any `ASK` to the
+  end. If it errors, apply the rule above and proceed — never block on it.
 
-This is the loop's instance of the shared autonomy canon — full decision rule and
-the `commit`-is-not-gated policy in
+This is the loop's instance of the shared autonomy canon — full decision rule, the
+`commit`-is-not-gated policy, and the durability-arbiter in
 [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md).
 
 ---

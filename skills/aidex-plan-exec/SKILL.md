@@ -39,6 +39,14 @@ The operative rule here:
 - **Only stop for:** a `deny`-class destructive action (skip + document), an
   un-pre-authorized publish (surface at the end), or a genuine hard blocker you
   cannot resolve (missing credentials, truly unknowable intended behavior).
+- **On an ambiguous fork you cannot cleanly classify — consult the
+  durability-arbiter before stopping.** Read
+  [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md)
+  and pass it to the Agent tool as the prompt (`model: sonnet`, read-only), with the
+  situation + the run's autonomy surface + the phase's proof (verification output,
+  commit SHA). Follow its `CONTINUE` / `ASK` / `STOP` verdict; batch any `ASK` to the
+  end. If it errors or returns nothing, apply the rule above and **proceed — never
+  block on the arbiter** (it is a forcing function, not a gate).
 
 Otherwise: proceed. The user will redirect if needed.
 
@@ -104,14 +112,19 @@ After each phase passes verification, before starting the next phase:
    same way — e.g. a `/commit`-style helper); otherwise craft a conventional
    commit message following the project's style. Stage only files relevant to
    the completed phase. One commit per phase is the default.
-3. **Context check.** Estimate session context growth. If the conversation has
-   grown substantially (long tool outputs, many file reads, multiple phases
-   completed in one session): hand off between phases. **If a session-handoff
-   skill is installed** (e.g. a `session-handoff` skill or a `/handoff`
-   command), use it to start a fresh session, seeding it with: plan path,
-   current phase, what was just completed, what is next. **Otherwise**, run
-   `/compact` or continue in-session. Pick whichever is available — do not
-   hard-depend on any handoff skill being present.
+3. **Context check → auto-handoff (do not ask).** Estimate session context
+   growth. If the conversation has grown substantially (long tool outputs, many
+   file reads, multiple phases completed in one session), **hand off between
+   phases automatically** — handoff is a mandated step, never a question. **If a
+   session-handoff skill is installed** (e.g. a `session-handoff` skill or a
+   `/handoff` command), invoke it and **auto-compose the seed** yourself — do not
+   hand seed-writing back to the user. The seed must carry: plan path, current
+   phase (first unchecked checkbox), what was just completed, what is next, the
+   **autonomy surface / mode** in effect, the **language rule**, and any
+   baseline-failure notes. **Otherwise**, run `/compact` or continue in-session.
+   Pick whichever is available — do not hard-depend on any handoff skill.
+   This is the *mechanical* durability layer: context exhaustion is not a
+   judgment call, so it never routes to the arbiter — it just hands off.
 
 ### 3. Final phase
 
