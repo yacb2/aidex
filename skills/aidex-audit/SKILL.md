@@ -110,6 +110,11 @@ Scaffolds:
 > separate `escalate` sub-action); for security audits, active exploitation or
 > destructive verification is `deny`. Full rule:
 > [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md).
+>
+> **Isolation.** An audit is read-mostly — usually no worktree (Tier 0/1). The
+> exception is a security audit that needs **destructive verification**: run it in an
+> isolated worktree + DB (Tier 2) so it never mutates real state. See
+> [worktree-conventions.md](../aidex-conventions/references/worktree-conventions.md).
 
 ### After the audit
 

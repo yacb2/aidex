@@ -51,7 +51,17 @@ Otherwise: proceed. The user will redirect if needed.
    phase file.
 2. Identify: total phases, current phase (first unchecked checkbox), success
    criteria per phase, verification step.
-3. Create a TaskList mirroring the plan's phases so progress is visible.
+3. **Honor the plan's Isolation surface** if it declares one (see
+   [worktree-conventions.md](../aidex-conventions/references/worktree-conventions.md)).
+   For **Tier 1**, `EnterWorktree` before phase 1. For **Tier 2**, run the project's
+   detected `worktree-up` recipe (isolated DB + `COMPOSE_PROJECT_NAME` + port offset);
+   if no recipe exists, fall back to Tier 1 and note it. Enter the worktree **only if
+   the plan/user authorized it** — do not auto-enter one that was not approved. No
+   declared surface → run in place. **The plan doc stays source-of-truth in the main
+   tree:** a fresh worktree has only committed files, so update the plan and record
+   `proof_links` at its main-tree path (a gitignored/uncommitted `.context/` plan is
+   absent from the worktree) — see the canon's Lifecycle note.
+4. Create a TaskList mirroring the plan's phases so progress is visible.
 
 ### 1. Execute each phase
 
@@ -116,6 +126,10 @@ After the last phase:
    user approval — releases are deploy-coupled.
 4. Update the plan document: mark all phases complete, add a closing note
    with the final commit SHAs if useful.
+5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
+   (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
+   work unless `discard_changes`), and run the project's `worktree-down` for Tier 2 to
+   drop the isolated DB + compose project.
 
 ## Per-project adjustments
 

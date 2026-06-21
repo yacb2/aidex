@@ -89,7 +89,8 @@ updated: {{DATE}}
 ## Guardrails
 
 - [ ] max-iterations / turn cap set: ____
-- [ ] isolation (sandbox / git worktree): ____
+- [ ] isolation (Tier 1 code-only worktree / Tier 2 full env isolation w/ isolated DB +
+      COMPOSE_PROJECT_NAME + port offset / none): ____
 - [ ] scoped credentials / budget cap: ____
 - [ ] deterministic completion marker (e.g. `<promise>DONE</promise>`): ____
 - [ ] human approval gate before anything irreversible (merge/deploy/dep bump): ____
