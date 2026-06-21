@@ -18,3 +18,5 @@ During the run, classify before pausing:
 A genuine **hard blocker** (missing credentials, truly unknowable intended behavior) still stops — that is being blocked, not asking permission.
 
 **Not gated:** `git commit` (local + reversible), dependency changes, additive migrations. Only *publishing* (push / deploy / release) is gated, and only at the initial phase.
+
+**Ambiguous would-stop boundary?** Before stopping to ask, consult the **durability-arbiter** (`~/.aidex/skills/aidex-conventions/agents/durability-arbiter.md`, via the Agent tool) — it returns `CONTINUE` / `ASK` / `STOP` from this canon plus a proof-of-safety gate, batches any `ASK` to the end, and fails open (if it errors, apply the rule above and proceed; never block on it).
