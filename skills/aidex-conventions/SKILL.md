@@ -50,6 +50,7 @@ This skill defines conventions for eleven documentation types:
 | Audit | [audit-conventions.md](references/audit-conventions.md) |
 | Communication | [communication-conventions.md](references/communication-conventions.md) |
 | Autonomy (proceed vs. pause) | [autonomy-conventions.md](references/autonomy-conventions.md) |
+| Worktrees & isolation (parallel work) | [worktree-conventions.md](references/worktree-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 

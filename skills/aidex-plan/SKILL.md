@@ -36,7 +36,16 @@ the formatting canon lives in the shared `aidex-conventions` reference package
    publish / release** the user pre-authorizes for the run, and anything to keep in
    `deny`. Record it as a short **Autonomy** note in the plan so `aidex-plan-exec`
    runs start-to-finish without interrupting.
-5. Save under `.context/plans/` with the dated naming the canon specifies.
+5. **Capture the isolation surface** if the plan could run parallel to other work
+   (see [worktree-conventions.md](../aidex-conventions/references/worktree-conventions.md)).
+   Decide and record a short **Isolation** note: is this plan parallel to other
+   in-flight work? If so, **Tier 1** (code-only worktree — pure code, no services/DB)
+   or **Tier 2** (full environment isolation — runs migrations / needs the stack live /
+   risks DB-state collision), and for Tier 2 which `worktree-up` recipe. *Suggest* the
+   tier from the plan's content; it is a recommendation the **user / project CLAUDE.md
+   authorizes** (native worktree entry is opt-in). If the plan is not parallel to
+   anything, omit this — just a branch.
+6. Save under `.context/plans/` with the dated naming the canon specifies.
 
 ## Closing a plan
 
