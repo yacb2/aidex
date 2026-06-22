@@ -2,11 +2,3 @@
 *.swp
 *.swo
 *~
-
-# Workspace-private (per CLAUDE.md)
-.claude/
-/.context/
-.aidex-backups/
-.dt/
-CLAUDE.md
-.vercel
