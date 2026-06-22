@@ -79,13 +79,16 @@ opted in (the `Workflow` tool is gated and token-heavy).
   Kill-and-resume is validated too: a run killed mid-phase, resumed via `resumeFromRunId`, replayed
   its completed prefix from the journal and re-ran only the interrupted agent. Escalate-to-backlog is
   validated end-to-end: a phase that exhausts retries → arbiter ASK → a real backlog entry via
-  `aidex-backlog`. Still pending (later plan phases): multi-file `00-index.md` plans, and a second
-  catalog entry.
+  `aidex-backlog`. Multi-file (`00-index.md` + per-phase files) plans flatten to the same `phases[]`
+  via the derivation below. Still pending (a later plan phase): a second catalog entry.
 
 ### Deriving `args` from the plan
 
 You (the skill) build the `args` object from the plan you already read at Orient — no parser,
-no codegen. For each unchecked phase, in order:
+no codegen. **Multi-file plans:** Orient reads only the *current* phase file, but a batch run
+executes **every** unchecked phase, so first read `00-index.md` **plus each unchecked phase file
+it points to** and flatten them into one `phases[]` array (a phase file's front-matter `gate` →
+`gateCmd`, `tier` → `model`/`effort`, body → `spec`). For each unchecked phase, in order:
 - `id` — a short slug for the phase (e.g. `1.2-validate`).
 - `spec` — the phase's task text **plus pointers to prior phases' output files** (paths, not
   contents). Do not paste prior conversation; a fresh phase agent reads what it needs off disk.
