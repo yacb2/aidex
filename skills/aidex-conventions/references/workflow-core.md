@@ -137,8 +137,10 @@ fence) would terminate that literal — so the markdown agent doc cannot be embe
 under the no-`import` constraint. The block below is therefore a faithful, backtick-free rendering
 of that doc's **decision policy** (the part that must not drift across hosts), and its requested
 output matches CORE's `VERDICT_SCHEMA` (`verdict`/`reason`/`batched_question`/`log`). When the
-policy in `durability-arbiter.md` changes, update this block in lockstep. The block is everything
-strictly between the two marker lines:
+policy in `durability-arbiter.md` changes, update this block in lockstep —
+`test_arbiter_policy_lockstep.sh` guards against a one-sided edit (it asserts both hosts still
+carry all five decision tiers + the verdict enum, without requiring byte-identity). The block is
+everything strictly between the two marker lines:
 
 ```js
 // === ARBITER:START ===
