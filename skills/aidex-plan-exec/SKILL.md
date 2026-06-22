@@ -59,6 +59,27 @@ gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the 
 this only when the work is **decomposable + machine-verifiable + unattended** and the user
 opted in (the `Workflow` tool is gated and token-heavy).
 
+### Promotion threshold (when batching actually pays off)
+
+Promote a plan (or a phase) to a `Workflow` only when **all** hold:
+
+- **Decomposable** — phases are separable units whose inputs/outputs live on disk.
+- **Machine-verifiable** — every batched phase has a machine-checkable gate (it is `afk-impl`).
+- **Unattended** — the user opted into an away-from-keyboard run.
+- **Value > overhead** — each phase's real work is large enough to amortize the per-agent fixed cost.
+
+**The cost model (measured, not guessed).** Every fresh phase agent re-pays its own system prompt +
+full tool schemas — a fixed floor of **~22k tokens/agent**, reconfirmed across this build: ~21k/agent
+(fan-out, 6 agents) and ~23.5k/agent (review, 2 agents). The often-quoted ~1.4–2× premium is about
+re-paying *shared plan context*; for **small** phases the fixed per-agent floor dominates instead, so
+the ratio is worse and a workflow only pays off when each phase's work dwarfs that ~22k floor.
+**Toy fixtures cannot measure the promotion ratio** — `tokmap`/`fanout`/`review` only ever exercise the
+floor, which is already the structural finding. **Open measurement (a trigger, not a vague defer):**
+capture per-phase token spend on the **first genuine (non-toy) plan** run through the pipeline and
+compare it to a single-agent baseline of that same plan — the only setting where the ratio is real.
+Until that data exists the threshold is the structural rule above. (This converts the A/B that was
+carried P1→P3→P4 into a triggered measurement rather than a fourth silent carry-forward.)
+
 - The forms ship as versioned assets, all embedding the single-sourced durability CORE
   (see [`../aidex-conventions/references/workflow-core.md`](../aidex-conventions/references/workflow-core.md)):
   - [`assets/workflows/pipeline-with-gate.workflow.js`](assets/workflows/pipeline-with-gate.workflow.js)
@@ -117,9 +138,11 @@ You (the skill) build the `args` object from the plan you already read at Orient
 no codegen. **Multi-file plans:** Orient reads only the *current* phase file, but a batch run
 executes **every** unchecked phase, so first read `00-index.md` **plus each unchecked phase file
 it points to** and flatten them into one `phases[]` array (take each phase file's gate → `gateCmd`,
-its tier → `model`/`effort`, its body → `spec`). The tier/gate may sit inline on the phase line
-(`(tier: …)`, the single-file convention below) or in a phase file's front-matter (`tier:`/`gate:`);
-read whichever the plan uses — unifying the two carriers into one canonical shape is a Phase-4 item.
+its tier → `model`/`effort`, its body → `spec`). All four phase-metadata fields (`depends_on`,
+`tier`, `gate`, `phase-type`) share **one canonical carrier** per the plan canon
+([plan-conventions.md](../aidex-conventions/references/plan-conventions.md) §"Optional phase metadata"):
+**inline `(key: value)` on the phase heading** in single-file plans, **front-matter** in multi-file
+phase files. Read whichever carrier the plan uses — there is no third place to look.
 For each unchecked phase, in order:
 - `id` — a short slug for the phase (e.g. `1.2-validate`).
 - `spec` — the phase's task text **plus pointers to prior phases' output files** (paths, not
@@ -136,6 +159,14 @@ For each unchecked phase, in order:
   says `1` but you assigned id `1.2-validate`), no dependent phase ever becomes runnable and the DAG
   stalls. Keep `id` and the `depends_on` referents in the same vocabulary.
 
+**Batch-eligibility filter (`phase-type`) — apply before building `phases[]`.** Drop every
+`hitl-align` phase from the batch: those run in the **interactive** path, never in a `Workflow`
+(defining scope/criteria/design is the human-in-the-loop judgment the promotion threshold
+excludes). Batch **only** `afk-impl` phases (the default when a phase declares no `phase-type`).
+A phase that is `afk-impl` but declares **no machine gate** is also not batch-eligible — run it
+interactively; do not invent a gate. So `phases[]` contains exactly the gated `afk-impl` phases,
+in plan order; a plan whose remaining phases are all `hitl-align`/gateless has nothing to batch.
+
 **Pick the form from the derived `depends_on` shape.** Once every phase's `depends_on` is filled,
 look at the dependency graph: if it is a single chain (each phase depends on the prior), use
 `pipeline-with-gate`. If two or more phases are edge-free (or the graph has a wave wider than one),
@@ -149,10 +180,10 @@ plan pre-authorized), and `maxRetries` (default 2). To **resume** a crashed/stop
 
 ### Phase tier hint (model/effort)
 
-A phase may declare its tier inline, e.g. `(tier: mechanical|standard|hard)` on the phase line.
+A phase declares its tier via the unified phase-metadata carrier (`tier: mechanical|standard|hard`).
 Map it: `mechanical → sonnet/low`, `standard → sonnet/medium`, `hard → opus/high`. No hint →
 `standard`. The gate/verifier always runs `sonnet/low` (it only runs a command and reports). This
-hint is operationally defined here; `aidex-plan` promotes it into the plan template in a later phase.
+hint is now part of the plan template (plan canon §"Optional phase metadata").
 
 ### When a phase fails the gate
 

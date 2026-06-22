@@ -14,6 +14,25 @@ coding starts. This skill is the single-purpose entry point for **planning**;
 the formatting canon lives in the shared `aidex-conventions` reference package
 (not forked here).
 
+## Step 0 — Align before planning (HITL — do not skip, do not automate)
+
+Before writing any phases, establish a **shared design concept** with the user. This is the one
+step that must stay human-in-the-loop: defining scope and success criteria is the judgment an
+agent grading its own clarifying questions gets wrong, and it is exactly what the `aidex-plan-exec`
+promotion threshold excludes from batch execution (a `hitl-align` phase, see below).
+
+1. Ask **at most four** clarifying questions, **one at a time**, covering:
+   - **Scope** — what is in, and the boundary of this work.
+   - **Success criteria** — how we'll know each phase is done (prefer machine-checkable gates).
+   - **Explicit non-goals** — what this plan will deliberately *not* do.
+   - **Constraints** — stack, deadlines, compatibility, anything that can't change.
+   Give each question a **recommended answer** to confirm or correct, so a well-scoped request
+   resolves in one or two confirmations rather than an interrogation.
+2. Synthesize the answers into a **one-paragraph shared design concept** and have the user
+   **ratify it** before you write phases. If the request is already unambiguous and the
+   recommended answers all stand, a single "confirm this concept?" round is enough.
+3. Skip Step 0 only for a trivial, already-fully-specified plan — and say you're skipping it, and why.
+
 ## Workflow
 
 1. Read the plan conventions canon:

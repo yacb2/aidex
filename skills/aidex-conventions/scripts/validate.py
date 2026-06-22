@@ -460,6 +460,54 @@ def check_index_files(context_dir: Path, type_name: str) -> list[Finding]:
                                     "00-overview.md is only valid inside research/<topic>/"))
     return findings
 
+# ---------- Plan phase-gate presence (workflow promotion threshold) ----------
+
+PHASE_HEADING_RE = re.compile(r"(?m)^#{1,4}[ \t]+Phase\b[^\n]*$")
+
+def _phase_type(heading: str, fm: dict | None) -> str:
+    """afk-impl (default) unless an inline annotation or front-matter says hitl-align."""
+    m = re.search(r"phase-type:\s*(hitl-align|afk-impl)", heading)
+    if m:
+        return m.group(1)
+    if fm and fm.get("phase-type") in ("hitl-align", "afk-impl"):
+        return fm["phase-type"]
+    return "afk-impl"
+
+def _phase_has_gate(heading: str, body: str, fm: dict | None) -> bool:
+    """A machine-checkable gate is present if declared inline/front-matter as `gate:`,
+    or the phase body carries a Verify block / an explicit machine-checkable success line."""
+    if re.search(r"gate:\s*\S", heading):
+        return True
+    if fm and fm.get("gate"):
+        return True
+    if re.search(r"(?im)\*\*\s*verify", body):
+        return True
+    if re.search(r"(?i)machine-checkable", body):
+        return True
+    return False
+
+def check_plan_phase_gates(path: Path, text: str, fm: dict | None) -> list[Finding]:
+    """Warn when an afk-impl phase declares no machine-checkable gate.
+
+    Only afk-impl phases are batch-eligible (the aidex-plan-exec promotion threshold);
+    a batched phase with no gate means AI output for it is unconstrained. hitl-align
+    phases are exempt — they run interactively and expect no machine gate."""
+    findings: list[Finding] = []
+    headings = list(PHASE_HEADING_RE.finditer(text))
+    for i, m in enumerate(headings):
+        heading = m.group(0)
+        start = m.end()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        body = text[start:end]
+        if _phase_type(heading, fm) != "afk-impl":
+            continue
+        if not _phase_has_gate(heading, body, fm):
+            label = heading.lstrip("#").strip()
+            findings.append(Finding("plans", str(path), "plan-phase-gateless-afk", "warning",
+                f"afk-impl phase {label!r} has no machine-checkable gate — AI output for this "
+                f"phase is unconstrained; add tests/type-check/build before implementing"))
+    return findings
+
 # ---------- Driver ----------
 
 def find_context_dir(start: Path) -> Path | None:
@@ -527,6 +575,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                 df = check_deferred_blocked_by(path, fm)
                 if df:
                     file_findings.append(df)
+            if type_name == "plans":
+                file_findings.extend(check_plan_phase_gates(path, text, fm))
             findings.extend(file_findings)
             for fnd in file_findings:
                 if fnd.severity == "violation":
