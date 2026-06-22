@@ -85,7 +85,7 @@ The `status` field uses the base lifecycle from [`00-global.md` §6](00-global.m
 ## Phase file template
 
 ```markdown
-# Phase N: [Phase Name]
+# Phase N: [Phase Name]   <!-- optional: (depends_on: [1, 2]) — omit or [] = independently grabbable -->
 
 [← Back to Index](00-index.md)
 
@@ -159,7 +159,19 @@ Always include **full code** in steps, not references. Show the implementation, 
 
 ## Phase organization
 
-Group tasks by layer (models → serializers → views → URLs → tests), feature area (one component end-to-end), or dependency order (what must exist before what). Example phase names: `01-backend-models.md`, `02-backend-api.md`, `03-frontend-components.md`, `04-testing-verification.md`.
+**Lead with vertical slices.** A vertical slice is one thin, end-to-end piece of behavior cut *across* all layers (one model field → its API field → its UI control → its test), shippable on its own. Prefer slicing the work this way: each slice is a phase that delivers working behavior, and **two slices that touch different features have no edge between them, so an executor can run them in parallel** (see `depends_on` below and the `fan-out-with-gate` execution form). Example phase names: `01-slice-create-todo.md`, `02-slice-mark-done.md`, `03-slice-filter-list.md`.
+
+**Layer-ordering is the secondary pattern.** Grouping by layer (models → serializers → views → URLs → tests) is sometimes the honest shape — e.g. a schema migration that genuinely must land before anything reads it. But layer phases are inherently sequential (each layer waits on the one below), so they forfeit any parallelism and tend to defer working behavior to the last phase. **Pushback note:** if your first phase is a layer with no user-visible behavior (a "build all the models" phase), stop and ask whether a vertical slice would deliver something testable sooner — only keep the layer split when a real ordering constraint forces it. Feature-area and dependency-order groupings are fine variants of the slice pattern.
+
+### Optional `depends_on` on a phase
+
+A phase may declare which earlier phases must complete before it can start:
+
+```markdown
+# Phase N: [Phase Name]  (depends_on: [1, 2])
+```
+
+`depends_on: []` (or omitted) means the phase is **independently grabbable** — no prerequisites, eligible to run concurrently with any other edge-free phase. List the phase numbers/slugs a phase truly needs (it reads their output) and nothing more; spurious edges kill parallelism. The executor (`aidex-plan-exec`) reads this metadata to choose between sequential (`pipeline-with-gate`) and parallel (`fan-out-with-gate`) execution. Keep edges honest: an edge that isn't a real data dependency is a serialization you didn't need.
 
 ---
 

@@ -28,6 +28,12 @@ the formatting canon lives in the shared `aidex-conventions` reference package
      executed by different sessions/teammates.
 3. Follow the template in the canon: phases with checkboxes, exact file paths,
    verification step per phase. Write the artifact in English (canon §Language).
+   **Decompose by vertical slices first** (each phase a thin end-to-end piece of
+   behavior across layers), not by layer — slices are independently testable and let
+   the executor parallelize. Reserve layer-ordering for genuine ordering constraints,
+   and push back on a layer-only first phase (see canon §Phase organization). Mark each
+   phase's real prerequisites with `depends_on: [...]` (omit/`[]` = independently
+   grabbable) so `aidex-plan-exec` can choose parallel vs sequential execution.
 4. **Front-load the autonomy surface** so execution needs no questions (see
    [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md)).
    This is the place to resolve every gate up front: which planned **migrations /

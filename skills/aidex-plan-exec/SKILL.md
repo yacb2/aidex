@@ -59,14 +59,26 @@ gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the 
 this only when the work is **decomposable + machine-verifiable + unattended** and the user
 opted in (the `Workflow` tool is gated and token-heavy).
 
-- The form ships as a versioned asset:
-  [`assets/workflows/pipeline-with-gate.workflow.js`](assets/workflows/pipeline-with-gate.workflow.js)
-  (form: dependent phases, sequential, each gated). It embeds the single-sourced durability
-  CORE — see [`../aidex-conventions/references/workflow-core.md`](../aidex-conventions/references/workflow-core.md).
-- **Launch:** read the asset and hand it to the `Workflow` tool, passing the plan as
-  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort }],
-  autonomySurface, preAuthorized, maxRetries })`. `args` arrives as a JSON **string** —
-  the script `JSON.parse`s it. Iterate via `{scriptPath}` re-invoke (picks up edits, runs fresh).
+- The forms ship as versioned assets, both embedding the single-sourced durability CORE
+  (see [`../aidex-conventions/references/workflow-core.md`](../aidex-conventions/references/workflow-core.md)):
+  - [`assets/workflows/pipeline-with-gate.workflow.js`](assets/workflows/pipeline-with-gate.workflow.js)
+    — **sequential** dependent phases, each gated. Use when the plan is a chain (each phase
+    needs the previous one).
+  - [`assets/workflows/fan-out-with-gate.workflow.js`](assets/workflows/fan-out-with-gate.workflow.js)
+    — **gated DAG**: edge-free phases run concurrently, dependent phases after their
+    prerequisites (wave-scheduled, arbitrary depth). Use when the plan has independent phases
+    (vertical slices with no edge between them). **Every parallel branch keeps the full
+    two-stage gate** — this is the gated DAG, not an ungated Kanban.
+- **Choose the form by plan shape** (see "Deriving `args`" below): if **every** phase has a
+  non-empty `depends_on` forming a single chain → `pipeline-with-gate`; if two or more phases
+  are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
+  When unsure, the sequential pipeline is the safe default (it never mis-orders).
+- **Launch:** read the chosen asset and hand it to the `Workflow` tool, passing the plan as
+  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, depends_on }],
+  autonomySurface, preAuthorized, maxRetries })`. `depends_on` is a list of phase `id`s a phase
+  needs done first (omit/`[]` = edge-free); the pipeline form ignores it, the fan-out form
+  schedules on it. `args` arrives as a JSON **string** — the script `JSON.parse`s it. Iterate
+  via `{scriptPath}` re-invoke (picks up edits, runs fresh).
 - The arbiter is **conditional**: the JS loop's `if (!proof.passed) retry` is the
   `verify_first` carrier in batch; the arbiter fires only on retry-budget exhaustion, an
   un-pre-authorized publication, or a deny-class action.
@@ -80,7 +92,10 @@ opted in (the `Workflow` tool is gated and token-heavy).
   its completed prefix from the journal and re-ran only the interrupted agent. Escalate-to-backlog is
   validated end-to-end: a phase that exhausts retries → arbiter ASK → a real backlog entry via
   `aidex-backlog`. Multi-file (`00-index.md` + per-phase files) plans flatten to the same `phases[]`
-  via the derivation below. Still pending (a later plan phase): a second catalog entry.
+  via the derivation below. The second catalog entry (`fan-out-with-gate`) is seeded and
+  validated: a synthetic plan with two edge-free phases + one dependent ran as a gated DAG —
+  the two independent phases executed concurrently, the dependent phase after, and the
+  two-stage gate fired on every branch with the implementer blind to `gateCmd`.
 
 ### Deriving `args` from the plan
 
@@ -99,6 +114,20 @@ For each unchecked phase, in order:
   names). If the plan declares no machine gate for a phase, that phase is **not** batch-eligible
   — run it in the interactive path instead; do not invent a gate.
 - `model` / `effort` — from the phase's tier hint (below).
+- `depends_on` — the phase's prerequisite phases (from the plan's `(depends_on: [...])` metadata;
+  omit/`[]` = edge-free). This decides the form and the schedule. **Referent rule (load-bearing):**
+  the plan writes `depends_on` in human terms (phase **numbers** like `[1, 2]`, or slugs); you must
+  **rewrite each entry to the exact `id` string you assigned that phase** before passing args. The
+  fan-out scheduler matches `depends_on` entries against phase `id`s — if they don't match (e.g. plan
+  says `1` but you assigned id `1.2-validate`), no dependent phase ever becomes runnable and the DAG
+  stalls. Keep `id` and the `depends_on` referents in the same vocabulary.
+
+**Pick the form from the derived `depends_on` shape.** Once every phase's `depends_on` is filled,
+look at the dependency graph: if it is a single chain (each phase depends on the prior), use
+`pipeline-with-gate`. If two or more phases are edge-free (or the graph has a wave wider than one),
+use `fan-out-with-gate` so independent slices run in parallel. The fan-out form wave-schedules on
+`depends_on`; the pipeline form runs the array in order and ignores it. Default to the pipeline
+when the shape is genuinely a chain — don't fan out a plan with no real parallelism.
 
 Pass `planPath`, the run's `autonomySurface` (from the plan), `preAuthorized` (any publish the
 plan pre-authorized), and `maxRetries` (default 2). To **resume** a crashed/stopped run, re-invoke
