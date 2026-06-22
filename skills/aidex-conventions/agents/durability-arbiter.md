@@ -92,3 +92,5 @@ you need to confirm a proof claim — nothing else.
 > [`../references/workflow-core.md`](../references/workflow-core.md) ("Canonical ARBITER block")
 > and drift-locked across the assets. **If you change the decision policy here, update that block
 > in lockstep** (the JSON output schema may legitimately differ between the two hosts).
+> `test_arbiter_policy_lockstep.sh` guards this: it fails if either host drops one of the five
+> decision tiers or the `CONTINUE | ASK | STOP` enum.
