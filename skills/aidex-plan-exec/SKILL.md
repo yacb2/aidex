@@ -76,8 +76,9 @@ opted in (the `Workflow` tool is gated and token-heavy).
   honored; and the conditional arbiter fires on retry-exhaustion (not a per-gate rubber-stamp).
   An isolator fixture (opaque labels withheld from the dependent phase's spec **and** its test)
   then confirmed the disk read is load-bearing — "filesystem IS the context" — not spec-redundant.
-  Still pending (later plan phases): kill-and-resume from the journal, live escalate-to-backlog,
-  and a second catalog entry.
+  Kill-and-resume is validated too: a run killed mid-phase, resumed via `resumeFromRunId`, replayed
+  its completed prefix from the journal and re-ran only the interrupted agent. Still pending (later
+  plan phases): live escalate-to-backlog, and a second catalog entry.
 
 ### Deriving `args` from the plan
 
