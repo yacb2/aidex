@@ -17,6 +17,12 @@ block against this canonical one and fails on any mismatch.
 - **`JSON.parse(args)`** — Phase-1 gotcha: `args` arrives as a JSON **string**.
 - **Two-stage gate** — a Bash **verifier** agent runs the phase's machine gate and returns
   independent proof; the arbiter never grades its own pass.
+- **Implementer is blind to the gate** — `runPhase` calls `phase.implement(feedback, attempt)`
+  (no gateCmd) and `verify(id, gateCmd)` (gateCmd → verifier only). Every form's `implement`
+  closure MUST pass `spec` but **never** `gateCmd` to the implementer agent, so it cannot read
+  the grading test and optimize to it (it satisfies the contract, not a visible test). The
+  verifier's proof evidence is the only gate signal the implementer sees, and only as retry
+  feedback. (Evolution Phase 1 keystone — closes the "test-visible implementer" leak.)
 - **`verify_first` carried by the JS loop** in batch — `if (!proof.passed) retry`. The arbiter
   is the carrier only in the interactive (Stop-hook) host.
 - **Conditional arbiter** — invoked **only** on machine-checkable triggers (retry budget

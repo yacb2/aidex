@@ -8,6 +8,8 @@
 //   args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort }],
 //                           autonomySurface, preAuthorized, maxRetries })
 // `args` arrives as a JSON STRING (Phase-1 gotcha) -> parseArgs() does JSON.parse.
+// `gateCmd` is VERIFIER-ONLY: it reaches the Bash verifier, never the implementer (see the
+// KEYSTONE note on the implement closure) — the implementer satisfies `spec`, not a visible test.
 //
 // CORE INVARIANT: the block between CORE:START/CORE:END is the canonical durability CORE,
 // single-sourced at skills/aidex-conventions/references/workflow-core.md and enforced by
@@ -128,12 +130,17 @@ for (const p of cfg.phases || []) {
   const phaseSpec = {
     id: p.id,
     gateCmd: p.gateCmd,
+    // KEYSTONE (evolution Phase 1): the implementer receives `p.spec` but NEVER `p.gateCmd`.
+    // gateCmd goes only to the verifier (CORE `verify()`), so the implementer cannot read the
+    // grading test and optimize to it — it must satisfy the spec's contract. This closes the
+    // prior plan's "spec-only vs test-visible implementer" leak at the source.
     implement: (feedback, attempt) =>
       agent(
         `Plan: ${cfg.planPath}\nPhase ${p.id} (attempt ${attempt}).\n\n${p.spec}\n\n` +
         `Read prior phase outputs from disk as needed; do NOT assume prior conversation.\n` +
-        (feedback ? `\nPrior attempt feedback:\n${feedback}\n` : '') +
-        `Make the phase's gate pass: ${p.gateCmd}`,
+        `Implement the spec's contract fully and correctly. A separate verifier will check your work; ` +
+        `you are NOT shown that check, so satisfy the spec itself — do not target a test.\n` +
+        (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),
         { label: `exec:${p.id}`, phase: 'Execute', model: p.model || 'sonnet', effort: p.effort || 'medium' }
       ),
   }
