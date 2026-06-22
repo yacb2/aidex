@@ -70,9 +70,41 @@ opted in (the `Workflow` tool is gated and token-heavy).
 - The arbiter is **conditional**: the JS loop's `if (!proof.passed) retry` is the
   `verify_first` carrier in batch; the arbiter fires only on retry-budget exhaustion, an
   un-pre-authorized publication, or a deny-class action.
-- **Status:** form skeleton (parametric any-plan runner + a second catalog entry are later
-  plan phases). The asset is reconstructed to the validated design but its end-to-end run is
-  re-validated in Phase 3; treat it as a launch template, not a proven one-shot.
+- **Status:** smoke-validated in the real `Workflow` runtime (happy phase advances; a failing
+  phase exhausts retries and fires the **conditional** arbiter → ASK — not a per-gate
+  rubber-stamp). Still pending (later plan phases): a full multi-phase real-implementation run
+  against a fresh fixture, and a second catalog entry.
+
+### Deriving `args` from the plan
+
+You (the skill) build the `args` object from the plan you already read at Orient — no parser,
+no codegen. For each unchecked phase, in order:
+- `id` — a short slug for the phase (e.g. `1.2-validate`).
+- `spec` — the phase's task text **plus pointers to prior phases' output files** (paths, not
+  contents). Do not paste prior conversation; a fresh phase agent reads what it needs off disk.
+- `gateCmd` — the phase's declared verification command (the test/type-check/build the plan
+  names). If the plan declares no machine gate for a phase, that phase is **not** batch-eligible
+  — run it in the interactive path instead; do not invent a gate.
+- `model` / `effort` — from the phase's tier hint (below).
+
+Pass `planPath`, the run's `autonomySurface` (from the plan), `preAuthorized` (any publish the
+plan pre-authorized), and `maxRetries` (default 2). To **resume** a crashed/stopped run, re-invoke
+`Workflow` with `{scriptPath, resumeFromRunId}` — completed phases replay from the journal.
+
+### Phase tier hint (model/effort)
+
+A phase may declare its tier inline, e.g. `(tier: mechanical|standard|hard)` on the phase line.
+Map it: `mechanical → sonnet/low`, `standard → sonnet/medium`, `hard → opus/high`. No hint →
+`standard`. The gate/verifier always runs `sonnet/low` (it only runs a command and reports). This
+hint is operationally defined here; `aidex-plan` promotes it into the plan template in a later phase.
+
+### When a phase fails the gate
+
+The conditional arbiter rules at retry-exhaustion. On `STOP` (deny-class / stop-condition): halt
+and document. On `ASK` (un-pre-authorized publish, or a genuine blocker): the pipeline halts that
+branch; **escalate the blocked phase to the backlog** (`aidex-backlog` if installed) with the
+failing proof, and surface the batched question at the end — never mid-run. Bound total spend with
+`maxRetries` plus the turn's `Workflow` token budget; do not let a failing phase retry unbounded.
 
 ## Workflow
 
