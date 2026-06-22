@@ -25,6 +25,19 @@ The operative rule here:
 - **Ask everything up front, at Orient.** Surface clarifications and confirm any
   publication the plan implies (deploy/publish/release) before phase 1. If the plan
   did not pre-authorize a publish step, surface it at the **end** — not mid-run.
+- **Evaluate batch-promotion at Orient (mandatory, one line).** Before phase 1,
+  classify each phase's `phase-type` and apply the promotion threshold
+  (§"Unattended / batch execution"). If the plan's `afk-impl` phases form a
+  decomposable, machine-gated chain/DAG whose per-phase work dwarfs the ~22k/agent
+  floor, **propose the durable `Workflow` form as a single line, batched with the
+  other Orient questions** — e.g. *"Phases 2–3 are afk-impl with machine gates → run
+  as a durable Workflow (arbiter-gated, kill-resumable)? P1/P4 hitl-align stay
+  interactive."* A one-word "yes" is the opt-in: invoking this skill plus this
+  proposal **is** the sanctioned authorization to call the `Workflow` tool — no
+  `ultracode` needed. If the plan does not qualify (no machine gate per phase, not
+  decomposable, phases too small to amortize the floor, or attended), run
+  interactive with the arbiter and **do not ask**. This is a kickoff question,
+  **never a mid-run interruption**.
 - **Do not re-ask for steps this skill mandates.** Invoking plan-exec authorizes you
   to code-review the diff, author the commit message, commit per phase, and hand off
   when context grows. Do them — never stop to ask "should I commit? is the message
@@ -57,7 +70,9 @@ The default path above is **interactive** (you run the plan turn-by-turn). For
 the plan as a **durable `Workflow`** instead — each phase a fresh bounded agent, a two-stage
 gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the journal. Use
 this only when the work is **decomposable + machine-verifiable + unattended** and the user
-opted in (the `Workflow` tool is gated and token-heavy).
+opted in (the `Workflow` tool is gated and token-heavy). **The mandatory Orient evaluation
+above proposes this for you when the plan qualifies** — the user does not have to request the
+Workflow by name; their one-word "yes" at Orient is the opt-in.
 
 ### Promotion threshold (when batching actually pays off)
 
