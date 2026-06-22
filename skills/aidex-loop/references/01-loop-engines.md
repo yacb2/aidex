@@ -17,6 +17,9 @@ Pick by the question that fits, top to bottom:
 | "Work until this condition holds," in one session | **`/goal`** | After each turn a fast model judges the condition; closest native analog to Ralph |
 | Unattended greenfield build, fresh context per iteration | **`ralph-loop`** plugin, or **`claude -p` in a `while`** | Re-feeds a fixed prompt; progress persists in files + git, not context |
 | Must run with the machine off | **Routines** (`/schedule`) | Cloud agents; min 1-hour cadence; needs claude.ai login |
+| Decomposable into parallel sub-units, machine-verifiable per iteration, needs crash/kill-resume | **Workflow** | In-process gated fan-out (loop-until-dry / loop-until-budget); conditional durability-arbiter; kill-resumable via resumeFromRunId; token-heavy (~22k/agent floor — only when each iteration's work dwarfs it) |
+
+The **Workflow** engine is the same machinery as aidex-plan-exec's durable Workflow forms (`skills/aidex-plan-exec/assets/workflows/*.workflow.js`) reused as a loop engine — NOT a parallel forms system; build a concrete loop asset only against a real loop case (per 'no abstractions for single-use code').
 
 Key distinctions:
 

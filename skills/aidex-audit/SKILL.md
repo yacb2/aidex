@@ -96,6 +96,24 @@ Scaffolds:
 
 ### Running an audit
 
+> **Durable Workflow promotion (mandatory evaluation at kickoff).** At `/aidex-audit new`
+> — the single sanctioned question point, before the sweep begins — classify whether the
+> audit has enough independent dimensions or shards to amortize the ~22k/agent Workflow
+> floor. If yes, **propose the durable fan-out Workflow form in one line, batched with the
+> kickoff scope questions** — e.g. "12 independent dimensions -> run as a durable Workflow
+> (fan-out of analysts, schema-gated, arbiter at the escalate gate)? else in-process sweep."
+> A one-word "yes" is the opt-in: invoking this skill plus this proposal **is** the
+> sanctioned authorization to call the `Workflow` tool — no `ultracode` needed.
+> If the audit does not qualify (few dimensions, small scope, not unattended), run the
+> normal in-process sweep and **do not ask**. This is a kickoff question, **never a
+> mid-sweep interruption**.
+>
+> The fan-out form ships as
+> [`assets/workflows/audit-fanout.workflow.js`](assets/workflows/audit-fanout.workflow.js),
+> which embeds the single-sourced durability CORE
+> ([`../aidex-conventions/references/workflow-core.md`](../aidex-conventions/references/workflow-core.md))
+> and is covered by the drift-lock test.
+
 1. Open the `methodology/<type>.md` playbook.
 2. Walk through checks in scope.
 3. Add rows to `00-inventory.md` for each finding.

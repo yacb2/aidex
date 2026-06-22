@@ -61,7 +61,8 @@ Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
 3. **Shape.** Greenfield or existing code? One task or many? Must it run with the
    machine off? Budget ceiling?
 4. **Engine.** Use the decision matrix in the reference to pick: `/goal` · `/loop`
-   · `ralph-loop` · `claude -p` while-loop · Routines (`/schedule`) · Channels.
+   · `ralph-loop` · `claude -p` while-loop · Routines (`/schedule`) · Channels
+   · Workflow.
    Recommend one, name the runner-up, say why.
 5. **Autonomy surface (step 1.5).** Resolve the permission borders so the loop runs
    unattended. Walk [references/01-loop-engines.md](references/01-loop-engines.md)
