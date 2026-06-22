@@ -225,7 +225,7 @@ uses them, document them in the project `CLAUDE.md`. Auditors treat them as
 INFO-at-most and never propose deleting them — but they are never *required* either:
 
 ```
-diagrams · data · experiments
+data · diagrams · drafts · experiments
 ```
 
 ### Deletion rule

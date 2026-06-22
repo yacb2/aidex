@@ -10,7 +10,7 @@ Two tiers govern whether an empty/unknown `.context/` dir is ever a deletion can
   `references, docs, plans, requests, decisions, research, backlog, audits, loops, communications, issues, roadmap`.
   - `backlog/_deferred/` (open-but-blocked items, `status: open` + `blocked_by` populated) and any `<type>/_archive/` (terminal: done/dropped) are part of their parent's canonical lifecycle — treat as healthy, NOT orphan.
 - **Acceptable-optional** (project-local; not scaffolded by any skill; may be gitignored):
-  `diagrams, data, experiments`. Report at INFO-at-most; never propose deletion.
+  `data, diagrams, drafts, experiments`. Report at INFO-at-most; never propose deletion.
 
 Before proposing deletion of any `.context/` dir, check BOTH tiers; only dirs in NEITHER tier qualify as deletion candidates.
 

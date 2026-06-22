@@ -102,8 +102,8 @@ Fast implementation hint: shell out to `~/.aidex/skills/aidex-audit/scripts/vali
 - **[AG] Anti-patterns**:
   - `README.md` inside `references/` or `docs/` → WARNING. Convention: each module has `00-index.md`, CLAUDE.md is the top-level entry point. The README is a maintenance burden that desynchronizes.
   - Empty directories — apply this decision matrix (per `~/.aidex/skills/aidex-conventions/references/claudemd-conventions.md` § Project Context Directory):
-    - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs`) → **no finding** (empty canonical is healthy).
-    - Empty + acceptable non-canonical (`drafts, experiments, data`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
+    - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications`) → **no finding** (empty canonical is healthy).
+    - Empty + acceptable non-canonical (`data, diagrams, drafts, experiments`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
     - Empty + unrecognized → WARNING, suggest removal.
   - Pluralized directory names (`backlogs/` instead of `backlog/`) → WARNING.
   - `00-overview.md` outside `research/` → WARNING (only `00-index.md` allowed). Inside `research/<topic>/` → INFO (accepted alias).
