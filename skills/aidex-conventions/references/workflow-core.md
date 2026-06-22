@@ -23,6 +23,14 @@ block against this canonical one and fails on any mismatch.
   the grading test and optimize to it (it satisfies the contract, not a visible test). The
   verifier's proof evidence is the only gate signal the implementer sees, and only as retry
   feedback. (Evolution Phase 1 keystone — closes the "test-visible implementer" leak.)
+- **Reviewer is blind to the implementation** — the `review-with-gate` form spawns a **fresh**
+  reviewer whose only inputs are the cumulative diff + the plan's success criteria + an optional
+  **pushed** `standards_ref`; it is never handed the implementation transcript (it reviews from a
+  clean context, not the implementer's grown "dumb zone" session). `standards_ref` is the **push**
+  side of push/pull and reaches only the reviewer — an implementer that needs a standard **pulls** a
+  targeted one via its phase spec, so the reviewer can enforce a rule the implementer was never shown.
+  The review verdict's machine-checkable `passed` boolean (not its prose findings) is the gate
+  trigger, mirroring the Bash verifier's `proof.passed`. (Evolution Phase 3 — clean-context review.)
 - **`verify_first` carried by the JS loop** in batch — `if (!proof.passed) retry`. The arbiter
   is the carrier only in the interactive (Stop-hook) host.
 - **Conditional arbiter** — invoked **only** on machine-checkable triggers (retry budget
