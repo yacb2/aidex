@@ -59,7 +59,7 @@ gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the 
 this only when the work is **decomposable + machine-verifiable + unattended** and the user
 opted in (the `Workflow` tool is gated and token-heavy).
 
-- The forms ship as versioned assets, both embedding the single-sourced durability CORE
+- The forms ship as versioned assets, all embedding the single-sourced durability CORE
   (see [`../aidex-conventions/references/workflow-core.md`](../aidex-conventions/references/workflow-core.md)):
   - [`assets/workflows/pipeline-with-gate.workflow.js`](assets/workflows/pipeline-with-gate.workflow.js)
     — **sequential** dependent phases, each gated. Use when the plan is a chain (each phase
@@ -69,6 +69,12 @@ opted in (the `Workflow` tool is gated and token-heavy).
     prerequisites (wave-scheduled, arbitrary depth). Use when the plan has independent phases
     (vertical slices with no edge between them). **Every parallel branch keeps the full
     two-stage gate** — this is the gated DAG, not an ungated Kanban.
+  - [`assets/workflows/review-with-gate.workflow.js`](assets/workflows/review-with-gate.workflow.js)
+    — **terminal clean-context review**: a fresh `opus/high` reviewer judges the cumulative diff
+    against the plan's success criteria + an optional **pushed** `standards_ref`, never the
+    implementation transcript. Its `passed` boolean is the gate (mirrors `proof.passed`); a
+    failing review routes to the conditional arbiter. Run it **after** the implementing form when
+    you want a review that is not contaminated by the implementer's grown session.
 - **Choose the form by plan shape** (see "Deriving `args`" below): if **every** phase has a
   non-empty `depends_on` forming a single chain → `pipeline-with-gate`; if two or more phases
   are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
@@ -79,6 +85,14 @@ opted in (the `Workflow` tool is gated and token-heavy).
   needs done first (omit/`[]` = edge-free); the pipeline form ignores it, the fan-out form
   schedules on it. `args` arrives as a JSON **string** — the script `JSON.parse`s it. Iterate
   via `{scriptPath}` re-invoke (picks up edits, runs fresh).
+- **Review form launch (separate invocation, after implementation):**
+  `args = JSON.stringify({ planPath, diffCmd, successCriteria, standards_ref, reviewModel,
+  reviewEffort, autonomySurface, preAuthorized, maxRetries })`. `diffCmd` is the Bash command the
+  reviewer runs to get the cumulative diff (e.g. `cd <repo> && git diff <base>...HEAD`).
+  `standards_ref` is the **push** side of push/pull — a standard/rule text handed **only** to the
+  reviewer, so it can enforce a rule the implementer was never shown; omit it to review against the
+  success criteria alone. The implementer **pulls** any standard it needs through its own phase
+  spec in the implementing form — never push a standard into an implementer.
 - The arbiter is **conditional**: the JS loop's `if (!proof.passed) retry` is the
   `verify_first` carrier in batch; the arbiter fires only on retry-budget exhaustion, an
   un-pre-authorized publication, or a deny-class action.
