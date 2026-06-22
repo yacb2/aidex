@@ -82,3 +82,13 @@ you need to confirm a proof claim — nothing else.
 - **Never invent a reason to stop.** If you cannot find a deny/publication/stop-condition basis,
   the answer is CONTINUE.
 - Be terse. You are a fast checkpoint, not an analyst.
+
+---
+
+> **Maintenance note.** This doc is the prompt for the **interactive (Stop-hook)** host. The
+> **batch** host (the `Workflow` assets) can't `import` it and can't embed its backticks/```json
+> fence in a JS template literal, so it carries a backtick-free rendering of the decision policy
+> above, single-sourced in
+> [`../references/workflow-core.md`](../references/workflow-core.md) ("Canonical ARBITER block")
+> and drift-locked across the assets. **If you change the decision policy here, update that block
+> in lockstep** (the JSON output schema may legitimately differ between the two hosts).
