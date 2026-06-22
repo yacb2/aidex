@@ -133,6 +133,8 @@ All canonical types are **optional** — create only when relevant. Their **abse
 | `.context/requests/` | Change requests, meeting notes, external asks |
 | `.context/decisions/` | Architectural / product decisions (status: `accepted` / `superseded` / `dropped`) |
 | `.context/audits/` | Audit runs grouped by methodology (`audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`) |
+| `.context/loops/` | Agentic-loop specs (goal + stop condition + guardrails) |
+| `.context/communications/` | Logged/drafted emails, meetings, calls (native language) |
 
 ### Acceptable non-canonical types
 
@@ -143,6 +145,7 @@ These are valid when needed but not recognized by aidex auditors. Acceptable if 
 | `.context/drafts/` | In-progress writing not yet ready for a canonical home |
 | `.context/experiments/` | Throwaway exploration, prototypes |
 | `.context/data/` | Sample data, fixtures, exported artifacts |
+| `.context/diagrams/` | Diagram sources/exports (Mermaid, drawio, images) |
 
 If an empty directory is **not** in either list above, the auditor may suggest removing it.
 
