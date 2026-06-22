@@ -70,10 +70,13 @@ opted in (the `Workflow` tool is gated and token-heavy).
 - The arbiter is **conditional**: the JS loop's `if (!proof.passed) retry` is the
   `verify_first` carrier in batch; the arbiter fires only on retry-budget exhaustion, an
   un-pre-authorized publication, or a deny-class action.
-- **Status:** smoke-validated in the real `Workflow` runtime (happy phase advances; a failing
-  phase exhausts retries and fires the **conditional** arbiter → ASK — not a per-gate
-  rubber-stamp). Still pending (later plan phases): a full multi-phase real-implementation run
-  against a fresh fixture, and a second catalog entry.
+- **Status:** validated in the real `Workflow` runtime end-to-end — a 3-phase chained plan
+  (derived plan→`args`) where fresh agents implement each phase from scratch, threading prior
+  outputs off disk (B imports A, C imports A+B), each phase gated, per-phase model/effort
+  honored; and the conditional arbiter fires on retry-exhaustion (not a per-gate rubber-stamp).
+  Still pending (later plan phases): kill-and-resume from the journal, a fixture that isolates
+  "filesystem IS the context" (a dependency not re-described in the dependent phase's spec),
+  live escalate-to-backlog, and a second catalog entry.
 
 ### Deriving `args` from the plan
 
