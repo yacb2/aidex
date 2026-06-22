@@ -30,6 +30,7 @@ EXPECTED_BAD_RULES = {
     "cross-ref-target-missing",
     "backlog-priority-invalid",
     "communication-channel-invalid",
+    "plan-phase-gateless-afk",
 }
 
 def _load_validator():
@@ -79,6 +80,31 @@ def check_canon_lockstep(failures: list[str]) -> None:
                 f"validate.py={sorted(code_set)} — update both in lockstep")
 
 
+def check_phase_gate_unit(failures: list[str]) -> None:
+    """Direct cells for check_plan_phase_gates (no good-fixture pollution): an afk-impl
+    gateless phase warns; a gated afk-impl phase, a hitl-align phase, and a default-type
+    gated phase do not."""
+    v = _load_validator()
+    def warns(text: str, fm: dict | None = None) -> list[str]:
+        return [f.rule for f in v.check_plan_phase_gates(Path("x.md"), text, fm)]
+    pos = "### Phase 1 — Do it  (phase-type: afk-impl)\n- work, no verify\n"
+    if "plan-phase-gateless-afk" not in warns(pos):
+        failures.append("phase-gate unit: afk-impl gateless phase did not warn")
+    neg_gate = "### Phase 1 — Do it  (phase-type: afk-impl)\n- work\n\n**Verify:** `pytest`\n"
+    if warns(neg_gate):
+        failures.append("phase-gate unit: gated afk-impl phase warned (false positive)")
+    neg_hitl = "### Phase 1 — Align  (phase-type: hitl-align)\n- decide scope, no gate\n"
+    if warns(neg_hitl):
+        failures.append("phase-gate unit: hitl-align phase warned (should be exempt)")
+    neg_default = "### Phase 1 — Do it\n- work\n\n**Verify:** `make test`\n"
+    if warns(neg_default):
+        failures.append("phase-gate unit: default-type gated phase warned (false positive)")
+    # multi-file phase file: gate declared in front-matter -> no warn
+    neg_fm = "# Phase 1: Do it\n- work\n"
+    if warns(neg_fm, {"phase-type": "afk-impl", "gate": "pytest"}):
+        failures.append("phase-gate unit: front-matter-gated phase warned (false positive)")
+
+
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
     res = subprocess.run(
@@ -105,6 +131,7 @@ def main() -> int:
         failures.append(f"bad fixture: expected rules did not fire: {sorted(missing)}")
 
     check_canon_lockstep(failures)
+    check_phase_gate_unit(failures)
 
     if failures:
         print("FAIL")

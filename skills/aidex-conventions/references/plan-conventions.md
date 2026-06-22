@@ -85,7 +85,7 @@ The `status` field uses the base lifecycle from [`00-global.md` §6](00-global.m
 ## Phase file template
 
 ```markdown
-# Phase N: [Phase Name]   <!-- optional: (depends_on: [1, 2]) — omit or [] = independently grabbable -->
+# Phase N: [Phase Name]   <!-- optional metadata: depends_on / tier / gate / phase-type — see "Optional phase metadata" below; multi-file plans carry these in front-matter -->
 
 [← Back to Index](00-index.md)
 
@@ -163,15 +163,30 @@ Always include **full code** in steps, not references. Show the implementation, 
 
 **Layer-ordering is the secondary pattern.** Grouping by layer (models → serializers → views → URLs → tests) is sometimes the honest shape — e.g. a schema migration that genuinely must land before anything reads it. But layer phases are inherently sequential (each layer waits on the one below), so they forfeit any parallelism and tend to defer working behavior to the last phase. **Pushback note:** if your first phase is a layer with no user-visible behavior (a "build all the models" phase), stop and ask whether a vertical slice would deliver something testable sooner — only keep the layer split when a real ordering constraint forces it. Feature-area and dependency-order groupings are fine variants of the slice pattern.
 
-### Optional `depends_on` on a phase
+### Optional phase metadata (and how it is carried)
 
-A phase may declare which earlier phases must complete before it can start:
+A phase may declare up to four optional fields that the executor (`aidex-plan-exec`) reads to drive batch execution. **All four share one carrier rule:**
 
-```markdown
-# Phase N: [Phase Name]  (depends_on: [1, 2])
-```
+- **Single-file plan** → inline on the phase heading, as `(key: value)` annotations:
+  `# Phase N: [Phase Name]  (depends_on: [1, 2], tier: standard, phase-type: afk-impl)`
+- **Multi-file plan** → in the phase file's **front-matter**, one key per line:
+  ```yaml
+  ---
+  depends_on: [1, 2]
+  tier: standard
+  gate: "pytest tests/test_phase2.py"
+  phase-type: afk-impl
+  ---
+  ```
 
-`depends_on: []` (or omitted) means the phase is **independently grabbable** — no prerequisites, eligible to run concurrently with any other edge-free phase. List the phase numbers/slugs a phase truly needs (it reads their output) and nothing more; spurious edges kill parallelism. The executor (`aidex-plan-exec`) reads this metadata to choose between sequential (`pipeline-with-gate`) and parallel (`fan-out-with-gate`) execution. Keep edges honest: an edge that isn't a real data dependency is a serialization you didn't need.
+Use one carrier per plan consistently; the derivation reads whichever the plan uses (this is the unified carrier shape — there is no third place to look). The fields:
+
+- **`depends_on: []`** — earlier phases this one needs (it reads their output). Omitted/`[]` = **independently grabbable**, eligible to run concurrently with any other edge-free phase. List only real data dependencies — a spurious edge is a serialization you didn't need, and it kills parallelism. Drives sequential (`pipeline-with-gate`) vs parallel (`fan-out-with-gate`) execution.
+- **`tier: mechanical | standard | hard`** — the per-phase model/effort hint (`mechanical → sonnet/low`, `standard → sonnet/medium`, `hard → opus/high`). Omitted = `standard`.
+- **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is normally the phase's **Verify** block rather than an inline annotation.
+- **`phase-type: hitl-align | afk-impl`** — the execution mode:
+  - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.
+  - **`hitl-align`** — a phase that requires human-in-the-loop alignment (defining scope, success criteria, or a design concept; see `aidex-plan` Step 0). It is **never** promoted into a Workflow — the executor runs it interactively. Defining a phase's own spec/gate is the judgment an agent grading its own questions gets wrong, so it stays human-gated.
 
 ---
 
