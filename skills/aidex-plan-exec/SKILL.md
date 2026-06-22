@@ -87,8 +87,11 @@ opted in (the `Workflow` tool is gated and token-heavy).
 You (the skill) build the `args` object from the plan you already read at Orient — no parser,
 no codegen. **Multi-file plans:** Orient reads only the *current* phase file, but a batch run
 executes **every** unchecked phase, so first read `00-index.md` **plus each unchecked phase file
-it points to** and flatten them into one `phases[]` array (a phase file's front-matter `gate` →
-`gateCmd`, `tier` → `model`/`effort`, body → `spec`). For each unchecked phase, in order:
+it points to** and flatten them into one `phases[]` array (take each phase file's gate → `gateCmd`,
+its tier → `model`/`effort`, its body → `spec`). The tier/gate may sit inline on the phase line
+(`(tier: …)`, the single-file convention below) or in a phase file's front-matter (`tier:`/`gate:`);
+read whichever the plan uses — unifying the two carriers into one canonical shape is a Phase-4 item.
+For each unchecked phase, in order:
 - `id` — a short slug for the phase (e.g. `1.2-validate`).
 - `spec` — the phase's task text **plus pointers to prior phases' output files** (paths, not
   contents). Do not paste prior conversation; a fresh phase agent reads what it needs off disk.
