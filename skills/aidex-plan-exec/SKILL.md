@@ -50,6 +50,30 @@ The operative rule here:
 
 Otherwise: proceed. The user will redirect if needed.
 
+## Unattended / batch execution (opt-in, gated)
+
+The default path above is **interactive** (you run the plan turn-by-turn). For
+**unattended/batch** runs ("execute the whole plan while I'm away"), this skill can launch
+the plan as a **durable `Workflow`** instead — each phase a fresh bounded agent, a two-stage
+gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the journal. Use
+this only when the work is **decomposable + machine-verifiable + unattended** and the user
+opted in (the `Workflow` tool is gated and token-heavy).
+
+- The form ships as a versioned asset:
+  [`assets/workflows/pipeline-with-gate.workflow.js`](assets/workflows/pipeline-with-gate.workflow.js)
+  (form: dependent phases, sequential, each gated). It embeds the single-sourced durability
+  CORE — see [`../aidex-conventions/references/workflow-core.md`](../aidex-conventions/references/workflow-core.md).
+- **Launch:** read the asset and hand it to the `Workflow` tool, passing the plan as
+  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort }],
+  autonomySurface, preAuthorized, maxRetries })`. `args` arrives as a JSON **string** —
+  the script `JSON.parse`s it. Iterate via `{scriptPath}` re-invoke (picks up edits, runs fresh).
+- The arbiter is **conditional**: the JS loop's `if (!proof.passed) retry` is the
+  `verify_first` carrier in batch; the arbiter fires only on retry-budget exhaustion, an
+  un-pre-authorized publication, or a deny-class action.
+- **Status:** form skeleton (parametric any-plan runner + a second catalog entry are later
+  plan phases). The asset is reconstructed to the validated design but its end-to-end run is
+  re-validated in Phase 3; treat it as a launch template, not a proven one-shot.
+
 ## Workflow
 
 ### 0. Orient
