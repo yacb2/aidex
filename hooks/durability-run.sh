@@ -30,7 +30,7 @@ case "$CMD" in
     done
     mkdir -p "$DIR"
     python3 - "$STATE" "$TYPE" "$MODE" "$TTL" <<'PY'
-import sys, json, datetime
+import sys, json, datetime, os
 path, typ, mode, ttl = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
 now = datetime.datetime.now(datetime.timezone.utc)
 json.dump({
@@ -38,10 +38,30 @@ json.dump({
     "started": now.isoformat(),
     "expires": (now + datetime.timedelta(minutes=ttl)).isoformat(),
 }, open(path, "w"), indent=2)
+# Append-only audit log (best-effort; never fail the command on a log error).
+log_path = os.path.expanduser("~/.aidex/durability/events.jsonl")
+try:
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a") as fh:
+        fh.write(json.dumps({"ts": now.isoformat(), "event": "run-start",
+                             "type": typ, "mode": mode, "cwd": os.getcwd()}) + "\n")
+except Exception:
+    pass
 print(f"durable run '{typ}' active (mode={mode}, ttl={ttl}min) -> {path}")
 PY
     ;;
   stop)
+    python3 - <<'PY'
+import json, datetime, os
+log_path = os.path.expanduser("~/.aidex/durability/events.jsonl")
+try:
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a") as fh:
+        fh.write(json.dumps({"ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                             "event": "run-stop", "cwd": os.getcwd()}) + "\n")
+except Exception:
+    pass
+PY
     rm -f "$STATE" && echo "durable run cleared" || true
     ;;
   status)
