@@ -59,6 +59,13 @@ errors, fall back to the [autonomy canon](../aidex-conventions/references/autono
 and proceed. This is the gate that turns "I resolved 2, the other 15 need you" into "I
 resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
+> **Durable-run marker (optional Stop-hook enforcement).** When an autonomous sweep begins, run
+> `bash "$HOME/.aidex/hooks/durability-run.sh" start backlog`; run
+> `bash "$HOME/.aidex/hooks/durability-run.sh" stop` when the sweep is done. Harmless if the
+> optional Stop hook is not installed ([hooks/README.md](../../hooks/README.md)); when it is, it
+> keeps the sweep from over-stopping on safe work and logs to `~/.aidex/durability/events.jsonl`.
+> Fails open — if the script is absent, just proceed.
+
 ---
 
 ## Entry format

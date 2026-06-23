@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIDEX_DIR="$HOME/.aidex"
 CLAUDE_DIR="$HOME/.claude"
 MANIFEST="$AIDEX_DIR/.manifest"
-VERSION="0.10.0"
+VERSION="0.11.0"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -91,6 +91,16 @@ collect_repo_items() {
     done
   fi
 
+  # Hooks (copied into ~/.aidex/hooks/, no symlink). These are OPT-IN: copying them
+  # installs nothing active — the user wires the Stop hook into settings.json themselves
+  # (see hooks/README.md). Skills reference the run-marker script at a stable ~/.aidex path.
+  if [ -d "$SCRIPT_DIR/hooks" ]; then
+    for hook_file in "$SCRIPT_DIR"/hooks/*; do
+      [ -f "$hook_file" ] || continue
+      items+=("hooks/$(basename "$hook_file")")
+    done
+  fi
+
   printf '%s\n' "${items[@]}"
 }
 
@@ -98,6 +108,7 @@ collect_repo_items() {
 is_symlinkable() {
   case "$1" in
     rules/*) return 1 ;;
+    hooks/*) return 1 ;;
     *) return 0 ;;
   esac
 }
@@ -264,6 +275,9 @@ do_install() {
     [ -d "$scripts_dir" ] || continue
     chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
   done
+
+  # Ensure installed hooks are executable
+  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh 2>/dev/null || true
 
   # Write manifest and version
   write_manifest "${items[@]}"
@@ -446,6 +460,9 @@ do_update() {
     [ -d "$scripts_dir" ] || continue
     chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
   done
+
+  # Ensure installed hooks are executable
+  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh 2>/dev/null || true
 
   # Update manifest
   local all_items=()

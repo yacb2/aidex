@@ -63,6 +63,13 @@ The operative rule here:
 
 Otherwise: proceed. The user will redirect if needed.
 
+> **Durable-run marker (optional Stop-hook enforcement).** At Orient, run
+> `bash "$HOME/.aidex/hooks/durability-run.sh" start plan-exec`; run
+> `bash "$HOME/.aidex/hooks/durability-run.sh" stop` at completion. Harmless if the optional
+> Stop hook is not installed ([hooks/README.md](../../hooks/README.md)); when it is, it keeps the
+> run from over-stopping on safe work and logs to `~/.aidex/durability/events.jsonl`. Fails open —
+> if the script is absent, just proceed.
+
 ## Unattended / batch execution (opt-in, gated)
 
 The default path above is **interactive** (you run the plan turn-by-turn). For

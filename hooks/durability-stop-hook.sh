@@ -64,6 +64,23 @@ msg = (ev.get("last_assistant_message") or "").lower()
 mode = (state.get("mode") or "remind").lower()
 run_type = state.get("type", "run")
 
+# Append-only audit log — records every decision made while a run is ACTIVE (this point is
+# reached only past the inert/expiry gates). Wrapped so a log failure can never abort the hook
+# or corrupt its decision output (the shell runs `set -euo pipefail`).
+LOG_PATH = os.path.expanduser("~/.aidex/durability/events.jsonl")
+def log_event(decision, matched):
+    try:
+        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+        rec = {
+            "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "event": "stop-hook", "decision": decision, "matched": matched,
+            "type": run_type, "mode": mode, "cwd": cwd, "msg": msg[:160],
+        }
+        with open(LOG_PATH, "a") as fh:
+            fh.write(json.dumps(rec) + "\n")
+    except Exception:
+        pass
+
 # Legitimate terminal states — always allow the stop.
 LEGIT = [
     r"\bpush\b", r"\bdeploy", r"\brelease\b", r"\bpublic", r"\bpublish",
@@ -73,6 +90,7 @@ LEGIT = [
     r"awaiting your (ok|approval|decision) (on|for) (the )?(publish|deploy|release)",
 ]
 if any(re.search(p, msg) for p in LEGIT):
+    log_event("allow", "legit-terminal")
     allow()
 
 # Over-stop signals — the agent is pausing on (apparently) safe work.
@@ -97,11 +115,14 @@ REASON = (
 
 if mode == "enforce":
     # Aggressive: block unless the message already read as a legit terminal state (handled above).
+    log_event("block", "enforce")
     block(REASON)
 
 # Default "remind": block only on an explicit over-stop signal.
 if is_overstop:
+    log_event("block", "overstop")
     block(REASON)
 
+log_event("allow", "none")
 allow()
 PY
