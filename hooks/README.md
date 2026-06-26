@@ -15,7 +15,7 @@ implementations of that hook — pick one.
 
 ## Two implementations — judge with criterion vs. deterministic fallback
 
-### A. Native model hook (`type:"prompt"`) — PRIMARY
+### A. Native model hook (`type:"prompt"`) — PARKED (broken in CC 2.1.193, see Status)
 
 The stop decision is made by a **Claude model**, not a regex. The model reads the situation
 and applies the durability-arbiter policy with judgment — so it handles the *many different
@@ -60,7 +60,7 @@ PY
 > deciding) and is marked **experimental** in the CC docs — not used here, but the same prompt
 > would drop in if you want a tool-using judge later.
 
-### B. Deterministic command hook (`type:"command"`) — SWAP-BACK FALLBACK
+### B. Deterministic command hook (`type:"command"`) — ACTIVE (current default)
 
 [`durability-stop-hook.sh`](durability-stop-hook.sh) — a regex over the last assistant
 message. No model, no cost, can't-fail, **testable by piping JSON**. Its weakness is exactly
@@ -97,8 +97,17 @@ To use B instead of A, point the `Stop` entry at the script:
 
 ## Status
 
-Hook A (native prompt) is wired as primary. Its live behavior is confirmed only in a real
-session (by design — model-backed hooks aren't pipe-testable); if the schema is off it fails
-open (allows the stop). Hook B is unit-tested (11/11) and validated by direct invocation.
-Recommended check: after a durable run, grep the transcript for `[durability-arbiter]` to see
-the enforced continuations.
+**Hook B (command/regex) is the active default.** Hook A (native `type:"prompt"`) was tried
+live (2026-06-27, ns-backoffice) and **does not work cleanly in CC 2.1.193**: instead of a
+silent model judge, CC **injected the entire prompt text (3.4k chars) into the conversation as
+a visible `Stop hook feedback` user message on every stop** — 4 injections in one session. The
+judgment logic did fire (it caught a real over-stop), but dumping the prompt into the chat is
+unacceptable UX, so A was reverted. The documented `{"ok":...}` contract / `$ARGUMENTS` schema
+(from the docs) did not match the observed behavior in this binary — **verify the real
+prompt-hook contract for your CC version before re-enabling A**, or move to `type:"agent"`
+(BL-025), which may surface differently. The canonical prompt (`durability-stop-prompt.md`) is
+kept for that future work.
+
+Hook B is unit-tested (11/11) and validated by direct invocation; it is inert unless
+`active-run.json` exists (quiet in casual sessions). Check after a durable run by grepping the
+transcript for `[durability-arbiter]`.
