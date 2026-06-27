@@ -62,6 +62,19 @@ updated: 2026-05-26
 # Stranded done plan
 EOF
 
+# legacy plan with NO yaml front-matter (bold-key prose) — must surface as Untracked
+cat > .context/plans/0007-legacy-format.md <<'EOF'
+# Plan 0007 — Legacy format
+
+**Estado**: en progreso
+EOF
+
+# folder doc — must be excluded, never treated as a plan
+printf '# Plans\n\nConvención de nombre.\n' > .context/plans/README.md
+
+# a hand-made index backup (has status front-matter) — must NOT be read as a plan
+printf -- '---\ntitle: "Plans"\nstatus: open\n---\n# Plans\n' > .context/plans/00-index.manual.bak.md
+
 echo "== reindex =="
 bash "$REINDEX" >/dev/null 2>&1
 IDX=.context/plans/00-index.md
@@ -73,6 +86,9 @@ check "single not misparsed"        'grep -q "Single file plan.*open · updated 
 check "Closed has archived plan"    'grep -q "## Closed" "$IDX" && grep -q "Old done plan" "$IDX"'
 check "done-in-active not vanished"  'grep -q "Stranded done plan" "$IDX" && grep -q "Stranded done plan.*not archived" "$IDX"'
 check "stranded not in Open/Doing"   '! sed -n "/## Open/,/^---/p" "$IDX" | grep -q "Stranded"'
+check "legacy plan surfaced Untracked" 'grep -q "## Untracked" "$IDX" && grep -q "0007-legacy-format.md" "$IDX"'
+check "README excluded entirely"     '! grep -q "README" "$IDX"'
+check "index backup not read as plan" '! grep -q "manual.bak" "$IDX"'
 check "active counts: Open 1 Doing 1" 'grep -q "\*\*Open:\*\* 1 · \*\*Doing:\*\* 1" "$IDX"'
 
 echo "== close-plan regenerates =="

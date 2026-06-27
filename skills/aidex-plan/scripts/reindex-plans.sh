@@ -93,8 +93,17 @@ resolve_plan() {
   fi
 }
 
-declare -a SEC_DOING=() SEC_OPEN=() CLOSED_EXTRA=()
+declare -a SEC_DOING=() SEC_OPEN=() CLOSED_EXTRA=() SEC_UNTRACKED=()
 active_count=0 doing_count=0
+
+# Files in plans/ that are not plans (folder docs / backups), skipped by basename.
+is_non_plan() {
+  case "$(basename "$1" | tr '[:upper:]' '[:lower:]')" in
+    readme.md|changelog.md|00-index.md) return 0 ;;
+    *.bak.md|*.bak) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # Build the active list from single-file plans (plans/*.md, skip 00-index.md) and
 # modular plans (plans/*/00-index.md). _archive/ handled separately below.
@@ -104,7 +113,7 @@ collect_active() {
   # single-file plans
   for f in "$PLANS_DIR"/*.md; do
     [[ -f "$f" ]] || continue
-    [[ "$(basename "$f")" == "00-index.md" ]] && continue
+    is_non_plan "$f" && continue
     resolve_plan "$f" ""
     emit_active_row
   done
@@ -129,7 +138,12 @@ emit_active_row() {
     done|dropped)
       CLOSED_EXTRA+=("${updated:-0000-00-00}"$'\t'"- [${title}](${LINK}) — ${status} · not archived (run close-plan.sh)${updated:+ · ${updated}}")
       return 0 ;;
-    *) return 0 ;;
+    *)
+      # A real plan file with no parseable YAML status (e.g. legacy bold-key prose
+      # format). Surface it rather than silently dropping it from the roll-up.
+      local utitle="$title"; [[ "$utitle" == "(untitled)" ]] && utitle="$(basename "$LINK")"
+      SEC_UNTRACKED+=("- [${utitle}](${LINK}) — no \`status:\` front-matter")
+      return 0 ;;
   esac
 
   if [[ "$PHASES" -gt 0 && -n "$phase" ]]; then plabel="phase ${phase}/${PHASES}"
@@ -195,6 +209,13 @@ NEW_IDX="$(mktemp)"; trap 'rm -f "$NEW_IDX"' EXIT
   fi
   if [[ ${#SEC_DOING[@]} -eq 0 && ${#SEC_OPEN[@]} -eq 0 ]]; then
     printf '_No active plans._\n\n'
+  fi
+
+  if [[ ${#SEC_UNTRACKED[@]} -gt 0 ]]; then
+    printf '## Untracked (%d)\n\n' "${#SEC_UNTRACKED[@]}"
+    printf '_Plan files with no `status:` front-matter — add one (`open`/`doing`/`done`/`dropped`) to track them here:_\n\n'
+    printf '%s\n' "${SEC_UNTRACKED[@]}"
+    printf '\n'
   fi
 
   printf -- '---\n\n'
