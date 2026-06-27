@@ -30,9 +30,17 @@ Folder/filename date: `YYYY-MM-DD` (D-01). Slug: kebab-case, describes the featu
 
 Per D-05, completed plans move to `.context/plans/_archive/` on `status: done`. Inbound references resolve via the two-folder lookup in [`00-global.md` §3](00-global.md#3-cross-references-d-03), so no inbound edits are required.
 
+### Plans roll-up index (`plans/00-index.md`)
+
+`.context/plans/00-index.md` is the **auto-generated roll-up of state across all plans** (active grouped by `## Doing` / `## Open`, closed rolled up from `_archive/`) — the plans analogue of `backlog/00-index.md`. Do **not** hand-edit it; the `aidex-plan` skill regenerates it (`scripts/reindex-plans.sh`) on plan creation and on `close-plan.sh`.
+
+> **Two different `00-index.md` files, no collision.** The top-level `plans/00-index.md` (this roll-up) is distinct from a *modular plan's* internal `plans/<slug>/00-index.md` (the master index of one plan's phases, below). They live at different paths; consumers that glob plans skip the top-level one by basename.
+
 ---
 
 ## `00-index.md` template
+
+> This template is the **modular plan's internal** master index (`plans/<slug>/00-index.md`), not the top-level roll-up described above.
 
 ```markdown
 ---

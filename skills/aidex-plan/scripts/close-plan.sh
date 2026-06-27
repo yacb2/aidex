@@ -112,4 +112,10 @@ DEST="$PLANS_DIR/_archive/$(basename "$PLAN_PATH")"
 mv "$PLAN_PATH" "$DEST"
 ok "Closed plan $(basename "$PLAN_PATH") → $STATUS · archived"
 [[ -n "$COMMITS_STR" ]] && ok "  commits: $COMMITS_STR"
+
+# Regenerate the plans roll-up index (00-index.md) so the closed plan moves to the
+# Closed section. Best-effort: a missing reindexer never blocks the close.
+REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-plans.sh"
+[[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
+
 printf '%s\n' "$DEST"

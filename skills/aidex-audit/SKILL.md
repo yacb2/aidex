@@ -29,6 +29,7 @@ Dispatch by first argument:
 | `/aidex-audit escalate <finding-id> --loop` | [scripts/escalate-finding-to-loop.sh](scripts/escalate-finding-to-loop.sh) | Escalate a **bulk, machine-checkable** finding to an `aidex-loop` loop-spec instead of the backlog (see guard below) |
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
 | `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
+| `/aidex-audit reindex` | [scripts/reindex-audits.sh](scripts/reindex-audits.sh) | Regenerate the run-level roll-up `00-index.md` (all runs + per-run finding counts). Auto-run by `new` and `close`. `--check` reports drift read-only (used by `validate` + shared `reconcile.sh`) |
 
 > **`--loop` guard (anti-cargo-cult).** Use `--loop` **ONLY** when the finding is
 > bulk + machine-checkable — a gate the machine can run to say pass/fail across many
@@ -64,15 +65,17 @@ Where `${ACTION}` maps from the first argument:
 - `validate` → `validate-audit.sh [path]`
 - `escalate` → `escalate-finding.sh <finding-id>` — unless `--loop` is present, then `escalate-finding-to-loop.sh <finding-id> --loop`
 - `migrate` → `migrate-audit.sh [project-dir]`
+- `reindex` → `reindex-audits.sh`
+- `close` → `close-audit.sh <run> [--force]`
 
 If no arguments are given, show the help table above and run a status check:
 
 ```bash
 # Quick status (when invoked with no args):
 if [ -d .context/audits ]; then
-  ls -1 .context/audits/*/index.md 2>/dev/null | wc -l  # audit run count
-  grep -c "^| " .context/audits/00-inventory.md 2>/dev/null  # finding count
-  head -30 .context/audits/CHANGELOG.md 2>/dev/null  # latest methodology changes
+  bash "${CLAUDE_SKILL_DIR}/scripts/reindex-audits.sh" >/dev/null 2>&1  # refresh roll-up
+  cat .context/audits/00-index.md 2>/dev/null                          # run-level state
+  head -30 .context/audits/00-changelog.md 2>/dev/null                 # latest methodology changes
 fi
 ```
 
@@ -192,7 +195,7 @@ Scripts delegate to these agents when needed. Direct use is also fine during man
 Quick summary — full detail in [references/01-principles.md](references/01-principles.md):
 
 1. **Finding ≠ Issue ≠ Task** — distinct objects with links, not copies
-2. **INVENTORY as single source of truth** — per-run findings are views
+2. **INVENTORY as single source of truth** — per-run findings are views. The auto-generated `00-index.md` is the *run-level* roll-up (which runs exist, open/closed, finding counts) — complementary to `00-inventory.md`, which is the *finding-level* board. Do not hand-edit `00-index.md`.
 3. **Living methodology** — CHANGELOG records every methodology change
 4. **Findings never deleted** — use status transitions
 5. **Escalation flow** — audit → backlog → plan → commit → re-test → closed

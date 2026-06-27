@@ -112,6 +112,11 @@ EOF
   fi
 fi
 
+# Regenerate the audits run-level roll-up (00-index.md) so the new run appears.
+# Best-effort: a missing reindexer never blocks scaffolding.
+REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-audits.sh"
+[[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
+
 ok "Audit scaffolded: $RUN_DIR"
 cat >&2 <<EOF
 

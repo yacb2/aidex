@@ -81,6 +81,8 @@ A single finding may escalate to multiple tasks, or be dropped. Its row in the p
 - Re-test confirms a finding persists → update the row, don't duplicate.
 - Finding closed → row stays with `status: done`, never delete.
 
+> **Run-level roll-up vs finding-level inventory.** `00-inventory.md` is the *finding-level* board (one row per finding). Alongside it, `aidex-audit` auto-generates `00-index.md` — the *run-level* roll-up (which runs exist, active/archived, and each run's open/total finding counts derived from the inventory). They are complementary; do **not** hand-edit `00-index.md` (regenerate via `reindex-audits.sh`, which runs on `new`/`close`).
+
 ### 3. Living methodology with `00-changelog.md`
 
 `00-methodology.md` is not frozen. As you learn which checks matter (or don't), update it and log the change in `00-changelog.md` following [Keep a Changelog](https://keepachangelog.com/). This preserves the *why* behind every check.

@@ -71,6 +71,19 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    authorizes** (native worktree entry is opt-in). If the plan is not parallel to
    anything, omit this — just a branch.
 6. Save under `.context/plans/` with the dated naming the canon specifies.
+7. **Register it in the plans index.** Run the reindexer so the new plan shows up
+   in the roll-up state of all plans (`.context/plans/00-index.md`):
+
+   ```bash
+   bash "${CLAUDE_SKILL_DIR}/scripts/reindex-plans.sh"
+   ```
+
+   `00-index.md` is **auto-generated** from each plan's front-matter (do not
+   hand-edit). It mirrors the backlog `00-index.md` pattern: active plans grouped by
+   `## Doing` / `## Open`, closed plans rolled up from `_archive/`. `close-plan.sh`
+   regenerates it automatically on close; this create-time call keeps it fresh on
+   creation. Re-run it any time with `reindex-plans.sh`; `reindex-plans.sh --check`
+   reports drift read-only (no write) and is what the shared `reconcile.sh` calls.
 
 ## Closing a plan
 

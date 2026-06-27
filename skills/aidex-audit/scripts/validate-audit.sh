@@ -257,6 +257,13 @@ if [[ -n "$INVENTORY_PATH" ]]; then
   fi
 fi
 
+# --- Roll-up index freshness (non-fatal warning) ---
+REINDEX_AUDITS="$SKILL_DIR/scripts/reindex-audits.sh"
+if [[ -x "$REINDEX_AUDITS" ]]; then
+  drift_msg="$(NO_COLOR=1 bash "$REINDEX_AUDITS" --check 2>&1)" || \
+    add_warning "${drift_msg:-00-index.md stale — run /aidex-audit reindex}"
+fi
+
 # --- Report ---
 if [[ $JSON_OUT -eq 1 ]]; then
   # Emit minimal JSON (no jq dependency for basic output)

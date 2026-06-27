@@ -32,6 +32,7 @@ find_project_root() {
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"
 PLANS_DIR="$ROOT/.context/plans"
+AUDITS_DIR="$ROOT/.context/audits"
 
 fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 
@@ -84,9 +85,25 @@ if [[ -d "$BACKLOG_DIR" ]]; then
     [[ -f "$d/00-index.md" ]] && check_done_no_commits "$d/00-index.md" "plan"
   done
   for f in "$PLANS_DIR"/*.md "$PLANS_DIR"/_archive/*.md; do
-    [[ -f "$f" ]] && check_done_no_commits "$f" "plan"
+    [[ -f "$f" ]] || continue
+    [[ "$(basename "$f")" == "00-index.md" ]] && continue   # top-level roll-up, not a plan
+    check_done_no_commits "$f" "plan"
   done
   shopt -u nullglob
+fi
+
+# --- C: roll-up index freshness — delegate to each reindexer's read-only --check ---
+# Keeps reconcile read-only: the reindex scripts compare the on-disk index against
+# what the front-matter would regenerate, and never write in --check mode.
+declare -a DRIFT_C=()
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+RP="$SCRIPT_DIR/../../aidex-plan/scripts/reindex-plans.sh"
+RA="$SCRIPT_DIR/../../aidex-audit/scripts/reindex-audits.sh"
+if [[ -x "$RP" && -d "$PLANS_DIR" ]]; then
+  msg="$(NO_COLOR=1 bash "$RP" --check 2>&1)" || DRIFT_C+=("${msg:-plans index stale}")
+fi
+if [[ -x "$RA" && -d "$AUDITS_DIR" ]]; then
+  msg="$(NO_COLOR=1 bash "$RA" --check 2>&1)" || DRIFT_C+=("${msg:-audits index stale}")
 fi
 
 echo
@@ -95,13 +112,17 @@ if [[ ${#CAND_A[@]} -gt 0 ]]; then
   printf '\n%sClose candidates (plan done, backlog still open):%s\n' "$C_YELLOW$C_BOLD" "$C_RESET"
   printf '  - %s\n' "${CAND_A[@]}"
 fi
+if [[ ${#DRIFT_C[@]} -gt 0 ]]; then
+  printf '\n%sRoll-up index drift (regenerate to refresh):%s\n' "$C_YELLOW$C_BOLD" "$C_RESET"
+  printf '  - %s\n' "${DRIFT_C[@]}"
+fi
 if [[ ${#INFO_B[@]} -gt 0 ]]; then
   printf '\n%sDone without commit provenance (info — pre-D-09 items are expected here):%s\n' "$C_DIM" "$C_RESET"
   printf '  - %s\n' "${INFO_B[@]}"
 fi
-if [[ ${#CAND_A[@]} -eq 0 && ${#INFO_B[@]} -eq 0 ]]; then
+if [[ ${#CAND_A[@]} -eq 0 && ${#DRIFT_C[@]} -eq 0 && ${#INFO_B[@]} -eq 0 ]]; then
   printf '\n%sNo drift detected — tracking chain is consistent.%s\n' "$C_GREEN" "$C_RESET"
 fi
 echo
 
-[[ ${#CAND_A[@]} -gt 0 ]] && exit 1 || exit 0
+[[ ${#CAND_A[@]} -gt 0 || ${#DRIFT_C[@]} -gt 0 ]] && exit 1 || exit 0
