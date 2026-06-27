@@ -15,6 +15,12 @@
 #                                   #   (drifted from run state) or missing; never writes
 #
 # On success, prints the index path to stdout. Idempotent; never edits findings.
+#
+# Known limitation: finding counts for runs in a per-methodology `_archive/`
+# (e.g. audits/<meth>/_archive/<run>/) are best-effort — nearest_inventory walks
+# up one level only, so a count may read 0 when the findings live in the
+# methodology inventory or a per-run INVENTORY.md. The run is still surfaced with
+# its identity and status intact; only the closed-run count is understated.
 
 set -euo pipefail
 
@@ -72,13 +78,38 @@ read_run_fm() {
   ' "$1"
 }
 
-# Count "<open>\t<total>" findings attributed to a run slug from the inventory.
+# A run index is index.md or 00-index.md inside a run folder. Prints the filename
+# (not full path), or empty if the dir holds neither.
+run_index_name() {
+  local d="$1"
+  [[ -f "$d/index.md" ]] && { printf 'index.md'; return; }
+  [[ -f "$d/00-index.md" ]] && { printf '00-index.md'; return; }
+  printf ''
+}
+
+# Nearest governing inventory for a run dir: its parent's 00-inventory.md (the
+# per-methodology layout) else the audits-root inventory. Prints path or empty.
+nearest_inventory() {
+  local rundir="$1" parent; parent="$(dirname "$rundir")"
+  [[ -f "$parent/00-inventory.md" ]] && { printf '%s' "$parent/00-inventory.md"; return; }
+  [[ -f "$parent/INVENTORY.md" ]]    && { printf '%s' "$parent/INVENTORY.md"; return; }
+  printf '%s' "$INVENTORY"
+}
+
+# Does the dir contain any .md file (i.e. looks like audit work, not pure assets)?
+has_md() {
+  local f
+  for f in "$1"/*.md; do [[ -f "$f" ]] && return 0; done
+  return 1
+}
+
+# Count "<open>\t<total>" findings attributed to a run slug from a given inventory.
 # A finding belongs to the run when its `Audit Runs` cell (field 10) contains the
 # slug. "open" = status not in the resolved set (same set as close-audit.sh).
 # Skips HTML comment example rows. Prints "?\t?" if no inventory.
 run_counts() {
-  local slug="$1"
-  [[ -n "$INVENTORY" ]] || { printf '?\t?'; return 0; }
+  local slug="$1" inv="$2"
+  [[ -n "$inv" ]] || { printf '?\t?'; return 0; }
   awk -F'|' -v run="$slug" '
     BEGIN { in_comment=0; open=0; total=0;
             resolved=" closed done escalated fixed dropped wontfix " }
@@ -97,22 +128,30 @@ run_counts() {
       if (index(resolved, " " status " ")==0) open++
     }
     END { printf "%d\t%d", open, total }
-  ' "$INVENTORY"
+  ' "$inv"
 }
 
-declare -a ACTIVE=() ARCHIVED=()
+declare -a ACTIVE=() ARCHIVED=() UNREC=()
 active_n=0 archived_n=0
 
-emit_run_row() {
-  local idx_file="$1" prefix="$2" arr_name="$3"
-  local slug status title methodology created updated fields counts open total link meta line
-  slug="$(basename "$(dirname "$idx_file")")"
-  fields="$(read_run_fm "$idx_file")"
+# Emit one run row. rundir = the run folder; rel = its path relative to audits/.
+emit_run() {
+  local rundir="$1" rel="$2" arr_name="$3"
+  local idxname slug status title methodology created updated fields counts open total link meta line inv
+  idxname="$(run_index_name "$rundir")"; [[ -n "$idxname" ]] || return 0
+  slug="$(basename "$rundir")"
+  fields="$(read_run_fm "$rundir/$idxname")"
   IFS=$'\037' read -r status title methodology created updated <<<"$fields"
   [[ -z "$title" ]] && title="$slug"
-  counts="$(run_counts "$slug")"
+  # methodology falls back to the parent methodology-folder name (nested layout)
+  if [[ -z "$methodology" ]]; then
+    local pn; pn="$(basename "$(dirname "$rundir")")"
+    [[ "$pn" != "audits" && "$pn" != "_archive" ]] && methodology="$pn"
+  fi
+  inv="$(nearest_inventory "$rundir")"
+  counts="$(run_counts "$slug" "$inv")"
   IFS=$'\t' read -r open total <<<"$counts"
-  link="${prefix}${slug}/index.md"
+  link="${rel}/${idxname}"
 
   meta="${methodology:-?} · ${status:-?}"
   if [[ "$total" == "?" ]]; then meta="${meta} · findings ?"
@@ -127,14 +166,33 @@ emit_run_row() {
   fi
 }
 
+# Classify and walk one directory level. Handles flat runs, per-methodology
+# containers (recurse one level), and ad-hoc dirs (surfaced, not dropped).
 shopt -s nullglob
-for idx in "$AUDITS_DIR"/*/index.md; do
-  [[ -f "$idx" ]] || continue
-  emit_run_row "$idx" "" ACTIVE
+for d in "$AUDITS_DIR"/*/; do
+  d="${d%/}"; name="$(basename "$d")"
+  [[ "$name" == "_archive" || "$name" == "methodology" ]] && continue
+  if [[ -n "$(run_index_name "$d")" ]]; then
+    emit_run "$d" "$name" ACTIVE
+  elif [[ -f "$d/00-inventory.md" || -f "$d/INVENTORY.md" || -f "$d/00-methodology.md" ]]; then
+    # methodology container — recurse into its runs
+    for r in "$d"/*/; do
+      r="${r%/}"; rn="$(basename "$r")"
+      [[ "$rn" == "_archive" ]] && continue
+      if [[ -n "$(run_index_name "$r")" ]]; then emit_run "$r" "$name/$rn" ACTIVE
+      elif has_md "$r"; then UNREC+=("$name/$rn"); fi
+    done
+    for r in "$d"/_archive/*/; do
+      r="${r%/}"; [[ -d "$r" ]] || continue
+      [[ -n "$(run_index_name "$r")" ]] && emit_run "$r" "$name/_archive/$(basename "$r")" ARCHIVED
+    done
+  elif has_md "$d"; then
+    UNREC+=("$name")
+  fi
 done
-for idx in "$AUDITS_DIR"/_archive/*/index.md; do
-  [[ -f "$idx" ]] || continue
-  emit_run_row "$idx" "_archive/" ARCHIVED
+for r in "$AUDITS_DIR"/_archive/*/; do
+  r="${r%/}"; [[ -d "$r" ]] || continue
+  [[ -n "$(run_index_name "$r")" ]] && emit_run "$r" "_archive/$(basename "$r")" ARCHIVED
 done
 shopt -u nullglob
 
@@ -152,7 +210,11 @@ NEW_IDX="$(mktemp)"; trap 'rm -f "$NEW_IDX"' EXIT
   printf '# Audits\n\n'
   printf '_Auto-generated by `aidex-audit` from run front-matter + `00-inventory.md`. Do not edit by hand._\n\n'
   printf '**Updated:** %s\n' "$TODAY"
-  printf '**Runs:** %d active · %d archived\n\n' "$active_n" "$archived_n"
+  if [[ ${#UNREC[@]} -gt 0 ]]; then
+    printf '**Runs:** %d active · %d archived · %d unrecognized\n\n' "$active_n" "$archived_n" "${#UNREC[@]}"
+  else
+    printf '**Runs:** %d active · %d archived\n\n' "$active_n" "$archived_n"
+  fi
 
   if [[ $active_n -gt 0 ]]; then
     printf '## Active runs\n\n'
@@ -160,6 +222,13 @@ NEW_IDX="$(mktemp)"; trap 'rm -f "$NEW_IDX"' EXIT
     printf '\n'
   else
     printf '_No active audit runs._\n\n'
+  fi
+
+  if [[ ${#UNREC[@]} -gt 0 ]]; then
+    printf '## Unrecognized run folders (%d)\n\n' "${#UNREC[@]}"
+    printf '_Audit folders with no `index.md`/`00-index.md` run header — not counted above. Add a run index (see `aidex-audit` templates) to track them here:_\n\n'
+    for u in "${UNREC[@]}"; do printf -- '- [%s](%s/)\n' "$u" "$u"; done
+    printf '\n'
   fi
 
   printf -- '---\n\n'

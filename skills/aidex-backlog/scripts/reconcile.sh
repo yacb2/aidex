@@ -86,7 +86,9 @@ if [[ -d "$BACKLOG_DIR" ]]; then
   done
   for f in "$PLANS_DIR"/*.md "$PLANS_DIR"/_archive/*.md; do
     [[ -f "$f" ]] || continue
-    [[ "$(basename "$f")" == "00-index.md" ]] && continue   # top-level roll-up, not a plan
+    case "$(basename "$f")" in
+      00-index.md|*.bak.md) continue ;;   # top-level roll-up / index backup, not a plan
+    esac
     check_done_no_commits "$f" "plan"
   done
   shopt -u nullglob
