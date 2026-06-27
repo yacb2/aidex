@@ -72,4 +72,10 @@ DEST="$PARENT/_archive/$RUN_SLUG"
 [[ -e "$DEST" ]] && die "archive collision: $DEST already exists"
 mv "$RUN_PATH" "$DEST"
 ok "Archived audit run '$RUN_SLUG' → $(dirname "$DEST")/_archive/"
+
+# Regenerate the audits run-level roll-up so the closed run moves to Archived runs.
+# Best-effort: a missing reindexer never blocks the close.
+REINDEX="$SCRIPT_DIR/reindex-audits.sh"
+[[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
+
 printf '%s\n' "$DEST"
