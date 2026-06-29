@@ -2,3 +2,7 @@
 *.swp
 *.swo
 *~
+
+# Python bytecode (test imports generate these)
+__pycache__/
+*.pyc
