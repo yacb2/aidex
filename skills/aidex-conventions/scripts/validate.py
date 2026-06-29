@@ -31,7 +31,7 @@ TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlo
 # Acceptable-optional .context/ dirs: project-local, not scaffolded by any skill, may be
 # gitignored. The validator neither requires nor flags them — listed here so the canonical
 # model is explicit (auditors must not propose deleting these even when empty).
-OPTIONAL_TYPES = {"data", "diagrams", "drafts", "experiments"}
+OPTIONAL_TYPES = {"data", "diagrams", "drafts", "experiments", "worklists"}
 # Communications front-matter vocab (artifacts are EXEMPT from English-only; body is native).
 COMM_CHANNELS = {"email", "whatsapp", "call", "meeting", "other"}
 COMM_DIRECTIONS = {"received", "sent"}          # async, directional (from/to)
