@@ -235,6 +235,15 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
    `proof_links` at its main-tree path (a gitignored/uncommitted `.context/` plan is
    absent from the worktree) — see the canon's Lifecycle note.
 4. Create a TaskList mirroring the plan's phases so progress is visible.
+5. **Front-load the work-list for chained multi-item runs.** A single plan's phases
+   are already an ordered queue (walk them). But when this session chains **multiple
+   plans/items** (close several plans, then clear backlog), fix the cross-item order
+   **once** here — via the `AskUserQuestion` survey → a durable
+   `.context/worklists/` work-list (see
+   [worklist-conventions.md](../aidex-conventions/references/worklist-conventions.md)).
+   Then walk it with `worklist-advance.sh` between items instead of pausing to ask
+   "what next?". Emergent work (class b) is appended (`--append`) and continued, not
+   asked; only a class-(c) fork or the publication gate interrupts.
 
 ### 1. Execute each phase
 
