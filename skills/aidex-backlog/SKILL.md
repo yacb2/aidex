@@ -47,6 +47,13 @@ When invoked with no arguments, the script prompts interactively. When invoked w
 
 ## Autonomy — working / sweeping the backlog
 
+When asked to **work several items in a row** ("resuelve los backlogs seguidos"), first
+fix the order **once** via the `AskUserQuestion` survey → a durable
+[`.context/worklists/`](../aidex-conventions/references/worklist-conventions.md)
+work-list (`worklist-new.sh`), then walk it with `worklist-advance.sh` instead of
+pausing between items to ask "what next?" (the dominant un-governed stop). The survey
+may fold in plan/audit refs too — the work-list is cross-source, not backlog-only.
+
 When asked to **work or sweep the backlog autonomously**, resolve every safe + additive
 item to completion before stopping. Do not halt with "the rest needs your decision":
 classify each open item first, and for any you would otherwise pause on, **consult the
