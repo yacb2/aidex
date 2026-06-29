@@ -1,0 +1,116 @@
+---
+id: {{ID}}
+title: "{{SLUG}}"
+status: doing
+shape: undecided
+created: {{DATE}}
+updated: {{DATE}}
+---
+
+# Workflow spec — {{SLUG}}
+
+## Goal
+
+<!-- One sentence: what should be true when this fan-out is done. -->
+
+## Fan-out suitability (step 0)
+
+<!-- Is the work genuinely DECOMPOSABLE into independent sub-units that gain from
+     concurrency or from different models? If it is the sequential phases of a
+     written plan → aidex-plan-exec. If it is repeat-one-task-until-a-check-passes
+     → aidex-loop. If it is a single unit → just do it. Justify the fan-out. -->
+
+- Decomposable into independent sub-units: yes / no
+- Gains from concurrency or per-agent models: yes / no
+- Has a machine gate per sub-unit: yes / no
+- Read-only or writes files (decides isolation):
+
+## Shape
+
+<!-- One of the catalog shapes (see references/01-workflow-spec-conventions.md
+     §"Fan-out shape catalog"): review-by-dimension | migrate-N-sites |
+     research-N-sources | decompose-impl. Record the choice AND why. -->
+
+- Chosen:
+- Why:
+- Pipeline or barrier (does a synthesis stage need all results at once):
+
+## Work-list (the items)
+
+<!-- The concrete sub-units, in execution order. Reuses the Phase-1 work-list
+     format (worklist-conventions.md): an ordered, cross-source queue. Fix the
+     order ONCE here; do not re-ask per item at run time. -->
+
+1. [ ] <item> <!-- ref: dimension|site|source|subtask -->
+2. [ ] <item>
+3. [ ] <item>
+
+## Per-agent model + effort
+
+<!-- The distinctive payload of a workflow-spec. One row per stage. Map
+     model/effort to the work: breadth → sonnet/medium; adversarial verify or
+     synthesis → opus/high; mechanical transform → sonnet/low. These become the
+     agent(prompt, {model, effort}) options at launch. -->
+
+| Stage | Agent | Model | Effort | Why |
+|---|---|---|---|---|
+| find | finders ×N | sonnet | medium | breadth |
+| verify | skeptics ×3 | opus | high | adversarial |
+| synth | synthesizer | opus | high | judgment |
+
+## Stop condition + gate policy
+
+<!-- The machine gate each agent's output must pass, and the run's publication
+     gate. Mirrors the work-list gate-policy. -->
+
+- Per-item machine gate:
+- gate-policy → publish: ask | preauthorized
+- gate-policy → destructive: deny (global rule, always)
+
+## Autonomy surface (the ask-set)
+
+<!-- Native allow/ask/deny — do NOT enumerate an allowlist. `deny`/`ask` hold even
+     under bypassPermissions, so start from "everything safe runs" and resolve the
+     borders only. (autonomy-conventions.md.) -->
+
+- **Deny (never run):** base destructive config + anything conflicting with a
+  registered ADR or existing code. This-workflow additions: ____
+- **Pre-authorized (run without asking):** normally-prompting ops this workflow may
+  run unattended: ____
+- **Always-ask (pause every time):** outward publication only. Defaults:
+  `git push`/publish/deploy/release. NOT `git commit`, deps, or additive migrations.
+  Add/remove for this workflow: ____
+- **Autonomous + log:** everything else safe, additive, non-breaking — including a
+  class-(b) emergent sub-unit appended to the work-list. Proceed; verify the
+  assumption (investigate, don't guess) and log it. A class-(c) emergent decision the
+  work itself reveals is the one legitimate mid-run interrupt — rare; preserve it.
+
+## Guardrails
+
+- [ ] isolation: 'worktree' per agent if agents WRITE files in parallel (review/migrate
+      that mutates); none for read-only fan-outs: ____
+- [ ] per-agent / total token budget cap: ____
+- [ ] maxRetries before the conditional arbiter fires (default 2): ____
+- [ ] deterministic completion marker / structured output schema: ____
+- [ ] human approval gate before anything irreversible (push/deploy/release): ____
+- [ ] security: gate includes SAST/secret-scan if it ships code: ____
+
+## End-to-end verification step
+
+<!-- The final check that proves the fan-out actually achieved the goal, beyond
+     each agent's per-item gate. -->
+
+## Launch (Workflow tool)
+
+<!-- The form (pipeline / fan-out / review from aidex-plan-exec/assets/workflows/)
+     and the args shape. Durability is REUSED from the plan-exec CORE — not rebuilt
+     here. Filled when the shape is chosen. -->
+
+```
+```
+
+---
+
+## Notes / iteration log
+
+<!-- Observed agent failures become prompt-tuning signals. Record them here. -->
