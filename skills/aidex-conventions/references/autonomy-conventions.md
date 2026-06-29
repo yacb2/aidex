@@ -134,6 +134,48 @@ subagents.
 The gate is only **outward publication** (push / publish / deploy / release), and
 even that is resolved at the initial phase, never mid-run.
 
+## Chained work-lists (front-loading across many items)
+
+Everything above governs a **single** process. A session that **chains many tracked
+items** — a backlog sweep, closing several plans, reconciling audit areas — has a
+second failure mode the single-process rule misses: it stops *between* items to ask
+**"¿y ahora qué?"** (which item next?), because the cross-item **order** was never
+fixed. Measured across real usage, this "what next?" menu is the dominant un-governed
+stop, and it lands in ad-hoc multi-item sessions that never had an initial phase.
+
+The fix is a **work-list** ([`worklist-conventions.md`](worklist-conventions.md)): the
+initial phase fixes the ordered queue of items + the gate policy once, as a durable
+`.context/worklists/` artifact; execution walks it (`worklist-advance.sh`) without
+re-asking. This extends front-loading from "within one process" to "across a chained
+work-list", and the queue survives handoff.
+
+### The three classes of mid-run question
+
+Classify any mid-run question before pausing. The goal is to remove the **avoidable**
+ones — **not** to reach zero (trapping a real fork is worse than one extra question):
+
+- **(a) Ordering of known items** — "which of these next?"; the alternatives already
+  existed at the initial phase. → Resolved **once** into the work-list `## Queue`;
+  **never** re-asked mid-run.
+- **(b) Emergent discovered work** — more of the same surfaced mid-run ("found 3 more
+  stale rows"). → **Append** to `## Deferred / emergent` and continue; **not** asked.
+  (Mode-A bifurcation, applied to a work item.)
+- **(c) Emergent decision** — a genuine fork the work itself revealed, whose options did
+  not exist at planning ("the investigation found 3 paths: do all / quick-win only /
+  log only"). → The **one** legitimate mid-run interrupt. Bias to allow it.
+
+### Front-loading via the AskUserQuestion survey (transversal)
+
+The initial phase captures parameters + the work-list + (for workflows) per-agent
+models through the official **`AskUserQuestion`** tool as a structured survey — run
+**first and to completion**, after which execution is **headless and menu-free**.
+`AskUserQuestion` is the un-governed leak surface at *execution* time (a tool pause the
+durability-arbiter never sees) and the right instrument at *planning* time. Use it for
+**parametric / confirm-or-correct** decisions (each option carrying a recommended
+default); **discuss** deep architectural forks rather than menuing them. Limits: ≤4
+questions per call, interactive-only — which is exactly why the survey belongs to the
+interactive initial phase and never to a headless run.
+
 ## Per-skill application
 
 - **aidex-plan** — the design is the front-loading home: capture the **autonomy
