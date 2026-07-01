@@ -9,14 +9,8 @@
 
 set -uo pipefail
 
-find_project_root() {
-  local dir; dir="$(pwd -P)"
-  while [[ "$dir" != "/" ]]; do
-    if [[ -d "$dir/.context" ]]; then printf '%s\n' "$dir"; return 0; fi
-    dir="$(dirname "$dir")"
-  done
-  pwd -P
-}
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../aidex-conventions/scripts" && pwd -P)/_lib.sh"
 
 ROOT="$(find_project_root)"
 
