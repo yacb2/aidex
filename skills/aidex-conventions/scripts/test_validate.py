@@ -105,6 +105,19 @@ def check_phase_gate_unit(failures: list[str]) -> None:
         failures.append("phase-gate unit: front-matter-gated phase warned (false positive)")
 
 
+def check_crossref_prefix_coverage(failures: list[str]) -> None:
+    """Guard: CROSSREF_FORMAT must accept the 'loop' and 'worktree' cross-ref
+    prefixes (aidex-audit's escalate --loop already emits escalated_to:
+    loop/<slug>; worktree entries use worktree/<slug>)."""
+    v = _load_validator()
+    if not v.CROSSREF_FORMAT.match("loop/2026-07-01-example"):
+        failures.append(
+            "CROSSREF_FORMAT must accept the 'loop' prefix (aidex-audit's escalate "
+            "--loop already emits escalated_to: loop/<slug>)")
+    if not v.CROSSREF_FORMAT.match("worktree/00-index"):
+        failures.append("CROSSREF_FORMAT must accept the 'worktree' prefix")
+
+
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
     res = subprocess.run(
@@ -132,6 +145,7 @@ def main() -> int:
 
     check_canon_lockstep(failures)
     check_phase_gate_unit(failures)
+    check_crossref_prefix_coverage(failures)
 
     if failures:
         print("FAIL")
