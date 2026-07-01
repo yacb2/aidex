@@ -1,0 +1,22 @@
+[
+  { "query": "We don't have a worktree procedure yet — can you set one up for this project?", "should_trigger": true, "expected_behavior": "EN bootstrap phrasing — no doc exists yet, needs topology investigation + interview." },
+  { "query": "How should we do worktrees on this repo? We've never decided.", "should_trigger": true, "expected_behavior": "EN bootstrap phrasing — first-time procedure setup." },
+  { "query": "Set up a worktree procedure so we stop re-deciding whether to isolate the DB every time.", "should_trigger": true, "expected_behavior": "EN bootstrap phrasing — explicit ask to record the decision once." },
+  { "query": "Should this task run in an isolated environment or just share the dev DB?", "should_trigger": true, "expected_behavior": "EN suggest phrasing — tier decision for a specific task." },
+  { "query": "Do I need a full environment worktree for this migration, or is a code-only one enough?", "should_trigger": true, "expected_behavior": "EN suggest phrasing — Tier 1 vs Tier 2 question." },
+  { "query": "No tenemos un procedimiento de worktree todavía en este proyecto, ¿puedes ayudarnos a definirlo?", "should_trigger": true, "expected_behavior": "ES bootstrap phrasing — cross-lingual triggering." },
+  { "query": "¿Debería correr esto aislado o compartir la base de datos de desarrollo?", "should_trigger": true, "expected_behavior": "ES suggest phrasing — tier decision question." },
+  { "query": "Worktree para esta tarea, ¿aislado o compartido?", "should_trigger": true, "expected_behavior": "ES short-form suggest phrasing." },
+  { "query": "Necesitamos decidir cómo hacemos worktrees en este proyecto — todavía no hay convención.", "should_trigger": true, "expected_behavior": "ES bootstrap phrasing — no convention recorded yet." },
+  { "query": "This change touches migrations and needs the stack live — should it get its own DB and containers?", "should_trigger": true, "expected_behavior": "EN suggest phrasing framed around the Tier 2 signal (migrations + live stack) without naming 'worktree' directly." },
+  { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning, no worktree/isolation angle — belongs to aidex-plan. aidex-worktree must NOT fire." },
+  { "query": "Design a loop to keep refactoring the parser until all tests pass.", "should_trigger": false, "expected_behavior": "Loop design, no isolation decision — aidex-loop. Precision check." },
+  { "query": "Just create a git branch for this feature, nothing fancy.", "should_trigger": false, "expected_behavior": "Plain branch request with no isolation/environment angle — should NOT trigger a full worktree tier decision." },
+  { "query": "Enter a worktree for this task and get started.", "should_trigger": false, "expected_behavior": "Direct execution of native EnterWorktree, not the bootstrap/suggest decision this skill owns." },
+  { "query": "We decided to use Postgres over MySQL; document this decision.", "should_trigger": false, "expected_behavior": "Decision/ADR — aidex-decision. Precision check." },
+  { "query": "Audit our Claude Code setup for stale skills and broken symlinks.", "should_trigger": false, "expected_behavior": "Ecosystem audit — aidex. Precision check." },
+  { "query": "Fix this null pointer bug in auth.ts.", "should_trigger": false, "expected_behavior": "One-off bug fix, no isolation angle — aidex-bugfix territory, not worktree." },
+  { "query": "Diseña un plan para migrar el backend a GraphQL.", "should_trigger": false, "expected_behavior": "ES planning request, no isolation angle — aidex-plan. Precision check." },
+  { "query": "Documenta cómo funciona la arquitectura de autenticación actual.", "should_trigger": false, "expected_behavior": "ES reference-documentation request — aidex-reference. Precision check." },
+  { "query": "Registra esta solicitud del cliente para agregar exportación a PDF.", "should_trigger": false, "expected_behavior": "ES stakeholder-request capture — aidex-request. Precision check." }
+]
