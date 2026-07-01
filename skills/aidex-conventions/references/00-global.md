@@ -40,7 +40,7 @@ In `backlog/`, the `00-index.md` is **auto-regenerated** from front-matter — n
 
 ADR: [`2026-05-14-cross-reference-type-prefix.md`](../../../.context/decisions/2026-05-14-cross-reference-type-prefix.md)
 
-- **Format:** `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research}`.
+- **Format:** `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, worktree}`.
 - **Lookup:** validators search `<type>/` and `<type>/_archive/`. Archive moves do not break inbound references.
 - **Sentinel:** `<type>/pending` for not-yet-created targets. Never flagged as missing.
 - **Fields that take this form:** `escalated_to`, `superseded_by`, `blocked_by`, `origin_ref`.
@@ -87,6 +87,7 @@ ADRs: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/20
 `_archive/` is **not used** in:
 
 - `references/`, `research/` — versioned in place; supersession is recorded in a top-of-file note linking to the new version, not by relocation.
+- `worktrees/` — one evergreen file per project; superseded content stays in place with a labeled note, same as references/research.
 
 Cross-references resolve via the two-folder lookup in §3 — archiving is a zero-edit operation for inbound links.
 
@@ -199,6 +200,7 @@ without it (this materializes the global verification-before-claims rule).
 | Reference module | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
 | Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
 | Communication | `communications/{received,sent}/<YYYY-MM-DD>-<slug>/` | `body.md` | — | No |
+| Worktree overview | .context/worktrees/ | 00-index.md (+ NN-*.md if it grows) | 00-index.md | versioned in place |
 
 ---
 
@@ -215,7 +217,7 @@ healthy not-yet-used state, **not** a problem — never propose deleting it:
 
 ```
 references · docs · plans · requests · decisions · research ·
-backlog · audits · loops · communications · issues · roadmap
+backlog · audits · loops · communications · issues · roadmap · worktrees
 ```
 
 ### Acceptable-optional (project-local, don't flag, don't require)
