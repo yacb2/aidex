@@ -1,0 +1,56 @@
+---
+title: "Worktree procedure — <project>"
+status: doing
+created: {{DATE}}
+updated: {{DATE}}
+version: 1.0.0
+---
+
+# Worktree procedure — <project>
+
+## Topology
+
+<!-- The raw facts from scripts/detect-topology.sh, plus the human summary (single
+     repo / split-git services + unversioned wrapper / classic multi-repo / …).
+     Do not assume this generalizes to other projects — topology is detected
+     per-project, never inherited as a default. -->
+
+## Participants & scope
+
+<!-- Which directories/repos participate in worktree work at all (some may never
+     need one — e.g. a docs-only sibling repo). The branch-naming convention used
+     when work spans more than one participant, so they stay coordinated. Only
+     touched participants get worktreed — never "all or nothing." -->
+
+## Tier decision
+
+<!-- The concrete, project-specific signal that distinguishes:
+     - Tier 0 (not parallel to anything — no worktree)
+     - Tier 1 (code-only parallelism — no services/DB touched)
+     - Tier 2 (full environment isolation — runs migrations / needs the stack
+       live / mutates shared state)
+     Record the concrete signal (e.g. "touches migrations/" or "runs
+     docker compose up"), not a vague description. -->
+
+## Tier 2 infra strategy
+
+<!-- Only relevant if Tier 2 is reachable at all. Which strategy applies:
+     clone full infra, clone partial infra (same DB server, new DB name), share
+     with logical partitioning, or not yet available. If not yet available, note
+     exactly what's missing (this doc records the recipe; it does not author new
+     worktree-up scripts for the project). -->
+
+## Lifecycle & cleanup
+
+<!-- Ephemeral (spin up -> run -> auto-teardown) or persistent (iterate for
+     hours/days -> explicit teardown on exit). What exactly must be cleaned up
+     when a Tier-2 worktree closes: isolated DB dropped, isolated compose
+     project/containers/network stopped (never shared named volumes), allocated
+     port offset freed, worktree directory kept or removed. If N worktrees can
+     run at once, the concrete, deterministic port/offset allocation rule (not
+     just "offset by index" — how collisions between concurrent sessions are
+     avoided). -->
+
+## Open questions
+
+<!-- Anything the interview flagged as unresolved. -->
