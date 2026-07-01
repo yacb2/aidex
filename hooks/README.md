@@ -25,7 +25,7 @@ sensible reason, **no prompt leak** into the conversation, no infinite loop.
 - **Contract:** the subagent returns `{"ok": true}` (allow) or `{"ok": false, "reason": "..."}`
   (block → Claude continues). On block CC injects **only the reason** (prefixed
   `Stop hook feedback: Agent hook condition was not met:`), NOT the prompt — confirmed clean.
-- **Model:** set via `model`. **MUST be the full id (`claude-sonnet-4-6`)** — the alias
+- **Model:** set via `model`. **MUST be the full id (`claude-sonnet-5`)** — the alias
   `"sonnet"` silently breaks the hook (it does not run). Default if omitted is **Haiku**
   (`claude-haiku-4-5`). We run Sonnet for better judgment.
 - **Cost/latency:** a subagent runs at **every turn-end in every session** it is configured
@@ -38,7 +38,7 @@ sensible reason, **no prompt leak** into the conversation, no infinite loop.
 Activate (in `~/.claude/settings.json` → `"hooks"`):
 ```jsonc
 "Stop": [
-  { "hooks": [ { "type": "agent", "model": "claude-sonnet-4-6",
+  { "hooks": [ { "type": "agent", "model": "claude-sonnet-5",
                  "prompt": "<contents of durability-stop-prompt.md>", "timeout": 120 } ] }
 ]
 ```
@@ -48,7 +48,7 @@ python3 - <<'PY'
 import json, os
 s = json.load(open(os.path.expanduser("~/.claude/settings.json")))
 p = open(os.path.expanduser("~/.aidex/hooks/durability-stop-prompt.md")).read().strip()
-s["hooks"]["Stop"] = [{"hooks": [{"type": "agent", "model": "claude-sonnet-4-6", "prompt": p, "timeout": 120}]}]
+s["hooks"]["Stop"] = [{"hooks": [{"type": "agent", "model": "claude-sonnet-5", "prompt": p, "timeout": 120}]}]
 json.dump(s, open(os.path.expanduser("~/.claude/settings.json"), "w"), indent=2)
 PY
 ```

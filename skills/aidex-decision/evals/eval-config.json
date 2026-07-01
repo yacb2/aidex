@@ -1,6 +1,6 @@
 {
   "skill": "aidex-decision",
-  "model": "claude-sonnet-4-6",
+  "model": "claude-sonnet-5",
   "setup": {
     "env": {
       "AIDEX_TRIGGER_EVAL_MARKER": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}"
