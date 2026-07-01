@@ -10,6 +10,11 @@ skill keeps a short inline summary and points here for the full rule.
 > the user's monorepos; native Claude Code worktree tooling; the code-vs-environment
 > isolation literature).
 
+> Detection and the per-project bootstrap interview are owned by the `aidex-worktree`
+> skill, not by this canon or by the consuming skills directly — this file documents
+> the shared reasoning (the two tiers, the opt-in gate); `aidex-worktree` is where the
+> per-project `.context/worktrees/00-index.md` gets read or created.
+
 ---
 
 ## The core distinction
@@ -71,6 +76,15 @@ user did not approve — surface the recommendation, then act on the answer.
 
 ## Repo topology changes the unit of isolation
 
+> **Correction (2026-07-01):** earlier drafts of this canon implied monorepo was the
+> default shape for this kind of project. A session investigation found 6/6 sampled
+> projects were actually split-git services glued by an unversioned orchestration
+> wrapper. There is no default — every project's topology is detected fresh. See
+> `aidex-worktree/references/01-topology-detection.md`.
+
+The table below is illustrative of the categories that exist, not a claim about which
+one is typical:
+
 - **Monorepo** (one repo holding backend + frontend + mobile, one compose file): a
   worktree is the **whole tree at one branch**. The unit is **per-task / per-branch, full
   stack** — *not* per-service (no "backend-only worktree" without `git sparse-checkout`,
@@ -81,7 +95,7 @@ user did not approve — surface the recommendation, then act on the answer.
   worktree actually runs.
 
 Detect topology (`git rev-parse --show-toplevel` per service dir; one root = monorepo)
-before recommending a unit.
+before recommending a unit — never assume from habit.
 
 ## The environment-isolation recipe (Tier 2)
 
@@ -126,14 +140,17 @@ isolation decision is made up front, not mid-run.
 
 ## Per-skill application
 
-- **aidex-plan** — capture the **Isolation surface** in the plan (parallel? which tier?
-  which `worktree-up` recipe) so execution needs no questions. *Suggest* the tier from the
-  plan's content (migrations present? services run?); record it as a recommendation the
-  user authorizes.
+Each consuming skill calls `aidex-worktree suggest` (or `bootstrap` if the project has
+no `.context/worktrees/00-index.md` yet) at its own initial phase, instead of reasoning
+about tiers inline:
+
+- **aidex-plan** — at plan Orient, call `aidex-worktree suggest` and capture its
+  recommendation as the plan's **Isolation surface** so execution needs no questions.
 - **aidex-plan-exec** — at **Orient (phase 0)** read the Isolation surface; for Tier 1
   `EnterWorktree`, for Tier 2 run the project's `worktree-up`. Tear down at completion.
-- **aidex-loop** — the design interview pre-declares the Isolation tier next to the
-  autonomy surface. Unattended loops that run migrations or mutate the DB are the
-  **strongest** Tier-2 case (they trample shared state while you work elsewhere).
+- **aidex-loop** — the design interview calls `aidex-worktree suggest` and pre-declares
+  the Isolation tier next to the autonomy surface. Unattended loops that run migrations
+  or mutate the DB are the **strongest** Tier-2 case (they trample shared state while
+  you work elsewhere).
 - **aidex-audit** — usually Tier 0/1 (read-mostly). Exception: a security audit doing
   destructive verification needs Tier 2. Low priority.
