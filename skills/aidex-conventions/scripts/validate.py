@@ -25,8 +25,8 @@ from typing import Iterable
 # ---------- Conventions canon ----------
 
 TYPES = ["backlog", "plans", "requests", "decisions", "references", "research", "audits",
-         "communications"]
-TYPES_WITH_ARCHIVE = {"backlog", "plans", "requests", "decisions"}
+         "communications", "loops", "worktrees"]
+TYPES_WITH_ARCHIVE = {"backlog", "plans", "requests", "decisions", "loops"}
 TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlog": True}
 # Acceptable-optional .context/ dirs: project-local, not scaffolded by any skill, may be
 # gitignored. The validator neither requires nor flags them — listed here so the canonical
@@ -54,7 +54,7 @@ ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
 ISO_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$")
 LEGACY_FILENAME = re.compile(r"^\d{8}-")
 CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref")
-CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication)/.+$")
+CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication|loop|worktree)/.+$")
 REQUIRED_FIELDS = ("title", "status", "created", "updated")
 # Audit "board" files: living dashboards (per-methodology rollups), not work items.
 AUDIT_BOARD_FILES = {"00-methodology.md", "00-inventory.md", "00-changelog.md"}
@@ -113,6 +113,8 @@ TYPE_FOLDER_TO_PREFIX = {
     "research": "research",
     "audits": "audit",
     "communications": "communication",
+    "loops": "loop",
+    "worktrees": "worktree",
 }
 PREFIX_TO_FOLDER = {v: k for k, v in TYPE_FOLDER_TO_PREFIX.items()}
 
@@ -172,6 +174,13 @@ def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
                 continue
             yield path
         return
+    if type_name == "worktrees":
+        idx = base / "00-index.md"
+        if idx.is_file():
+            yield idx
+        for path in sorted(base.glob("[0-9][0-9]-*.md")):
+            yield path
+        return
     if type_name == "plans":
         # Both single-file and modular plans
         for path in base.iterdir():
@@ -210,7 +219,7 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
         return None
     if name in ("00-methodology.md", "00-inventory.md", "00-changelog.md"):
         return None
-    if type_name in ("references", "research") and re.match(r"^\d{2}-[a-z0-9-]+\.md$", name):
+    if type_name in ("references", "research", "worktrees") and re.match(r"^\d{2}-[a-z0-9-]+\.md$", name):
         return None
     if type_name == "plans":
         # Modular plan internal files: NN-<slug>.md
