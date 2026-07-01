@@ -21,6 +21,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 - Archive on close (D-10): `backlog/`, `plans/`, `requests/`, `decisions/` all have an `_archive/`. Move `done` / `dropped` / `superseded` artifacts there immediately on close (no delay). Backlog `00-index.md` keeps closed items as one-liners under `## Closed`; full bodies live in `_archive/`.
 - Audits group by methodology: `audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`. A run folder archives to `audits/_archive/` once its cycle closes (all in-scope findings `closed`/escalated); the rolling inventory may stay as a live board (D-10).
 - References and research are versioned in place. Record supersession in a top-of-file note linking to the new version, not by relocation.
+- Worktrees: see `skills/aidex-conventions/references/worktree-conventions.md`; the `aidex-worktree` skill owns detection/bootstrap.
 - When an artifact records completed work, attach evidence via the optional `proof_links: []` field — a passing test's output/CI log (backend), a request/response payload (API), a screenshot of the flow (frontend), or a reproduction URL. Larger captures live in `.context/proofs/<slug>/`. Never claim "it works" without it. `proof_links` is a front-matter field, **not** a new canonical `.context/` tier. Full rule: `00-global.md` §7.1.
 
 ## Quick reference
