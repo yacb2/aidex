@@ -224,16 +224,20 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
    phase file.
 2. Identify: total phases, current phase (first unchecked checkbox), success
    criteria per phase, verification step.
-3. **Honor the plan's Isolation surface** if it declares one (see
-   [worktree-conventions.md](../aidex-conventions/references/worktree-conventions.md)).
-   For **Tier 1**, `EnterWorktree` before phase 1. For **Tier 2**, run the project's
-   detected `worktree-up` recipe (isolated DB + `COMPOSE_PROJECT_NAME` + port offset);
-   if no recipe exists, fall back to Tier 1 and note it. Enter the worktree **only if
-   the plan/user authorized it** — do not auto-enter one that was not approved. No
-   declared surface → run in place. **The plan doc stays source-of-truth in the main
-   tree:** a fresh worktree has only committed files, so update the plan and record
-   `proof_links` at its main-tree path (a gitignored/uncommitted `.context/` plan is
-   absent from the worktree) — see the canon's Lifecycle note.
+3. **Honor the plan's Isolation surface** if it declares one. If the plan already
+   recorded an Isolation note (from `aidex-plan`'s Step 5, at plan-creation time), act
+   on it directly: for **Tier 1**, `EnterWorktree` before phase 1; for **Tier 2**, run
+   the project's detected `worktree-up` recipe (isolated DB + `COMPOSE_PROJECT_NAME` +
+   port offset); if no recipe exists, fall back to Tier 1 and note it. If the plan
+   predates this and has no Isolation note, fall back to invoking `aidex-worktree
+   suggest` (or `bootstrap` if `.context/worktrees/00-index.md` does not exist yet) here
+   at Orient, before phase 1, and act on its recommendation the same way. Enter the
+   worktree **only if the plan/user authorized it** — do not auto-enter one that was
+   not approved. No declared surface and no plan-recorded parallelism → run in place.
+   **The plan doc stays source-of-truth in the main tree:** a fresh worktree has only
+   committed files, so update the plan and record `proof_links` at its main-tree path
+   (a gitignored/uncommitted `.context/` plan is absent from the worktree) — see the
+   canon's Lifecycle note.
 4. Create a TaskList mirroring the plan's phases so progress is visible.
 5. **Front-load the work-list for chained multi-item runs.** A single plan's phases
    are already an ordered queue (walk them). But when this session chains **multiple
