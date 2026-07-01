@@ -85,30 +85,36 @@ release_command="" release_source=""
 test_command="" test_source=""
 
 find_cmd_file() {
-  # $1 = pattern (e.g. "*review*"); prints first match (sorted) or nothing.
+  # $1 = pattern (e.g. "*review*"); prints the slash-invocation form of the first
+  # match (sorted), searching subdirectories too — Claude Code namespaces commands
+  # in .claude/commands/<namespace>/<name>.md, invoked as /<namespace>:<name>.
+  # Prints nothing if no match.
   local pat="$1"
   [[ -d "$CMD_DIR" ]] || return 0
-  local match
-  match="$(find "$CMD_DIR" -maxdepth 1 -type f -name "$pat" 2>/dev/null | sort | head -n1)"
-  [[ -n "$match" ]] && basename "$match"
-  return 0
+  local match rel slash
+  match="$(find "$CMD_DIR" -type f -name "$pat" 2>/dev/null | sort | head -n1)"
+  [[ -n "$match" ]] || return 0
+  rel="${match#"$CMD_DIR"/}"          # e.g. "version/release.md" or "code-review.md"
+  rel="${rel%.md}"                     # strip extension
+  slash="/${rel//\//:}"                # "/version:release" or "/code-review"
+  printf '%s\t%s\n' "$slash" ".claude/commands/${match#"$CMD_DIR"/}"
 }
 
-f="$(find_cmd_file '*review*')"
-[[ -n "$f" ]] && { review_command="$f"; review_source=".claude/commands/$f"; }
+f_out="$(find_cmd_file '*review*')"
+if [[ -n "$f_out" ]]; then review_command="${f_out%%$'\t'*}"; review_source="${f_out#*$'\t'}"; fi
 
-f="$(find_cmd_file '*commit*')"
-[[ -n "$f" ]] && { commit_command="$f"; commit_source=".claude/commands/$f"; }
+f_out="$(find_cmd_file '*commit*')"
+if [[ -n "$f_out" ]]; then commit_command="${f_out%%$'\t'*}"; commit_source="${f_out#*$'\t'}"; fi
 
-f="$(find_cmd_file '*release*')"
-[[ -n "$f" ]] && { release_command="$f"; release_source=".claude/commands/$f"; }
+f_out="$(find_cmd_file '*release*')"
+if [[ -n "$f_out" ]]; then release_command="${f_out%%$'\t'*}"; release_source="${f_out#*$'\t'}"; fi
 if [[ -z "$release_command" ]]; then
-  f="$(find_cmd_file '*deploy*')"
-  [[ -n "$f" ]] && { release_command="$f"; release_source=".claude/commands/$f"; }
+  f_out="$(find_cmd_file '*deploy*')"
+  if [[ -n "$f_out" ]]; then release_command="${f_out%%$'\t'*}"; release_source="${f_out#*$'\t'}"; fi
 fi
 
-f="$(find_cmd_file '*test*')"
-[[ -n "$f" ]] && { test_command="$f"; test_source=".claude/commands/$f"; }
+f_out="$(find_cmd_file '*test*')"
+if [[ -n "$f_out" ]]; then test_command="${f_out%%$'\t'*}"; test_source="${f_out#*$'\t'}"; fi
 
 # Secondary signal: backtick-quoted command strings in CLAUDE.md, only used
 # when no command file was found for that category.

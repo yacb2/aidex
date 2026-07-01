@@ -118,6 +118,18 @@ def check_crossref_prefix_coverage(failures: list[str]) -> None:
         failures.append("CROSSREF_FORMAT must accept the 'worktree' prefix")
 
 
+def check_worktrees_no_double_count(good: dict, failures: list[str]) -> None:
+    """Regression (found via field-testing against a real project): the
+    worktrees NN-*.md glob also matches 00-index.md itself, double-yielding it
+    if not excluded. The good fixture has exactly one worktrees file."""
+    files = good["summary"]["by_type"].get("worktrees", {}).get("files")
+    if files != 1:
+        failures.append(
+            f"worktrees fixture has exactly one file but validator scanned "
+            f"{files} — 00-index.md is likely being double-counted by the "
+            f"NN-*.md glob in iter_files_for_type()")
+
+
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
     res = subprocess.run(
@@ -146,6 +158,7 @@ def main() -> int:
     check_canon_lockstep(failures)
     check_phase_gate_unit(failures)
     check_crossref_prefix_coverage(failures)
+    check_worktrees_no_double_count(good, failures)
 
     if failures:
         print("FAIL")

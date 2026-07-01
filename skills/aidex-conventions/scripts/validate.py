@@ -179,6 +179,8 @@ def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
         if idx.is_file():
             yield idx
         for path in sorted(base.glob("[0-9][0-9]-*.md")):
+            if path.name == "00-index.md":
+                continue  # already yielded above; the NN-*.md glob also matches it
             yield path
         return
     if type_name == "plans":
