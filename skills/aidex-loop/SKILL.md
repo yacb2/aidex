@@ -75,14 +75,13 @@ Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
    assumption, log it. This is the lever that stops the loop from interrupting the
    user. (ADR `decision/2026-06-19-loop-autonomy-surface-native-permissions.md`.)
 6. **Isolation surface.** Decide whether the loop needs its own git worktree so it does
-   not trample your other work or shared state (see
-   [worktree-conventions.md](../aidex-conventions/references/worktree-conventions.md)).
-   **Tier 1** (code-only worktree) for pure code loops; **Tier 2** (full environment
-   isolation — isolated DB + `COMPOSE_PROJECT_NAME` + port offset via a `worktree-up`
-   recipe) when the loop runs migrations or mutates the DB while you work elsewhere —
-   the strongest Tier-2 case, since an unattended loop will silently corrupt shared
-   state. Record the tier in the spec's **Guardrails → isolation** line. Entry stays
-   opt-in (user / project CLAUDE.md authorizes).
+   not trample your other work or shared state. Check whether
+   `.context/worktrees/00-index.md` exists in the target project: if not, invoke
+   `aidex-worktree bootstrap` first. Then invoke `aidex-worktree suggest` with the
+   loop's content (does it run migrations / mutate the DB while unattended — the
+   strongest Tier-2 trigger, unchanged) and record the result in the spec's
+   **Guardrails → isolation** line exactly as today. Entry stays opt-in (user / project
+   CLAUDE.md authorizes).
 7. **Scaffold.** Run `new-loop-spec.sh new <slug>`, then fill every section of the
    generated spec from the answers. Leave nothing as a placeholder. If a spec with
    that slug already exists (`new-loop-spec.sh` refuses to overwrite), **refine the
