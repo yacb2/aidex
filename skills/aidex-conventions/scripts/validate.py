@@ -674,11 +674,40 @@ def to_relative(context_dir: Path, finding: Finding) -> Finding:
         rel = finding.file
     return Finding(finding.type, rel, finding.rule, finding.severity, finding.message)
 
+BASELINE_NAME = ".validate-baseline.json"
+
+def baseline_key(f: Finding) -> str:
+    return f"{f.file}|{f.rule}"
+
+def load_baseline(context_dir: Path) -> set[str] | None:
+    """Ratchet baseline: the frozen set of file|rule violation keys a legacy project
+    accepts. Present -> the enforceable rule becomes 'zero NEW violations'."""
+    bp = context_dir / BASELINE_NAME
+    if not bp.is_file():
+        return None
+    try:
+        return set(json.loads(bp.read_text(encoding="utf-8")).get("keys", []))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+def write_baseline(context_dir: Path, violations: list[Finding]) -> Path:
+    bp = context_dir / BASELINE_NAME
+    data = {
+        "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "note": "validate.py ratchet baseline — runs report/exit only on violations NOT in this set. Refresh explicitly with --baseline.",
+        "keys": sorted({baseline_key(f) for f in violations}),
+    }
+    bp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return bp
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Validate .context/ artifacts against aidex conventions")
     p.add_argument("path", nargs="?", help="Path to .context/ (default: auto-detect from cwd)")
     p.add_argument("--type", choices=TYPES, help="Validate only this artifact type")
     p.add_argument("--json", action="store_true", help="Emit JSON to stdout")
+    p.add_argument("--baseline", action="store_true",
+                   help="Freeze current violations as the ratchet baseline "
+                        f"(<context>/{BASELINE_NAME}); later runs report/exit only on NEW violations")
     args = p.parse_args()
 
     if args.path:
@@ -698,6 +727,20 @@ def main() -> int:
 
     findings, summary = validate(context_dir, args.type)
     findings = [to_relative(context_dir, f) for f in findings]
+    violations_list = [f for f in findings if f.severity == "violation"]
+
+    if args.baseline:
+        bp = write_baseline(context_dir, violations_list)
+        print(f"baseline written: {bp} ({len(violations_list)} accepted violations)")
+        return 0
+
+    # Ratchet: with a baseline present, only violations NOT in the frozen set count.
+    baseline = load_baseline(context_dir)
+    new_violations: list[Finding] | None = None
+    if baseline is not None:
+        new_violations = [f for f in violations_list if baseline_key(f) not in baseline]
+        summary["baseline"] = {"present": True, "accepted": len(baseline),
+                               "new_violations": len(new_violations)}
 
     if args.json:
         out = {
@@ -708,6 +751,8 @@ def main() -> int:
             "warnings":   [asdict(f) for f in findings if f.severity == "warning"],
             "info":       [asdict(f) for f in findings if f.severity == "info"],
         }
+        if new_violations is not None:
+            out["new_violations"] = [asdict(f) for f in new_violations]
         json.dump(out, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
@@ -733,7 +778,14 @@ def main() -> int:
                 print(f"\nInfo ({len(info)}):")
                 for f in info:
                     print(f"  [{f.rule}] {f.file}: {f.message}")
+        if new_violations is not None:
+            print(f"\nRatchet (baseline present, {len(baseline)} accepted): "
+                  f"{len(new_violations)} NEW violation(s)")
+            for f in new_violations:
+                print(f"  [NEW:{f.rule}] {f.file}: {f.message}")
 
+    if new_violations is not None:
+        return 1 if new_violations else 0
     return 1 if summary["violations"] > 0 else 0
 
 if __name__ == "__main__":
