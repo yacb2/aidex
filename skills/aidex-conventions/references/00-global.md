@@ -32,7 +32,7 @@ No exceptions inside `.context/`. Legacy `YYYYMMDD` filenames are migrated by th
 - **Audits** do not use `00-index.md` — they use per-methodology canonical files (`00-methodology.md`, `00-inventory.md`, `00-changelog.md`) inside each `audits/<methodology>/` folder. See [`audit-conventions.md`](audit-conventions.md).
 - **Decisions, requests** do not use an index — flat folder, sorted by filename date.
 
-In `backlog/`, the `00-index.md` is **auto-regenerated** from front-matter — never hand-edit. See [`01-backlog-conventions.md`](../../backlog-register/references/01-backlog-conventions.md).
+In `backlog/`, the `00-index.md` is **auto-regenerated** from front-matter — never hand-edit. See [`01-backlog-conventions.md`](../../aidex-backlog/references/01-backlog-conventions.md).
 
 ---
 

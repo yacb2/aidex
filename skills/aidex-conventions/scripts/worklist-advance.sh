@@ -26,7 +26,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -f "$arg" ]]; then file="$arg"; else file="$(ls "$WL_DIR/"*"$arg"*.md 2>/dev/null | head -1)"; fi
+# `|| true`: ls exits 2 on no match, which pipefail+errexit would turn into a
+# silent exit 1 before the not-found diagnostic below ever runs.
+if [[ -f "$arg" ]]; then file="$arg"; else file="$(ls "$WL_DIR/"*"$arg"*.md 2>/dev/null | head -1 || true)"; fi
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
 today="$(date +%F)"
 

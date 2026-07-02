@@ -66,10 +66,10 @@ append_commit() {
   ' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
 }
 
-# locate a backlog item file (active or _archive) by id
+# locate a backlog item file (active, _archive, or _deferred) by id
 backlog_file_by_id() {
   local id="$1" f
-  for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_archive/*.md; do
+  for f in "$BACKLOG_DIR"/*.md "$BACKLOG_DIR"/_archive/*.md "$BACKLOG_DIR"/_deferred/*.md; do
     [[ -f "$f" ]] || continue
     [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")" == "$id" ]] && { printf '%s\n' "$f"; return 0; }
   done

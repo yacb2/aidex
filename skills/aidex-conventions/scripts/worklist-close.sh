@@ -24,15 +24,19 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "$status" == "done" || "$status" == "dropped" ]] || { echo "--status must be done|dropped" >&2; exit 2; }
 
-if [[ -f "$arg" ]]; then file="$arg"; else file="$(ls "$WL_DIR/"*"$arg"*.md 2>/dev/null | head -1)"; fi
+# `|| true`: ls exits 2 on no match, which pipefail+errexit would turn into a
+# silent exit 1 before the not-found diagnostic below ever runs.
+if [[ -f "$arg" ]]; then file="$arg"; else file="$(ls "$WL_DIR/"*"$arg"*.md 2>/dev/null | head -1 || true)"; fi
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
 today="$(date +%F)"
 
 sed -i.bak -E "s/^status: .*/status: $status/" "$file" && rm -f "$file.bak"
 sed -i.bak -E "s/^updated: .*/updated: $today/" "$file" && rm -f "$file.bak"
 
-# surface any still-open upstream refs for manual closure propagation
-open_refs="$(grep -oE '<!-- ref: (backlog|plan|audit) -->' "$file" | wc -l | tr -d ' ')"
+# surface any still-open upstream refs for manual closure propagation.
+# `|| true`: grep exits 1 when a queue has only inline refs — without it,
+# pipefail+errexit killed the script here, AFTER the status mutation above.
+open_refs="$( (grep -oE '<!-- ref: (backlog|plan|audit) -->' "$file" || true) | wc -l | tr -d ' ')"
 [[ "$open_refs" -gt 0 ]] && echo "note: $open_refs tracked upstream ref(s) — run reconcile.sh for closure propagation" >&2
 
 echo "CLOSED $file"

@@ -58,12 +58,12 @@ title_to_slug() {
     | sed -E 's/-+$//'
 }
 
-# Compute the next sequential backlog id (BL-NNN). Scans active + _archive so an
-# archived item's id is never reused — ids stay stable for commit-trailer refs (D-09).
+# Compute the next sequential backlog id (BL-NNN). Scans active + _archive + _deferred
+# so no item's id is ever reused — ids stay stable for commit-trailer refs (D-09).
 next_backlog_id() {
   local dir="$1" max=0 n f
   shopt -s nullglob
-  for f in "$dir"/*.md "$dir"/_archive/*.md; do
+  for f in "$dir"/*.md "$dir"/_archive/*.md "$dir"/_deferred/*.md; do
     [[ -f "$f" ]] || continue
     n="$(awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {v=$2; gsub(/[^0-9]/,"",v); print v; exit}' "$f")"
     [[ -n "$n" ]] && (( 10#$n > max )) && max=$((10#$n))
@@ -327,9 +327,13 @@ if [[ $LIST_ONLY -eq 1 ]]; then
   fi
 
   read_field() {
+    # trim inside awk — piping through xargs broke on unbalanced quotes (apostrophes)
     awk -F': ' -v key="$1" '
-      $1 == key { sub(/^[^:]*: */, ""); gsub(/^"|"$/, ""); print; exit }
-    ' "$2" | xargs
+      $1 == key {
+        sub(/^[^:]*: */, ""); gsub(/^"|"$/, "")
+        gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit
+      }
+    ' "$2"
   }
 
   declare -a P0=() P1=() P2=() P3=() PUNK=() BLOCKED=()

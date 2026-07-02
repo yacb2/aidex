@@ -5,7 +5,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 ## NEVER
 
 - Use `YYYYMMDD` in filenames or front-matter dates. Always ISO `YYYY-MM-DD`.
-- Write `.context/` artifacts in any language other than English — even if the chat is in another language. Spoken replies are unaffected.
+- Write `.context/` artifacts in any language other than English — even if the chat is in another language. Sole exemption (D-04): `communications/` bodies stay in the communication's native language, never translated. Spoken replies are unaffected.
 - Name an index file anything other than `00-index.md` (sole alias: `00-overview.md` in `research/<topic>/`).
 - Use a physical relative path in `escalated_to`, `superseded_by`, `blocked_by`, or `origin_ref`. Use the `<type>/<filename>` marker.
 - Embed lifecycle modifiers in `status` (`escalated`, `triaged`, `in-progress` as standalone statuses). Modifiers live in their own fields.
