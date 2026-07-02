@@ -138,6 +138,37 @@ def check_worktrees_no_double_count(good: dict, failures: list[str]) -> None:
             f"NN-*.md glob in iter_files_for_type()")
 
 
+def check_baseline_ratchet(failures: list[str]) -> None:
+    """Ratchet mode: freezing a legacy project's violations via --baseline makes the
+    enforceable rule 'zero NEW violations' — a clean re-run exits 0, and only a fresh
+    violation flips it back to 1, reporting exactly the new key."""
+    import shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        def run_v(*extra):
+            return subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json", *extra],
+                                  capture_output=True, text=True)
+        base = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                              capture_output=True, text=True)
+        if base.returncode != 0 or not (ctx / ".validate-baseline.json").is_file():
+            failures.append(f"ratchet: --baseline failed (rc={base.returncode}): {base.stderr[:120]}")
+            return
+        clean = run_v()
+        d = json.loads(clean.stdout)
+        if clean.returncode != 0 or d["summary"].get("baseline", {}).get("new_violations") != 0:
+            failures.append(f"ratchet: clean re-run should exit 0 with new_violations=0 "
+                            f"(rc={clean.returncode}, baseline={d['summary'].get('baseline')})")
+        (ctx / "decisions" / "2026-06-30-fresh-violation.md").write_text(
+            "no front-matter at all\n", encoding="utf-8")
+        dirty = run_v()
+        d = json.loads(dirty.stdout)
+        new = d.get("new_violations", [])
+        if dirty.returncode != 1 or not any("fresh-violation" in x["file"] for x in new):
+            failures.append(f"ratchet: fresh violation should exit 1 and be listed as NEW "
+                            f"(rc={dirty.returncode}, new={[x['file'] for x in new]})")
+
+
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
     res = subprocess.run(
@@ -167,6 +198,7 @@ def main() -> int:
     check_phase_gate_unit(failures)
     check_crossref_prefix_coverage(failures)
     check_worktrees_no_double_count(good, failures)
+    check_baseline_ratchet(failures)
 
     if failures:
         print("FAIL")
