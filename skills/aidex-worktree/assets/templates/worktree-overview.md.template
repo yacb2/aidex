@@ -4,7 +4,15 @@ status: doing
 created: {{DATE}}
 updated: {{DATE}}
 version: 1.0.0
+worktree_up: ""
+worktree_down: ""
 ---
+
+<!-- worktree_up / worktree_down: the EXACT commands that bring up / tear down an
+     isolated Tier-2 environment for a worktree, once the project has them (e.g.
+     "./worktree-up.sh <slug>"). Leave "" while Tier 2 is not yet available —
+     executors (aidex-plan-exec Orient) and detect-project-commands.sh read these
+     fields, so filling them is what makes Tier 2 machine-actionable. -->
 
 # Worktree procedure — <project>
 
@@ -50,6 +58,41 @@ version: 1.0.0
      run at once, the concrete, deterministic port/offset allocation rule (not
      just "offset by index" — how collisions between concurrent sessions are
      avoided). -->
+
+## Procedure
+
+<!-- The EXECUTABLE side of the decisions above: exact commands, not prose. This is
+     what makes later runs progressively simpler — an executor (or a future session)
+     follows these steps verbatim instead of re-deriving them. Fill from the
+     bootstrap interview + detected topology; refine after each real use (see the
+     Usage log below).
+
+     ### Tier 1 — create
+     For a SINGLE-REPO project this is native EnterWorktree (or git worktree add).
+     For SPLIT-GIT topologies (root has no .git) EnterWorktree alone is NOT enough:
+     each touched participant needs its own worktree, and the unversioned root
+     wrapper (compose file, dev scripts) must be made available in the parallel
+     workspace. Record the exact commands — the generic helper
+     `aidex-worktree/scripts/worktree-multi.sh` does this per-participant + wrapper
+     symlinks, e.g.:
+       worktree-multi.sh create --slug <slug> --branch <branch> \
+         --repo backend --repo frontend --link docker-compose.yml --link dev.sh
+
+     ### Tier 1 — teardown
+       worktree-multi.sh remove --slug <slug>   (refuses dirty trees)
+
+     ### Tier 2 — create / teardown
+     The project's worktree_up / worktree_down commands (front-matter above), plus
+     any manual steps they don't cover yet. If Tier 2 is "not yet available",
+     say so here and point at the backlog item that will build it. -->
+
+## Usage log
+
+<!-- One line per real worktree run, appended at teardown (aidex-plan-exec does this
+     automatically): date · tier used · participants · collisions/problems observed.
+     When a pattern emerges (e.g. the same case-by-case trigger decided the same way
+     three times), promote it into the Tier decision section as a codified rule —
+     this ratchet is how the procedure gets simpler over time. -->
 
 ## Open questions
 

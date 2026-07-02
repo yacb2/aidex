@@ -31,6 +31,11 @@ release="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sy
 [[ "$commit" == "/commit" ]] || fail "commit_command: expected /commit, got $commit"
 [[ "$release" == "/version:release" ]] || fail "release_command (namespaced): expected /version:release, got $release — namespaced .claude/commands/<subdir>/<name>.md detection regressed"
 
+wt_up="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_up_command"))')"
+wt_down="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("worktree_down_command"))')"
+[[ "$wt_up" == "./worktree-up.sh <slug>" ]] || fail "worktree_up_command: expected ./worktree-up.sh <slug> (from .context/worktrees front-matter), got $wt_up"
+[[ "$wt_down" == "./worktree-down.sh <slug>" ]] || fail "worktree_down_command: expected ./worktree-down.sh <slug>, got $wt_down"
+
 detected_at1="$(printf '%s' "$out1" | python3 -c 'import json,sys; print(json.load(sys.stdin)["detected_at"])')"
 out2="$(bash "$DETECTOR" --project "$FIXTURE" --json)"
 detected_at2="$(printf '%s' "$out2" | python3 -c 'import json,sys; print(json.load(sys.stdin)["detected_at"])')"

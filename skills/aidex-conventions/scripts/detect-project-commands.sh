@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # detect-project-commands.sh — facts-only detector for a project's review/commit/
-# release/test command signals, cached at .claude/.aidex-detected-commands.json.
+# release/test/worktree command signals, cached at .claude/.aidex-detected-commands.json.
 #
 # Usage: detect-project-commands.sh [--project <path>] [--json] [--refresh]
 #
@@ -9,6 +9,9 @@
 #     *deploy*/*test* (deploy signal folds into release_command).
 #   - CLAUDE.md backtick-quoted command strings as a secondary signal, only
 #     used when no matching command file was found.
+#   - worktree_up/worktree_down: the .context/worktrees/00-index.md front-matter
+#     fields (primary, written by aidex-worktree bootstrap), falling back to an
+#     executable worktree-up*.sh / worktree-down*.sh at the root or in scripts/.
 #
 # Without --refresh, an existing cache file is read as-is (no re-scan).
 # With --refresh, always re-scans and overwrites the cache.
@@ -58,7 +61,8 @@ emit() {
 import json, sys
 d = json.load(open(sys.argv[1]))
 print(f"detected_at: {d.get('detected_at')}")
-for field in ("review_command", "commit_command", "release_command", "test_command"):
+for field in ("review_command", "commit_command", "release_command", "test_command",
+              "worktree_up_command", "worktree_down_command"):
     val = d.get(field)
     src = d.get("source", {}).get(field)
     if val:
@@ -83,6 +87,8 @@ review_command="" review_source=""
 commit_command="" commit_source=""
 release_command="" release_source=""
 test_command="" test_source=""
+worktree_up_command="" worktree_up_source=""
+worktree_down_command="" worktree_down_source=""
 
 find_cmd_file() {
   # $1 = pattern (e.g. "*review*"); prints the slash-invocation form of the first
@@ -143,12 +149,48 @@ if [[ -f "$CLAUDE_MD" ]]; then
   fi
 fi
 
+# Worktree Tier-2 commands: front-matter of the aidex-worktree doc (primary),
+# executable worktree-up*.sh / worktree-down*.sh at root or scripts/ (secondary).
+WT_DOC="$ROOT/.context/worktrees/00-index.md"
+fm_field() {
+  # $1 = front-matter key; prints its unquoted value from WT_DOC (first block only).
+  awk -F': ' -v key="$1" '
+    /^---[[:space:]]*$/ { c++; if (c == 2) exit; next }
+    c == 1 && $1 == key { sub(/^[^:]*: */, ""); gsub(/^"|"$/, ""); print; exit }
+  ' "$WT_DOC"
+  return 0
+}
+if [[ -f "$WT_DOC" ]]; then
+  m="$(fm_field worktree_up)"
+  [[ -n "$m" ]] && { worktree_up_command="$m"; worktree_up_source=".context/worktrees/00-index.md"; }
+  m="$(fm_field worktree_down)"
+  [[ -n "$m" ]] && { worktree_down_command="$m"; worktree_down_source=".context/worktrees/00-index.md"; }
+fi
+wt_script() {
+  # $1 = up|down; prints the first root-level or scripts/ worktree-<dir>*.sh, if any.
+  local cand
+  for cand in "$ROOT"/worktree-"$1"*.sh "$ROOT"/scripts/worktree-"$1"*.sh; do
+    [[ -f "$cand" ]] && { printf '%s\n' "${cand#"$ROOT"/}"; return 0; }
+  done
+  return 0
+}
+if [[ -z "$worktree_up_command" ]]; then
+  m="$(wt_script up)"
+  [[ -n "$m" ]] && { worktree_up_command="./$m"; worktree_up_source="$m"; }
+fi
+if [[ -z "$worktree_down_command" ]]; then
+  m="$(wt_script down)"
+  [[ -n "$m" ]] && { worktree_down_command="./$m"; worktree_down_source="$m"; }
+fi
+
 mkdir -p "$CACHE_DIR"
 
 REVIEW_COMMAND="$review_command" REVIEW_SOURCE="$review_source" \
 COMMIT_COMMAND="$commit_command" COMMIT_SOURCE="$commit_source" \
 RELEASE_COMMAND="$release_command" RELEASE_SOURCE="$release_source" \
 TEST_COMMAND="$test_command" TEST_SOURCE="$test_source" \
+WORKTREE_UP_COMMAND="$worktree_up_command" WORKTREE_UP_SOURCE="$worktree_up_source" \
+WORKTREE_DOWN_COMMAND="$worktree_down_command" WORKTREE_DOWN_SOURCE="$worktree_down_source" \
 python3 - "$CACHE_FILE" <<'PYEOF'
 import json, os, sys, datetime
 
@@ -161,11 +203,15 @@ data = {
     "commit_command": nn(os.environ.get("COMMIT_COMMAND", "")),
     "release_command": nn(os.environ.get("RELEASE_COMMAND", "")),
     "test_command": nn(os.environ.get("TEST_COMMAND", "")),
+    "worktree_up_command": nn(os.environ.get("WORKTREE_UP_COMMAND", "")),
+    "worktree_down_command": nn(os.environ.get("WORKTREE_DOWN_COMMAND", "")),
     "source": {
         "review_command": nn(os.environ.get("REVIEW_SOURCE", "")),
         "commit_command": nn(os.environ.get("COMMIT_SOURCE", "")),
         "release_command": nn(os.environ.get("RELEASE_SOURCE", "")),
         "test_command": nn(os.environ.get("TEST_SOURCE", "")),
+        "worktree_up_command": nn(os.environ.get("WORKTREE_UP_SOURCE", "")),
+        "worktree_down_command": nn(os.environ.get("WORKTREE_DOWN_SOURCE", "")),
     },
 }
 
