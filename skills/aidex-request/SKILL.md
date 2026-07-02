@@ -30,6 +30,18 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    if it needs depth it escalates to a plan or research. Write the artifact
    in English (canon §Language).
 
+## Self-check (mandatory close step)
+
+Before finishing, validate the artifact you just wrote and fix any violation on
+the spot — compliance is enforced at creation time, not left to a later sweep:
+
+```bash
+python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type requests
+```
+
+If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
+a non-zero exit means you introduced a NEW violation — fix it before closing.
+
 ## Boundaries
 
 | The user wants to… | Route to |
