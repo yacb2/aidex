@@ -48,6 +48,10 @@ findings_in_inventory=0
 f_open=0; f_doing=0; f_done=0; f_dropped=0; f_legacy=0
 inventory_ids=""   # newline-separated "<id>" across all methodologies
 
+# Whitespace trim without xargs (xargs dies on unbalanced quotes in cell text —
+# same field bug class as the backlog --list apostrophe crash).
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
+
 add_violation() { VIOLATIONS+=("$1"); }
 add_warning()   { WARNINGS+=("$1"); }
 
@@ -116,10 +120,10 @@ validate_inventory() {
     pipe_count="$(printf '%s' "$line" | tr -cd '|' | wc -c | tr -d ' ')"
     [[ "$pipe_count" -ge 5 ]] || continue
     IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest <<< "$line"
-    id="$(echo "${c_id:-}" | xargs)"
-    status="$(echo "${c_status:-}" | xargs)"
-    escalated="$(echo "${c_escalated:-}" | xargs)"
-    notes="$(echo "${rest%%|*}" | xargs)"
+    id="$(trim "${c_id:-}")"
+    status="$(trim "${c_status:-}")"
+    escalated="$(trim "${c_escalated:-}")"
+    notes="$(trim "${rest%%|*}")"
     [[ -z "$id" || "$id" == "—" ]] && continue
     [[ "$id" =~ [A-Za-z] ]] || continue
     [[ "$id" =~ ^[A-Z]+[-A-Z0-9]*-[0-9]+$ ]] && pipe_rows=$((pipe_rows+1))
@@ -265,7 +269,7 @@ if [[ -d "$BACKLOG_DIR" ]]; then
     # audit/<id> (2, legacy) -> check against aggregate ids.
     seg_count="$(printf '%s' "$ref" | awk -F'/' '{print NF}')"
     ref_id="${ref##*/}"
-    ref_id="$(echo "$ref_id" | xargs)"
+    ref_id="$(trim "$ref_id")"
     if [[ "$seg_count" -ge 4 || "$seg_count" -eq 2 ]]; then
       if ! id_seen "$ref_id"; then
         rel="${bl_entry#"$(dirname "$AUDITS_DIR")"/}"
