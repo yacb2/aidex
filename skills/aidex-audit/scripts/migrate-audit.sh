@@ -1,20 +1,160 @@
 #!/usr/bin/env bash
-# migrate-audit.sh — detect audit-like folders in .context/plans/ and propose migration.
-# Usage: migrate-audit.sh [project-dir]
+# migrate-audit.sh — two migration surfaces:
 #
-# This script does heuristic detection. The actual move + INVENTORY seeding is
-# meant to be done by the audit-migrator and inventory-seeder subagents via Claude.
-# This script prints the candidate list and the invocation hint.
+#   (default)  detect audit-like folders in .context/plans/ and propose moving
+#              them (heuristic detection; the move + INVENTORY seeding is done
+#              by the audit-migrator / inventory-seeder subagents via Claude).
+#
+#   --layout   convert a LEGACY audits tree to the canon model (rebuild
+#              2026-07-02): YYYYMMDD run folders -> YYYY-MM-DD, legacy status
+#              values -> base vocabulary (triaged->open, escalated/closed->done,
+#              in-progress->doing), YYYYMMDD dates in inventory cells -> ISO,
+#              and — with --methodology <name> — root boards + root runs moved
+#              under audits/<name>/. Dry-run by default; --apply executes;
+#              idempotent (a second --apply is a no-op).
+#
+# Usage: migrate-audit.sh [project-dir]
+#        migrate-audit.sh --layout [--methodology <name>] [--apply] [project-dir]
 
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
 
 if [[ "${1:-}" == "migrate" ]]; then shift; fi
 
-if [[ -n "${1:-}" ]]; then
-  ROOT="$(cd "$1" && pwd -P)"
+LAYOUT=0 APPLY=0 METH=""
+POSITIONAL=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --layout) LAYOUT=1; shift ;;
+    --apply) APPLY=1; shift ;;
+    --methodology) METH="$2"; shift 2 ;;
+    -*) die "unknown flag: $1" ;;
+    *) POSITIONAL="$1"; shift ;;
+  esac
+done
+
+if [[ -n "$POSITIONAL" ]]; then
+  ROOT="$(cd "$POSITIONAL" && pwd -P)"
 else
   ROOT="$(find_project_root)"
+fi
+
+# ---------- --layout: legacy audits tree -> canon ----------
+if [[ "$LAYOUT" -eq 1 ]]; then
+  AUDITS_DIR="$ROOT/.context/audits"
+  [[ -d "$AUDITS_DIR" ]] || die "no audits directory at $AUDITS_DIR"
+  changes=0
+
+  act() {  # $1 = description; runs "$@" (from $2) only under --apply
+    local desc="$1"; shift
+    changes=$((changes+1))
+    if [[ "$APPLY" -eq 1 ]]; then
+      "$@"
+      ok "APPLIED: $desc"
+    else
+      log "WOULD: $desc"
+    fi
+  }
+
+  iso_name() {  # 20260610-foo -> 2026-06-10-foo
+    printf '%s' "$1" | sed -E 's/^(20[0-9]{2})([0-9]{2})([0-9]{2})-/\1-\2-\3-/'
+  }
+
+  iso_dates() {  # stdin filter: bare YYYYMMDD words -> YYYY-MM-DD (BSD sed has no \b; prefer perl)
+    if command -v perl >/dev/null 2>&1; then
+      perl -pe 's/\b(20\d{2})(\d{2})(\d{2})\b/$1-$2-$3/g'
+    else
+      sed -E -e 's/(^|[^0-9-])(20[0-9]{2})([0-9]{2})([0-9]{2})($|[^0-9])/\1\2-\3-\4\5/g' \
+             -e 's/(^|[^0-9-])(20[0-9]{2})([0-9]{2})([0-9]{2})($|[^0-9])/\1\2-\3-\4\5/g'
+    fi
+  }
+
+  # Normalize one inventory: legacy status cells -> base vocab; YYYYMMDD -> ISO.
+  normalize_inventory() {
+    local inv="$1" tmp
+    tmp="$(mktemp)"
+    awk -F'|' '
+      {
+        if ($0 ~ /^\|/ && NF >= 11) {
+          s = $6; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
+          mapped = s
+          if (s == "triaged") mapped = "open"
+          else if (s == "escalated" || s == "closed") mapped = "done"
+          else if (s == "in-progress") mapped = "doing"
+          if (mapped != s) $6 = " " mapped " "
+          out = $1
+          for (i = 2; i <= NF; i++) out = out "|" $i
+          print out
+        } else {
+          print $0
+        }
+      }' OFS='' "$inv" | iso_dates > "$tmp"
+    if ! cmp -s "$tmp" "$inv"; then
+      if [[ "$APPLY" -eq 1 ]]; then mv "$tmp" "$inv"; ok "APPLIED: normalized statuses/dates in ${inv#"$ROOT"/}"
+      else rm -f "$tmp"; log "WOULD: normalize legacy statuses/dates in ${inv#"$ROOT"/}"; fi
+      changes=$((changes+1))
+    else
+      rm -f "$tmp"
+    fi
+  }
+
+  # 1. Root boards -> methodology folder (needs --methodology; a human choice).
+  has_root_boards=0
+  for b in 00-inventory.md 00-methodology.md 00-changelog.md INVENTORY.md METHODOLOGY.md CHANGELOG.md; do
+    [[ -f "$AUDITS_DIR/$b" ]] && has_root_boards=1
+  done
+  if [[ "$has_root_boards" -eq 1 ]]; then
+    if [[ -z "$METH" ]]; then
+      warn "root boards found but no --methodology <name> given — boards/runs stay in place (pass --methodology to group them; the slug is a human choice)"
+    else
+      is_valid_slug "$METH" || die "invalid methodology slug: $METH"
+      act "create methodology folder audits/$METH/" mkdir -p "$AUDITS_DIR/$METH"
+      for pair in "00-inventory.md|INVENTORY.md" "00-methodology.md|METHODOLOGY.md" "00-changelog.md|CHANGELOG.md"; do
+        modern="${pair%%|*}"; legacy="${pair#*|}"
+        src=""
+        [[ -f "$AUDITS_DIR/$modern" ]] && src="$AUDITS_DIR/$modern"
+        [[ -z "$src" && -f "$AUDITS_DIR/$legacy" ]] && src="$AUDITS_DIR/$legacy"
+        [[ -n "$src" ]] && act "move $(basename "$src") -> audits/$METH/$modern" mv "$src" "$AUDITS_DIR/$METH/$modern"
+      done
+    fi
+  fi
+
+  # 2. Dated run folders: rename YYYYMMDD -> ISO; move root runs under the
+  #    methodology when boards were grouped.
+  for run in "$AUDITS_DIR"/[0-9]*-*/ "$AUDITS_DIR"/*/[0-9]*-*/; do
+    [[ -d "$run" ]] || continue
+    run="${run%/}"
+    base="$(basename "$run")"
+    parent="$(dirname "$run")"
+    case "$parent" in */_archive) continue ;; esac
+    new_base="$base"
+    [[ "$base" =~ ^[0-9]{8}- ]] && new_base="$(iso_name "$base")"
+    dest_parent="$parent"
+    if [[ "$parent" == "$AUDITS_DIR" && "$has_root_boards" -eq 1 && -n "$METH" ]]; then
+      dest_parent="$AUDITS_DIR/$METH"
+    fi
+    if [[ "$dest_parent/$new_base" != "$run" ]]; then
+      [[ "$APPLY" -eq 1 ]] && mkdir -p "$dest_parent"
+      act "move run $base -> ${dest_parent#"$AUDITS_DIR"/}/$new_base" mv "$run" "$dest_parent/$new_base"
+    fi
+  done
+
+  # 3. Normalize every inventory (methodology folders + any still at root).
+  for inv in "$AUDITS_DIR"/00-inventory.md "$AUDITS_DIR"/INVENTORY.md "$AUDITS_DIR"/*/00-inventory.md; do
+    [[ -f "$inv" ]] && normalize_inventory "$inv"
+  done
+
+  if [[ "$changes" -eq 0 ]]; then
+    ok "audits tree already canon — nothing to migrate"
+  elif [[ "$APPLY" -eq 0 ]]; then
+    log ""
+    log "$changes change(s) planned. Re-run with --apply to execute."
+  else
+    REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-audits.sh"
+    [[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
+    ok "layout migration applied ($changes change(s)). Run /aidex-audit validate."
+  fi
+  exit 0
 fi
 
 PLANS_DIR="$ROOT/.context/plans"
