@@ -31,6 +31,18 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    deciding factor, not just the verdict. Write the artifact in English
    (canon §Language).
 
+## Self-check (mandatory close step)
+
+Before finishing, validate the artifact you just wrote and fix any violation on
+the spot — compliance is enforced at creation time, not left to a later sweep:
+
+```bash
+python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type decisions
+```
+
+If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
+a non-zero exit means you introduced a NEW violation — fix it before closing.
+
 ## Boundaries
 
 | The user wants to… | Route to |

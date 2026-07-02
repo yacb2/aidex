@@ -108,6 +108,18 @@ with `status: sent` too.
 
 ---
 
+## Self-check (mandatory close step)
+
+Before finishing, validate the artifact you just wrote and fix any violation on
+the spot — compliance is enforced at creation time, not left to a later sweep:
+
+```bash
+python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type communications
+```
+
+If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
+a non-zero exit means you introduced a NEW violation — fix it before closing.
+
 ## References
 
 - [../aidex-conventions/references/communication-conventions.md](../aidex-conventions/references/communication-conventions.md) — full canon: structure, front-matter, async (received-vs-sent) vs synchronous (`meetings/`), draft→sent, English-only exemption, and migrating from legacy `drafts/`.
