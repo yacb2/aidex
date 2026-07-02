@@ -369,6 +369,8 @@ do_update() {
 
   if [ "${#modified[@]}" -eq 0 ] && [ "${#new_items[@]}" -eq 0 ] && [ "${#removed[@]}" -eq 0 ]; then
     info "Everything is up to date ($unchanged items unchanged)"
+    # Still stamp the version: a release commit may bump VERSION= with no item changes.
+    echo "$VERSION" > "$AIDEX_DIR/.version"
     exit 0
   fi
 
