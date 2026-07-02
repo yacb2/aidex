@@ -66,6 +66,32 @@ for block in "${BLOCKS[@]}"; do
   done
 done
 
+# Structural assertions (director pattern, 2026-07-02): every asset that builds a
+# plan-phase implementer must use WORK_SCHEMA (so runPhase's director/pending_actions
+# paths actually receive structured reports), and the canonical CORE must carry the
+# director + publication carriers.
+if ! grep -q "blocked_reason" <(extract_block "$CANON" "CORE") || \
+   ! grep -q "pending_actions" <(extract_block "$CANON" "CORE"); then
+  echo "  FAIL: canonical CORE lost the director carriers (blocked_reason / pending_actions)" >&2
+  FAIL=$((FAIL+1))
+else
+  echo "  ok:   canonical CORE carries director + pending_actions paths"
+  PASS=$((PASS+1))
+fi
+for asset in "${ASSETS[@]}"; do
+  rel="${asset#"$REPO_ROOT"/}"
+  # Only assets that define a plan-phase implementer closure are bound to WORK_SCHEMA.
+  if grep -qE "makeImplement|implement: \(feedback" "$asset"; then
+    if grep -q "schema: WORK_SCHEMA" "$asset"; then
+      echo "  ok:   $rel [implementer uses WORK_SCHEMA]"
+      PASS=$((PASS+1))
+    else
+      echo "  FAIL: $rel — implementer closure without schema: WORK_SCHEMA (director pattern broken)" >&2
+      FAIL=$((FAIL+1))
+    fi
+  fi
+done
+
 echo ""
 echo "drift-lock: $PASS ok, $FAIL drifted (canonical: skills/aidex-conventions/references/workflow-core.md)"
 [ "$FAIL" -eq 0 ]

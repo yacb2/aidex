@@ -90,8 +90,25 @@ const VERDICT_SCHEMA = {
   properties: {
     verdict: { enum: ['CONTINUE', 'ASK', 'STOP'] },
     reason: { type: 'string' },
+    action: { type: 'string' },
     batched_question: { type: 'string' },
     log: { type: 'string' },
+  },
+  additionalProperties: false,
+}
+
+// Structured implementer report: lets the arbiter DIRECT a blocked implementer
+// mid-phase (instead of ruling post-mortem on retry exhaustion) and routes
+// publication/deny actions through checkAction instead of the implementer
+// performing them. Every implementing form's agent MUST use this schema.
+const WORK_SCHEMA = {
+  type: 'object',
+  required: ['done', 'summary'],
+  properties: {
+    done: { type: 'boolean' },
+    summary: { type: 'string' },
+    blocked_reason: { type: 'string' },
+    pending_actions: { type: 'array', items: { type: 'string' } },
   },
   additionalProperties: false,
 }
@@ -113,22 +130,49 @@ function arbiter(situation, autonomySurface) {
   )
 }
 
-// Durable per-phase loop: implement -> verify -> retry K -> conditional arbiter on exhaustion.
+// Durable per-phase loop: implement -> (director on blocked / pending actions) ->
+// verify -> retry K -> conditional arbiter on exhaustion.
 async function runPhase(phase, ctx) {
   const K = ctx.maxRetries ?? 2
   let feedback = ''
+  let directed = 0
+  const asks = []
   for (let attempt = 1; attempt <= K + 1; attempt++) {
     const work = await phase.implement(feedback, attempt)
-    const proof = await verify(phase.id, phase.gateCmd)
-    if (proof.passed) return { phaseId: phase.id, passed: true, attempts: attempt, proof, work }
-    feedback = `Attempt ${attempt} failed the gate (exit ${proof.exit_code}). Fix the root cause:\n${proof.evidence}`
-    log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof.exit_code})`)
+    // Director path: a blocked implementer consults the arbiter BEFORE burning a gate
+    // attempt; CONTINUE re-launches it with the direction (max 2 redirects per phase).
+    if (work && work.blocked_reason && !work.done && directed < 2) {
+      const v = await arbiter(
+        `Implementer of phase ${phase.id} reports it is blocked: ${work.blocked_reason}. ` +
+        `If the block is not genuine, direct it to continue (CONTINUE with action); else STOP/ASK.`,
+        ctx.autonomySurface
+      )
+      if (v && v.verdict === 'CONTINUE') {
+        directed++
+        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase.`
+        attempt--
+        continue
+      }
+      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks }
+    }
+    // Publication/deny path: actions the implementer REPORTED instead of performing.
+    for (const action of (work && work.pending_actions) || []) {
+      const c = await checkAction(action, ctx)
+      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks }
+      if (c && c.verdict === 'ASK') asks.push(c.batched_question || `Authorize: ${action}?`)
+      // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
+    }
+    let proof = await verify(phase.id, phase.gateCmd)
+    if (!proof) proof = await verify(phase.id, phase.gateCmd) // null = transient verifier failure, not a gate verdict: one retry
+    if (proof && proof.passed) return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+    feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
+    log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
   }
   const v = await arbiter(
     `Phase ${phase.id} failed its machine gate ${K + 1} times. Decide STOP (clean halt) or ASK (escalate).`,
     ctx.autonomySurface
   )
-  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v }
+  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks }
 }
 
 // Publication/deny trigger (decision Q2): consult the arbiter ONLY when a pending action
@@ -154,6 +198,7 @@ const ctx = {
 }
 
 const results = []
+const batchedAsks = []
 for (const p of cfg.phases || []) {
   phase('Execute')
   const phaseSpec = {
@@ -163,22 +208,30 @@ for (const p of cfg.phases || []) {
     // gateCmd goes only to the verifier (CORE `verify()`), so the implementer cannot read the
     // grading test and optimize to it — it must satisfy the spec's contract. This closes the
     // prior plan's "spec-only vs test-visible implementer" leak at the source.
+    // WORK_SCHEMA (director pattern): the implementer reports blocked_reason instead of
+    // stopping silently, and lists pub/deny actions in pending_actions instead of
+    // performing them — CORE's runPhase routes those through the arbiter/checkAction.
     implement: (feedback, attempt) =>
       agent(
         `Plan: ${cfg.planPath}\nPhase ${p.id} (attempt ${attempt}).\n\n${p.spec}\n\n` +
+        `Autonomy surface (binding): ${ctx.autonomySurface}\n` +
+        `NEVER perform publication (push/publish/deploy/release) or destructive actions yourself — ` +
+        `list them as pending_actions in your report instead. If genuinely blocked, return ` +
+        `done=false with blocked_reason instead of guessing or stopping silently.\n` +
         `Read prior phase outputs from disk as needed; do NOT assume prior conversation.\n` +
         `Implement the spec's contract fully and correctly. A separate verifier will check your work; ` +
         `you are NOT shown that check, so satisfy the spec itself — do not target a test.\n` +
         (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),
-        { label: `exec:${p.id}`, phase: 'Execute', model: p.model || 'sonnet', effort: p.effort || 'medium' }
+        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'sonnet', effort: p.effort || 'medium' }
       ),
   }
   const r = await runPhase(phaseSpec, ctx)
   results.push(r)
+  if (r && r.asks && r.asks.length) batchedAsks.push(...r.asks)
   if (!r.passed) {
     log(`phase ${p.id} did not pass after retries -> ${r.escalated?.verdict}; halting pipeline`)
-    break   // dependent phases: a failed phase blocks the rest
+    break   // dependent phases (a chain): a failed phase blocks everything downstream
   }
 }
 
-return { planPath: cfg.planPath, results }
+return { planPath: cfg.planPath, results, batchedAsks }
