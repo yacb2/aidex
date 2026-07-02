@@ -17,8 +17,9 @@ You will receive the project path in the prompt.
 You DO NOT re-implement convention checks. The validator at
 `~/.aidex/skills/aidex-conventions/scripts/validate.py` (wrapped by
 `validate.sh`) is the single source of truth for type-agnostic and
-type-specific structural checks across all 7 artifact types (backlog, plans,
-requests, decisions, references, research, audits).
+type-specific structural checks across all 10 artifact types (backlog, plans,
+requests, decisions, references, research, audits, communications, loops,
+worktrees).
 
 Audit-specific deep checks (INVENTORY tables, methodology folders, escalation
 references) remain in `validate-audit.sh` and are handled by `context-auditor`.

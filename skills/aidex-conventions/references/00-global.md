@@ -40,7 +40,7 @@ In `backlog/`, the `00-index.md` is **auto-regenerated** from front-matter — n
 
 ADR: [`2026-05-14-cross-reference-type-prefix.md`](../../../.context/decisions/2026-05-14-cross-reference-type-prefix.md)
 
-- **Format:** `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, worktree}`.
+- **Format:** `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, communication, loop, worktree}`.
 - **Lookup:** validators search `<type>/` and `<type>/_archive/`. Archive moves do not break inbound references.
 - **Sentinel:** `<type>/pending` for not-yet-created targets. Never flagged as missing.
 - **Fields that take this form:** `escalated_to`, `superseded_by`, `blocked_by`, `origin_ref`.
@@ -82,6 +82,7 @@ ADRs: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/20
 - `plans/` — move on completion (`status: done`).
 - `requests/` — move on `rejected`, `escalated` (to a plan), or completed.
 - `decisions/` — move on `superseded` or `reversed`.
+- `loops/` — move `done`/`dropped` loop-specs on close (see `aidex-loop`'s `02-loop-spec-conventions.md`).
 - `audits/` — move a **run folder** to `_archive/` once the cycle closes (all in-scope findings `closed` or escalated). The rolling cross-run inventory may stay as a live board; only completed run folders archive.
 
 `_archive/` is **not used** in:
@@ -128,7 +129,7 @@ Each type maps its prior vocabulary onto the base + modifiers:
 | Decision | `Superseded` | `status: superseded` + `superseded_by: decision/<…>` |
 | Decision | `Reversed` | `status: dropped` |
 
-**Decisions are the only exception to the four-value vocabulary** — they use `accepted` (alive), `superseded`, `dropped` because "accepted" is the load-bearing word for an ADR and substituting `done` would mislead. Validators treat decision statuses as a separate enum.
+**Two types deviate from the four-value vocabulary** — decisions use `accepted` (alive), `superseded`, `dropped` because "accepted" is the load-bearing word for an ADR and substituting `done` would mislead; communications use `draft` · `sent` (a message has no task lifecycle — see [`communication-conventions.md`](communication-conventions.md)). Validators treat both as separate enums.
 
 **References are exempt from the status vocabulary check** — `references/` artifacts are documentation, not work items, and have no task lifecycle. The `status` field is optional for references; when present, documentation-oriented values (`living`, `current`, `superseded`, etc.) are allowed and not validated. Supersession of a reference is still recorded via the `superseded_by` field per §5.
 
@@ -191,16 +192,19 @@ without it (this materializes the global verification-before-claims rule).
 
 | You're creating… | Folder | Filename | Index? | Archive? |
 |---|---|---|---|---|
-| Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | No |
+| Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | `audits/_archive/` on cycle close (§5, D-10) |
 | Backlog item | `backlog/` | `YYYY-MM-DD-<slug>.md` | `00-index.md` (auto-gen) | `_archive/` |
 | Plan (single-file) | `plans/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Plan (modular) | `plans/YYYY-MM-DD-<slug>/` | `00-index.md` + `NN-*.md` | `00-index.md` | `_archive/` |
 | Request | `requests/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Decision (ADR) | `decisions/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
+| Loop spec | `loops/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Reference module | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
 | Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
-| Communication | `communications/{received,sent}/<YYYY-MM-DD>-<slug>/` | `body.md` | — | No |
-| Worktree overview | .context/worktrees/ | 00-index.md (+ NN-*.md if it grows) | 00-index.md | versioned in place |
+| Communication | `communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/` | `body.md` | — | No |
+| Worktree overview | `worktrees/` | `00-index.md` (+ `NN-*.md` if it grows) | `00-index.md` | versioned in place |
+| Worklist (run-queue) | `worklists/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | No (ephemeral run artifact) |
+| Workflow spec | `workflows/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | No |
 
 ---
 
@@ -212,7 +216,8 @@ without it (this materializes the global verification-before-claims rule).
 
 ### Canonical (managed, never flag, empty = healthy, never propose delete)
 
-Each is scaffolded/managed by an aidex skill. An empty canonical directory is a
+Most are scaffolded/managed by an aidex skill; `docs`, `issues`, and `roadmap` are
+reserved canonical tiers with no scaffolder yet. An empty canonical directory is a
 healthy not-yet-used state, **not** a problem — never propose deleting it:
 
 ```
@@ -222,12 +227,14 @@ backlog · audits · loops · communications · issues · roadmap · worktrees
 
 ### Acceptable-optional (project-local, don't flag, don't require)
 
-These are **not** scaffolded by any skill and may be gitignored. If a project
-uses them, document them in the project `CLAUDE.md`. Auditors treat them as
-INFO-at-most and never propose deleting them — but they are never *required* either:
+Never required in any project and may be gitignored. Some are scaffolded on demand
+by aidex tooling (`worklists` by the worklist scripts, `workflows` by
+`aidex-workflow`); the rest are project-local. If a project uses them, document
+them in the project `CLAUDE.md`. Auditors treat them as INFO-at-most and never
+propose deleting them — but they are never *required* either:
 
 ```
-data · diagrams · drafts · experiments
+data · diagrams · drafts · experiments · worklists · workflows
 ```
 
 ### Deletion rule

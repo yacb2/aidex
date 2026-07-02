@@ -8,7 +8,18 @@ Standards for implementation plans with checkbox tracking for multi-session work
 
 ## Structure pattern
 
-### Multi-file plan (default for ≥3 phases)
+Threshold (ADR `decision/2026-07-02-plan-modular-threshold`): **single-file is the
+default up to 4 phases and <20 tasks**; go multi-file at 5+ phases, 20+ tasks,
+multi-layer scope (backend + frontend + infra), or when phases are executed by
+different sessions/teammates.
+
+### Single-file plan (default: up to 4 phases, <20 tasks)
+
+```
+.context/plans/YYYY-MM-DD-<feature>.md
+```
+
+### Multi-file plan (5+ phases, 20+ tasks, or multi-layer)
 
 ```
 .context/plans/YYYY-MM-DD-<feature>/
@@ -16,12 +27,6 @@ Standards for implementation plans with checkbox tracking for multi-session work
 ├── 01-<phase>.md         # Phase 1
 ├── 02-<phase>.md         # Phase 2
 └── …
-```
-
-### Single-file plan (1–2 phases)
-
-```
-.context/plans/YYYY-MM-DD-<feature>.md
 ```
 
 Folder/filename date: `YYYY-MM-DD` (D-01). Slug: kebab-case, describes the feature.

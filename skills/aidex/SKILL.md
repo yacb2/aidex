@@ -15,7 +15,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 
 | Domain | Location | What it checks |
 |--------|----------|---------------|
-| **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`) reported at INFO only |
+| **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `worklists`, `workflows`) reported at INFO only |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/`, `~/.aidex/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization |
@@ -87,8 +87,8 @@ Before launching any subagent, scan what exists in the project:
 
 ```
 Check for:
-- .context/ (references/, docs/, plans/, backlog/ [incl. _deferred/], issues/, roadmap/, requests/, decisions/, research/, audits/, loops/, communications/)
-- .context/ optional tier (data/, diagrams/, drafts/, experiments/) — project-local, INFO-at-most, never deletion candidates
+- .context/ (references/, docs/, plans/, backlog/ [incl. _deferred/], issues/, roadmap/, requests/, decisions/, research/, audits/, loops/, communications/, worktrees/)
+- .context/ optional tier (data/, diagrams/, drafts/, experiments/, worklists/, workflows/) — project-local, INFO-at-most, never deletion candidates
 - .claude/ (skills/, CLAUDE.md, MEMORY.md)
 - ~/.aidex/ (shared skills storage)
 - ~/.claude/skills/ (global skills)
@@ -167,8 +167,8 @@ Collect all subagent reports. Produce unified report split into two top-level fi
 
 Before emitting any finding that proposes deleting a file/directory, uninstalling a plugin, or removing a skill from disk, verify the four gates below. Failing **any** gate downgrades the proposal to a softer alternative or suppresses it.
 
-1. **Canonical type?** If the target is an empty directory, is it in the canonical list (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications`)? If yes → do not propose deletion (empty canonical = healthy). The `backlog/_deferred/` and `<type>/_archive/` subdirs are part of their parent's canonical lifecycle — treat as healthy, never orphan/delete candidates.
-   **Acceptable-optional tier?** If the target is `data`, `diagrams`, `drafts`, or `experiments`, it is project-local (not scaffolded by any aidex skill, may be gitignored): INFO-at-most, never a deletion proposal. Only `.context/` dirs in NEITHER tier qualify as deletion candidates.
+1. **Canonical type?** If the target is an empty directory, is it in the canonical list (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications, worktrees`)? If yes → do not propose deletion (empty canonical = healthy). The `backlog/_deferred/` and `<type>/_archive/` subdirs are part of their parent's canonical lifecycle — treat as healthy, never orphan/delete candidates.
+   **Acceptable-optional tier?** If the target is `data`, `diagrams`, `drafts`, `experiments`, `worklists`, or `workflows`, it is never required (some are scaffolded on demand — `worklists` by the worklist scripts, `workflows` by `aidex-workflow`; the rest are project-local, may be gitignored): INFO-at-most, never a deletion proposal. Only `.context/` dirs in NEITHER tier qualify as deletion candidates.
 2. **Protected marketplace?** If the target is a plugin, is its marketplace in `PROTECTED_MARKETPLACES` (`claude-plugins-official`, `anthropics`)? If yes → downgrade to INFO, never propose disable/uninstall.
 3. **Reversible local override exists?** Is there a softer alternative (`enabledPlugins: false`, `skillOverrides: name-only/off`, archive-instead-of-delete)? If yes → prefer it over the destructive action.
 4. **`.git` ancestor present?** For any `.gitignore` suggestion in `.context/`, walk up to find `.git`. If absent (typical of `*_ws/` workspace roots) → suppress the finding.

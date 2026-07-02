@@ -7,10 +7,10 @@ Detailed checks for `.context/references/`, `.context/docs/`, `.context/plans/`,
 Two tiers govern whether an empty/unknown `.context/` dir is ever a deletion candidate:
 
 - **Canonical** (managed by an aidex skill; empty = healthy; never propose delete):
-  `references, docs, plans, requests, decisions, research, backlog, audits, loops, communications, issues, roadmap`.
+  `references, docs, plans, requests, decisions, research, backlog, audits, loops, communications, issues, roadmap, worktrees`.
   - `backlog/_deferred/` (open-but-blocked items, `status: open` + `blocked_by` populated) and any `<type>/_archive/` (terminal: done/dropped) are part of their parent's canonical lifecycle — treat as healthy, NOT orphan.
 - **Acceptable-optional** (project-local; not scaffolded by any skill; may be gitignored):
-  `data, diagrams, drafts, experiments`. Report at INFO-at-most; never propose deletion.
+  `data, diagrams, drafts, experiments, worklists, workflows`. Report at INFO-at-most; never propose deletion.
 
 Before proposing deletion of any `.context/` dir, check BOTH tiers; only dirs in NEITHER tier qualify as deletion candidates.
 
@@ -50,7 +50,7 @@ All files must match `NN-topic-name.md` (two digits, kebab-case).
 ## Checks PA-PD (Plans)
 
 ### PA. Naming
-Files match `YYYYMMDD-<name>.md` or directory with `00-index.md`.
+Files match `YYYY-MM-DD-<slug>.md` or directory with `00-index.md`. Legacy `YYYYMMDD-<name>` filenames → flag for migration.
 
 ### PB. Index
 Multi-file plans have `00-index.md` linking all phase files.
@@ -89,7 +89,7 @@ Each phase indicates status (planned / in-progress / done).
 ## Checks QA-QB (Requests)
 
 ### QA. Naming
-Files match `YYYYMMDD-description.md` pattern.
+Files match `YYYY-MM-DD-<slug>.md` pattern. Legacy `YYYYMMDD-description.md` filenames → flag for migration.
 
 ### QB. Archive
 Completed requests moved to `_archive/` subdirectory.
@@ -97,27 +97,27 @@ Completed requests moved to `_archive/` subdirectory.
 ## Checks DA-DD (Decisions)
 
 ### DA. Naming
-Files match `YYYYMMDD-description.md` pattern.
+Files match `YYYY-MM-DD-<slug>.md` pattern. Legacy `YYYYMMDD-description.md` filenames → flag for migration.
 
 ### DB. Status Field
-Each decision has a Status field (Active / Superseded / Reversed).
+Each decision has a Status field (accepted / superseded / dropped). Legacy values (Active / Superseded / Reversed) → flag for migration.
 
 ### DC. Superseded Link
-Decisions with status "Superseded" must include a `Superseded by:` link to the newer decision.
+Decisions with status "superseded" must include a `superseded_by:` link to the newer decision.
 
 ### DD. Archive
-Reversed or superseded decisions moved to `_archive/` subdirectory (optional — may keep in main dir for visibility).
+Superseded or dropped decisions moved to `_archive/` subdirectory (optional — may keep in main dir for visibility).
 
 ## Checks UA-UH (Audits)
 
 ### UA. Canonical Files
-`INVENTORY.md`, `METHODOLOGY.md`, `CHANGELOG.md` all present at the root of `.context/audits/`.
+Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`).
 
 ### UB. Run Folder Naming
-Subfolders follow `YYYYMMDD-<slug>/` pattern. Exceptions allowed only for `methodology/` and `_archive/`.
+Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern. Exceptions allowed only for `_archive/`. Legacy `YYYYMMDD-<slug>/` run folders → flag for migration.
 
 ### UC. Run Folder Content
-Each `YYYYMMDD-<slug>/` contains both `index.md` and `findings.md`.
+Each `YYYY-MM-DD-<slug>/` contains both `index.md` and `findings.md`.
 
 ### UD. INVENTORY Integrity
 - No duplicate IDs in INVENTORY
@@ -128,7 +128,7 @@ Each `YYYYMMDD-<slug>/` contains both `index.md` and `findings.md`.
 IDs mentioned in per-run `findings.md` must exist in INVENTORY (detects findings added to a view but not to the canonical source).
 
 ### UF. Orphan Backlog References
-Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check `origin_ref: audit/<run>/<id>`).
+Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check `origin_ref: audit/<methodology>/<run>/<finding-id>`).
 
 ### UG. Playbook For Declared Type
 If a run's `index.md` declares `Type: <type>` with a known type, `methodology/<type>.md` must exist.
