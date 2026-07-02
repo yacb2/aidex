@@ -2,22 +2,22 @@
   {
     "query": "I want to do a full UX audit of the checkout flow. We've been getting complaints for months that users abandon at the payment step, and now that we're about to launch the mobile version I want to catalog everything that's broken before we touch it.",
     "should_trigger": true,
-    "expected_behavior": "Should scaffold a new ux-audit run and propose using the ux playbook"
+    "expected_behavior": "Should scaffold a new ux run and propose using the ux playbook"
   },
   {
     "query": "Before we ship the v2 release next month, I want to do a full security audit of the API surface — auth flows, rate limiting, input validation, the works. Where do we typically catalog this kind of thing?",
     "should_trigger": true,
-    "expected_behavior": "Should scaffold a security-audit run and reference the security playbook"
+    "expected_behavior": "Should scaffold a security run and reference the security playbook"
   },
   {
     "query": "The listing pages are super slow, especially the bookings page with 500+ items. I want to do a full performance audit: TTFB, Core Web Vitals, query analysis, the whole thing.",
     "should_trigger": true,
-    "expected_behavior": "Should scaffold a perf-audit run"
+    "expected_behavior": "Should scaffold a perf run"
   },
   {
     "query": "We need to be WCAG 2.1 AA compliant for the public-sector client contract. We have to run a complete accessibility audit of the app.",
     "should_trigger": true,
-    "expected_behavior": "Should scaffold an a11y-audit run"
+    "expected_behavior": "Should scaffold an a11y run"
   },
   {
     "query": "It's been 5 sprints since the last UX audit of the onboarding flow. I want to retest the open findings to see which ones got fixed and which ones are still there.",
