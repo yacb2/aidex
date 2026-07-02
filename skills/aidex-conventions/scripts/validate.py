@@ -28,9 +28,11 @@ TYPES = ["backlog", "plans", "requests", "decisions", "references", "research", 
          "communications", "loops", "worktrees"]
 TYPES_WITH_ARCHIVE = {"backlog", "plans", "requests", "decisions", "loops"}
 TYPES_WITH_INDEX = {"plans": True, "references": True, "research": True, "backlog": True}
-# Acceptable-optional .context/ dirs: project-local, not scaffolded by any skill, may be
-# gitignored. The validator neither requires nor flags them — listed here so the canonical
-# model is explicit (auditors must not propose deleting these even when empty).
+# Acceptable-optional .context/ dirs: never required, may be gitignored. Some ARE
+# scaffolded on demand (worklists by the worklist scripts, workflows by aidex-workflow);
+# the rest are project-local. The validator neither requires nor flags them — listed here
+# so the canonical model is explicit (auditors must not propose deleting these even when
+# empty). Keep in lockstep with 00-global.md §9 (guarded by test_registry_lockstep.py).
 OPTIONAL_TYPES = {"data", "diagrams", "drafts", "experiments", "worklists", "workflows"}
 # Communications front-matter vocab (artifacts are EXEMPT from English-only; body is native).
 COMM_CHANNELS = {"email", "whatsapp", "call", "meeting", "other"}

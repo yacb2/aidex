@@ -50,7 +50,7 @@ Read conventions at runtime:
 
 ### Plans (scan `.context/plans/`)
 
-- **[PA] Naming**: Files match `YYYYMMDD-<name>.md` or directory with `00-index.md`.
+- **[PA] Naming**: Files match `YYYY-MM-DD-<slug>.md` or directory with `00-index.md`. Legacy `YYYYMMDD-<name>` filenames → flag for migration.
 - **[PB] Index**: Multi-file plans have `00-index.md` linking all phase files.
 - **[PC] Checkboxes**: Plans contain `- [ ]` or `- [x]` task markers.
 - **[PD] Staleness**: All checkboxes `[x]` AND status completed AND last-updated significantly in the past → candidate for archive.
@@ -74,24 +74,24 @@ Read conventions at runtime:
 
 ### Requests (scan `.context/requests/`)
 
-- **[QA] Naming**: Files match `YYYYMMDD-description.md` pattern.
+- **[QA] Naming**: Files match `YYYY-MM-DD-<slug>.md` pattern. Legacy `YYYYMMDD-description.md` filenames → flag for migration.
 - **[QB] Archive**: Completed requests moved to `_archive/` subdirectory.
 
 ### Decisions (scan `.context/decisions/`)
 
-- **[DA] Naming**: Files match `YYYYMMDD-description.md` pattern.
-- **[DB] Status field**: Each decision has a Status field (Active/Superseded/Reversed).
-- **[DC] Superseded link**: Decisions with status "Superseded" must include a `Superseded by:` link.
-- **[DD] Archive**: Reversed or superseded decisions optionally moved to `_archive/`.
+- **[DA] Naming**: Files match `YYYY-MM-DD-<slug>.md` pattern. Legacy `YYYYMMDD-description.md` filenames → flag for migration.
+- **[DB] Status field**: Each decision has a Status field (accepted/superseded/dropped). Legacy values (Active/Superseded/Reversed) → flag for migration.
+- **[DC] Superseded link**: Decisions with status "superseded" must include a `superseded_by:` link.
+- **[DD] Archive**: Superseded or dropped decisions optionally moved to `_archive/`.
 
 ### Audits (scan `.context/audits/`)
 
-- **[UA] Canonical files**: `INVENTORY.md`, `METHODOLOGY.md`, `CHANGELOG.md` all present at the root of `.context/audits/`.
-- **[UB] Run folder naming**: Subfolders follow `YYYYMMDD-<slug>/` pattern (no other top-level folders except `methodology/`, `_archive/`).
-- **[UC] Run folder content**: Each `YYYYMMDD-<slug>/` has `index.md` AND `findings.md`.
+- **[UA] Canonical files**: Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`).
+- **[UB] Run folder naming**: Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern (no other folders except `_archive/`). Legacy `YYYYMMDD-<slug>/` run folders → flag for migration.
+- **[UC] Run folder content**: Each `YYYY-MM-DD-<slug>/` has `index.md` AND `findings.md`.
 - **[UD] INVENTORY integrity**: No duplicate IDs in INVENTORY. Every row has non-empty Status. Rows with status `escalated`, `in-progress`, or `closed` require non-empty `Escalated To` column.
 - **[UE] Orphan finding references**: IDs mentioned in per-run `findings.md` must exist in INVENTORY.
-- **[UF] Orphan backlog references**: Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check the `origin_ref` field).
+- **[UF] Orphan backlog references**: Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check `origin_ref: audit/<methodology>/<run>/<finding-id>`).
 - **[UG] Playbook for declared type**: If any run's `index.md` declares `Type: <type>` (a known type), `methodology/<type>.md` must exist.
 - **[UH] CHANGELOG freshness**: `CHANGELOG.md` present and non-empty (has at least the initial entry). Warn if last entry > 6 months old AND INVENTORY has grown >20% since.
 
@@ -102,8 +102,8 @@ Fast implementation hint: shell out to `~/.aidex/skills/aidex-audit/scripts/vali
 - **[AG] Anti-patterns**:
   - `README.md` inside `references/` or `docs/` → WARNING. Convention: each module has `00-index.md`, CLAUDE.md is the top-level entry point. The README is a maintenance burden that desynchronizes.
   - Empty directories — apply this decision matrix (per `~/.aidex/skills/aidex-conventions/references/claudemd-conventions.md` § Project Context Directory):
-    - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications`) → **no finding** (empty canonical is healthy).
-    - Empty + acceptable non-canonical (`data, diagrams, drafts, experiments`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
+    - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications, worktrees`) → **no finding** (empty canonical is healthy).
+    - Empty + acceptable non-canonical (`data, diagrams, drafts, experiments, worklists, workflows`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
     - Empty + unrecognized → WARNING, suggest removal.
   - Pluralized directory names (`backlogs/` instead of `backlog/`) → WARNING.
   - `00-overview.md` outside `research/` → WARNING (only `00-index.md` allowed). Inside `research/<topic>/` → INFO (accepted alias).

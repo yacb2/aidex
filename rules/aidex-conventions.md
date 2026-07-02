@@ -16,9 +16,9 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 
 - Filename: `YYYY-MM-DD-<kebab-slug>.md` (≤60 char slug, describes *what*, no `wip`/`final`/`v2`).
 - Front-matter minimum on every file artifact: `title`, `status`, `created`, `updated`.
-- Status base vocabulary: `open` · `doing` · `done` · `dropped`. Decisions are the one exception: `accepted` · `superseded` · `dropped` (ADR norm).
-- Cross-references use `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research}`. `<type>/pending` is valid for a not-yet-created target.
-- Archive on close (D-10): `backlog/`, `plans/`, `requests/`, `decisions/` all have an `_archive/`. Move `done` / `dropped` / `superseded` artifacts there immediately on close (no delay). Backlog `00-index.md` keeps closed items as one-liners under `## Closed`; full bodies live in `_archive/`.
+- Status base vocabulary: `open` · `doing` · `done` · `dropped`. Two exceptions: decisions use `accepted` · `superseded` · `dropped` (ADR norm); communications use `draft` · `sent`.
+- Cross-references use `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, communication, loop, worktree}`. `<type>/pending` is valid for a not-yet-created target.
+- Archive on close (D-10): `backlog/`, `plans/`, `requests/`, `decisions/`, `loops/` all have an `_archive/`. Move `done` / `dropped` / `superseded` artifacts there immediately on close (no delay). Backlog `00-index.md` keeps closed items as one-liners under `## Closed`; full bodies live in `_archive/`.
 - Audits group by methodology: `audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`. A run folder archives to `audits/_archive/` once its cycle closes (all in-scope findings `closed`/escalated); the rolling inventory may stay as a live board (D-10).
 - References and research are versioned in place. Record supersession in a top-of-file note linking to the new version, not by relocation.
 - Worktrees: see `skills/aidex-conventions/references/worktree-conventions.md`; the `aidex-worktree` skill owns detection/bootstrap.
@@ -36,6 +36,9 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 | Reference | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
 | Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
 | Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | `audits/_archive/` on cycle close (D-10) |
+| Loop spec | `loops/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
+| Communication | `communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/` | `body.md` (native language, D-04) | — | No |
+| Worktree overview | `worktrees/` | `00-index.md` | `00-index.md` | versioned in place |
 
 ## Overrides
 

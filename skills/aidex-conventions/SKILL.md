@@ -23,7 +23,7 @@ Standards for consistent documentation structure in Claude Code projects.
 
 ## Overview
 
-This skill defines conventions for eleven documentation types:
+This skill defines conventions for thirteen documentation types:
 
 | Type | Purpose | Structure |
 |------|---------|-----------|
@@ -35,22 +35,28 @@ This skill defines conventions for eleven documentation types:
 | **Decisions** | Architecture/product decision records | Single dated file with context, options, outcome |
 | **Backlog** | Deferred/parked ideas queued for later | Single dated file (`YYYY-MM-DD-<slug>.md`) |
 | **Research** | Investigation/spike notes captured before planning | Numbered files in a dated topic folder |
-| **Audits** | State-of-project catalogs with inventory + dated runs | `00-inventory.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `YYYY-MM-DD-<slug>/` folders |
-| **Communications** | Log of emails/messages/calls received and sent | `{received,sent}/<YYYY-MM-DD>-<slug>/body.md` (native language) |
+| **Audits** | State-of-project catalogs with inventory + dated runs | `<methodology>/` with `00-inventory.md` + `00-methodology.md` + `00-changelog.md` + `YYYY-MM-DD-<slug>/` runs |
+| **Communications** | Log of emails/messages/calls/meetings received, sent, or held | `{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md` (native language) |
+| **Loops** | Agentic loop-specs (goal + stop condition + engine) | Single dated file, via `aidex-loop` |
+| **Worktrees** | Per-project worktree/isolation procedure | Evergreen `worktrees/00-index.md`, via `aidex-worktree` |
 | **CLAUDE.md** | Project context for Claude | Concise knowledge base |
 
 ## Quick Reference
 
 | Type | Conventions |
 |------|-------------|
+| Global rules (all types) | [00-global.md](references/00-global.md) |
 | Reference module | [reference-conventions.md](references/reference-conventions.md) |
 | Skill | [skill-conventions.md](references/skill-conventions.md) |
+| Skill trigger evals | [skill-trigger-eval-methodology.md](references/skill-trigger-eval-methodology.md) |
 | Implementation plan | [plan-conventions.md](references/plan-conventions.md) |
 | Request / Decision | [request-decision-conventions.md](references/request-decision-conventions.md) |
 | Audit | [audit-conventions.md](references/audit-conventions.md) |
 | Communication | [communication-conventions.md](references/communication-conventions.md) |
 | Autonomy (proceed vs. pause) | [autonomy-conventions.md](references/autonomy-conventions.md) |
 | Worktrees & isolation (parallel work) | [worktree-conventions.md](references/worktree-conventions.md) |
+| Worklist (run-queue) | [worklist-conventions.md](references/worklist-conventions.md) |
+| Workflow CORE (single-sourced blocks) | [workflow-core.md](references/workflow-core.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 
@@ -84,7 +90,7 @@ Recommended workflow:
 Edge cases the migration cannot decide for you:
 
 - Custom legacy status values not in the table above — fix manually after dry-run.
-- Audit folders that pre-date D-02 (single `INVENTORY.md` at root rather than per-methodology). The migration only normalizes filenames and front-matter; it does not restructure audit folders — do that by hand using the new templates in `audit/assets/templates/`.
+- Audit folders that pre-date D-02 (single `INVENTORY.md` at root rather than per-methodology). The migration only normalizes filenames and front-matter; it does not restructure audit folders — do that by hand using the new templates in `aidex-audit/assets/templates/`.
 
 ## Backfilling the plans/audits roll-up index
 
@@ -152,8 +158,8 @@ Skill **descriptions** stay English-only regardless (D-11). The assistant contin
 | Decisions | `.context/decisions/` | `YYYY-MM-DD-description.md` + `_archive/` |
 | Backlog | `.context/backlog/` | `YYYY-MM-DD-<slug>.md` + `_archive/` |
 | Research | `.context/research/` | `<topic>/` with numbered files (`00-index.md`, `01-*.md`) |
-| Audits | `.context/audits/` | `00-inventory.md` + `METHODOLOGY.md` + `CHANGELOG.md` + `<methodology>/YYYY-MM-DD-<slug>/` |
-| Communications | `.context/communications/` | `{received,sent}/<YYYY-MM-DD>-<slug>/body.md` |
+| Audits | `.context/audits/` | `<methodology>/` with `00-inventory.md` + `00-methodology.md` + `00-changelog.md` + `YYYY-MM-DD-<slug>/` |
+| Communications | `.context/communications/` | `{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md` |
 | Global references | `~/.context/references/<topic>/` | Numbered (00-index.md, 01-*.md) |
 | Project references | `.context/references/<topic>/` | Numbered |
 | Library docs | `.context/docs/<library>/` | Numbered |
@@ -215,7 +221,7 @@ Architecture or product decision records. Documents **what** was decided, **why*
 
 State-of-project catalogs. An audit describes what **is** (findings, gaps, risks, opportunities), distinct from plans which describe what **will be**. Every finding lives in a canonical `00-inventory.md` and is referenced (not copied) from per-run `findings.md` views.
 
-**Characteristics:** `00-inventory.md` as source of truth, `METHODOLOGY.md` as living playbook with `CHANGELOG.md`, dated per-run folders (`YYYY-MM-DD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
+**Characteristics:** per-methodology `00-inventory.md` as source of truth, `00-methodology.md` as living playbook with `00-changelog.md`, dated per-run folders (`YYYY-MM-DD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
 
 **Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `aidex-audit` skill (`/aidex-audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
 
@@ -233,9 +239,9 @@ Investigation or spike notes captured before a plan or implementation exists: ho
 
 ### Communications
 
-A log of emails, WhatsApp messages, calls, and meetings — received from or sent to a stakeholder/client — captured so the thread is searchable and cross-linkable to plans/decisions/requests. Created via the `aidex-comm` skill.
+A log of emails, WhatsApp messages, calls, and meetings — received from or sent to a stakeholder/client, or held synchronously — captured so the thread is searchable and cross-linkable to plans/decisions/requests. Created via the `aidex-comm` skill.
 
-**Characteristics:** `{received,sent}/<YYYY-MM-DD>-<slug>/body.md` (attachments alongside), front-matter (`channel`, `direction`, `from`/`to`, `subject`, `date`, `status` for the sent side, `related: []`, `created`, `updated`). Body text is in the **native language of the communication** — communications are exempt from the English-only rule (front-matter keys stay English). See [communication-conventions.md](references/communication-conventions.md).
+**Characteristics:** `{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md` (attachments alongside; synchronous records live in `meetings/` with a `participants` list instead of `direction`/`from`/`to`), front-matter (`channel`, `direction`, `from`/`to`, `subject`, `date`, `status` for the sent side, `related: []`, `created`, `updated`). Body text is in the **native language of the communication** — communications are exempt from the English-only rule (front-matter keys stay English). See [communication-conventions.md](references/communication-conventions.md).
 
 ### Plan: Modular vs Single-File
 
