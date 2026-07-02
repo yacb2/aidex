@@ -136,9 +136,16 @@ carried P1→P3→P4 into a triggered measurement rather than a fourth silent ca
   reviewer, so it can enforce a rule the implementer was never shown; omit it to review against the
   success criteria alone. The implementer **pulls** any standard it needs through its own phase
   spec in the implementing form — never push a standard into an implementer.
-- The arbiter is **conditional**: the JS loop's `if (!proof.passed) retry` is the
-  `verify_first` carrier in batch; the arbiter fires only on retry-budget exhaustion, an
-  un-pre-authorized publication, or a deny-class action.
+- The arbiter is **conditional and directing**: the JS loop's `if (!proof.passed) retry` is the
+  `verify_first` carrier in batch; the arbiter fires on retry-budget exhaustion, a **blocked
+  implementer** (the director path: implementers return structured `WORK_SCHEMA` reports, a
+  `blocked_reason` consults the arbiter *before* burning a gate attempt, and a `CONTINUE`
+  re-launches the implementer with the arbiter's direction — max 2 redirects per phase), an
+  un-pre-authorized publication, or a deny-class action (implementers *report* pub/deny actions
+  in `pending_actions` — never perform them — and `runPhase` routes each through `checkAction`:
+  `ASK` collects a batched question while the phase continues; `STOP` escalates). In the
+  fan-out form a failed phase blocks only its **descendants** — independent branches keep
+  running and questions batch at the end.
 - **Status:** validated in the real `Workflow` runtime end-to-end — a 3-phase chained plan
   (derived plan→`args`) where fresh agents implement each phase from scratch, threading prior
   outputs off disk (B imports A, C imports A+B), each phase gated, per-phase model/effort

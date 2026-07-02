@@ -100,8 +100,25 @@ const VERDICT_SCHEMA = {
   properties: {
     verdict: { enum: ['CONTINUE', 'ASK', 'STOP'] },
     reason: { type: 'string' },
+    action: { type: 'string' },
     batched_question: { type: 'string' },
     log: { type: 'string' },
+  },
+  additionalProperties: false,
+}
+
+// Structured implementer report: lets the arbiter DIRECT a blocked implementer
+// mid-phase (instead of ruling post-mortem on retry exhaustion) and routes
+// publication/deny actions through checkAction instead of the implementer
+// performing them. Every implementing form's agent MUST use this schema.
+const WORK_SCHEMA = {
+  type: 'object',
+  required: ['done', 'summary'],
+  properties: {
+    done: { type: 'boolean' },
+    summary: { type: 'string' },
+    blocked_reason: { type: 'string' },
+    pending_actions: { type: 'array', items: { type: 'string' } },
   },
   additionalProperties: false,
 }
@@ -123,22 +140,49 @@ function arbiter(situation, autonomySurface) {
   )
 }
 
-// Durable per-phase loop: implement -> verify -> retry K -> conditional arbiter on exhaustion.
+// Durable per-phase loop: implement -> (director on blocked / pending actions) ->
+// verify -> retry K -> conditional arbiter on exhaustion.
 async function runPhase(phase, ctx) {
   const K = ctx.maxRetries ?? 2
   let feedback = ''
+  let directed = 0
+  const asks = []
   for (let attempt = 1; attempt <= K + 1; attempt++) {
     const work = await phase.implement(feedback, attempt)
-    const proof = await verify(phase.id, phase.gateCmd)
-    if (proof.passed) return { phaseId: phase.id, passed: true, attempts: attempt, proof, work }
-    feedback = `Attempt ${attempt} failed the gate (exit ${proof.exit_code}). Fix the root cause:\n${proof.evidence}`
-    log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof.exit_code})`)
+    // Director path: a blocked implementer consults the arbiter BEFORE burning a gate
+    // attempt; CONTINUE re-launches it with the direction (max 2 redirects per phase).
+    if (work && work.blocked_reason && !work.done && directed < 2) {
+      const v = await arbiter(
+        `Implementer of phase ${phase.id} reports it is blocked: ${work.blocked_reason}. ` +
+        `If the block is not genuine, direct it to continue (CONTINUE with action); else STOP/ASK.`,
+        ctx.autonomySurface
+      )
+      if (v && v.verdict === 'CONTINUE') {
+        directed++
+        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase.`
+        attempt--
+        continue
+      }
+      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks }
+    }
+    // Publication/deny path: actions the implementer REPORTED instead of performing.
+    for (const action of (work && work.pending_actions) || []) {
+      const c = await checkAction(action, ctx)
+      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks }
+      if (c && c.verdict === 'ASK') asks.push(c.batched_question || `Authorize: ${action}?`)
+      // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
+    }
+    let proof = await verify(phase.id, phase.gateCmd)
+    if (!proof) proof = await verify(phase.id, phase.gateCmd) // null = transient verifier failure, not a gate verdict: one retry
+    if (proof && proof.passed) return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+    feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
+    log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
   }
   const v = await arbiter(
     `Phase ${phase.id} failed its machine gate ${K + 1} times. Decide STOP (clean halt) or ASK (escalate).`,
     ctx.autonomySurface
   )
-  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v }
+  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks }
 }
 
 // Publication/deny trigger (decision Q2): consult the arbiter ONLY when a pending action
@@ -169,34 +213,55 @@ const ctx = {
 const phases = cfg.phases || []
 
 // Build the blind implementer for a phase (gateCmd is NOT in scope here — verifier-only).
+// WORK_SCHEMA (director pattern): the implementer reports blocked_reason instead of stopping
+// silently, and lists pub/deny actions in pending_actions instead of performing them —
+// CORE's runPhase routes those through the arbiter/checkAction.
 function makeImplement(p) {
   return (feedback, attempt) =>
     agent(
       `Plan: ${cfg.planPath}\nPhase ${p.id} (attempt ${attempt}).\n\n${p.spec}\n\n` +
+      `Autonomy surface (binding): ${ctx.autonomySurface}\n` +
+      `NEVER perform publication (push/publish/deploy/release) or destructive actions yourself — ` +
+      `list them as pending_actions in your report instead. If genuinely blocked, return ` +
+      `done=false with blocked_reason instead of guessing or stopping silently.\n` +
       `Read prior phase outputs from disk as needed; do NOT assume prior conversation.\n` +
       `Implement the spec's contract fully and correctly. A separate verifier will check your work; ` +
       `you are NOT shown that check, so satisfy the spec itself — do not target a test.\n` +
       (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),
       // No global phase('Execute') call: concurrent branches would race it. The per-agent
       // `phase: 'Execute'` opt groups the display safely (CORE's verify() does the same for 'Gate').
-      { label: `exec:${p.id}`, phase: 'Execute', model: p.model || 'sonnet', effort: p.effort || 'medium' }
+      { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'sonnet', effort: p.effort || 'medium' }
     )
 }
 
 const completed = new Set()
+const blockedIds = new Set()
 const results = []
-let halted = false
+const batchedAsks = []
 
-while (completed.size < phases.length && !halted) {
-  // A wave = every not-yet-done phase whose depends_on are all satisfied. Phases in a wave
-  // have no edges between them by construction, so they are safe to run concurrently.
+// A failed phase blocks only its transitive DESCENDANTS — independent branches keep
+// running (arbiter policy: finish all other safe work, batch questions at the end).
+// This replaces the previous whole-DAG halt, which stopped branches unnecessarily.
+function blockDescendants(id) {
+  for (const q of phases) {
+    if (!completed.has(q.id) && !blockedIds.has(q.id) && (q.depends_on || []).includes(id)) {
+      blockedIds.add(q.id)
+      blockDescendants(q.id)
+    }
+  }
+}
+
+while (completed.size + blockedIds.size < phases.length) {
+  // A wave = every not-yet-done, not-blocked phase whose depends_on are all satisfied.
+  // Phases in a wave have no edges between them by construction, so they run concurrently.
   const wave = phases.filter(
-    (p) => !completed.has(p.id) && (p.depends_on || []).every((d) => completed.has(d))
+    (p) => !completed.has(p.id) && !blockedIds.has(p.id) &&
+           (p.depends_on || []).every((d) => completed.has(d))
   )
   if (wave.length === 0) {
-    // No runnable phase but not all done -> a dependency cycle or a missing/typo'd id.
+    // No runnable phase but not all accounted for -> a dependency cycle or a missing/typo'd id.
     // Surface it (no silent cap) rather than spin forever.
-    const remaining = phases.filter((p) => !completed.has(p.id)).map((p) => p.id)
+    const remaining = phases.filter((p) => !completed.has(p.id) && !blockedIds.has(p.id)).map((p) => p.id)
     log(`fan-out: no runnable phase — cycle or unsatisfiable depends_on among [${remaining.join(', ')}]`)
     break
   }
@@ -207,14 +272,17 @@ while (completed.size < phases.length && !halted) {
   for (let i = 0; i < wave.length; i++) {
     const r = waveResults[i]
     results.push(r)
+    if (r && r.asks && r.asks.length) batchedAsks.push(...r.asks)
     if (r && r.passed) {
       completed.add(wave[i].id)
     } else {
-      // A failed (or dropped) phase blocks anything downstream of it; halt the DAG after this wave.
-      halted = true
-      log(`phase ${wave[i].id} did not pass -> ${r?.escalated?.verdict || 'dropped'}; halting fan-out`)
+      blockedIds.add(wave[i].id)
+      blockDescendants(wave[i].id)
+      log(`phase ${wave[i].id} did not pass -> ${r?.escalated?.verdict || 'dropped'}; ` +
+          `blocking its descendants, continuing independent branches`)
     }
   }
 }
 
-return { planPath: cfg.planPath, results }
+const blocked = [...blockedIds].filter((id) => !results.some((r) => r && r.phaseId === id))
+return { planPath: cfg.planPath, results, blocked, batchedAsks }
