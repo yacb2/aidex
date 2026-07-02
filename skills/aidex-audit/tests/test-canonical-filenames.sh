@@ -105,7 +105,10 @@ setup_neither() {
 run_case "modern-only"  0 ""                                  setup_modern_only
 run_case "legacy-only"  0 ""                                  setup_legacy_only
 run_case "both-forms"   0 "both 00-inventory.md and INVENTORY.md exist" setup_both
-run_case "neither-form" 1 "missing canonical file: 00-inventory.md" setup_neither
+# Rebuild 2026-07-02 (ADR audit-rebuild-canon-decisions): no boards at the root
+# is CANON now — a dated folder there is a standalone one-shot run, never a
+# "missing canonical file" violation. The legacy YYYYMMDD name only warns.
+run_case "neither-form" 0 "legacy YYYYMMDD naming" setup_neither
 
 printf '\n'
 for r in "${RESULTS[@]}"; do
