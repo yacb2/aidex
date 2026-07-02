@@ -100,14 +100,18 @@ before recommending a unit — never assume from habit.
 ## The environment-isolation recipe (Tier 2)
 
 Four resources isolate per worktree. The canon is **stack-agnostic**: the project supplies
-the concrete recipe via a **detected `worktree-up` script** (the way `aidex-plan-exec`
-detects the project's review/commit commands). If no such script exists, **Tier 2 is not
-available** — fall back to Tier 1 and note that a `worktree-up` recipe would unlock it.
+the concrete recipe, recorded machine-readably in the `worktree_up`/`worktree_down`
+front-matter fields of `.context/worktrees/00-index.md` (written by `aidex-worktree
+bootstrap`) and surfaced by `detect-project-commands.sh` as
+`worktree_up_command`/`worktree_down_command` — the same way `aidex-plan-exec` detects the
+project's review/commit commands. If neither the front-matter nor a root/`scripts/`
+`worktree-up*.sh` exists, **Tier 2 is not available** — fall back to Tier 1 and note that
+a `worktree-up` recipe would unlock it.
 
 | Resource | Strategy |
 |---|---|
 | **Database** | Per-worktree DB. Cheapest: a new DB **in the same Postgres container** via `CREATE DATABASE … TEMPLATE` (~200ms clone) under a unique name (`<db>_wt_<slug>`). Heaviest: a separate DB container. |
-| **Ports** | Offset by worktree index: `base + N*10` (extends a `dev → +10` test convention). |
+| **Ports** | Candidate offsets by worktree index (`base + N*10`, extending the `dev → +10` test convention) — but **probe before assigning** (`lsof -ti :<port>`, or `docker compose -p <slug> ps` for compose-level occupancy) and skip to the next offset on collision. Static arithmetic alone is not safe: concurrent sessions can compute the same offset, and an unclean exit can leave a port held by an orphaned container. `worktree-down` must verifiably free what it allocated. |
 | **Docker** | `COMPOSE_PROJECT_NAME=<repo>-<slug>` so containers/networks/named-volumes don't collide. |
 | **Env** | A per-worktree `.env` injecting the unique DB name + offset ports. |
 

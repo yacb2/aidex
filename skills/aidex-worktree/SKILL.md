@@ -31,6 +31,7 @@ Dispatch by first argument:
 | Command | Purpose |
 |---|---|
 | `/aidex-worktree` (no args) | Check whether `.context/worktrees/00-index.md` exists; if yes print a one-line status + point to `suggest`; if no, offer to run `bootstrap` |
+| `/aidex-worktree status` | Same as no args (explicit alias) |
 | `/aidex-worktree bootstrap` | Investigate topology + interview + scaffold the doc |
 | `/aidex-worktree suggest` | Read the existing doc and recommend Tier 1/2 (which participants, which infra strategy, which cleanup) for the task at hand |
 
@@ -106,6 +107,17 @@ Dispatch by first argument:
    then fill every section of the generated `.context/worktrees/00-index.md` from the
    interview answers. Leave nothing as a placeholder.
 
+5. **Fill the Procedure section with exact commands, not prose.** This is the step
+   that makes later runs progressively simpler — decisions alone are not executable.
+   From the detected topology, write the verbatim Tier-1 create/teardown commands
+   (for split-git topologies use
+   [scripts/worktree-multi.sh](scripts/worktree-multi.sh) — one worktree per touched
+   participant plus wrapper symlinks; native `EnterWorktree` alone only covers the
+   single-repo case), and set the front-matter `worktree_up`/`worktree_down` fields
+   if the project already has a Tier-2 mechanism (leave `""` and note the pending
+   backlog item if not). Executors read the front-matter fields and the Procedure
+   section — they never re-derive the recipe.
+
 ## suggest
 
 Recommend a tier for the **current task**, grounded entirely in this project's own
@@ -114,10 +126,12 @@ recorded doc — never re-derive a generic recipe.
 1. **Require the doc.** `test -f .context/worktrees/00-index.md`. If it does not exist,
    say so plainly and point to `/aidex-worktree bootstrap` — never invent a topology or
    guess a tier for a project that hasn't recorded one.
-2. **Read the doc's four axis sections.** Load **Participants & scope**, **Tier
-   decision**, **Tier 2 infra strategy**, and **Lifecycle & cleanup** — the four axes
-   from [references/03-case-taxonomy.md](references/03-case-taxonomy.md). Do not read
-   only the front-matter; the recommendation is built from the body.
+2. **Read the doc's four axis sections plus Procedure.** Load **Participants &
+   scope**, **Tier decision**, **Tier 2 infra strategy**, and **Lifecycle & cleanup**
+   — the four axes from
+   [references/03-case-taxonomy.md](references/03-case-taxonomy.md) — plus the
+   **Procedure** section and the `worktree_up`/`worktree_down` front-matter fields.
+   Do not read only the front-matter; the recommendation is built from the body.
 3. **Resolve each axis against the current work.** Either ask the user directly, or, if
    the calling plan/loop content already states the facts, use those without
    re-asking:
@@ -133,10 +147,13 @@ recorded doc — never re-derive a generic recipe.
    - **Lifecycle (Axis 4):** does this work need ephemeral or persistent isolation, and
      what does the doc's recorded cleanup procedure say to do on exit?
 4. **Return the recommendation.** State: the tier; which participants (not necessarily
-   all) need a worktree; if Tier 2, the infra strategy and the cleanup steps — quoting
-   the project's own recorded procedure text verbatim, never a generic recipe. If the
+   all) need a worktree; the **exact create/teardown commands from the doc's Procedure
+   section** (and `worktree_up`/`worktree_down` for Tier 2) — quoting the project's own
+   recorded procedure text verbatim, never a generic recipe. If the
    doc records Tier 2 as "not yet available" for this case, say so and fall back to
-   Tier 1 (or Tier 0) instead of inventing an isolation mechanism.
+   Tier 1 (or Tier 0) instead of inventing an isolation mechanism. If the doc predates
+   the Procedure section, recommend running a one-off amendment (fill Procedure +
+   front-matter fields from the recorded decisions) rather than improvising.
 5. **Stop — never auto-invoke.** This is a recommendation the user or the project's
    `CLAUDE.md` authorizes. Never call native `EnterWorktree` from here; state the
    suggestion and stop. The caller (user, or `aidex-plan`/`aidex-plan-exec`/

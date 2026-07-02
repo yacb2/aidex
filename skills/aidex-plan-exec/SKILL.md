@@ -327,7 +327,10 @@ After the last phase:
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
    work unless `discard_changes`), and run the project's `worktree-down` for Tier 2 to
-   drop the isolated DB + compose project.
+   drop the isolated DB + compose project. **Then append one usage line to the
+   project's `.context/worktrees/00-index.md` Usage log** (date · tier used ·
+   participants · collisions/problems observed) — this ratchet is what lets the
+   worktree procedure harden its case-by-case rules into codified ones over time.
 
 ## Per-project adjustments
 
