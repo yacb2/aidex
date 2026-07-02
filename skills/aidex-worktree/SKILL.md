@@ -62,10 +62,26 @@ Dispatch by first argument:
    `docker-compose.yml` and `dev.sh` at root" — or whatever the real facts are for
    *this* project. Never assume monorepo or any other prior default; the script only
    reports facts, the summary is yours to write from what it actually found.
-3. **Interview.** Walk the four axes below **one question at a time** (use
-   `AskUserQuestion` with a recommended default, per the front-loaded-autonomy survey
-   pattern). Do not flatten them into a single "case A/B/C" question — each axis is a
-   genuinely separate decision. Full detail on each axis lives in
+3. **Interview — recommend-first, confirm/override.** Before asking anything: if this
+   bootstrap was reached from a calling artifact (an `aidex-plan`/`aidex-plan-exec`/
+   `aidex-loop` Isolation step, a backlog item, an audit finding), read that artifact
+   and pre-resolve every axis it already answers — which participants the work touches,
+   whether it runs migrations / needs the stack live, ephemeral vs persistent — the
+   same no-re-ask rule as `suggest` step 3. Only the axes the artifact leaves open get
+   a question.
+
+   Then walk the remaining axes below **one question at a time** (`AskUserQuestion`),
+   each **leading with your recommendation and its rationale** as the first,
+   "(Recommended)"-marked option. The recommendation is derived from the detected
+   topology, the orchestration files just read, and the triggering task, and must cite
+   those facts ("`test-e2e.sh` already clones the DB by template → clone-partial is
+   the natural Tier-2 strategy") — never generic worktree advice. Do not flatten the
+   axes into a single "case A/B/C" question — each axis is a genuinely separate
+   decision. If the user is unsure ("don't know yet"), record your conservative
+   default and mark that axis **"assumed — revisit"** in the doc instead of blocking
+   or silently canonizing a guess; the same marker goes on any convention inferred
+   from a single observation without asking (e.g. a branch-naming rule read off the
+   repos' current state). Full detail on each axis lives in
    [references/03-case-taxonomy.md](references/03-case-taxonomy.md); the essentials:
 
    - **Axis 1 — Tier (what must be isolated).** For this project, what distinguishes:
@@ -114,8 +130,11 @@ Dispatch by first argument:
    [scripts/worktree-multi.sh](scripts/worktree-multi.sh) — one worktree per touched
    participant plus wrapper symlinks; native `EnterWorktree` alone only covers the
    single-repo case), and set the front-matter `worktree_up`/`worktree_down` fields
-   if the project already has a Tier-2 mechanism (leave `""` and note the pending
-   backlog item if not). Executors read the front-matter fields and the Procedure
+   if the project already has a Tier-2 mechanism. If not, leave `""` and cite the
+   project's pending backlog item — **registering one via `aidex-backlog` (its
+   `scripts/register-item.sh`, non-interactive flags) in that project if none exists
+   yet**; a prose mention ("BL-XXX-style follow-up") is not a registration, and a
+   hand-written entry gets the front-matter wrong — use the script. Executors read the front-matter fields and the Procedure
    section — they never re-derive the recipe.
 
 ## suggest
