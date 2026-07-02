@@ -40,15 +40,21 @@ fi
 
 ROOT="$(find_project_root)"
 AUDITS_DIR="$ROOT/.context/audits"
-# Canonical inventory filename per D-02 is 00-inventory.md; legacy INVENTORY.md still accepted.
-INVENTORY="$(resolve_inventory "$AUDITS_DIR")"
+# Canon layout: the finding lives in some audits/<methodology>/00-inventory.md
+# (legacy root boards still accepted read-only).
+INVENTORY="$(find_inventory_for_id "$AUDITS_DIR" "$FINDING_ID")" \
+  || die "finding $FINDING_ID not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"
 
-# Verify finding exists
-if ! grep -qE "^\|[[:space:]]*${FINDING_ID}[[:space:]]*\|" "$INVENTORY"; then
-  die "finding $FINDING_ID not found in $(basename "$INVENTORY")"
-fi
+METHODOLOGY=""
+INV_PARENT="$(dirname "$INVENTORY")"
+[[ "$INV_PARENT" != "$AUDITS_DIR" ]] && METHODOLOGY="$(basename "$INV_PARENT")"
 
-AUDIT_RUN="$(find_audit_run "$AUDITS_DIR" "$FINDING_ID")"
+AUDIT_RUN="$(find_audit_run "$INV_PARENT" "$FINDING_ID")"
+
+# origin_ref: canon audit/<methodology>/<run>/<id>; legacy audit/<run>/<id>.
+RUN_REF="$AUDIT_RUN"
+[[ -n "$METHODOLOGY" ]] && RUN_REF="$METHODOLOGY/$AUDIT_RUN"
+ORIGIN_REF="audit/$RUN_REF/$FINDING_ID"
 
 # Extract Summary (cell 5) and Severity (cell 7) for the finding row.
 ROW_DATA="$(extract_finding_row "$INVENTORY" "$FINDING_ID")"
@@ -58,7 +64,7 @@ SEVERITY="${ROW_DATA##*$'\t'}"
 
 HAVE_SUMMARY=1
 if [[ -z "$SUMMARY" ]]; then
-  warn "could not extract Summary for $FINDING_ID — using an ID-based slug and a placeholder goal. Check the row's status column matches one of: open, triaged, escalated, in-progress, closed, dropped."
+  warn "could not extract Summary for $FINDING_ID — using an ID-based slug and a placeholder goal. Check the row's status column carries a base status (open, doing, done, dropped) or a legacy value."
   HAVE_SUMMARY=0
 fi
 
@@ -90,7 +96,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   log  "  Goal          : $GOAL_TEXT"
   log  "  provenance    : $PROV_TEXT"
   log  "  Stop condition: (operator supplies the exact gate)"
-  log  "  INVENTORY row : status -> escalated, Escalated To -> loop/$(today_iso)-$SLUG.md"
+  log  "  loop-spec fm  : origin_ref: $ORIGIN_REF"
+  log  "  inventory row : status -> done, Escalated To -> loop/$(today_iso)-$SLUG"
   log  ""
   log  "[dry-run] nothing written."
   exit 0
@@ -131,13 +138,26 @@ awk -v goal="$GOAL_TEXT" -v prov="$PROV_TEXT" -v gate="$GATE_TEXT" '
 ' "$LOOP_FILE" > "$TMP"
 mv "$TMP" "$LOOP_FILE"
 
-# Update INVENTORY row: status -> escalated, Escalated To -> loop-spec link.
-REL_LOOP="$(relpath_from "$LOOP_FILE" "$INVENTORY")"
-mark_row_escalated "$INVENTORY" "$FINDING_ID" "[$REL_LOOP]($REL_LOOP)"
+# Back-link (canon forward+back invariant): the loop-spec front-matter carries
+# origin_ref pointing at the finding. Replace an existing origin_ref line, else
+# insert one before the closing front-matter delimiter.
+if grep -q '^origin_ref:' "$LOOP_FILE"; then
+  sed -i.bak -E "s|^origin_ref: .*|origin_ref: $ORIGIN_REF|" "$LOOP_FILE" && rm -f "$LOOP_FILE.bak"
+else
+  TMP2="$(mktemp)"
+  awk -v ref="$ORIGIN_REF" '
+    /^---[[:space:]]*$/ { c++; if (c == 2) print "origin_ref: " ref }
+    { print }
+  ' "$LOOP_FILE" > "$TMP2" && mv "$TMP2" "$LOOP_FILE"
+fi
+
+# Canon cross-ref MARKER (D-03), never a markdown relative link.
+MARKER="loop/$(basename "$LOOP_FILE" .md)"
+mark_row_escalated "$INVENTORY" "$FINDING_ID" "$MARKER"
 
 ok "$FINDING_ID escalated to loop-spec"
 printf '  loop-spec    : %s\n' "$LOOP_FILE" >&2
-printf '  INVENTORY row: status -> escalated, Escalated To -> %s\n' "$REL_LOOP" >&2
+printf '  inventory row: status -> done, Escalated To -> %s\n' "$MARKER" >&2
 cat >&2 <<EOF
 
 Next:
