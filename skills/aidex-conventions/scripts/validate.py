@@ -101,6 +101,11 @@ def parse_frontmatter(text: str) -> dict | None:
         key, val = m.group(1), m.group(2).strip()
         if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
             val = val[1:-1]
+        else:
+            # YAML semantics: an unquoted scalar ends at ` #` (inline comment).
+            # Field regression 2026-07-02: `channel: call  # meeting | call` must
+            # parse as `call`, not the whole line.
+            val = re.split(r"\s+#", val, 1)[0].rstrip()
         fields[key] = val
     return fields
 
@@ -215,13 +220,37 @@ def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
 
 # ---------- Checks ----------
 
+def is_comm_attachment(type_name: str, path: Path) -> bool:
+    """A non-body.md file inside a valid dated communication folder is an attachment
+    (transcript, slides, summary, action items) — canon explicitly allows files
+    alongside body.md. Attachments are free-form: no shape/front-matter checks."""
+    if type_name != "communications" or path.name == "body.md":
+        return False
+    parent = path.parent
+    return (parent.parent.name in (COMM_DIRECTIONS | {COMM_MEETING_DIR})
+            and bool(ISO_FOLDER.match(parent.name)))
+
+def is_loop_state_sidecar(type_name: str, path: Path) -> bool:
+    """Loop engines keep an operational state sidecar (`<spec-basename>-STATE.md`)
+    next to the spec. It is working state, not a knowledge artifact: exempt from
+    dated-filename and front-matter rules (renaming live state breaks running loops)."""
+    return type_name == "loops" and path.name.endswith("-STATE.md")
+
 def check_filename(type_name: str, path: Path) -> Finding | None:
     name = path.name
+    # A stray README.md inside a .context/ type folder is not canonical — the only
+    # index name is 00-index.md (canon §2; field friction 2026-06-29).
+    if name == "README.md":
+        return Finding(type_name, str(path), "readme-in-context", "violation",
+                       "README.md is not a canonical .context/ file — the index name is 00-index.md "
+                       "(move the content into 00-index.md or a dated artifact)")
     # Exemptions: index files, NN-numbered files inside reference/research topic folders,
     # per-methodology audit canonical files.
     if name in ("00-index.md", "00-overview.md"):
         return None
     if name in ("00-methodology.md", "00-inventory.md", "00-changelog.md"):
+        return None
+    if is_loop_state_sidecar(type_name, path):
         return None
     if type_name in ("references", "research", "worktrees") and re.match(r"^\d{2}-[a-z0-9-]+\.md$", name):
         return None
@@ -231,8 +260,11 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
             if re.match(r"^\d{2}-[a-z0-9-]+\.md$", name):
                 return None
     if type_name == "communications":
-        # Dated unit is the <YYYY-MM-DD>-<slug>/ folder; the file inside is body.md.
+        # Dated unit is the <YYYY-MM-DD>-<slug>/ folder; the main file is body.md,
+        # with attachments allowed alongside (canon: transcript/slides/summary).
         # The folder lives under received/, sent/ (async) or meetings/ (synchronous).
+        if is_comm_attachment(type_name, path):
+            return None
         if name == "body.md":
             parent = path.parent
             if parent.parent.name in (COMM_DIRECTIONS | {COMM_MEETING_DIR}) and ISO_FOLDER.match(parent.name):
@@ -240,7 +272,8 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
             return Finding(type_name, str(path), "communication-shape-invalid", "violation",
                            "expected communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md")
         return Finding(type_name, str(path), "communication-shape-invalid", "violation",
-                       f"unexpected file {name!r}; communications use body.md in a dated folder")
+                       f"unexpected file {name!r} outside a dated folder; communications use "
+                       f"body.md (+ attachments) in {{received,sent,meetings}}/<YYYY-MM-DD>-<slug>/")
     if type_name == "audits":
         if path.name in ("index.md", "findings.md"):
             return None
@@ -287,6 +320,10 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
         return findings  # tabular/freeform board — exempt
     if is_audit_subdoc(type_name, path):
         return findings  # run-internal note/log/write-up — exempt
+    if is_comm_attachment(type_name, path) or is_loop_state_sidecar(type_name, path):
+        return findings  # free-form companion files — exempt
+    if path.name == "README.md":
+        return findings  # already condemned by readme-in-context; don't double-report
     # Type-level aggregator index (e.g. backlog/00-index.md) is auto-generated
     # by register-item.sh / similar tooling and intentionally carries no front-matter.
     # Sub-folder indexes (plans/<date>-feature/00-index.md, references/<topic>/00-index.md)
@@ -385,9 +422,14 @@ def check_crossrefs(type_name: str, path: Path, fm: dict | None,
         ref = fm.get(field_name, "")
         if not ref:
             continue
-        # blocked_by may be free text — only validate if it looks like a typed ref
-        if field_name == "blocked_by" and "/" not in ref:
-            continue
+        # blocked_by may be free text (canon §7) — validate only when it is a typed
+        # ref or clearly ATTEMPTS one via a path form. Free text containing a slash
+        # ("FCM/APNs credentials") must not be flagged (field regression 2026-07-02).
+        if field_name == "blocked_by" and not CROSSREF_FORMAT.match(ref):
+            path_attempt = ref.startswith(".context/") or any(
+                ref.startswith(folder + "/") for folder in TYPE_FOLDER_TO_PREFIX)
+            if not path_attempt:
+                continue
         if not CROSSREF_FORMAT.match(ref):
             findings.append(Finding(type_name, str(path), "cross-ref-format-invalid", "violation",
                                     f"{field_name}={ref!r} does not match <type>/<filename>"))
@@ -506,6 +548,10 @@ def check_plan_phase_gates(path: Path, text: str, fm: dict | None) -> list[Findi
     a batched phase with no gate means AI output for it is unconstrained. hitl-align
     phases are exempt — they run interactively and expect no machine gate."""
     findings: list[Finding] = []
+    # Archived plans are finished work — the gateless warning is only actionable
+    # before execution (field: 52/53 warnings in a real project were _archive/ noise).
+    if "_archive" in path.parts:
+        return findings
     headings = list(PHASE_HEADING_RE.finditer(text))
     for i, m in enumerate(headings):
         heading = m.group(0)

@@ -31,6 +31,7 @@ EXPECTED_BAD_RULES = {
     "backlog-priority-invalid",
     "communication-channel-invalid",
     "plan-phase-gateless-afk",
+    "readme-in-context",
 }
 
 def _load_validator():
@@ -103,6 +104,13 @@ def check_phase_gate_unit(failures: list[str]) -> None:
     neg_fm = "# Phase 1: Do it\n- work\n"
     if warns(neg_fm, {"phase-type": "afk-impl", "gate": "pytest"}):
         failures.append("phase-gate unit: front-matter-gated phase warned (false positive)")
+    # Archived plans are finished — the gateless warning is only actionable
+    # pre-execution (field regression 2026-07-02: 52/53 warnings in a real
+    # project were _archive/ noise).
+    archived = [f.rule for f in v.check_plan_phase_gates(
+        Path(".context/plans/_archive/2026-01-01-old/01-x.md"), pos, None)]
+    if "plan-phase-gateless-afk" in archived:
+        failures.append("phase-gate unit: archived plan warned (should be exempt — _archive/)")
 
 
 def check_crossref_prefix_coverage(failures: list[str]) -> None:
