@@ -40,6 +40,12 @@ incomplete (and probably the task isn't a loop).
   so archiving never breaks inbound links.
 - The **Notes / iteration log** captures observed failures — each repeatable
   failure is a prompt-tuning signal, not a one-off.
+- **State sidecar:** a loop engine may keep its working state next to the spec as
+  `<spec-basename>-STATE.md` (e.g. `skill-eval-speedup-STATE.md`). It is
+  operational state, not a knowledge artifact — free-form, no front-matter, exempt
+  from the dated-filename rule (`validate.py` recognizes the `*-STATE.md` suffix in
+  `loops/`), and never renamed while a loop may still be running. When the loop
+  closes, either delete the sidecar or archive it together with its spec.
 
 ## Relationship to other artifacts
 
