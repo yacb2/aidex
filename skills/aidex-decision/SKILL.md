@@ -31,6 +31,17 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    deciding factor, not just the verdict. Write the artifact in English
    (canon §Language).
 
+## Closing a decision
+
+Decisions close only when superseded or dropped (an `accepted` ADR stays active
+in place). Close atomically (stamps `updated`, sets status + `superseded_by`,
+archives per D-10) instead of hand-editing:
+
+```bash
+bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh decisions <slug> --status superseded --superseded-by decision/<new-adr>
+bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh decisions <slug> --status dropped
+```
+
 ## Self-check (mandatory close step)
 
 Before finishing, validate the artifact you just wrote and fix any violation on

@@ -200,7 +200,8 @@ without it (this materializes the global verification-before-claims rule).
 | Decision (ADR) | `decisions/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Loop spec | `loops/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Reference module | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
-| Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
+| Research (spike) | `research/` | `YYYY-MM-DD-<slug>.md` (single doc) | — | versioned in place |
+| Research (topic) | `research/YYYY-MM-DD-<slug>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
 | Communication | `communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/` | `body.md` | — | No |
 | Worktree overview | `worktrees/` | `00-index.md` (+ `NN-*.md` if it grows) | `00-index.md` | versioned in place |
 | Worklist (run-queue) | `worklists/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | No (ephemeral run artifact) |

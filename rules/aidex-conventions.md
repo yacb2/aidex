@@ -34,7 +34,8 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 | Request | `requests/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Decision (ADR) | `decisions/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Reference | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
-| Research | `research/<topic>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
+| Research (spike) | `research/` | `YYYY-MM-DD-<slug>.md` (single doc) | — | versioned in place |
+| Research (topic) | `research/YYYY-MM-DD-<slug>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
 | Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | `audits/_archive/` on cycle close (D-10) |
 | Loop spec | `loops/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Communication | `communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/` | `body.md` (native language, D-04) | — | No |

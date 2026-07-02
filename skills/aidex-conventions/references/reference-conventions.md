@@ -21,6 +21,15 @@ references/<topic>/
 
 References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/2026-05-14-archive-folder-convention.md).
 
+### Research shapes (ADR `decision/2026-07-02-research-artifact-shape`)
+
+Research has **two sanctioned shapes**, size-based (mirroring the plan single-file vs modular threshold):
+
+- **Single-document spike → flat dated file:** `research/YYYY-MM-DD-<slug>.md`. No folder overhead for a one-shot investigation.
+- **Multi-document topic → dated topic folder:** `research/YYYY-MM-DD-<slug>/` with `00-index.md` (or the `00-overview.md` alias) + `NN-<slug>.md` files.
+- **Promotion:** when a spike gains a second document, create the dated folder and move the spike in as its `00-index.md`.
+- Legacy **undated** topic folders are grandfathered (renaming breaks inbound refs); new topics carry the date. `references/` keeps its undated `<topic>/` form — reference topics are evergreen by name, research is dated by nature.
+
 When superseding content:
 
 1. Update the existing module in place. Bump `Version` and `Last Updated`.

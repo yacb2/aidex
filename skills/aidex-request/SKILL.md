@@ -30,6 +30,18 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    if it needs depth it escalates to a plan or research. Write the artifact
    in English (canon §Language).
 
+## Closing a request
+
+When a request reaches a terminal state, close it atomically (stamps `updated`,
+sets the terminal status, archives per D-10) instead of hand-editing:
+
+```bash
+bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh requests <slug> [--status done|dropped]
+```
+
+A request escalated to a plan sets `escalated_to: plan/<slug>` first, then closes
+with `--status done`.
+
 ## Self-check (mandatory close step)
 
 Before finishing, validate the artifact you just wrote and fix any violation on

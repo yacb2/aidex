@@ -21,11 +21,14 @@ implementation. This skill is the single-purpose entry point for
    `~/.claude/skills/aidex-conventions/references/reference-conventions.md`
    (it also covers `research/`; shared rules live in `00-global.md`. Or the
    `.claude/skills/...` project-level copy if one exists).
-2. Create a topic module: `.context/research/<topic>/` with `00-index.md`
-   (`00-overview.md` is the accepted alias in `research/` only) plus
-   sequential `NN-<slug>.md` files. Research filenames carry **no date**;
-   research is versioned in place — there is **no `_archive/`** in
-   `research/`.
+2. Pick the shape by size (ADR `decision/2026-07-02-research-artifact-shape`):
+   a **single-document spike** is one flat dated file
+   (`.context/research/YYYY-MM-DD-<slug>.md` — no folder); a **multi-document
+   topic** is a dated folder (`.context/research/YYYY-MM-DD-<slug>/`) with
+   `00-index.md` (`00-overview.md` is the accepted alias in `research/` only)
+   plus sequential `NN-<slug>.md` files. When a spike gains a second document,
+   promote it: create the dated folder and move the spike in as `00-index.md`.
+   Research is versioned in place — there is **no `_archive/`** in `research/`.
 3. Front-matter per the canon: `title`, `status`, `created`, `updated`,
    `version`.
 4. Body per the module template: **Overview**, **Prerequisites**, findings
