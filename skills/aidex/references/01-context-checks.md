@@ -111,13 +111,13 @@ Superseded or dropped decisions moved to `_archive/` subdirectory (optional — 
 ## Checks UA-UH (Audits)
 
 ### UA. Canonical Files
-Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`).
+Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`). **Standalone one-shot runs are canon** (ADR 2026-07-02): a dated `YYYY-MM-DD-<slug>/` run folder DIRECTLY under `.context/audits/` is a sanctioned one-shot analysis — no boards required, never a layout violation.
 
 ### UB. Run Folder Naming
-Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern. Exceptions allowed only for `_archive/`. Legacy `YYYYMMDD-<slug>/` run folders → flag for migration.
+Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern. Exceptions allowed only for `_archive/`. Legacy `YYYYMMDD-<slug>/` run folders → flag for migration. Dated run folders directly under `audits/` (standalone one-shots) follow the same pattern and are canon.
 
 ### UC. Run Folder Content
-Each `YYYY-MM-DD-<slug>/` contains both `index.md` and `findings.md`.
+Each methodology `YYYY-MM-DD-<slug>/` contains both `index.md` and `findings.md`. Standalone one-shot runs need only a main file with front-matter (`index.md` or `00-report.md`).
 
 ### UD. INVENTORY Integrity
 - No duplicate IDs in INVENTORY

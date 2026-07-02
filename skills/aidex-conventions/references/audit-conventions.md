@@ -59,6 +59,33 @@ Audits are grouped **by methodology**. There is no global `INVENTORY.md`, `METHO
 
 **Audit run folder name:** `YYYY-MM-DD-<slug>/` per D-01.
 
+### Standalone one-shot runs (ADR `decision/2026-07-02-audit-rebuild-canon-decisions`)
+
+A one-shot analysis with no recurring methodology (a usage retro, a suite-wide
+review, a spike-shaped investigation of project state) lives as a **dated run
+folder directly under `audits/`**:
+
+```
+.context/audits/
+├── 2026-07-02-suite-analysis/     # standalone one-shot run
+│   └── 00-report.md (or index.md) # carries its own front-matter
+├── ux/                            # recurring methodology (boards + runs)
+│   └── …
+```
+
+- **No boards required** — `00-inventory.md`/`00-methodology.md`/`00-changelog.md`
+  exist only for recurring methodologies (they hold the rolling, cross-run state a
+  one-shot doesn't have).
+- The run's main file carries canon front-matter; findings that outlive the
+  analysis escalate to `backlog/` the same way (`origin_ref:
+  audit/<run-folder>/<finding-id>` — no methodology segment for standalone runs).
+- **The distinction is positional**: directly under `audits/` = standalone;
+  under `audits/<methodology>/` = part of that methodology. If a one-shot starts
+  repeating, promote it: create the methodology folder, move the runs in, and
+  seed the boards from their findings.
+- Auditors/validators treat both as canon — a standalone run is never a layout
+  violation.
+
 ---
 
 ## Core principles

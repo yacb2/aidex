@@ -1,7 +1,7 @@
 ---
 name: aidex-audit
 description: Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog).
-argument-hint: "[new <type> <slug> | validate [path] | escalate <finding-id> | migrate [project-dir]]"
+argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | close <run> | reindex | migrate [project-dir]]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep
 ---
@@ -40,7 +40,12 @@ Dispatch by first argument:
 
 ### Supported audit types (for `new`)
 
-`ux-audit` · `ia-opportunities` · `retest` · `security-audit` · `perf-audit` · `a11y-audit` · `custom`
+`ux` · `ai-opportunities` · `security` · `perf` · `a11y` · `retest` · `custom` —
+short English names per `decision/2026-07-02-audit-rebuild-canon-decisions`; the
+legacy `-audit`-suffixed and `ia-opportunities` forms are accepted as input
+aliases and normalized. For a **one-shot analysis with no recurring
+methodology**, use `new --standalone <slug>`: it scaffolds a dated run folder
+directly under `audits/` with no boards (canon §Standalone one-shot runs).
 
 See [references/04-playbooks.md](references/04-playbooks.md) for when to pick each.
 
@@ -89,13 +94,21 @@ fi
 /aidex-audit new ux login-redesign
 ```
 
-Scaffolds:
-- `.context/audits/YYYYMMDD-login-redesign/index.md`
-- `.context/audits/YYYYMMDD-login-redesign/findings.md`
-- `.context/audits/00-inventory.md` (if missing; legacy `INVENTORY.md` is left untouched and still accepted by the validator)
-- `.context/audits/00-methodology.md` (if missing)
-- `.context/audits/00-changelog.md` (if missing)
-- `.context/audits/methodology/ux-audit.md` (if missing)
+Scaffolds the canon per-methodology layout (D-02):
+- `.context/audits/ux/2026-07-02-login-redesign/index.md`
+- `.context/audits/ux/2026-07-02-login-redesign/findings.md`
+- `.context/audits/ux/00-inventory.md` (if missing)
+- `.context/audits/ux/00-methodology.md` (if missing — seeded from the type's playbook)
+- `.context/audits/ux/00-changelog.md` (if missing)
+
+For a one-shot analysis (no recurring methodology):
+
+```
+/aidex-audit new --standalone usage-retro-q3
+```
+
+Scaffolds only `.context/audits/2026-07-02-usage-retro-q3/index.md` — no boards
+(canon §Standalone one-shot runs; escalation uses `origin_ref: audit/<run>/<id>`).
 
 ### Running an audit
 
