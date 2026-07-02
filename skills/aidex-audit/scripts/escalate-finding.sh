@@ -20,16 +20,22 @@ fi
 FINDING_ID="$1"
 ROOT="$(find_project_root)"
 AUDITS_DIR="$ROOT/.context/audits"
-# Canonical inventory filename per D-02 is 00-inventory.md; legacy INVENTORY.md still accepted.
-INVENTORY="$(resolve_inventory "$AUDITS_DIR")"
+# Canon layout: the finding lives in some audits/<methodology>/00-inventory.md
+# (legacy root boards still accepted read-only).
+INVENTORY="$(find_inventory_for_id "$AUDITS_DIR" "$FINDING_ID")" \
+  || die "finding $FINDING_ID not found in any audits/<methodology>/00-inventory.md (or legacy root inventory)"
 
-# Verify finding exists
-if ! grep -qE "^\|[[:space:]]*${FINDING_ID}[[:space:]]*\|" "$INVENTORY"; then
-  die "finding $FINDING_ID not found in $(basename "$INVENTORY")"
-fi
+# Methodology = the inventory's parent folder; empty for legacy root boards.
+METHODOLOGY=""
+INV_PARENT="$(dirname "$INVENTORY")"
+[[ "$INV_PARENT" != "$AUDITS_DIR" ]] && METHODOLOGY="$(basename "$INV_PARENT")"
 
-# Find which audit run(s) recorded this finding (for Origen path)
-AUDIT_RUN="$(find_audit_run "$AUDITS_DIR" "$FINDING_ID")"
+# Find which audit run recorded this finding (searched within its methodology).
+AUDIT_RUN="$(find_audit_run "$INV_PARENT" "$FINDING_ID")"
+
+# origin_ref path segment: canon audit/<methodology>/<run>/<id>; legacy audit/<run>/<id>.
+RUN_REF="$AUDIT_RUN"
+[[ -n "$METHODOLOGY" ]] && RUN_REF="$METHODOLOGY/$AUDIT_RUN"
 
 # Delegate to aidex-backlog. Resolve its script path.
 REGISTER=""
@@ -58,7 +64,7 @@ SEVERITY="${ROW_DATA##*$'\t'}"
 [[ "$SEVERITY" == "$ROW_DATA" ]] && SEVERITY=""  # no tab → no severity extracted
 
 if [[ -z "$SUMMARY" ]]; then
-  warn "could not extract Summary for $FINDING_ID from INVENTORY — falling back to ID-based slug. Check the row's status column matches one of: open, triaged, escalated, in-progress, closed, dropped."
+  warn "could not extract Summary for $FINDING_ID from INVENTORY — falling back to ID-based slug. Check the row's status column carries a base status (open, doing, done, dropped) or a legacy value."
   SUMMARY="Escalated from $FINDING_ID"
 fi
 
@@ -76,17 +82,17 @@ case "$SEVERITY" in
 esac
 
 info "Creating backlog entry for $FINDING_ID via aidex-backlog"
-BACKLOG_FILE="$("$REGISTER" --origin audit --finding "$FINDING_ID" --audit-run "$AUDIT_RUN" --title "$SUMMARY" "${PRIORITY_ARG[@]}")"
+BACKLOG_FILE="$("$REGISTER" --origin audit --finding "$FINDING_ID" --audit-run "$RUN_REF" --title "$SUMMARY" "${PRIORITY_ARG[@]}")"
 
 if [[ -z "$BACKLOG_FILE" || ! -f "$BACKLOG_FILE" ]]; then
   die "aidex-backlog did not return a valid entry path"
 fi
 
-# Compute relative path from INVENTORY to the backlog file, then mark the row.
-REL_BACKLOG="$(relpath_from "$BACKLOG_FILE" "$INVENTORY")"
-mark_row_escalated "$INVENTORY" "$FINDING_ID" "[$REL_BACKLOG]($REL_BACKLOG)"
+# Canon cross-ref MARKER (D-03: <type>/<filename>, never a markdown relative link).
+MARKER="backlog/$(basename "$BACKLOG_FILE" .md)"
+mark_row_escalated "$INVENTORY" "$FINDING_ID" "$MARKER"
 
 ok "$FINDING_ID escalated"
 printf '  backlog entry: %s\n' "$BACKLOG_FILE" >&2
-printf '  INVENTORY row: status -> escalated, Escalated To -> %s\n' "$REL_BACKLOG" >&2
+printf '  inventory row: status -> done, Escalated To -> %s\n' "$MARKER" >&2
 printf '\nNext: /aidex-audit validate\n' >&2
