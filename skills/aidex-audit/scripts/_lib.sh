@@ -134,6 +134,22 @@ resolve_inventory() {
   fi
 }
 
+# Locate which inventory holds a finding id under the CANON layout: searches each
+# audits/<methodology>/00-inventory.md, then the legacy root boards. Prints the
+# inventory path (methodology derivable from its parent), or returns 1.
+# Usage: find_inventory_for_id <audits_dir> <finding_id>
+find_inventory_for_id() {
+  local audits_dir="$1" finding_id="$2" inv
+  for inv in "$audits_dir"/*/00-inventory.md "$audits_dir/00-inventory.md" "$audits_dir/INVENTORY.md"; do
+    [[ -f "$inv" ]] || continue
+    if grep -qE "^\|[[:space:]]*${finding_id}[[:space:]]*\|" "$inv"; then
+      printf '%s\n' "$inv"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Find which audit run folder recorded a finding. Prints the run folder basename;
 # falls back to the most recent run folder, or "unknown-run".
 # Usage: find_audit_run <audits_dir> <finding_id>
@@ -191,7 +207,8 @@ extract_finding_row() {
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[6])
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cells[7])
         # Must also have a real-looking status to avoid matching reference tables
-        if (cells[6] ~ /open|triaged|escalated|in-progress|closed|dropped/) {
+        # (base vocab open/doing/done/dropped + legacy words, read-tolerated)
+        if (cells[6] ~ /open|doing|done|dropped|triaged|escalated|in-progress|closed/) {
           print cells[5] "\t" cells[7]
           exit
         }
@@ -200,14 +217,17 @@ extract_finding_row() {
   ' "$inventory"
 }
 
-# Rewrite a finding's inventory row in place: status -> escalated, append today
-# to the runs column, set the "Escalated To" cell to <link> (a pre-built markdown
-# link). Skips HTML comment blocks so template EXAMPLE rows are never rewritten.
-# Usage: mark_row_escalated <inventory> <finding_id> <link>
+# Rewrite a finding's inventory row in place on escalation, per the CANON model
+# (base vocab + ISO dates + <type>/<filename> markers): status -> done, Last
+# Updated -> today (ISO), today appended to Audit Runs (deduped), "Escalated To"
+# cell set to <ref> — a canon MARKER like backlog/<filename> or loop/<filename>,
+# never a markdown link. Skips HTML comment blocks so template EXAMPLE rows are
+# never rewritten.
+# Usage: mark_row_escalated <inventory> <finding_id> <ref>
 mark_row_escalated() {
   local inventory="$1" finding_id="$2" link="$3" tmp
   tmp="$(mktemp)"
-  awk -v id="$finding_id" -v link="$link" -v today="$(today)" '
+  awk -v id="$finding_id" -v link="$link" -v today="$(today_iso)" '
     BEGIN { in_comment = 0 }
     {
       # Track whether the CURRENT line is inside a multi-line HTML comment.
@@ -244,14 +264,15 @@ mark_row_escalated() {
       t = cells[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
       if (t != id) { print $0; next }
 
-      # Verify this is a real finding row (status column has a known marker)
+      # Verify this is a real finding row (status column has a known marker,
+      # base vocab or legacy read-tolerated)
       s = cells[6]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
-      if (s !~ /open|triaged|escalated|in-progress|closed|dropped/) {
+      if (s !~ /open|doing|done|dropped|triaged|escalated|in-progress|closed/) {
         print $0; next
       }
 
-      # Update fields
-      cells[6]  = " escalated "
+      # Update fields (canon: done + escalated_to modifier, never a status word)
+      cells[6]  = " done "
       cells[9]  = " " today " "
       runs = cells[10]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
       if (index(runs, today) == 0) {

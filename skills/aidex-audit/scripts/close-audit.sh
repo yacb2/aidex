@@ -43,14 +43,17 @@ INV=""
 [[ -z "$INV" && -f "$AUDITS_DIR/00-inventory.md" ]] && INV="$AUDITS_DIR/00-inventory.md"
 
 # --- check in-scope findings for this run ---
+# Canon Audit Runs cell holds comma-separated DATES (audit-conventions.md); legacy
+# boards recorded run SLUGS. Match either: the run folder's date prefix or its slug.
+RUN_DATE="${RUN_SLUG:0:10}"
 if [[ -n "$INV" ]]; then
-  UNRESOLVED="$(awk -F'|' -v run="$RUN_SLUG" '
+  UNRESOLVED="$(awk -F'|' -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     /^\|/ {
       id=$2; status=$6; runs=$10
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",id)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",status)
       if (id=="" || id=="ID") next
-      if (index(runs, run)==0) next
+      if (index(runs, run)==0 && index(runs, rundate)==0) next
       resolved=" closed done escalated fixed dropped wontfix "
       if (index(resolved, " " status " ")==0) print "    - " id " (" status ")"
     }' "$INV")"
