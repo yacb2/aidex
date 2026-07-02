@@ -8,12 +8,12 @@ Six stock audit types ship with AIDEX. Each has a playbook template in `assets/t
 
 | Type | Cadence | Run when... | Produces findings of type |
 |---|---|---|---|
-| [ux-audit](../assets/templates/methodology/ux-audit.md.template) | Pre-release | UX drift suspected, major release approaching | `bug`, `gap`, `idea` |
-| [ia-opportunities](../assets/templates/methodology/ia-opportunities.md.template) | Phase end | New AI capability scoped, product phase wrap | `opportunity`, `idea` |
+| [ux](../assets/templates/methodology/ux.md.template) | Pre-release | UX drift suspected, major release approaching | `bug`, `gap`, `idea` |
+| [ai-opportunities](../assets/templates/methodology/ai-opportunities.md.template) | Phase end | New AI capability scoped, product phase wrap | `opportunity`, `idea` |
 | [retest](../assets/templates/methodology/retest.md.template) | After fixes | Batch of P0/P1 fixes landed | state transitions on existing findings, possibly `regression` |
-| [security-audit](../assets/templates/methodology/security-audit.md.template) | Quarterly or post-feature | Fixed cadence or after auth/payments/admin changes | `bug`, `risk` |
-| [perf-audit](../assets/templates/methodology/perf-audit.md.template) | Pre-release / pre-scaling | Budget violations suspected, framework upgrade | `bug`, `risk` |
-| [a11y-audit](../assets/templates/methodology/a11y-audit.md.template) | Compliance cadence | UX refresh landed, regulatory deadline | `bug` |
+| [security](../assets/templates/methodology/security.md.template) | Quarterly or post-feature | Fixed cadence or after auth/payments/admin changes | `bug`, `risk` |
+| [perf](../assets/templates/methodology/perf.md.template) | Pre-release / pre-scaling | Budget violations suspected, framework upgrade | `bug`, `risk` |
+| [a11y](../assets/templates/methodology/a11y.md.template) | Compliance cadence | UX refresh landed, regulatory deadline | `bug` |
 
 ### Decision flow
 
@@ -21,19 +21,19 @@ Six stock audit types ship with AIDEX. Each has a playbook template in `assets/t
 Do you want to verify fixes? ──▶ retest
                 │ no
                 ▼
-Is the concern security? ──▶ security-audit
+Is the concern security? ──▶ security
                 │ no
                 ▼
-Is the concern speed or Core Web Vitals? ──▶ perf-audit
+Is the concern speed or Core Web Vitals? ──▶ perf
                 │ no
                 ▼
-Is the concern keyboard / screen reader / WCAG? ──▶ a11y-audit
+Is the concern keyboard / screen reader / WCAG? ──▶ a11y
                 │ no
                 ▼
-Is the concern AI integration landscape? ──▶ ia-opportunities
+Is the concern AI integration landscape? ──▶ ai-opportunities
                 │ no
                 ▼
-Anything visual, interactive, or product-level ──▶ ux-audit
+Anything visual, interactive, or product-level ──▶ ux
 ```
 
 For anything that doesn't fit, pass `custom` to `/aidex-audit new` and write your own methodology/<slug>.md.

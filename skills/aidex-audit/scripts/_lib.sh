@@ -71,23 +71,35 @@ render_template() {
   printf '%s' "$content" > "$out"
 }
 
-# Known audit types (canonical names)
-AUDIT_TYPES=(ux-audit ia-opportunities retest security-audit perf-audit a11y-audit custom)
+# Known audit types — canon SHORT names (decision/2026-07-02-audit-rebuild-canon-decisions)
+AUDIT_TYPES=(ux ai-opportunities security perf a11y retest custom)
 
-# Normalize short aliases to canonical type names.
-# Prints the canonical type, or the input unchanged if already canonical.
-# Returns non-zero if the type is unknown.
+# Normalize input (incl. legacy -audit-suffixed and ia- aliases) to the canon
+# short name. Returns non-zero if the type is unknown.
 normalize_type() {
   local t="$1"
   case "$t" in
-    ux|ux-audit)                   printf '%s\n' "ux-audit"; return 0 ;;
-    ia|ai|ia-opportunities|ai-opportunities) printf '%s\n' "ia-opportunities"; return 0 ;;
+    ux|ux-audit)                   printf '%s\n' "ux"; return 0 ;;
+    ia|ai|ia-opportunities|ai-opportunities) printf '%s\n' "ai-opportunities"; return 0 ;;
     retest|re-test)                printf '%s\n' "retest"; return 0 ;;
-    sec|security|security-audit)   printf '%s\n' "security-audit"; return 0 ;;
-    perf|performance|perf-audit)   printf '%s\n' "perf-audit"; return 0 ;;
-    a11y|accessibility|a11y-audit) printf '%s\n' "a11y-audit"; return 0 ;;
+    sec|security|security-audit)   printf '%s\n' "security"; return 0 ;;
+    perf|performance|perf-audit)   printf '%s\n' "perf"; return 0 ;;
+    a11y|accessibility|a11y-audit) printf '%s\n' "a11y"; return 0 ;;
     custom)                        printf '%s\n' "custom"; return 0 ;;
     *) return 1 ;;
+  esac
+}
+
+# Human-readable methodology name for templates.
+methodology_name() {
+  case "$1" in
+    ux)               printf 'UX' ;;
+    ai-opportunities) printf 'AI Opportunities' ;;
+    security)         printf 'Security' ;;
+    perf)             printf 'Performance' ;;
+    a11y)             printf 'Accessibility' ;;
+    retest)           printf 'Re-test' ;;
+    *)                printf '%s' "$1" ;;
   esac
 }
 
