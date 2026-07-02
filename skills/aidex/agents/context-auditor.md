@@ -86,8 +86,8 @@ Read conventions at runtime:
 
 ### Audits (scan `.context/audits/`)
 
-- **[UA] Canonical files**: Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`).
-- **[UB] Run folder naming**: Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern (no other folders except `_archive/`). Legacy `YYYYMMDD-<slug>/` run folders → flag for migration.
+- **[UA] Canonical files**: Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`). **Standalone one-shot runs are canon** (ADR 2026-07-02): a dated `YYYY-MM-DD-<slug>/` run folder DIRECTLY under `.context/audits/` is a sanctioned one-shot analysis — no boards required, never a layout violation.
+- **[UB] Run folder naming**: Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern (no other folders except `_archive/`). Legacy `YYYYMMDD-<slug>/` run folders → flag for migration. Dated run folders directly under `audits/` (standalone one-shots) follow the same `YYYY-MM-DD-<slug>/` pattern and are canon.
 - **[UC] Run folder content**: Each `YYYY-MM-DD-<slug>/` has `index.md` AND `findings.md`.
 - **[UD] INVENTORY integrity**: No duplicate IDs in INVENTORY. Every row has non-empty Status. Rows with status `escalated`, `in-progress`, or `closed` require non-empty `Escalated To` column.
 - **[UE] Orphan finding references**: IDs mentioned in per-run `findings.md` must exist in INVENTORY.
