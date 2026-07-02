@@ -47,6 +47,26 @@ check "sweep archived it" '[[ -f ".context/backlog/_archive/$(basename "$LEGACY"
 SWEEP_AGAIN="$(bash "$SCRIPTS/sweep.sh" 2>&1 || true)"
 check "sweep idempotent" '[[ "$SWEEP_AGAIN" == *"clean"* ]]'
 
+echo "== defer: id stability + provenance =="
+# Regression (suite analysis 2026-07-02): next_backlog_id scanned active + _archive
+# but never _deferred/, so deferring an item and registering a new one reused its id,
+# breaking the D-09 stable-id invariant. harvest-commit had the same blind spot.
+DEF="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "deferred item" --priority P2 2>/dev/null)"
+DEF_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$DEF")"
+bash "$SCRIPTS/defer-item.sh" defer "$DEF_ID" --reason "external blocker" >/dev/null 2>&1
+check "defer moved item to _deferred" '[[ -f ".context/backlog/_deferred/$(basename "$DEF")" ]]'
+AFTER="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "after defer" --priority P2 2>/dev/null)"
+AFTER_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$AFTER")"
+check "id not reused after defer (D-09)" '[[ -n "$AFTER_ID" && "$AFTER_ID" != "$DEF_ID" ]]'
+bash "$SCRIPTS/harvest-commit.sh" --sha fedc999 --message "Backlog: $DEF_ID" >/dev/null 2>&1
+check "harvest reaches _deferred items" 'grep -q "fedc999" ".context/backlog/_deferred/$(basename "$DEF")"'
+
+echo "== list robustness =="
+# Regression: read_field piped values through xargs, which chokes on unbalanced
+# quotes — any open title with an apostrophe crashed --list (set -e).
+bash "$SCRIPTS/register-item.sh" --origin manual --title "Don't break the exporter" --priority P1 >/dev/null 2>&1
+check "--list survives apostrophe titles" 'bash "$SCRIPTS/register-item.sh" --list >/dev/null 2>&1'
+
 echo "== plan close + reconcile =="
 mkdir -p ".context/plans/2026-01-01-test-plan"
 printf -- '---\ntitle: "t"\nstatus: doing\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n' > ".context/plans/2026-01-01-test-plan/00-index.md"
