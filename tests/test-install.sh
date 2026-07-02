@@ -90,5 +90,15 @@ if [[ -L "$H/.claude/skills/my-personal" && ! -e "$H/.claude/skills/my-personal"
   fail "G1: accepted purge left a DANGLING personal symlink in ~/.claude/skills"
 fi
 
+# ---------- G4: version-only bump must refresh ~/.aidex/.version on --update ----------
+# A release commit that only bumps VERSION= produces zero item changes; the update's
+# early "everything up to date" exit must still stamp the new version.
+make_fixture
+run_install || fail "G4: fresh install exited non-zero"
+sed -i '' 's/^VERSION=.*/VERSION="9.9.9"/' "$FIX/install.sh"
+run_install --update || fail "G4: no-change --update exited non-zero"
+[[ "$(cat "$H/.aidex/.version" 2>/dev/null)" == "9.9.9" ]] \
+  || fail "G4: .version not refreshed on no-change update (got '$(cat "$H/.aidex/.version" 2>/dev/null)')"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — pycache excluded, manifest reflects choices, personal files guarded, no dangling symlinks"
+echo "OK — pycache excluded, manifest reflects choices, personal files guarded, no dangling symlinks, version stamped on no-change update"
