@@ -142,9 +142,12 @@ copy_item() {
   local dst="$AIDEX_DIR/$item"
 
   if [ -d "$src" ]; then
-    # Directory: sync contents
+    # Directory: sync contents. Exclude gitignored build junk — copying
+    # __pycache__/*.pyc from a working tree causes perpetual "Modified" churn.
     mkdir -p "$dst"
-    rsync -a --delete "$src/" "$dst/"
+    rsync -a --delete \
+      --exclude='__pycache__/' --exclude='*.pyc' --exclude='.DS_Store' \
+      "$src/" "$dst/"
   else
     # File: copy
     mkdir -p "$(dirname "$dst")"
@@ -336,8 +339,9 @@ do_update() {
     if [ ! -e "$dst" ]; then
       new_items+=("$item")
     elif [ -d "$src" ]; then
-      # Compare directory contents
-      if ! diff -rq "$src" "$dst" > /dev/null 2>&1; then
+      # Compare directory contents (same excludes as copy_item, or excluded junk
+      # in the working tree reads as a perpetual "Modified")
+      if ! diff -rq -x '__pycache__' -x '*.pyc' -x '.DS_Store' "$src" "$dst" > /dev/null 2>&1; then
         modified+=("$item")
       else
         unchanged=$((unchanged + 1))
@@ -389,6 +393,14 @@ do_update() {
   local choice
   choice=$(ask_choice "Choice" "1")
 
+  # Interactive-update outcome tracking (choice 2): the manifest must reflect
+  # what was ACTUALLY installed/kept — declined new items stay out; declined
+  # removals stay in (so a later update re-offers them instead of orphaning).
+  local accepted_new=()
+  local applied_removals=()
+  local declined_conventions=0
+  local accepted_other_skill=0
+
   case "$choice" in
     1)
       # Apply all
@@ -408,7 +420,7 @@ do_update() {
       for item in ${modified[@]+"${modified[@]}"}; do
         header "Diff: $item"
         if [ -d "$SCRIPT_DIR/$item" ]; then
-          diff -rq "$SCRIPT_DIR/$item" "$AIDEX_DIR/$item" 2>/dev/null || true
+          diff -rq -x '__pycache__' -x '*.pyc' -x '.DS_Store' "$SCRIPT_DIR/$item" "$AIDEX_DIR/$item" 2>/dev/null || true
         else
           diff --color=auto "$AIDEX_DIR/$item" "$SCRIPT_DIR/$item" 2>/dev/null || true
         fi
@@ -419,8 +431,10 @@ do_update() {
           copy_item "$item"
           is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
           info "Updated: $item"
+          case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
         else
           warn "Skipped: $item"
+          [ "$item" = "skills/aidex-conventions" ] && declined_conventions=1
         fi
       done
       for item in ${new_items[@]+"${new_items[@]}"}; do
@@ -430,6 +444,8 @@ do_update() {
           copy_item "$item"
           is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
           info "Installed: $item"
+          accepted_new+=("$item")
+          case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
         fi
       done
       for item in ${removed[@]+"${removed[@]}"}; do
@@ -439,8 +455,14 @@ do_update() {
           remove_symlink "$item" 2>/dev/null || true
           rm -rf "$AIDEX_DIR/$item"
           info "Removed: $item"
+          applied_removals+=("$item")
         fi
       done
+      if [ "$declined_conventions" -eq 1 ] && [ "$accepted_other_skill" -eq 1 ]; then
+        warn "You updated skills but declined skills/aidex-conventions — other skills source"
+        warn "its scripts/_lib.sh at runtime; a version skew there can break them. Consider"
+        warn "re-running --update and accepting aidex-conventions."
+      fi
       ;;
     3)
       echo "  Cancelled."
@@ -464,11 +486,26 @@ do_update() {
   # Ensure installed hooks are executable
   [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh 2>/dev/null || true
 
-  # Update manifest
+  # Update manifest — from ACTUAL outcomes, never blindly from the repo.
   local all_items=()
-  while IFS= read -r item; do
-    all_items+=("$item")
-  done < <(collect_repo_items)
+  if [ "$choice" = "2" ]; then
+    # Previous manifest − applied removals + accepted new items.
+    while IFS= read -r item; do
+      local drop=0 r
+      for r in ${applied_removals[@]+"${applied_removals[@]}"}; do
+        [ "$item" = "$r" ] && drop=1
+      done
+      [ "$drop" -eq 0 ] && all_items+=("$item")
+    done < <(read_manifest)
+    for item in ${accepted_new[@]+"${accepted_new[@]}"}; do
+      all_items+=("$item")
+    done
+  else
+    # Apply-all: everything in the repo was installed and removals executed.
+    while IFS= read -r item; do
+      all_items+=("$item")
+    done < <(collect_repo_items)
+  fi
   write_manifest "${all_items[@]}"
 
   # Update version
@@ -546,7 +583,9 @@ do_uninstall() {
       fi
       ;;
     3)
-      # Full removal
+      # Full removal — but personal (non-manifest) files are NEVER destroyed on a
+      # bare y/n: they get listed and require an explicit 'delete' token, and any
+      # ~/.claude symlink pointing into ~/.aidex is cleaned first (no dangling links).
       header "Removing symlinks from ~/.claude/"
       while IFS= read -r item; do
         if remove_symlink "$item"; then
@@ -555,15 +594,46 @@ do_uninstall() {
         fi
       done < <(read_manifest)
 
-      header "Removing ~/.aidex/ entirely"
-      echo ""
-      local confirm
-      confirm=$(ask_choice "Are you sure? This deletes ALL of ~/.aidex/ including personal files (y/n)" "n")
-      if [ "$confirm" = "y" ]; then
+      header "Removing aidex-managed files from ~/.aidex/"
+      while IFS= read -r item; do
+        local dst="$AIDEX_DIR/$item"
+        if [ -e "$dst" ]; then
+          rm -rf "$dst"
+          info "$item"
+          removed=$((removed + 1))
+        fi
+      done < <(read_manifest)
+      rm -f "$MANIFEST" "$AIDEX_DIR/.version"
+
+      local personal
+      personal=$(find "$AIDEX_DIR" -mindepth 1 -not -type d 2>/dev/null | head -20 || true)
+      if [ -z "$personal" ]; then
         rm -rf "$AIDEX_DIR"
-        info "Removed ~/.aidex/"
+        info "Removed ~/.aidex/ (contained nothing personal)"
       else
-        warn "Cancelled full removal. Only symlinks were removed."
+        echo ""
+        warn "PERSONAL (non-aidex) files live in ~/.aidex/ — e.g.:"
+        echo "$personal" | sed 's/^/      /'
+        echo ""
+        local confirm
+        confirm=$(ask_choice "Delete these personal files too? Irreversible. Type 'delete' to confirm" "n")
+        if [ "$confirm" = "delete" ]; then
+          # Clean EVERY ~/.claude symlink pointing into ~/.aidex (manifest or not)
+          # so no personal-skill symlink is left dangling.
+          local linkdir l
+          for linkdir in "$CLAUDE_DIR/skills" "$CLAUDE_DIR/commands"; do
+            [ -d "$linkdir" ] || continue
+            while IFS= read -r l; do
+              case "$(readlink "$l")" in
+                "$AIDEX_DIR"*) rm "$l"; info "symlink: $(basename "$l") (pointed into ~/.aidex)" ;;
+              esac
+            done < <(find "$linkdir" -maxdepth 1 -type l 2>/dev/null)
+          done
+          rm -rf "$AIDEX_DIR"
+          info "Removed ~/.aidex/ including personal files"
+        else
+          warn "Personal files kept in ~/.aidex/. aidex-managed items were removed."
+        fi
       fi
       ;;
     4)
