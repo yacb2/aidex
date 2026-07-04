@@ -27,17 +27,28 @@ The operative rule here:
   did not pre-authorize a publish step, surface it at the **end** — not mid-run.
 - **Evaluate batch-promotion at Orient (mandatory, one line).** Before phase 1,
   classify each phase's `phase-type` and apply the promotion threshold
-  (§"Unattended / batch execution"). If the plan's `afk-impl` phases form a
+  (§"Unattended / batch execution"). When the plan's `afk-impl` phases form a
   decomposable, machine-gated chain/DAG whose per-phase work dwarfs the ~22k/agent
-  floor, **propose the durable `Workflow` form as a single line, batched with the
-  other Orient questions** — e.g. *"Phases 2–3 are afk-impl with machine gates → run
-  as a durable Workflow (arbiter-gated, kill-resumable)? P1/P4 hitl-align stay
-  interactive."* A one-word "yes" is the opt-in: invoking this skill plus this
-  proposal **is** the sanctioned authorization to call the `Workflow` tool — no
-  `ultracode` needed. If the plan does not qualify (no machine gate per phase, not
-  decomposable, phases too small to amortize the floor, or attended), run
-  interactive with the arbiter and **do not ask**. This is a kickoff question,
+  floor, check whether the kickoff **already grants run-to-completion autonomy**:
+  don't-stop language ("sin detenerte", "hasta terminar", "todo el plan"), the
+  `ultracode` keyword, or an autonomy note in the plan doc. If it does, **promote
+  by default — call the `Workflow` tool directly and state the decision in one
+  line, do not ask** — e.g. *"Phases 2–3 are afk-impl with machine gates →
+  launching as a durable Workflow (arbiter-gated, kill-resumable); P1/P4
+  hitl-align stay interactive."* Invoking this skill under a run-to-completion
+  kickoff **is** the sanctioned opt-in to call the `Workflow` tool. Only when the
+  kickoff did **not** grant autonomy, **propose the durable `Workflow` form as a
+  single line, batched with the other Orient questions**; a one-word "yes" is the
+  opt-in — no `ultracode` needed. If the plan does not qualify (no machine gate per
+  phase, not decomposable, phases too small to amortize the floor, or attended), run
+  interactive with the arbiter and **do not ask**. This is a kickoff decision,
   **never a mid-run interruption**.
+- **Model guard (before launching any multi-agent form).** If the session model is
+  a Sonnet-class model and the chosen form requires multi-agent orchestration (any
+  `Workflow` form), **recommend a handoff to Opus before launching** — Sonnet
+  demonstrably fails multi-agent Workflow orchestration (observed field failure
+  2026-07-03). Surface this at Orient as a kickoff recommendation, never as a
+  mid-run interruption; the interactive path is unaffected.
 - **Do not re-ask for steps this skill mandates.** Invoking plan-exec authorizes you
   to code-review the diff, author the commit message, commit per phase, and hand off
   when context grows. Do them — never stop to ask "should I commit? is the message
@@ -78,8 +89,9 @@ the plan as a **durable `Workflow`** instead — each phase a fresh bounded agen
 gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the journal. Use
 this only when the work is **decomposable + machine-verifiable + unattended** and the user
 opted in (the `Workflow` tool is gated and token-heavy). **The mandatory Orient evaluation
-above proposes this for you when the plan qualifies** — the user does not have to request the
-Workflow by name; their one-word "yes" at Orient is the opt-in.
+above handles the opt-in for you when the plan qualifies** — the user does not have to request
+the Workflow by name: a run-to-completion kickoff already **is** the opt-in (promote directly,
+stating the decision in one line), and only without it does the one-word "yes" at Orient apply.
 
 ### Promotion threshold (when batching actually pays off)
 
