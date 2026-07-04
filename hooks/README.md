@@ -4,33 +4,72 @@ The **enforcement** half of execution durability. The `durability-arbiter`
 (`skills/aidex-conventions/agents/`) is the *judgment* layer — but it only fires if the
 agent *chooses* to consult it before stopping. The failure mode we actually see is the
 agent **just stopping** ("the rest needs your decision"). The only surface that fires on
-that involuntary stop is a Claude Code **Stop hook**. This directory holds three
-implementations — A is the validated active one.
+that involuntary stop is a Claude Code **Stop hook**. This directory holds the
+implementations — the judge-gated command hook (C) is the active one.
 
 > **Why this is not shipped active by `install.sh`.** `install.sh` copies these files to
 > `~/.aidex/hooks/` but wires nothing. A Stop hook is an environment-wide behavioral change
 > (it fires at every turn-end in every session it's configured for). **Activation is your
 > explicit call**: you add the hook to `~/.claude/settings.json` yourself.
 
-## A. Native AGENT hook (`type:"agent"`) — ACTIVE (validated 2026-06-27)
+## What is actually configured today (2026-07-04)
 
-A Claude **subagent** judges the stop with criterion — it can read the transcript and inspect
-the project before deciding, so it handles the many different ways a premature stop is phrased
-(which a regex cannot). Validated live in isolation: allow-case clean, block-case blocks with a
-sensible reason, **no prompt leak** into the conversation, no infinite loop.
+`~/.claude/settings.json` runs **hook C** (`type:"command"` →
+`durability-stop-hook.sh`). It was swapped in on 2026-07-02 (hook A demoted for
+per-turn cost) and, per BL-044, hook C is now **judge-gated**: cheap deterministic
+gates first, then a model judge — see below. If your `settings.json` entry still
+carries `"timeout": 30`, raise it to **90** so the judge (internal 60s cap) is
+never killed by the hook timeout.
 
-- **Prompt:** [`durability-stop-prompt.md`](durability-stop-prompt.md) is the canonical source
-  (English-only, no hardcoded phrases — the agent judges by substance). `settings.json` carries
-  an inline copy; edit the `.md` then re-inject (snippet below).
+## C. Judge-gated command hook (`type:"command"`) — ACTIVE
+
+[`durability-stop-hook.sh`](durability-stop-hook.sh). Decision ladder, cheapest first:
+
+1. **Recursion guard** — `AIDEX_STOP_JUDGE=1` (set for the judge subprocess) → allow.
+2. **Anti-deadlock** — `stop_hook_active` → allow (blocks at most once per cycle).
+3. **Inert gate** — no/expired `<cwd>/.context/.durability/active-run.json` → allow.
+   This is the cost gate: casual sessions never reach the judge. Zero model calls.
+4. **Background tasks** running → allow (not a real end).
+5. **LEGIT terminal regex** (publish ask / hard blocker / plan complete) → fast allow.
+6. **Model judge (BL-044)** — `claude -p --model claude-sonnet-5` (full id REQUIRED;
+   the alias `"sonnet"` silently breaks model-backed hooks — see commit 20b8d56) with
+   the [`durability-stop-prompt.md`](durability-stop-prompt.md) policy + the hook input
+   (last_assistant_message, cwd, transcript_path, active-run state) on stdin, asking for
+   a strict `{"block": bool, "reason": "..."}` verdict (the prompt's native
+   `{"ok": ...}` shape is also accepted defensively). The judge catches what the regex
+   cannot: novel stop phrasings, e.g. a mid-plan summary with **no question** (the
+   documented 2026-07-02T20:29 regex miss — verified blocked live). Judge command is
+   injectable via **`AIDEX_JUDGE_CMD`** (tests mock it); internal timeout 60s.
+7. **Regex fallback** — any judge failure/timeout/unparseable output falls back to the
+   original OVERSTOP/enforce regex logic. The hook is fail-open overall.
+
+Every decision made while a run is ACTIVE is appended to
+`~/.aidex/durability/events.jsonl` with `matched` = `legit-terminal` | `judge` |
+`judge-fallback-regex` — grep for `"matched": "judge"` to field-verify the judge path.
+
+Activate (in `~/.claude/settings.json` → `"hooks"`):
+```jsonc
+"Stop": [ { "hooks": [ { "type": "command",
+                         "command": "bash \"$HOME/.aidex/hooks/durability-stop-hook.sh\"",
+                         "timeout": 90 } ] } ]
+```
+
+## A. Native AGENT hook (`type:"agent"`) — heavier alternative (validated 2026-06-27, demoted 2026-07-02)
+
+A Claude **subagent** judges every stop — same policy, but it runs at **every turn-end in
+every session** (no active-run cost gate), which is why it was demoted: ~one Sonnet call
+per turn-end, everywhere. It blocked 28 premature stops 06-26→07-01 and remains the
+documented option if you want judge quality without declaring runs via `durability-run.sh`.
+
+- **Prompt:** [`durability-stop-prompt.md`](durability-stop-prompt.md) is the canonical
+  source (English-only, judges by substance). `settings.json` carries an inline copy;
+  edit the `.md` then re-inject (snippet below).
 - **Contract:** the subagent returns `{"ok": true}` (allow) or `{"ok": false, "reason": "..."}`
   (block → Claude continues). On block CC injects **only the reason** (prefixed
   `Stop hook feedback: Agent hook condition was not met:`), NOT the prompt — confirmed clean.
 - **Model:** set via `model`. **MUST be the full id (`claude-sonnet-5`)** — the alias
   `"sonnet"` silently breaks the hook (it does not run). Default if omitted is **Haiku**
-  (`claude-haiku-4-5`). We run Sonnet for better judgment.
-- **Cost/latency:** a subagent runs at **every turn-end in every session** it is configured
-  for (Sonnet, can read the transcript) — heavier than a single completion. Watch this during
-  evaluation; if too heavy, drop to Haiku (omit `model`) or scope it.
+  (`claude-haiku-4-5`).
 - **Anti-loop:** the prompt returns `{"ok": true}` when `stop_hook_active` is true; CC also caps
   consecutive blocks. Marked **experimental** in the CC docs.
 - **Audit:** a block's reason begins with `[durability-arbiter]` → greppable in transcripts.
@@ -59,18 +98,7 @@ Tried 2026-06-27 and reverted: instead of a silent judge, CC **injected the enti
 into the conversation as a visible `Stop hook feedback` user message on every stop**. The
 judgment fired, but dumping the prompt into the chat is unusable. The documented `{"ok":...}` /
 `$ARGUMENTS` contract did not match observed behavior for this type. Kept only as a cautionary
-note; use A instead.
-
-## C. Deterministic command hook (`type:"command"`) — SWAP-BACK FALLBACK
-
-[`durability-stop-hook.sh`](durability-stop-hook.sh) — a regex over the last assistant message.
-No model, no cost, can't-fail, testable by piping JSON. Weakness: a fixed term list misses
-novel stop phrasings and can trip on casual endings. Inert unless
-`<cwd>/.context/.durability/active-run.json` exists (scoped to declared runs). Use if A proves
-too heavy or flaky:
-```jsonc
-"Stop": [ { "hooks": [ { "type": "command", "command": "~/.aidex/hooks/durability-stop-hook.sh" } ] } ]
-```
+note; use C (or A) instead.
 
 > **Never chain blockers as siblings.** When multiple Stop hooks run, the most-restrictive answer
 > wins — a regex *block* would override a model *allow*. Wire exactly one at a time.
@@ -80,13 +108,36 @@ too heavy or flaky:
 - `durability-run.sh` — `start <type> [--mode remind|enforce] [--ttl-min N]` / `stop` / `status`.
   Writes `<cwd>/.context/.durability/active-run.json` and logs run-start/stop to
   `~/.aidex/durability/events.jsonl`. The durable skills call this at their start/end. With hook
-  A active it is **audit only** (A judges by content); with C active it is the activation gate.
-- `test-durability-hook.sh` — 11 isolated stdin tests for the command hook (C). Hooks A and B are
-  only validatable **live** (model-backed) — A was validated via isolated `claude -p` runs.
+  C active it is **the activation gate** (no run declared → no judge, no cost); with hook A it
+  would be audit only.
+- `test-durability-hook.sh` — 16 isolated stdin tests for hook C: 11 regex/gate tests (run with
+  the judge mocked as unavailable, exercising the fallback path) + 5 judge tests (mocked block,
+  mocked allow overriding the regex, garbage output → regex fallback, marker-absent → judge not
+  invoked). Hooks A and B are only validatable **live** (model-backed).
 
 ## Status
 
-**Hook A (`type:"agent"`, Sonnet) is the active default**, validated live (no leak, blocks with
-criterion). Takes effect on the next Claude Code session start. Hook B is broken (kept as a
-warning). Hook C is the deterministic fallback (11/11). After a durable run, grep transcripts for
+**Hook C (judge-gated command hook) is the active configuration** in
+`~/.claude/settings.json`. The 2026-07-02T20:29 summary-no-question miss is blocked by the
+live judge (verified 2026-07-04, `matched: "judge"` in events.jsonl). Hook A is the
+heavier always-on alternative; hook B is broken (kept as a warning). After a durable run,
+grep `~/.aidex/durability/events.jsonl` for `"matched": "judge"` and transcripts for
 `[durability-arbiter]` to see enforced continuations.
+
+## aidex-router.sh — deterministic prompt router (UserPromptSubmit)
+
+Regex-routes natural ES+EN create-intent phrases ("crea un plan para...", "parkea esto", "usa un worktree") to the matching aidex skill by injecting a routing directive via `hookSpecificOutput.additionalContext`. Precision-first: only taught phrases route (~100%); everything else is a silent no-op. Never blocks — any failure (no jq, malformed payload) exits 0 with no output.
+
+**Intents (ordered, first-match-wins):** aidex-decision, aidex-request, aidex-loop, aidex-backlog, aidex-worktree, aidex (ecosystem), aidex-audit, aidex-skill, aidex-research, aidex-reference, aidex-plan. `aidex-loop` deliberately precedes `aidex-backlog`: "crea un loop ... cerrar backlogs" names backlogs as the loop's target (BL-045).
+
+**False-positive guards (BL-042):**
+- `/command` and `<`-prefixed (injected/system-shaped) prompts never route.
+- Transcript guard: prompts longer than 700 normalized chars never route — pasted transcripts and multi-topic feedback almost always contain some verb+noun pair.
+- Meta-discussion/hypothetical guard: opinion/hypothesis markers ("supongo que", "me imagino", "analices", "que podemos mejorar", "consideras que", "dame tu opinion", ...) skip routing — discussing an artifact is not a create intent.
+- Proximity conjunction (`m2`): a rule's noun and verb must co-occur within the same sentence-ish segment (split on `.!?;` + whitespace and newlines), so a noun in one sentence can no longer conjoin with a verb in an unrelated one.
+
+**Registration (opt-in, not done by install.sh):** wire it as a `UserPromptSubmit` hook in settings.json pointing at `~/.aidex/hooks/aidex-router.sh`.
+
+### eval/ — router eval harness
+
+`eval/run-eval.sh [cases.tsv]` pipes every labeled case in `eval/router-cases.tsv` (113 cases: per-skill positives, field-miss positives, live-FP negatives) through the router and prints accuracy, per-class precision/recall/F1, and the negative-case false-positive count. Defaults to the sibling `../aidex-router.sh`; set `AIDEX_ROUTER=/path/to/aidex-router.sh` to eval an installed copy. Gate: 100% accuracy, 0 false positives. TSV format: `expected<TAB>phrase`, `NONE` = must not route; `#` comments and blank lines ignored.

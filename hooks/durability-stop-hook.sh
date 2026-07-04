@@ -14,10 +14,19 @@
 #   - Never blocks a legitimate terminal state (publication ask / hard blocker / done).
 #   - Default mode "remind" only blocks on explicit over-stop signals; "enforce" is opt-in.
 #
+# JUDGE-GATED (BL-044) — when a durable run IS active and the message is not an
+# obvious terminal state, the stop is judged by a model (`claude -p`, policy in
+# durability-stop-prompt.md) instead of the regex, so novel stop phrasings (e.g.
+# a long summary with no question) are caught. Any judge failure/timeout falls
+# back to the regex logic — the hook stays fail-open and zero-cost in idle
+# sessions. The judge command is injectable via AIDEX_JUDGE_CMD (tests mock it).
+#
 # NOT auto-installed. Activation is the user's call — see hooks/README.md.
 
 set -euo pipefail
 INPUT="$(cat)"
+# The judge prompt lives next to this script (repo hooks/ or installed ~/.aidex/hooks/).
+export AIDEX_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 python3 - "$INPUT" <<'PY'
 import sys, json, os, re, datetime
@@ -30,6 +39,11 @@ except Exception:
 def allow():  print("{}"); sys.exit(0)
 def block(reason):
     print(json.dumps({"decision": "block", "reason": reason})); sys.exit(0)
+
+# 0. Recursion guard: the judge is itself a `claude -p` session whose Stop hook
+#    would re-enter this script. The judge subprocess runs with this var set.
+if os.environ.get("AIDEX_STOP_JUDGE") == "1":
+    allow()
 
 # 1. Anti-deadlock: if we already blocked once this cycle, allow the stop now.
 if ev.get("stop_hook_active") is True:
@@ -113,16 +127,80 @@ REASON = (
     f"the very end. If you are genuinely done or truly blocked, say so explicitly and you may stop."
 )
 
+# Model judge (BL-044). Reached only during an ACTIVE, non-terminal stop, so a
+# judge call costs nothing in casual sessions. Returns {"block": bool, "reason": str}
+# or None on any failure (missing prompt, timeout, non-JSON output) — never raises.
+def run_judge():
+    try:
+        import subprocess
+        policy = open(os.path.join(os.environ["AIDEX_HOOK_DIR"],
+                                   "durability-stop-prompt.md")).read()
+        payload = {
+            "last_assistant_message": ev.get("last_assistant_message") or "",
+            "stop_hook_active": ev.get("stop_hook_active", False),
+            "cwd": cwd,
+            "transcript_path": ev.get("transcript_path") or "",
+            "active_run": state,
+        }
+        prompt = (
+            policy
+            + "\n\nHook input JSON (this is the $ARGUMENTS referenced above):\n"
+            + json.dumps(payload)
+            + "\n\nOutput-format override for this invocation: return ONLY the JSON object "
+              '{"block": <bool>, "reason": "<string>"} — "block": true means the stop must '
+              "be blocked and the agent told to continue."
+        )
+        # shell=True is safe here: `cmd` is a trusted constant or the operator-set
+        # AIDEX_JUDGE_CMD; untrusted message content goes in via stdin only.
+        cmd = os.environ.get("AIDEX_JUDGE_CMD") or "claude -p --model claude-sonnet-5"
+        env = dict(os.environ, AIDEX_STOP_JUDGE="1")
+        out = subprocess.run(cmd, shell=True, input=prompt, env=env,
+                             capture_output=True, text=True, timeout=60)
+        if out.returncode != 0:
+            return None
+        m = re.search(r"\{.*\}", out.stdout, re.S)   # tolerate fences/preamble
+        if not m:
+            return None
+        verdict = json.loads(m.group(0))
+        # LLM judges sometimes quote booleans ({"block": "false"}). bool("false")
+        # is True — that would block a stop the judge meant to allow. Coerce
+        # real bools and "true"/"false" strings; anything else -> regex fallback.
+        def as_bool(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str) and v.strip().lower() in ("true", "false"):
+                return v.strip().lower() == "true"
+            return None
+        reason = str(verdict.get("reason") or "")
+        if "block" in verdict:
+            b = as_bool(verdict["block"])
+            return None if b is None else {"block": b, "reason": reason}
+        if "ok" in verdict:   # type:agent contract shape — accept defensively
+            ok = as_bool(verdict["ok"])
+            return None if ok is None else {"block": not ok, "reason": reason}
+        return None
+    except Exception:
+        return None
+
+verdict = run_judge()
+if verdict is not None:
+    if verdict["block"]:
+        log_event("block", "judge")
+        block(verdict["reason"] or REASON)
+    log_event("allow", "judge")
+    allow()
+
+# Judge unavailable — deterministic regex fallback (fail open overall).
 if mode == "enforce":
     # Aggressive: block unless the message already read as a legit terminal state (handled above).
-    log_event("block", "enforce")
+    log_event("block", "judge-fallback-regex")
     block(REASON)
 
 # Default "remind": block only on an explicit over-stop signal.
 if is_overstop:
-    log_event("block", "overstop")
+    log_event("block", "judge-fallback-regex")
     block(REASON)
 
-log_event("allow", "none")
+log_event("allow", "judge-fallback-regex")
 allow()
 PY
