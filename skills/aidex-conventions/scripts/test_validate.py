@@ -32,6 +32,11 @@ EXPECTED_BAD_RULES = {
     "communication-channel-invalid",
     "plan-phase-gateless-afk",
     "readme-in-context",
+    "body-language-not-english",
+    "audit-legacy-board-name",
+    "audit-board-duplicate",
+    "audit-run-legacy-name",
+    "audit-run-name-invalid",
 }
 
 def _load_validator():
@@ -169,6 +174,93 @@ def check_baseline_ratchet(failures: list[str]) -> None:
                             f"(rc={dirty.returncode}, new={[x['file'] for x in new]})")
 
 
+def check_body_language_unit(failures: list[str]) -> None:
+    """Direct cells for check_body_language (BL-047): a clearly-Spanish body warns;
+    English, bilingual-with-quote, Spanish-in-code-fence, and Spanish-in-front-matter
+    bodies stay silent; communications/ are exempt entirely."""
+    v = _load_validator()
+    def warns(text: str, type_name: str = "research") -> bool:
+        return v.check_body_language(type_name, Path("x.md"), text) is not None
+    spanish = ("Este documento describe los pasos de la migración que se realizaron "
+               "sobre el esquema. Cuando el proceso termina hay que verificar que "
+               "todas las tablas del sistema tienen los datos correctos, pero si algo "
+               "falla se puede restaurar una copia para que todo quede como antes.")
+    if not warns(spanish):
+        failures.append("body-language unit: clearly-Spanish body did not warn")
+    english = ("This document describes the steps of the migration that were applied "
+               "to the schema. When the process finishes, verify that all the tables "
+               "have the correct data and that the indexes are in place before you "
+               "restore anything from the backup directory.")
+    if warns(english):
+        failures.append("body-language unit: English body warned (false positive)")
+    bilingual = english + "\n\nThe client wrote: \"la copia de seguridad que se hizo\"."
+    if warns(bilingual):
+        failures.append("body-language unit: English body with a Spanish quote warned "
+                        "(heuristic not conservative enough)")
+    fenced = "English intro.\n\n```\n" + spanish + "\n```\n"
+    if warns(fenced):
+        failures.append("body-language unit: Spanish inside a code fence warned")
+    fm_only = "---\ntitle: \"Notas de la migración de los datos del sistema\"\n---\nShort English body.\n"
+    if warns(fm_only):
+        failures.append("body-language unit: Spanish front-matter values warned (should be exempt)")
+    if warns(spanish, "communications"):
+        failures.append("body-language unit: communications body warned (D-04 exemption)")
+
+
+def check_waivers(failures: list[str]) -> None:
+    """Waiver lifecycle (BL-048): an anchored waiver suppresses its finding and
+    reports it under waived; a content change or a deleted waiver line resurfaces
+    it; an anchorless waiver survives content changes."""
+    import hashlib, shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        readme = ctx / "plans" / "README.md"
+        anchor = hashlib.sha256(readme.read_bytes()).hexdigest()[:12]
+        def run_v() -> tuple[int, dict]:
+            res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                 capture_output=True, text=True)
+            return res.returncode, json.loads(res.stdout)
+        def has_readme_violation(d: dict) -> bool:
+            return any(x["rule"] == "readme-in-context" and x["file"] == ".context/plans/README.md"
+                       for x in d["violations"])
+        _, d0 = run_v()
+        base_v = d0["summary"]["violations"]
+        if not has_readme_violation(d0):
+            failures.append("waivers: expected readme-in-context on .context/plans/README.md pre-waiver")
+            return
+        wfile = ctx / ".aidex-waivers"
+        wfile.write_text(
+            "# accepted findings\n"
+            f"readme-in-context | .context/plans/README.md | sha256:{anchor} | "
+            "legacy readme kept on purpose | 2026-07-04\n", encoding="utf-8")
+        _, d1 = run_v()
+        if has_readme_violation(d1) or d1["summary"]["violations"] != base_v - 1:
+            failures.append(f"waivers: anchored waiver did not suppress the finding "
+                            f"(violations {d1['summary']['violations']} vs {base_v - 1})")
+        if d1["summary"].get("waived") != 1 or not any(
+                x["rule"] == "readme-in-context" for x in d1.get("waived", [])):
+            failures.append("waivers: suppressed finding not counted/listed under waived")
+        # Content change -> anchor mismatch -> finding resurfaces.
+        readme.write_text(readme.read_text(encoding="utf-8") + "\nchanged\n", encoding="utf-8")
+        _, d2 = run_v()
+        if not has_readme_violation(d2) or d2["summary"].get("waived") != 0:
+            failures.append("waivers: finding did not resurface after the anchored content changed")
+        # Anchorless waiver ("-") keeps matching regardless of content.
+        wfile.write_text("readme-in-context | .context/plans/README.md | - | accepted\n",
+                         encoding="utf-8")
+        _, d3 = run_v()
+        if has_readme_violation(d3) or d3["summary"].get("waived") != 1:
+            failures.append("waivers: anchorless waiver did not suppress after content change")
+        # Waiver line removed -> finding resurfaces; bad lines are counted, not swallowed.
+        wfile.write_text("# nothing left\nmalformed line without pipes\n", encoding="utf-8")
+        _, d4 = run_v()
+        if not has_readme_violation(d4):
+            failures.append("waivers: finding did not resurface after the waiver line was removed")
+        if d4["summary"].get("waiver_parse_errors") != 1:
+            failures.append("waivers: unparseable waiver line was not counted")
+
+
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
     res = subprocess.run(
@@ -199,6 +291,8 @@ def main() -> int:
     check_crossref_prefix_coverage(failures)
     check_worktrees_no_double_count(good, failures)
     check_baseline_ratchet(failures)
+    check_body_language_unit(failures)
+    check_waivers(failures)
 
     if failures:
         print("FAIL")
