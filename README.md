@@ -1,8 +1,28 @@
 # aidex
 
-Developer experience toolkit for organizing AI coding assistant ecosystems — skills, documentation structure, and project context.
+> Keep your Claude Code ecosystem lean and consistent — skills, docs, and project context from one source of truth.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.20.0-blue.svg)](install.sh)
+[![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-8A2BE2.svg)](https://docs.anthropic.com/en/docs/claude-code)
+
+AI coding assistants reload their context every session. As your setup grows, skills get copy-pasted across projects and drift out of sync, every project organizes its `.context/` knowledge differently, and idle context quietly eats your token budget. **aidex** fixes that with a single-source skill store (symlinked, never duplicated), a standard `.context/` convention, and an auditor that flags bloat, broken symlinks, and stale docs before they cost you.
 
 Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), but the architecture is tool-agnostic.
+
+## Quick start
+
+```bash
+git clone https://github.com/yacb2/aidex.git
+cd aidex && ./install.sh      # copies to ~/.aidex/, symlinks into ~/.claude/
+# restart Claude Code
+```
+
+Then, in any project, just ask naturally — the right skill loads itself:
+
+- *"Create a plan for the auth migration"* → scaffolds `.context/plans/…` with phases + checkboxes
+- *"Audit my project's health"* → runs parallel auditors, returns a health score + suggested fixes
+- *"/aidex-audit new ux login-redesign"* → scaffolds a UX audit with a methodology playbook
 
 ## What this solves
 
@@ -91,7 +111,7 @@ project/.context/
 
 `rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
 
-### 14 skills
+### 16 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -106,9 +126,11 @@ project/.context/
 | **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate`. Ships 7 playbooks (ux, ia-opportunities, retest, security, perf, a11y, hitl). |
 | **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
 | **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex-loop design` · `new` · `run`. |
+| **`aidex-workflow`** | User-invoked + context-triggered | Designs one-shot multi-agent fan-out / decomposition orchestrations — writes a `.context/workflows/` spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. |
 | **`aidex-comm`** | User-invoked + context-triggered | Captures inbound/outbound communications into `.context/communications/{received,sent}/` — emails, WhatsApp, calls, meetings — with channel/direction/from/to front-matter. Body stays in the native language of the communication (exempt from English-only). |
 | **`aidex-plan-exec`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `aidex-plan` for plan creation. |
 | **`aidex-bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
+| **`aidex-worktree`** | User-invoked + context-triggered | Bootstraps and advises git-worktree setups — decides isolate-vs-share for env/DB/ports via topology detection plus a 4-axis interview, recording it in `.context/worktrees/`. |
 
 ### How it works
 
@@ -148,7 +170,7 @@ project/.context/
 
 ```bash
 # Clone the repo anywhere
-git clone https://github.com/YACB2/aidex.git
+git clone https://github.com/yacb2/aidex.git
 cd aidex
 
 # Install (copies to ~/.aidex/, creates symlinks in ~/.claude/)
