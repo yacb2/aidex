@@ -5,7 +5,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 ## NEVER
 
 - Use `YYYYMMDD` in filenames or front-matter dates. Always ISO `YYYY-MM-DD`.
-- Write `.context/` artifacts in any language other than English — even if the chat is in another language. Sole exemption (D-04): `communications/` bodies stay in the communication's native language, never translated. Spoken replies are unaffected.
+- Write `.context/` artifacts in any language other than English — even if the chat is in another language. Sole exemption (D-04): `communications/` bodies stay in the communication's native language, never translated. Spoken replies are unaffected. `validate.py` warns on Spanish-dominant bodies (`body-language-not-english`); front-matter values and `communications/` are exempt.
 - Name an index file anything other than `00-index.md` (sole alias: `00-overview.md` in `research/<topic>/`).
 - Use a physical relative path in `escalated_to`, `superseded_by`, `blocked_by`, or `origin_ref`. Use the `<type>/<filename>` marker.
 - Embed lifecycle modifiers in `status` (`escalated`, `triaged`, `in-progress` as standalone statuses). Modifiers live in their own fields.
@@ -22,6 +22,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 - Audits group by methodology: `audits/<methodology>/{00-methodology.md, 00-inventory.md, 00-changelog.md, <run>/}`. A run folder archives to `audits/_archive/` once its cycle closes (all in-scope findings `closed`/escalated); the rolling inventory may stay as a live board (D-10).
 - References and research are versioned in place. Record supersession in a top-of-file note linking to the new version, not by relocation.
 - Worktrees: see `skills/aidex-conventions/references/worktree-conventions.md`; the `aidex-worktree` skill owns detection/bootstrap.
+- Record accepted validator findings in `.context/.aidex-waivers` (one line per waiver: `<rule> | <path> | <anchor> | <reason> [| <date>]`; anchor is `sha256:<hex-prefix>` of the file or `-`). Waived findings stay reported under a `waived: N` summary — never silently dropped — and resurface when the anchored file changes or the line is deleted. Full format: `00-global.md` §10.
 - When an artifact records completed work, attach evidence via the optional `proof_links: []` field — a passing test's output/CI log (backend), a request/response payload (API), a screenshot of the flow (frontend), or a reproduction URL. Larger captures live in `.context/proofs/<slug>/`. Never claim "it works" without it. `proof_links` is a front-matter field, **not** a new canonical `.context/` tier. Full rule: `00-global.md` §7.1.
 
 ## Quick reference

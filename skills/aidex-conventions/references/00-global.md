@@ -69,6 +69,7 @@ Language is **scoped by artifact kind** — there is no longer a blanket "all ge
 The assistant continues to *reply* in the user's spoken language; only the written knowledge artifacts above are constrained.
 
 - **Override:** the project's `CLAUDE.md` may explicitly direct another language for knowledge artifacts (e.g., "Generate `.context/` artifacts in Spanish"). A local skill edit is the second supported override path. The communications exemption needs no override — it is the default.
+- **Enforcement:** `validate.py` flags Spanish-dominant body text in knowledge artifacts as a WARNING (`body-language-not-english`). The heuristic is a conservative stopword-density test — it flags clearly-Spanish bodies only, never borderline bilingual quotes. Front-matter values, fenced code blocks, and `communications/` are exempt. Accepted exceptions (e.g., a project running the CLAUDE.md language override) are recorded as waivers — see §10.
 
 ---
 
@@ -252,7 +253,32 @@ stray directory.
 
 ---
 
-## 10. ADR map
+## 10. Waivers — accepted validator findings
+
+Findings a project has reviewed and accepted are recorded in
+`.context/.aidex-waivers` so validator re-runs stop re-reporting documented
+noise. Line-oriented format (`#` comments and blank lines ignored):
+
+```
+<rule> | <path> | <anchor> | <reason> [| <date>]
+```
+
+- `rule` — the finding's rule id exactly as `validate.py` prints it (e.g. `readme-in-context`).
+- `path` — the finding's file path exactly as printed (project-root-relative, e.g. `.context/plans/README.md`).
+- `anchor` — `sha256:<hex-prefix>` of the file's content (`shasum -a 256 <file> | cut -c1-12`), or `-` for no anchor. An anchored waiver stops matching — and the finding **resurfaces** — as soon as the file changes.
+- `reason` — why the finding is accepted (free text; may contain `|`).
+- `date` — `YYYY-MM-DD` the waiver was granted (optional).
+
+`validate.py` suppresses matching findings from counts and the exit code but
+always reports them under a one-line `waived: N` summary — waived findings are
+never silently dropped. Deleting a waiver line resurfaces the finding, and
+unparseable lines are counted, not swallowed. The ratchet baseline
+(`--baseline`) is written post-waiver. The file is the project-wide waiver
+store; audit re-run tooling is expected to consult the same file.
+
+---
+
+## 11. ADR map
 
 | # | Topic | ADR |
 |---|---|---|

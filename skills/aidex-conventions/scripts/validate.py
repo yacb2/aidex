@@ -13,6 +13,7 @@ JSON schema documented in:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -60,6 +61,40 @@ CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|r
 REQUIRED_FIELDS = ("title", "status", "created", "updated")
 # Audit "board" files: living dashboards (per-methodology rollups), not work items.
 AUDIT_BOARD_FILES = {"00-methodology.md", "00-inventory.md", "00-changelog.md"}
+# Pre-00-* uppercase board names still parse everywhere (aidex-audit's
+# validate-audit.sh semantics); the canonical-form check downgrades them to a
+# migration warning instead of a filename violation.
+AUDIT_LEGACY_BOARD_FILES = {"INVENTORY.md": "00-inventory.md",
+                            "METHODOLOGY.md": "00-methodology.md",
+                            "CHANGELOG.md": "00-changelog.md"}
+
+# D-04 enforcement heuristic (BL-047): knowledge artifacts are always English; a
+# body is flagged Spanish-dominant only on a conservative stopword-density test.
+# The Spanish set avoids tokens that are also common English words ("no", "a",
+# "he", "me", "sin", "con") so bilingual bodies with quoted Spanish never trip it.
+SPANISH_STOPWORDS = {
+    "el", "la", "los", "las", "una", "uno", "unas", "unos", "de", "del", "al",
+    "que", "es", "son", "está", "están", "fue", "era", "ser", "hay", "como",
+    "pero", "más", "para", "por", "sobre", "también", "porque", "cuando",
+    "donde", "entre", "desde", "hasta", "según", "muy", "ya", "cada", "todo",
+    "toda", "todos", "todas", "esta", "este", "esto", "estas", "estos", "se",
+    "sus", "les", "nos", "tiene", "tienen", "puede", "pueden", "debe", "deben",
+    "así", "aquí", "durante", "después",
+}
+ENGLISH_STOPWORDS = {
+    "the", "and", "of", "to", "in", "is", "that", "for", "with", "on", "as",
+    "are", "this", "be", "it", "by", "from", "or", "an", "not", "at", "was",
+    "we", "if", "has", "have", "will", "which", "when", "can", "should",
+    "must", "each", "all", "into", "than", "then", "these", "those", "there",
+    "any", "only", "also", "after", "before", "over", "under", "between",
+    "while", "where", "how", "what", "who", "but", "do", "does", "did", "so",
+    "such", "may", "might", "would", "could", "about", "through", "per",
+    "via", "within", "without", "no", "new", "once", "here", "now",
+}
+# Flag only clearly-Spanish bodies: at least this many Spanish stopword hits AND
+# at least this ratio over English hits (borderline bilingual text stays silent).
+LANG_MIN_SPANISH_HITS = 10
+LANG_SPANISH_RATIO = 3
 
 # ---------- Finding type ----------
 
@@ -277,6 +312,12 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
     if type_name == "audits":
         if path.name in ("index.md", "findings.md"):
             return None
+        # Legacy uppercase boards warn instead of hard-failing the filename check
+        # (aligned with aidex-audit's validate-audit.sh / test-canonical-filenames.sh).
+        if path.name in AUDIT_LEGACY_BOARD_FILES:
+            return Finding(type_name, str(path), "audit-legacy-board-name", "warning",
+                           f"legacy board name {path.name!r} — canonical is "
+                           f"{AUDIT_LEGACY_BOARD_FILES[path.name]!r}; run /aidex-audit migrate")
         # Run-internal sub-documents (notes, logs, stage write-ups) are free-form;
         # the dated naming applies to the run folder, not files within it.
         if is_audit_subdoc(type_name, path):
@@ -316,8 +357,9 @@ def is_subdocument(type_name: str, path: Path) -> bool:
 
 def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) -> list[Finding]:
     findings: list[Finding] = []
-    if type_name == "audits" and path.name in AUDIT_BOARD_FILES:
-        return findings  # tabular/freeform board — exempt
+    if type_name == "audits" and (path.name in AUDIT_BOARD_FILES
+                                  or path.name in AUDIT_LEGACY_BOARD_FILES):
+        return findings  # tabular/freeform board (modern or legacy name) — exempt
     if is_audit_subdoc(type_name, path):
         return findings  # run-internal note/log/write-up — exempt
     if is_comm_attachment(type_name, path) or is_loop_state_sidecar(type_name, path):
@@ -400,7 +442,8 @@ def check_status(type_name: str, path: Path, fm: dict | None) -> Finding | None:
     #   - audit board files (00-inventory/changelog/methodology) → living dashboards
     #   - audit run sub-documents → notes inside a dated run
     if is_subdocument(type_name, path) or is_audit_subdoc(type_name, path) \
-            or (type_name == "audits" and path.name in AUDIT_BOARD_FILES):
+            or (type_name == "audits" and (path.name in AUDIT_BOARD_FILES
+                                           or path.name in AUDIT_LEGACY_BOARD_FILES)):
         return None
     val = fm["status"]
     if type_name == "decisions":
@@ -515,6 +558,83 @@ def check_index_files(context_dir: Path, type_name: str) -> list[Finding]:
                                     "00-overview.md is only valid inside research/<topic>/"))
     return findings
 
+# ---------- Body-language check (D-04 enforcement, BL-047) ----------
+
+FENCED_CODE_RE = re.compile(r"(?ms)^[ \t]*```.*?^[ \t]*```[ \t]*$")
+WORD_RE = re.compile(r"[a-záéíóúñü]+")
+
+def body_after_frontmatter(text: str) -> str:
+    """Body text only — front-matter values are exempt from the language check
+    (titles/subjects may legitimately be native-language)."""
+    lines = text.splitlines()
+    if lines and FM_DELIM.match(lines[0]):
+        for i in range(1, len(lines)):
+            if FM_DELIM.match(lines[i]):
+                return "\n".join(lines[i + 1:])
+    return text
+
+def check_body_language(type_name: str, path: Path, text: str) -> Finding | None:
+    """Warn when a knowledge artifact's body reads Spanish-dominant (D-04:
+    knowledge artifacts are always English). Conservative by design — flags
+    clearly-Spanish bodies only, never borderline bilingual quotes.
+    communications/ are exempt (native language per D-04); loop STATE sidecars
+    (operational working state) and fenced code blocks are skipped."""
+    if type_name == "communications":
+        return None
+    if is_loop_state_sidecar(type_name, path):
+        return None
+    body = FENCED_CODE_RE.sub("", body_after_frontmatter(text))
+    tokens = WORD_RE.findall(body.lower())
+    spanish = sum(1 for t in tokens if t in SPANISH_STOPWORDS)
+    english = sum(1 for t in tokens if t in ENGLISH_STOPWORDS)
+    if spanish >= LANG_MIN_SPANISH_HITS and spanish >= LANG_SPANISH_RATIO * english:
+        return Finding(type_name, str(path), "body-language-not-english", "warning",
+                       f"body reads Spanish-dominant ({spanish} Spanish vs {english} English "
+                       f"stopwords) — knowledge artifacts are English (D-04); communications/ are exempt")
+    return None
+
+# ---------- Audit layout canonical-form checks (BL-047) ----------
+
+def check_audit_folders(context_dir: Path) -> list[Finding]:
+    """Folder-level audit checks, aligned with aidex-audit's validate-audit.sh
+    semantics (test-canonical-filenames.sh): duplicate modern+legacy boards and
+    legacy YYYYMMDD run-folder names are migration WARNINGS; a dated run folder
+    that is not YYYY-MM-DD-<slug> is a violation. Non-dated folders are
+    methodologies — never flagged by name."""
+    findings: list[Finding] = []
+    base = context_dir / "audits"
+    if not base.is_dir():
+        return findings
+
+    def check_boards(d: Path) -> None:
+        for legacy, modern in AUDIT_LEGACY_BOARD_FILES.items():
+            if (d / legacy).is_file() and (d / modern).is_file():
+                findings.append(Finding("audits", str(d / legacy), "audit-board-duplicate", "warning",
+                                        f"both {modern} and {legacy} exist — remove the legacy "
+                                        f"file after confirming content is migrated"))
+
+    def check_run_name(d: Path) -> None:
+        name = d.name
+        if re.match(r"^\d{8}-", name):
+            findings.append(Finding("audits", str(d), "audit-run-legacy-name", "warning",
+                                    f"run folder {name!r} uses legacy YYYYMMDD naming — run /aidex-audit migrate"))
+        elif re.match(r"^\d{4}-\d{2}-\d{2}", name) and not ISO_FOLDER.match(name):
+            findings.append(Finding("audits", str(d), "audit-run-name-invalid", "violation",
+                                    f"run folder {name!r} does not match YYYY-MM-DD-<slug>"))
+
+    check_boards(base)
+    for entry in sorted(base.iterdir()):
+        if not entry.is_dir() or entry.name.startswith((".", "_")):
+            continue
+        if re.match(r"^\d", entry.name):
+            check_run_name(entry)  # dated folder at the root: standalone/legacy run
+            continue
+        check_boards(entry)        # methodology folder: boards + dated runs inside
+        for run in sorted(entry.iterdir()):
+            if run.is_dir() and not run.name.startswith((".", "_")):
+                check_run_name(run)
+    return findings
+
 # ---------- Plan phase-gate presence (workflow promotion threshold) ----------
 
 PHASE_HEADING_RE = re.compile(r"(?m)^#{1,4}[ \t]+Phase\b[^\n]*$")
@@ -597,6 +717,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
         if f:
             folder_findings.append(f)
         folder_findings.extend(check_index_files(context_dir, type_name))
+        if type_name == "audits":
+            folder_findings.extend(check_audit_folders(context_dir))
 
         # Plan-level: current-phase per modular plan
         if type_name == "plans" and base.is_dir():
@@ -627,6 +749,9 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             if sf:
                 file_findings.append(sf)
             file_findings.extend(check_crossrefs(type_name, path, fm, context_dir))
+            lf = check_body_language(type_name, path, text)
+            if lf:
+                file_findings.append(lf)
             if type_name == "backlog":
                 bf = check_backlog_priority(path, fm)
                 if bf:
@@ -700,6 +825,85 @@ def write_baseline(context_dir: Path, violations: list[Finding]) -> Path:
     bp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return bp
 
+# ---------- Waivers (accepted findings, BL-048) ----------
+
+WAIVERS_NAME = ".aidex-waivers"
+WAIVER_ANCHOR_RE = re.compile(r"^sha256:([0-9a-f]{8,64})$")
+
+@dataclass
+class Waiver:
+    rule: str
+    path: str    # project-root-relative, exactly as validate.py prints it
+    anchor: str  # "sha256:<hex-prefix>" of file content, or "-" for none
+    reason: str
+    date: str
+
+def load_waivers(context_dir: Path) -> tuple[list[Waiver], int]:
+    """Parse <context>/.aidex-waivers. Line format (# comments / blanks ignored):
+
+        <rule> | <path> | <anchor> | <reason> [| <date>]
+
+    Returns (waivers, unparseable_line_count) — bad lines are counted, never
+    silently swallowed."""
+    wp = context_dir / WAIVERS_NAME
+    waivers: list[Waiver] = []
+    parse_errors = 0
+    if not wp.is_file():
+        return waivers, parse_errors
+    for raw in wp.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 4 or not parts[0] or not parts[1]:
+            parse_errors += 1
+            continue
+        # Reason is free text and may itself contain "|" — the date, when present,
+        # is the last field and must be ISO; everything between anchor and it is reason.
+        tail = parts[3:]
+        if len(tail) > 1 and ISO_DATE.match(tail[-1]):
+            reason, date = " | ".join(tail[:-1]), tail[-1]
+        else:
+            reason, date = " | ".join(tail), ""
+        waivers.append(Waiver(parts[0], parts[1], parts[2] or "-", reason, date))
+    return waivers, parse_errors
+
+def waiver_anchor_matches(w: Waiver, project_root: Path) -> bool:
+    """No anchor ("-") always matches. An anchored waiver matches only while the
+    file's sha256 still starts with the recorded prefix — any content change
+    (or a missing file) resurfaces the finding."""
+    if w.anchor in ("", "-"):
+        return True
+    m = WAIVER_ANCHOR_RE.match(w.anchor)
+    if not m:
+        return False
+    target = project_root / w.path
+    if not target.is_file():
+        return False
+    try:
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    except OSError:
+        return False
+    return digest.startswith(m.group(1))
+
+def apply_waivers(findings: list[Finding], waivers: list[Waiver],
+                  project_root: Path) -> tuple[list[Finding], list[tuple[Finding, Waiver]]]:
+    """Split findings into (active, waived). A waiver keys on (rule, path) and
+    suppresses every finding with that key while its anchor still matches."""
+    by_key: dict[tuple[str, str], Waiver] = {}
+    for w in waivers:
+        if waiver_anchor_matches(w, project_root):
+            by_key.setdefault((w.rule, w.path), w)
+    active: list[Finding] = []
+    waived: list[tuple[Finding, Waiver]] = []
+    for f in findings:
+        w = by_key.get((f.rule, f.file))
+        if w:
+            waived.append((f, w))
+        else:
+            active.append(f)
+    return active, waived
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Validate .context/ artifacts against aidex conventions")
     p.add_argument("path", nargs="?", help="Path to .context/ (default: auto-detect from cwd)")
@@ -727,6 +931,24 @@ def main() -> int:
 
     findings, summary = validate(context_dir, args.type)
     findings = [to_relative(context_dir, f) for f in findings]
+
+    # Waivers: accepted findings recorded in <context>/.aidex-waivers are
+    # suppressed from counts and exit code, but always reported under a
+    # "waived: N" summary — never silently dropped (BL-048).
+    waivers, waiver_parse_errors = load_waivers(context_dir)
+    waived: list[tuple[Finding, Waiver]] = []
+    if waivers:
+        findings, waived = apply_waivers(findings, waivers, context_dir.resolve().parent)
+        sev_key = {"violation": "violations", "warning": "warnings", "info": "info"}
+        for f, _ in waived:
+            summary[sev_key[f.severity]] -= 1
+            bt = summary["by_type"].get(f.type)
+            if bt:
+                bt[sev_key[f.severity]] -= 1
+    summary["waived"] = len(waived)
+    if waiver_parse_errors:
+        summary["waiver_parse_errors"] = waiver_parse_errors
+
     violations_list = [f for f in findings if f.severity == "violation"]
 
     if args.baseline:
@@ -751,6 +973,8 @@ def main() -> int:
             "warnings":   [asdict(f) for f in findings if f.severity == "warning"],
             "info":       [asdict(f) for f in findings if f.severity == "info"],
         }
+        if waived:
+            out["waived"] = [dict(asdict(f), reason=w.reason, waived=w.date) for f, w in waived]
         if new_violations is not None:
             out["new_violations"] = [asdict(f) for f in new_violations]
         json.dump(out, sys.stdout, indent=2)
@@ -778,6 +1002,13 @@ def main() -> int:
                 print(f"\nInfo ({len(info)}):")
                 for f in info:
                     print(f"  [{f.rule}] {f.file}: {f.message}")
+        if waived:
+            print(f"\nwaived: {len(waived)}")
+            for f, w in waived:
+                date = f" ({w.date})" if w.date else ""
+                print(f"  [{f.rule}] {f.file}: {w.reason}{date}")
+        if waiver_parse_errors:
+            print(f"\nwaiver file: {waiver_parse_errors} unparseable line(s) ignored")
         if new_violations is not None:
             print(f"\nRatchet (baseline present, {len(baseline)} accepted): "
                   f"{len(new_violations)} NEW violation(s)")
