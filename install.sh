@@ -92,11 +92,12 @@ collect_repo_items() {
   fi
 
   # Hooks (copied into ~/.aidex/hooks/, no symlink). These are OPT-IN: copying them
-  # installs nothing active — the user wires the Stop hook into settings.json themselves
+  # installs nothing active — the user wires hooks into settings.json themselves
   # (see hooks/README.md). Skills reference the run-marker script at a stable ~/.aidex path.
+  # Subdirectories (e.g. hooks/eval/) are items too — copy_item rsyncs directories.
   if [ -d "$SCRIPT_DIR/hooks" ]; then
     for hook_file in "$SCRIPT_DIR"/hooks/*; do
-      [ -f "$hook_file" ] || continue
+      [ -e "$hook_file" ] || continue
       items+=("hooks/$(basename "$hook_file")")
     done
   fi
@@ -280,7 +281,7 @@ do_install() {
   done
 
   # Ensure installed hooks are executable
-  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh 2>/dev/null || true
+  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh "$AIDEX_DIR"/hooks/*/*.sh 2>/dev/null || true
 
   # Write manifest and version
   write_manifest "${items[@]}"
@@ -486,7 +487,7 @@ do_update() {
   done
 
   # Ensure installed hooks are executable
-  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh 2>/dev/null || true
+  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh "$AIDEX_DIR"/hooks/*/*.sh 2>/dev/null || true
 
   # Update manifest — from ACTUAL outcomes, never blindly from the repo.
   local all_items=()

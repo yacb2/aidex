@@ -7,6 +7,8 @@
 #   G2 interactive update (option 2): the manifest reflects what was ACTUALLY
 #      installed/kept — declined new items stay out; declined removals stay in.
 #   G3 copy_item excludes gitignored build junk (__pycache__/, *.pyc, .DS_Store).
+#   G5 hooks/ subdirectories (e.g. hooks/eval/) are collected as items, copied
+#      into ~/.aidex/hooks/, their .sh made executable, and never symlinked.
 #
 # Run with: bash tests/test-install.sh
 
@@ -24,13 +26,16 @@ FIX="$TMP/repo"
 make_fixture() {
   rm -rf "$FIX" "$H"
   mkdir -p "$H" "$FIX/skills/skill-a/scripts" "$FIX/skills/skill-a/scripts/__pycache__" \
-           "$FIX/skills/skill-b" "$FIX/rules"
+           "$FIX/skills/skill-b" "$FIX/rules" "$FIX/hooks/eval"
   cp "$REPO_ROOT/install.sh" "$FIX/install.sh"
   echo "# a" > "$FIX/skills/skill-a/SKILL.md"
   echo "echo hi" > "$FIX/skills/skill-a/scripts/x.sh"
   echo "junk" > "$FIX/skills/skill-a/scripts/__pycache__/x.cpython-310.pyc"
   echo "# b" > "$FIX/skills/skill-b/SKILL.md"
   echo "# rule" > "$FIX/rules/r.md"
+  echo "echo hook" > "$FIX/hooks/h.sh"
+  echo "echo eval" > "$FIX/hooks/eval/run-eval.sh"
+  echo "x	y" > "$FIX/hooks/eval/cases.tsv"
 }
 
 run_install() { (cd "$FIX" && HOME="$H" bash install.sh "$@" </dev/null >/dev/null 2>&1); }
@@ -44,6 +49,13 @@ grep -qx "skills/skill-a" "$H/.aidex/.manifest" || fail "manifest missing skills
 if find "$H/.aidex" -name '__pycache__' -o -name '*.pyc' | grep -q .; then
   fail "G3: __pycache__/*.pyc junk copied into ~/.aidex"
 fi
+
+# ---------- G5: hooks/ subdirectory installed, executable, never symlinked ----------
+grep -qx "hooks/eval" "$H/.aidex/.manifest" || fail "G5: hooks/eval missing from manifest"
+[[ -f "$H/.aidex/hooks/eval/cases.tsv" ]] || fail "G5: hooks/eval/cases.tsv not copied"
+[[ -x "$H/.aidex/hooks/h.sh" ]] || fail "G5: hooks/h.sh not executable"
+[[ -x "$H/.aidex/hooks/eval/run-eval.sh" ]] || fail "G5: hooks/eval/run-eval.sh not executable"
+[[ ! -e "$H/.claude/hooks" ]] || fail "G5: hooks were symlinked into ~/.claude"
 
 # ---------- G2a: declined NEW item must stay OUT of the manifest ----------
 mkdir -p "$FIX/skills/skill-c"; echo "# c" > "$FIX/skills/skill-c/SKILL.md"
@@ -101,4 +113,4 @@ run_install --update || fail "G4: no-change --update exited non-zero"
   || fail "G4: .version not refreshed on no-change update (got '$(cat "$H/.aidex/.version" 2>/dev/null)')"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — pycache excluded, manifest reflects choices, personal files guarded, no dangling symlinks, version stamped on no-change update"
+echo "OK — pycache excluded, manifest reflects choices, personal files guarded, no dangling symlinks, version stamped on no-change update, hook subdirs installed executable"
