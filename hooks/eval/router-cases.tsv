@@ -1,0 +1,156 @@
+# aidex-router eval cases.  Format:  <expected><TAB><phrase>
+# <expected> = one of the 11 routed aidex skills, or NONE (must NOT route).
+# Lines starting with # and blank lines are ignored. One TAB separator.
+# Bootstrapped from the routed skills' curated trigger descriptions (ES+EN)
+# plus broad-verb variants, negatives (precision/FP), and edge cases.
+
+# ---- aidex-plan ----
+aidex-plan	crea un plan para la migración de auth
+aidex-plan	necesito un plan para el refactor del backend
+aidex-plan	hagamos un plan multi-fase para el rediseño
+aidex-plan	quiero planificar la migración, son 4 fases
+aidex-plan	armemos un plan de implementación del nuevo checkout
+aidex-plan	create a plan for the billing refactor
+aidex-plan	let's plan the database migration with phases
+aidex-plan	we need to plan the auth rewrite
+aidex-plan	planifiquemos el corte de release
+
+# ---- aidex-decision ----
+aidex-decision	documenta la decisión de usar Postgres en vez de Mongo
+aidex-decision	decidimos migrar a microservicios, déjalo registrado
+aidex-decision	escribe un ADR para el cambio de framework
+aidex-decision	registremos la decisión de adoptar pnpm
+aidex-decision	we decided to drop Redux, document this decision
+aidex-decision	write an ADR for the message queue choice
+aidex-decision	deja registrada la decisión de no usar GraphQL
+
+# ---- aidex-request ----
+aidex-request	el cliente pidió agregar exportación a PDF
+aidex-request	nos pidieron soportar login con Google
+aidex-request	Elena quiere un dashboard de métricas, captúralo como request
+aidex-request	registra este requerimiento del stakeholder
+aidex-request	the client asked for multi-tenant support
+aidex-request	capture this as a request: bulk CSV import
+aidex-request	el cliente solicita un modo offline
+
+# ---- aidex-research ----
+aidex-research	investiga cómo funciona el rate limiting antes de planificar
+aidex-research	haz un spike de WebSockets vs SSE
+aidex-research	averigua cómo se hace el SSR en este stack
+aidex-research	necesito entender cómo funciona el cache antes de un plan
+aidex-research	research how the payment webhook retries work
+aidex-research	spike on the feasibility of edge functions
+aidex-research	investiga la viabilidad de migrar a Bun
+
+# ---- aidex-reference ----
+aidex-reference	crea una referencia de la arquitectura de pagos
+aidex-reference	documenta cómo funciona el pipeline de despliegue
+aidex-reference	escribe un runbook para el proceso de backup
+aidex-reference	necesito una referencia de la configuración de nginx
+aidex-reference	write up the authentication architecture
+aidex-reference	document how the queue system works
+aidex-reference	haz un runbook del incident response
+
+# ---- aidex-skill ----
+aidex-skill	revisa este skill contra nuestras convenciones
+aidex-skill	cuáles son nuestras convenciones de skills
+aidex-skill	estructura este skill como lo hacemos nosotros
+aidex-skill	este skill sigue nuestros patrones?
+aidex-skill	review this skill against our standards
+aidex-skill	audita el front-matter de este skill según nuestras reglas
+aidex-skill	revisa mi skill contra los estándares de la casa
+
+# ---- aidex-audit ----
+aidex-audit	necesito una auditoría de seguridad del flujo de login
+aidex-audit	haz una auditoría de UX del onboarding
+aidex-audit	quiero auditar el rendimiento del módulo de búsqueda
+aidex-audit	auditoría de accesibilidad antes de shipear
+aidex-audit	run a security audit of the checkout flow
+aidex-audit	audit the login flow for performance issues
+aidex-audit	catalog the state of the dashboard module
+
+# ---- aidex-backlog ----
+aidex-backlog	parkea esto para más tarde
+aidex-backlog	agrega al backlog la idea de dark mode
+aidex-backlog	registra esto como deuda técnica
+aidex-backlog	difiere esta tarea, no ahora pero no la olvides
+aidex-backlog	park this idea for later
+aidex-backlog	add to the backlog: rate-limit the API
+aidex-backlog	escala el hallazgo F-12 al backlog
+aidex-backlog	shelve the offline-mode idea for later
+
+# ---- aidex (ecosystem / .context audit) ----
+aidex	analiza mi carpeta .context para ver si sigue nuestros convenios o standares
+aidex	organiza mi ecosistema, hay symlinks rotos
+aidex	audita el .context del proyecto
+aidex	revisa la salud de mi proyecto y los symlinks
+aidex	audit my claude code setup and MEMORY.md
+aidex	organize my ecosystem, broken symlinks
+aidex	review my .context structure for convention compliance
+aidex	limpia mi MEMORY.md, está inflado
+
+# ---- NONE (must NOT route — precision / false-positive guards) ----
+NONE	¿cuál es el plan para hoy?
+NONE	el plan salió mal ayer, ¿qué pasó?
+NONE	/aidex-plan migración de auth
+NONE	explícame cómo funciona este componente React
+NONE	arregla el bug del botón de submit
+NONE	corre los tests del módulo de pagos
+NONE	hazme un resumen de este archivo
+NONE	qué opinas de esta arquitectura
+NONE	traduce este texto al inglés
+NONE	what does this function do
+NONE	commit these changes
+NONE	muéstrame el último commit
+NONE	necesito ayuda con un error de TypeScript
+NONE	revisa este código y dime si está bien
+NONE	cuánto cuesta correr esto en producción
+
+# ---- edge / known-ambiguous (labeled with intended winner) ----
+aidex-audit	audit the login flow for security
+aidex-skill	revisa este skill
+aidex	audita mis convenciones del .context
+aidex-research	spike
+aidex-decision	documenta la decisión de migrar el .context a otra estructura
+
+# Negative cases from 2026-07-02 live false positives: analysis/opinion questions
+# that MENTION artifact nouns (adr, backlog, plans, audits) without create intent.
+NONE	antes de probar, me gustaria que tu evalues un par de cosas sobre el diseño, creo que entre los adr y el skill entenderas
+NONE	analiza con retro-usage el tool que tenemos sobre los chat de esta semana, luego analiza todos los skills que mantienen un standar de nombrado ( plan, backlog, audits, comms, etc )
+NONE	para entender, consideras entonces que la estructura que se mantiene para plans/audits/backlogs/references/comms es la correcta? mejorarias algo?
+NONE	<task-notification>workflow completed: decision required on the arbiter path</task-notification>
+NONE	   <task-notification>crea un plan para la migración de auth</task-notification>
+
+# ---- aidex-loop (BL-045) ----
+aidex-loop	Necesito que crees un loop donde tengas como objetivo cerrar la mayor cantidad de Backlogs de manera autonoma posible
+aidex-loop	diseña un loop para arreglar el lint hasta que quede verde
+aidex-loop	set up a loop to keep building until the tests pass
+aidex-loop	monta un loop que itere hasta que pasen los tests
+
+# ---- aidex-worktree (BL-045) ----
+aidex-worktree	usa un worktree
+aidex-worktree	voy a trabajar en ramas en paralelo, monta un worktree
+aidex-worktree	como hacemos worktrees aqui
+aidex-worktree	set up a worktree for the payments work
+
+# ---- field-miss positives (BL-045, usage-retro run 3) ----
+aidex-backlog	Necesito registrar un backlog. Se trata de lo siguiente
+aidex-backlog	creemos un backlog para investigar esto
+aidex-backlog	estos dos quedaran diferidos por ahora, crea backlogs si no existe o enriquecelos
+aidex-research	realiza un research completo del sistema de colas
+aidex-research	lanza una investigacion y luego compara
+
+# ---- NONE: loop/worktree precision guards ----
+NONE	arregla el loop infinito en el worker
+NONE	necesito ayuda con un infinite loop en el event handler
+NONE	el worktree que cree ayer esta roto
+
+# ---- NONE: BL-042 live false positives (2026-07-02..04) — meta-discussion,
+# pasted transcripts, hypotheticals. Verbatim texts (long ones truncated to
+# preserve the transcript shape). Must NEVER route.
+NONE	luego me dijo: Topología clara: split-git — root sin .git, con tres repos hermanos (backend/, frontend/, frontend_mobile/) pegados por dev.sh + docker-compose.yml. Ya existe test-e2e.sh (señal de mecanismo de aislamiento). Déjame leer esos orquestadores para escribir el procedimiento con comandos reales, no prosa. Read 3 files Ya tengo la foto completa. Te resumo lo que encontré antes de decidir: Topología detectada (split-git): - Root sin .git; tres repos hermanos independientes: backend/, frontend/, frontend_mobile/. Los pega dev.sh + docker-compose.yml. - Dev corriendo = backend en Docker (:8423), dashboard Vite local (:3423), Postgres (:5423), Metro/Expo (:3424). - Punto crítico para worktrees: el docker-compose.yml usa container_name fijos (work-hours-db, work-hours-backend) y un volumen compartido postgres_data. Además el contenedor backend monta ./backend:/app del checkout original. → Levantar un segundo stack completo desde un worktree colisiona en nombre de contenedor y no toma el código del worktree. - Ya existe un mecanismo de aislamiento parcial: test-e2e.sh clona la DB por template (work_hours_test_template → work_hours_test, mismo Postgres, otro nombre), backend :8433, frontend :3433, profile e2e. Pero es de un solo slot (puertos y container_name fijos): sirve para E2E, no como motor genérico de worktrees paralelos. Esto define la disyuntiva real: si tu rama es code-only (Tier 1) compartes el stack sin tocar la DB; si necesita correr el stack / migraciones / mutar la DB (Tier 2), hoy no hay motor de aislamiento para dev en paralelo y habría que decidir. Déjame confirmar tres cosas para registrar el procedimiento bien: ⏺ User answered Claude's questions: · ¿Qué repos va a tocar la rama paralela? (los worktrees se crean solo por participante tocado, no 'todo o nada') → frontend (dashboard), backend (Django API) · ¿El trabajo de esta rama NECESITA correr el stack/migraciones o mutar la DB, o es code-only (editar + tests unitarios + review)? → Todavía no sé · ¿El worktree será efímero (crear → trabajar corto → borrar) o persistente (iterar horas/días)? → Efímero Mi opinion: Entiendo la entrevista pero pense que me sugeriria en lugar de preguntarme, o sea, para lo que veo que utilizaria worktree puede ser para implementar planes en paralelo o backlogs en paralelo, por lo cual el propio agente deberia sugerirme en la entrevista su opinion segun el contexto del problema a resolver, lo mismo con audits por supuesto. que opinas?
+NONE	Ultimo mensaje: Listo. Registré el procedimiento en .context/worktrees/00-index.md. Respuesta directa a tu pregunta: ¿Aislar la base o compartir? → Compartir (Tier 1) Para tu tarea (rama paralela tocando backend + frontend, tier indefinido, efímero), la respuesta es compartir el stack dev y la DB que ya corren. No necesitas aislar la base: - Dashboard: worktree de frontend/, Vite en puerto offset (3523), apuntando al backend :8423 que ya corre. VITE_API_URL ya sale de fábrica hacia :8423. Camino verificado. - Backend: editar/revisar en el worktree es seguro y no requiere nada más. Correr sus tests unitarios en el worktree lo dejé con bandera ⚠ VERIFY-on-first-use + el check exacto (el symlink del compose podría montar el backend original en vez del worktree — fallo silencioso). Aislar la DB (Tier 2) no está cableado en este proyecto y no lo necesitas salvo que la rama corra migraciones servidas o mute datos reales. El docker-compose.yml lo bloquea hoy: container_name fijos, puertos fijos y volumen postgres_data compartido. Documenté la receta para construirlo después (override + clon de DB por template, estilo lo que ya hace test-e2e.sh) como follow-up diferido — fuera del alcance de este skill. Por qué NO puedes simplemente ./dev.sh dentro del worktree Levantaría un segundo stack completo → colisión de container_name con tu dev corriendo. Por eso Tier 1 comparte el stack, no
+NONE	1 - donde esta el blocque no lo veo, vuelvemolo a dar 2 - estoy de acuerdo 3 - adelante 4 - Creo que no me entendiste bien. Supongo que yo entré en un proyecto nuevo ahora, en vez de CoWorks, en NSBackoffice, y creé un plan de algo que voy a implementar. Ahí le pedí que ahora ejecutara este plan. El plan exec me puede sugerir WorkTrip o no, o yo le puedo pedir específicamente con ese WorkTrip en ese punto, en que no tengo index y estoy pidiendo WorkTrip, o me lo sugiere el plan exec. La entrevista no sería igual. Me imagino que ya al analizar el plan me sugeriría qué procedimiento debería crear él mismo para el WorkTrip, solamente consultarme más que entrevistarme, o una entrevista más corta debido a que ya tiene un contexto del plan que va a ejecutar, ¿no? O me haría la entrevista completamente ??
+NONE	necesito que analices con el tool retro usage para ver que podemos mejorar, siento que todavia paso mucho trabajo y tengo que pedir explicitamente que se ejecute un plan completo sin detenerse en muchos casos tengo hasta que decirle como hacerlo usando un workflow con agente judge/arbiter, con el modelo sonnet 5 peor aun, igual revisa para ver en general que podemos mejorar de toda la suite
+NONE	Vale estoy de acuerdo con casi todo lo que propones pero me gustaría algunos ajustes: 1. ¿Por qué tenemos que añadir frases específicas en español cuando se supone que tú estés entrenado directamente con múltiples idiomas y seas capaz de extrapolar una frase en español a inglés? 2. En cuanto a lo de la auditoría manual, me parece bien pero ten en cuenta que también estoy pidiendo que la parte manual que a mí me gusta y que yo debería probar es comprobar UX, UI, flujos y procesos que pueda hacer un usuario. Las tareas que sean mecánicas las debes comprobar tú utilizando Chrome DevTools o cualquier tool que te sirva para ellos. Por lo tanto siempre sería mixta, con human in the loop, pero lo que se pueda automatizar y garantice 100% de fiabilidad se debería automatizar. Con respecto a lo que te mencioné de las frases españolas, tenlo en cuenta para todos los skills. Analiza esto en toda la suite y dame tu opinión, por supuesto. Con respecto a lo que te mencioné de los research, te soy sincero: hasta ahora te pedía que todo lo documentaras en inglés: 1. Por ahorro de tokens. 2. Aunque estés entrenado en todos los idiomas, inglés sigue siendo el idioma principal de entrenamiento de todos los modelos. 3. Para mantener un estándar en todos los proyectos. Como quiera que sea, el inglés es el idioma internacional, por lo tanto yo trato de mantener todas las referencias, research, ADRs, etc., en inglés. A veces, por alucinación propia tuya, como yo te suelo hablar en español, lo confundes y lo creas en inglés o en español. Perdón. La idea es que siempre se cree en inglés. Con respecto a las convenciones, sí debemos garantizar que cumplan con el canon o con el estándar para que siempre se mantenga
+NONE	La idea es justa: si se pide generar un work tree, se debe verificar si existe un documento que podamos prefijar nosotros donde va a existir (que puede ser en.context/work-trees con la referencia y el procedimiento a realizar para cada caso). Si no existe, se encuesta al usuario sobre: - primero investigar el repo: ¿es un solo repo?, ¿es un workspace?, ¿cómo funciona? - ver la estructura - definir procedimientos para cada caso inicialmente (por ejemplo, si se quiere clonar infraestructuras, si se quiere usar la misma infraestructura o parte de la infraestructura) Así, luego se puede proceder de manera automática. Entiendes esto que te digo? Es semi-automatizado al principio porque se va a encuesta al usuario sobre cómo debe ser. Una vez que esté definido el proceso dentro del proyecto, las siguientes veces se sugiere: - hacerlo con entorno aislado - hacerlo con el mismo entorno según el plan o la tarea que se esté ejecutando Por lo tanto además de corregir lo que tienes, ten en cuenta que no lo puedes cablear o hardcodear a mi infraestructura porque esto es una suite que está pensada para que la use cualquiera. Por lo tanto no es mi infraestructura ni mi canon; el canon es el canon de cada proyecto. Cada proyecto puede ser diferente. Por lo tanto hay que crear un documento de referencia en la estructura de cada proyecto y luego los procedimientos para cada caso de uso de worktree. ¿Entiendes ahora?
