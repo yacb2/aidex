@@ -70,5 +70,8 @@ END {
   } else {
     printf "\nno mismatches — 100%%\n";
   }
+  # Gate enforcement (review 2026-07-04): any mismatch fails the run so
+  # scripted/CI invocations catch regressions instead of exiting 0 silently.
+  exit (nm>0 ? 1 : 0);
 }
 '

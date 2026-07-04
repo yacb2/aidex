@@ -274,7 +274,9 @@ always reports them under a one-line `waived: N` summary — waived findings are
 never silently dropped. Deleting a waiver line resurfaces the finding, and
 unparseable lines are counted, not swallowed. The ratchet baseline
 (`--baseline`) is written post-waiver. The file is the project-wide waiver
-store; audit re-run tooling is expected to consult the same file.
+store. Today only `validate.py` consumes it; aidex-audit re-run tooling does
+not yet (tracked as a backlog item in the aidex repo — until it lands, waive
+audit re-run noise by documenting it in the run's `00-changelog.md`).
 
 ---
 

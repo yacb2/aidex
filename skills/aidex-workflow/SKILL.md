@@ -112,7 +112,11 @@ spec and proceed headless. Walk these one at a time; do not skip step 0 or step 
    {model, effort})` options, and the work-list into the items array. The two-stage gate
    (Bash verifier → conditional durability-arbiter) and kill-resume come from the
    plan-exec CORE — cite it, do not re-author it.
-4. Only execute the `Workflow` call if the user explicitly asks you to start it now;
+4. **Model guard.** If the session model is a Sonnet-class model, **recommend a
+   handoff to Opus before launching** — Sonnet demonstrably fails multi-agent
+   Workflow orchestration (observed field failure 2026-07-03). State it with the
+   launch plan, never mid-run.
+5. Only execute the `Workflow` call if the user explicitly asks you to start it now;
    otherwise print the launch plan (form + args shape) for them to confirm.
 
 > **Durable-run marker (optional Stop-hook enforcement).** When you launch the workflow,

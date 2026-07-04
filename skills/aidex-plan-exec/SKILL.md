@@ -43,12 +43,15 @@ The operative rule here:
   phase, not decomposable, phases too small to amortize the floor, or attended), run
   interactive with the arbiter and **do not ask**. This is a kickoff decision,
   **never a mid-run interruption**.
-- **Model guard (before launching any multi-agent form).** If the session model is
-  a Sonnet-class model and the chosen form requires multi-agent orchestration (any
-  `Workflow` form), **recommend a handoff to Opus before launching** — Sonnet
+- **Model guard (before launching any multi-agent form) — takes precedence over
+  promote-by-default.** If the session model is a Sonnet-class model and the chosen
+  form requires multi-agent orchestration (any `Workflow` form), **do NOT launch
+  silently**: state the guard in one line, recommend a handoff to Opus, and fall
+  back to the interactive-with-arbiter path until the handoff happens — Sonnet
   demonstrably fails multi-agent Workflow orchestration (observed field failure
-  2026-07-03). Surface this at Orient as a kickoff recommendation, never as a
-  mid-run interruption; the interactive path is unaffected.
+  2026-07-03). A blocked launch is not an over-stop: the run continues
+  interactively; only the batch promotion waits for the Opus session. Surface this
+  at Orient, never as a mid-run interruption.
 - **Do not re-ask for steps this skill mandates.** Invoking plan-exec authorizes you
   to code-review the diff, author the commit message, commit per phase, and hand off
   when context grows. Do them — never stop to ask "should I commit? is the message
