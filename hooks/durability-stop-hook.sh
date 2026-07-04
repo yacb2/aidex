@@ -95,7 +95,10 @@ def log_event(decision, matched):
     except Exception:
         pass
 
-# Legitimate terminal states — always allow the stop.
+# Legitimate terminal states — used ONLY on the regex fallback path. When the
+# judge is available it sees these messages too: a keyword like "deploy" inside
+# an over-stop ("the next phase touches the deploy config — should I proceed?")
+# must not short-circuit the judge (review finding, 2026-07-04).
 LEGIT = [
     r"\bpush\b", r"\bdeploy", r"\brelease\b", r"\bpublic", r"\bpublish",
     r"missing cred", r"hard block", r"\bblocked\b", r"cannot proceed", r"no puedo",
@@ -103,9 +106,7 @@ LEGIT = [
     r"plan (is )?complete", r"todas? las fases", r"run complete", r"final summary",
     r"awaiting your (ok|approval|decision) (on|for) (the )?(publish|deploy|release)",
 ]
-if any(re.search(p, msg) for p in LEGIT):
-    log_event("allow", "legit-terminal")
-    allow()
+is_legit = any(re.search(p, msg) for p in LEGIT)
 
 # Over-stop signals — the agent is pausing on (apparently) safe work.
 OVERSTOP = [
@@ -154,8 +155,11 @@ def run_judge():
         # AIDEX_JUDGE_CMD; untrusted message content goes in via stdin only.
         cmd = os.environ.get("AIDEX_JUDGE_CMD") or "claude -p --model claude-sonnet-5"
         env = dict(os.environ, AIDEX_STOP_JUDGE="1")
+        # Inner cap MUST stay below the Stop hook's settings.json timeout (90s):
+        # if the outer timeout fires first the whole hook is killed and the
+        # regex fallback below never runs (live judge call measured ~20s).
         out = subprocess.run(cmd, shell=True, input=prompt, env=env,
-                             capture_output=True, text=True, timeout=60)
+                             capture_output=True, text=True, timeout=45)
         if out.returncode != 0:
             return None
         m = re.search(r"\{.*\}", out.stdout, re.S)   # tolerate fences/preamble
@@ -191,8 +195,12 @@ if verdict is not None:
     allow()
 
 # Judge unavailable — deterministic regex fallback (fail open overall).
+if is_legit:
+    log_event("allow", "legit-terminal")
+    allow()
+
 if mode == "enforce":
-    # Aggressive: block unless the message already read as a legit terminal state (handled above).
+    # Aggressive: block unless the message read as a legit terminal state (above).
     log_event("block", "judge-fallback-regex")
     block(REASON)
 

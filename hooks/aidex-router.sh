@@ -92,15 +92,20 @@ if   m2 "(decisi[óo]n|adr\b|decision record|architecture decision)" "$VERB" \
   || m "(decidimos|hemos decidido|nos decidimos|we decided|settled on|optamos por|decidi[óo] (el|la)|deja registrada la decisi[óo]n)"; then
   skill="aidex-decision"
 
-elif m2 "(request|requerimiento|solicitud)" "$VERB" \
+# HTTP-request guard (review 2026-07-04): "request" in dev chatter (API/HTTP/
+# headers/network) is not a stakeholder request. The guard only suppresses the
+# generic noun branch; explicit stakeholder shapes below it still route.
+elif { m2 "(request|requerimiento|solicitud)" "$VERB" \
+       && ! m "(\bapi\b|\bhttp\b|endpoint|header|\bfetch\b|\burl\b|token|login|payload|\bpost\b|\bget\b|servidor|backend|consola|network|\bred\b|socket|response|status [0-9]|curl|c[óo]mo funciona|how .* works)"; } \
   || m "(el cliente (pidi|quiere|solicit|nos pidi)|nos pidieron|stakeholder|client (asked|wants|requested)|client requirement|elena (quiere|pidi|nos pidi)|capt[úu]ralo como request|registra este requerimiento)"; then
   skill="aidex-request"
 
 # aidex-loop MUST precede aidex-backlog: "crea un loop ... cerrar backlogs"
 # names backlogs as the loop's TARGET, not a backlog-entry intent (BL-045).
-# Code-loop nouns (infinite/event/for/while loop) are debugging, never route.
+# Code-loop guard (review 2026-07-04): loops IN code (bash/script/retry/
+# iterate-over-files) are programming asks, never agentic-loop design.
 elif { m2 "\bloops?\b" "(crea\w*|crees|cr[ée]ame|haz\w*|arma\w*|monta\w*|dise[ñn]a\w*|configura\w*|implementa\w*|necesito|quiero|set ?up|creat\w*|build|design|make|need|want)" \
-       && ! m "(loop infinito|bucle infinito|infinite loop|event loop|for loop|while loop)"; } \
+       && ! m "(loop infinito|bucle infinito|infinite loop|event loop|for loop|while loop|loop (en|dentro) (el|del|un|tu)|en el (script|c[óo]digo)|in the (script|code)|\bbash\b|\bpython\b|funci[óo]n|function|reintent\w*|retry|reconex|conexi[óo]n|socket|recorr\w*|iterar? (sobre|los|las|el arreglo)|array|arreglo)"; } \
   || m "(loop (until|que (corra|itere|repita))|itera\w* hasta|iterate until|hasta que (pasen los tests|el build|quede verde|est[ée] verde))"; then
   skill="aidex-loop"
 

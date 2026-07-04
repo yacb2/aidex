@@ -314,7 +314,11 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
             return None
         # Legacy uppercase boards warn instead of hard-failing the filename check
         # (aligned with aidex-audit's validate-audit.sh / test-canonical-filenames.sh).
-        if path.name in AUDIT_LEGACY_BOARD_FILES:
+        # Boards live at audits/ root or a methodology root — an uppercase name
+        # INSIDE a dated run folder is a free-form working note, not a board
+        # (review 2026-07-04): the subdoc exemption must win there.
+        if path.name in AUDIT_LEGACY_BOARD_FILES \
+           and not _is_audit_run_folder(path.parent.name):
             return Finding(type_name, str(path), "audit-legacy-board-name", "warning",
                            f"legacy board name {path.name!r} — canonical is "
                            f"{AUDIT_LEGACY_BOARD_FILES[path.name]!r}; run /aidex-audit migrate")
@@ -329,6 +333,11 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
         return Finding(type_name, str(path), "filename-format", "violation",
                        f"filename {name!r} does not match YYYY-MM-DD-<slug>.md")
     return None
+
+def _is_audit_run_folder(name: str) -> bool:
+    """A dated audit run folder (canonical YYYY-MM-DD-<slug> or legacy YYYYMMDD*).
+    Boards never live inside one — files there are run-internal sub-documents."""
+    return bool(ISO_FOLDER.match(name) or re.match(r"^\d{8}", name))
 
 def is_audit_subdoc(type_name: str, path: Path) -> bool:
     """An audit file nested inside a run/methodology folder (parent is not `audits`

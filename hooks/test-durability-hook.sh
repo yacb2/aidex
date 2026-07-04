@@ -80,6 +80,37 @@ if [ -e "$TMP/judge-invoked" ]; then
 else
   echo "  PASS  no run file -> judge sentinel absent"; PASS=$((PASS+1))
 fi
+# LEGIT keyword must NOT short-circuit the judge (review 2026-07-04): an
+# over-stop that merely mentions "deploy" is judged, and a block verdict wins.
+active remind
+export AIDEX_JUDGE_CMD="cat >/dev/null; printf '{\"block\": true, \"reason\": \"[durability-arbiter] mock: deploy mention is not a publish ask\"}'"
+check "judge block wins over LEGIT keyword -> block" block "$(pl 'Phase 2 done. The next phase touches the deploy config — should I proceed?' false)"
+# ...and when the judge is unavailable, the same message falls back to the
+# LEGIT regex and is allowed (pre-BL-044 behavior preserved on the fallback path).
+export AIDEX_JUDGE_CMD="false"
+check "judge down, LEGIT fallback -> allow" allow "$(pl 'Phase 2 done. The next phase touches the deploy config — should I proceed?' false)"
+
+echo "== shipped default judge command (claude shim on PATH) =="
+# With AIDEX_JUDGE_CMD unset, the hook must invoke `claude -p --model claude-sonnet-5`.
+# A PATH shim records the argv and returns a block verdict — no real binary is called.
+mkdir -p "$TMP/bin"
+cat > "$TMP/bin/claude" <<SHIM
+#!/usr/bin/env bash
+cat >/dev/null
+printf '%s\n' "\$*" > "$TMP/claude-argv"
+printf '{"block": true, "reason": "[durability-arbiter] shim"}'
+SHIM
+chmod +x "$TMP/bin/claude"
+active remind
+unset AIDEX_JUDGE_CMD
+out="$(pl 'Everything is in a clean state. Here is the summary of phase 2.' false | PATH="$TMP/bin:$PATH" bash "$HOOK" 2>/dev/null || true)"
+if printf '%s' "$out" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' \
+   && grep -q -- '-p' "$TMP/claude-argv" 2>/dev/null \
+   && grep -q -- '--model claude-sonnet-5' "$TMP/claude-argv" 2>/dev/null; then
+  echo "  PASS  default judge cmd is 'claude -p --model claude-sonnet-5' and verdict honored"; PASS=$((PASS+1))
+else
+  echo "  FAIL  default judge cmd: out=$out argv=$(cat "$TMP/claude-argv" 2>/dev/null)"; FAIL=$((FAIL+1))
+fi
 export AIDEX_JUDGE_CMD="false"
 
 echo
