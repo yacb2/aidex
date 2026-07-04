@@ -1,0 +1,130 @@
+# HITL Guided Manual Audit Playbook
+
+Structure: **Pages × roles matrix, split by executor.** Mixed by design: the agent automates every mechanical check; the human validates only what needs human judgment — UX, UI, flows, and processes as a real user experiences them.
+
+---
+
+## When to run
+
+- Before a major release, when end-to-end flows need human sign-off page by page
+- After large refactors that touch many pages (routing, auth, layout)
+- Periodically on products with role-based access — role experiences drift silently
+- When an automated-only audit is insufficient: a tool can prove the page opens, only a human can say the flow makes sense
+
+---
+
+## Division of labor (non-negotiable)
+
+Default every check to the agent. A check moves to the human ONLY if it genuinely requires human perception — how a flow feels, whether copy makes sense in context, whether the UI looks right. Anything a tool can verify with full reliability MUST be automated; never spend human time on a mechanical check.
+
+| Check | Executor | Tooling | Evidence per check |
+|---|---|---|---|
+| Page opens — HTTP OK, renders, no blank screen | Agent | chrome-devtools MCP: `navigate_page` + `take_snapshot` | Snapshot excerpt |
+| Console clean — no errors/warnings | Agent | chrome-devtools MCP: `list_console_messages` | Message dump (empty = pass) |
+| Network clean — no failed requests | Agent | chrome-devtools MCP: `list_network_requests` | Non-2xx/3xx request list |
+| Smoke interactions — nav, primary CTA, forms respond | Agent | chrome-devtools MCP: `click` / `fill` / `wait_for` | Post-action snapshot |
+| Responsive — 375 / 768 / 1280 / 1920 | Agent | chrome-devtools MCP: `resize_page` + `take_screenshot` | Screenshot per breakpoint |
+| a11y basics — contrast, labels, landmarks, alt text | Agent | Lighthouse accessibility category (MCP or CLI) | Score + failing audits |
+| Performance snapshot (informational) | Agent | Lighthouse performance category | Score per page |
+| Flow completeness — can this role achieve the goal? | Human | Manual walkthrough per role | Verdict + note |
+| UX quality — friction, confusion, dead ends | Human | Manual walkthrough | Note per page |
+| UI judgment — hierarchy, layout, "looks right" | Human | Eyes on screen | Note per page |
+| Copy and tone — wording makes sense for this role | Human | Read as the role would | Note |
+| Process correctness — matches the real-world process | Human | Domain knowledge | Verdict per process |
+
+Boundary rules:
+- The agent NEVER marks a human row; the human NEVER re-does an agent row.
+- An agent pass with no recorded evidence is not a pass.
+- If a new check appears mid-audit, classify it agent-first: only human if no tool is 100% reliable for it.
+
+---
+
+## Preparation
+
+1. Enumerate pages in scope × roles that use them. Every pair is a checklist unit.
+2. Test credentials for each role.
+3. chrome-devtools MCP connected; Lighthouse available.
+4. Create `checklist.md` in the run folder from the format below — it is also the resume state.
+
+---
+
+## Per-page × per-role checklist format
+
+The run's `checklist.md` is both the work plan and the cursor. One section per page × role pair; agent rows are filled by the agent with evidence links, human rows only by the human.
+
+```markdown
+# Checklist — {{DATE}}-<slug>
+
+Cursor: <page> × <role> | session: N | app version: <commit/tag> | updated: {{DATE}}
+Legend: [ ] pending · [x] pass · [F] fail → finding ID · [-] n/a
+
+## /dashboard × admin
+
+Agent (automated, evidence per check):
+- [x] opens — clean render (evidence/dashboard-admin-open.md)
+- [x] console clean — 0 errors (evidence/dashboard-admin-console.md)
+- [x] network clean — 0 failed requests
+- [x] smoke — primary CTA responds
+- [x] responsive 375/768/1280/1920 (evidence/dashboard-admin-*.png)
+- [F] a11y basics — Lighthouse 71, 3 contrast failures → BUG-DASH-1
+Human (judgment):
+- [x] flow: admin reaches the dashboard goal
+- [ ] UX friction
+- [ ] UI looks right
+- [ ] copy makes sense
+```
+
+Failures become findings immediately (row in `../00-inventory.md`), marked `[F]` with the ID.
+
+---
+
+## Session protocol (agent-led)
+
+1. **Agent sweep first.** For each pending page × role in cursor order: run all agent checks, store evidence, mark rows, register `[F]` findings. Do not wait for the human between pages.
+2. **Human pass second.** Present the human only pages whose agent rows are done — never send a human to a page that fails mechanically. Walk their judgment rows per page; record verdicts and notes verbatim.
+3. **Update the cursor** after every page × role pair, not at session end — a killed session loses at most one pair.
+
+---
+
+## Resume / cursor state
+
+Multi-session by design. State lives in `checklist.md`:
+
+- **Cursor line** at the top: last completed `<page> × <role>`, session count, app version, date.
+- **Row markers are the ground truth** — resume point is the first `[ ]` row after the cursor; markers win over the cursor line on disagreement.
+- On session start: read the cursor, verify against markers, announce "resuming at <page> × <role>", continue.
+- Do not re-run completed agent checks on resume — unless the app version changed since the cursor's recorded version, in which case re-run agent rows for pages not yet human-validated.
+
+---
+
+## Recording findings
+
+Each failure becomes a row in `../00-inventory.md`:
+
+```
+| BUG-<PAGE>-<N> | bug | <page> [<role>] | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+```
+
+Severity guide:
+- **P0** — a role cannot complete its goal (broken flow, blocked page)
+- **P1** — mechanical failure on a primary page (console errors, broken breakpoint) or heavy judgment friction
+- **P2** — degrades but does not block (awkward flow, unclear copy, minor visual drift)
+- **P3** — polish
+
+---
+
+## Output artifacts
+
+- `index.md` — run context, scope (pages × roles), session log
+- `checklist.md` — per-page × per-role checklist + cursor (the resume state)
+- `findings.md` — filtered view linking to INVENTORY
+- `evidence/` — per-check agent evidence: snapshots, console/network dumps, screenshots, Lighthouse reports
+
+---
+
+## Tips
+
+- **Guard the boundary.** The pressure to "just have the human check everything" defeats the design; re-classify any human row a tool could verify reliably.
+- **Agent first, always.** Human attention is the scarce resource — a page that fails mechanically wastes it.
+- **Quote the human.** Paraphrased judgment calls lose the signal; record notes verbatim.
+- **Finish the pair.** A half-marked page × role breaks the cursor; complete or revert before ending a session.

@@ -221,7 +221,7 @@ Architecture or product decision records. Documents **what** was decided, **why*
 
 State-of-project catalogs. An audit describes what **is** (findings, gaps, risks, opportunities), distinct from plans which describe what **will be**. Every finding lives in a canonical `00-inventory.md` and is referenced (not copied) from per-run `findings.md` views.
 
-**Characteristics:** per-methodology `00-inventory.md` as source of truth, `00-methodology.md` as living playbook with `00-changelog.md`, dated per-run folders (`YYYY-MM-DD-<slug>/`), six ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y).
+**Characteristics:** per-methodology `00-inventory.md` as source of truth, `00-methodology.md` as living playbook with `00-changelog.md`, dated per-run folders (`YYYY-MM-DD-<slug>/`), seven ready-made playbooks (ux, ia-opportunities, retest, security, perf, a11y, hitl).
 
 **Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `aidex-audit` skill (`/aidex-audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
 

@@ -255,6 +255,7 @@ AIDEX ships playbook templates for the following methodologies. Each becomes a f
 | `security` | Fixed cadence or post sensitive feature | OWASP-style checklist |
 | `perf` | Pre-release, pre-scaling | Lighthouse categories + backend metrics |
 | `a11y` | Fixed cadence or compliance requirement | WCAG criteria × page |
+| `hitl` | Flows/processes need human sign-off page-by-page | Pages × roles, split agent-automated vs human-judgment, resumable checklist |
 
 Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your own playbook.
 
