@@ -40,7 +40,7 @@ Dispatch by first argument:
 
 ### Supported audit types (for `new`)
 
-`ux` · `ai-opportunities` · `security` · `perf` · `a11y` · `retest` · `custom` —
+`ux` · `ai-opportunities` · `security` · `perf` · `a11y` · `hitl` · `retest` · `custom` —
 short English names per `decision/2026-07-02-audit-rebuild-canon-decisions`; the
 legacy `-audit`-suffixed and `ia-opportunities` forms are accepted as input
 aliases and normalized. For a **one-shot analysis with no recurring
@@ -131,6 +131,12 @@ the same ordered areas become the shards.)
 > If the audit does not qualify (few dimensions, small scope, not unattended), run the
 > normal in-process sweep and **do not ask**. This is a kickoff question, **never a
 > mid-sweep interruption**.
+>
+> **Model guard (before launching the fan-out Workflow).** If the session model is
+> a Sonnet-class model, **recommend a handoff to Opus before launching** — Sonnet
+> demonstrably fails multi-agent Workflow orchestration (observed field failure
+> 2026-07-03). Surface this with the kickoff proposal, never as a mid-sweep
+> interruption; the in-process sweep is unaffected.
 >
 > The fan-out form ships as
 > [`assets/workflows/audit-fanout.workflow.js`](assets/workflows/audit-fanout.workflow.js),
@@ -238,7 +244,7 @@ Quick summary — full detail in [references/01-principles.md](references/01-pri
 All templates in [assets/templates/](assets/templates/):
 
 - Core: 00-inventory.md, 00-methodology.md, 00-changelog.md, index.md, findings.md
-- Playbooks: `methodology/<type>.md.template` for each of six stock types
+- Playbooks: `methodology/<type>.md.template` for each of seven stock types
 
 ## Related
 

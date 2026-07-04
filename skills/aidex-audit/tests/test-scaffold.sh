@@ -42,6 +42,15 @@ bash "$SCRIPTS/new-audit.sh" ux-audit second-pass >/dev/null 2>&1 || fail "legac
 bash "$SCRIPTS/new-audit.sh" ia-opportunities ai-scan >/dev/null 2>&1 || fail "legacy alias ia-opportunities: exited non-zero"
 [[ -d ".context/audits/ai-opportunities/$TODAY-ai-scan" ]] || fail "ia-opportunities did not normalize to ai-opportunities/"
 
+# --- hitl (BL-046): methodology seeded from the playbook; aliases normalize ---
+bash "$SCRIPTS/new-audit.sh" hitl release-signoff >/dev/null 2>&1 || fail "new hitl: exited non-zero"
+H=".context/audits/hitl"
+[[ -d "$H/$TODAY-release-signoff" ]] || fail "hitl run folder missing"
+grep -q "Division of labor" "$H/00-methodology.md" 2>/dev/null || fail "hitl 00-methodology.md not seeded from the hitl playbook"
+if grep -rn "{{" "$H" >/dev/null 2>&1; then fail "unsubstituted {{placeholders}} in hitl scaffold"; fi
+bash "$SCRIPTS/new-audit.sh" guided-manual second-signoff >/dev/null 2>&1 || fail "alias guided-manual: exited non-zero"
+[[ -d "$H/$TODAY-second-signoff" ]] || fail "alias guided-manual did not normalize into audits/hitl/"
+
 # --- standalone one-shot: dated run at root, no boards ---
 bash "$SCRIPTS/new-audit.sh" --standalone usage-retro-q3 >/dev/null 2>&1 || fail "--standalone: exited non-zero"
 S=".context/audits/$TODAY-usage-retro-q3"

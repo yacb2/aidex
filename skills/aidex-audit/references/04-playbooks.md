@@ -1,6 +1,6 @@
 # 04 — Playbooks Index
 
-Six stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
+Seven stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
 
 ---
 
@@ -14,6 +14,7 @@ Six stock audit types ship with AIDEX. Each has a playbook template in `assets/t
 | [security](../assets/templates/methodology/security.md.template) | Quarterly or post-feature | Fixed cadence or after auth/payments/admin changes | `bug`, `risk` |
 | [perf](../assets/templates/methodology/perf.md.template) | Pre-release / pre-scaling | Budget violations suspected, framework upgrade | `bug`, `risk` |
 | [a11y](../assets/templates/methodology/a11y.md.template) | Compliance cadence | UX refresh landed, regulatory deadline | `bug` |
+| [hitl](../assets/templates/methodology/hitl.md.template) | Pre-release / multi-session | End-to-end flows and processes need human sign-off page-by-page; agent automates every mechanical check | `bug`, `gap`, `idea` |
 
 ### Decision flow
 
@@ -31,6 +32,9 @@ Is the concern keyboard / screen reader / WCAG? ──▶ a11y
                 │ no
                 ▼
 Is the concern AI integration landscape? ──▶ ai-opportunities
+                │ no
+                ▼
+Do flows/processes need human sign-off page-by-page? ──▶ hitl
                 │ no
                 ▼
 Anything visual, interactive, or product-level ──▶ ux
@@ -65,7 +69,7 @@ You don't have to accept the stock playbook as-is. First time you run a type, th
 
 ## Writing a custom playbook
 
-If none of the six fits:
+If none of the seven fits:
 
 ```
 /aidex-audit new custom <slug>
