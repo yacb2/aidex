@@ -67,6 +67,10 @@ test type. Adapt the categories to your stack — the framework names below are 
 - Apply root-cause-first investigation in Phase 1 (don't patch the symptom)
 - Defer to the project's own testing helpers/patterns for how to write the test
 - Follow the project's commit conventions for Phase 6 (detect them; `git-commit` if present)
+- If the project tracks coverage (`.context/audits/test-coverage/module-map.json`
+  exists) and the bug lived in a mapped module, note in the wrap-up: a real bug here is
+  evidence of a coverage hole — suggest `/aidex-audit coverage-sweep` and, if the fix
+  revealed a flow with no depth coverage, a `COV-<module>-<n>` finding.
 - If the project tracks a changelog, update it per the project's own rules
 - **Proof of done.** The GREEN test run *is* the proof the bug is fixed — don't
   claim it without it. Capture the passing test command + output (or the CI log

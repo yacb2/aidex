@@ -346,6 +346,9 @@ After the last phase:
    project's `.context/worktrees/00-index.md` Usage log** (date · tier used ·
    participants · collisions/problems observed) — this ratchet is what lets the
    worktree procedure harden its case-by-case rules into codified ones over time.
+6. If the project has `.context/audits/test-coverage/module-map.json` and the plan
+   touched mapped src paths, suggest running `/aidex-audit coverage-sweep` (advisory
+   drift check — do not run it unprompted mid-plan; mention it in the close summary).
 
 ## Per-project adjustments
 
