@@ -32,6 +32,7 @@ Dispatch by first argument:
 | `/aidex-audit reindex` | [scripts/reindex-audits.sh](scripts/reindex-audits.sh) | Regenerate the run-level roll-up `00-index.md` (all runs + per-run finding counts). Auto-run by `new` and `close`. `--check` reports drift read-only (used by `validate` + shared `reconcile.sh`) |
 | `/aidex-audit coverage-matrix` | [scripts/coverage-matrix.sh](scripts/coverage-matrix.sh) | Regenerate the breadth matrix (surfaces × tests) from `module-map.json` — generated artifact, never hand-edited |
 | `/aidex-audit coverage-sweep [--since ISO]` | [scripts/coverage-sweep.sh](scripts/coverage-sweep.sh) | Drift report: which modules changed without their tests moving since the last matrix — suggests re-runs, advisory only |
+| `/aidex-audit affected-tests [--since <ref>]` | [scripts/affected-tests.sh](scripts/affected-tests.sh) | Map current diff → affected modules → which tests to run (module-level, advisory) |
 
 > **`--loop` guard (anti-cargo-cult).** Use `--loop` **ONLY** when the finding is
 > bulk + machine-checkable — a gate the machine can run to say pass/fail across many
@@ -76,6 +77,7 @@ Where `${ACTION}` maps from the first argument:
 - `close` → `close-audit.sh <run> [--force]`
 - `coverage-matrix` → `coverage-matrix.sh`
 - `coverage-sweep` → `coverage-sweep.sh [--since ISO]`
+- `affected-tests` → `affected-tests.sh [--since <ref>]`
 
 If no arguments are given, show the help table above and run a status check:
 
