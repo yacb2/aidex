@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Shared library for aidex-audit coverage tooling. Stdlib only."""
+import functools
 import json, os, re, subprocess, sys
 
 
@@ -12,6 +13,10 @@ def load_map(root):
     for key in ("version", "repos", "modules"):
         if key not in m:
             sys.exit(f"ERROR: module-map missing key: {key}")
+    for repo in m["repos"]:
+        for key in ("name", "path"):
+            if key not in repo:
+                sys.exit(f"ERROR: repo {repo.get('name','?')} missing key: {key}")
     for mod in m["modules"]:
         for key in ("id", "src", "tests"):
             if key not in mod:
@@ -19,6 +24,7 @@ def load_map(root):
     return m
 
 
+@functools.lru_cache(maxsize=None)
 def glob_to_re(pattern):
     """Workspace-relative glob -> regex. '**' spans dirs, '*' stays within one."""
     out, i = "", 0
@@ -38,10 +44,20 @@ def matches(path, patterns):
 
 
 def repo_for(path, repos):
+    """Most-specific match wins: the repo whose path is the LONGEST prefix of `path`
+    ('.'/'' count as a zero-length prefix, so a nested repo always beats the root)."""
+    best, best_len = None, -1
     for r in repos:
-        if r["path"] in (".", "") or path == r["path"] or path.startswith(r["path"] + "/"):
-            return r
-    return None
+        p = r["path"]
+        if p in (".", ""):
+            plen = 0
+        elif path == p or path.startswith(p + "/"):
+            plen = len(p)
+        else:
+            continue
+        if plen > best_len:
+            best, best_len = r, plen
+    return best
 
 
 def to_repo_relative(path, repo):

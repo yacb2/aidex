@@ -30,7 +30,7 @@ Dispatch by first argument:
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
 | `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
 | `/aidex-audit reindex` | [scripts/reindex-audits.sh](scripts/reindex-audits.sh) | Regenerate the run-level roll-up `00-index.md` (all runs + per-run finding counts). Auto-run by `new` and `close`. `--check` reports drift read-only (used by `validate` + shared `reconcile.sh`) |
-| `/aidex-audit coverage-matrix` | [scripts/coverage-matrix.sh](scripts/coverage-matrix.sh) | Regenerate the breadth matrix (surfaces × tests) from `module-map.json` — generated artifact, never hand-edited |
+| `/aidex-audit coverage-matrix` | [scripts/coverage-matrix.sh](scripts/coverage-matrix.sh) | Regenerate the breadth matrix (modules × tests; surface counts in the `.json`) from `module-map.json` — generated artifact, never hand-edited |
 | `/aidex-audit coverage-sweep [--since ISO]` | [scripts/coverage-sweep.sh](scripts/coverage-sweep.sh) | Drift report: which modules changed without their tests moving since the last matrix — suggests re-runs, advisory only |
 | `/aidex-audit affected-tests [--since <ref>]` | [scripts/affected-tests.sh](scripts/affected-tests.sh) | Map current diff → affected modules → which tests to run (module-level, advisory) |
 
