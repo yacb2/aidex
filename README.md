@@ -23,6 +23,10 @@ Then, in any project, just ask naturally — the right skill loads itself:
 - *"Create a plan for the auth migration"* → scaffolds `.context/plans/…` with phases + checkboxes
 - *"Audit my project's health"* → runs parallel auditors, returns a health score + suggested fixes
 - *"/aidex-audit new ux login-redesign"* → scaffolds a UX audit with a methodology playbook
+- *"/aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
+- *"Render the backlog as an HTML board"* → `aidex-dash` generates a sortable, self-contained page
+
+Something not firing? Run `./install.sh --doctor` from the repo checkout to health-check the install (symlinks, versions, exec bits, manifest).
 
 ## What this solves
 
@@ -111,7 +115,7 @@ project/.context/
 
 `rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
 
-### 16 skills
+### 17 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -123,7 +127,7 @@ project/.context/
 | **`aidex-research`** | User-invoked + context-triggered | Investigation and spike notes into `.context/research/` before a plan or implementation. |
 | **`aidex-reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
 | **`aidex-skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
-| **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate`. Ships 7 playbooks (ux, ia-opportunities, retest, security, perf, a11y, hitl). |
+| **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit migrate` · `/aidex-audit coverage-matrix` · `/aidex-audit coverage-sweep` · `/aidex-audit affected-tests`. Ships 8 playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage). |
 | **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. |
 | **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex-loop design` · `new` · `run`. |
 | **`aidex-workflow`** | User-invoked + context-triggered | Designs one-shot multi-agent fan-out / decomposition orchestrations — writes a `.context/workflows/` spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. |
@@ -131,6 +135,7 @@ project/.context/
 | **`aidex-plan-exec`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `aidex-plan` for plan creation. |
 | **`aidex-bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
 | **`aidex-worktree`** | User-invoked + context-triggered | Bootstraps and advises git-worktree setups — decides isolate-vs-share for env/DB/ports via topology detection plus a 4-axis interview, recording it in `.context/worktrees/`. |
+| **`aidex-dash`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
 
 ### How it works
 
@@ -189,6 +194,14 @@ git pull
 ```
 
 The updater shows what changed and lets you choose: apply all, review each diff, or cancel. It only touches files it installed — your personal skills in `~/.aidex/` are never modified.
+
+### Health check
+
+```bash
+./install.sh --doctor
+```
+
+Deterministic install diagnosis — checks the installed version against the repo, broken skill symlinks in `~/.claude/skills/`, executable bits on skill scripts, `python3` availability, `.manifest` integrity, and hook presence. Exit `0` = healthy; exit `1` lists exactly what to fix. Run it first whenever a skill "doesn't fire".
 
 ### Adding your own tools
 
