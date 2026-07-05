@@ -272,4 +272,5 @@ All templates in [assets/templates/](assets/templates/):
 
 - **aidex-conventions** — defines the audit convention itself
 - **aidex-backlog** — handles the other side of escalation (`/aidex-backlog --origin audit --finding <id>`)
+- **aidex-dash** — renders inventory boards and the coverage matrix as interactive HTML on demand (`render.sh audit <methodology>` / `render.sh coverage`); publishing stays user-gated
 - **aidex** — audits the audits directory for coherence as part of overall ecosystem health
