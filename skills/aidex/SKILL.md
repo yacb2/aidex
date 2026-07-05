@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "check my project's health", "I think I have broken symlinks", "my .context/ is a mess", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).
+description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "check my project's health", "I think I have broken symlinks", "my .context/ is a mess", "my new project has no .context / help me start with aidex", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).
 argument-hint: "[context]"
 disable-model-invocation: false
 ---
@@ -81,6 +81,12 @@ Memory-specific rules in [references/03-memory-workflow.md](references/03-memory
 
 ---
 
+## Sub-action: `/aidex init`
+
+Bootstrap `.context/` in a project that doesn't have one. Runs [`scripts/init-context.sh`](scripts/init-context.sh) `[project-dir]` — idempotent, creates only the directories/files that are missing, seeds the backlog/plans indexes via the installed reindexers when present, writes `.context/references/project-commands.md` (skip-if-exists), then prints (never writes) a suggested CLAUDE.md block for the user to add themselves.
+
+---
+
 ## Phase 0: Discovery
 
 Before launching any subagent, scan what exists in the project:
@@ -96,7 +102,7 @@ Check for:
 
 Build a quick inventory of what exists and its size. This determines which agents to launch.
 
-**If nothing exists:** Suggest initializing with `aidex-conventions` patterns (create `.context/`, etc.)
+**If nothing exists:** Suggest running `/aidex init` to bootstrap `.context/`.
 
 ---
 
