@@ -1,0 +1,78 @@
+# ibex conventions
+
+The canon for the ibex HTML render layer. ibex renders `.context/` boards and
+indexes into self-contained interactive HTML via deterministic scripts. It
+authors no content and introduces no new data files.
+
+## The GENERATED contract
+
+Every rendered page's **first line** is an HTML comment of the form:
+
+```
+<!-- GENERATED <iso-timestamp> by /aidex-ibex <target> — DO NOT EDIT, regenerate instead -->
+```
+
+This is the same contract `coverage-matrix.md` carries: the render is a
+disposable projection of the canon, never a source. A hand-edit does not survive
+the next run — the file is overwritten wholesale, not merged. Do not diff two
+renders for equality: the timestamp changes every run, so idempotency is
+*structural* (a single GENERATED line, no duplicated sections), not byte-identical.
+
+## Markdown/JSON stays canon; HTML is a render
+
+- ibex **reads** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`
+  checkboxes) exactly like `reindex-plans.sh` / `validate.py` do. The only JSON
+  it consumes is the pre-existing `coverage-matrix.json`.
+- ibex **introduces zero new JSON.** There is no ibex sidecar, cache, or state file.
+- Numbers live in `.context/` markdown/JSON; the HTML only projects them.
+
+## Sibling-path rule (one render per index/board)
+
+The render is written next to its source index, as a `.html` sibling of the
+`.md`/`.json` it projects — never in a separate output tree, never per document:
+
+| Source (canon) | Render (sibling) |
+|---|---|
+| `backlog/00-index.md` (+ item front-matter) | `backlog/00-index.html` |
+| `plans/00-index.md` (+ plan scan) | `plans/00-index.html` |
+| `plans/<slug>/00-index.md` (+ phase files) | `plans/<slug>/00-index.html` |
+| `plans/<slug>.md` (single-file) | `plans/<slug>.html` |
+| `audits/<methodology>/00-inventory.md` | `audits/<methodology>/00-inventory.html` |
+| `audits/test-coverage/coverage-matrix.json` | `audits/test-coverage/coverage-matrix.html` |
+
+A multi-file plan gets ONE progress page; individual phase files and individual
+backlog/finding items never get their own HTML.
+
+## Token-cost rationale
+
+The model writes the *generator* once (the shipped `scripts/ibex/` renderers).
+Every regeneration afterward is a single script run — **~0 recurring tokens**.
+A model-written page at runtime is the expensive anti-pattern this layer exists
+to avoid: it costs a full generation each time, drifts from the canon, and can
+not be re-run deterministically. Always run the script; never hand-author a page.
+
+## Self-contained output
+
+Each render is a single HTML file with inlined CSS/JS and **no external
+requests** — it works from `file://` with no server and no CDN, and publishes
+unchanged as a Claude Code Artifact when (and only when) the user asks. Design
+tokens, both color themes (`prefers-color-scheme` + `data-theme` override),
+`tabular-nums`, and the sortable/filterable table JS all come from the
+session-validated visual reference. No emojis; English UI labels.
+
+## Publish is never automatic
+
+Rendering is on demand; **publishing is a separate, explicit user ask.** ibex
+never calls the `Artifact` tool unprompted. See `SKILL.md` for the full policy
+(and the `disableArtifact` / `CLAUDE_CODE_DISABLE_ARTIFACT=1` opt-out for users
+who want the native auto-Artifact behavior off entirely).
+
+## v2 lane (out of scope for v1)
+
+Deferred, non-goals for the first version:
+
+- **`render: auto` / suggest config** — a front-matter or config flag that
+  auto-regenerates a render on canon change, or proactively suggests one. v1 is
+  strictly on-demand.
+- **Charts library** — CSS share bars suffice for v1; no vendored charting.
+- **Per-item pages** — v1 is one render per index/board only.
