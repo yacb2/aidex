@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ibex render CLI — turn a `.context/` index/board into a self-contained HTML
+"""dash render CLI — turn a `.context/` index/board into a self-contained HTML
 
 render (one render per index/board, never per document). Markdown/JSON stays
 canon; the HTML is a regenerable sibling with a GENERATED contract header.

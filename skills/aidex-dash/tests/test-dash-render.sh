@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# test-ibex-render.sh — the four ibex renderers against a built temp `.context`
+# test-dash-render.sh — the four dash renderers against a built temp `.context`
 # fixture (house pattern, same assert style as test-coverage-matrix.sh): each
 # renderer writes its sibling HTML with a GENERATED first line and the expected
 # key values; re-running is idempotent (one GENERATED line, no duplicate
 # sections); a hand-edit is overwritten; an unknown target and a missing source
 # both exit 2 with a plain-text ERROR (never a traceback).
 #
-# Run with: bash skills/aidex-ibex/tests/test-ibex-render.sh
+# Run with: bash skills/aidex-dash/tests/test-dash-render.sh
 
 set -uo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-RENDER="$TESTS_DIR/../scripts/ibex/render.py"
+RENDER="$TESTS_DIR/../scripts/dash/render.py"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 

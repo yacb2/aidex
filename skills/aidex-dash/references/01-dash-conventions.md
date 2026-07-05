@@ -1,6 +1,6 @@
-# ibex conventions
+# dash conventions
 
-The canon for the ibex HTML render layer. ibex renders `.context/` boards and
+The canon for the dash HTML render layer. dash renders `.context/` boards and
 indexes into self-contained interactive HTML via deterministic scripts. It
 authors no content and introduces no new data files.
 
@@ -9,7 +9,7 @@ authors no content and introduces no new data files.
 Every rendered page's **first line** is an HTML comment of the form:
 
 ```
-<!-- GENERATED <iso-timestamp> by /aidex-ibex <target> — DO NOT EDIT, regenerate instead -->
+<!-- GENERATED <iso-timestamp> by /aidex-dash <target> — DO NOT EDIT, regenerate instead -->
 ```
 
 This is the same contract `coverage-matrix.md` carries: the render is a
@@ -20,10 +20,10 @@ renders for equality: the timestamp changes every run, so idempotency is
 
 ## Markdown/JSON stays canon; HTML is a render
 
-- ibex **reads** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`
+- dash **reads** the existing markdown (front-matter, pipe tables, `- [x]`/`- [ ]`
   checkboxes) exactly like `reindex-plans.sh` / `validate.py` do. The only JSON
   it consumes is the pre-existing `coverage-matrix.json`.
-- ibex **introduces zero new JSON.** There is no ibex sidecar, cache, or state file.
+- dash **introduces zero new JSON.** There is no dash sidecar, cache, or state file.
 - Numbers live in `.context/` markdown/JSON; the HTML only projects them.
 
 ## Sibling-path rule (one render per index/board)
@@ -45,7 +45,7 @@ backlog/finding items never get their own HTML.
 
 ## Token-cost rationale
 
-The model writes the *generator* once (the shipped `scripts/ibex/` renderers).
+The model writes the *generator* once (the shipped `scripts/dash/` renderers).
 Every regeneration afterward is a single script run — **~0 recurring tokens**.
 A model-written page at runtime is the expensive anti-pattern this layer exists
 to avoid: it costs a full generation each time, drifts from the canon, and can
@@ -62,7 +62,7 @@ session-validated visual reference. No emojis; English UI labels.
 
 ## Publish is never automatic
 
-Rendering is on demand; **publishing is a separate, explicit user ask.** ibex
+Rendering is on demand; **publishing is a separate, explicit user ask.** dash
 never calls the `Artifact` tool unprompted. See `SKILL.md` for the full policy
 (and the `disableArtifact` / `CLAUDE_CODE_DISABLE_ARTIFACT=1` opt-out for users
 who want the native auto-Artifact behavior off entirely).

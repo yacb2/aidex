@@ -1,5 +1,5 @@
 [
-  { "query": "Render the backlog as an interactive HTML board so I can sort it.", "should_trigger": true, "expected_behavior": "EN explicit render request for the backlog board — ibex's core target." },
+  { "query": "Render the backlog as an interactive HTML board so I can sort it.", "should_trigger": true, "expected_behavior": "EN explicit render request for the backlog board — dash's core target." },
   { "query": "Can you show this plan's progress as a page? A dashboard of the phases would help.", "should_trigger": true, "expected_behavior": "EN plan-progress render request — 'show as a page' phrasing." },
   { "query": "Give me an HTML dashboard of the ecosystem audit inventory findings.", "should_trigger": true, "expected_behavior": "EN audit-inventory render request." },
   { "query": "Turn the coverage matrix into a self-contained HTML page I can open in a browser.", "should_trigger": true, "expected_behavior": "EN coverage render request — names the coverage matrix target." },
@@ -10,7 +10,7 @@
   { "query": "Add a new item to the backlog: migrate the auth middleware.", "should_trigger": false, "expected_behavior": "Authoring backlog content — aidex-backlog, not a render. Precision check." },
   { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning/authoring — aidex-plan, no render angle. Precision check." },
   { "query": "Run a UX audit of the signup flow.", "should_trigger": false, "expected_behavior": "Project-state audit — aidex-audit, not an HTML render of an inventory. Precision check." },
-  { "query": "Publish this dashboard as a Claude Code Artifact and share it with the team.", "should_trigger": false, "expected_behavior": "Publishing is a separate explicit ask handled by the Artifact tool, not ibex's render trigger; ibex never publishes unprompted." },
+  { "query": "Publish this dashboard as a Claude Code Artifact and share it with the team.", "should_trigger": false, "expected_behavior": "Publishing is a separate explicit ask handled by the Artifact tool, not dash's render trigger; dash never publishes unprompted." },
   { "query": "Fix this null pointer bug in auth.ts.", "should_trigger": false, "expected_behavior": "One-off bug fix — aidex-bugfix. Precision check." },
   { "query": "Registra esta solicitud del cliente para agregar exportación a PDF.", "should_trigger": false, "expected_behavior": "ES stakeholder-request capture — aidex-request. Precision check." }
 ]
