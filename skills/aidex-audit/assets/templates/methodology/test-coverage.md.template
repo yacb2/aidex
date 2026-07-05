@@ -1,0 +1,135 @@
+# Test-Coverage Playbook
+
+Structure: **Modules × two passes (breadth mechanical + depth judgment).** Everything
+countable is *generated* (the matrix, never hand-edited); everything requiring judgment
+(depth of assertions, severity of a gap) is an *audit finding* with the standard
+lifecycle in `00-inventory.md`.
+
+Rule to state verbatim: **what can be counted is generated; what must be judged is a
+finding.**
+
+---
+
+## When to run
+
+- **Post-incident** — a bug shipped while the suite was green. Something broke, so
+  coverage was probably thin (or shallow) right there.
+- **After a feature push** on a tracked module — src likely outpaced its tests.
+- **When `coverage-sweep` flags drift** — a module's src commits moved without its tests
+  (`/aidex-audit coverage-sweep`, advisory).
+- **First-time adoption** of a module — build its slice of the map, establish a baseline.
+
+---
+
+## Preparation
+
+**1. Stack-profile check.** Pick the enumeration commands for your stack.
+
+- **If the project is Django + Vue + Playwright + Vitest**, use the embedded profile
+  below.
+- **If the stack does NOT match a known profile**, run an `aidex-research` spike FIRST —
+  "how is this stack tested well: the E2E-vs-unit split, the tooling, the limits" —
+  landing notes in `.context/research/`. Then customize *this* materialized methodology
+  file with the new profile's surface-enumeration and test-count commands. Do not
+  guess conventions for an unfamiliar stack.
+
+**Django + Vue + Playwright + Vitest profile.** Enumerate the user-facing and API
+surfaces, then the tests that should cover them:
+
+```bash
+# Frontend routes (Vue Router path: entries)
+grep -rhoE "path:\s*['\"][^'\"]+['\"]" frontend/src/router | sort -u
+
+# Vue form components (the highest-value E2E targets)
+grep -rlE "<form|v-model|@submit" frontend/src --include="*.vue"
+
+# Backend endpoints (Django URLConf + DRF views)
+grep -rhoE "(path|re_path)\(\s*['\"][^'\"]+" backend --include="urls.py"
+grep -rlE "class \w+\((APIView|ViewSet|generics\.)" backend --include="*.py"
+
+# Test-count patterns (breadth signal only — depth still needs reading)
+grep -rc "def test_" backend --include="test_*.py"           # pytest unit tests
+grep -rcE "\btest\(|\bit\(" frontend/tests --include="*.spec.ts"  # Playwright/Vitest cases
+```
+
+**2. Build or refresh `module-map.json`** (schema in
+`skills/aidex-audit/references/06-test-coverage.md`), scoped to the modules under audit.
+This step is **assisted**: propose module → src-glob → test-glob boundaries from the repo
+layout, and have the human confirm the module boundaries. The map is the only
+hand-maintained input; everything downstream derives from it.
+
+---
+
+## Check matrix — two distinct passes per module
+
+Record the two passes **separately**. Breadth is mechanical; depth is judgment.
+
+### Breadth (mechanical)
+
+Run `/aidex-audit coverage-matrix`. It regenerates `coverage-matrix.md/.json` from the
+map. Then flag:
+
+- every surface (route / endpoint / form) with **zero mapped tests** → candidate `gap`
+- every **unmapped test file** (a tracked test matching no module's test globs — a hole
+  in the map itself) → fix the map, regenerate
+
+The matrix is a generated artifact. Never hand-edit it; if a number looks wrong, fix
+`module-map.json` or the script and re-run.
+
+### Depth (judgment)
+
+Sample the critical flows' *existing* tests and read their assertions against a
+checklist. A test that navigates but asserts nothing meaningful is the green-but-broken
+failure mode — count it as a `gap`, not as coverage.
+
+- [ ] Asserts the **outcome**, not just visibility (data persisted / totals correct /
+      status changed) — not merely "the element is on screen"
+- [ ] Covers **error and validation paths**, not only the happy path
+- [ ] **Persistence after reload** — reloads and re-checks state where it matters
+- [ ] **Role / permission variants** — the flow is tested for each role that runs it
+- [ ] A previously-patched **bug class** has a regression test at the layer that would
+      have caught it (E2E for a UI-reachable bug, not backend-only)
+
+---
+
+## Recording findings
+
+- **ID convention:** `COV-<module>-<n>` (e.g. `COV-billing-1`).
+- **Types:** `gap` (missing or shallow coverage), `bug` (a live defect found while
+  reading), `risk` (a fragile or drift-prone area).
+- **Severity guidance:**
+  - **P0** — a money or data-integrity flow with **no depth coverage**
+  - **P1** — a critical-flow **breadth gap** (surface with zero tests)
+  - **P2** — a secondary flow gap
+  - **P3** — backend-only regression test suffices; no E2E required
+
+Escalate per the standard lifecycle (`/aidex-audit escalate <id>` → backlog, or a
+remediation plan). One canonical row per finding in `00-inventory.md`.
+
+---
+
+## Output artifacts
+
+- `module-map.json` — the keystone, **maintained** by hand (assisted on first run).
+- `coverage-matrix.md` / `coverage-matrix.json` — **generated**, never hand-edited
+  (they carry the `GENERATED` header; `/aidex-audit validate` flags a matrix without
+  it).
+- Findings — rows in the rolling `00-inventory.md`; this run's `findings.md` is a
+  filtered view.
+
+Rule again, verbatim: **what can be counted is generated; what must be judged is a
+finding.**
+
+---
+
+## Tips
+
+The NS Backoffice war stories, condensed:
+
+- **Generate, don't transcribe.** A 48.9K hand-written test catalog was stale within 4
+  months. The matrix is regenerated on demand; a transcribed one rots.
+- **Directory structure is the tag system.** Where a test lives already says what it
+  covers — no need to retrofit annotations onto every test.
+- **Suite-green means nothing without depth sampling.** A breadth pass that shows tests
+  exist does not show they assert anything. The green-but-broken failure mode is the
+  whole reason this playbook has a depth pass.

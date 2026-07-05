@@ -17,7 +17,7 @@ TEMPLATES_DIR="$SKILL_DIR/assets/templates"
 # ---- audit-specific helpers only below this line ----
 
 # Known audit types — canon SHORT names (decision/2026-07-02-audit-rebuild-canon-decisions)
-AUDIT_TYPES=(ux ai-opportunities security perf a11y hitl retest custom)
+AUDIT_TYPES=(ux ai-opportunities security perf a11y hitl retest test-coverage custom)
 
 # Normalize input (incl. legacy -audit-suffixed and ia- aliases) to the canon
 # short name. Returns non-zero if the type is unknown.
@@ -31,6 +31,7 @@ normalize_type() {
     perf|performance|perf-audit)   printf '%s\n' "perf"; return 0 ;;
     a11y|accessibility|a11y-audit) printf '%s\n' "a11y"; return 0 ;;
     hitl|hitl-guided-manual|guided-manual) printf '%s\n' "hitl"; return 0 ;;
+    test-coverage|coverage)        printf '%s\n' "test-coverage"; return 0 ;;
     custom)                        printf '%s\n' "custom"; return 0 ;;
     *) return 1 ;;
   esac
@@ -46,6 +47,7 @@ methodology_name() {
     a11y)             printf 'Accessibility' ;;
     hitl)             printf 'HITL Guided Manual' ;;
     retest)           printf 'Re-test' ;;
+    test-coverage)    printf 'Test Coverage' ;;
     *)                printf '%s' "$1" ;;
   esac
 }

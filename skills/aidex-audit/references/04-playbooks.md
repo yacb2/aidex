@@ -1,6 +1,6 @@
 # 04 — Playbooks Index
 
-Seven stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
+Eight stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
 
 ---
 
@@ -15,6 +15,7 @@ Seven stock audit types ship with AIDEX. Each has a playbook template in `assets
 | [perf](../assets/templates/methodology/perf.md.template) | Pre-release / pre-scaling | Budget violations suspected, framework upgrade | `bug`, `risk` |
 | [a11y](../assets/templates/methodology/a11y.md.template) | Compliance cadence | UX refresh landed, regulatory deadline | `bug` |
 | [hitl](../assets/templates/methodology/hitl.md.template) | Pre-release / multi-session | End-to-end flows and processes need human sign-off page-by-page; agent automates every mechanical check | `bug`, `gap`, `idea` |
+| [test-coverage](../assets/templates/methodology/test-coverage.md.template) | Drift-driven / post-incident | Post-incident, after a feature push on a module, or when `coverage-sweep` flags drift | `gap`, `bug`, `risk` |
 
 ### Decision flow
 
@@ -35,6 +36,9 @@ Is the concern AI integration landscape? ──▶ ai-opportunities
                 │ no
                 ▼
 Do flows/processes need human sign-off page-by-page? ──▶ hitl
+                │ no
+                ▼
+Is the concern "the suite is green but bugs ship" / test gaps? ──▶ test-coverage
                 │ no
                 ▼
 Anything visual, interactive, or product-level ──▶ ux
@@ -69,7 +73,7 @@ You don't have to accept the stock playbook as-is. First time you run a type, th
 
 ## Writing a custom playbook
 
-If none of the seven fits:
+If none of the eight fits:
 
 ```
 /aidex-audit new custom <slug>

@@ -92,3 +92,13 @@ def count_tests(root, files):
         except OSError:
             pass
     return n
+
+
+if __name__ == "__main__":
+    # Tiny CLI so validate-audit.sh can check that module-map.json parses:
+    #   python3 _coverage_lib.py load <workspace-root>
+    # Exits 0 on a valid map, non-zero (with an ERROR message) otherwise.
+    if len(sys.argv) >= 3 and sys.argv[1] == "load":
+        load_map(sys.argv[2])
+        sys.exit(0)
+    sys.exit("usage: _coverage_lib.py load <workspace-root>")
