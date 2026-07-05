@@ -30,6 +30,7 @@ Dispatch by first argument:
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
 | `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
 | `/aidex-audit reindex` | [scripts/reindex-audits.sh](scripts/reindex-audits.sh) | Regenerate the run-level roll-up `00-index.md` (all runs + per-run finding counts). Auto-run by `new` and `close`. `--check` reports drift read-only (used by `validate` + shared `reconcile.sh`) |
+| `/aidex-audit coverage-matrix` | [scripts/coverage-matrix.sh](scripts/coverage-matrix.sh) | Regenerate the breadth matrix (surfaces × tests) from `module-map.json` — generated artifact, never hand-edited |
 
 > **`--loop` guard (anti-cargo-cult).** Use `--loop` **ONLY** when the finding is
 > bulk + machine-checkable — a gate the machine can run to say pass/fail across many
@@ -72,6 +73,7 @@ Where `${ACTION}` maps from the first argument:
 - `migrate` → `migrate-audit.sh [project-dir]`
 - `reindex` → `reindex-audits.sh`
 - `close` → `close-audit.sh <run> [--force]`
+- `coverage-matrix` → `coverage-matrix.sh`
 
 If no arguments are given, show the help table above and run a status check:
 
