@@ -6,6 +6,7 @@
 #   (b) change outside any module -> appears under Unmapped
 #   (c) clean tree -> "0 changed files"
 #   (d) --since a ref missing from one repo -> warning + partial result, exit 0
+#   (e) changed TEST file attributes to its module, never listed as Unmapped
 #
 # Run with: bash skills/aidex-audit/tests/test-affected-tests.sh
 
@@ -78,5 +79,19 @@ echo "$out_d" | grep -q 'billing' \
   || fail "(d) billing should still be reported from the backend side: $out_d"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (e) a changed TEST file attributes to its module and is NOT "unmapped"
+#     (regression: field test 2026-07-05 — matching used src globs only, so a
+#     modified spec file suggested extending a map that already covered it)
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+echo "// touched" >> "$WS/frontend/tests/e2e/billing/a.spec.ts"
+out_e="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
+echo "$out_e" | grep -q '^\[billing\]$' \
+  || fail "(e) changed spec file should attribute to billing: $out_e"
+echo "$out_e" | grep -q 'Unmapped changes' \
+  && fail "(e) changed spec file must NOT appear under Unmapped changes: $out_e"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since"
+echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution"
