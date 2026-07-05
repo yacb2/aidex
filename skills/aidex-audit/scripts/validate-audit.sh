@@ -279,6 +279,25 @@ if [[ -d "$BACKLOG_DIR" ]]; then
   done < <(find "$BACKLOG_DIR" -maxdepth 2 -type f -name '*.md')
 fi
 
+# ---------- test-coverage additive checks (warnings only, first release) ----------
+# Scoped to projects that have a test-coverage methodology folder. Two checks:
+#   1. module-map.json parses (delegate to the coverage lib's `load` CLI).
+#   2. coverage-matrix.md, if present, carries the GENERATED header — a hand-created
+#      matrix without it is flagged (the never-hand-edit rule, enforced).
+COV_DIR="$AUDITS_DIR/test-coverage"
+if [[ -d "$COV_DIR" ]]; then
+  COV_LIB="$SKILL_DIR/scripts/coverage/_coverage_lib.py"
+  WS_ROOT="$(dirname "$(dirname "$AUDITS_DIR")")"
+  if [[ -f "$COV_DIR/module-map.json" && -f "$COV_LIB" ]]; then
+    if ! python3 "$COV_LIB" load "$WS_ROOT" >/dev/null 2>&1; then
+      add_warning "test-coverage/module-map.json does not parse via the coverage lib — run: python3 <skill>/scripts/coverage/_coverage_lib.py load <workspace-root>"
+    fi
+  fi
+  if [[ -f "$COV_DIR/coverage-matrix.md" ]] && ! grep -q 'GENERATED' "$COV_DIR/coverage-matrix.md"; then
+    add_warning "test-coverage/coverage-matrix.md lacks the GENERATED header — it looks hand-created; regenerate via /aidex-audit coverage-matrix (never hand-edit generated artifacts)"
+  fi
+fi
+
 # ---------- Roll-up index freshness (non-fatal warning) ----------
 REINDEX_AUDITS="$SKILL_DIR/scripts/reindex-audits.sh"
 if [[ -x "$REINDEX_AUDITS" ]]; then
