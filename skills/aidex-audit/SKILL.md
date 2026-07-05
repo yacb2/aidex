@@ -31,6 +31,7 @@ Dispatch by first argument:
 | `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
 | `/aidex-audit reindex` | [scripts/reindex-audits.sh](scripts/reindex-audits.sh) | Regenerate the run-level roll-up `00-index.md` (all runs + per-run finding counts). Auto-run by `new` and `close`. `--check` reports drift read-only (used by `validate` + shared `reconcile.sh`) |
 | `/aidex-audit coverage-matrix` | [scripts/coverage-matrix.sh](scripts/coverage-matrix.sh) | Regenerate the breadth matrix (surfaces × tests) from `module-map.json` — generated artifact, never hand-edited |
+| `/aidex-audit coverage-sweep [--since ISO]` | [scripts/coverage-sweep.sh](scripts/coverage-sweep.sh) | Drift report: which modules changed without their tests moving since the last matrix — suggests re-runs, advisory only |
 
 > **`--loop` guard (anti-cargo-cult).** Use `--loop` **ONLY** when the finding is
 > bulk + machine-checkable — a gate the machine can run to say pass/fail across many
@@ -74,6 +75,7 @@ Where `${ACTION}` maps from the first argument:
 - `reindex` → `reindex-audits.sh`
 - `close` → `close-audit.sh <run> [--force]`
 - `coverage-matrix` → `coverage-matrix.sh`
+- `coverage-sweep` → `coverage-sweep.sh [--since ISO]`
 
 If no arguments are given, show the help table above and run a status check:
 
@@ -205,6 +207,21 @@ If audits have accumulated inside `.context/plans/`:
 ```
 
 Launches the `audit-migrator` subagent to detect candidates, proposes moves, then runs `inventory-seeder` to generate initial INVENTORY from existing findings.
+
+### When to run the sweep
+
+`/aidex-audit coverage-sweep` is a drift check, not a calendar chore: run it at the
+natural moments when src is likely to have outpaced tests —
+
+- after a **feature push** on a tracked module,
+- after **closing a plan** that touched tracked paths,
+- after **any incident** (something broke → coverage was probably thin there).
+
+It is advisory (always exits 0): a ranked table of modules whose src commits moved
+without their tests since the last matrix. Act on the flagged rows with
+`/aidex-audit new test-coverage <slug>` scoped to them, then regenerate the matrix.
+`aidex-plan-exec` (at plan close) and `aidex-bugfix` (at GREEN) surface a one-line
+suggestion to run it (Phase 6).
 
 ---
 

@@ -9,11 +9,22 @@
 # mktemp + trap cleanup. This script only builds the workspace and echoes its
 # path.
 #
-# Usage: WS=$(bash skills/aidex-audit/tests/fixtures/coverage-workspace.sh)
+# Baseline commits are dated in the fixed past (2020) and drift commits in the
+# fixed future (2099) so the coverage-sweep drift detector is deterministic: a
+# matrix generated "now" sits strictly between them, so `--since=<matrix>` counts
+# the drift commits and never the baseline — no sleeps, no wall-clock races.
+#
+# Usage:
+#   WS=$(bash coverage-workspace.sh)                 # baseline only
+#   WS=$(bash coverage-workspace.sh --drift)         # baseline + drift commits
+#   bash coverage-workspace.sh --apply-drift "$WS"   # add drift to an existing WS
+#                                                    # (lets a test snapshot the
+#                                                    #  matrix BEFORE the drift)
 
 set -euo pipefail
 
-WS="$(mktemp -d)"
+BASELINE_DATE="2020-01-01T00:00:00"
+DRIFT_DATE="2099-01-01T00:00:00"
 
 git_init_commit() {
   local dir="$1"
@@ -21,41 +32,51 @@ git_init_commit() {
   git -C "$dir" config user.email "test@example.com"
   git -C "$dir" config user.name "Test"
   git -C "$dir" add -A
-  git -C "$dir" commit -q -m "initial commit"
+  GIT_AUTHOR_DATE="$BASELINE_DATE" GIT_COMMITTER_DATE="$BASELINE_DATE" \
+    git -C "$dir" commit -q -m "initial commit"
 }
 
-# --- backend repo ---
-mkdir -p "$WS/backend/apps/billing/tests"
-mkdir -p "$WS/backend/apps/people"
-cat > "$WS/backend/apps/billing/views.py" <<'EOF'
+drift_commit() {
+  local dir="$1"; shift
+  GIT_AUTHOR_DATE="$DRIFT_DATE" GIT_COMMITTER_DATE="$DRIFT_DATE" \
+    git -C "$dir" commit -q "$@"
+}
+
+build_workspace() {
+  local WS="$1"
+
+  # --- backend repo ---
+  mkdir -p "$WS/backend/apps/billing/tests"
+  mkdir -p "$WS/backend/apps/people"
+  cat > "$WS/backend/apps/billing/views.py" <<'EOF'
 def invoice_list(request):
     return None
 EOF
-cat > "$WS/backend/apps/billing/tests/test_x.py" <<'EOF'
+  cat > "$WS/backend/apps/billing/tests/test_x.py" <<'EOF'
 def test_a():
     assert True
 EOF
-cat > "$WS/backend/apps/people/views.py" <<'EOF'
+  cat > "$WS/backend/apps/people/views.py" <<'EOF'
 def people_list(request):
     return None
 EOF
-git_init_commit "$WS/backend"
+  git_init_commit "$WS/backend"
 
-# --- frontend repo ---
-mkdir -p "$WS/frontend/src/billing"
-mkdir -p "$WS/frontend/tests/e2e/billing"
-cat > "$WS/frontend/src/billing/Form.vue" <<'EOF'
+  # --- frontend repo ---
+  mkdir -p "$WS/frontend/src/billing"
+  mkdir -p "$WS/frontend/tests/e2e/billing"
+  cat > "$WS/frontend/src/billing/Form.vue" <<'EOF'
 <template><div /></template>
 EOF
-cat > "$WS/frontend/tests/e2e/billing/a.spec.ts" <<'EOF'
+  cat > "$WS/frontend/tests/e2e/billing/a.spec.ts" <<'EOF'
 test('shows the invoice form', () => {});
 test('submits the invoice form', () => {});
 EOF
-git_init_commit "$WS/frontend"
+  git_init_commit "$WS/frontend"
 
-# --- module-map.json ---
-mkdir -p "$WS/.context/audits/test-coverage"
-cat > "$WS/.context/audits/test-coverage/module-map.json" <<'EOF'
+  # --- module-map.json ---
+  mkdir -p "$WS/.context/audits/test-coverage"
+  cat > "$WS/.context/audits/test-coverage/module-map.json" <<'EOF'
 {
   "version": 1,
   "repos": [
@@ -89,5 +110,41 @@ cat > "$WS/.context/audits/test-coverage/module-map.json" <<'EOF'
   ]
 }
 EOF
+}
+
+# apply_drift models "features shipped, tests didn't move": 3 src-only commits to
+# billing's backend views (no test files touched) and 1 new frontend route file.
+# Both repos change, so a correct sweep sums src commits across them.
+apply_drift() {
+  local WS="$1"
+  local i
+  for i in 1 2 3; do
+    printf '\ndef extra_view_%s(request):\n    return None\n' "$i" \
+      >> "$WS/backend/apps/billing/views.py"
+    git -C "$WS/backend" add -A
+    drift_commit "$WS/backend" -m "billing: ship feature $i (no tests)"
+  done
+
+  cat > "$WS/frontend/src/billing/NewView.vue" <<'EOF'
+<template><div>new</div></template>
+EOF
+  git -C "$WS/frontend" add -A
+  drift_commit "$WS/frontend" -m "billing: new route NewView.vue (no tests)"
+}
+
+MODE="${1:-}"
+
+if [[ "$MODE" == "--apply-drift" ]]; then
+  WS="${2:?--apply-drift requires an existing workspace path}"
+  apply_drift "$WS"
+  exit 0
+fi
+
+WS="$(mktemp -d)"
+build_workspace "$WS"
+
+if [[ "$MODE" == "--drift" ]]; then
+  apply_drift "$WS"
+fi
 
 printf '%s\n' "$WS"
