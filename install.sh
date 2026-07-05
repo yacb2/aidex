@@ -10,8 +10,8 @@ set -euo pipefail
 #   install.sh --uninstall  Remove installation
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AIDEX_DIR="$HOME/.aidex"
-CLAUDE_DIR="$HOME/.claude"
+AIDEX_DIR="${AIDEX_DIR:-$HOME/.aidex}"
+CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 MANIFEST="$AIDEX_DIR/.manifest"
 VERSION="0.20.0"
 
@@ -651,6 +651,122 @@ do_uninstall() {
 }
 
 # ─────────────────────────────────────────────
+# DOCTOR (health check)
+# ─────────────────────────────────────────────
+
+run_doctor() {
+  echo "aidex doctor"
+  echo ""
+
+  local fail_count=0
+
+  # 1. ~/.aidex exists and .version readable; compare with repo VERSION.
+  if [ -f "$AIDEX_DIR/.version" ]; then
+    local installed_version
+    installed_version="$(cat "$AIDEX_DIR/.version")"
+    if [ "$installed_version" = "$VERSION" ]; then
+      echo "PASS: version $installed_version"
+    else
+      echo "FAIL: version mismatch — installed $installed_version, repo $VERSION"
+      fail_count=$((fail_count + 1))
+    fi
+  else
+    echo "FAIL: $AIDEX_DIR/.version not found"
+    fail_count=$((fail_count + 1))
+  fi
+
+  # 2. Skill symlinks in $CLAUDE_DIR/skills/ pointing into $AIDEX_DIR: count + broken.
+  if [ -d "$CLAUDE_DIR/skills" ]; then
+    local total=0
+    local broken=()
+    local link target
+    while IFS= read -r link; do
+      target="$(readlink "$link")"
+      case "$target" in
+        "$AIDEX_DIR"*)
+          total=$((total + 1))
+          [ -e "$link" ] || broken+=("$(basename "$link")")
+          ;;
+      esac
+    done < <(find "$CLAUDE_DIR/skills" -maxdepth 1 -type l 2>/dev/null)
+    if [ "${#broken[@]}" -eq 0 ]; then
+      echo "PASS: $total aidex skill symlink(s), all valid"
+    else
+      echo "FAIL: broken symlink(s): ${broken[*]}"
+      fail_count=$((fail_count + 1))
+    fi
+  else
+    echo "FAIL: $CLAUDE_DIR/skills not found"
+    fail_count=$((fail_count + 1))
+  fi
+
+  # 3. Every $AIDEX_DIR/skills/*/scripts/*.sh is executable.
+  local non_exec=()
+  local script
+  while IFS= read -r script; do
+    [ -x "$script" ] || non_exec+=("$script")
+  done < <(find "$AIDEX_DIR"/skills/*/scripts -maxdepth 1 -name '*.sh' 2>/dev/null)
+  if [ "${#non_exec[@]}" -eq 0 ]; then
+    echo "PASS: all skill scripts executable"
+  else
+    echo "FAIL: non-executable script(s): ${non_exec[*]}"
+    fail_count=$((fail_count + 1))
+  fi
+
+  # 4. python3 on PATH.
+  if command -v python3 >/dev/null 2>&1; then
+    echo "PASS: python3 on PATH ($(command -v python3))"
+  else
+    echo "FAIL: python3 not found on PATH"
+    fail_count=$((fail_count + 1))
+  fi
+
+  # 5. .manifest present and every listed path exists under $AIDEX_DIR.
+  if [ -f "$AIDEX_DIR/.manifest" ]; then
+    local missing=()
+    local item
+    while IFS= read -r item; do
+      [ -z "$item" ] && continue
+      [ -e "$AIDEX_DIR/$item" ] || missing+=("$item")
+    done < "$AIDEX_DIR/.manifest"
+    if [ "${#missing[@]}" -eq 0 ]; then
+      echo "PASS: manifest present, all entries exist"
+    else
+      echo "FAIL: manifest entries missing: ${missing[*]}"
+      fail_count=$((fail_count + 1))
+    fi
+  else
+    echo "FAIL: $AIDEX_DIR/.manifest not found"
+    fail_count=$((fail_count + 1))
+  fi
+
+  # 6. Hooks dir present; aidex-router.sh and durability-run.sh executable.
+  if [ -d "$AIDEX_DIR/hooks" ]; then
+    local hook_issues=()
+    [ -x "$AIDEX_DIR/hooks/aidex-router.sh" ] || hook_issues+=("aidex-router.sh")
+    [ -x "$AIDEX_DIR/hooks/durability-run.sh" ] || hook_issues+=("durability-run.sh")
+    if [ "${#hook_issues[@]}" -eq 0 ]; then
+      echo "PASS: hooks present and executable"
+    else
+      echo "FAIL: hook(s) not executable: ${hook_issues[*]}"
+      fail_count=$((fail_count + 1))
+    fi
+  else
+    echo "FAIL: $AIDEX_DIR/hooks not found"
+    fail_count=$((fail_count + 1))
+  fi
+
+  echo ""
+  if [ "$fail_count" -eq 0 ]; then
+    echo "aidex doctor: all checks passed"
+    return 0
+  else
+    echo "aidex doctor: $fail_count check(s) failed"
+    return 1
+  fi
+}
+
+# ─────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────
 
@@ -661,12 +777,17 @@ case "${1:-}" in
   --uninstall)
     do_uninstall
     ;;
+  --doctor)
+    run_doctor
+    exit $?
+    ;;
   --help|-h)
-    echo "Usage: install.sh [--update | --uninstall | --help]"
+    echo "Usage: install.sh [--update | --uninstall | --doctor | --help]"
     echo ""
     echo "  (no flags)    First-time install: copy to ~/.aidex/, symlink to ~/.claude/"
     echo "  --update      Update existing installation from repo"
     echo "  --uninstall   Remove installation (interactive)"
+    echo "  --doctor      Run install health checks (PASS/FAIL report)"
     echo "  --help        Show this help"
     ;;
   "")
