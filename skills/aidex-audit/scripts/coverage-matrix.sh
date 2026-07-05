@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# coverage-matrix.sh — regenerate the breadth matrix (surfaces x tests) from
+# coverage-matrix.sh — regenerate the breadth matrix (modules x tests) from
 # module-map.json. Thin wrapper; all logic lives in coverage/coverage_matrix.py.
 #
 # Usage: coverage-matrix.sh [workspace-root]  (defaults to the discovered project root)

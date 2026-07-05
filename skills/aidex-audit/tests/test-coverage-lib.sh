@@ -73,6 +73,34 @@ print('OK')
 ")"
 [[ "$out" == "OK" ]] || fail "repo_for() resolution: $out"
 
+# --- repo_for(): longest prefix wins (regression: review finding 2026-07-05,
+# first-match order used to let a root '.' repo shadow a nested one) ---
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+repos = [{'name': 'root', 'path': '.'}, {'name': 'backend', 'path': 'backend'}]
+r = lib.repo_for('backend/apps/billing/views.py', repos)
+assert r is not None and r['name'] == 'backend', r
+r_root = lib.repo_for('unrelated/file.txt', repos)
+assert r_root is not None and r_root['name'] == 'root', r_root
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "repo_for() longest-prefix: $out"
+
+# --- load_map: repos[] entry missing 'path' exits non-zero with ERROR:
+# (regression: used to raise an uncaught KeyError downstream) ---
+BADREPO="$TMP/bad-repo-workspace"
+mkdir -p "$BADREPO/.context/audits/test-coverage"
+echo '{"version": 1, "repos": [{"name": "backend"}], "modules": []}' > "$BADREPO/.context/audits/test-coverage/module-map.json"
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+lib.load_map('$BADREPO')
+" 2>&1)"
+rc=$?
+[[ $rc -ne 0 ]] || fail "load_map on repo missing 'path' should exit non-zero"
+printf '%s' "$out" | grep -q "ERROR:" || fail "load_map repo-missing-path error should say ERROR:, got: $out"
+
 # --- commits_since(): >=1 for billing src, 0 for a glob outside the repo ---
 out="$(python3 -c "
 import sys; sys.path.insert(0, '$LIB_DIR')

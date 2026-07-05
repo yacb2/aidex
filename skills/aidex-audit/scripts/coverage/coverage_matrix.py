@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Coverage matrix generator — breadth layer (surfaces x tests per module).
+"""Coverage matrix generator — breadth layer (modules x tests; surface counts land in the .json).
 
 CLI: coverage_matrix.py <workspace-root>
 
