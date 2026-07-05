@@ -1,14 +1,14 @@
 ---
-name: aidex-ibex
+name: aidex-dash
 description: Use when the user wants an interactive HTML dashboard/render/board of `.context/` data — the backlog board, a plan's progress, an audit inventory, the coverage matrix — or says "render X as HTML", "genera el dashboard", "show this as a page". Not for: authoring content (the markdown stays canon); publishing without being asked.
 argument-hint: "[backlog | plans [slug] | audit <methodology> | coverage]"
 disable-model-invocation: false
 allowed-tools: Bash Read Glob Grep
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-ibex"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
+> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-dash"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
-# ibex — HTML render layer for `.context/` boards
+# dash — HTML render layer for `.context/` boards
 
 Turn a `.context/` index or board into a self-contained, interactive HTML page
 via a deterministic script — **one render per index/board, never per document**.
@@ -69,6 +69,6 @@ render (a sub-action or an explicit "show this as a page" request).
 
 ## Related
 
-- **references/01-ibex-conventions.md** — the GENERATED contract, sibling-path
+- **references/01-dash-conventions.md** — the GENERATED contract, sibling-path
   rule, token-cost rationale, and the v2 lane (auto/suggest config, charts).
-- **aidex-audit** — owns `coverage-matrix.json`, the one JSON ibex consumes.
+- **aidex-audit** — owns `coverage-matrix.json`, the one JSON dash consumes.

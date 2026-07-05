@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Markdown parsing helpers for the ibex render layer. Stdlib only, no YAML lib.
+"""Markdown parsing helpers for the dash render layer. Stdlib only, no YAML lib.
 
 The renderers parse the existing `.context/` markdown (front-matter blocks,
 pipe tables, GitHub checkboxes) exactly like reindex-plans.sh / validate.py do,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # render.sh — regenerate a `.context/` board/index as a self-contained HTML
-# render. Thin wrapper; all logic lives in ibex/render.py. The workspace root is
+# render. Thin wrapper; all logic lives in dash/render.py. The workspace root is
 # discovered internally (walk up to the nearest `.context/`), so every argument
 # is a render argument, not a path.
 #
@@ -29,4 +29,4 @@ fi
 ROOT="$(find_project_root)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
-python3 "$SCRIPT_DIR/ibex/render.py" "$ROOT" "$@"
+python3 "$SCRIPT_DIR/dash/render.py" "$ROOT" "$@"

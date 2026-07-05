@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HTML shell for the ibex render layer: design tokens, components, and the
+"""HTML shell for the dash render layer: design tokens, components, and the
 
 vanilla sort/filter JS — all reused from the session-validated visual reference
 (.context/drafts/aidex-dash-demo.html). Stdlib only. No external requests, no
@@ -167,7 +167,7 @@ _SCRIPT = """<script>
 _FOOTER = (
     '<footer>This page is a <strong>render, not a source</strong>: every value above '
     'lives in <code>.context/</code> markdown/JSON (the canon). Regenerate anytime with '
-    'aidex-ibex; never edit by hand. Self-contained single file &mdash; works from '
+    'aidex-dash; never edit by hand. Self-contained single file &mdash; works from '
     '<code>file://</code> with no server and no external requests.</footer>'
 )
 
@@ -286,7 +286,7 @@ def page(title, sections, generated_by):
     """
     stamp = datetime.now().isoformat(timespec="seconds")
     generated = (
-        f"<!-- GENERATED {stamp} by /aidex-ibex {generated_by} "
+        f"<!-- GENERATED {stamp} by /aidex-dash {generated_by} "
         "— DO NOT EDIT, regenerate instead -->"
     )
     body = (

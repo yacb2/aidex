@@ -2,7 +2,7 @@
 """Render the test-coverage matrix board from the existing (pre-generated)
 
 `.context/audits/test-coverage/coverage-matrix.json` — the only JSON consumed
-by ibex; no new JSON is introduced. Writes the sibling render
+by dash; no new JSON is introduced. Writes the sibling render
 `.context/audits/test-coverage/coverage-matrix.html`. The JSON stays canon.
 """
 import json
