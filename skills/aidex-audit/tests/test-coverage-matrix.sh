@@ -69,5 +69,20 @@ python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
   || fail "coverage_matrix.py exited non-zero on regeneration after hand-edit"
 grep -q 'HAND EDITED' "$MD" && fail "hand-edit survived regeneration"
 
+# --- unmapped section: lists real test files, never __init__.py packaging
+#     stubs (regression: field test 2026-07-05 — NS matrix listed dozens of
+#     __init__.py files under tests/ dirs as "unmapped test files") ---
+mkdir -p "$WS/backend/apps/other/tests"
+touch "$WS/backend/apps/other/tests/__init__.py"
+printf 'def test_z():\n    assert True\n' > "$WS/backend/apps/other/tests/test_z.py"
+git -C "$WS/backend" add -A >/dev/null
+git -C "$WS/backend" commit -q -m "unmapped test app"
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
+  || fail "coverage_matrix.py exited non-zero with unmapped test app"
+grep -q 'backend/apps/other/tests/test_z.py' "$MD" \
+  || fail "unmapped real test file should be listed"
+grep -q 'backend/apps/other/tests/__init__.py' "$MD" \
+  && fail "__init__.py must not be listed as an unmapped test file"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — coverage-matrix generation, billing/people rows, json shape, idempotency, hand-edit overwrite"
+echo "OK — coverage-matrix generation, billing/people rows, json shape, idempotency, hand-edit overwrite, unmapped noise filter"

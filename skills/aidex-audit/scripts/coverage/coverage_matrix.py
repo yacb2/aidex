@@ -65,7 +65,11 @@ def module_row(root, files, mod):
 
 def find_unmapped_test_files(files, mapped_test_files):
     mapped = set(mapped_test_files)
-    unmapped = [f for f in files if TEST_FILE_RE.search(f) and f not in mapped]
+    unmapped = [
+        f for f in files
+        if TEST_FILE_RE.search(f) and f not in mapped
+        and os.path.basename(f) != "__init__.py"  # packaging stub, not a test
+    ]
     return sorted(unmapped)
 
 

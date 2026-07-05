@@ -114,14 +114,18 @@ def affected_modules(root, repos, modules, changed_files):
     rows = []
     unmapped = list(changed_files)
     for mod in modules:
-        src_globs = mod.get("src", [])
-        matched = [f for f in changed_files if lib.matches(f, src_globs)]
+        # A change belongs to the module if it touches its src OR its tests —
+        # a modified test file must attribute here, not read as "unmapped".
+        tests = mod.get("tests", {}) or {}
+        own_globs = list(mod.get("src", []))
+        for kind_globs in tests.values():
+            own_globs.extend(kind_globs or [])
+        matched = [f for f in changed_files if lib.matches(f, own_globs)]
         if not matched:
             continue
         unmapped = [f for f in unmapped if f not in matched]
 
         groups = []
-        tests = mod.get("tests", {}) or {}
         for kind in ("unit", "e2e"):
             globs = tests.get(kind) or []
             if not globs:
