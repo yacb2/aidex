@@ -19,6 +19,7 @@ updated: {{DATE}}
      loop — stop and do it interactively. Justify why a loop fits. -->
 
 - Verifiable gate exists: yes / no
+- Handing off (verification check / stop condition / trigger / whole prompt):
 - Greenfield or existing code:
 - One task or many:
 - Must run with the machine off: yes / no
@@ -32,8 +33,9 @@ updated: {{DATE}}
 ## Engine
 
 <!-- One of: goal | loop | ralph | claude-p | routine | channels | workflow.
-     Record the choice AND why, plus the runner-up. See
-     references/01-loop-engines.md decision matrix. -->
+     Composed proactive loops join engines with "+", trigger→gate→orchestrator
+     (e.g. routine+goal+workflow). Record the choice AND why, plus the
+     runner-up. See references/01-loop-engines.md decision matrix. -->
 
 - Chosen:
 - Why:

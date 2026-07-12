@@ -60,9 +60,12 @@ Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
    subagent). Pin it down concretely — this becomes the spec's stop condition.
 3. **Shape.** Greenfield or existing code? One task or many? Must it run with the
    machine off? Budget ceiling?
-4. **Engine.** Use the decision matrix in the reference to pick: `/goal` · `/loop`
-   · `ralph-loop` · `claude -p` while-loop · Routines (`/schedule`) · Channels
-   · Workflow.
+4. **Engine.** First cut: ask what the user is handing off — the verification
+   check, the stop condition, the trigger, or the whole prompt (see the
+   reference §"First cut"). Then use the decision matrix to pick: `/goal` ·
+   `/loop` · `ralph-loop` · `claude -p` while-loop · Routines (`/schedule`) ·
+   Channels · Workflow — or, for proactive loops, a composed stack
+   (`/schedule` + `/goal` + Workflow) recorded as `engine: routine+goal+workflow`.
    Recommend one, name the runner-up, say why. Model guard: if the pick is
    `Workflow` (multi-agent orchestration) and the session model is Sonnet-class,
    recommend a handoff to Opus before running the loop — Sonnet demonstrably

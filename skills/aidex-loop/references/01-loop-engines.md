@@ -6,6 +6,19 @@ skill works without the (workspace-private) research module that produced it.
 
 ---
 
+## First cut — what are you handing off?
+
+Before picking an engine, classify the loop by the component being handed to the
+machine (Anthropic, "Getting started with loops"). It is an escalation ladder:
+start by handing off only the verification, move down a rung as trust builds.
+
+| You hand off… | Loop type | Lands on |
+|---|---|---|
+| The **verification check** | Turn-based | In-prompt gate, or a project verification skill |
+| The **stop condition** | Goal-based | `/goal` |
+| The **trigger** | Time/event-based | `/loop` · `/schedule` · Channels |
+| The **whole prompt** | Proactive | Composed stack: `/schedule` + `/goal` (+ Workflow) |
+
 ## Engine decision matrix
 
 Pick by the question that fits, top to bottom:
@@ -18,6 +31,7 @@ Pick by the question that fits, top to bottom:
 | Unattended greenfield build, fresh context per iteration | **`ralph-loop`** plugin, or **`claude -p` in a `while`** | Re-feeds a fixed prompt; progress persists in files + git, not context |
 | Must run with the machine off | **Routines** (`/schedule`) | Cloud agents; min 1-hour cadence; needs claude.ai login |
 | Decomposable into parallel sub-units, machine-verifiable per iteration, needs crash/kill-resume | **Workflow** | In-process gated fan-out (loop-until-dry / loop-until-budget); conditional durability-arbiter; kill-resumable via resumeFromRunId; token-heavy (~22k/agent floor — only when each iteration's work dwarfs it) |
+| Recurring, well-defined work stream with no human in real time (bug triage, mechanical migrations, dep upgrades) | Composed: **`/schedule`** + **`/goal`** (+ **Workflow**) | Proactive loops compose engines rather than pick one: schedule fires each run, goal defines done-per-run, workflow fans out inside a run; record as `engine: routine+goal+workflow` |
 
 The **Workflow** engine is the same machinery as aidex-plan-exec's durable Workflow forms (`skills/aidex-plan-exec/assets/workflows/*.workflow.js`) reused as a loop engine — NOT a parallel forms system; build a concrete loop asset only against a real loop case (per 'no abstractions for single-use code').
 
@@ -75,7 +89,13 @@ Four levels, escalating by setup:
 3. **Stop hook** — run your check as a script, block exit until it passes
    (Claude Code overrides it after 8 consecutive blocks).
 4. **Verifier subagent** — a fresh model tries to *refute* the result; the worker
-   is not the grader.
+   is not the grader (in practice: `/code-review`, or a reviewer agent with
+   fresh context).
+
+If the check is a manual sequence today (start the dev server, click through the
+change, read the console, run a trace), encode it once as a project
+**verification skill** (SKILL.md) so any gate level can self-verify by invoking
+it. The more quantitative the checks, the easier the self-verification.
 
 ### Step 1.5 — Set the permission surface (the ask-set)
 
@@ -147,6 +167,12 @@ signposts (why a test exists) — future iterations won't have that reasoning.
   agent (fan-out on validation corrupts the back-pressure signal).
 - Big migrations: try 2–3 files first, refine the prompt, then scale with scoped
   `claude -p … --allowedTools`.
+- **Watch spend while it runs:** `/usage` breaks the session down by
+  skills/subagents/MCPs; `/goal` with no arguments shows the active goal's
+  turns + tokens; `/workflows` tracks tokens per agent and can stop one.
+- **Model routing is the biggest cost lever** (effort level is the second):
+  route recurring/mechanical iterations to smaller, faster models and reserve
+  the capable model for judgment calls (review, arbitration, the verifier).
 
 ---
 
