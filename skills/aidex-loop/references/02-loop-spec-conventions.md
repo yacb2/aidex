@@ -24,6 +24,10 @@ created: YYYY-MM-DD
 updated: YYYY-MM-DD
 ```
 
+- Composed (proactive) loops join engines with `+` in trigger→gate→orchestrator
+  order, e.g. `engine: routine+goal+workflow` (see 01-loop-engines.md, matrix
+  row "Recurring, well-defined work stream").
+
 ## Required body sections
 
 In order: **Goal · Loop-suitability · Stop condition · Engine · Spec/PROMPT ·
