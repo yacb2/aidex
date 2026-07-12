@@ -19,7 +19,7 @@ loop-specific rules are declared here.
 id: LOOP-001
 title: "<slug>"
 status: doing          # base lifecycle: open | doing | done | dropped
-engine: undecided      # goal | loop | ralph | claude-p | routine | channels | undecided
+engine: undecided      # goal | loop | ralph | claude-p | routine | channels | workflow | undecided
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 ```

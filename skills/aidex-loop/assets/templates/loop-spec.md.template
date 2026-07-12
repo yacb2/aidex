@@ -31,7 +31,7 @@ updated: {{DATE}}
 
 ## Engine
 
-<!-- One of: goal | loop | ralph | claude-p | routine | channels.
+<!-- One of: goal | loop | ralph | claude-p | routine | channels | workflow.
      Record the choice AND why, plus the runner-up. See
      references/01-loop-engines.md decision matrix. -->
 
