@@ -166,6 +166,14 @@ def check_plan_spec_shape_unit(failures: list[str]) -> None:
     archived = Path(".context/plans/_archive/2026-01-01-x.md")
     if rules(no_acc + filler + code, None, archived):
         failures.append("spec-shape unit: archived plan produced findings (should be exempt)")
+    # Regression (2026-07-19, found by the check flagging its own remediation plan):
+    # "## Phase N Checkpoint" sections match the phase-heading regex and must be
+    # excluded from phase splitting — in BOTH the acceptance and the gates check.
+    checkpoint = with_acc + "\n## Phase 1 Checkpoint\n\n- [ ] Task 1.1: brief\n"
+    if "plan-phase-missing-acceptance" in rules(checkpoint):
+        failures.append("spec-shape unit: 'Phase N Checkpoint' section treated as a phase (acceptance FP)")
+    if "plan-phase-gateless-afk" in [f.rule for f in v.check_plan_phase_gates(single, checkpoint, None)]:
+        failures.append("phase-gate unit: 'Phase N Checkpoint' section treated as a phase (gateless FP)")
     index = Path(".context/plans/2026-01-01-x/00-index.md")
     if "plan-file-oversize" in rules(filler, None, index):
         failures.append("spec-shape unit: 00-index.md warned oversize (size budgets are per plan/phase file)")
