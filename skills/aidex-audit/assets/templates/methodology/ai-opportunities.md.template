@@ -51,7 +51,7 @@ When deciding MISSING vs FLOW, ask:
 Each opportunity becomes a row in `../INVENTORY.md`:
 
 ```
-| IDEA-<PHASE>-<N> | opportunity | <phase> | <what AI would do here> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+| IDEA-<PHASE>-<N> | opportunity | <phase> | <what AI would do here> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
 ```
 
 Severity in this context = **business priority**:

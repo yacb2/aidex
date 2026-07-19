@@ -102,7 +102,7 @@ Multi-session by design. State lives in `checklist.md`:
 Each failure becomes a row in `../00-inventory.md`:
 
 ```
-| BUG-<PAGE>-<N> | bug | <page> [<role>] | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+| BUG-<PAGE>-<N> | bug | <page> [<role>] | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
 ```
 
 Severity guide:

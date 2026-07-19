@@ -110,9 +110,17 @@ looks_like_status() {
 # Parse one inventory file; appends findings/violations/warnings. $1=path $2=scope label.
 validate_inventory() {
   local inv="$1" scope="$2"
-  local legacy_here=0 parsed_here=0 pipe_rows=0
-  local line pipe_count c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest notes
+  local legacy_here=0 parsed_here=0 pipe_rows=0 oversize_notes=0
+  local line pipe_count c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest notes nb
   local id status escalated mapped
+
+  # Soft budget: board file > 30 KB (warn only, never a violation).
+  local board_bytes
+  board_bytes="$(wc -c < "$inv" | tr -d ' ')"
+  if [[ "$board_bytes" -gt 30720 ]]; then
+    add_warning "$scope inventory board is $((board_bytes / 1024)) KB (> 30 KB) — archive resolved rows or move narrative to run findings.md/proofs to keep the board at open-set size"
+  fi
+
   while IFS= read -r line; do
     [[ "$line" =~ ^\|[[:space:]]*ID[[:space:]]*\| ]] && continue
     [[ "$line" =~ ^\|[[:space:]]*-+ ]] && continue
@@ -136,6 +144,11 @@ validate_inventory() {
     inventory_ids="$inventory_ids"$'\n'"$id"
     findings_in_inventory=$((findings_in_inventory+1))
     parsed_here=$((parsed_here+1))
+
+    # Soft budget: Notes cell > 300 B (warn only) — canon keeps Notes a one-line
+    # state note; narrative belongs in the run findings.md/proofs.
+    nb="$(printf '%s' "$notes" | wc -c | tr -d ' ')"
+    [[ "$nb" -gt 300 ]] && oversize_notes=$((oversize_notes+1))
 
     if is_legacy_status "$status"; then
       legacy_here=$((legacy_here+1))
@@ -174,6 +187,9 @@ validate_inventory() {
 
   if [[ $legacy_here -gt 0 ]]; then
     add_warning "$scope inventory carries $legacy_here legacy status value(s) (triaged/escalated/in-progress/closed) — counted under the mapped base status; run /aidex-audit migrate to convert"
+  fi
+  if [[ $oversize_notes -gt 0 ]]; then
+    add_warning "$scope inventory has $oversize_notes Notes cell(s) over 300 B — move the resolution narrative to the run findings.md or .context/proofs/ (canon: Notes is a one-line state note)"
   fi
   if [[ $pipe_rows -gt 0 && $parsed_here -eq 0 ]]; then
     add_warning "$scope inventory uses a legacy schema ($pipe_rows pipe-rows, 0 parse as canonical). Expected: | ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |. Run /aidex-audit migrate."

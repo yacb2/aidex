@@ -184,11 +184,15 @@ Audit findings are **exempt** from per-file front-matter (D-07). They live in th
 ```markdown
 | ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| BUG-01-3 | bug | auth | Session token stored in URL | open | P1 | 2026-04-10 | 2026-04-15 | 2026-04-10, 2026-04-15 | — | — |
-| BUG-02-1 | bug | search | SQL injection in q param | done | P0 | 2026-04-10 | 2026-04-20 | 2026-04-10, 2026-04-20 | backlog/2026-04-10-fix-sqli-search | Closed: commit abc123 |
+| BUG-01-3 | bug | auth | Session token stored in URL | open | P1 | 2026-04-10 | 2026-04-15 | 2026-04-10-pre-release | — | — |
+| BUG-02-1 | bug | search | SQL injection in q param | done | P0 | 2026-04-10 | 2026-04-20 | 2026-04-10-pre-release, 2026-04-20-retest | backlog/2026-04-10-fix-sqli-search | Closed: abc123 — sqli patched |
 ```
 
-Dates are `YYYY-MM-DD` (D-01). The `Escalated To` column uses the cross-reference format from [`00-global.md` §3](00-global.md#3-cross-references-d-03).
+Dates are `YYYY-MM-DD` (D-01). The `Escalated To` column uses the cross-reference format from [`00-global.md` §3](00-global.md#3-cross-references-d-03). `Audit Runs` is comma-separated run-folder slugs (`YYYY-MM-DD-<slug>`).
+
+**Notes discipline.** `Notes` is a bounded **state note**, not a journal: one line carrying the verification marker (closing commit SHA, re-test run ref, or drop reason) plus an optional **proof pointer**. The resolution narrative — root cause, test counts, review verdicts, transcripts — lives in the run's `findings.md` (its role as the per-run journal) or `.context/proofs/<id>/`, never inside the table cell.
+
+**Closed-row compaction.** On close, compress `Notes` to `Closed: <commit|run> — <one line>` and move any surviving narrative to the run's `findings.md`/proofs. This keeps the single-source-of-truth board at open-set size instead of accumulating fix war-stories forever.
 
 ### Audit run `index.md`
 
@@ -225,20 +229,22 @@ See [findings.md](findings.md) for the filtered view, or [../00-inventory.md](..
 
 ### Audit run `findings.md`
 
-Filtered view of `00-inventory.md`, grouped by severity or module. Not a copy — a link table.
+A per-run **scope manifest and journal**, not a second board: the IDs this run recorded, re-observed, or resolved (one line each, linking the inventory row) plus free-form run notes. It carries **no status or severity of its own** — those live only in `00-inventory.md`. This is where the resolution narrative belongs (root cause, evidence, caveats); larger captures go to `.context/proofs/<id>/`.
 
 ```markdown
 # Findings — pre-release 2026-05-14
 
-Filtered view of [../00-inventory.md](../00-inventory.md). Do not add findings directly here.
+Scope manifest for this run. Canonical state lives in
+[../00-inventory.md](../00-inventory.md); do not restate status/severity here.
 
-## P0
+## Findings this run
 
-- **BUG-02-1** — SQL injection in search ([inventory](../00-inventory.md#BUG-02-1))
+- BUG-02-1 — SQL injection in search ([inventory](../00-inventory.md#BUG-02-1))
+- BUG-01-3 — session token in URL ([inventory](../00-inventory.md#BUG-01-3))
 
-## P1
+## Run journal
 
-- **BUG-01-3** — Session token in URL ([inventory](../00-inventory.md#BUG-01-3))
+What was walked, root-cause narrative, verification evidence, caveats.
 ```
 
 ---

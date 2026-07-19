@@ -1,66 +1,31 @@
 # Findings — {{SLUG}} ({{DATE}})
 
-Filtered view of [`../00-inventory.md`](../00-inventory.md) for this audit run.
+Scope manifest and journal for this audit run. Canonical finding state lives in
+[`../00-inventory.md`](../00-inventory.md); this file records which findings this
+run touched and the run's own notes.
 
-> **Do not add findings directly here.** Add them to `00-inventory.md` and reference IDs from this file. This keeps the inventory as the single source of truth.
+> **Do not restate status or severity here** — those live only in the inventory.
+> This is a per-run journal, not a second board. Add and update findings in
+> `00-inventory.md`; reference their IDs from here.
 
 ---
 
-## By severity
+## Findings this run
 
-### P0 — Critical
+IDs this run recorded, re-observed, or resolved — one line each, linking the
+inventory row.
 
 <!-- EXAMPLE (remove before first real finding):
-- **EX-01-1** — Session token stored in URL query string ([inventory](../00-inventory.md#ex-01-1))
-- **EX-05-2** — SQL injection in search endpoint ([inventory](../00-inventory.md#ex-05-2))
+- EX-01-1 — session token stored in URL query string ([inventory](../00-inventory.md#ex-01-1))
+- EX-05-2 — SQL injection in search endpoint ([inventory](../00-inventory.md#ex-05-2))
 -->
 
-*None.*
-
-### P1 — High
-
-*None.*
-
-### P2 — Medium
-
-*None.*
-
-### P3 — Low
-
-*None.*
+*None yet.*
 
 ---
 
-## By module
+## Run journal
 
-<!-- Optional grouping. Regenerate via `/aidex-audit validate --regen-views`. -->
-
-### [SHARED] — Cross-module
-
-*None.*
-
-### auth
-
-*None.*
-
-### <!-- add modules as you find findings -->
-
----
-
-## New this run
-
-Findings first recorded in this audit (not previously in the inventory).
-
-*None.*
-
-## Confirmed this run
-
-Findings that existed before and were re-observed (still `open` or `doing`).
-
-*None.*
-
-## Resolved this run
-
-Findings that existed before and are now verified `done`.
-
-*None.*
+Free-form notes for this run: what was walked, root-cause narrative, verification
+evidence, caveats. Larger captures (screenshots, transcripts) go to
+`.context/proofs/<id>/`.

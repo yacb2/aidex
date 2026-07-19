@@ -46,8 +46,13 @@ done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to par
   created artifact gets the back-link `origin_ref:
   audit/<methodology>/<run>/<finding-id>` (standalone runs: `audit/<run>/<id>`).
 - **open → doing:** plan started; `Escalated To` updated to `plan/<…>`.
-- **doing → done (verified):** verification in `Notes`: commit SHA, PR link, or
-  re-test run (`verified in audit/retest/2026-05-01-post-fixes`).
+- **doing → done (verified):** the verification **marker** in `Notes` — commit
+  SHA, PR link, or re-test run (`verified in audit/retest/2026-05-01-post-fixes`)
+  — plus an optional proof pointer. `Notes` stays one line; the resolution
+  narrative lives in the run's `findings.md` (its role as the per-run journal) or
+  `.context/proofs/<id>/`, not in the cell. On close, compress `Notes` to
+  `Closed: <commit|run> — <one line>` (canon `audit-conventions.md` §Notes
+  discipline).
 - **any → dropped:** reason in `Notes`.
 - **done → regression:** don't re-open the original row. New row with ID
   `REGRESSION-<parent-id>-<n>`, type `regression`, `Notes` linking the parent.
@@ -75,10 +80,10 @@ Exit code `1` on any violation; `0` if clean.
 
 ## Reading the state at a glance
 
-Inventory row format (dates ISO per D-01, `Audit Runs` = comma-separated dates):
+Inventory row format (dates ISO per D-01, `Audit Runs` = comma-separated run-folder slugs (`YYYY-MM-DD-<slug>`)):
 
 ```markdown
-| BUG-01-3 | bug | auth | Session token in URL | open | P0 | 2026-04-10 | 2026-04-15 | 2026-04-10, 2026-04-15 | — | — |
+| BUG-01-3 | bug | auth | Session token in URL | open | P0 | 2026-04-10 | 2026-04-15 | 2026-04-10-pre-release | — | — |
 ```
 
 The `Status` column determines state. Every row has exactly one, lowercase.

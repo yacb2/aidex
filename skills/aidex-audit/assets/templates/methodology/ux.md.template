@@ -58,7 +58,7 @@ For each module × each check, note whether it passes, fails, or is not applicab
 Each failure becomes a row in `../INVENTORY.md`:
 
 ```
-| BUG-<MODULE>-<N> | bug | <module> | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+| BUG-<MODULE>-<N> | bug | <module> | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
 ```
 
 Severity guide:
