@@ -80,7 +80,7 @@ esac
 # front-matter and the phase checkpoints would disagree in the archive
 if [[ "$STATUS" == "done" && "$FORCE" -eq 0 ]]; then
   if [[ -d "$PLAN_PATH" ]]; then
-    UNCHECKED="$(grep -h -c '^\s*- \[ \]' "$PLAN_PATH"/*.md 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+    UNCHECKED="$(grep -h -c '^\s*- \[ \]' "$PLAN_PATH"/*.md 2>/dev/null | awk '{s+=$1} END {print s+0}' || true)"
   else
     UNCHECKED="$(grep -c '^\s*- \[ \]' "$PLAN_PATH" 2>/dev/null || true)"
   fi
