@@ -108,7 +108,21 @@ fix. A recommendation that never runs is what let a broken doc sit unrepaired fo
    `docker-compose.yml` and `dev.sh` at root" — or whatever the real facts are for
    *this* project. Never assume monorepo or any other prior default; the script only
    reports facts, the summary is yours to write from what it actually found.
-3. **Interview — recommend-first, confirm/override.** Before asking anything: if this
+3. **Interview — recommend-first, confirm/override.** Before asking anything, check
+   two pre-fill sources in order:
+
+   **(a) Family-defaults seed (optional).** If `.context/worktrees/family-defaults.md`
+   exists, read it: each front-matter key it carries is the pre-filled answer for its
+   axis (see the contract in
+   [references/02-worktree-overview-conventions.md](references/02-worktree-overview-conventions.md)
+   §Family-defaults seed). State the adoption in one line — "axes tier-2-signals /
+   branch-convention / port-family pre-filled by family-defaults (provenance in the
+   seed); interviewing only the deltas" — and ask only the axes the seed leaves open.
+   Seed values are still recommend-first: the user can override any of them, and the
+   override lands in `00-index.md` (never edit the seed — it is owned by whoever
+   distributes it). No seed → full interview, exactly as below.
+
+   **(b) Calling artifact.** If this
    bootstrap was reached from a calling artifact (an `aidex-plan`/`aidex-plan-exec`/
    `aidex-loop` Isolation step, a backlog item, an audit finding), read that artifact
    and pre-resolve every axis it already answers — which participants the work touches,

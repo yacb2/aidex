@@ -78,6 +78,44 @@ they leak in, the doc drifts and can end up contradicting its own body.
   only questions still genuinely open. `aidex-plan-exec` does this symmetrically with its
   Usage-log append at teardown.
 
+## Family-defaults seed (optional)
+
+Projects born from a shared template often share constant axis answers (the same
+tier-2 signals, branch convention, port-family scheme, worktree recipes). Re-deriving
+those through a full interview per project wastes the interview on constants and lets
+the shared parts drift apart. The seed is the **generic** fix — a data contract, not a
+family registry:
+
+```
+.context/worktrees/family-defaults.md   # optional; any provenance
+```
+
+```markdown
+---
+tier2_signals: "test-e2e.sh clones the DB by template; COMPOSE_PROJECT_NAME isolation"
+branch_convention: "feat/<slug> off main"
+port_family: "dev +10 e2e, +20 worktrees"
+worktree_up: "./worktree-up.sh"        # optional recipe defaults
+worktree_down: "./worktree-down.sh"
+---
+Free prose: family provenance, sync mechanism, rationale.
+```
+
+Rules of the contract:
+
+- **Every front-matter key is optional**; each one present is the pre-filled answer
+  for its axis. Bootstrap adopts them as stated recommendations, declares the adoption
+  in one line, and interviews **only the axes the seed leaves open** (participants and
+  other genuinely per-project judgments are never seeded).
+- **Provenance-agnostic.** The seed may come from a project template's sync mechanism,
+  an org-wide scaffold, or be written by hand — this skill neither knows nor cares.
+  aidex **never writes or edits the seed**; it is owned by whoever distributes it.
+  User overrides land in `00-index.md`, annotated `(overrides family-defaults)`.
+- **The seed does not replace the overview.** Bootstrap still scaffolds the full
+  `00-index.md`; seed-sourced values are recorded there with a `(family-defaults)`
+  provenance marker so `suggest` keeps reading one doc.
+- Absent seed → nothing changes: full recommend-first interview.
+
 ## Lifecycle
 
 - **No archive — versioned in place.** Unlike plans or loop-specs, this doc does not
