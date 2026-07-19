@@ -78,10 +78,10 @@ BREAKDOWN:
 - mcp-tools:     N,NNN [OK|WARN|CRIT]
 
 DRIVERS:
-❌ CRITICAL [CB-XX] description — est savings: ~N,NNN
-⚠️  WARNING  [CB-XX] description — est savings: ~N,NNN
-⚠️  WARNING  [CB-SKILL-DESC-RESIDENT] <skill> — description ~N chars, always-resident — est savings: ~N
-ℹ️  INFO     [CB-XX] description — est savings: ~N,NNN
+CRITICAL [CB-XX] description — est savings: ~N,NNN
+WARNING  [CB-XX] description — est savings: ~N,NNN
+WARNING  [CB-SKILL-DESC-RESIDENT] <skill> — description ~N chars, always-resident — est savings: ~N
+INFO     [CB-XX] description — est savings: ~N,NNN
 
 SUGGESTED ACTIONS (ordered by savings):
 1. <action> — ~N,NNN tokens — risk: low — cmd: `<runnable command>`

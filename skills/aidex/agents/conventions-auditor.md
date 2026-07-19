@@ -36,7 +36,7 @@ If `~/.aidex/skills/aidex-conventions/scripts/validate.sh` does not exist OR
 DOMAIN: conventions
 INVENTORY: 0 (validator not installed)
 ISSUES:
-ℹ️  INFO  [CV-MISSING] validate.sh not found — skill aidex-conventions may not be installed
+INFO  [CV-MISSING] validate.sh not found — skill aidex-conventions may not be installed
 COUNTS: critical=0 warning=0 info=1
 ```
 
@@ -115,9 +115,9 @@ DOMAIN: conventions
 INVENTORY: <files_scanned> files across <N> types (backlog=B plans=P requests=Q decisions=D references=R research=S audits=U)
 
 ISSUES:
-❌ CRITICAL [CV-filename-format]   backlog/20260513-foo.md — filename uses legacy YYYYMMDD format
-❌ CRITICAL [CV-status-invalid]    requests/2026-05-14-bar.md — status "wip" not in {open,doing,done,dropped}
-⚠️  WARNING  [CV-cross-ref-pending] decisions/2026-05-14-baz.md — superseded_by: decision/pending
+CRITICAL [CV-filename-format]   backlog/20260513-foo.md — filename uses legacy YYYYMMDD format
+CRITICAL [CV-status-invalid]    requests/2026-05-14-bar.md — status "wip" not in {open,doing,done,dropped}
+WARNING  [CV-cross-ref-pending] decisions/2026-05-14-baz.md — superseded_by: decision/pending
 
 COUNTS: critical=<violations> warning=<warnings> info=0
 ```

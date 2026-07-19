@@ -263,8 +263,8 @@ In context-triggered mode, suggest a focused audit rather than a full one:
 
 ## References
 
-- [01-context-checks.md](references/01-context-checks.md) — Detailed .context/ audit checks (A-F)
-- [02-skills-checks.md](references/02-skills-checks.md) — Skills audit checks (A-J) and scope decision matrix
+- [01-context-checks.md](references/01-context-checks.md) — Pointer to the `context-auditor` agent (the single carrier for .context/ checks)
+- [02-skills-checks.md](references/02-skills-checks.md) — Pointer to the `skills-auditor` agent (the single carrier for skills checks + scope decision matrix)
 - [03-memory-workflow.md](references/03-memory-workflow.md) — Memory classification and externalization workflow
 - [04-fix-procedures.md](references/04-fix-procedures.md) — Safe and destructive fix procedures
 - [05-context-budget.md](references/05-context-budget.md) — Idle token budget, drivers, and `/aidex context` heuristics

@@ -123,10 +123,10 @@ PLUGINS:
   commands: [list]
 
 DRIVERS:
-⚠️  WARNING  [CB-PL] <plugin@marketplace> — ~N,NNN tokens, no use in 30 days — patch: settings.local.json `"enabledPlugins": { "<plugin>@<marketplace>": false }`
-⚠️  WARNING  [PL-SCHEMA] <plugin@marketplace> — manifest schema issues: <list>
-ℹ️  INFO     [CB-PL] <plugin@marketplace> — protected marketplace, leave installed
-ℹ️  INFO     [CB-PL] <plugin@marketplace> — uninstall candidate (requires user confirmation; not protected, zero use anywhere)
+WARNING  [CB-PL] <plugin@marketplace> — ~N,NNN tokens, no use in 30 days — patch: settings.local.json `"enabledPlugins": { "<plugin>@<marketplace>": false }`
+WARNING  [PL-SCHEMA] <plugin@marketplace> — manifest schema issues: <list>
+INFO     [CB-PL] <plugin@marketplace> — protected marketplace, leave installed
+INFO     [CB-PL] <plugin@marketplace> — uninstall candidate (requires user confirmation; not protected, zero use anywhere)
 
 COUNTS: critical=N warning=N info=N
 ```

@@ -49,9 +49,9 @@ DOMAIN: symlinks
 INVENTORY: [N symlinks found]
 
 ISSUES:
-❌ CRITICAL [LK1] .claude/skills/name -> target (BROKEN)
-⚠️  WARNING  [LK2] .claude/skills/name -> unexpected/path
-⚠️  WARNING  [LK3] .claude/skills/name exists as both symlink and directory
+CRITICAL [LK1] .claude/skills/name -> target (BROKEN)
+WARNING  [LK2] .claude/skills/name -> unexpected/path
+WARNING  [LK3] .claude/skills/name exists as both symlink and directory
 
 COUNTS: critical=N warning=N info=N
 ```
