@@ -45,14 +45,32 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    - **Multi-file** (`.context/plans/YYYY-MM-DD-<feature>/` with `00-index.md`):
      5+ phases, 20+ tasks, multi-layer (backend + frontend + infra), or phases
      executed by different sessions/teammates.
-3. Follow the template in the canon: phases with checkboxes, exact file paths,
-   verification step per phase. Write the artifact in English (canon §Language).
+3. Follow the template in the canon — **plans are specs, not scripts** (canon
+   §Philosophy). Write the artifact in English (canon §Language). The authoring
+   rules that matter:
+   - **Carry the Step-0 ratified paragraph verbatim** into the plan's **Design
+     concept** slot, plus **Non-goals** — that layer is the plan's durable core.
+   - **Per phase: Goal + Acceptance** (2–4 observable behaviors, ≥1
+     machine-checkable) **+ a machine gate**. Per task: Files + Spec (intent,
+     pattern anchor, discovered constraints). **Do not pre-write implementation
+     code** — literal code only in a **Contract** block where the exact text IS
+     the spec (signatures, schemas, DDL, invariants). Anchor with symbol names,
+     never bare line numbers.
+   - **Investigate while planning and record the evidence**: the constraints and
+     landmines you discover (existing patterns to mirror, cache/hash seams,
+     dead code paths) go in each task's Spec — that investigation, not code, is
+     what detailed planning is for.
+   - **Proportionality**: every line must pass the removal test ("would the
+     executor get this wrong without it?"). Small plans collapse to Goal +
+     acceptance + phase list + gates. Soft budgets: single-file ≤ 8 KB, phase
+     file ≤ 6 KB (Execution log excluded).
    **Decompose by vertical slices first** (each phase a thin end-to-end piece of
    behavior across layers), not by layer — slices are independently testable and let
    the executor parallelize. Reserve layer-ordering for genuine ordering constraints,
    and push back on a layer-only first phase (see canon §Phase organization). Mark each
    phase's real prerequisites with `depends_on: [...]` (omit/`[]` = independently
-   grabbable) so `aidex-plan-exec` can choose parallel vs sequential execution.
+   grabbable) so `aidex-plan-exec` can choose parallel vs sequential execution, and
+   give any depended-on phase a **Contract** block dependents can rely on.
 4. **Front-load the autonomy surface** so execution needs no questions (see
    [autonomy-conventions.md](../aidex-conventions/references/autonomy-conventions.md)).
    This is the place to resolve every gate up front: which planned **migrations /

@@ -12,6 +12,7 @@
 #                               escalated to this plan, commits live HERE (D-09).
 #   --superseded-by <type/ref>  mark superseded (status stays; modifier records it)
 #   --reason "<text>"           appended under a closing note
+#   --force                     close as done even with unchecked checkboxes
 #
 # After closing, run `reconcile.sh` (Phase 6) to surface upstream backlog/findings
 # that this plan resolved and may now be closeable.
@@ -33,7 +34,7 @@ find_project_root() {
   pwd -P
 }
 
-TARGET="" STATUS="done" SUPERSEDED="" REASON=""
+TARGET="" STATUS="done" SUPERSEDED="" REASON="" FORCE=0
 COMMITS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -41,6 +42,7 @@ while [[ $# -gt 0 ]]; do
     --commit)        COMMITS+=("$2"); shift 2 ;;
     --superseded-by) SUPERSEDED="$2"; shift 2 ;;
     --reason)        REASON="$2"; shift 2 ;;
+    --force)         FORCE=1; shift ;;
     -h|--help)       sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*)              die "unknown option: $1" ;;
     *)               TARGET="$1"; shift ;;
@@ -74,6 +76,19 @@ case "$PLAN_PATH" in
   */_archive/*) die "plan already archived: $PLAN_PATH" ;;
 esac
 
+# consistency guard: closing as done with unchecked checkboxes means the
+# front-matter and the phase checkpoints would disagree in the archive
+if [[ "$STATUS" == "done" && "$FORCE" -eq 0 ]]; then
+  if [[ -d "$PLAN_PATH" ]]; then
+    UNCHECKED="$(grep -h -c '^\s*- \[ \]' "$PLAN_PATH"/*.md 2>/dev/null | awk '{s+=$1} END {print s+0}')"
+  else
+    UNCHECKED="$(grep -c '^\s*- \[ \]' "$PLAN_PATH" 2>/dev/null || true)"
+  fi
+  if [[ "${UNCHECKED:-0}" -gt 0 ]]; then
+    die "plan has $UNCHECKED unchecked checkbox(es) — closing as done would archive inconsistent state. Check them off, close with --status dropped, or pass --force"
+  fi
+fi
+
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
 
@@ -103,6 +118,10 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v commits="$COMM
   }
   { print }
 ' "$FM_FILE" > "$FM_FILE.tmp" && mv "$FM_FILE.tmp" "$FM_FILE"
+
+# keep the Session Checkpoint's **Status:** line in lockstep with front-matter
+# (observed archive drift: front-matter done while the checkpoint still said open)
+sed -E "s/^\*\*Status:\*\*[[:space:]].*/**Status:** $STATUS/" "$FM_FILE" > "$FM_FILE.tmp" && mv "$FM_FILE.tmp" "$FM_FILE"
 
 [[ -n "$REASON" ]] && printf -- '\n> Closing note (%s): %s\n' "$TODAY" "$REASON" >> "$FM_FILE"
 

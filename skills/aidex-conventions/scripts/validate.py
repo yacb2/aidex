@@ -696,6 +696,82 @@ def check_plan_phase_gates(path: Path, text: str, fm: dict | None) -> list[Findi
                 f"phase is unconstrained; add tests/type-check/build before implementing"))
     return findings
 
+# ---------- Plan spec-shape checks (spec-first canon, ADR 2026-07-19-plan-spec-first) ----------
+
+EXEC_LOG_SECTION_RE = re.compile(r"(?ms)^##[ \t]+Execution [Ll]og\b.*?(?=^##[ \t]|\Z)")
+PLAN_SIZE_BUDGETS = {"single": 8 * 1024, "phase": 6 * 1024}
+PLAN_CODE_HEAVY_RATIO = 0.5
+PLAN_CODE_HEAVY_MIN_BYTES = 2048
+
+def _plan_file_kind(path: Path) -> str | None:
+    """'single' for plans/<date>-<slug>.md, 'phase' for NN-*.md inside a modular
+    plan folder, None for indexes and anything else."""
+    if path.name == "00-index.md":
+        return None
+    if path.parent.name == "plans":
+        return "single"
+    if path.parent.parent.name == "plans" and re.match(r"^\d{2}-", path.name):
+        return "phase"
+    return None
+
+def _plan_spec_body(text: str) -> str:
+    """Plan body with front-matter and the Execution log section stripped —
+    the log is journaling, excluded from spec-shape budgets by canon."""
+    return EXEC_LOG_SECTION_RE.sub("", body_after_frontmatter(text))
+
+def check_plan_spec_shape(path: Path, text: str, fm: dict | None) -> list[Finding]:
+    """Spec-first shape warnings: afk-impl phases must declare Acceptance;
+    plan files should stay inside the soft size budget; a file whose body is
+    mostly fenced code is an implementation script, not a spec (allowed only
+    for tier: mechanical batch phases)."""
+    findings: list[Finding] = []
+    if "_archive" in path.parts:
+        return findings
+    kind = _plan_file_kind(path)
+
+    # Per-phase Acceptance presence (same phase-splitting as the gates check).
+    headings = list(PHASE_HEADING_RE.finditer(text))
+    for i, m in enumerate(headings):
+        heading = m.group(0)
+        start = m.end()
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        body = text[start:end]
+        if _phase_type(heading, fm) != "afk-impl":
+            continue
+        if not re.search(r"(?im)^\s*\*\*\s*acceptance", body):
+            label = heading.lstrip("#").strip()
+            findings.append(Finding("plans", str(path), "plan-phase-missing-acceptance", "warning",
+                f"afk-impl phase {label!r} declares no **Acceptance** block — spec-first plans "
+                f"carry 2-4 observable behaviors per phase (>=1 machine-checkable)"))
+    # Phase files with no in-file heading (front-matter-carried metadata) still
+    # need Acceptance somewhere in the body.
+    if kind == "phase" and not headings and _phase_type("", fm) == "afk-impl":
+        if not re.search(r"(?im)^\s*\*\*\s*acceptance", text):
+            findings.append(Finding("plans", str(path), "plan-phase-missing-acceptance", "warning",
+                f"phase file declares no **Acceptance** block — spec-first plans carry "
+                f"2-4 observable behaviors per phase (>=1 machine-checkable)"))
+
+    if kind is None:
+        return findings
+    spec_body = _plan_spec_body(text)
+    spec_bytes = len(spec_body.encode("utf-8", errors="replace"))
+    budget = PLAN_SIZE_BUDGETS[kind]
+    if spec_bytes > budget:
+        findings.append(Finding("plans", str(path), "plan-file-oversize", "warning",
+            f"spec content is {spec_bytes} B against the ~{budget} B soft budget "
+            f"(Execution log excluded) — over-budget plans usually carry derivable "
+            f"code or narration; apply the removal test"))
+
+    code_bytes = sum(len(m.group(0).encode("utf-8", errors="replace"))
+                     for m in FENCED_CODE_RE.finditer(spec_body))
+    if (code_bytes > PLAN_CODE_HEAVY_MIN_BYTES
+            and spec_bytes > 0 and code_bytes / spec_bytes > PLAN_CODE_HEAVY_RATIO):
+        findings.append(Finding("plans", str(path), "plan-code-heavy", "warning",
+            f"fenced code is {code_bytes}/{spec_bytes} B ({code_bytes * 100 // spec_bytes}%) of "
+            f"spec content — plans are specs, not scripts; literal code belongs only in "
+            f"Contract blocks (exception: tier: mechanical batch phases)"))
+    return findings
+
 # ---------- Driver ----------
 
 def find_context_dir(start: Path) -> Path | None:
@@ -770,6 +846,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                     file_findings.append(df)
             if type_name == "plans":
                 file_findings.extend(check_plan_phase_gates(path, text, fm))
+                file_findings.extend(check_plan_spec_shape(path, text, fm))
             findings.extend(file_findings)
             for fnd in file_findings:
                 if fnd.severity == "violation":

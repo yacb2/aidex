@@ -31,6 +31,9 @@ EXPECTED_BAD_RULES = {
     "backlog-priority-invalid",
     "communication-channel-invalid",
     "plan-phase-gateless-afk",
+    "plan-phase-missing-acceptance",
+    "plan-file-oversize",
+    "plan-code-heavy",
     "readme-in-context",
     "body-language-not-english",
     "audit-legacy-board-name",
@@ -116,6 +119,56 @@ def check_phase_gate_unit(failures: list[str]) -> None:
         Path(".context/plans/_archive/2026-01-01-old/01-x.md"), pos, None)]
     if "plan-phase-gateless-afk" in archived:
         failures.append("phase-gate unit: archived plan warned (should be exempt — _archive/)")
+
+
+def check_plan_spec_shape_unit(failures: list[str]) -> None:
+    """Direct cells for check_plan_spec_shape (spec-first canon, ADR
+    2026-07-19-plan-spec-first): afk-impl phases need an **Acceptance** block;
+    plan files warn over the soft size budget (Execution log excluded) and when
+    fenced code dominates the spec body; _archive/ and 00-index.md are exempt."""
+    v = _load_validator()
+    single = Path(".context/plans/2026-01-01-x.md")
+    phase = Path(".context/plans/2026-01-01-x/01-slice.md")
+
+    def rules(text: str, fm: dict | None = None, path: Path = single) -> list[str]:
+        return [f.rule for f in v.check_plan_spec_shape(path, text, fm)]
+
+    no_acc = "### Phase 1 — Do it  (phase-type: afk-impl)\n- work\n\n**Verify:** `pytest`\n"
+    if "plan-phase-missing-acceptance" not in rules(no_acc):
+        failures.append("spec-shape unit: afk-impl phase without Acceptance did not warn")
+    with_acc = ("### Phase 1 — Do it  (phase-type: afk-impl)\n"
+                "**Acceptance:**\n- reset email lands in MailHog\n\n**Verify:** `pytest`\n")
+    if "plan-phase-missing-acceptance" in rules(with_acc):
+        failures.append("spec-shape unit: phase with Acceptance warned (false positive)")
+    hitl = "### Phase 1 — Align  (phase-type: hitl-align)\n- decide scope\n"
+    if "plan-phase-missing-acceptance" in rules(hitl):
+        failures.append("spec-shape unit: hitl-align phase warned (should be exempt)")
+    # multi-file phase file carrying metadata in front-matter, no in-file heading
+    if "plan-phase-missing-acceptance" not in rules("- work\n", {"phase-type": "afk-impl"}, phase):
+        failures.append("spec-shape unit: front-matter afk-impl phase file without Acceptance did not warn")
+
+    filler = ("English spec prose line that is deliberately long enough to add bytes.\n" * 130)
+    if "plan-file-oversize" not in rules(with_acc + filler):  # ~9.5 KB > 8 KB single budget
+        failures.append("spec-shape unit: 9KB+ single-file plan did not warn oversize")
+    if "plan-file-oversize" in rules(with_acc):
+        failures.append("spec-shape unit: small plan warned oversize (false positive)")
+    logged = with_acc + "\n## Execution log\n\n" + filler
+    if "plan-file-oversize" in rules(logged):
+        failures.append("spec-shape unit: Execution log bytes counted against the size budget")
+
+    code = "```python\n" + ("x = 1  # pre-written implementation line\n" * 90) + "```\n"
+    if "plan-code-heavy" not in rules(with_acc + code):  # ~3.4 KB code > 50% of body
+        failures.append("spec-shape unit: code-dominated plan did not warn code-heavy")
+    small_code = with_acc + "```python\ndef contract(x: int) -> str: ...\n```\n"
+    if "plan-code-heavy" in rules(small_code):
+        failures.append("spec-shape unit: small contract block warned code-heavy (false positive)")
+
+    archived = Path(".context/plans/_archive/2026-01-01-x.md")
+    if rules(no_acc + filler + code, None, archived):
+        failures.append("spec-shape unit: archived plan produced findings (should be exempt)")
+    index = Path(".context/plans/2026-01-01-x/00-index.md")
+    if "plan-file-oversize" in rules(filler, None, index):
+        failures.append("spec-shape unit: 00-index.md warned oversize (size budgets are per plan/phase file)")
 
 
 def check_crossref_prefix_coverage(failures: list[str]) -> None:
@@ -288,6 +341,7 @@ def main() -> int:
 
     check_canon_lockstep(failures)
     check_phase_gate_unit(failures)
+    check_plan_spec_shape_unit(failures)
     check_crossref_prefix_coverage(failures)
     check_worktrees_no_double_count(good, failures)
     check_baseline_ratchet(failures)
