@@ -81,5 +81,17 @@ if (cd "$TD" && bash "$SCRIPT" 2026-07-19-modular >/dev/null 2>&1); then
 fi
 rm -rf "$TD"
 
+# 6. regression (2026-07-19): modular plan with ZERO unchecked boxes must close —
+# grep -c exits 1 on no matches, and pipefail killed the guard's count pipeline
+TD="$(make_project)"; DIR="$TD/.context/plans/2026-07-19-clean-modular"
+mkdir -p "$DIR"
+write_plan "$DIR/00-index.md" "[x]"
+printf '# Phase 1: Slice\n\n- [x] Task 1.1: done\n' > "$DIR/01-slice.md"
+if ! (cd "$TD" && bash "$SCRIPT" 2026-07-19-clean-modular >/dev/null 2>&1); then
+  fail "clean modular close failed (grep -c pipefail regression)"
+fi
+[[ -d "$TD/.context/plans/_archive/2026-07-19-clean-modular" ]] || fail "clean modular close did not archive"
+rm -rf "$TD"
+
 if [[ "$FAILS" -gt 0 ]]; then echo "FAIL ($FAILS)"; exit 1; fi
-echo "OK — close-plan guard: 5 cells passed"
+echo "OK — close-plan guard: 6 cells passed"
