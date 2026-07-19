@@ -648,6 +648,13 @@ def check_audit_folders(context_dir: Path) -> list[Finding]:
 
 PHASE_HEADING_RE = re.compile(r"(?m)^#{1,4}[ \t]+Phase\b[^\n]*$")
 
+def _is_checkpoint_heading(heading: str) -> bool:
+    """'## Phase N Checkpoint' matches the Phase regex but is a tracking
+    section, not a phase (regression 2026-07-19: the acceptance/gate checks
+    flagged checkpoint sections). Still used as a body boundary — only skipped
+    as a phase."""
+    return bool(re.search(r"Checkpoint[ \t]*$", heading))
+
 def _phase_type(heading: str, fm: dict | None) -> str:
     """afk-impl (default) unless an inline annotation or front-matter says hitl-align."""
     m = re.search(r"phase-type:\s*(hitl-align|afk-impl)", heading)
@@ -687,6 +694,8 @@ def check_plan_phase_gates(path: Path, text: str, fm: dict | None) -> list[Findi
         start = m.end()
         end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
         body = text[start:end]
+        if _is_checkpoint_heading(heading):
+            continue
         if _phase_type(heading, fm) != "afk-impl":
             continue
         if not _phase_has_gate(heading, body, fm):
@@ -736,6 +745,8 @@ def check_plan_spec_shape(path: Path, text: str, fm: dict | None) -> list[Findin
         start = m.end()
         end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
         body = text[start:end]
+        if _is_checkpoint_heading(heading):
+            continue
         if _phase_type(heading, fm) != "afk-impl":
             continue
         if not re.search(r"(?im)^\s*\*\*\s*acceptance", body):
