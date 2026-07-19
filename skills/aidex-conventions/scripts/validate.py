@@ -515,6 +515,40 @@ def check_deferred_blocked_by(path: Path, fm: dict | None) -> Finding | None:
     return Finding("backlog", str(path), "deferred-missing-blocked-by", "warning",
                    "deferred item has no blocked_by — _deferred/ items must record their blocker")
 
+def check_archive_status_open(type_name: str, path: Path, fm: dict | None) -> Finding | None:
+    """A file under _archive/ of an archive-bearing type whose status is still
+    open/doing is archived-but-not-closed: the location says terminal, the status
+    says active (dual-carried lifecycle drift). Warning, not violation — retrofit
+    check: existing boards without a ratchet baseline must not hard-fail. Sub-documents
+    and loop STATE sidecars don't own a status (check_status skips them too) — exempt.
+    """
+    if type_name not in TYPES_WITH_ARCHIVE:
+        return None
+    if "_archive" not in path.parts:
+        return None
+    if is_subdocument(type_name, path) or is_loop_state_sidecar(type_name, path):
+        return None
+    if fm and fm.get("status") in ("open", "doing"):
+        return Finding(type_name, str(path), "archive-status-open", "warning",
+                       f"archived but status={fm['status']!r} — set done/dropped or move it "
+                       f"back to the active queue")
+    return None
+
+BACKLOG_PLACEHOLDER_RE = re.compile(r"<!--\s*(?:Why is this worth doing|concrete, verifiable criterion)")
+
+def check_backlog_placeholder_body(path: Path, text: str) -> Finding | None:
+    """An active backlog entry still carrying register-item.sh's template placeholder
+    HTML comments was never filled in. Warning (additive, ratchet-absorbed): the
+    close self-check catches empty-body items instead of archiving them unnoticed.
+    Archived items are exempt — the drift is only actionable before close."""
+    if "_archive" in path.parts:
+        return None
+    if BACKLOG_PLACEHOLDER_RE.search(text):
+        return Finding("backlog", str(path), "backlog-placeholder-body", "warning",
+                       "entry still contains register-template placeholder comments — fill in "
+                       "Context/Acceptance before closing")
+    return None
+
 def check_plan_current_phase(plan_dir: Path) -> Finding | None:
     index = plan_dir / "00-index.md"
     if not index.is_file():
@@ -848,6 +882,9 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             lf = check_body_language(type_name, path, text)
             if lf:
                 file_findings.append(lf)
+            af = check_archive_status_open(type_name, path, fm)
+            if af:
+                file_findings.append(af)
             if type_name == "backlog":
                 bf = check_backlog_priority(path, fm)
                 if bf:
@@ -855,6 +892,9 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                 df = check_deferred_blocked_by(path, fm)
                 if df:
                     file_findings.append(df)
+                bpf = check_backlog_placeholder_body(path, text)
+                if bpf:
+                    file_findings.append(bpf)
             if type_name == "plans":
                 file_findings.extend(check_plan_phase_gates(path, text, fm))
                 file_findings.extend(check_plan_spec_shape(path, text, fm))

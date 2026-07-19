@@ -9,7 +9,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 - Name an index file anything other than `00-index.md` (sole alias: `00-overview.md` in `research/<topic>/`).
 - Use a physical relative path in `escalated_to`, `superseded_by`, `blocked_by`, or `origin_ref`. Use the `<type>/<filename>` marker.
 - Embed lifecycle modifiers in `status` (`escalated`, `triaged`, `in-progress` as standalone statuses). Modifiers live in their own fields.
-- Hand-edit `.context/backlog/00-index.md`. It is auto-regenerated from front-matter.
+- Hand-edit an auto-generated index. `backlog/00-index.md`, `plans/00-index.md`, and each audit methodology's `audits/<methodology>/00-index.md` are regenerated from front-matter (backlog register / `reindex-plans.sh` / `reindex-audits.sh`) — your edit is erased on the next run.
 - Delete or rename a finished artifact in place. Move it to `_archive/` instead so inbound `<type>/<filename>` references still resolve.
 
 ## ALWAYS
@@ -30,8 +30,8 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 | Artifact | Folder | Filename | Index | Archive |
 |---|---|---|---|---|
 | Backlog item | `backlog/` | `YYYY-MM-DD-<slug>.md` | `00-index.md` (auto-gen) | `_archive/` |
-| Plan (single) | `plans/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
-| Plan (modular) | `plans/YYYY-MM-DD-<slug>/` | `00-index.md` + `NN-*.md` | `00-index.md` | `_archive/` |
+| Plan (single) | `plans/` | `YYYY-MM-DD-<slug>.md` | `plans/00-index.md` (auto-gen roll-up) | `_archive/` |
+| Plan (modular) | `plans/YYYY-MM-DD-<slug>/` | `00-index.md` + `NN-*.md` | `plans/00-index.md` (auto-gen roll-up) + per-plan `00-index.md` | `_archive/` |
 | Request | `requests/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Decision (ADR) | `decisions/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Reference | `references/<topic>/` | `NN-<slug>.md` | `00-index.md` | versioned in place |
