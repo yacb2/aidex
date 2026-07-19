@@ -22,6 +22,9 @@ NEW="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "lifecycle test 
 ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$NEW")"
 check "new item gets id BL-001" '[[ "$ID" == "BL-001" ]]'
 check "commits field present and empty" 'grep -q "^commits: \"\"" "$NEW"'
+# BL-065: Acceptance is plain "Done means:" bullets, no checkbox ceremony.
+check "template uses plain 'Done means' bullets" 'grep -q "Done means" "$NEW"'
+check "template has no acceptance checkbox" '! grep -q "^- \[ \]" "$NEW"'
 
 echo "== harvest commit =="
 bash "$SCRIPTS/harvest-commit.sh" --sha abc1234 --message "fix
@@ -78,6 +81,22 @@ perl -i -pe 's{^escalated_to: ""}{escalated_to: plan/2026-01-01-test-plan}' "$ES
 check "reconcile flags close-candidate (exit 1)" '! bash "$SCRIPTS/reconcile.sh" >/dev/null 2>&1'
 RECON="$(bash "$SCRIPTS/reconcile.sh" 2>&1 || true)"
 check "reconcile names the candidate" '[[ "$RECON" == *"close it"* ]]'
+
+echo "== closed-section windowing =="
+# BL-058: the ## Closed section windows to the most recent 20 closures plus a
+# count pointer, so the index tracks the active queue not lifetime throughput.
+# Synthesize 25 archived fixtures (distinct updated dates drive the newest-first sort).
+for i in $(seq -w 1 25); do
+  printf -- '---\ntitle: "closed fixture %s"\nid: BL-9%s\nstatus: done\nupdated: 2026-02-%s\n---\n' "$i" "$i" "$i" \
+    > ".context/backlog/_archive/2026-02-$i-closed-fixture-$i.md"
+done
+bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1
+ARCHIVED_TOTAL="$(ls .context/backlog/_archive/*.md | wc -l | tr -d ' ')"
+check "index windows closed section (>20 shows pointer)" 'grep -q "older closed items" .context/backlog/00-index.md'
+CLOSED_LINES="$(sed -n '/## Closed/,$p' .context/backlog/00-index.md | grep -c "^- ")"
+check "closed section capped at 20 detail lines" '[[ "$CLOSED_LINES" -eq 20 ]]'
+EXPECTED_OLDER=$((ARCHIVED_TOTAL - 20))
+check "pointer counts the remainder" 'grep -q "and $EXPECTED_OLDER older closed items" .context/backlog/00-index.md'
 
 echo
 echo "lifecycle: $PASS passed, $FAIL failed"
