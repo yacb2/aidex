@@ -18,6 +18,11 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _coverage_lib as lib
 
+# Pinned shape of coverage-matrix.json. Bump when the key set changes; the dash
+# consumer (aidex-dash render_coverage.py) rejects any value it does not know,
+# so a producer-side rename fails loudly instead of rendering a wrong board.
+SCHEMA = "coverage-matrix/1"
+
 # Heuristic for "this tracked file is a test file", used only to find test
 # files that match no module's test globs (breadth gaps in the map itself).
 TEST_FILE_RE = re.compile(
@@ -95,6 +100,7 @@ def build_matrix(root):
     }
 
     return {
+        "schema": SCHEMA,
         "generated": datetime.now().isoformat(timespec="seconds"),
         "modules": rows,
         "totals": totals,

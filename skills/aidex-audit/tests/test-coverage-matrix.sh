@@ -48,6 +48,7 @@ import json
 with open('$JSON') as f:
     data = json.load(f)
 assert 'generated' in data and data['generated'], data
+assert data.get('schema') == 'coverage-matrix/1', data.get('schema')
 assert len(data['modules']) == 2, data['modules']
 print('OK')
 ")"

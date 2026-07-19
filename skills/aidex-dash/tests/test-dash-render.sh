@@ -110,6 +110,7 @@ EOF
 
 cat > "$CTX/audits/test-coverage/coverage-matrix.json" <<'EOF'
 {
+  "schema": "coverage-matrix/1",
   "generated": "2026-07-05T00:00:00",
   "modules": [
     {"id": "billing", "src_files": 596, "unit_files": 40, "unit_tests": 1181, "e2e_files": 61, "e2e_tests": 1296, "notes": "—"},
