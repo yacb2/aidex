@@ -84,12 +84,41 @@ The two-stage gate (Bash verifier → conditional durability-arbiter), kill-resu
 `resumeFromRunId`, and the ~22k/agent cost floor all come from there. The spec **cites**
 that machinery; it does not re-author it.
 
+## Carrier authority — spec-only
+
+The `Workflow` tool executes a `.workflow.js`, never the markdown. That makes two
+carriers unavoidable; **the spec is the authoritative one**:
+
+- **The `.md` workflow-spec is the single binding carrier.** It holds the design
+  rationale, the shape choice, the per-agent model table, the work-list, the gate
+  policy, and the autonomy surface — the payload no launchable script can carry.
+- **The `.workflow.js` is generated at launch from the spec and is disposable.**
+  It is **spec-only** derived: never committed, never hand-maintained, never stored
+  in `.context/workflows/`. Generate it into the session scratchpad (or an equivalent
+  transient location) at run time and discard it when the run ends. If the two ever
+  diverge, **the spec wins** — regenerate the js, never patch it and back-port.
+- **Prompts reference plans by type-ref, not frozen paths.** A pre-written agent
+  prompt that names a plan must use the `plan/<slug>` type-ref resolved at launch via
+  the two-folder lookup ([`00-global.md` §3](../../aidex-conventions/references/00-global.md)),
+  never a hardcoded active path like `.context/plans/<slug>.md` — that path breaks the
+  moment the plan archives.
+
+Rationale: js-primary was rejected because the js cannot carry the design rationale
+this skill exists to capture, and aidex-plan-exec's versioned Workflow forms already
+own the js-as-committed-asset pattern. See
+[`decisions/2026-07-19-workflow-spec-carrier.md`](../../../.context/decisions/2026-07-19-workflow-spec-carrier.md).
+
 ## Lifecycle
 
 - `doing` while the workflow is designed or running; `done` when the goal's end-to-end
   verification passes; `dropped` if abandoned or superseded.
 - **Archive on close** (D-05/D-10): move `done`/`dropped` specs to
   `.context/workflows/_archive/`. Cross-references resolve via the two-folder lookup.
+- **Close with the origin plan.** When a workflow-spec's origin plan closes, the spec
+  must be closed **in the same motion** — `done` if the workflow launched, `dropped` if
+  it was superseded (e.g. the work shipped via ordinary plan execution) — and archived.
+  A spec must never outlive the plan it wraps: an unclosed spec pointing at an archived
+  plan is a stale, unlaunchable dead letter.
 - The **Notes / iteration log** captures observed agent failures — each repeatable
   failure is a prompt-tuning signal for the spec's stage prompts.
 
