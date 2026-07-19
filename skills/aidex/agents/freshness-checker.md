@@ -48,7 +48,7 @@ Roadmaps are checkboxed source-of-truth documents. Auto-editing checkbox state f
 - Read each `roadmap/*.md` file. Extract its header `date:` (or `Last Updated:`).
 - Look for plans, audits, or decisions in `.context/plans/`, `.context/audits/*/index.md`, and `.context/decisions/` whose own `date:` is **after** the roadmap's date AND that mention modules / phases referenced in the roadmap.
 - If at least one match is found AND the roadmap still has unchecked `- [ ]` items in the affected phase: emit `WARNING [F6]` with text:
-  - `⚠️ Roadmap refresh pending — <plan-or-audit-or-decision-path> (date: YYYY-MM-DD) post-dates <roadmap-file> and may indicate completed/changed phases.`
+  - `Roadmap refresh pending — <plan-or-audit-or-decision-path> (date: YYYY-MM-DD) post-dates <roadmap-file> and may indicate completed/changed phases.`
 - Include up to 3 pointer paths per roadmap finding.
 - **Never auto-edit checkboxes.** The user reviews and updates.
 

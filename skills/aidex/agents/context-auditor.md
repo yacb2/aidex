@@ -44,7 +44,7 @@ Read conventions at runtime:
 - **[A] Root-level clutter**: `.md` files directly in root (not inside module subdirectories). Exception: `README.md`.
 - **[B] Index coverage**: Every module has `00-index.md` linking ALL other files in the module.
 - **[C] Numbering gaps**: Files follow `NN-topic.md` with no gaps in sequence (00, 01, 02... not 00, 01, 03).
-- **[D] Metadata headers**: Every file (except 00-index.md) has Version, Last Updated, Context fields.
+- **[D] Front-matter presence**: Reference and doc files carry YAML front-matter (`title`, `status`, `created`, `updated`) where the type requires it. Enforcement and per-type exemptions (module sub-docs carry none; reference `status` is optional) belong to `validate.py` (`CV-*`) — defer to it and suppress any overlapping finding here.
 - **[E] Cross-reference integrity**: All internal links resolve to existing files.
 - **[F] Naming convention**: All files match `NN-kebab-case.md` pattern.
 
@@ -93,7 +93,7 @@ Read conventions at runtime:
 - **[UE] Orphan finding references**: IDs mentioned in per-run `findings.md` must exist in INVENTORY.
 - **[UF] Orphan backlog references**: Backlog entries with `origin: audit` must point at finding IDs that exist in INVENTORY (check `origin_ref: audit/<methodology>/<run>/<finding-id>`).
 - **[UG] Playbook for declared type**: If any run's `index.md` declares `Type: <type>` (a known type), `methodology/<type>.md` must exist.
-- **[UH] CHANGELOG freshness**: `CHANGELOG.md` present and non-empty (has at least the initial entry). Warn if last entry > 6 months old AND INVENTORY has grown >20% since.
+- **[UH] Changelog freshness**: `00-changelog.md` present and non-empty (has at least the initial entry); the legacy uppercase `CHANGELOG.md` name is tolerated (INFO, flag for migration), consistent with [UA]. Warn if last entry > 6 months old AND INVENTORY has grown >20% since.
 
 Fast implementation hint: shell out to `~/.aidex/skills/aidex-audit/scripts/validate-audit.sh --json <audits-dir>` when available — it produces the same violations in JSON. Parse and map to check codes above. Fall back to manual checks only if the script is missing.
 
@@ -156,12 +156,12 @@ DOMAIN: [refs|docs|plans|backlog|issues|roadmap|requests|decisions|audits]
 INVENTORY: [N items found]
 
 ISSUES:
-❌ CRITICAL [check-code] description
-⚠️  WARNING  [check-code] description
-ℹ️  INFO     [check-code] description
+CRITICAL [check-code] description
+WARNING  [check-code] description
+INFO     [check-code] description
 
 REORGANIZATION:
-💡 SUGGEST  [description] → [what to do and why]
+SUGGEST  [description] → [what to do and why]
 
 COUNTS: critical=N warning=N info=N suggestions=N
 ```
