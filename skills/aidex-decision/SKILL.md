@@ -26,10 +26,12 @@ lives in the shared `aidex-conventions` reference package (not forked here).
    (`accepted` · `superseded` · `dropped`), **not** the base
    open/doing/done vocabulary. Set `superseded_by: decision/<filename>` when
    one decision replaces another.
-4. Body per the canon template: **Context**, **Decision** (Chosen +
-   Rationale), **Consequences**. Capture the alternatives considered and the
-   deciding factor, not just the verdict. Write the artifact in English
-   (canon §Language).
+4. Body per the canon template: **Context**, **Decision**, **Consequences**
+   are the mandated triad. Capture the deciding factor, not just the verdict.
+   Add a separate **Options Considered** (Pros/Cons) section only when two or
+   more alternatives were genuinely weighed; otherwise fold the alternatives
+   into the Decision prose ("considered X and Y; chose Z because …"). Write the
+   artifact in English (canon §Language).
 
 ## Closing a decision
 

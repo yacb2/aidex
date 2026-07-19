@@ -23,12 +23,13 @@ shared `aidex-conventions` reference package (not forked here).
 2. Create a topic module: `.context/references/<topic>/` with `00-index.md`
    plus sequential `NN-<slug>.md` files. Reference filenames carry **no
    date** — references are evergreen, updated in place, **no `_archive/`**.
-3. Front-matter per the canon: `title`, `status`, `created`, `updated`,
-   `version` (semantic `X.Y.Z`). References are exempt from the
-   status-vocabulary check.
-4. Body per the canon module template: **Overview**, **Prerequisites**,
-   main sections with language-hinted code blocks, **Verification**,
-   **Version history**. Write the artifact in English (canon §Language).
+3. Front-matter per the canon: `title`, `created`, `updated`. References are
+   exempt from the status-vocabulary check; `updated` is the freshness signal.
+4. Body per the canon module template: **Overview**, main sections with
+   language-hinted code blocks, **Verification** (Prerequisites and Quick
+   Reference only when the topic needs them). Anchor claims with stable
+   references (symbol names, file paths) — never bare line numbers, which rot
+   on the first refactor. Write the artifact in English (canon §Language).
 
 ## Self-check (mandatory close step)
 
