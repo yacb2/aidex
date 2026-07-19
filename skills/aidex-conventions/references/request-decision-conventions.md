@@ -161,6 +161,13 @@ Other optional fields:
 
 ### Body template
 
+**Context**, **Decision**, and **Consequences** are the mandated triad. The
+Options-Considered / Pros-Cons scaffold is **conditional**: include it only when
+two or more alternatives were genuinely weighed and the head-to-head is the
+anti-re-litigation payload. For a decision with one obvious verdict plus
+reasoning, a one-line Alternatives note inside Decision is enough — do not
+inflate it with empty Pros/Cons ceremony.
+
 ```markdown
 # [Decision Title]
 
@@ -168,7 +175,7 @@ Other optional fields:
 
 [What situation or problem prompted this decision? What constraints exist?]
 
-## Options Considered
+## Options Considered  <!-- include only when >=2 real alternatives were weighed -->
 
 ### Option A: [Name]
 - **Pros:** [advantages]
@@ -182,9 +189,9 @@ Other optional fields:
 
 ## Decision
 
-**Chosen:** [Option X]
-
-**Rationale:** [Why this option won. What was the deciding factor?]
+[The choice, and why it won — the deciding factor. When no separate Options
+Considered section is warranted, fold the alternatives here in prose:
+"Considered X and Y; chose Z because …".]
 
 ## Consequences
 

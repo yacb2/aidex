@@ -32,12 +32,12 @@ Research has **two sanctioned shapes**, size-based (mirroring the plan single-fi
 
 When superseding content:
 
-1. Update the existing module in place. Bump `Version` and `Last Updated`.
+1. Update the existing module in place. Stamp `updated`.
 2. If the old content has historical value, keep it in a clearly-labelled section (e.g., "### Legacy: pre-2026 setup") rather than relocating the file.
 3. If a module is wholly replaced by another, add a top-of-file note linking forward and update inbound references.
 
 ```markdown
-> **Note** This module replaces the legacy approach previously in `01-old-flow.md`. See Version History.
+> **Note** This module replaces the legacy approach previously in `01-old-flow.md`.
 ```
 
 ---
@@ -97,7 +97,6 @@ title: "Topic name reference"
 status: doing
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-version: 1.0.0
 ---
 
 # [Topic Name] Reference
@@ -105,13 +104,6 @@ version: 1.0.0
 **Context:** [What this reference covers]
 
 ---
-
-## Quick Reference
-
-| Action | Document | Section |
-|---|---|---|
-| [Task 1] | [01-filename](./01-filename.md) | [Section](#anchor) |
-| [Task 2] | [02-filename](./02-filename.md) | [Section](#anchor) |
 
 ## Documents in this reference
 
@@ -121,11 +113,6 @@ version: 1.0.0
 | 01 | [First topic](./01-topic.md) | Brief description |
 | 02 | [Second topic](./02-topic.md) | Brief description |
 
-## Prerequisites
-
-- [Prerequisite 1]
-- [Prerequisite 2]
-
 ## Key information
 
 [Critical information that applies to all modules — server URLs, credentials location, etc.]
@@ -133,17 +120,20 @@ version: 1.0.0
 ## Related references
 
 - [Related topic](../related/00-index.md)
-
----
-
-## Version history
-
-| Version | Date | Changes |
-|---|---|---|
-| 1.0.0 | YYYY-MM-DD | Initial version |
 ```
 
-`status` for references typically stays `doing` (under active maintenance) or `done` (frozen, e.g., legacy system docs). `dropped` means superseded outright.
+`updated` is the freshness signal — stamp it on every edit; git-style change
+logs are not tracked in `.context/` conventions. When a revision meaningfully
+changes what the doc claims (not a typo pass), you MAY leave a one-line dated
+note at the bottom — useful in projects whose `.context/` is gitignored, where
+no VCS history backs the doc — but it is not mandated ceremony. `status` for references
+typically stays `doing` (under active maintenance) or `done` (frozen, e.g.,
+legacy system docs). `dropped` means superseded outright.
+
+**Include when the topic needs them, not by default:** a `## Quick Reference`
+action-to-document table (worth it for a large index with many entry points)
+and a `## Prerequisites` list (worth it when the reader genuinely needs prior
+setup). Omit both for a small or self-contained topic.
 
 ---
 
@@ -155,7 +145,6 @@ title: "Module title"
 status: doing
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-version: 1.0.0
 ---
 
 # [Module Title]
@@ -169,6 +158,8 @@ version: 1.0.0
 [1–2 paragraphs — purpose, scope]
 
 ## Prerequisites
+
+<!-- Include when the module needs prior setup; omit otherwise. -->
 
 - [Prerequisite 1]
 - [Prerequisite 2]
@@ -255,29 +246,36 @@ For cross-references to **other artifact types** (backlog, plans, decisions, etc
 
 ---
 
+## Stable anchors — no bare line numbers
+
+References are evergreen and outlive the code they describe, so anchor claims
+with **stable references** (symbol names, "after the `speed_override` field",
+file paths) — never bare line numbers, which go stale on the first intervening
+commit. `file:line` is acceptable only as a supplement to a symbol anchor. No
+consumer detects a rotted line anchor, so the discipline is on the author.
+
+---
+
 ## Validation rules
 
-### Structure
-- [ ] `00-index.md` (or `00-overview.md` in `research/`) exists
-- [ ] Files numbered sequentially (no gaps)
-- [ ] File names use kebab-case
+`validate.py --type references` enforces exactly the following; everything else
+in this file is authoring guidance, not a machine-checked rule:
+
+- [ ] `00-index.md` (or `00-overview.md` in `research/`) exists for the topic
+- [ ] File names match `NN-<kebab-case>.md` (kebab-case, two-digit prefix)
 - [ ] No `_archive/` folder (D-05)
-
-### Metadata
-- [ ] Front-matter has `title`, `status`, `created`, `updated`, `version`
-- [ ] Version follows semantic format (`X.Y.Z`)
+- [ ] The index (and any non-sub-document file) carries `title`, `created`,
+      `updated`; `status` is optional (references are documentation, not work
+      items). Module sub-documents (`NN-*.md` under a topic) are exempt from
+      front-matter entirely.
 - [ ] Dates use `YYYY-MM-DD` (D-01)
+- [ ] Cross-references resolve to an existing artifact
+- [ ] Body is written in English (D-04)
 
-### Content
-- [ ] Overview section in each module
-- [ ] Prerequisites section present where applicable
-- [ ] Quick Reference table in `00-index.md`
-- [ ] Documents table in `00-index.md` complete
-
-### Links
-- [ ] All cross-references resolve
-- [ ] No broken anchor links
-- [ ] Relative paths, not absolute
+Not enforced (author judgment): sequential numbering, section presence
+(Overview / Quick Reference / Prerequisites / Documents table), and anchor-link
+integrity. `version` front-matter and a Version-history section are **not**
+mandated — `updated` is the freshness signal.
 
 ---
 
