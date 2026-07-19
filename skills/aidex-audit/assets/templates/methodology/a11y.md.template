@@ -87,7 +87,7 @@ On critical flows (sign-up, checkout), with keyboard only and with screen reader
 Each failure becomes a row in `../INVENTORY.md`:
 
 ```
-| A11Y-<WCAG>-<N> | bug | <page> | <WCAG criterion>: <summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}} | — |
+| A11Y-<WCAG>-<N> | bug | <page> | <WCAG criterion>: <summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
 ```
 
 **Severity guide:**

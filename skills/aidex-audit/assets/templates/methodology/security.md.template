@@ -100,7 +100,7 @@ Based on [OWASP Top 10](https://owasp.org/Top10/) and [OWASP ASVS](https://owasp
 Each failure becomes a row in `../INVENTORY.md`:
 
 ```
-| BUG-<CATEGORY>-<N> | bug or risk | <asset> | <summary> | open | P0 or P1 | {{DATE}} | {{DATE}} | {{DATE}} | — |
+| BUG-<CATEGORY>-<N> | bug or risk | <asset> | <summary> | open | P0 or P1 | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
 ```
 
 **Severity defaults in security:**
