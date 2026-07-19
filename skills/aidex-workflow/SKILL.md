@@ -112,6 +112,14 @@ spec and proceed headless. Walk these one at a time; do not skip step 0 or step 
    {model, effort})` options, and the work-list into the items array. The two-stage gate
    (Bash verifier → conditional durability-arbiter) and kill-resume come from the
    plan-exec CORE — cite it, do not re-author it.
+   - **The spec is the binding carrier; the `.workflow.js` is generated here, at
+     launch, and is disposable.** Write it into the session scratchpad (or an equivalent
+     transient location), never `.context/workflows/`; do not commit it and do not keep
+     it after the run. If it ever diverges from the spec, the spec wins — regenerate.
+     (See §"Carrier authority — spec-only" in the conventions.)
+   - **Any plan a generated prompt references must be by `plan/<slug>` type-ref resolved
+     at launch** via the two-folder lookup, never a frozen active path — the active path
+     dies when the plan archives.
 4. **Model guard.** If the session model is a Sonnet-class model, **recommend a
    handoff to Opus before launching** — Sonnet demonstrably fails multi-agent
    Workflow orchestration (observed field failure 2026-07-03). State it with the
