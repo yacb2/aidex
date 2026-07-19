@@ -191,6 +191,9 @@ For each unchecked phase, in order:
 - `id` — a short slug for the phase (e.g. `1.2-validate`).
 - `spec` — the phase's task text **plus pointers to prior phases' output files** (paths, not
   contents). Do not paste prior conversation; a fresh phase agent reads what it needs off disk.
+  Append the sketch rule to every spec: *"code blocks in this spec are illustrative
+  sketches frozen at plan-write time — validate against the current repo before applying;
+  Contract blocks are binding; the gate is the contract."*
 - `gateCmd` — the phase's declared verification command (the test/type-check/build the plan
   names). If the plan declares no machine gate for a phase, that phase is **not** batch-eligible
   — run it in the interactive path instead; do not invent a gate.
@@ -243,7 +246,8 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
 
 1. Read the plan document fully (path is in the user prompt or in
    `.context/plans/`). If multi-file, read `00-index.md` plus the current
-   phase file.
+   phase file. You may skip **Execution log** entries for already-completed
+   phases (canon §Execution log) — they are proof journaling, not spec.
 2. Identify: total phases, current phase (first unchecked checkbox), success
    criteria per phase, verification step.
 3. **Honor the plan's Isolation surface** if it declares one. If the plan already
@@ -275,7 +279,13 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
 
 For each phase in order:
 
-1. Implement the tasks in the phase.
+1. Implement the tasks in the phase. **Plan code is a sketch, not a paste
+   source**: any code block or line reference in the plan was frozen at
+   plan-write time — before applying one, read the current file, confirm the
+   surrounding code still matches, and check for sibling call-sites/branches
+   the plan did not enumerate. The phase's acceptance criteria and gate are
+   the contract; the plan's code is illustrative except inside a **Contract**
+   block (exact signatures/shapes/DDL), which is binding.
 2. Run the verification step the plan declares (tests, type-check, build,
    manual check). If none is declared, run the minimum that proves the change
    works (relevant test suite + type-check).
