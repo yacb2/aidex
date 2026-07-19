@@ -11,6 +11,11 @@ import os
 import _parse as P
 import _shell as S
 
+# The producer (aidex-audit coverage_matrix.py) pins this value into every
+# coverage-matrix.json. A missing or unknown value means the shape drifted —
+# refuse rather than render a confidently-wrong GENERATED board.
+EXPECTED_SCHEMA = "coverage-matrix/1"
+
 
 def render(root):
     jpath = os.path.join(root, ".context", "audits", "test-coverage", "coverage-matrix.json")
@@ -21,6 +26,12 @@ def render(root):
             data = json.load(f)
     except (ValueError, OSError) as e:
         P.die(f"cannot parse {jpath}: {e}")
+
+    schema = data.get("schema")
+    if schema != EXPECTED_SCHEMA:
+        P.die(f"coverage-matrix.json schema {schema!r} is not supported "
+              f"(expected {EXPECTED_SCHEMA!r}) at {jpath} — "
+              "regenerate via /aidex-audit coverage-matrix")
 
     modules = data.get("modules") or []
     if not modules:
