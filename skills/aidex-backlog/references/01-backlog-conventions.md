@@ -168,13 +168,21 @@ Re-evaluate priorities every two weeks. If you want `P1.5`, pick one — the tax
 
 ## Acceptance
 
-- [ ] <concrete, verifiable criterion>
-- [ ] <another one>
+Done means:
+
+- <concrete, verifiable criterion>
+- <another one>
 
 ## Notes
 
 <optional: links to related findings, plans, discussions>
 ```
+
+**Acceptance** is optional at registration (a parked idea can defer it) and required at
+`open → doing` promotion — an entry you are about to start must state what done means.
+Write criteria as plain `Done means:` bullets, **not** `- [ ]` checkboxes: measured across
+250 entries, 88% of closed items were archived with zero boxes ever checked, so the checkbox
+implied a tracking contract nothing honored.
 
 Keep entries short. If it needs more than one screen of content, it belongs in a plan.
 

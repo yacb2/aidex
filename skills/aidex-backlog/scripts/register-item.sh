@@ -303,7 +303,14 @@ regen_index() {
     if [[ ${#CLOSED_SORTED[@]} -gt 0 ]]; then
       printf '## Closed\n\n'
       printf '_Closed items (full bodies in [`_archive/`](_archive/)):_\n\n'
-      printf '%s\n' "${CLOSED_SORTED[@]}"
+      # Window to the most recent 20 closures; older ones live in _archive/, so the
+      # index tracks the active queue instead of lifetime throughput (BL-058).
+      if [[ ${#CLOSED_SORTED[@]} -gt 20 ]]; then
+        printf '%s\n' "${CLOSED_SORTED[@]:0:20}"
+        printf '…and %d older closed items — see [`_archive/`](_archive/)\n' "$((${#CLOSED_SORTED[@]} - 20))"
+      else
+        printf '%s\n' "${CLOSED_SORTED[@]}"
+      fi
       printf '\n'
     else
       printf '_Archived items: see [`_archive/`](_archive/)._\n'
@@ -493,7 +500,10 @@ commits: ""
 
 ## Acceptance
 
-- [ ] <!-- concrete, verifiable criterion -->
+<!-- Optional at registration for a parked idea; required before open->doing. -->
+Done means:
+
+- <!-- concrete, verifiable criterion -->
 
 ## Notes
 
