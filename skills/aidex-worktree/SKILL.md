@@ -24,6 +24,34 @@ interview walks).
 
 ---
 
+## Branch-base rule (before any worktree or feature branch is created)
+
+An irreversible-in-practice structural decision — which branch a new worktree/branch
+forks off — must never be made silently. Before creating a worktree or feature branch,
+**resolve and state the base branch**:
+
+- **Resolve the base explicitly.** Do not inherit whatever happens to be checked out.
+  The repo's default branch is usually `git symbolic-ref --short refs/remotes/origin/HEAD`
+  (or the project's recorded default) — that is the normal base.
+- **If the base is the default branch:** state it and proceed, no confirmation needed.
+- **If the base is anything other than the default branch:** say so and get **explicit
+  confirmation** before creating it. Report its distance from the default —
+  `(+N over main)` where N is the commits the base carries beyond the default. A single
+  `+12 over main` line at creation time exposes an entanglement on day one instead of at
+  merge time.
+- **Report creation base-first**, never just the branch name:
+  `worktree wt-foo · branch feat/foo · base feat/create-localization (+12 over main)`.
+- **The "current checkout is not main" trap.** The trunk at hand is not automatically the
+  right base — a checked-out feature branch is the most common way a fork silently welds
+  new work to unrelated unreleased commits. Resolve the base deliberately; don't fork off
+  the ambient checkout unnoticed.
+
+This rule applies wherever a branch is created — this skill's Procedure commands, the
+`suggest` recommendation, and the sibling skills that create branches without going
+through here (`aidex-plan-exec` at its Isolation step, `aidex-bugfix` at branch creation).
+
+---
+
 ## Sub-actions
 
 Dispatch by first argument:
@@ -41,9 +69,27 @@ Dispatch by first argument:
 2. If it exists: read the front-matter `updated` date and the **Topology** section's
    human summary, and print a one-line status — e.g. "Worktree procedure recorded
    (updated 2026-06-30): split-git services (backend, frontend) glued by
-   `dev.sh`." — then point the user to `/aidex-worktree suggest`.
+   `dev.sh`." — then run the doc-shape check and **amend any gaps in-session** (see
+   "Doc-shape check" below), and point the user to `/aidex-worktree suggest`.
 3. If it does not exist: tell the user no worktree procedure is recorded yet, and offer
    to run `/aidex-worktree bootstrap`.
+
+### Doc-shape check
+
+Whenever an existing `00-index.md` is read (no-args status and `suggest`), run the
+mechanical shape check before using it:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/check-overview.sh"
+```
+
+It verifies the machine-consumed surface is intact: the `worktree_up`/`worktree_down`
+front-matter fields are present, the `## Procedure` and `## Usage log` sections exist, and
+every `backlog/...` path the doc references resolves (active / `_archive/` / `_deferred/`).
+A non-zero exit lists the gaps. **Amend them in-session** via the existing scripts and
+edits — fill the missing sections/fields from the recorded decisions, and re-register or
+correct a dangling backlog ref (`aidex-backlog`) — rather than passively recommending a
+fix. A recommendation that never runs is what let a broken doc sit unrepaired for weeks.
 
 ---
 
@@ -144,7 +190,8 @@ recorded doc — never re-derive a generic recipe.
 
 1. **Require the doc.** `test -f .context/worktrees/00-index.md`. If it does not exist,
    say so plainly and point to `/aidex-worktree bootstrap` — never invent a topology or
-   guess a tier for a project that hasn't recorded one.
+   guess a tier for a project that hasn't recorded one. If it does exist, run the
+   **doc-shape check** (above) and amend any gaps in-session before recommending.
 2. **Read the doc's four axis sections plus Procedure.** Load **Participants &
    scope**, **Tier decision**, **Tier 2 infra strategy**, and **Lifecycle & cleanup**
    — the four axes from
@@ -171,8 +218,8 @@ recorded doc — never re-derive a generic recipe.
    recorded procedure text verbatim, never a generic recipe. If the
    doc records Tier 2 as "not yet available" for this case, say so and fall back to
    Tier 1 (or Tier 0) instead of inventing an isolation mechanism. If the doc predates
-   the Procedure section, recommend running a one-off amendment (fill Procedure +
-   front-matter fields from the recorded decisions) rather than improvising.
+   the Procedure section, **amend it in-session** (fill Procedure + front-matter fields
+   from the recorded decisions) rather than improvising or only recommending it.
 5. **Stop — never auto-invoke.** This is a recommendation the user or the project's
    `CLAUDE.md` authorizes. Never call native `EnterWorktree` from here; state the
    suggestion and stop. The caller (user, or `aidex-plan`/`aidex-plan-exec`/

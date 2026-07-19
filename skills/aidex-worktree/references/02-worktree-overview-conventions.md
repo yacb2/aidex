@@ -61,6 +61,23 @@ unresolved questions the interview flagged.
 Leave nothing as a template placeholder — every section is filled from the topology
 detection + interview answers before the doc is considered scaffolded.
 
+## Evergreen vs task-scoped content (prune rule)
+
+This doc is **evergreen** — it records the project's standing procedure, not the state of
+any one run. Task-scoped facts — the branches currently in flight, the tier a specific
+task chose, the analysis of today's work — live in the **triggering artifact** (the plan,
+loop-spec, backlog item, or audit that prompted the run), **never** in the overview. When
+they leak in, the doc drifts and can end up contradicting its own body.
+
+- The **Usage log** holds only the distilled one-liner per run (date · tier · participants
+  · collisions observed) and codified patterns promoted from it — not a task's working
+  notes.
+- **Open questions** is not a scratchpad for a run's in-flight doubts. At teardown, the
+  run **prunes** the entries it resolved: delete the Open-questions lines the run answered
+  (the answer belongs in the section it settled, or in the triggering artifact), leaving
+  only questions still genuinely open. `aidex-plan-exec` does this symmetrically with its
+  Usage-log append at teardown.
+
 ## Lifecycle
 
 - **No archive — versioned in place.** Unlike plans or loop-specs, this doc does not
