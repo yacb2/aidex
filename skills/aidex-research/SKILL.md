@@ -12,15 +12,16 @@ allowed-tools: Bash Read Write
 Capture an investigation or spike as written notes in
 `.context/research/<topic>/` before committing to a plan or
 implementation. This skill is the single-purpose entry point for
-**research notes**; the formatting canon lives in the shared
-`aidex-conventions` reference package (not forked here).
+**research notes**; the shared rules (language, IDs, statuses, archive) live in
+the `aidex-conventions` canon, but research's own body shape is defined here.
 
 ## Workflow
 
-1. Read the research conventions canon:
-   `~/.claude/skills/aidex-conventions/references/reference-conventions.md`
-   (it also covers `research/`; shared rules live in `00-global.md`. Or the
-   `.claude/skills/...` project-level copy if one exists).
+1. Read the shared documentation canon:
+   `~/.claude/skills/aidex-conventions/references/00-global.md` (language,
+   IDs, statuses, archive rules. Or the `.claude/skills/...` project-level copy
+   if one exists). Research has its **own** body shape (below) — it does **not**
+   borrow the reference runbook/MODULE template.
 2. Pick the shape by size (ADR `decision/2026-07-02-research-artifact-shape`):
    a **single-document spike** is one flat dated file
    (`.context/research/YYYY-MM-DD-<slug>.md` — no folder); a **multi-document
@@ -29,13 +30,33 @@ implementation. This skill is the single-purpose entry point for
    plus sequential `NN-<slug>.md` files. When a spike gains a second document,
    promote it: create the dated folder and move the spike in as `00-index.md`.
    Research is versioned in place — there is **no `_archive/`** in `research/`.
-3. Front-matter per the canon: `title`, `status`, `created`, `updated`,
-   `version`.
-4. Body per the module template: **Overview**, **Prerequisites**, findings
-   sections, **Verification**. If a spike's finding is mechanically verifiable
-   (a benchmark or test the follow-up work should iterate against), link out to an
-   `aidex-loop` loop-spec rather than describing a manual loop here. Write the
-   artifact in English (canon §Language).
+3. Front-matter = the global minimum only: `title`, `status`, `created`,
+   `updated`. No `version` — a dated spike is a point-in-time investigation, not
+   an evergreen doc that gets revised.
+4. Body = research's own minimal shape, three sections:
+   - **Question / Scope** — what you set out to answer and its bounds.
+   - **Findings** — free-form; number them, subsection them, whatever the
+     investigation needs. No fixed Overview/Prerequisites/Verification skeleton.
+   - **Answer / Recommendation** — mandatory closing section that states what the
+     spike concluded and what it recommends doing next. A spike is not done until
+     this section answers the question.
+
+   If a finding is mechanically verifiable (a benchmark or test the follow-up
+   work should iterate against), link out to an `aidex-loop` loop-spec rather than
+   describing a manual loop here. Write the artifact in English (canon §Language).
+
+## Closing a spike
+
+A spike closes when its question is answered — the **Answer / Recommendation**
+section is written. On close:
+
+- Set `status: done` and stamp `updated`. `done` is the terminal state; do not
+  invent `answered`, `complete`, or `superseded-by-result` — those are not in
+  the base status vocabulary the validator enforces.
+- Link what it feeds: `escalated_to` a plan or decision the research spawned, or
+  set `origin_ref` on the artifact it produced back to this spike.
+- Research is versioned in place — there is **no `_archive/`** step for
+  `research/` (unlike decisions/requests, which archive on close per D-10).
 
 ## Self-check (mandatory close step)
 
@@ -63,5 +84,6 @@ a non-zero exit means you introduced a NEW violation — fix it before closing.
 
 ## Related
 
-- **aidex-conventions** — owns the shared documentation canon (this skill
-  delegates into its `references/reference-conventions.md` research rules).
+- **aidex-conventions** — owns the shared documentation canon (`00-global.md`:
+  language, IDs, statuses, archive rules). Research's body shape is defined here
+  in the skill, not delegated to the reference MODULE template.
