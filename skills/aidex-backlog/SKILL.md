@@ -77,37 +77,13 @@ resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
 ## Entry format
 
-Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-<slug>.md`.
+Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-<slug>.md`, written by
+`register-item.sh` — front-matter followed by a Context / Acceptance / Notes body.
 
-```markdown
----
-title: <one-line title>
-id: BL-NNN                      # stable short id for commit-trailer refs (D-09)
-status: open | doing | done | dropped
-origin: manual | audit | issue | request
-origin_ref: <reference — finding ID, issue ID, request file, or empty>
-priority: P0 | P1 | P2 | P3   # code only, never free text — see references/01-backlog-conventions.md
-blocked_by: ""                # optional, when waiting on third party (priority stays)
-estimate: XS | S | M | L | XL
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
----
-
-# <title>
-
-## Context
-
-<what prompted this, why it's worth doing>
-
-## Acceptance
-
-- [ ] <criterion 1>
-- [ ] <criterion 2>
-
-## Notes
-
-<any other relevant detail>
-```
+The complete front-matter schema is the single-source **12-field table** in
+[references/01-backlog-conventions.md](references/01-backlog-conventions.md#front-matter-required)
+(`id` and `commits` are machine-required — the lifecycle breaks without them). Don't
+re-copy the schema here; author entries via the script or straight from that table.
 
 ---
 

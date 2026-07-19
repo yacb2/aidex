@@ -268,6 +268,48 @@ def check_body_language_unit(failures: list[str]) -> None:
         failures.append("body-language unit: communications body warned (D-04 exemption)")
 
 
+def check_archive_status_open_unit(failures: list[str]) -> None:
+    """Direct cells for check_archive_status_open (Phase 4, registry-lag family):
+    an archived work item still open/doing warns; a properly-closed archived item,
+    an active-root open item, a loop STATE sidecar, and a non-archive-bearing type
+    stay silent."""
+    v = _load_validator()
+    def result(type_name: str, p: str, fm: dict | None):
+        return v.check_archive_status_open(type_name, Path(p), fm)
+    if result("backlog", ".context/backlog/_archive/2026-01-01-x.md", {"status": "open"}) is None:
+        failures.append("archive-status-open unit: archived open backlog item did not warn")
+    if result("loops", ".context/loops/_archive/2026-01-01-x.md", {"status": "doing"}) is None:
+        failures.append("archive-status-open unit: archived doing loop spec did not warn")
+    if result("backlog", ".context/backlog/_archive/2026-01-01-x.md", {"status": "done"}) is not None:
+        failures.append("archive-status-open unit: properly-closed archived item warned (false positive)")
+    if result("backlog", ".context/backlog/2026-01-01-x.md", {"status": "open"}) is not None:
+        failures.append("archive-status-open unit: active-root open item warned (only _archive/ counts)")
+    if result("loops", ".context/loops/_archive/skill-eval-speedup-STATE.md", {"status": "doing"}) is not None:
+        failures.append("archive-status-open unit: loop STATE sidecar warned (should be exempt)")
+    if result("references", ".context/references/x/_archive/01-x.md", {"status": "open"}) is not None:
+        failures.append("archive-status-open unit: non-archive-bearing type warned")
+
+
+def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
+    """Direct cells for check_backlog_placeholder_body (Phase 4): an active entry
+    still carrying a register-template placeholder comment warns; a filled-in entry
+    and an archived entry stay silent."""
+    v = _load_validator()
+    active = Path(".context/backlog/2026-01-01-x.md")
+    placeholder = ("---\ntitle: x\nstatus: open\n---\n# X\n\n## Context\n\n"
+                   "<!-- Why is this worth doing? What problem does it solve? -->\n\n"
+                   "## Acceptance\n\n- [ ] <!-- concrete, verifiable criterion -->\n")
+    if v.check_backlog_placeholder_body(active, placeholder) is None:
+        failures.append("placeholder-body unit: active entry with template placeholders did not warn")
+    filled = ("---\ntitle: x\nstatus: open\n---\n# X\n\n## Context\n\nReal reason.\n\n"
+              "## Acceptance\n\n- [ ] real criterion\n")
+    if v.check_backlog_placeholder_body(active, filled) is not None:
+        failures.append("placeholder-body unit: filled-in entry warned (false positive)")
+    archived = Path(".context/backlog/_archive/2026-01-01-x.md")
+    if v.check_backlog_placeholder_body(archived, placeholder) is not None:
+        failures.append("placeholder-body unit: archived entry warned (should be exempt)")
+
+
 def check_waivers(failures: list[str]) -> None:
     """Waiver lifecycle (BL-048): an anchored waiver suppresses its finding and
     reports it under waived; a content change or a deleted waiver line resurfaces
@@ -354,6 +396,8 @@ def main() -> int:
     check_worktrees_no_double_count(good, failures)
     check_baseline_ratchet(failures)
     check_body_language_unit(failures)
+    check_archive_status_open_unit(failures)
+    check_backlog_placeholder_body_unit(failures)
     check_waivers(failures)
 
     if failures:

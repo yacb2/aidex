@@ -16,6 +16,8 @@ actually mentions it:
   4. 00-global.md §3 + rules/aidex-conventions.md cross-ref prefixes ⊇ CROSSREF prefixes
   5. aidex orchestrator (SKILL.md + references/01-context-checks.md +
      agents/context-auditor.md) mentions every TYPES + OPTIONAL_TYPES name
+  6. rules/aidex-conventions.md NEVER section ⊇ every do-not-hand-edit index the
+     per-type canons declare (backlog / plans / audits auto-generated indexes)
 
 Adding a new artifact type? Update validate.py AND every file above, or this
 test fails loudly. Run with:
@@ -105,6 +107,37 @@ def main() -> int:
             if not re.search(rf"\b{t}\b", text):
                 failures.append(f"{f.relative_to(SKILLS_DIR)} never mentions type '{t}'")
 
+    # 6 — auto-generated indexes: every index a per-type canon marks "do not
+    # hand-edit" must be named in the always-on rules summary's NEVER section. A
+    # canon that starts regenerating a new index without teaching the summary is
+    # the registry-lag drift, at the index level (Phase 4, 2026-07-19 remediation).
+    references_dir = SCRIPT_DIR.parent / "references"
+    never_m = re.search(r"##\s+NEVER\n(.*?)\n##\s+", rules_text, re.S)
+    rules_never = never_m.group(1) if never_m else ""
+    if not rules_never:
+        failures.append("could not isolate the NEVER section of rules/aidex-conventions.md")
+    # (canon file, index token the rules NEVER section must contain verbatim,
+    #  proof the canon still declares that index auto-generated / do-not-hand-edit)
+    autogen_indexes = [
+        ("00-global.md", "backlog/00-index.md",
+         re.compile(r"`00-index\.md`.*?auto-regenerated", re.S)),
+        ("plan-conventions.md", "plans/00-index.md",
+         re.compile(r"plans/00-index\.md`.*?auto-generated", re.S)),
+        ("audit-conventions.md", "audits/<methodology>/00-index.md",
+         re.compile(r"auto-generates `00-index\.md`.*?hand-edit", re.S)),
+    ]
+    for canon_name, token, canon_re in autogen_indexes:
+        canon_path = references_dir / canon_name
+        canon_txt = canon_path.read_text(encoding="utf-8") if canon_path.exists() else ""
+        if not canon_txt:
+            failures.append(f"per-type canon not found: {canon_path}")
+        elif not canon_re.search(canon_txt):
+            failures.append(f"{canon_name} no longer declares its auto-generated index the "
+                            f"way this guard expects — re-sync the autogen_indexes list here")
+        if token not in rules_never:
+            failures.append(f"rules/aidex-conventions.md NEVER section is missing auto-gen "
+                            f"index '{token}' (declared do-not-hand-edit in {canon_name})")
+
     if failures:
         print("FAIL")
         for f in failures:
@@ -112,6 +145,7 @@ def main() -> int:
         return 1
     print(f"OK — registry lockstep: {len(v.TYPES)} canonical + {len(v.OPTIONAL_TYPES)} optional types, "
           f"{len(prefix_set)} cross-ref prefixes, {len(v.TYPES_WITH_ARCHIVE)} archive types, "
+          f"{len(autogen_indexes)} auto-gen indexes, "
           f"{len(AIDEX_FILES)} orchestrator files all in sync")
     return 0
 
