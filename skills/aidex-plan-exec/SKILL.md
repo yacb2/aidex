@@ -259,7 +259,10 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
    suggest` (or `bootstrap` if `.context/worktrees/00-index.md` does not exist yet) here
    at Orient, before phase 1, and act on its recommendation the same way. Enter the
    worktree **only if the plan/user authorized it** — do not auto-enter one that was
-   not approved. No declared surface and no plan-recorded parallelism → run in place.
+   not approved. **Before creating any worktree/branch, resolve and state its base branch
+   and require explicit confirmation if it is not the repo's default** (aidex-worktree's
+   branch-base rule) — never fork off the ambient checkout silently.
+   No declared surface and no plan-recorded parallelism → run in place.
    **The plan doc stays source-of-truth in the main tree:** a fresh worktree has only
    committed files, so update the plan and record `proof_links` at its main-tree path
    (a gitignored/uncommitted `.context/` plan is absent from the worktree) — see the
@@ -356,6 +359,9 @@ After the last phase:
    project's `.context/worktrees/00-index.md` Usage log** (date · tier used ·
    participants · collisions/problems observed) — this ratchet is what lets the
    worktree procedure harden its case-by-case rules into codified ones over time.
+   **Symmetrically prune the overview's Open questions**: delete any entry this run
+   resolved (task-scoped ephemera does not live in the evergreen doc — see
+   `aidex-worktree/references/02-worktree-overview-conventions.md`).
 6. If the project has `.context/audits/test-coverage/module-map.json` and the plan
    touched mapped src paths, suggest running `/aidex-audit coverage-sweep` (advisory
    drift check — do not run it unprompted mid-plan; mention it in the close summary).

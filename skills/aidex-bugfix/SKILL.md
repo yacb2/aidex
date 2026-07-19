@@ -67,6 +67,8 @@ test type. Adapt the categories to your stack — the framework names below are 
 - Apply root-cause-first investigation in Step 1 (don't patch the symptom)
 - Defer to the project's own testing helpers/patterns for how to write the test
 - Follow the project's commit conventions for Step 7 (detect them; `git-commit` if present)
+- If Step 7 needs a new branch (e.g. you were on the default branch), resolve and state its
+  base first — default branch unless explicitly confirmed otherwise (aidex-worktree's branch-base rule)
 - If the project tracks coverage (`.context/audits/test-coverage/module-map.json`
   exists) and the bug lived in a mapped module, note in the wrap-up: a real bug here is
   evidence of a coverage hole — suggest `/aidex-audit coverage-sweep` and, if the fix
