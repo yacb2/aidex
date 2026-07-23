@@ -53,6 +53,10 @@ Pick the tier from the work, not from habit. **Choosing the tier is the whole de
   justifies the expensive path.
 - **Cost:** a second DB (cheap if template-cloned), a second compose project, port
   arithmetic, teardown discipline.
+- **Contract:** Tier 2 = full isolation including isolated E2E capability by default: the
+  `worktree_up` command must leave a runnable per-worktree `test-e2e.sh` (template DB
+  clone + namespaced E2E ports) with no additional ask. Isolated E2E is included by
+  default whenever Tier 2 applies — never "decide per task."
 
 ### The decision heuristic
 
