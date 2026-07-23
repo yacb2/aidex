@@ -43,6 +43,17 @@ The render is written next to its source index, as a `.html` sibling of the
 A multi-file plan gets ONE progress page; individual phase files and individual
 backlog/finding items never get their own HTML.
 
+## Ad-hoc sibling reports (not boards)
+
+The same GENERATED contract and sibling-path rule apply to ad-hoc reports —
+one-off HTML written for a specific `.context/` artifact rather than one of
+dash's own board renderers (see `rules/artifacts-local-first.md`, installed
+to `~/.aidex/rules/`, for the always-on session rule). `<slug>-report.html`
+sits next to a single-file artifact, or `<slug>/<slug>-report.html` inside a
+folder artifact. The markdown stays canon; the HTML is disposable,
+regenerable render output — never the source of truth. Publish policy is
+unchanged: local open by default, online publish only on explicit ask.
+
 ## Token-cost rationale
 
 The model writes the *generator* once (the shipped `scripts/dash/` renderers).

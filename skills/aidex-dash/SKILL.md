@@ -37,6 +37,10 @@ The script prints the output path on success. On a missing or malformed source
 it prints a plain-text `ERROR: ...` and exits 2 — never a traceback. Re-running
 is idempotent (the render is overwritten, not appended).
 
+Ad-hoc reports (not one of dash's own boards) follow the same sibling-path
+and publish-gated conventions — see `rules/artifacts-local-first.md`; dash
+itself keeps rendering only the boards above.
+
 ## Render-per-index rule
 
 A multi-file plan gets ONE progress page; the backlog gets ONE board; an audit
