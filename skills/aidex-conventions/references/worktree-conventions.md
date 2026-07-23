@@ -116,7 +116,7 @@ a `worktree-up` recipe would unlock it.
 |---|---|
 | **Database** | Per-worktree DB. Cheapest: a new DB **in the same Postgres container** via `CREATE DATABASE … TEMPLATE` (~200ms clone) under a unique name (`<db>_wt_<slug>`). Heaviest: a separate DB container. |
 | **Ports** | Candidate offsets by worktree index (`base + N*10`, extending the `dev → +10` test convention) — but **probe before assigning** (`lsof -ti :<port>`, or `docker compose -p <slug> ps` for compose-level occupancy) and skip to the next offset on collision. Static arithmetic alone is not safe: concurrent sessions can compute the same offset, and an unclean exit can leave a port held by an orphaned container. `worktree-down` must verifiably free what it allocated. |
-| **Docker** | `COMPOSE_PROJECT_NAME=<repo>-<slug>` so containers/networks/named-volumes don't collide. |
+| **Docker** | `COMPOSE_PROJECT_NAME=<project>-wt-<slug>` — see the naming/teardown contract below. |
 | **Env** | A per-worktree `.env` injecting the unique DB name + offset ports. |
 
 **Gotchas to flag (don't let them silently break isolation):**
@@ -129,13 +129,58 @@ a `worktree-up` recipe would unlock it.
   right *seed* but the wrong *lifecycle*: a dev worktree is **persistent** (iterate for
   hours, tear down on exit). Generalize it into `worktree-up` / `worktree-down`.
 
+## Naming/teardown contract (Docker hygiene)
+
+Every Tier-2 project adopts the same compose-project naming and the same teardown
+command — no project-specific variant:
+
+```
+COMPOSE_PROJECT_NAME=<project>-wt-<slug>          # -wt- is the sweep marker
+worktree_down: docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans
+```
+
+`<project>` is the main repo's basename. `--rmi local` removes exactly the
+compose-built default-tagged images (`<project>-backend` etc.) while custom-tagged dev
+images survive structurally. The `-wt-` infix is load-bearing, not cosmetic: without it
+the compose project is just the bare slug ("rb", "ad-overlap") — unattributable to a
+worktree, so a sweep can't tell a worktree's containers apart from the main tree's or
+from an unrelated project's. `-wt-` is what makes teardown and the orphan sweep
+mechanical. The Lifecycle & cleanup cleanup checklist (below, and in
+`aidex-worktree`'s Axis 4) includes: "images built for the worktree removed (`--rmi
+local`); anonymous volumes reclaimed."
+
+## Docker safety doctrine — dangling is not disposable
+
+A dev DB volume whose containers were removed by `compose down` (without `-v`)
+**dangles while still holding real data** — "dangling" describes reachability from a
+running container, not whether the data matters. Observed live across loom_lab,
+work_hours, ph, ns-web, and potential_clients (2026-07-23): each had accumulated
+untracked `-wt-` volumes/images from skipped teardowns, several holding data nobody
+had verified was disposable.
+
+- **Banned outright:** `docker volume prune -a` / `--all` — it removes every unused
+  volume system-wide with no per-item review, including named volumes that happen not
+  to be attached to a running container right now.
+- **Permitted:** anonymous-volume prune (`docker volume prune -f`, Docker ≥23
+  semantics — anonymous volumes only, never named ones) and an explicit
+  `docker volume rm <name>` for a **specific named volume taken from a sweep report the
+  user has confirmed**. Never `rm` a volume the sweep didn't name, and never `rm` from
+  memory of "probably orphaned" — always from the current report.
+- The orphan sweep (`aidex-worktree/scripts/orphan-sweep.sh`, wired into
+  `/aidex-worktree status`) is **report-only by construction**: it prints the exact
+  reclaim command per orphan and never executes anything. Deletion is always a
+  separate, explicit, human-confirmed step.
+
 ## Lifecycle
 
 Enter at the process's **initial phase** (plan Orient / loop design), iterate, then on
 completion `ExitWorktree` (`keep` to resume later, `remove` for a clean exit — it refuses
-to drop uncommitted work unless `discard_changes`) and run `worktree-down` for Tier 2 to
-drop the DB + compose project. This is consistent with front-loaded autonomy: the
-isolation decision is made up front, not mid-run.
+to drop uncommitted work unless `discard_changes`) and run the project's `worktree_down`
+command (the naming/teardown contract above) for Tier 2 to drop the DB, the compose
+project, its containers/network, and its `--rmi local` images. This is consistent with
+front-loaded autonomy: the isolation decision is made up front, not mid-run. A skipped
+teardown is not a silent no-op: it is exactly what the Docker safety doctrine above and
+the orphan sweep exist to surface.
 
 > **Plan/spec artifact stays in the main tree.** A fresh worktree contains only
 > **committed** files, so a `.context/` plan or loop-spec that is gitignored or merely

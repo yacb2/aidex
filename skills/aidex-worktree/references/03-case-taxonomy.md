@@ -69,10 +69,19 @@ If Tier 2 applies, which strategy isolates the environment:
   short, self-contained runs.
 - **Persistent** — iterate for hours or days, explicit teardown on exit. Right for a
   dev worktree someone is actively working in.
+- **Naming/teardown contract:** every Tier-2 project names its compose project
+  `<project>-wt-<slug>` (the `-wt-` infix is the sweep marker — without it a compose
+  project is an unattributable bare slug) and tears down with
+  `docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans`. Record
+  this verbatim as the doc's `worktree_down` field — see
+  `aidex-conventions/references/worktree-conventions.md` for the full contract.
 - **Concrete cleanup steps** for a Tier-2 worktree closing out: drop the isolated DB,
-  stop/remove the isolated compose project/containers/network, **never** touch shared
+  stop/remove the isolated compose project/containers/network, reclaim images built
+  for the worktree (`--rmi local`), reclaim anonymous volumes, **never** touch shared
   named volumes, free the allocated port offset, and decide whether the worktree
-  directory itself is kept (resuming later) or removed.
+  directory itself is kept (resuming later) or removed. "Dangling is not disposable" —
+  see the Docker safety doctrine in `worktree-conventions.md` before ever deleting a
+  named volume; the ban list there (`docker volume prune -a`/`--all`) applies here too.
 - **Deterministic port/offset allocation rule** for N concurrent worktrees — not just
   "offset by index." Record how collisions are avoided **across sessions** (e.g. a
   registry file tracking which offsets are currently claimed, or a convention tied to
