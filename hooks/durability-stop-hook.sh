@@ -128,6 +128,50 @@ REASON = (
     f"the very end. If you are genuinely done or truly blocked, say so explicitly and you may stop."
 )
 
+# Last real user turn from the transcript (BL retro-run4). Every observed misfire
+# was answer/delivery-shaped: the judge blocked a turn that simply delivered what
+# the user asked for, because it never saw the user's request. Same jsonl shape
+# extract.py reads — skip tool_result-bearing turns and system-injected / slash
+# entries (they are NOT real user messages). Fail-soft: any error -> "" so the
+# hook never aborts (the shell runs `set -euo pipefail`).
+def extract_last_user_message(path):
+    SKIP_PREFIXES = ("<command-", "<system-reminder", "<task-notification",
+                     "<local-command", "<bash-", "<command-message",
+                     "[request interrupted", "caveat:",
+                     "base directory for this skill")
+    try:
+        if not path or not os.path.isfile(path):
+            return ""
+        last = ""
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except Exception:
+                    continue
+                if o.get("type") != "user":
+                    continue
+                c = o.get("message", {}).get("content")
+                if isinstance(c, list):
+                    # a tool_result-bearing turn is the harness feeding a tool
+                    # output back, not the user speaking — skip it entirely.
+                    if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c):
+                        continue
+                    c = "\n".join(x.get("text", "") for x in c
+                                  if isinstance(x, dict) and x.get("type") == "text")
+                if not isinstance(c, str):
+                    continue
+                s = c.strip()
+                if not s or s.lower().startswith(SKIP_PREFIXES):
+                    continue
+                last = s
+        return last[-1500:]   # tail-truncate: the ask usually ends the message
+    except Exception:
+        return ""
+
 # Model judge (BL-044). Reached only during an ACTIVE, non-terminal stop, so a
 # judge call costs nothing in casual sessions. Returns {"block": bool, "reason": str}
 # or None on any failure (missing prompt, timeout, non-JSON output) — never raises.
@@ -138,6 +182,7 @@ def run_judge():
                                    "durability-stop-prompt.md")).read()
         payload = {
             "last_assistant_message": ev.get("last_assistant_message") or "",
+            "last_user_message": extract_last_user_message(ev.get("transcript_path") or ""),
             "stop_hook_active": ev.get("stop_hook_active", False),
             "cwd": cwd,
             "transcript_path": ev.get("transcript_path") or "",

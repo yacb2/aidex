@@ -30,6 +30,9 @@ clear_run() { rm -f "$TMP/.context/.durability/active-run.json"; }
 pl() { # build payload: $1=last_msg $2=stop_hook_active(true/false)
   python3 -c 'import json,sys; print(json.dumps({"cwd":sys.argv[1],"stop_hook_active":sys.argv[2]=="true","last_assistant_message":sys.argv[3],"hook_event_name":"Stop"}))' "$TMP" "$2" "$1"
 }
+pltp() { # payload carrying a transcript_path: $1=last_msg $2=transcript_path
+  python3 -c 'import json,sys; print(json.dumps({"cwd":sys.argv[1],"stop_hook_active":False,"last_assistant_message":sys.argv[2],"transcript_path":sys.argv[3],"hook_event_name":"Stop"}))' "$TMP" "$1" "$2"
+}
 
 echo "== remind mode =="
 active remind
@@ -89,6 +92,70 @@ check "judge block wins over LEGIT keyword -> block" block "$(pl 'Phase 2 done. 
 # LEGIT regex and is allowed (pre-BL-044 behavior preserved on the fallback path).
 export AIDEX_JUDGE_CMD="false"
 check "judge down, LEGIT fallback -> allow" allow "$(pl 'Phase 2 done. The next phase touches the deploy config — should I proceed?' false)"
+
+echo "== last_user_message extraction + retro-run4 policy (mock judge) =="
+# The judge now receives last_user_message, extracted from the transcript. Build a
+# fixture whose real last user turn is preceded by the noise shapes the extractor
+# must skip: a tool_result-bearing turn, a <system-reminder>, a skill-body
+# injection, and a slash command. The mock judge dumps its stdin so we can prove
+# what the hook actually sent, and returns an ALLOW verdict (an answer-to-user).
+active remind
+cat > "$TMP/transcript.jsonl" <<'JSONL'
+{"type":"user","message":{"content":"First question about the deploy pipeline"}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Here is how it works."}]}}
+{"type":"user","message":{"content":[{"type":"tool_result","content":"NOISEBEEF tool output"}]}}
+{"type":"user","message":{"content":"<system-reminder>NOISEBEEF reminder</system-reminder>"}}
+{"type":"user","message":{"content":"Base directory for this skill: NOISEBEEF"}}
+{"type":"user","message":{"content":"<command-name>/SLASHNOISE-cmd</command-name>"}}
+{"type":"user","message":{"content":"Please write the final summary report"}}
+JSONL
+export AIDEX_JUDGE_CMD="cat > '$TMP/judge-stdin'; printf '{\"block\": false}'"
+out="$(pltp 'Here is the final summary report you requested.' "$TMP/transcript.jsonl" | bash "$HOOK" 2>/dev/null || true)"
+# answer-to-user allowed (mock allow honored, no regex override)
+if printf '%s' "$out" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+  echo "  FAIL  answer-to-user allowed: got block  out=$out"; FAIL=$((FAIL+1))
+else
+  echo "  PASS  answer-to-user allowed (allow)"; PASS=$((PASS+1))
+fi
+# payload carries the real last user message (load-bearing: proves Task 1.1 plumbed)
+if grep -q 'Please write the final summary report' "$TMP/judge-stdin"; then
+  echo "  PASS  last_user_message extracted into judge payload"; PASS=$((PASS+1))
+else
+  echo "  FAIL  last_user_message missing from payload: $(cat "$TMP/judge-stdin" 2>/dev/null)"; FAIL=$((FAIL+1))
+fi
+# noise + slash entries excluded (proves the skip-filter, not just presence)
+if grep -q 'NOISEBEEF' "$TMP/judge-stdin" || grep -q 'SLASHNOISE' "$TMP/judge-stdin"; then
+  echo "  FAIL  noise leaked into last_user_message: $(cat "$TMP/judge-stdin" 2>/dev/null)"; FAIL=$((FAIL+1))
+else
+  echo "  PASS  tool_result / system-reminder / skill-body / slash noise excluded"; PASS=$((PASS+1))
+fi
+# gated-publish-only completed summary (ES) — a terminal state, allowed
+export AIDEX_JUDGE_CMD="cat >/dev/null; printf '{\"block\": false}'"
+check "ES gated-publish summary allowed" allow "$(pl 'Todo verificado y en verde. Solo queda pushear a producción, que requiere tu aprobación.' false)"
+export AIDEX_JUDGE_CMD="false"
+
+echo "== marker lifecycle (durability-run.sh) =="
+RUN="$HERE/durability-run.sh"
+# stop from a subdir must find and remove the ROOT marker (the 07-21/22 leak shape)
+RT="$(mktemp -d)"
+mkdir -p "$RT/.context/.durability" "$RT/backend/deep"
+printf '{"type":"plan-exec","mode":"remind","expires":"2999-01-01T00:00:00+00:00"}' > "$RT/.context/.durability/active-run.json"
+( cd "$RT/backend/deep" && bash "$RUN" stop ) >/dev/null 2>&1 || true
+if [ -f "$RT/.context/.durability/active-run.json" ]; then
+  echo "  FAIL  run.sh stop from subdir did not remove root marker"; FAIL=$((FAIL+1))
+else
+  echo "  PASS  run.sh stop from subdir removed root marker"; PASS=$((PASS+1))
+fi
+rm -rf "$RT"
+# stop with no marker anywhere must warn loudly (a silent no-op is what leaked)
+NM="$(mktemp -d)"
+warnout="$( ( cd "$NM" && bash "$RUN" stop ) 2>&1 1>/dev/null || true )"
+if printf '%s' "$warnout" | grep -qi 'warning'; then
+  echo "  PASS  run.sh stop with no marker warns"; PASS=$((PASS+1))
+else
+  echo "  FAIL  run.sh stop with no marker did not warn: $warnout"; FAIL=$((FAIL+1))
+fi
+rm -rf "$NM"
 
 echo "== shipped default judge command (claude shim on PATH) =="
 # With AIDEX_JUDGE_CMD unset, the hook must invoke `claude -p --model claude-sonnet-5`.
