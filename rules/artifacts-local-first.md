@@ -12,8 +12,11 @@ what a renderer already produces.
 **B. Ad-hoc report** — anything else (an analysis, a comparison, a one-off
 dashboard):
 
-1. **Load the `artifact-design` skill first** (Skill tool) — BEFORE writing
-   any page markup. Do not hand-roll an unstyled page.
+1. **Load design guidance first** (Skill tool) — BEFORE writing any page
+   markup: `artifact-design` when the session has it; otherwise the available
+   equivalents (`theme-factory` for the theme, `dataviz` if charts). Not every
+   surface ships `artifact-design` (headless `claude -p` does not,
+   field-verified 2026-07-23). Do not hand-roll an unstyled page.
 2. **Apply the project style profile if present**: `<project>/.context/artifact-style.md`
    (palette, fonts, favicon, tone, layout preferences). The profile wins over
    the skill's placeholder palette; the user's explicit words win over both.
