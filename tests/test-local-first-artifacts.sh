@@ -45,6 +45,25 @@ else
   if ! grep -qi "hand-roll" "$RULE_FILE"; then
     fail "rule missing no-hand-rolled-page clause"
   fi
+  # Single-artifact-interface doctrine (ADR 2026-07-23): the rule routes
+  # board-shaped asks to dash's renderer, carries the anchor-less fallback,
+  # and applies the per-project style profile.
+  if ! grep -q "render.sh" "$RULE_FILE"; then
+    fail "rule missing board routing to dash render.sh"
+  fi
+  if ! grep -q ".context/reports/" "$RULE_FILE"; then
+    fail "rule missing anchor-less fallback (.context/reports/)"
+  fi
+  if ! grep -q "artifact-style.md" "$RULE_FILE"; then
+    fail "rule missing project style-profile step"
+  fi
+fi
+
+if [ ! -f "$REPO_ROOT/skills/aidex-dash/assets/templates/artifact-style.md.template" ]; then
+  fail "artifact-style.md.template missing in aidex-dash assets"
+fi
+if ! grep -q "user-invocable-only" "$REPO_ROOT/skills/aidex-dash/SKILL.md"; then
+  fail "aidex-dash SKILL.md missing the user-invocable-only scope note"
 fi
 
 if ! grep -qi "artifact-design" "$REPO_ROOT/skills/aidex-dash/SKILL.md"; then

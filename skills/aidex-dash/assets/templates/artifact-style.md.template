@@ -1,0 +1,36 @@
+# Artifact style profile — {{PROJECT_NAME}}
+
+Consumed by the local-first artifact flow (`rules/artifacts-local-first.md`,
+step B.2) for every HTML artifact/report generated in this project. The
+`artifact-design` skill's "honor what's already there" rule makes this file
+the project's design system of record for reports. Delete any section you
+don't want to constrain.
+
+## Palette
+
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| ground | #FFFFFF | #14181C | page background |
+| ink | #1F2A31 | #DAE2E4 | body text |
+| accent | #116B5F | #52B0A0 | one accent, used sparingly |
+| good / warn / critical | — | — | semantic states, distinct from accent |
+
+## Type
+
+- Display / headings: {{e.g. "Avenir Next", system-ui}}
+- Body: {{...}}
+- Data / mono: ui-monospace, "SF Mono"
+
+## Identity
+
+- Favicon emoji: {{one emoji, stable across the project's artifacts}}
+- Footer / attribution line: {{optional}}
+
+## Layout & tone
+
+- {{e.g. "summary stats band on top", "no horizontal-scroll tables", "terse copy"}}
+
+## Language
+
+- Default: English (D-04). Override here only if this project's artifacts
+  must ship in another language: {{...}}

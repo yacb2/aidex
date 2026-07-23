@@ -44,6 +44,13 @@ is an ad-hoc analysis, do not just decline: route to that rule's flow — load
 the `artifact-design` skill, then write the sibling HTML and open it locally.**
 Never hand-roll an unstyled page after declining a board render.
 
+**Scope (single-artifact-interface doctrine, ADR 2026-07-23):** this skill is
+deployed `user-invocable-only` — the natural-language entry point for every
+artifact ask is `rules/artifacts-local-first.md`, which invokes dash's
+`render.sh` for board-shaped requests. `/aidex-dash` stays for explicit calls.
+Per-project design tokens live in `.context/artifact-style.md` (template:
+`assets/templates/artifact-style.md.template`).
+
 ## Render-per-index rule
 
 A multi-file plan gets ONE progress page; the backlog gets ONE board; an audit
