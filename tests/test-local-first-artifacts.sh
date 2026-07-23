@@ -36,6 +36,19 @@ else
   if ! grep -qi "D-04" "$RULE_FILE"; then
     fail "rule missing English-content (D-04) clause"
   fi
+  # Regression (field, 2026-07-23): an ad-hoc "HTML offline" ask was hand-rolled
+  # without design guidance after aidex-dash declined — loading artifact-design
+  # must be an explicit numbered step, and dash must route instead of just decline.
+  if ! grep -qi "artifact-design.*skill first" "$RULE_FILE"; then
+    fail "rule missing mandatory load-artifact-design-first step"
+  fi
+  if ! grep -qi "hand-roll" "$RULE_FILE"; then
+    fail "rule missing no-hand-rolled-page clause"
+  fi
+fi
+
+if ! grep -qi "artifact-design" "$REPO_ROOT/skills/aidex-dash/SKILL.md"; then
+  fail "aidex-dash SKILL.md does not route declined ad-hoc asks to artifact-design"
 fi
 
 # --- Task 6.1: install.sh covers rules/*.md generically ---
