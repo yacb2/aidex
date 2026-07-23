@@ -17,6 +17,7 @@
 #   --slug <kebab-case>            override auto-generated slug
 #   --list                         list open entries grouped by priority (P0 → P3 + Blocked)
 #   --reindex                      regenerate 00-index.md from front-matter, then exit
+#                                  (exits 1 if any BL-NNN id is carried by two entries)
 #   --no-index                     skip auto-regen of 00-index.md after writing entry
 #
 # Interactive mode (no args): prompts for title, origin, priority.
@@ -58,18 +59,44 @@ title_to_slug() {
     | sed -E 's/-+$//'
 }
 
-# Compute the next sequential backlog id (BL-NNN). Scans active + _archive + _deferred
-# so no item's id is ever reused — ids stay stable for commit-trailer refs (D-09).
-next_backlog_id() {
-  local dir="$1" max=0 n f
+# Emit every assigned id as "<number><TAB><path>", one per line. Scans active +
+# _archive + _deferred so no item's id is ever reused — ids stay stable for
+# commit-trailer refs (D-09).
+scan_backlog_ids() {
+  local dir="$1" n f
   shopt -s nullglob
   for f in "$dir"/*.md "$dir"/_archive/*.md "$dir"/_deferred/*.md; do
     [[ -f "$f" ]] || continue
     n="$(awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {v=$2; gsub(/[^0-9]/,"",v); print v; exit}' "$f")"
-    [[ -n "$n" ]] && (( 10#$n > max )) && max=$((10#$n))
+    [[ -n "$n" ]] && printf '%s\t%s\n' "$((10#$n))" "$f"
   done
   shopt -u nullglob
+}
+
+# Compute the next sequential backlog id (BL-NNN) — one above the highest assigned.
+next_backlog_id() {
+  local dir="$1" max=0 n
+  while IFS=$'\t' read -r n _; do
+    (( n > max )) && max=$n
+  done < <(scan_backlog_ids "$dir")
   printf 'BL-%03d' $((max+1))
+}
+
+# Report ids carried by more than one entry. Duplicates do not come from this
+# script — next_backlog_id always picks above the highest it can see — they come
+# from entries hand-authored with a guessed id. Nothing used to notice, so two
+# pairs sat undetected in echo_lab for weeks (BL-186 and BL-193, found 2026-07-22).
+# Returns 1 when any duplicate exists, so --reindex can fail the run.
+report_duplicate_ids() {
+  local dir="$1" ids dup=0 n files
+  ids="$(scan_backlog_ids "$dir")"
+  while IFS= read -r n; do
+    [[ -n "$n" ]] || continue
+    files="$(printf '%s\n' "$ids" | awk -F'\t' -v i="$n" '$1==i { printf "%s ", $2 }')"
+    warn "$(printf 'duplicate id BL-%03d → %s' "$n" "${files% }")"
+    dup=1
+  done < <(printf '%s\n' "$ids" | cut -f1 | sort -n | uniq -d)
+  return $dup
 }
 
 # --- dispatcher: strip leading "aidex-backlog" if present ---
@@ -318,11 +345,14 @@ regen_index() {
   } > "$index_file"
 
   ok "Regenerated $index_file"
+
+  # Last statement: its status becomes regen_index's, so callers can act on it.
+  report_duplicate_ids "$dir"
 }
 
 # --- handle --reindex ---
 if [[ $REINDEX_ONLY -eq 1 ]]; then
-  regen_index "$BACKLOG_DIR"
+  regen_index "$BACKLOG_DIR" || exit 1
   exit 0
 fi
 
@@ -519,7 +549,9 @@ ok "Backlog entry created"
 printf '  %s\n' "$OUT_FILE" >&2
 
 if [[ $NO_INDEX -eq 0 ]]; then
-  regen_index "$BACKLOG_DIR"
+  # A pre-existing duplicate must not fail a registration — the entry is already
+  # written, and aborting here would only lose the caller's path on stdout.
+  regen_index "$BACKLOG_DIR" || true
 fi
 
 # Emit the path to stdout so callers (like /aidex-audit escalate) can capture it
