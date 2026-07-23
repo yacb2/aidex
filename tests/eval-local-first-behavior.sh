@@ -28,7 +28,10 @@ elif command -v gtimeout >/dev/null; then TO="gtimeout 600"
 else TO=""; fi
 
 WORK="$(mktemp -d /tmp/aidex-lf-eval.XXXXXX)"
-trap 'rm -rf "$WORK"' EXIT
+# Keep the workdir (streams, err logs) when any assertion fails — deleting the
+# evidence on failure made the first two runs undiagnosable.
+cleanup() { if [ "${failures:-0}" -eq 0 ]; then rm -rf "$WORK"; else echo "evidence kept: $WORK"; fi; }
+trap cleanup EXIT
 
 # --- open(1) shim: log instead of launching a browser -------------------------
 SHIM="$WORK/shim"; mkdir -p "$SHIM"
@@ -70,19 +73,24 @@ run_scenario() { # $1=name $2=prompt
   [ $rc -eq 0 ] || fail "$name: claude -p exited $rc (see $name.err)"
 }
 
-check_events() { # $1=name -> prints "<artifact_design_fired> <artifact_tool_used>"
+check_events() { # $1=name -> prints "<design_guidance_loaded> <artifact_tool_used> <dash_render>"
+  # Design guidance = artifact-design OR its headless equivalents (theme-factory /
+  # canvas-design / dataviz) — headless claude -p does not ship artifact-design.
   python3 - "$WORK/$1.stream.jsonl" <<'PY'
 import json, sys
-ad = pub = False
+DESIGN = ("artifact-design", "theme-factory", "canvas-design", "dataviz")
+dg = pub = dash = False
 for line in open(sys.argv[1]):
     try: ev = json.loads(line)
     except Exception: continue
     for b in (ev.get("message") or {}).get("content") or []:
         if isinstance(b, dict) and b.get("type") == "tool_use":
             n = b.get("name", "")
-            if n == "Skill" and "artifact-design" in json.dumps(b.get("input", {})): ad = True
+            blob = json.dumps(b.get("input", {}))
+            if n == "Skill" and any(d in blob for d in DESIGN): dg = True
             if n == "Artifact": pub = True
-print(int(ad), int(pub))
+            if n == "Bash" and "render.sh" in blob: dash = True
+print(int(dg), int(pub), int(dash))
 PY
 }
 
@@ -93,8 +101,10 @@ S1_HTML="$(ls "$FIX/.context/plans/2026-07-01-demo-feature/"*.html 2>/dev/null |
                   || fail "S1: no sibling HTML inside the plan folder"
 grep -q "2026-07-01-demo-feature" "$WORK/open-calls.log" 2>/dev/null \
   && pass "opened locally via open(1) shim" || fail "S1: open(1) never called on the sibling"
-read -r AD PUB <<< "$(check_events s1)"
-[ "$AD" = "1" ]  && pass "artifact-design skill fired" || fail "S1: artifact-design did not fire"
+read -r DG PUB DASH <<< "$(check_events s1)"
+# A plan summary is legitimately route A (dash render.sh) OR route B (design skill).
+{ [ "$DG" = "1" ] || [ "$DASH" = "1" ]; } && pass "design guidance loaded or dash renderer used (dg=$DG dash=$DASH)" \
+  || fail "S1: neither a design-guidance skill nor render.sh was used"
 [ "$PUB" = "0" ] && pass "Artifact (publish) tool NOT used" || fail "S1: published online without being asked"
 
 echo "== S2: anchor-less -> .context/reports/ =="
@@ -104,10 +114,10 @@ S2_HTML="$(ls "$FIX/.context/reports/"*.html 2>/dev/null | head -1)"
                   || fail "S2: nothing in .context/reports/ (found: $(cd "$FIX" && find .context -name '*.html' | tr '\n' ' '))"
 grep -q "reports/" "$WORK/open-calls.log" 2>/dev/null \
   && pass "opened locally via open(1) shim" || fail "S2: open(1) never called on the report"
-read -r AD PUB <<< "$(check_events s2)"
-[ "$AD" = "1" ]  && pass "artifact-design skill fired" || fail "S2: artifact-design did not fire"
+read -r DG PUB DASH <<< "$(check_events s2)"
+[ "$DG" = "1" ]  && pass "design-guidance skill fired" || fail "S2: no design-guidance skill fired"
 [ "$PUB" = "0" ] && pass "Artifact (publish) tool NOT used" || fail "S2: published online without being asked"
 
 echo
 if [ "$failures" -eq 0 ]; then echo "RESULT: all behavioral assertions passed"; exit 0
-else echo "RESULT: $failures failure(s) — streams kept in $WORK? (removed on exit; re-run with trap disabled to inspect)"; exit 1; fi
+else echo "RESULT: $failures failure(s)"; exit 1; fi
