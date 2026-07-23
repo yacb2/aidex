@@ -74,6 +74,11 @@ fi
 if ! grep -q 'rules/\*\.md' "$REPO_ROOT/install.sh"; then
   fail "install.sh does not glob rules/*.md"
 fi
+# Regression (field, 2026-07-23): rules copied to ~/.aidex/rules never load —
+# Claude Code only reads ~/.claude/rules/*.md, so install must symlink them.
+if grep -qE 'rules/\*\)\s*return 1' "$REPO_ROOT/install.sh"; then
+  fail "install.sh still excludes rules/* from symlinking (rules would never load)"
+fi
 
 # --- Task 6.2: dash-conventions carries the sibling-report GENERATED clause ---
 DASH_CONV="$REPO_ROOT/skills/aidex-dash/references/01-dash-conventions.md"
