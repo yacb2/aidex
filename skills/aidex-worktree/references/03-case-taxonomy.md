@@ -20,6 +20,11 @@ What the work needs isolated, from cheapest to most expensive:
   live to iterate, or otherwise mutates shared state (DB, caches, running services) in
   a way that would collide with parallel work.
 
+**Contract:** Tier 2 = full isolation including isolated E2E capability by default: the
+`worktree_up` command must leave a runnable per-worktree `test-e2e.sh` (template DB
+clone + namespaced E2E ports) with no additional ask. The independent-E2E trigger is
+**included by default** for Tier 2 — not "decide per task."
+
 Record the **concrete signal** the project uses to tell these apart (e.g. "touches
 `migrations/`" or "runs `docker compose up`") — never a vague description like "big
 changes."
