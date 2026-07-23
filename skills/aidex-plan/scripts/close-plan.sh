@@ -137,4 +137,17 @@ ok "Closed plan $(basename "$PLAN_PATH") → $STATUS · archived"
 REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-plans.sh"
 [[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
 
+# Surface backlog archive hygiene unprompted. A plan close is exactly when done
+# backlog items tend to linger in the active folder (the "archive re-dictated 4x"
+# friction): the sweep already lists them, so print that list here without being
+# asked. Best-effort — a missing sweep never blocks the close.
+SWEEP="$(dirname "${BASH_SOURCE[0]}")/../../aidex-backlog/scripts/sweep.sh"
+if [[ -x "$SWEEP" ]]; then
+  SWEEP_OUT="$( (cd "$ROOT" && NO_COLOR=1 bash "$SWEEP") 2>/dev/null || true)"
+  if [[ "$SWEEP_OUT" == *"would archive"* ]]; then
+    printf '\n%sBacklog: done/dropped items still in the active folder — archive them (D-10):%s\n' "$C_RED" "$C_RESET" >&2
+    printf '%s\n' "$SWEEP_OUT" >&2
+  fi
+fi
+
 printf '%s\n' "$DEST"

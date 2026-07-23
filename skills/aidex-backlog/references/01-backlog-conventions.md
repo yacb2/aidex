@@ -92,6 +92,7 @@ updated: 2026-04-15
 origin: audit
 origin_ref: audit/ux/2026-04-15-ux-review/IDEA-FF-2
 priority: P2
+type: task
 estimate: M
 blocked_by: ""
 escalated_to: ""
@@ -99,25 +100,26 @@ commits: ""
 ---
 ```
 
-This is the **complete 12-field schema `register-item.sh` writes** — the single source
+This is the **complete 13-field schema `register-item.sh` writes** — the single source
 for the entry front-matter. `title`, `status`, `created`, `updated` are the required
 global fields from [`00-global.md` §7](../../aidex-conventions/references/00-global.md#7-front-matter-minimum-d-07);
-the rest are backlog-specific. When hand-authoring an entry, write all 12 — `id` and
+the rest are backlog-specific. When hand-authoring an entry, write all 13 — `id` and
 `commits` are **machine-required** (the lifecycle breaks without them), while
 `origin_ref` and `estimate` are human-optional (no script branches on them).
 
 | Field | Values / format | Notes |
 |---|---|---|
 | `title` | quoted string | Global (§7). |
-| `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it. |
+| `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id (a hand-authored `BL-20260610` inflates the sequence). |
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
-| `origin` | `manual` · `audit` · `issue` · `request` | Where it came from. |
+| `origin` | `manual` · `audit` · `issue` · `request` | Where it came from. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
 | `origin_ref` | `<type>/<filename>` (D-03) or empty | *Human-optional:* provenance archaeology — no script reads it. Format depends on origin — see below. |
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
+| `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
 | `estimate` | `XS` · `S` · `M` · `L` · `XL` | *Human-optional:* T-shirt sizing, display-only (index one-liner + dash cell); no logic branches on it. Independent of priority. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
-| `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). |
+| `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake). |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
 
 ### `origin_ref` formats
@@ -266,6 +268,39 @@ When a backlog entry grows beyond one-screen scope:
 4. When the plan completes, update the backlog entry to `status: done`.
 
 Don't delete the backlog entry — it's the origin trail.
+
+---
+
+## Cross-project routing (the BL-035 handshake)
+
+An item discovered in project A whose work belongs in project B (a shared boilerplate,
+a global skill, `aidex` itself) must not sit stranded where nobody who can act on it
+will see it. `register-item.sh --escalate-to <target-repo-path>` registers a **linked
+pair**:
+
+- the **source** repo carries `escalated_to: <target-repo>/BL-NNN` (points at where the
+  work now lives);
+- the **target** repo carries `origin: <source-repo>/BL-MMM` (records where it was
+  discovered);
+- both indexes are regenerated.
+
+```bash
+# Discovering a new cross-repo item (registers a fresh source stub + counterpart):
+bash scripts/register-item.sh --escalate-to /path/to/boilerplate \
+  --title "Host shared X in the boilerplate" --priority P2 --type improvement
+
+# Routing an item that already exists (stamp it instead of duplicating):
+bash scripts/register-item.sh --escalate-to /path/to/aidex \
+  --source-id BL-172 --title "…"
+```
+
+> **Known gap (owned by the cross-ref-schema package, echo BL-206).** A cross-repo
+> `escalated_to: <target-repo>/BL-NNN` uses a repo prefix, not an artifact-type prefix,
+> so `validate.py`'s `<type>/<filename>` cross-ref check flags it as
+> `cross-ref-format-invalid` if you run the validator in the source repo. The counterpart's
+> `origin` is validate-clean (`origin` is not a cross-ref field). Widening the cross-ref
+> grammar to accept repo-qualified refs is deferred to that package — do not special-case
+> it here.
 
 ---
 

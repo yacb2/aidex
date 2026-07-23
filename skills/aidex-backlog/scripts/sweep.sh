@@ -26,6 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -d "$BACKLOG_DIR" ]] || { echo "no backlog dir at $BACKLOG_DIR" >&2; exit 0; }
 
 read_status() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{print $2; exit}' "$1"; }
+read_id()     { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 
 moved=0
 mkdir -p "$BACKLOG_DIR/_archive"
@@ -47,7 +48,13 @@ for f in "$BACKLOG_DIR"/*.md; do
     mv "$f" "$dest"
     echo "archived ($st): $base"
   else
+    # Surface the item AND a copy-pasteable, status-preserving archive command
+    # (the "archive re-dictated 4x" friction: a done item lingers because the
+    # reader isn't told how to close it). Resolve by id when present, else file.
+    id="$(read_id "$f")"
+    target="${id:-$base}"
     echo "[dry-run] would archive ($st): $base"
+    echo "      archive: bash $SCRIPT_DIR/close-item.sh $target --status $st"
   fi
   moved=$((moved+1))
 done
@@ -56,7 +63,8 @@ shopt -u nullglob
 if [[ $moved -eq 0 ]]; then
   echo "active backlog is clean — nothing to sweep"
 elif [[ $APPLY -eq 0 ]]; then
-  echo "($moved item(s) would move — re-run with --apply)"
+  echo "($moved done/dropped item(s) still in the active folder — archive on close, D-10)"
+  echo "  archive all at once: bash $SCRIPT_DIR/sweep.sh --apply"
 else
   bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null
   echo "done: $moved item(s) archived; index rebuilt"

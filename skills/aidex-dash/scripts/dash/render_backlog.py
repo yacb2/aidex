@@ -11,6 +11,18 @@ import os
 import _parse as P
 import _shell as S
 
+# Producer-consumer contract pin (BL-060 pattern). The producer is
+# register-item.sh's item front-matter (documented in
+# aidex-backlog/references/01-backlog-conventions.md); this renderer is the
+# consumer. Bumped to /2 when the `type` facet was added (ADR 2026-07-23). Unlike
+# coverage-matrix (a JSON key the renderer can hard-check), backlog items carry no
+# per-file schema stamp, so this is documentary: the renderer stays tolerant of
+# items predating a field (absent `type` renders as "—"), which is why the type
+# addition is additive rather than a fail-loud break.
+BACKLOG_SCHEMA = "backlog-fm/2"
+
+CONSUMED_FIELDS = ("id", "title", "status", "priority", "type", "estimate", "origin_ref")
+
 STATUS_TONE = {"doing": "warn", "open": "", "done": "ok", "dropped": "plain",
                "deferred": "plain", "blocked": "warn"}
 
@@ -28,6 +40,7 @@ def _items(backlog_dir):
             "title": fm.get("title", os.path.basename(path)),
             "status": fm.get("status", ""),
             "priority": fm.get("priority", ""),
+            "type": fm.get("type", ""),
             "estimate": fm.get("estimate", ""),
             "origin_ref": fm.get("origin_ref", ""),
         })
@@ -69,8 +82,8 @@ def render(root):
         n = prio_counts[p]
         prio.append({"label": p, "pct": (100 * n / peak) if peak else 0, "n": n})
 
-    # Item table.
-    cols = [("ID", "s"), ("Title", "s"), ("Status", "s"),
+    # Item table. `type` renders as a chip (one queue, a facet — never a section).
+    cols = [("ID", "s"), ("Title", "s"), ("Type", "s"), ("Status", "s"),
             ("Priority", "s"), ("Estimate", "s")]
     rows = []
     for it in sorted(items, key=lambda x: (x["priority"], x["id"])):
@@ -78,6 +91,7 @@ def render(root):
         rows.append([
             S.esc(it["id"]),
             S.esc(it["title"]),
+            S.pill(it["type"], "plain") if it["type"] else S.esc("—"),
             S.pill(it["status"] or "—", tone),
             S.esc(it["priority"] or "—"),
             S.esc(it["estimate"] or "—"),
