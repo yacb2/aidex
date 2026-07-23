@@ -82,8 +82,10 @@ collect_repo_items() {
     items+=("skills/$(basename "$skill_dir")")
   done
 
-  # Rules (individual .md files copied into ~/.aidex/rules/, no symlinks).
-  # Claude Code auto-loads everything under ~/.aidex/rules/ as session context.
+  # Rules (individual .md files copied into ~/.aidex/rules/ AND symlinked into
+  # ~/.claude/rules/ — Claude Code loads ~/.claude/rules/*.md as session context;
+  # nothing under ~/.aidex/ loads by itself. Field-verified 2026-07-23: unlinked
+  # rules were silently absent from every session).
   if [ -d "$SCRIPT_DIR/rules" ]; then
     for rule_file in "$SCRIPT_DIR"/rules/*.md; do
       [ -f "$rule_file" ] || continue
@@ -105,10 +107,9 @@ collect_repo_items() {
   printf '%s\n' "${items[@]}"
 }
 
-# Items under rules/ are copied only (no symlink into ~/.claude/).
+# Rules symlink into ~/.claude/rules/ (the actual load surface); hooks stay copy-only.
 is_symlinkable() {
   case "$1" in
-    rules/*) return 1 ;;
     hooks/*) return 1 ;;
     *) return 0 ;;
   esac
@@ -364,6 +365,16 @@ do_update() {
       removed+=("$item")
     fi
   done < <(read_manifest)
+
+  # Symlink reconcile — runs even when no item changed: an item whose symlink
+  # POLICY changed (e.g. rules/* became symlinkable, 2026-07-23) is neither
+  # modified nor new, so the update loops never touch it. Idempotent.
+  local reconcile_item
+  while IFS= read -r reconcile_item; do
+    [ -n "$reconcile_item" ] || continue
+    [ -e "$AIDEX_DIR/$reconcile_item" ] || continue
+    is_symlinkable "$reconcile_item" && create_symlink "$reconcile_item" 2>/dev/null || true
+  done < <(collect_repo_items)
 
   # Report
   header "Changes detected"
