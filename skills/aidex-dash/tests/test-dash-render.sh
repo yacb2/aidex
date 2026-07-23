@@ -31,6 +31,7 @@ title: "Alpha backlog item"
 id: BL-001
 status: doing
 priority: P1
+type: bug
 estimate: M
 origin_ref: ""
 ---
@@ -130,6 +131,8 @@ run backlog >/dev/null || fail "backlog render exited non-zero"
 head -1 "$BL_HTML" | grep -q '^<!-- GENERATED' || fail "backlog: first line missing GENERATED"
 grep -q 'BL-001' "$BL_HTML" || fail "backlog: item id BL-001 missing"
 grep -q 'P1 HIGH' "$BL_HTML" || fail "backlog: priority bar label missing"
+grep -q '<th data-k="2" data-t="s">Type' "$BL_HTML" || fail "backlog: Type column header missing"
+grep -q '>bug<' "$BL_HTML" || fail "backlog: type chip 'bug' missing"
 
 # --- plans rollup -----------------------------------------------------------
 PL_HTML="$CTX/plans/00-index.html"

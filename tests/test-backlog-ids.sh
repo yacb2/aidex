@@ -12,6 +12,8 @@
 #   (c) duplicate across _archive -> caught too (scan covers active+archive+deferred)
 #   (d) next id clears the max    -> new entry gets highest+1, not a reused number
 #   (e) registration survives     -> a pre-existing duplicate warns but still writes
+#   (f) nonconforming id          -> --reindex exit 1, names the offending id
+#   (g) conforming ids stay clean -> no false nonconforming warning
 #
 # Run with: bash tests/test-backlog-ids.sh
 
@@ -101,5 +103,29 @@ new="$( (cd "$P" && NO_COLOR=1 bash "$SCRIPT" --origin manual --title "Theta" 2>
 err_out="$( (cd "$P" && NO_COLOR=1 bash "$SCRIPT" --origin manual --title "Iota" 2>&1 >/dev/null) )"
 echo "$err_out" | grep -q "duplicate id BL-002" || fail "(e) registration survives: duplicate not warned about"
 
+# ---------- (f) a nonconforming id (not ^BL-[0-9]{3}$) is flagged ----------
+# ns_backoffice's hand-authored BL-20260610 minted BL-20260611 and slipped the
+# duplicate check because the digit-strip hid the malformed shape.
+make_fixture
+make_item "$B/2026-01-07-eta.md" "BL-20260610" "Eta"
+out="$(run_reindex)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "(f) nonconforming id: expected exit 1, got $rc"
+echo "$out" | grep -q "nonconforming id BL-20260610" || fail "(f) nonconforming id: did not name the id"
+echo "$out" | grep -q "2026-01-07-eta.md" || fail "(f) nonconforming id: did not name the file"
+[[ -f "$B/00-index.md" ]] || fail "(f) nonconforming id: index should still be written"
+
+# a short/misshapen id (BL-1) is caught too
+make_fixture
+make_item "$B/2026-01-08-theta.md" "BL-1" "Theta"
+out="$(run_reindex)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "(f) short id: expected exit 1, got $rc"
+echo "$out" | grep -q "nonconforming id BL-1" || fail "(f) short id: did not name the id"
+
+# ---------- (g) a clean, conforming backlog raises no nonconforming warning ----------
+make_fixture
+out="$(run_reindex)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "(g) conforming ids: expected exit 0, got $rc"
+echo "$out" | grep -qi "nonconforming" && fail "(g) conforming ids: false nonconforming warning on BL-001/002/003"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — ids are unique-by-construction; duplicates from hand-authored entries fail --reindex and warn on register"
+echo "OK — ids are unique-by-construction; duplicate AND nonconforming hand-authored ids fail --reindex and warn on register"

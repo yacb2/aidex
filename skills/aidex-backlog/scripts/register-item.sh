@@ -11,13 +11,18 @@
 #   --issue <id>                   (when --origin issue) issue ID
 #   --request <file>               (when --origin request) request file path
 #   --priority <P0|P1|P2|P3>       default: P2 (code only — see references/01-backlog-conventions.md)
+#   --type <bug|improvement|task|idea>  work kind (default: task) — a facet, one queue
 #   --blocked-by "<who/what>"      optional Blocked modifier; priority is kept, item listed under Blocked
 #   --estimate <XS|S|M|L|XL>       default: M
 #   --status <open|doing|done|dropped>  default: open
 #   --slug <kebab-case>            override auto-generated slug
+#   --escalate-to <target-repo>    register a linked counterpart in another repo's backlog
+#                                  (source gets escalated_to, target gets origin — see
+#                                  --source-id to stamp an existing item instead of a new stub)
+#   --source-id <BL-id>            (with --escalate-to) stamp this existing item as the source
 #   --list                         list open entries grouped by priority (P0 → P3 + Blocked)
 #   --reindex                      regenerate 00-index.md from front-matter, then exit
-#                                  (exits 1 if any BL-NNN id is carried by two entries)
+#                                  (exits 1 if any id is duplicated or is not a BL-NNN shape)
 #   --no-index                     skip auto-regen of 00-index.md after writing entry
 #
 # Interactive mode (no args): prompts for title, origin, priority.
@@ -82,13 +87,32 @@ next_backlog_id() {
   printf 'BL-%03d' $((max+1))
 }
 
-# Report ids carried by more than one entry. Duplicates do not come from this
-# script — next_backlog_id always picks above the highest it can see — they come
-# from entries hand-authored with a guessed id. Nothing used to notice, so two
-# pairs sat undetected in echo_lab for weeks (BL-186 and BL-193, found 2026-07-22).
-# Returns 1 when any duplicate exists, so --reindex can fail the run.
+# Emit every assigned id VERBATIM as "<raw-id><TAB><path>", one per line. Unlike
+# scan_backlog_ids (which strips to the numeric part for max/next), this keeps the
+# id exactly as written so the shape can be checked.
+scan_backlog_raw_ids() {
+  local dir="$1" v f
+  shopt -s nullglob
+  for f in "$dir"/*.md "$dir"/_archive/*.md "$dir"/_deferred/*.md; do
+    [[ -f "$f" ]] || continue
+    v="$(awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {print $2; exit}' "$f")"
+    [[ -n "$v" ]] && printf '%s\t%s\n' "$v" "$f"
+  done
+  shopt -u nullglob
+}
+
+# Report id integrity problems. Two failure modes, both from hand-authored entries
+# (this script never produces either — next_backlog_id always mints BL-NNN above
+# the highest it can see):
+#   1. Duplicate id — two pairs sat undetected in echo_lab for weeks (BL-186 and
+#      BL-193, found 2026-07-22).
+#   2. Nonconforming id — an id not matching ^BL-[0-9]{3}$ (ns_backoffice's
+#      hand-authored `BL-20260610` makes next_backlog_id mint `BL-20260611`,
+#      inflating the sequence). The digit-strip in scan_backlog_ids hides this
+#      from the duplicate check, so it needs its own raw-shape pass.
+# Returns 1 when any problem exists, so --reindex can fail the run.
 report_duplicate_ids() {
-  local dir="$1" ids dup=0 n files
+  local dir="$1" ids dup=0 n files rawid f
   ids="$(scan_backlog_ids "$dir")"
   while IFS= read -r n; do
     [[ -n "$n" ]] || continue
@@ -96,7 +120,87 @@ report_duplicate_ids() {
     warn "$(printf 'duplicate id BL-%03d → %s' "$n" "${files% }")"
     dup=1
   done < <(printf '%s\n' "$ids" | cut -f1 | sort -n | uniq -d)
+  while IFS=$'\t' read -r rawid f; do
+    [[ -n "$rawid" ]] || continue
+    if [[ ! "$rawid" =~ ^BL-[0-9]{3}$ ]]; then
+      warn "$(printf 'nonconforming id %s → %s (expected BL-NNN)' "$rawid" "$f")"
+      dup=1
+    fi
+  done < <(scan_backlog_raw_ids "$dir")
   return $dup
+}
+
+# --- cross-project routing helpers (BL-035 handshake) ---
+
+# Find the active/deferred/archived entry carrying the given BL id; echo its path.
+resolve_source_by_id() {
+  local dir="$1" want="$2" f id
+  shopt -s nullglob
+  for f in "$dir"/*.md "$dir"/_deferred/*.md "$dir"/_archive/*.md; do
+    [[ -f "$f" ]] || continue
+    id="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")"
+    if [[ "$id" == "$want" ]]; then printf '%s\n' "$f"; shopt -u nullglob; return 0; fi
+  done
+  shopt -u nullglob
+  return 1
+}
+
+# Rewrite an existing entry's escalated_to (and bump updated) in place.
+stamp_escalated_to() {
+  local f="$1" ref="$2" today
+  today="$(date +%Y-%m-%d)"
+  awk -v ref="$ref" -v today="$today" '
+    BEGIN { d=0 }
+    /^---[[:space:]]*$/ { d++; print; next }
+    d==1 && /^escalated_to:/ { print "escalated_to: \"" ref "\""; next }
+    d==1 && /^updated:/      { print "updated: " today; next }
+    { print }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+}
+
+# Write a compact backlog entry (used by --escalate-to for both the source stub
+# and the cross-repo counterpart). Echoes the created path on stdout.
+emit_backlog_stub() {
+  local dir="$1" id="$2" title="$3" origin="$4" origin_ref="$5" priority="$6" type="$7" escalated_to="$8" note="$9"
+  local date_iso slug out n
+  date_iso="$(date +%Y-%m-%d)"
+  slug="$(title_to_slug "$title")"; [[ -n "$slug" ]] || slug="item"
+  mkdir -p "$dir"
+  out="$dir/$date_iso-$slug.md"; n=2
+  while [[ -e "$out" ]]; do out="$dir/$date_iso-$slug-$n.md"; n=$((n+1)); done
+  cat > "$out" <<EOF
+---
+title: "$title"
+id: $id
+status: open
+created: $date_iso
+updated: $date_iso
+origin: $origin
+origin_ref: ${origin_ref:-}
+priority: $priority
+type: $type
+estimate: M
+blocked_by: ""
+escalated_to: "$escalated_to"
+commits: ""
+---
+
+# $title
+
+## Context
+
+$note
+
+## Acceptance
+
+Done means:
+
+- <!-- concrete, verifiable criterion -->
+
+## Notes
+
+EOF
+  printf '%s\n' "$out"
 }
 
 # --- dispatcher: strip leading "aidex-backlog" if present ---
@@ -110,10 +214,13 @@ AUDIT_RUN=""
 ISSUE=""
 REQUEST=""
 PRIORITY=""
+TYPE=""
 BLOCKED_BY=""
 ESTIMATE="M"
 STATUS="open"
 SLUG_OVERRIDE=""
+ESCALATE_TO=""
+SOURCE_ID=""
 LIST_ONLY=0
 REINDEX_ONLY=0
 NO_INDEX=0
@@ -127,10 +234,13 @@ while [[ $# -gt 0 ]]; do
     --issue)       ISSUE="$2"; shift 2 ;;
     --request)     REQUEST="$2"; shift 2 ;;
     --priority)    PRIORITY="$2"; shift 2 ;;
+    --type)        TYPE="$2"; shift 2 ;;
     --blocked-by)  BLOCKED_BY="$2"; shift 2 ;;
     --estimate)    ESTIMATE="$2"; shift 2 ;;
     --status)      STATUS="$2"; shift 2 ;;
     --slug)        SLUG_OVERRIDE="$2"; shift 2 ;;
+    --escalate-to) ESCALATE_TO="$2"; shift 2 ;;
+    --source-id)   SOURCE_ID="$2"; shift 2 ;;
     --list)        LIST_ONLY=1; shift ;;
     --reindex)     REINDEX_ONLY=1; shift ;;
     --no-index)    NO_INDEX=1; shift ;;
@@ -457,6 +567,21 @@ case "$PRIORITY" in
   p0|p1|p2|p3) PRIORITY="$(echo "$PRIORITY" | tr '[:lower:]' '[:upper:]')" ;;
   *) die "invalid priority: '$PRIORITY' (must be P0, P1, P2, or P3 — see references/01-backlog-conventions.md)" ;;
 esac
+
+# --- type facet (one queue, a work-kind facet — ADR 2026-07-23) ---
+if [[ -z "$TYPE" && -t 0 ]]; then
+  printf '\n%sType facet%s (bug fix · improvement · task · idea):\n' "$C_BOLD" "$C_RESET" >&2
+  printf 'Type [bug/improvement/task/idea] (default: task): ' >&2
+  read -r TYPE
+  TYPE="${TYPE:-task}"
+fi
+TYPE="${TYPE:-task}"
+TYPE="$(echo "$TYPE" | tr '[:upper:]' '[:lower:]')"
+case "$TYPE" in
+  bug|improvement|task|idea) ;;
+  *) die "invalid type: '$TYPE' (must be bug, improvement, task, or idea — see references/01-backlog-conventions.md)" ;;
+esac
+
 case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
 case "$STATUS"   in open|doing|done|dropped) ;; *) die "invalid status: $STATUS" ;; esac
 
@@ -480,6 +605,57 @@ case "$ORIGIN" in
     ORIGIN_REF="request/$REQUEST"
     ;;
 esac
+
+# --- handle --escalate-to (BL-035 cross-project routing handshake) ---
+# Register a linked pair: the discovering repo carries escalated_to: <target>/BL-NNN,
+# the target repo carries origin: <source>/BL-MMM. Both indexes are regenerated.
+# Note: a cross-repo escalated_to (target prefix is a repo, not an artifact type)
+# is NOT resolvable by validate.py's <type>/<filename> cross-ref check — that
+# narrowing is the open cross-ref-schema package (echo BL-206), tracked separately.
+if [[ -n "$ESCALATE_TO" ]]; then
+  TARGET_ROOT="$ESCALATE_TO"
+  [[ -d "$TARGET_ROOT" ]]           || die "--escalate-to: target repo not found: $TARGET_ROOT"
+  [[ -d "$TARGET_ROOT/.context" ]]  || die "--escalate-to: target has no .context/: $TARGET_ROOT"
+  TARGET_BACKLOG="$TARGET_ROOT/.context/backlog"
+  mkdir -p "$TARGET_BACKLOG"
+  SRC_NAME="$(basename "$ROOT")"
+  TGT_NAME="$(basename "$(cd "$TARGET_ROOT" && pwd -P)")"
+  [[ "$SRC_NAME" != "$TGT_NAME" ]] || die "--escalate-to: source and target are the same repo ($SRC_NAME)"
+  TARGET_ID="$(next_backlog_id "$TARGET_BACKLOG")"
+
+  # SOURCE side: stamp an existing item, or register a fresh stub.
+  if [[ -n "$SOURCE_ID" ]]; then
+    SRC_FILE="$(resolve_source_by_id "$BACKLOG_DIR" "$SOURCE_ID")" \
+      || die "--source-id: no item with id $SOURCE_ID in $BACKLOG_DIR"
+    stamp_escalated_to "$SRC_FILE" "$TGT_NAME/$TARGET_ID"
+    SRC_REF="$SOURCE_ID"
+    ok "Stamped source $SOURCE_ID → escalated_to: $TGT_NAME/$TARGET_ID"
+  else
+    SRC_ID="$(next_backlog_id "$BACKLOG_DIR")"
+    SRC_FILE="$(emit_backlog_stub "$BACKLOG_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
+      "$PRIORITY" "$TYPE" "$TGT_NAME/$TARGET_ID" \
+      "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID.")"
+    SRC_REF="$SRC_ID"
+    ok "Registered source stub $SRC_REF (escalated_to: $TGT_NAME/$TARGET_ID)"
+  fi
+  printf '  %s\n' "$SRC_FILE" >&2
+
+  # TARGET side: the counterpart carries the cross-repo origin (origin is not a
+  # validate.py cross-ref field, so this stays clean in the target's validate run).
+  TGT_FILE="$(emit_backlog_stub "$TARGET_BACKLOG" "$TARGET_ID" "$TITLE" "$SRC_NAME/$SRC_REF" "" \
+    "$PRIORITY" "$TYPE" "" \
+    "Discovered in $SRC_NAME (origin: $SRC_NAME/$SRC_REF); routed here for execution.")"
+  ok "Registered counterpart $TARGET_ID in $TGT_NAME (origin: $SRC_NAME/$SRC_REF)"
+  printf '  %s\n' "$TGT_FILE" >&2
+
+  # Regenerate both indexes; a pre-existing dup/nonconforming id must not abort.
+  regen_index "$BACKLOG_DIR" >/dev/null 2>&1 || true
+  regen_index "$TARGET_BACKLOG" >/dev/null 2>&1 || true
+
+  printf '%s\n' "$SRC_FILE"
+  printf '%s\n' "$TGT_FILE"
+  exit 0
+fi
 
 # --- compute slug ---
 if [[ -n "$SLUG_OVERRIDE" ]]; then
@@ -516,6 +692,7 @@ updated: $DATE_ISO
 origin: $ORIGIN
 origin_ref: ${ORIGIN_REF:-}
 priority: $PRIORITY
+type: $TYPE
 estimate: $ESTIMATE
 blocked_by: "$BLOCKED_BY"
 escalated_to: ""

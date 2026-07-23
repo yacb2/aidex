@@ -51,6 +51,10 @@ COMM_MEETING_REQUIRED_FIELDS = ("channel", "participants", "subject", "date", "s
 BASE_STATUS = {"open", "doing", "done", "dropped"}
 DECISION_STATUS = {"accepted", "superseded", "dropped"}
 BACKLOG_PRIORITIES = {"P0", "P1", "P2", "P3", "Blocked"}
+# Backlog work-kind facet (ADR 2026-07-23-backlog-single-queue-type-facet): one
+# queue, a closed/small type facet. Absent is warn-then-ratchet (existing items
+# are not retro-fixed); a present value outside the enum is a violation.
+BACKLOG_TYPES = {"bug", "improvement", "task", "idea"}
 
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
@@ -504,6 +508,23 @@ def check_backlog_priority(path: Path, fm: dict | None) -> Finding | None:
                        f"priority={val!r} not in {sorted(BACKLOG_PRIORITIES)}")
     return None
 
+def check_backlog_type(path: Path, fm: dict | None) -> Finding | None:
+    """Backlog `type:` facet (ADR 2026-07-23). A present value must be in the
+    closed enum (violation otherwise). An absent value on an active item is a
+    warn-then-ratchet nudge — register-item.sh stamps `type` going forward, and
+    existing items are not retro-fixed; archived items are terminal, so exempt."""
+    if fm is None:
+        return None
+    val = fm.get("type", "")
+    if val and val not in BACKLOG_TYPES:
+        return Finding("backlog", str(path), "backlog-type-invalid", "violation",
+                       f"type={val!r} not in {sorted(BACKLOG_TYPES)}")
+    if not val and "_archive" not in path.parts:
+        return Finding("backlog", str(path), "backlog-type-missing", "warning",
+                       f"no type facet — add one of {sorted(BACKLOG_TYPES)} "
+                       f"(default 'task'); register-item.sh assigns it going forward")
+    return None
+
 def check_deferred_blocked_by(path: Path, fm: dict | None) -> Finding | None:
     """Items in backlog/_deferred/ are open-but-blocked: blocked_by MUST be populated.
     Warn (not error) if it's missing so existing deferred items aren't hard-failed.
@@ -889,6 +910,9 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                 bf = check_backlog_priority(path, fm)
                 if bf:
                     file_findings.append(bf)
+                tf = check_backlog_type(path, fm)
+                if tf:
+                    file_findings.append(tf)
                 df = check_deferred_blocked_by(path, fm)
                 if df:
                     file_findings.append(df)

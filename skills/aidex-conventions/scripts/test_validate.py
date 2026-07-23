@@ -310,6 +310,25 @@ def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
         failures.append("placeholder-body unit: archived entry warned (should be exempt)")
 
 
+def check_backlog_type_unit(failures: list[str]) -> None:
+    """Direct cells for check_backlog_type (ADR 2026-07-23 type facet): a valid
+    type is silent; an out-of-enum value is a violation; an absent value warns on
+    an active item but is exempt when archived (warn-then-ratchet, no retro-fix)."""
+    v = _load_validator()
+    active = Path(".context/backlog/2026-01-01-x.md")
+    archived = Path(".context/backlog/_archive/2026-01-01-x.md")
+    if v.check_backlog_type(active, {"type": "bug"}) is not None:
+        failures.append("backlog-type unit: valid type 'bug' flagged (false positive)")
+    bad = v.check_backlog_type(active, {"type": "feature"})
+    if bad is None or bad.rule != "backlog-type-invalid" or bad.severity != "violation":
+        failures.append("backlog-type unit: out-of-enum type did not produce a violation")
+    miss = v.check_backlog_type(active, {"status": "open"})
+    if miss is None or miss.rule != "backlog-type-missing" or miss.severity != "warning":
+        failures.append("backlog-type unit: absent type on active item did not warn")
+    if v.check_backlog_type(archived, {"status": "done"}) is not None:
+        failures.append("backlog-type unit: absent type on archived item warned (should be exempt)")
+
+
 def check_waivers(failures: list[str]) -> None:
     """Waiver lifecycle (BL-048): an anchored waiver suppresses its finding and
     reports it under waived; a content change or a deleted waiver line resurfaces
@@ -398,6 +417,7 @@ def main() -> int:
     check_body_language_unit(failures)
     check_archive_status_open_unit(failures)
     check_backlog_placeholder_body_unit(failures)
+    check_backlog_type_unit(failures)
     check_waivers(failures)
 
     if failures:
