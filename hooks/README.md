@@ -110,10 +110,29 @@ note; use C (or A) instead.
   `~/.aidex/durability/events.jsonl`. The durable skills call this at their start/end. With hook
   C active it is **the activation gate** (no run declared → no judge, no cost); with hook A it
   would be audit only.
-- `test-durability-hook.sh` — 16 isolated stdin tests for hook C: 11 regex/gate tests (run with
-  the judge mocked as unavailable, exercising the fallback path) + 5 judge tests (mocked block,
+- `test-durability-hook.sh` — 27 isolated stdin tests for hook C: regex/gate tests (run with
+  the judge mocked as unavailable, exercising the fallback path) + judge tests (mocked block,
   mocked allow overriding the regex, garbage output → regex fallback, marker-absent → judge not
-  invoked). Hooks A and B are only validatable **live** (model-backed).
+  invoked) + retro-run4 tests (last_user_message extracted from a fixture transcript with the
+  noise shapes skipped, answer-to-user allowed, ES gated-publish-only summary allowed) + marker
+  lifecycle tests (`durability-run.sh stop` from a subdir removes the root marker; a no-marker
+  stop warns). Hooks A and B are only validatable **live** (model-backed).
+
+## Sunset criterion (falsifiable — retire the hook if it fails)
+
+The hook stays only while it earns its keep. Usage-retro run 4 (2026-07-23) found the
+judge produced **6 misfire blocks vs 1 justified catch** — all 6 traced to the judge never
+seeing the user's last message. Retro-run4 (this change) fixes the input: the judge now
+receives `last_user_message`, the policy allows answer-to-user and gated-publication
+terminals, and the marker can no longer leak across subdirs. That is the hook's last chance.
+
+**Retirement rule — measured at the next usage-retro window:** grep
+`~/.aidex/durability/events.jsonl` for `"decision": "block"` events since this change and
+review each against its transcript. If the hook produced **≥1 misfire block** (blocked a turn
+that was a correct answer-to-user, a terminal gated-publication ask, or a genuinely finished
+task) **OR 0 justified blocks** (it caught nothing real), remove the `Stop` entry from
+`~/.claude/settings.json` and rely on skill-side autonomy + the voluntary durability-arbiter
+alone. The measurement is scheduled as a P2 backlog item, so it is done, not remembered.
 
 ## Status
 
