@@ -17,6 +17,11 @@ dashboard):
 2. **Apply the project style profile if present**: `<project>/.context/artifact-style.md`
    (palette, fonts, favicon, tone, layout preferences). The profile wins over
    the skill's placeholder palette; the user's explicit words win over both.
+   **If absent, do NOT create it automatically and do not nag** — offer it
+   exactly when there is signal: the user corrects a generated artifact's
+   styling, or asks for consistent branding across artifacts. Then seed it
+   from `aidex-dash/assets/templates/artifact-style.md.template`, prefilled
+   with the style choices just made, and apply it from that point on.
 3. Write self-contained HTML following that guidance.
 4. Save it as a **sibling** of the source artifact: `<slug>-report.html` next
    to a single-file artifact, or inside the folder for folder artifacts
