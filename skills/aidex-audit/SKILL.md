@@ -14,6 +14,14 @@ Operate the `.context/audits/` convention: scaffold new audit runs, validate coh
 
 See [audit-conventions](../aidex-conventions/references/audit-conventions.md) for the full convention.
 
+## Default autonomy
+
+On run start, apply [Mode A autonomy](../aidex-conventions/references/autonomy-conventions.md)
+automatically — do not wait for the user to grant it. Questions live in the
+initial alignment moment only; after that the run proceeds start-to-finish per
+the shared canon (deny/pre-authorized/mandated/autonomous). See "Sweep doctrine"
+below for how this applies once a sweep is running.
+
 ---
 
 ## Sub-actions
