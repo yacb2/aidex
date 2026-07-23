@@ -20,6 +20,14 @@ See [references/01-loop-engines.md](references/01-loop-engines.md) for the engin
 matrix and guardrails, and [references/02-loop-spec-conventions.md](references/02-loop-spec-conventions.md)
 for the artifact format.
 
+## Default autonomy
+
+On run start, apply [Mode A autonomy](../aidex-conventions/references/autonomy-conventions.md)
+automatically — do not wait for the user to grant it. Questions live in the
+initial alignment moment only; after that the run proceeds start-to-finish per
+the shared canon (deny/pre-authorized/mandated/autonomous). See "Run doctrine"
+below for how this applies once a loop is running.
+
 ---
 
 ## Sub-actions
