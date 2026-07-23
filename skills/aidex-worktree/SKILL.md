@@ -73,6 +73,16 @@ Dispatch by first argument:
    "Doc-shape check" below), and point the user to `/aidex-worktree suggest`.
 3. If it does not exist: tell the user no worktree procedure is recorded yet, and offer
    to run `/aidex-worktree bootstrap`.
+4. **Orphan sweep.** Run
+   [scripts/orphan-sweep.sh](scripts/orphan-sweep.sh):
+   ```bash
+   bash "${CLAUDE_SKILL_DIR}/scripts/orphan-sweep.sh"
+   ```
+   and surface its report as-is — any `-wt-` compose project/volume/image with no
+   matching worktree directory on disk, plus the exact reclaim command for each. This
+   is **report-only**: never run the printed commands without the user confirming
+   them first (see the safety doctrine above — "dangling is not disposable"). Degrades
+   silently to a one-line note when Docker isn't installed/running.
 
 ### Doc-shape check
 
@@ -169,11 +179,23 @@ fix. A recommendation that never runs is what let a broken doc sit unrepaired fo
    - **Axis 4 — Lifecycle & cleanup.** Ephemeral (spin up -> run -> auto-teardown) or
      persistent (iterate for hours/days -> explicit teardown on exit)? What exactly
      must be cleaned up when a Tier-2 worktree closes: isolated DB dropped, isolated
-     compose project/containers/network stopped (**never** shared named volumes),
+     compose project/containers/network stopped, images built for the worktree removed
+     (`--rmi local`), anonymous volumes reclaimed (**never** shared named volumes),
      allocated port offset freed, worktree directory kept or removed. If N worktrees
      can run at once, what is the concrete, deterministic port/offset allocation rule
      (not just "offset by index" — how are collisions between concurrent sessions
-     avoided)?
+     avoided)? Adopt the naming/teardown contract for Tier 2 —
+     `COMPOSE_PROJECT_NAME=<project>-wt-<slug>` and
+     `worktree_down: docker compose -p <project>-wt-<slug> down -v --rmi local
+     --remove-orphans` — as `worktree_down`'s value, unless the project has a
+     documented reason to deviate; the `-wt-` infix is what makes `orphan-sweep.sh`
+     (below) able to tell a worktree's Docker resources apart from everything else.
+     **Safety doctrine: "dangling is not disposable."** A dev DB volume whose
+     containers were removed by `compose down` still holds real data — never
+     `docker volume prune -a`/`--all`. Permitted reclaim verbs: anonymous-volume
+     prune (`docker volume prune -f`) and an explicit `docker volume rm <name>` for a
+     named volume taken from a sweep report the user confirmed. Full doctrine in
+     `aidex-conventions/references/worktree-conventions.md`.
 
 4. **Scaffold.** Run
    [scripts/new-worktree-overview.sh](scripts/new-worktree-overview.sh):
