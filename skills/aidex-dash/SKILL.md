@@ -39,7 +39,10 @@ is idempotent (the render is overwritten, not appended).
 
 Ad-hoc reports (not one of dash's own boards) follow the same sibling-path
 and publish-gated conventions — see `rules/artifacts-local-first.md`; dash
-itself keeps rendering only the boards above.
+itself keeps rendering only the boards above. **When a request lands here but
+is an ad-hoc analysis, do not just decline: route to that rule's flow — load
+the `artifact-design` skill, then write the sibling HTML and open it locally.**
+Never hand-roll an unstyled page after declining a board render.
 
 ## Render-per-index rule
 
