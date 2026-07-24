@@ -8,6 +8,7 @@
 #   (c) missing exec bit          -> exit 1, names the file
 #   (d) manifest entry deleted    -> exit 1
 #   (e) real install smoke        -> runs without crashing, report shape ok
+#   (f) stale .version            -> exit 1, reports the mismatch
 #
 # Run with: bash tests/test-doctor.sh
 
@@ -16,6 +17,14 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
+
+# Derived, never hard-coded (drift repair 2026-07-24): the fixture used to pin
+# .version to a literal "0.20.0", so scenario (a) went silently red the moment
+# install.sh's VERSION was bumped past it — the fixture was red from the first
+# release after caffcad (2026-07-05) until this repair. Any value another file
+# owns must be read from that file, or the test rots on the owner's next edit.
+REPO_VERSION="$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$REPO_ROOT/install.sh" | head -1)"
+[[ -n "$REPO_VERSION" ]] || { echo "FAIL: could not parse VERSION from install.sh"; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -31,7 +40,7 @@ make_fixture() {
   echo "echo durability" > "$A/hooks/durability-run.sh"
   chmod +x "$A/hooks/aidex-router.sh" "$A/hooks/durability-run.sh"
   printf 'skills/skill-a\nhooks/aidex-router.sh\nhooks/durability-run.sh\n' > "$A/.manifest"
-  echo "0.20.0" > "$A/.version"
+  echo "$REPO_VERSION" > "$A/.version"
   ln -s "$A/skills/skill-a" "$C/skills/skill-a"
 }
 
@@ -76,6 +85,18 @@ out="$(run_doctor)"; rc=$?
 [[ "$rc" -eq 1 ]] || fail "(d) manifest entry deleted: expected exit 1, got $rc"
 echo "$out" | grep -q "FAIL:.*manifest entries missing" || fail "(d) manifest entry deleted: missing manifest FAIL line"
 echo "$out" | grep -q "skills/skill-a" || fail "(d) manifest entry deleted: did not name the missing entry"
+
+# ---------- (f) stale .version still reports a mismatch ----------
+# Guards the (a) repair: deriving the fixture version from install.sh makes (a)
+# green forever, which would also hide a genuinely broken version check. This
+# asserts the check still fires, so the repair cannot mask what it repairs.
+make_fixture
+echo "0.0.1-stale" > "$A/.version"
+out="$(run_doctor)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "(f) stale version: expected exit 1, got $rc"
+echo "$out" | grep -q "FAIL:.*version mismatch" || fail "(f) stale version: missing version-mismatch FAIL line"
+echo "$out" | grep -q "0.0.1-stale" || fail "(f) stale version: did not name the installed version"
+echo "$out" | grep -q "$REPO_VERSION" || fail "(f) stale version: did not name the repo version"
 
 # ---------- (e) real install smoke ----------
 out="$(bash "$REPO_ROOT/install.sh" --doctor 2>&1)"; rc=$?

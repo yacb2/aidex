@@ -73,6 +73,25 @@ Heuristic: breadth/mechanical → `sonnet` (`low` for pure transforms, `medium` 
 search); adversarial verify, synthesis, or judgment → `opus/high`. Omit `model` to
 inherit the session model — only set it when a different tier clearly fits.
 
+### The advisor arrangement (worker + conditional escalation)
+
+A stage pattern, not a fan-out shape — it composes with any shape above. A cheaper
+executor does the work; a stronger model checks its plan and judges its output, and
+**coaches only when needed**. Anthropic's published figure: Sonnet 5 with a Fable 5
+advisor lands within 10% of Fable 5 on SWE-bench Pro at 63% of the price of running
+Fable 5 throughout.
+
+**The escalation trigger is the design question a spec must answer**, because it is the
+whole economy of the pattern: advise on every step and you pay for two models to do one
+job, inverting the saving. State the machine-checkable condition that fires the advisor.
+
+Reference implementation already in the suite:
+[`review-with-gate.workflow.js`](../../aidex-plan-exec/assets/workflows/review-with-gate.workflow.js)
+— a fresh `opus/high` reviewer over the cumulative diff, with the arbiter invoked **only
+on `passed=false`**, never per gate. Reuse its `CONTINUE / ASK / STOP` verdict contract
+([`durability-arbiter.md`](../../aidex-conventions/agents/durability-arbiter.md)) rather
+than inventing a new trigger vocabulary.
+
 ## Execution — delegated, never rebuilt
 
 A workflow-spec is the **durable artifact**; execution is delegated to the `Workflow`
