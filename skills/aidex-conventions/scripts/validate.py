@@ -62,6 +62,11 @@ ISO_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$")
 LEGACY_FILENAME = re.compile(r"^\d{8}-")
 CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref")
 CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication|loop|worktree)/.+$")
+# External refs (BL-070): stable identifiers whose target does not live in THIS
+# .context/ — an issue-tracker id, or a backlog item in another repo (written by
+# aidex-backlog's --escalate-to handshake). Format-checked, never existence-checked.
+EXTERNAL_ISSUE_FORMAT = re.compile(r"^issue/\S+$")
+CROSS_REPO_FORMAT = re.compile(r"^[A-Za-z0-9._-]+/BL-\d+$")
 REQUIRED_FIELDS = ("title", "status", "created", "updated")
 # Audit "board" files: living dashboards (per-methodology rollups), not work items.
 AUDIT_BOARD_FILES = {"00-methodology.md", "00-inventory.md", "00-changelog.md"}
@@ -164,6 +169,17 @@ TYPE_FOLDER_TO_PREFIX = {
 }
 PREFIX_TO_FOLDER = {v: k for k, v in TYPE_FOLDER_TO_PREFIX.items()}
 
+def is_external_ref(ref: str) -> bool:
+    """True for refs that point outside this .context/ (BL-070): `issue/<id>` for
+    an external tracker, and `<repo>/BL-NNN` for a cross-repo backlog counterpart.
+    Both are stable identifiers, so the format is checked but existence is not —
+    the target is not on this filesystem tree. A `<type>/…` ref is never external:
+    local types stay resolvable, so a typo in one is still caught."""
+    if EXTERNAL_ISSUE_FORMAT.match(ref):
+        return True
+    prefix = ref.split("/", 1)[0]
+    return prefix not in PREFIX_TO_FOLDER and bool(CROSS_REPO_FORMAT.match(ref))
+
 def crossref_target_exists(context_dir: Path, ref: str) -> bool:
     """ref format: <type>/<filename-or-path>. Search active and _archive."""
     if "/" not in ref:
@@ -195,6 +211,42 @@ def crossref_target_exists(context_dir: Path, ref: str) -> bool:
         if len(parts) > 1 and (base / "/".join(parts[:-1])).exists():
             return True
     return False
+
+# ---------- Ignored subtrees (BL-037) ----------
+
+IGNORE_NAME = ".aidex-ignore"
+
+def load_ignores(context_dir: Path) -> list[str]:
+    """Read `<context>/.aidex-ignore`: one path prefix per line, relative to
+    `.context/` (a leading `.context/` is tolerated), `#` comments and blanks
+    ignored. No globs — a line matches a path equal to it or under it.
+
+    The escape hatch for vendored/imported subtrees (a third-party repo dropped
+    under `research/<topic>/`): their files are not aidex artifacts, so neither
+    the validator nor the migrator may judge or rename them."""
+    ip = context_dir / IGNORE_NAME
+    if not ip.is_file():
+        return []
+    prefixes: list[str] = []
+    for raw in ip.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(".context/"):
+            line = line[len(".context/"):]
+        line = line.strip("/")
+        if line:
+            prefixes.append(line)
+    return prefixes
+
+def is_ignored(context_dir: Path, path: Path, prefixes: list[str]) -> bool:
+    if not prefixes:
+        return False
+    try:
+        rel = path.resolve().relative_to(context_dir.resolve()).as_posix()
+    except (ValueError, OSError):
+        return False
+    return any(rel == p or rel.startswith(p + "/") for p in prefixes)
 
 # ---------- File walkers ----------
 
@@ -477,6 +529,10 @@ def check_crossrefs(type_name: str, path: Path, fm: dict | None,
     for field_name in CROSSREF_FIELDS:
         ref = fm.get(field_name, "")
         if not ref:
+            continue
+        # External refs (issue/<id>, <repo>/BL-NNN) are accepted on format alone —
+        # this branch must precede the format check, whose <type>/ enum rejects them.
+        if is_external_ref(ref):
             continue
         # blocked_by may be free text (canon §7) — validate only when it is a typed
         # ref or clearly ATTEMPTS one via a path form. Free text containing a slash
@@ -853,6 +909,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
     findings: list[Finding] = []
     summary_by_type: dict[str, dict] = {}
     files_scanned = 0
+    ignore_prefixes = load_ignores(context_dir)
+    files_ignored = 0
     types_to_scan = [type_filter] if type_filter else TYPES
 
     for type_name in types_to_scan:
@@ -881,6 +939,11 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
 
         # Per-file checks
         for path in iter_files_for_type(context_dir, type_name):
+            # Ignored subtrees are skipped before ANY rule runs, so the exemption
+            # is uniform across every check rather than per-rule (BL-037).
+            if is_ignored(context_dir, path, ignore_prefixes):
+                files_ignored += 1
+                continue
             type_files += 1
             files_scanned += 1
             text = ""
@@ -951,6 +1014,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
         "info":       sum(1 for f in findings if f.severity == "info"),
         "by_type": summary_by_type,
     }
+    if files_ignored:
+        summary["ignored"] = files_ignored
     return findings, summary
 
 def to_relative(context_dir: Path, finding: Finding) -> Finding:
@@ -961,24 +1026,39 @@ def to_relative(context_dir: Path, finding: Finding) -> Finding:
     return Finding(finding.type, rel, finding.rule, finding.severity, finding.message)
 
 BASELINE_NAME = ".validate-baseline.json"
+BASELINE_VERSION = 2
 
 def baseline_key(f: Finding) -> str:
+    """v2 key: file|rule|message. The message is the only discriminator left inside
+    one file+rule pair — with the v1 file|rule key, a file already dirty for rule X
+    masked every NEW rule-X violation in that same file (BL-043)."""
+    return f"{f.file}|{f.rule}|{f.message}"
+
+def legacy_baseline_key(f: Finding) -> str:
+    """v1 key. Still honoured for baselines frozen before v2 so an existing
+    baseline never silently turns its whole accepted set into NEW violations."""
     return f"{f.file}|{f.rule}"
 
-def load_baseline(context_dir: Path) -> set[str] | None:
-    """Ratchet baseline: the frozen set of file|rule violation keys a legacy project
-    accepts. Present -> the enforceable rule becomes 'zero NEW violations'."""
+def load_baseline(context_dir: Path) -> tuple[set[str], int] | None:
+    """Ratchet baseline: the frozen set of violation keys a legacy project accepts.
+    Present -> the enforceable rule becomes 'zero NEW violations'. Returns
+    (keys, version); version 1 means the file predates per-message keys."""
     bp = context_dir / BASELINE_NAME
     if not bp.is_file():
         return None
     try:
-        return set(json.loads(bp.read_text(encoding="utf-8")).get("keys", []))
+        data = json.loads(bp.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    version = data.get("version", 1)
+    if not isinstance(version, int) or version < 1:
+        version = 1
+    return set(data.get("keys", [])), version
 
 def write_baseline(context_dir: Path, violations: list[Finding]) -> Path:
     bp = context_dir / BASELINE_NAME
     data = {
+        "version": BASELINE_VERSION,
         "created": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "note": "validate.py ratchet baseline — runs report/exit only on violations NOT in this set. Refresh explicitly with --baseline.",
         "keys": sorted({baseline_key(f) for f in violations}),
@@ -1114,16 +1194,27 @@ def main() -> int:
 
     if args.baseline:
         bp = write_baseline(context_dir, violations_list)
-        print(f"baseline written: {bp} ({len(violations_list)} accepted violations)")
+        keys = len({baseline_key(f) for f in violations_list})
+        print(f"baseline written: {bp} "
+              f"(v{BASELINE_VERSION}, {keys} accepted keys from {len(violations_list)} violations)")
         return 0
 
     # Ratchet: with a baseline present, only violations NOT in the frozen set count.
-    baseline = load_baseline(context_dir)
+    loaded = load_baseline(context_dir)
     new_violations: list[Finding] | None = None
-    if baseline is not None:
-        new_violations = [f for f in violations_list if baseline_key(f) not in baseline]
-        summary["baseline"] = {"present": True, "accepted": len(baseline),
-                               "new_violations": len(new_violations)}
+    baseline_version = BASELINE_VERSION
+    resolved_keys: list[str] = []
+    if loaded is not None:
+        baseline, baseline_version = loaded
+        key_of = baseline_key if baseline_version >= BASELINE_VERSION else legacy_baseline_key
+        new_violations = [f for f in violations_list if key_of(f) not in baseline]
+        # Refresh policy: report accepted keys that no longer occur so the baseline
+        # can be tightened. Reporting only — a validation run never mutates state.
+        resolved_keys = sorted(baseline - {key_of(f) for f in violations_list})
+        summary["baseline"] = {"present": True, "version": baseline_version,
+                               "accepted": len(baseline),
+                               "new_violations": len(new_violations),
+                               "resolved": len(resolved_keys)}
 
     if args.json:
         out = {
@@ -1171,10 +1262,17 @@ def main() -> int:
         if waiver_parse_errors:
             print(f"\nwaiver file: {waiver_parse_errors} unparseable line(s) ignored")
         if new_violations is not None:
-            print(f"\nRatchet (baseline present, {len(baseline)} accepted): "
+            print(f"\nRatchet (baseline v{baseline_version}, {len(baseline)} accepted): "
                   f"{len(new_violations)} NEW violation(s)")
             for f in new_violations:
                 print(f"  [NEW:{f.rule}] {f.file}: {f.message}")
+            if baseline_version < BASELINE_VERSION:
+                print(f"  note: v{baseline_version} baseline keys on file|rule, so a NEW violation of "
+                      f"an already-accepted rule in the same file stays hidden — "
+                      f"refresh with --baseline for per-message granularity")
+            if resolved_keys:
+                print(f"  {len(resolved_keys)} accepted violation(s) no longer present — "
+                      f"refresh with --baseline to tighten the ratchet")
 
     if new_violations is not None:
         return 1 if new_violations else 0

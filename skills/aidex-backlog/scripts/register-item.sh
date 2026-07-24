@@ -609,9 +609,9 @@ esac
 # --- handle --escalate-to (BL-035 cross-project routing handshake) ---
 # Register a linked pair: the discovering repo carries escalated_to: <target>/BL-NNN,
 # the target repo carries origin: <source>/BL-MMM. Both indexes are regenerated.
-# Note: a cross-repo escalated_to (target prefix is a repo, not an artifact type)
-# is NOT resolvable by validate.py's <type>/<filename> cross-ref check — that
-# narrowing is the open cross-ref-schema package (echo BL-206), tracked separately.
+# A cross-repo escalated_to (target prefix is a repo, not an artifact type) is an
+# EXTERNAL ref: validate.py accepts <repo>/BL-NNN on format and skips the existence
+# check, since the target is not on this filesystem tree (BL-070, 00-global §3.1).
 if [[ -n "$ESCALATE_TO" ]]; then
   TARGET_ROOT="$ESCALATE_TO"
   [[ -d "$TARGET_ROOT" ]]           || die "--escalate-to: target repo not found: $TARGET_ROOT"

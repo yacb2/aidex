@@ -96,6 +96,19 @@ def main() -> int:
         if not re.search(rf"\b{p}\b", rules_text):
             failures.append(f"rules/aidex-conventions.md is missing cross-ref prefix '{p}'")
 
+    # 4b — external ref forms (BL-070) are a second cross-ref namespace; both the
+    # canon and the always-on rules summary must teach them, or the registry-lag
+    # drift reappears one namespace over.
+    external_probes = [("issue/", v.EXTERNAL_ISSUE_FORMAT.match("issue/GH-1")),
+                       ("BL-NNN", v.CROSS_REPO_FORMAT.match("some_repo/BL-1"))]
+    for token, matched in external_probes:
+        if not matched:
+            failures.append(f"validate.py no longer accepts the external ref form '{token}'")
+        if token not in canon:
+            failures.append(f"00-global.md never documents the external ref form '{token}'")
+        if token not in rules_text:
+            failures.append(f"rules/aidex-conventions.md never documents the external ref form '{token}'")
+
     # 5 — the aidex orchestrator must know every type (its tier lists drive
     # deletion-candidate decisions; a missing type is a destructive-drift risk)
     for f in AIDEX_FILES:

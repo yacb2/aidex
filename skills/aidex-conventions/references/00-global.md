@@ -53,6 +53,19 @@ superseded_by: decision/pending
 
 For audits, `<type>` is `audit` and the filename includes the methodology and run path: `audit/<methodology>/<run>/<finding-id>`.
 
+### 3.1 External refs (BL-070)
+
+Some targets do not live in this `.context/` at all. They are **stable identifiers**, so the format is checked and the existence check is skipped — there is nothing on this filesystem tree to resolve them against.
+
+| Form | Means | Written by |
+|---|---|---|
+| `issue/<id>` | an item in an external tracker | `register-item.sh --origin issue` |
+| `<repo>/BL-NNN` | a backlog counterpart in another repo | `register-item.sh --escalate-to` (both sides of the handshake) |
+
+A `<type>/…` ref is **never** external: the ten local types stay fully resolvable, so a typo in one is still caught. That is also why `<repo>/BL-NNN` is only recognised when the prefix is not a known type — `plan/BL-206` remains a broken local ref, not a cross-repo one.
+
+Path leaks are a different problem and are **not** accepted here: an `origin_ref` carrying a filesystem path (`request/../../requests/x.md`) is malformed and gets normalised to its `<type>/<filename>` marker at the source, not swallowed by the schema.
+
 ---
 
 ## 4. Language (D-04)
@@ -253,7 +266,11 @@ stray directory.
 
 ---
 
-## 10. Waivers — accepted validator findings
+## 10. Validator escape hatches
+
+Three separate mechanisms, deliberately not interchangeable: **waivers** accept a specific finding, the **ratchet baseline** freezes a legacy project's whole backlog of findings, and **`.aidex-ignore`** declares a subtree to be none of aidex's business.
+
+### 10.1 Waivers — accepted validator findings
 
 Findings a project has reviewed and accepted are recorded in
 `.context/.aidex-waivers` so validator re-runs stop re-reporting documented
@@ -277,6 +294,25 @@ unparseable lines are counted, not swallowed. The ratchet baseline
 store. Today only `validate.py` consumes it; aidex-audit re-run tooling does
 not yet (tracked as a backlog item in the aidex repo — until it lands, waive
 audit re-run noise by documenting it in the run's `00-changelog.md`).
+
+### 10.2 Ratchet baseline (`--baseline`)
+
+`validate.py --baseline` freezes the current violations into `.context/.validate-baseline.json`; later runs then report and exit only on violations **not** in that frozen set. It is the adoption path for a legacy project: stop the bleeding now, clean up over time.
+
+- **Key granularity (v2):** a key is `file|rule|message`. The earlier `file|rule` key meant a file already dirty for a rule masked every *new* violation of that same rule in that same file (BL-043). Baselines written before v2 have no `version` field; they keep matching on the coarse key and the report says so — refresh with `--baseline` to tighten them.
+- **Refresh policy:** accepted keys that no longer occur are reported (`N accepted violation(s) no longer present — refresh with --baseline`). A validation run **never** rewrites the baseline; tightening it is always an explicit `--baseline`. There is no age-based expiry.
+- The baseline is written post-waiver, so a waived finding never enters it.
+
+### 10.3 Ignored subtrees (`.aidex-ignore`)
+
+A vendored or imported third-party tree living under `.context/` (typically inside `research/<topic>/`) is not an aidex artifact: judging its filenames or rewriting its front-matter is wrong, and the migrator would happily rename someone else's files. List such subtrees in `.context/.aidex-ignore`:
+
+```
+# imported upstream tree, not an aidex artifact
+.context/research/2026-07-01-vendor-eval/upstream-repo
+```
+
+One path prefix per line, relative to `.context/` (a leading `.context/` is tolerated), `#` comments and blanks ignored. No globs — a line matches a path equal to it or under it. Both `validate.py` and `migrate-conventions.py` read the same file; the validator skips ignored files before any rule runs and reports them as an `ignored: N` count, so the exemption is uniform and visible rather than silent.
 
 ---
 
