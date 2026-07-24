@@ -147,8 +147,11 @@ read -r DG PUB DASH <<< "$(check_events s2)"
 [ "$PUB" = "0" ] && pass "Artifact (publish) tool NOT used" || fail "S2: published online without being asked"
 
 echo "== S3: anchor discovery (prompt names the subject, never the path) =="
+# Snapshot first: S1 and S2 already left .html files behind, so "newest file"
+# would credit S3 with someone else's artifact.
+BEFORE_S3="$(cd "$FIX" && find .context -name '*.html' | sort)"
 run_scenario s3 "crea un artifact con un analisis de por que el renderizado de PDF de facturas esta lento y que opciones tenemos, para revisarlo offline"
-S3_HTML="$(cd "$FIX" && find .context -name '*.html' -newer .context/backlog/00-index.md 2>/dev/null | head -1)"
+S3_HTML="$(cd "$FIX" && comm -13 <(printf '%s\n' "$BEFORE_S3") <(find .context -name '*.html' | sort) | head -1)"
 # Loose property on purpose: asserting WHICH anchor was picked is a fuzzy
 # judgement that makes a flaky eval. What must hold is that a discoverable
 # anchor stopped the fallback from being the default.
