@@ -12,6 +12,12 @@ what a renderer already produces.
 **B. Ad-hoc report** — anything else (an analysis, a comparison, a one-off
 dashboard):
 
+0. **Find the anchor before writing.** An artifact is *about* something. Search
+   `.context/` for the plan / backlog item / audit run / request the content
+   belongs to. Exactly one plausible anchor → use it. Several → ask in one line
+   which one. None → the `.context/reports/` fallback in step 5. Never default
+   to the fallback without looking: in the field, 4 reports landed there while
+   their obvious backlog and audit anchors sat one directory away.
 1. **Load design guidance first** (Skill tool) — BEFORE writing any page
    markup: `artifact-design` when the session has it; otherwise the available
    equivalents (`theme-factory` for the theme, `dataviz` if charts). Not every
@@ -20,18 +26,35 @@ dashboard):
 2. **Apply the project style profile if present**: `<project>/.context/artifact-style.md`
    (palette, fonts, favicon, tone, layout preferences). The profile wins over
    the skill's placeholder palette; the user's explicit words win over both.
-   **If absent, do NOT create it automatically and do not nag** — offer it
-   exactly when there is signal: the user corrects a generated artifact's
-   styling, or asks for consistent branding across artifacts. Then seed it
-   from `aidex-dash/assets/templates/artifact-style.md.template`, prefilled
-   with the style choices just made, and apply it from that point on.
-3. Write self-contained HTML following that guidance.
-4. Save it as a **sibling** of the source artifact: `<slug>-report.html` next
-   to a single-file artifact, or inside the folder for folder artifacts
-   (`plans/<slug>/<slug>-report.html`). **No anchor artifact?** Fall back to
+   **If absent, never create it silently — but do offer it once.** One line,
+   exactly once per project: on the FIRST artifact (no profile and no earlier
+   report), or whenever the user corrects styling or asks for consistent
+   branding. On a first artifact there is no "signal" by construction, yet that
+   is precisely when the palette is invented and then lost — this single offer
+   is the only moment it can be captured. Seed from
+   `aidex-dash/assets/templates/artifact-style.md.template`, prefilled with the
+   choices just made. Never repeat the offer, never nag.
+3. **Write page content, then wrap it — do not hand-roll the document.** Write
+   what `artifact-design` teaches: styles and markup, no `<!doctype>`/`<html>`/
+   `<head>`/`<body>` of your own. The Artifact tool supplies that envelope at
+   publish time; a local file gets the same one from
+   `~/.aidex/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"]`
+   (stdin → stdout), shared with the dash renderers so both routes produce the
+   same kind of document. Skipping it yields a headless fragment that browsers
+   render in quirks mode — measured at 2 of 4 field reports before this existed.
+4. **Verify the contract** with
+   `~/.aidex/skills/aidex-dash/scripts/check-artifact.sh <file>` before opening:
+   doctype, charset, viewport, title, dark mode, no external CSS/JS/fonts/images,
+   no sibling assets. Fix what it reports; never open or hand over a file that
+   fails it.
+5. Save it as a **sibling** of the step-0 anchor: `<slug>-report.html` next to a
+   single-file artifact, or inside the folder for folder artifacts
+   (`plans/<slug>/<slug>-report.html`), and add a link line back to it from the
+   anchor (or its `proof_links`) so the artifact is reachable from the work it
+   documents. **No anchor at all?** Fall back to
    `.context/reports/YYYY-MM-DD-<slug>.html`.
-5. Open it locally (`open <file>`).
-6. Publish online **only** when explicitly asked to share (then keep the
+6. Open it locally (`open <file>`).
+7. Publish online **only** when explicitly asked to share (then keep the
    local sibling as the durable copy and reuse the same URL on updates).
 
 Content language: English (D-04), unless the project style profile says

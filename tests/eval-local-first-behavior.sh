@@ -12,6 +12,13 @@
 #                    file, NO Artifact (publish) tool_use.
 #   S2 anchor-less — analysis tied to nothing -> .context/reports/*.html, same
 #                    open/no-publish assertions.
+#   S3 anchor       — prompt names the SUBJECT of an existing backlog item and
+#                    never its path: the artifact must NOT land in the reports/
+#                    fallback (BL-074 step 0).
+#   contract        — every produced file passes check-artifact.sh (doctype,
+#                    charset, viewport, themes, self-contained, no siblings).
+#                    Assertion logic is unit-tested API-free in
+#                    skills/aidex-dash/tests/test-artifact-contract.sh.
 #
 # Run with: bash tests/eval-local-first-behavior.sh   (requires `claude` on PATH)
 
@@ -62,6 +69,27 @@ updated: 2026-07-20
 | 3 | E2E test | open |
 EOF
 echo "# Backlog" > "$FIX/.context/backlog/00-index.md"
+# S3 anchor-discovery fixture: a backlog item the S3 prompt describes by SUBJECT
+# only, never by path. The rule must go looking; landing in reports/ means it
+# never did (the old S2 prompt said "no esta asociado a ningun documento",
+# pre-answering the question the step is supposed to force).
+cat > "$FIX/.context/backlog/2026-07-10-invoice-pdf-rendering-slow.md" <<'EOF'
+---
+title: "Invoice PDF rendering is slow on large accounts"
+id: BL-001
+status: open
+created: 2026-07-10
+updated: 2026-07-10
+priority: P1
+type: bug
+---
+# Invoice PDF rendering is slow on large accounts
+
+## Context
+
+Accounts over ~2k invoices take 40s+ to render a PDF batch. Suspected N+1 in
+the line-item serializer plus synchronous font subsetting.
+EOF
 
 run_scenario() { # $1=name $2=prompt
   local name="$1" prompt="$2"
@@ -117,6 +145,33 @@ grep -q "reports/" "$WORK/open-calls.log" 2>/dev/null \
 read -r DG PUB DASH <<< "$(check_events s2)"
 [ "$DG" = "1" ]  && pass "design-guidance skill fired" || fail "S2: no design-guidance skill fired"
 [ "$PUB" = "0" ] && pass "Artifact (publish) tool NOT used" || fail "S2: published online without being asked"
+
+echo "== S3: anchor discovery (prompt names the subject, never the path) =="
+run_scenario s3 "crea un artifact con un analisis de por que el renderizado de PDF de facturas esta lento y que opciones tenemos, para revisarlo offline"
+S3_HTML="$(cd "$FIX" && find .context -name '*.html' -newer .context/backlog/00-index.md 2>/dev/null | head -1)"
+# Loose property on purpose: asserting WHICH anchor was picked is a fuzzy
+# judgement that makes a flaky eval. What must hold is that a discoverable
+# anchor stopped the fallback from being the default.
+case "$S3_HTML" in
+  .context/reports/*) fail "S3: fell back to reports/ although a matching backlog item exists (no anchor search)" ;;
+  "")                 fail "S3: no artifact produced at all" ;;
+  *)                  pass "anchored outside the reports/ fallback ($S3_HTML)" ;;
+esac
+
+echo "== artifact file contract (all produced files) =="
+# Same checker the cheap unit test proves out (aidex-dash/tests/test-artifact-contract.sh);
+# here it runs against whatever the real sessions actually wrote.
+PRODUCED="$(cd "$FIX" && find .context -name '*.html' | sed "s|^|$FIX/|")"
+if [ -n "$PRODUCED" ]; then
+  # shellcheck disable=SC2086
+  if CONTRACT_OUT="$(bash "$(dirname "$0")/../skills/aidex-dash/scripts/check-artifact.sh" $PRODUCED 2>&1)"; then
+    pass "every produced artifact honours the file contract"
+  else
+    fail "artifact contract violations:\n$CONTRACT_OUT"
+  fi
+else
+  fail "no artifacts produced by any scenario"
+fi
 
 echo
 if [ "$failures" -eq 0 ]; then echo "RESULT: all behavioral assertions passed"; exit 0

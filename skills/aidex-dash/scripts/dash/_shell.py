@@ -17,6 +17,7 @@ Public surface:
 """
 from datetime import datetime
 from html import escape
+from urllib.parse import quote
 
 # Design tokens + components + JS, lifted verbatim from the visual reference.
 _STYLE = """<style>
@@ -176,6 +177,61 @@ def esc(s):
     return escape(str(s), quote=True)
 
 
+# ---------- Document envelope (shared by both artifact routes) ----------
+#
+# The Artifact tool wraps a page at PUBLISH time: doctype, head, body, and a
+# minimal CSS reset. A local-first artifact never gets that wrapper, so the
+# envelope has to be supplied here or the file lands as a headless fragment
+# (field-measured: 2 of 4 reports in echo_lab_ws had no doctype -> quirks mode).
+# Route A (dash renders) and route B (ad-hoc reports via wrap-report.sh) call
+# this same function, so both routes produce the same kind of document.
+#
+# Deliberately envelope + minimal reset ONLY. Theming stays with the page's own
+# <style> — a second theme system here would fight the author's palette.
+
+_RESET = """<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img, svg, video, canvas { max-width: 100%; height: auto; }
+</style>"""
+
+
+def _favicon_link(favicon):
+    """Emoji -> inline SVG data URI. No external request, CSP-safe."""
+    if not favicon:
+        return ""
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+           f'<text y=".9em" font-size="90">{escape(favicon)}</text></svg>')
+    return f'\n<link rel="icon" href="data:image/svg+xml,{quote(svg)}">'
+
+
+def document(title, body, lang="en", favicon="", head_extra="", prelude=""):
+    """Assemble a complete, self-contained HTML document.
+
+    `prelude` goes before the doctype (dash puts its GENERATED contract comment
+    there; comments before a doctype do not trigger quirks mode). `head_extra`
+    is the page's own <style>/<meta> block, emitted after the reset so the
+    author's rules win.
+    """
+    pre = f"{prelude}\n" if prelude else ""
+    return (
+        f"{pre}<!doctype html>\n"
+        f'<html lang="{esc(lang)}">\n'
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"<title>{esc(title)}</title>"
+        f"{_favicon_link(favicon)}\n"
+        f"{_RESET}\n"
+        f"{head_extra}\n"
+        "</head>\n"
+        "<body>\n"
+        f"{body}\n"
+        "</body>\n"
+        "</html>\n"
+    )
+
+
 def _clamp(pct):
     try:
         pct = float(pct)
@@ -298,14 +354,4 @@ def page(title, sections, generated_by):
         + _FOOTER
         + "</div>"
     )
-    return (
-        generated
-        + "\n<!doctype html>"
-        + f"\n<title>{esc(title)}</title>\n"
-        + _STYLE
-        + "\n"
-        + body
-        + "\n"
-        + _SCRIPT
-        + "\n"
-    )
+    return document(title, body + "\n" + _SCRIPT, head_extra=_STYLE, prelude=generated)
