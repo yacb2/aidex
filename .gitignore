@@ -6,3 +6,6 @@
 # Python bytecode (test imports generate these)
 __pycache__/
 *.pyc
+
+# Ephemeral session output (aidex conventions: deletable without asking)
+_tmp/

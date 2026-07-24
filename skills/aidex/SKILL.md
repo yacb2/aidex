@@ -112,22 +112,30 @@ Build a quick inventory of what exists and its size. This determines which agent
 
 Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass them as the prompt. Include the project path in each prompt.
 
-| Subagent | Launches when | Model | Tools |
-|----------|--------------|-------|-------|
-| [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | Read, Glob, Grep |
-| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.aidex/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | Read, Bash |
-| [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | Read, Glob, Grep |
-| [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | Read, Glob, Bash |
-| [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | sonnet | Read, Glob, Grep |
-| [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | Read, Glob, Grep, Bash |
-| [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | Read, Glob, Grep, Bash |
-| [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | Read, Glob, Grep, Bash |
+| Subagent | Launches when | Model | Effort | Tools |
+|----------|--------------|-------|--------|-------|
+| [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | medium | Read, Glob, Grep |
+| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.aidex/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
+| [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | medium | Read, Glob, Grep |
+| [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | low | Read, Glob, Bash |
+| [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | sonnet | medium | Read, Glob, Grep |
+| [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | low | Read, Glob, Grep, Bash |
+| [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | low | Read, Glob, Grep, Bash |
+| [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | low | Read, Glob, Grep, Bash |
+
+**Model and effort are set here, not in the agent files.** These agents are launched by
+reading their `.md` as a *prompt* (above) — they are not registered agent definitions, so
+`model:` in their front-matter is documentation and configures nothing. This table is the
+configuration surface. Effort follows the suite heuristic
+([workflow-spec conventions](../aidex-workflow/references/01-workflow-spec-conventions.md)):
+mechanical existence/parse checks → `low`; judgment over content quality or compliance →
+`medium`.
 
 Example launch pattern (all in one message):
 ```
-Agent(description="Audit .context/ structure", model=haiku, run_in_background=true, prompt="[context-auditor instructions + project path]")
-Agent(description="Audit skills", model=haiku, run_in_background=true, prompt="[skills-auditor instructions + project path]")
-Agent(description="Check symlinks", model=haiku, run_in_background=true, prompt="[symlink-checker instructions + project path]")
+Agent(description="Audit .context/ structure", model=haiku, effort=medium, run_in_background=true, prompt="[context-auditor instructions + project path]")
+Agent(description="Audit skills", model=haiku, effort=medium, run_in_background=true, prompt="[skills-auditor instructions + project path]")
+Agent(description="Check symlinks", model=haiku, effort=low, run_in_background=true, prompt="[symlink-checker instructions + project path]")
 ```
 
 **Wait for ALL launched agents to complete before proceeding to Phase 2.**

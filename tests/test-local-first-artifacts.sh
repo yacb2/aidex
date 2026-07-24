@@ -14,12 +14,26 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 RULE_FILE="$REPO_ROOT/rules/artifacts-local-first.md"
 
+# Drift repair 2026-07-24: two assertions here grepped for prose wording that
+# abc28cd removed from the rule while keeping both behaviors, so the guards went
+# dead one day after they were written. Assertions that must survive a rewrite of
+# the rule's prose now anchor on a MECHANISM (a script path, a skill name) rather
+# than a sentence, and prose checks run against a whitespace-flattened copy so a
+# re-wrap cannot split a phrase across lines and silently fail the match.
+RULE_FLAT=""
+[ -f "$RULE_FILE" ] && RULE_FLAT="$(tr '\n' ' ' < "$RULE_FILE" | tr -s ' ')"
+
 # --- Task 6.1: global rule exists and carries the 4 numbered behaviors ---
 if [ ! -f "$RULE_FILE" ]; then
   fail "rule file not found ($RULE_FILE)"
 else
-  if ! grep -q "self-contained HTML" "$RULE_FILE"; then
-    fail "rule missing behavior 1 (write self-contained HTML)"
+  # behavior 1 — the artifact stands alone offline. Anchored on the script that
+  # deterministically enforces it plus the prohibition it checks, not on a phrase.
+  if ! grep -q "check-artifact.sh" "$RULE_FILE"; then
+    fail "rule missing behavior 1 (self-containment enforced via check-artifact.sh)"
+  fi
+  if ! grep -qF "no external CSS/JS/fonts/images" "$RULE_FILE"; then
+    fail "rule missing behavior 1 (external-asset prohibition)"
   fi
   if ! grep -q "sibling" "$RULE_FILE"; then
     fail "rule missing behavior 2 (sibling placement)"
@@ -39,8 +53,14 @@ else
   # Regression (field, 2026-07-23): an ad-hoc "HTML offline" ask was hand-rolled
   # without design guidance after aidex-dash declined — loading artifact-design
   # must be an explicit numbered step, and dash must route instead of just decline.
-  if ! grep -qi "artifact-design.*skill first" "$RULE_FILE"; then
-    fail "rule missing mandatory load-artifact-design-first step"
+  # The design-guidance step must be named AND ordered before markup is written.
+  # Two anchors: the skill name (a mechanism) and the ordering constraint, matched
+  # against the flattened copy so the rule's line wrapping is irrelevant.
+  if ! grep -q "artifact-design" "$RULE_FILE"; then
+    fail "rule does not name the artifact-design skill"
+  fi
+  if ! printf '%s' "$RULE_FLAT" | grep -qiE 'before writing any page markup|load design guidance first'; then
+    fail "rule missing mandatory load-design-guidance-BEFORE-markup ordering"
   fi
   if ! grep -qi "hand-roll" "$RULE_FILE"; then
     fail "rule missing no-hand-rolled-page clause"
