@@ -128,6 +128,17 @@ This project uses `.context/` for planning artifacts (backlog, plans,
 decisions, research, references, requests) per aidex conventions.
 See `.context/references/project-commands.md` for detected review/commit/
 release/test commands.
+
+Ephemeral output (screenshots, probes, scratch files) goes in `_tmp/`.
+Anything there is deletable without asking.
+--------------------------------------------------------------------
+
+Suggested .gitignore addition (also never written automatically) — the scratch
+contents are disposable, but the contract README is worth tracking:
+
+--------------------------------------------------------------------
+_tmp/*
+!_tmp/README.md
 --------------------------------------------------------------------
 
 EOF
