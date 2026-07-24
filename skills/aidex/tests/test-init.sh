@@ -135,6 +135,40 @@ fi
 
 rm -rf "$d5"
 
+# --- Scenario 6: _tmp/ scratch bucket seeded, README never overwritten (BL-028) ---
+
+d6="$(mktemp -d)"
+bash "$INIT" "$d6" >/dev/null
+
+if [[ -f "$d6/_tmp/README.md" ]]; then
+  pass "scenario6: _tmp/README.md seeded"
+else
+  fail "scenario6: _tmp/README.md not created"
+fi
+
+if grep -q 'deleted at any time without asking' "$d6/_tmp/README.md"; then
+  pass "scenario6: README carries the disposable contract"
+else
+  fail "scenario6: README missing the disposable contract"
+fi
+
+printf 'project-specific contract\n' > "$d6/_tmp/README.md"
+out6="$(bash "$INIT" "$d6")"
+
+if [[ "$(cat "$d6/_tmp/README.md")" == "project-specific contract" ]]; then
+  pass "scenario6: existing _tmp/README.md left untouched"
+else
+  fail "scenario6: existing _tmp/README.md was overwritten"
+fi
+
+if printf '%s\n' "$out6" | grep -q '^exists: _tmp/README.md$'; then
+  pass "scenario6: re-run reports the README as existing"
+else
+  fail "scenario6: re-run did not report _tmp/README.md as existing"
+fi
+
+rm -rf "$d6"
+
 # --- Summary ---
 
 if [[ $failures -eq 0 ]]; then

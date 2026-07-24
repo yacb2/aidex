@@ -22,6 +22,9 @@ Your job covers **only what the validator does NOT do**:
 - Anti-patterns ([AG]) — README inside modules, empty directories, pluralized
   names, `00-overview.md` placement.
 - Language compliance ([AH]) — non-English bodies.
+- Scratch-bucket naming ([AJ]) — the one check outside `.context/`: ephemeral
+  output belongs in a root `_tmp/`, not in `.context/` and not in a per-session
+  ad-hoc folder.
 - Plan staleness ([PD]) — all `[x]` + completed status + old `updated`.
 - Audit deep checks ([UA]–[UH]) via `validate-audit.sh`.
 - Reorganization suggestions (consolidation, missing canonical dirs).
@@ -107,6 +110,12 @@ Fast implementation hint: shell out to `~/.aidex/skills/aidex-audit/scripts/vali
     - Empty + unrecognized → WARNING, suggest removal.
   - Pluralized directory names (`backlogs/` instead of `backlog/`) → WARNING.
   - `00-overview.md` outside `research/` → WARNING (only `00-index.md` allowed). Inside `research/<topic>/` → INFO (accepted alias).
+
+- **[AJ] Scratch bucket** (the one check that looks at the project root, not `.context/`): ephemeral output has exactly one home, `_tmp/` at the project/workspace root (per `~/.aidex/skills/aidex-conventions/references/claudemd-conventions.md` § Scratch Output).
+  - A root directory named `.scratch`, `scratch`, `tmp`, `temp`, or `.tmp` → WARNING, suggest renaming to `_tmp/` (state the contract; do not move files yourself).
+  - A scratch-shaped directory **inside** `.context/` (same name list) → WARNING: `.context/` holds artifacts worth keeping; scratch belongs in root `_tmp/`.
+  - `_tmp/` exists but has no `README.md` → INFO, offer the template from the canon.
+  - `_tmp/` absent → **no finding** (a project with no ephemeral output needs no bucket).
 
 - **[AI] Workspace `.gitignore` suppression**: Before emitting any finding that suggests adding an entry to `.gitignore` for files under `.context/`, walk up from the directory containing the target until either `.git` is found (emit normally) or the filesystem root is reached. If no `.git` ancestor exists (typical of `*_ws/` workspace roots that aggregate independent repos), **suppress the finding entirely** — there is nothing to gitignore.
 

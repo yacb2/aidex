@@ -201,6 +201,31 @@ Filename date format is `YYYY-MM-DD` per D-01 ([`00-global.md` §1](00-global.md
 
 **Rule:** If a section in CLAUDE.md grows beyond 10 lines, move it to `.context/` and replace with a link.
 
+## Scratch Output (`_tmp/`)
+
+`.context/` is for artifacts worth keeping. Ephemeral session output — verification screenshots, diagnostic probes, consumed sync reports, scratch files — goes in **`_tmp/` at the project (or workspace) root**. That name is canonical: it was the de-facto convention in every workspace surveyed (2026-07-24), so this codifies practice rather than inventing a name.
+
+Seed it with this README (`init-context.sh` writes it for new projects, skip-if-exists):
+
+```markdown
+# _tmp — Disposable Artifacts
+
+Single destination for ephemeral session output: verification screenshots,
+diagnostic probes, consumed sync reports, scratch files.
+
+**Contract**: anything in this folder can be deleted at any time without asking.
+Do NOT create new ad-hoc folders at the workspace root for temporary artifacts.
+
+If an artifact turns out to document a specific audit finding or bug worth
+keeping long-term, move it into that audit's run folder
+(`.context/audits/<methodology>/<run>/`) instead of leaving it here.
+```
+
+- **One bucket, one name.** No `.scratch/`, `tmp/`, `temp/`, `scratch/`, and no scratch directories inside `.context/`.
+- **Deletable without asking.** That is the whole contract — nothing in `_tmp/` may be load-bearing.
+- **Gitignore it.**
+- **Promotion is forward-looking.** When a scratch file turns out to be the evidence for a specific finding, move it at that moment into the audit run folder, or into `.context/proofs/<slug>/` when it backs a `proof_links` claim ([`00-global.md` §7.1](00-global.md)). Existing scratch buckets are never retro-classified by correlating dates and content — that is expensive and error-prone.
+
 ## Referencing Resources
 
 ### Link to Detailed Documentation
