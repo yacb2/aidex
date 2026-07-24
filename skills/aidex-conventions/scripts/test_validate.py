@@ -235,6 +235,133 @@ def check_baseline_ratchet(failures: list[str]) -> None:
                             f"(rc={dirty.returncode}, new={[x['file'] for x in new]})")
 
 
+def check_baseline_key_granularity(failures: list[str]) -> None:
+    """BL-043: the v1 `file|rule` baseline key masked a NEW violation of a rule the
+    file was ALREADY dirty for. The v2 key adds the message, so a second missing
+    cross-ref in an already-baselined file is reported. A v1 baseline (no version
+    field) keeps matching on the coarse key — an existing baseline must never
+    silently turn its whole accepted set into NEW violations."""
+    import json as _json, shutil, tempfile
+    target = Path("decisions") / "2026-05-14-pending-ref.md"
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        bp = ctx / ".validate-baseline.json"
+
+        def run_v() -> tuple[int, dict]:
+            res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                 capture_output=True, text=True)
+            return res.returncode, _json.loads(res.stdout)
+
+        freeze = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                                capture_output=True, text=True)
+        if "accepted keys from" not in freeze.stdout:
+            failures.append(f"baseline granularity: freeze line must report keys AND raw "
+                            f"violations (got {freeze.stdout.strip()!r})")
+        data = _json.loads(bp.read_text(encoding="utf-8"))
+        if data.get("version") != 2:
+            failures.append(f"baseline granularity: written baseline must be version 2 "
+                            f"(got {data.get('version')!r})")
+
+        # A SECOND missing cross-ref in the same already-baselined file: same
+        # file, same rule, new message -> must surface as NEW under v2.
+        text = (ctx / target).read_text(encoding="utf-8")
+        text = text.replace("origin_ref: plan/2099-12-31-does-not-exist",
+                            "origin_ref: plan/2099-12-31-does-not-exist\n"
+                            "blocked_by: plan/2099-12-31-also-missing")
+        (ctx / target).write_text(text, encoding="utf-8")
+        rc, d = run_v()
+        new = d.get("new_violations", [])
+        if rc != 1 or not any("also-missing" in x["message"] for x in new):
+            failures.append(f"baseline granularity: a NEW violation of an already-accepted "
+                            f"rule in the same file was masked (rc={rc}, new={len(new)})")
+
+        # Same state re-keyed as a v1 baseline: the coarse key still matches, so
+        # the run stays green and the report says the baseline needs refreshing.
+        data["keys"] = sorted({"|".join(k.split("|")[:2]) for k in data["keys"]})
+        data.pop("version", None)
+        bp.write_text(_json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        rc, d = run_v()
+        if rc != 0 or d["summary"]["baseline"].get("version") != 1:
+            failures.append(f"baseline granularity: a v1 baseline must keep matching on the "
+                            f"coarse key (rc={rc}, summary={d['summary'].get('baseline')})")
+        plain = subprocess.run([sys.executable, str(VALIDATOR), str(ctx)],
+                               capture_output=True, text=True)
+        if "refresh with --baseline" not in plain.stdout:
+            failures.append("baseline granularity: v1 baseline did not print the refresh notice")
+
+        # Refresh policy: an accepted violation that is gone is reported, not
+        # auto-dropped — a validation run must never mutate the baseline.
+        subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                       capture_output=True, text=True)
+        frozen = bp.read_text(encoding="utf-8")
+        (ctx / target).unlink()
+        rc, d = run_v()
+        if d["summary"]["baseline"].get("resolved", 0) < 1:
+            failures.append("baseline granularity: resolved (no-longer-present) accepted "
+                            "keys were not reported")
+        if bp.read_text(encoding="utf-8") != frozen:
+            failures.append("baseline granularity: baseline file was mutated by a read-only run")
+
+
+def check_external_crossrefs(failures: list[str]) -> None:
+    """BL-070: refs whose target lives outside this .context/ — `issue/<id>` and the
+    cross-repo `<repo>/BL-NNN` written by aidex-backlog's --escalate-to — are accepted
+    on format alone. Local `<type>/…` refs stay resolvable, so typos in them still fail."""
+    v = _load_validator()
+    for ref in ("echo_lab_ws/BL-206", "issue/GH-1234", "aidex/BL-70"):
+        if not v.is_external_ref(ref):
+            failures.append(f"external cross-ref: {ref!r} should be recognised as external")
+    for ref in ("backlog/2026-01-01-x", "plan/BL-206", "FCM/APNs credentials",
+                "decision/pending"):
+        if v.is_external_ref(ref):
+            failures.append(f"external cross-ref: {ref!r} must NOT be treated as external")
+
+    ctx = FIXTURES / "good" / ".context"
+    def rules(fm: dict) -> list[str]:
+        return [f.rule for f in v.check_crossrefs("backlog", Path("x.md"), fm, ctx)]
+    for fm in ({"escalated_to": "echo_lab_ws/BL-206"}, {"origin_ref": "issue/GH-1234"}):
+        if rules(fm):
+            failures.append(f"external cross-ref: {fm} produced findings {rules(fm)}")
+    if "cross-ref-target-missing" not in rules({"escalated_to": "plan/2099-12-31-nope"}):
+        failures.append("external cross-ref: a local ref to a missing target must still fail")
+
+
+def check_ignored_subtrees(failures: list[str]) -> None:
+    """BL-037: a vendored/imported subtree listed in `<context>/.aidex-ignore` is
+    exempt from every validator rule and reported as an `ignored` count, never
+    silently dropped. Without the file, the same subtree is still judged."""
+    import shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        vendored = ctx / "research" / "vendor-upstream"
+        vendored.mkdir(parents=True)
+        (vendored / "README.md").write_text("Third-party readme, no front-matter.\n",
+                                            encoding="utf-8")
+        (vendored / "CONTRIBUTING.md").write_text("Also third-party.\n", encoding="utf-8")
+
+        def run_v() -> dict:
+            res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                 capture_output=True, text=True)
+            return json.loads(res.stdout)
+
+        before = run_v()
+        if before["summary"]["violations"] == 0:
+            failures.append("ignored subtrees: vendored files produced no violations to begin "
+                            "with — the fixture no longer exercises the exemption")
+        (ctx / ".aidex-ignore").write_text(
+            "# imported upstream tree, not an aidex artifact\n"
+            ".context/research/vendor-upstream\n", encoding="utf-8")
+        after = run_v()
+        if after["summary"]["violations"] != 0:
+            failures.append(f"ignored subtrees: .aidex-ignore did not exempt the subtree "
+                            f"({after['summary']['violations']} violations remain)")
+        if after["summary"].get("ignored") != 2:
+            failures.append(f"ignored subtrees: skipped files must be reported as an ignored "
+                            f"count (got {after['summary'].get('ignored')!r}, expected 2)")
+
+
 def check_body_language_unit(failures: list[str]) -> None:
     """Direct cells for check_body_language (BL-047): a clearly-Spanish body warns;
     English, bilingual-with-quote, Spanish-in-code-fence, and Spanish-in-front-matter
@@ -414,6 +541,9 @@ def main() -> int:
     check_crossref_prefix_coverage(failures)
     check_worktrees_no_double_count(good, failures)
     check_baseline_ratchet(failures)
+    check_baseline_key_granularity(failures)
+    check_external_crossrefs(failures)
+    check_ignored_subtrees(failures)
     check_body_language_unit(failures)
     check_archive_status_open_unit(failures)
     check_backlog_placeholder_body_unit(failures)

@@ -172,8 +172,45 @@ class Change:
 
 # ---------- Planner ----------
 
+IGNORE_NAME = ".aidex-ignore"
+
+
+def load_ignores(context_dir: Path) -> list[str]:
+    """Path prefixes (relative to `.context/`) the migrator must not touch — the
+    same `<context>/.aidex-ignore` file validate.py reads. Vendored/imported
+    subtrees are not aidex artifacts, so renaming them would corrupt a third-party
+    tree (BL-037). One prefix per line, `#` comments and blanks ignored, no globs."""
+    ip = context_dir / IGNORE_NAME
+    if not ip.is_file():
+        return []
+    prefixes: list[str] = []
+    for raw in ip.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(".context/"):
+            line = line[len(".context/"):]
+        line = line.strip("/")
+        if line:
+            prefixes.append(line)
+    return prefixes
+
+
+def is_ignored(context_dir: Path, path: Path, prefixes: list[str]) -> bool:
+    if not prefixes:
+        return False
+    try:
+        rel = path.resolve().relative_to(context_dir.resolve()).as_posix()
+    except (ValueError, OSError):
+        return False
+    return any(rel == p or rel.startswith(p + "/") for p in prefixes)
+
+
 def iter_md(context_dir: Path):
+    prefixes = load_ignores(context_dir)
     for p in context_dir.rglob("*.md"):
+        if is_ignored(context_dir, p, prefixes):
+            continue
         yield p
 
 
