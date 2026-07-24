@@ -602,7 +602,15 @@ case "$ORIGIN" in
     ;;
   request)
     [[ -n "$REQUEST" ]] || die "--request <file> is required when --origin request"
-    ORIGIN_REF="request/$REQUEST"
+    # --request takes a path for convenience, but a cross-ref is a `<type>/<filename>`
+    # marker, never a filesystem path (D-03, BL-055): a stored path breaks the moment
+    # the item is read from anywhere but the directory it was registered from.
+    REQUEST_FILE="$(basename "$REQUEST")"
+    ORIGIN_REF="request/$REQUEST_FILE"
+    if [[ ! -e "$ROOT/.context/requests/$REQUEST_FILE" \
+       && ! -e "$ROOT/.context/requests/_archive/$REQUEST_FILE" ]]; then
+      warn "warning: origin_ref $ORIGIN_REF resolves to no file under .context/requests/"
+    fi
     ;;
 esac
 
