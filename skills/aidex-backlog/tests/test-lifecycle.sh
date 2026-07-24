@@ -64,6 +64,23 @@ check "id not reused after defer (D-09)" '[[ -n "$AFTER_ID" && "$AFTER_ID" != "$
 bash "$SCRIPTS/harvest-commit.sh" --sha fedc999 --message "Backlog: $DEF_ID" >/dev/null 2>&1
 check "harvest reaches _deferred items" 'grep -q "fedc999" ".context/backlog/_deferred/$(basename "$DEF")"'
 
+echo "== origin_ref is a marker, not a path (BL-055) =="
+# --request takes a path for convenience; what gets STORED must be the
+# `request/<filename>` cross-ref marker (D-03). A stored path breaks as soon as
+# the item is read from anywhere but the directory it was registered from.
+mkdir -p ".context/requests"
+printf -- '---\ntitle: "r"\nstatus: open\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n' \
+  > ".context/requests/2026-01-01-client-ask.md"
+REQ_ITEM="$(bash "$SCRIPTS/register-item.sh" --origin request \
+  --request ".context/requests/2026-01-01-client-ask.md" \
+  --title "from a request" --priority P2 2>/dev/null)"
+check "origin_ref normalized to request/<filename>" \
+  'grep -q "^origin_ref: request/2026-01-01-client-ask.md$" "$REQ_ITEM"'
+check "origin_ref stores no path segments" '! grep -q "^origin_ref:.*\.context/" "$REQ_ITEM"'
+MISS="$(bash "$SCRIPTS/register-item.sh" --origin request --request "/tmp/nope-not-here.md" \
+  --title "dangling request ref" --priority P3 2>&1 >/dev/null || true)"
+check "unresolvable request ref warns, does not fail" '[[ "$MISS" == *"resolves to no file"* ]]'
+
 echo "== list robustness =="
 # Regression: read_field piped values through xargs, which chokes on unbalanced
 # quotes — any open title with an apostrophe crashed --list (set -e).
