@@ -56,6 +56,30 @@ for d in backlog/_archive plans/_archive requests/_archive; do
   ensure_dir "$CONTEXT_DIR/$d"
 done
 
+# --- Step 1b: scratch bucket at the project root (claudemd-conventions.md
+# § Scratch Output). One canonical name, so ephemeral output stops landing in
+# .context/ or in a new ad-hoc folder per session. README is skip-if-exists.
+ensure_dir "$PROJECT_DIR/_tmp"
+TMP_README="$PROJECT_DIR/_tmp/README.md"
+if [[ -f "$TMP_README" ]]; then
+  printf 'exists: %s\n' "_tmp/README.md"
+else
+  cat > "$TMP_README" <<'EOF'
+# _tmp — Disposable Artifacts
+
+Single destination for ephemeral session output: verification screenshots,
+diagnostic probes, consumed sync reports, scratch files.
+
+**Contract**: anything in this folder can be deleted at any time without asking.
+Do NOT create new ad-hoc folders at the workspace root for temporary artifacts.
+
+If an artifact turns out to document a specific audit finding or bug worth
+keeping long-term, move it into that audit's run folder
+(`.context/audits/<methodology>/<run>/`) instead of leaving it here.
+EOF
+  printf 'created: %s\n' "_tmp/README.md"
+fi
+
 # --- Step 2: seed indexes via installed reindexers, when present ---
 
 BACKLOG_REINDEX="$AIDEX_DIR/skills/aidex-backlog/scripts/register-item.sh"
