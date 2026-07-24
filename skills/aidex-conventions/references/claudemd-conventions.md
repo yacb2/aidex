@@ -223,7 +223,7 @@ keeping long-term, move it into that audit's run folder
 
 - **One bucket, one name.** No `.scratch/`, `tmp/`, `temp/`, `scratch/`, and no scratch directories inside `.context/`.
 - **Deletable without asking.** That is the whole contract — nothing in `_tmp/` may be load-bearing.
-- **Gitignore it.**
+- **Gitignore the contents, track the contract**: `_tmp/*` plus `!_tmp/README.md`.
 - **Promotion is forward-looking.** When a scratch file turns out to be the evidence for a specific finding, move it at that moment into the audit run folder, or into `.context/proofs/<slug>/` when it backs a `proof_links` claim ([`00-global.md` §7.1](00-global.md)). Existing scratch buckets are never retro-classified by correlating dates and content — that is expensive and error-prone.
 
 ## Referencing Resources
