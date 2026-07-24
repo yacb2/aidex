@@ -65,6 +65,17 @@ fi
 META='(supongo que|se supone que|me imagino|imagina que|imaginemos|qu[ée] pasar[íi]a|o me equivoco|mejorar[íi]as|que podemos mejorar|para ver que podemos|analices|eval[úu]es|que te parece|te parece bien|consideras (que|entonces)|dame tu opini[óo]n|qu[ée] opinas|what do you think|do you think we|would you change)'
 printf '%s' "$norm" | grep -iqE "$META" && exit 0
 
+# Rendered-artifact guard (BL-072, router FP #6): "crea un artifact/reporte/
+# dashboard DEL plan X" names the plan as the artifact's SUBJECT, not a
+# plan-creation intent — the same shape mis-routed to aidex-plan, aidex-backlog
+# and aidex-audit depending on which noun the summary was about. These asks are
+# owned by the local-first artifact rule (dash renderer or ad-hoc report), which
+# needs no router help. Anchored on verb-immediately-followed-by-artifact-noun,
+# so "crea un plan para el dashboard de analytics" (artifact noun as subject of
+# a real create intent) still routes.
+ARTIFACT_ASK='(crea|cr[ée]a|cr[ée]ame|crear|haz|hazme|hacer|genera|gen[ée]rame|generar|arma|[áa]rmame|dame|render|make|create|generate|build|give me)[[:space:]]+(me[[:space:]]+)?((un|una|el|la|a|an|the)[[:space:]]+)?(artifact|artefacto|report\b|reporte|informe|dashboard|tablero|infograf[íi]a|visualizaci[óo]n|p[áa]gina (html|web)|html page|web page)'
+printf '%s' "$norm" | grep -iqE "$ARTIFACT_ASK" && exit 0
+
 # Ordered, first-match-wins. Most specific intents before generic ones.
 # Each rule = a create/intent verb context AND an object that names the
 # artifact. grep -iE, accent-tolerant character classes.

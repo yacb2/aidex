@@ -163,3 +163,17 @@ aidex-reference	documenta como funciona el request de refresh
 # code loops must NOT route to aidex-loop (review 2026-07-04)
 NONE	crea un loop en el script de bash que recorra todos los archivos
 NONE	necesito un loop para reintentar la conexion al socket
+
+# ---- rendered-artifact asks must NOT route (BL-072, router FP #6, 2026-07-23) ----
+# "crea un <artifact> del <plan|backlog|audit>" names the artifact's SUBJECT;
+# the local-first artifact rule owns these. The last two are controls: an
+# artifact noun as the SUBJECT of a real create intent must still route.
+NONE	crea un artifact resumen del plan de migracion
+NONE	crea un artifact resumen del plan X
+NONE	hazme un dashboard del estado de mi proyecto
+NONE	crea un reporte HTML del backlog
+NONE	generame un informe con los hallazgos de la auditoria
+NONE	generate an HTML report of the audit findings
+NONE	make me a dashboard of the plans progress
+aidex-plan	crea un plan multi-fase para el dashboard de analytics
+aidex-backlog	agrega al backlog el reporte de errores del dashboard
