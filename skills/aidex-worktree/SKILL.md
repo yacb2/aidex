@@ -183,26 +183,74 @@ fix. A recommendation that never runs is what let a broken doc sit unrepaired fo
      author `worktree-up.sh` scripts for real projects (BL-024's still-open
      project-scoped follow-up).
 
-     **Ask the build question, not just the strategy question.** The dominant cost of
-     bringing a Tier-2 stack up is almost never the DB seed — it is rebuilding a
-     multi-GB service image the worktree did not need to build. Record which of these
-     the project is in:
-     - **Source is bind-mounted into the service** (`- ./backend:/app` or equivalent):
-       the image supplies only the dependency layer, and the worktree's code arrives
-       through the mount. The stack can then **reuse the main tree's already-built
-       image by tag** (`image: <project>-<service>:latest` alongside `build:` — compose
-       skips the build when that tag exists) instead of rebuilding per worktree.
-     - **Source is baked into the image** (no mount): every worktree must build. Record
-       that, and note `cache_from` as the only lever.
-
-     **The reuse is only valid while the dependency layer is unchanged** — record the
-     guard alongside it, never the speedup alone. A worktree branch that touches the
-     Dockerfile or the dependency manifest MUST build, or it runs against a silently
-     stale environment, which is a worse failure than a slow one:
+     **Before recording any Tier-2 strategy, run the creation-time check.** For a
+     compose-based project:
      ```bash
-     # non-empty => this branch changes the image; build instead of reusing
+     bash "${CLAUDE_SKILL_DIR}/scripts/check-compose-isolation.sh" [compose-file]
+     ```
+     It renders the file twice under different project names and reports every name
+     that does **not** vary: an image pinned to the main project, a fixed
+     `container_name`, a literal host port, a explicitly-named volume two stacks would
+     share. Each is unfixable after the fact — a second stack has already collided
+     with, or borrowed from, the main tree. Surface the findings and fold them into the
+     recorded strategy; do not record Tier 2 as available over a stack that fails this.
+     Field-verified: run against a real project it reproduced that project's own
+     independently-filed isolation bug and found two residuals the fix had missed.
+
+     **Ask the image question, not just the strategy question.** How a Tier-2 stack
+     names and builds its images is decided at *creation*, and it determines both how
+     fast a worktree comes up and whether its storage is ever reclaimable. Getting it
+     wrong is not self-correcting — no teardown can fix an image that was named wrong.
+     Three rules, each learned from a real failure:
+
+     1. **Every service that must share one runtime environment needs an explicit,
+        project-derived tag — a shared `build:` block is NOT enough.** Compose names a
+        built image `<project>-<service>`, so two services pointing at the same build
+        context still produce two separately-resolved images. Record the form:
+        ```yaml
+        image: ${COMPOSE_PROJECT_NAME:-<main-project>}-<service>
+        ```
+        With `COMPOSE_PROJECT_NAME` unset the main tree stays byte-identical; inside a
+        worktree project every service lands on that project's single image.
+     2. **Never hardcode another project's image name** (`image: <main-project>-backend:latest`).
+        In a worktree project it makes one service start from the *main tree's* image
+        while its siblings build their own — the exact divergence the shared tag exists
+        to prevent — and adds a silent dependency on the main tree having been built at
+        all. Field case: a separately-resolved second build produced a divergent torch
+        resolution that broke `silero_vad` on import.
+     3. **A per-worktree build is not merely slow, it anchors storage.** Steps like
+        `RUN apt-get update` are not reproducible, so any cache miss mints a whole new
+        multi-GB dependency generation, and *every surviving image keeps its generation
+        alive*. Measured on a real workspace: two images belonging to worktrees that no
+        longer existed held 4.1GB of otherwise-reclaimable layers. This is why rule 1 of
+        the naming contract (`-wt-` infix) is a storage rule, not a cosmetic one — an
+        unattributable image is one nobody can ever decide to delete.
+
+     **The reuse lever, and its mandatory guard.** When the source is bind-mounted
+     (`- ./backend:/app`), the image supplies only the dependency layer and the
+     worktree's code arrives through the mount — so a worktree whose branch does not
+     change dependencies does not need its own image at all. Expose that as an
+     *override with a project-derived default*, never as a hardcoded name (rule 2):
+     ```yaml
+     image: ${SERVICE_IMAGE:-${COMPOSE_PROJECT_NAME:-<main-project>}-<service>}
+     ```
+     `worktree_up` exports `SERVICE_IMAGE=<main-project>-<service>` **only** when the
+     branch leaves the image inputs untouched; otherwise it leaves it unset and the
+     project builds its own, preserving rule 1. The guard is not optional — a branch
+     that changes deps and reuses a stale image fails silently, which is worse than
+     building:
+     ```bash
+     # non-empty => this branch changes the image; must build its own
      git diff --name-only <base>...HEAD -- <dockerfile-path> <deps-manifest>
      ```
+     When the source is **baked in** with no mount, every worktree must build; record
+     that and note `cache_from` as the only lever.
+
+     **Judge storage by UNIQUE size, never by the Docker Desktop row.** The UI's
+     per-image size counts shared layers in full: a workspace showing 87 images at
+     ~3GB each held 37GB of actual unique data. `docker system df -v`'s UNIQUE column
+     is the only figure worth acting on — a decision made off the displayed size will
+     chase the wrong resource entirely.
 
    - **Axis 4 — Lifecycle & cleanup.** Ephemeral (spin up -> run -> auto-teardown) or
      persistent (iterate for hours/days -> explicit teardown on exit)? What exactly
