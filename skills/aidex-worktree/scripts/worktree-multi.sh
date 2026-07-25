@@ -112,8 +112,13 @@ if [[ "$cmd" == "create" ]]; then
   done
   for l in "${LINKS[@]:-}"; do
     [[ -z "$l" ]] && continue
-    ln -s "$ROOT/$l" "$DEST/$(basename "$l")"
-    ok "link: $(basename "$l") -> $ROOT/$l"
+    # Mirror the RELATIVE path, not just the basename. `--link backend/.env`
+    # used to land as <dest>/.env, so compose looked for <dest>/backend/.env,
+    # found nothing, and the stack refused to start with an error that named
+    # the file but not the reason.
+    mkdir -p "$(dirname "$DEST/$l")"
+    ln -s "$ROOT/$l" "$DEST/$l"
+    ok "link: $l -> $ROOT/$l"
   done
   printf '%s\n' "$DEST"
   exit 0
@@ -197,7 +202,19 @@ for sub in "$DEST"/*/; do
 done
 [[ "$removed" -gt 0 ]] || warn "no worktrees found inside $DEST"
 
-# Wrapper symlinks (top-level only), then the dir itself if empty.
-find "$DEST" -maxdepth 1 -type l -exec rm -f {} +
-rmdir "$DEST" 2>/dev/null || warn "$DEST not empty after removal — inspect it manually (never force-deleted)"
+# Wrapper symlinks (at any depth — --link mirrors relative paths) and the
+# markers this tooling wrote itself. Anything else is the user's, and a
+# non-empty directory is reported as a FAILURE rather than shrugged off: the
+# previous version warned and still exited 0, so a caller printed "removed"
+# over a directory that was still there.
+find "$DEST" -type l -delete 2>/dev/null
+rm -f "$DEST/.wt-slot"
+find "$DEST" -type d -empty -delete 2>/dev/null
+if [[ -d "$DEST" ]]; then
+  err "$DEST still exists after removal — it holds files this tool did not create:"
+  find "$DEST" -mindepth 1 -maxdepth 2 | sed 's|^|    |' >&2
+  err "inspect and remove it yourself (never force-deleted)"
+  exit 1
+fi
+ok "removed $DEST"
 exit 0
