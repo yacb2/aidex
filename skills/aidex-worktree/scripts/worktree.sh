@@ -16,14 +16,28 @@
 #
 # Usage:
 #   worktree.sh new  <slug> --branch <branch> [--repo R]... [--no-infra] [--slot N]
-#   worktree.sh down <slug> [--keep-dir]
-#   worktree.sh list
+#   worktree.sh up   <slug>
+#   worktree.sh down <slug> [--keep-dir] [--force]
+#   worktree.sh list [--porcelain]
 #
 #   new  : allocate a free port slot, create one git worktree per participant,
 #          link the unversioned wrapper files, bring the isolated stack up.
+#   up   : bring an EXISTING worktree's stack back on its recorded slot. Without
+#          it, a worktree whose stack is down has no way back and the directory
+#          is stranded — the state a failed `down` leaves behind.
 #   down : tear the stack down INCLUDING what compose does not reclaim, verify
 #          nothing is left attributable to the slug, then remove the directory.
-#   list : every worktree of this project with its slot, branch and stack state.
+#          --force discards uncommitted work (git refuses otherwise). NEVER pass
+#          it without the user asking: it destroys work no one can recover.
+#   list : every worktree with slot, branch, stack state, and whether it holds
+#          uncommitted work. --porcelain emits one tab-separated record per
+#          worktree for a supervising agent to parse.
+#
+# SUPERVISION. These worktrees are created and destroyed by an agent, not by a
+# person reading errors at a prompt. So every state must be both recoverable and
+# legible: `list --porcelain` reports what is actually true, `up` recovers a
+# stack that went down, and a claim is released only when the worktree is really
+# gone — never leaving a slot free while its directory still exists.
 #
 # Config (.context/worktrees/config.env), all optional except WT_PARTICIPANTS:
 #   WT_PARTICIPANTS   "backend frontend"     repos that can participate
@@ -50,7 +64,7 @@ SNAP="$SELF_DIR/docker-snapshot.sh"
 MULTI="$SELF_DIR/worktree-multi.sh"
 
 cmd="${1:-}"; shift 2>/dev/null
-case "$cmd" in new|down|list) ;; *) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;; esac
+case "$cmd" in new|up|down|list) ;; *) sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;; esac
 
 ROOT="$(find_project_root)"
 PROJECT="$(basename "$ROOT")"
@@ -69,7 +83,7 @@ set -a
 [[ -f "$CONFIG" ]] && . "$CONFIG"
 set +a
 
-SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false
+SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false
 REPOS=()
 [[ $# -gt 0 && "$1" != -* ]] && { SLUG="$1"; shift; }
 while [[ $# -gt 0 ]]; do
@@ -79,6 +93,8 @@ while [[ $# -gt 0 ]]; do
     --slot)   SLOT="${2-}"; shift 2 ;;
     --no-infra) NO_INFRA=true; shift ;;
     --keep-dir) KEEP_DIR=true; shift ;;
+    --force) FORCE=true; shift ;;
+    --porcelain) PORCELAIN=true; shift ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -87,18 +103,57 @@ DEST_FOR() { printf '%s/../%s-wt-%s\n' "$ROOT" "$PROJECT" "$1"; }
 PROJ_FOR() { printf '%s-wt-%s\n' "$PROJECT" "$1"; }
 
 # ---------------------------------------------------------------- list
+#
+# Reports what is TRUE, not what was intended: a directory can exist with its
+# stack down (a failed teardown leaves exactly that), and a worktree can hold
+# uncommitted work that blocks its own removal. A supervising agent needs both
+# facts before it decides anything, so both are columns.
+SLOTDIR_FOR() { printf '%s/aidex-wt-slots-%s\n' "${TMPDIR:-/tmp}" "$PROJECT"; }
+CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
+  local sl f
+  for f in "$(SLOTDIR_FOR)"/slot-*; do
+    [[ -e "$f" ]] || continue
+    [[ "$(awk '{print $2}' "$f" 2>/dev/null)" == "$1" ]] && { sl="$(basename "$f")"; printf '%s' "${sl#slot-}"; return 0; }
+  done
+  return 1
+}
+IS_DIRTY() {  # dest -> 0 when any participant has uncommitted or untracked work
+  local d="$1" p
+  for p in $WT_PARTICIPANTS; do
+    [[ -d "$d/$(basename "$p")" ]] || continue
+    [[ -n "$(git -C "$d/$(basename "$p")" status --porcelain 2>/dev/null)" ]] && return 0
+  done
+  return 1
+}
+
 if [[ "$cmd" == "list" ]]; then
   found=0
+  hdr() { $PORCELAIN && return 0; [[ "$found" -eq 0 ]] && printf '%-20s %-5s %-28s %-9s %-7s %s\n' SLUG SLOT BRANCH STACK DIRTY DIR; }
   for d in "$ROOT"/../"$PROJECT"-wt-*; do
     [[ -d "$d" ]] || continue
-    found=1
-    s="$(basename "$d")"; s="${s#${PROJECT}-wt-}"
-    slot="$(cat "$d/.wt-slot" 2>/dev/null || echo '?')"
-    br="$(git -C "$d/$(echo "$WT_PARTICIPANTS" | awk '{print $1}')" branch --show-current 2>/dev/null || echo '?')"
-    up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$s")" 2>/dev/null | wc -l | tr -d ' ')"
-    printf '%-22s slot=%-3s branch=%-32s containers_up=%s\n' "$s" "$slot" "$br" "$up"
+    hdr; found=1
+    sg="$(basename "$d")"; sg="${sg#${PROJECT}-wt-}"
+    slot="$(cat "$d/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$sg" || echo '-')"
+    br="$(git -C "$d/$(echo "$WT_PARTICIPANTS" | awk '{print $1}')" branch --show-current 2>/dev/null || echo '-')"
+    n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
+    stack="down"; [[ "${n_up:-0}" -gt 0 ]] && stack="up:$n_up"
+    dirty=no; IS_DIRTY "$d" && dirty=YES
+    if $PORCELAIN; then
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$sg" "$slot" "$br" "$stack" "$dirty" "$d"
+    else
+      printf '%-20s %-5s %-28s %-9s %-7s %s\n' "$sg" "$slot" "$br" "$stack" "$dirty" "$d"
+    fi
   done
-  [[ "$found" -eq 1 ]] || echo "no worktrees for $PROJECT"
+  # A claim with no directory is a leak the agent must see, not a silent oddity.
+  for f in "$(SLOTDIR_FOR)"/slot-*; do
+    [[ -e "$f" ]] || continue
+    cs="$(awk '{print $2}' "$f" 2>/dev/null)"
+    [[ -d "$(DEST_FOR "$cs")" ]] && continue
+    found=1
+    if $PORCELAIN; then printf '%s\t%s\t-\t-\tno\tMISSING-DIR\n' "$cs" "$(basename "$f" | sed 's/slot-//')"
+    else warn "claim for '$cs' (slot $(basename "$f" | sed 's/slot-//')) has no directory — run: worktree.sh down $cs"; fi
+  done
+  [[ "$found" -eq 1 ]] || { $PORCELAIN || echo "no worktrees for $PROJECT"; }
   exit 0
 fi
 
@@ -141,6 +196,39 @@ assert_port_scheme() {
   fi
 }
 assert_port_scheme
+
+# ---------------------------------------------------------------- up
+#
+# A worktree whose stack is down used to have no way back: `new` refuses an
+# existing destination, so the directory was stranded. That is precisely the
+# state a failed teardown leaves (git refuses to remove a dirty worktree AFTER
+# the stack is already down), and it is the state an agent most needs to be able
+# to resolve without discarding anything.
+if [[ "$cmd" == "up" ]]; then
+  [[ -d "$DEST" ]] || die "no worktree directory at $DEST — use: worktree.sh new $SLUG --branch <b>"
+  SLOT="${SLOT:-$(cat "$DEST/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$SLUG" || echo '')}"
+  [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
+
+  # Re-assert the claim: the slot is ours again while the stack is up.
+  SLOTDIR="$(SLOTDIR_FOR)"; mkdir -p "$SLOTDIR"
+  other="$(awk '{print $2}' "$SLOTDIR/slot-$SLOT" 2>/dev/null)"
+  [[ -n "$other" && "$other" != "$SLUG" ]] && die "slot $SLOT is held by '$other' — free it first"
+  printf '%s %s\n' "$$" "$SLUG" > "$SLOTDIR/slot-$SLOT"
+  echo "$SLOT" > "$DEST/.wt-slot"
+
+  envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
+  while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
+  ( cd "$DEST" && env "${envs[@]}" docker compose up -d ${WT_SERVICES:-} ) || die "stack failed to start"
+  if [[ -n "$WT_READY_CMD" ]]; then
+    for i in $(seq 1 60); do
+      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ok "ready after ${i}s"; break; }
+      sleep 1
+    done
+  fi
+  ok "stack up: $CPROJ (slot $SLOT)"
+  port_env "$SLOT" | sed 's/^/  port     /'
+  exit 0
+fi
 
 # ---------------------------------------------------------------- new
 if [[ "$cmd" == "new" ]]; then
@@ -309,7 +397,9 @@ fi
 
 # ---------------------------------------------------------------- down
 if [[ "$cmd" == "down" ]]; then
-  SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || echo 1)"
+  # Read the slot from the claim when the directory is already gone — assuming
+  # slot 1 pointed the teardown at another worktree's ports.
+  SLOT="$(cat "$DEST/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$SLUG" || echo 1)"
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
 
@@ -325,14 +415,13 @@ if [[ "$cmd" == "down" ]]; then
     docker rmi $dangling >/dev/null 2>&1
   fi
 
-  # Release the slot reservation. A claim nobody releases is a slot lost for the
-  # rest of the machine's uptime; `new` reaps stale ones, but only a teardown
-  # knows the slot is free *now*.
-  SLOTDIR="${TMPDIR:-/tmp}/aidex-wt-slots-${PROJECT}"
-  for claim in "$SLOTDIR"/slot-*; do
-    [[ -e "$claim" ]] || continue
-    [[ "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && { rm -f "$claim"; info "released slot $(basename "$claim" | sed 's/slot-//')"; }
-  done
+  release_claim() {
+    local claim
+    for claim in "$(SLOTDIR_FOR)"/slot-*; do
+      [[ -e "$claim" ]] || continue
+      [[ "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && { rm -f "$claim"; info "released slot $(basename "$claim" | sed 's/slot-//')"; }
+    done
+  }
 
   # A zero exit from compose is not proof; ask.
   if bash "$SWEEP" --slug "$SLUG" >/dev/null 2>&1; then
@@ -341,12 +430,31 @@ if [[ "$cmd" == "down" ]]; then
     warn "residue remains:"; bash "$SWEEP" --slug "$SLUG" 2>&1 | sed 's/^/  /'
   fi
 
+  # The claim is released only when the worktree is REALLY gone. Releasing it on
+  # the way out left a directory with no stack and no slot — a limbo `up` could
+  # not resume deterministically and `new` refused to recreate.
   if $KEEP_DIR; then
-    ok "--keep-dir: $DEST left in place"
-  elif [[ -d "$DEST" ]]; then
-    ( cd "$ROOT" && bash "$MULTI" remove --slug "$SLUG" --dest "$DEST" --skip-teardown ) \
-      || die "directory removal failed (dirty worktree? commit or stash first) — the stack is already down"
-    ok "removed $DEST"
+    ok "--keep-dir: $DEST left in place (slot $SLOT still claimed; resume with: worktree.sh up $SLUG)"
+    exit 0
   fi
+  if [[ -d "$DEST" ]]; then
+    rmargs=(remove --slug "$SLUG" --dest "$DEST" --skip-teardown)
+    $FORCE && rmargs+=(--force)
+    if ! ( cd "$ROOT" && bash "$MULTI" "${rmargs[@]}" ); then
+      err "the stack is down but $DEST could not be removed."
+      if IS_DIRTY "$DEST"; then
+        err "it holds uncommitted work:"
+        for pp in $WT_PARTICIPANTS; do
+          b="$(basename "$pp")"; [[ -d "$DEST/$b" ]] || continue
+          git -C "$DEST/$b" status --porcelain 2>/dev/null | sed "s|^|    $b |" >&2
+        done
+        err "commit or stash it, then re-run — or pass --force to DISCARD it."
+      fi
+      err "slot $SLOT stays claimed so nothing else takes it; resume with: worktree.sh up $SLUG"
+      exit 1
+    fi
+  fi
+  release_claim
+  ok "removed $DEST"
   exit 0
 fi

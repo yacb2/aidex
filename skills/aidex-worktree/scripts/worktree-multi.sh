@@ -64,6 +64,7 @@ cmd="${1:-}"; shift || true
 
 SLUG="" BRANCH="" DEST=""
 SKIP_TEARDOWN=false
+FORCE_RM=false
 REPOS=()
 LINKS=()
 while [[ $# -gt 0 ]]; do
@@ -74,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --link)   LINKS+=("$2"); shift 2 ;;
     --dest)   DEST="$2"; shift 2 ;;
     --skip-teardown) SKIP_TEARDOWN=true; shift ;;
+    --force) FORCE_RM=true; shift ;;
     -h|--help) usage ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -196,7 +198,14 @@ for sub in "$DEST"/*/; do
   [[ -n "$common" ]] || { warn "skipping $sub — cannot resolve its main repo"; continue; }
   main_tree="$(dirname "$common")"
   # git refuses to remove a dirty worktree — that protection is the point.
-  git -C "$main_tree" worktree remove "$sub"
+  # --force overrides it and DISCARDS the work; it exists only so a caller can
+  # offer that choice explicitly, never as a fallback when removal fails.
+  if $FORCE_RM; then
+    warn "--force: discarding any uncommitted work in $sub"
+    git -C "$main_tree" worktree remove --force "$sub"
+  else
+    git -C "$main_tree" worktree remove "$sub"
+  fi
   ok "removed worktree: $sub"
   removed=$((removed + 1))
 done
