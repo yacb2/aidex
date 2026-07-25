@@ -362,6 +362,94 @@ def check_ignored_subtrees(failures: list[str]) -> None:
                             f"count (got {after['summary'].get('ignored')!r}, expected 2)")
 
 
+def check_baseline_scoped_write(failures: list[str]) -> None:
+    """A scoped run must never be able to shrink or contradict the ratchet.
+
+    Regression (deep audit 2026-07-25): `--baseline` froze the *type-filtered*,
+    *post-waiver* violation set. Two symptoms from one line:
+      A. `--type X --baseline` wrote a baseline containing only type X, so every other
+         type's already-accepted debt came back as a NEW violation (rc=1) on the next
+         full run — reachable by following the scoped commands 8 SKILL.md files prescribe.
+      B. a filtered run reported the unscanned types' accepted keys as "no longer
+         present", advising a --baseline refresh that destroys them. A filtered run
+         cannot distinguish 'fixed' from 'not scanned', so it must not claim either.
+    """
+    import shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+
+        def v(*extra):
+            return subprocess.run([sys.executable, str(VALIDATOR), str(ctx), *extra],
+                                  capture_output=True, text=True)
+
+        full = v("--baseline")
+        if full.returncode != 0:
+            failures.append(f"scoped-baseline: full --baseline failed rc={full.returncode}")
+            return
+        bp = ctx / ".validate-baseline.json"
+        accepted_full = len(json.loads(bp.read_text())["keys"])
+        if accepted_full == 0:
+            failures.append("scoped-baseline: fixture froze 0 keys — cannot exercise the bug")
+            return
+
+        # (A) a scoped --baseline must not be able to discard the other types' debt.
+        scoped = v("--type", "decisions", "--baseline")
+        if scoped.returncode == 0:
+            accepted_after = len(json.loads(bp.read_text())["keys"])
+            if accepted_after < accepted_full:
+                failures.append(
+                    f"scoped-baseline (A): `--type decisions --baseline` shrank the frozen set "
+                    f"{accepted_full} -> {accepted_after}; the other types' accepted debt is now "
+                    f"unfrozen and will report as NEW")
+        elif "--type" not in (scoped.stderr + scoped.stdout):
+            failures.append("scoped-baseline (A): scoped --baseline refused but did not say why "
+                            "(the error must name --type so the user can act on it)")
+
+        # A full run after the scoped attempt must still be clean.
+        after = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                               capture_output=True, text=True)
+        d = json.loads(after.stdout)
+        nv = d["summary"].get("baseline", {}).get("new_violations")
+        if after.returncode != 0 or nv:
+            failures.append(f"scoped-baseline (A): a scoped --baseline must not turn accepted debt "
+                            f"into NEW violations (rc={after.returncode}, new_violations={nv})")
+
+        # (B) a filtered run must not advertise unscanned keys as resolved.
+        filt = v("--type", "references")
+        if "no longer present" in filt.stdout:
+            failures.append("scoped-baseline (B): a --type run claims accepted keys are "
+                            "'no longer present' — it cannot distinguish fixed from not-scanned")
+
+
+def check_ignored_visible_in_plain(failures: list[str]) -> None:
+    """`ignored: N` must be visible in DEFAULT output, not only in --json.
+
+    Regression (deep audit 2026-07-25): two always-on promises — rules/aidex-conventions.md
+    "Skipped files are reported as an `ignored: N` count" and 00-global.md "visible rather
+    than silent" — were kept only in the --json branch. Plain output printed
+    "scanned: 0 · violations: 0" and "OK — no violations" for a tree whose files had all
+    been silently exempted, while the sibling suppression mechanism (`waived`) IS printed.
+    """
+    import shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        vendored = ctx / "research" / "vendor-upstream"
+        vendored.mkdir(parents=True)
+        (vendored / "README.md").write_text("Third-party, no front-matter.\n", encoding="utf-8")
+        (ctx / ".aidex-ignore").write_text(".context/research/vendor-upstream\n", encoding="utf-8")
+
+        plain = subprocess.run([sys.executable, str(VALIDATOR), str(ctx)],
+                               capture_output=True, text=True)
+        if "ignored:" not in plain.stdout:
+            failures.append("ignored-visible: plain output omits `ignored:` while files were "
+                            "exempted — the always-on rule promises the count is visible")
+        if "vendor-upstream" not in plain.stdout:
+            failures.append("ignored-visible: plain output does not name the matched ignore "
+                            "prefix, so the user cannot tell WHAT was exempted")
+
+
 def check_body_language_unit(failures: list[str]) -> None:
     """Direct cells for check_body_language (BL-047): a clearly-Spanish body warns;
     English, bilingual-with-quote, Spanish-in-code-fence, and Spanish-in-front-matter
@@ -544,6 +632,8 @@ def main() -> int:
     check_baseline_key_granularity(failures)
     check_external_crossrefs(failures)
     check_ignored_subtrees(failures)
+    check_baseline_scoped_write(failures)
+    check_ignored_visible_in_plain(failures)
     check_body_language_unit(failures)
     check_archive_status_open_unit(failures)
     check_backlog_placeholder_body_unit(failures)

@@ -15,8 +15,8 @@ messages as consistent `.context/communications/` entries. Each entry is a folde
 holding a `body.md` (plus any attachments alongside it). The taxonomy splits on
 **async vs synchronous**: async correspondence has a direction (`received/`, `sent/`);
 synchronous conversations — meetings and calls — have participants, not a direction, and
-live in `meetings/`. Communications are kept **in their native language** (D-11
-English-only does NOT apply here).
+live in `meetings/`. Communications are kept **in their native language** (D-04
+English-default does NOT apply here; D-11 governs skill *descriptions*, not artifact bodies).
 
 ---
 

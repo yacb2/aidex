@@ -318,12 +318,38 @@ One path prefix per line, relative to `.context/` (a leading `.context/` is tole
 
 ## 11. ADR map
 
-| # | Topic | ADR |
+Filenames, **not links**: these ADRs live in the aidex repo's own `.context/decisions/`,
+which is gitignored, so a relative link resolves for nobody but the maintainer — from an
+installed `~/.aidex/skills/…` it pointed at `~/.aidex/.context/`, which does not exist, and
+all seven links were dead for every installed user (deep audit 2026-07-25). Look these up
+by filename in the aidex repo. Every `D-NN` cited anywhere in this suite must appear here.
+
+Each row is the ADR's own `decision_id`, verified against the file's front-matter by
+`scripts/test_adr_map_lockstep.sh`.
+
+| # | Topic | ADR filename in `aidex/.context/decisions/` |
 |---|---|---|
-| D-01 | Date format ISO 8601 | [`2026-05-14-date-format-iso-8601.md`](../../../.context/decisions/2026-05-14-date-format-iso-8601.md) |
-| D-02 | Audits grouped by methodology | [`2026-05-14-audit-grouped-by-methodology.md`](../../../.context/decisions/2026-05-14-audit-grouped-by-methodology.md) |
-| D-03 | Cross-reference type prefix | [`2026-05-14-cross-reference-type-prefix.md`](../../../.context/decisions/2026-05-14-cross-reference-type-prefix.md) |
-| D-04 | English default language | [`2026-05-14-english-default-language.md`](../../../.context/decisions/2026-05-14-english-default-language.md) |
-| D-05 | Archive folder convention | [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/2026-05-14-archive-folder-convention.md) |
-| D-06 | Skills topology deferred | [`2026-05-14-skills-topology-deferred.md`](../../../.context/decisions/2026-05-14-skills-topology-deferred.md) |
-| D-07 | Minimum front-matter | [`2026-05-14-front-matter-minimum-fields.md`](../../../.context/decisions/2026-05-14-front-matter-minimum-fields.md) |
+| D-01 | Date format ISO 8601 | `2026-05-14-date-format-iso-8601.md` |
+| D-02 | Audits grouped by methodology | `2026-05-14-audit-grouped-by-methodology.md` |
+| D-03 | Cross-reference type prefix | `2026-05-14-cross-reference-type-prefix.md` |
+| D-04 | English default language | `2026-05-14-english-default-language.md` |
+| D-05 | Archive folder convention (amended by D-10) | `2026-05-14-archive-folder-convention.md` |
+| D-06 | Skills topology evaluation deferred — **superseded**, in `_archive/` | `2026-05-14-skills-topology-deferred.md` |
+| D-07 | Minimum front-matter | `2026-05-14-front-matter-minimum-fields.md` |
+| D-08 | Rename backlog-register to backlog | `2026-05-22-rename-backlog-register-to-backlog.md` |
+| D-09 | Commit provenance — where the work happened | `2026-05-22-commit-provenance-where-work-happened.md` |
+| D-10 | Archive on close (amends D-05) | `2026-05-22-lifecycle-archive-on-close.md` |
+| D-11 | Skill descriptions English-only | `2026-06-17-skill-descriptions-english-only.md` |
+
+**Known collision, not yet resolved:** `2026-05-14-skills-topology-keep-current-four.md`
+(status `accepted`, the decision that superseded D-06) also declares `decision_id: D-07`,
+which `2026-05-14-front-matter-minimum-fields.md` already holds. Two accepted ADRs share one
+number. Renumbering is a governance call with a citation blast radius, so the collision is
+recorded here and tracked in the backlog rather than silently reassigned — the map lists the
+holder that the rest of the suite actually cites as D-07.
+
+**Why filenames and not links:** D-06's row used to be a relative link, and it broke the
+moment that ADR was archived — which is precisely what §3 forbids physical relative paths
+for. Physical paths do not survive `_archive/`; the `<type>/<filename>` marker does, via the
+two-folder lookup. The links were also dead for every *installed* user regardless of
+archiving, since `.context/` is gitignored and never ships (deep audit 2026-07-25).

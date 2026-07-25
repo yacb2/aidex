@@ -1170,8 +1170,25 @@ def main() -> int:
         print(f"error: not a directory: {context_dir}", file=sys.stderr)
         return 2
 
+    # A scoped run cannot see the other types' accepted debt, so it must never be
+    # allowed to freeze one (deep audit 2026-07-25): `--type X --baseline` used to write
+    # a baseline holding only type X, unfreezing every other type's accepted violations
+    # so they returned as NEW (rc=1) on the next full run — reachable by following the
+    # scoped commands 8 SKILL.md files prescribe.
+    if args.baseline and args.type:
+        print("error: --baseline cannot be combined with --type. A scoped run only sees "
+              f"'{args.type}', so freezing it would discard every other type's accepted "
+              "debt and report it as NEW. Run --baseline unscoped.", file=sys.stderr)
+        return 2
+
     findings, summary = validate(context_dir, args.type)
     findings = [to_relative(context_dir, f) for f in findings]
+
+    # Pre-waiver snapshot: the ratchet must remember what the tree actually contains.
+    # Waivers have their own reversible lifecycle and their own `waived: N` report, so
+    # they must not mutate the frozen set — otherwise deleting a waiver line promotes an
+    # already-accepted finding to NEW.
+    prewaiver_violations = [f for f in findings if f.severity == "violation"]
 
     # Waivers: accepted findings recorded in <context>/.aidex-waivers are
     # suppressed from counts and exit code, but always reported under a
@@ -1193,10 +1210,11 @@ def main() -> int:
     violations_list = [f for f in findings if f.severity == "violation"]
 
     if args.baseline:
-        bp = write_baseline(context_dir, violations_list)
-        keys = len({baseline_key(f) for f in violations_list})
+        bp = write_baseline(context_dir, prewaiver_violations)
+        keys = len({baseline_key(f) for f in prewaiver_violations})
         print(f"baseline written: {bp} "
-              f"(v{BASELINE_VERSION}, {keys} accepted keys from {len(violations_list)} violations)")
+              f"(v{BASELINE_VERSION}, {keys} accepted keys from "
+              f"{len(prewaiver_violations)} violations)")
         return 0
 
     # Ratchet: with a baseline present, only violations NOT in the frozen set count.
@@ -1210,7 +1228,10 @@ def main() -> int:
         new_violations = [f for f in violations_list if key_of(f) not in baseline]
         # Refresh policy: report accepted keys that no longer occur so the baseline
         # can be tightened. Reporting only — a validation run never mutates state.
-        resolved_keys = sorted(baseline - {key_of(f) for f in violations_list})
+        # Suppressed on a scoped run: a --type run cannot distinguish "fixed" from
+        # "not scanned", so claiming either is a lie that advises a destructive refresh.
+        resolved_keys = ([] if args.type
+                         else sorted(baseline - {key_of(f) for f in violations_list}))
         summary["baseline"] = {"present": True, "version": baseline_version,
                                "accepted": len(baseline),
                                "new_violations": len(new_violations),
@@ -1233,9 +1254,22 @@ def main() -> int:
         sys.stdout.write("\n")
     else:
         print(f"\nConventions validation — {context_dir}")
+        # `ignored` is surfaced here, not only in --json: two always-on promises depend on
+        # it (rules/aidex-conventions.md "Skipped files are reported as an `ignored: N`
+        # count" and 00-global.md "visible rather than silent"). Before the 2026-07-25 fix
+        # a fully-exempted tree printed "scanned: 0 · violations: 0" + "OK — no violations",
+        # while the sibling suppression mechanism (`waived`) was printed correctly.
+        ignored_n = summary.get("ignored") or 0
+        ignored_txt = f" · ignored: {ignored_n}" if ignored_n else ""
         print(f"  scanned: {summary['files_scanned']} files · "
               f"violations: {summary['violations']} · warnings: {summary['warnings']} · "
-              f"info: {summary['info']}\n")
+              f"info: {summary['info']}{ignored_txt}\n")
+        if ignored_n:
+            prefixes = load_ignores(context_dir)
+            print(f"ignored: {ignored_n} file(s) exempted by {IGNORE_NAME}:")
+            for pref in prefixes:
+                print(f"  {pref}")
+            print()
         if not findings:
             print("OK — no violations")
         else:

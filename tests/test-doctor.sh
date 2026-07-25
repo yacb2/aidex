@@ -39,7 +39,12 @@ make_fixture() {
   echo "echo router" > "$A/hooks/aidex-router.sh"
   echo "echo durability" > "$A/hooks/durability-run.sh"
   chmod +x "$A/hooks/aidex-router.sh" "$A/hooks/durability-run.sh"
-  printf 'skills/skill-a\nhooks/aidex-router.sh\nhooks/durability-run.sh\n' > "$A/.manifest"
+  # A rule: copied into ~/.aidex/rules/ AND symlinked into ~/.claude/rules/, which is
+  # the only surface Claude Code loads. Both halves are part of a healthy install.
+  mkdir -p "$A/rules" "$C/rules"
+  echo "# a rule" > "$A/rules/aidex-demo.md"
+  ln -s "$A/rules/aidex-demo.md" "$C/rules/aidex-demo.md"
+  printf 'skills/skill-a\nhooks/aidex-router.sh\nhooks/durability-run.sh\nrules/aidex-demo.md\n' > "$A/.manifest"
   echo "$REPO_VERSION" > "$A/.version"
   ln -s "$A/skills/skill-a" "$C/skills/skill-a"
 }
@@ -85,6 +90,35 @@ out="$(run_doctor)"; rc=$?
 [[ "$rc" -eq 1 ]] || fail "(d) manifest entry deleted: expected exit 1, got $rc"
 echo "$out" | grep -q "FAIL:.*manifest entries missing" || fail "(d) manifest entry deleted: missing manifest FAIL line"
 echo "$out" | grep -q "skills/skill-a" || fail "(d) manifest entry deleted: did not name the missing entry"
+
+# ---------- (g) a manifest rule that never got symlinked must FAIL ----------
+# Regression (deep audit 2026-07-25): create_symlink refuses to clobber an existing
+# ~/.claude/rules/<name>.md (correct — it must not eat the user's file), warns once, and
+# moves on. The rule then never loads in ANY session, yet it stays listed in .manifest and
+# check 5 only tests `[ -e "$AIDEX_DIR/$item" ]` — which passes, because the COPY exists.
+# run_doctor contained zero mentions of rules, so it reported "all checks passed" for an
+# install whose always-on rules were silently absent. Only 1 of the 3 shipped rules carries
+# the aidex- prefix, so generic names like autonomy.md are the likely collisions.
+make_fixture
+rm "$C/rules/aidex-demo.md"                      # the clobber-skip outcome
+out="$(run_doctor)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "(g) unlinked rule: expected exit 1, got $rc"
+echo "$out" | grep -q "FAIL:.*rule" || fail "(g) unlinked rule: no FAIL line about rules"
+echo "$out" | grep -q "aidex-demo.md" || fail "(g) unlinked rule: did not name the unloaded rule"
+
+# (g2) a rule shadowed by a real user file is the same defect, and must also fail.
+make_fixture
+rm "$C/rules/aidex-demo.md"
+echo "# the user's own file of the same name" > "$C/rules/aidex-demo.md"
+out="$(run_doctor)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "(g2) shadowed rule: expected exit 1, got $rc"
+echo "$out" | grep -q "aidex-demo.md" || fail "(g2) shadowed rule: did not name the shadowed rule"
+
+# (g3) the healthy fixture must still pass — the new check must not cry wolf.
+make_fixture
+out="$(run_doctor)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "(g3) healthy rules: new check regressed the healthy fixture (rc=$rc)"
+echo "$out" | grep -qi "rule" || fail "(g3) healthy rules: doctor does not report on rules at all"
 
 # ---------- (f) stale .version still reports a mismatch ----------
 # Guards the (a) repair: deriving the fixture version from install.sh makes (a)
