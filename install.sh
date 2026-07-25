@@ -38,6 +38,15 @@ header() { echo -e "\n${BOLD}$1${NC}"; }
 ask_choice() {
   local prompt="$1"
   local default="$2"
+  # Take the default without blocking when there is no human to answer: a
+  # non-interactive stdin, or AIDEX_ASSUME_DEFAULTS=1. `./install.sh --update`
+  # inside a script hung here indefinitely with its output redirected, so the
+  # command that followed it silently ran against a skill that was never
+  # installed. A prompt nobody can see is not a prompt.
+  if [[ -n "${AIDEX_ASSUME_DEFAULTS:-}" ]] || [[ ! -t 0 ]]; then
+    echo "$default"
+    return 0
+  fi
   echo -en "  $prompt [$default]: " >&2
   read -r choice
   echo "${choice:-$default}"
