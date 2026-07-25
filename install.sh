@@ -38,17 +38,21 @@ header() { echo -e "\n${BOLD}$1${NC}"; }
 ask_choice() {
   local prompt="$1"
   local default="$2"
-  # Take the default without blocking when there is no human to answer: a
-  # non-interactive stdin, or AIDEX_ASSUME_DEFAULTS=1. `./install.sh --update`
-  # inside a script hung here indefinitely with its output redirected, so the
-  # command that followed it silently ran against a skill that was never
-  # installed. A prompt nobody can see is not a prompt.
-  if [[ -n "${AIDEX_ASSUME_DEFAULTS:-}" ]] || [[ ! -t 0 ]]; then
+  # Take the default when there is nothing to read, rather than blocking on a
+  # prompt nobody can see: `./install.sh --update` from a script with its output
+  # redirected hung here indefinitely, and the command after it silently ran
+  # against a skill that had never been installed.
+  #
+  # The condition is EOF, NOT "stdin is not a tty". A pipe carrying answers is
+  # not a terminal either, and treating it as unanswerable ignores the answers —
+  # which is exactly how this broke tests/test-install.sh, whose whole method is
+  # piping choices in.
+  if [[ -n "${AIDEX_ASSUME_DEFAULTS:-}" ]]; then
     echo "$default"
     return 0
   fi
-  echo -en "  $prompt [$default]: " >&2
-  read -r choice
+  [[ -t 0 ]] && echo -en "  $prompt [$default]: " >&2
+  read -r choice || choice=""
   echo "${choice:-$default}"
 }
 
