@@ -28,11 +28,27 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   exit 0
 fi
 
+# --- singleton -------------------------------------------------------------
+#
+# The fixture's project name, its slot directory and its host ports are all
+# fixed, so two instances of this test destroy each other: one's purge step
+# removes the other's containers, and both draw from the same slot claims. That
+# is a harness error, not a scenario to support — fail loudly instead of
+# emitting failures that look like defects in the code under test. (Observed:
+# a stray background run overlapping a suite run produced exactly that.)
+RUNLOCK="${TMPDIR:-/tmp}/aidex-wt-lifecycle-test.lock"
+if ! mkdir "$RUNLOCK" 2>/dev/null; then
+  echo "SKIP — another test-worktree-lifecycle.sh is running (lock: $RUNLOCK)."
+  echo "       Two instances share the wtfix fixture and would corrupt each other."
+  exit 0
+fi
+
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"
 WS="$TMP/wtfix"
 cleanup() {
   for s in a b c d fail1; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
   rm -rf "$TMP" "${TMPDIR:-/tmp}/aidex-wt-slots-wtfix"
+  rmdir "$RUNLOCK" 2>/dev/null
 }
 trap cleanup EXIT
 
