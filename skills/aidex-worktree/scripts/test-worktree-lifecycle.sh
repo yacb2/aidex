@@ -65,6 +65,7 @@ WT_PORT_VARS="APP_PORT=47000"
 WT_PORT_STRIDE=10
 WT_MAX_SLOTS=9
 WT_SUFFIX_VAR="WT_SUFFIX"
+WT_POST_CMD='docker compose exec -T app touch /data/post-ran'
 ENV
 
 docker image inspect busybox:latest >/dev/null 2>&1 || docker pull -q busybox:latest >/dev/null 2>&1
@@ -99,6 +100,8 @@ for round in 1 2; do
   [[ "$(claims)" == "1" ]] || fail "round $round: expected exactly 1 slot claim, got $(claims)"
   docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-a" | grep -q . \
     || fail "round $round: no container for the worktree project"
+  docker compose -p wtfix-wt-a exec -T app test -f /data/post-ran >/dev/null 2>&1 \
+    || fail "round $round: WT_POST_CMD did not run (the hook projects use to provision an isolated E2E)"
 
   bash "$WT" down a >/dev/null 2>&1 || fail "round $round: down failed"
   bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
