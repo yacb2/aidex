@@ -80,8 +80,47 @@ WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""
 # became ready, and rolled back after 60s. Exporting makes a project's own
 # config values usable by its own commands, which is the least surprising rule.
 set -a
-[[ -f "$CONFIG" ]] && . "$CONFIG"
+# A project may declare WT_PROFILE="<name>" to LOAD a family profile from this
+# skill rather than copy it. Loaded first so the project's own config.env wins
+# on every line — the override path is "state the value plus the reason".
+#
+# Copying was the old shape and it did not work: this script read only
+# config.env, so a fix to the profile reached zero existing projects and each
+# project quietly held its own drifted copy of "the family default" — the same
+# failure the shipped mechanism was built to end, one level up.
+#
+# grep, not source, for the peek: config.env has not been vetted yet at this
+# point, and reading one declarative line is all that is needed to find the
+# profile.
+if [[ -f "$CONFIG" ]]; then
+  _prof="$(sed -n 's/^[[:space:]]*WT_PROFILE=["'"'"']\{0,1\}\([A-Za-z0-9._-]*\).*/\1/p' "$CONFIG" | head -1)"
+  if [[ -n "$_prof" ]]; then
+    _profile_file="$SELF_DIR/../assets/profiles/$_prof.defaults.env"
+    if [[ -f "$_profile_file" ]]; then
+      . "$_profile_file"
+    else
+      set +a
+      die "config.env declares WT_PROFILE=\"$_prof\" but no such profile ships with this skill (looked for $_profile_file)"
+    fi
+  fi
+  . "$CONFIG"
+fi
 set +a
+
+# A profile is a template with holes in it. Filling none of them and running
+# anyway is the failure mode a copied profile invites: the readiness probe then
+# authenticates as a role literally named CHANGEME_user, times out after 60s and
+# rolls the whole create back, reporting nothing about why.
+_unfilled=""
+for _v in WT_PARTICIPANTS WT_DB_USER WT_DB_NAME WT_LINKS WT_PORT_VARS WT_SERVICES; do
+  case "${!_v:-}" in *CHANGEME*) _unfilled="$_unfilled $_v" ;; esac
+done
+if [[ -n "$_unfilled" ]]; then
+  err "config.env still carries profile placeholders:$_unfilled"
+  err "Fill them from the project's compose file (DB identity), a live port probe"
+  err "(port band) and a deliberate decision (participants, services). Config: $CONFIG"
+  exit 2
+fi
 
 SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false
 REPOS=()
@@ -358,7 +397,7 @@ if [[ "$cmd" == "new" ]]; then
       local dang
       dang="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
       [[ -n "${dang// /}" ]] && docker rmi $dang >/dev/null 2>&1
-      [[ -d "$DEST" ]] && ( cd "$ROOT" && bash "$MULTI" remove --slug "$SLUG" --dest "$DEST" --skip-teardown ) >/dev/null 2>&1
+      [[ -d "$DEST" ]] && ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" remove --slug "$SLUG" --dest "$DEST" --skip-teardown ) >/dev/null 2>&1
     fi
     err "$1"
     exit 1
@@ -368,7 +407,7 @@ if [[ "$cmd" == "new" ]]; then
   args=(create --slug "$SLUG" --branch "$BRANCH" --dest "$DEST")
   for r in "${REPOS[@]}"; do args+=(--repo "$r"); done
   for l in $WT_LINKS; do args+=(--link "$l"); done
-  ( cd "$ROOT" && bash "$MULTI" "${args[@]}" ) >/dev/null || rollback "worktree creation failed"
+  ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" "${args[@]}" ) >/dev/null || rollback "worktree creation failed"
   CREATED_DIR=true
   ok "worktrees created: $DEST"
 
@@ -478,7 +517,7 @@ if [[ "$cmd" == "down" ]]; then
   if [[ -d "$DEST" ]]; then
     rmargs=(remove --slug "$SLUG" --dest "$DEST" --skip-teardown)
     $FORCE && rmargs+=(--force)
-    if ! ( cd "$ROOT" && bash "$MULTI" "${rmargs[@]}" ); then
+    if ! ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" "${rmargs[@]}" ); then
       err "the stack is down but $DEST could not be removed."
       if IS_DIRTY "$DEST"; then
         err "it holds uncommitted work:"

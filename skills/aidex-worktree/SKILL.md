@@ -223,11 +223,26 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    that made one service start from the main tree's image while its siblings
    built their own.
 
-4. **Start from the family profile when one fits.** For the Django + Vue +
-   Compose family, copy
-   [assets/profiles/django-vue-compose.env](assets/profiles/django-vue-compose.env)
-   and fill only its three `PROJECT` lines. Do not re-derive from a blank page
-   what a validated profile already answers.
+4. **Start from the family profile when one fits.** A profile is two files:
+
+   | File | Role |
+   |---|---|
+   | `<family>.project.env` | **copied** to `.context/worktrees/config.env`; the holes you fill |
+   | `<family>.defaults.env` | **loaded, never copied** — `worktree.sh` sources it first when `config.env` declares `WT_PROFILE="<family>"` |
+
+   For the Django + Vue + Compose family, copy
+   [assets/profiles/django-vue-compose.project.env](assets/profiles/django-vue-compose.project.env)
+   and fill its `PROJECT` lines. Leave the `WT_PROFILE` line intact and do **not**
+   inline the defaults: a project that copies them stops receiving improvements
+   to them. Before the split, `worktree.sh` read only `config.env`, so a fix to
+   the profile reached zero existing projects — the same drift the shipped
+   mechanism was built to end, one level up.
+
+   A value you DO set in `config.env` wins. That is the override path: state the
+   value plus the reason it differs. Unfilled `CHANGEME` placeholders are
+   refused before anything is created — otherwise the readiness probe
+   authenticates as a role literally named `CHANGEME_user`, times out after 60s,
+   and rolls the create back saying nothing about why.
 
 5. **Interview only what the profile leaves open** (`AskUserQuestion`, one
    question at a time, each leading with a recommendation grounded in what

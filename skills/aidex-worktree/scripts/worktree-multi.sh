@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
-# worktree-multi.sh — Tier-1 worktree creation/removal for MULTI-REPO (split-git)
-# workspaces: one git worktree per touched participant + symlinks for the
-# unversioned root wrapper files (compose file, dev scripts) that a code-only
-# worktree of a single participant would otherwise lack.
+# worktree-multi.sh — INTERNAL to worktree.sh. Do not call this directly.
+#
+# It performs the git half of a worktree: one git worktree per participant plus
+# symlinks for the unversioned root wrapper files (compose file, dev scripts)
+# that a code-only checkout of a single participant would lack. That is ALL it
+# does — no port slot, no isolated stack, no generated .env, no readiness, no
+# seeding, no rollback, no teardown verification.
+#
+# It survives as a separate script because worktree.sh calls it, and because the
+# "Tier 1" of the retired tier taxonomy was exactly this and nothing more.
+# Several projects' older .context/worktrees/00-index.md still invoke it by
+# name. Following those docs produces a checkout that LOOKS like a worktree,
+# shares dev's database and ports, and reports no error — which is worse than a
+# broken command. Hence the direct-invocation warning below; the docs are the
+# thing to fix, and check-overview.sh now flags them.
+#
+# The one path is: worktree.sh new|up|down|list.
 #
 # Stack-agnostic by construction: participants and wrapper files come from the
 # ARGUMENTS (i.e. from the project's own .context/worktrees/00-index.md Procedure
@@ -61,6 +74,18 @@ usage() {
 
 cmd="${1:-}"; shift || true
 [[ "$cmd" == "create" || "$cmd" == "remove" ]] || usage
+
+# Warn, don't refuse: worktree.sh sets AIDEX_WT_INTERNAL, and a hard failure
+# would break any caller mid-teardown — including a recovery from a half-removed
+# worktree, which is the worst possible moment to add a new way to fail.
+if [[ -z "${AIDEX_WT_INTERNAL:-}" ]]; then
+  warn "worktree-multi.sh was invoked directly. It creates a CODE-ONLY checkout:"
+  warn "  no port slot, no isolated stack, no generated .env, no teardown verification."
+  warn "  A worktree made this way silently shares dev's database and ports."
+  warn "  Use instead:  worktree.sh $cmd ..."
+  warn "  If a project doc told you to run this, that doc predates the current"
+  warn "  mechanism — check it with check-overview.sh."
+fi
 
 SLUG="" BRANCH="" DEST=""
 SKIP_TEARDOWN=false
