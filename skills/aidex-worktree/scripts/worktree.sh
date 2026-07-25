@@ -147,37 +147,100 @@ if [[ "$cmd" == "new" ]]; then
   [[ -n "$default_branch" ]] || default_branch="$(git -C "$ROOT/$first" branch --show-current 2>/dev/null)"
   info "base $default_branch -> worktree $CPROJ · branch $BRANCH · participants: ${REPOS[*]}"
 
-  # --- slot allocation under a lock, so two concurrent sessions cannot pick
-  #     the same one. A static "offset by index" rule cannot see a slot held by
-  #     a stale stack whose directory is already gone. ---
+  # --- slot RESERVATION -----------------------------------------------------
+  #
+  # A port probe alone cannot allocate. Five concurrent creations all probed,
+  # all saw the same free ports, and four picked slot 2 — three of them died on
+  # `Bind for 0.0.0.0:4420 failed: port is already allocated`. The previous lock
+  # made it worse in two ways: it was held for the WHOLE run (~25s), so
+  # contenders exhausted their 10s wait, and it then let them continue WITHOUT
+  # the lock instead of failing. A silent degradation under exactly the load it
+  # existed for.
+  #
+  # So: hold the lock only around the reservation, and reserve by writing a
+  # claim file — the claim is what makes the choice visible to the next process
+  # before this one has bound anything.
   if ! $NO_INFRA && [[ -n "$WT_PORT_VARS" ]]; then
-    LOCK="${TMPDIR:-/tmp}/aidex-wt-slot-${PROJECT}.lock"
-    for _ in $(seq 1 50); do mkdir "$LOCK" 2>/dev/null && break; sleep 0.2; done
-    trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+    SLOTDIR="${TMPDIR:-/tmp}/aidex-wt-slots-${PROJECT}"
+    LOCK="$SLOTDIR/.lock"
+    mkdir -p "$SLOTDIR"
 
-    if [[ -z "$SLOT" ]]; then
+    locked=false
+    for _ in $(seq 1 300); do mkdir "$LOCK" 2>/dev/null && { locked=true; break; }; sleep 0.1; done
+    $locked || die "could not acquire the slot lock at $LOCK after 30s — remove it if no worktree creation is running"
+
+    # Reap claims whose owner is gone. A claim carries the PID of the process
+    # that made it, and that is load-bearing: an in-flight creation has claimed
+    # its slot but has NOT yet created its directory or containers, so a reaper
+    # that only checks those two reads a live reservation as dead garbage. That
+    # is exactly what happened — two of five concurrent runs were handed slot 2,
+    # because the second reaped the first's seconds-old claim. A live PID means
+    # hands off; a dead one with nothing on disk means genuinely abandoned.
+    for claim in "$SLOTDIR"/slot-*; do
+      [[ -e "$claim" ]] || continue
+      read -r cpid cs < "$claim" 2>/dev/null
+      [[ -z "${cs:-}" ]] && { rm -f "$claim"; continue; }
+      kill -0 "${cpid:-0}" 2>/dev/null && continue          # owner still running
+      if [[ ! -d "$(DEST_FOR "$cs")" ]] \
+         && [[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$(PROJ_FOR "$cs")" 2>/dev/null)" ]]; then
+        rm -f "$claim"
+      fi
+    done
+
+    if [[ -n "$SLOT" ]]; then
+      [[ -e "$SLOTDIR/slot-$SLOT" ]] && { rmdir "$LOCK"; die "slot $SLOT is claimed by '$(awk '{print $2}' "$SLOTDIR/slot-$SLOT")'"; }
+    else
       for cand in $(seq 1 "$WT_MAX_SLOTS"); do
+        [[ -e "$SLOTDIR/slot-$cand" ]] && continue
         busy=0
         while IFS= read -r line; do
           p="${line##*=}"
-          lsof -ti :"$p" >/dev/null 2>&1 && { busy=1; break; }
+          lsof -nP -ti :"$p" >/dev/null 2>&1 && { busy=1; break; }
         done < <(port_env "$cand")
         [[ "$busy" -eq 0 ]] && { SLOT="$cand"; break; }
       done
-      [[ -n "$SLOT" ]] || die "no free slot in 1..$WT_MAX_SLOTS — tear an existing worktree down"
+      [[ -n "$SLOT" ]] || { rmdir "$LOCK"; die "no free slot in 1..$WT_MAX_SLOTS — tear an existing worktree down"; }
     fi
+
+    printf '%s %s\n' "$$" "$SLUG" > "$SLOTDIR/slot-$SLOT"
+    rmdir "$LOCK"
+    CLAIM="$SLOTDIR/slot-$SLOT"
     info "slot $SLOT -> $(port_env "$SLOT" | tr '\n' ' ')"
   fi
+
+  # --- rollback: creation is all-or-nothing -----------------------------------
+  #
+  # A failed `new` used to leave its image, network, volume and half-started
+  # containers behind. They were attributable, so a later sweep could find them,
+  # but "recoverable mess" is not the same as "no mess": the next run inherits a
+  # half-built stack and the failure compounds.
+  CREATED_DIR=false
+  rollback() {
+    warn "rolling back $CPROJ"
+    if [[ -n "${CLAIM:-}" ]]; then rm -f "$CLAIM"; fi
+    if $CREATED_DIR || [[ -d "$DEST" ]]; then
+      ( cd "${DEST:-$ROOT}" 2>/dev/null || cd "$ROOT"
+        env COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG" \
+          docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans ) >/dev/null 2>&1
+      local dang
+      dang="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
+      [[ -n "${dang// /}" ]] && docker rmi $dang >/dev/null 2>&1
+      [[ -d "$DEST" ]] && ( cd "$ROOT" && bash "$MULTI" remove --slug "$SLUG" --dest "$DEST" --skip-teardown ) >/dev/null 2>&1
+    fi
+    err "$1"
+    exit 1
+  }
 
   # --- git worktrees + wrapper links ---
   args=(create --slug "$SLUG" --branch "$BRANCH" --dest "$DEST")
   for r in "${REPOS[@]}"; do args+=(--repo "$r"); done
   for l in $WT_LINKS; do args+=(--link "$l"); done
-  ( cd "$ROOT" && bash "$MULTI" "${args[@]}" ) >/dev/null || die "worktree creation failed"
+  ( cd "$ROOT" && bash "$MULTI" "${args[@]}" ) >/dev/null || rollback "worktree creation failed"
+  CREATED_DIR=true
   ok "worktrees created: $DEST"
 
   if $NO_INFRA; then
-    echo "$SLOT" > "$DEST/.wt-slot" 2>/dev/null
+    echo "${SLOT:-}" > "$DEST/.wt-slot" 2>/dev/null
     ok "--no-infra: code only, no stack started"
     echo "$DEST"; exit 0
   fi
@@ -188,18 +251,19 @@ if [[ "$cmd" == "new" ]]; then
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
 
-  ( cd "$DEST" && env "${envs[@]}" docker compose up -d ${WT_SERVICES:-} ) || die "stack failed to start"
+  ( cd "$DEST" && env "${envs[@]}" docker compose up -d ${WT_SERVICES:-} ) || rollback "stack failed to start"
   ok "stack up: project $CPROJ"
 
   if [[ -n "$WT_READY_CMD" ]]; then
+    ready=false
     for i in $(seq 1 60); do
-      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ok "ready after ${i}s"; break; }
+      ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_READY_CMD" ) >/dev/null 2>&1 && { ready=true; ok "ready after ${i}s"; break; }
       sleep 1
-      [[ "$i" -eq 60 ]] && die "WT_READY_CMD never succeeded — inspect: docker compose -p $CPROJ logs"
     done
+    $ready || rollback "WT_READY_CMD never succeeded in 60s"
   fi
   if [[ -n "$WT_SEED_CMD" ]]; then
-    ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_SEED_CMD" ) || die "WT_SEED_CMD failed"
+    ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_SEED_CMD" ) || rollback "WT_SEED_CMD failed"
     ok "seeded"
   fi
 
@@ -241,6 +305,15 @@ if [[ "$cmd" == "down" ]]; then
     info "reclaiming untagged layers built by $CPROJ: $dangling"
     docker rmi $dangling >/dev/null 2>&1
   fi
+
+  # Release the slot reservation. A claim nobody releases is a slot lost for the
+  # rest of the machine's uptime; `new` reaps stale ones, but only a teardown
+  # knows the slot is free *now*.
+  SLOTDIR="${TMPDIR:-/tmp}/aidex-wt-slots-${PROJECT}"
+  for claim in "$SLOTDIR"/slot-*; do
+    [[ -e "$claim" ]] || continue
+    [[ "$(awk '{print $2}' "$claim" 2>/dev/null)" == "$SLUG" ]] && { rm -f "$claim"; info "released slot $(basename "$claim" | sed 's/slot-//')"; }
+  done
 
   # A zero exit from compose is not proof; ask.
   if bash "$SWEEP" --slug "$SLUG" >/dev/null 2>&1; then
