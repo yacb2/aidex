@@ -236,7 +236,11 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    - **Wrapper links** — the unversioned root files a fresh checkout of a single
      participant would lack (compose file, dev scripts, Dockerfile context,
      gitignored `.env`). Relative paths are mirrored, so `backend/.env` lands at
-     `<worktree>/backend/.env`.
+     `<worktree>/backend/.env`. The worktree **root** `.env` is reserved:
+     `worktree.sh` writes the slot's `COMPOSE_PROJECT_NAME`, `WT_SUFFIX` and
+     ports there so a bare `docker compose` — or a project script that sources
+     it — targets the worktree instead of dev. Listing `.env` in `WT_LINKS` is
+     refused for that reason.
    - **Port band** — a free 4-digit band for this project. Two rules, both
      enforced by `worktree.sh` at startup rather than left to care: the stride
      must EXCEED the span between the lowest and highest base, and the bases
