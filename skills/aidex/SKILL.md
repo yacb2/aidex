@@ -123,10 +123,12 @@ Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass the
 | [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | low | Read, Glob, Grep, Bash |
 | [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | low | Read, Glob, Grep, Bash |
 
-**Model and effort are set here, not in the agent files.** These agents are launched by
-reading their `.md` as a *prompt* (above) — they are not registered agent definitions, so
-`model:` in their front-matter is documentation and configures nothing. This table is the
-configuration surface. Effort follows the suite heuristic
+**Model, effort and tools are set here, not in the agent files.** These agents are launched
+by reading their `.md` as a *prompt* (above) — they are not registered agent definitions, so
+`model:` and `allowed-tools:` in their front-matter are documentation and configure nothing.
+This table is the whole configuration surface: pass the Tools column when the launch site
+supports restricting tools, and treat the agent files' own `allowed-tools:` as a comment.
+Effort follows the suite heuristic
 ([workflow-spec conventions](../aidex-workflow/references/01-workflow-spec-conventions.md)):
 mechanical existence/parse checks → `low`; judgment over content quality or compliance →
 `medium`.
