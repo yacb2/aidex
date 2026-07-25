@@ -149,6 +149,37 @@ mechanical. The Lifecycle & cleanup cleanup checklist (below, and in
 `aidex-worktree`'s Axis 4) includes: "images built for the worktree removed (`--rmi
 local`); anonymous volumes reclaimed."
 
+### `compose down` is necessary, not sufficient
+
+Two resource classes survive a zero-exit `compose down`, both measured on a real
+workspace 2026-07-25 (15GB reclaimable, 24% of image storage; one network orphaned two
+days):
+
+- **Untagged build layers.** `--rmi local` reclaims only images the compose file
+  currently references *by their default tag*. Every rebuild orphans the previous image
+  as `<none>`, and no compose verb revisits it — 5 dangling 3GB layers accumulated from
+  5 E2E runs of a single worktree. They remain attributable: compose stamps
+  `com.docker.compose.project` on the image, so the reclaim is scopeable to one
+  worktree. Enumerate then remove, never a bare prune:
+  ```bash
+  DANGLING="$(docker images -f dangling=true -f "label=com.docker.compose.project=$PROJECT" -q)"
+  [[ -n "$DANGLING" ]] && docker rmi $DANGLING
+  ```
+- **The project network**, whenever a container from another stack was attached to it at
+  down time. Compose leaves it and exits 0.
+
+Therefore a teardown **verifies** rather than assumes: it ends by re-running
+`orphan-sweep.sh --slug <slug>` and reporting the residue. An exit code is not evidence.
+
+### Teardown is coupled to removal
+
+`worktree-multi.sh remove` runs the recorded `worktree_down` **before** deleting the
+worktree directory, and refuses when resources exist but no `worktree_down` is recorded.
+The order is load-bearing: once the directory is gone the resources are unattributable —
+a sweep can still see them but can no longer distinguish a dead worktree from a live one,
+so they become permanent. Teardown documented as a separate step the user is trusted to
+remember is the step that gets skipped.
+
 ## Docker safety doctrine — dangling is not disposable
 
 A dev DB volume whose containers were removed by `compose down` (without `-v`)

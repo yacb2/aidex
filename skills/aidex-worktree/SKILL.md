@@ -78,11 +78,18 @@ Dispatch by first argument:
    ```bash
    bash "${CLAUDE_SKILL_DIR}/scripts/orphan-sweep.sh"
    ```
-   and surface its report as-is — any `-wt-` compose project/volume/image with no
-   matching worktree directory on disk, plus the exact reclaim command for each. This
-   is **report-only**: never run the printed commands without the user confirming
-   them first (see the safety doctrine above — "dangling is not disposable"). Degrades
-   silently to a one-line note when Docker isn't installed/running.
+   and surface its report as-is — any `<project>-wt-*` compose project, volume, tagged
+   image, **untagged build layer, or network** with no matching worktree directory on
+   disk, plus the exact reclaim command for each. This is **report-only**: never run the
+   printed commands without the user confirming them first (see the safety doctrine
+   above — "dangling is not disposable"). Degrades silently to a one-line note when
+   Docker isn't installed/running.
+
+   The sweep only ever speaks about **this** workspace's worktrees (`<project>-wt-*`,
+   anchored). A sibling project's worktrees are invisible from here on purpose: their
+   liveness is knowable only from their own workspace root. Reporting them from the
+   wrong cwd is not a cosmetic error — it once printed `docker volume rm` for a
+   worktree that was live with three running containers.
 
 ### Doc-shape check
 
@@ -176,6 +183,27 @@ fix. A recommendation that never runs is what let a broken doc sit unrepaired fo
      author `worktree-up.sh` scripts for real projects (BL-024's still-open
      project-scoped follow-up).
 
+     **Ask the build question, not just the strategy question.** The dominant cost of
+     bringing a Tier-2 stack up is almost never the DB seed — it is rebuilding a
+     multi-GB service image the worktree did not need to build. Record which of these
+     the project is in:
+     - **Source is bind-mounted into the service** (`- ./backend:/app` or equivalent):
+       the image supplies only the dependency layer, and the worktree's code arrives
+       through the mount. The stack can then **reuse the main tree's already-built
+       image by tag** (`image: <project>-<service>:latest` alongside `build:` — compose
+       skips the build when that tag exists) instead of rebuilding per worktree.
+     - **Source is baked into the image** (no mount): every worktree must build. Record
+       that, and note `cache_from` as the only lever.
+
+     **The reuse is only valid while the dependency layer is unchanged** — record the
+     guard alongside it, never the speedup alone. A worktree branch that touches the
+     Dockerfile or the dependency manifest MUST build, or it runs against a silently
+     stale environment, which is a worse failure than a slow one:
+     ```bash
+     # non-empty => this branch changes the image; build instead of reusing
+     git diff --name-only <base>...HEAD -- <dockerfile-path> <deps-manifest>
+     ```
+
    - **Axis 4 — Lifecycle & cleanup.** Ephemeral (spin up -> run -> auto-teardown) or
      persistent (iterate for hours/days -> explicit teardown on exit)? What exactly
      must be cleaned up when a Tier-2 worktree closes: isolated DB dropped, isolated
@@ -190,6 +218,40 @@ fix. A recommendation that never runs is what let a broken doc sit unrepaired fo
      --remove-orphans` — as `worktree_down`'s value, unless the project has a
      documented reason to deviate; the `-wt-` infix is what makes `orphan-sweep.sh`
      (below) able to tell a worktree's Docker resources apart from everything else.
+
+     **`compose down` alone is not a complete teardown — it has two blind spots, and
+     both were field-measured on a real workspace (2026-07-25: 15GB reclaimable, 24%
+     of all image storage, plus a network orphaned for two days).** A `worktree_down`
+     that stops at `compose down` looks clean and is not. Every Tier-2 teardown must
+     also:
+
+     1. **Reclaim the worktree's untagged build layers.** `--rmi local` removes only
+        images the compose file *currently references by their default tag*. Each
+        rebuild of a service orphans the previous image as `<none>` — a 3GB layer set
+        per E2E run — and no `compose` verb ever revisits them. They stay attributable
+        because compose stamps `com.docker.compose.project` on the image itself, so the
+        reclaim can be scoped to exactly this worktree and nothing else:
+        ```bash
+        DANGLING="$(docker images -f dangling=true \
+          -f "label=com.docker.compose.project=$PROJECT" -q)"
+        [[ -n "$DANGLING" ]] && docker rmi $DANGLING
+        ```
+        Enumerate-then-`rmi`, never a bare `prune`: the label filter is what proves
+        nothing outside `$PROJECT` can be reached, and a prune whose filter silently
+        fails to match still deletes.
+     2. **Verify, don't assume.** Finish by re-running the attribution pre-flight
+        (`orphan-sweep.sh --slug <slug>`) and reporting whatever survived. `compose
+        down` exits 0 while leaving the project network behind whenever a container
+        from another stack was attached to it — a zero exit code is not evidence of a
+        clean namespace.
+
+     **Teardown is coupled to directory removal, not suggested next to it.**
+     `worktree-multi.sh remove` runs the recorded `worktree_down` *before* deleting the
+     worktree directory, and refuses if resources exist with no `worktree_down`
+     recorded. Order is load-bearing: once the directory is gone, nothing can tell a
+     dead worktree's Docker resources from a live one's, and they become permanent.
+     Never document teardown as a separate step the user is trusted to remember —
+     that is precisely the step that got skipped in the field.
      **Safety doctrine: "dangling is not disposable."** A dev DB volume whose
      containers were removed by `compose down` still holds real data — never
      `docker volume prune -a`/`--all`. Permitted reclaim verbs: anonymous-volume

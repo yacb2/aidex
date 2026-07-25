@@ -12,24 +12,50 @@
 # Usage:
 #   worktree-multi.sh create --slug <slug> --branch <branch> \
 #       --repo <path> [--repo <path> ...] [--link <file> ...] [--dest <dir>]
-#   worktree-multi.sh remove --slug <slug> [--dest <dir>]
+#   worktree-multi.sh remove --slug <slug> [--dest <dir>] [--skip-teardown]
 #
 #   create: for each --repo (relative to the workspace root = cwd), adds a git
 #           worktree at <dest>/<repo-basename> on <branch> (creates the branch if
 #           it does not exist). Each --link <file> becomes a symlink
 #           <dest>/<file> -> <root>/<file>. Refuses an existing <dest>.
-#   remove: for each worktree inside <dest>, runs `git worktree remove` (which
+#   remove: tears the worktree's Docker stack down FIRST (see below), then for
+#           each worktree inside <dest> runs `git worktree remove` (which
 #           REFUSES dirty trees — commit or stash first; this script never
 #           discards work), then removes the wrapper symlinks and <dest> itself.
 #
 #   --dest default: ../<root-basename>-wt-<slug> (a sibling of the workspace root).
+#   --skip-teardown: remove the directory without touching Docker. Only correct
+#           when the stack is already down; otherwise it strands the stack, and
+#           once <dest> is gone nothing can attribute those resources to a
+#           worktree again — that is exactly how orphaned networks and tens of
+#           GB of untagged images accumulate.
+#
+# TEARDOWN COUPLING (remove)
+#   Removing the directory and tearing down the stack were once two independent
+#   steps, the second merely *printed* as a suggestion. Skipping it left Docker
+#   resources with no directory left to attribute them to. `remove` now:
+#     1. runs the attribution pre-flight (orphan-sweep.sh --slug <slug>) to
+#        enumerate every resource carrying THIS worktree's project name;
+#     2. if none exist, proceeds straight to the git removal;
+#     3. otherwise resolves `worktree_down` from the project's
+#        .context/worktrees/00-index.md front-matter, substitutes <slug>, prints
+#        the exact command, and runs it;
+#     4. re-runs the pre-flight and reports whatever survived (residue is
+#        reported, never force-removed — "dangling is not disposable").
+#   Nothing outside the `<project>-wt-<slug>` namespace is ever considered: the
+#   pre-flight matches resource names anchored at that prefix, so a teardown can
+#   only ever reach the worktree it was invoked for.
+#   No `worktree_down` recorded (Tier 1, or Tier 2 not yet available) and
+#   resources exist anyway → refuse rather than invent a teardown.
 
 set -euo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../aidex-conventions/scripts" && pwd -P)/_lib.sh"
 
 usage() {
-  sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Print the whole leading comment block, whatever its length — a hardcoded
+  # line range silently truncates the moment the header grows.
+  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 2
 }
 
@@ -37,6 +63,7 @@ cmd="${1:-}"; shift || true
 [[ "$cmd" == "create" || "$cmd" == "remove" ]] || usage
 
 SLUG="" BRANCH="" DEST=""
+SKIP_TEARDOWN=false
 REPOS=()
 LINKS=()
 while [[ $# -gt 0 ]]; do
@@ -46,6 +73,7 @@ while [[ $# -gt 0 ]]; do
     --repo)   REPOS+=("$2"); shift 2 ;;
     --link)   LINKS+=("$2"); shift 2 ;;
     --dest)   DEST="$2"; shift 2 ;;
+    --skip-teardown) SKIP_TEARDOWN=true; shift ;;
     -h|--help) usage ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -93,6 +121,65 @@ fi
 
 # --- remove ---
 [[ -d "$DEST" ]] || die "destination not found: $DEST"
+
+# --- teardown the Docker stack BEFORE the directory disappears ---
+#
+# Order is load-bearing. Once <dest> is gone the worktree is unattributable:
+# orphan-sweep can still see the resources but can no longer tell a live
+# worktree from a dead one, so they sit forever. Tear down first, remove second.
+SWEEP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/orphan-sweep.sh"
+
+if $SKIP_TEARDOWN; then
+  warn "--skip-teardown: leaving Docker resources for $(basename "$ROOT")-wt-$SLUG untouched"
+else
+  # Pre-flight: what, exactly, belongs to THIS worktree? Exit 1 means "resources
+  # exist" — the enumeration itself is the guard the user reads before anything
+  # is removed. Everything listed is name-anchored at <project>-wt-<slug>, so
+  # nothing unrelated can appear in it.
+  # `&&/||` keeps errexit from aborting on the intentional non-zero exit that
+  # means "resources exist" — a bare assignment would kill the script here.
+  preflight="$(bash "$SWEEP" --slug "$SLUG" 2>&1)" && had_resources=0 || had_resources=$?
+
+  if [[ "$had_resources" -eq 0 ]]; then
+    info "no Docker resources attributable to this worktree — nothing to tear down"
+  else
+    printf '%s\n' "$preflight"
+
+    # The teardown recipe is the project's own, read from its recorded
+    # front-matter. Never improvise one: a hand-rolled `compose down` here would
+    # not know the project's volume names, port slots or seeding.
+    DOC="$ROOT/.context/worktrees/00-index.md"
+    WT_DOWN=""
+    if [[ -f "$DOC" ]]; then
+      WT_DOWN="$(sed -n '/^---$/,/^---$/p' "$DOC" | sed -n 's/^worktree_down: *//p' | head -1)"
+      WT_DOWN="${WT_DOWN%\"}"; WT_DOWN="${WT_DOWN#\"}"
+    fi
+
+    if [[ -z "$WT_DOWN" ]]; then
+      err "Docker resources exist for $(basename "$ROOT")-wt-$SLUG but the project records no 'worktree_down'."
+      err "Refusing to invent a teardown. Either:"
+      err "  - record worktree_down in $DOC (see /aidex-worktree bootstrap, Axis 4), or"
+      err "  - reclaim the resources with the commands listed above, then re-run with --skip-teardown"
+      exit 1
+    fi
+
+    # `<slug>` is the documented placeholder in the recorded command.
+    TEARDOWN="${WT_DOWN//<slug>/$SLUG}"
+    info "[teardown] $TEARDOWN"
+    ( cd "$ROOT" && eval "$TEARDOWN" ) || die "teardown failed — the worktree directory was NOT removed; fix the stack and re-run"
+
+    # Residue check. `compose down --rmi local` cannot reclaim untagged build
+    # layers, and leaves a network behind if another stack was attached to it,
+    # so a clean-exiting teardown is not proof of a clean namespace.
+    if residue="$(bash "$SWEEP" --slug "$SLUG" 2>&1)"; then
+      ok "teardown complete — no residue for this worktree"
+    else
+      warn "teardown left residue attributable to this worktree:"
+      printf '%s\n' "$residue"
+      warn "reclaim it with the commands above (report-only: nothing was force-removed)"
+    fi
+  fi
+fi
 
 removed=0
 for sub in "$DEST"/*/; do
