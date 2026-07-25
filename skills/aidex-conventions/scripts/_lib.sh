@@ -30,18 +30,50 @@ err()   { printf '%s%s%s\n' "$C_RED"    "$*" "$C_RESET" >&2; }
 die()   { err "error: $*"; exit 2; }
 
 # Project root — walk up until we find .context/ or hit /
+# find_project_root — the directory aidex artifacts belong to.
+#
+# The upward walk STOPS AT $HOME, exclusive. Without that boundary a single
+# stray `~/.context/` captures every project that has not been initialised yet
+# — precisely the first-run case every creator script is for — and the walk
+# silently resolves the project root to $HOME. Field-observed 2026-07-25: a
+# fresh project made `orphan-sweep` scan for `yoelacevedo-wt-*` (reporting a
+# clean workspace it was not looking at), made `detect-topology` report the home
+# directory's contents, and would have written a project's worktree overview to
+# `~/.context/worktrees/00-index.md`. 33 scripts across every skill call this.
+#
+# Two passes, both innermost-first: an existing `.context/` always wins, and
+# only when there is none does a project marker (`.git`, `CLAUDE.md`) stand in —
+# so an initialised project's resolution is exactly what it always was.
 find_project_root() {
-  local dir
-  dir="$(pwd -P)"
-  while [[ "$dir" != "/" ]]; do
+  local start stop dir
+  start="$(pwd -P)"
+  stop="${HOME:-}"
+
+  dir="$start"
+  while [[ "$dir" != "/" && -n "$dir" ]]; do
+    [[ -n "$stop" && "$dir" == "$stop" ]] && break
     if [[ -d "$dir/.context" ]]; then
       printf '%s\n' "$dir"
       return 0
     fi
     dir="$(dirname "$dir")"
   done
+
+  # No .context yet — fall back to the nearest thing that looks like a project
+  # root, so a not-yet-initialised project still gets its own directory rather
+  # than an ancestor's.
+  dir="$start"
+  while [[ "$dir" != "/" && -n "$dir" ]]; do
+    [[ -n "$stop" && "$dir" == "$stop" ]] && break
+    if [[ -e "$dir/.git" || -f "$dir/CLAUDE.md" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+
   # Fallback: current directory (will create .context if needed)
-  pwd -P
+  printf '%s\n' "$start"
 }
 
 today() { date +%Y%m%d; }
