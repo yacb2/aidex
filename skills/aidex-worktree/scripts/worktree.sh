@@ -37,6 +37,7 @@
 #   WT_SUFFIX_VAR     WT_SUFFIX              var carrying -<slug> into container_name
 #   WT_SEED_CMD       ""                     shell run inside the new stack to seed data
 #   WT_READY_CMD      ""                     shell that must succeed before seeding
+#   WT_POST_CMD       ""                     shell run after seeding (E2E template, fixtures)
 
 set -uo pipefail
 
@@ -58,7 +59,7 @@ CONFIG="$ROOT/.context/worktrees/config.env"
 # --- defaults, then the project's own values ---
 WT_PARTICIPANTS=""; WT_LINKS=""; WT_SERVICES=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
-WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""
+WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""
 # `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
 # WT_SEED_CMD run in a subshell, so a plain shell variable would be empty there
 # — a profile that referenced its own $WT_DB_USER probed as an empty role, never
@@ -272,6 +273,17 @@ if [[ "$cmd" == "new" ]]; then
   if [[ -n "$WT_SEED_CMD" ]]; then
     ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_SEED_CMD" ) || rollback "WT_SEED_CMD failed"
     ok "seeded"
+  fi
+
+  # Anything the project needs on top of a migrated database — provisioning an
+  # isolated E2E template, loading fixtures. It runs with the same environment
+  # as the stack, so a project script that respects COMPOSE_PROJECT_NAME and its
+  # port variables needs no per-worktree copy of itself. Generating such copies
+  # by `sed` is what produced bare-slug compose projects that no sweep could
+  # attribute to a worktree.
+  if [[ -n "$WT_POST_CMD" ]]; then
+    ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_POST_CMD" ) || rollback "WT_POST_CMD failed"
+    ok "post-create done"
   fi
 
   # --- every resource we just made must be attributable, or the teardown we
