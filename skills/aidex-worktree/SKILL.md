@@ -93,6 +93,41 @@ Dispatch by first argument:
 its steps. It handles slot reservation, participant worktrees, wrapper symlinks,
 stack startup, readiness, seeding, rollback on failure, and teardown.
 
+### Supervision — you run these, the user does not
+
+Worktrees here are created and destroyed by an agent. Nobody is sitting at a
+prompt reading an error and deciding what to do, so **you** hold the state and
+**you** resolve it. Three rules:
+
+1. **Read the state before acting, every time.**
+   ```bash
+   bash "${CLAUDE_SKILL_DIR}/scripts/worktree.sh" list --porcelain
+   # slug <TAB> slot <TAB> branch <TAB> stack(up:N|down) <TAB> dirty(YES|no) <TAB> dir
+   ```
+   Never assume a worktree is up because you created it, or gone because you
+   tore it down. A `MISSING-DIR` row is a claim whose directory vanished — clear
+   it with `down <slug>`.
+
+2. **Every state has a way out. Use it instead of improvising.**
+
+   | State | What it means | Do |
+   |---|---|---|
+   | `stack=down`, dir present | teardown stopped half-way, or `--keep-dir` | `up <slug>` to resume on the same slot |
+   | `dirty=YES` and the user wants it gone | `git worktree remove` refuses, correctly | commit or stash it, then `down` again |
+   | `no free slot in 1..N` | every slot is claimed | `list`, then `down` whatever is finished |
+   | `slot N is claimed by '<other>'` | explicit `--slot` collided | let the allocator choose instead |
+   | create failed | it already rolled back | fix the cause and re-run; do not clean up by hand |
+
+3. **`--force` discards work that nobody can recover.** It is the only
+   destructive flag here. Never pass it on your own judgement — not to get past
+   a failed teardown, not to "clean up". Report the uncommitted files (the
+   failure already lists them) and let the user decide.
+
+Do not hand-roll `docker compose` or `git worktree` commands around this. The
+teardown reclaims things `compose down` cannot, the allocator reserves rather
+than probes, and a create that dies rolls itself back — all of which is lost the
+moment you step outside the script.
+
 ### Verification is part of the contract
 
 Two scripts make "clean" a measurement rather than a claim. Use them; do not

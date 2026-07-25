@@ -148,6 +148,36 @@ bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
   || { fail "concurrent: RESIDUE after tearing 4 down"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
 [[ "$(claims)" == "0" ]] || fail "concurrent: $(claims) slot claim(s) leaked"
 
+# --- 3b. up recovers a stack that went down, and `down` on a DIRTY worktree
+#         must not strand it ---------------------------------------------------
+#
+# The state an agent most needs to resolve: git refuses to remove a dirty
+# worktree AFTER the stack is already down, so the directory is left with no
+# stack. Before `up` existed there was no way back, and the slot had already
+# been released — so the limbo could not even be resumed deterministically.
+bash "$WT" new a --branch feat/dirty >/dev/null 2>&1 || fail "dirty: create failed"
+echo "uncommitted" > "$TMP/wtfix-wt-a/svc/UNCOMMITTED.txt"
+
+bash "$WT" down a >/dev/null 2>&1 && fail "dirty: down must fail rather than discard uncommitted work"
+[[ -d "$TMP/wtfix-wt-a" ]] || fail "dirty: down must not remove a worktree holding uncommitted work"
+[[ "$(claims)" == "1" ]] || fail "dirty: the slot must stay claimed so 'up' can resume it deterministically"
+
+rec="$(bash "$WT" list --porcelain 2>/dev/null | grep '^a	')"
+[[ "$(cut -f5 <<<"$rec")" == "YES" ]] || fail "list --porcelain must report the worktree as DIRTY, got: $rec"
+[[ "$(cut -f4 <<<"$rec")" == "down" ]] || fail "list --porcelain must report the stack as down, got: $rec"
+
+bash "$WT" up a >/dev/null 2>&1 || fail "up: must bring a downed stack back"
+docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-a" | grep -q . \
+  || fail "up: no running container after resume"
+[[ "$(bash "$WT" list --porcelain 2>/dev/null | grep '^a	' | cut -f4)" == up:* ]] \
+  || fail "list must report the stack as up after 'up'"
+
+bash "$WT" down a --force >/dev/null 2>&1 || fail "down --force: must remove a dirty worktree when explicitly asked"
+[[ -e "$TMP/wtfix-wt-a" ]] && fail "down --force: directory survived"
+[[ "$(claims)" == "0" ]] || fail "down --force: claim not released"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "dirty/up cycle: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
 cat >> "$WS/.context/worktrees/config.env" <<'ENV'
