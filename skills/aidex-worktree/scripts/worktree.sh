@@ -43,6 +43,9 @@
 #   WT_PARTICIPANTS   "backend frontend"     repos that can participate
 #   WT_LINKS          "docker-compose.yml dev.sh .docker"
 #                                            unversioned wrapper paths to symlink
+#   WT_COPIES         "backend/poetry.lock"  same, but COPIED — for files a Docker
+#                                            build context reads (it cannot follow a
+#                                            symlink that escapes the context)
 #   WT_SERVICES       "db backend"           services to start
 #   WT_PORT_VARS      "DB_PORT=4400 BACKEND_PORT=4500"
 #                                            var=dev-base pairs; slot N adds N*WT_PORT_STRIDE
@@ -71,7 +74,7 @@ PROJECT="$(basename "$ROOT")"
 CONFIG="$ROOT/.context/worktrees/config.env"
 
 # --- defaults, then the project's own values ---
-WT_PARTICIPANTS=""; WT_LINKS=""; WT_SERVICES=""
+WT_PARTICIPANTS=""; WT_LINKS=""; WT_COPIES=""; WT_SERVICES=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
 WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""
 # `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
@@ -407,6 +410,7 @@ if [[ "$cmd" == "new" ]]; then
   args=(create --slug "$SLUG" --branch "$BRANCH" --dest "$DEST")
   for r in "${REPOS[@]}"; do args+=(--repo "$r"); done
   for l in $WT_LINKS; do args+=(--link "$l"); done
+  for c in $WT_COPIES; do args+=(--copy "$c"); done
   ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" "${args[@]}" ) >/dev/null || rollback "worktree creation failed"
   CREATED_DIR=true
   ok "worktrees created: $DEST"
@@ -516,6 +520,7 @@ if [[ "$cmd" == "down" ]]; then
   fi
   if [[ -d "$DEST" ]]; then
     rmargs=(remove --slug "$SLUG" --dest "$DEST" --skip-teardown)
+    for c in $WT_COPIES; do rmargs+=(--copy "$c"); done
     $FORCE && rmargs+=(--force)
     if ! ( cd "$ROOT" && AIDEX_WT_INTERNAL=1 bash "$MULTI" "${rmargs[@]}" ); then
       err "the stack is down but $DEST could not be removed."
