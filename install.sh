@@ -751,6 +751,45 @@ run_doctor() {
     fail_count=$((fail_count + 1))
   fi
 
+  # 5b. Every manifest rules/ entry is LIVE in $CLAUDE_DIR/rules/, not just copied.
+  # ~/.claude/rules/ is the only surface Claude Code loads; a copy under ~/.aidex/rules/
+  # loads nothing by itself. create_symlink deliberately refuses to clobber an existing
+  # file there (it must not eat the user's own rule), warns once, and moves on — after
+  # which the rule never loads in any session while check 5 above still passes, because
+  # the COPY exists. Doctor used to be blind to this and reported "all checks passed"
+  # for an install with silently absent always-on rules (deep audit 2026-07-25).
+  if [ -f "$AIDEX_DIR/.manifest" ] && grep -q '^rules/' "$AIDEX_DIR/.manifest" 2>/dev/null; then
+    local rule_issues=()
+    local rule_total=0
+    local entry base link
+    while IFS= read -r entry; do
+      case "$entry" in rules/*) ;; *) continue ;; esac
+      rule_total=$((rule_total + 1))
+      base="$(basename "$entry")"
+      link="$CLAUDE_DIR/rules/$base"
+      if [ ! -L "$link" ]; then
+        if [ -e "$link" ]; then
+          rule_issues+=("$base (shadowed by a non-symlink — never loads)")
+        else
+          rule_issues+=("$base (not linked into $CLAUDE_DIR/rules/ — never loads)")
+        fi
+      elif [ ! -e "$link" ]; then
+        rule_issues+=("$base (dangling symlink)")
+      else
+        case "$(readlink "$link")" in
+          "$AIDEX_DIR"/*) ;;
+          *) rule_issues+=("$base (links outside $AIDEX_DIR)") ;;
+        esac
+      fi
+    done < "$AIDEX_DIR/.manifest"
+    if [ "${#rule_issues[@]}" -eq 0 ]; then
+      echo "PASS: $rule_total aidex rule(s) linked into $CLAUDE_DIR/rules/"
+    else
+      echo "FAIL: aidex rule(s) not loading: ${rule_issues[*]}"
+      fail_count=$((fail_count + 1))
+    fi
+  fi
+
   # 6. Hooks dir present; aidex-router.sh and durability-run.sh executable.
   if [ -d "$AIDEX_DIR/hooks" ]; then
     local hook_issues=()
