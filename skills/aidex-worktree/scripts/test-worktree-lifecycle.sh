@@ -119,6 +119,26 @@ for round in 1 2; do
   docker compose -p wtfix-wt-a exec -T app test -f /data/post-ran >/dev/null 2>&1 \
     || fail "round $round: WT_POST_CMD did not run (the hook projects use to provision an isolated E2E)"
 
+  # The slot's environment must survive the create, or every LATER command run
+  # in the worktree silently falls back to the compose defaults — i.e. dev's
+  # container names and dev's ports, under the worktree's project name. That
+  # shipped once: a bare `docker compose up -d db` in a worktree recreated the
+  # db container on dev's port, and a project's `test-e2e.sh` invoked there
+  # drove dev's database. `new` passing proves nothing about it, because `new`
+  # always exports the environment itself.
+  [[ -f "$TMP/wtfix-wt-a/.env" ]] || fail "round $round: no .env in the worktree — later commands would resolve dev's ports"
+  wt_conf="$( cd "$TMP/wtfix-wt-a" && env -u WT_SUFFIX -u APP_PORT -u COMPOSE_PROJECT_NAME \
+      docker compose config 2>/dev/null )"
+  grep -q 'container_name: wtfix-app-a' <<<"$wt_conf" \
+    || fail "round $round: clean-env compose config in the worktree does not resolve the suffixed container name; got: $(grep -E 'container_name|published' <<<"$wt_conf" | tr '\n' ' ')"
+  grep -qE 'published: "470[1-9]0"' <<<"$wt_conf" \
+    || fail "round $round: clean-env compose config in the worktree resolves dev's port, not this slot's; .env=[$(tr '\n' ' ' < "$TMP/wtfix-wt-a/.env")] got: $(grep -E 'published' <<<"$wt_conf" | tr '\n' ' ')"
+  # ...and the main tree must be untouched by it: dev's defaults still win there.
+  main_conf="$( cd "$WS" && env -u WT_SUFFIX -u APP_PORT -u COMPOSE_PROJECT_NAME \
+      docker compose config 2>/dev/null )"
+  grep -q 'container_name: wtfix-app$' <<<"$main_conf" \
+    || fail "round $round: the main tree no longer resolves its own defaults; got: $(grep -E 'container_name|published' <<<"$main_conf" | tr '\n' ' ')"
+
   bash "$WT" down a >/dev/null 2>&1 || fail "round $round: down failed"
   bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
     || { fail "round $round: RESIDUE after teardown"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
