@@ -33,29 +33,21 @@ write_doc() {
 title: "Worktree procedure — proj"
 status: doing
 created: 2026-07-01
-updated: 2026-07-01
-version: 1.0.0
-worktree_up: ""
-worktree_down: ""
+updated: 2026-07-25
+version: 2.0.0
+worktree_up: "worktree.sh up <slug>"
+worktree_down: "worktree.sh down <slug>"
 ---
 
 # Worktree procedure — proj
 
 ## Topology
 
-Single repo.
+Single repo. Config lives in .context/worktrees/config.env.
 
 ## Participants & scope
 
-Root repo only.
-
-## Tier decision
-
-Tier 1 unless it touches migrations/.
-
-## Tier 2 infra strategy
-
-Not yet available — see backlog/2026-07-01-active-item.md.
+Root repo only. Tracked under backlog/2026-07-01-active-item.md.
 
 ## Lifecycle & cleanup
 
@@ -64,11 +56,11 @@ and backlog/_deferred/2026-06-15-deferred-item.md.
 
 ## Procedure
 
-Tier 1 create: native EnterWorktree.
+Create with worktree.sh new <slug> --branch <b>; verify with docker-snapshot.sh.
 
 ## Usage log
 
-(none yet)
+- 2026-07-20 · slug `alpha` (Tier 2, slot 3) — historical entry, kept verbatim.
 
 ## Open questions
 
@@ -97,6 +89,24 @@ bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "missing Procedure: should fail"
 write_doc '/^## Usage log$/d'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "missing Usage log: should fail"
 
+# --- an EMPTY worktree_up fails, because presence alone certified three
+#     retired-mechanism docs as healthy ---
+write_doc 's|^worktree_up: .*|worktree_up: ""|'
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "empty worktree_up: should fail (a field with no command runs nothing)"
+
+# --- a tier SECTION fails; a tier mention in a usage-log ENTRY does not ---
+write_doc 's|^## Topology$|## Tier decision|'
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "'## Tier decision' section: should fail (the mechanism is retired)"
+write_doc ""
+grep -q 'Tier 2, slot 3' "$DOC" || fail "fixture lost its historical tier mention — the next assertion proves nothing"
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "a usage-log entry naming a tier is HISTORY and must still pass"
+
+# --- a Procedure naming a nonexistent script fails; the usage log may name one ---
+write_doc 's|worktree.sh new <slug> --branch <b>|_scripts/worktree-up.sh <slug> <slot>|'
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "Procedure naming a nonexistent script: should fail"
+write_doc 's|historical entry, kept verbatim.|torn down with _scripts/worktree-down.sh alpha.|'
+bash "$SCRIPT" "$DOC" >/dev/null 2>&1 || fail "a usage-log entry naming a removed script is history and must pass"
+
 # --- dangling backlog ref fails ---
 write_doc 's|backlog/2026-07-01-active-item.md|backlog/2026-01-01-does-not-exist.md|'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "dangling backlog ref: should fail"
@@ -110,4 +120,4 @@ if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — doc-shape check: good passes, each missing piece + dangling ref fails"
+echo "OK — doc-shape check: good passes; missing/empty fields, tier sections, dead Procedure scripts and dangling refs fail; history is left alone"
