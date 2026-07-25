@@ -18,6 +18,13 @@
 # Every appeared resource is annotated with the compose project that owns it,
 # or ORPHAN when nothing claims it. An ORPHAN line is the failure mode this
 # whole exercise exists to eliminate.
+#
+# CONTRACT — take the baseline immediately before the window you are measuring.
+# Global-by-design is what lets this catch leaks no project-scoped filter can
+# see, and it is also why a stale baseline reports UNRELATED activity as your
+# leak. A baseline reused across a session went stale the moment an unrelated
+# test pulled `busybox`, and every diff afterwards carried a phantom ORPHAN that
+# made a real verdict unreadable. One baseline per measured window, every time.
 
 set -uo pipefail
 

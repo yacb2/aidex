@@ -59,7 +59,14 @@ CONFIG="$ROOT/.context/worktrees/config.env"
 WT_PARTICIPANTS=""; WT_LINKS=""; WT_SERVICES=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
 WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""
+# `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
+# WT_SEED_CMD run in a subshell, so a plain shell variable would be empty there
+# — a profile that referenced its own $WT_DB_USER probed as an empty role, never
+# became ready, and rolled back after 60s. Exporting makes a project's own
+# config values usable by its own commands, which is the least surprising rule.
+set -a
 [[ -f "$CONFIG" ]] && . "$CONFIG"
+set +a
 
 SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false
 REPOS=()
