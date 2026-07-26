@@ -28,7 +28,7 @@ d1="$(mktemp -d)"
 out1="$(bash "$INIT" "$d1")"
 
 for sub in backlog plans decisions research references requests \
-           backlog/_archive plans/_archive requests/_archive; do
+           backlog/_archive plans/_archive requests/_archive decisions/_archive; do
   if [[ -d "$d1/.context/$sub" ]]; then
     pass "scenario1: .context/$sub created"
   else
@@ -77,7 +77,7 @@ else
 fi
 
 for sub in backlog decisions research references requests \
-           backlog/_archive plans/_archive requests/_archive; do
+           backlog/_archive plans/_archive requests/_archive decisions/_archive; do
   if [[ -d "$d3/.context/$sub" ]]; then
     pass "scenario3: gap $sub filled"
   else
@@ -104,7 +104,7 @@ rc4=$?
 [[ $rc4 -eq 0 ]] || fail "scenario4: exit code expected 0, got $rc4"
 
 for sub in backlog plans decisions research references requests \
-           backlog/_archive plans/_archive requests/_archive; do
+           backlog/_archive plans/_archive requests/_archive decisions/_archive; do
   [[ -d "$d4/.context/$sub" ]] || fail "scenario4: .context/$sub not scaffolded without suite"
 done
 
@@ -168,6 +168,50 @@ else
 fi
 
 rm -rf "$d6"
+
+# --- Scenario 7: what init produces must pass aidex's own validator (BL-100) ---
+# AIDEX_DIR points at the repo so the scaffold is built by the scripts under
+# test, not by whatever version happens to be installed.
+
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
+VALIDATE="$REPO_ROOT/skills/aidex-conventions/scripts/validate.py"
+
+d7="$(mktemp -d)"
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7" >/dev/null
+
+if [[ -f "$d7/.context/references/01-project-commands.md" ]]; then
+  pass "scenario7: project commands written as a reference (NN-<slug>.md)"
+  if head -1 "$d7/.context/references/01-project-commands.md" | grep -q '^---$'; then
+    pass "scenario7: the reference carries front-matter"
+  else
+    fail "scenario7: the reference has no front-matter block"
+  fi
+else
+  fail "scenario7: .context/references/01-project-commands.md not written"
+fi
+
+val_out="$(cd "$d7" && python3 "$VALIDATE" 2>&1)"
+if printf '%s\n' "$val_out" | grep -qE 'violations: 0 · warnings: 0'; then
+  pass "scenario7: a fresh init validates clean (0 violations, 0 warnings)"
+else
+  fail "scenario7: fresh init fails aidex's own validator:
+$val_out"
+fi
+
+# A project that predates the rename keeps its file; init must not duplicate it.
+d7b="$(mktemp -d)"
+mkdir -p "$d7b/.context/references"
+printf 'legacy\n' > "$d7b/.context/references/project-commands.md"
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7b" >/dev/null
+if [[ -f "$d7b/.context/references/01-project-commands.md" ]]; then
+  fail "scenario7: init duplicated a pre-existing project-commands.md"
+else
+  pass "scenario7: pre-existing project-commands.md not duplicated"
+fi
+[[ "$(cat "$d7b/.context/references/project-commands.md")" == "legacy" ]] \
+  || fail "scenario7: pre-existing project-commands.md was overwritten"
+
+rm -rf "$d7" "$d7b"
 
 # --- Summary ---
 

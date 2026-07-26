@@ -16,7 +16,7 @@
 #      Skipped (with a note) if the suite is not installed at $AIDEX_DIR
 #      (default ~/.aidex).
 #   3. Run $AIDEX_DIR/skills/aidex-conventions/scripts/detect-project-commands.sh
-#      when present, writing its output to .context/references/project-commands.md
+#      when present, writing its output to .context/references/01-project-commands.md
 #      (skip-if-exists). Skipped (with a note) if not installed.
 #   4. Print — never write — a suggested CLAUDE.md block. Editing CLAUDE.md is
 #      the user's call.
@@ -52,7 +52,7 @@ ensure_dir() {
 for d in backlog plans decisions research references requests; do
   ensure_dir "$CONTEXT_DIR/$d"
 done
-for d in backlog/_archive plans/_archive requests/_archive; do
+for d in backlog/_archive plans/_archive requests/_archive decisions/_archive; do
   ensure_dir "$CONTEXT_DIR/$d"
 done
 
@@ -100,19 +100,40 @@ fi
 
 # --- Step 3: detect project commands (skip-if-exists) ---
 
-COMMANDS_OUT="$CONTEXT_DIR/references/project-commands.md"
+# The reference tier accepts NN-<slug>.md (validate.py) — a bare
+# project-commands.md is read as a dated artifact and fails the filename rule.
+# The detector emits bare `key: value` lines, so the front-matter every artifact
+# needs is added here, around it.
+COMMANDS_OUT="$CONTEXT_DIR/references/01-project-commands.md"
+COMMANDS_LEGACY="$CONTEXT_DIR/references/project-commands.md"
 DETECTOR="$AIDEX_DIR/skills/aidex-conventions/scripts/detect-project-commands.sh"
 if [[ -f "$COMMANDS_OUT" ]]; then
   printf 'exists: %s\n' "${COMMANDS_OUT#"$PROJECT_DIR"/}"
+elif [[ -f "$COMMANDS_LEGACY" ]]; then
+  # Pre-existing project from before the rename: leave it alone, never duplicate.
+  printf 'exists: %s\n' "${COMMANDS_LEGACY#"$PROJECT_DIR"/}"
 elif [[ -x "$DETECTOR" ]]; then
-  if "$DETECTOR" --project "$PROJECT_DIR" >"$COMMANDS_OUT" 2>/dev/null; then
+  DETECTED="$("$DETECTOR" --project "$PROJECT_DIR" 2>/dev/null)"
+  if [[ -n "$DETECTED" ]]; then
+    TODAY="$(date +%F)"
+    {
+      printf -- '---\n'
+      printf 'title: "Project commands"\n'
+      printf 'status: living\n'
+      printf 'created: %s\n' "$TODAY"
+      printf 'updated: %s\n' "$TODAY"
+      printf -- '---\n\n'
+      printf '# Project commands\n\n'
+      printf 'Detected by `detect-project-commands.sh` at init. Correct any\n'
+      printf '`(not detected)` line by hand — the tooling reads these values.\n\n'
+      printf '```\n%s\n```\n' "$DETECTED"
+    } > "$COMMANDS_OUT"
     printf 'created: %s\n' "${COMMANDS_OUT#"$PROJECT_DIR"/}"
   else
-    rm -f "$COMMANDS_OUT"
     note "detect-project-commands.sh failed — skipped ${COMMANDS_OUT#"$PROJECT_DIR"/}"
   fi
 else
-  note "aidex-conventions not installed at $AIDEX_DIR — skipped project-commands.md"
+  note "aidex-conventions not installed at $AIDEX_DIR — skipped 01-project-commands.md"
 fi
 
 # --- Step 4: print (never write) a suggested CLAUDE.md block ---
@@ -126,7 +147,7 @@ Suggested CLAUDE.md addition (review and add this yourself — never written aut
 
 This project uses `.context/` for planning artifacts (backlog, plans,
 decisions, research, references, requests) per aidex conventions.
-See `.context/references/project-commands.md` for detected review/commit/
+See `.context/references/01-project-commands.md` for detected review/commit/
 release/test commands.
 
 Ephemeral output (screenshots, probes, scratch files) goes in `_tmp/`.
