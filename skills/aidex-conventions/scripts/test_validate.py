@@ -544,6 +544,27 @@ def check_backlog_type_unit(failures: list[str]) -> None:
         failures.append("backlog-type unit: absent type on archived item warned (should be exempt)")
 
 
+def check_backlog_priority_unit(failures: list[str]) -> None:
+    """Direct cells for check_backlog_priority: P0-P3 are silent, and `Blocked` is
+    a violation, not an accepted value. The canon says a blocked item KEEPS its
+    priority and sets blocked_by (01-backlog-conventions.md:147); accepting
+    `Blocked` as a priority let an item hide its urgency in the one value
+    migrate-priorities.sh cannot repair."""
+    v = _load_validator()
+    path = Path(".context/backlog/2026-01-01-x.md")
+    for good_val in ("P0", "P1", "P2", "P3"):
+        if v.check_backlog_priority(path, {"priority": good_val}) is not None:
+            failures.append(f"backlog-priority unit: valid {good_val} flagged (false positive)")
+    blocked = v.check_backlog_priority(path, {"priority": "Blocked"})
+    if blocked is None or blocked.rule != "backlog-priority-invalid" or blocked.severity != "violation":
+        failures.append("backlog-priority unit: 'Blocked' accepted as a priority "
+                        "(it is a modifier — keep the priority, set blocked_by)")
+    elif "blocked_by" not in blocked.message:
+        failures.append("backlog-priority unit: the 'Blocked' violation does not point at blocked_by")
+    if v.check_backlog_priority(path, {"status": "open"}) is not None:
+        failures.append("backlog-priority unit: absent priority produced a finding")
+
+
 def check_waivers(failures: list[str]) -> None:
     """Waiver lifecycle (BL-048): an anchored waiver suppresses its finding and
     reports it under waived; a content change or a deleted waiver line resurfaces
@@ -638,6 +659,7 @@ def main() -> int:
     check_archive_status_open_unit(failures)
     check_backlog_placeholder_body_unit(failures)
     check_backlog_type_unit(failures)
+    check_backlog_priority_unit(failures)
     check_waivers(failures)
 
     if failures:
