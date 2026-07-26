@@ -133,7 +133,10 @@ audit's areas/findings in execution order as a durable
 work-list (via the `AskUserQuestion` survey → `worklist-new.sh`). The sweep then walks
 areas with `worklist-advance.sh` instead of pausing to ask "next area?" between them —
 the one ordering decision is fixed once, up front. (For a fan-out Workflow run below,
-the same ordered areas become the shards.)
+the same ordered areas become the shards.) **No interactive channel** (`claude -p`,
+cron): skip the survey, emit the areas in the order scope/borders produced them, and note
+the defaulting in the audit brief —
+[autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
 
 > **Durable Workflow promotion (mandatory evaluation at kickoff).** At `/aidex-audit new`
 > — the single sanctioned question point, before the sweep begins — classify whether the

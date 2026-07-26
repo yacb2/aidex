@@ -60,6 +60,12 @@ Borrow the Socratic, one-question-at-a-time style. Walk the user through
 [references/01-loop-engines.md](references/01-loop-engines.md) §"Adoption steps".
 Do not skip step 0 or step 1 — they decide whether a loop is even appropriate.
 
+**No interactive channel** (`claude -p`, cron): do not attempt the interview — take each
+step's recommended default and record the defaulting in the loop-spec. Steps 0 and 1 are
+the exception: a loop with no verifiable gate has no defensible default, so say so in the
+spec and stop rather than guess one.
+[autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
+
 1. **Loop-suitability (step 0).** Is there a check the *machine* can run to say
    pass/fail? If no verifiable gate exists, **stop**: this is interactive work,
    not a loop. Say so plainly.
