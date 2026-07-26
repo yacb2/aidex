@@ -20,7 +20,8 @@ On run start, apply [Mode A autonomy](../aidex-conventions/references/autonomy-c
 automatically — do not wait for the user to grant it. Questions live in the
 initial alignment moment only; after that the run proceeds start-to-finish
 (deny/pre-authorized/mandated/autonomous — see "Operating mode" below). Run
-`durability-run.sh start` from the **workspace root**, not the current subrepo.
+`durability-run.sh start` from anywhere — it anchors the marker at the workspace
+root itself (the 07-21 wrong-`.context/` incident is fixed in the script).
 
 ## Operating mode
 
@@ -86,9 +87,9 @@ The operative rule here:
 Otherwise: proceed. The user will redirect if needed.
 
 > **Durable-run marker (optional Stop-hook enforcement).** At Orient, run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" start plan-exec` **from the workspace
-> root**, not the current subrepo (07-21 wrong-`.context/` marker incident — see
-> "Default autonomy" above); run
+> `bash "$HOME/.aidex/hooks/durability-run.sh" start plan-exec` from any directory —
+> the script resolves the workspace root itself, so the 07-21 wrong-`.context/` marker
+> incident cannot recur; run
 > `bash "$HOME/.aidex/hooks/durability-run.sh" stop` at completion. Harmless if the optional
 > Stop hook is not installed ([hooks/README.md](../../hooks/README.md)); when it is, it keeps the
 > run from over-stopping on safe work and logs to `~/.aidex/durability/events.jsonl`. Fails open —

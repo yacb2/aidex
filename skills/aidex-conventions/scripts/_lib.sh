@@ -44,6 +44,9 @@ die()   { err "error: $*"; exit 2; }
 # Two passes, both innermost-first: an existing `.context/` always wins, and
 # only when there is none does a project marker (`.git`, `CLAUDE.md`) stand in —
 # so an initialised project's resolution is exactly what it always was.
+# NOTE: nearest-ancestor by design — an artifact belongs to the project whose
+# .context/ contains it. hooks/durability-run.sh deliberately uses the OUTERMOST
+# .context instead (one run marker per workspace, BL-075); do not "align" them.
 find_project_root() {
   local start stop dir
   start="$(pwd -P)"

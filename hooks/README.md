@@ -106,17 +106,22 @@ note; use C (or A) instead.
 ## Supporting scripts
 
 - `durability-run.sh` — `start <type> [--mode remind|enforce] [--ttl-min N]` / `stop` / `status`.
-  Writes `<cwd>/.context/.durability/active-run.json` and logs run-start/stop to
+  Writes `<project-root>/.context/.durability/active-run.json` — the root is the OUTERMOST
+  `.context` ancestor of cwd, so start/stop/status agree from any subdirectory and a workspace
+  of sibling repos has one marker, not one per repo (BL-075). Hook C resolves the same anchor.
+  This is a deliberate divergence from `_lib.sh`'s nearest-ancestor `find_project_root`. Logs
+  run-start/stop to
   `~/.aidex/durability/events.jsonl`. The durable skills call this at their start/end. With hook
   C active it is **the activation gate** (no run declared → no judge, no cost); with hook A it
   would be audit only.
-- `test-durability-hook.sh` — 27 isolated stdin tests for hook C: regex/gate tests (run with
+- `test-durability-hook.sh` — 35 isolated stdin tests for hook C: regex/gate tests (run with
   the judge mocked as unavailable, exercising the fallback path) + judge tests (mocked block,
   mocked allow overriding the regex, garbage output → regex fallback, marker-absent → judge not
   invoked) + retro-run4 tests (last_user_message extracted from a fixture transcript with the
   noise shapes skipped, answer-to-user allowed, ES gated-publish-only summary allowed) + marker
-  lifecycle tests (`durability-run.sh stop` from a subdir removes the root marker; a no-marker
-  stop warns). Hooks A and B are only validatable **live** (model-backed).
+  lifecycle tests (`durability-run.sh stop` from a subdir removes the root marker; `start` from a
+  subdir anchors at the root and `stop` at the root clears it; a sibling-repo start anchors at the
+  workspace root; a subdir session cwd still finds the anchored marker; a no-marker stop warns). Hooks A and B are only validatable **live** (model-backed).
 
 ## Sunset criterion (falsifiable — retire the hook if it fails)
 
