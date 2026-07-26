@@ -16,9 +16,13 @@
 #   anything else                      → reported as "needs manual review" (NOT touched)
 #
 # Usage:
-#   migrate-priorities.sh              # migrate .context/backlog/ in current project
-#   migrate-priorities.sh --dry-run    # show what would change, don't write
+#   migrate-priorities.sh              # default: DRY-RUN — print what would change
+#   migrate-priorities.sh --apply      # write the changes
 #   migrate-priorities.sh --dir <path> # operate on a custom backlog dir
+#
+# Dry-run by default, like sweep.sh and migrate-ids.sh beside it in the same
+# table: a bare invocation used to rewrite front-matter in place with no preview
+# and no prompt, the opposite polarity of its neighbours.
 
 set -euo pipefail
 
@@ -43,11 +47,12 @@ find_project_root() {
   pwd -P
 }
 
-DRY_RUN=0
+DRY_RUN=1
 DIR=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1; shift ;;
+    --apply)   DRY_RUN=0; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;   # accepted, and now redundant
     --dir)     DIR="$2"; shift 2 ;;
     -h|--help) sed -n '3,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) die "unknown option: $1" ;;
