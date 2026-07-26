@@ -9,6 +9,11 @@
 #   G3 copy_item excludes gitignored build junk (__pycache__/, *.pyc, .DS_Store).
 #   G5 hooks/ subdirectories (e.g. hooks/eval/) are collected as items, copied
 #      into ~/.aidex/hooks/, their .sh made executable, and never symlinked.
+#   G6 uninstall option 1 ("keeps ~/.aidex/ intact") keeps the manifest, so a
+#      follow-up option 2 can still find what to remove; G6b the kept manifest is
+#      not counted as personal content by option 3.
+#   G7 uninstalling with no manifest refuses loudly instead of reporting success
+#      over a no-op (audit/2026-07-25, BL-089).
 #
 # Run with: bash tests/test-install.sh
 
@@ -101,6 +106,39 @@ delete
 if [[ -L "$H/.claude/skills/my-personal" && ! -e "$H/.claude/skills/my-personal" ]]; then
   fail "G1: accepted purge left a DANGLING personal symlink in ~/.claude/skills"
 fi
+
+# ---------- G6: uninstall option 1 must keep the manifest ----------
+# The menu promises "keeps ~/.aidex/ intact"; the manifest is what describes it.
+# Deleting it there left options 2/3 removing 0 files and broke --doctor/--update.
+make_fixture
+run_install || fail "G6: fresh install exited non-zero"
+run_with_input "1
+" --uninstall
+[[ -f "$H/.aidex/.manifest" ]] || fail "G6: option 1 deleted the manifest it promised to keep"
+[[ ! -L "$H/.claude/skills/skill-a" ]] || fail "G6: option 1 left the symlink it was asked to remove"
+[[ -d "$H/.aidex/skills/skill-a" ]] || fail "G6: option 1 removed files under ~/.aidex"
+# The kept manifest is what makes a follow-up option 2 able to do its job.
+run_with_input "2
+" --uninstall
+[[ ! -d "$H/.aidex/skills/skill-a" ]] || fail "G6: option 2 after option 1 removed nothing (stranded by a lost manifest)"
+
+# ---------- G6b: option 3 on a clean tree still removes ~/.aidex ----------
+# The kept manifest must not be mistaken for personal content.
+make_fixture
+run_install || fail "G6b: fresh install exited non-zero"
+out="$( (cd "$FIX" && HOME="$H" printf '3\n' | HOME="$H" bash install.sh --uninstall 2>&1) )"
+[[ ! -d "$H/.aidex" ]] || fail "G6b: option 3 kept ~/.aidex on a tree with nothing personal: $out"
+[[ "$out" != *"PERSONAL"* ]] || fail "G6b: the kept manifest was reported as a personal file"
+
+# ---------- G7: uninstalling with no manifest must fail loudly ----------
+make_fixture
+run_install || fail "G7: fresh install exited non-zero"
+rm -f "$H/.aidex/.manifest"
+out="$( (cd "$FIX" && HOME="$H" printf '3\ndelete\n' | HOME="$H" bash install.sh --uninstall 2>&1) )"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "G7: uninstall with no manifest exited 0"
+[[ "$out" == *"manifest missing"* ]] || fail "G7: no 'manifest missing' message: $out"
+[[ "$out" != *"Removing aidex-managed files"* ]] || fail "G7: printed removal headers over a no-op"
+[[ -d "$H/.aidex/skills/skill-a" ]] || fail "G7: removed files despite refusing to run"
 
 # ---------- G4: version-only bump must refresh ~/.aidex/.version on --update ----------
 # A release commit that only bumps VERSION= produces zero item changes; the update's
