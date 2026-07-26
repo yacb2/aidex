@@ -50,7 +50,11 @@ COMM_MEETING_REQUIRED_FIELDS = ("channel", "participants", "subject", "date", "s
 
 BASE_STATUS = {"open", "doing", "done", "dropped"}
 DECISION_STATUS = {"accepted", "superseded", "dropped"}
-BACKLOG_PRIORITIES = {"P0", "P1", "P2", "P3", "Blocked"}
+# P0-P3 only. "Blocked" is a lifecycle MODIFIER, not a priority: the canon says
+# to keep the priority and set blocked_by (01-backlog-conventions.md:147), and the
+# index renders a "## Blocked" section from that field. Accepting it here let an
+# item hide its real urgency in the one value migrate-priorities.sh cannot repair.
+BACKLOG_PRIORITIES = {"P0", "P1", "P2", "P3"}
 # Backlog work-kind facet (ADR 2026-07-23-backlog-single-queue-type-facet): one
 # queue, a closed/small type facet. Absent is warn-then-ratchet (existing items
 # are not retro-fixed); a present value outside the enum is a violation.
@@ -560,8 +564,12 @@ def check_backlog_priority(path: Path, fm: dict | None) -> Finding | None:
         return None
     val = fm["priority"]
     if val and val not in BACKLOG_PRIORITIES:
+        hint = ""
+        if str(val).strip().lower() == "blocked":
+            hint = (" — Blocked is a modifier, not a priority: keep the real "
+                    "priority and set blocked_by")
         return Finding("backlog", str(path), "backlog-priority-invalid", "violation",
-                       f"priority={val!r} not in {sorted(BACKLOG_PRIORITIES)}")
+                       f"priority={val!r} not in {sorted(BACKLOG_PRIORITIES)}{hint}")
     return None
 
 def check_backlog_type(path: Path, fm: dict | None) -> Finding | None:
