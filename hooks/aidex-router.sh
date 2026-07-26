@@ -76,6 +76,14 @@ printf '%s' "$norm" | grep -iqE "$META" && exit 0
 ARTIFACT_ASK='(crea|cr[ée]a|cr[ée]ame|crear|haz|hazme|hacer|genera|gen[ée]rame|generar|arma|[áa]rmame|dame|render|make|create|generate|build|give me)[[:space:]]+(me[[:space:]]+)?((un|una|el|la|a|an|the)[[:space:]]+)?(artifact|artefacto|report\b|reporte|informe|dashboard|tablero|infograf[íi]a|visualizaci[óo]n|p[áa]gina (html|web)|html page|web page)'
 printf '%s' "$norm" | grep -iqE "$ARTIFACT_ASK" && exit 0
 
+# Merge / branch-management guard (BL-105, router FP #7): "mezclemos a main y
+# limpiemos esta rama" is a git request; when "worktrees" also appears it is an
+# explanatory aside ("porque estoy corrigiendo problemas de worktrees en
+# paralelo"), not a setup intent. Same shape as ARTIFACT_ASK: the noun the rule
+# keys on belongs to a different verb. Suppresses only the worktree route —
+# merge talk says nothing about the other intents.
+MERGE_ASK='(mezcl[ae]\w*|mezclemos|fusion[ae]\w*|fusionemos|merge\w*|rebase\w*|squash|cherry.?pick|(limpia\w*|limpiemos|borra\w*|borremos|elimina\w*|eliminemos|delete|remove|clean[[:space:]]?up)[[:space:]]+((esta|esa|la|el|this|that|the)[[:space:]]+)?(rama|branch))'
+
 # Ordered, first-match-wins. Most specific intents before generic ones.
 # Each rule = a create/intent verb context AND an object that names the
 # artifact. grep -iE, accent-tolerant character classes.
@@ -128,7 +136,8 @@ elif m2 "(backlog|deuda t[ée]cnica|tech debt)" "$VERB" \
 
 # Worktree setup/bootstrap asks (BL-045): "usa/monta un worktree", "cómo
 # hacemos worktrees aquí", parallel-branch isolation questions.
-elif m2 "\bworktrees?\b" "($VERB|usa\w*|usemos|monta\w*|prepara\w*|configura\w*|c[óo]mo (hacemos|se hace|se usan)|how do (we|you)|set ?up|aisla\w*|isolat\w*|paralelo|parallel)"; then
+elif m2 "\bworktrees?\b" "($VERB|usa\w*|usemos|monta\w*|prepara\w*|configura\w*|c[óo]mo (hacemos|se hace|se usan)|how do (we|you)|set ?up|aisla\w*|isolat\w*|paralelo|parallel)" \
+     && ! m "$MERGE_ASK"; then
   skill="aidex-worktree"
 
 elif m2 "(analiza\w*|revisa\w*|audita\w*|auditar|organiza\w*|organizar|limpia\w*|limpiar|chequea\w*|ordena\w*|sanea\w*|salud (de|del)|revisi[óo]n de|analy[sz]e|review|audit\w*|organi[sz]e|clean[[:space:]]?up|tidy|check|health.?check)" \
