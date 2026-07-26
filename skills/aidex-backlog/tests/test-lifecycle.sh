@@ -99,6 +99,19 @@ check "reconcile flags close-candidate (exit 1)" '! bash "$SCRIPTS/reconcile.sh"
 RECON="$(bash "$SCRIPTS/reconcile.sh" 2>&1 || true)"
 check "reconcile names the candidate" '[[ "$RECON" == *"close it"* ]]'
 
+echo "== migrate-priorities polarity =="
+# BL-092: a bare invocation rewrote front-matter in place with no preview, the
+# opposite polarity of sweep.sh and migrate-ids.sh beside it in the same table.
+LEGACY=".context/backlog/2026-01-02-legacy-priority.md"
+printf -- '---\ntitle: "legacy priority"\nid: BL-900\nstatus: open\ncreated: 2026-01-02\nupdated: 2026-01-02\npriority: High\n---\n\nbody\n' > "$LEGACY"
+BEFORE="$(shasum "$LEGACY" | awk '{print $1}')"
+bash "$SCRIPTS/migrate-priorities.sh" >/dev/null 2>&1 || true
+AFTER="$(shasum "$LEGACY" | awk '{print $1}')"
+check "bare invocation writes nothing (dry-run default)" '[[ "$BEFORE" == "$AFTER" ]]'
+bash "$SCRIPTS/migrate-priorities.sh" --apply >/dev/null 2>&1 || true
+check "--apply migrates the legacy value" 'grep -q "^priority: P1$" "$LEGACY"'
+rm -f "$LEGACY"
+
 echo "== closed-section windowing =="
 # BL-058: the ## Closed section windows to the most recent 20 closures plus a
 # count pointer, so the index tracks the active queue not lifetime throughput.
