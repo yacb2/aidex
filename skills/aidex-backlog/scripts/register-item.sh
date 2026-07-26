@@ -524,7 +524,7 @@ if [[ $LIST_ONLY -eq 1 ]]; then
   print_section "P2 — Medium"     "$C_BLUE"   "${P2[@]:-}"
   print_section "P3 — Low"        "$C_DIM"    "${P3[@]:-}"
   print_section "Blocked (third-party)" "$C_DIM" "${BLOCKED[@]:-}"
-  print_section "Unclassified (legacy — run migrate-priorities.sh)" "$C_RED" "${PUNK[@]:-}"
+  print_section "Unclassified (legacy — preview: migrate-priorities.sh, write: --apply)" "$C_RED" "${PUNK[@]:-}"
 
   total=$((${#P0[@]} + ${#P1[@]} + ${#P2[@]} + ${#P3[@]} + ${#PUNK[@]} + ${#BLOCKED[@]}))
   [[ $total -eq 0 ]] && printf '\n  (no open entries)\n'
