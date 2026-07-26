@@ -55,6 +55,18 @@ echo "== expiry / inert =="
 printf '{"mode":"enforce","expires":"2000-01-01T00:00:00+00:00","type":"plan-exec"}' > "$TMP/.context/.durability/active-run.json"
 check "expired state -> allow"      allow "$(pl 'Phase 2 committed. Moving on.' false)"
 
+echo "== anchored marker lookup (session cwd in a subdir) =="
+# The marker is written at the project anchor, so the hook must resolve the same
+# anchor from the session cwd. Reading raw cwd made enforcement silently inert
+# for any session started in backend/ or frontend/ (BL-075, consumer side).
+SUB="$TMP/backend/src"
+mkdir -p "$SUB"
+active enforce
+subpl() { python3 -c 'import json,sys; print(json.dumps({"cwd":sys.argv[1],"stop_hook_active":False,"last_assistant_message":sys.argv[2],"hook_event_name":"Stop"}))' "$SUB" "$1"; }
+check "subdir cwd finds the anchored marker" block "$(subpl 'Phase 2 committed. Moving on.')"
+clear_run
+check "subdir cwd with no marker -> allow"   allow "$(subpl 'Phase 2 committed. Moving on.')"
+
 echo "== model judge (mocked via AIDEX_JUDGE_CMD) =="
 # judge verdict wins over the regex in both directions: it blocks a
 # summary-no-question message the regex would allow, and allows an
@@ -147,6 +159,60 @@ else
   echo "  PASS  run.sh stop from subdir removed root marker"; PASS=$((PASS+1))
 fi
 rm -rf "$RT"
+# start from a subdir must plant the marker at the PROJECT ROOT, not at raw cwd
+# (BL-075: 6 orphan markers across 5 projects, every one in a subdirectory —
+# backend/, frontend/, even .context/backlog/. stop searches upward, so a marker
+# written downward from the root is unreachable and leaks).
+SR="$(mktemp -d)"
+mkdir -p "$SR/.context/plans" "$SR/frontend/src"
+( cd "$SR/frontend/src" && bash "$RUN" start plan-exec ) >/dev/null 2>&1 || true
+if [ -f "$SR/.context/.durability/active-run.json" ]; then
+  echo "  PASS  run.sh start from a subdir anchors the marker at the project root"; PASS=$((PASS+1))
+else
+  echo "  FAIL  run.sh start from a subdir did not write the root marker"; FAIL=$((FAIL+1))
+fi
+if [ -e "$SR/frontend/src/.context" ] || [ -e "$SR/frontend/.context" ]; then
+  echo "  FAIL  run.sh start leaked a .context/ into the subdirectory"; FAIL=$((FAIL+1))
+else
+  echo "  PASS  run.sh start left no orphan .context/ in the subdirectory"; PASS=$((PASS+1))
+fi
+# ...and `stop` from the ROOT clears it — the mirror case that used to leak.
+( cd "$SR" && bash "$RUN" stop ) >/dev/null 2>&1 || true
+if [ -f "$SR/.context/.durability/active-run.json" ]; then
+  echo "  FAIL  run.sh stop at the root did not clear a subdir-started run"; FAIL=$((FAIL+1))
+else
+  echo "  PASS  run.sh stop at the root clears a subdir-started run"; PASS=$((PASS+1))
+fi
+# status must read the same anchored marker from anywhere in the tree
+( cd "$SR/frontend/src" && bash "$RUN" start loop ) >/dev/null 2>&1 || true
+statout="$( ( cd "$SR/frontend" && bash "$RUN" status ) 2>&1 || true )"
+if printf '%s' "$statout" | grep -q '"type": "loop"'; then
+  echo "  PASS  run.sh status from another subdir sees the anchored marker"; PASS=$((PASS+1))
+else
+  echo "  FAIL  run.sh status did not see the anchored marker: $statout"; FAIL=$((FAIL+1))
+fi
+rm -rf "$SR"
+
+# Workspace shape: root is NOT a repo, backend/ and frontend/ are sibling repos
+# with their own .context/. One run spans them, so one marker at the workspace
+# root — a nearest-ancestor anchor would give each subrepo its own and leak again.
+WS="$(mktemp -d)"
+mkdir -p "$WS/.context" "$WS/backend/.context" "$WS/frontend/.context/plans"
+( cd "$WS/backend" && git init -q . ) 2>/dev/null || true
+( cd "$WS/backend" && bash "$RUN" start audit ) >/dev/null 2>&1 || true
+if [ -f "$WS/.context/.durability/active-run.json" ]; then
+  echo "  PASS  run.sh start in a sibling repo anchors at the workspace root"; PASS=$((PASS+1))
+else
+  echo "  FAIL  run.sh start in a sibling repo did not anchor at the workspace root"; FAIL=$((FAIL+1))
+fi
+( cd "$WS/frontend/.context/plans" && bash "$RUN" stop ) >/dev/null 2>&1 || true
+if [ -f "$WS/.context/.durability/active-run.json" ]; then
+  echo "  FAIL  run.sh stop from the other sibling repo did not clear the run"; FAIL=$((FAIL+1))
+else
+  echo "  PASS  run.sh stop from the other sibling repo clears the run"; PASS=$((PASS+1))
+fi
+rm -rf "$WS"
+
 # stop with no marker anywhere must warn loudly (a silent no-op is what leaked)
 NM="$(mktemp -d)"
 warnout="$( ( cd "$NM" && bash "$RUN" stop ) 2>&1 1>/dev/null || true )"
