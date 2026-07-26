@@ -9,11 +9,45 @@
 #   durability-run.sh stop
 #   durability-run.sh status
 #
-# State lives at  <cwd>/.context/.durability/active-run.json  and always carries an
-# expiry (default 90 min) so a forgotten run can never trap future sessions.
+# State lives at  <project-root>/.context/.durability/active-run.json  — the root is
+# discovered from cwd, so start/stop/status agree from any subdirectory — and always
+# carries an expiry (default 90 min) so a forgotten run can never trap future sessions.
 
 set -euo pipefail
-DIR=".context/.durability"
+
+# The marker belongs to the PROJECT, not to whatever directory the run happened
+# to start in. Anchoring it at raw cwd planted markers in backend/, frontend/ and
+# even .context/backlog/ (6 orphans across 5 projects, 2026-07-24), which `stop`'s
+# upward search can never reach from the root. Same rule as the suite's
+# find_project_root, inlined: hooks install standalone into ~/.aidex/hooks/ and
+# cannot source the skills tree.
+project_root() {
+  local start dir stop outermost=""
+  start="$(pwd -P)"; stop="${HOME:-}"
+  # The OUTERMOST .context ancestor, not the nearest: in a workspace whose root
+  # is not a repo (echo_lab_ws/ with backend/ and frontend/ as sibling repos,
+  # each with its own .context), one run spans the repos and must have one
+  # marker — the nearest-ancestor rule would give each subrepo its own.
+  dir="$start"
+  while [ "$dir" != "/" ] && [ -n "$dir" ]; do
+    [ -n "$stop" ] && [ "$dir" = "$stop" ] && break
+    [ -d "$dir/.context" ] && outermost="$dir"
+    dir="$(dirname "$dir")"
+  done
+  [ -n "$outermost" ] && { printf '%s\n' "$outermost"; return 0; }
+  dir="$start"
+  while [ "$dir" != "/" ] && [ -n "$dir" ]; do
+    [ -n "$stop" ] && [ "$dir" = "$stop" ] && break
+    { [ -e "$dir/.git" ] || [ -f "$dir/CLAUDE.md" ]; } && { printf '%s\n' "$dir"; return 0; }
+    dir="$(dirname "$dir")"
+  done
+  printf '%s\n' "$start"
+}
+
+ROOT="$(project_root)"
+REL_DIR=".context/.durability"
+STATE_REL="$REL_DIR/active-run.json"
+DIR="$ROOT/$REL_DIR"
 STATE="$DIR/active-run.json"
 CMD="${1:-status}"
 
@@ -63,19 +97,21 @@ print(f"durable run '{typ}' active (mode={mode}, ttl={ttl}min) -> {path}")
 PY
     ;;
   stop)
-    # A durable skill may declare its run from the repo root but reach `stop` from a
-    # subdir (backend/, frontend/, a plans subdir) — a plain `rm -f "$STATE"` then
-    # silently no-ops and the marker leaks (3 such leaks observed 07-21/22). Search
-    # upward from cwd for the marker. Ceiling: the git root if in a repo, else $HOME;
+    # Both sides now anchor at the project root, so the symmetric case is exact.
+    # The upward walk remains for markers written by earlier versions at a raw
+    # subdir cwd. Ceiling: the git root if in a repo, else $HOME;
     # `/` is the ultimate backstop so a marker outside $HOME (e.g. a test dir under
     # /var or /tmp) is still found. `git rev-parse` is guarded — an unguarded call
     # aborts under `set -euo pipefail` when cwd is not a repo.
     GITROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
     CEILING="${GITROOT:-$HOME}"
     FOUND=""
+    # The project anchor is where `start` writes, so check it first; the upward
+    # walk stays as the fallback that clears markers left by older versions.
+    [ -f "$STATE" ] && FOUND="$STATE"
     dir="$(pwd -P)"
-    while :; do
-      if [ -f "$dir/$STATE" ]; then FOUND="$dir/$STATE"; break; fi
+    while [ -z "$FOUND" ]; do
+      if [ -f "$dir/$STATE_REL" ]; then FOUND="$dir/$STATE_REL"; break; fi
       [ "$dir" = "$CEILING" ] && break     # stop AFTER checking the ceiling
       [ "$dir" = "/" ] && break            # backstop when cwd is outside the ceiling
       dir="$(dirname "$dir")"

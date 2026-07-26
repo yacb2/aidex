@@ -50,7 +50,39 @@ if ev.get("stop_hook_active") is True:
     allow()
 
 cwd = ev.get("cwd") or os.getcwd()
-state_path = os.path.join(cwd, ".context", ".durability", "active-run.json")
+
+def _anchor(start):
+    """Same anchor durability-run.sh writes to: the OUTERMOST .context ancestor
+    (one marker per workspace, even when sibling repos each have their own),
+    else the nearest .git/CLAUDE.md, else the session cwd. Without this the hook
+    reads a path the marker was never written to and goes silently inert."""
+    home = os.path.expanduser("~")
+    outermost = None
+    d = os.path.realpath(start)
+    while True:
+        if d == home:
+            break
+        if os.path.isdir(os.path.join(d, ".context")):
+            outermost = d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    if outermost:
+        return outermost
+    d = os.path.realpath(start)
+    while True:
+        if d == home:
+            break
+        if os.path.exists(os.path.join(d, ".git")) or os.path.isfile(os.path.join(d, "CLAUDE.md")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            break
+        d = parent
+    return start
+
+state_path = os.path.join(_anchor(cwd), ".context", ".durability", "active-run.json")
 
 # 2. Inert unless a durable run is declared in this project.
 if not os.path.isfile(state_path):
