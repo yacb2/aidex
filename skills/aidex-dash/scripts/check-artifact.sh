@@ -50,6 +50,10 @@ for f in "$@"; do
     && report self "$name" "@import of a remote stylesheet"
   grep -qiE '<img[^>]+src=["'"'"']?https?:' <<<"$body" \
     && report self "$name" "remote image — breaks offline and leaks a request"
+  # A @font-face block can span lines, so flatten before matching it. Only a
+  # remote src counts: url(data:…) is inlined and honours the contract.
+  tr -d '\n' <<<"$body" | grep -qiE '@font-face[^}]*url\([[:space:]]*["'"'"']?(https?:)?//' \
+    && report self "$name" "remote @font-face src — the font never loads offline and leaks a request"
 
   dir="$(dirname "$f")"
   assets="$(find "$dir" -maxdepth 1 \( -name '*.css' -o -name '*.js' \) 2>/dev/null | head -3)"
