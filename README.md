@@ -3,7 +3,7 @@
 > Keep your Claude Code ecosystem lean and consistent — skills, docs, and project context from one source of truth.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.21.1-blue.svg)](install.sh)
+[![Version](https://img.shields.io/badge/version-0.24.0-blue.svg)](install.sh)
 [![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-8A2BE2.svg)](https://docs.anthropic.com/en/docs/claude-code)
 
 AI coding assistants reload their context every session. As your setup grows, skills get copy-pasted across projects and drift out of sync, every project organizes its `.context/` knowledge differently, and idle context quietly eats your token budget. **aidex** fixes that with a single-source skill store (symlinked, never duplicated), a standard `.context/` convention, and an auditor that flags bloat, broken symlinks, and stale docs before they cost you.
@@ -49,8 +49,10 @@ aidex solves this with two pillars:
 ```
 ~/.aidex/                                <-- Canonical storage
 ├── .manifest                            <-- Tracks what aidex installed
-├── rules/                               <-- Global session rules (auto-loaded by Claude Code)
-│   └── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
+├── rules/                               <-- Global session rules (symlinked into ~/.claude/rules/)
+│   ├── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
+│   ├── autonomy.md                      <-- front-loaded autonomy: run start-to-finish (from aidex)
+│   └── artifacts-local-first.md         <-- local-first artifact contract (from aidex)
 └── skills/
     ├── aidex/                       <-- The orchestrator (from aidex)
     ├── aidex-conventions/           <-- Canon hub, non-invocable (from aidex)
@@ -66,6 +68,9 @@ aidex solves this with two pillars:
     ├── aidex-comm/                  <-- (from aidex)
     ├── aidex-plan-exec/              <-- (from aidex)
     ├── aidex-bugfix/            <-- (from aidex)
+    ├── aidex-workflow/              <-- (from aidex)
+    ├── aidex-worktree/              <-- (from aidex)
+    ├── aidex-dash/                 <-- (from aidex)
     └── my-personal-skill/           <-- Your own (not in manifest)
         │
         │  symlinks
@@ -111,9 +116,15 @@ project/.context/
 
 ## What's included
 
-### Global rule
+### Global rules
 
-`rules/aidex-conventions.md` is installed to `~/.aidex/rules/` and is auto-loaded by Claude Code into every session. It's a short normative summary (NEVER/ALWAYS) of the `.context/` conventions — date format, language, naming, status vocabulary, archive policy. The full canon lives in the `aidex-conventions` skill.
+Three always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
+
+| Rule | What it governs |
+|------|-----------------|
+| `aidex-conventions.md` | `.context/` conventions — date format, language, naming, status vocabulary, cross-references, archive policy |
+| `autonomy.md` | Front-loaded autonomy: an unattended run asks its questions up front and then runs start to finish; only publishing (push/deploy/release) is gated |
+| `artifacts-local-first.md` | Any requested artifact/report/dashboard is written locally first, anchored next to the work it documents, and published only when explicitly asked |
 
 ### 17 skills
 
@@ -142,7 +153,7 @@ project/.context/
 **Creating things** — just ask naturally:
 ```
 "Create a plan for the auth migration"
-→ Claude loads aidex-plan, creates .context/plans/20260402-auth-migration/
+→ Claude loads aidex-plan, creates .context/plans/2026-04-02-auth-migration/
   with numbered files, phases, checkboxes, following all conventions
 
 "Create a reference for the payment API"  
@@ -150,7 +161,7 @@ project/.context/
   with 00-index.md + 01-overview.md
 
 "/aidex-audit new ux login-redesign"
-→ Scaffolds .context/audits/20260402-login-redesign/ with index, findings,
+→ Scaffolds .context/audits/ux/2026-04-02-login-redesign/ with index, findings,
   and materializes INVENTORY/METHODOLOGY/CHANGELOG + ux-audit playbook on first use
 ```
 
