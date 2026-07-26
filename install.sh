@@ -550,9 +550,13 @@ do_update() {
 do_uninstall() {
   echo -e "${BOLD}aidex uninstaller${NC}"
 
-  if [ ! -f "$MANIFEST" ]; then
-    warn "No manifest found. aidex may not be installed."
-    echo ""
+  # The manifest is the ownership inventory: without it every branch below walks
+  # an empty list and reports success having removed nothing. Refuse loudly
+  # instead of printing removal headers over a no-op.
+  if [ ! -s "$MANIFEST" ]; then
+    error "manifest missing — run install.sh to rebuild it before uninstalling"
+    echo "  (expected at $MANIFEST; a bare re-install repairs it without touching your files)"
+    exit 1
   fi
 
   echo ""
@@ -578,7 +582,11 @@ do_uninstall() {
           removed=$((removed + 1))
         fi
       done < <(read_manifest)
-      rm -f "$MANIFEST" "$AIDEX_DIR/.version"
+      # Keep the manifest: ~/.aidex/ is intact, as the menu promises, and the
+      # manifest is what still describes it. Deleting it here stranded every
+      # later option (2 and 3 removed 0 of 268 files) and broke --doctor and
+      # --update until a bare re-install rebuilt it.
+      rm -f "$AIDEX_DIR/.version"
       ;;
     2)
       # Remove symlinks + aidex files
@@ -599,7 +607,6 @@ do_uninstall() {
           removed=$((removed + 1))
         fi
       done < <(read_manifest)
-      rm -f "$MANIFEST"
 
       # Check if anything personal remains
       local remaining
@@ -630,10 +637,16 @@ do_uninstall() {
           removed=$((removed + 1))
         fi
       done < <(read_manifest)
-      rm -f "$MANIFEST" "$AIDEX_DIR/.version"
+      # The manifest survives every partial uninstall and dies only with the
+      # directory itself (the rm -rf below): while ~/.aidex/ still exists, it is
+      # the only record of what aidex owns, and a follow-up run needs it to
+      # finish the job it was asked to do.
+      rm -f "$AIDEX_DIR/.version"
 
       local personal
-      personal=$(find "$AIDEX_DIR" -mindepth 1 -not -type d 2>/dev/null | head -20 || true)
+      # aidex's own bookkeeping is not personal content — the manifest is still
+      # here by design, and counting it would report a clean tree as personal.
+      personal=$(find "$AIDEX_DIR" -mindepth 1 -not -type d -not -name '.manifest' 2>/dev/null | head -20 || true)
       if [ -z "$personal" ]; then
         rm -rf "$AIDEX_DIR"
         info "Removed ~/.aidex/ (contained nothing personal)"
@@ -658,8 +671,10 @@ do_uninstall() {
           done
           rm -rf "$AIDEX_DIR"
           info "Removed ~/.aidex/ including personal files"
-        else
+        elif [ "$removed" -gt 0 ]; then
           warn "Personal files kept in ~/.aidex/. aidex-managed items were removed."
+        else
+          warn "Personal files kept in ~/.aidex/. Nothing was removed."
         fi
       fi
       ;;
