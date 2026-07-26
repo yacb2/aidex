@@ -144,6 +144,8 @@ aidex-research	lanza una investigacion y luego compara
 NONE	arregla el loop infinito en el worker
 NONE	necesito ayuda con un infinite loop en el event handler
 NONE	el worktree que cree ayer esta roto
+NONE	hagamos una cosa porque es verdad que estoy corrigiendo problemas de worktrees en paralelo, mezclemos a main todos los cambios y limpiemos esta rama
+NONE	merge everything into main and clean up this branch, i was fixing worktree problems in parallel
 
 # ---- NONE: BL-042 live false positives (2026-07-02..04) — meta-discussion,
 # pasted transcripts, hypotheticals. Verbatim texts (long ones truncated to
