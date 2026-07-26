@@ -2,6 +2,7 @@
 name: inventory-seeder
 description: Read scattered findings from legacy audit folders and generate canonical INVENTORY rows. Used by /aidex-audit migrate after folders have been moved.
 model: sonnet
+effort: medium
 tools: Read Write Edit Glob Grep
 ---
 

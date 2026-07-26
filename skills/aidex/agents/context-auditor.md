@@ -2,6 +2,7 @@
 name: context-auditor
 description: Audits .context/ project content (references, docs, plans, issues, roadmap, requests, decisions, audits) for structural compliance
 model: haiku
+effort: medium
 allowed-tools: Read, Glob, Grep
 context: fork
 user-invocable: false

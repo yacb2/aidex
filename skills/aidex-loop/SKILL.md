@@ -149,7 +149,7 @@ condition or turn cap **without interrupting the user**:
   durability-arbiter, do not deadlock.** This is the failure that once stalled a
   loop for turns waiting on an OK. Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md),
-  pass it to the Agent tool (`model: sonnet`, read-only) with the situation + the
+  pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the
   spec's autonomy surface + proof, and follow its verdict; batch any `ASK` to the
   end. If it errors, apply the rule above and proceed — never block on it.
 

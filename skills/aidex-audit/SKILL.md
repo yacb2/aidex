@@ -188,7 +188,7 @@ the defaulting in the audit brief —
 > confirmed ones to backlog is the mandated next step — not an "escalate, or triage
 > yourself?" question. If a specific finding is genuinely ambiguous to escalate,
 > consult the [durability-arbiter](../aidex-conventions/agents/durability-arbiter.md)
-> (Agent tool, `model: sonnet`, read-only) per finding and batch any `ASK` to the
+> (Agent tool, `model: sonnet`, `effort: high`, read-only) per finding and batch any `ASK` to the
 > end — never stall the whole sweep on one finding.
 >
 > **Isolation.** An audit is read-mostly — usually no worktree (Tier 0/1). The

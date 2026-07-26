@@ -58,7 +58,7 @@ When asked to **work or sweep the backlog autonomously**, resolve every safe + a
 item to completion before stopping. Do not halt with "the rest needs your decision":
 classify each open item first, and for any you would otherwise pause on, **consult the
 [durability-arbiter](../aidex-conventions/agents/durability-arbiter.md)** (Agent tool,
-`model: sonnet`, read-only) — pass the item + the standing autonomy surface + proof the
+`model: sonnet`, `effort: high`, read-only) — pass the item + the standing autonomy surface + proof the
 fix is safe. Implement the ones it returns `CONTINUE` for (commit per item; deps and
 additive migrations are not gated), and **batch the `ASK`/`STOP` ones into a single
 end-of-run list** — never stop the sweep on the first item that needs you. If the arbiter

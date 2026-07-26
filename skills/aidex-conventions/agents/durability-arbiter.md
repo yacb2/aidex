@@ -2,6 +2,7 @@
 name: durability-arbiter
 description: Consulted by a running executor at an ambiguous would-stop boundary to decide CONTINUE / ASK / STOP, so the run keeps going autonomously instead of interrupting the user. Plays the user's standing posture with criterion. Read-only and fast.
 model: sonnet
+effort: high
 allowed-tools: Read
 context: fork
 user-invocable: false

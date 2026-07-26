@@ -2,6 +2,7 @@
 name: plugin-auditor
 description: Audits installed Claude Code plugins for always-loaded subagent cost vs. recent usage; flags uninstall candidates
 model: haiku
+effort: medium
 allowed-tools: Read, Glob, Grep, Bash
 context: fork
 user-invocable: false
