@@ -156,7 +156,7 @@ condition without interrupting the user:
 - **Ambiguous consent point not in the ask-set → consult the durability-arbiter, do not
   deadlock.** Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md),
-  pass it to the Agent tool (`model: sonnet`, read-only) with the situation + the spec's
+  pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the spec's
   autonomy surface + proof, follow its verdict, batch any `ASK` to the end. If it errors,
   apply the rule above and proceed — never block on it.
 

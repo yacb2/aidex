@@ -77,7 +77,7 @@ The operative rule here:
 - **On an ambiguous fork you cannot cleanly classify — consult the
   durability-arbiter before stopping.** Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md)
-  and pass it to the Agent tool as the prompt (`model: sonnet`, read-only), with the
+  and pass it to the Agent tool as the prompt (`model: sonnet`, `effort: high`, read-only), with the
   situation + the run's autonomy surface + the phase's proof (verification output,
   commit SHA). Follow its `CONTINUE` / `ASK` / `STOP` verdict; batch any `ASK` to the
   end. If it errors or returns nothing, apply the rule above and **proceed — never

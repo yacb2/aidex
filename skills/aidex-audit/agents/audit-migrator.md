@@ -2,6 +2,7 @@
 name: audit-migrator
 description: Detect audit-like folders in .context/plans/ using file-presence heuristics. Read-only. Used by /aidex-audit migrate to propose candidates.
 model: haiku
+effort: low
 tools: Read Glob Grep
 ---
 
