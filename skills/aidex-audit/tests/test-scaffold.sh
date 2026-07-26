@@ -59,6 +59,16 @@ S=".context/audits/$TODAY-usage-retro-q3"
 grep -q "^title:" "$S/index.md" || fail "standalone index.md lacks front-matter"
 if grep -n "{{" "$S/index.md" >/dev/null 2>&1; then fail "standalone index has unsubstituted placeholders"; fi
 
+# --- the documented no-args status block must read what the scaffolder writes (BL-094) ---
+# It read .context/audits/00-changelog.md, a root path new-audit.sh never creates,
+# so a bare /aidex-audit silently printed nothing about methodology changes.
+SKILL_DIR="$(cd "$SCRIPTS/.." && pwd -P)"
+STATUS_BLOCK="$(awk '/^# Quick status \(when invoked with no args\):$/{f=1} f{print} f && /^fi$/{exit}' "$SKILL_DIR/SKILL.md")"
+[[ -n "$STATUS_BLOCK" ]] || fail "could not extract the Quick status block from SKILL.md"
+STATUS_OUT="$(CLAUDE_SKILL_DIR="$SKILL_DIR" bash -c "$STATUS_BLOCK" 2>&1)"
+[[ "$STATUS_OUT" == *"ux/00-changelog.md"* ]] \
+  || fail "no-args status block does not read the methodology changelog it scaffolded: $STATUS_OUT"
+
 # --- duplicate run refused ---
 bash "$SCRIPTS/new-audit.sh" ux login-redesign >/dev/null 2>&1 && fail "duplicate run should be refused"
 

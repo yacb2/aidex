@@ -94,8 +94,13 @@ If no arguments are given, show the help table above and run a status check:
 # Quick status (when invoked with no args):
 if [ -d .context/audits ]; then
   bash "${CLAUDE_SKILL_DIR}/scripts/reindex-audits.sh" >/dev/null 2>&1  # refresh roll-up
-  cat .context/audits/00-index.md 2>/dev/null                          # run-level state
-  head -30 .context/audits/00-changelog.md 2>/dev/null                 # latest methodology changes
+  cat .context/audits/00-index.md                                      # run-level state
+  # Changelogs live per methodology (D-02). The root path is legacy-only —
+  # migrate-audit.sh leaves it in place without --methodology — so it is a
+  # fallback, not the primary read.
+  for cl in .context/audits/*/00-changelog.md .context/audits/00-changelog.md; do
+    [ -f "$cl" ] && { echo "== $cl"; head -15 "$cl"; }
+  done
 fi
 ```
 
