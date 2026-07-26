@@ -60,6 +60,11 @@ Run the survey **first and to completion** (the transversal front-loading princi
 `AskUserQuestion` is a planning-time survey, not a mid-run interrupt), then write the
 spec and proceed headless. Walk these one at a time; do not skip step 0 or step 1.
 
+**No interactive channel** (`claude -p`, cron, any non-interactive surface): do not
+attempt the survey — take each step's recommended default and record in the spec that the
+parameters were defaulted. Full rule:
+[autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
+
 1. **Fan-out suitability (step 0).** Is the work genuinely **decomposable** into
    independent sub-units that gain from running concurrently or from different models?
    If it is really the *sequential phases of a written plan* → hand to `aidex-plan-exec`.

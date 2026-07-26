@@ -818,6 +818,28 @@ run_doctor() {
     fi
   fi
 
+  # 5c. Non-manifest rules sitting in $AIDEX_DIR/rules that never load.
+  # Check 5b iterates the MANIFEST, so it is structurally blind to the user's own rule
+  # files placed in the aidex-owned directory: those are not ours to own, but a copy
+  # there loads nothing on its own, and the state is otherwise invisible. Measured in
+  # the field 2026-07-26: 8 non-manifest rules, 2 of them unlinked and silently dead.
+  # INFO only — never FAIL. Unlinked may well be deliberate (content superseded by
+  # CLAUDE.md, a rule for a stack this machine does not use); the installer cannot know,
+  # so it reports and does not judge.
+  if [ -d "$AIDEX_DIR/rules" ]; then
+    local unlinked=()
+    local rule_file base
+    for rule_file in "$AIDEX_DIR"/rules/*.md; do
+      [ -e "$rule_file" ] || continue
+      base="$(basename "$rule_file")"
+      grep -qxF "rules/$base" "$AIDEX_DIR/.manifest" 2>/dev/null && continue
+      [ -L "$CLAUDE_DIR/rules/$base" ] || unlinked+=("$base")
+    done
+    if [ "${#unlinked[@]}" -gt 0 ]; then
+      echo "INFO: ${#unlinked[@]} non-manifest file(s) in $AIDEX_DIR/rules/ are not linked and never load: ${unlinked[*]}"
+    fi
+  fi
+
   # 6. Hooks dir present; aidex-router.sh and durability-run.sh executable.
   if [ -d "$AIDEX_DIR/hooks" ]; then
     local hook_issues=()

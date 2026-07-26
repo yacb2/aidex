@@ -293,6 +293,9 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
    Then walk it with `worklist-advance.sh` between items instead of pausing to ask
    "what next?". Emergent work (class b) is appended (`--append`) and continued, not
    asked; only a class-(c) fork or the publication gate interrupts.
+   **No interactive channel** (`claude -p`, cron): skip the survey, walk the items in
+   the order they were given, and record the defaulting in the run's final summary —
+   [autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
 
 ### 1. Execute each phase
 
