@@ -57,6 +57,7 @@ This skill defines conventions for thirteen documentation types:
 | Worktrees & isolation (parallel work) | [worktree-conventions.md](references/worktree-conventions.md) |
 | Worklist (run-queue) | [worklist-conventions.md](references/worklist-conventions.md) |
 | Workflow CORE (single-sourced blocks) | [workflow-core.md](references/workflow-core.md) |
+| Review scope (what am I reviewing?) | [review-scope-conventions.md](references/review-scope-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
 

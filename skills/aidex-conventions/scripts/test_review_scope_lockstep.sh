@@ -98,6 +98,17 @@ if [ -n "$named" ]; then
   esac
 fi
 
+# ---------- every reference must be routed from the skill's entry point ------
+# A canon doc nobody can reach is a doc that does not exist. Verified empty at
+# the time this guard was added (all 14 references routed), so it starts honest
+# rather than inheriting somebody else's debt.
+CONV_SKILL="$SKILLS/aidex-conventions/SKILL.md"
+for f in "$SKILLS"/aidex-conventions/references/*.md; do
+  b=$(basename "$f")
+  grep -q "references/$b" "$CONV_SKILL" \
+    || err "references/$b is not routed from aidex-conventions/SKILL.md — unreachable canon"
+done
+
 if [ "$fail" -eq 0 ]; then
   echo "OK — scope enum in lockstep and enforced: [$(echo $impl)]"
   exit 0
