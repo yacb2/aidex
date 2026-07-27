@@ -18,6 +18,8 @@ actually mentions it:
      agents/context-auditor.md) mentions every TYPES + OPTIONAL_TYPES name
   6. rules/aidex-conventions.md NEVER section ⊇ every do-not-hand-edit index the
      per-type canons declare (backlog / plans / audits auto-generated indexes)
+  7. every skills/*/agents/*.md declares BOTH model and effort (an absent effort
+     silently inherits the spawning session's — see the check for the probe)
 
 Adding a new artifact type? Update validate.py AND every file above, or this
 test fails loudly. Run with:
@@ -151,6 +153,37 @@ def main() -> int:
             failures.append(f"rules/aidex-conventions.md NEVER section is missing auto-gen "
                             f"index '{token}' (declared do-not-hand-edit in {canon_name})")
 
+    # 7. Every shipped subagent declares BOTH model and effort.
+    #
+    # An absent `effort:` is not neutral: it inherits the effort of whatever session
+    # happened to spawn the agent. Probed 2026-07-26 on Claude Code 2.1.220 — the same
+    # definition with no effort key ran at `low` under a `--effort low` parent and at
+    # `high` under a `--effort high` one, while an explicit `effort: high` won over a
+    # `low` parent. So an undeclared agent's reasoning depth is set by its caller, which
+    # for a safety gate like durability-arbiter is the caller deciding how carefully its
+    # own stop gets judged. Declaring model without effort is half a decision.
+    agent_files = sorted(
+        p for p in SKILLS_DIR.glob("*/agents/*.md") if not p.name.endswith(".eval.md")
+    )
+    if not agent_files:
+        failures.append("no subagent definitions found under skills/*/agents/ — "
+                        "this guard is looking in the wrong place")
+    valid_effort = {"low", "medium", "high", "xhigh", "max"}
+    for path in agent_files:
+        fm = path.read_text(encoding="utf-8").split("---")
+        head = fm[1] if len(fm) > 2 else ""
+        rel = path.relative_to(SKILLS_DIR)
+        model = re.search(r"^model:\s*(\S+)", head, re.M)
+        effort = re.search(r"^effort:\s*(\S+)", head, re.M)
+        if not model:
+            failures.append(f"{rel} declares no model")
+        if not effort:
+            failures.append(f"{rel} declares no effort — it would inherit the spawning "
+                            f"session's effort; pick one explicitly")
+        elif effort.group(1) not in valid_effort:
+            failures.append(f"{rel} has effort '{effort.group(1)}'; valid: "
+                            f"{', '.join(sorted(valid_effort))}")
+
     if failures:
         print("FAIL")
         for f in failures:
@@ -159,7 +192,8 @@ def main() -> int:
     print(f"OK — registry lockstep: {len(v.TYPES)} canonical + {len(v.OPTIONAL_TYPES)} optional types, "
           f"{len(prefix_set)} cross-ref prefixes, {len(v.TYPES_WITH_ARCHIVE)} archive types, "
           f"{len(autogen_indexes)} auto-gen indexes, "
-          f"{len(AIDEX_FILES)} orchestrator files all in sync")
+          f"{len(AIDEX_FILES)} orchestrator files, "
+          f"{len(agent_files)} subagents declaring model+effort all in sync")
     return 0
 
 

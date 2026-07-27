@@ -60,6 +60,11 @@ Run the survey **first and to completion** (the transversal front-loading princi
 `AskUserQuestion` is a planning-time survey, not a mid-run interrupt), then write the
 spec and proceed headless. Walk these one at a time; do not skip step 0 or step 1.
 
+**No interactive channel** (`claude -p`, cron, any non-interactive surface): do not
+attempt the survey — take each step's recommended default and record in the spec that the
+parameters were defaulted. Full rule:
+[autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
+
 1. **Fan-out suitability (step 0).** Is the work genuinely **decomposable** into
    independent sub-units that gain from running concurrently or from different models?
    If it is really the *sequential phases of a written plan* → hand to `aidex-plan-exec`.
@@ -151,7 +156,7 @@ condition without interrupting the user:
 - **Ambiguous consent point not in the ask-set → consult the durability-arbiter, do not
   deadlock.** Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md),
-  pass it to the Agent tool (`model: sonnet`, read-only) with the situation + the spec's
+  pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the spec's
   autonomy surface + proof, follow its verdict, batch any `ASK` to the end. If it errors,
   apply the rule above and proceed — never block on it.
 

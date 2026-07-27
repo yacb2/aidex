@@ -176,6 +176,51 @@ default); **discuss** deep architectural forks rather than menuing them. Limits:
 questions per call, interactive-only — which is exactly why the survey belongs to the
 interactive initial phase and never to a headless run.
 
+#### When there is no interactive channel
+
+A run launched under `claude -p`, from a cron/scheduled routine, or from any other
+non-interactive surface reaches the survey with nowhere to ask. Stating that
+`AskUserQuestion` is interactive-only does not say what to do instead, and an undefined
+step is the one thing an unattended run cannot recover from. The fallback, for every
+skill whose initial phase is a survey:
+
+**Do not attempt the survey. Take each question's recommended default, and record in the
+artifact the run writes — plan, spec, work-list, audit brief — that the parameters were
+defaulted because no interactive channel was available.** Then execute as normal.
+
+Two consequences follow, both deliberate:
+
+- **Never treat the absent channel as a blocker.** A defaulted parameter is a documented
+  assumption, not a hard blocker; hard blockers stay defined as they are above.
+- **A decision that cannot be defaulted is not survey material.** If a question has no
+  defensible default, it is an architectural fork — the canon already says to *discuss*
+  those rather than menu them, which means it belongs to an interactive session and the
+  run should not have been launched headless. Say so in the artifact and stop.
+
+This is a documented behaviour, not a runtime check: nothing detects the surface, and no
+skill should try. The other four facts of this kind are indexed in § Execution environment
+below.
+
+## Execution environment — what a given run actually provides
+
+Not every Claude that this suite starts gets the same tools, the same rules, or the same
+interactive channel. Those facts are true, load-bearing, and **scattered across five
+documents**, each filed under an unrelated heading. When one of them stops being true,
+nothing points at the other four — so they are indexed here:
+
+| Fact | Recorded in |
+|---|---|
+| Headless `claude -p` does not ship `artifact-design` (field-verified 2026-07-23) | `rules/artifacts-local-first.md` |
+| `AskUserQuestion` is interactive-only; the fallback is above | this document, § above |
+| `~/.claude/rules/` is the only surface that loads; a copy under `~/.aidex/` loads nothing | `install.sh` header + repo `CLAUDE.md` |
+| A spawned eval child inherits CWD, pays MCP cold-start, and loads every ambient skill | `skill-trigger-eval-methodology.md` |
+| Per-agent `model` / `effort` are assigned explicitly, not inherited by accident | `aidex-plan-exec` + `aidex-workflow` SKILL.md |
+
+**Naming.** Call this the *execution environment*, never the *harness*: in this suite
+"harness" already means the PTY / `claude -p` eval runner, throughout
+`skill-conventions.md`, `skill-trigger-eval-methodology.md` and a script path. Reusing the
+word here would make every "verify the harness" line ambiguous.
+
 ## Per-skill application
 
 - **aidex-plan** — the design is the front-loading home: capture the **autonomy

@@ -224,6 +224,39 @@ Include scripts when: same code is rewritten repeatedly, deterministic reliabili
 
 **Scripts from repeated patterns:** Look at what subagents keep reinventing — if test runs, validation steps, or tool invocations repeatedly generate similar helper scripts, bundle that script in `scripts/`. This avoids context waste from Claude recreating the same logic each session.
 
+## Agents (`skills/<skill>/agents/*.md`)
+
+**Declare `model` AND `effort`. Both, always** — enforced by
+`scripts/test_registry_lockstep.py` check 7.
+
+`model` alone is half a decision. On an effort-capable model an absent `effort:` is not a
+neutral default: the agent inherits the effort of whatever session happened to spawn it.
+Probed on Claude Code 2.1.220 (2026-07-26), reading the per-request `effort` field from
+each subagent's own transcript (`<session>/subagents/*.jsonl`):
+
+| Agent model | Declares | Spawning session | Agent ran at |
+|---|---|---|---|
+| sonnet | nothing | `--effort low` | **low** |
+| sonnet | nothing | `--effort high` | **high** |
+| sonnet | `effort: high` | `--effort low` | **high** (declaration wins) |
+| haiku | nothing | `--effort high` | **no effort at all** |
+| haiku | `effort: low` | `--effort high` | **no effort at all** |
+
+The case that matters is an undeclared *judgement* agent on an effort-capable model: its
+depth is set by its caller. For a safety gate like `durability-arbiter`, that means the
+run asking to be judged decides how carefully its own stop gets judged.
+
+**Haiku 4.5 has no reasoning effort** — the level is absent from its requests whether
+declared or not (the binary carries a matching `Effort not supported` path). So on a haiku
+agent the declaration is *documentation and forward-compatibility*, not behaviour: it
+states the intended depth and takes effect the day the agent is moved to an effort-capable
+model. Declare it anyway; do not claim a haiku agent "wastes reasoning" without it.
+
+Pick by what the agent does, not by its model: deterministic walks and script-runners
+`low`; comparison and inventory judgement `medium`; root-cause analysis, verification,
+and gate decisions `high`. The loader also accepts an integer, which this suite does not
+use — keep to the named levels so the lockstep check can validate them.
+
 ## Assets
 
 Include assets for: templates, brand resources, boilerplate code. Organize in subdirectories (`templates/`, `boilerplate/`, `images/`, `fonts/`).

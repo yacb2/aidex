@@ -138,7 +138,10 @@ audit's areas/findings in execution order as a durable
 work-list (via the `AskUserQuestion` survey → `worklist-new.sh`). The sweep then walks
 areas with `worklist-advance.sh` instead of pausing to ask "next area?" between them —
 the one ordering decision is fixed once, up front. (For a fan-out Workflow run below,
-the same ordered areas become the shards.)
+the same ordered areas become the shards.) **No interactive channel** (`claude -p`,
+cron): skip the survey, emit the areas in the order scope/borders produced them, and note
+the defaulting in the audit brief —
+[autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
 
 > **Durable Workflow promotion (mandatory evaluation at kickoff).** At `/aidex-audit new`
 > — the single sanctioned question point, before the sweep begins — classify whether the
@@ -190,7 +193,7 @@ the same ordered areas become the shards.)
 > confirmed ones to backlog is the mandated next step — not an "escalate, or triage
 > yourself?" question. If a specific finding is genuinely ambiguous to escalate,
 > consult the [durability-arbiter](../aidex-conventions/agents/durability-arbiter.md)
-> (Agent tool, `model: sonnet`, read-only) per finding and batch any `ASK` to the
+> (Agent tool, `model: sonnet`, `effort: high`, read-only) per finding and batch any `ASK` to the
 > end — never stall the whole sweep on one finding.
 >
 > **Isolation.** An audit is read-mostly — usually no worktree (Tier 0/1). The
