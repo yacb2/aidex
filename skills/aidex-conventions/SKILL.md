@@ -78,17 +78,20 @@ What it does (idempotent — re-running on a clean tree is a no-op):
 - Injects minimal front-matter (`title`, `status`, `created`, `updated`) where the YAML block is missing. Archived files default to `status: done`.
 - Maps legacy status vocabulary: `completed` → `done`, `Rejected` → `dropped`, `Proposed` → `open`, `Pendiente` → `open`, `In Progress` → `doing`.
 - Rewrites cross-references (front-matter fields + body) to renamed basenames.
-- Creates `_archive/` directories in `backlog/`, `plans/`, `requests/`, `decisions/` if absent.
+- Creates `_archive/` directories for every type that requires one, read from `validate.py` rather than restated (currently `backlog/`, `plans/`, `requests/`, `decisions/`, `loops/`).
+
+**Decisions are the exception to both status behaviors above.** ADRs use `accepted` / `superseded` / `dropped`, not the base vocabulary, and no rewriter can tell which one a given file deserves. The migration therefore leaves any ADR with a missing or out-of-vocabulary status untouched and lists it under `manual_review` — it never invents a value to make the run look clean.
 
 Recommended workflow:
 
 1. Back up the project's `.context/` before applying (a `cp -r` or commit if tracked).
 2. Run `--dry-run` and read the plan — pay attention to the front-matter changes and the cross-ref rewrites.
 3. Apply with `--apply`.
-4. Re-run the validator: `~/.aidex/skills/aidex-conventions/scripts/validate.sh /path/to/project/.context`. Expect 0 violations.
+4. Re-run the validator: `~/.aidex/skills/aidex-conventions/scripts/validate.sh /path/to/project/.context`. Expect 0 violations **except** for anything the migration listed under `manual_review` — those are the cases it declined on purpose, and they are yours to resolve. Exit code 1 after `--apply` means exactly that: applied, with warnings.
 
 Edge cases the migration cannot decide for you:
 
+- **`decisions/` status.** An ADR with no front-matter, or with a status outside `accepted` / `superseded` / `dropped`, is left alone and reported. Pick the value yourself — location and legacy value cannot tell it apart.
 - Custom legacy status values not in the table above — fix manually after dry-run.
 - Audit folders that pre-date D-02 (single `INVENTORY.md` at root rather than per-methodology). The migration only normalizes filenames and front-matter; it does not restructure audit folders — do that by hand using the new templates in `aidex-audit/assets/templates/`.
 
