@@ -165,18 +165,26 @@ For each phase in order:
 
 After each phase passes verification, before starting the next phase:
 
-1. **Code-review the diff.** Use the project's own review command over the
-   working diff — detect it, don't assume. Look for a review/auto-fix command in
-   the project's `.claude/` config, available slash commands, or CLAUDE.md
-   (e.g. a `/code-review`, `/simplify`, or equivalent). If none exists, review
-   the diff yourself for correctness and obvious cleanups. Address findings.
-   **For high-risk or ambiguous phases**, route the diff through more than one
-   reviewer (e.g. the project's review command plus an independent second model)
-   and treat any disagreement between them as a high-priority finding to resolve
-   before committing — diverse reviewers catch what a single pass misses.
-   **Record the review evidence** — append an Execution-log line to the plan's
-   `00-index.md` (`review: <verdict> · <n> findings`, e.g. `review: PASS · 0
-   findings`) — **before** the commit step. This is what makes a skipped review
+1. **Code-review the diff.** **Resolve the scope first** — run
+   `~/.aidex/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`
+   (or `--base <phase-start-sha> branch-vs-main` for a phase that spans commits)
+   so what is being reviewed is a recorded fact, not an assumption. **Exit 3
+   means the scope is empty: say so, never report it as a passing review.** Then
+   run the **correctness** angles over that scope, and the cleanup and security
+   angles only where
+   [`aidex-conventions/references/review-scope-conventions.md`](../aidex-conventions/references/review-scope-conventions.md)
+   routes them — that reference owns which instrument covers which scope, and why
+   `/security-review` must not be delegated to for a non-PR scope. Address
+   findings. **For high-risk or ambiguous phases**, route the diff through more
+   than one reviewer (e.g. the project's review command plus an independent
+   second model) and treat any disagreement between them as a high-priority
+   finding to resolve before committing — diverse reviewers catch what a single
+   pass misses.
+   **Record the review evidence before the commit step** — append an
+   Execution-log line to the plan's `00-index.md`
+   (`review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>`, e.g.
+   `review: PASS · 0 findings · scope=working-diff anchor=head`). A verdict
+   without an anchor is not auditable. This is what makes a skipped review
    structurally visible instead of a silent gap (07-22 self-admitted skip).
 2. **Commit.** Use the project's own commit command if one exists (detect it the
    same way — e.g. a `/commit`-style helper); otherwise craft a conventional
