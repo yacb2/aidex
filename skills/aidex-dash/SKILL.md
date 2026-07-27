@@ -3,7 +3,7 @@ name: aidex-dash
 description: Use when the user wants an interactive HTML dashboard/render/board of `.context/` data — the backlog board, a plan's progress, an audit inventory, the coverage matrix — or says "render X as HTML", "generate the dashboard", "show this as a page". Not for: authoring content (the markdown stays canon); publishing without being asked.
 argument-hint: "[backlog | plans [slug] | audit <methodology> | coverage]"
 disable-model-invocation: false
-allowed-tools: Bash Read Glob Grep
+allowed-tools: Bash Read Glob Grep Write Skill
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-dash"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
