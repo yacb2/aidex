@@ -120,11 +120,11 @@ Fast implementation hint: shell out to `~/.aidex/skills/aidex-audit/scripts/vali
 
 - **[AI] Workspace `.gitignore` suppression**: Before emitting any finding that suggests adding an entry to `.gitignore` for files under `.context/`, walk up from the directory containing the target until either `.git` is found (emit normally) or the filesystem root is reached. If no `.git` ancestor exists (typical of `*_ws/` workspace roots that aggregate independent repos), **suppress the finding entirely** — there is nothing to gitignore.
 
-- **[AH] Language compliance**: Files with significant content in a language other than English → WARNING. Convention requires English for all generated documentation. **Use Grep deterministically** — do NOT rely on reading and reasoning about the content. Run this search across ALL .md files in .context/:
+- **[AH] Language compliance**: Language is **scoped by artifact kind** (D-04) — there is no blanket "all generated content is English" rule. Generated documentation is English → a non-English file is a WARNING; **`.context/communications/` is exempt** and must be skipped before the grep, because a communication is kept in its native language and never translated (a Spanish client email stays Spanish). The sibling enforcement surface already works this way: `validate.py`'s `body-language-not-english` returns early for `communications`. **Use Grep deterministically** — do NOT rely on reading and reasoning about the content. Run this search across all .md files in `.context/` **except** those under `.context/communications/`:
   
   Search pattern (Grep, case-insensitive): `Objetivo|Descripción|Problema|Solución|Resumen|Alcance|Diálogo|Reemplazar|Verificar|Prioridad alta|Módulo|Implementación|Requisito`
   
-  Any file with 3+ matches is likely non-English → report as WARNING [AH] with the filename and matched indicators.
+  Any non-exempt file with 3+ matches is likely non-English → report as WARNING [AH] with the filename and matched indicators. Never propose translating an exempt file.
 
 If a directory doesn't exist, report INVENTORY: 0 and skip.
 
@@ -143,7 +143,7 @@ Beyond compliance checks, actively detect patterns that should be reorganized:
 | No `roadmap/` directory | Suggest creating one if the project has multiple phases or milestones |
 | No `requests/` directory | Suggest creating one if the project receives external change requests |
 | No `decisions/` directory | Suggest creating one if the project has non-obvious architectural or product decisions |
-| Files in mixed languages | Flag — convention is English only for generated content |
+| Files in mixed languages | Flag — generated content is English. Never for `communications/`, which D-04 exempts (native language, never translated). |
 | Informal documents ("should become a skill/reference") | Flag as formalization candidates |
 | Empty directories | Apply the [AG] decision matrix — canonical empty = healthy, no flag |
 
