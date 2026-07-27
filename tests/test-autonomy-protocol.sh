@@ -16,6 +16,13 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 PLAN_EXEC="$REPO_ROOT/skills/aidex-plan-exec/SKILL.md"
+# Checks (e) and (f) assert the skill CARRIES an instruction, not that SKILL.md's body
+# literally contains it. Progressive disclosure moved the durable-run marker and the
+# completion notifier into references/ (BL-078) — still shipped, still read at the point of
+# use, just not in the body. Grepping the body alone would report a split as a deletion.
+PLAN_EXEC_ALL="$(mktemp)"
+trap 'rm -f "$PLAN_EXEC_ALL"' EXIT
+cat "$PLAN_EXEC" "$REPO_ROOT"/skills/aidex-plan-exec/references/*.md > "$PLAN_EXEC_ALL" 2>/dev/null
 LOOP="$REPO_ROOT/skills/aidex-loop/SKILL.md"
 AUDIT="$REPO_ROOT/skills/aidex-audit/SKILL.md"
 
@@ -51,13 +58,16 @@ for f in "$PLAN_EXEC" "$LOOP" "$AUDIT"; do
 done
 
 # ---------- (e) plan-exec's durability marker runs from the workspace root ----------
-grep -q 'workspace root' "$PLAN_EXEC" || fail "(e) plan-exec: no workspace-root instruction found"
-grep -q 'durability-run.sh" start plan-exec' "$PLAN_EXEC" \
+grep -q 'workspace root' "$PLAN_EXEC_ALL" || fail "(e) plan-exec: no workspace-root instruction found"
+grep -q 'durability-run.sh" start plan-exec' "$PLAN_EXEC_ALL" \
   || fail "(e) plan-exec: durability-run.sh start plan-exec invocation missing"
+# The SKILL.md body must still point at wherever it lives, or a split becomes a silent drop.
+grep -q 'durability-run.sh' "$PLAN_EXEC" \
+  || fail "(e) plan-exec: SKILL.md body no longer mentions the durable-run marker at all"
 
 # ---------- (f) plan-exec fires the completion notifier, guarded on existence+executable ----------
-grep -q 'notify.sh' "$PLAN_EXEC" || fail "(f) plan-exec: no notify.sh reference"
-grep -q 'exists and is executable' "$PLAN_EXEC" \
+grep -q 'notify.sh' "$PLAN_EXEC_ALL" || fail "(f) plan-exec: no notify.sh reference"
+grep -q 'exists and is executable' "$PLAN_EXEC_ALL" \
   || fail "(f) plan-exec: notify.sh call is not guarded on existence+executability"
 
 # ---------- (g) plan-exec's between-phase checkpoint writes review evidence before commit ----------

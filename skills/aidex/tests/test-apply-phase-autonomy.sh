@@ -19,7 +19,7 @@
 #       "autonomy means stop asking about everything";
 #   (4) the two sections of SKILL.md that talk about destructive actions agree.
 #
-# Run with: bash skills/aidex/tests/test-autonomy-protocol.sh
+# Run with: bash skills/aidex/tests/test-apply-phase-autonomy.sh
 
 set -uo pipefail
 
