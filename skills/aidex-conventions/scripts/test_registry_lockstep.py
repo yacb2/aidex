@@ -18,6 +18,14 @@ actually mentions it:
      agents/context-auditor.md) mentions every TYPES + OPTIONAL_TYPES name
   6. rules/aidex-conventions.md NEVER section ⊇ every do-not-hand-edit index the
      per-type canons declare (backlog / plans / audits auto-generated indexes)
+
+SCOPE — this file guards the PROSE copies of the registry, not every executable one.
+That distinction cost 2.5 months once (BL-097): migrate-conventions.py kept its own
+hand-copied `TYPES_WITH_ARCHIVE` and went stale while this test reported "all in sync",
+because it never looked at migrate-conventions.py. It no longer has a copy to check —
+it imports validate.py — and test_migrate_conventions.py holds that guard. If you add
+another executable consumer of the registry, guard it there or here, but do not read
+this test's "in sync" as covering it.
   7. every skills/*/agents/*.md declares BOTH model and effort (an absent effort
      silently inherits the spawning session's — see the check for the probe)
 
