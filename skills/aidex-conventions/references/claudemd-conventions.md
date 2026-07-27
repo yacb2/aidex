@@ -222,6 +222,7 @@ keeping long-term, move it into that audit's run folder
 ```
 
 - **One bucket, one name.** No `.scratch/`, `tmp/`, `temp/`, `scratch/`, and no scratch directories inside `.context/`.
+- **Scope: the project tree.** The rule forbids *inventing* a second scratch bucket under the project (or workspace) root. A harness-supplied session scratchpad is not one — it lives outside the project, is session-scoped, and is cleaned up by the harness. Write there when the harness itself owns the file's lifetime: the generated `.workflow.js` is the standing case, because the `Workflow` tool persists the script under the session directory and `resumeFromRunId` only resolves within that session, so relocating it to `_tmp/` would fight the tool that reads it. Everything whose lifetime the *project* owns still goes to `_tmp/`.
 - **Deletable without asking.** That is the whole contract — nothing in `_tmp/` may be load-bearing.
 - **Gitignore the contents, track the contract**: `_tmp/*` plus `!_tmp/README.md`.
 - **Promotion is forward-looking.** When a scratch file turns out to be the evidence for a specific finding, move it at that moment into the audit run folder, or into `.context/proofs/<slug>/` when it backs a `proof_links` claim ([`00-global.md` §7.1](00-global.md)). Existing scratch buckets are never retro-classified by correlating dates and content — that is expensive and error-prone.
