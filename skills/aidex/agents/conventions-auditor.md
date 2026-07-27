@@ -2,6 +2,7 @@
 name: conventions-auditor
 description: Runs the aidex-conventions validator (validate.py) against the project's .context/ and reports violations as aidex findings
 model: haiku
+effort: low
 allowed-tools: Read, Bash
 context: fork
 user-invocable: false

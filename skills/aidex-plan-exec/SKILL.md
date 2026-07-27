@@ -78,7 +78,7 @@ The operative rule here:
 - **On an ambiguous fork you cannot cleanly classify — consult the
   durability-arbiter before stopping.** Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md)
-  and pass it to the Agent tool as the prompt (`model: sonnet`, read-only), with the
+  and pass it to the Agent tool as the prompt (`model: sonnet`, `effort: high`, read-only), with the
   situation + the run's autonomy surface + the phase's proof (verification output,
   commit SHA). Follow its `CONTINUE` / `ASK` / `STOP` verdict; batch any `ASK` to the
   end. If it errors or returns nothing, apply the rule above and **proceed — never
@@ -294,6 +294,9 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
    Then walk it with `worklist-advance.sh` between items instead of pausing to ask
    "what next?". Emergent work (class b) is appended (`--append`) and continued, not
    asked; only a class-(c) fork or the publication gate interrupts.
+   **No interactive channel** (`claude -p`, cron): skip the survey, walk the items in
+   the order they were given, and record the defaulting in the run's final summary —
+   [autonomy-conventions.md § When there is no interactive channel](../aidex-conventions/references/autonomy-conventions.md).
 
 ### 1. Execute each phase
 

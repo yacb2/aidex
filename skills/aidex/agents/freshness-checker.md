@@ -2,6 +2,7 @@
 name: freshness-checker
 description: Detects stale documentation by comparing Last Updated dates against recent project activity
 model: haiku
+effort: low
 allowed-tools: Read, Glob, Grep, Bash
 context: fork
 user-invocable: false

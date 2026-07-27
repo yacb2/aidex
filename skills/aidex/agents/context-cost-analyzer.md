@@ -2,6 +2,7 @@
 name: context-cost-analyzer
 description: Parses pasted /context breakdown and cross-references it with skills, MEMORY.md, CLAUDE.md, and plugins to produce a priority-ordered list of token savings
 model: haiku
+effort: low
 allowed-tools: Read, Glob, Grep, Bash
 context: fork
 user-invocable: false

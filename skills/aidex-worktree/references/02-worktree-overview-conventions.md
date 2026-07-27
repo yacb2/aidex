@@ -17,6 +17,32 @@ declared here.
 - No date in the filename — this is not a dated record like a plan or a decision; it
   is a living, single-per-project overview.
 
+## The agent's own context is not isolated the same way the stack is
+
+Isolation here is defined over ports, database and containers. The *session* that drives
+the worktree has a second environment nobody declared, and the two placements differ —
+measured 2026-07-26:
+
+| Placement | Where | `<project>/.claude/` + `CLAUDE.md` |
+|---|---|---|
+| native `EnterWorktree` | `<project>/.claude/worktrees/<name>` — **inside** the repo | **apply** (verified: a project `skillOverrides` entry still blocked its skill from inside the worktree) |
+| `worktree.sh` | `<project>/../<project>-wt-<slug>` — a **sibling of** the repo | **do not apply** |
+
+`worktree.sh` places worktrees outside the project root by design, so the upward search
+for project settings never passes through it. The mechanism mirrors nothing of the sort
+either: `.claude` and `CLAUDE.md` appear **zero** times across `worktree.sh` and the
+shipped profiles.
+
+**When this bites, and when it does not.** Only when those paths are gitignored — then the
+checkout does not carry them and the walk cannot reach them, so an agent driving the
+worktree silently loses the project's `skillOverrides`, permissions and conventions while
+believing it is working on the same project. A project that commits `.claude/` and
+`CLAUDE.md` is unaffected: the checkout brings them.
+
+**Fix, where it applies:** list them in `WT_LINKS`. This is precisely that field's
+category — unversioned root paths a fresh checkout would lack. Worth stating in the
+project's overview either way, so the next reader knows which of the two cases they are in.
+
 ## Front-matter
 
 ```yaml
