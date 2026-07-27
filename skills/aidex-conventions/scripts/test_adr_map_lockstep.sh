@@ -82,9 +82,10 @@ if [[ -d "$DEC" ]]; then
              [[ -f "$f" ]] || continue
              grep -m1 '^decision_id:' "$f" 2>/dev/null | sed 's/decision_id: *//' | tr -d ' '
            done | sort | uniq -d)"
-  # D-07 is a known, recorded collision (see §11) — fail on any NEW one.
+  # The D-07 collision was resolved on 2026-07-27 (topology ADR renumbered to D-12), so
+  # there is no longer a whitelist: any duplicate at all is a failure.
   while IFS= read -r d; do
-    [[ -z "$d" || "$d" == "D-07" ]] && continue
+    [[ -z "$d" ]] && continue
     fail "(5) decision_id $d is claimed by more than one ADR"
   done <<<"$dupes"
 else
