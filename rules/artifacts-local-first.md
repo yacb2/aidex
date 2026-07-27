@@ -56,6 +56,17 @@ dashboard):
 6. Open it locally (`open <file>`).
 7. Publish online **only** when explicitly asked to share (then keep the
    local sibling as the durable copy and reuse the same URL on updates).
+   **This deliberately overrides the `Artifact` tool's own default** ("publishing
+   proactively is fine for your own work-product — artifacts start private").
+   Both readings are defensible; the tool optimizes for the page being reachable,
+   this rule optimizes for local-first durability. Here the durable copy is the
+   sibling of the step-0 anchor, and it is the one the project keeps: a published
+   URL is a second copy whose lifetime the project does not control. Publishing is
+   also a distribution act — content sent to an external service may be cached or
+   indexed even after deletion — so it stays the user's call rather than a
+   helpfulness default. When the two disagree, this rule wins; nothing is lost by
+   waiting, because step 7 can always run later against the same file and the
+   same URL.
 
 Content language: English (D-04), unless the project style profile says
 otherwise. aidex-dash is scoped `user-invocable-only` by design — this rule
