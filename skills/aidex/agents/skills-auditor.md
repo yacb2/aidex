@@ -24,7 +24,11 @@ Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-convention
 
 - **[SA] SKILL.md exists**: Each skill directory has SKILL.md. Flag README.md or CHANGELOG.md presence.
 - **[SB] Frontmatter**: Prefer `name` + `description`. Additional supported fields: `model`, `allowed-tools`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `hooks`, `paths`, `effort`, `memory`, `shell`, `argument-hint`. Flag any field NOT in this list.
-- **[SC] Size**: SKILL.md under 500 lines. Code blocks under 5 lines (move to references/).
+- **[SC] Size**: measure the SKILL.md **body** (everything after the closing `---` of the front-matter) on **both** axes, and report both — a line count alone passes files that are far over the token ceiling, which is how a 413-line/~7.4k-token SKILL.md read as compliant (BL-078).
+  - Lines: `~250` ideal, `500` maximum.
+  - Tokens: `~3k` ideal, `5k` maximum. Estimate as **bytes ÷ 4** — crude but stable, and enough to separate ideal from maximum. Dense markdown (tables, backticks, links) runs richer than prose, so treat a body near 5k as over.
+  - Over maximum on **either** axis → finding. Over ideal on either → INFO with the remedy: progressive disclosure, i.e. move the self-contained advanced sections to `references/` and leave a pointer, not a summary.
+  - Code blocks under 5 lines (move to references/).
 - **[SD] Orphaned references**: Files in `references/` not linked from SKILL.md.
 - **[SE] Description quality**: Description >50 chars, includes trigger phrases, has negative triggers.
 - **[SG] User↔project overlap** (check code `CB-DU`): For each skill present in BOTH `~/.claude/skills/` and `<project>/.claude/skills/`, read both frontmatters. If `name` matches AND `description` Jaccard similarity on word sets exceeds 0.7, report WARNING. Propose either deleting the local copy (accept global) or unlinking the global (keep the override). Keeping both pays metadata cost twice.
