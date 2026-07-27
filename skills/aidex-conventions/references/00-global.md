@@ -340,13 +340,13 @@ Each row is the ADR's own `decision_id`, verified against the file's front-matte
 | D-09 | Commit provenance — where the work happened | `2026-05-22-commit-provenance-where-work-happened.md` |
 | D-10 | Archive on close (amends D-05) | `2026-05-22-lifecycle-archive-on-close.md` |
 | D-11 | Skill descriptions English-only | `2026-06-17-skill-descriptions-english-only.md` |
+| D-12 | Keep current four-skill topology (supersedes D-06; renumbered from D-07 on 2026-07-27) | `2026-05-14-skills-topology-keep-current-four.md` |
 
-**Known collision, not yet resolved:** `2026-05-14-skills-topology-keep-current-four.md`
-(status `accepted`, the decision that superseded D-06) also declares `decision_id: D-07`,
-which `2026-05-14-front-matter-minimum-fields.md` already holds. Two accepted ADRs share one
-number. Renumbering is a governance call with a citation blast radius, so the collision is
-recorded here and tracked in the backlog rather than silently reassigned — the map lists the
-holder that the rest of the suite actually cites as D-07.
+**Resolved collision (2026-07-27):** the topology ADR above used to declare `decision_id:
+D-07`, colliding with `2026-05-14-front-matter-minimum-fields.md`. It had taken the next
+free number without checking, and the rest of the suite cites D-07 meaning *minimum
+front-matter*, so the front-matter ADR kept the number and the topology ADR moved to D-12.
+Anything predating that date citing "D-07" for the *topology* decision means D-12.
 
 **Why filenames and not links:** D-06's row used to be a relative link, and it broke the
 moment that ADR was archived — which is precisely what §3 forbids physical relative paths
