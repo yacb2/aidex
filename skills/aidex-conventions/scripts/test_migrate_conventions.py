@@ -218,8 +218,19 @@ def test_round_trip() -> None:
             fail(f"loops/_archive missing from dirs_to_create: {dirs}")
 
         run_migrate(ctx, "--apply")
-        applied = run_migrate(ctx)          # re-plan: the migration must be idempotent
+        applied = run_migrate(ctx)          # re-plan on the migrated tree
         notes = " ".join(applied["manual_review"])
+
+        # SKILL.md promises "idempotent — re-running on a clean tree is a no-op". That is
+        # not free here: the decline path `continue`s before stub injection, so a second
+        # pass re-walks those ADRs and could emit a rename or a date mutation the first pass
+        # did not. Assert the second plan is empty rather than trusting the comment.
+        leftover = {k: v for k, v in applied["summary"].items() if v}
+        if leftover:
+            fail(f"re-running on the migrated tree still plans changes: {leftover} — "
+                 f"not idempotent")
+        else:
+            ok("re-running on the migrated tree plans nothing (idempotent)")
 
         if not (ctx / "loops" / "_archive").is_dir():
             fail("loops/_archive was not created on disk after --apply")
