@@ -16,8 +16,13 @@ Operations (idempotent — re-running on a migrated tree is a no-op):
   5. Rewrite cross-references to renamed files across every `.md` under
      `.context/` — both in front-matter fields (escalated_to, superseded_by,
      blocked_by, origin_ref) and in body text (bare basename mentions).
-  6. Create missing `_archive/` directories for types that require them
-     (backlog, plans, requests, decisions per D-05).
+  6. Create missing `_archive/` directories for every type that requires one
+     (D-05). The list is imported from validate.py, never restated here.
+
+Refuses rather than guesses: a decision's status (`accepted`/`superseded`/`dropped`)
+cannot be derived from a file's location or its legacy value, so ADRs with no
+front-matter, or with a status outside their vocabulary, are left untouched and
+reported under `manual_review`.
 
 CLI:
     migrate-conventions.py [<path>] [--apply] [--json]
@@ -41,9 +46,38 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-# ---------- Conventions canon (mirror validate.py) ----------
+# ---------- Conventions canon (imported from validate.py, never copied) ----------
+#
+# This block used to be a hand-copied mirror of validate.py's constants. It went 2.5 months
+# stale without anything noticing: validate.py gained `loops` as a fifth archive type on
+# 2026-07-01 and this list stayed at four from 2026-05-14, so `loops/_archive/` was never
+# created and the validator kept warning about it. Importing removes the copy entirely —
+# there is no second definition left to drift.
 
-TYPES_WITH_ARCHIVE = ("backlog", "plans", "requests", "decisions")
+def _load_validator():
+    import importlib.util
+    path = Path(__file__).resolve().parent / "validate.py"
+    spec = importlib.util.spec_from_file_location("validate", path)
+    mod = importlib.util.module_from_spec(spec)
+    # Mandatory: dataclasses resolves __module__ through sys.modules, and validate.py's
+    # `@dataclass class Finding` raises AttributeError without this line.
+    sys.modules["validate"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_validate = _load_validator()
+
+TYPES_WITH_ARCHIVE = tuple(sorted(_validate.TYPES_WITH_ARCHIVE))
+BASE_STATUS = _validate.BASE_STATUS
+DECISION_STATUS = _validate.DECISION_STATUS
+
+# Types whose status this tool refuses to infer. A decision's status is a content judgment
+# — `accepted` vs `superseded` vs `dropped` cannot be read off a file's location or its
+# legacy value — so guessing one would turn "migrated" into a claim the tool cannot back.
+# It declines and reports instead; see `manual_review` in the output.
+TYPES_WITHOUT_INFERRABLE_STATUS = ("decisions",)
+
 LEGACY_FILENAME = re.compile(r"^(\d{4})(\d{2})(\d{2})-(.+\.md)$")
 ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -63,6 +97,18 @@ STATUS_MAP = {
     "In Progress": "doing",
     "in-progress": "doing",
 }
+
+
+def artifact_type(context_dir: Path, p: Path) -> str:
+    """The `.context/` type a file belongs to, or "" if it sits at the root."""
+    parts = p.relative_to(context_dir).parts
+    return parts[0] if len(parts) > 1 else ""
+
+
+def legal_statuses(type_name: str) -> set[str]:
+    """The status vocabulary for a type. Decisions are the one type not using the base
+    vocabulary (request-decision-conventions.md § status)."""
+    return DECISION_STATUS if type_name == "decisions" else BASE_STATUS
 
 
 # ---------- Front-matter parser/writer (no pyyaml) ----------
@@ -308,11 +354,19 @@ def plan_renames(context_dir: Path) -> dict[Path, Path]:
     return renames
 
 
-def plan_frontmatter_repairs(context_dir: Path, renames: dict[Path, Path]) -> list[Change]:
+def plan_frontmatter_repairs(
+    context_dir: Path, renames: dict[Path, Path]
+) -> tuple[list[Change], list[str]]:
     """For each .md, determine FM injection or mutation needed.
+
+    Returns (changes, declined) — `declined` names files this tool refuses to repair
+    because doing so would require inventing a value. They are reported under
+    `manual_review` rather than silently skipped: a migration that leaves a violation
+    behind without saying so is indistinguishable from one that succeeded.
 
     Operates on post-rename paths (we know the target name already)."""
     changes: list[Change] = []
+    declined: list[str] = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     for p in iter_md(context_dir):
@@ -343,8 +397,21 @@ def plan_frontmatter_repairs(context_dir: Path, renames: dict[Path, Path]) -> li
 
         # status mapping (if FM exists)
         mutations: dict[str, str] = {}
+        type_name = artifact_type(context_dir, p)
+        legal = legal_statuses(type_name)
 
         if fm is None:
+            if type_name in TYPES_WITHOUT_INFERRABLE_STATUS:
+                # The stub would need a status, and for this type there is no value that can
+                # be derived from the file's location or name. Injecting `open`/`done` here
+                # is what produced illegal ADR statuses reported as a successful migration.
+                declined.append(
+                    f"{to_relative(context_dir, str(p))} has no front-matter and is a "
+                    f"{type_name[:-1]}; its status must be one of "
+                    f"{sorted(legal)}, which cannot be inferred from the file. "
+                    "Add the front-matter block by hand — the rest of this file was migrated."
+                )
+                continue
             # Inject minimal stub.
             title = extract_h1(text) or p.stem
             iso = iso_from_name or today
@@ -360,9 +427,37 @@ def plan_frontmatter_repairs(context_dir: Path, renames: dict[Path, Path]) -> li
             continue
 
         # FM exists. Compute mutations needed.
-        # status mapping
+        # status mapping — the legacy table is base-vocabulary, so a mapped value is not
+        # automatically legal for this type. Applying it blind rewrote `proposed` to `open`
+        # on an ADR: one illegal status turned into a different illegal status, and reported
+        # as applied. Only map when the result is legal here; otherwise decline out loud.
         if "status" in fm and fm["status"] in STATUS_MAP:
-            mutations["status"] = STATUS_MAP[fm["status"]]
+            mapped = STATUS_MAP[fm["status"]]
+            if mapped in legal:
+                mutations["status"] = mapped
+            else:
+                declined.append(
+                    f"{to_relative(context_dir, str(p))} has status "
+                    f"'{fm['status']}', which maps to '{mapped}' in the legacy table but is "
+                    f"not legal for {type_name} (legal: {sorted(legal)}). Left unchanged — "
+                    "choose the right value by hand."
+                )
+        elif (
+            type_name in TYPES_WITHOUT_INFERRABLE_STATUS
+            and "status" in fm
+            and fm["status"] not in legal
+        ):
+            # Deliberately scoped to the types above rather than every type. validate.py does
+            # not enforce a status vocabulary everywhere — optional types like `drafts/` and
+            # sub-documents of modular plans are not checked — and reporting files it never
+            # flags would make this tool the thing it is being fixed for: a checker that
+            # raises findings nobody can act on. Verified against `validate.py --json`, which
+            # reports zero `status-invalid` for exactly those files.
+            declined.append(
+                f"{to_relative(context_dir, str(p))} has status '{fm['status']}', which is "
+                f"not legal for {type_name} (legal: {sorted(legal)}) and is not in the "
+                "legacy mapping table. Left unchanged — choose the right value by hand."
+            )
 
         # created
         if not fm.get("created"):
@@ -399,7 +494,7 @@ def plan_frontmatter_repairs(context_dir: Path, renames: dict[Path, Path]) -> li
             if detail.get("mutations") or detail.get("inject_title") or detail.get("append_fields"):
                 changes.append(Change("mutate-fm", str(p), detail))
 
-    return changes
+    return changes, declined
 
 
 def plan_crossref_rewrites(context_dir: Path, renames: dict[Path, Path]) -> list[Change]:
@@ -568,10 +663,10 @@ def main() -> int:
         return 2
 
     renames = plan_renames(context_dir)
-    fm_changes = plan_frontmatter_repairs(context_dir, renames)
+    fm_changes, declined = plan_frontmatter_repairs(context_dir, renames)
     ref_changes = plan_crossref_rewrites(context_dir, renames)
     dir_changes = plan_archive_dirs(context_dir)
-    manual_notes = detect_manual_review(context_dir)
+    manual_notes = detect_manual_review(context_dir) + declined
 
     total = len(renames) + len(fm_changes) + len(ref_changes) + len(dir_changes)
     mode = "APPLY" if args.apply else "DRY-RUN"
@@ -648,6 +743,11 @@ def main() -> int:
         if not args.json:
             print(f"\nApplied {total} change(s).")
 
+    # Exit 1 covers both documented cases: changes still pending (dry-run) and applied with
+    # warnings. Manual-review notes are warnings — returning 0 alongside them would report a
+    # migration that left violations behind as a clean one.
+    if manual_notes:
+        return 1
     return 0 if total == 0 else (0 if args.apply else 1)
 
 
