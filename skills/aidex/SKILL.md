@@ -48,7 +48,7 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
    - `memory-auditor` — focused on `CB-MD` (docs disguised as memory).
    - `skills-auditor` — focused on `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
 3. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
-4. **Never auto-execute**. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) for user approval one by one.
+4. **Never auto-execute during the audit itself.** The audit reports; it does not mutate. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) as proposals. Execution belongs to the apply phase below, and only once the user has picked from its menu.
 
 Heuristics live in [references/05-context-budget.md](references/05-context-budget.md).
 
@@ -62,16 +62,22 @@ After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply al
    - the entire memory directory
    - any SKILL.md files about to be edited
    Derive `<project-name>` from the current project directory's basename. No `.gitignore` step is needed since the backup lives outside the project.
-3. **Apply per-item.** Print a numbered diff and ask `apply? [y/n/skip]` per change. Never auto-apply. Patch order (highest savings first):
-   - Plugin uninstall commands
-   - SKILL.md `disable-model-invocation: true` flips for irrelevant skills
-   - `settings.local.json` skillOverrides for `name-only` / `off`
-   - Memory file deletes / MEMORY.md edits
-   - CLAUDE.md trims
-4. **Log.** Append each applied/skipped change to the audit doc's "Actions taken" section so the doc reflects final state.
+3. **Apply.** Print a numbered diff for every change, then execute according to the class each patch falls into under [`rules/autonomy.md`](../../rules/autonomy.md). The `[A]/[B]/[C]/[D]` menu above **is** the front-loaded gate — re-asking `y/n` per item after the user picked A or B is the execution-time leak that rule names, so do not do it. Patch order (highest savings first):
+
+   | Patch | Autonomy class | Under [A]/[B] |
+   |---|---|---|
+   | Plugin uninstall commands | 1 — removes third-party software and is **not** covered by the step-2 backup | **Still gated per item.** Print the command; the user runs or approves it. |
+   | SKILL.md `disable-model-invocation: true` flips | 4 — safe, additive, reversible from the backup | Apply, then log. |
+   | `settings.local.json` skillOverrides (`name-only` / `off`) | 4 — same | Apply, then log. |
+   | MEMORY.md edits | 4 — same | Apply, then log. |
+   | CLAUDE.md trims | 4 — same | Apply, then log. |
+   | Memory file **deletes** | 1 — deletion; reversible only via the backup, so it is never silent | **Still gated per item.** |
+
+   Under **[C] pick individually** the user has asked for the per-item menu explicitly, so present every change one by one — that is a chosen interaction, not a leak.
+4. **Log.** Append each applied/skipped change to the audit doc's "Actions taken" section so the doc reflects final state. Class-4 patches applied without a prompt are logged the same way — proceed-and-document is the whole contract, and an unlogged silent change breaks it.
 
 **Guardrails for apply phase:**
-- Always confirm per item. No batch apply without prompts.
+- Step 2's backup is what makes class 4 safe to apply unprompted. If the backup step failed or was skipped, nothing is class 4 — fall back to per-item confirmation.
 - Never edit `feedback_*.md` files automatically (MEM-STALE is human-review only).
 - Never delete large external trees outside the aidex-managed roots (`~/.aidex/`, `~/.claude/skills/`, `~/.claude/commands/`) — escalate to backlog instead.
 - If `.context/decisions/` exists and an entry overlaps (MEM-DEC), prefer linking from MEMORY.md to the decision doc over deleting silently.
@@ -239,10 +245,12 @@ For each approved action, execute directly or launch a specialized subagent:
 - Deep-sync stale references → sonnet subagent with WebFetch + Context7
 - Memory cleanup (full workflow) → sonnet subagent
 
-**Destructive actions (per-item approval):**
+**Destructive actions (per-item approval — autonomy class 1, gated even under [A]/[B]):**
 - Delete orphaned files
 - Remove skills
-- Trim duplicated content
+
+Trimming duplicated content is **not** in this list: it is a class-4 edit covered by the
+apply phase's backup, and listing it here is what made the two sections disagree.
 
 After execution, show before/after summary:
 
