@@ -218,3 +218,33 @@ less than half the size of a wrapped one with comparable content.
 > once, when it is relevant** — making it too small does not reduce cost, it raises it, because
 > the reader pays an index read, a guess, and then exploration anyway. **The binding constraint
 > here is duplication, not length.**
+
+---
+
+## Verification
+
+This file sets a size trigger, so the check is that it and its siblings respect it:
+
+```bash
+wc -w ~/.claude/skills/aidex-reference/references/*.md ~/.claude/skills/aidex-reference/SKILL.md
+```
+
+**Real output, 2026-07-29:** `01-discovery` **2477** · `02-architecture` **1863** ·
+`SKILL.md` **979** — under the ~2,500-word trigger, and `SKILL.md` well under the
+skill-conventions budget (~3k tokens ideal, 5k max). `01-discovery` at 2477 is 23 words from the
+trigger: the next edit to it fires this rule, which is the tripwire working rather than a problem.
+
+**`03-shaping`'s own count is deliberately not pinned here.** It is self-referential — editing
+this block changes the number the block reports, so a pinned value is stale the moment it is
+written. Run the command; do not read a number about the file you are reading. Where a figure
+moves with the thing being measured, **pin the command, not the number** — the same rule this
+file states two sections up, met here for real.
+
+> **This block first shipped with four numbers written from memory before the command was run**,
+> and all four were wrong (2469 / 1877 / 2071). Caught within the same session by running it.
+> That is the failure this rule exists to prevent, committed by the person writing the rule —
+> which is the honest measure of how easy it is.
+
+**A module over 2,500 here is not a violation** — it is the trigger firing, and it asks two
+questions: is there re-derivable content, and is there a second workflow in here? Answer them
+before splitting.

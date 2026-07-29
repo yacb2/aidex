@@ -252,3 +252,20 @@ Two additions that are not the author's to self-assess:
 - **Re-read your own corrections.** A correct sentence was changed into a false one during one
   sweep, because the correction was *reasoned* rather than *looked up*. A correction is a new
   claim and takes the same ledger label as any other.
+
+---
+
+## Verification
+
+This file states rules, so its check is that the expensive one is actually paid for — Rule 3′
+is only followed if the census makes it a diff instead of a per-claim search:
+
+```bash
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --dry-run
+bash ~/.claude/skills/aidex-reference/tests/test-docs-census.sh | tail -1
+```
+
+**Real output, 2026-07-29:** the dry run prints each axis command without executing it; the test
+suite reports `25 passed, 0 failed`. **A dry run that prints nothing means the project has no
+`00-profile.md`, so Rule 3′ has no entry-point list and reverts to a per-claim search** — which
+is the state in which it does not get followed.

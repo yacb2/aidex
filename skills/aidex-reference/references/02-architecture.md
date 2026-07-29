@@ -189,3 +189,29 @@ So imported text lands with an explicit note naming it an unverified import and 
 would verify it — **or it does not land.** The alternative is worse than leaving it where it was:
 once inside the swept document it becomes indistinguishable from content that was actually
 checked.
+
+---
+
+## Verification
+
+The claim this file rests on is that the two censuses have different blind spots, so a project
+running only one is exposed. Check that a real project's axes disagree:
+
+```bash
+cd <project> && ~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory
+```
+
+**Real output, 2026-07-29** (this repo, a CLI/toolkit with no routes at all):
+
+```
+skills       0/17 covered (0%)  gap=17 phantom=0 contested=0
+hooks        0/3 covered (0%)  gap=3 phantom=0 contested=0
+```
+
+Two axes, and a route census would have returned **nothing** here — which is the point of §3:
+a project whose only axis is routes reports full coverage of an empty set. **A single-axis
+project is the finding.**
+
+> **The `hooks` axis was wrong on its first run** and only dogfooding caught it: without
+> `grep -v "^test-"` it counted a test file as a shipped hook. Read a surprising count before
+> believing it.
