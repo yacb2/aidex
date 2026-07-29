@@ -185,8 +185,18 @@ Output here
 
 ## Verification
 
-- [ ] Check 1
-- [ ] Check 2
+\`\`\`bash
+# The command that re-derives the claim above, runnable as written
+command --flag value
+\`\`\`
+
+**Real output, YYYY-MM-DD:**
+
+\`\`\`
+the output you actually got
+\`\`\`
+
+How to read a change: [what a different result would mean].
 
 ## Troubleshooting
 
@@ -243,6 +253,38 @@ For cross-references to **other artifact types** (backlog, plans, decisions, etc
 
 - Always include a language hint (`bash`, `typescript`, `json`, `python`, …).
 - Show expected output for commands when the output matters.
+
+---
+
+## The Verification block — a check that cannot fail is worse than no check
+
+`updated:` is a freshness *claim*; the `## Verification` block is the only thing in a
+reference that can **prove** the document has not rotted. So it must be executable, never
+a checklist of boxes. Every check carries three things:
+
+1. The **command**, runnable as written.
+2. Its **real output**, from a run that actually happened — verbatim, or trimmed to the
+   lines that are stable. Never paste output you did not produce.
+3. The **date** it was verified.
+
+**Do not use `- [ ]` checkboxes here.** A box reads as verification while proving nothing,
+and an unticked box asserting something false is indistinguishable from one asserting
+something true. This is not hypothetical: unticked boxes claiming *"a weak password is
+rejected"* and *"the blacklist rejects a replayed token"* shipped across several projects
+on this machine, and one project found a box asserting that two cleanup tasks were
+scheduled when neither was.
+
+Two corollaries:
+
+- **State what a wrong answer would look like.** "Expect a non-negative integer" is
+  satisfied by every possible result. Where a figure moves with the data, pin **the
+  command, not the number**, and say what the number means at zero.
+- **Cover every layer the module describes.** A backend-only block on a full-stack module
+  certifies half the system while reading as complete. When a layer genuinely cannot be
+  run, say so and say why — silence reads as coverage.
+
+`- [ ]` remains correct for a *procedure* the reader performs (a runbook's steps). It is
+wrong for a claim the document makes about the system.
 
 ---
 

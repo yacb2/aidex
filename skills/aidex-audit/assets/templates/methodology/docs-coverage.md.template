@@ -1,0 +1,168 @@
+# Docs-Coverage Playbook
+
+Structure: **Census axes × two passes (breadth mechanical + depth judgment).** Everything
+countable is *generated* (the matrix, never hand-edited); everything requiring judgment
+(is this gap real, is this module actually explaining anything) is an *audit finding* with
+the standard lifecycle in `00-inventory.md`.
+
+Rule to state verbatim: **what can be counted is generated; what must be judged is a
+finding.**
+
+This is the **recurring audit** half of documentation coverage. The **authoring** half —
+writing or sweeping a module — is `aidex-reference`, which runs the same census as step 1
+of its workflow. Same script, two entry points: an author runs it to avoid missing things
+*while writing*; this playbook runs it to find what was missed *after*.
+
+---
+
+## When to run
+
+- **After a feature push** — surfaces likely outpaced their documentation.
+- **After a reorganization** of `.context/references/` — the axis that used to resolve may
+  have stopped seeing part of the tree.
+- **When something was found by luck** — a module nobody knew was undocumented surfaced
+  because an unrelated file was being deleted. That is the signal to ask *which axis would
+  have found this*, and to add it.
+- **Before onboarding someone** onto an area — a gap costs them a day.
+- **First-time adoption** — establish a baseline and learn the true adoption rate of
+  `covers:`.
+
+---
+
+## Preparation
+
+**1. The profile must exist.** `.context/references/00-profile.md` declares the census axes
+and their enumeration commands. If it is missing, this audit cannot run — create it via
+`/aidex-reference profile`, which seeds it from the shared template.
+
+**2. Stack-profile check.** If the project's stack does not match the template's embedded
+example commands, **run an `aidex-research` spike FIRST** — "how is this stack laid out:
+routes, entry points, background work, public surface" — landing notes in
+`.context/research/`. Then customize the profile. **Do not guess enumeration commands for
+an unfamiliar stack:** a wrong command reports full coverage of an empty set, which is the
+check-that-cannot-fail failure this whole methodology exists to name.
+
+**3. Confirm the axes with the human.** Which axes a project needs is a judgment about the
+project's shape, not a fact derivable from its files. This is the only hand-maintained
+input; everything downstream derives from it.
+
+| Archetype | Axes that usually apply |
+|---|---|
+| Full-stack web app | routes · modules · scheduled jobs |
+| Backend / API service | endpoints · modules · jobs · events consumed |
+| CLI tool / toolkit | commands · sub-actions · hooks |
+| Library / SDK | public exports (no visual pass at all) |
+| Content / static site | pages · collections |
+
+---
+
+## Check matrix — two distinct passes per axis
+
+Record the two passes **separately**. Breadth is mechanical; depth is judgment.
+
+### Breadth (mechanical)
+
+```bash
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory \
+  --write .context/audits/docs-coverage/<run>/coverage-matrix.md
+```
+
+Three failure classes, all reported, all candidate findings:
+
+| Class | Meaning | Usual severity |
+|---|---|---|
+| **gap** | item exists in code, no document declares it | P1 (critical area) / P2 |
+| **phantom** | a document declares an item no census returns | P2 — the doc describes something gone |
+| **contested** | two documents declare the same item | P2 — it *will* drift |
+
+**A `BROKEN` axis is a P0 finding on the audit itself**, not a skipped row. It means the
+enumeration command returns nothing, and every "100% covered" number in that run is
+meaningless. Fix the command and re-run before recording anything else.
+
+**If adoption is zero** — no module declares `covers:` — the census reports every item as a
+gap and says so explicitly. Record **one** adoption finding, not N coverage findings.
+Backfilling `covers:` by grepping which document mentions which module is banned: it
+reintroduces the mention-vs-describe ambiguity the field exists to remove and launders a
+guess into front-matter. Ownership is declared **on sweep**, per module, as each is touched.
+
+The matrix is a generated artifact carrying a `GENERATED` header. Never hand-edit it; if a
+number looks wrong, fix the profile's command or the script and re-run.
+
+### Depth (judgment)
+
+Breadth proves a document *claims* an item. It does not prove the document says anything
+useful about it — the documentation equivalent of a test that navigates and asserts
+nothing. Sample the modules covering critical areas and read them against this checklist:
+
+- [ ] Every claim is anchored to a **symbol**, not a bare line number
+- [ ] `## Verification` carries **command + real output + date** — no `- [ ]` boxes, and no
+      check that passes regardless of the answer
+- [ ] Verification covers **every layer the module describes** (a backend-only block on a
+      full-stack module certifies half the system while reading as complete)
+- [ ] States are accounted for, not just the happy path — *disabled is not absent, and
+      hidden is not disabled*
+- [ ] Nothing present-tense rests on a plan, an audit, or a changelog entry
+- [ ] Counts and enumerations that a command returns in seconds are **not** restated in prose
+- [ ] Capabilities trace to an entry point (**Rule 3′**) — otherwise it is dead code
+      documented as a feature, or an entry point nobody found
+
+Anything that fails depth is a `gap`, not coverage.
+
+**The strongest depth instrument is not this checklist.** Spawn
+`aidex-reference/agents/reference-refuter.md` against the sampled modules: it attacks claims
+rather than reviewing them, with the burden of proof inverted. Use the checklist when you
+need a cheap pass over many modules, the refuter when a module matters.
+
+---
+
+## Recording findings
+
+- **ID convention:** `DOC-<axis>-<n>` (e.g. `DOC-routes-3`).
+- **Types:** `gap` (undocumented or shallow), `bug` (a document states something false),
+  `risk` (contested ownership, or an axis that may stop seeing part of the tree).
+- **Severity guidance:**
+  - **P0** — a `BROKEN` axis, or a document making a **false** present-tense claim about a
+    money, auth or data-integrity path
+  - **P1** — a critical surface or subsystem with no owning document
+  - **P2** — secondary gap, phantom, or contested ownership
+  - **P3** — a documented item whose depth is thin but not misleading
+
+Escalate per the standard lifecycle (`/aidex-audit escalate <id>` → backlog, or a
+remediation plan). One canonical row per finding in `00-inventory.md`.
+
+**Record defensible gaps as waived findings, not as prose.** A module with no owning
+document whose surface is genuinely explained inside another mechanism's document is a
+legitimate outcome — but it is a *decision*, so it belongs in the inventory with its reason,
+where the next run will not re-raise it as new.
+
+---
+
+## Output artifacts
+
+- `.context/references/00-profile.md` — the keystone, **maintained** by hand (assisted on
+  first run).
+- `coverage-matrix.md` — **generated**, never hand-edited (carries the `GENERATED` header).
+- Findings — rows in the rolling `00-inventory.md`; this run's `findings.md` is a filtered
+  view.
+
+Rule again, verbatim: **what can be counted is generated; what must be judged is a
+finding.**
+
+---
+
+## Tips
+
+The war stories this playbook is made of:
+
+- **Census both axes; the blind spot of each is what the other counts.** A route census
+  closed a feature topic and was structurally blind to a six-endpoint pipeline stage that
+  has no route. A module census found it — and on its own first run found a second module
+  described nowhere.
+- **The gap was found by luck. The census is what you build so next time it is not luck.**
+- **"Mentioned" is not "described", and grep cannot tell them apart.** One stage was
+  mentioned in four files and described in none. This is the entire reason ownership is
+  declared rather than inferred.
+- **Read the lines, never the count alone.** An anchor-counting `grep -c` kept exiting 0
+  while a folder reorg made it stop seeing 159 of the anchors it existed to count. If you
+  move files, re-run the check and read its output, not its exit code.
+- **A count that rises is a prompt to look, not a verdict.**
