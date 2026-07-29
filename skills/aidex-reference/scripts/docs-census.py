@@ -187,12 +187,22 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
 
 # ---------- ownership ----------
 
-COVER_TOKEN = re.compile(r"^([A-Za-z_][\w-]*):(.+)$")
+def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, int, list[str]]:
+    """axis -> item -> [declaring files]. Also (scanned, declaring, problems).
 
+    Grammar: comma-separated `axis: item` entries, partitioned on the FIRST
+    colon. Commas rather than whitespace because axis names and items both
+    legitimately contain spaces -- `scheduled jobs`, `GET /api/voices` -- and
+    the whitespace-split version silently dropped them, reporting 100% gap on
+    correctly documented code. First-colon partition so an item may itself
+    contain colons (`/productions/:id`).
 
-def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, int]:
-    """axis -> item -> [declaring files]. Also (modules scanned, modules declaring)."""
+    An entry that cannot be parsed is REPORTED, never dropped: a silent drop
+    turns a correct declaration into a false finding, which is the exact
+    check-that-lies failure this tool exists to surface.
+    """
     owners: dict[str, dict[str, list[str]]] = {}
+    problems: list[str] = []
     scanned = declaring = 0
     for md in sorted(refs.rglob("*.md")):
         scanned += 1
@@ -202,19 +212,35 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
             continue
         declaring += 1
         rel = str(md.relative_to(refs.parent.parent))
-        for token in raw.split():
-            m = COVER_TOKEN.match(token)
-            if not m:
+        for entry in raw.split(","):
+            entry = entry.strip()
+            if not entry:
                 continue
-            axis, item = m.group(1), m.group(2)
+            axis, sep, item = entry.partition(":")
+            axis, item = axis.strip(), item.strip()
+            if not sep or not axis or not item:
+                problems.append(
+                    f"{rel}: covers entry {entry!r} is not `axis: item` — ignored")
+                continue
             owners.setdefault(axis, {}).setdefault(item, []).append(rel)
-    return owners, scanned, declaring
+    return owners, scanned, declaring, problems
 
 
 # ---------- report ----------
 
 def build_report(axes: list[Axis], owners, root: Path, dry_run: bool) -> dict:
     report: dict = {"axes": [], "errors": []}
+    # An axis declared in `covers:` that no census axis produces can never
+    # match anything. Silently ignoring it is how a documented project reads
+    # as 100% gap.
+    if not dry_run:
+        declared = set(owners)
+        known = {a.name for a in axes}
+        for orphan in sorted(declared - known):
+            files = sorted({f for fs in owners[orphan].values() for f in fs})
+            report["errors"].append(
+                f"covers axis {orphan!r} matches no census axis "
+                f"(declared in {', '.join(files[:3])}) — check the profile")
     for ax in axes:
         if dry_run:
             report["axes"].append({"axis": ax.name, "label": ax.label,
@@ -366,8 +392,9 @@ def main() -> int:
               f"  --trust     approve this exact block and run it\n", file=sys.stderr)
         return 3
 
-    owners, scanned, declaring = load_ownership(refs)
+    owners, scanned, declaring, cover_problems = load_ownership(refs)
     report = build_report(axes, owners, root, args.dry_run)
+    report["errors"] = cover_problems + report["errors"]
     report["modules_scanned"] = scanned
     report["modules_declaring"] = declaring
 
@@ -377,9 +404,13 @@ def main() -> int:
         print(render(report, scanned, declaring))
 
     if args.write and not args.dry_run:
-        args.write.parent.mkdir(parents=True, exist_ok=True)
-        args.write.write_text(render_matrix(report), encoding="utf-8")
-        print(f"\nwrote {args.write}", file=sys.stderr)
+        # Resolve against the project root, never cwd: find_root() walks UP, so a
+        # cwd-relative --write from a subdirectory creates <subdir>/.context/...
+        # which then becomes the nearest root and captures every later run.
+        out = args.write if args.write.is_absolute() else root / args.write
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_matrix(report), encoding="utf-8")
+        print(f"\nwrote {out}", file=sys.stderr)
 
     if args.advisory or args.dry_run:
         return 0

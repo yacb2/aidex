@@ -282,7 +282,7 @@ Quick summary — full detail in [references/01-principles.md](references/01-pri
 All templates in [assets/templates/](assets/templates/):
 
 - Core: 00-inventory.md, 00-methodology.md, 00-changelog.md, index.md, findings.md
-- Playbooks: `methodology/<type>.md.template` for each of eight stock types
+- Playbooks: `methodology/<type>.md.template` for each of nine stock types
 
 ## Related
 

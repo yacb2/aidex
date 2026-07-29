@@ -266,6 +266,11 @@ bash ~/.claude/skills/aidex-reference/tests/test-docs-census.sh | tail -1
 ```
 
 **Real output, 2026-07-29:** the dry run prints each axis command without executing it; the test
-suite reports `25 passed, 0 failed`. **A dry run that prints nothing means the project has no
+suite reports **`0 failed`**. **A dry run that prints nothing means the project has no
 `00-profile.md`, so Rule 3′ has no entry-point list and reverts to a per-claim search** — which
 is the state in which it does not get followed.
+
+> **The pass count is deliberately not pinned.** An earlier version said `25 passed` and was
+> stale one commit later, on the same branch and the same date it stamped — the exact rot the
+> Verification contract exists to prevent, committed in the document that teaches it. `0 failed`
+> is the invariant; the total is a moving figure, so **pin the command, not the number**.

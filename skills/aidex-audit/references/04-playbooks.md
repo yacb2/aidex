@@ -1,6 +1,6 @@
 # 04 — Playbooks Index
 
-Eight stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
+Nine stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
 
 ---
 

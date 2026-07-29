@@ -58,12 +58,18 @@ command: grep -oE "^[[:space:]]+'apps\.[a-z_]+" backend/config/settings/_base.py
 
 ## Declaring ownership
 
-Each reference module declares the items it **owns** in flat front-matter — space-separated
-`axis:item` tokens, so the shared `validate.py` parser reads it without nested YAML:
+Each reference module declares the items it **owns** in flat front-matter — **comma-separated**
+`axis: item` entries, so the shared `validate.py` parser reads it without nested YAML:
 
 ```yaml
-covers: "routes:/voices routes:/voices/new apps:lab_voices"
+covers: "routes:/voices, routes:/voices/new, apps:lab_voices"
 ```
+
+Split on the **first colon**, so both halves may contain spaces (`scheduled jobs: nightly`) and
+an item may contain colons (`routes:/productions/:id`). Commas rather than whitespace because the
+first version split on whitespace and **silently dropped** every multi-word axis this template
+recommends — a fully documented project reported 100% gap with no warning. Unparseable entries
+and entries naming an undeclared axis are now reported.
 
 Ownership is **declared on sweep, never backfilled by inference.** Generating `covers:` by
 grepping which document mentions which app reintroduces the exact mention-vs-describe
