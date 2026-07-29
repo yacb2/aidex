@@ -19,10 +19,22 @@ Three failure classes, all reported:
 
 Trust model
 -----------
-Axis commands come from `.context/references/00-profile.md`, a file in the
-project you are already running code from -- same trust level as a Makefile.
-`--dry-run` prints every command without executing it; run it first on a
-profile you did not write.
+Axis commands are shell strings from `.context/references/00-profile.md` and
+they run as you. This tool is installed machine-wide and is meant to be run
+against arbitrary projects, so a cloned repo can ship a profile -- and
+`find_root()` walks up parents, so merely being *inside* such a tree is enough.
+
+That is a real execution vector, so consent is **enforced, not documented**:
+an unrecognised census block is printed and refused (exit 3) until approved
+with `--trust`. Approvals are keyed by sha256 of the census block and stored
+under $HOME (never in the project), so a repo cannot ship its own approval.
+Editing the block revokes it. `--dry-run` never executes and needs no trust.
+
+Deliberately NOT done: an allowlist of permitted binaries. Axis commands are
+pipelines, and identifying the binaries in a shell pipeline without a shell
+parser is unreliable -- an allowlist here would look like a control while not
+being one, which is the failure mode this whole skill exists to name. The gate
+is provenance; the commands are shown in full so a human reads them.
 
 No third-party dependencies. Front-matter parsing is deliberately FLAT so the
 shared `validate.py` parser reads the same fields without nested-YAML support.
@@ -30,13 +42,55 @@ shared `validate.py` parser reads the same fields without nested-YAML support.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 FM_DELIM = re.compile(r"^---\s*$")
+
+# Approvals live under $HOME, never in the project: a repo that ships a profile
+# must not be able to ship its own approval for it.
+TRUST_FILE = Path(
+    os.environ.get("AIDEX_CENSUS_TRUST")
+    or (Path.home() / ".aidex" / ".census-trust")
+)
+
+
+def block_digest(block: str) -> str:
+    """Hash the executable block only, so prose edits do not revoke approval."""
+    return hashlib.sha256(block.strip().encode()).hexdigest()
+
+
+def load_trust() -> dict[str, str]:
+    if not TRUST_FILE.is_file():
+        return {}
+    out: dict[str, str] = {}
+    for line in TRUST_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        digest, _, path = line.partition("  ")
+        if digest and path:
+            out[path] = digest
+    return out
+
+
+def record_trust(profile: Path, digest: str) -> None:
+    trust = load_trust()
+    trust[str(profile)] = digest
+    TRUST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    body = ["# aidex docs-census approved profiles (sha256 of the census block)",
+            "# Editing a profile's census block revokes its approval."]
+    body += [f"{d}  {p}" for p, d in sorted(trust.items())]
+    TRUST_FILE.write_text("\n".join(body) + "\n", encoding="utf-8")
+    try:
+        TRUST_FILE.chmod(0o600)
+    except OSError:
+        pass
 CENSUS_BLOCK = re.compile(r"^```census\s*$(.*?)^```\s*$", re.M | re.S)
 
 
@@ -96,15 +150,19 @@ class Axis:
         return items, None
 
 
-def load_profile(path: Path) -> tuple[list[Axis], list[str]]:
-    """Parse the ```census block. Records are blank-line separated key: value."""
+def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
+    """Parse the ```census block. Records are blank-line separated key: value.
+
+    Also returns the raw block, which is what the trust gate hashes.
+    """
     problems: list[str] = []
     if not path.is_file():
-        return [], [f"no profile at {path}"]
+        return [], [f"no profile at {path}"], ""
     text = path.read_text(encoding="utf-8", errors="replace")
     m = CENSUS_BLOCK.search(text)
     if not m:
-        return [], [f"{path} has no ```census block"]
+        return [], [f"{path} has no ```census block"], ""
+    block = m.group(1)
     axes: list[Axis] = []
     for chunk in re.split(r"\n\s*\n", m.group(1).strip()):
         rec: dict[str, str] = {}
@@ -124,7 +182,7 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str]]:
         axes.append(Axis(name, rec.get("label", ""), command))
     if not axes:
         problems.append(f"{path}: ```census block declares no usable axis")
-    return axes, problems
+    return axes, problems, block
 
 
 # ---------- ownership ----------
@@ -258,6 +316,8 @@ def main() -> int:
                     help="also write a GENERATED matrix to this path")
     ap.add_argument("--advisory", action="store_true",
                     help="always exit 0 (report only)")
+    ap.add_argument("--trust", action="store_true",
+                    help="approve this profile's census block, then run it")
     args = ap.parse_args()
 
     root = find_root(args.root.resolve())
@@ -269,8 +329,8 @@ def main() -> int:
         print(f"no {refs}", file=sys.stderr)
         return 2
 
-    profile = args.profile or (refs / "00-profile.md")
-    axes, problems = load_profile(profile)
+    profile = (args.profile or (refs / "00-profile.md")).resolve()
+    axes, problems, block = load_profile(profile)
     if not axes:
         for p in problems:
             print(f"ERROR: {p}", file=sys.stderr)
@@ -280,6 +340,31 @@ def main() -> int:
         return 2
     for p in problems:
         print(f"WARN: {p}", file=sys.stderr)
+
+    # ---- trust gate ----------------------------------------------------
+    # These are shell strings from a file that may have arrived with a clone.
+    # Consent is enforced here rather than asked for in a docstring, because a
+    # rule that depends on the operator remembering is a rule that is not run.
+    digest = block_digest(block)
+    trusted = load_trust().get(str(profile)) == digest
+    if args.trust and not args.dry_run:
+        record_trust(profile, digest)
+        trusted = True
+        print(f"approved {profile}\n  sha256:{digest[:16]}… recorded in {TRUST_FILE}",
+              file=sys.stderr)
+    if not trusted and not args.dry_run:
+        known = load_trust().get(str(profile))
+        why = ("its census block CHANGED since it was approved"
+               if known else "it has not been approved on this machine")
+        print(f"REFUSED: not running {profile} — {why}.\n", file=sys.stderr)
+        print("These axis commands would run as you, from "
+              f"{root}:\n", file=sys.stderr)
+        for ax in axes:
+            print(f"  [{ax.name}] {ax.command}", file=sys.stderr)
+        print("\nRead them. Then either:\n"
+              f"  --dry-run   inspect without running (no approval needed)\n"
+              f"  --trust     approve this exact block and run it\n", file=sys.stderr)
+        return 3
 
     owners, scanned, declaring = load_ownership(refs)
     report = build_report(axes, owners, root, args.dry_run)

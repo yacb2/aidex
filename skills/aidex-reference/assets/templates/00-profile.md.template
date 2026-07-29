@@ -23,6 +23,11 @@ nobody has edited is a profile nobody has applied.
 Machine-read by `docs-census.py`. Each record is `axis` / `label` / `command`, blank-line
 separated. The command runs from the project root and must print **one item per line**.
 
+> **These are shell strings and they run as you.** The census refuses to execute a census block
+> it has not seen approved on this machine (exit 3), printing the commands first; `--trust`
+> approves that exact block and any edit to it revokes the approval. Approvals are stored under
+> `$HOME`, never here, so this file cannot approve itself.
+
 An axis returning zero lines is reported as **BROKEN**, never as "0 items, all covered" —
 that would be a check that cannot fail.
 

@@ -67,6 +67,11 @@ Record the two passes **separately**. Breadth is mechanical; depth is judgment.
   --write .context/audits/docs-coverage/<run>/coverage-matrix.md
 ```
 
+**Exit 3 means the profile is not approved on this machine** — the axis commands are shell
+strings and are refused until read and approved with `--trust`. That is not an error in the
+audit; it is the trust gate. Inspect with `--dry-run`, and treat an axis command you did not
+expect as a **P0 finding on the repo**, not a step to click through.
+
 Three failure classes, all reported, all candidate findings:
 
 | Class | Meaning | Usual severity |
