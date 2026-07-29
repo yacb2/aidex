@@ -6,7 +6,7 @@
 #   new-audit.sh <type> <slug>          # methodology run: audits/<type>/YYYY-MM-DD-<slug>/
 #   new-audit.sh --standalone <slug>    # one-shot run:    audits/YYYY-MM-DD-<slug>/ (no boards)
 #
-#   <type>: ux, ai-opportunities, security, perf, a11y, hitl, retest,
+#   <type>: ux, ai-opportunities, security, perf, a11y, hitl, retest, docs-coverage,
 #           test-coverage, custom (legacy aliases like ux-audit / ia-opportunities
 #           and the `coverage` short form are normalized)
 #   <slug>: kebab-case identifier, e.g. "login-redesign"
@@ -28,7 +28,7 @@ usage() {
 Usage: /aidex-audit new <type> <slug>
        /aidex-audit new --standalone <slug>
 
-Types: ux, ai-opportunities, security, perf, a11y, hitl, retest, test-coverage, custom
+Types: ux, ai-opportunities, security, perf, a11y, hitl, retest, test-coverage, docs-coverage, custom
        (legacy -audit-suffixed names and the `coverage` short form accepted as aliases)
 
 Examples:
