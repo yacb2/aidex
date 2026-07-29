@@ -56,6 +56,8 @@ The canonical master file name is `00-index.md`. The single accepted alias is `0
 
 In all other directories (`audits/` per [`audit-conventions.md`](audit-conventions.md), `decisions/`, `plans/`, `references/`, `docs/`, `roadmap/`), `00-index.md` is the only acceptable name and any other prefix-zero file is a WARNING.
 
+**One further exception at `references/` root: `00-profile.md`.** It is the per-project reference-authoring profile written by `aidex-reference` — the census axes, entry-point kinds and observation instrument for this project. It is a canonical name, not a stray prefix-zero file: do not flag it, and never date-rename it. `migrate-conventions.py` exempts it via `CANONICAL_PREFIX_ZERO_NAMES`; renaming it breaks `docs-census.py` while `validate.py` still reports the tree clean.
+
 ---
 
 ## File naming

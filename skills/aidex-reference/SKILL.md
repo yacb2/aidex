@@ -88,8 +88,13 @@ Per the canon's module template. Anchor every claim to a **symbol**, never a bar
 Declare ownership in flat front-matter so the census can see it:
 
 ```yaml
-covers: "routes:/voices routes:/voices/new apps:lab_voices"
+covers: "routes:/voices, routes:/voices/new, apps:lab_voices"
 ```
+
+Entries are **comma-separated** `axis: item`, split on the first colon — so an axis name may
+contain a space (`scheduled jobs`) and so may an item (`GET /api/voices`, `/productions/:id`).
+An entry the census cannot parse, or one naming an axis the profile does not declare, is
+**reported, never dropped**: a silent drop turns a correct declaration into a false gap.
 
 **Declare on sweep, never backfill by inference** — generating `covers:` from which document
 mentions which module launders a guess into front-matter.

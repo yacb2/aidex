@@ -57,7 +57,7 @@ label: things
 command: printf "alpha\nbravo\ncharlie\n"'
 mkproject "$P" "$mkprojectbody"
 mkmodule "$P/.context/references/topic/01-a.md" "things:alpha"
-mkmodule "$P/.context/references/topic/02-b.md" "things:alpha things:delta"
+mkmodule "$P/.context/references/topic/02-b.md" "things:alpha, things:delta"
 approve "$P"
 out="$(python3 "$CENSUS" --root "$P" --advisory 2>&1)"
 
@@ -150,7 +150,7 @@ fm = m.parse_frontmatter(open(sys.argv[2]).read())
 print(fm.get("covers", "<missing>"))
 PY
 )"
-  check "shared validate.py parses covers: unchanged" "$got" "things:alpha things:delta"
+  check "shared validate.py parses covers: unchanged" "$got" "things:alpha, things:delta"
 else
   ok "shared validate.py parse check skipped (validator not found)"
 fi
@@ -221,6 +221,68 @@ python3 "$CENSUS" --root "$PV" --advisory >/dev/null 2>&1; rc=$?
 [[ ! -e "$TMP/PWNED" ]] && ok "revoked profile does not execute" || bad "revoked profile does not execute" "payload ran"
 outv2="$(python3 "$CENSUS" --root "$PV" --advisory 2>&1)"
 check "revocation says the block CHANGED, not merely unapproved" "$outv2" "CHANGED"
+
+# ---------------------------------------------------------------- 13. covers: grammar
+# Regression: the first grammar split on whitespace, so an axis name or item
+# containing a space was silently dropped and a fully documented project
+# reported 100% gap with zero warnings. The skill's own archetype table
+# recommended `scheduled jobs` / `events consumed` / `public exports`.
+PG="$TMP/grammar"
+mkproject "$PG" 'axis: scheduled jobs
+label: cron rows
+command: printf "nightly\n"
+
+axis: endpoints
+label: endpoints
+command: printf "GET /api/voices\n"
+
+axis: routes
+label: routes
+command: printf "/productions/:id\n"'
+mkmodule "$PG/.context/references/topic/01-a.md" "scheduled jobs:nightly, endpoints:GET /api/voices, routes:/productions/:id"
+approve "$PG"
+outg="$(python3 "$CENSUS" --root "$PG" --advisory 2>&1)"
+check "multi-word AXIS name resolves"           "$outg" "scheduled jobs 1/1 covered (100%)"
+check "item containing a space resolves"        "$outg" "endpoints    1/1 covered (100%)"
+check "item containing a colon resolves"        "$outg" "routes       1/1 covered (100%)"
+nocheck "no spurious gap on documented project" "$outg" "gap        "
+
+# an unparseable entry is REPORTED, never silently dropped
+PG2="$TMP/grammar2"
+mkproject "$PG2" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkmodule "$PG2/.context/references/topic/01-a.md" "things:alpha, garbage-without-a-colon"
+approve "$PG2"
+outg2="$(python3 "$CENSUS" --root "$PG2" --advisory 2>&1)"
+check "unparseable covers entry is reported" "$outg2" "is not \`axis: item\`"
+
+# a covers: axis matching no census axis can never resolve — say so
+PG3="$TMP/grammar3"
+mkproject "$PG3" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkmodule "$PG3/.context/references/topic/01-a.md" "thingz:alpha"
+approve "$PG3"
+outg3="$(python3 "$CENSUS" --root "$PG3" --advisory 2>&1)"
+check "orphan covers axis is reported, not ignored" "$outg3" "matches no census axis"
+
+# ---------------------------------------------------------------- 14. --write path binding
+# Regression: --write resolved against cwd while the root is found by walking UP,
+# so the audit playbook's relative path fabricated <subdir>/.context/ which then
+# became the nearest root and captured every later run.
+PW="$TMP/writepath"
+mkproject "$PW" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkmodule "$PW/.context/references/topic/01-a.md" "things:alpha"
+mkdir -p "$PW/sub/dir"
+approve "$PW"
+( cd "$PW/sub/dir" && python3 "$CENSUS" --advisory --write .context/audits/run/matrix.md >/dev/null 2>&1 )
+[[ ! -d "$PW/sub/dir/.context" ]] && ok "relative --write does not fabricate a second .context/" \
+  || bad "relative --write does not fabricate a second .context/" "created $PW/sub/dir/.context"
+[[ -f "$PW/.context/audits/run/matrix.md" ]] && ok "relative --write lands under the project root" \
+  || bad "relative --write lands under the project root" "matrix not at the root"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

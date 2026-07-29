@@ -271,14 +271,24 @@ def sanitize_slug(slug: str) -> str:
     return s
 
 
+# Canonical prefix-zero filenames that are never date-renamed. Shared with
+# validate.py's expectations; keeping a private copy here is what let
+# `00-profile.md` (the docs-census keystone) get renamed while every checker
+# reported the result clean. Guarded by test_registry_lockstep.py.
+CANONICAL_PREFIX_ZERO_NAMES = (
+    "00-index.md", "00-overview.md", "00-methodology.md",
+    "00-inventory.md", "00-changelog.md", "00-profile.md",
+    "index.md", "findings.md",
+)
+
+
 def file_is_exempt_from_rename(type_name: str, p: Path, context_dir: Path) -> bool:
     """Subdocs of modular plans/references/research and index files: no rename.
 
     Also exempt legacy audit-root files (INVENTORY/METHODOLOGY/CHANGELOG.md at
     `.context/audits/`) — restructuring those to the D-02 layout requires a
     human-chosen methodology slug and is handled manually, not by this script."""
-    if p.name in ("00-index.md", "00-overview.md", "00-methodology.md",
-                  "00-inventory.md", "00-changelog.md", "index.md", "findings.md"):
+    if p.name in CANONICAL_PREFIX_ZERO_NAMES:
         return True
     if re.match(r"^\d{2}-[a-z0-9-]+\.md$", p.name):
         # NN-<slug>.md inside a topic folder — leave alone.

@@ -121,7 +121,7 @@ container, 2026-07-28"* is a claim; *"verified"* is not.
 
 ## §5 — Anchor on symbols, and here is the receipt
 
-[`03-shaping.md`](./03-shaping.md) bans bare line numbers. One project's architecture
+The shared canon (`aidex-conventions/references/reference-conventions.md`, § Stable anchors) bans bare line numbers; this module does not fork that rule. One project's architecture
 documentation predated that rule and was built on them: **159 `file:line` anchors** across six
 documents. A ten-anchor sample resolved against the current tree returned:
 
