@@ -12,6 +12,9 @@ CENSUS="$HERE/../scripts/docs-census.py"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# Trust store is redirected into the sandbox so tests never touch the real one.
+export AIDEX_CENSUS_TRUST="$TMP/trust"
+
 pass=0; fail=0
 ok()   { printf 'PASS  %s\n' "$1"; pass=$((pass+1)); }
 bad()  { printf 'FAIL  %s\n    %s\n' "$1" "${2:-}"; fail=$((fail+1)); }
@@ -34,6 +37,10 @@ $2
 EOF
 }
 
+# Approve a project's profile so the trust gate does not block the functional
+# tests. The gate itself is tested separately in section 12.
+approve() { python3 "$CENSUS" --root "$1" --trust --advisory >/dev/null 2>&1 || true; }
+
 mkmodule() { # $1=path  $2=covers value (may be empty)
   mkdir -p "$(dirname "$1")"
   if [[ -n "${2:-}" ]]; then
@@ -51,6 +58,7 @@ command: printf "alpha\nbravo\ncharlie\n"'
 mkproject "$P" "$mkprojectbody"
 mkmodule "$P/.context/references/topic/01-a.md" "things:alpha"
 mkmodule "$P/.context/references/topic/02-b.md" "things:alpha things:delta"
+approve "$P"
 out="$(python3 "$CENSUS" --root "$P" --advisory 2>&1)"
 
 check "gap: an uncovered item is reported"        "$out" "gap        bravo"
@@ -66,6 +74,7 @@ mkproject "$P2" 'axis: empty
 label: returns nothing
 command: true'
 mkmodule "$P2/.context/references/topic/01-a.md" ""
+approve "$P2"
 out2="$(python3 "$CENSUS" --root "$P2" --advisory 2>&1)"
 check   "broken axis is reported as BROKEN"        "$out2" "BROKEN"
 nocheck "broken axis never claims full coverage"   "$out2" "covered (100%)"
@@ -77,6 +86,7 @@ mkproject "$P3" 'axis: things
 label: things
 command: printf "alpha\n"'
 mkmodule "$P3/.context/references/topic/01-a.md" "things:alpha"
+approve "$P3"
 out3="$(python3 "$CENSUS" --root "$P3" 2>&1)"; rc3=$?
 [[ $rc3 -eq 0 ]] && ok "clean project exits 0" || bad "clean project exits 0" "rc=$rc3"
 check "clean project reports 100%" "$out3" "1/1 covered (100%)"
@@ -103,6 +113,7 @@ mkproject "$P5" 'axis: things
 label: things
 command: printf "alpha\nbravo\n"'
 mkmodule "$P5/.context/references/topic/01-a.md" ""
+approve "$P5"
 out5="$(python3 "$CENSUS" --root "$P5" --advisory 2>&1)"
 check "zero adoption is named as adoption, not coverage" "$out5" "adoption gap, not a coverage gap"
 
@@ -169,6 +180,47 @@ if [[ -f "$TPL" ]]; then
 else
   bad "template exists" "$TPL missing"
 fi
+
+# ---------------------------------------------------------------- 12. trust gate
+# The gate exists because axis commands are shell strings from a file that can
+# arrive with a clone, and find_root() walks up parents -- so merely being
+# INSIDE a hostile tree is enough. Consent is enforced, not documented.
+PV="$TMP/hostile"
+mkproject "$PV" "axis: pwn
+label: looks fine
+command: touch $TMP/PWNED && printf \"a\\n\""
+mkmodule "$PV/.context/references/topic/01-a.md" ""
+mkdir -p "$PV/.context/references/topic/deep"
+
+python3 "$CENSUS" --root "$PV" >/dev/null 2>&1; rc=$?
+[[ $rc -eq 3 ]] && ok "untrusted profile is refused (exit 3)" || bad "untrusted profile is refused" "rc=$rc"
+[[ ! -e "$TMP/PWNED" ]] && ok "untrusted profile does not execute" || bad "untrusted profile does not execute" "payload ran"
+
+python3 "$CENSUS" --root "$PV" --advisory >/dev/null 2>&1; rc=$?
+[[ $rc -eq 3 ]] && ok "--advisory does not bypass the trust gate" || bad "--advisory does not bypass the trust gate" "rc=$rc"
+[[ ! -e "$TMP/PWNED" ]] && ok "--advisory does not execute untrusted commands" || bad "--advisory does not execute untrusted commands" "payload ran"
+
+outv="$(python3 "$CENSUS" --root "$PV" 2>&1)"
+check "refusal prints the command so a human can read it" "$outv" "touch"
+check "refusal names the remedy"                          "$outv" "--trust"
+
+python3 "$CENSUS" --root "$PV" --dry-run >/dev/null 2>&1; rc=$?
+[[ $rc -eq 0 ]] && ok "--dry-run works without approval" || bad "--dry-run works without approval" "rc=$rc"
+[[ ! -e "$TMP/PWNED" ]] && ok "--dry-run still does not execute" || bad "--dry-run still does not execute" "payload ran"
+
+python3 "$CENSUS" --root "$PV" --trust --advisory >/dev/null 2>&1
+[[ -e "$TMP/PWNED" ]] && ok "--trust approves and then runs" || bad "--trust approves and then runs" "payload did not run"
+[[ ! -e "$PV/.context/.census-trust" && ! -e "$PV/.aidex-census-trust" ]] \
+  && ok "approval is stored outside the project (a repo cannot ship its own)" \
+  || bad "approval is stored outside the project" "found a trust file inside the project"
+
+rm -f "$TMP/PWNED"
+perl -pi -e 's/label: looks fine/label: CHANGED/' "$PV/.context/references/00-profile.md"
+python3 "$CENSUS" --root "$PV" --advisory >/dev/null 2>&1; rc=$?
+[[ $rc -eq 3 ]] && ok "editing the census block revokes approval" || bad "editing the census block revokes approval" "rc=$rc"
+[[ ! -e "$TMP/PWNED" ]] && ok "revoked profile does not execute" || bad "revoked profile does not execute" "payload ran"
+outv2="$(python3 "$CENSUS" --root "$PV" --advisory 2>&1)"
+check "revocation says the block CHANGED, not merely unapproved" "$outv2" "CHANGED"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

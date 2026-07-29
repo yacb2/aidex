@@ -47,6 +47,13 @@ A wrong axis command reports full coverage of nothing.
 ~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory
 ```
 
+**First run in a project refuses and prints the axis commands.** They are shell strings from
+`00-profile.md`, which can arrive with a clone, so consent is enforced rather than assumed: read
+them, then `--trust` to approve that exact block (`--dry-run` inspects without approving).
+Editing the block revokes approval. Approvals live under `$HOME`, so a repo cannot ship its own.
+**Never `--trust` a profile you have not read** — and if the user did not write it, show it to
+them first.
+
 Three classes: **gap** (in code, undocumented), **phantom** (documented, absent from code),
 **contested** (two documents own one item — it will drift). A `BROKEN` axis means the command is
 wrong; fix it before believing any number, because a broken axis otherwise reports full coverage
