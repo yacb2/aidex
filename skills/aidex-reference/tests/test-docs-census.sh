@@ -21,21 +21,34 @@ bad()  { printf 'FAIL  %s\n    %s\n' "$1" "${2:-}"; fail=$((fail+1)); }
 check(){ if [[ "$2" == *"$3"* ]]; then ok "$1"; else bad "$1" "expected '$3' in: $2"; fi; }
 nocheck(){ if [[ "$2" != *"$3"* ]]; then ok "$1"; else bad "$1" "did NOT expect '$3' in: $2"; fi; }
 
-# rc_is <name> <want-rc> -- <cmd...>
+# rc_is <name> <want-rc> <expect-substring|-> -- <cmd...>
 #
-# Asserts the exit code AND that the run was a deliberate exit, not a crash.
-# sys.exit(1) and an uncaught exception both exit 1, so asserting rc alone is a
-# check that cannot fail: verified 2026-07-30 by injecting `raise RuntimeError`
-# into main() -- the old `[[ $rc -eq 1 ]]` assertion still reported PASS.
+# Asserts the exit code AND that the run actually produced its expected output.
+#
+# Why not "did it print a traceback": that was the first attempt and it failed
+# independent verification on 2026-07-30. It recognised ONE crash signature, so
+# sys.exit("msg"), os._exit(1), a SyntaxError, and any top-level
+# `except: sys.exit(1)` handler all restored the original defect -- and renaming
+# docs-census.py away entirely still PASSED both "exits 2" assertions. It also
+# false-positived: the script echoes untrusted profile text to stderr, so a
+# legitimate axis command containing the word Traceback reported a correct run
+# as a crash.
+#
+# Requiring a marker the run can only produce by doing its job closes all of
+# those: a crashed, absent or unparseable script prints no marker.
 rc_is(){
-  local name="$1" want="$2"; shift 3
-  local err out rc
-  err="$TMP/.stderr.$$"; out="$("$@" 2>"$err")"; rc=$?
-  if grep -q "Traceback (most recent call last)" "$err"; then
-    bad "$name" "script CRASHED (traceback) instead of exiting $want deliberately"
+  local name="$1" want="$2" marker="$3"; shift 4
+  local both rc
+  both="$("$@" 2>&1)"; rc=$?
+  if [[ $rc -ne $want ]]; then
+    bad "$name" "rc=$rc want=$want; output: $(head -c 200 <<<"$both")"
     return
   fi
-  [[ $rc -eq $want ]] && ok "$name" || bad "$name" "rc=$rc want=$want; stderr: $(head -2 "$err" | tr '\n' ' ')"
+  if [[ "$marker" != "-" && "$both" != *"$marker"* ]]; then
+    bad "$name" "rc=$want but produced no '$marker' -- right exit code, no work done"
+    return
+  fi
+  ok "$name"
 }
 
 mkproject() { # $1=dir  $2=census-block-body
@@ -105,20 +118,20 @@ label: things
 command: printf "alpha\n"'
 mkmodule "$P3/.context/references/topic/01-a.md" "things:alpha"
 approve "$P3"
-rc_is "clean project exits 0" 0 -- python3 "$CENSUS" --root "$P3"
+rc_is "clean project exits 0" 0 "1/1 covered" -- python3 "$CENSUS" --root "$P3"
 out3="$(python3 "$CENSUS" --root "$P3" 2>&1)"
 check "clean project reports 100%" "$out3" "1/1 covered (100%)"
 
 # ---------------------------------------------------------------- 4. findings exit 1
-rc_is "findings exit 1 (and did not crash)" 1 -- python3 "$CENSUS" --root "$P"
-rc_is "--advisory always exits 0" 0 -- python3 "$CENSUS" --root "$P" --advisory
+rc_is "findings exit 1 (and actually reported them)" 1 "gap        bravo" -- python3 "$CENSUS" --root "$P"
+rc_is "--advisory always exits 0" 0 "covered" -- python3 "$CENSUS" --root "$P" --advisory
 
 # ---------------------------------------------------------------- 5. broken axis exits 2
-rc_is "broken axis exits 2" 2 -- python3 "$CENSUS" --root "$P2"
+rc_is "broken axis exits 2" 2 "BROKEN" -- python3 "$CENSUS" --root "$P2"
 
 # ---------------------------------------------------------------- 6. missing profile exits 2
 P4="$TMP/p4"; mkdir -p "$P4/.context/references"
-rc_is "missing profile exits 2" 2 -- python3 "$CENSUS" --root "$P4"
+rc_is "missing profile exits 2" 2 "00-profile.md.template" -- python3 "$CENSUS" --root "$P4"
 out4="$(python3 "$CENSUS" --root "$P4" 2>&1)"
 check "missing profile points at the template" "$out4" "00-profile.md.template"
 
@@ -207,17 +220,17 @@ command: touch $TMP/PWNED && printf \"a\\n\""
 mkmodule "$PV/.context/references/topic/01-a.md" ""
 mkdir -p "$PV/.context/references/topic/deep"
 
-rc_is "untrusted profile is refused (exit 3)" 3 -- python3 "$CENSUS" --root "$PV"
+rc_is "untrusted profile is refused (exit 3)" 3 "REFUSED" -- python3 "$CENSUS" --root "$PV"
 [[ ! -e "$TMP/PWNED" ]] && ok "untrusted profile does not execute" || bad "untrusted profile does not execute" "payload ran"
 
-rc_is "--advisory does not bypass the trust gate" 3 -- python3 "$CENSUS" --root "$PV" --advisory
+rc_is "--advisory does not bypass the trust gate" 3 "REFUSED" -- python3 "$CENSUS" --root "$PV" --advisory
 [[ ! -e "$TMP/PWNED" ]] && ok "--advisory does not execute untrusted commands" || bad "--advisory does not execute untrusted commands" "payload ran"
 
 outv="$(python3 "$CENSUS" --root "$PV" 2>&1)"
 check "refusal prints the command so a human can read it" "$outv" "touch"
 check "refusal names the remedy"                          "$outv" "--trust"
 
-rc_is "--dry-run works without approval" 0 -- python3 "$CENSUS" --root "$PV" --dry-run
+rc_is "--dry-run works without approval" 0 "[dry-run]" -- python3 "$CENSUS" --root "$PV" --dry-run
 [[ ! -e "$TMP/PWNED" ]] && ok "--dry-run still does not execute" || bad "--dry-run still does not execute" "payload ran"
 
 python3 "$CENSUS" --root "$PV" --trust --advisory >/dev/null 2>&1
@@ -231,7 +244,7 @@ digest_in_project="$(grep -rl "$(cut -d' ' -f1 < "$AIDEX_CENSUS_TRUST" | tail -1
 
 rm -f "$TMP/PWNED"
 perl -pi -e 's/label: looks fine/label: CHANGED/' "$PV/.context/references/00-profile.md"
-rc_is "editing the census block revokes approval" 3 -- python3 "$CENSUS" --root "$PV" --advisory
+rc_is "editing the census block revokes approval" 3 "CHANGED" -- python3 "$CENSUS" --root "$PV" --advisory
 [[ ! -e "$TMP/PWNED" ]] && ok "revoked profile does not execute" || bad "revoked profile does not execute" "payload ran"
 outv2="$(python3 "$CENSUS" --root "$PV" --advisory 2>&1)"
 check "revocation says the block CHANGED, not merely unapproved" "$outv2" "CHANGED"
@@ -340,8 +353,8 @@ printf 'garbage\n' > "$TMP/badstore"; chmod 000 "$TMP/badstore"
 outu="$(AIDEX_CENSUS_TRUST="$TMP/badstore" python3 "$CENSUS" --root "$PU" --dry-run 2>&1)"
 nocheck "unreadable trust store does not traceback" "$outu" "Traceback (most recent call last)"
 check   "unreadable trust store warns"              "$outu" "trust store unreadable"
-AIDEX_CENSUS_TRUST="$TMP/badstore" python3 "$CENSUS" --root "$PU" >/dev/null 2>&1
-[[ $? -eq 3 ]] && ok "unreadable trust store stays fail-closed" || bad "unreadable trust store stays fail-closed" "did not refuse"
+rc_is "unreadable trust store stays fail-closed" 3 "REFUSED" -- \
+  env AIDEX_CENSUS_TRUST="$TMP/badstore" python3 "$CENSUS" --root "$PU"
 chmod 644 "$TMP/badstore"
 
 # (d) the adoption denominator must not count the profile or indexes as modules
@@ -354,6 +367,75 @@ mkmodule "$PN/.context/references/topic/01-a.md" "things:alpha"
 approve "$PN"
 outn="$(python3 "$CENSUS" --root "$PN" --advisory 2>&1)"
 check "denominator counts modules only, not the profile or indexes" "$outn" "1/1 reference modules declare"
+
+# ---------------------------------------------------------------- 16. rc_is can fail
+# A harness assertion that cannot fail is the defect this whole suite is about,
+# so prove the guard itself. A stub that exits 1 without doing the work must be
+# caught -- the previous traceback-sniffing version passed exactly this.
+STUB="$TMP/stub.py"; printf 'import sys\nsys.exit(1)\n' > "$STUB"
+before=$fail
+rc_is "GUARD SELF-TEST" 1 "gap        bravo" -- python3 "$STUB"
+if [[ $fail -gt $before ]]; then
+  fail=$((fail-1)); pass=$((pass+1))
+  printf 'PASS  rc_is rejects a right-code/no-work run (self-test)\n'
+else
+  printf 'FAIL  rc_is rejects a right-code/no-work run (self-test)\n'; fail=$((fail+1))
+fi
+
+# ---------------------------------------------------------------- 17. P0 regressions
+# (a) a project directory whose NAME contains a newline used to forge an approval
+#     line for an arbitrary other profile -- a full consent-gate bypass, verified
+#     end to end 2026-07-30.
+PI="$TMP/inject"
+mkproject "$PI/victim" "axis: a
+label: a
+command: touch $TMP/INJECTED && printf \"a\\n\""
+VP="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$PI/victim/.context/references/00-profile.md")"
+VDIG="$(python3 -c 'import sys,re,hashlib;t=open(sys.argv[1]).read();b=re.search(r"^```census\s*$(.*?)^```\s*$",t,re.M|re.S).group(1);print(hashlib.sha256(b.strip().encode()).hexdigest())' "$VP")"
+ATT="$PI/att
+$VDIG  $VP
+#"
+mkproject "$ATT" 'axis: t
+label: t
+command: printf "z\n"'
+python3 "$CENSUS" --root "$ATT" --trust --advisory >/dev/null 2>&1
+python3 "$CENSUS" --root "$PI/victim" --advisory >/dev/null 2>&1
+[[ ! -e "$TMP/INJECTED" ]] && ok "a newline in a project path cannot forge an approval" \
+  || bad "a newline in a project path cannot forge an approval" "CONSENT GATE BYPASSED"
+
+# (b) an index that declares covers: must keep its ownership, or contested and
+#     phantom findings are silently deleted and covered items become false gaps.
+PX="$TMP/indexcovers"
+mkproject "$PX" 'axis: things
+label: t
+command: printf "alpha\nbravo\n"'
+mkmodule "$PX/.context/references/topic/00-index.md" "things:alpha, things:bravo"
+mkmodule "$PX/.context/references/topic/01-a.md"    "things:alpha, things:ghost"
+approve "$PX"
+outx="$(python3 "$CENSUS" --root "$PX" --advisory 2>&1)"
+check   "an index's covers: still owns its items"        "$outx" "2/2 covered"
+check   "contested survives when an index is a declarer" "$outx" "contested  alpha"
+check   "phantom survives"                               "$outx" "phantom    ghost"
+nocheck "no false gap from a skipped index"              "$outx" "gap        bravo"
+check   "but an index does not inflate the denominator"  "$outx" "1/1 reference modules"
+
+# (c) a commented-out axis: line must not slip past the merge counter
+PC="$TMP/commented"
+mkproject "$PC" 'axis: routes
+label: routes
+command: printf "GET /a\n"
+# axis: models
+label: models
+command: printf "User\n"'
+mkmodule "$PC/.context/references/topic/01-a.md" "routes: GET /a"
+approve "$PC"
+outc="$(python3 "$CENSUS" --root "$PC" --advisory 2>&1)"
+check   "a commented-out axis line still counts toward the merge guard" "$outc" "commented-out ones count"
+nocheck "no mis-attributed gap from a merged record"                    "$outc" "gap        User"
+
+# (d) profile problems must reach the exit code, not only stderr
+rc_is "a dropped axis is an error, not a stderr warning" 2 "BLANK LINE" -- \
+  python3 "$CENSUS" --root "$PC"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
