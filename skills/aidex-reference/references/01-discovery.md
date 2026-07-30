@@ -107,9 +107,26 @@ rather than a symbol — a scheduler row naming a dotted path, a provider regist
 invisible to grep and to the type-checker. It looks dead and is live, and a rename that an IDE
 blesses breaks it with nothing going red.
 
-**Cost note:** run per claim this rule is expensive, which is why it does not get followed.
-Run once as a census (`scripts/docs-census.sh`) it is a diff, and the whole sweep amortizes it.
-Use the census.
+**Cost note, and its honest limit.** Run per claim this rule is expensive, which is why it does
+not get followed. The census (`scripts/docs-census.sh`) amortizes **part** of it — and only
+part, so know which part:
+
+| Question | Census answer |
+|---|---|
+| Which entry points has nobody documented? | **`gap`** — enumerated from code, diffed against `covers:` |
+| Which documented thing no longer exists? | **`phantom`** — this *is* dead-documentation detection |
+| Is this code I just found reachable at all? | **Nothing.** Unreachable code is on no axis, so the census is blind to it *by construction* |
+
+That third row is the case Rule 3′ is actually about, and it stays manual: the census hands you
+the entry-point **sets**, so "is X one of them?" is a membership check, but the **chain** from an
+entry point down to the code is a read no command performs. Do not let a clean census stand in
+for it — a clean census means everything that *is* on an axis has an owner, not that everything
+documented is alive.
+
+> **Size trigger fired here on 2026-07-30** (2,689 words, over the ~2,500 tripwire in
+> `03-shaping.md`). Reviewed as that rule prescribes: the added content is a correction to an
+> existing rule, not re-derivable prose and not a second workflow, so the module stays whole.
+> Recorded rather than ignored — a tripwire nobody answers is a tripwire that stops firing.
 
 ## Rule 4 — A framework's limits get checked, not recalled
 

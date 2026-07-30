@@ -39,7 +39,12 @@ command: grep -rhoE "path:[[:space:]]*'[^']+'" frontend/src/router --include=*.t
 axis: apps
 label: installed backend apps
 command: grep -oE "^[[:space:]]+'apps\.[a-z_]+" backend/config/settings/_base.py | sed -E "s/.*apps\.//" | sort -u
+paths: backend/apps/{item}
 ```
+
+`paths:` is optional and maps an item to its source, which is what `--stale` needs. Without it
+that axis reports **"staleness cannot be computed"** rather than reporting clean — an axis with
+no path mapping is unmeasured, not healthy.
 
 > **Use POSIX classes (`[[:space:]]`), never `\s`.** BSD `sed -E` on macOS does not honour
 > `\s`, so a `\s`-based command silently fails to strip its prefix and every item comes out
@@ -50,6 +55,38 @@ command: grep -oE "^[[:space:]]+'apps\.[a-z_]+" backend/config/settings/_base.py
      missing one, because it reports coverage of the wrong set.
      Archetype -> axes table: aidex-reference/references/02-architecture.md, § Archetype to axes.
      Axis names may contain spaces (`scheduled jobs`); items may contain spaces and colons. -->
+
+## Topics and their protocol
+
+Which protocol a topic is swept under is **declared here, not decided per module.** The
+boundary test (*if a user can see it on a screen it is a surface; if it is only observable by
+reading code or logs it is a mechanism*) still governs — but you apply it **once per topic**,
+here, where the next author reads it instead of re-deriving it.
+
+- `surface` — run `aidex-reference/references/01-discovery.md` (the visual pass is stage 4).
+- `substitution` — run `02-architecture.md` **instead of** discovery rules 1, 2 and 4. The
+  instrument becomes *running the code path*, and every claim must name **where** it was
+  verified.
+
+`environments:` is the list `substitution` topics may name. It is **checked**: a module under a
+substitution topic that names none of them is reported, because "verified" is not a claim and
+"verified in the backend container" is.
+
+```topics
+topic: features
+protocol: surface
+
+topic: architecture
+protocol: substitution
+environments: host, backend container, worker, dev, E2E
+
+topic: backend
+protocol: substitution
+environments: host, backend container, worker, dev, E2E
+```
+
+> Declaring a topic `substitution` with no `environments:` is reported too — an environment
+> axis nobody can check is an axis nobody will follow.
 
 ## Declaring ownership
 

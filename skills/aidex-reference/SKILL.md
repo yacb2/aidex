@@ -26,6 +26,7 @@ forked here. **The discipline lives in this skill's `references/`.**
 |---|---|
 | *(none)* or a topic | Author or update a module — the full workflow below |
 | `census` | Run the coverage census only; report gap / phantom / contested |
+| `census --stale` | Also flag items whose SOURCE moved after their owning module did |
 | `profile` | Create or update `.context/references/00-profile.md` |
 | `refute <path>` | Run the adversarial close-gate on an existing module |
 
@@ -59,10 +60,28 @@ Three classes: **gap** (in code, undocumented), **phantom** (documented, absent 
 wrong; fix it before believing any number, because a broken axis otherwise reports full coverage
 of an empty set.
 
-This is also how Rule 3′ gets paid for: run per claim, proving reachability is expensive and gets
-skipped; run once as a census, it is a diff.
+**The census checks that ownership EXISTS, never that the content is still true.** A module
+declaring an item it describes wrongly still reports 100% covered. Rot needs the other pass:
+
+```bash
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory --stale
+```
+
+`--stale` flags items whose **source moved after the owning module last changed** — the
+"commits touched the src but not the doc" asymmetry. Advisory: it is a prompt to look, never a
+verdict. It needs `paths:` on the axis; without it that axis reports *"staleness cannot be
+computed"* rather than clean.
+
+Rule 3′ is only **partly** paid for here — see the table in
+[`01-discovery.md`](./references/01-discovery.md). The census finds undocumented entry points
+and documented-but-gone items; it is blind to unreachable code, which sits on no axis.
 
 ## 2 · Decide what belongs — [`03-shaping.md`](./references/03-shaping.md)
+
+**The protocol is declared once per topic in the profile's ```topics block, not decided per
+module.** `surface` → step 3 below. `substitution` → `02-architecture.md`. A module under a
+substitution topic that names none of its declared `environments:` is **reported** — that is
+the checkable half.
 
 Surface or mechanism. What to leave out because a command returns it in seconds. Which topic owns
 it, and whether an area is a flat file or a folder.
