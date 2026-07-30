@@ -46,6 +46,14 @@ paths: backend/apps/{item}
 that axis reports **"staleness cannot be computed"** rather than reporting clean — an axis with
 no path mapping is unmeasured, not healthy.
 
+> **An axis you could not write correctly must be named here in prose, by name and with the
+> reason.** A wrong axis is worse than a missing one, so declining to write it is right — but an
+> omission recorded nowhere reads to the next author as *"this project has no scheduled jobs"*
+> rather than *"nobody has managed to enumerate them"*. The first production profile hit exactly
+> this: django-q `Schedule` rows registered three different ways (data migration, `AppConfig.ready`,
+> by hand in the admin), which no single command enumerates. Write the omission down and it becomes
+> tracked work; leave it out and the census silently reports full coverage of a smaller world.
+
 > **Use POSIX classes (`[[:space:]]`), never `\s`.** BSD `sed -E` on macOS does not honour
 > `\s`, so a `\s`-based command silently fails to strip its prefix and every item comes out
 > mangled — which the census then reports as 100% gap. Caught on this template's own first
