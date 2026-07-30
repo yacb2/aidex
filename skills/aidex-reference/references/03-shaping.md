@@ -118,6 +118,29 @@ trustworthy:
 **A document with no anchors and no commands is unfalsifiable** — nothing in it can be checked,
 so nothing in it can be known to be stale. That is a worse failure than being slightly long.
 
+### Grep every symbol you name
+
+An anchor is only an address if it resolves. **A symbol that does not exist fails silently and
+completely**: the validator passes, the census reads `covered`, no link is broken, and the reader
+greps for a name that is nowhere in the tree.
+
+It happened on the first production run, in a *correction* written to fix an earlier refutation:
+the module named `multipart_upload.py::complete_upload` as the caller. The reachability was right;
+the function is `complete_multipart`, and `complete_upload` appears nowhere in the repo. Invented
+from the shape of the surrounding names, and it took a second close-gate pass to catch.
+
+So before the module ships, grep the symbols back — one pass over what you wrote, not per claim:
+
+```bash
+# every `file.py::symbol` and every `backtick_symbol` you introduced
+grep -rn "def <symbol>\|class <symbol>\|<symbol> =" <src>
+```
+
+Nothing you can automate fully — a symbol may be a settings key, a column, a CLI flag — but the
+question is mechanical and it is the last cheap check before an expensive one. **A wrong symbol is
+as unfollowable as a stale line number, and unlike a stale line number nothing about it looks
+wrong.**
+
 ---
 
 ## Lead with the journey, not the layer
