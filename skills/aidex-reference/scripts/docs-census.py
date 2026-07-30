@@ -65,46 +65,65 @@ def block_digest(block: str) -> str:
     return hashlib.sha256(block.strip().encode()).hexdigest()
 
 
-def load_trust() -> dict[str, str]:
+def load_trust() -> dict[str, str] | None:
+    """Approved profiles as {path: digest}. None means the store exists but could
+    not be read -- distinct from {} (no approvals), because a caller that merges
+    into {} would silently destroy every other project's approval.
+
+    JSON, not a line format: the previous `{digest}  {path}` format had no
+    escaping, so a project directory whose NAME contains a newline forged an
+    approval line for an arbitrary other profile. Verified as a full consent-gate
+    bypass on 2026-07-30 -- an unapproved hostile census executed with no --trust.
+    A repo can choose its own directory name; git clones it.
+    """
     if not TRUST_FILE.is_file():
         return {}
     try:
-        raw = TRUST_FILE.read_text(encoding="utf-8", errors="replace")
+        raw = TRUST_FILE.read_text(encoding="utf-8")
     except OSError as exc:
-        # Unreadable store: stay fail-closed (no approvals) but say so, rather than
-        # tracebacking out of even --dry-run, which is the safe inspection path.
-        print(f"WARN: trust store unreadable ({exc}); treating as empty — "
-              f"nothing will be approved", file=sys.stderr)
+        print(f"WARN: trust store unreadable ({exc})", file=sys.stderr)
+        return None
+    if not raw.strip():
         return {}
-    out: dict[str, str] = {}
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        digest, _, path = line.partition("  ")
-        if digest and path:
-            out[path] = digest
-    return out
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        print(f"WARN: trust store {TRUST_FILE} is not valid JSON; refusing to "
+              f"read or overwrite it", file=sys.stderr)
+        return None
+    if not isinstance(data, dict):
+        print(f"WARN: trust store {TRUST_FILE} has an unexpected shape", file=sys.stderr)
+        return None
+    return {str(k): str(v) for k, v in data.items()}
 
 
 def record_trust(profile: Path, digest: str) -> None:
     trust = load_trust()
+    if trust is None:
+        # Never merge into an empty dict after a failed read: that rewrites the
+        # store with only the new entry and silently revokes everything else.
+        raise SystemExit(
+            f"refusing to write {TRUST_FILE}: it exists but could not be read. "
+            f"Approving now would delete every other project's approval. "
+            f"Fix or remove the file, then re-run --trust.")
     trust[str(profile)] = digest
-    TRUST_FILE.parent.mkdir(parents=True, exist_ok=True)
-    body = ["# aidex docs-census approved profiles (sha256 of the census block)",
-            "# Editing a profile's census block revokes its approval."]
-    body += [f"{d}  {p}" for p, d in sorted(trust.items())]
-    tmp = TRUST_FILE.with_suffix(TRUST_FILE.suffix + f".tmp{os.getpid()}")
+    tmp = TRUST_FILE.with_name(TRUST_FILE.name + f".tmp{os.getpid()}")
     try:
-        tmp.write_text("\n".join(body) + "\n", encoding="utf-8")
+        TRUST_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(json.dumps(trust, indent=1, sort_keys=True) + "\n", encoding="utf-8")
         try:
             tmp.chmod(0o600)
         except OSError:
             pass
-        os.replace(tmp, TRUST_FILE)  # atomic; a crash mid-write cannot truncate the store
+        os.replace(tmp, TRUST_FILE)  # atomic; a crash mid-write cannot truncate it
     except OSError as exc:
-        tmp.unlink(missing_ok=True)
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
         raise SystemExit(f"could not write trust store {TRUST_FILE}: {exc}")
+
+
 CENSUS_BLOCK = re.compile(r"^```census\s*$(.*?)^```\s*$", re.M | re.S)
 
 
@@ -180,23 +199,23 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
     axes: list[Axis] = []
     for chunk in re.split(r"\n\s*\n", m.group(1).strip()):
         rec: dict[str, str] = {}
-        axis_lines = 0
+        # Count `axis:` BEFORE the comment skip. Commenting one line out is the
+        # most natural way to disable a record, and it used to slip past the
+        # counter while the record's other keys still overwrote the previous one.
+        axis_lines = len(re.findall(r"^\s*#?\s*axis\s*:", chunk, re.M))
         for line in chunk.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             k, _, v = line.partition(":")
-            k = k.strip()
-            if k == "axis":
-                axis_lines += 1
-            rec[k] = v.strip()
+            rec[k.strip()] = v.strip()
         if not rec:
             continue
         if axis_lines > 1:
             problems.append(
-                f"{path}: a census record declares {axis_lines} `axis:` lines — records "
-                f"must be separated by a BLANK LINE, or all but the last are dropped: "
-                f"{chunk.splitlines()[0]!r}...")
+                f"{path}: a census record declares {axis_lines} `axis:` lines "
+                f"(commented-out ones count) — records must be separated by a BLANK "
+                f"LINE. This whole record is dropped: {chunk.splitlines()[0]!r}...")
             continue
         name = rec.get("axis", "")
         command = rec.get("command", "")
@@ -204,8 +223,8 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
             problems.append(f"incomplete axis record: {rec or chunk!r}")
             continue
         if name in {a.name for a in axes}:
-            problems.append(f"{path}: duplicate axis {name!r} — the later record wins "
-                            f"silently; give each axis a distinct name")
+            problems.append(f"{path}: duplicate axis {name!r} — the FIRST record is "
+                            f"kept and this one is dropped; give each axis a distinct name")
             continue
         axes.append(Axis(name, rec.get("label", ""), command))
     if not axes:
@@ -233,14 +252,19 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
     problems: list[str] = []
     scanned = declaring = 0
     for md in sorted(refs.rglob("*.md")):
-        if md.name in ("00-profile.md", "00-index.md", "00-overview.md"):
-            continue  # the profile and indexes are not modules and never own an item
-        scanned += 1
         fm = parse_frontmatter(md.read_text(encoding="utf-8", errors="replace"))
         raw = fm.get("covers", "").strip()
+        # The profile and indexes are not modules, so they do not move the N/M
+        # adoption figure -- but if one DOES declare covers:, that ownership is
+        # still real. Skipping them before parsing deleted contested and phantom
+        # findings outright and turned covered items into false gaps.
+        is_module = md.name not in ("00-profile.md", "00-index.md", "00-overview.md")
+        if is_module:
+            scanned += 1
         if not raw:
             continue
-        declaring += 1
+        if is_module:
+            declaring += 1
         rel = str(md.relative_to(refs.parent.parent))
         for entry in raw.split(","):
             entry = entry.strip()
@@ -394,24 +418,34 @@ def main() -> int:
               "skills/aidex-reference/assets/templates/00-profile.md.template",
               file=sys.stderr)
         return 2
-    for p in problems:
-        print(f"WARN: {p}", file=sys.stderr)
+    # Profile problems are ERRORS, not warnings: a dropped axis means the census
+    # measured less than it reports, so it must reach --json, the matrix and the
+    # exit code -- not only a human reading stderr.
 
     # ---- trust gate ----------------------------------------------------
     # These are shell strings from a file that may have arrived with a clone.
     # Consent is enforced here rather than asked for in a docstring, because a
     # rule that depends on the operator remembering is a rule that is not run.
     digest = block_digest(block)
-    trusted = load_trust().get(str(profile)) == digest
+    known_store = load_trust()
+    if known_store is None:
+        # Unreadable/corrupt store: fail closed. Never fall through to "no
+        # approvals", which would also let record_trust overwrite it.
+        trusted = False
+    else:
+        trusted = known_store.get(str(profile)) == digest
     if args.trust and not args.dry_run:
         record_trust(profile, digest)
         trusted = True
         print(f"approved {profile}\n  sha256:{digest[:16]}… recorded in {TRUST_FILE}",
               file=sys.stderr)
     if not trusted and not args.dry_run:
-        known = load_trust().get(str(profile))
-        why = ("its census block CHANGED since it was approved"
-               if known else "it has not been approved on this machine")
+        known = (known_store or {}).get(str(profile))
+        if known_store is None:
+            why = "the trust store could not be read, so nothing is approved"
+        else:
+            why = ("its census block CHANGED since it was approved"
+                   if known else "it has not been approved on this machine")
         print(f"REFUSED: not running {profile} — {why}.\n", file=sys.stderr)
         print("These axis commands would run as you, from "
               f"{root}:\n", file=sys.stderr)
@@ -424,7 +458,7 @@ def main() -> int:
 
     owners, scanned, declaring, cover_problems = load_ownership(refs)
     report = build_report(axes, owners, root, args.dry_run)
-    report["errors"] = cover_problems + report["errors"]
+    report["errors"] = problems + cover_problems + report["errors"]
     report["modules_scanned"] = scanned
     report["modules_declaring"] = declaring
 
