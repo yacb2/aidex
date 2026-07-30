@@ -437,5 +437,24 @@ nocheck "no mis-attributed gap from a merged record"                    "$outc" 
 rc_is "a dropped axis is an error, not a stderr warning" 2 "BLANK LINE" -- \
   python3 "$CENSUS" --root "$PC"
 
+# ---------------------------------------------------------------- 18. legacy store
+# The JSON format was introduced to kill a path-injection forgery. A store left in
+# the old `{digest}  {path}` line format must NOT be migrated (its entries could be
+# forged) and must NOT dead-end the user -- the first version refused to read AND
+# refused to write, with no way out but guessing.
+PL="$TMP/legacy"
+mkproject "$PL" 'axis: things
+label: t
+command: printf "alpha\n"'
+mkmodule "$PL/.context/references/topic/01-a.md" "things:alpha"
+printf '# header\n%064d  /some/other/profile.md\n' 0 > "$TMP/legacystore"
+outl="$(AIDEX_CENSUS_TRUST="$TMP/legacystore" python3 "$CENSUS" --root "$PL" --advisory 2>&1)"
+check "legacy store is named as legacy, not a generic parse error" "$outl" "legacy line format"
+check "legacy store tells the user exactly what to do"             "$outl" "Delete it and re-approve"
+nocheck "legacy approvals are not silently migrated"               "$outl" "covered ("
+rm -f "$TMP/legacystore"
+rc_is "after removing it, --trust works" 0 "approved" -- \
+  env AIDEX_CENSUS_TRUST="$TMP/legacystore" python3 "$CENSUS" --root "$PL" --trust --advisory
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
