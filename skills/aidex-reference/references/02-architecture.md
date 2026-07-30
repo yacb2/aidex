@@ -95,6 +95,24 @@ first run it found a module described nowhere.**
 
 **The gap was found by luck. The census is what you build so that next time it is not luck.**
 
+### Archetype to axes — the single copy
+
+Which axes a project needs is a property of its shape. This table is the **one** home for it;
+the profile template and the `docs-coverage` playbook point here rather than repeat it, because
+both are materialized per project where a second copy would drift unseen.
+
+| Archetype | Axes that usually apply | Visual pass |
+|---|---|---|
+| Full-stack web app | routes · modules · scheduled jobs | Yes — the surface protocol |
+| Backend / API service | endpoints · modules · jobs · events consumed | **Substituted** — run the code path |
+| CLI tool / toolkit | commands · sub-actions · hooks | Substituted — invoke the command |
+| Library / SDK | public exports | **None** — this module is the whole protocol |
+| Content / static site | pages · collections | Yes |
+
+Axis **names** may contain spaces (`scheduled jobs`); so may items (`GET /api/voices`), and an
+item may contain colons (`/productions/:id`). A project with only one axis is itself the
+finding: a single-axis census reports full coverage of whatever that axis cannot see.
+
 > **"Mentioned" is not "described", and grep cannot tell them apart.** That stage was mentioned in
 > four files while described in none. This is why ownership is **declared** in `covers:`
 > front-matter and diffed by `scripts/docs-census.sh`, rather than inferred from prose — the

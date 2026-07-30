@@ -46,15 +46,10 @@ command: grep -oE "^[[:space:]]+'apps\.[a-z_]+" backend/config/settings/_base.py
 > mangled — which the census then reports as 100% gap. Caught on this template's own first
 > run, 2026-07-29.
 
-<!-- Add an axis per archetype. Delete what does not apply — a wrong axis is worse than a
-     missing one, because it reports coverage.
-
-  Full-stack web app     routes · apps · scheduled jobs
-  Backend / API service  endpoints · apps · jobs · events consumed
-  CLI tool / toolkit     commands · sub-actions · hooks
-  Library / SDK          public exports        (no visual pass at all)
-  Content / static site  pages · collections
--->
+<!-- Add an axis per archetype; delete what does not apply. A wrong axis is worse than a
+     missing one, because it reports coverage of the wrong set.
+     Archetype -> axes table: aidex-reference/references/02-architecture.md, § Archetype to axes.
+     Axis names may contain spaces (`scheduled jobs`); items may contain spaces and colons. -->
 
 ## Declaring ownership
 
@@ -140,10 +135,23 @@ fields as project-local and does not reject them.
 ## Verification
 
 ```bash
-python3 ~/.claude/skills/aidex-reference/scripts/docs-census.py --dry-run
-python3 ~/.claude/skills/aidex-reference/scripts/docs-census.py --advisory
+# 1. read the axis commands without running them
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --dry-run
+# 2. approve this exact block (required once, and again after any edit to it)
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --trust --advisory
 ```
 
-**Real output, {{DATE}}:** <!-- paste what you actually got; a BROKEN axis here means the
-command is wrong, and a 100% figure from a broken axis is the failure this file exists to
-prevent. -->
+**Real output, {{DATE}}:** <!-- paste what you actually got. -->
+
+How to read a change:
+
+- **`REFUSED ... not been approved`** — expected before step 2, and expected again after any
+  edit to the census block. Not a failure; the trust gate.
+- **A `BROKEN` axis** — the command is wrong. A 100% figure from a broken axis is the exact
+  failure this file exists to prevent, so fix the command before believing any number.
+- **Every item in `gap` with `0 of N` modules declaring** — an adoption gap, not a coverage
+  gap. Declare `covers:` on sweep; never backfill it by inference.
+
+> Step 2 is why the second command carries `--trust`. An earlier version of this template ran
+> `--advisory` alone and exited 3 on every fresh profile — a Verification block that cannot run
+> as written, shipped in the file that teaches the contract. Caught 2026-07-30.

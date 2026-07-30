@@ -68,8 +68,16 @@ def block_digest(block: str) -> str:
 def load_trust() -> dict[str, str]:
     if not TRUST_FILE.is_file():
         return {}
+    try:
+        raw = TRUST_FILE.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        # Unreadable store: stay fail-closed (no approvals) but say so, rather than
+        # tracebacking out of even --dry-run, which is the safe inspection path.
+        print(f"WARN: trust store unreadable ({exc}); treating as empty — "
+              f"nothing will be approved", file=sys.stderr)
+        return {}
     out: dict[str, str] = {}
-    for line in TRUST_FILE.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in raw.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -86,11 +94,17 @@ def record_trust(profile: Path, digest: str) -> None:
     body = ["# aidex docs-census approved profiles (sha256 of the census block)",
             "# Editing a profile's census block revokes its approval."]
     body += [f"{d}  {p}" for p, d in sorted(trust.items())]
-    TRUST_FILE.write_text("\n".join(body) + "\n", encoding="utf-8")
+    tmp = TRUST_FILE.with_suffix(TRUST_FILE.suffix + f".tmp{os.getpid()}")
     try:
-        TRUST_FILE.chmod(0o600)
-    except OSError:
-        pass
+        tmp.write_text("\n".join(body) + "\n", encoding="utf-8")
+        try:
+            tmp.chmod(0o600)
+        except OSError:
+            pass
+        os.replace(tmp, TRUST_FILE)  # atomic; a crash mid-write cannot truncate the store
+    except OSError as exc:
+        tmp.unlink(missing_ok=True)
+        raise SystemExit(f"could not write trust store {TRUST_FILE}: {exc}")
 CENSUS_BLOCK = re.compile(r"^```census\s*$(.*?)^```\s*$", re.M | re.S)
 
 
@@ -166,18 +180,32 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
     axes: list[Axis] = []
     for chunk in re.split(r"\n\s*\n", m.group(1).strip()):
         rec: dict[str, str] = {}
+        axis_lines = 0
         for line in chunk.splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             k, _, v = line.partition(":")
-            rec[k.strip()] = v.strip()
+            k = k.strip()
+            if k == "axis":
+                axis_lines += 1
+            rec[k] = v.strip()
         if not rec:
+            continue
+        if axis_lines > 1:
+            problems.append(
+                f"{path}: a census record declares {axis_lines} `axis:` lines — records "
+                f"must be separated by a BLANK LINE, or all but the last are dropped: "
+                f"{chunk.splitlines()[0]!r}...")
             continue
         name = rec.get("axis", "")
         command = rec.get("command", "")
         if not name or not command:
             problems.append(f"incomplete axis record: {rec or chunk!r}")
+            continue
+        if name in {a.name for a in axes}:
+            problems.append(f"{path}: duplicate axis {name!r} — the later record wins "
+                            f"silently; give each axis a distinct name")
             continue
         axes.append(Axis(name, rec.get("label", ""), command))
     if not axes:
@@ -205,6 +233,8 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
     problems: list[str] = []
     scanned = declaring = 0
     for md in sorted(refs.rglob("*.md")):
+        if md.name in ("00-profile.md", "00-index.md", "00-overview.md"):
+            continue  # the profile and indexes are not modules and never own an item
         scanned += 1
         fm = parse_frontmatter(md.read_text(encoding="utf-8", errors="replace"))
         raw = fm.get("covers", "").strip()
