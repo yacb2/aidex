@@ -21,6 +21,23 @@ bad()  { printf 'FAIL  %s\n    %s\n' "$1" "${2:-}"; fail=$((fail+1)); }
 check(){ if [[ "$2" == *"$3"* ]]; then ok "$1"; else bad "$1" "expected '$3' in: $2"; fi; }
 nocheck(){ if [[ "$2" != *"$3"* ]]; then ok "$1"; else bad "$1" "did NOT expect '$3' in: $2"; fi; }
 
+# rc_is <name> <want-rc> -- <cmd...>
+#
+# Asserts the exit code AND that the run was a deliberate exit, not a crash.
+# sys.exit(1) and an uncaught exception both exit 1, so asserting rc alone is a
+# check that cannot fail: verified 2026-07-30 by injecting `raise RuntimeError`
+# into main() -- the old `[[ $rc -eq 1 ]]` assertion still reported PASS.
+rc_is(){
+  local name="$1" want="$2"; shift 3
+  local err out rc
+  err="$TMP/.stderr.$$"; out="$("$@" 2>"$err")"; rc=$?
+  if grep -q "Traceback (most recent call last)" "$err"; then
+    bad "$name" "script CRASHED (traceback) instead of exiting $want deliberately"
+    return
+  fi
+  [[ $rc -eq $want ]] && ok "$name" || bad "$name" "rc=$rc want=$want; stderr: $(head -2 "$err" | tr '\n' ' ')"
+}
+
 mkproject() { # $1=dir  $2=census-block-body
   local d="$1"
   mkdir -p "$d/.context/references"
@@ -66,7 +83,8 @@ check "gap: charlie too"                           "$out" "gap        charlie"
 check "phantom: declared but absent from code"     "$out" "phantom    delta"
 check "contested: two owners for one item"         "$out" "contested  alpha"
 check "counts line is right"                       "$out" "1/3 covered (33%)"
-check "adoption line reports declaring modules"    "$out" "2/3 reference modules declare"
+# 2/2, not 2/3: the denominator counts modules, excluding 00-profile.md and indexes.
+check "adoption line reports declaring modules"    "$out" "2/2 reference modules declare"
 
 # ---------------------------------------------------------------- 2. broken axis
 P2="$TMP/p2"
@@ -87,24 +105,21 @@ label: things
 command: printf "alpha\n"'
 mkmodule "$P3/.context/references/topic/01-a.md" "things:alpha"
 approve "$P3"
-out3="$(python3 "$CENSUS" --root "$P3" 2>&1)"; rc3=$?
-[[ $rc3 -eq 0 ]] && ok "clean project exits 0" || bad "clean project exits 0" "rc=$rc3"
+rc_is "clean project exits 0" 0 -- python3 "$CENSUS" --root "$P3"
+out3="$(python3 "$CENSUS" --root "$P3" 2>&1)"
 check "clean project reports 100%" "$out3" "1/1 covered (100%)"
 
 # ---------------------------------------------------------------- 4. findings exit 1
-python3 "$CENSUS" --root "$P" >/dev/null 2>&1; rc=$?
-[[ $rc -eq 1 ]] && ok "findings exit 1" || bad "findings exit 1" "rc=$rc"
-python3 "$CENSUS" --root "$P" --advisory >/dev/null 2>&1; rc=$?
-[[ $rc -eq 0 ]] && ok "--advisory always exits 0" || bad "--advisory always exits 0" "rc=$rc"
+rc_is "findings exit 1 (and did not crash)" 1 -- python3 "$CENSUS" --root "$P"
+rc_is "--advisory always exits 0" 0 -- python3 "$CENSUS" --root "$P" --advisory
 
 # ---------------------------------------------------------------- 5. broken axis exits 2
-python3 "$CENSUS" --root "$P2" >/dev/null 2>&1; rc=$?
-[[ $rc -eq 2 ]] && ok "broken axis exits 2" || bad "broken axis exits 2" "rc=$rc"
+rc_is "broken axis exits 2" 2 -- python3 "$CENSUS" --root "$P2"
 
 # ---------------------------------------------------------------- 6. missing profile exits 2
 P4="$TMP/p4"; mkdir -p "$P4/.context/references"
-out4="$(python3 "$CENSUS" --root "$P4" 2>&1)"; rc4=$?
-[[ $rc4 -eq 2 ]] && ok "missing profile exits 2" || bad "missing profile exits 2" "rc=$rc4"
+rc_is "missing profile exits 2" 2 -- python3 "$CENSUS" --root "$P4"
+out4="$(python3 "$CENSUS" --root "$P4" 2>&1)"
 check "missing profile points at the template" "$out4" "00-profile.md.template"
 
 # ---------------------------------------------------------------- 7. zero adoption NOTE
@@ -192,32 +207,31 @@ command: touch $TMP/PWNED && printf \"a\\n\""
 mkmodule "$PV/.context/references/topic/01-a.md" ""
 mkdir -p "$PV/.context/references/topic/deep"
 
-python3 "$CENSUS" --root "$PV" >/dev/null 2>&1; rc=$?
-[[ $rc -eq 3 ]] && ok "untrusted profile is refused (exit 3)" || bad "untrusted profile is refused" "rc=$rc"
+rc_is "untrusted profile is refused (exit 3)" 3 -- python3 "$CENSUS" --root "$PV"
 [[ ! -e "$TMP/PWNED" ]] && ok "untrusted profile does not execute" || bad "untrusted profile does not execute" "payload ran"
 
-python3 "$CENSUS" --root "$PV" --advisory >/dev/null 2>&1; rc=$?
-[[ $rc -eq 3 ]] && ok "--advisory does not bypass the trust gate" || bad "--advisory does not bypass the trust gate" "rc=$rc"
+rc_is "--advisory does not bypass the trust gate" 3 -- python3 "$CENSUS" --root "$PV" --advisory
 [[ ! -e "$TMP/PWNED" ]] && ok "--advisory does not execute untrusted commands" || bad "--advisory does not execute untrusted commands" "payload ran"
 
 outv="$(python3 "$CENSUS" --root "$PV" 2>&1)"
 check "refusal prints the command so a human can read it" "$outv" "touch"
 check "refusal names the remedy"                          "$outv" "--trust"
 
-python3 "$CENSUS" --root "$PV" --dry-run >/dev/null 2>&1; rc=$?
-[[ $rc -eq 0 ]] && ok "--dry-run works without approval" || bad "--dry-run works without approval" "rc=$rc"
+rc_is "--dry-run works without approval" 0 -- python3 "$CENSUS" --root "$PV" --dry-run
 [[ ! -e "$TMP/PWNED" ]] && ok "--dry-run still does not execute" || bad "--dry-run still does not execute" "payload ran"
 
 python3 "$CENSUS" --root "$PV" --trust --advisory >/dev/null 2>&1
 [[ -e "$TMP/PWNED" ]] && ok "--trust approves and then runs" || bad "--trust approves and then runs" "payload did not run"
-[[ ! -e "$PV/.context/.census-trust" && ! -e "$PV/.aidex-census-trust" ]] \
+# Assert on the whole subtree, not two guessed filenames: the claim is that NOTHING
+# approval-shaped lands in the project, so grep the tree for the digest itself.
+digest_in_project="$(grep -rl "$(cut -d' ' -f1 < "$AIDEX_CENSUS_TRUST" | tail -1)" "$PV" 2>/dev/null | head -1)"
+[[ -z "$digest_in_project" ]] \
   && ok "approval is stored outside the project (a repo cannot ship its own)" \
-  || bad "approval is stored outside the project" "found a trust file inside the project"
+  || bad "approval is stored outside the project" "digest found inside the project at $digest_in_project"
 
 rm -f "$TMP/PWNED"
 perl -pi -e 's/label: looks fine/label: CHANGED/' "$PV/.context/references/00-profile.md"
-python3 "$CENSUS" --root "$PV" --advisory >/dev/null 2>&1; rc=$?
-[[ $rc -eq 3 ]] && ok "editing the census block revokes approval" || bad "editing the census block revokes approval" "rc=$rc"
+rc_is "editing the census block revokes approval" 3 -- python3 "$CENSUS" --root "$PV" --advisory
 [[ ! -e "$TMP/PWNED" ]] && ok "revoked profile does not execute" || bad "revoked profile does not execute" "payload ran"
 outv2="$(python3 "$CENSUS" --root "$PV" --advisory 2>&1)"
 check "revocation says the block CHANGED, not merely unapproved" "$outv2" "CHANGED"
@@ -283,6 +297,63 @@ approve "$PW"
   || bad "relative --write does not fabricate a second .context/" "created $PW/sub/dir/.context"
 [[ -f "$PW/.context/audits/run/matrix.md" ]] && ok "relative --write lands under the project root" \
   || bad "relative --write lands under the project root" "matrix not at the root"
+
+# ---------------------------------------------------------------- 15. orphan defects
+# These four were raised by the 2026-07-29 review but their verifier agents died in
+# an API incident, so they shipped unadjudicated. All four reproduced on 2026-07-30.
+
+# (a) records not separated by a blank line silently dropped all but the last axis
+PM="$TMP/merge"
+mkproject "$PM" 'axis: one
+label: one
+command: printf "a\n"
+axis: two
+label: two
+command: printf "b\n"'
+mkmodule "$PM/.context/references/topic/01-a.md" ""
+approve "$PM"
+outm="$(python3 "$CENSUS" --root "$PM" --advisory 2>&1)"
+check "merged census records are reported, not silently dropped" "$outm" "must be separated by a BLANK LINE"
+nocheck "a merged record does not yield a phantom single axis"   "$outm" "one          "
+
+# (b) duplicate axis names
+PD="$TMP/dupaxis"
+mkproject "$PD" 'axis: things
+label: first
+command: printf "a\n"
+
+axis: things
+label: second
+command: printf "b\n"'
+mkmodule "$PD/.context/references/topic/01-a.md" ""
+approve "$PD"
+outd="$(python3 "$CENSUS" --root "$PD" --advisory 2>&1)"
+check "duplicate axis name is reported" "$outd" "duplicate axis"
+
+# (c) an unreadable trust store must warn and stay fail-closed, never traceback
+PU="$TMP/unreadable"
+mkproject "$PU" 'axis: things
+label: things
+command: printf "a\n"'
+mkmodule "$PU/.context/references/topic/01-a.md" ""
+printf 'garbage\n' > "$TMP/badstore"; chmod 000 "$TMP/badstore"
+outu="$(AIDEX_CENSUS_TRUST="$TMP/badstore" python3 "$CENSUS" --root "$PU" --dry-run 2>&1)"
+nocheck "unreadable trust store does not traceback" "$outu" "Traceback (most recent call last)"
+check   "unreadable trust store warns"              "$outu" "trust store unreadable"
+AIDEX_CENSUS_TRUST="$TMP/badstore" python3 "$CENSUS" --root "$PU" >/dev/null 2>&1
+[[ $? -eq 3 ]] && ok "unreadable trust store stays fail-closed" || bad "unreadable trust store stays fail-closed" "did not refuse"
+chmod 644 "$TMP/badstore"
+
+# (d) the adoption denominator must not count the profile or indexes as modules
+PN="$TMP/denom"
+mkproject "$PN" 'axis: things
+label: things
+command: printf "alpha\n"'
+mkmodule "$PN/.context/references/topic/00-index.md" ""
+mkmodule "$PN/.context/references/topic/01-a.md" "things:alpha"
+approve "$PN"
+outn="$(python3 "$CENSUS" --root "$PN" --advisory 2>&1)"
+check "denominator counts modules only, not the profile or indexes" "$outn" "1/1 reference modules declare"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

@@ -46,13 +46,10 @@ check-that-cannot-fail failure this whole methodology exists to name.
 project's shape, not a fact derivable from its files. This is the only hand-maintained
 input; everything downstream derives from it.
 
-| Archetype | Axes that usually apply |
-|---|---|
-| Full-stack web app | routes · modules · scheduled jobs |
-| Backend / API service | endpoints · modules · jobs · events consumed |
-| CLI tool / toolkit | commands · sub-actions · hooks |
-| Library / SDK | public exports (no visual pass at all) |
-| Content / static site | pages · collections |
+The archetype-to-axes table lives in **one** place —
+`aidex-reference/references/02-architecture.md` — and is not repeated here. Read it there; a
+second copy is a second thing to keep in sync, and this playbook is materialized per project
+where it would drift silently.
 
 ---
 

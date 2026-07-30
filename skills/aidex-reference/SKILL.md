@@ -104,7 +104,14 @@ worse than no check, so `- [ ]` boxes are banned there. Cover every layer the mo
 
 ## 5 · Refute — the close-gate
 
-Spawn the subagent in `agents/reference-refuter.md` with the module path.
+| Agent | Model | Role |
+|---|---|---|
+| [reference-refuter](agents/reference-refuter.md) | sonnet / high | Attacks the module's claims; returns a verdict per claim |
+
+Spawn it with the Task tool: point a subagent at that definition file, tell it to read the file
+and adopt the role exactly including its output format, and give it the module path plus the
+project root. Skill `agents/` definitions are **not** auto-registered as agent types, so naming
+the file is what makes this step happen rather than get skipped.
 
 **Do not skip this and do not self-assess instead.** You assigned the ledger labels; the sweep
 that reasons a correction into falseness is the same one that re-reads it and finds it sound. And
