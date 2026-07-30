@@ -126,7 +126,15 @@ of the two it is **is the finding**.
 
 <!-- Replace with this project's real list. Examples:
      route · REST endpoint · scheduled job row · queue consumer · management command ·
-     signal handler · webhook · public export · template tag · CLI subcommand -->
+     signal handler · webhook · public export · template tag · CLI subcommand ·
+     data migration / RunPython
+
+     Do not drop "data migration" as historical. A framework re-runs it on every database that
+     has not applied it -- a fresh dev DB, a CI runner, a restore-then-migrate, and every test
+     build that does not reuse its database. Code reachable only from one is live. Leaving it
+     off this list let a sweep write up such a module as "ran once and is not a live path", and
+     the profile's own taxonomy is what licensed that. A kind missing here is not neutral: it
+     makes the code it would have covered unclassifiable, and unclassifiable reads as dead. -->
 
 - {{ENTRY_POINT_KIND}}
 

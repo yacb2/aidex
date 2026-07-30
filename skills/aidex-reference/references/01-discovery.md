@@ -86,6 +86,17 @@ Budget accordingly: **a positive costs one file read, a negative costs a tree se
 documents are mostly negatives, because the useful sentence is usually *"this does less than it
 looks like"*.
 
+**"The only X" is a negative wearing a positive's clothes.** It reads like an observation about
+one thing and asserts something about everything else, so it needs the same empty search. A
+production module carried *"`AIExecutionLogger.log(...)` is the only writer"* for two days; the
+search nobody ran turns up three other sites writing that table directly, two of them in
+migrations. Same for *the* entry point, *the* caller, *the* place a rate is defined.
+
+**And count what you enumerate.** A list is not a number. The same module said "five call sites"
+directly beneath a list naming six files — the figure was written from the shape of the list
+rather than counted, and it survived the author, a validator and a census, because nothing checks
+prose arithmetic. If a number appears, produce it with `wc -l` or `grep -c` and paste the command.
+
 ## Rule 3′ — A positive requires a reachability proof
 
 **The failure:** the symmetric one, and the one that goes unnoticed longest, because it is
