@@ -138,6 +138,7 @@ def record_trust(profile: Path, digest: str) -> None:
 
 
 CENSUS_BLOCK = re.compile(r"^```census\s*$(.*?)^```\s*$", re.M | re.S)
+TOPICS_BLOCK = re.compile(r"^```topics\s*$(.*?)^```\s*$", re.M | re.S)
 
 
 # ---------- front-matter (flat, mirrors validate.py) ----------
@@ -170,10 +171,14 @@ def parse_frontmatter(text: str) -> dict[str, str]:
 # ---------- profile ----------
 
 class Axis:
-    def __init__(self, name: str, label: str, command: str) -> None:
+    def __init__(self, name: str, label: str, command: str, paths: str = "") -> None:
         self.name = name
         self.label = label or name
         self.command = command
+        # Optional glob template with {item}, e.g. "backend/apps/{item}". Without
+        # it --stale cannot map an item to source, and says so per axis rather
+        # than reporting that axis silently clean.
+        self.paths = paths
 
     def enumerate(self, root: Path) -> tuple[set[str], str | None]:
         """Run the axis command. Returns (items, error)."""
@@ -239,10 +244,89 @@ def load_profile(path: Path) -> tuple[list[Axis], list[str], str]:
             problems.append(f"{path}: duplicate axis {name!r} — the FIRST record is "
                             f"kept and this one is dropped; give each axis a distinct name")
             continue
-        axes.append(Axis(name, rec.get("label", ""), command))
+        axes.append(Axis(name, rec.get("label", ""), command, rec.get("paths", "")))
     if not axes:
         problems.append(f"{path}: ```census block declares no usable axis")
     return axes, problems, block
+
+
+
+
+# ---------- topics: which protocol each reference topic is swept under ----------
+
+def load_topics(path: Path) -> tuple[dict[str, dict], list[str]]:
+    """topic -> {protocol, environments}. Declared once in the profile so the
+    choice is READ rather than re-derived per module.
+
+    Protocol selection used to be a judgment the author made from a one-line test
+    each time, with nothing checking the result -- exactly the "expensive rule
+    that does not get followed" shape. Declaring it makes it cheap; the
+    environment check below makes it falsifiable.
+    """
+    problems: list[str] = []
+    if not path.is_file():
+        return {}, problems
+    m = TOPICS_BLOCK.search(path.read_text(encoding="utf-8", errors="replace"))
+    if not m:
+        return {}, problems
+    topics: dict[str, dict] = {}
+    for chunk in re.split(r"\n\s*\n", m.group(1).strip()):
+        rec: dict[str, str] = {}
+        for line in chunk.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            k, _, v = line.partition(":")
+            rec[k.strip()] = v.strip()
+        if not rec:
+            continue
+        name = rec.get("topic", "")
+        proto = rec.get("protocol", "")
+        if not name:
+            problems.append(f"{path}: topics record with no `topic:` — {chunk.splitlines()[:1]}")
+            continue
+        if proto not in ("surface", "substitution"):
+            problems.append(
+                f"{path}: topic {name!r} declares protocol {proto or '(none)'!r}; "
+                f"must be `surface` (it has a screen) or `substitution` (it does not)")
+            continue
+        envs = [e.strip() for e in rec.get("environments", "").split(",") if e.strip()]
+        topics[name] = {"protocol": proto, "environments": envs}
+    return topics, problems
+
+
+def check_protocol(refs: Path, topics: dict[str, dict]) -> list[str]:
+    """A module in a `substitution` topic must name where its claims were verified.
+
+    02-architecture.md §4: an architecture claim can be true on the host and false
+    in the container, so "verified" is not a claim -- "verified in the backend
+    container" is. This is the checkable half of declaring the protocol.
+    """
+    problems: list[str] = []
+    for topic, spec in sorted(topics.items()):
+        if spec["protocol"] != "substitution":
+            continue
+        envs = spec["environments"]
+        tdir = refs / topic
+        if not tdir.is_dir():
+            problems.append(f"profile declares topic {topic!r} but {tdir} does not exist")
+            continue
+        if not envs:
+            problems.append(
+                f"topic {topic!r} is `substitution` but declares no `environments:` — "
+                f"the environment axis cannot be checked, so it will not be followed")
+            continue
+        for md in sorted(tdir.rglob("*.md")):
+            if md.name in ("00-index.md", "00-overview.md", "00-profile.md"):
+                continue
+            body = md.read_text(encoding="utf-8", errors="replace")
+            if not any(e.lower() in body.lower() for e in envs):
+                rel = md.relative_to(refs.parent.parent)
+                problems.append(
+                    f"{rel}: swept under the `{topic}` substitution protocol but names "
+                    f"none of its environments ({', '.join(envs)}) — an architecture "
+                    f"claim must say where it was verified")
+    return problems
 
 
 # ---------- ownership ----------
@@ -291,6 +375,66 @@ def load_ownership(refs: Path) -> tuple[dict[str, dict[str, list[str]]], int, in
                 continue
             owners.setdefault(axis, {}).setdefault(item, []).append(rel)
     return owners, scanned, declaring, problems
+
+
+
+
+# ---------- staleness ----------
+
+def git_last_commit(root: Path, target: str) -> str | None:
+    try:
+        r = subprocess.run(["git", "log", "-1", "--format=%cI", "--", target],
+                           cwd=root, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    out = r.stdout.strip()
+    return out or None
+
+
+def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
+    """Flag items whose SOURCE moved after their owning document last changed.
+
+    Modelled on aidex-audit's coverage sweep -- the high-signal event there is
+    "commits touched a module's src but not its tests"; here it is "commits
+    touched the code an item covers, but not the module that owns it". Advisory:
+    drift is a prompt to look, never a verdict.
+
+    A document's own date falls back to file mtime, because `.context/` is
+    gitignored in some projects and an untracked doc has no commit date at all.
+    """
+    lines: list[str] = []
+    for ax in axes:
+        if not ax.paths:
+            lines.append(f"{ax.name}: no `paths:` in the profile — staleness "
+                         f"cannot be computed for this axis (not the same as clean)")
+            continue
+        owned = owners.get(ax.name, {})
+        if not owned:
+            lines.append(f"{ax.name}: nothing declares ownership yet")
+            continue
+        for item, files in sorted(owned.items()):
+            src = ax.paths.replace("{item}", item)
+            src_date = git_last_commit(root, src)
+            if not src_date:
+                lines.append(f"{ax.name}/{item}: no commits under {src!r} "
+                             f"(wrong `paths:` template, or the item was removed)")
+                continue
+            for f in files:
+                doc = root / f
+                doc_date = git_last_commit(root, f)
+                origin = "commit"
+                if not doc_date and doc.is_file():
+                    import datetime
+                    doc_date = datetime.datetime.fromtimestamp(
+                        doc.stat().st_mtime, datetime.timezone.utc).isoformat()
+                    origin = "mtime (untracked)"
+                if not doc_date:
+                    lines.append(f"{ax.name}/{item}: cannot date {f}")
+                    continue
+                if src_date > doc_date:
+                    lines.append(f"STALE  {ax.name}/{item}: source moved {src_date[:10]}, "
+                                 f"{f} last touched {doc_date[:10]} ({origin})")
+    return lines
 
 
 # ---------- report ----------
@@ -411,6 +555,9 @@ def main() -> int:
                     help="always exit 0 (report only)")
     ap.add_argument("--trust", action="store_true",
                     help="approve this profile's census block, then run it")
+    ap.add_argument("--stale", action="store_true",
+                    help="also report items whose source moved after their owning "
+                         "document last changed (advisory)")
     args = ap.parse_args()
 
     root = find_root(args.root.resolve())
@@ -424,6 +571,8 @@ def main() -> int:
 
     profile = (args.profile or (refs / "00-profile.md")).resolve()
     axes, problems, block = load_profile(profile)
+    topics, topic_problems = load_topics(profile)
+    problems = problems + topic_problems
     if not axes:
         for p in problems:
             print(f"ERROR: {p}", file=sys.stderr)
@@ -471,7 +620,11 @@ def main() -> int:
 
     owners, scanned, declaring, cover_problems = load_ownership(refs)
     report = build_report(axes, owners, root, args.dry_run)
-    report["errors"] = problems + cover_problems + report["errors"]
+    protocol_problems = [] if args.dry_run else check_protocol(refs, topics)
+    report["errors"] = problems + cover_problems + protocol_problems + report["errors"]
+    report["topics"] = {k: v["protocol"] for k, v in sorted(topics.items())}
+    if args.stale and not args.dry_run:
+        report["stale"] = stale_report(axes, owners, root, refs)
     report["modules_scanned"] = scanned
     report["modules_declaring"] = declaring
 
@@ -479,6 +632,13 @@ def main() -> int:
         print(json.dumps(report, indent=2))
     else:
         print(render(report, scanned, declaring))
+        if report.get("topics"):
+            print("\ntopics: " + " · ".join(f"{k} → {v}" for k, v in report["topics"].items()))
+        elif not args.dry_run:
+            print("\nNOTE: the profile declares no ```topics block, so which protocol "
+                  "each topic is swept under is decided per module and checked by nobody.")
+        for line in report.get("stale", []):
+            print(f"  {line}")
 
     if args.write and not args.dry_run:
         # Resolve against the project root, never cwd: find_root() walks UP, so a

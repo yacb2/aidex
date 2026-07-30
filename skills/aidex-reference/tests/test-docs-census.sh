@@ -456,5 +456,114 @@ rm -f "$TMP/legacystore"
 rc_is "after removing it, --trust works" 0 "approved" -- \
   env AIDEX_CENSUS_TRUST="$TMP/legacystore" python3 "$CENSUS" --root "$PL" --trust --advisory
 
+# ---------------------------------------------------------------- 19. topics / protocol
+# Which protocol a topic is swept under used to be a per-module judgment with
+# nothing checking the result. It is declared in the profile now, and the
+# environment axis is the checkable consequence.
+PT="$TMP/topics"
+mkproject "$PT" 'axis: things
+label: t
+command: printf "alpha\n"'
+cat >> "$PT/.context/references/00-profile.md" <<'TOPICSEOF'
+
+```topics
+topic: features
+protocol: surface
+
+topic: architecture
+protocol: substitution
+environments: backend container, worker
+```
+TOPICSEOF
+mkdir -p "$PT/.context/references/architecture" "$PT/.context/references/features"
+printf -- '---\ntitle: ok\ncreated: 2026-07-30\nupdated: 2026-07-30\n---\n\n# ok\nVerified in the backend container, 2026-07-30.\n' > "$PT/.context/references/architecture/01-ok.md"
+printf -- '---\ntitle: bad\ncreated: 2026-07-30\nupdated: 2026-07-30\n---\n\n# bad\nVerified.\n' > "$PT/.context/references/architecture/02-bad.md"
+printf -- '---\ntitle: f\ncreated: 2026-07-30\nupdated: 2026-07-30\n---\n\n# f\nNo environment needed here.\n' > "$PT/.context/references/features/01-f.md"
+approve "$PT"
+outt="$(python3 "$CENSUS" --root "$PT" --advisory 2>&1)"
+check   "the topic->protocol map is reported"                  "$outt" "architecture → substitution"
+check   "a substitution module naming no environment is flagged" "$outt" "02-bad.md"
+nocheck "a substitution module that names one is not flagged"    "$outt" "01-ok.md"
+nocheck "a surface module is never asked for an environment"     "$outt" "features/01-f.md"
+
+# a profile with no topics block must say the choice is unchecked, not stay silent
+outq="$(python3 "$CENSUS" --root "$P" --advisory 2>&1)"
+check "no topics block is named as unmeasured" "$outq" "checked by nobody"
+
+# a substitution topic with no environments cannot be checked -- say so
+PT2="$TMP/topics2"
+mkproject "$PT2" 'axis: things
+label: t
+command: printf "alpha\n"'
+cat >> "$PT2/.context/references/00-profile.md" <<'TOPICS2EOF'
+
+```topics
+topic: architecture
+protocol: substitution
+```
+TOPICS2EOF
+mkdir -p "$PT2/.context/references/architecture"
+printf -- '---\ntitle: x\ncreated: 2026-07-30\nupdated: 2026-07-30\n---\n# x\n' > "$PT2/.context/references/architecture/01-x.md"
+approve "$PT2"
+out2t="$(python3 "$CENSUS" --root "$PT2" --advisory 2>&1)"
+check "substitution topic without environments is reported" "$out2t" "declares no \`environments:\`"
+
+# an invalid protocol value must be rejected loudly
+PT3="$TMP/topics3"
+mkproject "$PT3" 'axis: things
+label: t
+command: printf "alpha\n"'
+cat >> "$PT3/.context/references/00-profile.md" <<'TOPICS3EOF'
+
+```topics
+topic: whatever
+protocol: magic
+```
+TOPICS3EOF
+mkmodule "$PT3/.context/references/topic/01-a.md" ""
+approve "$PT3"
+out3t="$(python3 "$CENSUS" --root "$PT3" --advisory 2>&1)"
+check "an unknown protocol value is rejected" "$out3t" "must be \`surface\`"
+
+# ---------------------------------------------------------------- 20. --stale
+# The census checks that ownership EXISTS, never that content is still true. A
+# module describing a screen from six months ago still reports 100% covered.
+# --stale is the pass that catches rot: source moved after the doc did.
+if command -v git >/dev/null 2>&1; then
+  PS="$TMP/stale"
+  mkproject "$PS" 'axis: mods
+label: m
+command: ls -d src/*/ | sed -E "s|src/||; s|/$||" | sort
+paths: src/{item}'
+  mkdir -p "$PS/src/alpha" "$PS/src/bravo"
+  mkmodule "$PS/.context/references/topic/01-a.md" "mods:alpha"
+  mkmodule "$PS/.context/references/topic/02-b.md" "mods:bravo"
+  echo x > "$PS/src/alpha/f.py"; echo y > "$PS/src/bravo/f.py"
+  ( cd "$PS" && git init -q . && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-01T00:00:00" GIT_COMMITTER_DATE="2026-07-01T00:00:00" \
+      git -c user.email=t@t -c user.name=t commit -qm init >/dev/null 2>&1 &&
+    echo z >> src/alpha/f.py && git add -A >/dev/null 2>&1 &&
+    GIT_AUTHOR_DATE="2026-07-29T00:00:00" GIT_COMMITTER_DATE="2026-07-29T00:00:00" \
+      git -c user.email=t@t -c user.name=t commit -qm "src only" >/dev/null 2>&1 )
+  approve "$PS"
+  outs="$(python3 "$CENSUS" --root "$PS" --advisory --stale 2>&1)"
+  check   "the census alone still reports full coverage"     "$outs" "2/2 covered (100%)"
+  check   "--stale catches source that moved after its doc"  "$outs" "STALE  mods/alpha"
+  nocheck "--stale does not flag an item nobody touched"     "$outs" "STALE  mods/bravo"
+
+  # an axis with no paths: must say it cannot be measured, never report clean
+  PS2="$TMP/stale2"
+  mkproject "$PS2" 'axis: things
+label: t
+command: printf "alpha\n"'
+  mkmodule "$PS2/.context/references/topic/01-a.md" "things:alpha"
+  approve "$PS2"
+  outs2="$(python3 "$CENSUS" --root "$PS2" --advisory --stale 2>&1)"
+  check "an axis without paths: reports that it cannot be measured" "$outs2" "staleness"
+  nocheck "and does not claim to be clean"                          "$outs2" "STALE"
+else
+  ok "--stale tests skipped (no git)"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]
