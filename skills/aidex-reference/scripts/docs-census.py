@@ -88,8 +88,21 @@ def load_trust() -> dict[str, str] | None:
     try:
         data = json.loads(raw)
     except ValueError:
-        print(f"WARN: trust store {TRUST_FILE} is not valid JSON; refusing to "
-              f"read or overwrite it", file=sys.stderr)
+        # The pre-JSON store was `{digest}  {path}` per line. Do NOT migrate it:
+        # that format had no escaping, so a project directory name containing a
+        # newline could forge an approval for an arbitrary other profile. Its
+        # contents therefore cannot be assumed genuine, and carrying them forward
+        # would launder a possible forgery into the new format. Re-approval is
+        # the only safe path, so say exactly that instead of a generic parse error.
+        if re.search(r"^[0-9a-f]{64}\s\s\S", raw, re.M):
+            print(f"WARN: {TRUST_FILE} is in the legacy line format, which could be "
+                  f"forged by a crafted directory name. Its approvals cannot be "
+                  f"trusted and are NOT migrated.\n"
+                  f"      Delete it and re-approve:  rm {TRUST_FILE}",
+                  file=sys.stderr)
+        else:
+            print(f"WARN: trust store {TRUST_FILE} is not valid JSON; refusing to "
+                  f"read or overwrite it", file=sys.stderr)
         return None
     if not isinstance(data, dict):
         print(f"WARN: trust store {TRUST_FILE} has an unexpected shape", file=sys.stderr)
