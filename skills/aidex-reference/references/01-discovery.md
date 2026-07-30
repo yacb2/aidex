@@ -123,6 +123,45 @@ entry point down to the code is a read no command performs. Do not let a clean c
 for it — a clean census means everything that *is* on an axis has an owner, not that everything
 documented is alive.
 
+### Grep the callers. Every time. Before the refuter does.
+
+**Reachability is the cheapest thing to assert and the cheapest thing to check, and the gap
+between those two facts is where this rule fails in practice.** The first production run of this
+skill produced *three* false reachability claims in one day across two modules — each written by
+an author who had the file open, had read it correctly, and reasoned about who called it instead
+of running one grep:
+
+| Written | Actual |
+|---|---|
+| "the TTS providers import the factory path" | nothing imports it; the only match was the word *factory* in a comment about an unrelated local one |
+| "reached only through views that re-validate ownership" | also called from a background task that consults no model at all |
+| "`file_exists` leaks only existence" | `file_exists` has zero callers — it is dead, not an exposure |
+
+All three were the *close-gate pass* finding, not the author's. So run it yourself first — the
+literal import lines, its own file excluded:
+
+```bash
+grep -rn "^\s*\(from\|import\).*<module>" --include='*.py' <src> | grep -v "<its own path>"
+```
+
+Two traps this shape avoids. **A word-boundary grep is not this check** — `grep -rn "\bfactory\b"`
+returned seven "callers" for a module with none, matching `default_factory=` and a same-named PyPI
+package. Count import lines, never word occurrences. And **narrow the search to what you claim**:
+a claim about *production* reachability must exclude test files, because a claim about the whole
+repo is a different claim.
+
+### Tests are not an entry-point kind
+
+The corollary, and the reason a green suite is the worst possible evidence here. The same run found
+five modules forming a **closed island**: a provider-factory abstraction imported by nothing but
+its own tests, which production had quietly bypassed. Its suite passed every time — necessarily so,
+because 100% of its callers were *inside* that suite.
+
+Unreachable-but-tested is **harder** to find than plainly dead code, not easier: coverage tools
+report it as covered, CI reports it as healthy, and the entry-point list is the only instrument
+that sees it. When a capability's only importers are test files, that is the finding — say which
+you believe it is, adopted-and-undocumented or designed-and-abandoned, and file it.
+
 > **Size trigger fired here on 2026-07-30** (2,689 words, over the ~2,500 tripwire in
 > `03-shaping.md`). Reviewed as that rule prescribes: the added content is a correction to an
 > existing rule, not re-derivable prose and not a second workflow, so the module stays whole.
