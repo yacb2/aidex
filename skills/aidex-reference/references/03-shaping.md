@@ -199,6 +199,28 @@ silently tomorrow, and nothing detects it — a checker would have to reimplemen
 slug rules to even find out. One project's index pointed at a section anchor that **kept
 resolving perfectly while the claim named in it became false.**
 
+### Where `covers:` goes in a folder area
+
+**On the module that explains. Never on an index.**
+
+This falls straight out of one-summary-per-level: the module is the only level that *explains*,
+so it is the only level that can own. An area index that also declares `covers:` makes the
+census report `contested` between an index and its own children — a false positive that trains
+readers to ignore the one class that means real drift.
+
+So for a modular area:
+
+```
+features/editor/00-index.md      no covers:  — it summarizes
+features/editor/01-shell.md      covers: "routes:/productions/:id/editor"
+features/editor/04-timeline.md   covers: "routes:/productions/:id/editor"   ← also legitimate
+```
+
+Two modules in the **same area** declaring the same route is normal and not drift: one screen
+can need several documents, and the area is the unit a reader opens. `contested` earns its keep
+across **different areas or topics**, which is where the boundary was never decided —
+a features module and an architecture module both claiming the same subsystem.
+
 ### The size trigger
 
 **Above roughly 2,500 words, review the module. Do not split reflexively.** Measured with

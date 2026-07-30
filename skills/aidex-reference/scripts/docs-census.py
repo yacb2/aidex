@@ -494,7 +494,13 @@ def render(report: dict, scanned: int, declaring: int) -> str:
         for i in a["phantom"]:
             out.append(f"    phantom    {i}  (declared, not found in code)")
         for c in a["contested"]:
-            out.append(f"    contested  {c['item']}  <- {', '.join(c['files'])}")
+            idx = [f for f in c["files"] if f.rsplit("/", 1)[-1]
+                   in ("00-index.md", "00-overview.md")]
+            note = ""
+            if idx:
+                note = ("  [an index declared covers: — ownership belongs on the module "
+                        "that explains, never on a level that summarizes]")
+            out.append(f"    contested  {c['item']}  <- {', '.join(c['files'])}{note}")
     if declaring == 0 and not any(a.get("dry_run") for a in report["axes"]):
         out.append("")
         out.append(f"NOTE: 0 of {scanned} reference modules declare `covers:`. "
