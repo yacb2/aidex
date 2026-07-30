@@ -391,6 +391,25 @@ def git_last_commit(root: Path, target: str) -> str | None:
     return out or None
 
 
+def git_available(root: Path) -> bool:
+    """Is `root` inside a git work tree at all?
+
+    `git log` in a non-repo exits non-zero with empty stdout, which is
+    indistinguishable from "this path has no commits" if you only read stdout.
+    That is how the first production run of --stale blamed a correct `paths:`
+    template: the project is a multi-repo workspace whose root holds `.context/`
+    and no `.git`, with backend/ and frontend/ as independent repos underneath.
+    A checker that reports the wrong cause is worse than one that reports
+    nothing, so ask the question directly.
+    """
+    try:
+        r = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"],
+                           cwd=root, capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return r.returncode == 0 and r.stdout.strip() == "true"
+
+
 def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
     """Flag items whose SOURCE moved after their owning document last changed.
 
@@ -403,6 +422,12 @@ def stale_report(axes: list[Axis], owners, root: Path, refs: Path) -> list[str]:
     gitignored in some projects and an untracked doc has no commit date at all.
     """
     lines: list[str] = []
+    if not git_available(root):
+        return [f"staleness cannot be computed: {root} is not inside a git work tree, "
+                f"and every date this pass compares comes from `git log`. In a multi-repo "
+                f"workspace (`.context/` at the root, independent repos underneath) run "
+                f"--stale from a repo, or drop `paths:` so the axis says it is unmeasured "
+                f"instead of being misreported as a bad template."]
     for ax in axes:
         if not ax.paths:
             lines.append(f"{ax.name}: no `paths:` in the profile — staleness "

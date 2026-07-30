@@ -557,10 +557,30 @@ paths: src/{item}'
 label: t
 command: printf "alpha\n"'
   mkmodule "$PS2/.context/references/topic/01-a.md" "things:alpha"
+  ( cd "$PS2" && git init -q . )   # must be a repo, or the non-repo guard below fires first
   approve "$PS2"
   outs2="$(python3 "$CENSUS" --root "$PS2" --advisory --stale 2>&1)"
-  check "an axis without paths: reports that it cannot be measured" "$outs2" "staleness"
+  check "an axis without paths: reports that it cannot be measured" "$outs2" "no \`paths:\`"
   nocheck "and does not claim to be clean"                          "$outs2" "STALE"
+
+  # A root that is not a git work tree at all. Every date --stale compares comes
+  # from `git log`, which exits non-zero with EMPTY stdout outside a repo -- and
+  # that is indistinguishable from "no commits for this path" if you only read
+  # stdout. The first production run hit exactly this: a multi-repo workspace
+  # (`.context/` at the root, independent repos underneath) had its CORRECT
+  # `paths:` template blamed for the miss. Report the real cause or nothing.
+  PS3="$TMP/stale-nogit"
+  mkproject "$PS3" 'axis: mods
+label: m
+command: printf "alpha\n"
+paths: src/{item}'
+  mkdir -p "$PS3/src/alpha"
+  mkmodule "$PS3/.context/references/topic/01-a.md" "mods:alpha"
+  approve "$PS3"
+  outs3="$(python3 "$CENSUS" --root "$PS3" --advisory --stale 2>&1)"
+  check   "a non-repo root says so instead of blaming the paths: template" \
+          "$outs3" "not inside a git work tree"
+  nocheck "and does not accuse a correct paths: template" "$outs3" "wrong \`paths:\` template"
 else
   ok "--stale tests skipped (no git)"
 fi
