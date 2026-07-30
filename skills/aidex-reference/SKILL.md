@@ -60,6 +60,19 @@ Three classes: **gap** (in code, undocumented), **phantom** (documented, absent 
 wrong; fix it before believing any number, because a broken axis otherwise reports full coverage
 of an empty set.
 
+**Read `contested: 0` on a fresh project as "not yet measurable", never as "no drift".** Contested
+needs *two* modules declaring one item, so it cannot fire until adoption is well underway — on a
+first census it is arithmetic, not evidence. `phantom: 0` is the figure that actually discriminates
+early: it is the one that catches a typo, a stale path, or an item you inferred instead of verified.
+After declaring `covers:`, the check that means something is **gaps down by exactly the items you
+claimed, phantoms still zero.**
+
+**The census reads the working tree, so it is only as stable as the tree.** In the first production
+run of this skill an axis moved 12 → 13 items between two runs minutes apart, because a concurrent
+session had added an untracked service. That is not a census defect, but a figure quoted without the
+tree state behind it is not reproducible — record `git status --short` alongside any number you
+paste into a `## Verification` block.
+
 **The census checks that ownership EXISTS, never that the content is still true.** A module
 declaring an item it describes wrongly still reports 100% covered. Rot needs the other pass:
 
