@@ -150,7 +150,20 @@ that reasons a correction into falseness is the same one that re-reads it and fi
 never close on link integrity — 388 links once resolved cleanly across a document containing
 three false statements.
 
-Fix what it refutes, then re-run it if the fixes were substantive.
+**Point it at the text you wrote today, by name.** Its cheapest kills are in the freshest prose —
+a correction written in one sitting is where a right sentence gets turned into a wrong one. On the
+first production run, three refuters returned six refutations across three modules and **every one
+survived independent re-verification**; five of the six landed on sentences written that same day,
+including two corrections that were worse than the claims they replaced. Tell it which edits are
+new and that they get attacked hardest.
+
+**Give it an explicit read-only fence.** It runs against a real project: no edits, no writes to a
+database or a bucket, never production. A refutation that needs a write to settle is a *finding*
+(name the contradiction, file it) — not a licence to run the write.
+
+Fix what it refutes, then re-run it if the fixes were substantive. When it refutes something,
+**verify it yourself before fixing** — three of this build's own harnesses were broken rather than
+the findings they dismissed, and the reverse is equally possible.
 
 ## 6 · Self-check (mandatory close step)
 
