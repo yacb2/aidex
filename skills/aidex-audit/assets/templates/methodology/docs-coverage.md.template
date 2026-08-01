@@ -168,3 +168,10 @@ The war stories this playbook is made of:
   while a folder reorg made it stop seeing 159 of the anchors it existed to count. If you
   move files, re-run the check and read its output, not its exit code.
 - **A count that rises is a prompt to look, not a verdict.**
+- **Convert checkbox `## Verification` blocks as you sweep, never in a mass pass.** A `- [ ]`
+  list is a check that cannot fail; the fix is a command with its real output and a date. But
+  converting them in bulk means writing outputs for documents nobody re-verified, which
+  produces the same unfailable check wearing a command's clothes — worse, because it now looks
+  audited. 47 such blocks remained fleet-wide at the time of writing, 37 in the boilerplate;
+  that number falling on its own, one swept module at a time, is the healthy shape. A sudden
+  drop to zero is the finding.
