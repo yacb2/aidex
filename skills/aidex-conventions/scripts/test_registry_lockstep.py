@@ -265,6 +265,73 @@ def main() -> int:
                 failures.append(f"audit methodology '{meth}' has no playbook template "
                                 f"at {tmpl.relative_to(SKILLS_DIR)}")
 
+    # 8. Skill-NAME lockstep. Checks 1-7 guard artifact TYPES; nothing guarded skill
+    #    NAMES, and a probe on 2026-08-01 renamed 14 of 17 skill directories with every
+    #    cross-reference left stale while this test still printed OK / exit 0. The 17
+    #    description scalars alone carry 83 cross-skill references that no test read.
+    #    Any consolidation or rename would therefore land fully green and silently broken.
+    live_skills = {p.name for p in SKILLS_DIR.iterdir()
+                   if p.is_dir() and (p / "SKILL.md").is_file()}
+    if not live_skills:
+        failures.append("no skills/*/SKILL.md found — the name-lockstep check cannot run")
+
+    # Only names in the aidex-* namespace are ours to guarantee; a reference to a
+    # third-party skill (skill-creator, session-handoff) is out of scope by design.
+    name_re = re.compile(r"\baidex(?:-[a-z0-9]+)*\b")
+    # Sections whose skill references are load-bearing routing, not prose.
+    section_re = re.compile(r"^##\s+(Boundaries|Related)\s*$.*?(?=^##\s|\Z)",
+                            re.M | re.S)
+
+    def _referenced_names(text: str) -> set[str]:
+        found: set[str] = set()
+        fm = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+        if fm:
+            desc = re.search(r"^description:\s*(>[-+]?|\|[-+]?)?\s*\n?"
+                             r"((?:.|\n)*?)(?=\n[a-zA-Z_-]+:|\Z)", fm.group(1), re.M)
+            if desc:
+                found |= set(name_re.findall(desc.group(2)))
+        for sec in section_re.findall(text):
+            found |= set(name_re.findall(sec))
+        return found
+
+    checked_refs = 0
+    for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        rel = skill_md.relative_to(SKILLS_DIR)
+        for name in sorted(_referenced_names(skill_md.read_text(encoding="utf-8"))):
+            checked_refs += 1
+            if name not in live_skills:
+                failures.append(f"{rel} references skill '{name}', which has no "
+                                f"skills/{name}/SKILL.md — stale cross-reference")
+
+    # 8b. Description-surface budget. The canon sets <900 chars for a single
+    #     `description` (skill-conventions.md:147, checklist :360); Anthropic's hard
+    #     cap is 1,024. Two skills had drifted to 953 and 919 (measured 2026-08-01)
+    #     with nothing watching, because the budget lived only in prose.
+    desc_re = re.compile(r"^description:\s*(>[-+]?|\|[-+]?)?\s*\n?"
+                         r"((?:.|\n)*?)(?=\n[a-zA-Z_-]+:|\Z)", re.M)
+    for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        fm = re.match(r"^---\n(.*?)\n---\n", skill_md.read_text(encoding="utf-8"), re.S)
+        if not fm:
+            continue
+        d = desc_re.search(fm.group(1))
+        if not d:
+            continue
+        n = len(" ".join(d.group(2).split()))
+        if n >= 900:
+            failures.append(f"{skill_md.relative_to(SKILLS_DIR)} description is {n} "
+                            f"chars — the canon budget is <900 (hard cap 1,024)")
+
+    # The router can only ever emit a skill that exists; a rename silently turns a
+    # routing directive into an instruction to invoke nothing.
+    router = SKILLS_DIR.parent / "hooks" / "aidex-router.sh"
+    if router.is_file():
+        rtext = router.read_text(encoding="utf-8")
+        for name in sorted(set(re.findall(r'skill="(aidex[a-z-]*)"', rtext))):
+            checked_refs += 1
+            if name not in live_skills:
+                failures.append(f"hooks/aidex-router.sh can emit skill '{name}', "
+                                f"which has no skills/{name}/SKILL.md")
+
     if failures:
         print("FAIL")
         for f in failures:
@@ -275,7 +342,9 @@ def main() -> int:
           f"{len(autogen_indexes)} auto-gen indexes, "
           f"{len(AIDEX_FILES)} orchestrator files, "
           f"{len(agent_files)} subagents declaring model+effort, "
-          f"{len(names) if 'names' in dir() else 0} canonical prefix-zero names all in sync")
+          f"{len(names) if 'names' in dir() else 0} canonical prefix-zero names, "
+          f"{checked_refs} skill-name references over {len(live_skills)} live skills "
+          f"all in sync")
     return 0
 
 
