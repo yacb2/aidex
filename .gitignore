@@ -9,3 +9,4 @@ __pycache__/
 
 # Ephemeral session output (aidex conventions: deletable without asking)
 _tmp/
+.claude/.aidex-detected-commands.json
