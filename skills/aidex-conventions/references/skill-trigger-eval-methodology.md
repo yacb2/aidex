@@ -34,6 +34,50 @@ not precise estimates): a *partial* plan-create affordance collision
 survives splitting + full sibling isolation. Do not re-open any of the three
 levers; do not extend the split experiment.
 
+### 1a. Catalog size is a FOURTH lever, and it is also closed for recall (2026-08-01)
+
+Added because the closure above was re-litigated on 2026-08-01 from 2026 benchmark
+literature (SkillsBench arXiv 2604.04323, SkillAxe arXiv 2606.10546), which reports large
+degradation from *distractor* skills and made "shrink the catalog" look like the untried
+lever. **It was tried here, at a larger dose, and it moved nothing.**
+
+| Arm | aidex-plan adjusted recall | False positives |
+|---|---|---|
+| Entire aidex family neutralized (B-β) | **20%** (2/10) | **0/10** |
+| Entire aidex family live (run-6 realistic) | **20%** (2/10) | **5/10** |
+
+Sources: `.context/audits/2026-05-15-skill-trigger-eval/stage-a-b-assessment.md:718-720`
+and `run-6-realistic-modular.md:33,46` — "moved it 0 pp … the single cleanest confirmation
+in the campaign."
+
+Two durable consequences:
+
+1. **Catalog reduction is not a recall lever.** Do not propose consolidating the sibling
+   family *to raise activation*. Turning the whole family off is the maximum possible dose
+   and it produced no movement. Any future consolidation proposal must be argued on
+   architecture, canon-compliance or namespace hygiene — never on recall.
+2. **Catalog density IS a precision effect, and it is the one real finding here.** A dense
+   sibling family does not suppress the right skill; it makes the *wrong siblings fire too*
+   (0/10 → 5/10 on the same queries). If consolidation is ever revisited, precision is the
+   outcome variable, and the experiment must be designed around it.
+
+Caveats, so this is not over-read: the two arms span an inventory change, the sibling eval
+files were authored in the same session as the descriptions they test (run-6 §6), and n=10
+per arm means one coin-flip ≈ ±10 pp. Read 0 pp as "no detectable effect", not a measured
+zero. §7.4's k≥2 rule and §7.7's one-variable rule both apply to any re-test.
+
+**Instrument warning (2026-08-01).** `claude --settings <overlay>` **MERGES** with
+user-level settings rather than replacing them — probed directly, control and test arms.
+The harness overlay at `eval-pty.sh` carries only a `permissions` key, so **any
+`UserPromptSubmit` hook registered in the user's global settings is live inside every eval
+run.** `hooks/aidex-router.sh` is such a hook and it fires on 165 of the 311 cases in
+`skills/*/evals/`, naming the exact skill under test on most fired positives — while the
+success predicate is that skill's marker file, making a hook-forced invocation
+indistinguishable from semantic selection. Runs 1–6 (May 2026) **predate the router**
+(first commit 2026-07-04) and are therefore clean. Any eval run while a routing hook is
+globally registered is **not**. Before any future run: assert the global settings carry no
+`UserPromptSubmit` hook, or unregister it for the duration.
+
 The residual gap on a *clean* skill is structural matcher behaviour, not a bug:
 imperatives directed at the assistant fire reliably; first-person **stative** narrative
 ("Mi MEMORY.md tiene…", "Creo que tengo…", "Estamos decidiendo…") under-fires by
