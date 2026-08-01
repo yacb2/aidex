@@ -84,36 +84,17 @@ def _anchor(start):
 
 state_path = os.path.join(_anchor(cwd), ".context", ".durability", "active-run.json")
 
-# 2. Inert unless a durable run is declared in this project.
-if not os.path.isfile(state_path):
-    allow()
-try:
-    state = json.load(open(state_path))
-except Exception:
-    allow()
+# Append-only audit log. Defined BEFORE the inert gate on purpose: the gate is the
+# most common exit and, while it returned above this definition, the log could not
+# see undeclared stops at all — every "reach" figure computed from it was therefore
+# structurally 0 (measured 2026-08-01). `msg`/`mode`/`run_type` are seeded empty here
+# and reassigned once the state file is read, so an inert-branch call never NameErrors.
+# AIDEX_DURABILITY_LOG redirects the sink: tests MUST set it, or their synthetic rows
+# land in production telemetry (they did — 94.5% of rows, measured 2026-08-01).
+LOG_PATH = os.environ.get("AIDEX_DURABILITY_LOG") \
+    or os.path.expanduser("~/.aidex/durability/events.jsonl")
+msg, mode, run_type = "", "", ""
 
-# 3. Expiry safety valve — a stale state file never traps a session.
-exp = state.get("expires")
-if exp:
-    try:
-        if datetime.datetime.fromisoformat(exp.replace("Z", "+00:00")) \
-           < datetime.datetime.now(datetime.timezone.utc):
-            allow()
-    except Exception:
-        pass
-
-# 4. If background work is still running, this isn't really an end — don't interfere.
-if ev.get("background_tasks"):
-    allow()
-
-msg = (ev.get("last_assistant_message") or "").lower()
-mode = (state.get("mode") or "remind").lower()
-run_type = state.get("type", "run")
-
-# Append-only audit log — records every decision made while a run is ACTIVE (this point is
-# reached only past the inert/expiry gates). Wrapped so a log failure can never abort the hook
-# or corrupt its decision output (the shell runs `set -euo pipefail`).
-LOG_PATH = os.path.expanduser("~/.aidex/durability/events.jsonl")
 def log_event(decision, matched):
     try:
         os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
@@ -126,6 +107,35 @@ def log_event(decision, matched):
             fh.write(json.dumps(rec) + "\n")
     except Exception:
         pass
+
+# 2. Inert unless a durable run is declared in this project.
+if not os.path.isfile(state_path):
+    log_event("allow", "inert-no-marker")
+    allow()
+try:
+    state = json.load(open(state_path))
+except Exception:
+    allow()
+
+# 3. Expiry safety valve — a stale state file never traps a session.
+exp = state.get("expires")
+if exp:
+    try:
+        if datetime.datetime.fromisoformat(exp.replace("Z", "+00:00")) \
+           < datetime.datetime.now(datetime.timezone.utc):
+            log_event("allow", "inert-marker-expired")
+            allow()
+    except Exception:
+        pass
+
+# 4. If background work is still running, this isn't really an end — don't interfere.
+if ev.get("background_tasks"):
+    log_event("allow", "background-tasks")
+    allow()
+
+msg = (ev.get("last_assistant_message") or "").lower()
+mode = (state.get("mode") or "remind").lower()
+run_type = state.get("type", "run")
 
 # Legitimate terminal states — used ONLY on the regex fallback path. When the
 # judge is available it sees these messages too: a keyword like "deploy" inside

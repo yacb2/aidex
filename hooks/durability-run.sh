@@ -85,7 +85,8 @@ json.dump({
     "expires": (now + datetime.timedelta(minutes=ttl)).isoformat(),
 }, open(path, "w"), indent=2)
 # Append-only audit log (best-effort; never fail the command on a log error).
-log_path = os.path.expanduser("~/.aidex/durability/events.jsonl")
+log_path = os.environ.get("AIDEX_DURABILITY_LOG") \
+    or os.path.expanduser("~/.aidex/durability/events.jsonl")
 try:
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "a") as fh:
@@ -118,7 +119,8 @@ PY
     done
     python3 - <<'PY'
 import json, datetime, os
-log_path = os.path.expanduser("~/.aidex/durability/events.jsonl")
+log_path = os.environ.get("AIDEX_DURABILITY_LOG") \
+    or os.path.expanduser("~/.aidex/durability/events.jsonl")
 try:
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "a") as fh:
@@ -137,8 +139,38 @@ PY
   status)
     if [ -f "$STATE" ]; then cat "$STATE"; else echo "no active durable run"; fi
     ;;
+  sweep)
+    # Report every marker under a root, at ANY depth, with its expiry state.
+    # Read-only by design: it prints the `rm` lines rather than running them, per
+    # the verify-before-any-delete rule. Depth matters — a `-maxdepth 4` census
+    # reported "no markers on disk" on 2026-08-01 while five existed at depths 5-7,
+    # residue of the raw-cwd anchoring bug this script's _anchor() now prevents.
+    SWEEP_ROOT="${2:-$HOME}"
+    find "$SWEEP_ROOT" -type f -path '*/.context/.durability/active-run.json' 2>/dev/null \
+      | while IFS= read -r m; do
+          python3 - "$m" <<'PY'
+import datetime, json, sys
+m = sys.argv[1]
+try:
+    d = json.load(open(m))
+except Exception:
+    print(f"UNREADABLE  {m}"); sys.exit(0)
+exp = d.get("expires")
+state = "LIVE"
+if exp:
+    try:
+        if datetime.datetime.fromisoformat(exp.replace("Z", "+00:00")) \
+           < datetime.datetime.now(datetime.timezone.utc):
+            state = "EXPIRED"
+    except Exception:
+        state = "UNPARSEABLE-EXPIRY"
+print(f"{state:18} type={d.get('type','?'):10} expires={str(exp)[:19]}  {m}")
+PY
+        done
+    echo "-- read-only. To clear an EXPIRED marker, remove that exact path yourself." >&2
+    ;;
   *)
-    echo "usage: durability-run.sh start <type> [--mode remind|enforce] [--ttl-min N] | stop | status" >&2
+    echo "usage: durability-run.sh start <type> [--mode remind|enforce] [--ttl-min N] | stop | status | sweep [root]" >&2
     exit 2
     ;;
 esac
