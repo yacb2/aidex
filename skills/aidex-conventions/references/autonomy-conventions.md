@@ -66,6 +66,18 @@ Classify before you pause:
    the one open question.
 3. **A step this skill/spec already mandates** (review, commit, handoff, message
    authoring) → **do it; do not re-confirm.** (Mode B.)
+
+   **Precedence over `session-handoff`.** That skill instructs the agent to propose a
+   handoff and confirm before running it. The guard is correct for a *conversational*
+   session, where handing off is the user's call. **Inside an active unattended run it
+   is superseded by this clause**: the handoff is a mandated step and runs without
+   asking. Both files load into the same session, so the conflict is live rather than
+   theoretical, and the observed symptom is a run pausing to ask permission to hand off
+   — precisely the stop the process exists to prevent (field-observed 2026-08-01).
+   Outside a run, `session-handoff`'s propose-first behaviour is unchanged.
+   Note the ownership limit: `session-handoff` is not in `~/.aidex/.manifest`, so this
+   repo can state precedence but cannot edit that skill. If precedence alone proves
+   insufficient in the field, the conflict has no owner in this codebase.
 4. **Autonomous — proceed, and log any bifurcation.** Everything safe + additive,
    including dependency changes (install / update / downgrade), **additive
    migrations**, and an unforeseen non-breaking decision under your authorship. A
