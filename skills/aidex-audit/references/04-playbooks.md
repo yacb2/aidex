@@ -1,6 +1,6 @@
 # 04 — Playbooks Index
 
-Eight stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
+Nine stock audit types ship with AIDEX. Each has a playbook template in `assets/templates/methodology/<type>.md.template` that is materialized into the project on first use.
 
 ---
 
@@ -16,6 +16,7 @@ Eight stock audit types ship with AIDEX. Each has a playbook template in `assets
 | [a11y](../assets/templates/methodology/a11y.md.template) | Compliance cadence | UX refresh landed, regulatory deadline | `bug` |
 | [hitl](../assets/templates/methodology/hitl.md.template) | Pre-release / multi-session | End-to-end flows and processes need human sign-off page-by-page; agent automates every mechanical check | `bug`, `gap`, `idea` |
 | [test-coverage](../assets/templates/methodology/test-coverage.md.template) | Drift-driven / post-incident | Post-incident, after a feature push on a module, or when `coverage-sweep` flags drift | `gap`, `bug`, `risk` |
+| [docs-coverage](../assets/templates/methodology/docs-coverage.md.template) | Drift-driven / post-feature | Surfaces outpaced their docs, `.context/references/` was reorganized, or a gap surfaced by luck | `gap`, `bug`, `risk` |
 
 ### Decision flow
 
@@ -39,6 +40,9 @@ Do flows/processes need human sign-off page-by-page? ──▶ hitl
                 │ no
                 ▼
 Is the concern "the suite is green but bugs ship" / test gaps? ──▶ test-coverage
+                │ no
+                ▼
+Is the concern "what is undocumented" / docs drift? ──▶ docs-coverage
                 │ no
                 ▼
 Anything visual, interactive, or product-level ──▶ ux

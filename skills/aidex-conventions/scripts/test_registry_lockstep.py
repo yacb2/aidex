@@ -192,6 +192,79 @@ def main() -> int:
             failures.append(f"{rel} has effort '{effort.group(1)}'; valid: "
                             f"{', '.join(sorted(valid_effort))}")
 
+    # 8. Every canonical prefix-zero filename the migrator refuses to rename is
+    #    also named in the canon that tells auditors what to flag.
+    #
+    #    Origin: 2026-07-29. `00-profile.md` (the docs-census keystone) shipped
+    #    registered nowhere outside its own skill. `migrate-conventions.py --apply`
+    #    date-renamed it, `docs-census.py` then exited 2 on a file that still
+    #    existed under a new name, and `validate.py` reported the tree clean both
+    #    before and after — the checker-lies-by-omission shape this suite has
+    #    already been bitten by twice. The list lived in one private tuple; this
+    #    guard is the second site so it cannot drift alone again.
+    mig_path = SKILLS_DIR / "aidex-conventions" / "scripts" / "migrate-conventions.py"
+    mig_txt = mig_path.read_text(encoding="utf-8") if mig_path.is_file() else ""
+    if not mig_txt:
+        failures.append(f"migrator not found at {mig_path}")
+    else:
+        block = re.search(r"CANONICAL_PREFIX_ZERO_NAMES\s*=\s*\((.*?)\)", mig_txt, re.S)
+        if not block:
+            failures.append("migrate-conventions.py no longer defines "
+                            "CANONICAL_PREFIX_ZERO_NAMES — this guard cannot see the list")
+        else:
+            names = set(re.findall(r'"([^"]+\.md)"', block.group(1)))
+            if "00-profile.md" not in names:
+                failures.append("CANONICAL_PREFIX_ZERO_NAMES is missing '00-profile.md' — "
+                                "the migrator would date-rename the docs-census keystone")
+            ref_canon = (SKILLS_DIR / "aidex-conventions" / "references"
+                         / "reference-conventions.md").read_text(encoding="utf-8")
+            for n in sorted(names):
+                if n in ("index.md", "findings.md"):
+                    continue  # audit-owned; declared in audit-conventions.md
+                if n not in ref_canon and n not in (
+                        SKILLS_DIR / "aidex-conventions" / "references"
+                        / "audit-conventions.md").read_text(encoding="utf-8"):
+                    failures.append(f"'{n}' is exempt from renaming in the migrator but is "
+                                    f"named in no conventions canon — auditors will flag it")
+
+    # 9. Every shipped audit methodology appears in every document that claims to
+    #    enumerate them.
+    #
+    #    Origin: 2026-07-29. `test-coverage` drifted out of audit-conventions.md at
+    #    v0.21.1 and was reported on 2026-07-25 without a guard being added, so the
+    #    very next methodology (`docs-coverage`) reproduced the identical drift.
+    #    Runtime was correct in both cases; the documents agents are pointed at as
+    #    "the full convention" were not.
+    lib = SKILLS_DIR / "aidex-audit" / "scripts" / "_lib.sh"
+    lib_txt = lib.read_text(encoding="utf-8") if lib.is_file() else ""
+    m_types = re.search(r"AUDIT_TYPES=\(([^)]*)\)", lib_txt)
+    if not m_types:
+        failures.append(f"could not parse AUDIT_TYPES out of {lib}")
+    else:
+        methodologies = [x for x in m_types.group(1).split() if x and x != "custom"]
+        enum_sites = {
+            "audit-conventions.md": SKILLS_DIR / "aidex-conventions" / "references" / "audit-conventions.md",
+            "aidex-audit/references/04-playbooks.md": SKILLS_DIR / "aidex-audit" / "references" / "04-playbooks.md",
+            "aidex-audit/SKILL.md": SKILLS_DIR / "aidex-audit" / "SKILL.md",
+        }
+        for site_name, site in enum_sites.items():
+            if not site.is_file():
+                failures.append(f"methodology enumeration site not found: {site}")
+                continue
+            txt = site.read_text(encoding="utf-8")
+            for meth in methodologies:
+                if f"`{meth}`" not in txt and f"[{meth}]" not in txt:
+                    failures.append(f"{site_name} is missing audit methodology "
+                                    f"'{meth}' (in AUDIT_TYPES)")
+            tmpl = (SKILLS_DIR / "aidex-audit" / "assets" / "templates"
+                    / "methodology" / f"{meth}.md.template")
+        for meth in methodologies:
+            tmpl = (SKILLS_DIR / "aidex-audit" / "assets" / "templates"
+                    / "methodology" / f"{meth}.md.template")
+            if not tmpl.is_file():
+                failures.append(f"audit methodology '{meth}' has no playbook template "
+                                f"at {tmpl.relative_to(SKILLS_DIR)}")
+
     if failures:
         print("FAIL")
         for f in failures:
@@ -201,7 +274,8 @@ def main() -> int:
           f"{len(prefix_set)} cross-ref prefixes, {len(v.TYPES_WITH_ARCHIVE)} archive types, "
           f"{len(autogen_indexes)} auto-gen indexes, "
           f"{len(AIDEX_FILES)} orchestrator files, "
-          f"{len(agent_files)} subagents declaring model+effort all in sync")
+          f"{len(agent_files)} subagents declaring model+effort, "
+          f"{len(names) if 'names' in dir() else 0} canonical prefix-zero names all in sync")
     return 0
 
 

@@ -1,0 +1,210 @@
+---
+title: "Reference authoring profile — {{PROJECT_NAME}}"
+status: doing
+created: {{DATE}}
+updated: {{DATE}}
+---
+
+# Reference authoring profile
+
+**Context:** the project-specific half of the reference methodology. The shared discipline
+lives in `aidex-reference/references/` and does not change per project; **this file declares
+only what varies here.** Materialized on {{DATE}} — it is meant to be edited, and a profile
+nobody has edited is a profile nobody has applied.
+
+> **If the stack is unfamiliar, do not guess the commands below.** Run an `aidex-research`
+> spike first ("how is this stack laid out: routes, entry points, background work"), then fill
+> this in. A wrong axis command reports full coverage of nothing.
+
+---
+
+## Census axes
+
+Machine-read by `docs-census.py`. Each record is `axis` / `label` / `command`, blank-line
+separated. The command runs from the project root and must print **one item per line**.
+
+> **These are shell strings and they run as you.** The census refuses to execute a census block
+> it has not seen approved on this machine (exit 3), printing the commands first; `--trust`
+> approves that exact block and any edit to it revokes the approval. Approvals are stored under
+> `$HOME`, never here, so this file cannot approve itself.
+
+An axis returning zero lines is reported as **BROKEN**, never as "0 items, all covered" —
+that would be a check that cannot fail.
+
+```census
+axis: routes
+label: user-facing routes
+command: grep -rhoE "path:[[:space:]]*'[^']+'" frontend/src/router --include=*.ts | sed -E "s/^path:[[:space:]]*'//; s/'$//" | grep -v "^$" | sort -u
+
+axis: apps
+label: installed backend apps
+command: grep -oE "^[[:space:]]+'apps\.[a-z_]+" backend/config/settings/_base.py | sed -E "s/.*apps\.//" | sort -u
+paths: backend/apps/{item}
+```
+
+`paths:` is optional and maps an item to its source, which is what `--stale` needs. Without it
+that axis reports **"staleness cannot be computed"** rather than reporting clean — an axis with
+no path mapping is unmeasured, not healthy.
+
+> **An axis you could not write correctly must be named here in prose, by name and with the
+> reason.** A wrong axis is worse than a missing one, so declining to write it is right — but an
+> omission recorded nowhere reads to the next author as *"this project has no scheduled jobs"*
+> rather than *"nobody has managed to enumerate them"*. The first production profile hit exactly
+> this: django-q `Schedule` rows registered three different ways (data migration, `AppConfig.ready`,
+> by hand in the admin), which no single command enumerates. Write the omission down and it becomes
+> tracked work; leave it out and the census silently reports full coverage of a smaller world.
+
+> **Use POSIX classes (`[[:space:]]`), never `\s`.** BSD `sed -E` on macOS does not honour
+> `\s`, so a `\s`-based command silently fails to strip its prefix and every item comes out
+> mangled — which the census then reports as 100% gap. Caught on this template's own first
+> run, 2026-07-29.
+
+<!-- Add an axis per archetype; delete what does not apply. A wrong axis is worse than a
+     missing one, because it reports coverage of the wrong set.
+     Archetype -> axes table: aidex-reference/references/02-architecture.md, § Archetype to axes.
+     Axis names may contain spaces (`scheduled jobs`); items may contain spaces and colons. -->
+
+## Topics and their protocol
+
+Which protocol a topic is swept under is **declared here, not decided per module.** The
+boundary test (*if a user can see it on a screen it is a surface; if it is only observable by
+reading code or logs it is a mechanism*) still governs — but you apply it **once per topic**,
+here, where the next author reads it instead of re-deriving it.
+
+- `surface` — run `aidex-reference/references/01-discovery.md` (the visual pass is stage 4).
+- `substitution` — run `02-architecture.md` **instead of** discovery rules 1, 2 and 4. The
+  instrument becomes *running the code path*, and every claim must name **where** it was
+  verified.
+
+`environments:` is the list `substitution` topics may name. It is **checked**: a module under a
+substitution topic that names none of them is reported, because "verified" is not a claim and
+"verified in the backend container" is.
+
+```topics
+topic: features
+protocol: surface
+
+topic: architecture
+protocol: substitution
+environments: host, backend container, worker, dev, E2E
+
+topic: backend
+protocol: substitution
+environments: host, backend container, worker, dev, E2E
+```
+
+> Declaring a topic `substitution` with no `environments:` is reported too — an environment
+> axis nobody can check is an axis nobody will follow.
+
+## Declaring ownership
+
+Each reference module declares the items it **owns** in flat front-matter — **comma-separated**
+`axis: item` entries, so the shared `validate.py` parser reads it without nested YAML:
+
+```yaml
+covers: "routes:/voices, routes:/voices/new, apps:lab_voices"
+```
+
+Split on the **first colon**, so both halves may contain spaces (`scheduled jobs: nightly`) and
+an item may contain colons (`routes:/productions/:id`). Commas rather than whitespace because the
+first version split on whitespace and **silently dropped** every multi-word axis this template
+recommends — a fully documented project reported 100% gap with no warning. Unparseable entries
+and entries naming an undeclared axis are now reported.
+
+Ownership is **declared on sweep, never backfilled by inference.** Generating `covers:` by
+grepping which document mentions which app reintroduces the exact mention-vs-describe
+ambiguity the field exists to remove, and launders a guess into front-matter.
+
+---
+
+## Entry-point kinds
+
+The input to **Rule 3' — a positive requires a reachability proof.** Before something is
+documented as a capability, it must be traceable to one of these. Something reachable from
+none of them is dead code, or a capability whose entry point you have not found — and which
+of the two it is **is the finding**.
+
+<!-- Replace with this project's real list. Examples:
+     route · REST endpoint · scheduled job row · queue consumer · management command ·
+     signal handler · webhook · public export · template tag · CLI subcommand ·
+     data migration / RunPython
+
+     Do not drop "data migration" as historical. A framework re-runs it on every database that
+     has not applied it -- a fresh dev DB, a CI runner, a restore-then-migrate, and every test
+     build that does not reuse its database. Code reachable only from one is live. Leaving it
+     off this list let a sweep write up such a module as "ran once and is not a live path", and
+     the profile's own taxonomy is what licensed that. A kind missing here is not neutral: it
+     makes the code it would have covered unclassifiable, and unclassifiable reads as dead. -->
+
+- {{ENTRY_POINT_KIND}}
+
+**String-named references live here too.** Anything named by a string rather than a symbol
+(a scheduler row naming a dotted path, a provider registry key) is invisible to grep and to
+the type-checker, so it looks dead and is not. List those mechanisms explicitly.
+
+## Observation instrument
+
+How a claim is promoted to `seen`.
+
+| Need | Instrument here | Constraint |
+|---|---|---|
+| Observe a surface state | <!-- dev browser, read-only --> | <!-- e.g. auth throttle ~20 navigations/hour --> |
+| Exercise a write path | <!-- isolated test DB / E2E runner --> | **Never dev, never prod** |
+| Run a code path | <!-- probe against the isolated test database --> | Counts as `seen` |
+
+**Read-only against dev; anything that writes goes to the isolated environment.** A
+write-path claim verified against dev has contaminated the fixture the next reader will
+check it against.
+
+## Environment axis
+
+An architecture claim can be **true on the host and false in the container**, so it must name
+where it was verified. The values available here:
+
+<!-- e.g. host · backend container · worker · dev · E2E -->
+
+- {{ENVIRONMENT}}
+
+## Known traps
+
+Project-local instances of shapes the shared canon describes generically. These are what a
+newcomer gets wrong.
+
+<!-- e.g. "the worker caches imported modules at process start, so editing a service a queued
+     task imports leaves the old snapshot running"; "toolchain version differs host vs image";
+     "the storage bucket's missing CORS is only visible to a browser, never to curl" -->
+
+- {{TRAP}}
+
+## Project-local front-matter
+
+Fields this project uses that the shared canon does not define. The validator treats unknown
+fields as project-local and does not reject them.
+
+<!-- e.g. volatility: invariant | process | surface -->
+
+---
+
+## Verification
+
+```bash
+# 1. read the axis commands without running them
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --dry-run
+# 2. approve this exact block (required once, and again after any edit to it)
+~/.claude/skills/aidex-reference/scripts/docs-census.sh --trust --advisory
+```
+
+**Real output, {{DATE}}:** <!-- paste what you actually got. -->
+
+How to read a change:
+
+- **`REFUSED ... not been approved`** — expected before step 2, and expected again after any
+  edit to the census block. Not a failure; the trust gate.
+- **A `BROKEN` axis** — the command is wrong. A 100% figure from a broken axis is the exact
+  failure this file exists to prevent, so fix the command before believing any number.
+- **Every item in `gap` with `0 of N` modules declaring** — an adoption gap, not a coverage
+  gap. Declare `covers:` on sweep; never backfill it by inference.
+
+> Step 2 is why the second command carries `--trust`. An earlier version of this template ran
+> `--advisory` alone and exited 3 on every fresh profile — a Verification block that cannot run
+> as written, shipped in the file that teaches the contract. Caught 2026-07-30.
