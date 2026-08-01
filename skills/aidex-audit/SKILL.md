@@ -52,10 +52,10 @@ Dispatch by first argument:
 ### Supported audit types (for `new`)
 
 `ux` · `ai-opportunities` · `security` · `perf` · `a11y` · `hitl` · `retest` ·
-`test-coverage` · `custom` — short English names per
+`test-coverage` · `docs-coverage` · `custom` — short English names per
 `decision/2026-07-02-audit-rebuild-canon-decisions`; the legacy `-audit`-suffixed and
 `ia-opportunities` forms are accepted as input aliases and normalized, as is the
-`coverage` short form for `test-coverage`. For a **one-shot analysis with no recurring
+`coverage` short form for `test-coverage` and `docs`/`documentation` for `docs-coverage`. For a **one-shot analysis with no recurring
 methodology**, use `new --standalone <slug>`: it scaffolds a dated run folder
 directly under `audits/` with no boards (canon §Standalone one-shot runs).
 
@@ -282,7 +282,7 @@ Quick summary — full detail in [references/01-principles.md](references/01-pri
 All templates in [assets/templates/](assets/templates/):
 
 - Core: 00-inventory.md, 00-methodology.md, 00-changelog.md, index.md, findings.md
-- Playbooks: `methodology/<type>.md.template` for each of eight stock types
+- Playbooks: `methodology/<type>.md.template` for each of nine stock types
 
 ## Related
 

@@ -262,6 +262,8 @@ AIDEX ships playbook templates for the following methodologies. Each becomes a f
 | `perf` | Pre-release, pre-scaling | Lighthouse categories + backend metrics |
 | `a11y` | Fixed cadence or compliance requirement | WCAG criteria × page |
 | `hitl` | Flows/processes need human sign-off page-by-page | Pages × roles, split agent-automated vs human-judgment, resumable checklist |
+| `test-coverage` | Post-incident, after a feature push, or when `coverage-sweep` flags drift | Modules × breadth (generated matrix) + depth (judgment) |
+| `docs-coverage` | Surfaces outpaced their docs, `.context/references/` was reorganized, or a gap surfaced by luck | Census axes × breadth (generated matrix) + depth (judgment) |
 
 Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your own playbook.
 
