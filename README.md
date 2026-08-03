@@ -52,7 +52,8 @@ aidex solves this with two pillars:
 ├── rules/                               <-- Global session rules (symlinked into ~/.claude/rules/)
 │   ├── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
 │   ├── autonomy.md                      <-- front-loaded autonomy: run start-to-finish (from aidex)
-│   └── artifacts-local-first.md         <-- local-first artifact contract (from aidex)
+│   ├── artifacts-local-first.md         <-- local-first artifact contract (from aidex)
+│   └── database-protection.md           <-- destructive DB ops: real vs disposable (from aidex)
 └── skills/
     ├── aidex/                       <-- The orchestrator (from aidex)
     ├── aidex-conventions/           <-- Canon hub, non-invocable (from aidex)
@@ -118,13 +119,14 @@ project/.context/
 
 ### Global rules
 
-Three always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
+Four always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
 
 | Rule | What it governs |
 |------|-----------------|
 | `aidex-conventions.md` | `.context/` conventions — date format, language, naming, status vocabulary, cross-references, archive policy |
 | `autonomy.md` | Front-loaded autonomy: an unattended run asks its questions up front and then runs start to finish; only publishing (push/deploy/release) is gated |
 | `artifacts-local-first.md` | Any requested artifact/report/dashboard is written locally first, anchored next to the work it documents, and published only when explicitly asked |
+| `database-protection.md` | Destructive DB operations, split by target: **real** databases are never destroyed unattended and are not pre-authorizable; **disposable** ones (E2E clones, per-worktree throwaways) are routine work |
 
 ### 17 skills
 
