@@ -190,14 +190,3 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
   2026-07-03). A blocked launch is not an over-stop: the run continues
   interactively; only the batch promotion waits for the Opus session. Surface this
   at Orient, never as a mid-run interruption.
-
-## Durable-run marker
-
-> **Durable-run marker (optional Stop-hook enforcement).** At Orient, run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" start plan-exec` from any directory —
-> the script resolves the workspace root itself, so the 07-21 wrong-`.context/` marker
-> incident cannot recur; run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" stop` at completion. Harmless if the optional
-> Stop hook is not installed ([hooks/README.md](../../../hooks/README.md)); when it is, it keeps the
-> run from over-stopping on safe work and logs to `~/.aidex/durability/events.jsonl`. Fails open —
-> if the script is absent, just proceed.

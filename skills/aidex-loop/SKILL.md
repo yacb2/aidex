@@ -121,13 +121,6 @@ spec and stop rather than guess one.
 4. Only execute it if the user explicitly asks you to start the loop now;
    otherwise print the command for them to run.
 
-> **Durable-run marker (optional Stop-hook enforcement).** When you start the loop, run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" start loop`; run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" stop` when the loop ends. Harmless if the optional
-> Stop hook is not installed ([hooks/README.md](../../hooks/README.md)); when it is, it keeps the
-> loop from over-stopping on safe work and logs to `~/.aidex/durability/events.jsonl`. Fails open —
-> if the script is absent, just proceed.
-
 ### Run doctrine — autonomy during the run
 
 Once a spec's **Autonomy surface** is declared, the loop runs to its stop
