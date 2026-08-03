@@ -132,12 +132,6 @@ parameters were defaulted. Full rule:
 5. Only execute the `Workflow` call if the user explicitly asks you to start it now;
    otherwise print the launch plan (form + args shape) for them to confirm.
 
-> **Durable-run marker (optional Stop-hook enforcement).** When you launch the workflow,
-> run `bash "$HOME/.aidex/hooks/durability-run.sh" start workflow`; run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" stop` when it ends. Harmless if the optional
-> Stop hook is not installed ([hooks/README.md](../../hooks/README.md)); fails open — if the
-> script is absent, just proceed.
-
 ### Run doctrine — autonomy during the run
 
 Once the spec's **Autonomy surface** is declared, the workflow runs to its stop

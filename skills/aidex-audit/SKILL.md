@@ -173,13 +173,6 @@ the defaulting in the audit brief —
 4. Reference IDs from this run's `findings.md` (filtered view).
 5. Close out `index.md` summary.
 
-> **Durable-run marker (optional Stop-hook enforcement).** When the sweep begins, run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" start audit`; run
-> `bash "$HOME/.aidex/hooks/durability-run.sh" stop` when the audit is closed. Harmless if the
-> optional Stop hook is not installed ([hooks/README.md](../../hooks/README.md)); when it is, it
-> keeps the sweep from over-stopping on safe work and logs to `~/.aidex/durability/events.jsonl`.
-> Fails open — if the script is absent, just proceed.
-
 > **Sweep doctrine (autonomy).** Scope and borders are set at kickoff
 > (`/aidex-audit new`) — that is the initial phase where any question is asked.
 > After that the run is an **uninterrupted sweep**: catalog each finding with your

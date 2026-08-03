@@ -19,9 +19,7 @@ the workflow so the user does not have to repeat it in every prompt.
 On run start, apply [Mode A autonomy](../aidex-conventions/references/autonomy-conventions.md)
 automatically — do not wait for the user to grant it. Questions live in the
 initial alignment moment only; after that the run proceeds start-to-finish
-(deny/pre-authorized/mandated/autonomous — see "Operating mode" below). Run
-`durability-run.sh start` from anywhere — it anchors the marker at the workspace
-root itself (the 07-21 wrong-`.context/` incident is fixed in the script).
+(deny/pre-authorized/mandated/autonomous — see "Operating mode" below).
 
 ## Operating mode
 
@@ -64,9 +62,6 @@ The operative rule here:
   block on the arbiter** (it is a forcing function, not a gate).
 
 Otherwise: proceed. The user will redirect if needed.
-
-> **Durable-run marker.** At Orient, run `bash "$HOME/.aidex/hooks/durability-run.sh" start plan-exec`; at completion, `... stop`. Fails open — see
-> [`references/01-unattended-batch-execution.md`](references/01-unattended-batch-execution.md) § Durable-run marker.
 
 ## Unattended / batch execution (opt-in, gated)
 

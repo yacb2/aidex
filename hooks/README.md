@@ -141,12 +141,27 @@ alone. The measurement is scheduled as a P2 backlog item, so it is done, not rem
 
 ## Status
 
-**Hook C (judge-gated command hook) is the active configuration** in
-`~/.claude/settings.json`. The 2026-07-02T20:29 summary-no-question miss is blocked by the
-live judge (verified 2026-07-04, `matched: "judge"` in events.jsonl). Hook A is the
-heavier always-on alternative; hook B is broken (kept as a warning). After a durable run,
-grep `~/.aidex/durability/events.jsonl` for `"matched": "judge"` and transcripts for
-`[durability-arbiter]` to see enforced continuations.
+**RETIRED 2026-08-03 — the sunset criterion above fired.** The `Stop` entry was removed from
+`~/.claude/settings.json`, and the `durability-run.sh start/stop` call sites were removed from
+`aidex-audit`, `aidex-backlog`, `aidex-loop`, `aidex-workflow` and `aidex-plan-exec` — the marker
+they wrote had exactly one consumer (`durability-stop-hook.sh`), so leaving them would have meant
+five skills writing state nobody reads. Durability now rests on skill-side autonomy plus the
+voluntary durability-arbiter, which is what the retirement rule designates as the successor.
+
+**Measured verdict (window: blocks since 2026-07-23):** 4 real blocks, **0 justified**, 4 misfires
+— all four were answer-to-user terminals, the class the post-retro policy was supposed to allow.
+Both arms of the rule fired (≥1 misfire OR 0 justified). Full evidence and the four quoted
+terminals are recorded in BL-067.
+
+**Measurement caveat for anyone re-running this:** 435 of the 439 logged blocks in that window came
+from the hook's own test suite (`cwd` under `/T/tmp.*`) — the contamination `c2aa1cb` fixed on
+2026-08-01, though the historical log stays polluted. Filter by `cwd` or the number is meaningless.
+In production the hook never reached `enforce`; all 78 `enforce` blocks were tests.
+
+The scripts (`durability-stop-hook.sh`, `durability-run.sh`, `test-durability-hook.sh`) are kept as
+scaffolding, unwired — same disposition as the router. Hook A is the heavier always-on alternative;
+hook B is broken (kept as a warning). Re-wiring requires a new falsifiable criterion, not a
+recollection that it used to help.
 
 ## aidex-router.sh — deterministic prompt router (UserPromptSubmit)
 
