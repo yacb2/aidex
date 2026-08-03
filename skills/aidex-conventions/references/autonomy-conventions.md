@@ -53,11 +53,26 @@ bound a permissive default. Shape a permissive-by-default run with **`deny`** an
 
 Classify before you pause:
 
-1. **Deny — never run, even mid-run.** Destructive / irreversible-with-data-loss:
-   dropping or deleting data, **DB deletion** (global rule: never delete the DB
-   without explicit confirmation), a **destructive migration** (data loss), or
-   anything conflicting with a registered ADR or existing code. → Do **not**
-   execute; **document the skip and surface it** at the end.
+1. **Deny — never run, even mid-run, and never pre-authorizable.** Destructive /
+   irreversible-with-data-loss operations on **real** data: dropping, resetting or
+   truncating an application database in any environment (local, dev, staging, prod),
+   a **destructive migration** (data loss), or anything conflicting with a registered
+   ADR or existing code. → Do **not** execute; **document the skip and surface it**
+   at the end.
+
+   Unlike class 2, this class has **no pre-authorization path** — deliberately. A
+   run cannot be granted permission up front to destroy real data, because at
+   planning time the need is unknown, and a checkbox granted in advance decays into
+   a rubber stamp. If a run genuinely cannot proceed without one, that is a **hard
+   blocker**: stop and surface it. Stopping is cheap here precisely because the case
+   is rare, and the need almost always signals a shortcut around a migration
+   conflict or schema drift — which is the thing to investigate, not to execute.
+
+   **Not in this class: disposable databases whose lifecycle *is* destruction.** E2E
+   template clones, per-worktree throwaway databases, anything `test-e2e.sh` creates
+   and resets — these are routine class-4 work needing no authorization at all.
+   Reading them as class 1 forbids the E2E rule's own mandated command; that
+   contradiction is what this carve-out closes.
 2. **Pre-authorized at the initial phase — then autonomous.** Outward / irreversible
    *publication*: `git push`, publish, **deploy**, **release**. These run unattended
    **only if the user pre-authorized them in the initial phase**. If not
