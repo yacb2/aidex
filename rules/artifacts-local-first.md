@@ -14,8 +14,11 @@ dashboard):
 
 0. **Find the anchor before writing.** An artifact is *about* something. Search
    `.context/` for the plan / backlog item / audit run / request the content
-   belongs to. Exactly one plausible anchor → use it. Several → ask in one line
-   which one. None → the `.context/reports/` fallback in step 5. Never default
+   belongs to. Exactly one plausible anchor → use it. Several → outside an
+   unattended run, ask in one line which one; **inside** a run, take the most
+   specific and record the choice — picking an anchor is safe and additive
+   (autonomy class 4), so it is not a reason to stop.
+   None → the `.context/reports/` fallback in step 5. Never default
    to the fallback without looking: in the field, 4 reports landed there while
    their obvious backlog and audit anchors sat one directory away.
 1. **Load design guidance first** (Skill tool) — BEFORE writing any page
