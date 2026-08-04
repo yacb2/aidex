@@ -18,22 +18,20 @@ incident this rule exists to prevent.
 
 ## NEVER (real databases)
 
-- Reset, drop, recreate, truncate, or wipe a real database without the user's
-  explicit, in-the-moment authorization for that specific action
-- Run `dropdb`, `DROP DATABASE`, `TRUNCATE`, `flush`, `reset_db`, or
-  `migrate --fake-initial` after a drop — even on local — unless the user asked for
-  it in the current message
-- Treat past authorization as standing permission. "We reset the DB last week" does
-  **not** authorize resetting it now
-- Run sync scripts that drop the destination DB without an explicit request in the
-  current turn
-- Use `--reset` flags on ETL or tooling that wipes data, unless the user explicitly
-  said reset / wipe / start fresh
-- Read ambiguous instructions ("clean up", "fix the data", "make it work") as
-  authorization to reset
-- Drop or recreate a DB as a shortcut around migration conflicts, schema drift, or
-  seed-data problems — investigate the root cause instead
-- Remove a Docker volume that carries a real database
+The standard is **explicit authorization in the current message, for that specific
+action**. It never weakens, and none of the following is permitted without it:
+
+- Reset, drop, recreate, truncate or wipe a real database
+- `dropdb`, `DROP DATABASE`, `TRUNCATE`, `flush`, `reset_db`, or
+  `migrate --fake-initial` after a drop — even on local
+- Sync scripts that drop the destination DB; `--reset` on ETL or any tooling that
+  wipes data; removing a Docker volume that carries a real database
+- Dropping or recreating a DB as a shortcut around migration conflicts, schema drift
+  or seed-data problems — investigate the root cause instead
+
+Two bypasses, both forbidden: **stale consent** ("we reset it last week" does not
+authorize it now) and **inferred consent** ("clean up", "fix the data", "make it
+work" are not authorization).
 
 ## Unattended runs — no pre-authorization exists
 
