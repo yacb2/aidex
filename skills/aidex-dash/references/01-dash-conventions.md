@@ -78,6 +78,26 @@ never calls the `Artifact` tool unprompted. See `SKILL.md` for the full policy
 (and the `disableArtifact` / `CLAUDE_CODE_DISABLE_ARTIFACT=1` opt-out for users
 who want the native auto-Artifact behavior off entirely).
 
+### Why this overrides the Artifact tool's own default
+
+The `Artifact` tool states that "publishing proactively is fine for your own
+work-product — artifacts start private". `rules/artifacts-local-first.md` step 7
+deliberately overrides that, and this is the reasoning it points at.
+
+Both readings are defensible. The tool optimizes for the page being reachable;
+the rule optimizes for local-first durability. Three things decide it:
+
+- **The durable copy is the local sibling of the anchor**, and that is the one the
+  project keeps. A published URL is a second copy whose lifetime the project does
+  not control.
+- **Publishing is a distribution act.** Content sent to an external service may be
+  cached or indexed even after deletion, so it stays the user's call rather than a
+  helpfulness default.
+- **Waiting costs nothing.** Step 7 can always run later against the same file and
+  the same URL, so deferring is never the irreversible branch.
+
+When the two disagree, the rule wins.
+
 ## v2 lane (out of scope for v1)
 
 Deferred, non-goals for the first version:
