@@ -82,6 +82,7 @@ Language is **scoped by artifact kind** — there is no longer a blanket "all ge
 The assistant continues to *reply* in the user's spoken language; only the written knowledge artifacts above are constrained.
 
 - **Override:** the project's `CLAUDE.md` may explicitly direct another language for knowledge artifacts (e.g., "Generate `.context/` artifacts in Spanish"). A local skill edit is the second supported override path. The communications exemption needs no override — it is the default.
+- **Per-artifact override:** the user asking, in the moment, for *this* artifact in another language also wins — their explicit instruction outranks a default. It is scoped to that artifact, never standing, and the deviation is recorded as a waiver (§10) so the next validate run reports it as accepted rather than new. A **global** `CLAUDE.md` must not claim this scope: language scope belongs to this ADR, and a second always-on file asserting it is what produced the live contradiction closed as BL-076 (2026-08-03).
 - **Enforcement:** `validate.py` flags Spanish-dominant body text in knowledge artifacts as a WARNING (`body-language-not-english`). The heuristic is a conservative stopword-density test — it flags clearly-Spanish bodies only, never borderline bilingual quotes. Front-matter values, fenced code blocks, and `communications/` are exempt. Accepted exceptions (e.g., a project running the CLAUDE.md language override) are recorded as waivers — see §10.
 
 ---
