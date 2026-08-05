@@ -69,11 +69,30 @@ Run `scripts/mine-rule-applicability.py`. Read-only over `~/.claude/projects`.
 5. Compute `waste/session = words x (1 - field rate)` — words loaded into sessions
    where the situation never arose.
 
+### Before relocating anything: is the destination actually read?
+
+Relocation assumes the pointer gets followed. **Verify that, do not assume it.** Run
+`scripts/mine-reference-reads.py <reference> --when-skill <consumers>`: it counts the
+sessions where the consuming skill fired and how many of those pulled the reference
+into context.
+
+A markdown link in a `SKILL.md` is an invitation, not a load. Measured 2026-08-05:
+`autonomy-conventions.md` is cited 26 times across the five run skills and was read in
+**5 of 180** sessions where a run skill fired — 2.8%, and most of those were Bash greps
+by someone working on the file rather than a run consuming it. The always-on summary
+was the *sole* delivery path for run governance. Relocating it on the strength of those
+26 citations would have removed governance with nothing replacing it, and nothing would
+have errored.
+
+If the destination is not read, the content is not relocatable — regardless of how low
+its applicability is. Fix the consumption path first, or keep it resident.
+
 ### Decision rule
 
 | Stage A result | Verdict |
 |---|---|
-| Field rate < ~5%, not a prohibition | Move to on-demand. No Stage B — efficacy cannot justify the load rate |
+| Field rate < ~5%, not a prohibition, **destination is read** | Move to on-demand. No Stage B — efficacy cannot justify the load rate |
+| Field rate < ~5%, but the pointer is not followed | Keep resident. The rule is the delivery path |
 | Field rate < ~5%, prohibition | Keep. Consider splitting: short guard always-on, canon on demand |
 | Field rate high, small file | Keep as-is. Measuring costs more than any saving |
 | Field rate high, large file | Stage B. The open question is whether the summary beats the skill trigger |
