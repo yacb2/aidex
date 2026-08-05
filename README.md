@@ -3,7 +3,7 @@
 > Keep your Claude Code ecosystem lean and consistent — skills, docs, and project context from one source of truth.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.25.0-blue.svg)](install.sh)
+[![Version](https://img.shields.io/badge/version-0.26.0-blue.svg)](install.sh)
 [![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-8A2BE2.svg)](https://docs.anthropic.com/en/docs/claude-code)
 
 AI coding assistants reload their context every session. As your setup grows, skills get copy-pasted across projects and drift out of sync, every project organizes its `.context/` knowledge differently, and idle context quietly eats your token budget. **aidex** fixes that with a single-source skill store (symlinked, never duplicated), a standard `.context/` convention, and an auditor that flags bloat, broken symlinks, and stale docs before they cost you.
@@ -53,7 +53,10 @@ aidex solves this with two pillars:
 │   ├── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
 │   ├── autonomy.md                      <-- front-loaded autonomy: run start-to-finish (from aidex)
 │   ├── artifacts-local-first.md         <-- local-first artifact contract (from aidex)
-│   └── database-protection.md           <-- destructive DB ops: real vs disposable (from aidex)
+│   ├── database-protection.md           <-- destructive DB ops: real vs disposable (from aidex)
+│   ├── e2e-testing.md                   <-- E2E targets a disposable DB (from aidex)
+│   ├── verification-before-claims.md    <-- no completion claim without output (from aidex)
+│   └── root-cause-first.md              <-- investigate before fixing (from aidex)
 └── skills/
     ├── aidex/                       <-- The orchestrator (from aidex)
     ├── aidex-conventions/           <-- Canon hub, non-invocable (from aidex)
