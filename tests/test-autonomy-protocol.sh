@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # test-autonomy-protocol.sh — asserts the "Default autonomy" kickoff block
 # lands identically (single-sourced pointer, not forked content) in the three
-# executing skills, plus plan-exec's workspace-root durability marker,
-# completion notification, and structural review gate.
+# executing skills, plus plan-exec's completion notification and structural
+# review gate. (The durability-marker check retired with the Stop hook — see (e).)
 #
 # Regression: retro run 4 observed ~17 "no te detengas" prompts per window
 # because the executing skills waited for the user to grant autonomy instead
@@ -57,13 +57,21 @@ for f in "$PLAN_EXEC" "$LOOP" "$AUDIT"; do
   [[ "$nonblank_lines" -le 6 ]] || fail "(d) $f: Default autonomy block is $nonblank_lines lines, expected <=6"
 done
 
-# ---------- (e) plan-exec's durability marker runs from the workspace root ----------
-grep -q 'workspace root' "$PLAN_EXEC_ALL" || fail "(e) plan-exec: no workspace-root instruction found"
-grep -q 'durability-run.sh" start plan-exec' "$PLAN_EXEC_ALL" \
-  || fail "(e) plan-exec: durability-run.sh start plan-exec invocation missing"
-# The SKILL.md body must still point at wherever it lives, or a split becomes a silent drop.
-grep -q 'durability-run.sh' "$PLAN_EXEC" \
-  || fail "(e) plan-exec: SKILL.md body no longer mentions the durable-run marker at all"
+# ---------- (e) RETIRED 2026-08-05 ----------
+# This checked that plan-exec started the durable-run marker from the workspace root.
+# The marker existed for exactly one consumer: the Stop hook. That hook was removed
+# from ~/.claude/settings.json per its OWN pre-registered sunset criterion (BL-067,
+# written 2026-07-23 before the result was known: ">=1 wrong block OR 0 justified
+# blocks => remove it"). Measured 4 real blocks, 0 justified — both arms met.
+#
+# With the consumer gone, the producers were removed from all five skills, so this
+# check asserted behaviour that had been deliberately retired. Deleting it rather
+# than fixing it is the point: a guard that outlives its subject turns a completed
+# retirement into a permanent red.
+#
+# Durability now rests on skill-side autonomy plus the voluntary durability-arbiter,
+# which is what BL-067 designates as the substitute. hooks/durability-run.sh still
+# ships and is referenced by a design comment in aidex-conventions/scripts/_lib.sh.
 
 # ---------- (f) plan-exec fires the completion notifier, guarded on existence+executable ----------
 grep -q 'notify.sh' "$PLAN_EXEC_ALL" || fail "(f) plan-exec: no notify.sh reference"
@@ -83,4 +91,4 @@ grep -q 'missing' "$PLAN_EXEC" \
   || fail "(h) plan-exec: no handling for a missing review entry"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the workspace-root marker, completion notify, and review gate"
+echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate"
