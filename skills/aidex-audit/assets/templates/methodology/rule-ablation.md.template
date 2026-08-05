@@ -1,0 +1,135 @@
+# Rule-Ablation Audit Playbook
+
+Structure: **always-on context files x two stages.** Decide, per rule, whether it
+stays always-on, moves to on-demand or `paths:`-gated loading, or leaves the set.
+
+The unit of audit is a file that loads into *every* session: `~/.claude/rules/*.md`
+without `paths:` front-matter, plus the global `CLAUDE.md` and anything it `@`-imports.
+A rule carrying `paths:` is already gated and is out of scope — counting it inflates
+the always-on total and makes the reduction look larger than it is.
+
+---
+
+## The distinction that decides everything
+
+**Applicability is not effect.** They are different quantities and the audit fails
+the moment they are printed in the same column.
+
+- **Applicability** — how often the situation the rule governs arises at all.
+  Measurable retrospectively, deterministically, with no judge.
+- **Effect** — whether the rule changed what happened. Requires a counterfactual.
+
+No corpus of past sessions can give you effect. Every session in it ran with the
+rules loaded; there is nothing to difference against. Stage A screens on
+applicability and resolves most rules without ever needing effect. Stage B measures
+effect, live, and only for what Stage A leaves open.
+
+Name the column `applicability`. A screening number labelled `effect` becomes a
+deletion decision the next time someone reads the table without the caveats.
+
+---
+
+## The prohibition asymmetry
+
+A prohibition rule that is working perfectly **leaves no trace**. A session where
+the database guard stopped a `dropdb` looks exactly like a session that never
+touched a database. Its measured applicability is therefore a *floor*, and a low
+number is never evidence of low value.
+
+This is not a caveat to note and move past — it is the reason the never-ablate set
+exists:
+
+| Never ablate | Why |
+|---|---|
+| Destructive-DB guard | Failure is unrecoverable; success is invisible |
+| E2E isolation | Same asymmetry, same blast radius |
+| Publication gate (push / deploy / release) | Outward-facing and hard to reverse |
+| Verify-before-delete | Prevents the class it names |
+| Verification-before-claims | Guards the most common failure mode there is |
+
+These may be **relocated** (short always-on guard, full canon on demand) but never
+removed, and never measured for removal.
+
+---
+
+## Stage A — applicability screen
+
+Run `scripts/mine-rule-applicability.py`. Read-only over `~/.claude/projects`.
+
+1. Enumerate the true always-on set. Drop anything with `paths:`.
+2. Declare a tool-call signature per rule. It must be decidable from tool calls
+   alone — file paths written, commands run, skills invoked. If a rule needs a
+   judge to detect its own situation, say so and leave the cell unmeasured rather
+   than inventing a proxy.
+3. Denominator: sessions with at least one genuine user prompt. Skip sidechains
+   and system injections.
+4. **Split self-referential from field usage.** Work done inside the toolkit's own
+   repo is not representative of what a shipped rule meets. Report both; decide on
+   the field column.
+5. Compute `waste/session = words x (1 - field rate)` — words loaded into sessions
+   where the situation never arose.
+
+### Decision rule
+
+| Stage A result | Verdict |
+|---|---|
+| Field rate < ~5%, not a prohibition | Move to on-demand. No Stage B — efficacy cannot justify the load rate |
+| Field rate < ~5%, prohibition | Keep. Consider splitting: short guard always-on, canon on demand |
+| Field rate high, small file | Keep as-is. Measuring costs more than any saving |
+| Field rate high, large file | Stage B. The open question is whether the summary beats the skill trigger |
+| No signature exists | Leave unmeasured and say so |
+
+---
+
+## Stage B — live ablation arm
+
+Only for rules Stage A could not resolve.
+
+- **Use a throwaway `HOME`** with a minimal `.claude/`. Do not move symlinks out of
+  the live `~/.claude/rules/` — that is a global mutation, and a concurrent session
+  editing shared state has already invalidated one multi-hour panel in this suite.
+- **`--settings` MERGES, it does not replace.** An arm that clears the system prompt
+  but leaves `~/.claude/rules/` loading measures nothing. Neutralize both layers in
+  the same run. A throwaway `HOME` sidesteps this because there is nothing to merge.
+- **Name the arm precisely.** Removing the rule file while leaving a `CLAUDE.md`
+  pointer measures "does the canon beat the pointer". Removing both measures
+  something else. These are different findings.
+- **Validate any judge against a hand-labelled set before its numbers count.** An
+  unvalidated judge is how a gate in this suite produced four blocks and zero
+  justified ones.
+
+---
+
+## Traps this methodology has already paid for
+
+- **Injected context is not persisted in transcripts.** The always-on block is
+  assembled per request and never written to the session JSONL. You cannot recover
+  which rules were loaded in a past session; activation dates are *inferred* from
+  symlink and git history, never observed. Label them inferred.
+- **Grepping transcripts for a rule's heading finds the rule being read or edited,**
+  not the rule being loaded. It produces confident nonsense: a rule dated to three
+  months before the file existed.
+- Session `mtime` approximates session date. Good enough for coarse windows, not
+  for a sharp pre/post boundary.
+- Every signature is a lower bound.
+
+---
+
+## Output artifacts
+
+- `index.md` — window, corpus size, the always-on set and how it was enumerated
+- `findings.md` — the Stage A table, one verdict per rule, and every rule left
+  unmeasured with the reason
+- `applicability.json` — machine-readable table for the next run to diff against
+
+---
+
+## Tips
+
+- **Re-run before acting, not once.** The number is a property of the current work
+  mix. A rule at 3% during an infrastructure month can be at 30% during a feature
+  month.
+- **Relocation beats ablation.** Moving a canon behind a skill trigger keeps the
+  content and drops the per-session cost. It is reversible; deletion is not.
+- **Reduction is measured on the always-on total**, not on file count. Gating four
+  files that were already `paths:`-gated changes nothing and looks like progress.

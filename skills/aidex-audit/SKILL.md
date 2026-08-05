@@ -52,7 +52,7 @@ Dispatch by first argument:
 ### Supported audit types (for `new`)
 
 `ux` · `ai-opportunities` · `security` · `perf` · `a11y` · `hitl` · `retest` ·
-`test-coverage` · `docs-coverage` · `custom` — short English names per
+`test-coverage` · `docs-coverage` · `rule-ablation` · `custom` — short English names per
 `decision/2026-07-02-audit-rebuild-canon-decisions`; the legacy `-audit`-suffixed and
 `ia-opportunities` forms are accepted as input aliases and normalized, as is the
 `coverage` short form for `test-coverage` and `docs`/`documentation` for `docs-coverage`. For a **one-shot analysis with no recurring
