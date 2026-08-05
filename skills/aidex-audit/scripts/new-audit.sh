@@ -7,8 +7,8 @@
 #   new-audit.sh --standalone <slug>    # one-shot run:    audits/YYYY-MM-DD-<slug>/ (no boards)
 #
 #   <type>: ux, ai-opportunities, security, perf, a11y, hitl, retest, docs-coverage,
-#           test-coverage, custom (legacy aliases like ux-audit / ia-opportunities
-#           and the `coverage` short form are normalized)
+#           test-coverage, rule-ablation, custom (legacy aliases like ux-audit /
+#           ia-opportunities and the `coverage` short form are normalized)
 #   <slug>: kebab-case identifier, e.g. "login-redesign"
 #
 # Methodology runs get the three per-methodology boards on first use:

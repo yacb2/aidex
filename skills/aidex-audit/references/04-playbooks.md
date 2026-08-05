@@ -17,6 +17,7 @@ Nine stock audit types ship with AIDEX. Each has a playbook template in `assets/
 | [hitl](../assets/templates/methodology/hitl.md.template) | Pre-release / multi-session | End-to-end flows and processes need human sign-off page-by-page; agent automates every mechanical check | `bug`, `gap`, `idea` |
 | [test-coverage](../assets/templates/methodology/test-coverage.md.template) | Drift-driven / post-incident | Post-incident, after a feature push on a module, or when `coverage-sweep` flags drift | `gap`, `bug`, `risk` |
 | [docs-coverage](../assets/templates/methodology/docs-coverage.md.template) | Drift-driven / post-feature | Surfaces outpaced their docs, `.context/references/` was reorganized, or a gap surfaced by luck | `gap`, `bug`, `risk` |
+| [rule-ablation](../assets/templates/methodology/rule-ablation.md.template) | Periodic / cost-driven | The always-on context layer grew, sessions open heavy, or a pruning decision needs a measurement first | `gap`, `risk` |
 
 ### Decision flow
 
@@ -43,6 +44,9 @@ Is the concern "the suite is green but bugs ship" / test gaps? ──▶ test-co
                 │ no
                 ▼
 Is the concern "what is undocumented" / docs drift? ──▶ docs-coverage
+                │ no
+                ▼
+Is the concern "every session opens heavy" / always-on cost? ──▶ rule-ablation
                 │ no
                 ▼
 Anything visual, interactive, or product-level ──▶ ux
