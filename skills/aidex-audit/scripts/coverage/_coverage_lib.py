@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Shared library for aidex-audit coverage tooling. Stdlib only."""
+import datetime
 import functools
 import json, os, re, subprocess, sys
 
@@ -91,8 +92,26 @@ def commits_since(root, repo, since, workspace_globs):
         return 0
     specs = [":(glob)" + to_repo_relative(g, repo) for g in own]
     repo_dir = os.path.join(root, repo["path"]) if repo["path"] not in (".", "") else root
-    out = git(repo_dir, "log", "--oneline", f"--since={since}", "--", *specs)
+    # `--since` is interpreted in LOCAL time, so an epoch-day sentinel like
+    # "1970-01-01" becomes 1969-12-31T22:00Z in TZ +0200 — before the epoch. git
+    # then silently matches nothing and the count reads as "no commits" rather than
+    # "no lower bound". Callers pass an early date to mean all-time, so honour that
+    # by dropping the flag instead of asking git for a negative timestamp.
+    args = ["log", "--oneline"]
+    if not _is_all_time(since):
+        args.append(f"--since={since}")
+    out = git(repo_dir, *args, "--", *specs)
     return len(out.splitlines())
+
+
+def _is_all_time(since):
+    """True when `since` is empty or early enough to be an all-time sentinel."""
+    if not since:
+        return True
+    try:
+        return datetime.date.fromisoformat(str(since)[:10]) <= datetime.date(1970, 1, 2)
+    except ValueError:
+        return False
 
 
 TEST_PATTERNS = [re.compile(r"\btest(\.\w+)?\s*\("), re.compile(r"\bdef test_")]

@@ -171,6 +171,37 @@ Instead of embedding code: describe the pattern in 1-2 sentences, then link to t
 
 **When to split into references:** Section exceeds 100 lines, information only needed for specific use cases, multiple variants exist, or code examples exceed 5 lines.
 
+### Level 3 is "loaded as needed" only if the pointer is an instruction
+
+"Loaded as needed" describes the mechanism, not the outcome. A reference is loaded
+when the SKILL.md **tells the model to read it**. A markdown link is an invitation,
+and invitations are mostly declined.
+
+Measured 2026-08-05 across 38 skills, 115 references, and every session where the
+citing skill fired (`aidex-audit/scripts/sweep-reference-reads.py`): **32 of 58
+(skill, reference) pairs with 5+ firings were never read once.** The split is not
+random — it tracks the phrasing exactly:
+
+| Phrasing | Example | Read rate |
+|---|---|---|
+| Imperative, numbered step, explicit path | `1. Read the plan conventions canon:`<br>`` `~/.claude/skills/…/plan-conventions.md` `` | **80.6%** |
+| Markdown link in prose | `See [references/04-playbooks.md](…) for when to pick each.` | **0%** |
+
+So: **write pointers as steps, not as citations.**
+
+- Use an imperative verb — "Read", "Load", "Apply" — not "See" or "More detail in".
+- Put it in the numbered workflow at the point of use, not in a `## References`
+  appendix. A trailing link list is where references go to be never read: the
+  orchestrator's appendix scored 0% on 7 of 8 entries.
+- Give the full path, not a repo-relative link.
+- State what the model gets by reading it, so skipping has a visible cost.
+
+**This gates relocation.** Moving always-on content behind a pointer only works if
+the pointer is followed — otherwise the content is silently gone while the stub still
+says "read this" and nothing errors. Before relocating, measure with
+`sweep-reference-reads.py` (or `mine-reference-reads.py` for one file). A reference
+nobody reads is documentation debt that looks like coverage.
+
 ## SKILL.md Body Structure
 
 ```markdown
