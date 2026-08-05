@@ -2,8 +2,8 @@
 
 Canon for route B of `rules/artifacts-local-first.md`. That rule is always-on and
 carries only the routing and the two gates; everything below is loaded when an
-artifact is actually being built, which is 3.3% of field sessions
-(`audits/rule-ablation/2026-08-05-always-on-baseline`).
+artifact is actually being built, which a `rule-ablation` audit measured at 3.3% of
+field sessions.
 
 Read this file **before writing any page markup**, not after.
 
@@ -33,7 +33,7 @@ run, or request the content belongs to.
 - Several: outside an unattended run, ask in one line which one. **Inside** a run, take
   the most specific and record the choice — picking an anchor is safe and additive
   (autonomy class 4), so it is not a reason to stop.
-- None: use the `.context/reports/` fallback in step 5.
+- None: use the `.context/reports/` fallback in step 6.
 
 Never default to the fallback without looking. In the field, 4 reports landed there
 while their obvious backlog and audit anchors sat one directory away.
