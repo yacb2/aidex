@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -264,6 +266,47 @@ def main() -> int:
             if not tmpl.is_file():
                 failures.append(f"audit methodology '{meth}' has no playbook template "
                                 f"at {tmpl.relative_to(SKILLS_DIR)}")
+
+        # 9b. AUDIT_TYPES declares; normalize_type() decides. They were independent
+        #     lists until 2026-08-05, when `new-audit.sh rule-ablation` failed with
+        #     "unknown type: rule-ablation (valid: ... rule-ablation ...)" — the error
+        #     listing the type it was rejecting. Check 9 above reads AUDIT_TYPES against
+        #     three DOCUMENTS and never touches the validator, so a type could be fully
+        #     documented, fully templated, green here, and dead at runtime.
+        #
+        #     Invoke the function rather than parsing its `case` statement: a regex over
+        #     the branches would be one more checker free to drift from the code.
+        all_types = [x for x in m_types.group(1).split() if x]
+        bash = shutil.which("bash")
+        if not bash:
+            failures.append("bash not found — cannot verify normalize_type() accepts "
+                            "every declared audit type")
+        else:
+            for meth in all_types:
+                probe = subprocess.run(
+                    [bash, "-c", f'. "$1"; normalize_type "$2"', "_", str(lib), meth],
+                    capture_output=True, text=True)
+                if probe.returncode != 0:
+                    failures.append(f"audit methodology '{meth}' is in AUDIT_TYPES but "
+                                    f"normalize_type() rejects it — new-audit.sh will "
+                                    f"refuse a type this registry calls valid")
+                elif probe.stdout.strip() != meth:
+                    failures.append(f"normalize_type('{meth}') returned "
+                                    f"'{probe.stdout.strip()}' — AUDIT_TYPES must hold "
+                                    f"canon short names that normalize to themselves")
+
+            # A methodology with no display name falls through to the raw slug, which
+            # silently renders "rule-ablation audit" instead of "Rule Ablation audit"
+            # in every seeded board.
+            name_fn = re.search(r"methodology_name\(\)\s*\{(.*?)\n\}", lib_txt, re.S)
+            if name_fn:
+                for meth in all_types:
+                    if meth == "custom":
+                        continue
+                    if not re.search(rf"(^\s*|\|){re.escape(meth)}\)", name_fn.group(1), re.M):
+                        failures.append(f"audit methodology '{meth}' has no "
+                                        f"methodology_name() branch — templates will "
+                                        f"render the raw slug")
 
     # 8. Skill-NAME lockstep. Checks 1-7 guard artifact TYPES; nothing guarded skill
     #    NAMES, and a probe on 2026-08-01 renamed 14 of 17 skill directories with every
