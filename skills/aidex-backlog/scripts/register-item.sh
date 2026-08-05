@@ -591,7 +591,20 @@ case "$ORIGIN" in
   audit)
     [[ -n "$FINDING" ]] || die "--finding <id> is required when --origin audit"
     if [[ -n "$AUDIT_RUN" ]]; then
-      ORIGIN_REF="audit/$AUDIT_RUN/$FINDING"
+      # D-02 groups runs by methodology: audits/<methodology>/<run>/. Emitting
+      # audit/<run>/<finding> produces a ref that can never resolve — validate.py
+      # strips the finding id and looks for audits/<run>/, which does not exist
+      # under the grouped layout. Resolve the methodology off disk; fall back to
+      # the flat form only for genuinely ungrouped (pre-D-02) runs.
+      AUDIT_REL="$AUDIT_RUN"
+      if [[ -d "$ROOT/.context/audits" ]]; then
+        for _m in "$ROOT"/.context/audits/*/"$AUDIT_RUN"; do
+          [[ -d "$_m" ]] || continue
+          AUDIT_REL="$(basename "$(dirname "$_m")")/$AUDIT_RUN"
+          break
+        done
+      fi
+      ORIGIN_REF="audit/$AUDIT_REL/$FINDING"
     else
       ORIGIN_REF="audit/$FINDING"
     fi
