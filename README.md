@@ -119,7 +119,7 @@ project/.context/
 
 ### Global rules
 
-Four always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
+Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
 
 | Rule | What it governs |
 |------|-----------------|
@@ -127,6 +127,9 @@ Four always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.c
 | `autonomy.md` | Front-loaded autonomy: an unattended run asks its questions up front and then runs start to finish; only publishing (push/deploy/release) is gated |
 | `artifacts-local-first.md` | Any requested artifact/report/dashboard is written locally first, anchored next to the work it documents, and published only when explicitly asked |
 | `database-protection.md` | Destructive DB operations, split by target: **real** databases are never destroyed unattended and are not pre-authorizable; **disposable** ones (E2E clones, per-worktree throwaways) are routine work |
+| `e2e-testing.md` | E2E runs against a **disposable** database, never a real one or the dev environment. The target gates, not the filename — no `test-e2e.sh` means establish a throwaway environment first, not fall back to dev |
+| `verification-before-claims.md` | No "tests pass" / "build succeeds" / "bug is fixed" without running the command and showing output; partial-success commands need before/after counts, not just exit code 0 |
+| `root-cause-first.md` | Investigate before fixing, form a hypothesis before implementing, and after three failed attempts stop and question the architecture |
 
 ### 17 skills
 
