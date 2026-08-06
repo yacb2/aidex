@@ -64,6 +64,8 @@ For each CLAUDE.md found:
 
 Follow the exact output shape in `05-context-budget.md` § Output shape. Order `SUGGESTED ACTIONS` by estimated savings descending, with risk tag `low` (reversible config change), `medium` (affects a dir of files), `high` (removes user data like MEMORY.md content — always require approval).
 
+**Tag every action `defer` or `remove`, and read `05-context-budget.md` § Two remedies before writing the list.** Deferral keeps the capability at ~0 idle cost (skill metadata-only, `skillOverrides: name-only`, MCP tools fetched via `ToolSearch`); removal deletes it. When both apply to the same driver, propose the deferral and name the removal as the fallback. Plugin subagents are the one layer with no deferred form — that is why they rank first, not because plugins are worse.
+
 ## Output format
 
 ```

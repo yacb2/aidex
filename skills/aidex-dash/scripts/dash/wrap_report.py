@@ -5,14 +5,17 @@ local-first artifact rule). Logic lives here; wrap-report.sh is the entry.
 Reads page content on stdin — exactly what `artifact-design` teaches you to
 write, and exactly what the Artifact tool expects at publish time: styles and
 markup, no doctype/html/head/body of your own. Emits a complete document on
-stdout by calling the same `_shell.document()` the dash renderers use.
+stdout by calling the same `_shell.document()` the dash renderers use, or writes it to
+`--out <file>` and verifies the artifact contract on that file before returning.
 
 A leading <style>...</style> block in the input is lifted into <head> so the
 page's own rules sit after the minimal reset and win; everything else stays in
 <body>.
 """
 import argparse
+import os
 import re
+import subprocess
 import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
@@ -36,6 +39,10 @@ def main():
     p.add_argument("--lang", default="en", help="BCP-47 language of the content (default: en)")
     p.add_argument("--favicon", default="", help="one or two emoji for the tab icon")
     p.add_argument("--in", dest="infile", help="read content from this file instead of stdin")
+    p.add_argument("--out", dest="outfile",
+                   help="write the document here and run check-artifact.sh on it. Prefer "
+                        "this over a shell redirect: the contract check is the step a run "
+                        "drops first, and it cannot run against a pipe (BL-126)")
     args = p.parse_args()
 
     content = (open(args.infile, encoding="utf-8").read() if args.infile
@@ -49,8 +56,34 @@ def main():
         return 2
 
     head_extra, body = split_head_style(content)
-    sys.stdout.write(document(args.title, body, lang=args.lang,
-                              favicon=args.favicon, head_extra=head_extra))
+    doc = document(args.title, body, lang=args.lang,
+                   favicon=args.favicon, head_extra=head_extra)
+
+    if not args.outfile:
+        sys.stdout.write(doc)
+        # A pipe has no path, so the `siblings` check has no directory to scan and the
+        # caller is free to never run the check at all — which is what happened in 1 of 2
+        # field probes. Make the omission audible instead of silent.
+        print("NOTE: wrapped to stdout, so the artifact contract was NOT verified. "
+              "Re-run with --out <file> to have it checked, or run check-artifact.sh "
+              "on the file yourself.", file=sys.stderr)
+        return 0
+
+    with open(args.outfile, "w", encoding="utf-8") as fh:
+        fh.write(doc)
+
+    checker = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "check-artifact.sh")
+    if not os.path.isfile(checker):
+        print(f"ERROR: wrote {args.outfile} but check-artifact.sh is missing at {checker} "
+              f"— the contract was not verified", file=sys.stderr)
+        return 3
+    rc = subprocess.run(["bash", checker, args.outfile]).returncode
+    if rc != 0:
+        print(f"ERROR: {args.outfile} was written but FAILS the artifact contract above. "
+              f"Fix the content and re-run; do not open or hand over this file.",
+              file=sys.stderr)
+        return 1
     return 0
 
 

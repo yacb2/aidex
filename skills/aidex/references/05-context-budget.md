@@ -17,10 +17,38 @@ Heuristics for diagnosing a bloated initial `/context` footprint in Claude Code 
 | Memory files | <8k | 12k | CLAUDE.md (global + project) + MEMORY.md + rules |
 | Skills | <6k | 10k | Metadata only; bodies load on demand |
 | Custom agents | <1k | 4k | Plugin subagents always loaded |
-| MCP tools | 0 at idle | — | Should load on demand only |
+| MCP tools | 0 at idle | 4k | Deferred servers cost ~0 until a tool is searched for; a resident server pays its whole schema every session |
 | **Total idle** | **<30k** | **45k** | Everything before first user message |
 
 Breaching a hard ceiling → CRITICAL. Between soft and hard → WARNING.
+
+## Two remedies, not one: remove and defer
+
+The obvious remedy for an expensive footprint is to **remove** — uninstall the plugin,
+disable the server, silence the skill. It is not the only one, and reaching for it first is
+how a useful capability gets deleted to save tokens it was not really costing.
+
+**Deferral is the tool-layer instance of progressive disclosure**: the thing stays
+available and costs ~0 until something asks for it. Prefer it whenever the capability is
+occasionally wanted — removal is correct only when it is never wanted.
+
+| Layer | Deferred form (cheap, still available) | Removed form (gone) |
+|---|---|---|
+| Skills | Metadata only; the body loads on invocation. This is already the default | delete / unlink the skill |
+| Skills, per project | `skillOverrides: name-only` or `user-invocable-only` — **these are deferrals, not removals**; the skill is still reachable | `skillOverrides: off` |
+| MCP servers | Tools listed by name; schemas fetched on demand via `ToolSearch` | disable the server |
+| Plugin subagents | No deferred form — an installed plugin's `agents/*.md` load every session | uninstall the plugin |
+
+The last row is why plugins rank first among the cost drivers: they are the one layer with
+no middle option, so their cost is the least avoidable and the most worth acting on.
+
+**How to tell whether an MCP server is actually deferred.** Read the session's own
+signals rather than the config: a deferred server's tools arrive as *names only* in a
+system-reminder and must be loaded with `ToolSearch` before they can be called, while a
+resident server's full tool schemas are present from the first turn. `/context` shows the
+difference directly — `MCP tools: 0 tokens` at idle means deferred. A server showing a
+non-zero idle cost is resident: defer it before considering disabling it, and only disable
+it if its tools were not wanted at all.
 
 ## Cost drivers (ranked by impact)
 
@@ -114,11 +142,16 @@ DRIVERS:
 ℹ️  INFO     [code] ...
 
 SUGGESTED ACTIONS (ordered by savings):
-1. [action] — ~N,NNN tokens — risk: low|medium|high
+1. [defer|remove] [action] — ~N,NNN tokens — risk: low|medium|high
 2. ...
 
 COUNTS: critical=N warning=N info=N
 ```
+
+Every suggested action is tagged **defer** or **remove**. When both are possible for the
+same driver, propose the deferral and name the removal as the fallback — never the reverse.
+A suggestion list that only ever says "remove" is the failure this section exists to
+prevent.
 
 Check codes: `CB-PL` plugin cost, `CB-DU` skill duplication, `CB-MD` memory docs, `CB-CM` CLAUDE.md verbosity, `CB-RF` rules fragmentation, `CB-SR` stack relevance.
 

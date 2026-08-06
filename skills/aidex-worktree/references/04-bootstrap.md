@@ -80,6 +80,21 @@ recipe. Prose is what let 15 projects each implement isolation differently.
      across 210 with a stride of 100 put slot 1's DB port on dev's backend port —
      a structural fault that merely looked like a busy slot, because the
      allocator skipped past it.
+   - **Placement** — where the worktree directory itself lands. The default is
+     **`worktree.sh`'s sibling placement**, `<project>/../<project>-wt-<slug>`, and
+     it is not a free choice: `worktree.sh` hardcodes it so a git worktree never
+     nests inside the working tree it came from. The one thing to decide here is
+     the consequence, because it is invisible until it bites: the upward search
+     for project settings never passes through a sibling, so **if `.claude/` or
+     `CLAUDE.md` are gitignored, an agent driving the worktree silently loses the
+     project's `skillOverrides`, permissions and conventions while believing it is
+     on the same project.** Ask it as: *are `.claude/` and `CLAUDE.md` committed?*
+     If yes, nothing to do — the checkout carries them. If no, add them to
+     **`WT_LINKS`** in the same breath as the other unversioned root files above;
+     that is the existing mechanism and it needs no new machinery. (Native
+     `EnterWorktree` places inside the repo and does apply them — but it isolates
+     nothing else, so it is not an alternative for a stack with services. Full
+     comparison: `02-worktree-overview-conventions.md`.)
    - **Services, readiness, seed** — which services the stack starts, the command
      that proves it is ready, and how data arrives. Prefer migrations over a dump
      of dev: schema-only is seconds and does not couple every worktree to
