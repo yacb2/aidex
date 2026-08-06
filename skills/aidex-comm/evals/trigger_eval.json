@@ -103,5 +103,35 @@
     "query": "There's a CORS issue when the frontend in dev tries to hit the backend. Help me debug it.",
     "should_trigger": false,
     "expected_behavior": "This is a debugging task, not a communication log"
+  },
+  {
+    "query": "Log the kickoff meeting with the client and turn the action items into backlog entries.",
+    "should_trigger": true,
+    "expected_behavior": "Meeting -> work bridge: aidex-comm logs the meeting, then derives each action item via register-item.sh --origin communication. The logging is what this skill owns."
+  },
+  {
+    "query": "Registra la reunión de ayer con Elena y deja anotado lo que quedamos en hacer.",
+    "should_trigger": true,
+    "expected_behavior": "ES meeting log whose action items become tracked work. Body stays Spanish (D-04); the derived backlog titles are English."
+  },
+  {
+    "query": "Draft the follow-up email to the client — match the tone of the ones we've sent before.",
+    "should_trigger": true,
+    "expected_behavior": "Drafting from past examples: read .context/communications/sent/ for structure and voice before opening the template."
+  },
+  {
+    "query": "Escribe el correo de seguimiento al cliente con el mismo estilo de los que ya mandamos.",
+    "should_trigger": true,
+    "expected_behavior": "ES draft-from-past-examples. Must borrow structure, never translate — the body stays Spanish (D-04)."
+  },
+  {
+    "query": "Add a backlog item to migrate the auth middleware — no meeting or message involved.",
+    "should_trigger": false,
+    "expected_behavior": "Plain backlog registration with no communication behind it — aidex-backlog. Near-miss on 'add an item'."
+  },
+  {
+    "query": "Summarize this meeting transcript for me, I don't need it saved anywhere.",
+    "should_trigger": false,
+    "expected_behavior": "A summary read aloud, explicitly not an artifact. aidex-comm writes .context/communications/ entries; nothing to write here."
   }
 ]

@@ -98,5 +98,10 @@
     "query": "This skill isn't triggering at all in a session — help me debug why it never fires.",
     "should_trigger": false,
     "expected_behavior": "Live trigger debugging → skill-creator/debugging, NOT aidex-skill (not a house-conventions check)."
+  },
+  {
+    "query": "Create a /ship skill for this project that runs the linter and tests, then drafts a commit message.",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing: from-scratch skill CREATION is skill-creator's. aidex-skill checks an existing skill against house conventions."
   }
 ]
