@@ -26,6 +26,10 @@ because it never looked at migrate-conventions.py. It no longer has a copy to ch
 it imports validate.py — and test_migrate_conventions.py holds that guard. If you add
 another executable consumer of the registry, guard it there or here, but do not read
 this test's "in sync" as covering it.
+
+SCOPE — every skills/* walk below goes through _owned_skills(), never the raw root.
+Installed, that root also holds the user's own skills, which this repo does not ship
+and has no standing to judge (BL-115).
   7. every skills/*/agents/*.md declares BOTH model and effort (an absent effort
      silently inherits the spawning session's — see the check for the probe)
 
@@ -54,6 +58,29 @@ AIDEX_FILES = [
 ]
 
 
+def _owned_skills() -> list[Path]:
+    """Skill directories aidex ships — never the user's own.
+
+    Installed, SKILLS_DIR is ~/.aidex/skills, which also holds whatever skills
+    the user put there; ~/.aidex/.manifest is install.sh's record of which ones
+    are ours. Without this filter the guard judged foreign skills and FAILed on
+    a clean tree for every installed user, while the repo copy — where the root
+    is aidex-only by construction — printed OK (BL-115).
+    """
+    manifest = SKILLS_DIR.parent / ".manifest"
+    if manifest.is_file():
+        owned = [
+            SKILLS_DIR / line.split("/", 1)[1]
+            for line in manifest.read_text(encoding="utf-8").split()
+            if line.startswith("skills/") and line.count("/") == 1
+        ]
+        owned = [p for p in owned if (p / "SKILL.md").is_file()]
+        if owned:
+            return sorted(owned)
+    return sorted(p for p in SKILLS_DIR.iterdir()
+                  if p.is_dir() and (p / "SKILL.md").is_file())
+
+
 def _load_validator():
     spec = importlib.util.spec_from_file_location("validate", SCRIPT_DIR / "validate.py")
     mod = importlib.util.module_from_spec(spec)
@@ -72,6 +99,8 @@ def _section_code_block(text: str, heading: str) -> set[str]:
 
 def main() -> int:
     failures: list[str] = []
+    owned = _owned_skills()
+    owned_skill_mds = [d / "SKILL.md" for d in owned]
     v = _load_validator()
     canon = GLOBAL_CANON.read_text(encoding="utf-8")
 
@@ -173,7 +202,8 @@ def main() -> int:
     # for a safety gate like durability-arbiter is the caller deciding how carefully its
     # own stop gets judged. Declaring model without effort is half a decision.
     agent_files = sorted(
-        p for p in SKILLS_DIR.glob("*/agents/*.md") if not p.name.endswith(".eval.md")
+        p for d in owned for p in d.glob("agents/*.md")
+        if not p.name.endswith(".eval.md")
     )
     if not agent_files:
         failures.append("no subagent definitions found under skills/*/agents/ — "
@@ -313,8 +343,7 @@ def main() -> int:
     #    cross-reference left stale while this test still printed OK / exit 0. The 17
     #    description scalars alone carry 83 cross-skill references that no test read.
     #    Any consolidation or rename would therefore land fully green and silently broken.
-    live_skills = {p.name for p in SKILLS_DIR.iterdir()
-                   if p.is_dir() and (p / "SKILL.md").is_file()}
+    live_skills = {p.name for p in owned}
     if not live_skills:
         failures.append("no skills/*/SKILL.md found — the name-lockstep check cannot run")
 
@@ -338,7 +367,7 @@ def main() -> int:
         return found
 
     checked_refs = 0
-    for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+    for skill_md in owned_skill_mds:
         rel = skill_md.relative_to(SKILLS_DIR)
         for name in sorted(_referenced_names(skill_md.read_text(encoding="utf-8"))):
             checked_refs += 1
@@ -352,7 +381,7 @@ def main() -> int:
     #     with nothing watching, because the budget lived only in prose.
     desc_re = re.compile(r"^description:\s*(>[-+]?|\|[-+]?)?\s*\n?"
                          r"((?:.|\n)*?)(?=\n[a-zA-Z_-]+:|\Z)", re.M)
-    for skill_md in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+    for skill_md in owned_skill_mds:
         fm = re.match(r"^---\n(.*?)\n---\n", skill_md.read_text(encoding="utf-8"), re.S)
         if not fm:
             continue
