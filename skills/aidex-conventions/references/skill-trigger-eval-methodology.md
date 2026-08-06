@@ -412,3 +412,60 @@ contradictory `STATUS-*` files, unexpected mtimes on the staging source,
 > total cost on the unchanged null prior from `06` — the disciplined call.
 > Future trigger-eval campaigns must implement the snapshot + singleton +
 > watchdog mitigations *before* launching multi-hour panels.
+
+## 9. Two instruments, one boundary: firing vs. output (2026-08-06)
+
+**The harness this repo's 16 eval configs run on is not aidex's.** It is
+`~/.claude/skills/skill-trigger-eval/scripts/eval-pty.sh` — outside this repo,
+untracked by its git, uncovered by its suite. That dependency was implicit until
+now; this section is the deliberate record of it, and of where the boundary sits.
+
+**What the external harness owns — "did the skill fire?"** It supports exactly
+two predicates, `file_exists` and `file_contains`, and rejects anything else
+(`:58-64`, evaluated at `:149-151`). Its check path is a literal existence test
+with two substitutions only, `{{TEST_ID}}` and `{{HOME}}` (`:91-93`). All 16
+`skills/*/evals/eval-config.json` declare `file_exists`; `file_contains` has
+been available the whole time and is unused.
+
+**Why it is not extended for output grading.** Its own `description` scopes it:
+*"this skill only answers 'did the skill fire?'"*, and explicitly excludes graded
+output-quality evals. Widening it would contradict its declared trigger, fork a
+tool aidex does not own, and put a behavioural dependency of aidex's evals in a
+file no aidex test can guard — manufacturing the registry-lag drift that the
+lockstep tests exist to prevent.
+
+**What aidex owns — "did it produce the right thing?"**
+`scripts/eval-grade-artifact.sh` resolves a **model-named** artifact through a
+glob and applies a content predicate to it. It never parses prose: the artifact
+is the side effect, per §6. Its exit codes are deliberately distinct, because the
+failure modes are:
+
+| Exit | Meaning |
+|---|---|
+| 0 | the artifact resolved and matched |
+| 1 | it resolved and the content is wrong |
+| 2 | nothing resolved, or several files matched and `--newest` was not given |
+| 3 | usage error |
+
+An absent artifact and an ambiguous match are **never** a pass. Ambiguity is
+reported rather than guessed, because guessing is how a grader starts agreeing
+with whatever it is pointed at.
+
+**The regression this catches and the marker cannot.** Ask `aidex-comm` to log a
+meeting and the marker-based check passes whenever the skill fires — including
+when it files the meeting under `received/`, which is wrong. Measured 2026-08-06
+against artifacts produced by `new-communication.sh` itself:
+
+```
+correct: meeting -> meetings/, channel: meeting   PASS       (exit 0)
+wrong:   meeting -> received/                     UNRESOLVED (exit 2)
+wrong:   meetings/ but channel: email             FAIL       (exit 1)
+```
+
+All three fire the skill, so `file_exists` scores all three as passes. Three
+distinguishable states appear only when the predicate reads the artifact.
+
+**Discipline for adding a grader**: `test_eval_grade_artifact.sh` pairs every
+pass with the failure it is supposed to catch. A grader only ever demonstrated
+passing is not demonstrated at all — the same rule §7 applies to descriptions,
+applied to instruments.
