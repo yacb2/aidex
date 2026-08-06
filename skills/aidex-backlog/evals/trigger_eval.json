@@ -98,5 +98,10 @@
     "query": "Investigate how Stripe handles partial refunds with split payments. I need to understand it before I plan the implementation.",
     "should_trigger": false,
     "expected_behavior": "This is research — should route to aidex-conventions"
+  },
+  {
+    "query": "No lo hagamos ahora, pero anótalo: el buscador debería soportar búsqueda difusa.",
+    "should_trigger": true,
+    "expected_behavior": "ES defer phrasing — park an idea without acting. aidex-backlog should register it."
   }
 ]

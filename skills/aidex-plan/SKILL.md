@@ -153,6 +153,7 @@ trivial plans skip this — do not add noise.
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 | Make one phase iterate-until-green against a machine gate (tests/typecheck/build) | `aidex-loop` (spec it, hand off execution) |
+| Split one phase across parallel agents, or assign a model per agent | `aidex-workflow` (spec the fan-out first) |
 | Execute / implement an already-written multi-phase plan | `aidex-plan-exec` |
 | Implement directly with no plan doc needed | (just do the work) |
 

@@ -27,6 +27,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10) |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
+| `/aidex-backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
 | `/aidex-backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
 | `bash scripts/sweep.sh [--apply\|--check]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default; `--check` is the dry-run that exits 1 on findings |
 | `bash scripts/reconcile.sh` | [scripts/reconcile.sh](scripts/reconcile.sh) | Read-only cross-artifact drift detector (shared): flags open backlog whose plan is done (close candidates) + done-without-commits. Exit 1 on actionable drift |
@@ -44,8 +45,10 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 # which owns the flag interface. Without this, `/aidex-backlog triage` reached
 # register-item.sh and died on "unknown option: triage".
 case "${1:-}" in
-  triage) shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
-  *)      bash "${CLAUDE_SKILL_DIR}/scripts/register-item.sh" "$@" ;;
+  triage)   shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
+  worklist) sub="${2:-}"; shift 2
+            bash "${CLAUDE_SKILL_DIR}/../aidex-conventions/scripts/worklist-${sub}.sh" "$@" ;;
+  *)        bash "${CLAUDE_SKILL_DIR}/scripts/register-item.sh" "$@" ;;
 esac
 ```
 
