@@ -140,13 +140,32 @@ Implications when authoring or reviewing a skill:
 
 | Component | Ideal | Maximum | Reason |
 |-----------|-------|---------|--------|
-| SKILL.md body | ~250 lines | 500 lines | Context efficiency |
-| SKILL.md body | ~3k tokens | 5k tokens | Progressive disclosure |
+| SKILL.md body | ~300 lines | 500 lines | Context efficiency |
+| SKILL.md body | ~4k tokens | 5k tokens | Progressive disclosure |
 | Code lines (% of total) | < 5% | < 10% | Book Index pattern |
 | Largest inline code block | 3 lines | 5 lines | Move larger blocks to references |
 | `description` (trigger-first, single field) | <500 chars | ~900 chars | Matcher sees this; tight = stronger signal. Split to `when_to_use` only past ~900 |
 | `description` + `when_to_use` combined (only if split) | ~700 chars | 1,536 chars | Hard cap in skill listing per Claude Code spec |
 | References | Unlimited | Unlimited | Loaded as needed |
+
+**Why the ideal is 4k and not 3k (2026-08-06).** The body ideal was ~3k tokens for a year
+and no hub-shaped skill ever met it — five sat between 3.7k and 4.6k, permanently "over
+ideal", which is how a target stops being one. Raising a number to match reality is normally
+the ratchet-destroying move, so the reduction was done first and the number set second:
+
+- **What was moved out, and why only that.** Three skills lost a block of genuinely
+  *conditional* content — the `/aidex context` procedure, the `.context/` migration + index
+  backfill, and worktree `bootstrap`. Each runs on its own trigger or once per project, so
+  charging every session for it was pure waste. `aidex` went 5,079 → 3,904 tokens,
+  `aidex-conventions` 4,543 → 3,680, `aidex-worktree` 4,023 → under the ideal entirely.
+- **Why the rest stays inline.** Relocation only reduces cost if the pointer is followed,
+  and on 2026-08-05 **32 of 58 cited references had never been read once** (§ Level 3). What
+  remains in these bodies is the always-needed core — dispatch tables, the workflow itself,
+  the autonomy doctrine. Moving that behind a pointer trades a visible token cost for an
+  invisible correctness risk, which is a worse trade at any size.
+- **Why 4k specifically.** It is above what a hub body costs once its conditional content is
+  gone, and 1k below the 5k maximum, so the warning band still warns. The maximum did not
+  move: 5k is enforced, and `aidex` breaching it on 2026-08-06 is what surfaced all of this.
 
 ## Inline Content Rules (Book Index Pattern)
 
