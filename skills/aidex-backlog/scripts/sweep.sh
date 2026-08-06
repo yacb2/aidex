@@ -29,7 +29,10 @@ read_status() { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:
 read_id()     { awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$1"; }
 
 moved=0
-mkdir -p "$BACKLOG_DIR/_archive"
+# Only when applying: a dry-run must not touch the tree, or a read-only caller
+# (compliance-sweep.sh over the whole fleet) creates directories in every project
+# it merely inspects.
+[[ $APPLY -eq 1 ]] && mkdir -p "$BACKLOG_DIR/_archive"
 shopt -s nullglob
 for f in "$BACKLOG_DIR"/*.md; do
   base="$(basename "$f")"

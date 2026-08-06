@@ -93,6 +93,29 @@ Bootstrap `.context/` in a project that doesn't have one. Runs [`scripts/init-co
 
 ---
 
+## Sub-action: `/aidex sweep`
+
+Check the whole fleet for drift instead of one project at a time. Read-only — it
+never writes to a project.
+
+1. Run `bash ~/.aidex/skills/aidex/scripts/compliance-sweep.sh`. Add `--root <dir>`
+   to scan somewhere other than `~/Documents/projects`, or name project paths to
+   check only those. Add `--verbose` to also see the clean and skipped ones.
+2. Read the output. **A clean run prints nothing and exits 0** — that is the whole
+   point, so it is safe to schedule. Each drifting project prints its name and which
+   of the three instruments fired: `validate` (`.context/` conformance, ratchet-checked),
+   `reconcile` (closure that did not propagate, stale roll-up indexes), `sweep`
+   (done/dropped items never archived, D-10).
+3. Fix per project by running the named instrument there — nothing is fixed for you.
+4. For rule-propagation drift specifically (a project restating a globally-owned
+   rule, or `skillOverrides` that contradict one), run
+   `python3 ~/.aidex/skills/aidex/scripts/conformance-sweep.py` instead.
+
+Cadence and engine are yours to pick: it is a plain command, so schedule it with a
+routine, cron, or `/loop`. Nothing about the schedule is baked into the script.
+
+---
+
 ## Phase 0: Discovery
 
 Before launching any subagent, scan what exists in the project:
