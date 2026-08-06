@@ -32,7 +32,11 @@ Test-driven bug fixing methodology that ensures every fix includes a regression 
 The bug-fix workflow is these seven steps — the agent table and prose below key to their step numbers:
 
 1. Investigate root cause (don't guess)
-2. Write test that reproduces bug (must FAIL)
+2. Write test that reproduces bug (must FAIL) — **read**
+   `~/.claude/skills/aidex-bugfix/references/test-patterns.md` **before choosing the
+   test type**: it holds the signal→type decision matrix, the naming convention, the
+   regression-test structure, and the cases where an automated test is the wrong call.
+   The summary below is the first column of that matrix, not a substitute for it.
 3. Confirm test fails **for the right reason** — the failure message names the buggy behavior, not an import/syntax/setup error. Verify this before writing the fix.
 4. Implement minimum fix
 5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)
@@ -54,9 +58,9 @@ Agent definitions: `agents/` directory in this skill folder.
 
 ## Test Type Decision Guide
 
-Read `references/test-patterns.md` for detailed guidance on choosing the fastest reliable
-test type. Adapt the categories to your stack — the framework names below are examples; the
-`test-scout` agent detects the project's actual runners from its config files:
+Summary of the matrix in `test-patterns.md` (step 2 reads the full file). Adapt the
+categories to your stack — the framework names below are examples; the `test-scout` agent
+detects the project's actual runners from its config files:
 - **Unit test**: Pure functions, utilities, formatters, validators (e.g. Vitest, Jest, pytest)
 - **Component/integration test**: UI component rendering or API endpoint behavior (e.g.
   Vitest + Testing Library, pytest + a test client)

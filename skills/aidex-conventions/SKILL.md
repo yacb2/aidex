@@ -43,6 +43,13 @@ This skill defines conventions for thirteen documentation types:
 
 ## Quick Reference
 
+**This table is a dispatch table, not a reading list.** Find the row for the artifact
+kind you are about to write or judge, and **read that one file in full before writing
+anything** — the files live in `~/.claude/skills/aidex-conventions/references/`. Working
+from the summary in `rules/aidex-conventions.md` is enough to *recognize* a convention
+and never enough to *apply* one: the per-type file owns the front-matter schema, the
+status vocabulary and the archive rule that `validate.py` actually enforces.
+
 | Type | Conventions |
 |------|-------------|
 | Global rules (all types) | [00-global.md](references/00-global.md) |

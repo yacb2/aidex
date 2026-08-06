@@ -59,7 +59,9 @@ Dispatch by first argument:
 methodology**, use `new --standalone <slug>`: it scaffolds a dated run folder
 directly under `audits/` with no boards (canon §Standalone one-shot runs).
 
-See [references/04-playbooks.md](references/04-playbooks.md) for when to pick each.
+**Read `~/.claude/skills/aidex-audit/references/04-playbooks.md` before choosing a type.** It holds what each
+methodology actually checks, when it is the wrong fit, and which one a vague request
+("audit my app") maps to. Choosing wrong scaffolds boards you then have to migrate.
 
 ---
 
@@ -133,9 +135,11 @@ Scaffolds only `.context/audits/2026-07-02-usage-retro-q3/index.md` — no board
 ### Running an audit
 
 **Front-load the area order (work-list).** At kickoff, after scope/borders, emit the
-audit's areas/findings in execution order as a durable
-[`.context/worklists/`](../aidex-conventions/references/worklist-conventions.md)
-work-list (via the `AskUserQuestion` survey → `worklist-new.sh`). The sweep then walks
+audit's areas/findings in execution order as a durable `.context/worklists/` work-list
+(via the `AskUserQuestion` survey → `worklist-new.sh`). **Read**
+`~/.claude/skills/aidex-conventions/references/worklist-conventions.md` **first** — it holds
+the work-list format, the three classes of mid-run question, and which ones the queue is
+supposed to absorb. The sweep then walks
 areas with `worklist-advance.sh` instead of pausing to ask "next area?" between them —
 the one ordering decision is fixed once, up front. (For a fan-out Workflow run below,
 the same ordered areas become the shards.) **No interactive channel** (`claude -p`,
@@ -169,9 +173,15 @@ the defaulting in the audit brief —
 
 1. Open the `methodology/<type>.md` playbook.
 2. Walk through checks in scope.
-3. Add rows to `00-inventory.md` for each finding.
-4. Reference IDs from this run's `findings.md` (filtered view).
-5. Close out `index.md` summary.
+3. **Read `~/.claude/skills/aidex-audit/references/02-id-conventions.md`** before writing the first
+   finding id — it decides structured vs global ids for this run, and an id scheme
+   changed after the fact invalidates every inbound `origin_ref`.
+4. Add rows to `00-inventory.md` for each finding.
+5. Reference IDs from this run's `findings.md` (filtered view).
+6. **Read `~/.claude/skills/aidex-audit/references/03-lifecycle.md`** before setting any finding's
+   status — it is the state machine (which transitions are legal, what closes a finding
+   vs. escalates it) that `validate-audit.sh` and `close-audit.sh` enforce.
+7. Close out `index.md` summary.
 
 > **Sweep doctrine (autonomy).** Scope and borders are set at kickoff
 > (`/aidex-audit new`) — that is the initial phase where any question is asked.
@@ -191,8 +201,9 @@ the defaulting in the audit brief —
 >
 > **Isolation.** An audit is read-mostly — usually no worktree (Tier 0/1). The
 > exception is a security audit that needs **destructive verification**: run it in an
-> isolated worktree + DB (Tier 2) so it never mutates real state. See
-> [worktree-conventions.md](../aidex-conventions/references/worktree-conventions.md).
+> isolated worktree + DB (Tier 2) so it never mutates real state. In that case read
+> `~/.claude/skills/aidex-conventions/references/worktree-conventions.md` for the
+> isolation contract before touching anything.
 
 ### After the audit
 
@@ -219,6 +230,10 @@ If audits have accumulated inside `.context/plans/`:
 ```
 
 Launches the `audit-migrator` subagent to detect candidates, proposes moves, then runs `inventory-seeder` to generate initial INVENTORY from existing findings.
+
+**Read `~/.claude/skills/aidex-audit/references/05-migration-guide.md` before accepting any move.**
+It holds what the legacy `plans/`-era layouts look like, which folders are audits and
+which only resemble one, and the order the boards must be seeded in.
 
 ### When to run the sweep
 
@@ -250,7 +265,9 @@ Scripts delegate to these agents when needed. Direct use is also fine during man
 
 ## Principles
 
-Quick summary — full detail in [references/01-principles.md](references/01-principles.md):
+Quick summary. **Read `~/.claude/skills/aidex-audit/references/01-principles.md` for the full text** —
+it is what tells you why a finding is never deleted and why INVENTORY, not the run
+folder, is the source of truth:
 
 1. **Finding ≠ Issue ≠ Task** — distinct objects with links, not copies
 2. **INVENTORY as single source of truth** — per-run findings are views. The auto-generated `00-index.md` is the *run-level* roll-up (which runs exist, open/closed, finding counts) — complementary to `00-inventory.md`, which is the *finding-level* board. Do not hand-edit `00-index.md`.
@@ -260,15 +277,6 @@ Quick summary — full detail in [references/01-principles.md](references/01-pri
 6. **Shared concerns flagged** `[SHARED]` in Module column
 
 ---
-
-## References
-
-- [01-principles.md](references/01-principles.md) — six core principles explained
-- [02-id-conventions.md](references/02-id-conventions.md) — structured vs global IDs
-- [03-lifecycle.md](references/03-lifecycle.md) — finding state machine
-- [04-playbooks.md](references/04-playbooks.md) — when to pick which audit type
-- [05-migration-guide.md](references/05-migration-guide.md) — moving from legacy `plans/` layout
-- [audit-conventions.md](../aidex-conventions/references/audit-conventions.md) — full convention doc
 
 ## Templates
 

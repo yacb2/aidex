@@ -70,7 +70,7 @@ The default path above is **interactive** (you run the plan turn-by-turn). For
 plan as a durable `Workflow` — each phase a fresh bounded agent, a two-stage gate per phase,
 crash-resumable via the journal.
 
-**Read [`references/01-unattended-batch-execution.md`](references/01-unattended-batch-execution.md)
+**Read `~/.claude/skills/aidex-plan-exec/references/01-unattended-batch-execution.md`
 before promoting anything.** It holds the promotion threshold and its measured ~22k/agent cost
 floor, the three shipped workflow forms and how to pick one, how to derive `args` from the plan,
 the phase tier map, and what happens when a phase fails its gate.
@@ -166,9 +166,9 @@ After each phase passes verification, before starting the next phase:
    so what is being reviewed is a recorded fact, not an assumption. **Exit 3
    means the scope is empty: say so, never report it as a passing review.** Then
    run the **correctness** angles over that scope, and the cleanup and security
-   angles only where
-   [`aidex-conventions/references/review-scope-conventions.md`](../aidex-conventions/references/review-scope-conventions.md)
-   routes them — that reference owns which instrument covers which scope, and why
+   angles only where the scope routing sends them. **Read**
+   `~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` **before
+   picking the reviewer** — it owns which instrument covers which scope, and why
    `/security-review` must not be delegated to for a non-PR scope. Address
    findings. **For high-risk or ambiguous phases**, route the diff through more
    than one reviewer (e.g. the project's review command plus an independent
@@ -214,8 +214,9 @@ After the last phase:
    with the final commit SHAs if useful.
 5. **Close out the run**: tear down isolation if a worktree was entered at Orient, log the
    worktree usage line, suggest a coverage sweep if the plan touched mapped src paths, and
-   fire the completion notifier. Each has a guard and an ordering that matter — see
-   [`references/02-close-out.md`](references/02-close-out.md).
+   fire the completion notifier. **Read** `~/.claude/skills/aidex-plan-exec/references/02-close-out.md`
+   **and follow it step by step** — each of the four has a guard and an ordering that
+   matter, and doing them from memory is how a worktree survives its plan.
 
 ## Per-project adjustments
 
