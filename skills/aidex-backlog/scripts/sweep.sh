@@ -5,11 +5,17 @@
 #
 # Usage:
 #   sweep.sh [--apply]    # default: dry-run (lists what would move)
+#   sweep.sh --check      # dry-run that EXITS 1 when anything would move, for triage/CI.
+#                         # The plain dry-run exits 0 whatever it finds, which is right for a
+#                         # human reading it and useless to a caller gating on the result.
 
 set -euo pipefail
 
-APPLY=0
-[[ "${1:-}" == "--apply" ]] && APPLY=1
+APPLY=0 CHECK=0
+case "${1:-}" in
+  --apply) APPLY=1 ;;
+  --check) CHECK=1 ;;
+esac
 
 find_project_root() {
   local dir; dir="$(pwd -P)"
@@ -68,6 +74,7 @@ if [[ $moved -eq 0 ]]; then
 elif [[ $APPLY -eq 0 ]]; then
   echo "($moved done/dropped item(s) still in the active folder — archive on close, D-10)"
   echo "  archive all at once: bash $SCRIPT_DIR/sweep.sh --apply"
+  [[ $CHECK -eq 1 ]] && exit 1
 else
   bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null
   echo "done: $moved item(s) archived; index rebuilt"
