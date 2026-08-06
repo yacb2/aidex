@@ -33,12 +33,18 @@ RULE_FLAT=""
 # relocation introduces — the rule's pointer must resolve to a file that exists.
 # A dangling pointer is silent: the stub still says "read this", and nothing errors.
 CANON_FILE="$REPO_ROOT/skills/aidex-dash/references/02-local-first-artifacts.md"
+# Same for the canon. Any assertion on a MULTI-WORD phrase must read the flattened
+# copy: markdown rewraps, and a line-based grep then reports a missing rule that is
+# right there. That false negative fired twice on 2026-08-06 (here and in
+# test_publish_policy_lockstep.sh). Single-token greps cannot straddle a newline and
+# are left alone.
+[ -f "$CANON_FILE" ] && CANON_FLAT="$(tr '\n' ' ' < "$CANON_FILE" | tr -s ' ')"
 
 # --- Task 6.1a: the always-on rule keeps routing + both gates + the pointer ---
 if [ ! -f "$RULE_FILE" ]; then
   fail "rule file not found ($RULE_FILE)"
 else
-  if ! grep -qi "publish.*only\|never publish" "$RULE_FILE"; then
+  if ! grep -qi "publish.*only\|never publish" <<<"$RULE_FLAT"; then
     fail "rule missing gate 2 (publish gated on explicit ask) — must stay always-on"
   fi
   if ! grep -qi "D-04" "$RULE_FILE"; then
@@ -63,13 +69,13 @@ else
   if ! grep -q "check-artifact.sh" "$CANON_FILE"; then
     fail "canon missing behavior 1 (self-containment enforced via check-artifact.sh)"
   fi
-  if ! grep -qF "no external CSS/JS/fonts/images" "$CANON_FILE"; then
+  if ! grep -qF "no external CSS/JS/fonts/images" <<<"$CANON_FLAT"; then
     fail "canon missing behavior 1 (external-asset prohibition)"
   fi
   if ! grep -q "sibling" "$CANON_FILE"; then
     fail "canon missing behavior 2 (sibling placement)"
   fi
-  if ! grep -q "open <file>" "$CANON_FILE"; then
+  if ! grep -q "open <file>" <<<"$CANON_FLAT"; then
     fail "canon missing behavior 3 (open locally)"
   fi
   if ! grep -q "<slug>-report.html" "$CANON_FILE"; then

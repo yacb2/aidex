@@ -71,21 +71,34 @@ The Artifact tool supplies that envelope at publish time; a local file gets the 
 from:
 
 ```
-~/.aidex/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"]
+~/.aidex/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
 ```
 
-(stdin to stdout), shared with the dash renderers so both routes produce the same kind of
-document. Skipping it yields a headless fragment that browsers render in quirks mode —
-measured at 2 of 4 field reports before this existed.
+(stdin in, file out), shared with the dash renderers so both routes produce the same kind
+of document. Skipping the wrap yields a headless fragment that browsers render in quirks
+mode — measured at 2 of 4 field reports before this existed.
 
-### 5. Verify the contract
+**Use `--out`, not a shell redirect.** With `--out` the command writes the file *and*
+verifies the artifact contract on it, exiting non-zero if it fails — so wrapping and
+verifying are one step that cannot be half-done. Redirecting to stdout still works, and
+prints a NOTE saying the contract went unverified.
+
+### 5. Read what the contract check said
+
+`--out` already ran it. It checks doctype, charset, viewport, title, dark mode, no
+external CSS/JS/fonts/images, no sibling assets. Fix what it reports; never open or hand
+over a file that fails it. A non-zero exit means the file on disk is not deliverable.
+
+To re-check a file you did not just wrap:
 
 ```
 ~/.aidex/skills/aidex-dash/scripts/check-artifact.sh <file>
 ```
 
-Checks doctype, charset, viewport, title, dark mode, no external CSS/JS/fonts/images, no
-sibling assets. Fix what it reports; never open or hand over a file that fails it.
+**Why this is one command and not two.** It used to be two, and the verify is the step a
+real run drops first: across two headless probes of this procedure, five steps landed 2 of
+2 and the contract check landed 1 of 2. A check that is skipped is indistinguishable from
+a check that passed (BL-126).
 
 ### 6. Save it as a sibling of the anchor
 

@@ -9,8 +9,13 @@
 # skips this step lands as a headless fragment and renders in quirks mode.
 #
 # Usage:
-#   wrap-report.sh --title "<title>" [--lang es] [--favicon "📊"] < body.html > out.html
-#   wrap-report.sh --title "<title>" --in body.html > out.html
+#   wrap-report.sh --title "<title>" [--lang es] [--favicon "📊"] --out out.html < body.html
+#   wrap-report.sh --title "<title>" --in body.html --out out.html
+#
+# Prefer --out over a shell redirect: it writes the file AND runs check-artifact.sh on it,
+# exiting non-zero if the contract fails. The verify is the step a real run drops first
+# (skipped in 1 of 2 field probes), so it stops being a separate step you can forget.
+# Redirecting to stdout still works and prints a NOTE saying the contract went unverified.
 
 set -euo pipefail
 

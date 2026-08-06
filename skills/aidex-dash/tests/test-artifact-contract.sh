@@ -99,6 +99,34 @@ sib_out="$(bash "$CHECK" "$TMP/sib/page.html" 2>&1)"
 bash "$CHECK" "$TMP/does-not-exist.html" >/dev/null 2>&1 \
   && bad "a missing file exited 0" || ok "a missing file fails"
 
+# --- BL-126: the verify is coupled to the wrap, so it cannot be skipped ---
+# Two headless probes of the local-first procedure landed five steps 2 of 2 and the
+# contract check 1 of 2. The fix is structural, not a louder instruction: --out writes the
+# file AND checks it. These assert the coupling, which is stronger evidence than a probe
+# showing the check fired once — a probe samples behaviour, this makes skipping impossible.
+WRAP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)/wrap-report.sh"
+
+GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><h1>ok</h1>'
+printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-ok.html" >/dev/null 2>&1 \
+  && ok "--out writes and passes a conforming page" || bad "--out rejected a conforming page"
+[[ -f "$TMP/coupled-ok.html" ]] && ok "--out actually wrote the file" || bad "--out wrote nothing"
+
+# A page with no dark-mode rule violates the contract. --out must surface that as a
+# non-zero exit, not write it and return success.
+out="$(printf '<h1>no theme</h1>\n' | bash "$WRAP" --title "T" --out "$TMP/coupled-bad.html" 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && ok "--out exits non-zero when the wrapped file fails the contract" \
+                || bad "--out returned 0 for a file that violates the contract"
+[[ "$out" == *"[themes]"* ]] && ok "--out surfaces which check failed" \
+                             || bad "--out hid the failing check: $out"
+# The file is still written, so the author can fix it in place rather than re-derive it.
+[[ -f "$TMP/coupled-bad.html" ]] && ok "the failing file is kept for fixing" \
+                                 || bad "--out deleted the failing file"
+
+# stdout mode cannot check (a pipe has no path), so the omission must be audible.
+err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" 2>&1 >/dev/null)"
+[[ "$err" == *"NOT verified"* ]] && ok "stdout mode says the contract went unverified" \
+                                 || bad "stdout mode skipped the check silently: $err"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
