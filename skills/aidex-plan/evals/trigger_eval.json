@@ -98,5 +98,15 @@
     "query": "There's a CORS issue when the frontend in dev tries to hit the backend. The error mentions Access-Control-Allow-Origin missing. Help me debug.",
     "should_trigger": false,
     "expected_behavior": "This is a debugging task, NOT aidex-plan"
+  },
+  {
+    "query": "Plan how to refactor the payment module to support multiple currencies. List the files you would change, but don't edit anything yet.",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing (prompt library): this is plan MODE — reconnaissance without edits, not a written .context/plans/ document. aidex-plan must NOT fire."
+  },
+  {
+    "query": "Which files would I need to touch to add a dark mode toggle to settings?",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing: plan mode / read-only exploration. No multi-phase plan artifact is wanted."
   }
 ]

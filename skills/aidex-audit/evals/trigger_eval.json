@@ -98,5 +98,15 @@
     "query": "Update Next.js from 14 to 15. Check the breaking changes and adjust whatever needs adjusting.",
     "should_trigger": false,
     "expected_behavior": "This is a dependency update, not an audit"
+  },
+  {
+    "query": "Use a subagent to review src/api/ for security issues and report what it finds.",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing: /security-review plus the Agent tool. Not a .context/audits/ methodology run."
+  },
+  {
+    "query": "Review my uncommitted changes and flag anything that looks risky before I commit.",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing: /code-review and /simplify over a working diff. No audit board, no findings inventory."
   }
 ]

@@ -104,6 +104,48 @@ updated: YYYY-MM-DD
 
 ---
 
+## After a meeting: action items become tracked work
+
+Logging the meeting is half the job. A meeting record whose action items stay inside
+`body.md` is a note, not a commitment — the hop to a tracker was manual and unnamed, so it
+did not happen. **Once the body is written, walk its action items and derive each one**:
+
+| The action item is… | Register it as | Command |
+|---|---|---|
+| Work this side has agreed to do | a backlog entry | `bash ~/.claude/skills/aidex-backlog/scripts/register-item.sh --origin communication --communication <folder> --title "<item>"` |
+| Something a stakeholder or client is asking for | a request | `/aidex-request` — capture the ask, then cross-ref the communication |
+| A decision the meeting settled | an ADR | `/aidex-decision` |
+
+`--origin communication` stamps `origin_ref: communication/<YYYY-MM-DD>-<slug>` — the D-03
+marker, the folder name, never a filesystem path. That is what makes the entry answer
+"where did this come from?" six months later.
+
+**Derive, do not transcribe.** An action item is a line in someone's notes; a backlog entry
+needs a title that stands alone. "Ver lo del export" becomes "Add CSV export to the bookings
+list". Say what you registered when you are done, so nothing is created silently.
+
+If the meeting produced no action items, say so and stop — an empty derivation is a valid
+outcome and inventing work to fill the step is worse than skipping it.
+
+---
+
+## Drafting: read what was actually sent before opening the template
+
+For the `sent/` path, **read the existing entries in `.context/communications/sent/` of the
+same channel before you draft** — the folder is a corpus of messages this project really
+sent, and it is the only record of how it sounds. Match structure (how it opens, how much
+context it restates, how it closes) and register (formal vs direct, how requests are
+phrased). Prefer the most recent few and any addressed to the same interlocutor.
+
+The template is the fallback, not the starting point: use it when `sent/` is empty or holds
+nothing of the same kind. Say which prior entries you leaned on.
+
+**Never translate to match a sample.** D-04 keeps every body in the communication's own
+language; a Spanish thread stays Spanish even when the closest structural example is
+English. Borrow the shape, never the language.
+
+---
+
 ## Draft → sent flow
 
 An outgoing message is scaffolded under `sent/` with `status: draft`. When it actually

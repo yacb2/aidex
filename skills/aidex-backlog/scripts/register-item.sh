@@ -2,7 +2,7 @@
 # register-item.sh — create a backlog entry in .context/backlog/.
 #
 # Usage (non-interactive):
-#   register-item.sh --origin <manual|audit|issue|request> [options]
+#   register-item.sh --origin <manual|audit|issue|request|communication> [options]
 #
 # Options:
 #   --title "<title>"              title for the entry (required for non-interactive)
@@ -10,6 +10,8 @@
 #   --audit-run <slug>             (when --origin audit) run folder name
 #   --issue <id>                   (when --origin issue) issue ID
 #   --request <file>               (when --origin request) request file path
+#   --communication <folder>       (when --origin communication) the communication folder
+#                                  (received|sent|meetings)/<YYYY-MM-DD>-<slug>
 #   --priority <P0|P1|P2|P3>       default: P2 (code only — see references/01-backlog-conventions.md)
 #   --type <bug|improvement|task|idea>  work kind (default: task) — a facet, one queue
 #   --blocked-by "<who/what>"      optional Blocked modifier; priority is kept, item listed under Blocked
@@ -214,6 +216,7 @@ FINDING=""
 AUDIT_RUN=""
 ISSUE=""
 REQUEST=""
+COMMUNICATION=""
 PRIORITY=""
 TYPE=""
 BLOCKED_BY=""
@@ -235,6 +238,7 @@ while [[ $# -gt 0 ]]; do
     --audit-run)   AUDIT_RUN="$2"; shift 2 ;;
     --issue)       ISSUE="$2"; shift 2 ;;
     --request)     REQUEST="$2"; shift 2 ;;
+    --communication) COMMUNICATION="$2"; shift 2 ;;
     --priority)    PRIORITY="$2"; shift 2 ;;
     --type)        TYPE="$2"; shift 2 ;;
     --blocked-by)  BLOCKED_BY="$2"; shift 2 ;;
@@ -555,8 +559,8 @@ fi
 ORIGIN="${ORIGIN:-manual}"
 
 case "$ORIGIN" in
-  manual|audit|issue|request) ;;
-  *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, or request)" ;;
+  manual|audit|issue|request|communication) ;;
+  *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, request, or communication)" ;;
 esac
 
 if [[ -z "$TITLE" && -t 0 ]]; then
@@ -639,6 +643,21 @@ case "$ORIGIN" in
        && ! -e "$ROOT/.context/requests/_archive/$REQUEST_FILE" ]]; then
       warn "warning: origin_ref $ORIGIN_REF resolves to no file under .context/requests/"
     fi
+    ;;
+  communication)
+    # A meeting produces action items; this is the hop that turns one into tracked work
+    # without losing where it came from. Same marker discipline as request: the ref is
+    # `communication/<YYYY-MM-DD>-<slug>`, the folder name, never a path (D-03).
+    [[ -n "$COMMUNICATION" ]] || die "--communication <folder> is required when --origin communication"
+    COMM_DIR="$(basename "${COMMUNICATION%/}")"
+    [[ "$COMM_DIR" == "body.md" ]] && COMM_DIR="$(basename "$(dirname "${COMMUNICATION%/}")")"
+    ORIGIN_REF="communication/$COMM_DIR"
+    comm_found=0
+    for _kind in received sent meetings; do
+      [[ -e "$ROOT/.context/communications/$_kind/$COMM_DIR" ]] && comm_found=1
+    done
+    [[ $comm_found -eq 1 ]] \
+      || warn "warning: origin_ref $ORIGIN_REF resolves to no folder under .context/communications/{received,sent,meetings}/"
     ;;
 esac
 

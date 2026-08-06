@@ -98,5 +98,10 @@
     "query": "Escribe un ADR explicando por qué elegimos reintentos exponenciales tras el incidente.",
     "should_trigger": false,
     "expected_behavior": "ES decision record about a past incident — aidex-decision, not a fix."
+  },
+  {
+    "query": "Write tests for the password reset flow first, then implement it until they pass.",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing: TDD for NEW work. aidex-bugfix is RED->GREEN for a REPORTED DEFECT; nothing is broken here."
   }
 ]

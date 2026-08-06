@@ -98,5 +98,10 @@
     "query": "Revisa mi PR #34 antes de hacer merge. Quiero asegurarme que no hay issues de seguridad.",
     "should_trigger": false,
     "expected_behavior": "This is a PR review, not an ecosystem audit"
+  },
+  {
+    "query": "Summarize what we did this session and suggest what to add to CLAUDE.md.",
+    "should_trigger": false,
+    "expected_behavior": "Published built-in phrasing: the harness memory layer / #-memory shortcut. Not an ecosystem health audit."
   }
 ]
