@@ -118,7 +118,10 @@ run_counts() {
       if (index(line,"<!--")>0) in_comment=1
       if (in_comment) { if (index(line,"-->")>0) in_comment=0; next }
       if (line !~ /^\|/) next
-      id=$2; status=$6; runs=$10
+      # Audit Runs is column 7 of 9 (NF==11) since BL-057, column 9 of 11 (NF==13)
+      # on older boards. Reading $10 on a 9-column board reads Escalated To, so every
+      # run count silently comes out zero.
+      id=$2; status=$6; runs=(NF >= 13 ? $10 : $8)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",id)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",status)
       if (id=="" || id=="ID" || id=="—") next

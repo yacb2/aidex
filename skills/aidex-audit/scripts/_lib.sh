@@ -199,7 +199,10 @@ mark_row_escalated() {
       # Parse as pipe-delimited
       if ($0 !~ /^\|/) { print $0; next }
       n = split($0, cells, "|")
+      # 9 columns -> n == 11 with the empty edges; the pre-2026-08-06 11-column
+      # schema -> n == 13. Both are written; the offsets below shift by two.
       if (n < 11) { print $0; next }
+      wide = (n >= 13)
 
       t = cells[2]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", t)
       if (t != id) { print $0; next }
@@ -212,15 +215,19 @@ mark_row_escalated() {
       }
 
       # Update fields (canon: done + escalated_to modifier, never a status word)
-      cells[6]  = " done "
-      cells[9]  = " " today " "
-      runs = cells[10]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
+      c_runs = wide ? 10 : 8
+      c_esc  = wide ? 11 : 9
+      cells[6] = " done "
+      # Last Updated only exists on the wide schema; on a 9-column board there is
+      # nothing to stamp, and writing cell 9 there would overwrite Escalated To.
+      if (wide) cells[9] = " " today " "
+      runs = cells[c_runs]; gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
       if (index(runs, today) == 0) {
         if (runs == "" || runs == "—") runs = today
         else runs = runs ", " today
       }
-      cells[10] = " " runs " "
-      cells[11] = " " link " "
+      cells[c_runs] = " " runs " "
+      cells[c_esc]  = " " link " "
 
       # Reassemble
       out = cells[1]

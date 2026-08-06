@@ -158,7 +158,17 @@ validate_inventory() {
     [[ "$line" =~ ^\|[[:space:]]*— ]] && continue
     pipe_count="$(printf '%s' "$line" | tr -cd '|' | wc -c | tr -d ' ')"
     [[ "$pipe_count" -ge 5 ]] || continue
-    IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest <<< "$line"
+    # Two widths are canonical-enough to parse. 9 columns is current; 11 is the
+    # pre-2026-08-06 schema that also carried First Seen / Last Updated, dropped
+    # because nothing read them (BL-057). Legacy boards are TOLERATED, not
+    # migrated: a project's board is its own, and a validator that only parsed
+    # the new width would report every unmigrated project as unparseable.
+    # 9 cols -> 10 pipes, 11 cols -> 12 pipes.
+    if [[ "$pipe_count" -ge 12 ]]; then
+      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity _c_first _c_last c_runs c_escalated rest <<< "$line"
+    else
+      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity c_runs c_escalated rest <<< "$line"
+    fi
     id="$(trim "${c_id:-}")"
     status="$(trim "${c_status:-}")"
     escalated="$(trim "${c_escalated:-}")"
@@ -167,6 +177,7 @@ validate_inventory() {
     [[ "$id" =~ [A-Za-z] ]] || continue
     [[ "$id" =~ ^[A-Z]+[-A-Z0-9]*-[0-9]+$ ]] && pipe_rows=$((pipe_rows+1))
     looks_like_status "$status" || continue
+    # A canonical row has every column present: 9 cols = 10 pipes, 11 cols = 12.
     [[ "$pipe_count" -ge 10 ]] || continue
 
     if id_seen "$id"; then
@@ -223,7 +234,7 @@ validate_inventory() {
     add_warning audit-notes-oversize "$inv" "$scope inventory has $oversize_notes Notes cell(s) over 300 B — move the resolution narrative to the run findings.md or .context/proofs/ (canon: Notes is a one-line state note)"
   fi
   if [[ $pipe_rows -gt 0 && $parsed_here -eq 0 ]]; then
-    add_warning audit-legacy-schema "$inv" "$scope inventory uses a legacy schema ($pipe_rows pipe-rows, 0 parse as canonical). Expected: | ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |. Run /aidex-audit migrate."
+    add_warning audit-legacy-schema "$inv" "$scope inventory uses a legacy schema ($pipe_rows pipe-rows, 0 parse as canonical). Expected: | ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes | (the 11-column form with First Seen / Last Updated is also accepted). Run /aidex-audit migrate."
   fi
 }
 

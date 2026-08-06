@@ -52,7 +52,6 @@ In `../INVENTORY.md`, update existing rows in place:
 
 - Set `Status` column to the new state
 - Append this run's folder slug (`YYYY-MM-DD-<slug>`) to the `Audit Runs` column
-- Update `Last Updated` to {{DATE}}
 - For `closed`, put the verifying commit short-SHA in `Escalated To` column as `fix:abc1234`
 
 ---

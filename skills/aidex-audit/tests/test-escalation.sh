@@ -22,10 +22,10 @@ A=".context/audits"
 TODAY="$(date +%F)"
 
 cat > "$A/ux/00-inventory.md" <<'EOF'
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| F-1 | bug | auth | Token stored in URL | open | P1 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | — |
-| F-2 | gap | a11y | Contrast below AA across app | open | P2 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | — |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| F-1 | bug | auth | Token stored in URL | open | P1 | 2026-06-01 | — | — |
+| F-2 | gap | a11y | Contrast below AA across app | open | P2 | 2026-06-01 | — | — |
 EOF
 echo "# m" > "$A/ux/00-methodology.md"; echo "# c" > "$A/ux/00-changelog.md"
 printf -- '---\ntitle: "UX first pass"\nstatus: done\ncreated: 2026-06-01\nupdated: 2026-06-01\nmethodology: ux\n---\n' > "$A/ux/2026-06-01-first-pass/index.md"

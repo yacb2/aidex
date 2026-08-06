@@ -18,9 +18,7 @@ Canonical deduplicated list of every finding across every audit run of this meth
 | **Summary** | One-line description |
 | **Status** | `open` · `doing` · `done` · `dropped` (see [`00-global.md` §6](../../../skills/aidex-conventions/references/00-global.md#6-status-vocabulary)) |
 | **Severity** | P0 (critical) · P1 (high) · P2 (medium) · P3 (low) |
-| **First Seen** | `YYYY-MM-DD` — audit run that first recorded it |
-| **Last Updated** | `YYYY-MM-DD` — most recent change to this row |
-| **Audit Runs** | Comma-separated run-folder slugs (`YYYY-MM-DD-<slug>`) that confirmed this finding |
+| **Audit Runs** | Comma-separated run-folder slugs (the first element is when the finding was first seen — that is why no separate date column exists) (`YYYY-MM-DD-<slug>`) that confirmed this finding |
 | **Escalated To** | `<type>/<filename>` (D-03) — backlog entry, plan, or decision. Empty when not yet escalated. |
 | **Notes** | One-line **state note**: verification marker (commit SHA / re-test run ref / drop reason) plus an optional proof pointer. Keep the resolution narrative in the run's `findings.md` or `.context/proofs/<id>/`, not in this cell. On close, compress to `Closed: <commit\|run> — <one line>`. |
 
@@ -31,16 +29,16 @@ Canonical deduplicated list of every finding across every audit run of this meth
 <!--
 EXAMPLE ROWS (remove once you have real findings):
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| EX-01-1 | bug | auth | Session token stored in URL query string | open | P0 | 2026-04-10 | 2026-04-15 | 2026-04-10-pre-release, 2026-04-15-retest | — | triaged 2026-04-12 |
-| EX-FF-2 | idea | features | Export to CSV on dashboard | done | P2 | 2026-04-10 | 2026-04-12 | 2026-04-10-pre-release | backlog/2026-04-12-export-csv | Closed: escalated to backlog |
-| EX-05-1 | gap | tests | No E2E coverage for checkout flow | doing | P1 | 2026-04-10 | 2026-04-14 | 2026-04-10-pre-release, 2026-04-14-retest | plan/2026-04-14-checkout-e2e | plan in progress |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| EX-01-1 | bug | auth | Session token stored in URL query string | open | P0 | 2026-04-10-pre-release, 2026-04-15-retest | — | triaged 2026-04-12 |
+| EX-FF-2 | idea | features | Export to CSV on dashboard | done | P2 | 2026-04-10-pre-release | backlog/2026-04-12-export-csv | Closed: escalated to backlog |
+| EX-05-1 | gap | tests | No E2E coverage for checkout flow | doing | P1 | 2026-04-10-pre-release, 2026-04-14-retest | plan/2026-04-14-checkout-e2e | plan in progress |
 -->
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| — | — | — | *No findings yet. Run `/aidex-audit new {{METHODOLOGY}} <slug>` to start.* | — | — | — | — | — | — | — |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| — | — | — | *No findings yet. Run `/aidex-audit new {{METHODOLOGY}} <slug>` to start.* | — | — | — | — | — |
 
 ---
 

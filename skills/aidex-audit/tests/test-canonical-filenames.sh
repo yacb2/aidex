@@ -18,9 +18,9 @@ VALIDATE="$SCRIPT_DIR/../scripts/validate-audit.sh"
 # Minimal INVENTORY body that parses as canonical (header + one finding row).
 INVENTORY_BODY='# Inventory
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| BUG-CORE-1 | bug | core | sample finding | open | P2 | 2026-05-15 | 2026-05-15 | 20260515-fixture | — | — |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| BUG-CORE-1 | bug | core | sample finding | open | P2 | 20260515-fixture | — | — |
 '
 
 METHODOLOGY_BODY='# Methodology

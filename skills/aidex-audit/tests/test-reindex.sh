@@ -19,10 +19,10 @@ mkdir -p .context/audits/20260601-foo
 cat > .context/audits/00-inventory.md <<'EOF'
 # Inventory
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| UX-01-1 | bug | auth | open one | open | P1 | 2026-06-01 | 2026-06-01 | 20260601-foo | — | n |
-| UX-01-2 | gap | auth | done one | done | P2 | 2026-06-01 | 2026-06-01 | 20260601-foo | — | n |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| UX-01-1 | bug | auth | open one | open | P1 | 20260601-foo | — | n |
+| UX-01-2 | gap | auth | done one | done | P2 | 20260601-foo | — | n |
 EOF
 
 cat > .context/audits/20260601-foo/index.md <<'EOF'
@@ -59,9 +59,9 @@ created: 2026-06-03
 # Sec audit
 EOF
 cat > .context/audits/security/00-inventory.md <<'EOF'
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| SEC-1 | bug | api | x | open | P0 | 2026-06-03 | 2026-06-03 | 20260603-sec | — | n |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| SEC-1 | bug | api | x | open | P0 | 20260603-sec | — | n |
 EOF
 
 # ad-hoc audit dir with findings but no run index — must surface as unrecognized
