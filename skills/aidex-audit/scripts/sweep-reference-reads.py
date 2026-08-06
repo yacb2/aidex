@@ -23,6 +23,10 @@ DEFAULT_SKILLS = os.path.expanduser("~/.aidex/skills")
 
 # markdown links and bare paths pointing at a .md under a references/ dir
 CITE_RX = re.compile(r"(?:\.\./|/|\b)([A-Za-z0-9_\-]+/)?references/([A-Za-z0-9._\-]+\.md)")
+# ...but a project's own `.context/references/` is an artifact the skill WRITES, not a
+# reference it should read. Counting those inflates the never-read set with rows no
+# rewrite can fix (aidex/01-project-commands.md, 0/25, was one).
+ARTIFACT_RX = re.compile(r"\.context/references/([A-Za-z0-9._\-]+\.md)")
 
 
 def collect_citations(skills_dir):
@@ -34,8 +38,10 @@ def collect_citations(skills_dir):
             txt = open(skill_md, errors="replace").read()
         except OSError:
             continue
+        artifacts = set(ARTIFACT_RX.findall(txt))
         for _, base in CITE_RX.findall(txt):
-            out[skill].add(base)
+            if base not in artifacts:
+                out[skill].add(base)
     return out
 
 

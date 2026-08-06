@@ -14,8 +14,8 @@ actually mentions it:
   2. 00-global.md §9 optional block   ⊇ OPTIONAL_TYPES
   3. 00-global.md §5 archive list     ⊇ TYPES_WITH_ARCHIVE
   4. 00-global.md §3 + rules/aidex-conventions.md cross-ref prefixes ⊇ CROSSREF prefixes
-  5. aidex orchestrator (SKILL.md + references/01-context-checks.md +
-     agents/context-auditor.md) mentions every TYPES + OPTIONAL_TYPES name
+  5. aidex orchestrator (SKILL.md + agents/context-auditor.md) mentions every
+     TYPES + OPTIONAL_TYPES name
   6. rules/aidex-conventions.md NEVER section ⊇ every do-not-hand-edit index the
      per-type canons declare (backlog / plans / audits auto-generated indexes)
 
@@ -53,7 +53,6 @@ GLOBAL_CANON = SCRIPT_DIR.parent / "references" / "00-global.md"
 RULES_SUMMARY = SKILLS_DIR.parent / "rules" / "aidex-conventions.md"
 AIDEX_FILES = [
     SKILLS_DIR / "aidex" / "SKILL.md",
-    SKILLS_DIR / "aidex" / "references" / "01-context-checks.md",
     SKILLS_DIR / "aidex" / "agents" / "context-auditor.md",
 ]
 

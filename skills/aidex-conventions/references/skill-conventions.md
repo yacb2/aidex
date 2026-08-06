@@ -223,10 +223,12 @@ nobody reads is documentation debt that looks like coverage.
 
 ## Gotchas
 [Common failure points Claude encounters with this skill — built iteratively]
-
-## References
-- [Reference 1](references/file1.md) - When to use
 ```
+
+Note what the template does **not** end with: a `## References` appendix. Every
+reference the skill relies on is cited inside the workflow step that needs it, as an
+imperative with a full path (see the section above). A trailing link list measured 0%
+read on 7 of 8 entries — it is where references go to be never read.
 
 ### Gotchas Section
 

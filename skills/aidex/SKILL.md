@@ -41,20 +41,19 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
 
 ### Flow
 
-1. **Parse** the breakdown inline (or defer to `context-cost-analyzer`). Surface idle total and per-category token counts immediately.
-2. **Launch in parallel** (single message, `run_in_background: true`):
+1. **Read the budget heuristics first:** `~/.claude/skills/aidex/references/05-context-budget.md`. It holds the idle-token budget thresholds, the cost drivers ranked by typical savings, and the `CB-*` codes the agents below emit — without it you cannot tell an expensive footprint from a normal one, and the synthesis in step 4 has nothing to rank against.
+2. **Parse** the breakdown inline (or defer to `context-cost-analyzer`). Surface idle total and per-category token counts immediately.
+3. **Launch in parallel** (single message, `run_in_background: true`):
    - `context-cost-analyzer` — cross-references all drivers, produces priority-ordered savings list.
    - `plugin-auditor` — enumerates plugin agent cost vs. recent usage.
    - `memory-auditor` — focused on `CB-MD` (docs disguised as memory).
    - `skills-auditor` — focused on `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
-3. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
-4. **Never auto-execute during the audit itself.** The audit reports; it does not mutate. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) as proposals. Execution belongs to the apply phase below, and only once the user has picked from its menu.
-
-Heuristics live in [references/05-context-budget.md](references/05-context-budget.md).
+4. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
+5. **Never auto-execute during the audit itself.** The audit reports; it does not mutate. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) as proposals. Execution belongs to the apply phase below, and only once the user has picked from its menu.
 
 ### Apply phase (optional)
 
-After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
+After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
 
 1. **Write audit doc.** Save the full report to `.context/audits/YYYY-MM-DD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
 2. **Backup.** Before any mutation, copy to `~/.aidex/backups/<project-name>/<timestamp>/` (user-level, outside the project tree — keeps backups out of every project and consolidated under the central aidex engine):
@@ -82,8 +81,12 @@ After step 3 (synthesis), end with the menu `[A] apply all critical [B] apply al
 - Never delete large external trees outside the aidex-managed roots (`~/.aidex/`, `~/.claude/skills/`, `~/.claude/commands/`) — escalate to backlog instead.
 - If `.context/decisions/` exists and an entry overlaps (MEM-DEC), prefer linking from MEMORY.md to the decision doc over deleting silently.
 - For third-party plugin skills, do NOT propose `disable-model-invocation` flips — get overwritten on plugin update. Use `settings.local.json` overrides instead.
-
-Memory-specific rules in [references/03-memory-workflow.md](references/03-memory-workflow.md).
+- **Before applying any MEMORY.md edit or delete, read**
+  `~/.claude/skills/aidex/references/03-memory-workflow.md`. It holds the memory
+  classification (what belongs in memory vs. `.context/`), the externalization
+  workflow, and the `MEM-*` codes that decide which entries are safe to rewrite and
+  which are human-review only — applying a memory patch without it is how a
+  `feedback_*.md` file gets rewritten silently.
 
 ---
 
@@ -254,6 +257,12 @@ After the report, present actionable suggestions grouped by priority. **Be presc
 
 ## Phase 4: Execute
 
+**Read the fix procedures before executing anything:**
+`~/.claude/skills/aidex/references/04-fix-procedures.md`. It holds the step-by-step
+procedure for each fix below — including which ones are destructive, what to back up
+first, and the recovery path when one goes wrong. The list here names the actions; the
+reference is how to perform them.
+
 For each approved action, execute directly or launch a specialized subagent:
 
 **Direct execution (simple fixes):**
@@ -300,12 +309,3 @@ In context-triggered mode, suggest a focused audit rather than a full one:
 "I noticed MEMORY.md is 95 lines (target: <80). Want me to run a quick cleanup?"
 ```
 
----
-
-## References
-
-- [01-context-checks.md](references/01-context-checks.md) — Pointer to the `context-auditor` agent (the single carrier for .context/ checks)
-- [02-skills-checks.md](references/02-skills-checks.md) — Pointer to the `skills-auditor` agent (the single carrier for skills checks + scope decision matrix)
-- [03-memory-workflow.md](references/03-memory-workflow.md) — Memory classification and externalization workflow
-- [04-fix-procedures.md](references/04-fix-procedures.md) — Safe and destructive fix procedures
-- [05-context-budget.md](references/05-context-budget.md) — Idle token budget, drivers, and `/aidex context` heuristics

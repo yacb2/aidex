@@ -49,8 +49,10 @@ When invoked with no arguments, the script prompts interactively. When invoked w
 
 When asked to **work several items in a row** ("resuelve los backlogs seguidos"), first
 fix the order **once** via the `AskUserQuestion` survey → a durable
-[`.context/worklists/`](../aidex-conventions/references/worklist-conventions.md)
-work-list (`worklist-new.sh`), then walk it with `worklist-advance.sh` instead of
+`.context/worklists/` work-list (`worklist-new.sh` — **read**
+`~/.claude/skills/aidex-conventions/references/worklist-conventions.md` **before writing
+one**: it holds the queue format, the gate-policy block, and which of the three classes
+of mid-run question the queue is meant to absorb), then walk it with `worklist-advance.sh` instead of
 pausing between items to ask "what next?" (the dominant un-governed stop). The survey
 may fold in plan/audit refs too — the work-list is cross-source, not backlog-only.
 
@@ -142,10 +144,6 @@ python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type backlog
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
 a non-zero exit means you introduced a NEW violation — fix it before closing.
-
-## References
-
-- [references/01-backlog-conventions.md](references/01-backlog-conventions.md) — formatting rules, lifecycle, promotion to plan
 
 ## Related
 

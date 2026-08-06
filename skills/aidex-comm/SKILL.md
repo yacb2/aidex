@@ -49,6 +49,12 @@ Write the body afterward in the native language.
 
 ## Entry format
 
+**Read `~/.claude/skills/aidex-conventions/references/communication-conventions.md`
+before writing an entry** — it is the full canon behind the shapes below: the
+front-matter schema per direction, async (`received`/`sent`) vs synchronous
+(`meetings/`), the draft→sent transition, the English-only exemption for bodies, and
+how to migrate a legacy `drafts/` folder.
+
 ```
 .context/communications/
   received/<YYYY-MM-DD>-<slug>/body.md   (+ attachments alongside)   async inbound
@@ -119,10 +125,6 @@ python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type communicat
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
 a non-zero exit means you introduced a NEW violation — fix it before closing.
-
-## References
-
-- [../aidex-conventions/references/communication-conventions.md](../aidex-conventions/references/communication-conventions.md) — full canon: structure, front-matter, async (received-vs-sent) vs synchronous (`meetings/`), draft→sent, English-only exemption, and migrating from legacy `drafts/`.
 
 ## Related
 
