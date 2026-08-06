@@ -23,6 +23,7 @@
 #   --list                         list open entries grouped by priority (P0 → P3 + Blocked)
 #   --reindex                      regenerate 00-index.md from front-matter, then exit
 #                                  (exits 1 if any id is duplicated or is not a BL-NNN shape)
+#   --check-ids                    run only that id guard, read-only (no index write); exit 1 on any problem
 #   --no-index                     skip auto-regen of 00-index.md after writing entry
 #
 # Interactive mode (no args): prompts for title, origin, priority.
@@ -223,6 +224,7 @@ ESCALATE_TO=""
 SOURCE_ID=""
 LIST_ONLY=0
 REINDEX_ONLY=0
+CHECK_IDS_ONLY=0
 NO_INDEX=0
 
 while [[ $# -gt 0 ]]; do
@@ -243,6 +245,7 @@ while [[ $# -gt 0 ]]; do
     --source-id)   SOURCE_ID="$2"; shift 2 ;;
     --list)        LIST_ONLY=1; shift ;;
     --reindex)     REINDEX_ONLY=1; shift ;;
+    --check-ids)   CHECK_IDS_ONLY=1; shift ;;
     --no-index)    NO_INDEX=1; shift ;;
     -h|--help)
       sed -n '3,/^$/p' "$0" | sed 's/^# \?//'
@@ -463,6 +466,14 @@ regen_index() {
   # Last statement: its status becomes regen_index's, so callers can act on it.
   report_duplicate_ids "$dir"
 }
+
+# --- handle --check-ids (the reindex id guard, without writing the index) ---
+# `triage` needs the duplicate/nonconforming verdict while staying read-only, and
+# --reindex cannot give it that: it regenerates 00-index.md as a side effect.
+if [[ $CHECK_IDS_ONLY -eq 1 ]]; then
+  report_duplicate_ids "$BACKLOG_DIR" || exit 1
+  exit 0
+fi
 
 # --- handle --reindex ---
 if [[ $REINDEX_ONLY -eq 1 ]]; then

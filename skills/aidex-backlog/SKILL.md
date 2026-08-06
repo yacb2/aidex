@@ -23,10 +23,12 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
+| `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
 | `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10) |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
-| `bash scripts/sweep.sh [--apply]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default |
+| `/aidex-backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
+| `bash scripts/sweep.sh [--apply\|--check]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default; `--check` is the dry-run that exits 1 on findings |
 | `bash scripts/reconcile.sh` | [scripts/reconcile.sh](scripts/reconcile.sh) | Read-only cross-artifact drift detector (shared): flags open backlog whose plan is done (close candidates) + done-without-commits. Exit 1 on actionable drift |
 | `bash scripts/migrate-ids.sh [--apply]` | [scripts/migrate-ids.sh](scripts/migrate-ids.sh) | Backfill stable `id: BL-NNN` into items predating the id scheme (D-09). Idempotent |
 | `bash scripts/install-commit-hook.sh` | [scripts/install-commit-hook.sh](scripts/install-commit-hook.sh) | Wire a repo-local post-commit hook that harvests commit SHAs from trailers into `commits:` (D-09). Idempotent; never global |
@@ -38,7 +40,13 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 ## Dispatch
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/register-item.sh" "$@"
+# Bare-word sub-actions route to their own script; everything else is register-item.sh,
+# which owns the flag interface. Without this, `/aidex-backlog triage` reached
+# register-item.sh and died on "unknown option: triage".
+case "${1:-}" in
+  triage) shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
+  *)      bash "${CLAUDE_SKILL_DIR}/scripts/register-item.sh" "$@" ;;
+esac
 ```
 
 When invoked with no arguments, the script prompts interactively. When invoked with arguments, it runs non-interactively and is suitable for programmatic use by other skills.
