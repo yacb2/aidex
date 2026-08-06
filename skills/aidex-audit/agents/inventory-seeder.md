@@ -49,7 +49,7 @@ When multiple runs list the same finding:
 - Match by ID if identical
 - If no ID match, match by normalized summary (lowercase, strip articles, compare first 40 chars)
 - Same finding → single row with all run dates in `Audit Runs` column
-- Preserve the oldest `First Seen`; set `Last Updated` to the most recent
+- Put the oldest run first in `Audit Runs` — its first element is the first-seen date
 
 ### Step 4: Determine status per finding
 
@@ -63,7 +63,7 @@ When multiple runs list the same finding:
 Append new rows to `INVENTORY.md`. Each row has all columns populated:
 
 ```
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To |
 ```
 
 If the Escalated To column can be derived (e.g., the audit folder mentioned a backlog file), include the link. Otherwise `—`.

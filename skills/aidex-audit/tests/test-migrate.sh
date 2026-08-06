@@ -21,12 +21,12 @@ A=".context/audits"
 cat > "$A/00-inventory.md" <<'EOF'
 # Inventory
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| B-1 | bug | auth | Legacy escalated row | escalated | P1 | 20260610 | 20260612 | 20260610, 20260612 | backlog/2026-06-12-fix-b1 | — |
-| B-2 | bug | ui | Legacy in-progress row | in-progress | P2 | 20260610 | 20260610 | 20260610 | plan/2026-06-12-ui-fixes | — |
-| B-3 | gap | nav | Legacy triaged row | triaged | P3 | 20260610 | 20260610 | 20260610 | — | needs owner |
-| B-4 | bug | api | Legacy closed row | closed | P1 | 20260610 | 20260611 | 20260610 | — | verified: abc123 |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| B-1 | bug | auth | Legacy escalated row | escalated | P1 | 20260610, 20260612 | backlog/2026-06-12-fix-b1 | — |
+| B-2 | bug | ui | Legacy in-progress row | in-progress | P2 | 20260610 | plan/2026-06-12-ui-fixes | — |
+| B-3 | gap | nav | Legacy triaged row | triaged | P3 | 20260610 | — | needs owner |
+| B-4 | bug | api | Legacy closed row | closed | P1 | 20260610 | — | verified: abc123 |
 EOF
 echo "# Methodology" > "$A/00-methodology.md"
 echo "# Changelog"   > "$A/00-changelog.md"

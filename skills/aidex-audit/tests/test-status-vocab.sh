@@ -21,13 +21,13 @@ TODAY="$(date +%F)"
 cat > "$A/ux/00-inventory.md" <<'EOF'
 # UX Inventory
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| F-1 | bug | auth | Token in URL | open | P1 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | — |
-| F-2 | bug | search | SQLi in q param | done | P0 | 2026-06-01 | 2026-06-01 | 2026-06-01 | backlog/2026-06-01-fix-sqli | — |
-| F-3 | gap | nav | Missing breadcrumbs | doing | P2 | 2026-06-01 | 2026-06-01 | 2026-06-01 | plan/2026-06-01-nav-fixes | — |
-| F-4 | idea | perf | Prefetch dashboards | dropped | P3 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | out of scope this quarter |
-| F-5 | bug | forms | Double submit | done | P1 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | verified: commit abc1234 |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| F-1 | bug | auth | Token in URL | open | P1 | 2026-06-01 | — | — |
+| F-2 | bug | search | SQLi in q param | done | P0 | 2026-06-01 | backlog/2026-06-01-fix-sqli | — |
+| F-3 | gap | nav | Missing breadcrumbs | doing | P2 | 2026-06-01 | plan/2026-06-01-nav-fixes | — |
+| F-4 | idea | perf | Prefetch dashboards | dropped | P3 | 2026-06-01 | — | out of scope this quarter |
+| F-5 | bug | forms | Double submit | done | P1 | 2026-06-01 | — | verified: commit abc1234 |
 EOF
 echo "# UX Methodology" > "$A/ux/00-methodology.md"
 echo "# Changelog" > "$A/ux/00-changelog.md"
@@ -50,9 +50,9 @@ count() { printf '%s' "$out" | python3 -c "import json,sys; d=json.load(sys.stdi
 # A bare `done` with neither Escalated To nor Notes evidence is a violation.
 mkdir -p "$A/security"
 cat > "$A/security/00-inventory.md" <<'EOF'
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| S-1 | bug | api | Bare done no evidence | done | P1 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | — |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| S-1 | bug | api | Bare done no evidence | done | P1 | 2026-06-01 | — | — |
 EOF
 echo "# m" > "$A/security/00-methodology.md"; echo "# c" > "$A/security/00-changelog.md"
 bash "$SCRIPTS/validate-audit.sh" "$A" >/dev/null 2>&1 && fail "bare done without Escalated To/Notes should be a violation"
@@ -61,9 +61,9 @@ printf '%s' "$out2" | grep -q "S-1" || fail "violation should name S-1"
 
 # Legacy status vocabulary reads as a WARNING (mapped, not a crash / not a violation).
 cat > "$A/security/00-inventory.md" <<'EOF'
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| S-1 | bug | api | Legacy triaged row | triaged | P1 | 2026-06-01 | 2026-06-01 | 2026-06-01 | — | — |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| S-1 | bug | api | Legacy triaged row | triaged | P1 | 2026-06-01 | — | — |
 EOF
 out3="$(bash "$SCRIPTS/validate-audit.sh" --json "$A" 2>/dev/null)"; rc=$?
 [[ $rc -eq 0 ]] || fail "legacy vocab must not be fatal (rc=$rc)"

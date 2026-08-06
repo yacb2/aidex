@@ -49,7 +49,11 @@ RUN_DATE="${RUN_SLUG:0:10}"
 if [[ -n "$INV" ]]; then
   UNRESOLVED="$(awk -F'|' -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
     /^\|/ {
-      id=$2; status=$6; runs=$10
+      # Audit Runs is column 7 of 9 (NF==11 with the empty edges) since BL-057, and
+      # column 9 of 11 on pre-2026-08-06 boards (NF==13). Pick by width rather than
+      # assuming: reading $10 on a 9-column board silently reads Escalated To, and
+      # every finding then looks out of scope.
+      id=$2; status=$6; runs=(NF >= 13 ? $10 : $8)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",id)
       gsub(/^[[:space:]]+|[[:space:]]+$/,"",status)
       if (id=="" || id=="ID") next

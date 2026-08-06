@@ -31,9 +31,9 @@ mkdir -p "$AUD/ux"
 cat > "$INV" <<'MD'
 # UX inventory
 
-| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| UX-1 | bug | login | button unreachable | dropped | medium | 2026-01-01 | 2026-01-01 | 1 | — | — |
+| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|
+| UX-1 | bug | login | button unreachable | dropped | medium | 1 | — | — |
 MD
 printf -- '# UX methodology\n' > "$AUD/ux/00-methodology.md"
 # 00-changelog.md deliberately absent.

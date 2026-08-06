@@ -20,7 +20,7 @@ printf -- '---\ntitle: "P"\nstatus: open\ncreated: 2026-06-01\nupdated: 2026-06-
 mkdir -p "$ROOT/projB/.context/audits/20260601-run"
 printf -- '---\ntitle: "R"\nstatus: doing\ncreated: 2026-06-01\nmethodology: ux-audit\n---\n# R\n' \
   > "$ROOT/projB/.context/audits/20260601-run/index.md"
-printf '| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |\n| X-1 | bug | m | s | open | P1 | 2026-06-01 | 2026-06-01 | 20260601-run | — | n |\n' \
+printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n| X-1 | bug | m | s | open | P1 | 2026-06-01 | 2026-06-01 | 20260601-run | — | n |\n' \
   > "$ROOT/projB/.context/audits/00-inventory.md"
 
 # proj C: hand-made plans index (no auto-gen marker) → must be skipped
