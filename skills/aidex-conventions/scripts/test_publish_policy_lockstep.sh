@@ -42,9 +42,12 @@ grep -qiE 'NEVER call the .?Artifact.? tool unprompted' "$DASH" \
 # The rule must name the thing it overrides AND say it wins. Both halves are required:
 # naming the conflict without resolving it leaves the agent arbitrating; declaring a winner
 # without naming the loser leaves the agent unable to tell the clause applies.
-grep -qiE 'overrides? the .?Artifact.? tool' "$RULE" \
+# Flattened: the rule wraps mid-sentence, and a line-based grep reports a contradiction
+# that is not there when a rewrap moves "tool's own default" onto the next line.
+RULE_FLAT="$(tr '\n' ' ' < "$RULE" | tr -s ' ')"
+grep -qiE 'overrides? the .?Artifact.? tool' <<<"$RULE_FLAT" \
   || fail "(2) rules/artifacts-local-first.md does not name the Artifact tool's own default as the thing it overrides — the three-layer conflict reads as a contradiction again (BL-081)"
-grep -qiE 'this rule wins|rule wins' "$RULE" \
+grep -qiE 'this rule wins|rule wins' <<<"$RULE_FLAT" \
   || fail "(2) rules/artifacts-local-first.md names the conflict but never says which side wins"
 
 if [[ "$failures" -eq 0 ]]; then

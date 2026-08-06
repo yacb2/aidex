@@ -3,7 +3,7 @@
 #
 # Regression this locks (BL-078, 2026-07-24):
 #   skill-conventions.md § Size Constraints sets the SKILL.md body budget on TWO axes —
-#   ~250 lines soft / 500 hard, and ~3k tokens soft / 5k hard. Nothing executable measured
+#   a soft line/token budget and a hard one. Nothing executable measured
 #   either, and the skills-auditor measured lines only. aidex-plan-exec/SKILL.md sat at 413
 #   lines and ~7.4k tokens: under the 500-line ceiling, so a line-only check passed it,
 #   while it was ~48% over the token ceiling. The token axis was unenforceable by

@@ -25,19 +25,23 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILL="$SCRIPT_DIR/../SKILL.md"
+# The /aidex context procedure — including its apply phase — moved to a reference when the
+# orchestrator body breached the token maximum (ADR 2026-08-06). The contract is that the
+# SKILL documents this, not that one file contains it, so both are read.
+CTX="$SCRIPT_DIR/../references/01-context-audit.md"
 RULE="$SCRIPT_DIR/../../../rules/autonomy.md"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
-for f in "$SKILL" "$RULE"; do
+for f in "$SKILL" "$CTX" "$RULE"; do
   [[ -f "$f" ]] || { echo "FAIL: expected file not found at $f"; exit 1; }
 done
 
 # The apply phase only. Flattened: markdown wraps mid-sentence and a line-based grep
 # silently misses instructions that straddle a newline.
-APPLY="$(awk '/^### Apply phase/{f=1;next} /^---$/{f=0} f' "$SKILL" | tr '\n' ' ' | tr -s ' ')"
-[[ -n "$APPLY" ]] || { echo "FAIL: could not extract the Apply phase section from SKILL.md"; exit 1; }
+APPLY="$(awk '/^#+ Apply phase/{f=1;next} /^---$/{f=0} f' "$CTX" | tr '\n' ' ' | tr -s ' ')"
+[[ -n "$APPLY" ]] || { echo "FAIL: could not extract the Apply phase section from $CTX"; exit 1; }
 
 # ---------- (1) the front-loaded gate is not re-asked ----------
 if grep -qiE 'Always confirm per item\. No batch apply without prompts' <<<"$APPLY"; then
@@ -49,7 +53,7 @@ grep -qiE 'front-loaded gate' <<<"$APPLY" \
 # ---------- (2) every patch kind is classified ----------
 # Derived from the patch table itself: each row must name a class. A row with no class is
 # the ambiguity this item was filed for.
-APPLY_RAW="$(awk '/^### Apply phase/{f=1;next} /^---$/{f=0} f' "$SKILL")"
+APPLY_RAW="$(awk '/^#+ Apply phase/{f=1;next} /^---$/{f=0} f' "$CTX")"
 rows="$(grep -E '^\s*\|' <<<"$APPLY_RAW" | grep -vE '^\s*\|[ -]*\|[ -]*\|' | grep -viE '\| *Patch *\|')"
 [[ -n "$rows" ]] || fail "(2) no apply-phase patch table found — the classification is not expressed anywhere checkable"
 while IFS= read -r row; do

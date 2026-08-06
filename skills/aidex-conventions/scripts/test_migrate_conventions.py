@@ -44,6 +44,18 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 MIGRATE_PY = SCRIPT_DIR / "migrate-conventions.py"
 SKILL_MD = SCRIPT_DIR.parent / "SKILL.md"
+# The migration procedure moved behind a pointer when the body breached the token
+# maximum (ADR 2026-08-06). The contract is that the SKILL documents these edge cases,
+# not that SKILL.md contains them, so the guard reads the dispatch point and its target.
+MIGRATION_REF = SCRIPT_DIR.parent / "references" / "migration-guide.md"
+
+
+def skill_docs() -> str:
+    """SKILL.md plus the reference it dispatches the migration procedure to."""
+    parts = [SKILL_MD.read_text(encoding="utf-8")]
+    if MIGRATION_REF.is_file():
+        parts.append(MIGRATION_REF.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 failures: list[str] = []
 
@@ -172,11 +184,11 @@ def test_vocab_derived_not_mirrored() -> None:
         fail("the module docstring still lists the stale four archive types")
     else:
         ok("module docstring no longer hard-codes the stale four-type list")
-    skill = " ".join(SKILL_MD.read_text(encoding="utf-8").split())
+    skill = " ".join(skill_docs().split())
     if "Creates `_archive/` directories in `backlog/`, `plans/`, `requests/`, `decisions/`" in skill:
-        fail("aidex-conventions/SKILL.md still lists the stale four archive types (loops missing)")
+        fail("aidex-conventions still documents the stale four archive types (loops missing)")
     else:
-        ok("SKILL.md no longer hard-codes the stale four-type list")
+        ok("the skill docs no longer hard-code the stale four-type list")
     # Code -> doc lockstep, derived rather than phrase-matched: whatever the code declines
     # to migrate must appear in SKILL.md's "Edge cases the migration cannot decide for you"
     # list. Before this fix that list never mentioned decisions, so the skill promised
@@ -186,18 +198,19 @@ def test_vocab_derived_not_mirrored() -> None:
         fail("migrate-conventions.py exposes no TYPES_WITHOUT_INFERRABLE_STATUS — nothing "
              "states which artifact types it refuses to assign a status to")
     else:
-        raw = SKILL_MD.read_text(encoding="utf-8")
+        raw = skill_docs()
         start = raw.find("Edge cases the migration cannot decide for you")
         section = " ".join(raw[start:].split("\n##")[0].split()) if start >= 0 else ""
         if not section:
-            fail("SKILL.md has no 'Edge cases the migration cannot decide for you' section")
+            fail("neither SKILL.md nor references/migration-guide.md has an "
+                 "'Edge cases the migration cannot decide for you' section")
         for t in declined:
             if t in section:
-                ok(f"SKILL.md's edge-case list names the declined type '{t}'")
+                ok(f"the edge-case list names the declined type '{t}'")
             else:
-                fail(f"the code declines to assign a status for '{t}', but SKILL.md's "
-                     f"edge-case list never mentions it — the skill promises a clean "
-                     f"migration it cannot deliver")
+                fail(f"the code declines to assign a status for '{t}', but the "
+                     f"skill's edge-case list never mentions it — the skill promises a "
+                     f"clean migration it cannot deliver")
 
 
 def test_round_trip() -> None:

@@ -275,7 +275,7 @@ wc -w ~/.claude/skills/aidex-reference/references/*.md ~/.claude/skills/aidex-re
 ```
 
 **Real output, 2026-07-29:** every reference module comes back **under the ~2,500-word trigger**,
-and `SKILL.md` well under the skill-conventions budget (~3k tokens ideal, 5k max). `01-discovery`
+and `SKILL.md` well under the skill-conventions budget (~4k tokens ideal, 5k max). `01-discovery`
 sits closest to the trigger — the next substantial edit to it fires this rule, which is the
 tripwire working rather than a problem.
 
