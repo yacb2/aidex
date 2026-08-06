@@ -263,22 +263,22 @@ regen_index() {
   local index_file="$dir/00-index.md"
   local today; today="$(date +%Y-%m-%d)"
 
-  # Single awk pass per file: emit status, title, priority, estimate, blocked_by tab-separated.
+  # Single awk pass per file: emit status, title, priority, estimate, blocked_by, id tab-separated.
   read_fm_fields() {
     awk '
       BEGIN { FS=": " }
       /^---[[:space:]]*$/ { fm++; if (fm==2) exit; next }
       fm==1 {
         key=$1
-        if (key!="status" && key!="title" && key!="priority" && key!="estimate" && key!="blocked_by") next
+        if (key!="status" && key!="title" && key!="priority" && key!="estimate" && key!="blocked_by" && key!="id") next
         sub(/^[^:]*: */, "")
         gsub(/^"|"$/, "")
         gsub(/^[[:space:]]+|[[:space:]]+$/, "")
         vals[key]=$0
       }
       END {
-        printf "%s\t%s\t%s\t%s\t%s",
-          vals["status"], vals["title"], vals["priority"], vals["estimate"], vals["blocked_by"]
+        printf "%s\037%s\037%s\037%s\037%s\037%s",
+          vals["status"], vals["title"], vals["priority"], vals["estimate"], vals["blocked_by"], vals["id"]
       }
     ' "$1"
   }
@@ -297,7 +297,7 @@ regen_index() {
         vals[key]=$0
       }
       END {
-        printf "%s\t%s\t%s\t%s\t%s\t%s",
+        printf "%s\037%s\037%s\037%s\037%s\037%s",
           vals["status"], vals["title"], vals["id"], vals["updated"], vals["superseded_by"], vals["escalated_to"]
       }
     ' "$1"
@@ -317,7 +317,7 @@ regen_index() {
         vals[key]=$0
       }
       END {
-        printf "%s\t%s\t%s\t%s\t%s",
+        printf "%s\037%s\037%s\037%s\037%s",
           vals["title"], vals["id"], vals["priority"], vals["updated"], vals["blocked_by"]
       }
     ' "$1"
@@ -326,15 +326,19 @@ regen_index() {
   local -a SEC_P0=() SEC_P1=() SEC_P2=() SEC_P3=() SEC_BLOCKED=()
   local active_count=0 doing_count=0
 
-  local f base title status priority estimate blocked_by line fields
+  local f base title status priority estimate blocked_by id idp line fields
   for f in "$dir"/*.md; do
     [[ -f "$f" ]] || continue
     base="$(basename "$f")"
     [[ "$base" == "00-index.md" ]] && continue
 
     fields="$(read_fm_fields "$f")"
-    IFS=$'\t' read -r status title priority estimate blocked_by <<<"$fields"
+    IFS=$'\037' read -r status title priority estimate blocked_by id <<<"$fields"
     [[ -z "$title" ]] && title="(untitled)"
+    # The ID is the key every conversation uses; surface it, but degrade to the plain
+    # title line when it is missing or malformed (BL-127).
+    idp=""
+    [[ -n "$id" ]] && idp="**${id}** · "
 
     case "$status" in
       open|doing) ;;
@@ -342,7 +346,7 @@ regen_index() {
     esac
 
     if [[ -n "$blocked_by" ]]; then
-      line="- **[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\""
+      line="- ${idp}**[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\""
       SEC_BLOCKED+=("$line")
       continue
     fi
@@ -350,7 +354,7 @@ regen_index() {
     [[ "$status" == "doing" ]] && doing_count=$((doing_count+1))
     [[ "$status" == "open" ]]  && active_count=$((active_count+1))
 
-    line="- **[${title}](${base})** — ${status} · ${estimate:-?}"
+    line="- ${idp}**[${title}](${base})** — ${status} · ${estimate:-?}"
     case "$priority" in
       P0) SEC_P0+=("$line") ;;
       P1) SEC_P1+=("$line") ;;
@@ -370,12 +374,12 @@ regen_index() {
       cbase="$(basename "$f")"
       [[ "$cbase" == "00-index.md" ]] && continue
       fields="$(read_closed_fields "$f")"
-      IFS=$'\t' read -r cstatus ctitle cid cupdated csuperseded cescalated <<<"$fields"
+      IFS=$'\037' read -r cstatus ctitle cid cupdated csuperseded cescalated <<<"$fields"
       [[ -z "$ctitle" ]] && ctitle="(untitled)"
       if [[ -n "$csuperseded" ]]; then clabel="superseded → ${csuperseded}"
       elif [[ -n "$cescalated" ]]; then clabel="${cstatus:-done} → ${cescalated}"
       else clabel="${cstatus:-done}"; fi
-      cline="- ${cid:+${cid} }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}"
+      cline="- ${cid:+**${cid}** · }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}"
       # prefix with sort key (updated date, fallback empty sorts last)
       closed_tmp+=("${cupdated:-0000-00-00}"$'\t'"$cline")
     done
@@ -396,9 +400,9 @@ regen_index() {
       dbase="$(basename "$f")"
       [[ "$dbase" == "00-index.md" ]] && continue
       fields="$(read_deferred_fields "$f")"
-      IFS=$'\t' read -r dtitle did dpriority dupdated dblocked <<<"$fields"
+      IFS=$'\037' read -r dtitle did dpriority dupdated dblocked <<<"$fields"
       [[ -z "$dtitle" ]] && dtitle="(untitled)"
-      dline="- ${did:+${did} }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}"
+      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}"
       deferred_tmp+=("${dupdated:-0000-00-00}"$'\t'"$dline")
     done
     if [[ ${#deferred_tmp[@]} -gt 0 ]]; then

@@ -128,6 +128,30 @@ check "closed section capped at 20 detail lines" '[[ "$CLOSED_LINES" -eq 20 ]]'
 EXPECTED_OLDER=$((ARCHIVED_TOTAL - 20))
 check "pointer counts the remainder" 'grep -q "and $EXPECTED_OLDER older closed items" .context/backlog/00-index.md'
 
+echo "== index carries the BL id (BL-127) =="
+# The id is the key every conversation uses; before BL-127 it appeared only in the
+# HTML dash. Two guards: it is emitted on active lines, and an item with no id
+# still renders (the reader packs 6 tab-separated fields, and an empty middle field
+# used to collapse under a whitespace IFS, shifting id into blocked_by).
+rm -f .context/backlog/_archive/*.md
+printf -- '---\ntitle: "identified item"\nid: BL-777\nstatus: open\ncreated: 2026-03-01\nupdated: 2026-03-01\npriority: P1\nestimate: S\nblocked_by: ""\n---\n\nbody\n' \
+  > ".context/backlog/2026-03-01-identified-item.md"
+printf -- '---\ntitle: "anonymous item"\nstatus: open\ncreated: 2026-03-02\nupdated: 2026-03-02\npriority: P1\nestimate: S\nblocked_by: ""\n---\n\nbody\n' \
+  > ".context/backlog/2026-03-02-anonymous-item.md"
+bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1
+check "active line prefixes the id" 'grep -q "^- \*\*BL-777\*\* · \*\*\[identified item\]" .context/backlog/00-index.md'
+check "empty blocked_by does not swallow the id" '! grep -q "blocked_by: \"BL-777\"" .context/backlog/00-index.md'
+check "id-less item degrades to a plain line" 'grep -q "^- \*\*\[anonymous item\]" .context/backlog/00-index.md'
+
+# A malformed id (the hand-authored `BL-20260610` shape) still renders, and the
+# nonconforming guard still fails the run — surfacing it must not silence it.
+printf -- '---\ntitle: "malformed id item"\nid: BL-20260610\nstatus: open\ncreated: 2026-03-03\nupdated: 2026-03-03\npriority: P1\nestimate: S\nblocked_by: ""\n---\n\nbody\n' \
+  > ".context/backlog/2026-03-03-malformed-id-item.md"
+MALFORMED_OUT="$(bash "$SCRIPTS/register-item.sh" --reindex 2>&1)" && MALFORMED_RC=0 || MALFORMED_RC=$?
+check "malformed id still renders on its line" 'grep -q "^- \*\*BL-20260610\*\* · \*\*\[malformed id item\]" .context/backlog/00-index.md'
+check "nonconforming guard still warns" '[[ "$MALFORMED_OUT" == *"nonconforming id BL-20260610"* ]]'
+check "nonconforming guard still fails --reindex" '[[ "$MALFORMED_RC" -eq 1 ]]'
+
 echo
 echo "lifecycle: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
