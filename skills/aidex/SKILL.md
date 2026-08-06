@@ -18,7 +18,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `worklists`, `workflows`) reported at INFO only |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/`, `~/.aidex/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
-| **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization |
+| **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization. Run `python3 ~/.claude/skills/aidex/scripts/memory-sweep.py` for the mechanical half — session logs saved as memories, untyped files, throwaway or duplicated memory directories, and an always-on index over budget (read-only; `rules/memory-hygiene.md` is the canon) |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |

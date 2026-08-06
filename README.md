@@ -55,6 +55,7 @@ aidex solves this with two pillars:
 │   ├── artifacts-local-first.md         <-- local-first artifact contract (from aidex)
 │   ├── database-protection.md           <-- destructive DB ops: real vs disposable (from aidex)
 │   ├── e2e-testing.md                   <-- E2E targets a disposable DB (from aidex)
+│   ├── memory-hygiene.md                <-- one file, one live fact; index budget (from aidex)
 │   ├── verification-before-claims.md    <-- no completion claim without output (from aidex)
 │   └── root-cause-first.md              <-- investigate before fixing (from aidex)
 └── skills/
@@ -131,6 +132,7 @@ Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.
 | `artifacts-local-first.md` | Any requested artifact/report/dashboard is written locally first, anchored next to the work it documents, and published only when explicitly asked |
 | `database-protection.md` | Destructive DB operations, split by target: **real** databases are never destroyed unattended and are not pre-authorizable; **disposable** ones (E2E clones, per-worktree throwaways) are routine work |
 | `e2e-testing.md` | E2E runs against a **disposable** database, never a real one or the dev environment. The target gates, not the filename — no `test-e2e.sh` means establish a throwaway environment first, not fall back to dev |
+| `memory-hygiene.md` | What qualifies as a memory versus a session log, the per-memory and always-on index word budgets, and eviction of work that closed. Audited read-only by `skills/aidex/scripts/memory-sweep.py` |
 | `verification-before-claims.md` | No "tests pass" / "build succeeds" / "bug is fixed" without running the command and showing output; partial-success commands need before/after counts, not just exit code 0 |
 | `root-cause-first.md` | Investigate before fixing, form a hypothesis before implementing, and after three failed attempts stop and question the architecture |
 
