@@ -79,7 +79,7 @@ fi
 Where `${ACTION}` maps from the first argument:
 
 - `new` → `new-audit.sh <type> <slug>`
-- `validate` → `validate-audit.sh [path]`
+- `validate` → `validate-audit.sh [path]` — every finding prints its rule id; accept one by adding a line to `.context/.aidex-waivers` (same store and format as `validate.py`, canon `00-global.md` §10.1)
 - `escalate` → `escalate-finding.sh <finding-id>` — unless `--loop` is present, then `escalate-finding-to-loop.sh <finding-id> --loop`
 - `migrate` → `migrate-audit.sh [project-dir]`
 - `reindex` → `reindex-audits.sh`

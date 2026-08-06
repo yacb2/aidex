@@ -281,20 +281,24 @@ noise. Line-oriented format (`#` comments and blank lines ignored):
 <rule> | <path> | <anchor> | <reason> [| <date>]
 ```
 
-- `rule` — the finding's rule id exactly as `validate.py` prints it (e.g. `readme-in-context`).
+- `rule` — the finding's rule id exactly as the validator prints it (`readme-in-context` from `validate.py`, `audit-lifecycle-dropped-unreasoned` from `validate-audit.sh`; audit rules all carry the `audit-` prefix).
 - `path` — the finding's file path exactly as printed (project-root-relative, e.g. `.context/plans/README.md`).
 - `anchor` — `sha256:<hex-prefix>` of the file's content (`shasum -a 256 <file> | cut -c1-12`), or `-` for no anchor. An anchored waiver stops matching — and the finding **resurfaces** — as soon as the file changes.
 - `reason` — why the finding is accepted (free text; may contain `|`).
 - `date` — `YYYY-MM-DD` the waiver was granted (optional).
 
-`validate.py` suppresses matching findings from counts and the exit code but
-always reports them under a one-line `waived: N` summary — waived findings are
+Both consumers suppress matching findings from counts and the exit code but
+always report them under a one-line `waived: N` summary — waived findings are
 never silently dropped. Deleting a waiver line resurfaces the finding, and
 unparseable lines are counted, not swallowed. The ratchet baseline
-(`--baseline`) is written post-waiver. The file is the project-wide waiver
-store. Today only `validate.py` consumes it; aidex-audit re-run tooling does
-not yet (tracked as a backlog item in the aidex repo — until it lands, waive
-audit re-run noise by documenting it in the run's `00-changelog.md`).
+(`--baseline`) is written post-waiver.
+
+The file is the project-wide waiver store, read by **`validate.py`** (`.context/`
+artifacts) and **`aidex-audit`'s `validate-audit.sh`** (`.context/audits/`
+coherence). One store, one format, one anchor rule: a waiver written for either
+is inert against the other only because their rule namespaces do not overlap.
+The ratchet baseline is `validate.py`'s alone — `validate-audit.sh` has no
+baseline, so waivers are its only escape hatch.
 
 ### 10.2 Ratchet baseline (`--baseline`)
 
