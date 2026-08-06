@@ -1,17 +1,117 @@
 [
-  { "query": "Design a workflow to review this PR across bugs, performance, and security in parallel.", "should_trigger": true, "expected_behavior": "EN imperative — review-by-dimension fan-out. Should scaffold a .context/workflows/ workflow-spec." },
-  { "query": "Fan out a separate agent to migrate every call-site of the old API and verify each one.", "should_trigger": true, "expected_behavior": "EN migrate-N-sites — one agent per site with a gate. Workflow design." },
-  { "query": "Orchestrate a multi-agent research sweep on this topic across several sources, then synthesize.", "should_trigger": true, "expected_behavior": "EN research-N-sources fan-out → synthesis barrier." },
-  { "query": "I want to decompose this feature into parallel agents, cheap models for the breadth and opus for the verify.", "should_trigger": true, "expected_behavior": "EN decompose-impl with explicit per-agent model assignment — the skill's distinctive payload." },
-  { "query": "Set up a workflow spec with per-agent models before I launch the fan-out.", "should_trigger": true, "expected_behavior": "EN explicit workflow-spec authoring with model table." },
-  { "query": "Which agents should run on sonnet vs opus for a parallel code review I'm about to orchestrate?", "should_trigger": true, "expected_behavior": "EN per-agent model-choice question for a fan-out — the design decision aidex-workflow owns." },
-  { "query": "Diseña un workflow para revisar el código en paralelo por varias dimensiones y verificar cada hallazgo.", "should_trigger": true, "expected_behavior": "ES imperative — cross-lingual triggering of the English-only description (D-11 validation)." },
-  { "query": "Quiero abrir un agente por cada archivo a migrar y correrlos en paralelo con su propio worktree.", "should_trigger": true, "expected_behavior": "ES migrate-N-sites fan-out with per-agent isolation." },
-  { "query": "Arma una orquestación multi-agente que investigue el tema desde varias fuentes y luego sintetice.", "should_trigger": true, "expected_behavior": "ES research-N-sources → synthesis. Cross-lingual fan-out design." },
-  { "query": "Necesito decidir qué modelo usar por agente antes de lanzar el fan-out de revisión.", "should_trigger": true, "expected_behavior": "ES decide-per-agent-model before launching a fan-out." },
-  { "query": "Execute the plan in .context/plans/2026-06-29-front-loaded-worklists phase by phase.", "should_trigger": false, "expected_behavior": "There IS a plan doc → aidex-plan-exec. Sharp boundary test (plan-exec itself launches Workflows internally)." },
-  { "query": "Continue with phase 6 of the plan.", "should_trigger": false, "expected_behavior": "Executing a written plan's phase — aidex-plan-exec, not workflow design." },
-  { "query": "Loop until the test suite passes, keep iterating on the parser.", "should_trigger": false, "expected_behavior": "Repeat-until-a-check-passes — aidex-loop. Precision check." },
-  { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning multi-step work with no orchestration — aidex-plan." },
-  { "query": "Just run a code review on my current diff.", "should_trigger": false, "expected_behavior": "A single review pass, no multi-agent fan-out to design — just do it / project review command." }
+  {
+    "query": "Design a workflow to review this PR across bugs, performance, and security in parallel.",
+    "should_trigger": true,
+    "expected_behavior": "EN imperative — review-by-dimension fan-out. Should scaffold a .context/workflows/ workflow-spec."
+  },
+  {
+    "query": "Fan out a separate agent to migrate every call-site of the old API and verify each one.",
+    "should_trigger": true,
+    "expected_behavior": "EN migrate-N-sites — one agent per site with a gate. Workflow design."
+  },
+  {
+    "query": "Orchestrate a multi-agent research sweep on this topic across several sources, then synthesize.",
+    "should_trigger": true,
+    "expected_behavior": "EN research-N-sources fan-out → synthesis barrier."
+  },
+  {
+    "query": "I want to decompose this feature into parallel agents, cheap models for the breadth and opus for the verify.",
+    "should_trigger": true,
+    "expected_behavior": "EN decompose-impl with explicit per-agent model assignment — the skill's distinctive payload."
+  },
+  {
+    "query": "Set up a workflow spec with per-agent models before I launch the fan-out.",
+    "should_trigger": true,
+    "expected_behavior": "EN explicit workflow-spec authoring with model table."
+  },
+  {
+    "query": "Which agents should run on sonnet vs opus for a parallel code review I'm about to orchestrate?",
+    "should_trigger": true,
+    "expected_behavior": "EN per-agent model-choice question for a fan-out — the design decision aidex-workflow owns."
+  },
+  {
+    "query": "Diseña un workflow para revisar el código en paralelo por varias dimensiones y verificar cada hallazgo.",
+    "should_trigger": true,
+    "expected_behavior": "ES imperative — cross-lingual triggering of the English-only description (D-11 validation)."
+  },
+  {
+    "query": "Quiero abrir un agente por cada archivo a migrar y correrlos en paralelo con su propio worktree.",
+    "should_trigger": true,
+    "expected_behavior": "ES migrate-N-sites fan-out with per-agent isolation."
+  },
+  {
+    "query": "Arma una orquestación multi-agente que investigue el tema desde varias fuentes y luego sintetice.",
+    "should_trigger": true,
+    "expected_behavior": "ES research-N-sources → synthesis. Cross-lingual fan-out design."
+  },
+  {
+    "query": "Necesito decidir qué modelo usar por agente antes de lanzar el fan-out de revisión.",
+    "should_trigger": true,
+    "expected_behavior": "ES decide-per-agent-model before launching a fan-out."
+  },
+  {
+    "query": "Execute the plan in .context/plans/2026-06-29-checkout-rewrite phase by phase.",
+    "should_trigger": false,
+    "expected_behavior": "There IS a plan doc → aidex-plan-exec. Sharp boundary test (plan-exec itself launches Workflows internally). Plan slug is fictional on purpose: a probe naming a REAL plan makes a fresh harness session re-enter that plan recursively."
+  },
+  {
+    "query": "Continue with phase 6 of the plan.",
+    "should_trigger": false,
+    "expected_behavior": "Executing a written plan's phase — aidex-plan-exec, not workflow design."
+  },
+  {
+    "query": "Loop until the test suite passes, keep iterating on the parser.",
+    "should_trigger": false,
+    "expected_behavior": "Repeat-until-a-check-passes — aidex-loop. Precision check."
+  },
+  {
+    "query": "Create a plan for migrating the backend to GraphQL.",
+    "should_trigger": false,
+    "expected_behavior": "Planning multi-step work with no orchestration — aidex-plan."
+  },
+  {
+    "query": "Just run a code review on my current diff.",
+    "should_trigger": false,
+    "expected_behavior": "A single review pass, no multi-agent fan-out to design — just do it / project review command."
+  },
+  {
+    "query": "Diseña un loop que repita el build hasta que los tests pasen.",
+    "should_trigger": false,
+    "expected_behavior": "ES repeat-until-a-check-passes — aidex-loop. The nearest miss for this skill."
+  },
+  {
+    "query": "Reanuda el plan en la fase 3 y sigue hasta el final.",
+    "should_trigger": false,
+    "expected_behavior": "ES plan execution against a written plan — aidex-plan-exec."
+  },
+  {
+    "query": "Spawn a subagent to search the codebase for every call to the legacy client.",
+    "should_trigger": false,
+    "expected_behavior": "A single search delegation, not a designed fan-out with per-agent models. Precision check."
+  },
+  {
+    "query": "Escribe un ADR sobre por qué repartimos la revisión entre varios modelos.",
+    "should_trigger": false,
+    "expected_behavior": "ES decision record about an orchestration choice — aidex-decision, not a workflow spec."
+  },
+  {
+    "query": "Run the code review on my current diff across the usual angles.",
+    "should_trigger": false,
+    "expected_behavior": "Direct review execution now; no spec, no fan-out design. Near-miss."
+  },
+  {
+    "query": "I'm planning this migration and one phase needs a different model per agent — how do I split it?",
+    "should_trigger": true,
+    "expected_behavior": "Handoff from aidex-plan's Boundaries row: a phase split across parallel agents with per-agent models. aidex-workflow owns the spec."
+  },
+  {
+    "query": "Necesito abrir un agente por cada worktree y correrlos en paralelo — ¿cómo lo organizo?",
+    "should_trigger": true,
+    "expected_behavior": "ES handoff from aidex-worktree's Boundaries row: one agent per worktree is an orchestration decision, not a worktree one."
+  },
+  {
+    "query": "This isn't a loop — each of the six modules is a different target and I want them all done in one pass.",
+    "should_trigger": true,
+    "expected_behavior": "Handoff from aidex-loop's Boundaries row: one-shot fan-out over N DIFFERENT targets, repeating nothing. The loop-vs-workflow distinction."
+  }
 ]

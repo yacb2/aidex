@@ -56,6 +56,14 @@ description: Complete description including WHEN to use this skill.
 | `agent` | No | Subagent type when `context: fork`. |
 | `disable-model-invocation` | No | `true` to prevent auto-loading. Default: `false`. |
 | `user-invocable` | No | `false` to hide from `/` menu. Default: `true`. |
+
+**A skill that carries both `disable-model-invocation: true` and `user-invocable: false`
+gets no `evals/` directory.** It cannot fire by either route, so a trigger eval on it
+measures a constant: its positives can never pass and its negatives can never fail.
+`aidex-conventions` carried 20 such probes for months (removed 2026-08-06) — and their
+10 positives all described intents its *siblings* own, so the set was a routing test
+wearing a trigger test's shape. If you want to measure that routing, measure it on the
+sibling that is supposed to win, where a failure is actionable.
 | `hooks` | No | Lifecycle hooks (PreToolUse, PostToolUse, Stop) scoped to this skill. Exit code 2 blocks the operation. |
 | `paths` | No | Glob patterns for selective activation (e.g., `**/*.rs`). Skill loads only for matching files. |
 | `effort` | No | Override reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`. |

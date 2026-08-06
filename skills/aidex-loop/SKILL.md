@@ -171,6 +171,7 @@ a non-zero exit means you introduced a NEW violation — fix it before closing.
 | Actually run a Ralph loop right now | `ralph-loop` plugin (`/ralph-loop`) |
 | Run a prompt on a recurring interval | native `/loop` |
 | "Work until this condition holds" in-session | native `/goal` |
+| Fan out N agents over N *different* targets in one shot (repeats nothing) | `aidex-workflow` |
 | Plan multi-step work (no loop) | `aidex-plan` |
 | Record a decision / ADR | `aidex-decision` |
 | Investigate how something works | `aidex-research` |

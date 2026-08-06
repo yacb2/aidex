@@ -1,14 +1,102 @@
 [
-  { "query": "There's a bug in the date formatter — fix it.", "should_trigger": true, "expected_behavior": "EN bug-fix request. Should investigate root cause, write a RED regression test, then fix." },
-  { "query": "This export feature is broken, it crashes on empty input.", "should_trigger": true, "expected_behavior": "EN 'broken' with a reproduction. Should drive the TDD bug-fix loop." },
-  { "query": "We have a regression: the filter no longer applies after the last release.", "should_trigger": true, "expected_behavior": "EN 'regression' — write a failing test reproducing it, then fix." },
-  { "query": "The login button isn't working — clicking it does nothing.", "should_trigger": true, "expected_behavior": "EN 'isn't working' with repro. Should investigate and add a regression test." },
-  { "query": "Resolve this issue: the API returns 500 when the cart is empty.", "should_trigger": true, "expected_behavior": "EN 'resolve this issue' — root-cause + RED test + fix." },
-  { "query": "Hay un bug en el cálculo del total, arréglalo.", "should_trigger": true, "expected_behavior": "ES bug-fix request — cross-lingual triggering of the English-only description (D-11)." },
-  { "query": "Esto está roto: el modal no cierra al hacer clic afuera.", "should_trigger": true, "expected_behavior": "ES 'está roto' with repro — cross-lingual bug-fix." },
-  { "query": "Tenemos una regresión: el orden de columnas no se conserva.", "should_trigger": true, "expected_behavior": "ES 'regresión' — should drive the TDD bug-fix loop." },
-  { "query": "Create a plan for migrating the backend to GraphQL.", "should_trigger": false, "expected_behavior": "Planning, no bug — belongs to aidex-plan. Must NOT fire." },
-  { "query": "Implement the plan in .context/plans/2026-06-17-checkout.", "should_trigger": false, "expected_behavior": "Plan execution — belongs to aidex-plan-exec. Precision check." },
-  { "query": "We decided to use Postgres over MySQL; document this decision.", "should_trigger": false, "expected_behavior": "Decision/ADR — aidex-decision. Precision check." },
-  { "query": "Refactor this module to extract the validation helpers.", "should_trigger": false, "expected_behavior": "Pure refactor, no bug — should not start the bug-fix workflow." }
+  {
+    "query": "There's a bug in the date formatter — fix it.",
+    "should_trigger": true,
+    "expected_behavior": "EN bug-fix request. Should investigate root cause, write a RED regression test, then fix."
+  },
+  {
+    "query": "This export feature is broken, it crashes on empty input.",
+    "should_trigger": true,
+    "expected_behavior": "EN 'broken' with a reproduction. Should drive the TDD bug-fix loop."
+  },
+  {
+    "query": "We have a regression: the filter no longer applies after the last release.",
+    "should_trigger": true,
+    "expected_behavior": "EN 'regression' — write a failing test reproducing it, then fix."
+  },
+  {
+    "query": "The login button isn't working — clicking it does nothing.",
+    "should_trigger": true,
+    "expected_behavior": "EN 'isn't working' with repro. Should investigate and add a regression test."
+  },
+  {
+    "query": "Resolve this issue: the API returns 500 when the cart is empty.",
+    "should_trigger": true,
+    "expected_behavior": "EN 'resolve this issue' — root-cause + RED test + fix."
+  },
+  {
+    "query": "Hay un bug en el cálculo del total, arréglalo.",
+    "should_trigger": true,
+    "expected_behavior": "ES bug-fix request — cross-lingual triggering of the English-only description (D-11)."
+  },
+  {
+    "query": "Esto está roto: el modal no cierra al hacer clic afuera.",
+    "should_trigger": true,
+    "expected_behavior": "ES 'está roto' with repro — cross-lingual bug-fix."
+  },
+  {
+    "query": "Tenemos una regresión: el orden de columnas no se conserva.",
+    "should_trigger": true,
+    "expected_behavior": "ES 'regresión' — should drive the TDD bug-fix loop."
+  },
+  {
+    "query": "Create a plan for migrating the backend to GraphQL.",
+    "should_trigger": false,
+    "expected_behavior": "Planning, no bug — belongs to aidex-plan. Must NOT fire."
+  },
+  {
+    "query": "Implement the plan in .context/plans/2026-06-17-checkout.",
+    "should_trigger": false,
+    "expected_behavior": "Plan execution — belongs to aidex-plan-exec. Precision check."
+  },
+  {
+    "query": "We decided to use Postgres over MySQL; document this decision.",
+    "should_trigger": false,
+    "expected_behavior": "Decision/ADR — aidex-decision. Precision check."
+  },
+  {
+    "query": "Refactor this module to extract the validation helpers.",
+    "should_trigger": false,
+    "expected_behavior": "Pure refactor, no bug — should not start the bug-fix workflow."
+  },
+  {
+    "query": "El endpoint de facturas devuelve 500 cuando el cliente no tiene dirección. Arréglalo con test.",
+    "should_trigger": true,
+    "expected_behavior": "ES bug report naming the failing condition — RED/GREEN fix."
+  },
+  {
+    "query": "Something's off with pagination: page 2 repeats the last row of page 1.",
+    "should_trigger": true,
+    "expected_behavior": "EN bug described by symptom rather than the word 'bug'. Should still fire."
+  },
+  {
+    "query": "Add a test for the discount calculator — there's no bug, we just have no coverage there.",
+    "should_trigger": false,
+    "expected_behavior": "New coverage with NO defect. Near-miss: mentions tests but nothing is broken. aidex-bugfix must NOT fire."
+  },
+  {
+    "query": "The CSS is off by a few pixels on the header — just nudge the padding.",
+    "should_trigger": false,
+    "expected_behavior": "Purely visual/CSS tweak, explicitly exempt from the regression-test policy. Precision check."
+  },
+  {
+    "query": "Investigate how our retry logic behaves under a network partition — I want to understand it first.",
+    "should_trigger": false,
+    "expected_behavior": "Research/spike, no reported defect — aidex-research. Near-miss: sounds like debugging."
+  },
+  {
+    "query": "Diseña un loop que siga arreglando los tests fallidos hasta que la suite pase.",
+    "should_trigger": false,
+    "expected_behavior": "ES loop DESIGN with a stop condition — aidex-loop, not a single TDD fix."
+  },
+  {
+    "query": "This dependency is deprecated; upgrade it to v4 and adapt the call sites.",
+    "should_trigger": false,
+    "expected_behavior": "Maintenance/upgrade, not a defect. Precision check."
+  },
+  {
+    "query": "Escribe un ADR explicando por qué elegimos reintentos exponenciales tras el incidente.",
+    "should_trigger": false,
+    "expected_behavior": "ES decision record about a past incident — aidex-decision, not a fix."
+  }
 ]

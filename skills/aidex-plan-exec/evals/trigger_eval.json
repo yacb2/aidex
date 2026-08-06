@@ -63,5 +63,40 @@
     "query": "We decided to use Postgres over MySQL. Document this decision as an ADR.",
     "should_trigger": false,
     "expected_behavior": "This is a decision record — should route to aidex-decision, NOT aidex-plan-exec."
+  },
+  {
+    "query": "Arranca la ejecución del plan de facturación: fase 1 primero, y verifica antes de seguir.",
+    "should_trigger": true,
+    "expected_behavior": "ES execution of a written multi-phase plan with per-phase verification."
+  },
+  {
+    "query": "Pick the plan back up at the first unchecked box and keep going through the remaining phases.",
+    "should_trigger": true,
+    "expected_behavior": "EN resume-from-current-phase phrasing without naming a file. Should still fire."
+  },
+  {
+    "query": "Escribe un plan multi-fase para migrar la autenticación a OAuth.",
+    "should_trigger": false,
+    "expected_behavior": "ES plan CREATION — aidex-plan. The nearest miss for this skill."
+  },
+  {
+    "query": "Add the missing null check in the invoice parser and commit it.",
+    "should_trigger": false,
+    "expected_behavior": "One-off change, no plan document. Precision check."
+  },
+  {
+    "query": "Design a loop that keeps building until the type-checker is clean.",
+    "should_trigger": false,
+    "expected_behavior": "Repeat-until-green automation — aidex-loop, not phased plan execution."
+  },
+  {
+    "query": "Summarize what the plan says without doing any of it — I just want to know the phases.",
+    "should_trigger": false,
+    "expected_behavior": "Read-only summary request; execution is explicitly declined. Near-miss on 'plan'."
+  },
+  {
+    "query": "Fan out one agent per service to review them in parallel.",
+    "should_trigger": false,
+    "expected_behavior": "Multi-agent orchestration — aidex-workflow, not phase-by-phase plan execution."
   }
 ]

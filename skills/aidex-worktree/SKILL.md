@@ -219,6 +219,7 @@ A project whose `config.env` does not exist yet needs `bootstrap`, not a guess.
 | Actually create/enter a worktree right now | native `EnterWorktree` / `ExitWorktree` |
 | Plan multi-step work (no worktree decision) | `aidex-plan` |
 | Design an agentic loop | `aidex-loop` |
+| Run one agent per worktree in parallel, decided as an orchestration | `aidex-workflow` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf) | `aidex-audit` |
 
