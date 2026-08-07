@@ -34,7 +34,13 @@ import _coverage_lib as lib
 
 # Anything that is not a path or a glob. `--command` output is executed by the
 # caller, so a map entry containing any of these is refused, not emitted.
-UNSAFE = re.compile(r'[;&|`$(){}<>\n\r\\"\']|\s-{1,2}\w')
+#
+# The leading `-`/`~` alternative is not cosmetic: paths are joined with spaces,
+# so a rel of exactly `-rf` or `--rootdir=x` arrives at the runner as an OPTION,
+# not a path, and `~` is expanded by the shell before the runner sees it. The
+# metacharacter class alone missed these — it only looks for a dash *after*
+# whitespace, and the first path in the join has none.
+UNSAFE = re.compile(r'[;&|`$(){}<>\n\r\\"\']|\s-{1,2}\w|^[-~]')
 
 
 class UnsafeMapEntry(Exception):
@@ -191,6 +197,15 @@ def render_commands(root, repos, rows, unmapped):
 
     E2E is deliberately excluded: execution stays behind each project's `test-e2e.sh`
     (global rule), so specs are surfaced as a comment, never as a command to run.
+
+    TRUST BOUNDARY. Paths are *data* and are validated against UNSAFE below. A repo's
+    `test_hint` is *not* — it is a shell-command template by design (`cd backend &&
+    pytest {path}`), so the metacharacters that are an attack in a path are the
+    feature in a hint, and validating it would reject every real map. The boundary
+    is therefore the module-map file itself: it carries the same trust as any
+    checked-in build script in the repo. Anyone who can edit it can already run code
+    via a hundred other paths. What must never happen is *path data* escaping into
+    the command position, and that is what the validation prevents.
     """
     by_repo = {}          # repo name -> (test_hint, [repo-relative dirs])
     e2e_specs = []
