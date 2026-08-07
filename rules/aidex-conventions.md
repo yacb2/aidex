@@ -14,7 +14,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 
 ## ALWAYS
 
-- Filename: `YYYY-MM-DD-<kebab-slug>.md` (≤60 char slug, describes *what*, no `wip`/`final`/`v2`).
+- Filename: `YYYY-MM-DD-<kebab-slug>.md` (≤60 char slug, describes *what*, no `wip`/`final`/`v2`). Backlog items are the one exception — they carry their id between date and slug: `YYYY-MM-DD-bl-nnn-<slug>.md`.
 - Front-matter minimum on every file artifact: `title`, `status`, `created`, `updated`.
 - Status base vocabulary: `open` · `doing` · `done` · `dropped`. Two exceptions: decisions use `accepted` · `superseded` · `dropped` (ADR norm); communications use `draft` · `sent`.
 - Cross-references use `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, communication, loop, worktree}`. `<type>/pending` is valid for a not-yet-created target.
@@ -32,7 +32,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 
 | Artifact | Folder | Filename | Index | Archive |
 |---|---|---|---|---|
-| Backlog item | `backlog/` | `YYYY-MM-DD-<slug>.md` | `00-index.md` (auto-gen) | `_archive/` |
+| Backlog item | `backlog/` | `YYYY-MM-DD-bl-nnn-<slug>.md` | `00-index.md` (auto-gen) | `_archive/` |
 | Plan (single) | `plans/` | `YYYY-MM-DD-<slug>.md` | `plans/00-index.md` (auto-gen roll-up) | `_archive/` |
 | Plan (modular) | `plans/YYYY-MM-DD-<slug>/` | `00-index.md` + `NN-*.md` | `plans/00-index.md` (auto-gen roll-up) + per-plan `00-index.md` | `_archive/` |
 | Request | `requests/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |

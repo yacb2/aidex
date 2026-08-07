@@ -31,7 +31,9 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
 | `bash scripts/sweep.sh [--apply\|--check]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default; `--check` is the dry-run that exits 1 on findings |
 | `bash scripts/reconcile.sh` | [scripts/reconcile.sh](scripts/reconcile.sh) | Read-only cross-artifact drift detector (shared): flags open backlog whose plan is done (close candidates) + done-without-commits. Exit 1 on actionable drift |
-| `bash scripts/migrate-ids.sh [--apply]` | [scripts/migrate-ids.sh](scripts/migrate-ids.sh) | Backfill stable `id: BL-NNN` into items predating the id scheme (D-09). Idempotent |
+| `bash scripts/migrate-ids.sh [--apply]` | [scripts/migrate-ids.sh](scripts/migrate-ids.sh) | Backfill stable `id: BL-NNN` into items predating the id scheme (D-09). Idempotent. **Only safe where every existing id already conforms** — it skips any file that has an id, and feeds every id's digits into its max, so one legacy `BL-20260610` makes it mint `BL-20260611`. Use `renumber-ids.py` where that is the case |
+| `python3 scripts/renumber-ids.py [--apply]` | [scripts/renumber-ids.py](scripts/renumber-ids.py) | Make the **open queue's** ids conforming: insert one where absent, replace a nonconforming one and rewrite every citation of the old code. `_archive/`/`_deferred/` keep theirs, so citations from closed work stay valid. New ids allocate above the project's highest conforming id. Dry-run by default; tars `.context/` to `_tmp/` before writing |
+| `python3 scripts/migrate-filenames.py [--apply]` | [scripts/migrate-filenames.py](scripts/migrate-filenames.py) | Move open items to `YYYY-MM-DD-bl-nnn-<slug>.md` and rewrite every inbound reference in the same pass. Skips — and reports — items with a non-`BL-NNN` id, a duplicate id, or a filename cited in a git commit message. Proves itself by counting dangling backlog refs before and after and requiring them equal. Dry-run by default; same `_tmp/` backup |
 | `bash scripts/install-commit-hook.sh` | [scripts/install-commit-hook.sh](scripts/install-commit-hook.sh) | Wire a repo-local post-commit hook that harvests commit SHAs from trailers into `commits:` (D-09). Idempotent; never global |
 | `bash scripts/harvest-commit.sh [--sha <s>] [--message <m>]` | [scripts/harvest-commit.sh](scripts/harvest-commit.sh) | The harvester the hook calls; parses `Backlog:`/`Plan:` trailers and records the SHA. Cross-artifact |
 | `bash scripts/migrate-priorities.sh [--apply]` | [scripts/migrate-priorities.sh](scripts/migrate-priorities.sh) | Idempotent: normalize legacy `**Priority**: High/Low/...` to P0–P3 codes. Dry-run by default |
@@ -83,7 +85,7 @@ resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
 ## Entry format
 
-Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-<slug>.md`, written by
+Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-bl-nnn-<slug>.md`, written by
 `register-item.sh` — front-matter followed by a Context / Acceptance / Notes body.
 
 The complete front-matter schema is the single-source **12-field table** in
