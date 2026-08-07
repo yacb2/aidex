@@ -21,14 +21,24 @@ changed files that matched no module, under "Unmapped changes". Never
 executes tests — E2E execution stays exclusively behind each project's
 test-e2e.sh, per global rules.
 
-Exit 0 always, except exit 2 on hard errors (no map, git failure).
+Exit 0 always, except exit 2 on hard errors (no map, git failure, or a
+module-map path that cannot be safely rendered into a shell command).
 """
 import os
+import re
 import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _coverage_lib as lib
+
+# Anything that is not a path or a glob. `--command` output is executed by the
+# caller, so a map entry containing any of these is refused, not emitted.
+UNSAFE = re.compile(r'[;&|`$(){}<>\n\r\\"\']|\s-{1,2}\w')
+
+
+class UnsafeMapEntry(Exception):
+    """A module-map path that cannot be safely rendered into a shell command."""
 
 
 def repo_dir_for(root, repo):
@@ -184,6 +194,7 @@ def render_commands(root, repos, rows, unmapped):
     """
     by_repo = {}          # repo name -> (test_hint, [repo-relative dirs])
     e2e_specs = []
+    no_command = []       # affected modules that yield no runnable command
     for row in rows:
         for kind, display_dir, hint in row["groups"]:
             if kind == "e2e":
@@ -191,17 +202,43 @@ def render_commands(root, repos, rows, unmapped):
                 continue
             repo = lib.repo_for(display_dir.rstrip("/"), repos)
             if repo is None or not repo.get("test_hint"):
+                # Dropping this silently is a fail-open: the caller runs a
+                # selection that omits real tests while reading as complete.
+                no_command.append(row["id"])
                 continue
             slot = by_repo.setdefault(repo["name"], (repo["test_hint"], []))
             rel = lib.to_repo_relative(display_dir, repo)
             if rel not in slot[1]:
                 slot[1].append(rel)
 
+    # This output is meant to be RUN. A map entry carrying shell metacharacters
+    # would execute as part of the command, so refuse rather than emit it.
+    # Globs stay legal — pytest relies on the shell expanding `test_auth_*.py`,
+    # so quoting the paths is not an option and validation is.
+    for name, (hint, rels) in by_repo.items():
+        for rel in rels:
+            bad = UNSAFE.search(rel)
+            if bad:
+                raise UnsafeMapEntry(
+                    f"unsafe path in module-map for repo {name!r}: {rel!r} "
+                    f"contains {bad.group(0)!r}. --command output is executed; "
+                    "only glob characters (* ? [ ]) are allowed beyond a path.")
+    for spec in e2e_specs:
+        bad = UNSAFE.search(spec)
+        if bad:
+            raise UnsafeMapEntry(
+                f"unsafe e2e path in module-map: {spec!r} contains {bad.group(0)!r}")
+
     lines = []
     for _, (hint, rels) in sorted(by_repo.items()):
         lines.append(hint.replace("{path}", " ".join(rels)))
     if not lines:
         return None
+    if no_command:
+        mods = ", ".join(sorted(set(no_command)))
+        lines.append(f"# INCOMPLETE: {len(set(no_command))} affected module(s) have no "
+                     f"runnable command (no test_hint on their repo): {mods} — "
+                     "their tests are NOT in the selection above")
 
     # An unmapped change means the selection does not cover everything that moved.
     # Saying so is the difference between a faster loop and a false all-clear.
@@ -259,7 +296,11 @@ def main():
 
     rows, unmapped = affected_modules(root, m["repos"], m["modules"], changed_files)
     if as_command:
-        cmds = render_commands(root, m["repos"], rows, unmapped)
+        try:
+            cmds = render_commands(root, m["repos"], rows, unmapped)
+        except UnsafeMapEntry as e:
+            print(f"# refusing to emit a command: {e}", file=sys.stderr)
+            sys.exit(2)
         if cmds is None:
             print("# changed files match no mapped module — no selection available; "
                   "run the full suite", file=sys.stderr)

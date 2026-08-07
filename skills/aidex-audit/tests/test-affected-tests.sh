@@ -171,5 +171,85 @@ echo "$out_i" | grep -q '^AFFECTED TESTS — 1 changed file, 1 module$' \
   || fail "(i) default report regressed: $out_i"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (j) --command must never emit a line carrying shell metacharacters.
+#     The output is meant to be RUN, so a map entry like `tests/**; curl evil`
+#     would execute. Globs (* ? [ ]) must survive — pytest relies on the shell
+#     expanding `test_auth_*.py` — so the guard rejects metacharacters without
+#     quoting the path.
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+python3 - "$WS" <<'PY'
+import json, sys
+p = sys.argv[1] + "/.context/audits/test-coverage/module-map.json"
+m = json.load(open(p))
+for mod in m["modules"]:
+    if mod["id"] == "billing":
+        mod["tests"]["unit"] = ["backend/apps/billing/tests/x; touch /tmp/aidex-pwned/**"]
+json.dump(m, open(p, "w"), indent=2)
+PY
+echo x >> "$WS/backend/apps/billing/views.py"
+# stdout is what a caller runs; the refusal goes to stderr and quotes the
+# offending path, so the two must be asserted separately.
+out_j="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+rc=$?
+err_j="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
+echo "$out_j" | grep -q 'touch /tmp/aidex-pwned' \
+  && fail "(j) --command emitted a shell-injectable path on stdout: $out_j"
+[[ -z "$out_j" ]] || fail "(j) stdout must be empty when refusing: $out_j"
+[[ $rc -ne 0 ]] || fail "(j) an unsafe map entry must not exit 0 (got $rc)"
+echo "$err_j" | grep -qi 'unsafe' \
+  || fail "(j) refusal must name the problem: $err_j"
+rm -rf "$WS"
+
+# A legitimate glob must still pass — the guard must not be a blanket ban.
+WS="$(bash "$FIXTURE")"
+python3 - "$WS" <<'PY'
+import json, sys
+p = sys.argv[1] + "/.context/audits/test-coverage/module-map.json"
+m = json.load(open(p))
+for mod in m["modules"]:
+    if mod["id"] == "billing":
+        mod["tests"]["unit"] = ["backend/apps/billing/tests/test_*.py"]
+json.dump(m, open(p, "w"), indent=2)
+PY
+echo x >> "$WS/backend/apps/billing/views.py"
+out_j2="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+echo "$out_j2" | grep -q 'apps/billing/tests/test_\*\.py' \
+  || fail "(j) a legitimate glob must survive the guard: $out_j2"
+rm -rf "$WS"
+
+# ---------------------------------------------------------------------------
+# (k) a module whose repo has no test_hint is DROPPED from --command output.
+#     Silently: the human-readable report still shows its directory, but the
+#     command mode emitted nothing for it, so a caller ran a selection that
+#     omitted real tests while reading as complete. Fail open -> must announce.
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+python3 - "$WS" <<'PY'
+import json, sys
+p = sys.argv[1] + "/.context/audits/test-coverage/module-map.json"
+m = json.load(open(p))
+for repo in m["repos"]:
+    if repo["name"] != "backend":
+        repo.pop("test_hint", None)
+m["modules"].append({
+    "id": "webonly",
+    "src": ["frontend/src/shared/**"],
+    "tests": {"unit": ["frontend/tests/unit/**"]},
+})
+json.dump(m, open(p, "w"), indent=2)
+PY
+echo x >> "$WS/backend/apps/billing/views.py"
+mkdir -p "$WS/frontend/src/shared"
+echo "export const x = 1;" > "$WS/frontend/src/shared/util.ts"
+git -C "$WS/frontend" add -A
+out_k="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+echo "$out_k" | grep -q '^# INCOMPLETE: 1 affected module(s) have no runnable command' \
+  || fail "(k) a module with no test_hint must be announced, not dropped: $out_k"
+echo "$out_k" | grep -q 'webonly' \
+  || fail "(k) the announcement must name the omitted module: $out_k"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3"
