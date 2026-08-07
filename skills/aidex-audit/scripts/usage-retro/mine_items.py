@@ -16,26 +16,40 @@ See `references/07-usage-retro.md`. In short: it answers "what did item X cost, 
 edits / sessions / user turns / test runs", and it cannot answer wall-clock, thinking
 time, or any work done outside a tracked item.
 
-ROOTS ARE PARAMETERS, NOT CONSTANTS
-`~/.claude/projects` is where Claude Code puts transcripts for everyone, so it is a
-sound default. `~/Documents/projects` is one person's layout and is not. Both are
-flags (and env vars) for the same two reasons: this ships in a public repo, and a
-fixture corpus is impossible to build against a hardcoded home directory — the tests
-that pin the two invariants below exist only because these are parameters.
+ROOTS ARE PARAMETERS, AND THE PROJECTS ROOT HAS NO DEFAULT
+`~/.claude/projects` is where Claude Code puts transcripts for everyone, so defaulting
+it is sound. The workspace root is per-machine — there is no layout to guess — so it is
+**required**, via `--projects-root` or `AIDEX_PROJECTS_ROOT`. A guessed default would
+silently mine the wrong tree, or nothing, and report either as a result.
+
+They are parameters for a second reason too: a fixture corpus is impossible to build
+against a hardcoded home directory, so the tests that pin the two invariants below
+exist only because of this.
 """
-import os, re, glob, json, datetime, argparse
+import os, re, sys, glob, json, datetime, argparse
 from collections import defaultdict
 
-PROJ_ROOT = os.environ.get("AIDEX_PROJECTS_ROOT") or os.path.expanduser("~/Documents/projects")
+PROJ_ROOT = os.environ.get("AIDEX_PROJECTS_ROOT") or ""
 TX_ROOT   = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
 
 
 def add_root_args(ap):
     """Shared flags, so every consumer of this module exposes the same two."""
     ap.add_argument("--projects-root", default="",
-                    help=f"workspace root holding <project>/.context/ (default: {PROJ_ROOT})")
+                    help="workspace root holding <project>/.context/ — REQUIRED unless "
+                         "AIDEX_PROJECTS_ROOT is set (no default: layouts are per-machine)")
     ap.add_argument("--transcripts-root", default="",
                     help=f"Claude Code transcript root (default: {TX_ROOT})")
+
+
+def require_projects_root():
+    """Refuse to run rootless. Reading an unset root as `""` would glob `/*/` and
+    mine whatever happens to be there — a wrong answer that looks like an answer."""
+    if not PROJ_ROOT:
+        sys.exit("ERROR: no projects root. Pass --projects-root <dir> or set "
+                 "AIDEX_PROJECTS_ROOT.\nThere is deliberately no default: the workspace "
+                 "layout is per-machine, and guessing\none mines the wrong tree (or "
+                 "nothing) and reports it as a result.")
 
 
 def configure(args):
@@ -45,6 +59,7 @@ def configure(args):
         PROJ_ROOT = os.path.abspath(os.path.expanduser(args.projects_root))
     if getattr(args, "transcripts_root", ""):
         TX_ROOT = os.path.abspath(os.path.expanduser(args.transcripts_root))
+    require_projects_root()
 
 SYS_PREFIXES = ("<task-notification", "<local-command", "<bash-", "<system-reminder",
                 "[Request interrupted", "Base directory for this skill",
@@ -76,6 +91,7 @@ def parse_fm(path):
 
 def build_registry():
     """One record per tracked item: slug, id, project, kind, front-matter, body stats."""
+    require_projects_root()   # also guards importers that never call configure()
     items = []
     for pdir in sorted(glob.glob(PROJ_ROOT + "/*/")):
         proj = os.path.basename(pdir.rstrip("/"))
