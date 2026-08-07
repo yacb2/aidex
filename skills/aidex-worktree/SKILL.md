@@ -87,6 +87,7 @@ Dispatch by first argument:
 | `/aidex-worktree new <slug> --branch <b>` | Create a fully isolated worktree (`scripts/worktree.sh new`) |
 | `/aidex-worktree down <slug>` | Tear it down completely and verify nothing remains |
 | `/aidex-worktree list` | Every worktree of this project: slot, branch, stack state |
+| `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback (BL-136) |
 
 `new` / `down` / `list` are thin wrappers over
 [scripts/worktree.sh](scripts/worktree.sh) — run it directly, do not reimplement
