@@ -11,6 +11,9 @@ These rules are the materialization of ADRs D-01 through D-07. Each section link
 ADR: [`2026-05-14-date-format-iso-8601.md`](../../../.context/decisions/2026-05-14-date-format-iso-8601.md)
 
 - **Filename format:** `YYYY-MM-DD-<slug>.md` (or `YYYY-MM-DD-<slug>/` for modular plans).
+  Backlog items are the one exception: they carry their id between date and slug —
+  `YYYY-MM-DD-bl-nnn-<slug>.md` — because `BL-NNN` is an opaque code that nothing else
+  makes visible. No other artifact type has an id.
 - **Slug:** kebab-case, ≤60 characters, describes *what*, not status (no `wip`, `final`, `v2`).
 - **Date in filename:** the artifact's creation date, not when work starts or ends.
 - **Dates in front-matter:** `YYYY-MM-DD` everywhere (`created`, `updated`, `last-updated`, INVENTORY date columns).
@@ -208,7 +211,7 @@ without it (this materializes the global verification-before-claims rule).
 | You're creating… | Folder | Filename | Index? | Archive? |
 |---|---|---|---|---|
 | Audit run | `audits/<methodology>/<run>/` | `YYYY-MM-DD-<slug>/` | per-methodology `00-*.md` | `audits/_archive/` on cycle close (§5, D-10) |
-| Backlog item | `backlog/` | `YYYY-MM-DD-<slug>.md` | `00-index.md` (auto-gen) | `_archive/` |
+| Backlog item | `backlog/` | `YYYY-MM-DD-bl-nnn-<slug>.md` | `00-index.md` (auto-gen) | `_archive/` |
 | Plan (single-file) | `plans/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
 | Plan (modular) | `plans/YYYY-MM-DD-<slug>/` | `00-index.md` + `NN-*.md` | `00-index.md` | `_archive/` |
 | Request | `requests/` | `YYYY-MM-DD-<slug>.md` | — | `_archive/` |
