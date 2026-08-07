@@ -40,7 +40,12 @@ The bug-fix workflow is these seven steps — the agent table and prose below ke
 3. Confirm test fails **for the right reason** — the failure message names the buggy behavior, not an import/syntax/setup error. Verify this before writing the fix.
 4. Implement minimum fix
 5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)
-6. Run surrounding tests (no regressions)
+6. Run surrounding tests (no regressions) — **select them, don't run everything**:
+   `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command` prints one
+   runnable command for the tests covering your diff. Exit 3 means no selection is
+   available (no `module-map.json`, or nothing matched) — run the full suite and say
+   which it was. Selection is for the loop; **the full suite is what gates the commit
+   in step 7**, and a run marked `# INCOMPLETE` never substitutes for it (BL-135).
 7. Commit test + fix together
 
 ## Agent Configuration

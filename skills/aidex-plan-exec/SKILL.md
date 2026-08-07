@@ -89,16 +89,13 @@ plan qualifies: a run-to-completion kickoff already **is** the opt-in.
    phases (canon §Execution log) — they are proof journaling, not spec.
 2. Identify: total phases, current phase (first unchecked checkbox), success
    criteria per phase, verification step.
-3. **Check whether this plan is bug work.** Plans carry no `type` field, and the
-   back-link runs the other way — a backlog item points at its plan via
-   `escalated_to: plan/<slug>`. So resolve it by grep:
-   `grep -rl "escalated_to: plan/<slug>" .context/backlog/`. If the originating
-   item carries `type: bug`, every phase that changes behavior is bound by the
-   RED→GREEN procedure (`aidex-bugfix`): the regression test is written and fails
-   for the right reason **before** the fix, and the GREEN output is that phase's
-   proof. This is the plan-side half of the same route `start-item.sh` applies in
-   the backlog lifecycle (BL-134); it is the weaker half, since it depends on the
-   escalation having been recorded. No matching item → carry on normally.
+3. **Check whether this plan is bug work.** Plans carry no `type` field; the
+   back-link runs the other way, so resolve it by grep:
+   `grep -rl "escalated_to: plan/<slug>" .context/backlog/`. If the originating item
+   carries `type: bug`, every behavior-changing phase is bound by RED→GREEN
+   (`aidex-bugfix`): the test is written and fails for the right reason **before** the
+   fix, and the GREEN output is that phase's proof (BL-134). No matching item → carry
+   on normally.
 4. **Check the prior phase's review evidence.** If a previous phase completed
    this session or an earlier one, confirm its Execution-log entry in
    `00-index.md` carries a `review: <verdict> · <n> findings` line. A missing
@@ -149,7 +146,13 @@ For each phase in order:
    block (exact signatures/shapes/DDL), which is binding.
 2. Run the verification step the plan declares (tests, type-check, build,
    manual check). If none is declared, run the minimum that proves the change
-   works (relevant test suite + type-check).
+   works (relevant test suite + type-check). **Iterate on the selection, not the
+   whole suite:** `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command`
+   prints one runnable command for the tests covering the phase's diff; exit 3 means
+   no selection is available, so run everything and say so. The **full suite still
+   gates the commit** at the between-phase checkpoint — selection speeds the inner
+   loop, never replaces the gate, and an `# INCOMPLETE` selection does not even do
+   that (BL-135).
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.
 4. Mark the phase's checkboxes as done in the plan file. **Record the phase's

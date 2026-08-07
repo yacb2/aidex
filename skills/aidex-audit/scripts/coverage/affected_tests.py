@@ -2,7 +2,13 @@
 """Affected-tests resolver — dev-time answer to "I changed something, what do
 I run?". Module-level impact only (non-goal: per-line TIA).
 
-CLI: affected_tests.py <workspace-root> [--since <ref>]
+CLI: affected_tests.py <workspace-root> [--since <ref>] [--command]
+
+--command prints ONE runnable unit-test command per repo (paths merged) and
+nothing else, so a caller can run the selection directly instead of composing it
+from the human-readable report. Exit 3 means "no selection available" — no map, no
+changed files, or nothing matched — and the caller must fall back to the full suite
+and say so.
 
 Changed-file collection per repo:
   - default: working tree + staged (`git status --porcelain`)
@@ -164,13 +170,61 @@ def render(rows, unmapped, n_changed):
     return "\n".join(lines)
 
 
+def render_commands(root, repos, rows, unmapped):
+    """One runnable unit-test command per repo, or None when there is nothing to run.
+
+    Why combined and not per-module (BL-135): a containerised run carries a fixed
+    per-invocation floor — `docker compose run --rm` has a 15 s median and a 114 s p90
+    before a single test executes. Emitting one command per affected module turns a
+    3-module change into 3 round-trips through that floor, which can cost more than the
+    selection saves. Repos share a `test_hint`, so the paths merge into one invocation.
+
+    E2E is deliberately excluded: execution stays behind each project's `test-e2e.sh`
+    (global rule), so specs are surfaced as a comment, never as a command to run.
+    """
+    by_repo = {}          # repo name -> (test_hint, [repo-relative dirs])
+    e2e_specs = []
+    for row in rows:
+        for kind, display_dir, hint in row["groups"]:
+            if kind == "e2e":
+                e2e_specs.append(display_dir)
+                continue
+            repo = lib.repo_for(display_dir.rstrip("/"), repos)
+            if repo is None or not repo.get("test_hint"):
+                continue
+            slot = by_repo.setdefault(repo["name"], (repo["test_hint"], []))
+            rel = lib.to_repo_relative(display_dir, repo)
+            if rel not in slot[1]:
+                slot[1].append(rel)
+
+    lines = []
+    for _, (hint, rels) in sorted(by_repo.items()):
+        lines.append(hint.replace("{path}", " ".join(rels)))
+    if not lines:
+        return None
+
+    # An unmapped change means the selection does not cover everything that moved.
+    # Saying so is the difference between a faster loop and a false all-clear.
+    if unmapped:
+        lines.append(f"# INCOMPLETE: {len(unmapped)} changed file(s) match no module — "
+                     "this selection does not cover them; the full suite still gates the commit")
+    if e2e_specs:
+        lines.append("# e2e specs affected (run via the project's test-e2e.sh, never directly): "
+                     + " ".join(sorted(set(e2e_specs))))
+    return "\n".join(lines)
+
+
 def main():
     args = sys.argv[1:]
     since = None
+    as_command = False
     positional = []
     i = 0
     while i < len(args):
-        if args[i] == "--since":
+        if args[i] == "--command":
+            as_command = True
+            i += 1
+        elif args[i] == "--since":
             if i + 1 >= len(args):
                 sys.exit("usage: affected_tests.py <workspace-root> [--since <ref>]")
             since = args[i + 1]
@@ -186,14 +240,32 @@ def main():
         m = lib.load_map(root)
         changed_files = collect_changed_files(root, m["repos"], since)
     except SystemExit as e:
+        # --command is consumed by a caller deciding what to run, so a missing map is
+        # "no selection available" (exit 3), not a hard error. The caller falls back to
+        # the full suite and says why — a silent empty result would read as "nothing to
+        # run", inverting the always-on verification rule at the loop level.
+        if as_command:
+            print("# no module-map — no selection available; run the full suite", file=sys.stderr)
+            sys.exit(3)
         print(e, file=sys.stderr)
         sys.exit(2)
 
     if not changed_files:
+        if as_command:
+            print("# no changed files — nothing to select", file=sys.stderr)
+            sys.exit(3)
         print("AFFECTED TESTS — 0 changed files, 0 modules")
         sys.exit(0)
 
     rows, unmapped = affected_modules(root, m["repos"], m["modules"], changed_files)
+    if as_command:
+        cmds = render_commands(root, m["repos"], rows, unmapped)
+        if cmds is None:
+            print("# changed files match no mapped module — no selection available; "
+                  "run the full suite", file=sys.stderr)
+            sys.exit(3)
+        print(cmds)
+        sys.exit(0)
     print(render(rows, unmapped, len(changed_files)))
     sys.exit(0)
 
