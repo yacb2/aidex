@@ -17,6 +17,7 @@
 #   (f) is_working_span() is a pure predicate, callable without a corpus
 #   (g) roots are real parameters: a bogus projects-root yields an empty registry
 #   (h) the roots reach mine_defect_proneness through M.configure()
+#   (i) a rootless run refuses rather than mining a guessed default
 #
 # Run with: bash skills/aidex-audit/tests/test-usage-retro.sh
 
@@ -133,6 +134,16 @@ echo "$out_g" | grep -q 'registry: 0 tracked items' \
   || fail "(g) --projects-root is not being honoured: $out_g"
 
 # ---------------------------------------------------------------------------
+# (i) and there is no default to fall back on. An unset root would glob "/*/"
+#     and mine whatever is there — a wrong answer that reads like an answer.
+# ---------------------------------------------------------------------------
+out_i="$(env -u AIDEX_PROJECTS_ROOT python3 "$RETRO/mine_items.py" \
+  --transcripts-root "$TX" --out "$OUT/i" 2>&1)"; rc_i=$?
+[[ $rc_i -ne 0 ]] || fail "(i) a rootless run must not exit 0 (got $rc_i): $out_i"
+echo "$out_i" | grep -q 'AIDEX_PROJECTS_ROOT' \
+  || fail "(i) the rootless error should name the env var: $out_i"
+
+# ---------------------------------------------------------------------------
 # (h) the roots reach the consumers through M.configure(), not just mine_items.
 #     A defect-proneness run over this corpus finds items but no bug items, so
 #     it must say so rather than crash or read the real corpus.
@@ -145,4 +156,4 @@ echo "$out_h" | grep -q 'items attributed       : 3' \
   || fail "(h) defect-proneness should attribute the same 3 items: $out_h"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused"

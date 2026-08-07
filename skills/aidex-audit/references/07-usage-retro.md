@@ -10,6 +10,7 @@ measure task size.
 
 ```bash
 R=~/.claude/skills/aidex-audit/scripts/usage-retro
+export AIDEX_PROJECTS_ROOT=~/Documents/projects    # or pass --projects-root each time
 
 # The core: join tracked items to the sessions that worked on them.
 python3 $R/mine_items.py --out <dir> [--min-mentions 2]
@@ -23,14 +24,18 @@ python3 $R/mine_slow_tests.py
 ```
 
 All three accept `--transcripts-root`; the two that read tracked items also accept
-`--projects-root`. Both fall back to `CLAUDE_PROJECTS_ROOT` / `AIDEX_PROJECTS_ROOT`
-and then to `~/.claude/projects` / `~/Documents/projects`.
+`--projects-root`. Env fallbacks are `CLAUDE_PROJECTS_ROOT` / `AIDEX_PROJECTS_ROOT`.
 
-`~/.claude/projects` is where Claude Code puts transcripts for everyone, so
-defaulting it is sound. `~/Documents/projects` is one person's layout and is not —
-it is a parameter for two reasons that turn out to be the same reason: this ships in
-a public repo, and a fixture corpus cannot be built against a hardcoded home
-directory. The tests that pin the invariants below exist only because it is a flag.
+**The transcripts root defaults to `~/.claude/projects`; the projects root has no
+default and is required.** Claude Code puts transcripts in the same place for
+everyone, so defaulting that one is sound. Where a person keeps their workspaces is
+per-machine — there is nothing to guess — and a guessed default would glob the wrong
+tree, or nothing, and report either as a result. A rootless run exits non-zero naming
+the env var, pinned by test (i).
+
+They are parameters for a second reason too: a fixture corpus cannot be built against
+a hardcoded home directory, so the tests that pin the invariants below exist only
+because of this.
 
 ## What `mine_items.py` answers
 
