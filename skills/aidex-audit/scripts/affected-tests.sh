@@ -3,7 +3,7 @@
 # run (module-level, advisory). Thin wrapper; all logic lives in
 # coverage/affected_tests.py. Never executes tests.
 #
-# Usage: affected-tests.sh [workspace-root] [--since <ref>]
+# Usage: affected-tests.sh [workspace-root] [--since <ref>] [--command]
 #   workspace-root defaults to the discovered project root.
 
 set -euo pipefail
@@ -26,6 +26,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --since)
       ARGS+=("--since" "${2:?--since requires a value}"); shift 2 ;;
+    --command)
+      ARGS+=("--command"); shift ;;
     *)
       if [[ -z "$ROOT" ]]; then ROOT="$1"; else ARGS+=("$1"); fi
       shift ;;
