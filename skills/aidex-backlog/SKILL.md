@@ -24,6 +24,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
+| `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure (BL-134) |
 | `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10) |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
@@ -69,6 +70,10 @@ of mid-run question the queue is meant to absorb), then walk it with `worklist-a
 pausing between items to ask "what next?" (the dominant un-governed stop). The survey
 may fold in plan/audit refs too — the work-list is cross-source, not backlog-only.
 
+**On each item the walk lands on, run `start-item.sh <BL-id>` before working it.**
+That is the transition to `doing` and, for `type: bug`, the route into RED→GREEN —
+`worklist-advance.sh` only names the next item, it does not open it.
+
 When asked to **work or sweep the backlog autonomously**, resolve every safe + additive
 item to completion before stopping. Do not halt with "the rest needs your decision":
 classify each open item first, and for any you would otherwise pause on, **consult the
@@ -106,7 +111,11 @@ open ⇄ _deferred (blocked) → doing → done / dropped
    item is moved to `backlog/_deferred/`, `status` stays `open`, and `blocked_by`
    MUST be populated. It is **not** in the active queue and is **not** `_archive/`
    (archive is terminal). Use `defer` to park it and `reactivate` to bring it back.
-3. **doing** — active work; a plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `aidex-loop` loop-spec in `.context/loops/`. Default stays a plan.
+3. **doing** — active work, opened with `start-item.sh` rather than by editing
+   `status` by hand. That script is also the **bug route**: an item with
+   `type: bug` prints the RED→GREEN procedure on start, so bug work enters the
+   regression-test-first cycle from the backlog lifecycle instead of depending on
+   a bug-report phrasing that tracked work never uses (BL-134). A plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `aidex-loop` loop-spec in `.context/loops/`. Default stays a plan.
 4. **done** — shipped; archived to `_archive/` **on close** (D-10), not after a delay
 5. **dropped** — won't do; reason in Notes; archived on close
 

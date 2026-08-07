@@ -210,7 +210,16 @@ See [The deferred layer](#the-deferred-layer-_deferred). Deferring is **reversib
 
 ### open → doing
 
-Typically when someone starts work. Update `status: doing`, bump `updated`. If a plan exists, set `escalated_to: plan/<filename>` and add a link in Notes.
+When someone starts work. Use `start-item.sh <BL-id>` rather than editing the field —
+it sets `status: doing`, bumps `updated`, and rebuilds the index in one pass. If a plan
+exists, set `escalated_to: plan/<filename>` and add a link in Notes.
+
+**`type: bug` routes into RED→GREEN here** (BL-134). Starting a bug item prints the
+regression-test-first procedure (`aidex-bugfix`), because the front-matter field is a
+deterministic condition and the bug-report phrasings that skill triggers on are not:
+across 103 eligible bug items it fired on 3, losing the race to this skill on 23. The
+matching gate is at the other end — `close-item.sh` warns when a `type: bug` item closes
+`done` with neither `proof_links` nor a RED/GREEN line in its body.
 
 ### doing → done
 

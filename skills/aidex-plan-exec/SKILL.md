@@ -89,13 +89,23 @@ plan qualifies: a run-to-completion kickoff already **is** the opt-in.
    phases (canon §Execution log) — they are proof journaling, not spec.
 2. Identify: total phases, current phase (first unchecked checkbox), success
    criteria per phase, verification step.
-3. **Check the prior phase's review evidence.** If a previous phase completed
+3. **Check whether this plan is bug work.** Plans carry no `type` field, and the
+   back-link runs the other way — a backlog item points at its plan via
+   `escalated_to: plan/<slug>`. So resolve it by grep:
+   `grep -rl "escalated_to: plan/<slug>" .context/backlog/`. If the originating
+   item carries `type: bug`, every phase that changes behavior is bound by the
+   RED→GREEN procedure (`aidex-bugfix`): the regression test is written and fails
+   for the right reason **before** the fix, and the GREEN output is that phase's
+   proof. This is the plan-side half of the same route `start-item.sh` applies in
+   the backlog lifecycle (BL-134); it is the weaker half, since it depends on the
+   escalation having been recorded. No matching item → carry on normally.
+4. **Check the prior phase's review evidence.** If a previous phase completed
    this session or an earlier one, confirm its Execution-log entry in
    `00-index.md` carries a `review: <verdict> · <n> findings` line. A missing
    entry means the between-phase code-review was skipped — run it now, on the
    prior phase's diff, before starting the current phase; do not proceed
    silently on an unreviewed phase.
-4. **Honor the plan's Isolation surface** if it declares one. If the plan already
+5. **Honor the plan's Isolation surface** if it declares one. If the plan already
    recorded an Isolation note (from `aidex-plan`'s Step 5, at plan-creation time), act
    on it directly: for **Tier 1**, `EnterWorktree` before phase 1; for **Tier 2**, run
    the project's detected `worktree-up` recipe (isolated DB + `COMPOSE_PROJECT_NAME` +
@@ -112,8 +122,8 @@ plan qualifies: a run-to-completion kickoff already **is** the opt-in.
    committed files, so update the plan and record `proof_links` at its main-tree path
    (a gitignored/uncommitted `.context/` plan is absent from the worktree) — see the
    canon's Lifecycle note.
-5. Create a TaskList mirroring the plan's phases so progress is visible.
-6. **Front-load the work-list for chained multi-item runs.** A single plan's phases
+6. Create a TaskList mirroring the plan's phases so progress is visible.
+7. **Front-load the work-list for chained multi-item runs.** A single plan's phases
    are already an ordered queue (walk them). But when this session chains **multiple
    plans/items** (close several plans, then clear backlog), fix the cross-item order
    **once** here — via the `AskUserQuestion` survey → a durable

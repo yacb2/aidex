@@ -116,6 +116,26 @@ if [[ -n "$REASON" ]]; then
   printf -- '\n- Closed %s (%s): %s\n' "$TODAY" "$STATUS" "$REASON" >> "$FILE"
 fi
 
+# --- bug items close with proof of RED->GREEN, or say so (BL-134) ---
+# The enforcement half of the start-item.sh route: a `type: bug` item that
+# closes as done with no RED/GREEN evidence is the 2.2%-adoption failure showing
+# up at the other end. Warn, never block — the visual/CSS exception is real, and
+# items predating this carry no proof by construction.
+if [[ "$STATUS" == "done" ]]; then
+  ITEM_TYPE="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="type:"{print $2; exit}' "$FILE")"
+  if [[ "$ITEM_TYPE" == "bug" ]]; then
+    PROOF="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="proof_links:"{
+      sub(/^[^:]*:[[:space:]]*/,""); print; exit}' "$FILE")"
+    HAS_PROOF=1
+    [[ -z "$PROOF" || "$PROOF" == "[]" || "$PROOF" == '""' ]] && HAS_PROOF=0
+    if [[ $HAS_PROOF -eq 0 ]] && ! { grep -qE '\bRED\b' "$FILE" && grep -qE '\bGREEN\b' "$FILE"; }; then
+      warn "bug item closing with no RED->GREEN proof (no proof_links, no RED/GREEN line in the body)"
+      warn "  the regression test is what proves this bug fixed — see aidex-bugfix, and the"
+      warn "  bug-fix policy in CLAUDE.md. Purely visual/CSS bugs are the documented exception."
+    fi
+  fi
+fi
+
 # --- move to _archive/ ---
 mkdir -p "$BACKLOG_DIR/_archive"
 DEST="$BACKLOG_DIR/_archive/$(basename "$FILE")"
