@@ -85,6 +85,60 @@ Anything produced by `coverage-matrix`, `coverage-sweep`, or
 Do not hand-edit their output — if it looks wrong, fix `module-map.json` or
 the script and regenerate.
 
+## `defect-prone.jsonl` — optional second input
+
+Location: `.context/audits/test-coverage/defect-prone.jsonl` (per project).
+Absent on most projects, and that is a supported state: `affected-tests`
+renders nothing extra and behaves exactly as it did before.
+
+When present, `affected-tests` names any changed file that **measurably
+breaks** and has no E2E reaching it, on stderr, so the gap surfaces while the
+change is still in the working tree rather than after it lands. Three gap
+kinds are distinguished, worst first: the file matches no module at all (the
+gap cannot be located), its module maps no e2e globs, or it maps them and no
+spec file exists. A file whose module has real e2e specs is counted as
+covered, not reported.
+
+### Format
+
+```
+{"meta": {"denominator": "all", "base_rate": 0.15, "ratio": 2.0, "min_touches": 8}}
+{"file": "<project-dir>/<workspace-rel-path>", "share": 0.46, "bug": 6, "touches": 13, "flagged": true}
+```
+
+The `meta` line is optional but wanted: without it the threshold behind the
+flags is unverifiable, and the consumer says so.
+
+### Producing it
+
+The producer is a defect-proneness miner: **bug items touching a file / all
+items touching it**, compared against the corpus base rate, with a minimum
+touch count and worktree copies collapsed onto the main path. Raw recurrence
+counts do *not* work — they rank the files that are touched most, not the
+files that break most, and flag whatever is central (i18n locale files led the
+raw count and land near the base rate once normalised).
+
+Two properties the format encodes because they are traps:
+
+- **`file` carries a leading project-directory segment**, matching the
+  producer's cross-project output. The consumer strips it against the
+  workspace basename (with any `-wt-<branch>` suffix collapsed). A data file
+  whose rows carry a different prefix matches nothing, so that case is
+  reported as a join failure and never as an all-clear.
+- **`denominator` decides everything downstream.** Counting only items that
+  carry a `type:` field moves the base rate roughly 3x against counting every
+  attributed item; at the high end the 2x threshold exceeds 90% and nothing
+  can clear it, so a file regenerated with the wrong one is empty and looks
+  correct. The consumer calls out a `typed` file rather than consuming it
+  silently.
+
+### Migrations are suppressed
+
+A migration is touched during bug work but is not a surface an E2E spec can
+cover, so asking for one is asking for a test that cannot be written.
+Suppressed files are **counted** in the report, per the same convention as
+`waived: N` and `ignored: N` — never silently dropped.
+
 ## Multi-repo workspace semantics
 
 A workspace may contain more than one git repository, and the workspace
