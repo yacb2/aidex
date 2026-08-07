@@ -38,6 +38,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/install-commit-hook.sh` | [scripts/install-commit-hook.sh](scripts/install-commit-hook.sh) | Wire a repo-local post-commit hook that harvests commit SHAs from trailers into `commits:` (D-09). Idempotent; never global |
 | `bash scripts/harvest-commit.sh [--sha <s>] [--message <m>]` | [scripts/harvest-commit.sh](scripts/harvest-commit.sh) | The harvester the hook calls; parses `Backlog:`/`Plan:` trailers and records the SHA. Cross-artifact |
 | `bash scripts/migrate-priorities.sh [--apply]` | [scripts/migrate-priorities.sh](scripts/migrate-priorities.sh) | Idempotent: normalize legacy `**Priority**: High/Low/...` to P0–P3 codes. Dry-run by default |
+| `python3 scripts/estimate-calibration.py [--from <dir>] [--project <p>]` | [scripts/estimate-calibration.py](scripts/estimate-calibration.py) | **A read, never a gate** (BL-131): scores closed items' `estimate:` against realized effort from the usage-retro miner, per bucket, with median **and** p90/max plus tail concentration. Prints no single accuracy number — one would average the flat middle with the spreading tail. Not wired into any lifecycle script and never blocks a run; it is measurement feedback, not a prompt for a better estimate. A full run mines the corpus (~4 min); `--from` reuses a previous run |
 
 ---
 
