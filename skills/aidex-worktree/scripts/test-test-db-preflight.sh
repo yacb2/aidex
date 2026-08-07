@@ -69,5 +69,20 @@ grep -qiE 'drop|truncate|pg_terminate_backend|delete|alter' "$LOG" \
   && fail "(e) preflight issued a non-read-only statement: $(cat "$LOG")"
 grep -qi 'select' "$LOG" || fail "(e) expected the probes to be SELECTs: $(cat "$LOG")"
 
+# (f) SQL injection: the name is interpolated into the probes, so a hostile
+#     --db turns a read-only script into an arbitrary-SQL one. The read-only
+#     promise is the whole value of this script; it must hold for ANY input.
+: > "$LOG"; make_stub "1" "0"
+run --db "x'; DROP DATABASE prod; --" ; rc=$?
+[[ $rc -eq 4 ]] || fail "(f) an injectable database name must be refused with 4 (got $rc)"
+grep -qi 'DROP DATABASE' "$LOG" \
+  && fail "(f) injected SQL reached the server: $(cat "$LOG")"
+[[ ! -s "$LOG" ]] || fail "(f) nothing should be queried for a rejected name: $(cat "$LOG")"
+
+# A legitimate Postgres test-database name must still pass — not a blanket ban.
+: > "$LOG"; make_stub "" "0"
+run --db test_echo_lab_2 ; rc=$?
+[[ $rc -eq 0 ]] || fail "(f) a valid database name must not be rejected (got $rc)"
+
 if [[ $failures -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — test-db-preflight: undetermined/clear/busy/stale kept distinct, read-only"

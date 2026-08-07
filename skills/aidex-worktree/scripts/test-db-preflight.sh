@@ -54,6 +54,19 @@ if [[ -z "$DB" ]]; then
 fi
 [[ -n "$PORT" ]] || PORT=5432
 
+# The name is interpolated into both probes, so a hostile value turns a read-only
+# script into an arbitrary-SQL one — `x'; DROP DATABASE prod; --` reached the
+# server before this guard existed. Postgres database names here are plain
+# identifiers, so anything outside [A-Za-z0-9_$] is refused rather than escaped:
+# a whitelist cannot be defeated by a quoting subtlety, and nothing legitimate
+# is lost.
+if [[ ! "$DB" =~ ^[A-Za-z_][A-Za-z0-9_$]*$ ]]; then
+  printf '%sUNDETERMINED%s: %q is not a plain database identifier — refusing to\n' \
+    "$C_Y" "$C_0" "$DB" >&2
+  printf '  interpolate it into a query. Nothing was checked.\n' >&2
+  exit 4
+fi
+
 # Overridable so the guard is testable without a live server.
 PSQL="${PREFLIGHT_PSQL:-psql}"
 q() {
