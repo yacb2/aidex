@@ -46,6 +46,9 @@ The bug-fix workflow is these seven steps — the agent table and prose below ke
    available (no `module-map.json`, or nothing matched) — run the full suite and say
    which it was. Selection is for the loop; **the full suite is what gates the commit
    in step 7**, and a run marked `# INCOMPLETE` never substitutes for it (BL-135).
+   That same command also names, on stderr, any file in your diff that **measurably
+   breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
+   against a disposable database, never dev (`rules/e2e-testing.md`) (BL-133).
 7. Commit test + fix together
 
 ## Agent Configuration

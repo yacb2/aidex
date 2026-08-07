@@ -31,6 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _coverage_lib as lib
+import defect_prone
 
 # Anything that is not a path or a glob. `--command` output is executed by the
 # caller, so a map entry containing any of these is refused, not emitted.
@@ -310,6 +311,22 @@ def main():
         sys.exit(0)
 
     rows, unmapped = affected_modules(root, m["repos"], m["modules"], changed_files)
+
+    # Advisory (BL-133 criterion 2), and it rides this call rather than adding a
+    # step. It must reach the reader in BOTH modes: the two places that route here
+    # — aidex-bugfix step 6 and plan-exec phase verification — both call
+    # `--command`, so rendering only in human mode would ship a check nothing
+    # calls, which is the BL-135 defect over again. stdout stays byte-identical
+    # under `--command` (it is executed); stderr is where that mode already puts
+    # everything it wants a reader to see.
+    try:
+        block = defect_prone.section(root, m["repos"], m["modules"], changed_files)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 - advisory must never gate
+        print(f"WARNING: defect-prone check skipped: {e}", file=sys.stderr)
+        block = None
+    if block and as_command:
+        print(block, file=sys.stderr)
+
     if as_command:
         try:
             cmds = render_commands(root, m["repos"], rows, unmapped)
@@ -323,6 +340,8 @@ def main():
         print(cmds)
         sys.exit(0)
     print(render(rows, unmapped, len(changed_files)))
+    if block:
+        print(block)
     sys.exit(0)
 
 

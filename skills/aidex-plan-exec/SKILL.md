@@ -152,7 +152,8 @@ For each phase in order:
    no selection is available, so run everything and say so. The **full suite still
    gates the commit** at the between-phase checkpoint — selection speeds the inner
    loop, never replaces the gate, and an `# INCOMPLETE` selection does not even do
-   that (BL-135).
+   that (BL-135). It also names changed files that **measurably break** and have no
+   E2E — write that spec in-phase (BL-133).
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.
 4. Mark the phase's checkboxes as done in the plan file. **Record the phase's
