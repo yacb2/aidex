@@ -251,5 +251,31 @@ echo "$out_k" | grep -q 'webonly' \
   || fail "(k) the announcement must name the omitted module: $out_k"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (l) a path that IS an option must be refused. The metacharacter guard looks
+#     for a dash *after whitespace*, so a rel of exactly `-rf` slipped through
+#     and joined into `pytest -rf` — an argument, not a path. Argument injection
+#     is the same defect class as command injection with a smaller radius.
+#     `~` is here for the same reason: the shell expands it before pytest sees it.
+# ---------------------------------------------------------------------------
+for BADPATH in "-rf" "--rootdir=+etc" "~+secrets"; do
+  WS="$(bash "$FIXTURE")"
+  BADGLOB="backend/${BADPATH}/**" python3 - "$WS" <<'PYL'
+import json, os, sys
+p = sys.argv[1] + "/.context/audits/test-coverage/module-map.json"
+m = json.load(open(p))
+for mod in m["modules"]:
+    if mod["id"] == "billing":
+        mod["tests"]["unit"] = [os.environ["BADGLOB"]]
+json.dump(m, open(p, "w"), indent=2)
+PYL
+  echo x >> "$WS/backend/apps/billing/views.py"
+  out_l="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+  rc=$?
+  [[ $rc -ne 0 ]] || fail "(l) option-shaped path '$BADPATH' must not exit 0 (got $rc)"
+  [[ -z "$out_l" ]] || fail "(l) option-shaped path '$BADPATH' reached stdout: $out_l"
+  rm -rf "$WS"
+done
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3"
