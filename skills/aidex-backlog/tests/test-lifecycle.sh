@@ -34,6 +34,42 @@ check "harvest records sha" 'grep -q "commits: \"abc1234\"" "$NEW"'
 bash "$SCRIPTS/harvest-commit.sh" --sha abc1234 --message "Backlog: $ID" >/dev/null 2>&1
 check "harvest idempotent (no dup)" '[[ "$(grep -c abc1234 "$NEW")" == "1" ]]'
 
+echo "== start: type:bug routes into RED->GREEN (BL-134) =="
+# The route is keyed on front-matter, never on phrasing: aidex-bugfix fired on
+# 3 of 103 eligible bug items because aidex-backlog reached the work first.
+BUG="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "a broken thing" --priority P1 --type bug 2>/dev/null)"
+BUG_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$BUG")"
+BUG_OUT="$(bash "$SCRIPTS/start-item.sh" "$BUG_ID" 2>&1 >/dev/null)"
+check "start flips status to doing" 'grep -q "^status: doing$" "$BUG"'
+check "bug item prints the RED->GREEN route" '[[ "$BUG_OUT" == *"RED->GREEN procedure now"* ]]'
+check "route names the fail-first ordering" '[[ "$BUG_OUT" == *"written BEFORE the fix"* ]]'
+check "start echoes the item path on stdout" \
+  '[[ "$(bash "$SCRIPTS/start-item.sh" "$BUG_ID" 2>/dev/null)" == "$BUG" ]]'
+
+TASKY="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "ordinary work" --priority P2 --type task 2>/dev/null)"
+TASK_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$TASKY")"
+TASK_OUT="$(bash "$SCRIPTS/start-item.sh" "$TASK_ID" 2>&1 >/dev/null)"
+check "non-bug item stays silent about RED->GREEN" '[[ "$TASK_OUT" != *"RED->GREEN"* ]]'
+check "non-bug item still opens" 'grep -q "^status: doing$" "$TASKY"'
+
+# A deferred item is blocked, not startable — the error must name the fix.
+DEFB="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "blocked bug" --priority P2 --type bug 2>/dev/null)"
+DEFB_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$DEFB")"
+bash "$SCRIPTS/defer-item.sh" defer "$DEFB_ID" --reason "waiting on vendor" >/dev/null 2>&1
+DEFB_OUT="$(bash "$SCRIPTS/start-item.sh" "$DEFB_ID" 2>&1 >/dev/null || true)"
+check "starting a deferred item points at reactivate" '[[ "$DEFB_OUT" == *"reactivate"* ]]'
+
+echo "== close warns on a bug item with no proof (BL-134) =="
+NOPROOF="$(bash "$SCRIPTS/close-item.sh" "$BUG_ID" 2>&1 >/dev/null)"
+check "bug close with no proof warns" '[[ "$NOPROOF" == *"no RED->GREEN proof"* ]]'
+PROVEN="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "proven bug" --priority P2 --type bug 2>/dev/null)"
+PROVEN_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$PROVEN")"
+printf -- '\nRED: AssertionError expected full IBAN / GREEN: vitest 730/730\n' >> "$PROVEN"
+PROVEN_OUT="$(bash "$SCRIPTS/close-item.sh" "$PROVEN_ID" 2>&1 >/dev/null)"
+check "bug close with RED/GREEN line does not warn" '[[ "$PROVEN_OUT" != *"no RED->GREEN proof"* ]]'
+TASK_CLOSE="$(bash "$SCRIPTS/close-item.sh" "$TASK_ID" 2>&1 >/dev/null)"
+check "non-bug close never mentions the proof gate" '[[ "$TASK_CLOSE" != *"RED->GREEN"* ]]'
+
 echo "== close =="
 bash "$SCRIPTS/close-item.sh" "$ID" --commit def5678 >/dev/null 2>&1
 check "item left active dir" '[[ ! -f "$NEW" ]]'
