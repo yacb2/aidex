@@ -83,7 +83,7 @@ resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
 ## Entry format
 
-Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-<slug>.md`, written by
+Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-bl-nnn-<slug>.md`, written by
 `register-item.sh` — front-matter followed by a Context / Acceptance / Notes body.
 
 The complete front-matter schema is the single-source **12-field table** in
