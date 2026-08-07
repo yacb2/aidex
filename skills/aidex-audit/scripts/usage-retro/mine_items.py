@@ -104,6 +104,9 @@ def build_registry():
                 "project": proj, "kind": kind, "slug": slug, "path": f,
                 "id": fm.get("id", ""), "title": fm.get("title", ""),
                 "status": fm.get("status", ""), "priority": fm.get("priority", ""),
+                # `estimate` is carried so the calibration read (BL-131) can score it
+                # against realized effort without re-parsing every item's front-matter.
+                "estimate": fm.get("estimate", ""),
                 "created": fm.get("created", "") or fm.get("date-added", ""),
                 "updated": fm.get("updated", ""),
                 "date_added": fm.get("date-added", ""),

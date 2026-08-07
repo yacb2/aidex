@@ -12,7 +12,8 @@
 #   (b) a real user prompt naming an item DOES attribute
 #   (c) strict-span: prompt + 1 edit -> working
 #   (d) strict-span: no prompt + 2 edits -> NOT working
-#   (e) strict-span: no prompt + 3 edits -> working
+#   (e) strict-span: no prompt + 3 edits -> working, and the SAME item's 2-edit
+#       span falls the other way (one item, two spans, opposite verdicts)
 #   (f) is_working_span() is a pure predicate, callable without a corpus
 #   (g) roots are real parameters: a bogus projects-root yields an empty registry
 #   (h) the roots reach mine_defect_proneness through M.configure()
@@ -38,15 +39,18 @@ report="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" \
 echo "$report" | grep -q 'registry: 4 tracked items' \
   || fail "(setup) expected 4 registry items: $report"
 
-# span_field <slug> <field> — empty when the slug produced no span at all.
+# span_field <slug> <field> [session] — empty when no such span exists. The
+# session argument matters: delta deliberately has two spans (one working, one
+# not), so a slug-only lookup would silently depend on file iteration order.
 span_field() {
   python3 -c '
 import json, sys
+want = sys.argv[4] if len(sys.argv) > 4 else ""
 for line in open(sys.argv[1] + "/spans.jsonl"):
     s = json.loads(line)
-    if s["slug"] == sys.argv[2]:
+    if s["slug"] == sys.argv[2] and (not want or s["session"] == want):
         print(s[sys.argv[3]]); break
-' "$OUT" "$1" "$2"
+' "$OUT" "$1" "$2" "${3:-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -87,11 +91,15 @@ grep -q 'unrelated.py' "$TX"/*/s2.jsonl \
 [[ "$(span_field 2026-01-03-gamma edits)" == "2" && \
    "$(span_field 2026-01-03-gamma working)" == "False" ]] \
   || fail "(d) no prompt + 2 edits must NOT be a working span"
-[[ "$(span_field 2026-01-04-delta edits)" == "3" && \
-   "$(span_field 2026-01-04-delta working)" == "True" ]] \
+[[ "$(span_field 2026-01-04-delta edits s4.jsonl)" == "3" && \
+   "$(span_field 2026-01-04-delta working s4.jsonl)" == "True" ]] \
   || fail "(e) no prompt + 3 edits should be a working span (the edit rule)"
+# The same item's OTHER span is one edit short and must fall the other way.
+[[ "$(span_field 2026-01-04-delta edits s5.jsonl)" == "2" && \
+   "$(span_field 2026-01-04-delta working s5.jsonl)" == "False" ]] \
+  || fail "(e) 2 edits on the same item must NOT be a working span"
 
-echo "$report" | grep -q '2 working, 1 below the strict-span rule' \
+echo "$report" | grep -q '2 working, 2 below the strict-span rule' \
   || fail "(e) the run should report the working/non-working split: $report"
 
 # ---------------------------------------------------------------------------

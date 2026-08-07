@@ -17,6 +17,9 @@
 #                                          -> attributed to nothing (provenance gate)
 #   BL-903 / 2026-01-03-gamma  session s3  no user prompt, 2 edits -> NOT working
 #   BL-904 / 2026-01-04-delta  session s4  no user prompt, 3 edits -> WORKING (edit rule)
+#   BL-904 / 2026-01-04-delta  session s5  no user prompt, 2 edits -> NOT working, on a
+#                                          CLOSED item, so downstream consumers that
+#                                          ignore `working` are observably wrong
 
 set -euo pipefail
 
@@ -25,25 +28,28 @@ TX="$(mktemp -d)"
 P="$PROJ/demo_ws"
 mkdir -p "$P/.context/backlog"
 
-item() {  # item <id> <slug> <title>
+# `status` and `estimate` exist for the calibration read (BL-131); mine_items
+# filters on neither, so the miner scenarios above are unaffected by them.
+item() {  # item <id> <slug> <title> <status> <estimate>
   cat > "$P/.context/backlog/$2.md" <<EOF
 ---
 title: "$3"
 id: $1
-status: open
+status: $4
 created: 2026-01-01
 updated: 2026-01-01
 type: task
+estimate: $5
 ---
 
 # $3
 EOF
 }
 
-item BL-901 2026-01-01-alpha "Alpha"
-item BL-902 2026-01-02-beta  "Beta"
-item BL-903 2026-01-03-gamma "Gamma"
-item BL-904 2026-01-04-delta "Delta"
+item BL-901 2026-01-01-alpha "Alpha" done S   # scored
+item BL-902 2026-01-02-beta  "Beta"  done S   # excluded: no measurable work
+item BL-903 2026-01-03-gamma "Gamma" open M   # excluded: not closed
+item BL-904 2026-01-04-delta "Delta" done L   # scored
 
 # Transcript dir name follows the encoding tx_dirs_for() decodes.
 D="$TX/-Users-yoelacevedo-Documents-projects-demo-ws"
@@ -101,5 +107,16 @@ py_edit() {  # file_path
   py_edit "$P/src/delta_b.py"
   py_edit "$P/src/delta_c.py"
 } > "$D/s4.jsonl"
+
+# --- s5: delta again, but assistant-text mention + only 2 edits -> a NON-working
+#     span on a CLOSED item. Without this the strict-span rule is unobservable
+#     downstream: gamma is the only other non-working span and it is excluded by
+#     status anyway, so a consumer that ignored `working` would still look right.
+{
+  py_user_prompt "continue"
+  py_assistant_text "Back on BL-904 / 2026-01-04-delta."
+  py_edit "$P/src/delta_a.py"
+  py_edit "$P/src/delta_d.py"
+} > "$D/s5.jsonl"
 
 printf '%s %s\n' "$PROJ" "$TX"
