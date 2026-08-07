@@ -82,11 +82,17 @@ scan_backlog_ids() {
 }
 
 # Compute the next sequential backlog id (BL-NNN) — one above the highest assigned.
+# Only ids already matching BL-NNN count toward the max: a hand-authored
+# `BL-20260610` would otherwise push the sequence into the millions, and every id
+# minted after it would be nonconforming too. Legacy ids sit in a different
+# namespace, so skipping them can never reuse one.
 next_backlog_id() {
-  local dir="$1" max=0 n
-  while IFS=$'\t' read -r n _; do
+  local dir="$1" max=0 rawid n
+  while IFS=$'\t' read -r rawid _; do
+    [[ "$rawid" =~ ^BL-([0-9][0-9][0-9])$ ]] || continue
+    n="$((10#${BASH_REMATCH[1]}))"
     (( n > max )) && max=$n
-  done < <(scan_backlog_ids "$dir")
+  done < <(scan_backlog_raw_ids "$dir")
   printf 'BL-%03d' $((max+1))
 }
 
@@ -165,12 +171,12 @@ stamp_escalated_to() {
 # and the cross-repo counterpart). Echoes the created path on stdout.
 emit_backlog_stub() {
   local dir="$1" id="$2" title="$3" origin="$4" origin_ref="$5" priority="$6" type="$7" escalated_to="$8" note="$9"
-  local date_iso slug out n
+  local date_iso slug id_seg out
   date_iso="$(date +%Y-%m-%d)"
   slug="$(title_to_slug "$title")"; [[ -n "$slug" ]] || slug="item"
+  id_seg="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"
   mkdir -p "$dir"
-  out="$dir/$date_iso-$slug.md"; n=2
-  while [[ -e "$out" ]]; do out="$dir/$date_iso-$slug-$n.md"; n=$((n+1)); done
+  out="$dir/$date_iso-$id_seg-$slug.md"
   cat > "$out" <<EOF
 ---
 title: "$title"
@@ -721,19 +727,13 @@ fi
 [[ -n "$SLUG" ]] || die "could not derive slug from title"
 
 DATE_ISO="$(date +%Y-%m-%d)"
-OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$SLUG.md"
-
-# Avoid clobbering: if file exists, append a counter
-n=2
-while [[ -e "$OUT_FILE" ]]; do
-  OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$SLUG-$n.md"
-  n=$((n+1))
-done
-
 mkdir -p "$BACKLOG_DIR"
 
 # --- assign stable short id (BL-NNN) for commit-trailer references (D-09) ---
+# Minted before the filename because the name carries it. No clobber guard is
+# needed: the id is unique across active + _archive + _deferred by construction.
 ITEM_ID="$(next_backlog_id "$BACKLOG_DIR")"
+OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$(printf '%s' "$ITEM_ID" | tr 'A-Z' 'a-z')-$SLUG.md"
 
 # --- write entry ---
 {

@@ -10,16 +10,21 @@ Rules for entries in `.context/backlog/`.
 
 ```
 .context/backlog/
-├── 00-index.md                  # Auto-regenerated — do NOT hand-edit
-├── YYYY-MM-DD-<slug>.md         # active queue
-├── YYYY-MM-DD-<slug>.md
-├── _deferred/                   # open-but-blocked (status: open, blocked_by set)
-│   └── YYYY-MM-DD-<slug>.md
-└── _archive/                    # terminal (done / dropped) — closed items
-    └── YYYY-MM-DD-<slug>.md
+├── 00-index.md                     # Auto-regenerated — do NOT hand-edit
+├── YYYY-MM-DD-bl-nnn-<slug>.md     # active queue
+├── YYYY-MM-DD-bl-nnn-<slug>.md
+├── _deferred/                      # open-but-blocked (status: open, blocked_by set)
+│   └── YYYY-MM-DD-bl-nnn-<slug>.md
+└── _archive/                       # terminal (done / dropped) — closed items
+    └── YYYY-MM-DD-bl-nnn-<slug>.md
 ```
 
 - **Date:** `YYYY-MM-DD` per D-01 (creation date, not the date work starts).
+- **Id segment:** the item's `id` lowercased (`bl-027`), between the date and the slug.
+  Date-first keeps D-01's chronological sort; a fixed position right after it puts the
+  code in the same column on every line, which a trailing suffix does not.
+  Items predating this convention keep `YYYY-MM-DD-<slug>.md` — both forms satisfy
+  `validate.py`'s `ISO_FILENAME`, and nothing resolves an item by parsing its filename.
 - **Slug:** kebab-case, 3–6 words max. Describes *what*, not status.
 - **Deferred:** `_deferred/` holds open items the team intends to do but cannot start
   (external blocker). `status` stays `open`, `blocked_by` MUST be populated, and they
@@ -110,7 +115,7 @@ the rest are backlog-specific. When hand-authoring an entry, write all 13 — `i
 | Field | Values / format | Notes |
 |---|---|---|
 | `title` | quoted string | Global (§7). |
-| `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id (a hand-authored `BL-20260610` inflates the sequence). |
+| `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it, and the filename carries it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id. `next_backlog_id` counts only conforming ids toward the max, so a hand-authored `BL-20260610` no longer inflates the sequence; it is still reported until fixed. |
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
 | `origin` | `manual` · `audit` · `issue` · `request` | Where it came from. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
