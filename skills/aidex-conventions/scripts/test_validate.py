@@ -205,13 +205,23 @@ def check_plan_scoped_shape_unit(failures: list[str]) -> None:
         failures.append(f"scoped unit: expected only violations, got severities {sorted(sevs)}")
 
     two = ok + "\n## Phase 2 — And the timeline\n\n**Verify:** `pnpm vitest run Timeline`\n"
-    if "plan-scoped-multi-phase" not in rules(two):
-        failures.append("scoped unit: two-phase scoped plan did not fire plan-scoped-multi-phase")
+    if "plan-scoped-phase-count" not in rules(two):
+        failures.append("scoped unit: two-phase scoped plan did not fire plan-scoped-phase-count")
+
+    # Found by reviewing this function with aidex-review (correctness / edge-and-error),
+    # verified against the live validator: the canon says "exactly one phase", and a
+    # `> 1` test passes a plan with ZERO phases — which has no Goal or Acceptance for
+    # the necessity recheck to pair files against, yet reported clean.
+    zero = ("---\nmode: scoped\n---\n\n# Zero phase\n\n"
+            "**Out of scope:** everything else.\n\n"
+            "**Files:**\n- Modify: `src/a.py`\n\n**Verify:** `pytest`\n")
+    if "plan-scoped-phase-count" not in rules(zero):
+        failures.append("scoped unit: zero-phase scoped plan did not fire plan-scoped-phase-count")
 
     # Regression: '## Phase N Checkpoint' matches PHASE_HEADING_RE but is a tracking
     # section, not a phase — a scoped plan carrying one must still read as one phase.
     with_ckpt = ok + "\n## Phase 1 Checkpoint\n\n- [ ] Task 1.1: wire the filter\n"
-    if "plan-scoped-multi-phase" in rules(with_ckpt):
+    if "plan-scoped-phase-count" in rules(with_ckpt):
         failures.append("scoped unit: 'Phase 1 Checkpoint' counted as a second phase")
 
     no_files = ok.replace("**Files:**\n- Modify: `src/panels/ScriptPanel.tsx`\n\n", "")
