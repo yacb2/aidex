@@ -136,7 +136,7 @@ Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.
 | `verification-before-claims.md` | No "tests pass" / "build succeeds" / "bug is fixed" without running the command and showing output; partial-success commands need before/after counts, not just exit code 0 |
 | `root-cause-first.md` | Investigate before fixing, form a hypothesis before implementing, and after three failed attempts stop and question the architecture |
 
-### 17 skills
+### 18 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -154,6 +154,7 @@ Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.
 | **`aidex-workflow`** | User-invoked + context-triggered | Designs one-shot multi-agent fan-out / decomposition orchestrations — writes a `.context/workflows/` spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. |
 | **`aidex-comm`** | User-invoked + context-triggered | Captures inbound/outbound communications into `.context/communications/{received,sent}/` — emails, WhatsApp, calls, meetings — with channel/direction/from/to front-matter. Body stays in the native language of the communication (exempt from English-only). |
 | **`aidex-plan-exec`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `aidex-plan` for plan creation. |
+| **`aidex-review`** | User-invoked + context-triggered | Reviews code **as it stands** — a module, feature, path, or whole app — where every built-in instrument (`/code-review`, `/simplify`, `/security-review`) is anchored to a diff. Measures the target first (`resolve-review-target.sh`: files, LOC, security/perf surface, size class), proposes which finder angles are worth launching and what they cost, then fans out find→verify across four lenses (correctness · simplify · security · perf). Refuses an oversize target instead of sampling it. |
 | **`aidex-bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
 | **`aidex-worktree`** | User-invoked + context-triggered | Bootstraps and advises git-worktree setups — decides isolate-vs-share for env/DB/ports via topology detection plus a 4-axis interview, recording it in `.context/worktrees/`. |
 | **`aidex-dash`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |

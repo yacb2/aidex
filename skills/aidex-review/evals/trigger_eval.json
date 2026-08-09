@@ -1,0 +1,92 @@
+[
+  {
+    "query": "Review the src/panels module and tell me what's wrong with it. Nothing has changed there recently, I just want the code looked at.",
+    "should_trigger": true,
+    "expected_behavior": "Canonical module-as-it-stands review. Must resolve and measure the target first, then triage lenses before launching finders."
+  },
+  {
+    "query": "Can you do a code review of the whole billing feature? Not a diff — the feature as it is today.",
+    "should_trigger": true,
+    "expected_behavior": "Feature-scoped static review. The explicit 'not a diff' is what separates this from the built-in /code-review."
+  },
+  {
+    "query": "Find bugs in skills/aidex-conventions/scripts/validate.py",
+    "should_trigger": true,
+    "expected_behavior": "Correctness lens over a single-file target. Should still measure and state the finder count rather than reading the file inline."
+  },
+  {
+    "query": "Quiero una revisión de código del módulo de guiones, sobre el módulo completo, no sobre los cambios.",
+    "should_trigger": true,
+    "expected_behavior": "Canonical ES module-review imperative. Native-language query kept per D-11; the matcher bridges cross-lingually."
+  },
+  {
+    "query": "What dead code is sitting in the exporters package?",
+    "should_trigger": true,
+    "expected_behavior": "simplify lens, dead-code angle. Findings must be reported, never deleted."
+  },
+  {
+    "query": "Can this module be simplified? There's a lot of duplication in the serializers.",
+    "should_trigger": true,
+    "expected_behavior": "simplify lens over a named module — duplication-and-reuse plus altitude angles."
+  },
+  {
+    "query": "Do a security review of the auth module's code — I want the code read, not a pentest.",
+    "should_trigger": true,
+    "expected_behavior": "security lens, code-reading. Must not route to the aidex-audit OWASP program playbook."
+  },
+  {
+    "query": "The reports page feels slow. Review that module's code for performance problems.",
+    "should_trigger": true,
+    "expected_behavior": "perf lens, code-reading only. Every finding must argue magnitude at this module's scale."
+  },
+  {
+    "query": "Review the whole app for bugs.",
+    "should_trigger": true,
+    "expected_behavior": "--app target. The resolver returns size_class=oversize with 0 finders; the skill must refuse a single run and propose a module split rather than sampling."
+  },
+  {
+    "query": "Revisa la calidad del código de este módulo y dime qué agentes lanzarías antes de lanzarlos.",
+    "should_trigger": true,
+    "expected_behavior": "ES query exercising the triage-then-confirm mode explicitly. Must present lenses, angles, dropped angles and cost before running anything."
+  },
+  {
+    "query": "Review my changes before I commit.",
+    "should_trigger": false,
+    "expected_behavior": "Working diff, not a module. The built-in /code-review owns the diff case; aidex-review must NOT fire."
+  },
+  {
+    "query": "Code review PR 412 please.",
+    "should_trigger": false,
+    "expected_behavior": "Pull request scope. Belongs to the built-in /code-review or the code-review plugin."
+  },
+  {
+    "query": "Run /simplify on what I just wrote.",
+    "should_trigger": false,
+    "expected_behavior": "Explicit built-in invocation over changed code. Deferring to the named instrument is correct."
+  },
+  {
+    "query": "I want a UX audit of the checkout flow before we ship.",
+    "should_trigger": false,
+    "expected_behavior": "Project-state audit against a methodology playbook with tracked findings — aidex-audit, not a code read."
+  },
+  {
+    "query": "Audit the app's performance against our Lighthouse budgets and the RUM data.",
+    "should_trigger": false,
+    "expected_behavior": "Measures a running system against budgets. The aidex-audit perf playbook owns this; aidex-review cannot measure, only read."
+  },
+  {
+    "query": "This endpoint returns a 500 on expired tokens. Fix it.",
+    "should_trigger": false,
+    "expected_behavior": "One known bug with a reproduction — aidex-bugfix owns RED-first regression work."
+  },
+  {
+    "query": "Review the security of our dependency tree after that CVE announcement.",
+    "should_trigger": false,
+    "expected_behavior": "Dependency scanning against a disclosure, not reading module code. aidex-audit security playbook."
+  },
+  {
+    "query": "What skills do I have installed, and is my .context/ a mess?",
+    "should_trigger": false,
+    "expected_behavior": "Ecosystem audit of the Claude Code setup — aidex, not code review."
+  }
+]
