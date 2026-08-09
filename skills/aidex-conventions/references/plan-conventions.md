@@ -72,6 +72,115 @@ fills the phases*, not the execution machinery.
 
 ---
 
+## Plan mode: triage before structure
+
+Two modes, chosen by a triage step that runs at the top of **every** `aidex-plan`
+invocation (skipped in one line when the user names the mode outright).
+
+**The discriminator is not size.** A two-file change that alters a contract another
+module consumes deserves the full adversarial pass; an eight-file change repeating an
+established pattern does not. What discriminates is: **is there more than one viable
+design, and is choosing wrong expensive?** When the *how* is settled and only the
+*where* needs pinning down, there is nothing to be adversarial about.
+
+### The five signals
+
+| Observable | If yes |
+|---|---|
+| An existing repo pattern this change repeats | scoped |
+| Touches a shared contract, or an API another module consumes | full |
+| Requires a migration or schema change | full |
+| Reverts with a single `git revert` | scoped |
+| Two or more viable designs where choosing wrong costs a rewrite | full |
+
+### The four outcomes
+
+- **direct** — one file, trivial. Do not plan; do the work.
+- **scoped** — one phase, declared file contract. Below.
+- **full** — everything else in this document.
+- **research** — the *how* is unknown; planning now is invention. Route to `aidex-research`.
+
+**Run the triage as a subagent.** It may read as much of the repo as it needs, but its
+output contract is fixed: the five signals with their evidence, plus one recommended
+outcome — no design sketches, no architectural alternatives. If it cannot decide from
+what it read, the correct outcome is already `research`. The unbounded read stays inside
+the subagent; the planning session receives five booleans.
+
+The user ratifies the **evidence**, not the label. A recommendation presented as a bare
+verdict becomes a rubber stamp — which is the failure mode of the silent
+auto-classification this deliberately replaces.
+
+### Scoped plans
+
+`mode: scoped` in the front-matter (omitted or `mode: full` = everything below this
+section). A scoped plan delivers the **complete** solution to what was asked; it is not
+a stopgap, and the necessity recheck is what proves it.
+
+Structural rules, enforced by `validate.py` as **violations, not warnings** — the soft
+proportionality budget above was already canon and was measured to be dead letter, so
+this mode's guarantee is mechanical or it is nothing:
+
+- Exactly **one phase**. A scoped plan is therefore never batch-eligible, and
+  `aidex-plan` does not offer `aidex-plan-exec` for it — the existing ≥2-phase rule
+  already covers that.
+- **`**Files:**` enumerated and non-empty** — the file contract, written before the
+  tasks. This is the blast radius, declared.
+- **`**Out of scope:**` non-empty.** Optional in the phase template above; required
+  here. Its job is to stop *re-litigation*, not scope creep — acceptance says the search
+  filters the scripts panel, a reader asks "and the timeline?", and this field answers
+  without reopening the design. One line. It does **not** spawn backlog items: a scoped
+  plan's premise is that what it contains is what the request needs.
+- **At least one machine-checkable acceptance criterion.**
+- Size stays informational. A byte cap is a proxy, and a tight proxy gets met by
+  compressing prose or by dropping the discovered constraints that make a plan worth
+  reading.
+
+**Alignment collapses to one round** — no four-question Step 0. The scope *is* the file
+list plus the acceptance criteria; confirm those and write.
+
+**No adversarial design pass.** It already ran, once, at triage, against the question
+"is this scoped?" — the same rigor, applied where it changes a decision.
+
+#### The necessity recheck
+
+Run it in **both** directions before saving. "Is this what's necessary?", answered by
+the agent that just wrote the plan, is self-grading and always returns yes; the paired
+form is falsifiable:
+
+- For each file in the contract → which acceptance criterion requires it? No answer:
+  **surplus**.
+- For each acceptance criterion → which file delivers it? No answer: **missing**.
+
+This also replaces RED-first. A scoped plan reproduces no bug, so writing the test first
+has nothing to bite on — but a test written after the code, by the same agent, can pass
+vacuously by asserting whatever the code happens to do. The acceptance criteria are
+written *before* implementation and paired to files here, so the test validates a
+criterion that predates it. Tests ship in the same commit; their order is not mandated.
+
+#### Deviation from the file contract
+
+Execution will sometimes need a file the contract does not list — the contract is
+written with deliberately incomplete investigation. The contract makes deviation
+**visible, not impossible**:
+
+1. Log the file in the Execution log, one line.
+2. Re-apply the five triage signals **to that file**. If any flips to `full`, stop and
+   re-triage the whole plan.
+3. Independently: if the file list has **doubled**, stop and re-triage. Six extra
+   trivial files trip no signal but mean the contract misread the change — a different
+   failure, invisible to rule 2.
+
+#### Accumulation — the unbuilt tripwire
+
+The standing risk of a cheap mode is that everything becomes scoped and the codebase
+accretes point solutions that never receive an architectural pass. The observable:
+**the same file appearing in the contracts of three consecutive scoped plans** — that
+module needed a design pass and got three patches instead. Nothing counts this today;
+each plan lists its files, so the data exists once there are enough scoped plans
+(~10) to measure. Do not build the counter before then.
+
+---
+
 ## Structure pattern
 
 Threshold (ADR `decision/2026-07-02-plan-modular-threshold`): **single-file is the
@@ -118,6 +227,7 @@ Per D-05, completed plans move to `.context/plans/_archive/` on `status: done`. 
 ---
 title: "Feature name"
 status: open | doing | done | dropped
+mode: scoped | full          # optional; omitted = full
 current-phase: 0
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
@@ -335,6 +445,13 @@ checkboxes live in the phase checkpoints only.
 - [ ] Machine gate present (`gate:` or fenced command in Verify) for every `afk-impl` phase
 - [ ] Tasks numbered `N.1`, `N.2`, … — each with Files + Spec
 - [ ] Phase Checkpoint with task checkboxes at end
+
+### Scoped plans (`mode: scoped`)
+- [ ] Exactly one phase
+- [ ] **Files:** enumerated and non-empty (the file contract)
+- [ ] **Out of scope:** non-empty (one line — required in this mode)
+- [ ] ≥1 machine-checkable acceptance criterion
+- [ ] Necessity recheck run in both directions (file→criterion, criterion→file)
 
 ### Spec-shape checks
 - [ ] Anchors are stable (symbol names / "after field X"), not bare line numbers
