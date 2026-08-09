@@ -162,6 +162,16 @@ For each phase in order:
    `.context/proofs/<slug>/` for larger captures) per `aidex-conventions`
    (`00-global.md` §7.1). Don't mark a phase done you can't show works.
 
+> **Scoped plans carry a file contract.** When the plan's front-matter says
+> `mode: scoped`, its `**Files:**` list is the declared blast radius, written on
+> deliberately incomplete investigation — so it will sometimes be wrong. The contract makes
+> that **visible, not impossible**: (1) log any file you touch outside the list in the
+> Execution log, one line; (2) re-apply the five triage signals (`plan-conventions.md`
+> §The five signals) **to that file** — if any flips to `full`, stop and re-triage the
+> whole plan with `aidex-plan`; (3) independently, if the file list has **doubled**, stop
+> and re-triage. Six extra trivial files trip no signal but mean the contract misread the
+> change — a failure rule (2) cannot see.
+
 > **Loop (opt-in, per phase only):** if a single phase is mechanical and its verification is a
 > pure machine gate (e.g. "make all `<suite>` pass" / "type-check clean"), that one phase may be
 > spec'd as a loop via `aidex-loop` and run by `/goal`/`ralph-loop` — mirroring the `aidex-plan` →

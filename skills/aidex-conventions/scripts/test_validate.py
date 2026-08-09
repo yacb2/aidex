@@ -179,6 +179,73 @@ def check_plan_spec_shape_unit(failures: list[str]) -> None:
         failures.append("spec-shape unit: 00-index.md warned oversize (size budgets are per plan/phase file)")
 
 
+def check_plan_scoped_shape_unit(failures: list[str]) -> None:
+    """Direct cells for check_plan_scoped_shape (plan-conventions.md § Plan mode).
+    The scoped mode's whole claim is that its caps are mechanical rather than prose,
+    so each cap gets a positive and the backwards-compat case gets a negative."""
+    v = _load_validator()
+    single = Path(".context/plans/2026-01-01-x.md")
+    scoped = {"mode": "scoped"}
+
+    def rules(text: str, fm: dict | None = scoped, path: Path = single) -> list[str]:
+        return [f.rule for f in v.check_plan_scoped_shape(path, text, fm)]
+
+    ok = ("---\nmode: scoped\n---\n\n"
+          "## Phase 1 — Add the panel search\n\n"
+          "**Acceptance:**\n- typing filters the scripts panel\n\n"
+          "**Out of scope:** the timeline search\n\n"
+          "**Files:**\n- Modify: `src/panels/ScriptPanel.tsx`\n\n"
+          "**Verify:** `pnpm vitest run ScriptPanel`\n")
+    if rules(ok):
+        failures.append(f"scoped unit: conforming scoped plan fired {rules(ok)} (false positive)")
+
+    # Every finding is a violation, never a warning — the mechanical-gate claim.
+    sevs = {f.severity for f in v.check_plan_scoped_shape(single, "---\nmode: scoped\n---\n", scoped)}
+    if sevs != {"violation"}:
+        failures.append(f"scoped unit: expected only violations, got severities {sorted(sevs)}")
+
+    two = ok + "\n## Phase 2 — And the timeline\n\n**Verify:** `pnpm vitest run Timeline`\n"
+    if "plan-scoped-multi-phase" not in rules(two):
+        failures.append("scoped unit: two-phase scoped plan did not fire plan-scoped-multi-phase")
+
+    # Regression: '## Phase N Checkpoint' matches PHASE_HEADING_RE but is a tracking
+    # section, not a phase — a scoped plan carrying one must still read as one phase.
+    with_ckpt = ok + "\n## Phase 1 Checkpoint\n\n- [ ] Task 1.1: wire the filter\n"
+    if "plan-scoped-multi-phase" in rules(with_ckpt):
+        failures.append("scoped unit: 'Phase 1 Checkpoint' counted as a second phase")
+
+    no_files = ok.replace("**Files:**\n- Modify: `src/panels/ScriptPanel.tsx`\n\n", "")
+    if "plan-scoped-no-file-contract" not in rules(no_files):
+        failures.append("scoped unit: missing **Files:** did not fire plan-scoped-no-file-contract")
+
+    no_bound = ok.replace("**Out of scope:** the timeline search\n\n", "")
+    if "plan-scoped-no-boundary" not in rules(no_bound):
+        failures.append("scoped unit: missing **Out of scope:** did not fire plan-scoped-no-boundary")
+
+    empty_bound = ok.replace("**Out of scope:** the timeline search", "**Out of scope:**")
+    if "plan-scoped-no-boundary" not in rules(empty_bound):
+        failures.append("scoped unit: empty **Out of scope:** did not fire plan-scoped-no-boundary")
+
+    # A list-form boundary is legitimate — the phase template writes non-goals as bullets.
+    list_bound = ok.replace("**Out of scope:** the timeline search",
+                            "**Out of scope:**\n- the timeline search")
+    if "plan-scoped-no-boundary" in rules(list_bound):
+        failures.append("scoped unit: list-form **Out of scope:** fired (false positive)")
+
+    no_gate = ok.replace("**Verify:** `pnpm vitest run ScriptPanel`\n", "")
+    if "plan-scoped-no-machine-gate" not in rules(no_gate):
+        failures.append("scoped unit: gateless scoped plan did not fire plan-scoped-no-machine-gate")
+
+    # Backwards compatibility: this is what protects every plan written before the mode.
+    bare = "## Phase 1 — Do it\n\n## Phase 2 — Do more\n"
+    if rules(bare, fm=None) or rules(bare, fm={"status": "open"}) or rules(bare, fm={"mode": "full"}):
+        failures.append("scoped unit: a plan without mode: scoped fired scoped rules")
+
+    archived = Path(".context/plans/_archive/2026-01-01-old.md")
+    if rules("---\nmode: scoped\n---\n", path=archived):
+        failures.append("scoped unit: archived scoped plan fired (should be exempt — _archive/)")
+
+
 def check_crossref_prefix_coverage(failures: list[str]) -> None:
     """Guard: CROSSREF_FORMAT must accept the 'loop' and 'worktree' cross-ref
     prefixes (aidex-audit's escalate --loop already emits escalated_to:
@@ -647,6 +714,7 @@ def main() -> int:
     check_canon_lockstep(failures)
     check_phase_gate_unit(failures)
     check_plan_spec_shape_unit(failures)
+    check_plan_scoped_shape_unit(failures)
     check_crossref_prefix_coverage(failures)
     check_worktrees_no_double_count(good, failures)
     check_baseline_ratchet(failures)

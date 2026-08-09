@@ -1,6 +1,6 @@
 ---
 name: aidex-plan
-description: Use when the user is about to plan multi-step or multi-phase implementation work and it should become a written `.context/` plan before coding starts — a feature build, a migration, a refactor spanning backend/frontend/infra, or any task with phases and checkboxes. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let's build a multi-phase plan". Not for: deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
+description: Use when implementation work should become a written `.context/` plan before coding starts — either multi-phase work (a feature build, a migration, a refactor spanning backend/frontend/infra) or a single scoped change where only the file list and acceptance criteria need pinning down; a triage step picks which. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let's build a multi-phase plan", "implement X minimally", "a small scoped change to X", "just the minimum to ship X". Not for: fixing a bug or regression, which needs a failing test first (aidex-bugfix); deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -14,7 +14,53 @@ coding starts. This skill is the single-purpose entry point for **planning**;
 the formatting canon lives in the shared `aidex-conventions` reference package
 (not forked here).
 
-## Step 0 — Align before planning (HITL — do not skip, do not automate)
+## Triage — pick the mode before anything else
+
+Runs on **every** invocation, before Step 0. Skip it in one line only when the user names
+the mode outright ("plan this as scoped", "/aidex-plan full"). Canon:
+`plan-conventions.md` §Plan mode.
+
+The discriminator is **not size** — it is whether more than one viable design exists and
+whether choosing wrong is expensive. Delegate the investigation to a **subagent**
+(`Explore` or `general-purpose`): it may read as much of the repo as it needs, but its
+output contract is fixed — the five signals with their evidence, plus one recommended
+outcome. No design sketches, no architectural alternatives. If it cannot decide from what
+it read, the outcome is already `research`.
+
+| Observable | If yes |
+|---|---|
+| An existing repo pattern this change repeats | scoped |
+| Touches a shared contract, or an API another module consumes | full |
+| Requires a migration or schema change | full |
+| Reverts with a single `git revert` | scoped |
+| Two or more viable designs where choosing wrong costs a rewrite | full |
+
+Present the **evidence per signal**, then the recommendation — a bare verdict invites a
+rubber stamp, which is the failure this replaces. The user ratifies or corrects in one
+round. Four outcomes:
+
+- **direct** — one file, trivial. Say so and do the work; no plan doc.
+- **scoped** — go to Step 0 (scoped), below.
+- **full** — go to Step 0 (full), below.
+- **research** — the *how* is unknown. Hand off to `aidex-research`; planning now is invention.
+
+## Step 0 (scoped) — one confirmation round
+
+For `mode: scoped` only. The scope **is** the file list plus the acceptance criteria, so
+Step 0 collapses to a single confirm-or-correct round on exactly those two — no
+four-question interrogation, and **no adversarial design pass**: that already ran, once,
+at triage.
+
+Then, **before saving**, run the necessity recheck in both directions — file→criterion
+and criterion→file (`plan-conventions.md` §The necessity recheck). "Is this necessary?"
+asked of yourself always returns yes; the paired form is falsifiable.
+
+Write the plan with `mode: scoped` in the front-matter, exactly one phase, `**Files:**`
+enumerated, `**Out of scope:**` non-empty (one line), and ≥1 machine-checkable acceptance
+criterion. `validate.py` enforces all four as violations — skip Step 3's decomposition
+rules below, and go straight to the Self-check.
+
+## Step 0 (full) — Align before planning (HITL — do not skip, do not automate)
 
 Before writing any phases, establish a **shared design concept** with the user. This is the one
 step that must stay human-in-the-loop: defining scope and success criteria is the judgment an
@@ -39,7 +85,9 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    `~/.claude/skills/aidex-conventions/references/plan-conventions.md`
    (or `.claude/skills/aidex-conventions/references/plan-conventions.md` if a
    project-level copy exists).
-2. Decide single-file vs modular per that canon:
+2. Decide the structure per that canon:
+   - **Scoped** (`mode: scoped`): always single-file, exactly one phase. The rest of
+     this step does not apply.
    - **Single-file** (`.context/plans/YYYY-MM-DD-<feature>.md`): ≤ 4 phases,
      < 20 tasks, small-medium scope.
    - **Multi-file** (`.context/plans/YYYY-MM-DD-<feature>/` with `00-index.md`):
@@ -132,7 +180,8 @@ audit findings this plan resolved that may now be closeable (closure propagation
 
 After writing a plan with **≥ 2 phases**, offer phase-by-phase execution via
 `aidex-plan-exec` (review → commit → handoff between phases). Single-phase or
-trivial plans skip this — do not add noise.
+trivial plans skip this — do not add noise. A `mode: scoped` plan is one phase by
+construction, so it never reaches this step.
 
 1. Detect whether `aidex-plan-exec` is installed: check `~/.claude/skills/aidex-plan-exec/`,
    `~/.aidex/skills/aidex-plan-exec/`, and any installed plugins.
@@ -145,6 +194,7 @@ trivial plans skip this — do not add noise.
 
 | The user wants to… | Route to |
 |---|---|
+| Fix existing behavior that is wrong (a bug, a regression) | `aidex-bugfix` — it owns RED-first + regression test. A scoped plan is *new* behavior, minimally delivered; if there is something to reproduce, it is a bugfix, not a scoped plan |
 | Defer / park / shelve an idea for later | `aidex-backlog` |
 | Record a decision / ADR | `aidex-decision` |
 | Capture a stakeholder/client request | `aidex-request` |

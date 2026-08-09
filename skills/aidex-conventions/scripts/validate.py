@@ -902,6 +902,63 @@ def check_plan_spec_shape(path: Path, text: str, fm: dict | None) -> list[Findin
             f"Contract blocks (exception: tier: mechanical batch phases)"))
     return findings
 
+# ---------- Scoped-mode structural gate (plan-conventions.md § Plan mode) ----------
+
+def _real_phase_headings(text: str) -> list[re.Match]:
+    """Phase headings excluding '## Phase N Checkpoint' — same splitting the
+    gates and spec-shape checks use, so a checkpoint never counts as a phase."""
+    return [m for m in PHASE_HEADING_RE.finditer(text)
+            if not _is_checkpoint_heading(m.group(0))]
+
+def check_plan_scoped_shape(path: Path, text: str, fm: dict | None) -> list[Finding]:
+    """Structural gate for `mode: scoped` plans — violations, not warnings.
+
+    The soft proportionality budget (PLAN_SIZE_BUDGETS) was already canon and was
+    measured to be dead letter: prose asking a plan to stay small loses to a process
+    designed to expand. The scoped mode's guarantee is mechanical or it is nothing,
+    so these four are violations. Size stays a warning via check_plan_spec_shape —
+    a byte cap is a proxy that gets met by compressing prose or by dropping the
+    discovered constraints that make a plan worth reading.
+
+    Plans without `mode: scoped` are untouched (backwards compatible), and _archive/
+    is exempt for the same reason its siblings are: archived plans are finished work.
+    """
+    findings: list[Finding] = []
+    if not fm or fm.get("mode") != "scoped":
+        return findings
+    if "_archive" in path.parts:
+        return findings
+
+    phases = _real_phase_headings(text)
+    if len(phases) > 1:
+        labels = ", ".join(repr(m.group(0).lstrip("#").strip()) for m in phases[:3])
+        findings.append(Finding("plans", str(path), "plan-scoped-multi-phase", "violation",
+            f"mode: scoped declares {len(phases)} phases ({labels}...) — a scoped plan is "
+            f"exactly one phase; either drop to one or re-triage the plan as mode: full"))
+
+    body = body_after_frontmatter(text)
+    if not re.search(r"(?im)^\s*\*\*\s*files\s*:?\s*\*\*", body):
+        findings.append(Finding("plans", str(path), "plan-scoped-no-file-contract", "violation",
+            "mode: scoped declares no **Files:** block — the enumerated file list is the "
+            "contract that bounds the blast radius; without it the mode guarantees nothing"))
+
+    # Content is either on the header's own line, or a genuine list item under it.
+    # The bullet alternative needs `[-*][ \t]+` — `[-*]\s*` also matched the `*` of a
+    # following `**Files:**` header, which read an empty boundary as filled.
+    boundary_hdr = r"^[ \t]*\*\*[ \t]*out of scope[ \t]*:?[ \t]*\*\*[ \t]*:?"
+    if not re.search(boundary_hdr + r"[ \t]*\S", body, re.I | re.M) and \
+       not re.search(boundary_hdr + r"[ \t]*\n+[ \t]*[-*][ \t]+\S", body, re.I | re.M):
+        findings.append(Finding("plans", str(path), "plan-scoped-no-boundary", "violation",
+            "mode: scoped declares no non-empty **Out of scope:** — optional elsewhere, "
+            "required here: it is what stops the excluded work from being re-litigated"))
+
+    if not _phase_has_gate("".join(m.group(0) for m in phases), body, fm):
+        findings.append(Finding("plans", str(path), "plan-scoped-no-machine-gate", "violation",
+            "mode: scoped declares no machine-checkable acceptance (no `gate:`, no **Verify** "
+            "block) — the acceptance criteria are what the necessity recheck pairs files "
+            "against, and at least one must be machine-checkable"))
+    return findings
+
 # ---------- Driver ----------
 
 def find_context_dir(start: Path) -> Path | None:
@@ -993,6 +1050,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             if type_name == "plans":
                 file_findings.extend(check_plan_phase_gates(path, text, fm))
                 file_findings.extend(check_plan_spec_shape(path, text, fm))
+                file_findings.extend(check_plan_scoped_shape(path, text, fm))
             findings.extend(file_findings)
             for fnd in file_findings:
                 if fnd.severity == "violation":
