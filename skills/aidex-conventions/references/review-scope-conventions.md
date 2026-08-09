@@ -15,9 +15,30 @@ non-PR change at all:
 |---|---|---|
 | `code-review` plugin | `gh pr diff` on a pull request, comments back on it | yes |
 | `/review` built-in | a GitHub pull request | yes |
-| `/code-review` built-in | the working diff, effort-scaled angle engine | **no** — user-triggered |
+| `/code-review` built-in | the working diff, **or a `<pr#>`/`<branch>`/`<path>` target** — all resolved to a diff; effort-scaled angle engine | **unresolved** — see below |
 | `/simplify` | the changed code | yes |
 | `/security-review` | `git diff origin/HEAD...`, fixed at invocation | yes |
+
+> **Updated 2026-08-10 (CLI 2.1.226).** `/code-review` now advertises
+> `[<pr#>|<branch>|<path>]`, which the row above previously recorded as "the working
+> diff" only. A `<path>` target does **not** review that path as it stands: the skill's
+> own scope agent is instructed, verbatim, that if the target "names a PR number,
+> branch, ref range, or file path, build the matching git diff command for it". So the
+> table's shape is unchanged — every instrument here is diff-anchored — but the row was
+> stale on the capability, which is registry lag in the one file whose job is recording
+> what these instruments can do.
+>
+> The "not model-invocable" claim is **downgraded to unresolved**: it was measured
+> before this CLI version, the `ultra` path is separately gated and billed, and the
+> inline path was not re-tested. Treat it as a check at invocation, not an assumption —
+> the same standard §5 already applies to `/simplify`.
+
+**Reviewing code as it stands is out of scope for every row above**, because every row
+resolves to a diff. That case — a module, feature, path, or whole app with no base ref —
+belongs to `aidex-review`, which measures the target first (`resolve-review-target.sh`)
+and then runs Mode B angles over it. Note that its false-positive rubric **inverts**:
+`/code-review` discards "pre-existing issues" and findings "on lines the user did not
+modify", which on a module review are precisely the target.
 
 Two consequences drive every rule below.
 
@@ -126,3 +147,6 @@ to Mode B. Do not record it as working until observed.
   without an anchor cannot be audited later.
 - Prefer Mode A wherever the instrument's own scope already matches; build a
   Mode B fan-out only for what nothing covers.
+- Route a **module-as-it-stands** review to `aidex-review`, not to a scope in the enum
+  above. `module-path` here means "the changes under `<path>`" and still returns a base
+  ref; it is not the same question.
