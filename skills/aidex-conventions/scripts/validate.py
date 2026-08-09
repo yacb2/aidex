@@ -929,12 +929,21 @@ def check_plan_scoped_shape(path: Path, text: str, fm: dict | None) -> list[Find
     if "_archive" in path.parts:
         return findings
 
+    # The canon is "exactly one phase", so this is `!= 1`, not `> 1`. A `> 1` test
+    # passes a plan with ZERO phases — which carries no Goal and no Acceptance for the
+    # necessity recheck to pair files against, and whose gate check then matches any
+    # stray **Verify:** in the body. Found by reviewing this function with aidex-review.
     phases = _real_phase_headings(text)
     if len(phases) > 1:
         labels = ", ".join(repr(m.group(0).lstrip("#").strip()) for m in phases[:3])
-        findings.append(Finding("plans", str(path), "plan-scoped-multi-phase", "violation",
+        findings.append(Finding("plans", str(path), "plan-scoped-phase-count", "violation",
             f"mode: scoped declares {len(phases)} phases ({labels}...) — a scoped plan is "
             f"exactly one phase; either drop to one or re-triage the plan as mode: full"))
+    elif not phases:
+        findings.append(Finding("plans", str(path), "plan-scoped-phase-count", "violation",
+            "mode: scoped declares no phase at all — a scoped plan is exactly one phase, "
+            "and without it there is no Goal or Acceptance for the necessity recheck to "
+            "pair the file contract against"))
 
     body = body_after_frontmatter(text)
     if not re.search(r"(?im)^\s*\*\*\s*files\s*:?\s*\*\*", body):
