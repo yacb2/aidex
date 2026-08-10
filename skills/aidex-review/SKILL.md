@@ -53,9 +53,24 @@ refusal answers whether the target can be covered at all, and one flag able to s
 off would make it decorative.
 
 `size_class=oversize` is a **refusal, not a warning**: `finders_per_lens=0`. Do not run
-it anyway. Split the target into modules, review them separately, and say which ones you
-are covering now. Running the small-target finder count over a whole app produces a
-sample, and reporting a sample as a review is the failure this whole step exists to stop.
+it anyway. Running the small-target finder count over a whole app produces a sample, and
+reporting a sample as a review is the failure this whole step exists to stop.
+
+**But do not stop at the wall — propose the split.** Re-run with `--partition`: one part
+per immediate subdirectory, each measured like a target in its own right, plus a named
+`(root)` part for files sitting directly in the target. Present that table, say which
+parts you are covering now, and give the cost as the sum. The union of the parts is real
+coverage where one sampled pass never was — which is why phasing is the answer here and
+a bigger finder count is not.
+
+Three things the partition tells you, and all three matter:
+
+- `partitionable=no` with a `partition_note` — a flat target or a single file. There is
+  nothing to split on; name a narrower target.
+- `part.<name>.needs_split=yes` — that part is *still* oversize. Partition it in turn.
+  Depth-1 does not always converge (measured: a 12,712-LOC part, over by 6%).
+- The parts sum to the whole. If you re-derive a split by hand, keep that property —
+  a partition that loses files is a completeness claim that is false.
 
 ## Step 2 — Triage: propose what to launch, with its cost
 
