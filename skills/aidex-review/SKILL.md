@@ -83,15 +83,21 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
 
 ## Step 4 — Report, then make it survive the session
 
-Report with the `ReportFindings` tool, most-severe first, `verdict` set from Step 3.
-This is the one piece of the built-in machinery that transfers unchanged: the input
-scope does not, the false-positive rubric actively inverts, but the output surface is
-the same.
+Report with the `ReportFindings` tool when it is available, most-severe first, `verdict`
+set from Step 3. It is the one piece of built-in machinery that transfers unchanged —
+the input scope does not.
 
-Then **offer to register the `CONFIRMED` findings** as backlog items:
+**It is not always available.** Its exposure is feature-gated and is off at low effort,
+so check your own tool list rather than assuming. Absent it, print the same content as
+a ranked list: `file:line`, severity, one-line claim, then the failure scenario. Never
+drop a finding because the reporting surface was missing.
+
+Then **offer to register the `CONFIRMED` findings** as backlog items — one call each,
+using the real interface (verified 2026-08-10):
 
 ```bash
-bash ~/.aidex/skills/aidex-backlog/scripts/register.sh --help
+bash ~/.aidex/skills/aidex-backlog/scripts/register-item.sh \
+  --origin manual --title "<the finding>" --type bug --priority P2 --estimate S
 ```
 
 Do not register silently, and do not register `PLAUSIBLE` ones. This step is not
