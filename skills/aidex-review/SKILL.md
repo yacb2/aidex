@@ -130,6 +130,27 @@ case launch what you judged and report the same table alongside the findings.
 
 Fan out with the `Workflow` tool (this skill body is the opt-in that makes it available).
 
+0. **Every agent is read-only on the project, and this goes in every prompt verbatim.**
+   The skill's own `allowed-tools` has no `Edit`/`Write`, but subagents do not inherit it
+   — they get their own toolset, and on the one measured run the verifiers ran real
+   commands and stood up sandboxes. That is what produced the quality; it is also an
+   unbounded write surface on someone's real project.
+
+   > You are reviewing, not changing. Do not edit, create or delete any file in the
+   > project. Do not run migrations, `manage.py`/`rails`/`artisan` shells, seed or fixture
+   > commands, or anything that writes to the application database in any environment.
+   > Do not start or restart services. Reproduce a defect in a scratch copy under `_tmp/`
+   > or outside the repo — never in place. If a candidate can only be confirmed by
+   > mutating something real, that is `PLAUSIBLE` with the reason, not `CONFIRMED`.
+
+   The last clause matters more than it looks: the first run returned zero `PLAUSIBLE`
+   out of 27, and "I could not confirm this without touching real state" is exactly what
+   that verdict is for.
+
+   **Prove it afterwards rather than asserting it.** Capture `git status --porcelain` in
+   the target repo before and after, and report the diff — "nothing was touched" is a
+   claim, and this skill does not accept claims without output.
+
 1. **Find** — one agent per chosen angle, in parallel, over the resolved file list
    (`--files`). Give every finder the inversion rule from the catalog verbatim:
    pre-existing defects are in scope; age is not evidence of correctness. Each returns
