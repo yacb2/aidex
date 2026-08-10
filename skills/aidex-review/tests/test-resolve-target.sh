@@ -143,8 +143,35 @@ printf 'x = 1\n' > "$TMP/conv/src/protest_utils.py"
 [ "$(field source_loc "$TMP/conv")" = "2" ] \
   || fail "latest.ts and protest_utils.py must NOT be read as tests (false positives), source_loc=$(field source_loc "$TMP/conv")"
 
+# 16. --finders decouples depth from size. The size class was meant as a ceiling on
+#     cost and had silently become the floor on depth: to get 4 finders you had to
+#     point at something big, which is the opposite of what "review this small file
+#     thoroughly" wants. /code-review scales its angles by EFFORT and treats diff size
+#     as a precondition; we had the two swapped.
+[ "$(field finders_per_lens --finders 4 "$TMP/mod")" = "4" ] \
+  || fail "--finders 4 on a small target: expected 4, got $(field finders_per_lens --finders 4 "$TMP/mod")"
+[ "$(field finder_floor_ktokens_per_lens --finders 4 "$TMP/mod")" = "88" ] \
+  || fail "the cost floor must follow the override (4 x 22k), got $(field finder_floor_ktokens_per_lens --finders 4 "$TMP/mod")"
+[ "$(field size_class --finders 4 "$TMP/mod")" = "small" ] \
+  || fail "--finders must not rewrite the measured size class"
+
+# 17. It is capped at the angle catalog's own maximum. Asking for 8 finders cannot
+#     produce 8 angles — correctness has 4 in the catalog and security has 2 — so an
+#     uncapped override would announce coverage the catalog cannot supply.
+[ "$(field finders_per_lens --finders 9 "$TMP/mod")" = "4" ] \
+  || fail "--finders must clamp to the catalog max of 4, got $(field finders_per_lens --finders 9 "$TMP/mod")"
+[ "$(run_code --finders 0 "$TMP/mod")" = "2" ] || fail "--finders 0 must be a usage error"
+[ "$(run_code --finders abc "$TMP/mod")" = "2" ] || fail "--finders abc must be a usage error"
+
+# 18. It must NOT override the oversize refusal. Depth and admissibility are different
+#     questions: if --finders could buy its way past oversize, the refusal that stops a
+#     sample being reported as coverage would be one flag away from useless.
+[ "$(field finders_per_lens --finders 4 "$TMP/big")" = "0" ] \
+  || fail "--finders bought its way past the oversize refusal"
+[ "$(field size_class --finders 4 "$TMP/big")" = "oversize" ] || fail "oversize must survive --finders"
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 15 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source)"
+  echo "OK — resolve-review-target: 18 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"

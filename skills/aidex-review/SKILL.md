@@ -1,7 +1,7 @@
 ---
 name: aidex-review
 description: Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "code review of src/panels", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app". Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (aidex-audit); fixing a specific known bug (aidex-bugfix).
-argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--go]"
+argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--go]"
 disable-model-invocation: false
 allowed-tools: Bash Read Grep Glob Workflow Agent ReportFindings
 ---
@@ -42,6 +42,15 @@ Read the exit code before the output:
 - **2** — usage error or missing path. Fix and re-run.
 - **3** — resolved to zero source files. Say that. It is a fact, never a clean result.
 - **0** — proceed with the measurement.
+
+**Depth is the caller's; admissibility is not.** `--finders N` overrides the count the
+size class implies, clamped to the catalog's 4 angles. It exists because the class was
+meant as a ceiling on cost and had become the floor on depth — to get 4 finders you had
+to point at something *big*, which is the opposite of what "review this small file
+thoroughly" wants. (`/code-review` scales angles by **effort** and treats diff size as a
+precondition; we had the two swapped.) `--finders` can never override `oversize`: that
+refusal answers whether the target can be covered at all, and one flag able to switch it
+off would make it decorative.
 
 `size_class=oversize` is a **refusal, not a warning**: `finders_per_lens=0`. Do not run
 it anyway. Split the target into modules, review them separately, and say which ones you
