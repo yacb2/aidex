@@ -171,6 +171,25 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
 3. **Verify** — one agent per *merged* candidate, prompted to **refute**, returning
    `CONFIRMED` / `PLAUSIBLE` / `REFUTED`. Keep the first two.
 
+   **The verifier also returns `severity`, and it overrides the finder's.** A finder
+   claims severity from the code it read; the verifier claims it after establishing what
+   actually triggers and what the blast radius is, which is strictly more information.
+   Measured 2026-08-10 on a real module: the verifiers downgraded **4 of 16** — three
+   high→medium and one medium→low — and the report ranked by the finder's claim anyway,
+   announcing four confirmed highs where verification supported one. A report that
+   overstates what its own verify phase established is the failure this skill exists to
+   stop, aimed at itself.
+
+   `PLAUSIBLE` also returns **why**, as one of two:
+   - `unreachable-trigger` — the mechanism is unrefuted but the trigger is a concurrent
+     schedule, live service, or real database the run is forbidden to touch. Actionable:
+     it can be settled in a disposable environment.
+   - `undetermined` — the reviewer looked and could not tell. Not actionable as-is.
+
+   They are not the same claim and must not share a line. On the measured run 5 of 7 were
+   `unreachable-trigger`, all created by the read-only contract in step 0 — which is the
+   contract working, not the review degrading.
+
 4. **Account for every angle that did not come back.** `agent()` returns `null` on a
    terminal error and `parallel()` maps a failing thunk to `null`; inside `pipeline()` a
    throwing stage drops the item to `null` and skips its remaining stages, so a dead finder
@@ -196,23 +215,58 @@ Report with the `ReportFindings` tool when it is available, most-severe first, `
 set from Step 3. It is the one piece of built-in machinery that transfers unchanged —
 the input scope does not.
 
+**Rank by the verifier's severity, and say that is what you ranked by.** The finder's
+claim is an input to verification, not an output of it. Print `severity source: verifier`
+in the arithmetic below, and where the two disagree, say so per finding — a downgrade is
+a result, not an edit.
+
 **It is not always available.** Its exposure is feature-gated and is off at low effort,
 so check your own tool list rather than assuming. Absent it, print the same content as
 a ranked list: `file:line`, severity, one-line claim, then the failure scenario. Never
 drop a finding because the reporting surface was missing.
 
-Then **offer to register the `CONFIRMED` findings** as backlog items — one call each,
-using the real interface (verified 2026-08-10):
+Then **offer to land the findings — and route, do not assume backlog.** Never land
+silently. The two destinations are not interchangeable, and the count plus the verdict
+mix picks between them:
+
+| Land in | When | Why |
+|---|---|---|
+| **backlog** — `aidex-backlog` | a handful of findings, essentially all `CONFIRMED` | each is a unit of work; a queue is the right shape |
+| **an audit run** — `aidex-audit` | many findings, or any real `PLAUSIBLE` tier | findings need a lifecycle and per-finding escalation later; a backlog drops `PLAUSIBLE` on the floor, and 7 of 16 unrefuted mechanisms is not floor material |
+
+Backlog, one call each, real interface (verified 2026-08-10):
 
 ```bash
 bash ~/.aidex/skills/aidex-backlog/scripts/register-item.sh \
   --origin manual --title "<the finding>" --type bug --priority P2 --estimate S
 ```
 
-Do not register silently, and do not register `PLAUSIBLE` ones. This step is not
-ceremony: verification that leaves no artifact does not accumulate — measured across
-this ecosystem, 5 of 6 verification actions leave nothing behind. A review whose
-findings live only in terminal scrollback has, a week later, not happened.
+Audit run — **`aidex-audit` owns this format; do not grow a second writer here**:
+
+```bash
+bash ~/.aidex/skills/aidex-audit/scripts/new-audit.sh custom <slug>   # methodology run,
+#   NOT --standalone: escalate-finding.sh resolves ids only through
+#   audits/<methodology>/00-inventory.md, so a standalone run cannot be escalated by id
+```
+Then add one inventory row per finding and put the detail in the run's `findings.md`.
+`PLAUSIBLE` findings go in too, carrying their verdict — that is the whole reason to
+choose this destination.
+
+**Then prove the landing, with `aidex-audit`'s own validator, not by looking:**
+
+```bash
+bash ~/.aidex/skills/aidex-audit/scripts/validate-audit.sh
+```
+
+An `audit-orphan-finding-ref` means the ids are in the journal and **not** in the
+inventory — the write did not land. This is not hypothetical: on 2026-08-10 a hand-written
+inventory seed silently no-op'd (the placeholder row it targeted did not match) and every
+one of 16 ids was orphaned. The findings looked recorded and were not. That validator is
+what caught it, which is exactly why the proof is delegated to it rather than reimplemented.
+
+This step is not ceremony: verification that leaves no artifact does not accumulate —
+measured across this ecosystem, 5 of 6 verification actions leave nothing behind. A review
+whose findings live only in terminal scrollback has, a week later, not happened.
 
 **Print the arithmetic. If the numbers are not in the output, the step above it did not
 run.** That is the only check a prose instruction can carry, and each of these three lines
@@ -222,6 +276,8 @@ exists because the first live run skipped exactly the step it reconciles (2026-0
 |---|---|---|
 | angles **announced / launched / retried / returned** | Step 2's table | "6 / 6 / 1 / 5" is unmissable; a bare "6 angles" hid a finder that died mid-run. `retried` is there because **fell** is only a legitimate verdict after the one retry, and a run that skipped the retry reports it identically otherwise |
 | candidates **raw / distinct after merge / confirmed** | Step 3.2 | 22 confirmed that were ~15 defects — the merge was specified and never executed |
+| verdicts **confirmed / plausible-unreachable / plausible-undetermined / refuted** | Step 3.3 | one run reported 7 plausible as one bucket, hiding that 5 were settleable in a disposable env |
+| **severity source: verifier** | Step 3.3 | the verifiers downgraded 4 of 16 and the report ranked by the finder anyway |
 | cost **floor / actual** | Step 2's floor | announced 132k, spent 2.2M |
 
 Then say plainly what was **not** covered: angles **dropped** (the cap cut them) and angles
