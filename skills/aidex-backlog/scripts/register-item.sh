@@ -205,23 +205,36 @@ stamp_escalated_to() {
   mv "$f.tmp" "$f"
 }
 
-# Write a compact backlog entry (used by --escalate-to for both the source stub
-# and the cross-repo counterpart). Echoes the created path on stdout.
-emit_backlog_stub() {
-  local dir="$1" id="$2" title="$3" origin="$4" origin_ref="$5" priority="$6" type="$7" escalated_to="$8" note="$9"
-  # Carried through rather than hardcoded: --estimate/--status/--blocked-by used to pass
-  # their validation gates and then be silently overwritten here, so a declared-blocked
-  # P0 item landed in the active queue as `open · M`. Found 2026-08-10 by aidex-review.
-  local estimate="${10:-M}" status="${11:-open}" blocked_by="${12:-}"
-  local date_iso slug id_seg out esc_title esc_blocked
+# The ONE entry template. Both writers render through this: they were hand-maintained
+# copies that had already drifted in three flags, in empty-slug handling, and in the
+# Acceptance comment. Found 2026-08-10 by aidex-review.
+#
+# The two differences between the call sites are real, so they are parameters, not
+# branches: `context` is the unfilled template prompt on the normal path and a written
+# note on the escalate path, and `notes` carries the audit provenance lines that only
+# the normal path has.
+#
+# Args: out id title status origin origin_ref priority type estimate blocked_by
+#       escalated_to context notes
+emit_backlog_entry() {
+  local out="$1" id="$2" title="$3" status="$4" origin="$5" origin_ref="$6" \
+        priority="$7" type="$8" estimate="$9" blocked_by="${10}" escalated_to="${11}" \
+        context="${12}" notes="${13}"
+  local date_iso esc_title esc_blocked body_title
   date_iso="$(date +%Y-%m-%d)"
-  slug="$(title_to_slug "$title")"; [[ -n "$slug" ]] || slug="item"
-  id_seg="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"
   esc_title="$(yaml_escape "$title")"
   esc_blocked="$(yaml_escape "$blocked_by")"
-  mkdir -p "$dir" || die "could not create $dir"
-  out="$dir/$date_iso-$id_seg-$slug.md"
-  cat > "$out" <<EOF
+  # The H1 takes the flattened title, never the YAML-escaped one. Both copies used the
+  # escaped form in both places, so `a "quoted" word` rendered as `a \"quoted\" word` in
+  # the markdown body. Only newlines need flattening here; a quote is legal markdown.
+  body_title="$(printf '%s' "$title" | tr '\n\r\t' '   ')"
+  # Deliberately NO `mkdir -p "$(dirname "$out")"`: the backlog directory is the caller's
+  # to create, and creating $out's parent here would silently accept a `--slug` containing
+  # a slash, filing the item in a subdirectory where the index glob and the id scanner
+  # cannot see it — so its id would later be re-minted. The failed write is the correct
+  # outcome for that input.
+  {
+    cat <<EOF
 ---
 title: "$esc_title"
 id: $id
@@ -238,14 +251,15 @@ escalated_to: "$escalated_to"
 commits: ""
 ---
 
-# $esc_title
+# $body_title
 
 ## Context
 
-$note
+$context
 
 ## Acceptance
 
+<!-- Optional at registration for a parked idea; required before open->doing. -->
 Done means:
 
 - <!-- concrete, verifiable criterion -->
@@ -253,7 +267,34 @@ Done means:
 ## Notes
 
 EOF
-  [[ -s "$out" ]] || die "could not write $out"
+    # `if`, never `[[ -n "$notes" ]] && printf`: as the last command of this group the
+    # && form returns 1 on an empty value, the group inherits it, and the `|| die` below
+    # then reports "could not write" on a file that was written correctly. That was a
+    # live defect on the audit path — `--origin audit` with no `--audit-run` exited 2
+    # having written the item, spending its id and returning no path.
+    if [[ -n "$notes" ]]; then printf '%s\n' "$notes"; fi
+  } > "$out" || die "could not write $out"
+  # `set -e` does NOT abort on a redirect failure of a compound command, so this guard
+  # is what stops a failed write from reporting success.
+  [[ -s "$out" ]] || die "wrote nothing to $out"
+}
+
+# Write a compact backlog entry (used by --escalate-to for both the source stub
+# and the cross-repo counterpart). Echoes the created path on stdout.
+emit_backlog_stub() {
+  local dir="$1" id="$2" title="$3" origin="$4" origin_ref="$5" priority="$6" type="$7" escalated_to="$8" note="$9"
+  # Carried through rather than hardcoded: --estimate/--status/--blocked-by used to pass
+  # their validation gates and then be silently overwritten here, so a declared-blocked
+  # P0 item landed in the active queue as `open · M`. Found 2026-08-10 by aidex-review.
+  local estimate="${10:-M}" status="${11:-open}" blocked_by="${12:-}"
+  local date_iso slug id_seg out
+  date_iso="$(date +%Y-%m-%d)"
+  slug="$(title_to_slug "$title")"; [[ -n "$slug" ]] || slug="item"
+  id_seg="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"
+  mkdir -p "$dir" || die "could not create $dir"
+  out="$dir/$date_iso-$id_seg-$slug.md"
+  emit_backlog_entry "$out" "$id" "$title" "$status" "$origin" "${origin_ref:-}" \
+    "$priority" "$type" "$estimate" "$blocked_by" "$escalated_to" "$note" ""
   printf '%s\n' "$out"
 }
 
@@ -793,61 +834,29 @@ mkdir -p "$BACKLOG_DIR"
 # Minted before the filename because the name carries it. No clobber guard is
 # needed: the id is unique across active + _archive + _deferred by construction.
 ITEM_ID="$(next_backlog_id "$BACKLOG_DIR")"
-ESC_TITLE="$(yaml_escape "$TITLE")"
-ESC_BLOCKED="$(yaml_escape "$BLOCKED_BY")"
 OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$(printf '%s' "$ITEM_ID" | tr 'A-Z' 'a-z')-$SLUG.md"
 
-# --- write entry ---
-{
-  cat <<EOF
----
-title: "$ESC_TITLE"
-id: $ITEM_ID
-status: $STATUS
-created: $DATE_ISO
-updated: $DATE_ISO
-origin: $ORIGIN
-origin_ref: ${ORIGIN_REF:-}
-priority: $PRIORITY
-type: $TYPE
-estimate: $ESTIMATE
-blocked_by: "$ESC_BLOCKED"
-escalated_to: ""
-commits: ""
----
-
-# $ESC_TITLE
-
-## Context
-
-<!-- Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->
-
-## Acceptance
-
-<!-- Optional at registration for a parked idea; required before open->doing. -->
-Done means:
-
-- <!-- concrete, verifiable criterion -->
-
-## Notes
-
-EOF
-
-  if [[ "$ORIGIN" == "audit" ]]; then
-    echo "- Origin: audit finding [$FINDING]"
-    # $AUDIT_REL, not raw $AUDIT_RUN: the methodology was already resolved off disk when
-    # origin_ref was derived, and re-deriving here dropped it — emitting
-    # `.context/audits/<run>/`, a path that cannot exist under the D-02 grouped layout.
-    # The ref was correct and the human-readable path beside it pointed nowhere. The
-    # fallback keeps genuinely ungrouped pre-D-02 runs working.
-    # Found 2026-08-10 by aidex-review.
-    [[ -n "$AUDIT_RUN" ]] && echo "  - Audit run: \`.context/audits/${AUDIT_REL:-$AUDIT_RUN}/\` (path uses pre-D-02 layout if no methodology prefix)"
+# --- audit provenance, appended under ## Notes ---
+NOTES_BLOCK=""
+if [[ "$ORIGIN" == "audit" ]]; then
+  NOTES_BLOCK="- Origin: audit finding [$FINDING]"
+  # $AUDIT_REL, not raw $AUDIT_RUN: the methodology was already resolved off disk when
+  # origin_ref was derived, and re-deriving here dropped it — emitting
+  # `.context/audits/<run>/`, a path that cannot exist under the D-02 grouped layout.
+  # The ref was correct and the human-readable path beside it pointed nowhere. The
+  # fallback keeps genuinely ungrouped pre-D-02 runs working.
+  # Found 2026-08-10 by aidex-review.
+  if [[ -n "$AUDIT_RUN" ]]; then
+    NOTES_BLOCK="$NOTES_BLOCK
+  - Audit run: \`.context/audits/${AUDIT_REL:-$AUDIT_RUN}/\` (path uses pre-D-02 layout if no methodology prefix)"
   fi
-} > "$OUT_FILE" || die "could not write $OUT_FILE"
-# `set -e` does NOT abort on a redirect failure of a compound command, so without this
-# guard a failed write printed "Backlog entry created", sent a nonexistent path to stdout
-# and exited 0 — and callers recorded a backlog path that was never written.
-[[ -s "$OUT_FILE" ]] || die "wrote nothing to $OUT_FILE"
+fi
+
+# --- write entry (through the one template — see emit_backlog_entry) ---
+emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN_REF:-}" \
+  "$PRIORITY" "$TYPE" "$ESTIMATE" "$BLOCKED_BY" "" \
+  "<!-- Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
+  "$NOTES_BLOCK"
 
 ok "Backlog entry created"
 printf '  %s\n' "$OUT_FILE" >&2

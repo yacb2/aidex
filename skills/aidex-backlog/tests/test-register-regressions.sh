@@ -217,10 +217,72 @@ grep -q 'audits/2026-01-01-flat/' "$A9B" \
   && ok "B9 ungrouped legacy run still emits the flat path" \
   || bad "B9 the flat fallback broke"
 
+# ── B10 · one entry template, and the two call sites keep their differences ───
+# Was: emit_backlog_stub was a hand-maintained second copy of the main write block,
+# already drifted in three flags and in empty-slug handling. Unifying them is only
+# correct if the two DELIBERATE differences survive — the escalate stub carries a
+# real Context note where the normal path carries the unfilled template comment,
+# and only the normal path appends the audit Notes lines. A merge that flattens
+# either one passes a cell that just checks "both have front-matter".
+D="$(fresh b10)"; cd "$D"
+M10="$(bash "$REG" --origin manual --title "normal path" 2>/dev/null)"
+grep -q 'Why is this worth doing' "$M10" \
+  && ok "B10 normal path keeps the unfilled Context prompt" \
+  || bad "B10 the normal path lost its Context template comment"
+
+mkdir -p "$TMP/b10tgt/.context/backlog"
+bash "$REG" --origin manual --title "routed job" --escalate-to "$TMP/b10tgt" >/dev/null 2>&1
+# by title, not `head -1`: the normal-path item registered above sorts first
+S10="$(grep -l 'routed job' .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+T10="$(grep -l 'routed job' "$TMP/b10tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+grep -q 'Escalated to' "$S10" \
+  && ok "B10 escalate source keeps its real Context note" \
+  || bad "B10 the escalate stub lost its Context note"
+grep -q 'routed here for execution' "$T10" \
+  && ok "B10 counterpart keeps its own Context note" \
+  || bad "B10 the counterpart lost its Context note"
+grep -q 'Why is this worth doing' "$S10" \
+  && bad "B10 the template comment leaked into an escalate stub that has a real note" \
+  || ok "B10 the two Context blocks stay distinct"
+
+D="$(fresh b10b)"; cd "$D"
+mkdir -p .context/audits/perf/2026-01-01-run
+A10="$(bash "$REG" --origin audit --title "from an audit" --finding F-09 --audit-run 2026-01-01-run 2>/dev/null)"
+grep -q 'Origin: audit finding \[F-09\]' "$A10" \
+  && ok "B10 the audit Notes lines survive the unification" \
+  || bad "B10 the audit Notes lines were lost"
+
+# The escaped title belongs in the YAML scalar, NOT in the markdown H1. Both copies
+# put ESC_TITLE in both places, so a title with a quote rendered as \" in the body.
+D="$(fresh b10c)"; cd "$D"
+Q10="$(bash "$REG" --origin manual --title 'a "quoted" word' 2>/dev/null)"
+[[ "$(fm "$Q10" title)" == '"a \"quoted\" word"' ]] \
+  && ok "B10 front-matter title stays escaped" \
+  || bad "B10 front-matter title is $(fm "$Q10" title)"
+grep -q '^# a "quoted" word$' "$Q10" \
+  && ok "B10 the body heading is not YAML-escaped" \
+  || bad "B10 body heading is '$(grep '^# ' "$Q10" | head -1)' — YAML escaping leaked into markdown"
+
+# ── B11 · an audit item with no --audit-run must not report a failed write ────
+# The inverse of every other cell here: the file is written CORRECTLY and the
+# script reports failure. `[[ -n "$AUDIT_RUN" ]] && echo ...` was the last command
+# of the `if` block, so with no --audit-run it returned 1, the enclosing { } group
+# inherited that status, and `|| die` fired "could not write" — on a file that is
+# right there on disk. The caller gets exit 2 and no path, the item exists, and its
+# id is spent. Found 2026-08-10 while unifying the templates for BL-137.
+D="$(fresh b11)"; cd "$D"
+B11OUT="$(bash "$REG" --origin audit --title "no run given" --finding F-77 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 ]] && ok "B11 audit item without --audit-run exits 0" \
+  || bad "B11 exited $RC on a write that succeeded"
+[[ -n "$B11OUT" && -f "$B11OUT" ]] && ok "B11 the path is returned to the caller" \
+  || bad "B11 wrote the file but returned no path — an orphan with a spent id"
+[[ -n "$B11OUT" ]] && grep -q 'Origin: audit finding \[F-77\]' "$B11OUT" \
+  && ok "B11 the finding is still recorded" || bad "B11 lost the finding line"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 9 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 12 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
