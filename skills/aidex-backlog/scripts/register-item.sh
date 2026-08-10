@@ -545,8 +545,17 @@ if [[ $LIST_ONLY -eq 1 ]]; then
 
   read_field() {
     # trim inside awk — piping through xargs broke on unbalanced quotes (apostrophes)
+    #
+    # The front-matter boundary is load-bearing, and this was the one reader missing it
+    # — read_fm_fields, read_closed_fields and read_deferred_fields all track it. Without
+    # it `$1 == key` matches body prose too. A generated item is immune (it always carries
+    # every key, and the first match wins), so only a hand-authored item with the key
+    # absent from its header reaches the defect: a line in the body starting `blocked_by:`
+    # then moved the item out of the active queue into Blocked, from prose alone.
+    # Found 2026-08-10 by aidex-review.
     awk -F': ' -v key="$1" '
-      $1 == key {
+      /^---[[:space:]]*$/ { fm++; if (fm==2) exit; next }
+      fm==1 && $1 == key {
         sub(/^[^:]*: */, ""); gsub(/^"|"$/, "")
         gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit
       }
@@ -588,13 +597,18 @@ if [[ $LIST_ONLY -eq 1 ]]; then
     printf '%s\n' "${items[@]}"
   }
 
+  # `${arr[@]+"${arr[@]}"}` and NOT `"${arr[@]:-}"`: the latter expands an empty array
+  # to one empty-string argument, so print_section saw ${#items[@]} == 1, its own
+  # empty guard never fired, and a list with a single P2 item printed six headings —
+  # five of them over nothing. This form expands to zero arguments while still being
+  # safe under `set -u` on bash 3.2. Found 2026-08-10 by aidex-review.
   printf '%sOpen backlog entries (grouped by priority):%s\n' "$C_BOLD" "$C_RESET"
-  print_section "P0 — Critical"   "$C_RED"    "${P0[@]:-}"
-  print_section "P1 — High"       "$C_YELLOW" "${P1[@]:-}"
-  print_section "P2 — Medium"     "$C_BLUE"   "${P2[@]:-}"
-  print_section "P3 — Low"        "$C_DIM"    "${P3[@]:-}"
-  print_section "Blocked (third-party)" "$C_DIM" "${BLOCKED[@]:-}"
-  print_section "Unclassified (legacy — preview: migrate-priorities.sh, write: --apply)" "$C_RED" "${PUNK[@]:-}"
+  print_section "P0 — Critical"   "$C_RED"    ${P0[@]+"${P0[@]}"}
+  print_section "P1 — High"       "$C_YELLOW" ${P1[@]+"${P1[@]}"}
+  print_section "P2 — Medium"     "$C_BLUE"   ${P2[@]+"${P2[@]}"}
+  print_section "P3 — Low"        "$C_DIM"    ${P3[@]+"${P3[@]}"}
+  print_section "Blocked (third-party)" "$C_DIM" ${BLOCKED[@]+"${BLOCKED[@]}"}
+  print_section "Unclassified (legacy — preview: migrate-priorities.sh, write: --apply)" "$C_RED" ${PUNK[@]+"${PUNK[@]}"}
 
   total=$((${#P0[@]} + ${#P1[@]} + ${#P2[@]} + ${#P3[@]} + ${#PUNK[@]} + ${#BLOCKED[@]}))
   [[ $total -eq 0 ]] && printf '\n  (no open entries)\n'
@@ -821,7 +835,13 @@ EOF
 
   if [[ "$ORIGIN" == "audit" ]]; then
     echo "- Origin: audit finding [$FINDING]"
-    [[ -n "$AUDIT_RUN" ]] && echo "  - Audit run: \`.context/audits/$AUDIT_RUN/\` (path uses pre-D-02 layout if no methodology prefix)"
+    # $AUDIT_REL, not raw $AUDIT_RUN: the methodology was already resolved off disk when
+    # origin_ref was derived, and re-deriving here dropped it — emitting
+    # `.context/audits/<run>/`, a path that cannot exist under the D-02 grouped layout.
+    # The ref was correct and the human-readable path beside it pointed nowhere. The
+    # fallback keeps genuinely ungrouped pre-D-02 runs working.
+    # Found 2026-08-10 by aidex-review.
+    [[ -n "$AUDIT_RUN" ]] && echo "  - Audit run: \`.context/audits/${AUDIT_REL:-$AUDIT_RUN}/\` (path uses pre-D-02 layout if no methodology prefix)"
   fi
 } > "$OUT_FILE" || die "could not write $OUT_FILE"
 # `set -e` does NOT abort on a redirect failure of a compound command, so without this

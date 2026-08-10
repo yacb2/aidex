@@ -146,10 +146,81 @@ else
   bad "B6 no source item written"
 fi
 
+# ── B7 · --list must not print a heading for an empty priority ────────────────
+# Was: print_section's `[[ ${#items[@]} -eq 0 ]] && return` guard was dead code.
+# The call site passes "${P0[@]:-}", which on an empty array expands to ONE empty
+# string, not zero args — so items had length 1 and every heading printed. A list
+# with a single P2 item showed five headings, four of them over nothing.
+D="$(fresh b7)"; cd "$D"
+bash "$REG" --origin manual --title "only a medium one" --priority P2 >/dev/null 2>&1
+LIST="$(NO_COLOR=1 bash "$REG" --list 2>/dev/null)"
+HEADS="$(printf '%s\n' "$LIST" | grep -c '^P[0-3] —\|^Blocked\|^Unclassified' || true)"
+[[ "$HEADS" -eq 1 ]] && ok "B7 one populated priority prints exactly one heading" \
+  || bad "B7 printed $HEADS headings for a single P2 item (expected 1)"
+printf '%s\n' "$LIST" | grep -q 'P2 — Medium' && ok "B7 the populated heading is still printed" \
+  || bad "B7 the P2 heading went missing"
+
+# ── B8 · --list's read_field must stop at the front-matter boundary ───────────
+# Was: read_field had no front-matter tracking (the three other readers in this
+# script all have it), so `$1 == key` matched anywhere in the file. `exit`-on-first
+# -match hides this for generated items, which always carry every key — so the cell
+# has to be HAND-AUTHORED, with the key absent from front-matter and present in the
+# body. Body prose then decided which section --list filed the item under.
+D="$(fresh b8)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-001-prose.md <<'EOF'
+---
+title: "prose must not set fields"
+id: BL-001
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+
+# prose must not set fields
+
+## Context
+
+This item used to be blocked. The field we deleted from the header read:
+
+blocked_by: "a vendor that no longer matters"
+
+It is not blocked any more, which is why the key is gone from the front-matter.
+EOF
+LIST="$(NO_COLOR=1 bash "$REG" --list 2>/dev/null)"
+printf '%s\n' "$LIST" | grep -q 'Blocked' \
+  && bad "B8 body prose routed an unblocked item into Blocked" \
+  || ok "B8 body prose cannot supply blocked_by"
+printf '%s\n' "$LIST" | grep -q 'P2 — Medium' \
+  && ok "B8 the item stays in its real priority section" \
+  || bad "B8 the item vanished from the active queue"
+
+# ── B9 · the audit Notes line must use the resolved path, not the raw run ─────
+# Was: origin_ref correctly resolved the D-02 methodology off disk into AUDIT_REL,
+# and then the Notes line re-derived the path from the raw $AUDIT_RUN — emitting
+# `.context/audits/<run>/`, which under the grouped layout does not exist. The ref
+# was right and the human-readable path beside it pointed nowhere.
+D="$(fresh b9)"; cd "$D"
+mkdir -p .context/audits/security/2026-01-01-first-pass
+A9="$(bash "$REG" --origin audit --title "grouped run" --finding F-01 --audit-run 2026-01-01-first-pass 2>/dev/null)"
+grep -q 'audits/security/2026-01-01-first-pass/' "$A9" \
+  && ok "B9 Notes path carries the D-02 methodology segment" \
+  || bad "B9 Notes path is $(grep -o '\.context/audits/[^`]*' "$A9" | head -1) — the methodology is missing"
+[[ "$(fm "$A9" origin_ref)" == "audit/security/2026-01-01-first-pass/F-01" ]] \
+  && ok "B9 origin_ref still resolves the methodology" \
+  || bad "B9 origin_ref is '$(fm "$A9" origin_ref)'"
+
+# The pre-D-02 ungrouped fallback must keep working: no audits/ tree at all.
+D="$(fresh b9b)"; cd "$D"
+A9B="$(bash "$REG" --origin audit --title "flat run" --finding F-02 --audit-run 2026-01-01-flat 2>/dev/null)"
+grep -q 'audits/2026-01-01-flat/' "$A9B" \
+  && ok "B9 ungrouped legacy run still emits the flat path" \
+  || bad "B9 the flat fallback broke"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 6 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 9 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
