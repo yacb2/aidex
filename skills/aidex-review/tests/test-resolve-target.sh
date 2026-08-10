@@ -80,8 +80,21 @@ fi
 printf 'API_KEY = "x"\ncursor.execute(q)\n' > "$TMP/mod/creds.py"
 [ "$(field security_surface_files "$TMP/mod")" -ge 1 ] || fail "security surface probe found nothing in a file with API_KEY"
 
+# 11. The cost key is a FLOOR and is named as one, and SKILL.md quotes the name the
+#     script actually prints. Registry-lag drift — a heredoc key with one prose
+#     consumer — is this repo's named failure mode, so the two are asserted together.
+[ "$(field finder_floor_ktokens_per_lens "$TMP/mod")" = "44" ] \
+  || fail "finder_floor_ktokens_per_lens: expected 44 (2 finders x 22k) for small"
+if run "$TMP/mod" | grep -q 'est_ktokens_per_lens'; then
+  fail "the old est_ktokens_per_lens key is still emitted — it reads as a total, which it is not"
+fi
+SKILL_MD="$(dirname "$RESOLVER")/../SKILL.md"
+if ! grep -q 'finder_floor_ktokens_per_lens' "$SKILL_MD"; then
+  fail "SKILL.md does not name the cost key the resolver prints"
+fi
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 10 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds)"
+  echo "OK — resolve-review-target: 11 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"

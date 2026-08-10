@@ -56,18 +56,34 @@ Lens selection when the user said `all` (or named no lens):
 | `security` | `security_surface_files` > 0 **and** the module handles input, auth, secrets, or subprocesses | the probe found no surface — say "no signal", never "secure" |
 | `perf` | `perf_surface_files` > 0 **and** the module is on a request/render path | it is a one-shot script or build tool |
 
-Then choose angles per lens from the catalog, capped at `finders_per_lens`. **Name every
-angle you dropped**, and why. An unnamed drop is a review claiming coverage it did not have.
+Then choose angles per lens from the catalog, capped at `finders_per_lens`, and put every
+catalog angle you did not choose into one of two states. They are not the same thing and
+must not be reported as one:
+
+- **not selected** — the angle does not apply to this target (no shared state, so no
+  `state-and-concurrency`). Not a coverage gap. One clause is enough.
+- **dropped** — it applies, and the `finders_per_lens` cap cut it. This *is* a coverage
+  gap, and a budget-shaped one: splitting the target recovers it. Name it, and say that.
+
+An unnamed drop is a review claiming coverage it did not have. A third state — **fell** —
+exists but cannot appear until Step 3, because it means the angle launched and returned
+nothing.
+
+**Cost — announce the floor as a floor.** `finder_floor_ktokens_per_lens` × lenses is the
+finder bill, and all of it is knowable now. Verifiers are one per surviving candidate,
+their count is not knowable before the find phase, and **they dominate the run**: measured
+once (2026-08-10, `register-item.sh`, 790 LOC, 3 lenses, 6 finders) the floor was 132k and
+the run spent 2.2M — ~17×, n=1. So say "≥ *floor*, and the one run we have measured came
+in around 17× its floor". Printing the floor alone as the number is the failure this
+sentence exists to stop.
 
 Present: target, files/LOC, lenses chosen with their evidence, angles per lens, angles
-dropped, and the token estimate (`est_ktokens_per_lens` × lenses, **plus one verifier per
-candidate, which is not knowable in advance** — say so rather than printing a total that
-quietly omits it).
+dropped (and, separately, angles not selected), and the cost floor stated as above.
 
 Then stop and let the user confirm or correct — **unless** `--go` was passed, in which
 case launch what you judged and report the same table alongside the findings.
 
-## Step 3 — Run find-then-verify
+## Step 3 — Find, merge, then verify
 
 Fan out with the `Workflow` tool (this skill body is the opt-in that makes it available).
 
@@ -75,11 +91,33 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
    (`--files`). Give every finder the inversion rule from the catalog verbatim:
    pre-existing defects are in scope; age is not evidence of correctness. Each returns
    candidates with `file`, `line`, a one-line summary, and a concrete `failure_scenario`.
-2. **Verify** — one agent per candidate, prompted to **refute**, returning `CONFIRMED` /
-   `PLAUSIBLE` / `REFUTED`. Keep the first two. Pipeline it: a lens's candidates verify
-   while another lens is still finding.
-3. **Dedupe** across lenses by file+line before reporting — the same defect legitimately
-   surfaces from more than one angle.
+
+2. **Merge — before verifying, and the barrier is the point.** The same defect
+   legitimately surfaces from more than one angle, so a duplicate carried into the verify
+   phase is paid for twice in the phase that dominates the run's cost. Key on **the defect
+   claimed**, scoped by file, with line only as a tiebreaker: `file`+`line` alone misses
+   what actually duplicated in the first live run, which was one defect reported at
+   different lines by two angles. Merge provenance onto the survivor rather than dropping
+   it — two angles agreeing is a confidence signal and costs nothing to keep. Hold on to
+   both counts; Step 4 prints them.
+
+   This is the one place a barrier beats the pipeline, and it is the `Workflow` tool's own
+   stated criterion for one: dedup across the full result set ahead of the expensive stage.
+
+3. **Verify** — one agent per *merged* candidate, prompted to **refute**, returning
+   `CONFIRMED` / `PLAUSIBLE` / `REFUTED`. Keep the first two.
+
+4. **Account for every angle that did not come back.** `agent()` returns `null` on a
+   terminal error and `parallel()` maps a failing thunk to `null`; inside `pipeline()` a
+   throwing stage drops the item to `null` and skips its remaining stages, so a dead finder
+   takes its verifiers with it. The documented idiom `.filter(Boolean)` is therefore the
+   line that erases a fallen angle — **count the nulls before filtering**, and map each
+   back to its angle by index or label.
+
+   Retry a fallen finder **once**; one finder is cheap against the verifier bill. If it
+   falls again the angle **fell**: launched, announced in Step 2 as covered, returned
+   nothing. Fell is not dropped — dropped was never launched and the user was told so up
+   front, while fell is a promise Step 2 already made. Report them on separate lines.
 
 ## Step 4 — Report, then make it survive the session
 
@@ -105,8 +143,19 @@ ceremony: verification that leaves no artifact does not accumulate — measured 
 this ecosystem, 5 of 6 verification actions leave nothing behind. A review whose
 findings live only in terminal scrollback has, a week later, not happened.
 
-Say plainly what was **not** covered: angles dropped, lenses skipped, and for a split
-target, the modules not reviewed in this run.
+**Print the arithmetic. If the numbers are not in the output, the step above it did not
+run.** That is the only check a prose instruction can carry, and each of these three lines
+exists because the first live run skipped exactly the step it reconciles (2026-08-10):
+
+| Print | Reconciles against | What it caught |
+|---|---|---|
+| angles **announced / launched / returned** | Step 2's table | "6 / 6 / 5" is unmissable; a bare "6 angles" hid a finder that died mid-run |
+| candidates **raw / distinct after merge / confirmed** | Step 3.2 | 22 confirmed that were ~15 defects — the merge was specified and never executed |
+| cost **floor / actual** | Step 2's floor | announced 132k, spent 2.2M |
+
+Then say plainly what was **not** covered: angles **dropped** (the cap cut them) and angles
+that **fell** (launched, returned nothing) as separate lines, lenses skipped, and for a
+split target, the modules not reviewed in this run.
 
 ## Boundaries
 
