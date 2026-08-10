@@ -333,10 +333,79 @@ T13="$(ls "$TMP/b13tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
 [[ -z "$T13" ]] && ok "B13 counterpart rolled back when the source could not be written" \
   || bad "B13 left an orphan counterpart: $T13"
 
+# ── B14 · origin gates must not run on a branch that never reads ORIGIN ───────
+# Was: --origin's ref derivation ran unconditionally, but the --source-id branch
+# stamps an existing item and takes the counterpart's origin from the source id —
+# ORIGIN_REF is computed and thrown away. So escalating an audit-born item died on
+# "--finding is required" for a value nothing would have used.
+D="$(fresh b14)"; cd "$D"
+mkdir -p "$TMP/b14tgt/.context/backlog"
+cat > .context/backlog/2026-01-01-bl-005-from-audit.md <<'EOF'
+---
+title: "found in an audit"
+id: BL-005
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+escalated_to: ""
+---
+
+# found in an audit
+EOF
+bash "$REG" --origin audit --title "route the audit item" --escalate-to "$TMP/b14tgt" \
+  --source-id BL-005 >/dev/null 2>&1; RC=$?
+[[ $RC -eq 0 ]] && ok "B14 --source-id does not demand --finding" \
+  || bad "B14 exited $RC — an unused origin_ref still gated the run"
+[[ "$(fm .context/backlog/2026-01-01-bl-005-from-audit.md escalated_to)" == '"b14tgt/BL-001"' ]] \
+  && ok "B14 the source was stamped" || bad "B14 source not stamped"
+
+# The gates still apply on the branch that DOES use origin_ref (a fresh stub).
+D="$(fresh b14b)"; cd "$D"
+mkdir -p "$TMP/b14btgt/.context/backlog"
+bash "$REG" --origin audit --title "no finding given" --escalate-to "$TMP/b14btgt" >/dev/null 2>&1; RC=$?
+[[ $RC -ne 0 ]] && ok "B14 the fresh-stub branch still requires --finding" \
+  || bad "B14 the origin gate was dropped where it is load-bearing"
+
+# ── B15 · one enumeration of the backlog's three directories ──────────────────
+# Was: three hand-rolled copies of the same glob + awk-extract-id loop, which had
+# already drifted — the scanners walked _archive before _deferred and the resolver
+# the other way. That order is not cosmetic: it decides which file wins when an id
+# exists in both, and a DEFERRED item is live where an archived one is closed.
+# Stamping the archived copy would be the wrong item.
+D="$(fresh b15)"; cd "$D"
+mkdir -p .context/backlog/_deferred .context/backlog/_archive "$TMP/b15tgt/.context/backlog"
+cat > .context/backlog/_deferred/2026-01-01-bl-009-live.md <<'EOF'
+---
+title: "the live deferred one"
+id: BL-009
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+escalated_to: ""
+---
+EOF
+cat > .context/backlog/_archive/2026-01-01-bl-009-closed.md <<'EOF'
+---
+title: "the closed archived one"
+id: BL-009
+status: done
+created: 2026-01-01
+updated: 2026-01-01
+escalated_to: ""
+---
+EOF
+bash "$REG" --origin manual --title "resolve me" --escalate-to "$TMP/b15tgt" --source-id BL-009 >/dev/null 2>&1
+grep -q 'b15tgt/BL-001' .context/backlog/_deferred/2026-01-01-bl-009-live.md \
+  && ok "B15 an id in both _deferred and _archive resolves to the live one" \
+  || bad "B15 resolved to the archived copy"
+grep -q 'b15tgt/BL-001' .context/backlog/_archive/2026-01-01-bl-009-closed.md \
+  && bad "B15 stamped the archived copy" || ok "B15 the archived copy was left alone"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 12 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 14 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
