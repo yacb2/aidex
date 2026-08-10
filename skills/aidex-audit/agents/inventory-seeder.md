@@ -1,6 +1,6 @@
 ---
 name: inventory-seeder
-description: Read scattered findings from legacy audit folders and generate canonical INVENTORY rows. Used by /aidex-audit migrate after folders have been moved.
+description: Read scattered findings from legacy audit folders and generate canonical 00-inventory.md rows. Used by /aidex-audit migrate after folders have been moved.
 model: sonnet
 effort: medium
 tools: Read Write Edit Glob Grep
@@ -8,20 +8,26 @@ tools: Read Write Edit Glob Grep
 
 # Inventory Seeder
 
-Reads legacy audit content and generates canonical `INVENTORY.md` rows for it. Handles deduplication across multiple audit runs that describe the same underlying issue.
+Reads legacy audit content and generates rows for the methodology's canonical board,
+`.context/audits/<methodology>/00-inventory.md` (D-02 — there is no global board at the
+`audits/` root). Handles deduplication across multiple audit runs that describe the same
+underlying issue.
 
 ## Input
 
 The calling skill passes:
 - Path to `.context/audits/` directory (absolute)
+- The methodology the migrated runs belong to (the folder they now live under)
 - List of audit run folders just migrated (e.g., `20260410-ux-review/`, `20260412-retest/`)
-- Existing `INVENTORY.md` (may be empty or may have prior content)
+- The target board, `audits/<methodology>/00-inventory.md` (may be freshly scaffolded
+  with no findings yet, or may have prior content)
 
 ## Process
 
-### Step 1: Parse existing INVENTORY
+### Step 1: Parse the existing board
 
-Read `INVENTORY.md`. Build a map of existing IDs and normalized summaries for dedup matching.
+Read `audits/<methodology>/00-inventory.md`. Build a map of existing IDs and normalized
+summaries for dedup matching.
 
 ### Step 2: Extract findings from each audit folder
 
@@ -53,24 +59,29 @@ When multiple runs list the same finding:
 
 ### Step 4: Determine status per finding
 
-- If any run says "fixed" / "closed" / "resolved" → `closed`
+Write only the base vocabulary — `open` · `doing` · `done` · `dropped`. Legacy statuses
+(`closed`, `triaged`, `in-progress`) are read from legacy text and never written back
+(`references/03-lifecycle.md`).
+
+- If any run says "fixed" / "closed" / "resolved" → `done`
 - If any run says "dropped" / "wontfix" → `dropped`
-- If a later run re-observes after a prior "closed" → create `REGRESSION-<parent-id>-1`
+- If any run says "triaged" / "in progress" / "being worked" → `doing`
+- If a later run re-observes after a prior "fixed" → create `REGRESSION-<parent-id>-1`
 - Otherwise → `open`
 
-### Step 5: Write INVENTORY rows
+### Step 5: Write the rows
 
-Append new rows to `INVENTORY.md`. Each row has all columns populated:
+Append new rows to `audits/<methodology>/00-inventory.md`, one cell per column **in the
+order the board's own "How to read this file" header table declares** — read it there and
+match it. Do not carry a row shape into this file: the board's schema has changed twice,
+and every copy of it that lived somewhere else was left behind by the change.
 
-```
-| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To |
-```
-
-If the Escalated To column can be derived (e.g., the audit folder mentioned a backlog file), include the link. Otherwise `—`.
+Populate every column. If Escalated To can be derived (e.g. the audit folder mentioned a
+backlog file), include the `<type>/<filename>` link. Otherwise `—`.
 
 ### Step 6: Update statistics
 
-At the bottom of INVENTORY.md, refresh the Statistics section with the new counts.
+At the bottom of the board, refresh the Statistics section with the new counts.
 
 ### Step 7: Report
 
@@ -82,7 +93,7 @@ Return a summary:
 ## Summary
 - Audit folders processed: N
 - Findings extracted: M
-- New INVENTORY rows: K
+- New inventory rows: K
 - Merged into existing rows: L
 - Regressions detected: R
 - Ambiguous entries (skipped, needs manual review): S
@@ -100,8 +111,8 @@ Return a summary:
 ## Constraints
 
 - **Idempotent** — running twice on the same input should not create duplicate rows. Always check for existing IDs / summaries before adding.
-- **Preserve content** — don't modify existing INVENTORY rows unless explicitly merging a duplicate.
-- **ID generation** — if a legacy finding has no ID, generate one following the project convention (check METHODOLOGY.md for which convention). Do not invent a new convention.
+- **Preserve content** — don't modify existing rows unless explicitly merging a duplicate.
+- **ID generation** — if a legacy finding has no ID, generate one following the project convention (check `audits/<methodology>/00-methodology.md` for which convention). Do not invent a new convention.
 - **Ambiguity over guessing** — if you can't parse a finding confidently, skip it and list it in "ambiguous". Don't fabricate severity, module, or type.
 
 ## Return
