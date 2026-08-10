@@ -292,7 +292,8 @@ cat <<EOF
   3. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
   4. If you have many candidates, invoke Claude with the inventory-seeder agent:
        Read ~/.aidex/skills/aidex-audit/agents/inventory-seeder.md
-       Provide it the list of moved folders; it will generate INVENTORY rows.
+       Provide it the methodology and the list of moved folders; it will generate
+       rows for audits/<methodology>/00-inventory.md.
   5. Initialize canonical files if missing:
        /aidex-audit new custom placeholder  (then delete the placeholder run)
   6. Add a CHANGELOG.md entry recording the migration.

@@ -144,6 +144,33 @@ for pb in "$TPL"/methodology/*.md.template; do
   [[ -n "$STRAY" ]] && printf '    %s\n' "$STRAY"
 done
 
+# ---------------------------------------------------------------------------
+# The agents are the fifth writer of that row, and the one d63d71c did not bring
+# to width. inventory-seeder.md carried an 8-column shape (no Notes) aimed at a
+# global INVENTORY.md, so /aidex-audit migrate -- the one path that mass-produces
+# rows -- produced them short a column, in a legacy location, with a legacy status.
+# An agent that embeds the shape cannot be migrated by editing the template, so the
+# assertion is that it embeds none and reads the target board's header instead.
+# ---------------------------------------------------------------------------
+echo "== agent row contract =="
+AGENTS="$(cd "$SCRIPTS/../agents" && pwd -P)"
+for ag in "$AGENTS"/*.md; do
+  name="$(basename "$ag" .md)"
+  EMBED="$(grep -n '^| *ID *|' "$ag")"
+  check "$name: embeds no row shape of its own" '[[ -z "$EMBED" ]]'
+  [[ -n "$EMBED" ]] && printf '    %s\n' "$EMBED"
+  # The pre-D-02 root boards. audit-conventions.md says verbatim that there is no
+  # global INVENTORY.md / METHODOLOGY.md / CHANGELOG.md at .context/audits/.
+  LEGACY="$(grep -nE '\b(INVENTORY|METHODOLOGY|CHANGELOG)\.md' "$ag")"
+  check "$name: names no pre-D-02 root board" '[[ -z "$LEGACY" ]]'
+  [[ -n "$LEGACY" ]] && printf '    %s\n' "$LEGACY"
+  # 03-lifecycle.md: tooling may READ the legacy statuses and must never write one.
+  # A `→ `status`` is a write instruction; a quoted phrase being matched is a read.
+  WRITES="$(grep -nE '(→|->) *`(closed|triaged|in-progress)`' "$ag")"
+  check "$name: writes only the base status vocabulary" '[[ -z "$WRITES" ]]'
+  [[ -n "$WRITES" ]] && printf '    %s\n' "$WRITES"
+done
+
 echo
 echo "inventory width: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
