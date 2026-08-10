@@ -222,8 +222,36 @@ printf '%s\n' "$flat_out" | grep -q '^partition_note=' \
 [ "$(field finders_per_lens --partition "$TMP/part")" = "0" ] \
   || fail "--partition must not turn an oversize target into a runnable one"
 
+# ── Prose lockstep: SKILL.md and the angle catalog ───────────────────────────
+# Cell 11 asserts the resolver's key name against SKILL.md and stops there, which is
+# why the catalog could drift behind SKILL.md through four commits that all edited
+# SKILL.md (5129808 names this in its own message). These two cells put the catalog in
+# the site list.
+SKILL_MD="$SCRIPT_DIR/../SKILL.md"
+ANGLES="$SCRIPT_DIR/../references/01-review-angles.md"
+# The catalog's verify section only — a token elsewhere in the file is not the copy.
+verify_section() { awk '/^## The verify phase/{f=1;next} f && /^## /{exit} f' "$ANGLES"; }
+
+# 24. The verifier's return shape has ONE owner. SKILL.md Step 3.3 is it — the
+#     always-loaded execution surface — so if SKILL.md defines a return field, the
+#     catalog must either carry it too or say where it lives. What it must not do is
+#     state the contract as if complete while missing fields, which is what it did:
+#     three verdicts and no severity override, no PLAUSIBLE reason, and no marker
+#     saying it was partial. A prompt authored from the catalog then omits them.
+VERIFY="$(verify_section)"
+case "$VERIFY" in *"Step 3.3"*) DEFERS=1 ;; *) DEFERS=0 ;; esac
+for tok in 'unreachable-trigger' 'undetermined' 'severity'; do
+  if grep -q -- "$tok" "$SKILL_MD"; then
+    case "$VERIFY" in
+      *"$tok"*) : ;;
+      *) [ "$DEFERS" -eq 1 ] \
+           || fail "SKILL.md defines the verifier field '$tok'; the catalog's verify section neither carries it nor defers to Step 3.3" ;;
+    esac
+  fi
+done
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 23 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition)"
+  echo "OK — resolve-review-target: 24 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 1 prose lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"
