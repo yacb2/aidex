@@ -784,31 +784,58 @@ if [[ -n "$ESCALATE_TO" ]]; then
   [[ "$SRC_NAME" != "$TGT_NAME" ]] || die "--escalate-to: source and target are the same repo ($SRC_NAME)"
   TARGET_ID="$(next_backlog_id "$TARGET_BACKLOG")"
 
-  # SOURCE side: stamp an existing item, or register a fresh stub.
+  # Resolve the source REFERENCE before anything is written — the counterpart needs it,
+  # and both forms are knowable without writing: an existing id, or a freshly minted one.
   if [[ -n "$SOURCE_ID" ]]; then
     SRC_FILE="$(resolve_source_by_id "$BACKLOG_DIR" "$SOURCE_ID")" \
       || die "--source-id: no item with id $SOURCE_ID in $BACKLOG_DIR"
-    stamp_escalated_to "$SRC_FILE" "$TGT_NAME/$TARGET_ID"
     SRC_REF="$SOURCE_ID"
-    ok "Stamped source $SOURCE_ID → escalated_to: $TGT_NAME/$TARGET_ID"
   else
     SRC_ID="$(next_backlog_id "$BACKLOG_DIR")"
-    SRC_FILE="$(emit_backlog_stub "$BACKLOG_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
-      "$PRIORITY" "$TYPE" "$TGT_NAME/$TARGET_ID" \
-      "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID." \
-      "$ESTIMATE" "$STATUS" "$BLOCKED_BY")"
     SRC_REF="$SRC_ID"
-    ok "Registered source stub $SRC_REF (escalated_to: $TGT_NAME/$TARGET_ID)"
   fi
-  printf '  %s\n' "$SRC_FILE" >&2
 
-  # TARGET side: the counterpart carries the cross-repo origin (origin is not a
-  # validate.py cross-ref field, so this stays clean in the target's validate run).
+  # TARGET side FIRST. The forward link on the source must not be written before the
+  # thing it points at exists: with the source written first, a target write that failed
+  # left the source carrying `escalated_to: <repo>/BL-NNN` for a counterpart that was
+  # never created. This went unreproduced for a while because the obvious fixture — a
+  # file where the target backlog dir belongs — fails at `mkdir -p` above, before the
+  # source is ever touched. The window needs the directory to exist and the write to
+  # fail later. Found 2026-08-10 by aidex-review, reproduced 2026-08-10.
+  #
+  # origin is not a validate.py cross-ref field, so the cross-repo value stays clean in
+  # the target's validate run.
   TGT_FILE="$(emit_backlog_stub "$TARGET_BACKLOG" "$TARGET_ID" "$TITLE" "$SRC_NAME/$SRC_REF" "" \
     "$PRIORITY" "$TYPE" "" \
     "Discovered in $SRC_NAME (origin: $SRC_NAME/$SRC_REF); routed here for execution.")"
   ok "Registered counterpart $TARGET_ID in $TGT_NAME (origin: $SRC_NAME/$SRC_REF)"
   printf '  %s\n' "$TGT_FILE" >&2
+
+  # SOURCE side, with the counterpart rolled back if it fails — otherwise closing the
+  # dangling-link direction just opens the other one (an orphan counterpart whose origin
+  # names a source that was never written).
+  #
+  # The `if !` forms are load-bearing. `die` inside `$( )` exits the SUBSHELL, `set -e`
+  # then aborts the parent AT the assignment, and a rollback written on the following
+  # line would never run. `if !` both catches the failure and suspends `set -e`; the
+  # stamp call needs its own `( )` because its `die` would otherwise exit this script.
+  if [[ -n "$SOURCE_ID" ]]; then
+    if ! ( stamp_escalated_to "$SRC_FILE" "$TGT_NAME/$TARGET_ID" ); then
+      rm -f "$TGT_FILE"
+      die "could not stamp source $SOURCE_ID — counterpart $TARGET_ID rolled back"
+    fi
+    ok "Stamped source $SOURCE_ID → escalated_to: $TGT_NAME/$TARGET_ID"
+  else
+    if ! SRC_FILE="$(emit_backlog_stub "$BACKLOG_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
+      "$PRIORITY" "$TYPE" "$TGT_NAME/$TARGET_ID" \
+      "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID." \
+      "$ESTIMATE" "$STATUS" "$BLOCKED_BY")"; then
+      rm -f "$TGT_FILE"
+      die "could not write the source item — counterpart $TARGET_ID rolled back"
+    fi
+    ok "Registered source stub $SRC_REF (escalated_to: $TGT_NAME/$TARGET_ID)"
+  fi
+  printf '  %s\n' "$SRC_FILE" >&2
 
   # Regenerate both indexes; a pre-existing dup/nonconforming id must not abort.
   regen_index "$BACKLOG_DIR" >/dev/null 2>&1 || true

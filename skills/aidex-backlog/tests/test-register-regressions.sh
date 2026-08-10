@@ -279,6 +279,60 @@ B11OUT="$(bash "$REG" --origin audit --title "no run given" --finding F-77 2>/de
 [[ -n "$B11OUT" ]] && grep -q 'Origin: audit finding \[F-77\]' "$B11OUT" \
   && ok "B11 the finding is still recorded" || bad "B11 lost the finding line"
 
+# ── B12 · the dangling link, reached at last ──────────────────────────────────
+# B5 above asserts the same property but never reaches the vulnerable window: its
+# fixture puts a FILE where the target backlog dir belongs, so `mkdir -p` fails
+# BEFORE the source is written. That is why this defect went unreproduced when it
+# was first reported. The window needs the target directory to EXIST and the write
+# to fail later — a read-only directory does exactly that.
+D="$(fresh b12)"; cd "$D"
+mkdir -p "$TMP/b12tgt/.context/backlog"; chmod 555 "$TMP/b12tgt/.context/backlog"
+bash "$REG" --origin manual --title "cannot land" --escalate-to "$TMP/b12tgt" >/dev/null 2>&1; RC=$?
+chmod 755 "$TMP/b12tgt/.context/backlog"
+[[ $RC -ne 0 ]] && ok "B12 unwritable target exits non-zero" || bad "B12 exited 0"
+S12="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+[[ -z "$S12" ]] && ok "B12 no source item points at a counterpart that was never written" \
+  || bad "B12 left a source item with escalated_to: $(fm "$S12" escalated_to)"
+
+# Same window on the --source-id branch: an existing item must not be stamped with
+# a forward link to a counterpart whose write failed.
+D="$(fresh b12b)"; cd "$D"
+mkdir -p "$TMP/b12btgt/.context/backlog"; chmod 555 "$TMP/b12btgt/.context/backlog"
+cat > .context/backlog/2026-01-01-bl-005-existing.md <<'EOF'
+---
+title: "existing source"
+id: BL-005
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+escalated_to: ""
+---
+
+# existing source
+EOF
+bash "$REG" --origin manual --title "route it" --escalate-to "$TMP/b12btgt" --source-id BL-005 >/dev/null 2>&1
+chmod 755 "$TMP/b12btgt/.context/backlog"
+[[ "$(fm .context/backlog/2026-01-01-bl-005-existing.md escalated_to)" == '""' ]] \
+  && ok "B12 existing item not stamped toward a counterpart that failed" \
+  || bad "B12 stamped escalated_to: $(fm .context/backlog/2026-01-01-bl-005-existing.md escalated_to)"
+
+# ── B13 · the counterpart must roll back when the source side fails ───────────
+# Writing the target first closes the dangling-link direction, and opens the other
+# one: a counterpart whose origin points at a source that was never written. The
+# rollback has to run through `if ! VAR=$(...)` — `die` inside $( ) exits the
+# subshell, `set -e` aborts the parent AT the assignment, and a rollback written on
+# the following line would never execute.
+D="$(fresh b13)"; cd "$D"
+mkdir -p "$TMP/b13tgt/.context/backlog"
+chmod 555 .context/backlog
+bash "$REG" --origin manual --title "source cannot be written" --escalate-to "$TMP/b13tgt" >/dev/null 2>&1; RC=$?
+chmod 755 .context/backlog
+[[ $RC -ne 0 ]] && ok "B13 unwritable source exits non-zero" || bad "B13 exited 0"
+T13="$(ls "$TMP/b13tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+[[ -z "$T13" ]] && ok "B13 counterpart rolled back when the source could not be written" \
+  || bad "B13 left an orphan counterpart: $T13"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
