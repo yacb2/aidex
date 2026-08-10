@@ -3,6 +3,7 @@ name: aidex-review
 description: Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "code review of src/panels", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app". Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (aidex-audit); fixing a specific known bug (aidex-bugfix).
 argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--go]"
 disable-model-invocation: false
+model-policy: inherit-session
 allowed-tools: Bash Read Grep Glob Workflow Agent ReportFindings
 ---
 
@@ -108,8 +109,18 @@ the run spent 2.2M — ~17×, n=1. So say "≥ *floor*, and the one run we have 
 in around 17× its floor". Printing the floor alone as the number is the failure this
 sentence exists to stop.
 
+**Name the model and effort in the same breath as the cost.** This skill is
+`model-policy: inherit-session`: no `model`/`effort` is passed to any agent, so every
+finder and every verifier runs at *this session's* model and effort. That is the
+platform norm — `/code-review` inherits too; what its effort levels vary is the prompt,
+not the model — but here it is the dominant cost term, because 34 agents reading a whole
+module is not 8 agents reading a diff. Undeclared, it is a decision nobody made and the
+reader cannot see at the moment they decide to run. So say it: *"N finders + one
+verifier per candidate, all at &lt;model&gt;/&lt;effort&gt;, inherited from this session."*
+
 Present: target, files/LOC, lenses chosen with their evidence, angles per lens, angles
-dropped (and, separately, angles not selected), and the cost floor stated as above.
+dropped (and, separately, angles not selected), the cost floor stated as above, and the
+inherited model/effort.
 
 Then stop and let the user confirm or correct — **unless** `--go` was passed, in which
 case launch what you judged and report the same table alongside the findings.
@@ -149,6 +160,13 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
    falls again the angle **fell**: launched, announced in Step 2 as covered, returned
    nothing. Fell is not dropped — dropped was never launched and the user was told so up
    front, while fell is a promise Step 2 already made. Report them on separate lines.
+
+5. **If `Workflow` is not available at all, do not error — and do not pretend.** Work
+   every chosen angle yourself, sequentially, in this context, and do not skip angles for
+   lack of fan-out. Then **say so in the report**: a single-pass inline review, not the
+   multi-agent fan-out, so nobody is misled about what actually ran. This is the same
+   rule as fell-vs-dropped one level up, and the built-in `/code-review` states it for
+   itself in the same words — verified in 2.1.226.
 
 ## Step 4 — Report, then make it survive the session
 
