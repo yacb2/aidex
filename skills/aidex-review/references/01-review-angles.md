@@ -129,11 +129,24 @@ than a diff review, so the cost of a permissive verifier is a report nobody read
 
 Finders: ~22k tokens per agent (measured in the plan-exec-as-workflow work, recorded in
 `review-scope-conventions.md` §4). Knowable before the run, and the resolver prints it as
-`finder_floor_ktokens_per_lens` so that the name itself says what it is.
+`finder_floor_ktokens_per_lens` so that the name itself says what it is. It follows
+`finders_per_lens`, which comes from `source_loc` and can be raised with `--finders`.
 
 **Verifiers dominate.** One per surviving candidate, count unknowable before the find
 phase. Measured once — 2026-08-10, `register-item.sh`, 790 LOC, 3 lenses, 6 finders:
 announced floor **132k**, actual spend **2.2M**, ~**17×**. n=1.
+
+> **That floor was computed the old way** — on total LOC, before `source_loc` existed.
+> The same target measures a different floor today, so reproduce the **ratio**, not the
+> 132k. The ratio is the datum; the absolute number is an artifact of the sizing rule it
+> was taken under.
+
+**The model is the other half of the bill.** This skill is `model-policy:
+inherit-session` — nothing is passed to any agent, so all of them run at the invoking
+session's model and effort. On the measured run that was 34 agents at the session's tier.
+It is the platform norm (`/code-review` inherits too; what its effort levels vary is the
+prompt, not the model) but on a module review it is the dominant term, which is why
+Step 2 has to name it beside the floor.
 
 The cause is not waste, and the fix is not fewer verifiers. They did not opine: they stood
 up sandboxes and reproduced the defects with real commands and exit codes, which is what
@@ -147,9 +160,17 @@ and the uncapped candidate surface is what moves the total.
 
 ## Angle accounting — three states, and only one of them is a broken promise
 
-`resolve-review-target.sh` sets the finder count from the target's LOC (small 2 /
-medium 3 / large 4 / oversize refuse). Angles beyond that count are cut in the order
-listed above. Report every angle that produced no findings in exactly one of these:
+`resolve-review-target.sh` sets the finder count from the target's **source** LOC —
+tests are measured apart, so a module is not refused for being well tested (small 2 /
+medium 3 / large 4 / oversize refuse). `--finders N` overrides that count, clamped to
+this catalog's maximum of 4; it never overrides the `oversize` refusal, which answers
+whether the target is coverable at all rather than how deep to go. An oversize target
+gets a **partition proposal** (`--partition`) instead of a wall — one part per immediate
+subdirectory plus a named `(root)` part, each measured, each flagged if it still needs
+splitting.
+
+Angles beyond the finder count are cut in the order listed above. Report every angle
+that produced no findings in exactly one of these:
 
 | State | Means | Why it is reported this way |
 |---|---|---|
