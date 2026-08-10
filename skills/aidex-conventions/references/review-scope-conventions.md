@@ -52,28 +52,29 @@ non-PR change at all:
 **Reviewing code as it stands is out of scope for every row above**, because every row
 resolves to a diff. That case — a module, feature, path, or whole app with no base ref —
 belongs to `aidex-review`, which measures the target first (`resolve-review-target.sh`)
-and then runs Mode B angles over it. Note that its false-positive rubric **inverts**:
-`/code-review` discards "pre-existing issues" and findings "on lines the user did not
-modify", which on a module review are precisely the target.
+and then runs Mode B angles over it.
 
-Two consequences drove the rules below. The first is now **narrowed**: the correctness
-engine is out of reach only when its feature gate is off — but since the gate is not
-ours and the docs say user-only, Mode B remains the thing that must exist. The second
-stands unchanged.
-
-**Reviewing code as it stands is out of scope for every row above**, because every row
-resolves to a diff. That case — a module, feature, path, or whole app with no base ref —
-belongs to `aidex-review`, which measures the target first (`resolve-review-target.sh`)
-and then runs Mode B angles over it. Note that its false-positive rubric **inverts**:
-`/code-review` discards "pre-existing issues" and findings "on lines the user did not
-modify", which on a module review are precisely the target.
+> **Correction, 2026-08-10.** This paragraph previously said `/code-review` discards
+> "pre-existing issues" and findings "on lines the user did not modify", and that a
+> module review inverts its rubric. **That attribution was wrong.** Those phrases belong
+> to the optional `code-review` *plugin* and to `/security-review` (*"Do not comment on
+> existing security concerns"* — verified firsthand by invoking it). The built-in
+> `/code-review` states the opposite in its Angle A: *"bugs in unchanged lines of a
+> touched function are in scope (the PR re-exposes or fails to fix them)"* — binary
+> 2.1.226, offsets 259126974 and 265694334, verified directly, not via an agent.
+>
+> The gap is narrower and still real: a diff carries its own boundary (the hunks, plus
+> the functions they touch), and **a module has none** — it includes files with zero
+> hunks, which no diff-anchored instrument reaches at any effort level.
 
 Two consequences drive every rule below.
 
-**The correctness engine is out of reach.** The instrument that reviews a
-working diff with the find-then-verify angle engine is user-triggered only. No
-automated checkpoint can invoke it. Correctness review therefore has to be run
-by aidex itself — this is a constraint, not a design preference.
+**The correctness engine is conditionally out of reach.** `/code-review`'s
+model-invocability rides a feature gate that is not ours and that defaults to *closed*
+when absent — which is the expected end state once a rollout completes and the flag is
+deleted. Published docs say user-invoke-only since v2.1.215. So an automated checkpoint
+may not depend on it, and correctness review still has to be runnable by aidex itself.
+**Detect, do not predict** (§5c).
 
 **`/security-review`'s anchor can be dead.** It interpolates
 `git diff origin/HEAD...` when invoked, and that ref is baked in; it cannot be
@@ -170,6 +171,51 @@ It reviews four quality angles only — Reuse, Simplification, Efficiency, Altit
 explicitly disclaims bug-hunting (*"Do not look for correctness bugs — that is what
 `/code-review` is for"*). A fifth Conventions/CLAUDE.md angle exists in the binary but is
 **not** referenced by either `/simplify` body, so CLAUDE.md adherence is not covered here.
+
+## 5b. Which flags mutate — `/code-review --fix` and `--comment`
+
+Established 2026-08-10 by extraction. `/simplify` is not the only instrument that writes.
+
+`--fix` appends a block instructing the model to *"apply the findings to the working tree
+instead of stopping at the report: fix each one directly"*. **No confirmation, no diff
+preview, no dry run.** The registration declares no `allowedTools`, so the only thing
+standing between it and an edit is the host permission layer. It is working-tree-only —
+no stage, commit or push anywhere in that block.
+
+`--comment` posts inline PR comments, preferring an MCP tool and **falling back to
+`gh api …/pulls/{pr}/comments`**. That fallback is a Bash call, so a broad `Bash(gh:*)`
+allow rule posts to a real pull request with no prompt.
+
+**Both flags are reachable from a model-supplied args string.** The parser strips
+`--fix`/`--comment` from anywhere in the argument text and makes no distinction between
+user-typed and model-supplied args, and the Skill tool's `args` value reaches it verbatim.
+So "the model invoked a review" and "the model edited the tree / commented on a PR" are
+one keystroke apart.
+
+Rule: never pass `--fix` or `--comment` on a delegated invocation. If a caller wants
+fixes applied, that is a separate, named step the user authorized — not a flag smuggled
+into a review.
+
+## 5c. Detect, do not predict (invocability)
+
+A script **cannot** reliably establish that a built-in skill *is* model-invocable; it can
+reliably establish that it is *not*. Design for that asymmetry.
+
+The gate reads `disableModelInvocation` as a **live getter** that evaluates a feature flag
+on every read. The flag cache is real and readable (`~/.claude.json` →
+`cachedGrowthBookFeatures`, refreshed on a ~6h jitter, and the probe would read the same
+map the binary does — so ordinary staleness is fail-safe). But flag evaluation collapses
+to the default entirely when `DISABLE_TELEMETRY`, `DO_NOT_TRACK`,
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` or `DISABLE_GROWTHBOOK` is set, or when auth
+is not first-party — and a probe cannot verify those for a *different* session. There is
+no CLI surface for this either: a census of all 52 subcommands contains zero matching
+"skill". And the flag→skill mapping lives only inside the minified binary, so any probe
+must hardcode names that rotate on every update.
+
+So: **attempt the delegation and handle the refusal.** It is structured and
+machine-readable (`reason: "disable_model_invocation"`, `errorCode: 4`), which makes
+detection sound where prediction is not. Ship only the negative probe, and treat a
+refusal as the routing signal to Mode B.
 
 ## 6. Rules
 

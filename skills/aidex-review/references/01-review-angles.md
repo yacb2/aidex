@@ -13,21 +13,36 @@ The skill body picks a subset from the measured target; this file is what it pic
 
 ## The one thing that changes on a module scope
 
-The built-in instruments review a **diff**, and their false-positive rubric says so
-explicitly: `code-review` lists *"Pre-existing issues"* and *"Real issues, but on lines
-that the user did not modify"* as false positives to discard.
+> **Corrected 2026-08-10.** An earlier version of this section claimed the built-in
+> `/code-review` discards *"pre-existing issues"* and findings *"on lines the user did
+> not modify"*, and built the whole argument on that inversion. **That was wrong**, and
+> the mistake was one of attribution: those phrases come from the optional `code-review`
+> **plugin** (a `gh`-based PR reviewer, `plugins/code-review/commands/code-review.md`)
+> and from `/security-review` (*"focus ONLY on security implications newly added by this
+> PR. Do not comment on existing security concerns."*). The built-in `/code-review` says
+> the **opposite**, verbatim in its Angle A: *"Read every hunk in the diff, line by line.
+> Then Read the enclosing function for each hunk — bugs in unchanged lines of a touched
+> function are in scope (the PR re-exposes or fails to fix them)."*
 
-On a module review, **those are the target.** Every finding is on a line nobody
-just modified — that is the point of reviewing a module as it stands.
+The real difference is narrower, and it is about **what the boundary is**, not about age.
 
-So the filtering rule inverts, and it is the single most important instruction to give
-every finder here:
+A diff carries its own boundary: the hunks, plus — for the built-in — the enclosing
+functions those hunks touch. A finder can be told "review the diff" and know when to
+stop. **A module has no such boundary.** Nothing was touched, so nothing marks what is
+in scope, and a finder with no instruction will either drift into the whole repository
+or default to the diff habit and report nothing.
 
-> Pre-existing defects are IN scope. Age is not evidence of correctness. What is out of
-> scope is anything a linter, type-checker, or compiler already catches, and anything
-> whose only argument is style.
+So this is not an inversion of the built-ins' rubric — it is the instruction that
+replaces a boundary the built-ins get for free, and every finder here needs it:
 
-Getting this backwards produces a review that reads the module and reports nothing.
+> The target file set **is** the scope; there is no diff and nothing here was "just
+> changed". Age is not evidence of correctness — a defect that has been there for two
+> years counts. Do not follow calls outside the target file set except to establish
+> whether something inside it is wrong. What is out of scope is anything a linter,
+> type-checker, or compiler already catches, and anything whose only argument is style.
+
+Getting this wrong in either direction fails: too narrow and the review reads the module
+and reports nothing; too wide and it reviews the repository and never finishes.
 
 ---
 
