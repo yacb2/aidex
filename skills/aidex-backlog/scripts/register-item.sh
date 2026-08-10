@@ -83,18 +83,37 @@ title_to_slug() {
     | sed -E 's/-+$//'
 }
 
-# Emit every assigned id as "<number><TAB><path>", one per line. Scans active +
-# _archive + _deferred so no item's id is ever reused — ids stay stable for
-# commit-trailer refs (D-09).
-scan_backlog_ids() {
-  local dir="$1" n f
+# The ONE enumeration of the backlog's three directories, and the ONE id reader.
+# There were three hand-rolled copies of this glob + awk pair, already drifted in
+# both the directory order and the awk match. Found 2026-08-10 by aidex-review.
+#
+# Order is not cosmetic. Active, then _deferred, then _archive — it decides which file
+# wins when the same id exists in two of them, and a deferred item is live where an
+# archived one is closed, so resolving to the archived copy would stamp the wrong item.
+# (The aggregating callers do not care; the resolver does, so its order is the one kept.)
+# Active + _deferred + _archive are all scanned because an id is never reused — they
+# stay stable for commit-trailer refs (D-09).
+backlog_files() {
+  local dir="$1" f
   shopt -s nullglob
-  for f in "$dir"/*.md "$dir"/_archive/*.md "$dir"/_deferred/*.md; do
-    [[ -f "$f" ]] || continue
-    n="$(awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {v=$2; gsub(/[^0-9]/,"",v); print v; exit}' "$f")"
-    [[ -n "$n" ]] && printf '%s\t%s\n' "$((10#$n))" "$f"
+  for f in "$dir"/*.md "$dir"/_deferred/*.md "$dir"/_archive/*.md; do
+    [[ -f "$f" ]] && printf '%s\n' "$f"
   done
   shopt -u nullglob
+}
+
+# The raw `id:` value from a file's front-matter, or empty.
+read_entry_id() {
+  awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {print $2; exit}' "$1"
+}
+
+# Emit every assigned id as "<number><TAB><path>", one per line.
+scan_backlog_ids() {
+  local f v
+  while IFS= read -r f; do
+    v="$(read_entry_id "$f")"; v="${v//[!0-9]/}"
+    [[ -n "$v" ]] && printf '%s\t%s\n' "$((10#$v))" "$f"
+  done < <(backlog_files "$1")
 }
 
 # Compute the next sequential backlog id (BL-NNN) — one above the highest assigned.
@@ -122,14 +141,11 @@ next_backlog_id() {
 # scan_backlog_ids (which strips to the numeric part for max/next), this keeps the
 # id exactly as written so the shape can be checked.
 scan_backlog_raw_ids() {
-  local dir="$1" v f
-  shopt -s nullglob
-  for f in "$dir"/*.md "$dir"/_archive/*.md "$dir"/_deferred/*.md; do
-    [[ -f "$f" ]] || continue
-    v="$(awk '/^---[[:space:]]*$/{c++; if(c==2) exit} c==1 && $1 ~ /^id:/ {print $2; exit}' "$f")"
+  local f v
+  while IFS= read -r f; do
+    v="$(read_entry_id "$f")"
     [[ -n "$v" ]] && printf '%s\t%s\n' "$v" "$f"
-  done
-  shopt -u nullglob
+  done < <(backlog_files "$1")
 }
 
 # Report id integrity problems. Two failure modes, both from hand-authored entries
@@ -168,14 +184,10 @@ report_duplicate_ids() {
 
 # Find the active/deferred/archived entry carrying the given BL id; echo its path.
 resolve_source_by_id() {
-  local dir="$1" want="$2" f id
-  shopt -s nullglob
-  for f in "$dir"/*.md "$dir"/_deferred/*.md "$dir"/_archive/*.md; do
-    [[ -f "$f" ]] || continue
-    id="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2; exit}' "$f")"
-    if [[ "$id" == "$want" ]]; then printf '%s\n' "$f"; shopt -u nullglob; return 0; fi
-  done
-  shopt -u nullglob
+  local dir="$1" want="$2" f
+  while IFS= read -r f; do
+    if [[ "$(read_entry_id "$f")" == "$want" ]]; then printf '%s\n' "$f"; return 0; fi
+  done < <(backlog_files "$dir")
   return 1
 }
 
@@ -711,7 +723,15 @@ case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
 case "$STATUS"   in open|doing|done|dropped) ;; *) die "invalid status: $STATUS" ;; esac
 
 # --- derive origin_ref ---
+# Skipped on the --source-id branch, which stamps an item that already exists and takes
+# the counterpart's origin from the source id — ORIGIN_REF is never read there. Running
+# the gates anyway meant escalating an audit-born item died on "--finding is required"
+# for a value nothing would have used. The --origin enum check above still runs on every
+# path; only the ref derivation is branch-specific. Found 2026-08-10 by aidex-review.
 ORIGIN_REF=""
+if [[ -n "$ESCALATE_TO" && -n "$SOURCE_ID" ]]; then
+  ORIGIN_REF=""
+else
 case "$ORIGIN" in
   audit)
     [[ -n "$FINDING" ]] || die "--finding <id> is required when --origin audit"
@@ -766,6 +786,7 @@ case "$ORIGIN" in
       || warn "warning: origin_ref $ORIGIN_REF resolves to no folder under .context/communications/{received,sent,meetings}/"
     ;;
 esac
+fi
 
 # --- handle --escalate-to (BL-035 cross-project routing handshake) ---
 # Register a linked pair: the discovering repo carries escalated_to: <target>/BL-NNN,
