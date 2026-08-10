@@ -170,8 +170,60 @@ printf 'x = 1\n' > "$TMP/conv/src/protest_utils.py"
   || fail "--finders bought its way past the oversize refusal"
 [ "$(field size_class --finders 4 "$TMP/big")" = "oversize" ] || fail "oversize must survive --finders"
 
+# ── Partition: oversize proposes a split instead of stopping at a wall ────────
+# The refusal was correct and useless: it said "split it into modules" and named none,
+# leaving the whole job to the reader. `--partition` emits the split it is refusing in
+# favour of. The refusal itself is unchanged — this is a plan, not a bypass.
+mkdir -p "$TMP/part/alpha" "$TMP/part/beta" "$TMP/part/tests"
+awk 'BEGIN { for (i = 0; i < 13000; i++) print "x = " i }' > "$TMP/part/alpha/a.py"  # still oversize
+awk 'BEGIN { for (i = 0; i < 6500; i++) print "x = " i }' > "$TMP/part/beta/b.py"    # large, splits fine
+printf 'x = 1\n' > "$TMP/part/urls.py"          # root-level file
+printf 'x = 1\n' > "$TMP/part/tasks.py"         # root-level file
+printf 'def test_x():\n    pass\n' > "$TMP/part/tests/test_x.py"
+
+# 19. THE INVARIANT. A partition that loses files is a completeness claim that is
+#     false, which is the exact failure this skill exists to stop. Found by attacking
+#     the design: echo_lab's lab_timeline has tasks.py and urls.py sitting at the
+#     module root, and a naive by-subdirectory split drops them silently.
+part_out="$(run --partition "$TMP/part")"
+sum_parts="$(printf '%s\n' "$part_out" | sed -n 's/^part\.[^.]*\.files=\([0-9]*\)$/\1/p' | awk '{s+=$1} END {print s+0}')"
+whole="$(field files "$TMP/part")"
+[ "$sum_parts" = "$whole" ] \
+  || fail "partition invariant broken: parts sum to $sum_parts, whole is $whole — files were dropped"
+
+# 20. ...and the root part must be NAMED, not merely counted. A reader who cannot see
+#     it will not review it, and "the sum happens to add up" is not a report.
+printf '%s\n' "$part_out" | grep -q '^part\.(root)\.files=2$' \
+  || fail "the 2 root-level files are not reported as their own named part"
+
+# 21. Every part carries its own measurement, and a part that is STILL oversize is
+#     marked as needing another level. `pages/` in echo_lab's timeline is 12,712 LOC
+#     of source — over the bound by 6% — so a depth-1 partition does not always
+#     converge, and a proposal whose failure mode is the same wall one level down
+#     would be no better than the wall.
+printf '%s\n' "$part_out" | grep -q '^part\.alpha\.size_class=oversize$' \
+  || fail "an oversize part must be reported as oversize"
+printf '%s\n' "$part_out" | grep -q '^part\.alpha\.needs_split=yes$' \
+  || fail "an oversize part must be flagged as needing another level"
+printf '%s\n' "$part_out" | grep -q '^partitionable=yes$' || fail "expected partitionable=yes"
+
+# 22. A flat target has no subdirectories to split on. That is a terminal state and
+#     must say so — silently returning one part equal to the whole is a proposal that
+#     proposes nothing.
+mkdir -p "$TMP/flat"
+awk 'BEGIN { for (i = 0; i < 13000; i++) print "x = " i }' > "$TMP/flat/one.py"
+flat_out="$(run --partition "$TMP/flat")"
+printf '%s\n' "$flat_out" | grep -q '^partitionable=no$' \
+  || fail "a flat oversize target must report partitionable=no, not a one-part split"
+printf '%s\n' "$flat_out" | grep -q '^partition_note=' \
+  || fail "partitionable=no must come with a note saying what to do instead"
+
+# 23. --partition does not lift the refusal it explains.
+[ "$(field finders_per_lens --partition "$TMP/part")" = "0" ] \
+  || fail "--partition must not turn an oversize target into a runnable one"
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 18 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override)"
+  echo "OK — resolve-review-target: 23 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"

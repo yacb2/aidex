@@ -37,6 +37,7 @@ TARGET=""
 WHOLE_APP=0
 INCLUDE_TESTS=0
 FINDERS_OVERRIDE=""
+PARTITION=0
 # The angle catalog's own maximum: correctness has 4 angles, security has 2. Asking for
 # more finders than there are angles would announce coverage the catalog cannot supply.
 CATALOG_MAX_ANGLES=4
@@ -48,6 +49,9 @@ usage: resolve-review-target.sh [--files] (<path> | --app)
   <path>   a module, directory, or single file to review as it stands
   --app    the whole repository (see the size classes — this usually must be split)
   --files  print the resolved file list instead of the measurement
+  --finders N      override the finder count the size class implies (max 4)
+  --include-tests  review test files too, and size on the total
+  --partition      also propose a split, one part per immediate subdirectory
 
 There is no default target. Naming what is reviewed is the caller's job.
 USAGE
@@ -58,6 +62,7 @@ while [ $# -gt 0 ]; do
     --files) PRINT_FILES=1; shift ;;
     --app)   WHOLE_APP=1; shift ;;
     --include-tests) INCLUDE_TESTS=1; shift ;;
+    --partition) PARTITION=1; shift ;;
     --finders)
       [ $# -ge 2 ] || { echo "resolve-review-target: --finders needs a number" >&2; exit 2; }
       case "$2" in
@@ -241,6 +246,69 @@ size_class=$SIZE_CLASS
 finders_per_lens=$FINDERS
 finder_floor_ktokens_per_lens=$FINDER_FLOOR_PER_LENS
 EOF
+
+# ── Partition proposal ────────────────────────────────────────────────────────
+# `oversize` was a correct refusal and a useless one: it said "split it into modules"
+# and named none, leaving the entire job to the reader. This emits the split it is
+# refusing in favour of — one part per immediate subdirectory, each measured like a
+# target in its own right.
+#
+# It is a PLAN, not a bypass. finders_per_lens stays 0 and the refusal on stderr stays
+# exactly as it was.
+#
+# The invariant is the deliverable: every reviewed file lands in exactly one part, and
+# the parts sum to the whole. Without that, a partition is a completeness claim that is
+# false — which is the failure this whole skill exists to stop. It also has a concrete
+# victim: echo_lab's lab_timeline keeps tasks.py and urls.py at the module root, and a
+# by-subdirectory split drops them silently. Hence the named `(root)` part.
+#
+# A part can still be oversize (echo_lab's pages/ is 12,712 LOC of source, over by 6%),
+# so each carries needs_split. A proposal whose failure mode is the same wall one level
+# down would be no better than the wall.
+if [ "$PARTITION" -eq 1 ]; then
+  base="${TARGET%/}"
+  if [ -f "$base" ]; then
+    echo "partitionable=no"
+    echo "partition_note=the target is a single file; there is nothing to split. Review it as it stands, or name a wider target."
+  else
+    parts_tmp="$(mktemp)"
+    printf '%s\n' "$FILES" | while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      rel="${f#"$base"/}"
+      case "$rel" in
+        */*) part="${rel%%/*}" ;;
+        *)   part="(root)" ;;
+      esac
+      n="$(wc -l < "$f" 2>/dev/null | tr -d ' ')"
+      printf '%s\t%s\n' "$part" "${n:-0}"
+    done > "$parts_tmp"
+
+    SUBDIR_PARTS="$(awk -F'\t' '$1 != "(root)"' "$parts_tmp" | wc -l | tr -d ' ')"
+    if [ "$SUBDIR_PARTS" -eq 0 ]; then
+      echo "partitionable=no"
+      echo "partition_note=every reviewable file sits directly in the target, so there are no subdirectories to split on. Name a narrower target, or group the files yourself."
+    else
+      echo "partitionable=yes"
+      awk -F'\t' '
+        { c[$1]++; l[$1] += $2 }
+        END {
+          for (p in c) printf "%s\t%d\t%d\n", p, c[p], l[p]
+        }
+      ' "$parts_tmp" | LC_ALL=C sort | while IFS="$(printf '\t')" read -r part pfiles ploc; do
+        if   [ "$ploc" -le 800 ];   then pclass="small";    psplit="no"
+        elif [ "$ploc" -le 3000 ];  then pclass="medium";   psplit="no"
+        elif [ "$ploc" -le 12000 ]; then pclass="large";    psplit="no"
+        else                             pclass="oversize"; psplit="yes"
+        fi
+        echo "part.$part.files=$pfiles"
+        echo "part.$part.source_loc=$ploc"
+        echo "part.$part.size_class=$pclass"
+        echo "part.$part.needs_split=$psplit"
+      done
+    fi
+    rm -f "$parts_tmp"
+  fi
+fi
 
 [ "$SIZE_CLASS" = "oversize" ] && cat >&2 <<EOF
 resolve-review-target: $SOURCE_LOC LOC of source is oversize for a single review run.
