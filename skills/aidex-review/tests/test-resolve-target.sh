@@ -222,6 +222,37 @@ printf '%s\n' "$flat_out" | grep -q '^partition_note=' \
 [ "$(field finders_per_lens --partition "$TMP/part")" = "0" ] \
   || fail "--partition must not turn an oversize target into a runnable one"
 
+# ── A skill is markdown, and Step 1 has to be able to see one ────────────────
+# .md is not a source extension, so pointing the resolver at skills/aidex-review
+# returned 1 file: SKILL.md and references/01-review-angles.md -- 487 lines and all of
+# the substance -- were invisible, and the file set for the review of these two skills
+# had to be assembled by hand. Step 1 is described as never-skip and for this whole
+# class of target it could not run.
+#
+# A flag and a detection, not a widened SOURCE_EXT: pulling every .md into a normal
+# app's review is noise a correctness finder would spend its budget on.
+mkdir -p "$TMP/askill/references" "$TMP/askill/scripts"
+printf -- '---\nname: askill\n---\n\n# A skill\n' > "$TMP/askill/SKILL.md"
+printf '# Angles\n\ncontent\n' > "$TMP/askill/references/01-angles.md"
+printf 'echo hi\n' > "$TMP/askill/scripts/do.sh"
+
+# 24. A directory carrying a SKILL.md IS a skill, and its markdown is its source.
+[ "$(field skill_target "$TMP/askill")" = "yes" ] \
+  || fail "a directory with SKILL.md must be detected as a skill target, got '$(field skill_target "$TMP/askill")'"
+[ "$(field files "$TMP/askill")" = "3" ] \
+  || fail "a skill target must resolve its markdown (SKILL.md + reference + script = 3), got $(field files "$TMP/askill")"
+run --files "$TMP/askill" | grep -q 'SKILL.md' || fail "SKILL.md is missing from a skill target's file set"
+run --files "$TMP/askill" | grep -q '01-angles.md' || fail "the skill's reference is missing from its file set"
+
+# 25. ...and on anything else markdown stays out unless asked for. `notes` in the mod
+#     fixture is a README: a correctness finder reading it is budget that never reached
+#     the code.
+[ "$(field skill_target "$TMP/mod")" = "no" ] || fail "a normal module must not be read as a skill target"
+run --files "$TMP/mod" | grep -q 'README.md' && fail "markdown leaked into a normal module's file set"
+run --files --include-docs "$TMP/mod" | grep -q 'README.md' \
+  || fail "--include-docs must bring markdown into the reviewed set"
+[ "$(field include_docs --include-docs "$TMP/mod")" = "1" ] || fail "--include-docs must be reported in the measurement"
+
 # ── Prose lockstep: SKILL.md and the angle catalog ───────────────────────────
 # Cell 11 asserts the resolver's key name against SKILL.md and stops there, which is
 # why the catalog could drift behind SKILL.md through four commits that all edited
@@ -232,7 +263,7 @@ ANGLES="$SCRIPT_DIR/../references/01-review-angles.md"
 # The catalog's verify section only — a token elsewhere in the file is not the copy.
 verify_section() { awk '/^## The verify phase/{f=1;next} f && /^## /{exit} f' "$ANGLES"; }
 
-# 24. The verifier's return shape has ONE owner. SKILL.md Step 3.3 is it — the
+# 26. The verifier's return shape has ONE owner. SKILL.md Step 3.3 is it — the
 #     always-loaded execution surface — so if SKILL.md defines a return field, the
 #     catalog must either carry it too or say where it lives. What it must not do is
 #     state the contract as if complete while missing fields, which is what it did:
@@ -250,7 +281,7 @@ for tok in 'unreachable-trigger' 'undetermined' 'severity'; do
   fi
 done
 
-# 25. The catalog pointer is an INSTRUCTION, at the step that needs it. skill-conventions
+# 27. The catalog pointer is an INSTRUCTION, at the step that needs it. skill-conventions
 #     measured the two forms over 58 (skill, reference) pairs on 2026-08-05: imperative +
 #     absolute path + stated cost read 80.6% of the time, `See [file](relative)` in a
 #     header block 0%. This skill's body then demands catalog content three times — the
@@ -267,7 +298,7 @@ grep -q '](references/01-review-angles.md)' "$SKILL_MD" \
   && fail "SKILL.md still carries the bare repo-relative markdown link to the catalog — a second, weaker citation"
 
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 25 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 2 prose lockstep)"
+  echo "OK — resolve-review-target: 27 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 2 doc-target, 2 prose lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"

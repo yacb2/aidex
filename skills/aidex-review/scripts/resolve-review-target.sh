@@ -36,6 +36,7 @@ PRINT_FILES=0
 TARGET=""
 WHOLE_APP=0
 INCLUDE_TESTS=0
+INCLUDE_DOCS=0
 FINDERS_OVERRIDE=""
 PARTITION=0
 # The angle catalog's own maximum: correctness has 4 angles, security has 2. Asking for
@@ -51,6 +52,7 @@ usage: resolve-review-target.sh [--files] (<path> | --app)
   --files  print the resolved file list instead of the measurement
   --finders N      override the finder count the size class implies (max 4)
   --include-tests  review test files too, and size on the total
+  --include-docs   review markdown too (implied when the target is a skill)
   --partition      also propose a split, one part per immediate subdirectory
 
 There is no default target. Naming what is reviewed is the caller's job.
@@ -62,6 +64,7 @@ while [ $# -gt 0 ]; do
     --files) PRINT_FILES=1; shift ;;
     --app)   WHOLE_APP=1; shift ;;
     --include-tests) INCLUDE_TESTS=1; shift ;;
+    --include-docs)  INCLUDE_DOCS=1; shift ;;
     --partition) PARTITION=1; shift ;;
     --finders)
       [ $# -ge 2 ] || { echo "resolve-review-target: --finders needs a number" >&2; exit 2; }
@@ -103,6 +106,23 @@ fi
 # finder spending its budget on node_modules is budget that never reached the module.
 EXCLUDE_DIRS='node_modules|\.git|dist|build|coverage|__pycache__|\.venv|venv|vendor|_archive|\.next|\.turbo|target|site-packages'
 SOURCE_EXT='py|js|jsx|ts|tsx|vue|sh|bash|rb|go|rs|java|kt|php|c|h|cpp|hpp|cs|swift|sql'
+
+# ── A skill is markdown ───────────────────────────────────────────────────────
+# Pointing this at skills/aidex-review returned ONE file: the SKILL.md and the
+# references are where all of the substance lives, and .md is not a source extension —
+# so Step 1, which the body calls never-skip, could not run at all on that class of
+# target and the file set had to be assembled by hand.
+#
+# A detection plus a flag, not a widened SOURCE_EXT. On a normal app every README,
+# CHANGELOG and design note would land in the reviewed set, and a correctness finder
+# spending its budget there is budget that never reached the code. A directory carrying
+# a SKILL.md is not ambiguous, and a caller who wants docs anyway says so.
+SKILL_TARGET=no
+if [ -f "$TARGET/SKILL.md" ] || [ "$(basename "$TARGET")" = "SKILL.md" ]; then
+  SKILL_TARGET=yes
+  INCLUDE_DOCS=1
+fi
+[ "$INCLUDE_DOCS" -eq 1 ] && SOURCE_EXT="$SOURCE_EXT|md"
 
 collect_files() {
   find "$TARGET" -type f 2>/dev/null \
@@ -239,6 +259,8 @@ loc=$LOC
 source_loc=$SOURCE_LOC
 test_files=$TEST_COUNT
 include_tests=$INCLUDE_TESTS
+include_docs=$INCLUDE_DOCS
+skill_target=$SKILL_TARGET
 langs=$(langs)
 security_surface_files=$SEC_HITS
 perf_surface_files=$PERF_HITS
