@@ -105,9 +105,10 @@ nothing.
 finder bill, and all of it is knowable now. Verifiers are one per surviving candidate,
 their count is not knowable before the find phase, and **they dominate the run**: measured
 once (2026-08-10, `register-item.sh`, 790 LOC, 3 lenses, 6 finders) the floor was 132k and
-the run spent 2.2M — ~17×, n=1. So say "≥ *floor*, and the one run we have measured came
-in around 17× its floor". Printing the floor alone as the number is the failure this
-sentence exists to stop.
+the run spent 2.2M — ~17×, n=1. Quote the **ratio**, not the 132k: that floor was computed
+on total LOC, before `source_loc`, so the same target measures a different floor today.
+So say "≥ *floor*, and the one run we have measured came in around 17× its floor".
+Printing the floor alone as the number is the failure this sentence exists to stop.
 
 **Name the model and effort in the same breath as the cost.** This skill is
 `model-policy: inherit-session`: no `model`/`effort` is passed to any agent, so every
