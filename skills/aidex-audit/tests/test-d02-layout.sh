@@ -11,10 +11,11 @@
 # directory nothing writes to, which validate-audit.sh then reports as a methodology
 # folder with three missing boards.
 #
-# SITE LIST is deliberately narrow. references/01-principles.md, 02-id-conventions.md
-# and 04-playbooks.md carry the same pre-D-02 names and are not fixed here -- they are
-# being rewritten under a separate item that decides who owns that prose. Widening this
-# list is a one-line change once that lands.
+# 01-principles.md and 02-id-conventions.md joined the list once they stopped restating
+# audit-conventions.md wholesale. Both are on the critical path: SKILL.md sends the
+# auditor to 02 before writing the first finding id and to 01 for "the full text" of the
+# principles, so a drifted copy there is read before the first row is written.
+# 04-playbooks.md still carries two of these names and is not in the list yet.
 #
 # Run: bash skills/aidex-audit/tests/test-d02-layout.sh
 # Exit: 0 if every checked file is on the canon layout.
@@ -22,7 +23,18 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FILES=("$SCRIPT_DIR/../references/05-migration-guide.md")
+FILES=(
+  "$SCRIPT_DIR/../references/05-migration-guide.md"
+  "$SCRIPT_DIR/../references/01-principles.md"
+  "$SCRIPT_DIR/../references/02-id-conventions.md"
+)
+# Files that describe CURRENT canon and never a legacy source, so the stricter rules
+# below apply to them and not to the migration guide, whose whole subject is the layout
+# being migrated from.
+CANON_FILES=(
+  "$SCRIPT_DIR/../references/01-principles.md"
+  "$SCRIPT_DIR/../references/02-id-conventions.md"
+)
 
 PASS=0
 FAIL=0
@@ -56,6 +68,35 @@ for f in "${FILES[@]}"; do
   # folder being migrated FROM, which is always under `.context/plans/`.
   check "$rel: dates audit destinations ISO, not YYYYMMDD" \
         "$(grep -n 'audits/YYYYMMDD' "$f")"
+done
+
+for f in "${CANON_FILES[@]}"; do
+  rel="$(basename "$f")"
+
+  # D-01 is ISO. These files gave backlog and plan identity as YYYYMMDD-<slug>, a format
+  # rules/aidex-conventions.md bans outright.
+  check "$rel: dates are ISO (D-01)" "$(grep -n 'YYYYMMDD' "$f")"
+
+  # 03-lifecycle.md declares open/doing/done/dropped and marks the rest legacy
+  # read-only. A principles file presenting the legacy chain as THE state list is read
+  # before a status is ever set.
+  check "$rel: presents no legacy status as current" \
+        "$(grep -nE '`triaged`|`in-progress`|`closed`' "$f")"
+
+  # Cross-references are <type>/<filename> markers (D-03); 03-lifecycle.md says
+  # "never a relative markdown link", and the escalation example was one.
+  check "$rel: cross-references are markers, not relative links" \
+        "$(grep -nE '\[(backlog|plans?|decisions?)/[^]]*\]\(' "$f")"
+
+  # audit-conventions.md: "the methodology folder is the namespace". Scoping ids to the
+  # project forbids what canon permits -- ux/ structured while security/ is global.
+  check "$rel: scopes ids to the methodology, not the project" \
+        "$(grep -niE 'per project|within a project|one per project' "$f")"
+
+  # `First Seen` was dropped from the board in BL-057; the first element of Audit Runs
+  # is where first-seen lives now.
+  check "$rel: does not justify a rule by a dropped column" \
+        "$(grep -n 'First Seen' "$f")"
 done
 
 printf '\nd02 layout: %d passed, %d failed\n' "$PASS" "$FAIL"

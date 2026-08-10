@@ -1,103 +1,78 @@
-# 02 — ID Conventions
+# 02 — ID Conventions: which pattern to pick, and how to tell
 
-Two patterns are supported. Pick one per project and stay consistent.
+**`aidex-conventions/references/audit-conventions.md` § ID conventions defines the two
+patterns and their scope.** Read it there. Ids are scoped to a **methodology** — the
+methodology folder is the namespace, so `BUG-01-3` in `ux/` and `BUG-01-3` in `security/`
+are different findings — and the pattern is chosen once inside each methodology, not once
+for the whole repository. An earlier version of this file scoped both to the repository,
+which forbids what canon permits: `ux/` structured while `security/` is global is legal.
 
----
-
-## Pattern A — Structured IDs
-
-Format: `<CATEGORY>-<MODULE>-<N>`
-
-Examples:
-- `BUG-01-3` — bug, in module 01 (e.g., auth), third one
-- `IDEA-FF-2` — idea, in module FF (e.g., features), second one
-- `GAP-05-1` — gap, in module 05 (e.g., tests), first one
-
-### When to use
-
-- Modules / phases are stable and finite (e.g., a pipeline with fixed stages)
-- Reviewers commonly scan by module ("show me all auth bugs")
-- Visual grouping helps navigation of large INVENTORY
-- Module abbreviations are meaningful and unambiguous
-
-### Conventions
-
-- **Categories:** choose from `BUG`, `GAP`, `IDEA`, `RISK`, `OPPORTUNITY`, `REGRESSION`
-- **Modules:** use numeric codes (01, 02) or short alphabetic codes (AUTH, TEST, FF)
-- **N:** increments per-module, not global
-
-### Pros / cons
-
-| Pros | Cons |
-|---|---|
-| Immediate visual grouping | Harder to add new modules mid-project |
-| Review by module trivial | ID format coupling with module layout |
-| Preserves hierarchy in text | Module renames orphan IDs |
+This file holds only the decision aid: the trade-offs, the questions that settle it, the
+default, and what changing your mind later costs.
 
 ---
 
-## Pattern B — Global IDs
-
-Format: `<PREFIX>-<N>` with flat numbering.
-
-Examples:
-- `F-042` — finding number 42
-- `BUG-127` — bug number 127
-- `UX-019` — UX-related finding number 19
-
-### When to use
-
-- Modules are fluid or cross-cutting findings dominate
-- Simpler uniqueness enforcement (just max+1)
-- Audit team is external and unfamiliar with internal module breakdown
-- Project is small — module grouping adds no value
-
-### Conventions
-
-- **Single counter** (or one counter per category prefix)
-- **N:** typically zero-padded to 3 or 4 digits for sort order
-- **No module context in ID** — the `Module` column in INVENTORY tells you
-
-### Pros / cons
+## Pattern A — Structured IDs · trade-offs
 
 | Pros | Cons |
 |---|---|
-| Simpler to assign | No visual grouping by ID |
-| Module refactor doesn't affect IDs | Reviewers can't scan by module via ID |
-| Works uniformly across project size | Loses semantic clue in references |
+| Immediate visual grouping | Harder to add new modules mid-methodology |
+| Review by module is trivial | The id format couples to the module layout |
+| Preserves hierarchy in plain text | Module renames orphan ids |
+
+Conventions inside the pattern: categories from `BUG`, `GAP`, `IDEA`, `RISK`,
+`OPPORTUNITY`, `REGRESSION`; modules as numeric (`01`, `02`) or short alphabetic codes
+(`AUTH`, `TEST`, `FF`); `N` increments per module, not globally.
+
+## Pattern B — Global IDs · trade-offs
+
+| Pros | Cons |
+|---|---|
+| Simpler to assign — max + 1 | No visual grouping from the id |
+| A module refactor does not touch ids | Reviewers cannot scan by module via the id |
+| Works uniformly at any size | Loses the semantic clue in references |
+
+Conventions inside the pattern: one counter, or one per category prefix; `N` zero-padded
+to 3–4 digits so text sorts correctly; no module context in the id — the `Module` column
+carries it.
 
 ---
 
 ## Deciding
 
-Ask:
+Ask, in this order:
 
-1. **Are your modules stable?** If they change every release, use global.
-2. **Do you ever file cross-module findings?** If >20% are `[SHARED]`, global is simpler.
-3. **How big is INVENTORY likely to grow?** >500 findings, structured starts helping navigation.
-4. **Who adds findings?** Mixed audiences benefit from simpler global format.
+1. **Are the modules stable?** If they change every release, go global.
+2. **Do you file cross-module findings?** If more than ~20% are `[SHARED]`, global is
+   simpler.
+3. **How large will this methodology's inventory grow?** Past ~500 findings, structured
+   starts earning its cost in navigation.
+4. **Who adds findings?** Mixed audiences do better with the simpler global format.
 
-A safe default for new projects: **global IDs** (`F-NNN`). Switch to structured only when you feel the pain.
+A safe default for a new methodology: **global ids** (`F-NNN`). Move to structured only
+when you feel the pain.
 
 ---
 
-## Changing mid-project
+## Changing mid-flight
 
-You can change conventions, but it's work:
+You can change the pattern, but it is work:
 
-1. Add a `Legacy ID` column to INVENTORY temporarily.
-2. Generate new IDs; map old → new.
-3. Update every reference in `findings.md`, backlog, plans, decisions.
-4. Record the change in `CHANGELOG.md`.
-5. Keep the Legacy ID column for one cycle, then retire.
+1. Add a `Legacy ID` column to the methodology's `00-inventory.md`, temporarily.
+2. Generate the new ids; map old → new.
+3. Update every reference — the runs' `findings.md`, backlog, plans, decisions.
+4. Record the change in `00-changelog.md`.
+5. Keep the `Legacy ID` column for one cycle, then retire it.
 
-Worth it only if the current scheme is actively obstructing work.
+Worth it only when the current scheme is actively obstructing work.
 
 ---
 
 ## Never
 
-- **Reuse IDs.** Once assigned, an ID is forever — even for dropped findings.
-- **Mix conventions** within a project. Pick one and stick with it.
-- **Put timestamp data in the ID.** That's what the `First Seen` column is for.
-- **Embed severity in the ID.** Severity changes during triage; IDs don't.
+- **Reuse an id.** Once assigned it is permanent, dropped findings included.
+- **Mix patterns inside one methodology.** Across methodologies is fine — that is what
+  the namespace is for.
+- **Put a date in the id.** The first element of `Audit Runs` is when the finding was
+  first seen; that is why the board carries no separate date column.
+- **Embed severity in the id.** Severity changes during triage; ids do not.
