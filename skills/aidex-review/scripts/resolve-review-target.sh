@@ -140,10 +140,13 @@ elif [ "$LOC" -le 12000 ]; then SIZE_CLASS="large";    FINDERS=4
 else                            SIZE_CLASS="oversize"; FINDERS=0
 fi
 
-# ~22k tokens per agent, measured in the plan-exec-as-workflow work and recorded in
-# review-scope-conventions.md §4. One verifier per finding is not in this estimate —
-# it is per-finding and therefore unknowable before the find phase.
-EST_PER_LENS=$(( FINDERS * 22 ))
+# The FINDER FLOOR — not an estimate of what the run costs. ~22k tokens per agent
+# (measured in the plan-exec-as-workflow work, recorded in review-scope-conventions.md
+# §4). Verifiers are excluded because their count is unknowable before the find phase,
+# NOT because they are small: in the one module review measured (2026-08-10,
+# register-item.sh, 790 LOC, 6 finders) the run spent ~17x this number. The key is named
+# for what it is so no caller can read it as a total.
+FINDER_FLOOR_PER_LENS=$(( FINDERS * 22 ))
 
 cat <<EOF
 target=$TARGET
@@ -156,7 +159,7 @@ security_surface_files=$SEC_HITS
 perf_surface_files=$PERF_HITS
 size_class=$SIZE_CLASS
 finders_per_lens=$FINDERS
-est_ktokens_per_lens=$EST_PER_LENS
+finder_floor_ktokens_per_lens=$FINDER_FLOOR_PER_LENS
 EOF
 
 [ "$SIZE_CLASS" = "oversize" ] && cat >&2 <<EOF

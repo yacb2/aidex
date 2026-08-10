@@ -113,7 +113,10 @@ if it is not held to that.
 
 ## The verify phase
 
-One verifier per candidate, prompted to **refute**. It returns `CONFIRMED` (it verified
+One verifier per **merged** candidate — the merge runs first, in a barrier, because a
+duplicate verified twice is paid for twice in the phase that dominates the run's cost.
+
+Prompted to **refute**. It returns `CONFIRMED` (it verified
 the failure path), `PLAUSIBLE` (real-looking, not verified), or `REFUTED` (it found the
 reason the code is actually fine). Keep the first two; drop `REFUTED`.
 
@@ -122,14 +125,39 @@ than a diff review, so the cost of a permissive verifier is a report nobody read
 
 ---
 
-## Cost
+## Cost — the finder number is a floor, not an estimate of the run
 
-~22k tokens per agent (measured in the plan-exec-as-workflow work, recorded in
-`review-scope-conventions.md` §4). Finders are known before the run; verifiers are one
-per candidate and therefore **not** knowable in advance — never present a total that
-silently omits them.
+Finders: ~22k tokens per agent (measured in the plan-exec-as-workflow work, recorded in
+`review-scope-conventions.md` §4). Knowable before the run, and the resolver prints it as
+`finder_floor_ktokens_per_lens` so that the name itself says what it is.
+
+**Verifiers dominate.** One per surviving candidate, count unknowable before the find
+phase. Measured once — 2026-08-10, `register-item.sh`, 790 LOC, 3 lenses, 6 finders:
+announced floor **132k**, actual spend **2.2M**, ~**17×**. n=1.
+
+The cause is not waste, and the fix is not fewer verifiers. They did not opine: they stood
+up sandboxes and reproduced the defects with real commands and exit codes, which is what
+the refute-bias asks of them. The defect was in the *announcement* — a number that omits
+the dominant term reads as a total. State the floor, call it a floor, and say what the one
+measured run cost against it.
+
+**The §4 figure does not transfer without this caveat.** That measurement is the *diff*
+regime: hunks, a capped candidate count, Haiku verifiers. A module review has no such cap,
+and the uncapped candidate surface is what moves the total.
+
+## Angle accounting — three states, and only one of them is a broken promise
 
 `resolve-review-target.sh` sets the finder count from the target's LOC (small 2 /
-medium 3 / large 4 / oversize refuse). Angles beyond that count are dropped in the order
-listed above, and **the skill must name which angles it dropped** — an unnamed drop is a
-review that claims coverage it did not have.
+medium 3 / large 4 / oversize refuse). Angles beyond that count are cut in the order
+listed above. Report every angle that produced no findings in exactly one of these:
+
+| State | Means | Why it is reported this way |
+|---|---|---|
+| **not selected** | does not apply to this target | not a coverage gap — one clause |
+| **dropped** | applies; the `finders_per_lens` cap cut it | a coverage gap, and recoverable by splitting the target — announced up front, so the user already knows |
+| **fell** | launched, retried once, returned nothing | Step 2 announced it as covered. This is the only one that breaks a promise already made |
+
+An unnamed drop is a review that claims coverage it did not have. A **fell** reported as a
+drop is worse: it reads as a budget decision when it was a failure. The first live run lost
+`data-flow` to a structured-output retry cap and the `correctness` lens finished with 1 of
+2 angles — that is the case this table exists for.
