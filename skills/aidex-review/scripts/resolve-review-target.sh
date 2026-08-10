@@ -36,6 +36,10 @@ PRINT_FILES=0
 TARGET=""
 WHOLE_APP=0
 INCLUDE_TESTS=0
+FINDERS_OVERRIDE=""
+# The angle catalog's own maximum: correctness has 4 angles, security has 2. Asking for
+# more finders than there are angles would announce coverage the catalog cannot supply.
+CATALOG_MAX_ANGLES=4
 
 usage() {
   cat >&2 <<'USAGE'
@@ -54,6 +58,13 @@ while [ $# -gt 0 ]; do
     --files) PRINT_FILES=1; shift ;;
     --app)   WHOLE_APP=1; shift ;;
     --include-tests) INCLUDE_TESTS=1; shift ;;
+    --finders)
+      [ $# -ge 2 ] || { echo "resolve-review-target: --finders needs a number" >&2; exit 2; }
+      case "$2" in
+        ''|*[!0-9]*) echo "resolve-review-target: --finders takes a positive integer, got '$2'" >&2; exit 2 ;;
+        0)           echo "resolve-review-target: --finders 0 would review nothing; omit the target instead" >&2; exit 2 ;;
+      esac
+      FINDERS_OVERRIDE="$2"; shift 2 ;;
     -h|--help) usage; exit 2 ;;
     -*) echo "resolve-review-target: unknown flag '$1'" >&2; usage; exit 2 ;;
     *)  if [ -n "$TARGET" ]; then
@@ -191,6 +202,20 @@ if   [ "$SOURCE_LOC" -le 800 ];   then SIZE_CLASS="small";    FINDERS=2
 elif [ "$SOURCE_LOC" -le 3000 ];  then SIZE_CLASS="medium";   FINDERS=3
 elif [ "$SOURCE_LOC" -le 12000 ]; then SIZE_CLASS="large";    FINDERS=4
 else                                   SIZE_CLASS="oversize"; FINDERS=0
+fi
+
+# Depth is the caller's to set; admissibility is not. --finders overrides the count the
+# class implies, and is clamped to the catalog maximum — but it can never buy its way
+# past `oversize`, because that refusal answers a different question: not "how deep",
+# but "can this target be covered at all". One flag able to turn the anti-sample bound
+# off would make the bound decorative.
+if [ -n "$FINDERS_OVERRIDE" ] && [ "$SIZE_CLASS" != "oversize" ]; then
+  if [ "$FINDERS_OVERRIDE" -gt "$CATALOG_MAX_ANGLES" ]; then
+    FINDERS="$CATALOG_MAX_ANGLES"
+    echo "resolve-review-target: --finders $FINDERS_OVERRIDE clamped to $CATALOG_MAX_ANGLES (the angle catalog's maximum)." >&2
+  else
+    FINDERS="$FINDERS_OVERRIDE"
+  fi
 fi
 
 # The FINDER FLOOR — not an estimate of what the run costs. ~22k tokens per agent
