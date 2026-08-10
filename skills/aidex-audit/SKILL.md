@@ -32,7 +32,7 @@ Dispatch by first argument:
 |---|---|---|
 | `/aidex-audit` | — | Show help + current state of `.context/audits/` |
 | `/aidex-audit new <type> <slug>` | [scripts/new-audit.sh](scripts/new-audit.sh) | Scaffold a new audit run |
-| `/aidex-audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog |
+| `/aidex-audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog. Every finding prints its rule id; accept one by adding a line to `.context/.aidex-waivers` (same store and format as `validate.py`, canon `00-global.md` §10.1) |
 | `/aidex-audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
 | `/aidex-audit escalate <finding-id> --loop` | [scripts/escalate-finding-to-loop.sh](scripts/escalate-finding-to-loop.sh) | Escalate a **bulk, machine-checkable** finding to an `aidex-loop` loop-spec instead of the backlog (see guard below) |
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
@@ -67,28 +67,19 @@ methodology actually checks, when it is the wrong fit, and which one a vague req
 
 ## Dispatch logic
 
-When invoked with arguments, the skill runs:
+When invoked with arguments, run the script the **sub-actions table above** names for
+that command, passing the remaining arguments through. The table is the only
+command→script mapping; it is deliberately not restated here, because a second copy is
+how six of these routes came to name scripts that never existed.
+
+One command is not 1:1 — `escalate` has two scripts, chosen by the flag:
 
 ```bash
-# escalate routes to the loop variant when --loop is present; otherwise the table maps 1:1.
-if [ "$ACTION" = "escalate" ] && printf '%s\n' "$@" | grep -q -- '--loop'; then
+# escalate --loop takes the loop variant; every other command takes its table row.
+if [ "${1:-}" = "escalate" ] && printf '%s\n' "$@" | grep -q -- '--loop'; then
   bash "${CLAUDE_SKILL_DIR}/scripts/escalate-finding-to-loop.sh" "$@"
-else
-  bash "${CLAUDE_SKILL_DIR}/scripts/${ACTION}.sh" "$@"
 fi
 ```
-
-Where `${ACTION}` maps from the first argument:
-
-- `new` → `new-audit.sh <type> <slug>`
-- `validate` → `validate-audit.sh [path]` — every finding prints its rule id; accept one by adding a line to `.context/.aidex-waivers` (same store and format as `validate.py`, canon `00-global.md` §10.1)
-- `escalate` → `escalate-finding.sh <finding-id>` — unless `--loop` is present, then `escalate-finding-to-loop.sh <finding-id> --loop`
-- `migrate` → `migrate-audit.sh [project-dir]`
-- `reindex` → `reindex-audits.sh`
-- `close` → `close-audit.sh <run> [--force]`
-- `coverage-matrix` → `coverage-matrix.sh`
-- `coverage-sweep` → `coverage-sweep.sh [--since ISO]`
-- `affected-tests` → `affected-tests.sh [--since <ref>] [--command]`
 
 If no arguments are given, show the help table above and run a status check:
 
