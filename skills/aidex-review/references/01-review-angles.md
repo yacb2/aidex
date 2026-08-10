@@ -113,12 +113,21 @@ if it is not held to that.
 
 ## The verify phase
 
+**SKILL.md Step 3.3 owns the verifier's return shape** — the full field list, including
+the severity that overrides the finder's and the reason a `PLAUSIBLE` must carry. Read it
+there and author the prompt from it; this section holds only what the verdicts *mean* and
+why the verifier is biased the way it is. An earlier version of this section stated the
+contract as if complete, missing both of those fields, and a prompt authored from here
+omitted them.
+
 One verifier per **merged** candidate — the merge runs first, in a barrier, because a
 duplicate verified twice is paid for twice in the phase that dominates the run's cost.
 
-Prompted to **refute**. It returns `CONFIRMED` (it verified
-the failure path), `PLAUSIBLE` (real-looking, not verified), or `REFUTED` (it found the
-reason the code is actually fine). Keep the first two; drop `REFUTED`.
+What the three verdicts claim:
+
+- `CONFIRMED` — it verified the failure path.
+- `PLAUSIBLE` — real-looking, not verified. Step 3.3 requires it to say which kind.
+- `REFUTED` — it found the reason the code is actually fine. Dropped from the report.
 
 Bias the verifier toward refuting: a module review has a far larger candidate surface
 than a diff review, so the cost of a permissive verifier is a report nobody reads.

@@ -19,7 +19,8 @@ the tree is dirty (measured 2026-07-27).
 
 This skill answers the other question: **review this module as it is**, with no base ref.
 
-Angle catalog and the finder/verifier prompts: [`references/01-review-angles.md`](references/01-review-angles.md).
+Angle catalog and the scope boundary every finder is given: [`references/01-review-angles.md`](references/01-review-angles.md).
+The verifier's return shape is Step 3.3's, not the catalog's.
 Scope vocabulary for the *diff* case: `aidex-conventions/references/review-scope-conventions.md`.
 
 ## Step 1 — Resolve and measure the target (never skip)
