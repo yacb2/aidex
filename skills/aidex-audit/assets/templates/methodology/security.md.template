@@ -97,10 +97,10 @@ Based on [OWASP Top 10](https://owasp.org/Top10/) and [OWASP ASVS](https://owasp
 
 ## Recording findings
 
-Each failure becomes a row in `../INVENTORY.md`:
+Each failure becomes a row in `00-inventory.md`:
 
 ```
-| BUG-<CATEGORY>-<N> | bug or risk | <asset> | <summary> | open | P0 or P1 | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
+| BUG-<CATEGORY>-<N> | bug or risk | <asset> | <summary> | open | P0 or P1 | {{DATE}}-<slug> | — | — |
 ```
 
 **Severity defaults in security:**

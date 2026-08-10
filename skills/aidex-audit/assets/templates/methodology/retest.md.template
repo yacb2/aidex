@@ -15,7 +15,7 @@ Structure: **Previous findings × validating commits.** Confirm whether each pre
 
 ## Preparation
 
-1. Pull the list of findings to re-test. Default: all `open`, `triaged`, or `in-progress` from `../INVENTORY.md`.
+1. Pull the list of findings to re-test. Default: all `open`, `triaged`, or `in-progress` from `00-inventory.md`.
 2. Get the list of commits merged since the last audit of this type.
 3. Have staging / prod accessible or ability to run the product at those commits.
 
@@ -25,12 +25,12 @@ Structure: **Previous findings × validating commits.** Confirm whether each pre
 
 For each finding in scope, classify:
 
-| Result | INVENTORY action |
+| Result | Inventory action |
 |---|---|
 | **Fixed** — reproducer no longer reproduces | Status → `closed`, add link to verifying commit |
 | **Still reproduces** | Status stays `open`, append this run's date to Audit Runs column |
 | **Regression** — was closed, now back | New row as `REGRESSION-<parent-id>-<n>`, status `open`, link to original |
-| **New adjacent finding** — found while re-testing | New row in INVENTORY with standard ID |
+| **New adjacent finding** — found while re-testing | New row in the inventory with a standard ID |
 | **Can't reproduce** | Status stays, add note "could not reproduce on {{DATE}}, needs steps" |
 
 ---
@@ -48,7 +48,7 @@ For each classification, record evidence in the run's `findings.md`:
 
 ## Recording
 
-In `../INVENTORY.md`, update existing rows in place:
+In `00-inventory.md`, update existing rows in place:
 
 - Set `Status` column to the new state
 - Append this run's folder slug (`YYYY-MM-DD-<slug>`) to the `Audit Runs` column

@@ -84,10 +84,10 @@ On critical flows (sign-up, checkout), with keyboard only and with screen reader
 
 ## Recording findings
 
-Each failure becomes a row in `../INVENTORY.md`:
+Each failure becomes a row in `00-inventory.md`:
 
 ```
-| A11Y-<WCAG>-<N> | bug | <page> | <WCAG criterion>: <summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
+| A11Y-<WCAG>-<N> | bug | <page> | <WCAG criterion>: <summary> | open | P<N> | {{DATE}}-<slug> | — | — |
 ```
 
 **Severity guide:**

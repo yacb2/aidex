@@ -86,10 +86,10 @@ Structure: **Lighthouse categories + backend metrics.** Measure, compare against
 
 ## Recording findings
 
-Each budget breach or concern becomes a row in `../INVENTORY.md`:
+Each budget breach or concern becomes a row in `00-inventory.md`:
 
 ```
-| PERF-<AREA>-<N> | bug or risk | <area> | <metric> was <observed>, budget <target> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
+| PERF-<AREA>-<N> | bug or risk | <area> | <metric> was <observed>, budget <target> | open | P<N> | {{DATE}}-<slug> | — | — |
 ```
 
 **Severity guide:**

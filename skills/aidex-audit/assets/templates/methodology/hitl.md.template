@@ -74,7 +74,7 @@ Human (judgment):
 - [ ] copy makes sense
 ```
 
-Failures become findings immediately (row in `../00-inventory.md`), marked `[F]` with the ID.
+Failures become findings immediately (row in `00-inventory.md`), marked `[F]` with the ID.
 
 ---
 
@@ -99,10 +99,10 @@ Multi-session by design. State lives in `checklist.md`:
 
 ## Recording findings
 
-Each failure becomes a row in `../00-inventory.md`:
+Each failure becomes a row in `00-inventory.md`:
 
 ```
-| BUG-<PAGE>-<N> | bug | <page> [<role>] | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
+| BUG-<PAGE>-<N> | bug | <page> [<role>] | <one-line summary> | open | P<N> | {{DATE}}-<slug> | — | — |
 ```
 
 Severity guide:
@@ -117,7 +117,7 @@ Severity guide:
 
 - `index.md` — run context, scope (pages × roles), session log
 - `checklist.md` — per-page × per-role checklist + cursor (the resume state)
-- `findings.md` — filtered view linking to INVENTORY
+- `findings.md` — filtered view linking to `00-inventory.md`
 - `evidence/` — per-check agent evidence: snapshots, console/network dumps, screenshots, Lighthouse reports
 
 ---
