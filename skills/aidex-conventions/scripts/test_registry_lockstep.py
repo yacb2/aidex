@@ -32,6 +32,11 @@ Installed, that root also holds the user's own skills, which this repo does not 
 and has no standing to judge (BL-115).
   7. every skills/*/agents/*.md declares BOTH model and effort (an absent effort
      silently inherits the spawning session's — see the check for the probe)
+  7b. every skill declaring Workflow/Agent in allowed-tools declares a `model-policy:`
+     AND states it in the body. Guard 7 only walks agents/*.md, so a skill whose
+     subagent prompts live inline in a Workflow script passes it vacuously — which is
+     how aidex-review came to spawn 34 agents that all inherited the session's model
+     by omission. 7b carries its own good/bad probes because its population is one.
 
 Adding a new artifact type? Update validate.py AND every file above, or this
 test fails loudly. Run with:
@@ -55,6 +60,35 @@ AIDEX_FILES = [
     SKILLS_DIR / "aidex" / "SKILL.md",
     SKILLS_DIR / "aidex" / "agents" / "context-auditor.md",
 ]
+
+
+MODEL_POLICIES = ("inherit-session", "per-stage")
+
+
+def _model_policy_failures(rel: str, head: str, body: str) -> list[str]:
+    """A skill that spawns subagents must declare, and state, its model policy.
+
+    Split out as a function so the guard can be run against known-good and known-bad
+    input on every execution. Its real population is one skill; a guard with a
+    population of one is exactly where a silent no-op survives unnoticed.
+    """
+    tools = re.search(r"^allowed-tools:\s*(.+)$", head, re.M)
+    if not tools or not re.search(r"\b(Workflow|Agent)\b", tools.group(1)):
+        return []
+    declared = re.search(r"^model-policy:\s*(\S+)", head, re.M)
+    if not declared:
+        return [f"{rel} declares Workflow/Agent but no `model-policy:` — its subagents "
+                f"would inherit the spawning session's model and effort by omission, "
+                f"which is a decision nobody made and the reader cannot see. Valid: "
+                f"{', '.join(MODEL_POLICIES)}"]
+    value = declared.group(1)
+    if value not in MODEL_POLICIES:
+        return [f"{rel} has model-policy '{value}'; valid: {', '.join(MODEL_POLICIES)}"]
+    if value not in body:
+        return [f"{rel} declares model-policy '{value}' in front-matter but never states "
+                f"it in the body — a policy that satisfies only the linter is not one "
+                f"the reader can act on"]
+    return []
 
 
 def _owned_skills() -> list[Path]:
@@ -222,6 +256,52 @@ def main() -> int:
         elif effort.group(1) not in valid_effort:
             failures.append(f"{rel} has effort '{effort.group(1)}'; valid: "
                             f"{', '.join(sorted(valid_effort))}")
+
+    # 7b. Every skill that fans out must declare a model policy.
+    #
+    # Guard 7 above only walks skills/*/agents/*.md. A skill whose finder and verifier
+    # prompts live inline in a Workflow script has no agents/ directory, so guard 7
+    # passes over it without ever looking — vacuously, which is the same shape as the
+    # cell that "covered" the dangling cross-repo link while never entering its window.
+    # aidex-review spawned 34 agents that way, every one of them inheriting the session's
+    # model and effort by omission, and that inheritance — not the finder count — was
+    # the dominant term in a run that came in ~17x its announced floor.
+    #
+    # `inherit-session` is a legitimate answer: /code-review inherits too (its prompt
+    # says "run one verifier via the Task tool" with no model; what its effort levels
+    # vary is the PROMPT — 8 angles at medium/high, 10 plus a sweep at xhigh/max —
+    # extracted from 2.1.226). What is not legitimate is leaving it undeclared, because
+    # then nobody chose it and the reader cannot see it at the moment they decide to run.
+    #
+    # Hence the second condition: the policy must also appear in the BODY. A key that
+    # satisfies only the linter is the failure mode this repo keeps rediscovering.
+    fanout_failures = _model_policy_failures
+    fanout_skills = []
+    for d in owned:
+        skill_md = d / "SKILL.md"
+        if not skill_md.is_file():
+            continue
+        txt = skill_md.read_text(encoding="utf-8")
+        parts = txt.split("---")
+        head = parts[1] if len(parts) > 2 else ""
+        body = "---".join(parts[2:]) if len(parts) > 2 else ""
+        tools_line = re.search(r"^allowed-tools:\s*(.+)$", head, re.M)
+        if tools_line and re.search(r"\b(Workflow|Agent)\b", tools_line.group(1)):
+            fanout_skills.append(d.name)
+        failures.extend(fanout_failures(f"{d.name}/SKILL.md", head, body))
+
+    # ...and the guard proves it is not a no-op, on every run. With a population of one
+    # there is nothing to notice if it silently stops checking.
+    _probe_bad = _model_policy_failures(
+        "probe", "allowed-tools: Bash Workflow\n", "no policy stated here\n")
+    if not _probe_bad:
+        failures.append("the fan-out model-policy guard passed a skill that declares "
+                        "Workflow and no policy — the guard is a no-op")
+    _probe_good = _model_policy_failures(
+        "probe", "allowed-tools: Bash Workflow\nmodel-policy: inherit-session\n",
+        "The fan-out runs at inherit-session, stated in the triage step.\n")
+    if _probe_good:
+        failures.append(f"the fan-out model-policy guard rejects a valid skill: {_probe_good}")
 
     # 8. Every canonical prefix-zero filename the migrator refuses to rename is
     #    also named in the canon that tells auditors what to flag.
@@ -413,6 +493,7 @@ def main() -> int:
           f"{len(autogen_indexes)} auto-gen indexes, "
           f"{len(AIDEX_FILES)} orchestrator files, "
           f"{len(agent_files)} subagents declaring model+effort, "
+          f"{len(fanout_skills)} fan-out skills declaring a model policy, "
           f"{len(names) if 'names' in dir() else 0} canonical prefix-zero names, "
           f"{checked_refs} skill-name references over {len(live_skills)} live skills "
           f"all in sync")
