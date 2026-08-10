@@ -32,11 +32,16 @@ Installed, that root also holds the user's own skills, which this repo does not 
 and has no standing to judge (BL-115).
   7. every skills/*/agents/*.md declares BOTH model and effort (an absent effort
      silently inherits the spawning session's — see the check for the probe)
-  7b. every skill declaring Workflow/Agent in allowed-tools declares a `model-policy:`
-     AND states it in the body. Guard 7 only walks agents/*.md, so a skill whose
-     subagent prompts live inline in a Workflow script passes it vacuously — which is
-     how aidex-review came to spawn 34 agents that all inherited the session's model
-     by omission. 7b carries its own good/bad probes because its population is one.
+  7b. every skill that fans out — by DECLARING Workflow/Agent in allowed-tools, or by
+     mandating one in its BODY — declares a `model-policy:` AND states it in the body,
+     and a body mandate not covered by the declaration is reported as its own failure.
+     Guard 7 only walks agents/*.md, so a skill whose subagent prompts live inline in a
+     Workflow script passes it vacuously — which is how aidex-review came to spawn 34
+     agents that all inherited the session's model by omission. The declaration trigger
+     had the same hole one level out: aidex-audit mandated a Workflow fan-out and an
+     Agent-tool arbiter consult while declaring neither, and so satisfied 7b by omission
+     (BL-153). Each trigger carries its own good/bad probes — a trigger with no probe is
+     the omission this guard exists to catch.
 
 Adding a new artifact type? Update validate.py AND every file above, or this
 test fails loudly. Run with:
@@ -64,31 +69,66 @@ AIDEX_FILES = [
 
 MODEL_POLICIES = ("inherit-session", "per-stage")
 
+# A body that mandates a fan-out. Either the tool is named outright, or a launch verb
+# governs a subagent. `Task` is the launcher's legacy name and is matched so the drift
+# is reported rather than missed; `Agent` is the name this suite writes.
+FANOUT_BODY = re.compile(
+    r"\b(?:Workflow|Agent|Task) tool\b"
+    r"|\b(?:launch|spawn|delegate)\w*\b[^.]{0,60}\bsubagent\b",
+    re.I,
+)
+
 
 def _model_policy_failures(rel: str, head: str, body: str) -> list[str]:
     """A skill that spawns subagents must declare, and state, its model policy.
 
     Split out as a function so the guard can be run against known-good and known-bad
-    input on every execution. Its real population is one skill; a guard with a
-    population of one is exactly where a silent no-op survives unnoticed.
+    input on every execution — including the body-triggered branch, whose whole point
+    is that a declaration cannot be trusted to reveal the use.
+
+    Two triggers, because the declaration is not the use. A skill that fans out in its
+    BODY while declaring neither tool satisfied the old declaration-only trigger by
+    omission, which is the same vacuous pass 7b was built to close one level in.
     """
     tools = re.search(r"^allowed-tools:\s*(.+)$", head, re.M)
-    if not tools or not re.search(r"\b(Workflow|Agent)\b", tools.group(1)):
+    # No allowed-tools line at all is a stance, not drift: the skill restricts nothing,
+    # so there is no whitelist to be missing from. The rule is that a whitelist, once
+    # declared, must cover what the body mandates.
+    if not tools:
         return []
+    declared_fanout = bool(re.search(r"\b(Workflow|Agent|Task)\b", tools.group(1)))
+    # Flattened: markdown wraps mid-sentence, and a line-anchored search silently misses
+    # any mandate that straddles a newline — how the aidex-dash Skill mandate hid (BL-080).
+    body_fanout = bool(FANOUT_BODY.search(re.sub(r"\s+", " ", body)))
+
+    failures: list[str] = []
+    if body_fanout and not declared_fanout:
+        failures.append(f"{rel} mandates a fan-out in its body (Workflow / Agent tool / "
+                        f"launching a subagent) but allowed-tools declares only: "
+                        f"{tools.group(1).strip()} — the omission costs a permission stop "
+                        f"mid-run, which is what the declaration exists to prevent")
+    if re.search(r"\bTask\b", tools.group(1)):
+        failures.append(f"{rel} declares 'Task' in allowed-tools; this suite names the "
+                        f"subagent launcher 'Agent' (aidex-review/SKILL.md) — one name, "
+                        f"or the reader has two contradictory examples")
+    if not (declared_fanout or body_fanout):
+        return failures
     declared = re.search(r"^model-policy:\s*(\S+)", head, re.M)
     if not declared:
-        return [f"{rel} declares Workflow/Agent but no `model-policy:` — its subagents "
-                f"would inherit the spawning session's model and effort by omission, "
-                f"which is a decision nobody made and the reader cannot see. Valid: "
-                f"{', '.join(MODEL_POLICIES)}"]
+        failures.append(f"{rel} fans out but declares no `model-policy:` — its subagents "
+                        f"would inherit the spawning session's model and effort by "
+                        f"omission, which is a decision nobody made and the reader cannot "
+                        f"see. Valid: {', '.join(MODEL_POLICIES)}")
+        return failures
     value = declared.group(1)
     if value not in MODEL_POLICIES:
-        return [f"{rel} has model-policy '{value}'; valid: {', '.join(MODEL_POLICIES)}"]
-    if value not in body:
-        return [f"{rel} declares model-policy '{value}' in front-matter but never states "
-                f"it in the body — a policy that satisfies only the linter is not one "
-                f"the reader can act on"]
-    return []
+        failures.append(f"{rel} has model-policy '{value}'; valid: "
+                        f"{', '.join(MODEL_POLICIES)}")
+    elif value not in body:
+        failures.append(f"{rel} declares model-policy '{value}' in front-matter but never "
+                        f"states it in the body — a policy that satisfies only the linter "
+                        f"is not one the reader can act on")
+    return failures
 
 
 def _owned_skills() -> list[Path]:
@@ -286,12 +326,13 @@ def main() -> int:
         head = parts[1] if len(parts) > 2 else ""
         body = "---".join(parts[2:]) if len(parts) > 2 else ""
         tools_line = re.search(r"^allowed-tools:\s*(.+)$", head, re.M)
-        if tools_line and re.search(r"\b(Workflow|Agent)\b", tools_line.group(1)):
+        if tools_line and re.search(r"\b(Workflow|Agent|Task)\b", tools_line.group(1)):
             fanout_skills.append(d.name)
         failures.extend(fanout_failures(f"{d.name}/SKILL.md", head, body))
 
-    # ...and the guard proves it is not a no-op, on every run. With a population of one
-    # there is nothing to notice if it silently stops checking.
+    # ...and the guard proves it is not a no-op, on every run — one probe pair per
+    # trigger, because a second trigger with no probe of its own is the omission this
+    # very guard exists to catch.
     _probe_bad = _model_policy_failures(
         "probe", "allowed-tools: Bash Workflow\n", "no policy stated here\n")
     if not _probe_bad:
@@ -302,6 +343,22 @@ def main() -> int:
         "The fan-out runs at inherit-session, stated in the triage step.\n")
     if _probe_good:
         failures.append(f"the fan-out model-policy guard rejects a valid skill: {_probe_good}")
+    # Body trigger: the mandate is in the prose and the declaration hides it. Wrapped
+    # across a newline on purpose — a line-anchored search would pass this vacuously.
+    _probe_body_bad = _model_policy_failures(
+        "probe", "allowed-tools: Bash Read\n",
+        "Consult the arbiter and pass it to the Agent\ntool (`model: sonnet`).\n")
+    if not any("allowed-tools declares only" in f for f in _probe_body_bad):
+        failures.append("the fan-out guard passed a skill whose body mandates an Agent "
+                        "tool call while declaring neither — the body trigger is a no-op")
+    # ...and prose that merely mentions subagents, with no launch verb governing them,
+    # is not a mandate: a guard that fires on the word alone is unusable.
+    _probe_body_good = _model_policy_failures(
+        "probe", "allowed-tools: Bash Read\n",
+        "The `aidex` skill holds the subagent specifications used during audits.\n")
+    if _probe_body_good:
+        failures.append(f"the fan-out guard fires on prose that only mentions subagents: "
+                        f"{_probe_body_good}")
 
     # 8. Every canonical prefix-zero filename the migrator refuses to rename is
     #    also named in the canon that tells auditors what to flag.

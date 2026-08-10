@@ -3,7 +3,8 @@ name: aidex-audit
 description: Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog).
 argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | close <run> | reindex | migrate [project-dir]]"
 disable-model-invocation: false
-allowed-tools: Bash Read Write Edit Glob Grep
+allowed-tools: Bash Read Write Edit Glob Grep Workflow Agent
+model-policy: per-stage
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-audit"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -155,6 +156,11 @@ the defaulting in the audit brief —
 > demonstrably fails multi-agent Workflow orchestration (observed field failure
 > 2026-07-03). Surface this with the kickoff proposal, never as a mid-sweep
 > interruption; the in-process sweep is unaffected.
+>
+> **`model-policy: per-stage`.** Every agent this skill spawns carries its own model
+> and effort — the `agents/*.md` definitions declare theirs, the arbiter consult pins
+> `sonnet`/`high`, and the fan-out script assigns per stage. Nothing here inherits the
+> spawning session's by omission.
 >
 > The fan-out form ships as
 > [`assets/workflows/audit-fanout.workflow.js`](assets/workflows/audit-fanout.workflow.js),

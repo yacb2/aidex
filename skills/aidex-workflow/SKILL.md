@@ -3,7 +3,8 @@ name: aidex-workflow
 description: Use when the user wants to design or scaffold a one-shot multi-agent fan-out / decomposition orchestration — review code across N dimensions, migrate N call-sites in parallel, research N sources, or split an implementation into parallel agents with per-agent model/effort assignment — landing as a written `.context/workflows/` workflow-spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. Fires on "design a workflow to review X across N angles", "fan out agents to migrate every call-site", "orchestrate a multi-agent review of X", "decompose this into parallel agents with different models". Not for: executing a written multi-phase plan (aidex-plan-exec — there is a plan doc); repeat-until-a-check-passes automation (aidex-loop); planning multi-step work without orchestration (aidex-plan); ecosystem audits (aidex); project-state audits (aidex-audit).
 argument-hint: "[design [slug] | new <slug> | run <slug>]"
 disable-model-invocation: false
-allowed-tools: Bash Read Write Edit Glob Grep
+allowed-tools: Bash Read Write Edit Glob Grep Workflow Agent
+model-policy: per-stage
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-workflow"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -152,7 +153,9 @@ condition without interrupting the user:
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md),
   pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the spec's
   autonomy surface + proof, follow its verdict, batch any `ASK` to the end. If it errors,
-  apply the rule above and proceed — never block on it.
+  apply the rule above and proceed — never block on it. `model-policy: per-stage` is what
+  that pin expresses, and it is the same policy the spec's per-agent model table sets for
+  every agent the designed Workflow spawns.
 
 This is the workflow's instance of the shared autonomy canon — full decision rule, the
 `commit`-is-not-gated policy, the three-class model, and the durability-arbiter live in

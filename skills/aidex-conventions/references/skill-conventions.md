@@ -284,6 +284,29 @@ Include scripts when: same code is rewritten repeatedly, deterministic reliabili
 
 **Scripts from repeated patterns:** Look at what subagents keep reinventing — if test runs, validation steps, or tool invocations repeatedly generate similar helper scripts, bundle that script in `scripts/`. This avoids context waste from Claude recreating the same logic each session.
 
+## Fan-out: `allowed-tools` and `model-policy` (house fields)
+
+`model-policy` is **not** in the official front-matter spec above — it is an aidex-house
+key, enforced by `scripts/test_registry_lockstep.py` check 7b. Two rules, both triggered
+by the skill's BODY, because the declaration is not the use:
+
+- **A declared whitelist must cover what the body mandates.** If the body tells the agent
+  to call the `Workflow` tool, consult an agent via the `Agent` tool, or launch a
+  subagent, then `allowed-tools` must name that tool. Omitting it does not make the path
+  unreachable — it makes it stop for permission mid-run, which is the interruption
+  `rules/autonomy.md` exists to prevent. A skill with **no** `allowed-tools` line at all
+  is out of scope: it restricts nothing, so there is no whitelist to be missing from.
+- **A skill that fans out declares `model-policy:` and states it in the body.** Values:
+  `per-stage` (every spawn pins its own `model`/`effort` — an `agents/*.md` definition,
+  an inline `model: sonnet` on the call, a per-agent table in a Workflow script) or
+  `inherit-session` (nothing is passed; the spawn runs at the session's depth **by
+  decision**). Both are legitimate; leaving it undeclared is not, because then nobody
+  chose it and the reader cannot see it at the moment they decide to run.
+
+**The launcher is named `Agent`**, not `Task`. `Task` is its legacy name and the current
+`Task*` tools are an unrelated tracking family; 7b rejects `Task` in `allowed-tools` so
+the suite cannot show a reader two contradictory examples.
+
 ## Agents (`skills/<skill>/agents/*.md`)
 
 **Declare `model` AND `effort`. Both, always** — enforced by

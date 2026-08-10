@@ -3,7 +3,8 @@ name: aidex-loop
 description: Use when the user wants to design, scaffold, or choose an agentic LOOP that repeats one task until a check passes — iterate-until-green automation, a long-running unattended build, or picking which loop engine fits — landing as a written `.context/loops/` loop-spec (goal + verifiable stop condition + guardrails + chosen engine) before the loop runs. Fires on "design a loop for X", "set up a loop to keep building until tests pass", "make a loop that iterates until green", "loop until the build is clean", "which loop should I use". Not for: one-shot multi-agent fan-out across N different targets, which repeats nothing (aidex-workflow); executing an existing loop right now (hand off to the ralph-loop plugin, /loop, or /goal); one-off tasks with no stop condition; planning multi-step work without a loop (aidex-plan); ecosystem audits (aidex); project-state audits (aidex-audit).
 argument-hint: "[design [slug] | new <slug> | run <slug>]"
 disable-model-invocation: false
-allowed-tools: Bash Read Write Edit Glob Grep
+allowed-tools: Bash Read Write Edit Glob Grep Agent
+model-policy: per-stage
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-loop"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -145,6 +146,8 @@ condition or turn cap **without interrupting the user**:
   pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the
   spec's autonomy surface + proof, and follow its verdict; batch any `ASK` to the
   end. If it errors, apply the rule above and proceed — never block on it.
+  `model-policy: per-stage` — that pin is the policy: the gate's depth is set here,
+  not inherited from the loop asking to be judged.
 
 This is the loop's instance of the shared autonomy canon — full decision rule, the
 `commit`-is-not-gated policy, and the durability-arbiter in
