@@ -2,7 +2,8 @@
 name: aidex-reference
 description: Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); investigating something not yet settled (aidex-research); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).
 disable-model-invocation: false
-allowed-tools: Bash Read Write Edit Glob Grep Task
+allowed-tools: Bash Read Write Edit Glob Grep Agent
+model-policy: per-stage
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-reference"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -140,9 +141,10 @@ worse than no check, so `- [ ]` boxes are banned there. Cover every layer the mo
 |---|---|---|
 | [reference-refuter](agents/reference-refuter.md) | sonnet / high | Attacks the module's claims; returns a verdict per claim |
 
-Spawn it with the Task tool: point a subagent at that definition file, tell it to read the file
+Spawn it with the Agent tool: point a subagent at that definition file, tell it to read the file
 and adopt the role exactly including its output format, and give it the module path plus the
-project root. Skill `agents/` definitions are **not** auto-registered as agent types, so naming
+project root. `model-policy: per-stage` — the refuter's `sonnet` / `high` above is the pin,
+not the session's inherited depth. Skill `agents/` definitions are **not** auto-registered as agent types, so naming
 the file is what makes this step happen rather than get skipped.
 
 **Do not skip this and do not self-assess instead.** You assigned the ledger labels; the sweep

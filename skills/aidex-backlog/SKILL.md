@@ -3,7 +3,8 @@ name: aidex-backlog
 description: Use when the user wants to capture or defer something for later without acting on it now — add it to the backlog, park it, shelve it, queue it, track it, "we'll do this later", "not now but don't forget", a tech-debt entry, or moving an audit finding to the backlog. Fires on "add to the backlog", "add to the backlog the idea of X", "park this for later", "defer this one", "shelve the X idea", "queue this for later", "track this for later", "quick reminder so I don't forget", "move finding <id> to the backlog", "show me the backlog", "list open backlog items", and /aidex-backlog commands. Not for: creating plans (aidex-plan), decisions (aidex-decision), or references (aidex-reference); auditing project state (aidex-audit); ecosystem audits (aidex).
 argument-hint: "[--list | --origin manual --title \"<title>\" | --origin audit --finding <id>]"
 disable-model-invocation: false
-allowed-tools: Bash Read Write
+allowed-tools: Bash Read Write Agent
+model-policy: per-stage
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-backlog"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -79,7 +80,8 @@ When asked to **work or sweep the backlog autonomously**, resolve every safe + a
 item to completion before stopping. Do not halt with "the rest needs your decision":
 classify each open item first, and for any you would otherwise pause on, **consult the
 [durability-arbiter](../aidex-conventions/agents/durability-arbiter.md)** (Agent tool,
-`model: sonnet`, `effort: high`, read-only) — pass the item + the standing autonomy surface + proof the
+`model: sonnet`, `effort: high`, read-only — `model-policy: per-stage`, so the gate's
+depth is pinned here and never inherited from the run asking to be judged) — pass the item + the standing autonomy surface + proof the
 fix is safe. Implement the ones it returns `CONTINUE` for (commit per item; deps and
 additive migrations are not gated), and **batch the `ASK`/`STOP` ones into a single
 end-of-run list** — never stop the sweep on the first item that needs you. If the arbiter

@@ -2,7 +2,8 @@
 name: aidex-plan
 description: Use when implementation work should become a written `.context/` plan before coding starts — either multi-phase work (a feature build, a migration, a refactor spanning backend/frontend/infra) or a single scoped change where only the file list and acceptance criteria need pinning down; a triage step picks which. Fires on "create a plan for X", "let's plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let's build a multi-phase plan", "implement X minimally", "a small scoped change to X", "just the minimum to ship X". Not for: fixing a bug or regression, which needs a failing test first (aidex-bugfix); deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.
 disable-model-invocation: false
-allowed-tools: Bash Read Write
+allowed-tools: Bash Read Write Agent
+model-policy: inherit-session
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-plan"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -22,8 +23,9 @@ the mode outright ("plan this as scoped", "/aidex-plan full"). Canon:
 
 The discriminator is **not size** — it is whether more than one viable design exists and
 whether choosing wrong is expensive. Delegate the investigation to a **subagent**
-(`Explore` or `general-purpose`): it may read as much of the repo as it needs, but its
-output contract is fixed — the five signals with their evidence, plus one recommended
+(`Explore` or `general-purpose`, `model-policy: inherit-session` — a repo read at the
+session's own depth, deliberately not pinned): it may read as much of the repo as it
+needs, but its output contract is fixed — the five signals with their evidence, plus one recommended
 outcome. No design sketches, no architectural alternatives. If it cannot decide from what
 it read, the outcome is already `research`.
 

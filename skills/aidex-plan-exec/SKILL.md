@@ -2,7 +2,8 @@
 name: aidex-plan-exec
 description: Use when the user asks to execute, implement, or continue a written multi-phase plan — typically a `.context/plans/` document or any plan with checkboxes/phases. Fires on "implement the plan", "execute plan X", "let's execute the plan", "continue with phase Y", "resume the plan", "run the plan phase by phase". Enforces between-phase discipline: code-review, commit, handoff when context grows. Not for: creating the plan itself (aidex-plan); one-shot tasks with no phases; bug fixes (aidex-bugfix); pure refactors with no plan document.
 disable-model-invocation: false
-allowed-tools: Bash Read Write Edit
+allowed-tools: Bash Read Write Edit Agent
+model-policy: per-stage
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-plan-exec"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -55,7 +56,9 @@ The operative rule here:
 - **On an ambiguous fork you cannot cleanly classify — consult the
   durability-arbiter before stopping.** Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md)
-  and pass it to the Agent tool as the prompt (`model: sonnet`, `effort: high`, read-only), with the
+  and pass it to the Agent tool as the prompt (`model: sonnet`, `effort: high`, read-only
+  — `model-policy: per-stage`, so the gate's depth is pinned rather than inherited from
+  the run it is judging), with the
   situation + the run's autonomy surface + the phase's proof (verification output,
   commit SHA). Follow its `CONTINUE` / `ASK` / `STOP` verdict; batch any `ASK` to the
   end. If it errors or returns nothing, apply the rule above and **proceed — never
