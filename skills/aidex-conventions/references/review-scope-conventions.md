@@ -14,24 +14,52 @@ non-PR change at all:
 | Instrument | Scope it computes | Model-invocable |
 |---|---|---|
 | `code-review` plugin | `gh pr diff` on a pull request, comments back on it | yes |
-| `/review` built-in | a GitHub pull request | yes |
-| `/code-review` built-in | the working diff, **or a `<pr#>`/`<branch>`/`<path>` target** — all resolved to a diff; effort-scaled angle engine | **unresolved** — see below |
-| `/simplify` | the changed code | yes |
+| `/review` built-in | alias of `/code-review` | see below |
+| `/code-review` built-in | the working diff, **or a `<pr#>`/`<branch>`/`<path>` target** — all resolved to a diff; effort-scaled angle engine | **feature-flag dependent** |
+| `/simplify` | `git diff @{upstream}...HEAD` with fallbacks; accepts a `<target>` string | yes — **and it applies fixes** |
 | `/security-review` | `git diff origin/HEAD...`, fixed at invocation | yes |
 
-> **Updated 2026-08-10 (CLI 2.1.226).** `/code-review` now advertises
-> `[<pr#>|<branch>|<path>]`, which the row above previously recorded as "the working
-> diff" only. A `<path>` target does **not** review that path as it stands: the skill's
-> own scope agent is instructed, verbatim, that if the target "names a PR number,
-> branch, ref range, or file path, build the matching git diff command for it". So the
-> table's shape is unchanged — every instrument here is diff-anchored — but the row was
-> stale on the capability, which is registry lag in the one file whose job is recording
-> what these instruments can do.
+> **Re-measured 2026-08-10 against CLI 2.1.226** (binary extraction + published docs +
+> one live invocation). The previous version of this table said `/code-review` computes
+> "the working diff" and that it is "**no** — user-triggered", and generalized that into
+> "the correctness engine is out of reach". Two of those three were wrong.
 >
-> The "not model-invocable" claim is **downgraded to unresolved**: it was measured
-> before this CLI version, the `ultra` path is separately gated and billed, and the
-> inline path was not re-tested. Treat it as a check at invocation, not an assumption —
-> the same standard §5 already applies to `/simplify`.
+> **All three remain diff-anchored** — that part held, and it is why `aidex-review`
+> exists. `/code-review`'s own scope agent is instructed verbatim that if the target
+> "names a PR number, branch, ref range, or file path, build the matching git diff
+> command for it".
+>
+> **Invocability is per-instrument, not a blanket.**
+> - `/security-review` — built by a factory that hardcodes `disableModelInvocation:!1`.
+>   **Confirmed empirically on 2026-08-10**: invoked from a model turn, it loaded and ran.
+> - `/simplify` — registered with no `disableModelInvocation` key at all, so the `?? !1`
+>   default applies. Invocable unconditionally.
+> - `/code-review` — registered with `disableModelInvocation: bxv`, a *function*
+>   installed as a live getter, where `bxv(){return !nt("tengu_dazzling_floyd", !1)}`.
+>   Gate on ⇒ invocable; gate absent ⇒ **not** invocable. Published docs state it is
+>   user-invoke-only as of v2.1.215. On this machine the flag is cached true, which is
+>   why it appears in the session's skill listing at all — the listing filter drops any
+>   built-in whose flag is set. So availability here is a **machine-and-flag state that
+>   can flip without notice**, not a property of the tool.
+>
+> **`ultra` is not an effort level.** It is `subcommands:{ultra:"ultrareview"}`, a
+> redirect to a separate command of type `local-jsx`/`local`, which the skill gate
+> rejects categorically (`reason:"not_prompt_type"`). The prompt says so itself:
+> *"Claude can't launch the cloud review directly."* The workflow-backed path is
+> `high`/`xhigh`/`max`, which is a different thing from ultra and was previously
+> conflated with it here.
+
+**Reviewing code as it stands is out of scope for every row above**, because every row
+resolves to a diff. That case — a module, feature, path, or whole app with no base ref —
+belongs to `aidex-review`, which measures the target first (`resolve-review-target.sh`)
+and then runs Mode B angles over it. Note that its false-positive rubric **inverts**:
+`/code-review` discards "pre-existing issues" and findings "on lines the user did not
+modify", which on a module review are precisely the target.
+
+Two consequences drove the rules below. The first is now **narrowed**: the correctness
+engine is out of reach only when its feature gate is off — but since the gate is not
+ours and the docs say user-only, Mode B remains the thing that must exist. The second
+stands unchanged.
 
 **Reviewing code as it stands is out of scope for every row above**, because every row
 resolves to a diff. That case — a module, feature, path, or whole app with no base ref —
@@ -119,13 +147,29 @@ plan-exec-as-workflow work), so a per-phase correctness pass runs about
 80–100k tokens. `/simplify` at end of plan costs whatever the instrument costs.
 Security costs zero on phases that do not touch a security surface.
 
-## 5. Delegating a scope to `/simplify`
+## 5. Delegating a scope to `/simplify` — settled, and it is a mutation
 
-Whether `/simplify` accepts a caller-supplied scope or always computes its own
-is **not established** — it cannot be determined without invoking it. Treat it as
-a check at invocation, not an assumption: supply the resolved scope, and if the
-instrument reviews something other than what was supplied, that case falls back
-to Mode B. Do not record it as working until observed.
+Established 2026-08-10 by extraction, replacing the "not established" note that stood here.
+
+`/simplify` declares `argumentHint:"[<target>]"`. The argument is trimmed and injected
+verbatim as ``Review target: `<arg>` `` with **zero flag parsing** — there is no `--fix`
+and no `--comment`. Its scope is not computed in code: it is prose in a "Phase 0 — Gather
+the diff" block instructing the model to run `git diff @{upstream}...HEAD` with fallbacks.
+So it accepts a target, and still reviews a diff.
+
+**The rule that matters is not about scope.** `/simplify` has a "Phase 2 — Apply the
+fixes" instructing it to *"fix each remaining one directly"*. There is no proposal step,
+no confirmation gate, and no findings-reporting call in either of its two bodies (the
+4-agent fan-out, and the single-pass fallback used when the Agent tool is unavailable).
+
+Delegating to `/simplify` is therefore **committing to a mutation of the working tree**,
+not requesting a review. Treat it as such: run it on a clean tree, from a state you can
+`git checkout --`, and never inside a step whose caller believes it is read-only.
+
+It reviews four quality angles only — Reuse, Simplification, Efficiency, Altitude — and
+explicitly disclaims bug-hunting (*"Do not look for correctness bugs — that is what
+`/code-review` is for"*). A fifth Conventions/CLAUDE.md angle exists in the binary but is
+**not** referenced by either `/simplify` body, so CLAUDE.md adherence is not covered here.
 
 ## 6. Rules
 
@@ -136,7 +180,19 @@ to Mode B. Do not record it as working until observed.
 - Report a review as passing when the resolver exited 3. An empty scope is a
   fact to state, never a clean bill of health.
 - Add a fifth scope to express a different base ref. Use `--base`.
-- Copy the built-in instruments' prompt text into this repo.
+- Copy the built-in instruments' prompt text into this repo. **One carve-out:**
+  `/security-review`'s prompt is published by Anthropic under MIT at
+  `anthropics/claude-code-security-review` (82 of its 83 substantive lines verified
+  verbatim inside the shipped binary). That one may be cited and studied as a public
+  source. The `/code-review` and `/simplify` prompts are published nowhere — the CLI is
+  proprietary ("All rights reserved"), and the npm package is a 22.9 KB installer shim,
+  not source.
+- Route around a `disable-model-invocation` refusal. The gate's own message says
+  *"Do not replicate this skill's workflow by other means — it is reserved for explicit
+  user invocation."* Running it as `claude -p '/code-review …'` from Bash to dodge the
+  refusal is exactly that; if the tool declines, surface it and let the user invoke.
+- Delegate to `/simplify` from a step whose caller believes it is read-only. It applies
+  fixes with no confirmation (§5).
 
 ### ALWAYS
 
