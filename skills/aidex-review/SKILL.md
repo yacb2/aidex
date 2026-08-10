@@ -149,7 +149,7 @@ exists because the first live run skipped exactly the step it reconciles (2026-0
 
 | Print | Reconciles against | What it caught |
 |---|---|---|
-| angles **announced / launched / returned** | Step 2's table | "6 / 6 / 5" is unmissable; a bare "6 angles" hid a finder that died mid-run |
+| angles **announced / launched / retried / returned** | Step 2's table | "6 / 6 / 1 / 5" is unmissable; a bare "6 angles" hid a finder that died mid-run. `retried` is there because **fell** is only a legitimate verdict after the one retry, and a run that skipped the retry reports it identically otherwise |
 | candidates **raw / distinct after merge / confirmed** | Step 3.2 | 22 confirmed that were ~15 defects — the merge was specified and never executed |
 | cost **floor / actual** | Step 2's floor | announced 132k, spent 2.2M |
 
