@@ -30,6 +30,13 @@ bash "${CLAUDE_SKILL_DIR}/scripts/resolve-review-target.sh" <path>   # or --app
 There is **no default target**. If the user did not name one, ask — one line — and do
 not fall back to the repo root.
 
+**Tests are measured apart from source.** The reviewed set excludes test files by
+default and the size class comes from `source_loc`, not `loc` — otherwise a module is
+refused for being well tested (measured: a 15,394-LOC module was 7,270 LOC of source and
+8,124 of its own tests). `--include-tests` puts them back in the reviewed set *and*
+sizes on the total, because a class that bounds cost has to bound what the finders read.
+A target that is entirely tests keeps them: it was named deliberately.
+
 Read the exit code before the output:
 
 - **2** — usage error or missing path. Fix and re-run.
