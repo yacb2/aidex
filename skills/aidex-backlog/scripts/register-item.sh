@@ -58,9 +58,25 @@ find_project_root() {
   pwd -P
 }
 
-# Convert a title to a kebab-case slug (3–6 meaningful words).
+# Escape a value for a double-quoted YAML scalar.
+#
+# Without this, `--title` and `--blocked-by` land raw inside `key: "$VALUE"`. A title
+# containing a newline followed by `---` terminates the front-matter early: every key
+# after it (id included) becomes body prose, the id reader returns empty, and the id is
+# re-minted for the next item. A double quote closes the scalar and lets a second key be
+# injected, which a last-write-wins parser honours. Found 2026-08-10 by aidex-review.
+yaml_escape() {
+  printf '%s' "$1" \
+    | tr '\n\r\t' '   ' \
+    | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+# Convert a title to a kebab-case slug (3–6 meaningful words). The newline strip is
+# load-bearing: sed is line-oriented, so without it a multi-line title produced a
+# filename containing literal newlines.
 title_to_slug() {
-  echo "$1" \
+  printf '%s' "$1" \
+    | tr '\n\r' '  ' \
     | tr '[:upper:]' '[:lower:]' \
     | sed -E 's/[^a-z0-9]+/-/g; s/^-+|-+$//g' \
     | cut -c1-60 \
@@ -82,14 +98,20 @@ scan_backlog_ids() {
 }
 
 # Compute the next sequential backlog id (BL-NNN) — one above the highest assigned.
-# Only ids already matching BL-NNN count toward the max: a hand-authored
+# Only ids already in the sequence's own shape count toward the max: a hand-authored
 # `BL-20260610` would otherwise push the sequence into the millions, and every id
 # minted after it would be nonconforming too. Legacy ids sit in a different
 # namespace, so skipping them can never reuse one.
+#
+# The window is 3-to-5 digits, not exactly 3. `printf 'BL-%03d'` is a MINIMUM width, so
+# at max=999 it mints BL-1000 — which an exactly-three-digit filter then rejects, leaving
+# max pinned at 999 and BL-1000 re-minted for every later item, forever. Five digits keeps
+# the runway to BL-99999 while still skipping a date-shaped legacy id (BL-20260610, eight
+# digits), which is the case this filter exists for. Found 2026-08-10 by aidex-review.
 next_backlog_id() {
   local dir="$1" max=0 rawid n
   while IFS=$'\t' read -r rawid _; do
-    [[ "$rawid" =~ ^BL-([0-9][0-9][0-9])$ ]] || continue
+    [[ "$rawid" =~ ^BL-([0-9]{3,5})$ ]] || continue
     n="$((10#${BASH_REMATCH[1]}))"
     (( n > max )) && max=$n
   done < <(scan_backlog_raw_ids "$dir")
@@ -131,7 +153,10 @@ report_duplicate_ids() {
   done < <(printf '%s\n' "$ids" | cut -f1 | sort -n | uniq -d)
   while IFS=$'\t' read -r rawid f; do
     [[ -n "$rawid" ]] || continue
-    if [[ ! "$rawid" =~ ^BL-[0-9]{3}$ ]]; then
+    # Same 3-to-5 window as next_backlog_id. Kept in lockstep deliberately: with an
+    # exactly-three-digit test here, the BL-1000 that next_backlog_id legitimately mints
+    # past BL-999 would be minted correctly and then reported as nonconforming.
+    if [[ ! "$rawid" =~ ^BL-[0-9]{3,5}$ ]]; then
       warn "$(printf 'nonconforming id %s → %s (expected BL-NNN)' "$rawid" "$f")"
       dup=1
     fi
@@ -154,47 +179,66 @@ resolve_source_by_id() {
   return 1
 }
 
-# Rewrite an existing entry's escalated_to (and bump updated) in place.
+# Set an entry's escalated_to (and bump updated) in place, inserting the key when the
+# entry does not carry it yet.
+#
+# The insert branch is the fix for a silent no-op: with only a rewrite branch, stamping a
+# hand-authored item that never had an `escalated_to:` key wrote nothing at all while the
+# caller still printed "Stamped source ... -> escalated_to: ...". The result was a one-way
+# handshake — the counterpart pointed back, the source had no forward link. The sibling
+# close-item.sh already used the insert-if-missing idiom. Found 2026-08-10 by aidex-review.
 stamp_escalated_to() {
   local f="$1" ref="$2" today
   today="$(date +%Y-%m-%d)"
   awk -v ref="$ref" -v today="$today" '
-    BEGIN { d=0 }
-    /^---[[:space:]]*$/ { d++; print; next }
-    d==1 && /^escalated_to:/ { print "escalated_to: \"" ref "\""; next }
+    BEGIN { d=0; seen=0 }
+    /^---[[:space:]]*$/ {
+      d++
+      if (d==2 && !seen) print "escalated_to: \"" ref "\""
+      print; next
+    }
+    d==1 && /^escalated_to:/ { print "escalated_to: \"" ref "\""; seen=1; next }
     d==1 && /^updated:/      { print "updated: " today; next }
     { print }
-  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+  ' "$f" > "$f.tmp" || die "could not rewrite $f"
+  [[ -s "$f.tmp" ]] || die "stamping $f produced an empty file"
+  mv "$f.tmp" "$f"
 }
 
 # Write a compact backlog entry (used by --escalate-to for both the source stub
 # and the cross-repo counterpart). Echoes the created path on stdout.
 emit_backlog_stub() {
   local dir="$1" id="$2" title="$3" origin="$4" origin_ref="$5" priority="$6" type="$7" escalated_to="$8" note="$9"
-  local date_iso slug id_seg out
+  # Carried through rather than hardcoded: --estimate/--status/--blocked-by used to pass
+  # their validation gates and then be silently overwritten here, so a declared-blocked
+  # P0 item landed in the active queue as `open · M`. Found 2026-08-10 by aidex-review.
+  local estimate="${10:-M}" status="${11:-open}" blocked_by="${12:-}"
+  local date_iso slug id_seg out esc_title esc_blocked
   date_iso="$(date +%Y-%m-%d)"
   slug="$(title_to_slug "$title")"; [[ -n "$slug" ]] || slug="item"
   id_seg="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"
-  mkdir -p "$dir"
+  esc_title="$(yaml_escape "$title")"
+  esc_blocked="$(yaml_escape "$blocked_by")"
+  mkdir -p "$dir" || die "could not create $dir"
   out="$dir/$date_iso-$id_seg-$slug.md"
   cat > "$out" <<EOF
 ---
-title: "$title"
+title: "$esc_title"
 id: $id
-status: open
+status: $status
 created: $date_iso
 updated: $date_iso
 origin: $origin
 origin_ref: ${origin_ref:-}
 priority: $priority
 type: $type
-estimate: M
-blocked_by: ""
+estimate: $estimate
+blocked_by: "$esc_blocked"
 escalated_to: "$escalated_to"
 commits: ""
 ---
 
-# $title
+# $esc_title
 
 ## Context
 
@@ -209,6 +253,7 @@ Done means:
 ## Notes
 
 EOF
+  [[ -s "$out" ]] || die "could not write $out"
   printf '%s\n' "$out"
 }
 
@@ -695,7 +740,8 @@ if [[ -n "$ESCALATE_TO" ]]; then
     SRC_ID="$(next_backlog_id "$BACKLOG_DIR")"
     SRC_FILE="$(emit_backlog_stub "$BACKLOG_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
       "$PRIORITY" "$TYPE" "$TGT_NAME/$TARGET_ID" \
-      "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID.")"
+      "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID." \
+      "$ESTIMATE" "$STATUS" "$BLOCKED_BY")"
     SRC_REF="$SRC_ID"
     ok "Registered source stub $SRC_REF (escalated_to: $TGT_NAME/$TARGET_ID)"
   fi
@@ -733,13 +779,15 @@ mkdir -p "$BACKLOG_DIR"
 # Minted before the filename because the name carries it. No clobber guard is
 # needed: the id is unique across active + _archive + _deferred by construction.
 ITEM_ID="$(next_backlog_id "$BACKLOG_DIR")"
+ESC_TITLE="$(yaml_escape "$TITLE")"
+ESC_BLOCKED="$(yaml_escape "$BLOCKED_BY")"
 OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$(printf '%s' "$ITEM_ID" | tr 'A-Z' 'a-z')-$SLUG.md"
 
 # --- write entry ---
 {
   cat <<EOF
 ---
-title: "$TITLE"
+title: "$ESC_TITLE"
 id: $ITEM_ID
 status: $STATUS
 created: $DATE_ISO
@@ -749,12 +797,12 @@ origin_ref: ${ORIGIN_REF:-}
 priority: $PRIORITY
 type: $TYPE
 estimate: $ESTIMATE
-blocked_by: "$BLOCKED_BY"
+blocked_by: "$ESC_BLOCKED"
 escalated_to: ""
 commits: ""
 ---
 
-# $TITLE
+# $ESC_TITLE
 
 ## Context
 
@@ -775,7 +823,11 @@ EOF
     echo "- Origin: audit finding [$FINDING]"
     [[ -n "$AUDIT_RUN" ]] && echo "  - Audit run: \`.context/audits/$AUDIT_RUN/\` (path uses pre-D-02 layout if no methodology prefix)"
   fi
-} > "$OUT_FILE"
+} > "$OUT_FILE" || die "could not write $OUT_FILE"
+# `set -e` does NOT abort on a redirect failure of a compound command, so without this
+# guard a failed write printed "Backlog entry created", sent a nonexistent path to stdout
+# and exited 0 — and callers recorded a backlog path that was never written.
+[[ -s "$OUT_FILE" ]] || die "wrote nothing to $OUT_FILE"
 
 ok "Backlog entry created"
 printf '  %s\n' "$OUT_FILE" >&2
