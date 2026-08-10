@@ -1,58 +1,66 @@
-# 01 — Core Principles
+# 01 — Core Principles: why the convention is shaped this way
 
-Six principles that shape the `.context/audits/` convention. Each addresses a specific failure mode observed when projects mix audits with plans or keep findings scattered.
+**`aidex-conventions/references/audit-conventions.md` § Core principles states the six
+principles.** This file does not restate them — it holds the *why* and the *practical*
+under each, which is what a principle without its failure mode cannot carry. An earlier
+version restated the whole convention and drifted from it in five checkable ways, on the
+path an auditor reads before writing the first finding.
+
+Two other owners, for the same reason:
+
+- **States and transitions** → `03-lifecycle.md`. Not repeated here.
+- **The row shape and where findings live** → the methodology's `00-inventory.md` header
+  table, rendered from `assets/templates/00-inventory.md.template`.
 
 ---
 
 ## 1. Finding ≠ Issue ≠ Task
 
-Three distinct objects at three distinct points in the lifecycle:
+**Why:** conflating them loses information. A finding may escalate to multiple tasks, be
+dropped, or stay open indefinitely. Each object has its own lifecycle and audience.
 
-| Object | Lives in | Represents | Identity |
-|---|---|---|---|
-| **Finding** | `.context/audits/INVENTORY.md` | Observation: "this is how the system is" | `<CATEGORY>-<MODULE>-<N>` |
-| **Backlog entry** | `.context/backlog/` | Queued work: "we plan to do something about this" | `YYYYMMDD-<slug>.md` |
-| **Task / plan** | `.context/plans/` | Active work: "we are doing this now" | `YYYYMMDD-<slug>/` or `.md` |
-
-**Why:** conflating them loses information. A finding may escalate to multiple tasks, be dropped, or stay open indefinitely. Each object has its own lifecycle and audience.
-
-**Practical:** never copy finding text into a backlog or plan. Always link. The finding stays the authoritative description; the backlog entry captures scope; the plan describes execution.
+**Practical:** never copy finding text into a backlog or plan. Always link. The finding
+stays the authoritative description; the backlog entry captures scope; the plan describes
+execution.
 
 ---
 
-## 2. INVENTORY as single source of truth
+## 2. Per-methodology inventory as single source of truth
 
-`INVENTORY.md` is the canonical, deduplicated table of every finding across every audit run. Per-run `findings.md` files are **filtered views** generated from it.
-
-**Why:** without a canonical list, the same finding ends up in three per-run files, with three slightly different wordings and three diverging statuses. Any update requires editing three places — in practice, two of them rot.
+**Why:** without a canonical list, the same finding ends up in three per-run files, with
+three slightly different wordings and three diverging statuses. Any update requires
+editing three places — in practice, two of them rot.
 
 **Practical:**
-- New run observes a finding → check if it exists in INVENTORY. If yes, update `Audit Runs` column; if no, add a new row.
-- Per-run `findings.md` cites IDs and links back to INVENTORY.
-- `/aidex-audit validate` catches findings mentioned in per-run files but missing from INVENTORY.
+
+- A new run observes a finding → check the methodology's `00-inventory.md`. If it is
+  there, append the run to `Audit Runs`; if not, add a row.
+- Per-run `findings.md` cites ids and links back to the inventory.
+- `/aidex-audit validate` catches findings mentioned in per-run files and missing from it.
 
 ---
 
-## 3. Living methodology with CHANGELOG
+## 3. Living methodology with a changelog
 
-`METHODOLOGY.md` evolves. Every change — adding a check, removing one, tightening severity thresholds — is recorded in `CHANGELOG.md` using [Keep a Changelog](https://keepachangelog.com/) format.
+**Why:** methodology added without context accumulates into a checklist nobody
+understands. When someone asks "why do we check this?" six months later, the answer lives
+in the changelog.
 
-**Why:** methodology added without context accumulates into a checklist nobody understands. When someone asks "why do we check this?" six months later, the answer lives in the changelog.
-
-**Practical:** when modifying METHODOLOGY.md, add a CHANGELOG entry in the same commit. The entry names the change and the *why* (incident, feedback, new threat model, deprecation of a library).
+**Practical:** when you modify `00-methodology.md`, add a `00-changelog.md` entry in the
+same commit. The entry names the change and the *why* — incident, feedback, new threat
+model, a library deprecated.
 
 ---
 
-## 4. Findings are never deleted
+## 4. Every finding is registered, and none is deleted
 
-Findings transition through states but are never removed. Dropping a finding is a status change (`dropped`), not a deletion.
+**Why:** deletion breaks the audit trail. If a later audit re-observes the same thing, we
+need to know whether it was previously present and dropped (keep it dropped),
+reintroduced (a regression), or genuinely new.
 
-**Why:** deletion breaks the audit trail. If a future audit re-observes the same thing, we need to know whether it was previously present and dropped (keep dropped), accidentally reintroduced (regression), or truly new.
-
-**Practical:**
-- States: `open` → `triaged` → `escalated` → `in-progress` → `closed` or `dropped`
-- `dropped` requires a reason (last column: "Dropped: won't affect real users, cost to fix exceeds value")
-- `closed` requires a verifying reference (commit SHA, re-test audit run, decision doc)
+**Practical:** dropping is a status change, never a removal, and it takes a reason in the
+`Notes` cell. Closing takes a verifying reference — commit SHA, re-test run, decision doc.
+The state names and their transitions are `03-lifecycle.md`'s.
 
 ---
 
@@ -62,7 +70,7 @@ Findings transition through states but are never removed. Dropping a finding is 
 audit run
    │
    ▼
-INVENTORY finding
+finding row in audits/<methodology>/00-inventory.md
    │
    ▼ (via /aidex-audit escalate)
 backlog entry
@@ -77,25 +85,30 @@ code changes
 re-test audit
    │
    ▼
-finding closed
+finding done
 ```
 
-**Why:** the linear flow makes it obvious where a concern is in its lifecycle. Any link in the chain can be queried: "what findings are escalated but not yet planned?" (in INVENTORY with `escalated` status but no plan link) is answerable in seconds.
+**Why:** the linear flow makes it obvious where a concern sits in its lifecycle. Any link
+in the chain is queryable: "what is escalated but not yet planned?" is a row with an
+`Escalated To` marker pointing at a backlog item and no plan — answerable in seconds.
 
-**Practical:** each transition adds a link back to the finding. The INVENTORY row accumulates these over the finding's life:
-- `Escalated To: [backlog/20260412-csv.md](...)` after `/aidex-audit escalate`
-- `Escalated To: [plans/20260415-export/](...)` when planning starts
-- `Escalated To: fix:abc1234` when a commit closes it
+**Practical:** each transition adds a marker back to the finding, in the `<type>/<filename>`
+form (D-03) — never a relative markdown link. The inventory row accumulates them:
+
+- `Escalated To: backlog/2026-04-12-export-csv.md` after `/aidex-audit escalate`
+- `Escalated To: plan/2026-04-15-export.md` once planning starts
+- the closing commit SHA in `Notes`, per the board's own header table
 
 ---
 
 ## 6. Shared concerns flagged
 
-When a finding spans multiple modules, tag it `[SHARED]` in the `Module` column.
+**Why:** cross-module findings are usually structural — auth everywhere uses the wrong
+pattern, logging is inconsistent, a shared util has a bug. They deserve visibility at the
+inventory level rather than being buried in one module's view.
 
-**Why:** cross-module findings are usually structural (auth everywhere uses the wrong pattern, logging is inconsistent, a shared util has a bug). They deserve visibility at the inventory level, not buried in one module's view.
-
-**Practical:** `[SHARED]` findings are surfaced separately in `findings.md` views and often become architectural decisions (`.context/decisions/`) rather than one-off bug fixes.
+**Practical:** `[SHARED]` findings are surfaced separately in `findings.md` views and
+often become architectural decisions (`.context/decisions/`) rather than one-off fixes.
 
 ---
 
@@ -103,8 +116,9 @@ When a finding spans multiple modules, tag it `[SHARED]` in the `Module` column.
 
 | If you see... | Fix by... |
 |---|---|
-| Findings being edited in per-run `findings.md` files | Move edits to `INVENTORY.md`, regenerate view |
-| METHODOLOGY changes without CHANGELOG entry | Add the entry retroactively, next time enforce via review |
-| Duplicate findings across audit runs with different IDs | Consolidate: keep oldest ID, mark newer as duplicates in their Notes column, regenerate views |
-| `Status: deleted` or rows disappearing | Restore from git history, transition to `dropped` instead |
+| Findings being edited in per-run `findings.md` files | Move the edits to the methodology's `00-inventory.md`, regenerate the view |
+| A methodology change with no changelog entry | Add it retroactively; next time enforce it in review |
+| Duplicate findings across runs with different ids | Consolidate: keep the oldest id, mark the newer ones as duplicates in their `Notes`, regenerate views |
+| `Status: deleted`, or rows disappearing | Restore from git history and transition to `dropped` instead |
 | Audits under `.context/plans/` | Run `/aidex-audit migrate` |
+| A global board at the `audits/` root | Pre-D-02 layout — reshape into per-methodology inventories |

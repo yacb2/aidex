@@ -262,15 +262,17 @@ Scripts delegate to these agents when needed. Direct use is also fine during man
 
 ## Principles
 
-Quick summary. **Read `~/.claude/skills/aidex-audit/references/01-principles.md` for the full text** —
-it is what tells you why a finding is never deleted and why INVENTORY, not the run
-folder, is the source of truth:
+Quick summary. **Read `~/.claude/skills/aidex-audit/references/01-principles.md` before
+your first audit** — it holds the *why* and the *practical* under each of these, which is
+what tells you why a finding is never deleted and why the methodology's inventory, not the
+run folder, is the source of truth. The principles themselves are stated by
+`aidex-conventions/references/audit-conventions.md` § Core principles.
 
 1. **Finding ≠ Issue ≠ Task** — distinct objects with links, not copies
-2. **INVENTORY as single source of truth** — per-run findings are views. The auto-generated `00-index.md` is the *run-level* roll-up (which runs exist, open/closed, finding counts) — complementary to `00-inventory.md`, which is the *finding-level* board. Do not hand-edit `00-index.md`.
-3. **Living methodology** — CHANGELOG records every methodology change
+2. **Per-methodology inventory as single source of truth** — per-run findings are views of `00-inventory.md`. The auto-generated `00-index.md` is the *run-level* roll-up (which runs exist, open/closed, finding counts) — complementary to the *finding-level* board. Do not hand-edit `00-index.md`.
+3. **Living methodology** — `00-changelog.md` records every methodology change
 4. **Findings never deleted** — use status transitions
-5. **Escalation flow** — audit → backlog → plan → commit → re-test → closed
+5. **Escalation flow** — audit → backlog → plan → commit → re-test → done
 6. **Shared concerns flagged** `[SHARED]` in Module column
 
 ---
