@@ -105,6 +105,45 @@ for W in 9 11; do
   cd - >/dev/null || exit 1
 done
 
+cd "$TMP" || exit 1
+
+# ---------------------------------------------------------------------------
+# The playbooks ship a SECOND copy of the row contract, into the same directory.
+#
+# new-audit.sh seeds 00-inventory.md and 00-methodology.md side by side, and six
+# playbooks carry their own literal example row. d63d71c (BL-057) narrowed the board
+# to 9 columns, updated one line of one playbook, and left the rest at 11 — so the
+# scaffolder installed a board and an instruction that disagreed about its own shape.
+# Nothing looked: this file drives the real consumers, and no test read
+# assets/templates/methodology/ at all. Asserting the width against the TEMPLATE
+# HEADER rather than a hardcoded 9 is what makes the next schema change fail here.
+# ---------------------------------------------------------------------------
+echo "== playbook row contract =="
+TPL="$(cd "$SCRIPTS/../assets/templates" && pwd -P)"
+HDR="$(grep -m1 '^| ID | Type |' "$TPL/00-inventory.md.template")"
+CANON=$(( $(tr -cd '|' <<<"$HDR" | wc -c | tr -d ' ') - 1 ))
+check "the inventory template header is readable" '[[ "$CANON" -ge 5 ]]'
+
+for pb in "$TPL"/methodology/*.md.template; do
+  name="$(basename "$pb" .md.template)"
+  # A finding-row example is the one that ends in the run slug — that is the cell the
+  # auditor is being told to write, and every playbook that has one writes it this way.
+  while IFS= read -r row; do
+    [[ -n "$row" ]] || continue
+    n=$(( $(tr -cd '|' <<<"$row" | wc -c | tr -d ' ') - 1 ))
+    check "$name: example row is $CANON cells, like the board it is written into" \
+          "[[ $n -eq $CANON ]]"
+  done < <(grep '^|.*{{DATE}}-<slug>' "$pb")
+
+  # The methodology file lands BESIDE 00-inventory.md (new-audit.sh writes both into
+  # $M_DIR), so a `..` in the path leaves the methodology folder, and `INVENTORY.md` is
+  # the pre-D-02 root board validate-audit.sh warns on as audit-legacy-root-boards.
+  STRAY="$(grep -n 'INVENTORY\.md\|\.\./00-inventory\.md' "$pb")"
+  check "$name: names 00-inventory.md, not a board outside its own folder" \
+        '[[ -z "$STRAY" ]]'
+  [[ -n "$STRAY" ]] && printf '    %s\n' "$STRAY"
+done
+
 echo
 echo "inventory width: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

@@ -24,7 +24,7 @@ Structure: **Modules × Checks matrix.** Walk each module in scope, apply each c
 
 ## Checks matrix
 
-For each module × each check, note whether it passes, fails, or is not applicable. Failures become findings in `INVENTORY.md`.
+For each module × each check, note whether it passes, fails, or is not applicable. Failures become findings in `00-inventory.md`.
 
 ### Core checks (apply to every module)
 
@@ -55,10 +55,10 @@ For each module × each check, note whether it passes, fails, or is not applicab
 
 ## Recording findings
 
-Each failure becomes a row in `../INVENTORY.md`:
+Each failure becomes a row in `00-inventory.md`:
 
 ```
-| BUG-<MODULE>-<N> | bug | <module> | <one-line summary> | open | P<N> | {{DATE}} | {{DATE}} | {{DATE}}-<slug> | — | — |
+| BUG-<MODULE>-<N> | bug | <module> | <one-line summary> | open | P<N> | {{DATE}}-<slug> | — | — |
 ```
 
 Severity guide:
@@ -72,7 +72,7 @@ Severity guide:
 ## Output artifacts
 
 - `index.md` — this run's context, scope, auditor, summary
-- `findings.md` — filtered view linking to INVENTORY
+- `findings.md` — filtered view linking to `00-inventory.md`
 - Optional: `modules/<name>.md` — per-module notes if the audit is large
 
 ---
