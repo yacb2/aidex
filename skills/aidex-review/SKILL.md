@@ -1,7 +1,7 @@
 ---
 name: aidex-review
 description: Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "code review of src/panels", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app". Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (aidex-audit); fixing a specific known bug (aidex-bugfix).
-argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--go]"
+argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--include-docs] [--go]"
 disable-model-invocation: false
 model-policy: inherit-session
 allowed-tools: Bash Read Grep Glob Workflow Agent ReportFindings
@@ -36,6 +36,12 @@ refused for being well tested (measured: a 15,394-LOC module was 7,270 LOC of so
 8,124 of its own tests). `--include-tests` puts them back in the reviewed set *and*
 sizes on the total, because a class that bounds cost has to bound what the finders read.
 A target that is entirely tests keeps them: it was named deliberately.
+
+**A skill is markdown, and the resolver knows it.** A directory carrying a `SKILL.md`
+resolves its `.md` alongside its scripts (`skill_target=yes`) — otherwise reviewing a
+skill returns one file and Step 1, the step that never gets skipped, cannot run at all.
+Everywhere else markdown stays out unless you pass `--include-docs`: a correctness
+finder reading every README is budget that never reached the code.
 
 Read the exit code before the output:
 
