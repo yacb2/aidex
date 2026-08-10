@@ -19,8 +19,6 @@ the tree is dirty (measured 2026-07-27).
 
 This skill answers the other question: **review this module as it is**, with no base ref.
 
-Angle catalog and the scope boundary every finder is given: [`references/01-review-angles.md`](references/01-review-angles.md).
-The verifier's return shape is Step 3.3's, not the catalog's.
 Scope vocabulary for the *diff* case: `aidex-conventions/references/review-scope-conventions.md`.
 
 ## Step 1 — Resolve and measure the target (never skip)
@@ -88,6 +86,12 @@ Lens selection when the user said `all` (or named no lens):
 | `simplify` | the target has more files than responsibilities, or duplicated shapes | the target is one small file |
 | `security` | `security_surface_files` > 0 **and** the module handles input, auth, secrets, or subprocesses | the probe found no surface — say "no signal", never "secure" |
 | `perf` | `perf_surface_files` > 0 **and** the module is on a request/render path | it is a one-shot script or build tool |
+
+**Read `~/.claude/skills/aidex-review/references/01-review-angles.md` before choosing
+angles** — it holds the angle names per lens and the verbatim scope boundary every finder
+must be given. Skip it and the run invents angle names and launches finders with no
+boundary: too narrow and they read the module and report nothing, too wide and they
+review the repository and never finish. Nothing errors either way.
 
 Then choose angles per lens from the catalog, capped at `finders_per_lens`, and put every
 catalog angle you did not choose into one of two states. They are not the same thing and

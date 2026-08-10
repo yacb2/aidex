@@ -250,8 +250,24 @@ for tok in 'unreachable-trigger' 'undetermined' 'severity'; do
   fi
 done
 
+# 25. The catalog pointer is an INSTRUCTION, at the step that needs it. skill-conventions
+#     measured the two forms over 58 (skill, reference) pairs on 2026-08-05: imperative +
+#     absolute path + stated cost read 80.6% of the time, `See [file](relative)` in a
+#     header block 0%. This skill's body then demands catalog content three times — the
+#     angle names, the verbatim scope boundary, the finder cap — so a pointer nobody
+#     follows means finders launched with no scope boundary and invented angle names,
+#     with nothing erroring.
+PTR_LINE="$(grep -n 'Read `~/.claude/skills/aidex-review/references/01-review-angles.md`' "$SKILL_MD" | head -1 | cut -d: -f1)"
+STEP_LINE="$(grep -n '^## Step 1' "$SKILL_MD" | head -1 | cut -d: -f1)"
+[ -n "$PTR_LINE" ] \
+  || fail "SKILL.md has no imperative absolute-path pointer to the angle catalog (the form measured at 80.6% read)"
+[ -n "$PTR_LINE" ] && [ -n "$STEP_LINE" ] && [ "$PTR_LINE" -gt "$STEP_LINE" ] \
+  || fail "the catalog pointer is not inside the numbered workflow — a header-block citation is the 0%-read form"
+grep -q '](references/01-review-angles.md)' "$SKILL_MD" \
+  && fail "SKILL.md still carries the bare repo-relative markdown link to the catalog — a second, weaker citation"
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 24 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 1 prose lockstep)"
+  echo "OK — resolve-review-target: 25 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 2 prose lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"
