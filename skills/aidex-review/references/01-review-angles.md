@@ -136,6 +136,12 @@ than a diff review, so the cost of a permissive verifier is a report nobody read
 
 ## Cost — the finder number is a floor, not an estimate of the run
 
+> **This section owns the measurement.** SKILL.md Step 2 carries the ratio, because
+> quoting it *is* the instruction there; the provenance, the n=1, and the caveat about
+> which sizing rule it was taken under live here, and `resolve-review-target.sh` points
+> here too. The figure is pending re-measurement — when it lands, this is the section it
+> lands in, and the other two sites say so rather than carrying their own copy.
+
 Finders: ~22k tokens per agent (measured in the plan-exec-as-workflow work, recorded in
 `review-scope-conventions.md` §4). Knowable before the run, and the resolver prints it as
 `finder_floor_ktokens_per_lens` so that the name itself says what it is. It follows
@@ -169,14 +175,12 @@ and the uncapped candidate surface is what moves the total.
 
 ## Angle accounting — three states, and only one of them is a broken promise
 
-`resolve-review-target.sh` sets the finder count from the target's **source** LOC —
-tests are measured apart, so a module is not refused for being well tested (small 2 /
-medium 3 / large 4 / oversize refuse). `--finders N` overrides that count, clamped to
-this catalog's maximum of 4; it never overrides the `oversize` refusal, which answers
-whether the target is coverable at all rather than how deep to go. An oversize target
-gets a **partition proposal** (`--partition`) instead of a wall — one part per immediate
-subdirectory plus a named `(root)` part, each measured, each flagged if it still needs
-splitting.
+Where the finder count comes from is `resolve-review-target.sh`'s, and SKILL.md Step 1
+narrates it — thresholds, the override and its clamp, and what an oversize target gets
+instead of a wall. This section restated all of that and went stale: it said the count
+came from the target's LOC after the resolver had moved to `source_loc`, and stood wrong
+through four commits. What the catalog owns is its own maximum of 4 angles, which is what
+the override clamps against.
 
 Angles beyond the finder count are cut in the order listed above. Report every angle
 that produced no findings in exactly one of these:

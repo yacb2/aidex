@@ -120,6 +120,9 @@ the run spent 2.2M — ~17×, n=1. Quote the **ratio**, not the 132k: that floor
 on total LOC, before `source_loc`, so the same target measures a different floor today.
 So say "≥ *floor*, and the one run we have measured came in around 17× its floor".
 Printing the floor alone as the number is the failure this sentence exists to stop.
+The ratio stays here because quoting it is the instruction; its provenance and the
+caveat it carries are owned by `~/.claude/skills/aidex-review/references/01-review-angles.md` § Cost,
+which is where a re-measurement lands.
 
 **Name the model and effort in the same breath as the cost.** This skill is
 `model-policy: inherit-session`: no `model`/`effort` is passed to any agent, so every

@@ -297,8 +297,32 @@ STEP_LINE="$(grep -n '^## Step 1' "$SKILL_MD" | head -1 | cut -d: -f1)"
 grep -q '](references/01-review-angles.md)' "$SKILL_MD" \
   && fail "SKILL.md still carries the bare repo-relative markdown link to the catalog — a second, weaker citation"
 
+# 28. The sizing rule has one owner and it is the resolver — SKILL.md Step 1 narrates it
+#     operationally. The catalog restated it and went stale: it read "sets the finder
+#     count from the target's LOC" while the resolver had moved to SOURCE_LOC, and stood
+#     wrong through four commits. A catalog of angles is the wrong altitude for resolver
+#     mechanics. Flattened before matching, because the stale copy wrapped mid-phrase
+#     and a line-anchored grep for it passed over the very sentence it was written to
+#     catch.
+ANGLES_FLAT="$(tr '\n' ' ' < "$ANGLES" | tr -s ' ')"
+for pat in 'small 2 / medium 3 / large 4' 'clamped to' '--partition'; do
+  case "$ANGLES_FLAT" in
+    *"$pat"*) fail "the angle catalog re-derives resolver mechanics ('$pat') — resolve-review-target.sh owns them" ;;
+  esac
+done
+
+# 29. The 17x measurement lives at three sites and is explicitly n=1 and explicitly
+#     computed under a superseded sizing rule, so it WILL be re-measured. Nothing
+#     pointed from any site to any other, so the second measurement would land in one
+#     of them and the skill would quote two ratios for the same run. The reference's
+#     Cost section owns the provenance; the other two name it.
+grep -q '01-review-angles.md` § Cost' "$SKILL_MD" \
+  || fail "SKILL.md's cost paragraph does not point at the Cost section that owns the measurement"
+grep -q '01-review-angles.md' "$RESOLVER" \
+  || fail "the resolver quotes the 17x figure without naming the section that owns it"
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 27 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 2 doc-target, 2 prose lockstep)"
+  echo "OK — resolve-review-target: 29 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 2 doc-target, 4 prose lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"

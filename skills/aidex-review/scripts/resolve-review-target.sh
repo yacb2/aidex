@@ -248,7 +248,9 @@ fi
 # §4). Verifiers are excluded because their count is unknowable before the find phase,
 # NOT because they are small: in the one module review measured (2026-08-10,
 # register-item.sh, 790 LOC, 6 finders) the run spent ~17x this number. The key is named
-# for what it is so no caller can read it as a total.
+# for what it is so no caller can read it as a total. That measurement's provenance and
+# its n=1 caveat are owned by references/01-review-angles.md § Cost — this comment names
+# the ratio, it does not carry the record.
 FINDER_FLOOR_PER_LENS=$(( FINDERS * 22 ))
 
 cat <<EOF
