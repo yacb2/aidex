@@ -15,7 +15,9 @@
 # audit-conventions.md wholesale. Both are on the critical path: SKILL.md sends the
 # auditor to 02 before writing the first finding id and to 01 for "the full text" of the
 # principles, so a drifted copy there is read before the first row is written.
-# 04-playbooks.md still carries two of these names and is not in the list yet.
+# 04-playbooks.md joined them for the same reason: SKILL.md sends the auditor here to
+# choose an audit type, so it is read before every methodology is scaffolded, and it was
+# still telling that reader to write into CHANGELOG.md and into a `methodology/` folder.
 #
 # migrate-audit.sh's "Next steps:" heredoc joined the list as a block, not as a file: it
 # is the only instruction the detection path hands a caller (the script executes nothing),
@@ -32,6 +34,7 @@ FILES=(
   "$SCRIPT_DIR/../references/05-migration-guide.md"
   "$SCRIPT_DIR/../references/01-principles.md"
   "$SCRIPT_DIR/../references/02-id-conventions.md"
+  "$SCRIPT_DIR/../references/04-playbooks.md"
 )
 # Files that describe CURRENT canon and never a legacy source, so the stricter rules
 # below apply to them and not to the migration guide, whose whole subject is the layout
@@ -39,6 +42,7 @@ FILES=(
 CANON_FILES=(
   "$SCRIPT_DIR/../references/01-principles.md"
   "$SCRIPT_DIR/../references/02-id-conventions.md"
+  "$SCRIPT_DIR/../references/04-playbooks.md"
 )
 
 PASS=0

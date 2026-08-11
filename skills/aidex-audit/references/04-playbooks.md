@@ -52,7 +52,7 @@ Is the concern "every session opens heavy" / always-on cost? ──▶ rule-abla
 Anything visual, interactive, or product-level ──▶ ux
 ```
 
-For anything that doesn't fit, pass `custom` to `/aidex-audit new` and write your own methodology/<slug>.md.
+For anything that doesn't fit, pass `custom` to `/aidex-audit new` and write your own `00-methodology.md` in the methodology folder it creates.
 
 ---
 
@@ -63,7 +63,7 @@ Each playbook includes:
 1. **When to run** — cadence and triggers
 2. **Preparation** — tools, access, data needed
 3. **Check matrix / checklist** — specific to the audit type
-4. **Recording findings** — how to map observations to INVENTORY rows, including severity guidance
+4. **Recording findings** — how to map observations to `00-inventory.md` rows, including severity guidance
 5. **Output artifacts** — index.md, findings.md, optional reports/evidence
 6. **Tips** — war stories condensed into advice
 
@@ -71,10 +71,10 @@ Each playbook includes:
 
 ## Customizing a shipped playbook
 
-You don't have to accept the stock playbook as-is. First time you run a type, the template gets copied into your project's `methodology/<type>.md`. From then on:
+You don't have to accept the stock playbook as-is. First time you run a type, the template is seeded into your project as that methodology's own `.context/audits/<type>/00-methodology.md`. From then on:
 
 - Edit freely
-- Log changes in `CHANGELOG.md` with *why*
+- Log changes in that methodology's `00-changelog.md` with *why*
 - If you add a check that other projects would benefit from → consider contributing back to AIDEX
 
 ---
@@ -87,7 +87,7 @@ If none of the eight fits:
 /aidex-audit new custom <slug>
 ```
 
-This creates `methodology/<slug>.md` from a minimal stub. Fill it in following the shape above. Six sections, concise, actionable.
+This creates a methodology folder named after the slug, with its `00-methodology.md` from a minimal stub. Fill it in following the shape above. Six sections, concise, actionable.
 
 Good custom playbooks in practice:
 
@@ -103,13 +103,13 @@ Good custom playbooks in practice:
 
 You can run one audit per type per date, or combine types into a single scope (e.g., security + a11y in one push). For combined audits:
 
-- Pick the primary type for the folder slug: `YYYYMMDD-pre-release-review/`
+- Pick the primary type for the run folder, ISO-dated under it: `YYYY-MM-DD-pre-release-review/`
 - `index.md` states "Combined: security + a11y"
-- Each finding tags its originating check (column in INVENTORY, or in the finding's `Module` area: `auth [security/A01]`)
+- Each finding tags its originating check (column in `00-inventory.md`, or in the finding's `Module` area: `auth [security/A01]`)
 - The combined audit references both playbooks' methodology files
 
 ---
 
 ## Not every project needs every playbook
 
-Don't materialize a playbook until you need it. `METHODOLOGY.md` indexes them as "available"; the file gets copied only on `/aidex-audit new <type> <slug>` first use. Keeps your `methodology/` folder lean.
+Don't materialize a playbook until you need it. The table above is the index of what ships; a playbook becomes a file in your project only on `/aidex-audit new <type> <slug>` first use, as that methodology's `00-methodology.md`. Keeps `.context/audits/` to the methodologies you actually run.
