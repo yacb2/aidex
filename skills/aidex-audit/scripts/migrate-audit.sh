@@ -301,7 +301,8 @@ cat <<EOF
   6. Add an entry to .context/audits/<methodology>/00-changelog.md recording the
      migration.
   7. Refresh the run-level roll-up, which a manual move does not touch:
-       bash ~/.aidex/skills/aidex-audit/scripts/reindex-audits.sh
+       /aidex-audit reindex   (from the migrated project — it resolves the root
+       from the working directory, not from this script's argument)
   8. Run /aidex-audit validate to check coherence.
 
   See ~/.aidex/skills/aidex-audit/references/05-migration-guide.md for full details.
