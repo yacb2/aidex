@@ -27,7 +27,7 @@ For each finding in scope, classify:
 
 | Result | Inventory action |
 |---|---|
-| **Fixed** — reproducer no longer reproduces | Status → `done`, add link to verifying commit |
+| **Fixed** — reproducer no longer reproduces | Status → `done`, verifying commit in `Notes` |
 | **Still reproduces** | Status stays `open`, append this run's date to Audit Runs column |
 | **Regression** — was closed, now back | New row as `REGRESSION-<parent-id>-<n>`, status `open`, link to original |
 | **New adjacent finding** — found while re-testing | New row in the inventory with a standard ID |
@@ -52,7 +52,8 @@ In `00-inventory.md`, update existing rows in place:
 
 - Set `Status` column to the new state
 - Append this run's folder slug (`YYYY-MM-DD-<slug>`) to the `Audit Runs` column
-- For `done`, put the verifying commit short-SHA in `Escalated To` column as `fix:abc1234`
+- For `done`, the verification marker goes in `Notes` — the verifying commit short-SHA, PR link, or this run — compressed to `Closed: <commit|run> — <one line>`
+- `Escalated To` stays for escalation markers only: `backlog/<file>`, `plan/<file>`, `loop/<file>` (D-03 form, never a relative link)
 
 ---
 

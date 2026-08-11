@@ -153,6 +153,16 @@ for pb in "$TPL"/methodology/*.md.template; do
   LEGACY_ST="$(grep -nE '`(triaged|in-progress|closed)`' "$pb")"
   check "$name: names only the base status vocabulary" '[[ -z "$LEGACY_ST" ]]'
   [[ -n "$LEGACY_ST" ]] && printf '    %s\n' "$LEGACY_ST"
+
+  # 03-lifecycle.md puts the verification marker (commit SHA, PR link, re-test run) in
+  # `Notes`, and `Escalated To` carries D-03 markers only — `backlog/<…>`, `plan/<…>`,
+  # `loop/<…>`. There is no `fix:` type in D-03, so a playbook instructing `fix:abc1234`
+  # has invented a marker AND put it in the column that reads escalations (retest did,
+  # BL-159). This catches the invented form, which is the artifact the defect leaves; a
+  # sentence that misroutes the commit without naming a marker is not machine-caught.
+  BAD_MARKER="$(grep -nE 'fix:[A-Za-z0-9]' "$pb")"
+  check "$name: invents no fix: marker for the Escalated To column" '[[ -z "$BAD_MARKER" ]]'
+  [[ -n "$BAD_MARKER" ]] && printf '    %s\n' "$BAD_MARKER"
 done
 
 # ---------------------------------------------------------------------------
