@@ -17,6 +17,11 @@
 # principles, so a drifted copy there is read before the first row is written.
 # 04-playbooks.md still carries two of these names and is not in the list yet.
 #
+# migrate-audit.sh's "Next steps:" heredoc joined the list as a block, not as a file: it
+# is the only instruction the detection path hands a caller (the script executes nothing),
+# while the rest of the script names the pre-D-02 boards on purpose, because detecting
+# them is its job.
+#
 # Run: bash skills/aidex-audit/tests/test-d02-layout.sh
 # Exit: 0 if every checked file is on the canon layout.
 
@@ -48,6 +53,23 @@ check() {  # <label> <matches>
   fi
 }
 
+# The layout rules apply to instructions, not only to markdown. migrate-audit.sh prints
+# the manual-migration steps from a heredoc; extract that block to a file so the same
+# checks read it, and leave the surrounding detection code (which legitimately names
+# INVENTORY.md, METHODOLOGY.md and CHANGELOG.md) alone.
+BLOCK_DIR="$(mktemp -d)"
+trap 'rm -rf "$BLOCK_DIR"' EXIT
+HELP_BLOCK="$BLOCK_DIR/migrate-audit.sh--next-steps-block"
+awk '/^[[:space:]]*cat <<.?EOF.?$/{p=1;next} p&&/^EOF$/{exit} p' \
+  "$SCRIPT_DIR/../scripts/migrate-audit.sh" > "$HELP_BLOCK"
+FILES+=("$HELP_BLOCK")
+
+# An empty extraction passes every check below vacuously, which is how a guard goes green
+# on a file it never read. Anchor on a sentence the block keeps whatever the steps say.
+check "migrate-audit.sh--next-steps-block: extracted, not empty" \
+      "$(grep -q 'This script only detects candidates' "$HELP_BLOCK" \
+         || printf 'block empty or delimiter changed: %s' "$HELP_BLOCK")"
+
 for f in "${FILES[@]}"; do
   rel="$(basename "$f")"
 
@@ -68,6 +90,14 @@ for f in "${FILES[@]}"; do
   # folder being migrated FROM, which is always under `.context/plans/`.
   check "$rel: dates audit destinations ISO, not YYYYMMDD" \
         "$(grep -n 'audits/YYYYMMDD' "$f")"
+
+  # D-02: the segment directly under audits/ is the METHODOLOGY, never the run. A move to
+  # `audits/<name>` lands the run where none of the three boards exist, so it has no
+  # lifecycle and validate-audit.sh reports it. `<type>` is the same segment under the
+  # scaffolder's own name for it -- new-audit.sh:102-103 sets METHODOLOGY from TYPE (or
+  # from the slug for `custom`) -- so it is spelled out here rather than tightened away.
+  check "$rel: audit destinations are grouped by methodology" \
+        "$(grep -nE 'audits/<[a-zA-Z_-]+>' "$f" | grep -vE 'audits/<(methodology|type)>')"
 done
 
 for f in "${CANON_FILES[@]}"; do
