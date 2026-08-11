@@ -142,6 +142,17 @@ for pb in "$TPL"/methodology/*.md.template; do
   check "$name: names 00-inventory.md, not a board outside its own folder" \
         '[[ -z "$STRAY" ]]'
   [[ -n "$STRAY" ]] && printf '    %s\n' "$STRAY"
+
+  # 03-lifecycle.md declares `triaged`, `in-progress` and `closed` legacy: tooling may
+  # READ them off an unmigrated board and must never write one. The agent section below
+  # therefore checks writes only. A playbook is neither reader nor migrator — new-audit.sh
+  # renders it into <methodology>/00-methodology.md as the instruction the auditor follows
+  # — so the stricter rule applies here: a legacy status named at all is one the auditor
+  # is told to select on or to write. Selection is the quieter half; retest asked for
+  # `triaged` and `in-progress`, and so skipped every finding in `doing`.
+  LEGACY_ST="$(grep -nE '`(triaged|in-progress|closed)`' "$pb")"
+  check "$name: names only the base status vocabulary" '[[ -z "$LEGACY_ST" ]]'
+  [[ -n "$LEGACY_ST" ]] && printf '    %s\n' "$LEGACY_ST"
 done
 
 # ---------------------------------------------------------------------------
