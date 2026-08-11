@@ -28,7 +28,7 @@ usage() {
 Usage: /aidex-audit new <type> <slug>
        /aidex-audit new --standalone <slug>
 
-Types: ux, ai-opportunities, security, perf, a11y, hitl, retest, test-coverage, docs-coverage, custom
+Types: ux, ai-opportunities, security, perf, a11y, hitl, retest, test-coverage, docs-coverage, rule-ablation, custom
        (legacy -audit-suffixed names and the `coverage` short form accepted as aliases)
 
 Examples:
