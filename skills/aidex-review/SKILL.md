@@ -75,7 +75,10 @@ Three things the partition tells you, and all three matter:
   nothing to split on; name a narrower target.
 - `part.<name>.needs_split=yes` — that part is *still* oversize. Partition it in turn.
   Depth-1 does not always converge (measured: a 12,712-LOC part, over by 6%).
-- The parts sum to the whole. If you re-derive a split by hand, keep that property —
+- The parts **cover** the whole: nothing the target had goes missing. They can total
+  *more* than it, because each part is measured as a target in its own right — a part
+  that is itself a skill counts its own markdown, which the parent excluded unless the
+  parent was a skill too. If you re-derive a split by hand, keep the covering property;
   a partition that loses files is a completeness claim that is false.
 
 ## Step 2 — Triage: propose what to launch, with its cost

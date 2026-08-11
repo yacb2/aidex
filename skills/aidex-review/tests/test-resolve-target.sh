@@ -185,11 +185,22 @@ printf 'def test_x():\n    pass\n' > "$TMP/part/tests/test_x.py"
 #     false, which is the exact failure this skill exists to stop. Found by attacking
 #     the design: echo_lab's lab_timeline has tasks.py and urls.py sitting at the
 #     module root, and a naive by-subdirectory split drops them silently.
+#
+#     The relation is `parts >= whole`, not `=`: a part measured as a target in its
+#     own right can carry files the parent excluded (cell 24). Here no part does, so
+#     equality is the right assertion for THIS fixture and the wider one is cell 26.
 part_out="$(run --partition "$TMP/part")"
 sum_parts="$(printf '%s\n' "$part_out" | sed -n 's/^part\.[^.]*\.files=\([0-9]*\)$/\1/p' | awk '{s+=$1} END {print s+0}')"
 whole="$(field files "$TMP/part")"
 [ "$sum_parts" = "$whole" ] \
   || fail "partition invariant broken: parts sum to $sum_parts, whole is $whole — files were dropped"
+
+# 19b. A subdirectory that is ENTIRELY tests must not become a part. Measured on its
+#      own it resolves (the all-tests fallback exists so "review the tests" works), but
+#      the partition is a plan for reviewing the PARENT, whose policy excluded them.
+#      Without this the split silently widens the review to what the caller opted out of.
+printf '%s\n' "$part_out" | grep -q '^part\.tests\.' \
+  && fail "an all-tests subdirectory became a part of a partition that excludes tests"
 
 # 20. ...and the root part must be NAMED, not merely counted. A reader who cannot see
 #     it will not review it, and "the sum happens to add up" is not a report.
@@ -221,6 +232,47 @@ printf '%s\n' "$flat_out" | grep -q '^partition_note=' \
 # 23. --partition does not lift the refusal it explains.
 [ "$(field finders_per_lens --partition "$TMP/part")" = "0" ] \
   || fail "--partition must not turn an oversize target into a runnable one"
+
+# ── Parts are measured as targets in their own right (BL-161) ────────────────
+# They were not: skill detection was decided once from the top-level target and the
+# partition bucketed the already-filtered file set, so a part that is itself a skill
+# was measured under its parent's rules -- without its markdown. Measured on this repo
+# 2026-08-11: `--partition skills` reported aidex-audit at 3,428 LOC where the same
+# path as a target reads 4,748, and SEVEN markdown-only skills (aidex-bugfix,
+# aidex-decision, aidex-loop, aidex-request, aidex-research, aidex-skill,
+# aidex-workflow -- 14 files, 1,503 LOC) did not appear at all. A caller following the
+# plan reviewed less than the plan claimed, and never saw those seven: the same lie by
+# omission this resolver exists to prevent, inside the instrument meant to prevent it.
+mkdir -p "$TMP/pskill/alpha" "$TMP/pskill/skillish" "$TMP/pskill/mdonly"
+awk 'BEGIN { for (i = 0; i < 13000; i++) print "x = " i }' > "$TMP/pskill/alpha/a.py"
+awk 'BEGIN { for (i = 0; i < 400; i++) print "# doc " i }' > "$TMP/pskill/skillish/SKILL.md"
+printf 'echo hi\n' > "$TMP/pskill/skillish/run.sh"
+awk 'BEGIN { for (i = 0; i < 300; i++) print "# doc " i }' > "$TMP/pskill/mdonly/SKILL.md"
+printf 'x = 1\n' > "$TMP/pskill/root.py"
+ps_out="$(run --partition "$TMP/pskill")"
+
+# 24. A part carrying a SKILL.md is measured as a skill: its markdown is source,
+#     because for a skill the markdown IS the code (that is what ca91e5d established
+#     for the top-level target, and a part is a target).
+printf '%s\n' "$ps_out" | grep -q '^part\.skillish\.files=2$' \
+  || fail "a skill part must count its SKILL.md: expected 2 files, got $(printf '%s\n' "$ps_out" | grep '^part\.skillish\.files=' || echo none)"
+
+# 25. ...and a part whose ONLY source is markdown must appear at all. This is the
+#     half that erases whole modules rather than shrinking them.
+printf '%s\n' "$ps_out" | grep -q '^part\.mdonly\.files=1$' \
+  || fail "a markdown-only skill part vanished from the partition"
+printf '%s\n' "$ps_out" | grep -q '^part\.mdonly\.source_loc=300$' \
+  || fail "a markdown-only part must carry its real LOC"
+
+# 26. THE INVARIANT, in its honest form. Once parts can carry files the parent
+#     excluded, `parts = whole` is false and `parts >= whole` is the relation. Assert
+#     the strict case too, so this cannot be satisfied by reverting to bucketing.
+ps_sum="$(printf '%s\n' "$ps_out" | sed -n 's/^part\.[^.]*\.files=\([0-9]*\)$/\1/p' | awk '{s+=$1} END {print s+0}')"
+ps_whole="$(field files "$TMP/pskill")"
+[ "$ps_sum" -ge "$ps_whole" ] \
+  || fail "partition lost files: parts sum to $ps_sum, whole is $ps_whole"
+[ "$ps_sum" -gt "$ps_whole" ] \
+  || fail "parts were measured under the parent's rules: sum $ps_sum equals the parent's $ps_whole, so the skill parts' markdown is still invisible"
 
 # ── A skill is markdown, and Step 1 has to be able to see one ────────────────
 # .md is not a source extension, so pointing the resolver at skills/aidex-review
@@ -322,7 +374,7 @@ grep -q '01-review-angles.md' "$RESOLVER" \
   || fail "the resolver quotes the 17x figure without naming the section that owns it"
 
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 29 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 5 partition, 2 doc-target, 4 prose lockstep)"
+  echo "OK — resolve-review-target: 33 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 4 prose lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"
