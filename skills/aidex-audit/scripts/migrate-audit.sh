@@ -286,18 +286,23 @@ cat <<EOF
   This script only detects candidates. To execute the migration:
 
   1. Review the candidates above.
-  2. For each you accept, move manually:
-       mkdir -p $AUDITS_DIR
-       git mv .context/plans/<name> .context/audits/<name>
-  3. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
-  4. If you have many candidates, invoke Claude with the inventory-seeder agent:
+  2. Scaffold the target methodology if it does not exist yet:
+       /aidex-audit new <type> <slug>   (creates the methodology folder and its
+       three boards: 00-inventory.md, 00-methodology.md, 00-changelog.md; delete
+       the scaffolded run if you only wanted the boards). Never create the
+       directory by hand -- an empty one is three missing-board violations.
+  3. For each candidate you accept, move it into that methodology, ISO-dated:
+       git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>
+  4. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
+  5. If you have many candidates, invoke Claude with the inventory-seeder agent:
        Read ~/.aidex/skills/aidex-audit/agents/inventory-seeder.md
        Provide it the methodology and the list of moved folders; it will generate
        rows for audits/<methodology>/00-inventory.md.
-  5. Initialize canonical files if missing:
-       /aidex-audit new custom placeholder  (then delete the placeholder run)
-  6. Add a CHANGELOG.md entry recording the migration.
-  7. Run /aidex-audit validate to check coherence.
+  6. Add an entry to .context/audits/<methodology>/00-changelog.md recording the
+     migration.
+  7. Refresh the run-level roll-up, which a manual move does not touch:
+       bash ~/.aidex/skills/aidex-audit/scripts/reindex-audits.sh
+  8. Run /aidex-audit validate to check coherence.
 
   See ~/.aidex/skills/aidex-audit/references/05-migration-guide.md for full details.
 EOF
