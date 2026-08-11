@@ -15,7 +15,7 @@ Structure: **Previous findings × validating commits.** Confirm whether each pre
 
 ## Preparation
 
-1. Pull the list of findings to re-test. Default: all `open`, `triaged`, or `in-progress` from `00-inventory.md`.
+1. Pull the list of findings to re-test. Default: all `open` and `doing` from `00-inventory.md` — `doing` is where a fix is landing, so it is the state a re-test most wants. (A board written by pre-rebuild tooling may still carry the legacy 6-state enum; run `/aidex-audit migrate` before selecting.)
 2. Get the list of commits merged since the last audit of this type.
 3. Have staging / prod accessible or ability to run the product at those commits.
 
@@ -27,7 +27,7 @@ For each finding in scope, classify:
 
 | Result | Inventory action |
 |---|---|
-| **Fixed** — reproducer no longer reproduces | Status → `closed`, add link to verifying commit |
+| **Fixed** — reproducer no longer reproduces | Status → `done`, add link to verifying commit |
 | **Still reproduces** | Status stays `open`, append this run's date to Audit Runs column |
 | **Regression** — was closed, now back | New row as `REGRESSION-<parent-id>-<n>`, status `open`, link to original |
 | **New adjacent finding** — found while re-testing | New row in the inventory with a standard ID |
@@ -52,7 +52,7 @@ In `00-inventory.md`, update existing rows in place:
 
 - Set `Status` column to the new state
 - Append this run's folder slug (`YYYY-MM-DD-<slug>`) to the `Audit Runs` column
-- For `closed`, put the verifying commit short-SHA in `Escalated To` column as `fix:abc1234`
+- For `done`, put the verifying commit short-SHA in `Escalated To` column as `fix:abc1234`
 
 ---
 
