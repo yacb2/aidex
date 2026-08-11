@@ -32,6 +32,11 @@
 
 set -uo pipefail
 
+# Absolute path to this script: `--partition` re-invokes it once per part, and a
+# relative $0 would break the moment a caller runs it from anywhere else.
+SELF="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")"
+[ -f "$SELF" ] || SELF="$0"
+
 PRINT_FILES=0
 TARGET=""
 WHOLE_APP=0
@@ -296,16 +301,49 @@ if [ "$PARTITION" -eq 1 ]; then
     echo "partition_note=the target is a single file; there is nothing to split. Review it as it stands, or name a wider target."
   else
     parts_tmp="$(mktemp)"
+
+    # The `(root)` part: files sitting directly in the target. They are the target's
+    # own files, already resolved under the target's own rules, so they are counted
+    # here rather than re-resolved.
     printf '%s\n' "$FILES" | while IFS= read -r f; do
       [ -n "$f" ] || continue
       rel="${f#"$base"/}"
-      case "$rel" in
-        */*) part="${rel%%/*}" ;;
-        *)   part="(root)" ;;
-      esac
+      case "$rel" in */*) continue ;; esac
       n="$(wc -l < "$f" 2>/dev/null | tr -d ' ')"
-      printf '%s\t%s\n' "$part" "${n:-0}"
-    done > "$parts_tmp"
+      printf '(root)\t%s\n' "${n:-0}"
+    done | awk -F'\t' '{ c++; l += $2 } END { if (c) printf "(root)\t%d\t%d\n", c, l }' > "$parts_tmp"
+
+    # Each subdirectory part is RE-RESOLVED by this script, as a target in its own
+    # right. It used to be bucketed out of the parent's already-filtered file set,
+    # which meant every part inherited the parent's answer to "what counts as source"
+    # — and skill detection is decided from the target. So a part that was itself a
+    # skill was measured without its markdown, and one whose ONLY source is markdown
+    # was not measured at all (BL-161, measured on aidex: 7 skills, 1,503 LOC, absent
+    # from `--partition skills`; aidex-audit 3,428 as a part against 4,748 as a
+    # target). A plan that understates its own coverage is the failure this resolver
+    # exists to prevent, one level in.
+    #
+    # What a part does NOT get to decide is the TEST policy: the partition is a plan
+    # for reviewing the parent, and a `tests/` subdirectory resolves happily on its
+    # own through the all-tests fallback. Inheriting the flag and re-filtering keeps
+    # the split inside what the caller asked for.
+    child_flags=""
+    [ "$INCLUDE_TESTS" -eq 1 ] && child_flags="$child_flags --include-tests"
+    [ "$INCLUDE_DOCS" -eq 1 ] && child_flags="$child_flags --include-docs"
+    find "$base" -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+      | grep -Ev "/($EXCLUDE_DIRS)$" \
+      | LC_ALL=C sort \
+      | while IFS= read -r d; do
+          # unquoted on purpose: child_flags is a flag list, not a filename
+          # shellcheck disable=SC2086
+          part_files="$("$SELF" --files $child_flags "$d" 2>/dev/null)" || continue
+          if [ "$INCLUDE_TESTS" -eq 0 ]; then
+            part_files="$(printf '%s\n' "$part_files" | grep -Ev "$TEST_RE" || true)"
+          fi
+          [ -n "$part_files" ] || continue
+          pcount="$(printf '%s\n' "$part_files" | grep -c . || true)"
+          printf '%s\t%s\t%s\n' "$(basename "$d")" "$pcount" "$(count_loc "$part_files")" >> "$parts_tmp"
+        done
 
     SUBDIR_PARTS="$(awk -F'\t' '$1 != "(root)"' "$parts_tmp" | wc -l | tr -d ' ')"
     if [ "$SUBDIR_PARTS" -eq 0 ]; then
@@ -313,12 +351,7 @@ if [ "$PARTITION" -eq 1 ]; then
       echo "partition_note=every reviewable file sits directly in the target, so there are no subdirectories to split on. Name a narrower target, or group the files yourself."
     else
       echo "partitionable=yes"
-      awk -F'\t' '
-        { c[$1]++; l[$1] += $2 }
-        END {
-          for (p in c) printf "%s\t%d\t%d\n", p, c[p], l[p]
-        }
-      ' "$parts_tmp" | LC_ALL=C sort | while IFS="$(printf '\t')" read -r part pfiles ploc; do
+      LC_ALL=C sort "$parts_tmp" | while IFS="$(printf '\t')" read -r part pfiles ploc; do
         if   [ "$ploc" -le 800 ];   then pclass="small";    psplit="no"
         elif [ "$ploc" -le 3000 ];  then pclass="medium";   psplit="no"
         elif [ "$ploc" -le 12000 ]; then pclass="large";    psplit="no"
