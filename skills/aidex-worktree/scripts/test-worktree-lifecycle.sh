@@ -75,7 +75,13 @@ fi
 
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"
 WS="$TMP/wtfix"
+STRAY_PIDS=""
 cleanup() {
+  # First, whatever the host-process cases spawned. A test about processes that
+  # outlive a teardown must not itself leak one, and a run that dies mid-case
+  # would otherwise leave a `sleep 600` holding a deleted directory — this
+  # plan's own subject.
+  for p in $STRAY_PIDS; do kill "$p" 2>/dev/null; done
   for s in a b c d fail1; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
   rm -rf "$TMP" "${TMPDIR:-/tmp}/aidex-wt-slots-wtfix"
   [[ -n "${RUNLOCK:-}" ]] && rm -rf "$RUNLOCK"
@@ -314,6 +320,70 @@ grep -q 'WT_PRE_DOWN_CMD failed' <<<"$out" \
   && fail "pre-down/gone: the hook was attempted with no directory to run in, and reported as a failure"
 [[ -e "$SENTINEL" ]] && fail "pre-down/gone: the hook ran with no worktree directory to run in"
 cp "$CONF_BASE" "$CONF"
+
+# --- 3d. a host process that survives the teardown must be REPORTED ----------
+#
+# The field bug: `down` reclaims Docker's half, prints "removed", and exits 0
+# while a dev server started on the host keeps holding the slot's port and the
+# worktree directory it was started from. No hook is configured here on purpose
+# — the scan is the safety net for whatever the hook did not think to stop.
+#
+# `exec` so the PID that `$!` reports is the PID that ends up holding the cwd,
+# and `trap - EXIT` so killing it never runs this script's own cleanup in the
+# forked child (that deleted $TMP mid-run once already).
+PORT_PROBE=47999
+if lsof -nP -iTCP:"$PORT_PROBE" -sTCP:LISTEN >/dev/null 2>&1; then
+  fail "stray: port $PORT_PROBE is already in use; the port column cannot be asserted against a known value"
+elif ! command -v python3 >/dev/null 2>&1; then
+  fail "stray: python3 is required to hold a listening port for this case"
+else
+  bash "$WT" new a --branch feat/stray >/dev/null 2>&1 || fail "stray: create failed"
+  ( trap - EXIT; cd "$TMP/wtfix-wt-a" && exec python3 -m http.server "$PORT_PROBE" --bind 127.0.0.1 ) >/dev/null 2>&1 &
+  stray_pid=$!
+  STRAY_PIDS="$STRAY_PIDS $stray_pid"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    lsof -nP -a -p "$stray_pid" -iTCP:"$PORT_PROBE" -sTCP:LISTEN >/dev/null 2>&1 && break
+    sleep 0.5
+  done
+
+  out="$(bash "$WT" down a 2>&1)"; rc=$?
+  # Exit 0 is deliberate and load-bearing: the Docker teardown DID complete, and
+  # every `down && …` caller in the field depends on that. The report is the
+  # thing that must change, not the exit code.
+  [[ "$rc" -eq 0 ]] || fail "stray: down must still exit 0 (exit $rc)"
+  grep -qE "pid $stray_pid( |\$)" <<<"$out" \
+    || fail "stray: down reported success over a live process holding the worktree; pid $stray_pid absent from: $(tr '\n' ' ' <<<"$out")"
+  grep -qE "pid $stray_pid .*port $PORT_PROBE" <<<"$out" \
+    || fail "stray: the survivor's port is what tells an operator WHY the next 'new' will collide; not reported in: $(tr '\n' ' ' <<<"$out")"
+  kill -0 "$stray_pid" 2>/dev/null \
+    || fail "stray: the process died on its own — the case proves nothing about reporting"
+
+  # The field shape, and the reason the scan resolves its path through the
+  # PARENT: `down` re-run against an already-removed worktree, with the process
+  # still holding the deleted path. macOS does not mark a deleted cwd, so the
+  # only thing that finds it is a prefix match on a path that is canonical even
+  # though nothing is there any more.
+  out="$(bash "$WT" down a 2>&1)"
+  grep -qE "pid $stray_pid( |\$)" <<<"$out" \
+    || fail "stray/removed-dir: a process holding the DELETED worktree path is invisible on a re-run; pid $stray_pid absent from: $(tr '\n' ' ' <<<"$out")"
+
+  kill "$stray_pid" 2>/dev/null; wait "$stray_pid" 2>/dev/null
+
+  # --reap: opt-in, by PID, and only the PIDs the scan reported.
+  bash "$WT" new a --branch feat/stray-reap >/dev/null 2>&1 || fail "reap: create failed"
+  ( trap - EXIT; cd "$TMP/wtfix-wt-a" && exec sleep 600 ) &
+  reap_pid=$!
+  STRAY_PIDS="$STRAY_PIDS $reap_pid"
+  sleep 1
+  out="$(bash "$WT" down a --reap 2>&1)"; rc=$?
+  [[ "$rc" -eq 0 ]] || fail "reap: down --reap must exit 0 (exit $rc)"
+  grep -qE "pid $reap_pid( |\$)" <<<"$out" || fail "reap: the killed process must still be reported, not silently reaped"
+  for _ in 1 2 3 4 5 6; do kill -0 "$reap_pid" 2>/dev/null || break; sleep 0.5; done
+  kill -0 "$reap_pid" 2>/dev/null && fail "reap: pid $reap_pid survived --reap"
+  bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+    || { fail "stray/reap: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+  [[ "$(claims)" == "0" ]] || fail "stray/reap: slot claim not released"
+fi
 
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
