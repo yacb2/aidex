@@ -23,9 +23,12 @@ WT="$DIR/worktree.sh"; SNAP="$DIR/docker-snapshot.sh"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
+# Exit 2, never 0, on every path that does not execute the suite. A caller
+# gating on this script cannot tell "passed" from "never ran" if both are 0 —
+# which is precisely how a stale lock kept it green for seventeen days.
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   echo "SKIP — docker unavailable; the worktree mechanism cannot be exercised"
-  exit 0
+  exit 2
 fi
 
 # --- singleton -------------------------------------------------------------
@@ -36,11 +39,38 @@ fi
 # is a harness error, not a scenario to support — fail loudly instead of
 # emitting failures that look like defects in the code under test. (Observed:
 # a stray background run overlapping a suite run produced exactly that.)
-RUNLOCK="${TMPDIR:-/tmp}/aidex-wt-lifecycle-test.lock"
-if ! mkdir "$RUNLOCK" 2>/dev/null; then
-  echo "SKIP — another test-worktree-lifecycle.sh is running (lock: $RUNLOCK)."
-  echo "       Two instances share the wtfix fixture and would corrupt each other."
-  exit 0
+#
+# The lock is anchored to its owner PID, because a bare `mkdir` lock cannot tell
+# "a run is in progress" from "a run died here in July". One that did exactly
+# that disabled this suite for seventeen days while reporting success.
+RUNLOCK="${AIDEX_WT_LIFECYCLE_LOCK:-${TMPDIR:-/tmp}/aidex-wt-lifecycle-test.lock}"
+# A SYMLINK, not a directory, and the owner PID is its target: `ln -s` publishes
+# the name and the owner in one atomic step. `mkdir` then writing a pid file
+# leaves a window in which a second instance sees an ownerless lock, calls it
+# stale and takes it — reintroducing the double-run this guard exists to stop.
+lock_owner() { readlink "$RUNLOCK" 2>/dev/null; }
+if ! ln -s "$$" "$RUNLOCK" 2>/dev/null; then
+  owner="$(lock_owner)"
+  if [[ "$owner" =~ ^[0-9]+$ ]] && kill -0 "$owner" 2>/dev/null; then
+    echo "SKIP — another test-worktree-lifecycle.sh is running (lock: $RUNLOCK, pid $owner)."
+    echo "       Two instances share the wtfix fixture and would corrupt each other."
+    exit 2
+  fi
+  # Stale: the owner is gone, or the lock is a bare directory from before PID
+  # anchoring and names nobody — the seventeen-day shape. Reclaim, then let
+  # `ln -s` arbitrate again so a real racer that wins it is still refused.
+  #
+  # Residual, knowingly left: two instances that find the SAME stale lock at the
+  # same instant can both reclaim it. Closing that needs more than a symlink,
+  # and the payoff is small — a live owner (the case that actually happens when
+  # someone runs the suite twice) is refused atomically above, and a double-run
+  # fails loudly rather than silently, which is what this guard asks for.
+  echo "note: reclaiming a stale lock at $RUNLOCK (owner ${owner:-unrecorded})" >&2
+  rm -rf "$RUNLOCK"
+  if ! ln -s "$$" "$RUNLOCK" 2>/dev/null; then
+    echo "SKIP — another test-worktree-lifecycle.sh took the lock (lock: $RUNLOCK)."
+    exit 2
+  fi
 fi
 
 TMP="$(mktemp -d)"; TMP="$(cd "$TMP" && pwd -P)"
@@ -48,9 +78,17 @@ WS="$TMP/wtfix"
 cleanup() {
   for s in a b c d fail1; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
   rm -rf "$TMP" "${TMPDIR:-/tmp}/aidex-wt-slots-wtfix"
-  rmdir "$RUNLOCK" 2>/dev/null
+  [[ -n "${RUNLOCK:-}" ]] && rm -rf "$RUNLOCK"
 }
 trap cleanup EXIT
+
+# Test seam: test-lifecycle-lock.sh exercises the singleton guard above, and a
+# case that costs a full Docker cycle would not get run. Stop here, having
+# proved acquisition, and let the trap release the lock.
+if [[ -n "${AIDEX_WT_LIFECYCLE_LOCK_PROBE:-}" ]]; then
+  echo "LOCK-ACQUIRED $RUNLOCK"
+  exit 0
+fi
 
 # --- fixture: one git repo + an unversioned compose wrapper -----------------
 mkdir -p "$WS/svc"
