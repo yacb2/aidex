@@ -122,6 +122,12 @@ WT_SUFFIX_VAR="WT_SUFFIX"
 WT_POST_CMD='docker compose exec -T app touch /data/post-ran'
 ENV
 
+# The pristine config, so a case that needs an extra line writes base+line and
+# restores rather than appending onto whatever the previous case appended.
+CONF="$WS/.context/worktrees/config.env"
+CONF_BASE="$TMP/config.base.env"
+cp "$CONF" "$CONF_BASE"
+
 docker image inspect busybox:latest >/dev/null 2>&1 || docker pull -q busybox:latest >/dev/null 2>&1
 cd "$WS" || exit 1
 
@@ -235,6 +241,79 @@ bash "$WT" down a --force >/dev/null 2>&1 || fail "down --force: must remove a d
 [[ "$(claims)" == "0" ]] || fail "down --force: claim not released"
 bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
   || { fail "dirty/up cycle: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+
+# --- 3c. WT_PRE_DOWN_CMD: the project's own stop recipe ----------------------
+#
+# `down` reclaims only what Docker owns, so a hybrid stack keeps running the
+# half that is a host process. This hook is where a project says how to stop it.
+# Three things must hold and none of them shows up in a smoke test: it runs
+# BEFORE the teardown, it runs with the worktree's own cwd and environment, and
+# its failure does not abort the teardown.
+#
+# The hook is a script file, not an inline command, so the fixture does not have
+# to nest three levels of quoting inside a config line to write a sentinel.
+SENTINEL="$TMP/pre-down.sentinel"
+cat > "$TMP/pre-down.sh" <<'HOOK'
+{ pwd -P
+  echo "$COMPOSE_PROJECT_NAME"
+  echo "$APP_PORT"
+  # The live container count is the ordering proof: it can only be non-zero if
+  # the hook ran before `docker compose down`.
+  docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | wc -l | tr -d ' '
+} > "$(dirname "$0")/pre-down.sentinel"
+HOOK
+
+{ cat "$CONF_BASE"; echo "WT_PRE_DOWN_CMD='bash $TMP/pre-down.sh'"; } > "$CONF"
+grep -qF "WT_PRE_DOWN_CMD='bash $TMP/pre-down.sh'" "$CONF" \
+  || fail "pre-down: the fixture's own config line did not survive quoting: $(grep WT_PRE_DOWN_CMD "$CONF")"
+
+bash "$WT" new a --branch feat/predown >/dev/null 2>&1 || fail "pre-down: create failed"
+bash "$WT" down a >/dev/null 2>&1 || fail "pre-down: down failed"
+if [[ ! -f "$SENTINEL" ]]; then
+  fail "pre-down: WT_PRE_DOWN_CMD never ran"
+else
+  h_cwd="$(sed -n 1p "$SENTINEL")"; h_proj="$(sed -n 2p "$SENTINEL")"
+  h_port="$(sed -n 3p "$SENTINEL")"; h_live="$(sed -n 4p "$SENTINEL")"
+  [[ "$h_cwd" == "$TMP/wtfix-wt-a" ]] \
+    || fail "pre-down: the hook ran in '$h_cwd', not in the worktree"
+  [[ "$h_proj" == "wtfix-wt-a" ]] \
+    || fail "pre-down: the hook did not receive COMPOSE_PROJECT_NAME, got '$h_proj'"
+  [[ "$h_port" =~ ^470[1-9]0$ ]] \
+    || fail "pre-down: the hook did not receive the slot's port — a stop recipe reading it would target dev; got '$h_port'"
+  [[ "${h_live:-0}" -ge 1 ]] \
+    || fail "pre-down: the stack was already gone when the hook ran; it must run BEFORE the teardown"
+fi
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "pre-down: RESIDUE after a teardown with a hook"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+[[ "$(claims)" == "0" ]] || fail "pre-down: slot claim not released"
+
+# A hook that fails is reported and the Docker teardown still happens: the hook
+# is the project's best effort, not a precondition of reclaiming Docker's half.
+{ cat "$CONF_BASE"; echo "WT_PRE_DOWN_CMD='exit 1'"; } > "$CONF"
+bash "$WT" new a --branch feat/predown-fail >/dev/null 2>&1 || fail "pre-down/fail: create failed"
+out="$(bash "$WT" down a 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "pre-down/fail: a failing hook must not abort the teardown (exit $rc)"
+grep -q 'WT_PRE_DOWN_CMD failed' <<<"$out" \
+  || fail "pre-down/fail: the failure must be reported, not swallowed; got: $(tr '\n' ' ' <<<"$out")"
+[[ -e "$TMP/wtfix-wt-a" ]] && fail "pre-down/fail: the worktree directory survived"
+[[ "$(claims)" == "0" ]] || fail "pre-down/fail: slot claim not released"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "pre-down/fail: RESIDUE after a teardown whose hook failed"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+
+# And it is skipped, not failed, when the directory is already gone — `down`
+# runs against a removed worktree on the failed-teardown recovery path.
+#
+# "Skipped" has to be asserted as the ABSENCE OF A COMPLAINT, not the absence of
+# the sentinel: an unguarded hook cannot write one either, because its `cd`
+# fails first. Only the warning tells the two apart.
+rm -f "$SENTINEL"
+{ cat "$CONF_BASE"; echo "WT_PRE_DOWN_CMD='bash $TMP/pre-down.sh'"; } > "$CONF"
+out="$(bash "$WT" down a 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "pre-down/gone: down against an already-removed worktree must still succeed (exit $rc)"
+grep -q 'WT_PRE_DOWN_CMD failed' <<<"$out" \
+  && fail "pre-down/gone: the hook was attempted with no directory to run in, and reported as a failure"
+[[ -e "$SENTINEL" ]] && fail "pre-down/gone: the hook ran with no worktree directory to run in"
+cp "$CONF_BASE" "$CONF"
 
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
