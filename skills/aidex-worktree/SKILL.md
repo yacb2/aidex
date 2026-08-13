@@ -107,7 +107,11 @@ prompt reading an error and deciding what to do, so **you** hold the state and
    ```
    Never assume a worktree is up because you created it, or gone because you
    tore it down. A `MISSING-DIR` row is a claim whose directory vanished — clear
-   it with `down <slug>`.
+   it with `down <slug>`. A `STRAY-DIR:<path>` row is the opposite: a directory
+   with neither a git worktree nor a slot claim, which means something recreated
+   it after the teardown (a dev server rewriting `frontend/.vite/deps/` does
+   exactly this). Do not `up` it — there is no worktree there. Find what is
+   holding it with `down <slug>`, which reports the processes by PID.
 
 2. **Every state has a way out. Use it instead of improvising.**
 
@@ -118,6 +122,7 @@ prompt reading an error and deciding what to do, so **you** hold the state and
    | `no free slot in 1..N` | every slot is claimed | `list`, then `down` whatever is finished |
    | `slot N is claimed by '<other>'` | explicit `--slot` collided | let the allocator choose instead |
    | create failed | it already rolled back | fix the cause and re-run; do not clean up by hand |
+   | `down` warns that host processes still hold the directory | the stack was hybrid: Docker's half is gone, a host process is not | read the reported PIDs; `down <slug> --reap` kills exactly those, by PID |
 
 3. **`--force` discards work that nobody can recover.** It is the only
    destructive flag here. Never pass it on your own judgement — not to get past

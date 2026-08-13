@@ -385,6 +385,36 @@ else
   [[ "$(claims)" == "0" ]] || fail "stray/reap: slot claim not released"
 fi
 
+# --- 3e. a resurrected directory is not a worktree ---------------------------
+#
+# The field shape: a dev server that outlived the teardown rewrote
+# `frontend/.vite/deps/`, recreating the tree it had been started in. `list` then
+# showed a row for a directory git has never heard of, and an agent reading that
+# row would try to `up` something that does not exist.
+bash "$WT" new a --branch feat/stray-dir >/dev/null 2>&1 || fail "straydir: create failed"
+bash "$WT" down a >/dev/null 2>&1 || fail "straydir: down failed"
+mkdir -p "$TMP/wtfix-wt-a/svc/.vite/deps"
+: > "$TMP/wtfix-wt-a/svc/.vite/deps/chunk.js"
+rec="$(bash "$WT" list --porcelain 2>/dev/null | grep '^a	' || true)"
+[[ "$(cut -f6 <<<"$rec")" == STRAY-DIR:* ]] \
+  || fail "straydir: a directory with neither a git worktree nor a slot claim must be marked stray, got: [$rec]"
+rm -rf "$TMP/wtfix-wt-a"
+
+# The false positive a naive fix introduces, and the reason the discriminator
+# needs BOTH signals absent: --keep-dir leaves the directory AND the claim on
+# purpose, and that worktree is ordinary. So does a failed removal.
+bash "$WT" new b --branch feat/keepdir >/dev/null 2>&1 || fail "keepdir: create failed"
+bash "$WT" down b --keep-dir >/dev/null 2>&1 || fail "keepdir: down --keep-dir failed"
+rec="$(bash "$WT" list --porcelain 2>/dev/null | grep '^b	' || true)"
+[[ "$(cut -f6 <<<"$rec")" == STRAY-DIR:* ]] \
+  && fail "keepdir: a --keep-dir worktree must still list as a worktree, got: [$rec]"
+[[ "$(cut -f4 <<<"$rec")" == "down" ]] \
+  || fail "keepdir: the stack column vocabulary must be unchanged for a real worktree, got: [$rec]"
+bash "$WT" down b >/dev/null 2>&1 || fail "keepdir: final teardown failed"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "straydir/keepdir: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+[[ "$(claims)" == "0" ]] || fail "straydir/keepdir: slot claim not released"
+
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
 cat >> "$WS/.context/worktrees/config.env" <<'ENV'

@@ -182,6 +182,39 @@ if [[ "$cmd" == "list" ]]; then
     [[ -d "$d" ]] || continue
     hdr; found=1
     sg="$(basename "$d")"; sg="${sg#${PROJECT}-wt-}"
+
+    # A directory is not a worktree. A dev server that outlived the teardown
+    # rewrote frontend/.vite/deps/ and so recreated the tree it had been started
+    # in; `list` then showed a row for something git has never heard of, and an
+    # agent reading that row would try to `up` a worktree that does not exist.
+    #
+    # BOTH signals must be absent, and that is the whole difficulty: either one
+    # alone marks ordinary states as stray. `--keep-dir` deliberately leaves the
+    # directory with its claim, and a failed removal leaves exactly the same
+    # shape — the claim is held precisely so the state stays resumable. Absent
+    # registration alone would condemn both.
+    #
+    # $d comes from a glob rooted at "$ROOT/.." so it is not canonical; git
+    # prints resolved paths, and comparing the two forms directly matches
+    # nothing.
+    #
+    # The SOURCE repo is at "$ROOT/<participant>" with the participant's full
+    # relative path — that is where worktree-multi.sh runs `worktree add`, and a
+    # nested participant like `apps/backend` does not live at "$ROOT/backend".
+    # Its worktree copy, though, is at "$DEST/<basename>", which is why the grep
+    # anchors on the directory and not on a full path.
+    dr="$( cd "$d" && pwd -P )"
+    registered=false
+    for pp in $WT_PARTICIPANTS; do
+      git -C "$ROOT/$pp" worktree list --porcelain 2>/dev/null \
+        | grep -q "^worktree $dr/" && { registered=true; break; }
+    done
+    if ! $registered && ! CLAIMED_SLOT "$sg" >/dev/null; then
+      if $PORCELAIN; then printf '%s\t-\t-\t-\tno\tSTRAY-DIR:%s\n' "$sg" "$d"
+      else warn "'$sg' is a directory with no git worktree and no slot claim — something recreated it after the teardown; it is not a worktree: $d"; fi
+      continue
+    fi
+
     slot="$(cat "$d/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$sg" || echo '-')"
     br="$(git -C "$d/$(echo "$WT_PARTICIPANTS" | awk '{print $1}')" branch --show-current 2>/dev/null || echo '-')"
     n_up="$(docker ps -q --filter "label=com.docker.compose.project=$(PROJ_FOR "$sg")" 2>/dev/null | wc -l | tr -d ' ')"
