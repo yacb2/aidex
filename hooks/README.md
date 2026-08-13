@@ -180,3 +180,79 @@ Regex-routes natural ES+EN create-intent phrases ("crea un plan para...", "parke
 ### eval/ — router eval harness
 
 `eval/run-eval.sh [cases.tsv]` pipes every labeled case in `eval/router-cases.tsv` (113 cases: per-skill positives, field-miss positives, live-FP negatives) through the router and prints accuracy, per-class precision/recall/F1, and the negative-case false-positive count. Defaults to the sibling `../aidex-router.sh`; set `AIDEX_ROUTER=/path/to/aidex-router.sh` to eval an installed copy. Gate: 100% accuracy, 0 false positives. TSV format: `expected<TAB>phrase`, `NONE` = must not route; `#` comments and blank lines ignored.
+
+## context-depth-nudge.sh — context-depth band notice (UserPromptSubmit)
+
+> **Opt-in, like every hook here.** `install.sh` copies this file to
+> `~/.aidex/hooks/` and wires nothing — `is_symlinkable()` excludes `hooks/*`, so
+> it never reaches `~/.claude/`, and settings.json is never touched. Installing or
+> updating aidex therefore activates nothing. It runs only if you add it to your
+> own `~/.claude/settings.json` yourself (see Registration below). The thresholds
+> below were tuned on one person's corpus; treat them as a starting point, not a
+> default anyone should inherit.
+
+Surfaces how deep the session's context has grown, once per band, as one line of
+`hookSpecificOutput.additionalContext`. Bands: **200k** warn, **250k** advise,
+**300k** urgent. Silent below 200k and silent on every later prompt in a band it
+already announced. Never blocks; any failure (no jq, missing/malformed transcript,
+malformed payload) exits 0 with no output.
+
+**Where the numbers come from.** Measured over 674 Opus 5 sessions / 86,800 turns
+(`.context/research/2026-08-13-session-token-threshold-handoff.md`): 87.9% of all
+input tokens are spent at depth >=150k; a within-session paired test puts turns at
+150-200k at 1.41x the seconds-per-output-token of the same session below 100k,
+rising to 1.73x at 400-600k; and a counterfactual replay puts the marginal knee
+(tokens saved per additional handoff) between 200k and 250k depending on how
+expensive re-entry is assumed to be. 150k was rejected — worst marginal return of
+the candidates.
+
+**Why it counts but does not decide.** It does not judge whether to hand off and
+does not fire one. The retired durability Stop hook (`2ca548a`) ran a `claude -p`
+judge over exactly that call and measured 4 real blocks, 0 justified, 4 misfires,
+all on terminals the policy was supposed to allow. Counting tokens is arithmetic
+and cannot misfire; judging whether a thread is mid-hypothesis is what did.
+`UserPromptSubmit` rather than `Stop` for the same reason — `Stop` can only act by
+blocking, the retired failure mode — and because a prompt boundary is where a
+handoff is cheapest anyway.
+
+**Depth is `max` over `usage.iterations`, not the top-level sum.** Top-level
+`usage` *adds* the iterations of a multi-iteration turn: one observed turn reported
+`cache_read_input_tokens: 1,170,043` against a 1M window because its three
+iterations (584k/588k/585k) were summed. That figure is what was billed, not what
+occupied the window; using it would fire the 300k band at ~100k of real depth on
+any turn that iterated three times. Reads the last 400 lines only, so cost does not
+grow with transcript size.
+
+**Registration (opt-in, not done by install.sh):** wire it as a `UserPromptSubmit`
+hook in settings.json pointing at `~/.aidex/hooks/context-depth-nudge.sh`. Pairs
+with a statusline that colours on absolute depth rather than percent-of-window —
+on a 1M model, 400k reads as 40% and colours green under a percentage scheme.
+
+> **If you build that statusline, do not use `context_window.total_input_tokens`.**
+> It carries the same iteration-summing inflation as the transcript's top-level
+> `usage`. Observed 2026-08-13: Claude Code reported 394,807 while the window held
+> 198,928 — a 1.98x overstatement that read as red on a green session. The visible
+> symptom is a number that *drops*: across 96 consecutive turns in that session,
+> real occupancy never fell once, while the reported figure fell 5 times, each time
+> a multi-iteration turn was followed by a single-pass one. Compute depth from
+> `transcript_path` with the same `max`-over-iterations rule this hook uses, and
+> fall back to `context_window` only when no transcript is available.
+
+**Tests:** `python3 test-context-depth-nudge.py` — 22 checks, self-contained
+(synthetic transcripts, no dependency on real ones). Covers exact band boundaries,
+the max-over-iterations rule, post-compaction depth drops, once-per-band gating
+with escalation, six fail-open paths, and the non-blocking output shape.
+
+### Sunset criterion (falsifiable — retire if it fails)
+
+Handoffs already fire at a median depth of 337k on Opus 5, but that depth is not a
+choice: trigger depth tracks session *peak* depth at ~1.0x, so no depth-based
+trigger is operating today at all. There is therefore no evidence a depth cue will
+change timing. Due **2026-09-03**:
+
+> Re-run the predecessor->successor trigger query over Opus 5 sessions started
+> after 2026-08-13. **Keep** if the median trigger depth falls below 300k *and*
+> below that window's median session peak — the second clause is the real test,
+> since merely dropping alongside peak would prove nothing. **Retire** if the
+> median trigger still tracks peak within +/-10%, or if the nudge fires more than
+> 3x in a median session (noise, not signal).
