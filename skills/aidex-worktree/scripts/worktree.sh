@@ -55,6 +55,8 @@
 #   WT_SEED_CMD       ""                     shell run inside the new stack to seed data
 #   WT_READY_CMD      ""                     shell that must succeed before seeding
 #   WT_POST_CMD       ""                     shell run after seeding (E2E template, fixtures)
+#   WT_PRE_DOWN_CMD   ""                     shell run in the worktree BEFORE the Docker
+#                                            teardown; its failure is reported, not fatal
 
 set -uo pipefail
 
@@ -76,7 +78,7 @@ CONFIG="$ROOT/.context/worktrees/config.env"
 # --- defaults, then the project's own values ---
 WT_PARTICIPANTS=""; WT_LINKS=""; WT_COPIES=""; WT_SERVICES=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
-WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""
+WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""; WT_PRE_DOWN_CMD=""
 # `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
 # WT_SEED_CMD run in a subshell, so a plain shell variable would be empty there
 # — a profile that referenced its own $WT_DB_USER probed as an empty role, never
@@ -486,6 +488,25 @@ if [[ "$cmd" == "down" ]]; then
 
   COMPOSE_DIR="$DEST"; [[ -d "$DEST" ]] || COMPOSE_DIR="$ROOT"
   info "tearing down $CPROJ"
+
+  # The project's own stop recipe, before Docker's. `down` reclaims only what
+  # Docker owns, so in a hybrid stack the half that runs as a host process
+  # survives a teardown that reports success. This is the hook that lets a
+  # project say how to stop that half.
+  #
+  # Deliberately NOT like the three create-path hooks: they call `rollback` on
+  # failure because a half-created worktree is worse than none. Here the Docker
+  # teardown is the part that must happen, and a hook that fails must not take
+  # it down with it — report and continue.
+  #
+  # Guarded on the directory: `down` runs against an already-removed worktree on
+  # the failed-teardown recovery path, where the subshell `cd` cannot succeed.
+  if [[ -n "$WT_PRE_DOWN_CMD" && -d "$DEST" ]]; then
+    info "running WT_PRE_DOWN_CMD"
+    ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_PRE_DOWN_CMD" ) \
+      || warn "WT_PRE_DOWN_CMD failed (exit $?) — continuing with the Docker teardown"
+  fi
+
   ( cd "$COMPOSE_DIR" && env "${envs[@]}" docker compose -p "$CPROJ" --profile '*' down -v --rmi local --remove-orphans )
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
