@@ -595,7 +595,15 @@ if [[ "$cmd" == "down" ]]; then
   # `$$` and `$PPID` are excluded because they are not survivors of the teardown,
   # they are what ran it — `worktree.sh down` invoked from inside the worktree is
   # ordinary. It also keeps --reap from ever signalling the caller's own shell.
+  #
+  # The `cd /` is the other half of that, and it is not optional: run from inside
+  # the worktree, this scan's OWN children — the substitution subshell, lsof,
+  # awk, grep, `id` — all inherit that cwd and report themselves as survivors.
+  # Verified in isolation: without it the scan named seven phantom PIDs beside
+  # the one real holder. `holders` is only ever called as `$(holders)`, so the
+  # cd applies to the whole pipeline and never touches the caller's own cwd.
   holders() {
+    cd / 2>/dev/null || return 1
     lsof -a -u "$(id -u)" -d cwd -Fpn 2>/dev/null | awk -v dir="$DEST" '
       /^p/ { pid = substr($0, 2); next }
       /^n/ { path = substr($0, 2)
@@ -673,7 +681,11 @@ if [[ "$cmd" == "down" ]]; then
   # still pending, so anything only this one sees is what the removal surfaced.
   # Only the difference is printed: repeating the first list in full would train
   # a reader to skip both.
-  late="$( comm -13 <(printf '%s\n' $survivors | sort -u) <(holders | sort -u) )"
+  # `$(holders)` first, then sort — never `<(holders | sort -u)`. In a pipeline
+  # inside a process substitution the `sort` is forked with the CALLER's cwd, so
+  # it becomes a phantom survivor of exactly the kind the `cd /` above removes.
+  late_now="$(holders)"
+  late="$( comm -13 <(printf '%s\n' $survivors | sort -u) <(printf '%s\n' $late_now | sort -u) )"
   if [[ -n "${late// /}" ]]; then
     warn "these turned up only after $DEST was removed, and hold a path that no longer exists:"
     describe_holders "$late" >&2
