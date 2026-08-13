@@ -17,7 +17,7 @@
 # Usage:
 #   worktree.sh new  <slug> --branch <branch> [--repo R]... [--no-infra] [--slot N]
 #   worktree.sh up   <slug>
-#   worktree.sh down <slug> [--keep-dir] [--force]
+#   worktree.sh down <slug> [--keep-dir] [--force] [--reap]
 #   worktree.sh list [--porcelain]
 #
 #   new  : allocate a free port slot, create one git worktree per participant,
@@ -29,6 +29,10 @@
 #          nothing is left attributable to the slug, then remove the directory.
 #          --force discards uncommitted work (git refuses otherwise). NEVER pass
 #          it without the user asking: it destroys work no one can recover.
+#          Host processes still holding the directory are REPORTED, never killed;
+#          --reap opts into killing them, always by PID and only the ones just
+#          reported. There is deliberately no way to kill by name: `pkill vite`
+#          takes the main tree's dev server and every sibling project's with it.
 #   list : every worktree with slot, branch, stack state, and whether it holds
 #          uncommitted work. --porcelain emits one tab-separated record per
 #          worktree for a supervising agent to parse.
@@ -127,7 +131,7 @@ if [[ -n "$_unfilled" ]]; then
   exit 2
 fi
 
-SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false
+SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false
 REPOS=()
 [[ $# -gt 0 && "$1" != -* ]] && { SLUG="$1"; shift; }
 while [[ $# -gt 0 ]]; do
@@ -138,6 +142,7 @@ while [[ $# -gt 0 ]]; do
     --no-infra) NO_INFRA=true; shift ;;
     --keep-dir) KEEP_DIR=true; shift ;;
     --force) FORCE=true; shift ;;
+    --reap) REAP=true; shift ;;
     --porcelain) PORCELAIN=true; shift ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -532,6 +537,80 @@ if [[ "$cmd" == "down" ]]; then
     warn "residue remains:"; bash "$SWEEP" --slug "$SLUG" 2>&1 | sed 's/^/  /'
   fi
 
+  # --- what Docker never owned ------------------------------------------------
+  #
+  # The sweep above answers "is any Docker resource left?" and that is the wrong
+  # question for a hybrid stack. In this family half the stack runs as a host
+  # process, so `down` could report a clean teardown while a vite kept holding
+  # the slot's port and the worktree directory — and the next `new` collided on
+  # a port whose owner nothing on screen named.
+  #
+  # ONE lsof pass, not one per candidate: ~980 processes in ~0.5s, measured.
+  # `-a` is mandatory and load-bearing — lsof ORs its selection options, so
+  # without it `-u UID -d cwd` returned 106,740 lines in 10.5s instead of 1,959
+  # in 0.5s: wrong answers and a 20x slowdown, silently.
+  #
+  # Matched by PATH PREFIX, never by a `(deleted)` marker: Linux appends one to a
+  # removed cwd, macOS does not (measured — it still reports the full path after
+  # `rm -rf`), so a parser that requires the marker finds nothing here.
+  # Matched against $DEST as assigned, which is already resolved through its
+  # PARENT rather than through itself. That is load-bearing twice over: lsof
+  # reports resolved paths (/tmp is a symlink to /private/tmp on macOS, so a raw
+  # string compare matches nothing), and the directory may be gone — which is
+  # precisely the case this scan exists for.
+  #
+  # `$$` and `$PPID` are excluded because they are not survivors of the teardown,
+  # they are what ran it — `worktree.sh down` invoked from inside the worktree is
+  # ordinary. It also keeps --reap from ever signalling the caller's own shell.
+  holders() {
+    lsof -a -u "$(id -u)" -d cwd -Fpn 2>/dev/null | awk -v dir="$DEST" '
+      /^p/ { pid = substr($0, 2); next }
+      /^n/ { path = substr($0, 2)
+             if (path == dir || index(path, dir "/") == 1) print pid }
+    ' | grep -vx -e "$$" -e "$PPID"
+  }
+
+  # Age and port are what make the report actionable: age separates "started
+  # before this worktree existed" from "started by it", and the port is the
+  # answer to why the next `new` will collide. The listener lookup is verified to
+  # surface IPv6-only listeners (`TCP [::1]:5173 (LISTEN)`), which is the case
+  # that has bitten this codebase before.
+  describe_holders() {
+    local p age port cmd
+    for p in $1; do
+      age="$(ps -o etime= -p "$p" 2>/dev/null | tr -d ' ')"
+      port="$(lsof -nP -a -p "$p" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {n=split($9,a,":"); print a[n]; exit}')"
+      cmd="$(ps -o comm= -p "$p" 2>/dev/null)"
+      printf '  pid %s  age %s  port %s  %s\n' "$p" "${age:-?}" "${port:--}" "${cmd##*/}"
+    done
+  }
+
+  survivors="$(holders)"
+  if [[ -n "$survivors" ]]; then
+    warn "the Docker teardown is complete, but these host processes still hold $DEST:"
+    describe_holders "$survivors" >&2
+    if $REAP; then
+      # By PID, one signal each, and only PIDs this scan just reported. Never a
+      # name or a pattern: `pkill vite` reaches the main tree and every sibling
+      # project. No escalation to -9 either — a process that ignores TERM is
+      # reported, because killing something harder than it asked for is how a
+      # teardown starts destroying work.
+      for p in $survivors; do
+        kill "$p" 2>/dev/null && info "reaped pid $p" || warn "could not signal pid $p"
+      done
+      sleep 1
+      still="$(holders)"
+      if [[ -n "$still" ]]; then
+        warn "still holding $DEST after --reap (not escalating to -9):"
+        describe_holders "$still" >&2
+      else
+        ok "--reap: every reported process is gone"
+      fi
+    else
+      warn "they keep the port and the directory; re-run with --reap to kill them by PID"
+    fi
+  fi
+
   # The claim is released only when the worktree is REALLY gone. Releasing it on
   # the way out left a directory with no stack and no slot — a limbo `up` could
   # not resume deterministically and `new` refused to recreate.
@@ -557,6 +636,16 @@ if [[ "$cmd" == "down" ]]; then
       exit 1
     fi
   fi
+  # Second pass, now that the directory is gone. The first ran with the removal
+  # still pending, so anything only this one sees is what the removal surfaced.
+  # Only the difference is printed: repeating the first list in full would train
+  # a reader to skip both.
+  late="$( comm -13 <(printf '%s\n' $survivors | sort -u) <(holders | sort -u) )"
+  if [[ -n "${late// /}" ]]; then
+    warn "these turned up only after $DEST was removed, and hold a path that no longer exists:"
+    describe_holders "$late" >&2
+  fi
+
   release_claim
   ok "removed $DEST"
   exit 0
