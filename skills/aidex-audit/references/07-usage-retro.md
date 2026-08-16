@@ -56,6 +56,52 @@ references — so realized effort can be regressed against what the spec looked 
   skills, so there is no counterfactual to difference against. The same asymmetry the
   `rule-ablation` playbook keeps explicit applies here.
 
+## Who counts as the user: `prompt_kinds.py`
+
+Every number these miners produce is a rate over "user prompts", so the predicate
+defining one sets the denominator of the whole study. It was wrong for three runs.
+
+Claude Code delivers a lot of machine-authored text through the user channel as
+`type="user"` records with plain markdown content: SDK harnesses (`/security-review`,
+the durability-arbiter Stop hook), expanded skill bodies (`artifact-design`), expanded
+slash-command bodies (`# /handoff`, `# version:release`), compaction summaries, and
+the kickoff positional `claude-session-handoff`'s wrapper passes to the session it
+launches. None of it starts with an angle bracket, and the predicates in use rejected
+only `<`-prefixed text.
+
+Measured over 2026-07-23..2026-08-16 (938 sessions, 2,208 user-channel records):
+**37.9% was machine-authored** — 659 injected bodies plus 177 wrapper kickoffs. The
+correction is not cosmetic:
+
+| quantity | before | after |
+|---|---|---|
+| "user prompts" in the window | 2,441 | **1,372** |
+| `unknown`-model nudge rate | 19.2% (318 nudges) | **0.4% (1)** |
+| re-dictated "judge/arbiter" | 44 | **1** |
+| re-dictated "backlog" | 436 | 193 |
+
+The `unknown` bucket was the tell: a wrapper kickoff is the first prompt of a session,
+before any assistant message has named a model, so all 177 landed there. The published
+"the user keeps typing continue" reading was measuring the handoff wrapper doing its
+job — the positional exists because `SessionStart.initialUserMessage` is accepted and
+silently ignored by Claude Code (re-probed on 2.1.221/223/224).
+
+`prompt_kinds.classify()` decides **structurally first**, by content only as a
+fallback for transcripts predating the provenance fields. `origin.kind == "human"` is
+exact (1,474 records in the validation window, zero of them injected) and is checked
+**before** `promptSource`, because a desktop-app prompt carries `promptSource="sdk"`
+alongside `origin.kind="human"` — source-first throws away 64 real prompts.
+
+The kickoff is the one kind needing whole-session context, so use `classify_session()`
+when the question is "did a human speak in this session". And the machine kinds are
+**returned, never dropped**: hiding them is how the inflation survived three runs, so
+`mine_items.py` reports what it excluded and `extract.py` tags every record with `kind`.
+
+Pinned by `tests/test-prompt-kinds.sh` (22 cases). The load-bearing ones are where a
+naive rule inverts: the desktop-app `sdk`+`human` record, a typed `continue` in a
+session that was *not* handoff-seeded, and the requirement that injected rows still
+appear in `classify_session` output.
+
 ## Two invariants, both load-bearing, both pinned by tests
 
 `tests/test-usage-retro.sh` against `tests/fixtures/usage-retro-corpus.sh` — a
@@ -92,5 +138,8 @@ producer did not survive the study, so it is **not re-runnable today** — and i
 class of error the study's §5 documents. Any forward census depending on it is blocked
 on rebuilding that aggregation deliberately, not on re-running a script.
 
-`mine_askuserquestion.py`, `mine_autonomy.py`, `mine_stops.py`, `extract.py` and
-`prefilter.py` also stay: closed-study artifacts, not instruments.
+`mine_askuserquestion.py`, `mine_autonomy.py`, `mine_stops.py`, `extract.py`,
+`prefilter.py` and `mine_repetition.py` also stay: closed-study artifacts, not
+instruments. They now **import** `prompt_kinds` rather than restating the predicate —
+they live under `.context/`, which is gitignored in this repo, so a copy kept there
+can never be pinned by a test. That is precisely how the predicate drifted.

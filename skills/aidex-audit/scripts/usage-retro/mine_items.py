@@ -26,8 +26,11 @@ They are parameters for a second reason too: a fixture corpus is impossible to b
 against a hardcoded home directory, so the tests that pin the two invariants below
 exist only because of this.
 """
-import os, re, sys, glob, json, datetime, argparse
+import os, re, sys, glob, json, datetime, argparse, collections
 from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import prompt_kinds
 
 PROJ_ROOT = os.environ.get("AIDEX_PROJECTS_ROOT") or ""
 TX_ROOT   = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
@@ -60,10 +63,6 @@ def configure(args):
     if getattr(args, "transcripts_root", ""):
         TX_ROOT = os.path.abspath(os.path.expanduser(args.transcripts_root))
     require_projects_root()
-
-SYS_PREFIXES = ("<task-notification", "<local-command", "<bash-", "<system-reminder",
-                "[Request interrupted", "Base directory for this skill",
-                "<command-message>", "Caveat:")
 
 FM = re.compile(r'^---\n(.*?)\n---', re.S)
 BL = re.compile(r'\bBL-\d{3}\b')
@@ -148,21 +147,25 @@ def tx_dirs_for(proj):
     return out
 
 
+MACHINE_PROMPTS = collections.Counter()
+
+
 def user_text(o):
-    c = o.get("message", {}).get("content")
-    if isinstance(c, list):
-        if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c):
-            return None
-        c = "\n".join(x.get("text", "") for x in c
-                      if isinstance(x, dict) and x.get("type") == "text")
-    if not isinstance(c, str):
-        return None
-    s = c.strip()
-    if not s or s.startswith(SYS_PREFIXES):
-        return None
-    if s.startswith("<command-name>"):
-        return s.split("<command-name>", 1)[1].split("</command-name>", 1)[0].strip()
-    return s
+    """Text a HUMAN typed, or None.
+
+    Attribution is the whole point of this miner: an item mentioned only by
+    machine-authored text was not something the user asked for. This delegates
+    to the shared predicate rather than restating it — the local copy used to
+    accept any non-`<` string, so SDK harness prompts and expanded skill bodies
+    attributed items to the user. Excluded records are counted, not just
+    dropped, and main() reports the total.
+    """
+    kind, text = prompt_kinds.classify(o)
+    if kind in prompt_kinds.HUMAN_KINDS:
+        return text
+    if kind in prompt_kinds.MACHINE_KINDS:
+        MACHINE_PROMPTS[kind] += 1
+    return None
 
 
 def assistant_parts(o):
@@ -350,6 +353,10 @@ def main():
     print(f"\nwrote {len(items)} items, {len(spans)} spans "
           f"({working} working, {len(spans) - working} below the strict-span rule) "
           f"-> {args.out}")
+    if MACHINE_PROMPTS:
+        excluded = ", ".join(f"{n} {k}" for k, n in MACHINE_PROMPTS.most_common())
+        print(f"excluded from attribution: {excluded} "
+              f"(machine-authored records delivered through the user channel)")
 
 
 if __name__ == "__main__":

@@ -72,17 +72,13 @@ def rule_words():
     return out
 
 
-def is_real_user(o):
-    if o.get("type") != "user" or o.get("isSidechain"):
-        return False
-    c = o.get("message", {}).get("content")
-    if isinstance(c, str):
-        return bool(c.strip()) and not c.startswith("<")
-    if isinstance(c, list):
-        return any(isinstance(x, dict) and x.get("type") == "text"
-                   and x.get("text", "").strip() and not x["text"].startswith("<")
-                   for x in c)
-    return False
+# The "did a human speak here" predicate is shared, not restated. This file
+# used to carry its own thinner copy — it rejected only `<`-prefixed text, so
+# SDK harnesses and expanded skill bodies counted as human turns and every
+# session containing one was scored as human-driven. See
+# usage-retro/prompt_kinds.py for the measurement that established it.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "usage-retro"))
+from prompt_kinds import is_real_user  # noqa: E402
 
 
 def scan(since=None):
