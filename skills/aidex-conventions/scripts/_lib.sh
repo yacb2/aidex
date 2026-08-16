@@ -62,6 +62,37 @@ find_project_root() {
     dir="$(dirname "$dir")"
   done
 
+  # Still nothing — but a LINKED WORKTREE is a sibling of the project, never a
+  # descendant, so the walk above could not have reached the main tree's
+  # `.context/`. Hop to the main worktree and walk again from there.
+  #
+  # Without this the next pass matched the worktree's own `.git` — a FILE in a
+  # linked worktree, which `-e` accepts — and returned the worktree as the
+  # project root. Everything then wrote into a directory that disappears on
+  # teardown, and `worktree.sh` in particular reads
+  # "$ROOT/.context/worktrees/config.env", which does not exist at that root.
+  # Nine aidex-worktree scripts source this file, and they are most often invoked
+  # from inside a worktree, so this is the common case rather than an edge one.
+  #
+  # `--git-common-dir` differs from `--git-dir` only inside a linked worktree, so
+  # a normal checkout takes no new behaviour from this block. Resolution failure
+  # is not an error: fall through to the marker pass exactly as before.
+  local common gitdir mainroot
+  if common="$(git rev-parse --git-common-dir 2>/dev/null)" \
+     && gitdir="$(git rev-parse --git-dir 2>/dev/null)" \
+     && [[ -n "$common" && "$common" != "$gitdir" ]]; then
+    mainroot="$(cd "$(dirname "$common")" 2>/dev/null && pwd -P)" || mainroot=""
+    dir="$mainroot"
+    while [[ -n "$dir" && "$dir" != "/" ]]; do
+      [[ -n "$stop" && "$dir" == "$stop" ]] && break
+      if [[ -d "$dir/.context" ]]; then
+        printf '%s\n' "$dir"
+        return 0
+      fi
+      dir="$(dirname "$dir")"
+    done
+  fi
+
   # No .context yet — fall back to the nearest thing that looks like a project
   # root, so a not-yet-initialised project still gets its own directory rather
   # than an ancestor's.

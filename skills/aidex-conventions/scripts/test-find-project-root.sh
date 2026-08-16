@@ -78,6 +78,40 @@ got="$( cd "$P1" && env -u HOME bash -c ". '$LIB'; find_project_root" )"
 [[ -n "$got" && "$got" == /* && "$got" != "/" ]] \
   || fail "with HOME unset, expected a sane absolute path, got '$got'"
 
+# --- case 8: from inside a LINKED WORKTREE, the main tree owns the artifacts ---
+# A worktree is created as a sibling of the project, not under it, so the upward
+# walk never reaches the main tree's .context/. Pass 2 then matched the worktree's
+# own `.git` — a FILE, which `-e` accepts — and returned the worktree as the
+# project root. Everything downstream wrote there: worktree.sh reads
+# "$ROOT/.context/worktrees/config.env", which does not exist at that root, and
+# nine aidex-worktree scripts source this same _lib.sh.
+if command -v git >/dev/null 2>&1; then
+  WMAIN="$FAKEHOME/projects/wtmain"
+  mkdir -p "$WMAIN/.context"
+  ( cd "$WMAIN" && git init -q . && : > f.txt && git add -A \
+      && git -c user.email=t@t -c user.name=t commit -qm init ) >/dev/null 2>&1
+  ( cd "$WMAIN" && git worktree add -q "$FAKEHOME/projects/wtmain-wt-feat" -b feat ) >/dev/null 2>&1
+  WT="$FAKEHOME/projects/wtmain-wt-feat"
+  if [[ -d "$WT" ]]; then
+    got="$(run "$WT" "$FAKEHOME")"
+    [[ "$got" == "$WMAIN" ]] || fail "from inside a linked worktree, expected the main tree '$WMAIN', got '$got' — artifacts would be written into the worktree and vanish with it"
+
+    # And a subdirectory of the worktree resolves the same way.
+    mkdir -p "$WT/src"
+    got="$(run "$WT/src" "$FAKEHOME")"
+    [[ "$got" == "$WMAIN" ]] || fail "from a subdir of a linked worktree, expected '$WMAIN', got '$got'"
+
+    # The main tree itself is unaffected — pass 1 still answers it directly, and
+    # the worktree pass must not redirect a normal checkout anywhere.
+    got="$(run "$WMAIN" "$FAKEHOME")"
+    [[ "$got" == "$WMAIN" ]] || fail "the main tree must resolve to itself, got '$got'"
+  else
+    echo "skip: git worktree add unavailable — case 8 not exercised"
+  fi
+else
+  echo "skip: git not on PATH — case 8 not exercised"
+fi
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
