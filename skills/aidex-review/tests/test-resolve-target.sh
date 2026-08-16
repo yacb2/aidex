@@ -373,8 +373,40 @@ grep -q '01-review-angles.md` § Cost' "$SKILL_MD" \
 grep -q '01-review-angles.md' "$RESOLVER" \
   || fail "the resolver quotes the 17x figure without naming the section that owns it"
 
+# 30. The README is a lockstep site, because it is the only description of this skill
+#     a reader outside the repo ever sees. 27d0ce5 replaced the oversize wall with
+#     `--partition`; the README row still read "Refuses an oversize target instead of
+#     sampling it", and the next day the owner read that row and re-litigated a
+#     decision already settled in his favour. 4d8e97d fixed the line and added no
+#     guard — while db45759, hours earlier, had added README.md as lockstep site 7 for
+#     the audit playbook registry. The repo knew this failure class and guarded a
+#     different skill with it.
+#
+#     One direction only: IF the row claims refusal, it must also name --partition.
+#     A row that never mentions refusing is not this skill's row to police.
+#     Skipped when the README is absent — install.sh ships no README, so an
+#     unconditional read FAILs from the installed ~/.aidex/ tree (db45759's idiom).
+README="$SCRIPT_DIR/../../../README.md"
+if [ -f "$README" ]; then
+  ROW="$(grep -F '| **`aidex-review`**' "$README" | head -1)"
+  if [ -z "$ROW" ]; then
+    fail "the README has no aidex-review row — the public description of this skill vanished"
+  else
+    case "$ROW" in
+      *refus*|*Refus*)
+        case "$ROW" in
+          *--partition*) : ;;
+          *) fail "the README says aidex-review refuses an oversize target but never names --partition — that is the inverted claim 27d0ce5 made false and 4d8e97d corrected" ;;
+        esac ;;
+      *) : ;;
+    esac
+  fi
+else
+  echo "  skip: no README at $README (installed tree) — cell 30 not exercised"
+fi
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 33 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 4 prose lockstep)"
+  echo "OK — resolve-review-target: 34 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 5 prose lockstep)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"
