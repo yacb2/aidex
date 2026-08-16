@@ -23,7 +23,7 @@ Default every check to the agent. A check moves to the human ONLY if it genuinel
 | Console clean — no errors/warnings | Agent | chrome-devtools MCP: `list_console_messages` | Message dump (empty = pass) |
 | Network clean — no failed requests | Agent | chrome-devtools MCP: `list_network_requests` | Non-2xx/3xx request list |
 | Smoke interactions — nav, primary CTA, forms respond | Agent | chrome-devtools MCP: `click` / `fill` / `wait_for` | Post-action snapshot |
-| Responsive — 375 / 768 / 1280 / 1920 | Agent | chrome-devtools MCP: `resize_page` + `take_screenshot` | Screenshot per breakpoint |
+| Responsive — 375 / 768 / 1280 / 1920 | Agent | chrome-devtools MCP: `emulate` with `viewport: "375x812x3,mobile,touch"` (drop `mobile,touch` and set dpr 1 above 768) + `take_screenshot` | Screenshot per breakpoint |
 | a11y basics — contrast, labels, landmarks, alt text | Agent | Lighthouse accessibility category (MCP or CLI) | Score + failing audits |
 | Performance snapshot (informational) | Agent | Lighthouse performance category | Score per page |
 | Flow completeness — can this role achieve the goal? | Human | Manual walkthrough per role | Verdict + note |
@@ -36,6 +36,11 @@ Boundary rules:
 - The agent NEVER marks a human row; the human NEVER re-does an agent row.
 - An agent pass with no recorded evidence is not a pass.
 - If a new check appears mid-audit, classify it agent-first: only human if no tool is 100% reliable for it.
+- Responsive uses `emulate`, not `resize_page`. `resize_page` takes width and height
+  only: no device pixel ratio, no touch, no mobile user agent. A 375-wide desktop
+  window is not a phone — hover states still apply, tap targets are not tested, and
+  `@2x`/`@3x` assets never load. A screenshot of it recorded as mobile evidence is a
+  pass the audit did not earn.
 
 ---
 
