@@ -69,6 +69,24 @@ def main():
               "on the file yourself.", file=sys.stderr)
         return 0
 
+    # Create at most ONE missing level, and only when its own parent exists.
+    #
+    # The documented anchorless fallback writes to `.context/reports/`, a directory
+    # that does not exist until the first report — so the procedure's own happy path
+    # used to end in a traceback. But an unconditional makedirs is the wrong fix:
+    # both failures observed in the field were a WRONG CWD, and makedirs would have
+    # turned each into a silently misplaced file instead of an error. One level deep
+    # tells the two apart, because a wrong cwd is missing more than the leaf.
+    outdir = os.path.dirname(os.path.abspath(args.outfile))
+    if not os.path.isdir(outdir):
+        if os.path.isdir(os.path.dirname(outdir)):
+            os.makedirs(outdir, exist_ok=True)
+        else:
+            print(f"ERROR: cannot write {args.outfile} — {outdir} does not exist and "
+                  f"neither does its parent, so this is a wrong working directory "
+                  f"rather than a first report (cwd={os.getcwd()})", file=sys.stderr)
+            return 4
+
     with open(args.outfile, "w", encoding="utf-8") as fh:
         fh.write(doc)
 
