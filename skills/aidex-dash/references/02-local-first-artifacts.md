@@ -112,6 +112,42 @@ No anchor at all: `.context/reports/YYYY-MM-DD-<slug>.html`.
 
 `open <file>`.
 
+### 8. When the report is a CONSULTATION, not a read
+
+Route B covers a document to be read. A consultation is the same route with one extra
+obligation: the reader has to answer it, item by item, and hand the answers back. This is
+the dominant shape in practice — a proposal, a set of claims to confirm, a design brief
+with open questions — and rebuilding the mechanics each time produced a page whose
+answers were lost on the next regeneration.
+
+Three requirements. They exist because each one was violated in the field.
+
+1. **Every claim is a numbered item with a STABLE id.** `c1`, `c2`, `q1`… assigned once
+   and never renumbered. A regeneration that inserts a claim in the middle appends a new
+   id; it does not shift the others. Without this the reply "sobre el 3, no estoy de
+   acuerdo" points at a different claim after the next rewrite.
+
+2. **Each item carries a reply slot, and the page composes the reply for pasting back.**
+   A `<textarea>` per item plus one button that builds a markdown skeleton —
+   `### <id> · <title>` then a blank line then the typed text — and copies it. The button
+   reports **how many items are still blank**, so a half-answered page is visible before
+   it is pasted rather than after. Skipped items are omitted, not sent empty.
+
+3. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
+   Not a new dated file. The user has the page open in a browser and cannot otherwise
+   tell whether what he is looking at is what was just written — he has asked which file
+   is which, verbatim, twice inside one minute.
+
+**Warn before rewriting a page that may hold typed answers.** The answers live in the DOM,
+so any regeneration discards them. Say so and let the reader choose: answer first, or
+accept the loss. Do not decide it silently — the choice is real and the reader is the only
+one who knows whether he has typed anything yet.
+
+Copy the shape from
+`~/.aidex/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
+re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
+the page's own tokens.
+
 ---
 
 ## Publishing

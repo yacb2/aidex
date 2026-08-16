@@ -1,0 +1,104 @@
+<!--
+  consultation-block.html.template — the item block and the compose-and-copy
+  button for a Route B report that has to be ANSWERED rather than read.
+
+  See references/02-local-first-artifacts.md § 8. Copy this into the page body;
+  it inherits the page's own colour tokens and adds no external dependency (a
+  published artifact is served under a CSP that blocks every external host).
+
+  THE ONE RULE THAT MATTERS: `data-id` is assigned once and never renumbered.
+  Inserting a claim appends a new id; it does not shift the existing ones. A
+  reply that says "on 3 I disagree" has to still mean the same claim after the
+  next regeneration, and renumbering is what silently breaks that.
+-->
+
+<style>
+  .consult-item { border: 1px solid var(--border, #d4d4d8); border-radius: 8px;
+                  padding: 1rem 1.15rem; margin: 1rem 0; }
+  .consult-item > h3 { margin: 0 0 .5rem; font-size: 1rem; }
+  .consult-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-size: .8rem; opacity: .65; margin-right: .5rem; }
+  .consult-item textarea { width: 100%; box-sizing: border-box; min-height: 4.5rem;
+                           margin-top: .6rem; padding: .55rem .7rem; font: inherit;
+                           color: inherit; background: transparent;
+                           border: 1px solid var(--border, #d4d4d8); border-radius: 6px; }
+  .consult-bar { position: sticky; bottom: 0; display: flex; gap: .75rem;
+                 align-items: center; padding: .75rem 0;
+                 background: var(--bg, #fff); border-top: 1px solid var(--border, #d4d4d8); }
+  .consult-bar button { font: inherit; padding: .5rem .9rem; border-radius: 6px;
+                        border: 1px solid var(--border, #d4d4d8); cursor: pointer;
+                        color: inherit; background: transparent; }
+  .consult-status { font-size: .9rem; opacity: .8; }
+</style>
+
+<!-- One block per claim or question. Duplicate it; never renumber it. -->
+<section class="consult-item" data-id="c1" data-title="Short claim title">
+  <h3><span class="consult-id">c1</span>Short claim title</h3>
+  <p>The claim, stated so it can be agreed with or corrected.</p>
+  <textarea placeholder="Your reply to c1 — leave blank to skip it"></textarea>
+</section>
+
+<section class="consult-item" data-id="c2" data-title="Second claim">
+  <h3><span class="consult-id">c2</span>Second claim</h3>
+  <p>…</p>
+  <textarea placeholder="Your reply to c2 — leave blank to skip it"></textarea>
+</section>
+
+<div class="consult-bar">
+  <button type="button" id="consult-copy">Copy my replies</button>
+  <span class="consult-status" id="consult-status"></span>
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('consult-copy');
+  var status = document.getElementById('consult-status');
+
+  function collect() {
+    var answered = [], blank = [];
+    document.querySelectorAll('.consult-item').forEach(function (el) {
+      var id = el.dataset.id;
+      var title = el.dataset.title || '';
+      var text = (el.querySelector('textarea') || {}).value || '';
+      text = text.trim();
+      // A skipped item is OMITTED, never sent as an empty heading: an empty
+      // section reads as "no comment" when it usually means "not yet read".
+      if (text) answered.push('### ' + id + ' · ' + title + '\n\n' + text);
+      else blank.push(id);
+    });
+    return { markdown: answered.join('\n\n'), answered: answered.length, blank: blank };
+  }
+
+  btn.addEventListener('click', function () {
+    var r = collect();
+    if (!r.answered) {
+      status.textContent = 'Nothing typed yet — no items to copy.';
+      return;
+    }
+    // The blank count is reported BEFORE the paste, so a half-answered page is
+    // visible while it can still be finished rather than after it is sent.
+    var msg = r.answered + ' item(s) copied'
+            + (r.blank.length ? ' · ' + r.blank.length + ' still blank: ' + r.blank.join(', ') : ' · none left blank');
+
+    // The published-artifact sandbox blocks downloads, and clipboard access can
+    // be denied, so there is always a visible fallback: select the text so the
+    // reader can copy it by hand instead of being told it worked when it did not.
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = r.markdown;
+      ta.style.cssText = 'position:fixed;left:0;bottom:0;width:100%;height:9rem';
+      document.body.appendChild(ta);
+      ta.select();
+      status.textContent = msg + ' — clipboard unavailable, copy the selected text.';
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(r.markdown)
+        .then(function () { status.textContent = msg + ' — paste it back in the chat.'; })
+        .catch(fallback);
+    } else {
+      fallback();
+    }
+  });
+})();
+</script>
