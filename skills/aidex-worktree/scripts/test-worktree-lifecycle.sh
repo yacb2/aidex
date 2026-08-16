@@ -248,6 +248,47 @@ bash "$WT" down a --force >/dev/null 2>&1 || fail "down --force: must remove a d
 bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
   || { fail "dirty/up cycle: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
 
+# --- 3f. --delete-branch: the branch is the last thing a teardown leaves -----
+#
+# Nothing in the suite ever removed it, so every finished worktree left a branch
+# in each participant repo, indistinguishable from live work. `git branch -d` is
+# its own merged-ness gate, so the two cases are "merged -> gone" and "unmerged
+# -> kept, and SAID SO". The second is the one that matters: a silent keep is
+# the same failure as a silent delete, one branch later.
+branch_exists() { git -C "$WS/$1" show-ref --verify --quiet "refs/heads/$2"; }
+
+# (a) merged: the branch carries nothing the trunk lacks, so -d accepts it.
+bash "$WT" new a --branch feat/merged >/dev/null 2>&1 || fail "delete-branch: create failed"
+out="$(bash "$WT" down a --delete-branch 2>&1)"
+[[ -e "$TMP/wtfix-wt-a" ]] && fail "delete-branch: directory survived"
+for pp in svc; do
+  branch_exists "$pp" feat/merged \
+    && fail "delete-branch: a merged branch survived in $pp — $(printf '%s' "$out" | tr '\n' ' ' | tail -c 200)"
+done
+
+# (b) unmerged: the branch carries a commit the trunk does not have. It must be
+#     KEPT, the run must still succeed, and the branch name must appear in the
+#     output — a teardown that quietly leaves work behind is how work is lost.
+bash "$WT" new b --branch feat/unmerged >/dev/null 2>&1 || fail "delete-branch: create (b) failed"
+echo "work" > "$TMP/wtfix-wt-b/svc/NEWFILE.txt"
+git -C "$TMP/wtfix-wt-b/svc" add -A >/dev/null 2>&1
+git -C "$TMP/wtfix-wt-b/svc" -c user.email=t@t -c user.name=t commit -qm "unmerged work" >/dev/null 2>&1
+out="$(bash "$WT" down b --delete-branch 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "delete-branch: an unmerged branch must not fail the teardown (exit $rc)"
+[[ -e "$TMP/wtfix-wt-b" ]] && fail "delete-branch: directory survived the unmerged case"
+branch_exists svc feat/unmerged \
+  || fail "delete-branch: an UNMERGED branch was deleted — git branch -d is the gate and it must have refused"
+[[ "$out" == *"feat/unmerged"* ]] \
+  || fail "delete-branch: the kept branch was not named in the output: $(printf '%s' "$out" | tr '\n' ' ' | tail -c 200)"
+git -C "$WS/svc" branch -D feat/unmerged >/dev/null 2>&1
+
+# (c) without the flag, nothing is deleted — the default must stay off.
+bash "$WT" new a --branch feat/kept >/dev/null 2>&1 || fail "delete-branch: create (c) failed"
+bash "$WT" down a >/dev/null 2>&1 || fail "delete-branch: plain down failed"
+branch_exists svc feat/kept \
+  || fail "delete-branch: a plain 'down' deleted the branch — the flag must be opt-in"
+git -C "$WS/svc" branch -D feat/kept >/dev/null 2>&1
+
 # --- 3c. WT_PRE_DOWN_CMD: the project's own stop recipe ----------------------
 #
 # `down` reclaims only what Docker owns, so a hybrid stack keeps running the

@@ -85,7 +85,7 @@ Dispatch by first argument:
 | `/aidex-worktree status` | Same as no args (explicit alias) |
 | `/aidex-worktree bootstrap` | Investigate topology, verify the stack is isolatable, write `config.env` |
 | `/aidex-worktree new <slug> --branch <b>` | Create a fully isolated worktree (`scripts/worktree.sh new`) |
-| `/aidex-worktree down <slug>` | Tear it down completely and verify nothing remains |
+| `/aidex-worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the worktree's branch in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
 | `/aidex-worktree list` | Every worktree of this project: slot, branch, stack state |
 | `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback (BL-136) |
 
