@@ -424,6 +424,52 @@ def check_waived_is_not_resolved(failures: list[str]) -> None:
                 f"on that advice would silently drop it from the baseline")
 
 
+def check_html_body_language(failures: list[str]) -> None:
+    """Rendered pages are the artifacts most often read, and every rule was blind to
+    them because the walkers yielded only `*.md`.
+
+    The load-bearing half is the NEGATIVE: `.html` is enumerated per type, so
+    check_body_language's communications exemption carries. A flat rglob over
+    .context/ would flag every Spanish `email.html` twin — the language check
+    contradicting the language canon, which exempts communications by name (D-04).
+    """
+    v = _load_validator()
+
+    # script/style contents must not count as language evidence: a JS object full
+    # of English-looking keys would drown out a Spanish page.
+    stripped = v.strip_html(
+        "<script>var x={the:1,and:2,with:3,that:4,from:5}</script>"
+        "<style>.a{from:x}</style><p>hola</p>")
+    if "the" in stripped or "and" in stripped:
+        failures.append(f"html language: script/style contents leaked into the "
+                        f"language sample: {stripped!r}")
+    if "hola" not in stripped:
+        failures.append(f"html language: visible text was stripped away: {stripped!r}")
+
+    spanish = ("<h1>Informe</h1><p>Este es el informe de la migracion que hemos hecho "
+               "para el equipo, con las decisiones que se tomaron y por que se "
+               "tomaron, para que todos los cambios queden documentados.</p>")
+    if v.check_body_language("research", Path("r.html"), v.strip_html(spanish)) is None:
+        failures.append("html language: a Spanish rendered report under research/ "
+                        "was not flagged")
+    if v.check_body_language("communications", Path("email.html"),
+                             v.strip_html(spanish)) is not None:
+        failures.append("html language: a Spanish email.html under communications/ was "
+                        "flagged — D-04 exempts communications by name, and this is the "
+                        "reason .html must be enumerated per type rather than by rglob")
+
+    # And the walker itself only reaches known types, so a page under a type dir
+    # is seen while the enumeration stays type-scoped.
+    import shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        found = {p.name for p in v.iter_html_for_type(ctx, "research")}
+        if "2026-06-20-informe-migracion.html" not in found:
+            failures.append(f"html language: the research walker did not yield the "
+                            f"fixture page (found={sorted(found)})")
+
+
 def check_external_crossrefs(failures: list[str]) -> None:
     """BL-070: refs whose target lives outside this .context/ — `issue/<id>` and the
     cross-repo `<repo>/BL-NNN` written by aidex-backlog's --escalate-to — are accepted
@@ -773,6 +819,7 @@ def main() -> int:
     check_baseline_ratchet(failures)
     check_baseline_key_granularity(failures)
     check_waived_is_not_resolved(failures)
+    check_html_body_language(failures)
     check_external_crossrefs(failures)
     check_ignored_subtrees(failures)
     check_baseline_scoped_write(failures)
