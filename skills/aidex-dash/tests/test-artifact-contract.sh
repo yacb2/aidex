@@ -127,6 +127,26 @@ err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" 2>&1 >/dev/null)"
 [[ "$err" == *"NOT verified"* ]] && ok "stdout mode says the contract went unverified" \
                                  || bad "stdout mode skipped the check silently: $err"
 
+# The documented anchorless fallback writes to `.context/reports/`, which does not
+# exist until the first report — so the procedure's own happy path ended in a
+# traceback. One missing level is created; two means a wrong cwd, and a wrong cwd
+# must be an error rather than a file written somewhere nobody will look.
+mkdir -p "$TMP/anchor/.context"
+printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/anchor/.context/reports/r.html" >/dev/null 2>&1 \
+  && ok "one missing directory level is created (the documented fallback)" \
+  || bad "the anchorless fallback path still fails to write"
+[[ -f "$TMP/anchor/.context/reports/r.html" ]] && ok "the fallback file landed" \
+                                               || bad "the fallback file was not written"
+
+err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" \
+        --out "$TMP/anchor/nope/also-nope/r.html" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -ne 0 ]] && ok "two missing levels exit non-zero instead of guessing" \
+                || bad "a wrong cwd was silently created and written into"
+[[ "$err" == *"cwd="* ]] && ok "the wrong-cwd error names the cwd" \
+                         || bad "the error did not report the cwd: $err"
+[[ ! -d "$TMP/anchor/nope" ]] && ok "no directory tree was invented" \
+                             || bad "a directory tree was created for a wrong cwd"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
