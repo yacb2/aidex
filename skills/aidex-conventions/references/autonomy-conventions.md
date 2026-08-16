@@ -91,8 +91,12 @@ Classify before you pause:
    — precisely the stop the process exists to prevent (field-observed 2026-08-01).
    Outside a run, `session-handoff`'s propose-first behaviour is unchanged.
    Note the ownership limit: `session-handoff` is not in `~/.aidex/.manifest`, so this
-   repo can state precedence but cannot edit that skill. If precedence alone proves
-   insufficient in the field, the conflict has no owner in this codebase.
+   repo can state precedence but cannot edit that skill. It does have an owner, though,
+   and it is not this codebase: the skill ships from `claude-session-handoff`, which
+   actively maintains this exact boundary (`15b42a3`, 2026-08-06, separates asking for a
+   handoff *prompt* from asking for the *move*). So if precedence alone proves
+   insufficient in the field, file it there rather than stacking a third precedence
+   clause here — two files already state it and a third would not be read either.
 4. **Autonomous — proceed, and log any bifurcation.** Everything safe + additive,
    including dependency changes (install / update / downgrade), **additive
    migrations**, and an unforeseen non-breaking decision under your authorship. A
