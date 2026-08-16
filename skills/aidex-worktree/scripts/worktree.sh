@@ -17,7 +17,7 @@
 # Usage:
 #   worktree.sh new  <slug> --branch <branch> [--repo R]... [--no-infra] [--slot N]
 #   worktree.sh up   <slug>
-#   worktree.sh down <slug> [--keep-dir] [--force] [--reap]
+#   worktree.sh down <slug> [--keep-dir] [--force] [--reap] [--delete-branch]
 #   worktree.sh list [--porcelain]
 #
 #   new  : allocate a free port slot, create one git worktree per participant,
@@ -33,6 +33,13 @@
 #          --reap opts into killing them, always by PID and only the ones just
 #          reported. There is deliberately no way to kill by name: `pkill vite`
 #          takes the main tree's dev server and every sibling project's with it.
+#          --delete-branch also deletes the worktree's branch in each participant
+#          repo, with `git branch -d` — which refuses an unmerged branch, so it is
+#          its own merged-ness gate and no separate check is invented. Default off:
+#          the branch is the only trace a torn-down worktree leaves, and deleting
+#          it by default would destroy unmerged work. This deliberately does NOT
+#          merge anything — an unrequested merge consumes the review window the
+#          worktree existed to create.
 #   list : every worktree with slot, branch, stack state, and whether it holds
 #          uncommitted work. --porcelain emits one tab-separated record per
 #          worktree for a supervising agent to parse.
@@ -131,7 +138,7 @@ if [[ -n "$_unfilled" ]]; then
   exit 2
 fi
 
-SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false
+SLUG=""; BRANCH=""; SLOT=""; NO_INFRA=false; KEEP_DIR=false; FORCE=false; PORCELAIN=false; REAP=false; DELETE_BRANCH=false
 REPOS=()
 [[ $# -gt 0 && "$1" != -* ]] && { SLUG="$1"; shift; }
 while [[ $# -gt 0 ]]; do
@@ -143,6 +150,7 @@ while [[ $# -gt 0 ]]; do
     --keep-dir) KEEP_DIR=true; shift ;;
     --force) FORCE=true; shift ;;
     --reap) REAP=true; shift ;;
+    --delete-branch) DELETE_BRANCH=true; shift ;;
     --porcelain) PORCELAIN=true; shift ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -659,6 +667,22 @@ if [[ "$cmd" == "down" ]]; then
     ok "--keep-dir: $DEST left in place (slot $SLOT still claimed; resume with: worktree.sh up $SLUG)"
     exit 0
   fi
+
+  # Read the branch names BEFORE the removal. `list` reads them out of the
+  # worktree's own checkout, and after `git worktree remove` there is no checkout
+  # to read — so a name captured afterwards is empty and the deletion silently
+  # does nothing. Captured unconditionally: the cost is one git call per repo and
+  # it keeps the ordering trap from reappearing if the flag is ever moved.
+  declare -a WT_BRANCHES=()
+  if [[ -d "$DEST" ]]; then
+    for pp in $WT_PARTICIPANTS; do
+      b="$(basename "$pp")"
+      [[ -d "$DEST/$b" ]] || continue
+      brname="$(git -C "$DEST/$b" branch --show-current 2>/dev/null || true)"
+      [[ -n "$brname" ]] && WT_BRANCHES+=("$b|$brname")
+    done
+  fi
+
   if [[ -d "$DEST" ]]; then
     rmargs=(remove --slug "$SLUG" --dest "$DEST" --skip-teardown)
     for c in $WT_COPIES; do rmargs+=(--copy "$c"); done
@@ -693,5 +717,28 @@ if [[ "$cmd" == "down" ]]; then
 
   release_claim
   ok "removed $DEST"
+
+  # The branch is the last thing a torn-down worktree leaves behind, and nothing
+  # in the suite ever removed it — so every finished worktree left a branch in
+  # each participant repo, indistinguishable from live work.
+  #
+  # `git branch -d` IS the gate: it refuses a branch not merged into its upstream
+  # or HEAD. So there is no "recorded base" to invent and no state to keep, and a
+  # refusal is reported rather than escalated. There is deliberately no --force
+  # sibling: the whole point of refusing is that the work is not in the trunk yet.
+  if $DELETE_BRANCH; then
+    if [[ ${#WT_BRANCHES[@]} -eq 0 ]]; then
+      warn "--delete-branch: no branch was readable before removal; nothing deleted"
+    fi
+    for entry in "${WT_BRANCHES[@]}"; do
+      repo="${entry%%|*}"; br="${entry#*|}"
+      [[ -d "$ROOT/$repo" ]] || { warn "--delete-branch: $repo is not in $ROOT — skipped"; continue; }
+      if out="$(git -C "$ROOT/$repo" branch -d "$br" 2>&1)"; then
+        ok "deleted branch $br in $repo"
+      else
+        warn "kept branch $br in $repo — $(printf '%s' "$out" | tr '\n' ' ' | head -c 160)"
+      fi
+    done
+  fi
   exit 0
 fi
