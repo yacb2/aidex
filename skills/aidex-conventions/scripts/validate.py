@@ -254,6 +254,32 @@ def is_ignored(context_dir: Path, path: Path, prefixes: list[str]) -> bool:
 
 # ---------- File walkers ----------
 
+# Rendered reports are the artifacts most often READ, and they were invisible to
+# every rule because the walkers only ever yielded `*.md`. Only ONE check runs on
+# them — the language check — because filename and front-matter rules do not apply
+# to a rendered page, and a census found zero filename violations among them.
+#
+# Enumerated PER TYPE rather than by a single rglob over .context/, so
+# check_body_language's `if type_name == "communications": return None` carries.
+# A flat rglob would flag every Spanish `email.html` twin, which D-04 exempts by
+# name — the language check would start contradicting the language canon.
+HTML_BLOCK_RE = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
+HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html(text: str) -> str:
+    """Visible text of a page: script/style contents removed, then tags."""
+    return HTML_TAG_RE.sub(" ", HTML_BLOCK_RE.sub(" ", text))
+
+
+def iter_html_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
+    base = context_dir / type_name
+    if not base.is_dir():
+        return
+    for path in sorted(base.rglob("*.html")):
+        yield path
+
+
 def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
     base = context_dir / type_name
     if not base.is_dir():
@@ -1068,6 +1094,24 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                     type_i += 1
                 else:
                     type_w += 1
+
+        # Rendered pages: the language check only. Same type_name, so the
+        # communications exemption applies here exactly as it does to bodies.
+        for path in iter_html_for_type(context_dir, type_name):
+            if is_ignored(context_dir, path, ignore_prefixes):
+                files_ignored += 1
+                continue
+            type_files += 1
+            files_scanned += 1
+            try:
+                html = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                findings.append(Finding(type_name, str(path), "io-error", "violation", str(e)))
+                continue
+            lf = check_body_language(type_name, path, strip_html(html))
+            if lf:
+                findings.append(lf)
+                type_w += 1
 
         # Aggregate folder findings
         for fnd in folder_findings:
