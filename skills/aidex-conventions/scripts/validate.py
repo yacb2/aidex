@@ -1305,8 +1305,14 @@ def main() -> int:
         # can be tightened. Reporting only — a validation run never mutates state.
         # Suppressed on a scoped run: a --type run cannot distinguish "fixed" from
         # "not scanned", so claiming either is a lie that advises a destructive refresh.
+        #
+        # Computed against PREWAIVER violations, matching what `--baseline` freezes
+        # a few lines above. Against the post-waiver list, waiving a baselined finding
+        # made it read as "no longer present" — so the two suppression mechanisms
+        # cancelled out and the advised refresh would drop a violation that is still
+        # in the tree. Pinned by test_validate.py::check_waived_is_not_resolved.
         resolved_keys = ([] if args.type
-                         else sorted(baseline - {key_of(f) for f in violations_list}))
+                         else sorted(baseline - {key_of(f) for f in prewaiver_violations}))
         summary["baseline"] = {"present": True, "version": baseline_version,
                                "accepted": len(baseline),
                                "new_violations": len(new_violations),

@@ -381,6 +381,49 @@ def check_baseline_key_granularity(failures: list[str]) -> None:
             failures.append("baseline granularity: baseline file was mutated by a read-only run")
 
 
+def check_waived_is_not_resolved(failures: list[str]) -> None:
+    """A WAIVED violation is still present. Reporting it as resolved advises a
+    refresh that would drop it from the baseline — the two suppression mechanisms
+    cancelling each other out and quietly loosening the ratchet.
+
+    The asymmetry was structural: the baseline is WRITTEN from `prewaiver_violations`
+    but `resolved` was computed against the POST-waiver list, so every waiver made
+    its own baselined key look like it had been fixed.
+    """
+    import shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        base = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--baseline"],
+                              capture_output=True, text=True)
+        if base.returncode != 0:
+            failures.append(f"waived-vs-resolved: --baseline failed rc={base.returncode}")
+            return
+
+        # Waive one violation that is STILL in the tree, and is in the baseline.
+        target = "backlog/2026-05-14-no-frontmatter.md"
+        (ctx / ".aidex-waivers").write_text(
+            f"frontmatter-missing | .context/{target} | - | pinned by test | 2026-08-17\n",
+            encoding="utf-8")
+        run = subprocess.run(
+            [sys.executable, str(VALIDATOR), str(ctx), "--json"],
+            capture_output=True, text=True)
+        d = json.loads(run.stdout)
+        s = d["summary"]
+
+        if s.get("waived") != 1:
+            failures.append(f"waived-vs-resolved: fixture did not waive exactly one "
+                            f"finding (waived={s.get('waived')}) — cannot exercise the bug")
+            return
+        if not (ctx / target).is_file():
+            failures.append("waived-vs-resolved: the waived file must still exist")
+        if s["baseline"].get("resolved", 0) != 0:
+            failures.append(
+                f"waived-vs-resolved: a waived-but-still-present violation was reported "
+                f"as no-longer-present (resolved={s['baseline']['resolved']}); refreshing "
+                f"on that advice would silently drop it from the baseline")
+
+
 def check_external_crossrefs(failures: list[str]) -> None:
     """BL-070: refs whose target lives outside this .context/ — `issue/<id>` and the
     cross-repo `<repo>/BL-NNN` written by aidex-backlog's --escalate-to — are accepted
@@ -729,6 +772,7 @@ def main() -> int:
     check_worktrees_no_double_count(good, failures)
     check_baseline_ratchet(failures)
     check_baseline_key_granularity(failures)
+    check_waived_is_not_resolved(failures)
     check_external_crossrefs(failures)
     check_ignored_subtrees(failures)
     check_baseline_scoped_write(failures)
