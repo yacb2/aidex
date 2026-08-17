@@ -108,6 +108,19 @@ echo "$report" | grep -q '2 working, 2 below the strict-span rule' \
   || fail "(e) the run should report the working/non-working split: $report"
 
 # ---------------------------------------------------------------------------
+# ONE MENTION PER RECORD. `mentions` was `+= len(hits)` — the count of ALL
+# distinct tracked tokens named in a record, credited wholly to the single winner.
+# So "close BL-166 and BL-172 together" gave BL-166 two mentions, and a record
+# naming one item in BOTH its forms cleared the default --min-mentions gate of 2 on
+# its own. Neither is an "attributed mention" of that item under the flag's own help
+# text, and `--min-mentions` is what decides whether a span is emitted at all.
+#
+# s3's assistant text is exactly that shape: "Working on BL-903 / 2026-01-03-gamma"
+# — two tokens, one item, one record, therefore one mention.
+[[ "$(span_field 2026-01-03-gamma mentions)" == "1" ]] \
+  || fail "(e2) two tokens naming ONE item in one record must count as one mention, got $(span_field 2026-01-03-gamma mentions)"
+
+# ---------------------------------------------------------------------------
 # (f) the rule is a predicate, not prose in a docstring. The boundary is 3.
 # ---------------------------------------------------------------------------
 out_f="$(python3 -c '
@@ -295,6 +308,74 @@ print("SAME" if same else "DIVERGED", "|", ",".join(missed) if missed else "-")
   || fail "(m) the two runner vocabularies are not the same object: $out_m"
 [[ "$out_m" == *"| -" ]] \
   || fail "(m) mine_items misses real test runners: $out_m"
+
+# ---------------------------------------------------------------------------
+# (n) FILE ATTRIBUTION IS THE FORWARD-FILL, NOT A CROSS PRODUCT.
+#     mine_defect_proneness collected every item mentioned anywhere in a session
+#     and every file edited anywhere in it, then emitted the cross product — under
+#     an inline comment claiming it was "the same convention mine_items uses". It
+#     was not. A session that mentions 10 items while editing 20 files marked all
+#     20 as touched by all 10, so both `b` and `n` in `share = b/n` were inflated
+#     toward the session-level bug rate and every file was smeared toward base:
+#     the centrality artifact the module docstring says it eliminates.
+#
+#     The corpus below is the minimal discriminator. One session, in order:
+#       mention a BUG item     -> edit bug_only.py
+#       mention a TASK item    -> edit task_only.py
+#     Forward-fill gives each file exactly one item, so bug_only.py is 100% and
+#     task_only.py is 0%. The cross product gives BOTH files both items, so both
+#     come out at 50% — and the two files become indistinguishable, which is the
+#     defect stated as a number.
+XP="$(mktemp -d)"; XT="$(mktemp -d)"
+mkdir -p "$XP/mix_ws/.context/backlog"
+xitem() {  # xitem <id> <slug> <type>
+  cat > "$XP/mix_ws/.context/backlog/$2.md" <<EOF
+---
+title: "$2"
+id: $1
+status: done
+created: 2026-03-01
+updated: 2026-03-01
+type: $3
+---
+
+# $2
+EOF
+}
+xitem BL-801 2026-03-01-the-bug  bug
+xitem BL-802 2026-03-02-the-task task
+
+XD="$XT/-Users-yoelacevedo-Documents-projects-mix-ws"
+mkdir -p "$XD"
+xprompt() {
+  python3 -c 'import json,sys; print(json.dumps({"type":"user","timestamp":sys.argv[2],"entrypoint":"cli","origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":sys.argv[1]}}))' "$1" "$2"
+}
+xedit() {
+  python3 -c 'import json,sys; print(json.dumps({"type":"assistant","timestamp":sys.argv[2],"message":{"content":[{"type":"tool_use","name":"Edit","id":"t","input":{"file_path":sys.argv[1],"old_string":"a","new_string":"b"}}]}}))' "$1" "$2"
+}
+{
+  xprompt "arreglemos BL-801 ahora"            "2026-03-01T10:00:00Z"
+  xedit   "/h/Documents/projects/mix_ws/src/bug_only.py"  "2026-03-01T10:01:00Z"
+  xprompt "ahora pasemos a BL-802"             "2026-03-01T11:00:00Z"
+  xedit   "/h/Documents/projects/mix_ws/src/task_only.py" "2026-03-01T11:01:00Z"
+} > "$XD/mix.jsonl"
+
+out_n="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$XP" \
+  --transcripts-root "$XT" --denominator typed --min-touches 1 --ratio 1.0 2>&1)"
+rm -rf "$XP" "$XT"
+
+share_of() { awk -v f="$1" '$NF ~ f {print $1}' <<<"$out_n" | head -1; }
+grep -q 'items attributed       : 2  (bug 1)' <<<"$out_n" \
+  || fail "(n) both items should be attributed, one of them a bug: $out_n"
+grep -q 'base rate              : 50.0%' <<<"$out_n" \
+  || fail "(n) the base rate should be 50% (one bug of two items): $out_n"
+[[ "$(share_of 'bug_only\.py')" == "100%" ]] \
+  || fail "(n) bug_only.py should be 100% bug items, got '$(share_of 'bug_only\.py')': $out_n"
+# task_only.py is BELOW the flag threshold, so it must not appear in the flagged
+# list at all. Under the cross product it lands at 50% — the same as the other
+# file — and the ranking stops distinguishing them.
+[[ -z "$(share_of 'task_only\.py')" ]] \
+  || fail "(n) task_only.py was flagged at $(share_of 'task_only\.py') — the cross product smeared the bug item onto it: $out_n"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary"
