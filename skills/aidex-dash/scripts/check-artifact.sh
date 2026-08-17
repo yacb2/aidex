@@ -104,7 +104,7 @@ for f in "$@"; do
   # by script both skipped all of §8 and printed `artifact contract OK`. Every
   # alternative below is structural — a tag, an attribute, a DOM call, the
   # composer's own id — so prose that merely NAMES a textarea is still a read.
-  if grep -qiE '<textarea|contenteditable=|createElement\([^)]*textarea|id="consult-copy"' <<<"$flat"; then
+  if grep -qiE '<textarea|contenteditable=|createElement\([^)]*textarea|id=["'"'"']?consult-copy' <<<"$flat"; then
     # Reply boxes, however they are spelled. Counted against data-id below, so a
     # contenteditable page is told which ids it is missing instead of being told
     # nothing at all.
@@ -153,8 +153,37 @@ PY
       || report consult "$name" "no compose-and-copy button (id=\"consult-copy\") — the reader has to assemble the reply by hand"
     grep -q 'id="consult-status"' <<<"$body" \
       || report consult "$name" "no status line (id=\"consult-status\") — nowhere to report how many items are still blank"
-    grep -qi 'blank' <<<"$body" \
-      || report consult "$name" "the composer never mentions blank items — a half-answered page must be visible BEFORE it is pasted"
+    # Read the COMPOSER, not the whole document. This was `grep -qi 'blank'` over
+    # the file, which measured nothing about the thing it names:
+    #   false negative — a page with its blank accounting torn out still matched,
+    #     because the style block that references/02 §8 tells authors to copy
+    #     verbatim contains the words "blank-count status" in a CSS COMMENT, and
+    #     the template's textarea placeholders say "leave blank to skip it". The
+    #     check was a tautology on the suite's own happy path.
+    #   false positive — a correct Spanish consultation reports "sin responder"
+    #     and has no occurrence of the English word at all, so the language: field
+    #     the suite ships was unusable together with the consultation shape.
+    # Script content with comments stripped is what remains: identifiers are
+    # English by house rule, so the composer still computes `blank` whatever
+    # language the page displays. Residual, and it is documented rather than
+    # hidden: a hand-rolled composer using non-English identifiers still fails.
+    composer="$(python3 - "$f" <<'PY'
+import re, sys
+
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+js = "\n".join(m.group(1) for m in
+               re.finditer(r"<script\b[^>]*>(.*?)</script>", text, re.I | re.S))
+js = re.sub(r"/\*.*?\*/", " ", js, flags=re.S)     # block comments
+js = re.sub(r"(?m)//.*$", " ", js)                 # line comments
+print(js)
+PY
+)"
+    composer_rc=$?
+    if [[ $composer_rc -ne 0 ]]; then
+      report consult "$name" "the composer scan did not run (python3 exited $composer_rc)"
+    elif ! grep -qi 'blank' <<<"$composer"; then
+      report consult "$name" "the composer never counts blank items — a half-answered page must be visible BEFORE it is pasted. The check reads <script> content with comments stripped, so prose, CSS comments and placeholder text do not satisfy it"
+    fi
 
     # A consultation carries a visual by DEFAULT (USAGE-19: asked ~9 times over
     # 90 days across 3 projects, granted every time, which is why it never
