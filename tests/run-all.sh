@@ -37,7 +37,14 @@ TESTS=(tests/test-*.sh skills/*/tests/test-*.sh
        skills/*/scripts/test_*.sh skills/*/scripts/test_*.py
        skills/aidex-conventions/scripts/test-*.sh)
 if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
-  TESTS+=(skills/aidex-worktree/scripts/test-*.sh)
+  # `test-db-preflight.sh` is a PRODUCTION script, not a test: it preflights the
+  # TEST database, which is why its name starts that way. Discovery by filename
+  # cannot tell the two apart, so the one liar is named here. Its real test is
+  # `test-test-db-preflight.sh`, which the glob picks up.
+  for _wt in skills/aidex-worktree/scripts/test-*.sh; do
+    [[ "$_wt" == */test-db-preflight.sh ]] && continue
+    TESTS+=("$_wt")
+  done
 else
   DOCKER_SKIPPED=(skills/aidex-worktree/scripts/test-*.sh)
 fi
@@ -46,6 +53,7 @@ DOCKER_SKIPPED=("${DOCKER_SKIPPED[@]:-}")
 shopt -u nullglob
 
 PASS=0
+SKIPPED=0
 FAILED=()
 LOG="$(mktemp)"
 trap 'rm -f "$LOG"' EXIT
@@ -57,6 +65,15 @@ for t in "${TESTS[@]}"; do
     *)    bash "$t" >"$LOG" 2>&1 ;;
   esac
   rc=$?
+  # Exit 2 is this repo's SKIP (docker absent, a singleton lock already held).
+  # A skipped test is not a failed one, and it must not be silently counted as a
+  # pass either — it is printed as what it is.
+  if [[ $rc -eq 2 ]] && grep -q '^SKIP' "$LOG"; then
+    printf 'SKIP  %s\n' "$t"
+    SKIPPED=$((SKIPPED + 1))
+    [[ $VERBOSE -eq 1 ]] && cat "$LOG"
+    continue
+  fi
   if [[ $rc -eq 0 ]]; then
     PASS=$((PASS + 1))
     printf 'PASS  %s\n' "$t"
@@ -68,7 +85,9 @@ for t in "${TESTS[@]}"; do
   fi
 done
 
-printf '\n%d/%d passed\n' "$PASS" "${#TESTS[@]}"
+printf '\n%d/%d passed' "$PASS" "${#TESTS[@]}"
+[[ $SKIPPED -gt 0 ]] && printf ' (%d skipped: precondition absent)' "$SKIPPED"
+printf '\n' 
 # A skipped test is announced, never silent: "65/65 passed" over a set that
 # quietly excluded a whole family is exactly the claim this runner exists to
 # stop making.
