@@ -101,9 +101,33 @@ for f in "$@"; do
     # says '### c3' and the reader must return to the page to learn what c3 was.
     [[ "$n_title" -ne "$n_area" ]] \
       && report consult "$name" "$n_area reply box(es) but $n_title data-title — the composed reply would have unnamed headings"
-    dupes="$(grep -oE 'data-id="[^"]*"' <<<"$body" | sort | uniq -d | head -3 | tr '\n' ' ')"
-    [[ -n "$dupes" ]] \
-      && report consult "$name" "duplicate ids ($dupes) — two claims answering to one id"
+    # Quote style is the author's choice — and a title that quotes something
+    # forces single quotes on that attribute even on a template-derived page — so
+    # read the VALUE rather than requiring one spelling of the delimiters. The
+    # double-quote-only form silently reported no duplicates on a single-quoted
+    # page while the count checks above (which are quote-agnostic) passed it.
+    dupes="$(python3 - "$f" <<'PY'
+import collections, re, sys
+
+# \x27 rather than a literal apostrophe. The bash lexer for $( ) counts
+# apostrophes even inside a quoted heredoc, and an odd number of them swallows
+# the closing paren. `re` reads \x27 as the apostrophe, so the pattern is the
+# same one. (This comment is written without apostrophes for the same reason.)
+ATTR = re.compile(r'\bdata-id\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))', re.I | re.S)
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+# finditer + groups(), never findall: findall reports a non-participating group
+# as "" rather than None, so every id collapsed onto the empty string and the
+# scan reported one duplicate that did not exist instead of the ones that did.
+vals = [next(g for g in m.groups() if g is not None) for m in ATTR.finditer(text)]
+print(" ".join(v for v, n in sorted(collections.Counter(vals).items()) if n > 1)[:200])
+PY
+)"
+    dupe_rc=$?
+    if [[ $dupe_rc -ne 0 ]]; then
+      report consult "$name" "the duplicate-id scan did not run (python3 exited $dupe_rc)"
+    elif [[ -n "$dupes" ]]; then
+      report consult "$name" "duplicate ids ($dupes) — two claims answering to one id"
+    fi
 
     # Requirement 2 — the page composes the reply, and says how many are blank.
     grep -q 'id="consult-copy"' <<<"$body" \
@@ -143,14 +167,26 @@ done
 # DISAPPEARS is not flagged: ids are never renumbered, but a claim is allowed to
 # be closed out.
 if [[ -n "$PREV" ]]; then
-  if [[ ! -f "$PREV" ]]; then
-    report consult-ids "$(basename "$PREV")" "--prev is not a readable file (missing, or a directory) — nothing to compare against"
+  # `-f` alone tests existence and regular-file-ness, never readability, so a
+  # mode-000 file passed this guard and blew up in open() — which the swallow
+  # below then read as "no ids moved".
+  if [[ ! -f "$PREV" || ! -r "$PREV" ]]; then
+    report consult-ids "$(basename "$PREV")" "--prev is not a readable file (missing, a directory, or unreadable) — nothing to compare against"
   else
     moved="$(python3 - "$PREV" "$1" <<'PY'
 import re, sys, unicodedata
 
-PAIR = re.compile(r'data-id="([^"]*)"[^>]*?data-title="([^"]*)"'
-                  r'|data-title="([^"]*)"[^>]*?data-id="([^"]*)"', re.S)
+# Read the TAG, then its attributes, rather than matching one spelling of an
+# id/title pair. The pair regex hard-required double quotes on both attributes
+# and fixed nothing about their order, so a single-quoted page — or a page whose
+# title merely quotes something, which forces single quotes on that one
+# attribute — dropped out of the map entirely and every shift on it went
+# unreported.
+TAG = re.compile(r'<[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
+# \x27, not a literal apostrophe: the bash lexer for $( ) counts apostrophes
+# even inside a quoted heredoc, so an odd number of them eats the closing paren.
+ATTR = re.compile(r'\bdata-(id|title)\s*=\s*'
+                  r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))', re.I | re.S)
 
 
 def norm(s):
@@ -164,9 +200,16 @@ def norm(s):
 def ids(path):
     out = {}
     text = open(path, encoding="utf-8", errors="replace").read()
-    for m in PAIR.finditer(text):
-        i, t = (m.group(1), m.group(2)) if m.group(1) else (m.group(4), m.group(3))
-        out.setdefault(i, norm(t))
+    for tag in TAG.finditer(text):
+        attrs = {}
+        for m in ATTR.finditer(tag.group(0)):
+            # `is not None`, never truthiness: an empty value is a real value,
+            # and testing it for truth used to select an unmatched branch and
+            # crash norm(None) — killing the diff for the entire page.
+            val = next(g for g in m.groups()[1:] if g is not None)
+            attrs.setdefault(m.group(1).lower(), val)
+        if "id" in attrs and "title" in attrs:
+            out.setdefault(attrs["id"], norm(attrs["title"]))
     return out
 
 
@@ -176,7 +219,15 @@ for i in sorted(set(old) & set(new)):
         print(f'{i}: was "{old[i]}", now "{new[i]}"')
 PY
 )"
-    if [[ -n "$moved" ]]; then
+    # The exit status, not just stdout. This is the one rule --prev exists to
+    # enforce, and it ran under `set -uo pipefail` with no `-e`: an exception,
+    # a missing interpreter or an unreadable file all produced an empty `moved`
+    # that read as "no ids moved", after which the script printed `artifact
+    # contract OK` and exited 0.
+    diff_rc=$?
+    if [[ $diff_rc -ne 0 ]]; then
+      report consult-ids "$(basename "$1")" "the id-stability diff did not run (python3 exited $diff_rc) — a check that is skipped is indistinguishable from a check that passed, so this fails rather than reporting no change"
+    elif [[ -n "$moved" ]]; then
       while IFS= read -r line; do
         report consult-ids "$(basename "$1")" \
           "id reused for a different claim — $line. Append a new id instead; a reply about that id now points somewhere else"

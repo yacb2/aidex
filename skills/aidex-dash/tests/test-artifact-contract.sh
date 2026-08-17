@@ -299,6 +299,96 @@ err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/c
 [[ "$err" == *"typed"* ]] && ok "overwriting a consultation page warns about typed answers" \
                           || bad "no warning that a regeneration discards answers: $err"
 
+# --- The --prev diff must FAIL CLOSED, and must survive real HTML -------------
+# Every assertion in this block is about the same thing: `moved="$(python3 …)"`
+# captured stdout and never the exit status, under `set -uo pipefail` with no
+# `-e`. So any way of making the diff not run collapsed to "no ids moved", the
+# script printed `artifact contract OK` and exited 0 — BL-126's "a check that is
+# skipped is indistinguishable from a check that passed", reproduced inside the
+# checker written to close it.
+#
+# Each fixture below carries a GENUINE shift (c2 names a different claim), so a
+# passing run is always a false negative and never an empty comparison.
+echo "== --prev fails closed =="
+
+# (1) The interpreter cannot read --prev. `[[ ! -f ]]` tests existence and
+#     regular-file-ness, never readability, so a mode-000 file passed the guard
+#     and blew up in open().
+cp "$TMP/consult-ok.html" "$TMP/prev-noperm.html"
+chmod 000 "$TMP/prev-noperm.html"
+out="$(bash "$CHECK" "$TMP/regen-shift.html" --prev "$TMP/prev-noperm.html" 2>&1)"; rc=$?
+[[ $rc -ne 0 ]] && ok "an unreadable --prev fails instead of reading as no-change" \
+                || bad "an unreadable --prev exited 0: $out"
+[[ "$out" == *"[consult-ids]"* ]] && ok "the unreadable --prev is reported as a consult-ids failure" \
+                                  || bad "the skipped diff was not reported: $out"
+chmod 644 "$TMP/prev-noperm.html"
+
+# (2) An empty data-id. The group-selection ternary tested truthiness where only
+#     `is not None` is correct, so `data-id=""` took the wrong alternation branch
+#     and `norm(None)` raised TypeError — killing the diff for the WHOLE page,
+#     from either side. It passes every per-file check too (n_id == n_area, and a
+#     single `data-id=""` is not a duplicate), so nothing else catches it.
+python3 - "$TMP/regen-shift.html" "$TMP/shift-emptyid.html" <<'PY'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+extra = '<section class="consult-item" data-id="" data-title="Empty id claim"><textarea></textarea></section>'
+open(sys.argv[2], "w").write(t.replace("</body>", extra + "</body>"))
+PY
+out="$(bash "$CHECK" "$TMP/shift-emptyid.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* && "$out" == *"c2"* ]] \
+  && ok "an empty data-id does not disable the diff for the rest of the page" \
+  || bad "one blank id silenced every real shift on the page: $out"
+
+# (3) Single-quoted attributes. The PAIR regex hard-required double quotes, so a
+#     page that picks its own quote style dropped out of the id map entirely —
+#     and lines 88-90 of the checker say the check exists FOR hand-rolled pages,
+#     which are exactly the pages that pick their own quote style.
+squote() {  # squote <in> <out>
+  python3 - "$1" "$2" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+t = re.sub(r'data-(id|title)="([^"]*)"', r"data-\1='\2'", t)
+open(sys.argv[2], "w").write(t)
+PY
+}
+squote "$TMP/consult-ok.html" "$TMP/sq-old.html"
+squote "$TMP/regen-shift.html" "$TMP/sq-new.html"
+out="$(bash "$CHECK" "$TMP/sq-new.html" --prev "$TMP/sq-old.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* && "$out" == *"c2"* ]] \
+  && ok "single-quoted data-id/data-title are compared, not skipped" \
+  || bad "a single-quoted page silently passed the id-stability check: $out"
+
+# (4) The realistic half of (3), with no author perversity required: a title that
+#     QUOTES something forces single quotes on that one attribute, on an
+#     otherwise fully double-quoted template-derived page. That item dropped out
+#     of the map and any shift on it went unreported.
+python3 - "$TMP/consult-ok.html" "$TMP/mix-old.html" "$TMP/mix-new.html" <<'PY'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+old = t.replace('data-title="Second claim"',
+                """data-title='The "fix" that broke deploys'""")
+new = t.replace('data-title="Second claim"',
+                """data-title='A different claim about "auth"'""")
+open(sys.argv[2], "w").write(old)
+open(sys.argv[3], "w").write(new)
+PY
+out="$(bash "$CHECK" "$TMP/mix-new.html" --prev "$TMP/mix-old.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* && "$out" == *"c2"* ]] \
+  && ok "a title containing a double quote does not drop its item from the map" \
+  || bad "a mixed-quote page laundered a total claim replacement: $out"
+
+# (5) Duplicate-id detection had the same double-quote requirement, one file at a
+#     time and with no --prev involved.
+python3 - "$TMP/sq-old.html" "$TMP/sq-dupe.html" <<'PY'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+open(sys.argv[2], "w").write(t.replace("data-id='c2'", "data-id='c1'"))
+PY
+out="$(bash "$CHECK" "$TMP/sq-dupe.html" 2>&1)"
+[[ "$out" == *"duplicate"* ]] \
+  && ok "duplicate single-quoted ids are caught" \
+  || bad "two claims answering to one single-quoted id passed: $out"
+
 # --- BL-168: the style profile is a FIELD the wrapper reads (D2) --------------
 echo "== style profile =="
 LANGP="$TMP/langproj"; mkdir -p "$LANGP/.context/reports"
