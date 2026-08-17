@@ -65,7 +65,6 @@ def configure(args):
     require_projects_root()
 
 FM = re.compile(r'^---\n(.*?)\n---', re.S)
-BL = re.compile(r'\bBL-\d{3}\b')
 TOKEN = re.compile(r'\bBL-\d{3}\b|\b20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]{2,70}\b')
 
 REVERT = re.compile(r'git\s+(checkout\s+--|revert|reset\s+--hard|stash|restore)')

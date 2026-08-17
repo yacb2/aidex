@@ -149,6 +149,27 @@ n_cont="$(count_of "continue")"
 [[ "$n_cont" == "2" ]] && ok "two genuine 'continue' prompts both survive" \
                        || bad "$n_cont of 2 short repeated prompts survived — the window ignores length"
 
+# --- one classifier, and no second one waiting to be rewired -------------------
+# `classify_user()` survived the BL-165 fix as dead code: main() was re-pointed at
+# prompt_kinds and the fork's body was left in place, importable, with two comments
+# describing it in the past tense while it was still there. It carried none of
+# prompt_kinds' fixes — no origin/promptSource/entrypoint check, no
+# _COMMAND_BODY_RX, no INJECTED_PREFIXES — so anyone who greps this file for "the
+# classifier", finds it, and wires it back in re-admits `# /handoff` bodies as
+# typed prompts. That is INSTR-01, and it is what put 7 of the first 37
+# standing-preference candidates in the corpus.
+#
+# Deleting it is the fix; this is the guard, because the failure mode is a rewrite.
+echo "== one classifier =="
+for dead in "def classify_user" "SYS_PREFIXES" "NOISE = \["; do
+  n="$(grep -c "$dead" "$EXTRACT" || true)"
+  [[ "$n" == "0" ]] && ok "extract.py defines no $dead" \
+    || bad "extract.py has $n occurrence(s) of '$dead' — a second classifier is back"
+done
+grep -q 'prompt_kinds.classify_session' "$EXTRACT" \
+  && ok "and it does classify, through prompt_kinds" \
+  || bad "extract.py no longer calls prompt_kinds.classify_session at all"
+
 # --- the window, and what happens when it cannot be established ---------------
 # Everything above runs with `--since 3650d`, which short-circuits resolve_cutoff
 # before either of the paths below is reached. So the whole window mechanism was
