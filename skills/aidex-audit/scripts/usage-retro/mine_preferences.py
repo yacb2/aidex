@@ -219,6 +219,16 @@ def iter_human_prompts(root, since=""):
     handoff wrapper's `continue` positional is only distinguishable with
     whole-session context. That is INSTR-01: 70% of the run-3 "autonomy nudge"
     metric was this one machine string.
+
+    Every record is handed over, unfiltered. `classify_session` needs
+    WHOLE-SESSION context, and this function used to pre-filter raw lines on the
+    substring `'"user"'` — which drops the SessionStart attachment record that
+    carries the handoff marker (real ones have `userType`, never `"user"`). With
+    that record gone `is_handoff_seeded()` was always False, so every wrapper
+    kickoff was re-admitted as a typed prompt: 737 of them over the corpus,
+    against a reported denominator of 7,731, inflating it by ~10%. extract.py
+    passes unfiltered records to the same function, so the two scripts disagreed
+    about the same corpus. Cheap and wrong beats nothing, but not by much.
     """
     for path in sorted(glob.glob(os.path.join(root, "*", "*.jsonl"))):
         project = os.path.basename(os.path.dirname(path))
@@ -229,7 +239,7 @@ def iter_human_prompts(root, since=""):
         with fh:
             objs = []
             for line in fh:
-                if '"user"' not in line:
+                if not line.strip():
                     continue
                 try:
                     objs.append(json.loads(line))

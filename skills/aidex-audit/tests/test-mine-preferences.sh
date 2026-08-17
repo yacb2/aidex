@@ -49,10 +49,19 @@ run() {  # run [extra args...] -> stdout+stderr of a full-text miner pass
 report="$(run --out "$OUT/full.jsonl")"
 
 # The fixture has 5 human prompts: s1-s4 one each, s5 injected (0), and s6 one
-# real prompt plus a kickoff and a handoff envelope that must NOT count. If
-# this drifts, every assertion below is measuring a corpus nobody described.
+# real prompt plus a kickoff and a handoff envelope that must NOT count. s7 is
+# handoff-seeded with the marker in the shape real transcripts use (a
+# `type: "attachment"` record) and contributes NO human prompt: its only
+# prompt-shaped record is the wrapper's `continue`.
+#
+# That last one is load-bearing rather than decorative. This total is the
+# denominator of the printed DETECTED percentage, so a reader that drops the
+# attachment record loses the seeding evidence, re-admits `continue` as typed,
+# and reports 6 — a confident wrong number, and the INSTR-01 inflation
+# prompt_kinds.py exists to prevent. If this drifts, every assertion below is
+# measuring a corpus nobody described.
 echo "$report" | grep -qE 'corpus +: 5 human prompts' \
-  || fail "(setup) expected 5 human prompts (kickoff + envelope excluded): $report"
+  || fail "(setup) expected 5 human prompts (both kickoffs + envelope excluded): $report"
 
 labels_for() {  # labels_for <session-substring-of-prompt>
   python3 -c '
