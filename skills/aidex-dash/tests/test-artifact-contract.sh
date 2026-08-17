@@ -73,7 +73,18 @@ mk extfont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" 
 }
 @media (prefers-color-scheme: dark){}</style>"
 
-for case in "fragment doctype" "nocharset charset" "nothemes themes" "extcss self" "extjs self" "extimg self" "extfont self"; do
+# `notitle.html` is here because no fixture omitted <title> — every page above
+# carries `<title>t</title>` and every wrapper-produced page gets one from
+# --title, so the `title` check had no discriminating input at all. Deleting it
+# from the checker left the suite fully green, verified by mutation.
+mk notitle.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><style>@media (prefers-color-scheme: dark){}</style><h1>x</h1>"
+
+# `fragment` is paired with `viewport` as well as `doctype`: it is the only page
+# without a viewport meta, and the loop only ever asserted `[doctype]` on it, so
+# `[viewport]` was asserted nowhere in the file.
+for case in "fragment doctype" "fragment viewport" "notitle title" \
+            "nocharset charset" "nothemes themes" \
+            "extcss self" "extjs self" "extimg self" "extfont self"; do
   set -- $case
   out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
   if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
@@ -141,10 +152,26 @@ printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/anchor/.context/rep
 # --out takes a relative path in the documented flow, so a run standing in the
 # wrong project writes a valid report into a neighbour and exits 0. The absolute
 # path is what makes the landing visible.
-out="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/anchor/.context/reports/r2.html" 2>/dev/null)"
-[[ "$out" == *"$TMP/anchor/.context/reports/r2.html"* ]] \
-  && ok "the absolute landing path is reported" \
-  || bad "the write did not say where it landed: $out"
+#
+# The --out here MUST be relative. This assertion used to pass `$TMP/...`, which
+# `mktemp -d` already made absolute, so `os.path.abspath()` was the identity
+# function on it and the check could not tell resolution from echoing the argument
+# back — verified by mutation: replacing the abspath call with `print(args.outfile)`
+# left all four dash suites byte-identical.
+REL="$TMP/relproj"; mkdir -p "$REL/.context/reports"
+out="$(cd "$REL" && printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" \
+        --out ".context/reports/r2.html" 2>/dev/null)"
+# Pick the path LINE out of stdout rather than testing the whole capture: python
+# buffers its own stdout while the checker subprocess writes straight through, so
+# `artifact contract OK` lands first. An unresolved path is not on any line here,
+# which is exactly what makes this discriminating.
+landed="$(grep -m1 '^/' <<<"$out")"
+[[ -n "$landed" ]] \
+  && ok "a relative --out is reported as an absolute path" \
+  || bad "the landing path was echoed back unresolved: $out"
+[[ "$landed" == *"relproj/.context/reports/r2.html" ]] \
+  && ok "the reported path names the project it landed in" \
+  || bad "the write did not say which project it landed in: $out"
 
 err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" \
         --out "$TMP/anchor/nope/also-nope/r.html" 2>&1 >/dev/null)"; rc=$?
@@ -199,7 +226,16 @@ sed 's/data-id="c2"/data-id="c1"/' "$TMP/consult-ok.html" > "$TMP/consult-dupe.h
 sed 's/id="consult-copy"/id="other"/' "$TMP/consult-ok.html" > "$TMP/consult-nobtn.html"
 sed 's/:root\[data-theme="dark"\] \.consult-bar/:root[data-theme="dark"] .nothing/' \
   "$TMP/consult-ok.html" > "$TMP/consult-nodark.html"
-for case in "consult-dupe duplicate" "consult-nobtn consult-copy" "consult-nodark data-theme"; do
+sed 's/id="consult-status"/id="other-status"/' "$TMP/consult-ok.html" > "$TMP/consult-nostatus.html"
+# data-title needs its OWN fixture. `handrolled.html` trips data-title,
+# consult-status and the blank count all at once, and the assertions on it only
+# look for `[consult]`, `data-id` and the template name — so a page with named
+# reply boxes but no data-title had nothing discriminating it. Removing the
+# attribute from the good page is what isolates the rule.
+sed 's/ data-title="Second claim"//' "$TMP/consult-ok.html" > "$TMP/consult-notitle.html"
+for case in "consult-dupe duplicate" "consult-nobtn consult-copy" \
+            "consult-nostatus consult-status" "consult-notitle data-title" \
+            "consult-nodark data-theme"; do
   set -- $case
   out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
   if [[ "$out" == *"[consult]"* && "$out" == *"$2"* ]]; then ok "catches $2 ($1.html)"
