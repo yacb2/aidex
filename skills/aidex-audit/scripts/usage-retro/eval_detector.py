@@ -29,13 +29,59 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mine_preferences as MP  # noqa: E402
 
-POP = {"hit": 31, "warm": 1570, "cold": 3059}
 SEED = 20260817
+STRATA = ("hit", "warm", "cold")
 
 
 def half_of(sid):
     """'a' or 'b', fixed by the id so the split never drifts between runs."""
     return "a" if int(sid[1:]) % 2 == 1 else "b"
+
+
+def populations(key):
+    """Stratum populations, recovered from the key's own sampling rates.
+
+    `sample_recall.py` computes `rate = take / len(pool)` and writes it on every
+    key record, so `N = n / rate` is EXACT — the population is already in the file
+    this script opens.
+
+    This used to be the module constant `POP = {"hit": 31, "warm": 1570,
+    "cold": 3059}`, transcribed from the 2026-08-17 run while `rate` was loaded
+    into memory and never read. The estimator's inputs were parameters and its
+    weights were a literal, so any other corpus was projected onto a stale
+    population: recall and precision came out wrong by the ratio of the two
+    warm:cold splits, with nothing in the output indicating a mismatch and the N
+    column presenting the stale numbers as authoritative.
+
+    A key that cannot support the projection is refused. Substituting anything is
+    what produced the defect in the first place, and a confident wrong recall
+    figure is the one output this pipeline cannot afford.
+    """
+    counts, rates = {}, {}
+    for sid, rec in key.items():
+        st = rec.get("stratum")
+        if st is None:
+            raise SystemExit(f"ERROR: key record {sid} has no `stratum` — cannot "
+                             f"project without knowing which stratum it came from")
+        counts[st] = counts.get(st, 0) + 1
+        rate = rec.get("rate")
+        if rate is None:
+            raise SystemExit(
+                f"ERROR: key record {sid} (stratum {st}) has no `rate`, so the "
+                f"population cannot be recovered and the Horvitz-Thompson weights "
+                f"are unknowable. Redraw the sample with sample_recall.py, which "
+                f"writes `rate` on every record.")
+        if not rate > 0:
+            raise SystemExit(
+                f"ERROR: key record {sid} (stratum {st}) has rate={rate}; a "
+                f"population of n/rate is undefined. Redraw the sample.")
+        prev = rates.setdefault(st, rate)
+        if abs(prev - rate) > 1e-12:
+            raise SystemExit(
+                f"ERROR: stratum {st} carries two different sampling rates "
+                f"({prev} and {rate}) — the key mixes two draws, so no single "
+                f"weight is correct for it.")
+    return {st: counts[st] / rates[st] for st in counts}
 
 
 def main():
@@ -50,6 +96,10 @@ def main():
     text = {json.loads(l)["id"]: json.loads(l)["prompt"] for l in open(args.sample, encoding="utf-8")}
     key = {json.loads(l)["id"]: json.loads(l) for l in open(args.key, encoding="utf-8")}
     lab = {json.loads(l)["id"]: json.loads(l) for l in open(args.labels, encoding="utf-8")}
+    # Recovered from the whole key, then scaled below: a half represents half the
+    # population, and re-deriving it from the filtered subset would apply the
+    # sampling rate twice.
+    pop = populations(key)
 
     ids = [s for s in text if args.half == "all" or half_of(s) == args.half]
     # The population a half represents is half the population, since the split is
@@ -72,9 +122,9 @@ def main():
 
     est_pos = est_det = est_det_pos = 0.0
     print(f"{'stratum':6} {'n':>5} {'pos':>5} {'det':>5} {'det&pos':>8} {'N':>8}")
-    for st in ("hit", "warm", "cold"):
+    for st in STRATA:
         d = strata.get(st, {"n": 0, "pos": 0, "det": 0, "det_pos": 0})
-        N = POP[st] * scale
+        N = pop.get(st, 0.0) * scale
         if d["n"]:
             est_pos += d["pos"] / d["n"] * N
             est_det += d["det"] / d["n"] * N
@@ -92,11 +142,11 @@ def main():
     draws = []
     for _ in range(2000):
         tp = fp_pos = 0.0
-        for st in ("hit", "warm", "cold"):
+        for st in STRATA:
             d = strata.get(st, {"n": 0})
             if not d["n"]:
                 continue
-            N = POP[st] * scale
+            N = pop.get(st, 0.0) * scale
             if st == "hit":
                 tp += d["det_pos"] / d["n"] * N
                 fp_pos += d["pos"] / d["n"] * N
