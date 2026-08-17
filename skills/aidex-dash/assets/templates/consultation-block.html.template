@@ -59,6 +59,12 @@
   every time, so the ask kept coming back (USAGE-19).
 
   Replace `none:` with `svg` / `mermaid` / `img` as soon as the page has one.
+
+  The placeholder below DOES NOT SATISFY the check — that is deliberate. It used
+  to: a "reason" that is the instruction to write a reason passed the gate, so
+  every page derived from this template shipped with the visual question already
+  answered by nobody. The check now rejects it by name, which means a page copied
+  from here fails until someone decides. That failure is the template working.
 -->
 <meta name="consult-visual" content="none: replace this with the reason, or with svg/mermaid/img">
 

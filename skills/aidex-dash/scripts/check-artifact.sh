@@ -191,8 +191,33 @@ PY
     # worth drawing, so the check is on the DECLARATION: carry a visual, or say
     # in one line why there is none. Silence is the only thing that fails.
     if ! grep -qiE '<svg|<img|class="mermaid"|<canvas' <<<"$body"; then
-      grep -qiE '<meta[^>]+name=["'"'"']?consult-visual["'"'"']?[^>]+content=["'"'"']?none:[^"'"'"']+' <<<"$body" \
-        || report consult "$name" "no visual and no <meta name=\"consult-visual\" content=\"none: why\"> — a consultation opens with the drawing when the subject has a shape, and states the reason when it does not"
+      # The reason has to be a REASON. The shipped template declared
+      # `none: replace this with the reason, or with svg/mermaid/img` — the
+      # instruction to write a reason, standing in for one — and §8 tells authors
+      # to copy that template rather than re-derive it. So every derived
+      # consultation arrived with this gate already satisfied by a page that has
+      # no visual and no reason: the exact state §8 says must fail. The grep was
+      # one away from review and it returned the placeholder.
+      visual_reason="$(python3 - "$f" <<'PY'
+import re, sys
+
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-visual["\x27]?[^>]*'
+              r'\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)', text, re.I | re.S)
+val = "" if not m else next(g for g in m.groups() if g is not None).strip()
+# Only a `none:` declaration carries a reason. Anything else (svg / mermaid / img)
+# is a claim to have a visual, which the tag check above already adjudicated.
+print(val[5:].strip() if val.lower().startswith("none:") else "")
+PY
+)"
+      visual_rc=$?
+      if [[ $visual_rc -ne 0 ]]; then
+        report consult "$name" "the visual-declaration scan did not run (python3 exited $visual_rc)"
+      elif [[ -z "$visual_reason" ]]; then
+        report consult "$name" "no visual and no <meta name=\"consult-visual\" content=\"none: why\"> — a consultation opens with the drawing when the subject has a shape, and states the reason when it does not"
+      elif grep -qiE '^(replace this|replace with|tbd|todo|fixme|xxx|why|the reason)\b' <<<"$visual_reason"; then
+        report consult "$name" "the consult-visual declaration is still the template placeholder (\"$visual_reason\") — that is the instruction to write a reason, not a reason. Replace it with why this page has no drawing, or with svg/mermaid/img"
+      fi
     fi
 
     # The template's own recorded regression: with only the media query, an

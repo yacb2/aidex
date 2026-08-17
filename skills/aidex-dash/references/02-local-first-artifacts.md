@@ -202,6 +202,13 @@ A consultation page with no visual and no stated reason fails. A page that decla
 `none:` with a reason passes — and the reason is one grep away from review, which
 silence never is.
 
+The template's placeholder (`none: replace this with the reason, or with svg/mermaid/img`)
+does **not** satisfy it, and neither do `tbd` / `todo` / `fixme`. That is the one thing
+this check cannot afford to accept: the instruction to write a reason standing in for a
+reason, on every page copied from the template, which is what the grep returned before.
+A page derived from the template fails this check until someone decides — copying is not
+deciding.
+
 ### What is checked, and how
 
 All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.
