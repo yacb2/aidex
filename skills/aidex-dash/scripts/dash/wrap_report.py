@@ -171,9 +171,25 @@ def main():
                   f"rather than a first report (cwd={os.getcwd()})", file=sys.stderr)
             return 4
 
+    # The baseline the id-stability rule compares against is the last PASSING
+    # version, kept here, and NOT whatever happens to be on disk.
+    #
+    # A failing write is deliberately left in place so the author can fix it
+    # without re-deriving the page. With only a temp snapshot, that made the
+    # violating document the next run's baseline and inverted the gate: the author
+    # restoring the correct title got the FIX reported as the violation, and
+    # re-running the same violating content PASSED. One check, single-shot,
+    # self-erasing after exactly the event it exists to catch.
+    #
+    # A sibling directory rather than a sibling file, because check-artifact.sh's
+    # own `siblings` rule scans the report's directory at depth 1.
+    baseline_dir = os.path.join(outdir, ".aidex-artifact-prev")
+    baseline = os.path.join(baseline_dir, os.path.basename(args.outfile))
+
     # Snapshot the version about to be replaced BEFORE overwriting it: the
     # stable-id rule is only checkable with both versions in hand, and one line
-    # later there is no "before" left to compare against.
+    # later there is no "before" left to compare against. This is the fallback for
+    # a file that predates the stored baseline; when a baseline exists it wins.
     prev_snapshot = None
     if os.path.isfile(args.outfile):
         prev_text = open(args.outfile, encoding="utf-8", errors="replace").read()
@@ -211,8 +227,9 @@ def main():
     print(os.path.abspath(args.outfile))
 
     cmd = ["bash", checker, args.outfile]
-    if prev_snapshot:
-        cmd += ["--prev", prev_snapshot]
+    prev_for_check = baseline if os.path.isfile(baseline) else prev_snapshot
+    if prev_for_check:
+        cmd += ["--prev", prev_for_check]
     try:
         rc = subprocess.run(cmd).returncode
     finally:
@@ -222,7 +239,21 @@ def main():
         print(f"ERROR: {args.outfile} was written but FAILS the artifact contract above. "
               f"Fix the content and re-run; do not open or hand over this file.",
               file=sys.stderr)
+        # The baseline is NOT advanced. That is the whole point: the next run
+        # compares against the last version that passed, so restoring the correct
+        # content passes and repeating the violation still fails.
         return 1
+    # Passed, so this version becomes the baseline. Best-effort: a read-only tree
+    # is a real state (`style_profile_offer` guards for it too), and losing the
+    # baseline degrades to the old snapshot behaviour rather than failing a page
+    # that just satisfied the contract.
+    try:
+        os.makedirs(baseline_dir, exist_ok=True)
+        shutil.copyfile(args.outfile, baseline)
+    except OSError as e:
+        print(f"NOTE: could not record the contract baseline at {baseline} ({e}); "
+              f"the next run will compare against the file on disk instead.",
+              file=sys.stderr)
     return 0
 
 

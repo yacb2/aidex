@@ -531,6 +531,49 @@ out="$(bash "$CHECK" "$TMP/sq-dupe.html" 2>&1)"
   && ok "duplicate single-quoted ids are caught" \
   || bad "two claims answering to one single-quoted id passed: $out"
 
+# --- A failed contract must not become the next run's baseline ----------------
+# The gate inverted after any failure. The violating document is written to disk
+# (deliberately — the author fixes it in place rather than re-deriving it, asserted
+# above), the temp snapshot is deleted, and nothing else remembers the last good
+# version. So the violating file became the --prev baseline, which makes the check
+# single-shot and self-erasing in the two worst directions:
+#   run 3a  the author does exactly what the error message says, restores the
+#           correct title, and the FIX is reported as the violation
+#   run 3b  the author re-runs the SAME violating content and it PASSES
+# The existing coverage stops at run 2, so neither ever appeared.
+echo "== the baseline is the last PASSING version =="
+
+INV="$TMP/inv"; mkdir -p "$INV/.context/reports"
+PAGE="$INV/.context/reports/c.html"
+shifted() {  # shifted <title> — regenerate c2 with the given claim
+  sed "s/data-title=\"Second claim\"/data-title=\"$1\"/" "$TMP/consult-body.html" \
+    | bash "$WRAP" --title "C" --out "$PAGE" 2>&1 >/dev/null
+}
+
+bash "$WRAP" --title "C" --out "$PAGE" < "$TMP/consult-body.html" >/dev/null 2>&1
+rc1=$?
+[[ $rc1 -eq 0 ]] && ok "run 1: the original consultation passes" \
+                 || bad "run 1 did not pass, so nothing below measures the baseline"
+
+out2="$(shifted "A different claim")"; rc2=$?
+[[ $rc2 -ne 0 ]] && ok "run 2: a claim moved behind a kept id fails" \
+                 || bad "run 2: the id shift was not caught: $out2"
+grep -q 'data-title="A different claim"' "$PAGE" \
+  && ok "run 2: the violating file is still on disk to be fixed in place" \
+  || bad "run 2: the failing write was rolled back (that behaviour is asserted above)"
+
+# 3a — the author does what the message told them to do.
+out3a="$(shifted "Second claim")"; rc3a=$?
+[[ $rc3a -eq 0 ]] && ok "run 3a: restoring the correct claim PASSES" \
+                  || bad "run 3a: the fix was reported as the violation: $out3a"
+
+# 3b — and the violation must not be launderable by repetition. Re-run 2 first so
+# the failing state is current again, then repeat it.
+shifted "A different claim" >/dev/null
+out3b="$(shifted "A different claim")"; rc3b=$?
+[[ $rc3b -ne 0 ]] && ok "run 3b: repeating the same violation still fails" \
+                  || bad "run 3b: the violation was laundered by repeating it: $out3b"
+
 # --- BL-168: the style profile is a FIELD the wrapper reads (D2) --------------
 echo "== style profile =="
 LANGP="$TMP/langproj"; mkdir -p "$LANGP/.context/reports"
