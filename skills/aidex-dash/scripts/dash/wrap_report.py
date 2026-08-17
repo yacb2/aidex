@@ -39,28 +39,45 @@ def split_head_style(content):
     return m.group(1).strip(), content[m.end():].strip()
 
 
-def find_context_dir(start):
-    """Nearest `.context/` at or above `start`, or None.
+# .../skills/aidex-dash/scripts/dash/wrap_report.py -> .../skills
+_SKILLS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                           os.pardir, os.pardir, os.pardir))
+LIB_SH = os.path.join(_SKILLS_DIR, "aidex-conventions", "scripts", "_lib.sh")
 
-    Stops at $HOME, exactly as `_lib.sh`'s `find_project_root` does. Without the
-    boundary a stray `~/.context/` captures every project that has not been
-    initialised yet (field-observed 2026-07-25), which here would mean reading a
-    neighbour's artifact language and writing this project's one-time offer
-    marker into the home directory.
+
+def find_context_dir(start):
+    """`<project-root>/.context` for the project `start` belongs to, or None.
+
+    Delegates to `_lib.sh`'s `find_project_root`, the shared resolver 33 scripts
+    already use. This used to be a private Python reimplementation of it, and was
+    missing the linked-worktree hop — so route B (this script) and route A
+    (render.sh, which sources _lib.sh) resolved DIFFERENT roots for the same
+    project. render.sh:15-19 records that its own copy was deleted for exactly
+    these fixes; the no-private-copies guard could not see this one because it
+    greps for a bash function definition and this was a Python function under
+    another name.
+
+    A linked worktree is a SIBLING of the project, never a descendant, so an
+    upward walk cannot reach the main tree's `.context/` — which is gitignored and
+    therefore absent from the worktree. The consequences were a page written with
+    the wrong `lang`, and a one-time offer that never fired and never recorded
+    itself: the "rule with no memory" half of BL-168 that the marker exists to fix.
+
+    `find_project_root` resolves from the working directory, so `start` is passed
+    as the cwd of the call rather than as an argument.
     """
-    stop = os.path.abspath(os.path.expanduser("~")) if os.environ.get("HOME") else None
-    d = os.path.abspath(start)
-    while d and d != "/":
-        if stop and d == stop:
-            return None
-        candidate = os.path.join(d, ".context")
-        if os.path.isdir(candidate):
-            return candidate
-        parent = os.path.dirname(d)
-        if parent == d:
-            break
-        d = parent
-    return None
+    if not os.path.isdir(start) or not os.path.isfile(LIB_SH):
+        return None
+    try:
+        r = subprocess.run(
+            ["bash", "-c", '. "$1" >/dev/null 2>&1; find_project_root', "_", LIB_SH],
+            cwd=start, capture_output=True, text=True)
+    except OSError:
+        return None
+    root = r.stdout.strip()
+    if r.returncode != 0 or not root:
+        return None
+    return os.path.join(root, ".context")
 
 
 def profile_language(ctx):
@@ -75,7 +92,17 @@ def profile_language(ctx):
     path = os.path.join(ctx, "artifact-style.md")
     if not os.path.isfile(path):
         return None
-    m = LANG_FIELD.search(open(path, encoding="utf-8", errors="replace").read())
+    # `isfile` only stats; it does not imply readable, and `errors="replace"`
+    # covers decode failures but not OSError. A mode-000 profile used to abort the
+    # whole wrap with a traceback and write no artifact at all. The profile is an
+    # optimisation, not a contract: say so and fall back to the D-04 default.
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except OSError as e:
+        print(f"NOTE: could not read {path} ({e}); falling back to the default "
+              f"artifact language.", file=sys.stderr)
+        return None
+    m = LANG_FIELD.search(text)
     return m.group(1) if m else None
 
 
