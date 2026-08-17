@@ -88,12 +88,14 @@ def main():
     # build_registry()'s glob — 178 ids collide across this workspace's 17
     # projects — so a session's files were attributed to a stranger's item and
     # that item's `type:` decided the bug numerator.
-    by_token, typed, bug, all_items = defaultdict(dict), set(), set(), set()
+    # Per project, in the shape M.attribute_session() consumes: token -> ITEM.
+    slug_maps, id_maps = defaultdict(dict), defaultdict(dict)
+    typed, bug, all_items = set(), set(), set()
     for it in items:
         key = (it["project"], it["slug"])
-        by_token[it["project"]][it["slug"]] = key
+        slug_maps[it["project"]][it["slug"]] = it
         if it.get("id"):
-            by_token[it["project"]][it["id"]] = key
+            id_maps[it["project"]][it["id"]] = it
         # build_registry() does not carry `type` — reading it from the item dict
         # silently yielded an empty typed set and a "nothing to measure" result
         # that looked like a finding. Re-parse the front-matter for it.
@@ -112,44 +114,53 @@ def main():
     seen_items = set()
 
     for proj in projects:
-        tokens = by_token[proj]
-        if not tokens:
+        slug_map, id_map = slug_maps[proj], id_maps[proj]
+        if not slug_map and not id_map:
             continue
         for f in [x for d in M.tx_dirs_for(proj) for x in glob.glob(d + "*.jsonl")]:
-            mentioned, files = set(), set()
             try:
-                fh = open(f, errors="replace")
+                raw = open(f, errors="replace").read()
             except OSError:
                 continue
-            with fh:
-                for line in fh:
-                    try:
-                        o = json.loads(line)
-                    except (ValueError, TypeError):
-                        continue
-                    if o.get("type") == "user":
-                        for tok in M.TOKEN.findall(M.user_text(o) or ""):
-                            if tok in tokens:
-                                mentioned.add(tokens[tok])
-                    elif o.get("type") == "assistant":
-                        txt, tools = M.assistant_parts(o)
-                        for tok in M.TOKEN.findall(txt or ""):
-                            if tok in tokens:
-                                mentioned.add(tokens[tok])
-                        # assistant_parts yields (name, searchable, file_path, command)
-                        for name, searchable, fp, _cmd in tools:
-                            for tok in M.TOKEN.findall(searchable):
-                                if tok in tokens:
-                                    mentioned.add(tokens[tok])
-                            if name in ("Edit", "Write", "NotebookEdit") and fp \
-                                    and is_production_code(fp):
-                                files.add(collapse_worktree(fp))
-            # A session that worked several items attributes its files to each; that
-            # is the same convention mine_items uses and it is why the threshold matters.
-            for key in mentioned & population:
-                seen_items.add(key)
-                for fp in files:
-                    touched[fp].add(key)
+            objs = []
+            for line in raw.splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    objs.append(json.loads(line))
+                except (ValueError, TypeError):
+                    continue
+
+            # THE SAME WALK mine_items uses, not a re-implementation of it. This
+            # was a whole-session cross product — every item mentioned anywhere in
+            # the session x every file edited anywhere in it — under an inline
+            # comment claiming it was "the same convention mine_items uses". It was
+            # not, and the difference is the whole measurement: a session that
+            # mentions 10 items while editing 20 files marked all 20 as touched by
+            # every one of them, so both `b` and `n` in `share = b/n` were inflated
+            # toward the session-level bug rate and every file was smeared toward
+            # base. That is the centrality artifact this module's docstring says it
+            # eliminates, reintroduced one layer down. Measured over the real
+            # corpus: 473 of 687 eligible sessions mention 2+ items and 125 mention
+            # 10+, and the cross product emitted ~29k (item,file) pairs where the
+            # forward-fill emits at most one item per edit.
+            for _i, _ts, kind, slug, pay, named in M.attribute_session(
+                    objs, slug_map, id_map):
+                key = (proj, slug)
+                if key not in population:
+                    continue
+                # The DENOMINATOR is every attributed item, whether or not this
+                # session edited production code — unchanged from before, so `base`
+                # keeps meaning "the share of attributed items that are bug items".
+                # Only the file attribution below is what this fix narrows.
+                if named:
+                    seen_items.add(key)
+                if kind != "assistant":
+                    continue
+                for name, _searchable, fp, _cmd in pay["tools"]:
+                    if name in ("Edit", "Write", "NotebookEdit") and fp \
+                            and is_production_code(fp):
+                        touched[collapse_worktree(fp)].add(key)
 
     if not seen_items:
         print("no typed items attributed — nothing to measure")

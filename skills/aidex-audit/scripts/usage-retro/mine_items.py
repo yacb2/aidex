@@ -224,6 +224,78 @@ def assistant_parts(o):
     return "\n".join(txt), tools
 
 
+DECAY = 40   # mention-free timeline records after which the active item lapses
+
+
+def session_timeline(objs, keys):
+    """[(idx, ts, kind, hits, payload)] for one session's records.
+
+    `kind` is "prompt" | "result" | "assistant". `hits` is the set of tracked
+    tokens named in that record — and NOTHING is harvested from a tool_result,
+    because backlog/00-index.md lists every item and would otherwise attribute the
+    whole register to any session that read the index.
+    """
+    def hits_in(sval):
+        return {t for t in TOKEN.findall(sval) if t in keys}
+
+    timeline = []
+    for i, o in enumerate(objs):
+        ts = o.get("timestamp", "")
+        if o.get("type") == "user":
+            t = user_text(o)
+            if t is None:
+                # tool_result: harvest the error flag only, never attribution
+                c = o.get("message", {}).get("content")
+                iserr = isinstance(c, list) and any(
+                    isinstance(x, dict) and x.get("type") == "tool_result"
+                    and x.get("is_error") for x in c)
+                timeline.append((i, ts, "result", set(), {"err": iserr}))
+                continue
+            timeline.append((i, ts, "prompt", hits_in(t), {"text": t}))
+        elif o.get("type") == "assistant":
+            txt, tools = assistant_parts(o)
+            hits = hits_in(txt)
+            for name, searchable, fp, cmd in tools:
+                hits |= hits_in(searchable)
+            timeline.append((i, ts, "assistant", hits, {"tools": tools}))
+    return timeline
+
+
+def attribute_session(objs, slug_map, id_map, decay=DECAY):
+    """Yield (idx, ts, kind, slug, payload, named) per attributable record.
+
+    THE attribution rule for this package, in one place. An item becomes `active`
+    when it is named and stays active until another item is named or `decay`
+    mention-free records pass; `slug` is the item that record is attributed to, and
+    `named` is True when this record is where the mention happened.
+
+    It is a function rather than a loop inside main() because
+    mine_defect_proneness re-implemented it as a whole-session CROSS PRODUCT —
+    every item mentioned anywhere in the session x every file edited anywhere in it
+    — while its own inline comment claimed to use "the same convention mine_items
+    uses". Over the real corpus that emitted ~29k (item,file) pairs where this walk
+    emits at most one item per edit, smearing every file toward the session-level
+    bug rate: the centrality artifact that module exists to remove.
+    """
+    keys = set(slug_map) | set(id_map)
+    active, since = None, 0
+    for i, ts, kind, hits, pay in session_timeline(objs, keys):
+        named = False
+        if hits:
+            # the most specific hit wins (a dated slug beats a bare id)
+            h = sorted(hits, key=lambda x: (-len(x), x))[0]
+            it = slug_map.get(h) or id_map.get(h)
+            if it:
+                active, since = it["slug"], 0
+                named = True
+        else:
+            since += 1
+            if since > decay:
+                active = None
+        if active:
+            yield i, ts, kind, active, pay, named
+
+
 def is_working_span(span):
     """The strict-span rule: a span is a WORKING session only if a user prompt named
     the item, or it carries >=3 edits.
@@ -304,49 +376,20 @@ def main():
                 "errors": 0, "skills": [], "first": None, "last": None,
                 "prompts": [], "first_idx": None, "last_idx": None,
             })
-            timeline = []   # (idx, ts, kind, hits, payload)
-            for i, o in enumerate(objs):
-                ts = o.get("timestamp", "")
-                if o.get("type") == "user":
-                    t = user_text(o)
-                    if t is None:
-                        # tool_result: harvest error flag only, no attribution
-                        c = o.get("message", {}).get("content")
-                        iserr = isinstance(c, list) and any(
-                            isinstance(x, dict) and x.get("type") == "tool_result"
-                            and x.get("is_error") for x in c)
-                        timeline.append((i, ts, "result", set(), {"err": iserr}))
-                        continue
-                    hits = hits_in(t)
-                    timeline.append((i, ts, "prompt", hits, {"text": t}))
-                elif o.get("type") == "assistant":
-                    txt, tools = assistant_parts(o)
-                    hits = hits_in(txt)
-                    for name, searchable, fp, cmd in tools:
-                        hits |= hits_in(searchable)
-                    timeline.append((i, ts, "assistant", hits, {"tools": tools}))
-
-            # forward-fill attribution: an item stays "active" until another item is
-            # mentioned or 40 messages pass with no mention (session drifts elsewhere)
-            active, since = None, 0
-            for i, ts, kind, hits, pay in timeline:
-                if hits:
-                    # pick the most specific hit (slug beats id)
-                    h = sorted(hits, key=lambda x: (-len(x), x))[0]
-                    it = slug_map.get(h) or id_map.get(h)
-                    if it:
-                        active, since = it["slug"], 0
-                        a = acc[active]
-                        a["mentions"] += len(hits)
-                        if kind == "prompt":
-                            a["prompt_mentions"] += 1
-                else:
-                    since += 1
-                    if since > 40:
-                        active = None
-                if not active:
-                    continue
+            for i, ts, kind, active, pay, named in attribute_session(objs, slug_map, id_map):
                 a = acc[active]
+                if named:
+                    # ONE mention per record. This was `+= len(hits)`, the count of
+                    # ALL distinct tracked tokens named in the record, credited
+                    # wholly to the single winner — so "close BL-166 and BL-172
+                    # together" gave BL-166 two mentions, and one record naming an
+                    # item in both its forms ("BL-903 / 2026-01-03-gamma") cleared
+                    # the default --min-mentions gate of 2 on its own. Neither is an
+                    # "attributed mention" of that item under any reading of the
+                    # flag's own help text.
+                    a["mentions"] += 1
+                    if kind == "prompt":
+                        a["prompt_mentions"] += 1
                 if a["first"] is None:
                     a["first"], a["first_idx"] = ts, i
                 a["last"], a["last_idx"] = ts, i
