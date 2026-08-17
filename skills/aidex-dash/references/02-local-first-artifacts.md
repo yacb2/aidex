@@ -224,8 +224,13 @@ that merely *mentions* textareas in its prose is still a read, not a consultatio
 | `consult` | reply boxes without a `data-id` / `data-title`, duplicate ids, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, or no `:root[data-theme="dark"]` rule for `.consult-bar` |
 | `consult-ids` | an id kept between two versions now names a different claim |
 
-`consult-ids` needs both versions, so `--out` snapshots the file it is about to replace
-and passes it as `--prev`. To compare by hand:
+`consult-ids` needs both versions, so `--out` compares against the last version that
+**passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A file
+that fails is left on disk to be fixed in place, so it must not become the baseline: it
+did once, and the gate inverted — restoring the correct claim was reported as the
+violation, and re-running the same violating content passed. The baseline only advances on
+a passing run. When there is no stored baseline yet, `--out` falls back to snapshotting the
+file it is about to replace. To compare by hand:
 
 ```
 check-artifact.sh <new.html> --prev <old.html>
