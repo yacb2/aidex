@@ -25,6 +25,10 @@
 #       prompt in the second file must survive the dedup.
 #   s6  two DIFFERENT prompts at the SAME timestamp, so a dedup keyed on the
 #       timestamp alone is caught eating a real record.
+#   s10/s11  a SHORT prompt (below NEAR_DUP_MINLEN) replayed at the SAME
+#       timestamp. The only pair that isolates the exact-key dedup branch: s4/s5
+#       clear the near-dup length floor, so the near branch collapses them even
+#       with the exact branch disabled.
 
 set -euo pipefail
 
@@ -123,6 +127,23 @@ LONG="presentame esto en un artefacto en espanol, usa graficos o mockups para ap
   py_typed "$LONG" "2026-01-07T09:00:00Z"
   py_assistant_text "ok"
 } > "$D/s9.jsonl"
+
+# --- s10/s11: a SHORT prompt replayed at the SAME timestamp -----------------
+# This is the only pair that isolates the exact-timestamp dedup branch. s4/s5
+# replay a 49-character prompt, which is >= NEAR_DUP_MINLEN (40) and 0s apart, so
+# the near-dup predicate catches it on both axes — disabling the exact branch
+# entirely (`if key in seen:` -> `if False:`) left the record count unchanged and
+# the suite fully green. Below the length floor the near-dup branch cannot fire, so
+# only the exact key can collapse this, and the mutation becomes visible.
+#
+# It is also the realistic case the corpus comment calls out: a short prompt
+# written twice at one timestamp into a resumed session file.
+{
+  py_typed "sigue con eso" "2026-01-08T08:00:00Z"
+} > "$D/s10.jsonl"
+{
+  py_typed "sigue con eso" "2026-01-08T08:00:00Z"
+} > "$D/s11.jsonl"
 
 # --- s6: two DIFFERENT prompts sharing one timestamp -----------------------
 # Dedup keyed on the timestamp alone would silently eat one of these. The key
