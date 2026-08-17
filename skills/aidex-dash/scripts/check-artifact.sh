@@ -144,7 +144,7 @@ done
 # be closed out.
 if [[ -n "$PREV" ]]; then
   if [[ ! -f "$PREV" ]]; then
-    report consult-ids "$(basename "$PREV")" "--prev file does not exist"
+    report consult-ids "$(basename "$PREV")" "--prev is not a readable file (missing, or a directory) — nothing to compare against"
   else
     moved="$(python3 - "$PREV" "$1" <<'PY'
 import re, sys, unicodedata
