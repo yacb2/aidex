@@ -138,6 +138,14 @@ printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/anchor/.context/rep
 [[ -f "$TMP/anchor/.context/reports/r.html" ]] && ok "the fallback file landed" \
                                                || bad "the fallback file was not written"
 
+# --out takes a relative path in the documented flow, so a run standing in the
+# wrong project writes a valid report into a neighbour and exits 0. The absolute
+# path is what makes the landing visible.
+out="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/anchor/.context/reports/r2.html" 2>/dev/null)"
+[[ "$out" == *"$TMP/anchor/.context/reports/r2.html"* ]] \
+  && ok "the absolute landing path is reported" \
+  || bad "the write did not say where it landed: $out"
+
 err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" \
         --out "$TMP/anchor/nope/also-nope/r.html" 2>&1 >/dev/null)"; rc=$?
 [[ $rc -ne 0 ]] && ok "two missing levels exit non-zero instead of guessing" \

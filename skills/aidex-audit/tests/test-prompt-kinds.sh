@@ -3,7 +3,7 @@
 #
 # WHY THIS SUITE EXISTS. Every usage-retro number is a rate over "user prompts".
 # The predicate deciding what counts as one was rejecting only `<`-prefixed text,
-# so 38.4% of the measured window was machine-authored text counted as typed
+# so 37.9% of the measured window was machine-authored text counted as typed
 # input: SDK harnesses, expanded skill bodies, expanded slash-command bodies,
 # compaction summaries, and the handoff wrapper's kickoff positional. That
 # inflation reached three published runs before anyone noticed, so the classes
@@ -22,7 +22,14 @@ set -uo pipefail
 
 RETRO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts/usage-retro" && pwd -P)"
 failures=0
+cases=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
+# Counted, never hardcoded: a printed total that does not come from the
+# assertions is the same class of claim this whole suite exists to distrust.
+assert_eq() {  # assert_eq <label> <want> <got>
+  cases=$((cases + 1))
+  [[ "$3" == "$2" ]] || fail "$1: want '$2', got '$3'"
+}
 
 run_case() {
   # run_case <label> <expected-kind> <record-json>
@@ -33,8 +40,8 @@ sys.path.insert(0, os.environ["RETRO"])
 import prompt_kinds as P
 print(P.classify(json.loads(os.environ["REC"]))[0])
 PY
-)" || { fail "$label: classifier raised"; return; }
-  [[ "$got" == "$want" ]] || fail "$label: want '$want', got '$got'"
+)" || { cases=$((cases + 1)); fail "$label: classifier raised"; return; }
+  assert_eq "$label" "$want" "$got"
 }
 
 human() { printf '{"type":"user","origin":{"kind":"human"},"promptSource":"typed","entrypoint":"cli","message":{"role":"user","content":%s}}' "$1"; }
@@ -59,6 +66,16 @@ run_case "(e) sdk harness (security-review)" injected \
 # input. origin.kind must be checked first or these are thrown away.
 run_case "(f) desktop app: sdk source BUT human origin" real \
   '{"type":"user","origin":{"kind":"human"},"promptSource":"sdk","entrypoint":"claude-desktop","message":{"role":"user","content":"hazme un resumen de lo que queda"}}'
+
+# THE MIRROR OF (f): the same desktop prompt from a transcript written before
+# `origin` existed. Only `entrypoint` may condemn it — a promptSource-only test
+# discarded 39 of these, and one whole project read as having no human input.
+run_case "(f2) desktop app: sdk source, NO origin (pre-origin transcript)" real \
+  '{"type":"user","promptSource":"sdk","entrypoint":"claude-desktop","message":{"role":"user","content":"dime como puedo jugar en ventana"}}'
+
+# And the record with an sdk source and no entrypoint at all stays machine.
+run_case "(f3) sdk source, no entrypoint" injected \
+  '{"type":"user","promptSource":"sdk","message":{"role":"user","content":"some harness prompt with no entrypoint field"}}'
 
 run_case "(g) expanded skill body, no provenance" injected \
   '{"type":"user","entrypoint":"cli","message":{"role":"user","content":"Approach this as the design lead at a small studio known for their versatility"}}'
@@ -105,16 +122,13 @@ PY
 }
 
 got="$(session_kinds 1 continue)"
-[[ "$got" == "kickoff real" ]] \
-  || fail "(i1) handoff-seeded 'continue' should be kickoff, and only the FIRST one: got '$got'"
+assert_eq "(i1) handoff-seeded 'continue' should be kickoff, and only the FIRST one" "kickoff real" "$got"
 
 got="$(session_kinds 0 continue)"
-[[ "$got" == "real real" ]] \
-  || fail "(i2) 'continue' in a NON-seeded session is a human nudge: got '$got'"
+assert_eq "(i2) 'continue' in a NON-seeded session is a human nudge" "real real" "$got"
 
 got="$(session_kinds 1 'arranca por la fase 1')"
-[[ "$got" == "real real" ]] \
-  || fail "(i3) a seeded session opened with a real instruction has no kickoff: got '$got'"
+assert_eq "(i3) a seeded session opened with a real instruction has no kickoff" "real real" "$got"
 
 # (j) the machine kinds must be REPORTED, not dropped — a miner that hides them
 # reproduces the original defect. classify_session emits one row per user record.
@@ -132,8 +146,7 @@ rows = P.classify_session(objs)
 print(f"{len(rows)}:{','.join(k for _, k, _ in rows)}")
 PY
 )"
-[[ "$got" == "2:injected,real" ]] \
-  || fail "(j) injected must be returned alongside real, not filtered out: got '$got'"
+assert_eq "(j) injected must be returned alongside real, not filtered out" "2:injected,real" "$got"
 
 # (p) the kind vocabularies stay in lockstep with the constants, so a future
 # rename cannot leave a consumer testing against a string that no longer exists.
@@ -165,7 +178,7 @@ PY
 [[ "$got" == "True/False" ]] || fail "(q) is_real_user disagrees with classify: $got"
 
 if [[ $failures -eq 0 ]]; then
-  printf 'PASS: prompt_kinds classifies all %d cases correctly\n' 22
+  printf 'PASS: prompt_kinds classifies all %d cases correctly\n' "$cases"
 else
   printf '\n%d failure(s)\n' "$failures"
 fi

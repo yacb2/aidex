@@ -29,6 +29,25 @@
                         border: 1px solid var(--border, #d4d4d8); cursor: pointer;
                         color: inherit; background: transparent; }
   .consult-status { font-size: .9rem; opacity: .8; }
+
+  /* The var() fallbacks above are light-only, and a host page is not obliged to
+     name its tokens --bg/--border: the suite's own style-profile template names
+     its palette ground/ink/accent, so on a dark page the sticky bar fell back to
+     white and the blank-count status landed at 1.31:1 contrast — unreadable, and
+     it is the one element that tells the reader what is still unanswered.
+     Neutrals are local to this template on purpose; copying the dash palette
+     here would make this file a second site for it. Both forms are needed: an
+     explicitly toggled page sets data-theme and never matches the media query. */
+  @media (prefers-color-scheme: dark) {
+    .consult-bar { background: #101619; }
+    .consult-item, .consult-item textarea,
+    .consult-bar, .consult-bar button { border-color: #24333A; }
+  }
+  :root[data-theme="dark"] .consult-bar { background: #101619; }
+  :root[data-theme="dark"] .consult-item,
+  :root[data-theme="dark"] .consult-item textarea,
+  :root[data-theme="dark"] .consult-bar,
+  :root[data-theme="dark"] .consult-bar button { border-color: #24333A; }
 </style>
 
 <!-- One block per claim or question. Duplicate it; never renumber it. -->

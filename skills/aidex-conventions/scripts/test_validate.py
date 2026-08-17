@@ -810,6 +810,30 @@ def main() -> int:
     if missing:
         failures.append(f"bad fixture: expected rules did not fire: {sorted(missing)}")
 
+    # The .html language check, asserted through validate() END TO END and by
+    # FILENAME. The unit cells below exercise strip_html and the walker, but a
+    # helper passing its own test proves nothing about whether validate() calls
+    # it: with only those, the entire "Rendered pages" block could be deleted and
+    # this suite stayed green, moving one unasserted warning count.
+    html_lang = [w for w in bad["warnings"]
+                 if w["rule"] == "body-language-not-english" and w["file"].endswith(".html")]
+    if not any(w["file"].endswith("research/2026-06-20-informe-migracion.html")
+               for w in html_lang):
+        failures.append(
+            "html language: the Spanish rendered report in fixtures/bad was not flagged "
+            f"through validate() — got {[w['file'] for w in html_lang]}")
+
+    # The negative, which is the one that matters: a flat rglob would reach
+    # communications/ without a type name and flag every Spanish email.html, the
+    # artifact D-04 exempts by name. Asserted on the GOOD fixture, which carries
+    # exactly that file.
+    comms = [w for w in good["warnings"]
+             if w["rule"] == "body-language-not-english" and "/communications/" in w["file"]]
+    if comms:
+        failures.append(
+            "html language: a communications page was flagged — D-04 exempts communications, "
+            f"so .html must be enumerated per type, not by a flat rglob: {[w['file'] for w in comms]}")
+
     check_canon_lockstep(failures)
     check_phase_gate_unit(failures)
     check_plan_spec_shape_unit(failures)
