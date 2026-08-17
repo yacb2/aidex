@@ -113,6 +113,16 @@ for f in "$@"; do
     grep -qi 'blank' <<<"$body" \
       || report consult "$name" "the composer never mentions blank items — a half-answered page must be visible BEFORE it is pasted"
 
+    # A consultation carries a visual by DEFAULT (USAGE-19: asked ~9 times over
+    # 90 days across 3 projects, granted every time, which is why it never
+    # registered as a defect). No checker can judge whether a topic has a shape
+    # worth drawing, so the check is on the DECLARATION: carry a visual, or say
+    # in one line why there is none. Silence is the only thing that fails.
+    if ! grep -qiE '<svg|<img|class="mermaid"|<canvas' <<<"$body"; then
+      grep -qiE '<meta[^>]+name=["'"'"']?consult-visual["'"'"']?[^>]+content=["'"'"']?none:[^"'"'"']+' <<<"$body" \
+        || report consult "$name" "no visual and no <meta name=\"consult-visual\" content=\"none: why\"> — a consultation opens with the drawing when the subject has a shape, and states the reason when it does not"
+    fi
+
     # The template's own recorded regression: with only the media query, an
     # explicitly-toggled dark page keeps the light sticky bar and the blank-count
     # lands at 1.31:1. A page derived from the template carries both forms.
