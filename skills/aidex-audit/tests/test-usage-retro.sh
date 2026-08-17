@@ -18,6 +18,8 @@
 #   (g) roots are real parameters: a bogus projects-root yields an empty registry
 #   (h) the roots reach mine_defect_proneness through M.configure()
 #   (i) a rootless run refuses rather than mining a guessed default
+#   (j) a BL id shared by two projects resolves inside its own project
+#   (k) one malformed line skips the LINE, never the whole session
 #
 # Run with: bash skills/aidex-audit/tests/test-usage-retro.sh
 
@@ -215,5 +217,35 @@ out_j2="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$CP" \
 echo "$out_j2" | grep -q 'items attributed       : 2  (bug 1)' \
   || fail "(j) control: each project's own session should attribute its own item: $out_j2"
 
+# ---------------------------------------------------------------------------
+# (k) ONE MALFORMED LINE MUST NOT DISCARD A WHOLE SESSION. The parse was a list
+#     comprehension inside `except Exception: continue`, so a single truncated
+#     record dropped every item signal in the file — including files that had just
+#     PASSED the `hits_in(raw)` token pre-filter, i.e. exactly the sessions known
+#     to mention a tracked item. Every sibling reader in the package skips only the
+#     bad record, so the codebase disagreed with itself about the same operation.
+#
+#     Not reachable from today's corpus (0 of 3,465 files parse-fail), so this
+#     pins the divergence and the silence rather than an incident.
+DIRTY="$(mktemp -d)"
+DD="$DIRTY/-Users-yoelacevedo-Documents-projects-demo-ws"
+mkdir -p "$DD"
+{
+  py_dirty_prompt() {
+    python3 -c 'import json,sys; print(json.dumps({"type":"user","timestamp":"2026-01-01T00:00:00Z","entrypoint":"cli","origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":sys.argv[1]}}))' "$1"
+  }
+  py_dirty_prompt "trabajemos en BL-901 ahora"
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T00:01:00Z","message":{"content":[{"type":"tool_use","name":"Edit","id":"t","input":{"file_path":"/p/demo_ws/src/alpha.py","old_string":"a","new_string":"b"}}]}}))'
+  printf '{"type":"user","message":{"role":"user","con'
+} > "$DD/dirty.jsonl"
+
+out_k="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" \
+  --transcripts-root "$DIRTY" --out "$OUT/k" --min-mentions 1 2>&1)"
+rm -rf "$DIRTY"
+grep -q 'demo_ws: 1 spans' <<<"$out_k" \
+  || fail "(k) a truncated trailing line discarded the whole session: $out_k"
+grep -qE 'skipped 1 unparseable line' <<<"$out_k" \
+  || fail "(k) the skipped line must be COUNTED, not silently dropped: $out_k"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session"

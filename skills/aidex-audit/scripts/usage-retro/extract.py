@@ -66,8 +66,18 @@ SYS_PREFIXES = ("<task-notification", "<local-command", "<bash-", "<system-remin
                 "[Request interrupted")
 
 def parse_ts(s):
-    try: return datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except Exception: return None
+    """An AWARE datetime, or None. A naive input is read as UTC.
+
+    `fromisoformat` only returns an aware value when the string carries a Z or an
+    explicit offset, so the documented plain form (`--since 2026-08-01`) produced
+    a naive cutoff that was then compared against aware datetimes — an uncaught
+    TypeError on the first transcript file. Every timestamp this pipeline handles
+    is UTC, so assuming UTC is the reading, not a guess."""
+    try:
+        t = datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except Exception:
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=datetime.timezone.utc)
 
 def short_project(name):
     return (name.replace("-Users-yoelacevedo-Documents-projects-", "")
@@ -121,11 +131,28 @@ def resolve_cutoff(args):
         t = parse_ts(args.since)
         if t: return t
     if not args.all and args.cursor and os.path.exists(args.cursor):
+        # A cursor that cannot be read is a HARD ERROR, never a fallback. This was
+        # `except Exception: pass`, which fell through to `now - days` — a silent
+        # SEVEN-DAY window — and then rewrote the cursor to the end of it, so every
+        # later incremental run resumed after a span nothing had extracted. The
+        # reproduction lost 83 days with a clean exit 0. In a tool whose purpose is
+        # incremental gap extraction, guessing the window is the one thing it must
+        # not do; the caller has --since and --all and neither is a guess.
         try:
             prev = json.load(open(args.cursor)).get("through")
-            pc = parse_ts(prev) if prev else None
-            if pc: return pc
-        except Exception: pass
+        except Exception as e:
+            raise SystemExit(
+                f"ERROR: cursor {args.cursor} is unreadable or not valid JSON ({e}). "
+                f"Refusing to guess the window: falling back to --days would extract "
+                f"a narrower span and then advance the cursor past everything it "
+                f"skipped. Re-run with an explicit --since, or --all, or delete the "
+                f"cursor to start a fresh incremental history.")
+        pc = parse_ts(prev) if prev else None
+        if pc:
+            return pc
+        raise SystemExit(
+            f"ERROR: cursor {args.cursor} has no usable `through` timestamp "
+            f"(found {prev!r}). Re-run with an explicit --since or --all.")
     return now - datetime.timedelta(days=args.days)
 
 def main():
@@ -145,7 +172,7 @@ def main():
     now = datetime.datetime.now(datetime.timezone.utc)
     cutoff = resolve_cutoff(args)
     records, max_ts = [], cutoff
-    skipped_noise = skipped_machine = 0
+    skipped_noise = skipped_machine = skipped_unparseable = 0
 
     for d in glob.glob(root + "/*/"):
         name = os.path.basename(d.rstrip("/"))
@@ -159,10 +186,25 @@ def main():
                     continue
             except OSError:
                 continue
+            # Per line, and errors="replace" — matching every sibling reader in
+            # this package (mine_preferences, mine_items, mine_slow_tests,
+            # mine_defect_proneness). This was a list comprehension inside
+            # `except Exception: continue` over a bare open(), so ONE truncated
+            # line or one invalid UTF-8 byte discarded every prompt in the file,
+            # with no counter reporting it: whole sessions left the denominator of
+            # every usage-retro rate while the run reported a clean success.
             try:
-                objs = [json.loads(l) for l in open(f) if l.strip()]
-            except Exception:
+                raw = open(f, encoding="utf-8", errors="replace").read()
+            except OSError:
                 continue
+            objs = []
+            for l in raw.splitlines():
+                if not l.strip():
+                    continue
+                try:
+                    objs.append(json.loads(l))
+                except ValueError:
+                    skipped_unparseable += 1
             session = os.path.splitext(os.path.basename(f))[0]
             # Provenance comes from the SHIPPED, tested classifier, and it is
             # applied per-session because the handoff wrapper's `continue`
@@ -265,6 +307,8 @@ def main():
     from collections import Counter
     print(f"records: {len(records)}  (window from {cutoff.isoformat()[:19]})")
     print(f"  pre-filtered noise prompts: {skipped_noise}")
+    print(f"  unparseable lines skipped: {skipped_unparseable} "
+          f"(the line only, never the session)")
     print(f"  machine-authored prompts excluded: {skipped_machine} "
           f"(injected bodies + handoff kickoffs)")
     print(f"  duplicate records collapsed: {n_dupes} exact + {n_near} near "

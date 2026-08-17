@@ -149,6 +149,107 @@ n_cont="$(count_of "continue")"
 [[ "$n_cont" == "2" ]] && ok "two genuine 'continue' prompts both survive" \
                        || bad "$n_cont of 2 short repeated prompts survived — the window ignores length"
 
+# --- the window, and what happens when it cannot be established ---------------
+# Everything above runs with `--since 3650d`, which short-circuits resolve_cutoff
+# before either of the paths below is reached. So the whole window mechanism was
+# unexercised, in a tool whose stated purpose is incremental gap extraction.
+echo "== the extraction window =="
+
+# (1) The documented plain-ISO --since. The module docstring documents `--since
+#     ISO`, and `datetime.fromisoformat("2026-01-01")` returns a NAIVE datetime
+#     that is then compared against timezone-aware values — an uncaught TypeError
+#     on the first transcript file. Only a Z-suffixed or offset-bearing value
+#     worked; the documented form aborted the run.
+for since in "2026-01-01" "2026-01-01T00:00:00" "2026-01-01T00:00:00Z" "2026-01-01T00:00:00+00:00"; do
+  out_w="$(python3 "$EXTRACT" --out "$OUT/w.jsonl" --since "$since" \
+                   --transcripts-root "$TX" 2>&1)"; rc_w=$?
+  if [[ $rc_w -eq 0 && "$out_w" != *"TypeError"* ]]; then
+    ok "--since $since is accepted"
+  else
+    bad "--since $since aborted the run: $out_w"
+  fi
+done
+
+# (2) A CORRUPT CURSOR. `except Exception: pass` swallowed it and fell through to
+#     `now - days`, defaulting to a SEVEN-DAY window with no warning — and then
+#     rewrote the cursor to the end of that window, so every later incremental run
+#     resumes after the span that was never extracted. Silent, unrecoverable data
+#     loss: the reproduction lost 83 days.
+#
+#     The cursor must not advance over a window that was never read, so a cursor
+#     that cannot be parsed is a hard error. The caller has two explicit ways
+#     forward (--since, --all) and neither of them is a guess.
+CUR="$OUT/corrupt-cursor.json"
+printf '{"through": "2026-01-01T00:00:00' > "$CUR"          # truncated mid-write
+before="$(cat "$CUR")"
+out_c="$(python3 "$EXTRACT" --out "$OUT/c.jsonl" --cursor "$CUR" \
+                 --transcripts-root "$TX" 2>&1)"; rc_c=$?
+[[ $rc_c -ne 0 ]] && ok "a corrupt cursor is refused instead of narrowing the window" \
+                  || bad "a corrupt cursor silently became a 7-day window: $out_c"
+# Require the ERROR, not the bare word: the ordinary run output mentions the
+# window too, so a substring check on "cursor" alone passed on the unfixed code.
+[[ "$out_c" == *"ERROR"*"cursor"* ]] && ok "the refusal is an explicit ERROR naming the cursor" \
+                                    || bad "the refusal did not say what was wrong: $out_c"
+[[ "$(cat "$CUR")" == "$before" ]] \
+  && ok "the corrupt cursor is NOT rewritten, so the skipped span stays reachable" \
+  || bad "the cursor advanced over a window that was never extracted"
+
+# A healthy cursor must still work, or (2) would pass by refusing everything.
+CUR2="$OUT/good-cursor.json"
+printf '{"through": "2016-01-01T00:00:00+00:00"}' > "$CUR2"
+out_g="$(python3 "$EXTRACT" --out "$OUT/g.jsonl" --cursor "$CUR2" \
+                 --transcripts-root "$TX" 2>&1)"; rc_g=$?
+[[ $rc_g -eq 0 ]] && ok "control: a healthy cursor still resumes from its through" \
+                  || bad "a valid cursor was refused too: $out_g"
+grep -q '"through"' "$CUR2" && ok "control: a healthy run does advance the cursor" \
+                            || bad "the cursor was not written on a good run"
+
+# (3) ONE BAD LINE MUST NOT DISCARD A WHOLE SESSION. The read was a list
+#     comprehension inside `except Exception: continue` over a bare `open()`, so a
+#     single truncated line — or one invalid UTF-8 byte, where every sibling reader
+#     uses errors="replace" — dropped every prompt in that file with no counter
+#     reporting it. Whole sessions left the denominator while the run reported a
+#     clean success.
+#
+#     Not reachable from today's corpus (0 of 3,465 files), so this is about the
+#     divergence and the silence, not about an incident.
+BAD="$(mktemp -d)"; mkdir -p "$BAD/-Users-x-Documents-projects-demo-ws"
+python3 - "$BAD/-Users-x-Documents-projects-demo-ws" <<'PY'
+import json, os, sys
+d = sys.argv[1]
+def rec(text, ts):
+    return json.dumps({"type": "user", "timestamp": ts, "entrypoint": "cli",
+                       "origin": {"kind": "human"}, "promptSource": "typed",
+                       "message": {"role": "user", "content": text}})
+# a.jsonl: three good records, then a partially flushed line
+with open(f"{d}/a.jsonl", "w", encoding="utf-8") as fh:
+    for i, t in enumerate(("uno", "dos", "tres")):
+        fh.write(rec(f"prompt {t} sobre el flujo de trabajo", f"2026-01-0{i+1}T10:00:00Z") + "\n")
+    fh.write('{"type":"user","message":{"role":"user","con')
+# b.jsonl: every line valid JSON, one invalid UTF-8 byte (pasted mojibake)
+with open(f"{d}/b.jsonl", "wb") as fh:
+    fh.write(rec("cuatro sobre el informe", "2026-01-04T10:00:00Z").encode() + b"\n")
+    fh.write(rec("cinco sobre el informe", "2026-01-05T10:00:00Z").encode() + b"\n")
+    fh.write(b'{"type":"user","timestamp":"2026-01-06T10:00:00Z","entrypoint":"cli",'
+             b'"origin":{"kind":"human"},"promptSource":"typed",'
+             b'"message":{"role":"user","content":"seis con un byte \xff malo"}}\n')
+PY
+out_b="$(python3 "$EXTRACT" --out "$OUT/bad.jsonl" --since 3650d \
+                 --transcripts-root "$BAD" 2>&1)"; rc_b=$?
+kept="$(python3 -c '
+import json, sys
+print(sum(1 for l in open(sys.argv[1], encoding="utf-8") if l.strip()))
+' "$OUT/bad.jsonl" 2>/dev/null || echo 0)"
+[[ $rc_b -eq 0 ]] && ok "a session with a bad line still runs" \
+                  || bad "the run died on a malformed line: $out_b"
+[[ "$kept" == "6" ]] \
+  && ok "all 6 good prompts survive one bad line and one bad byte (got $kept)" \
+  || bad "$kept of 6 prompts survived — a whole session was discarded: $out_b"
+grep -qE "unparseable (line|record)" <<<"$out_b" \
+  && ok "the skipped line is COUNTED, not silently dropped" \
+  || bad "nothing in the output reports the discarded line: $out_b"
+rm -rf "$BAD"
+
 echo
 echo "extract provenance: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
