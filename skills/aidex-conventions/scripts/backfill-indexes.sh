@@ -46,14 +46,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-find_project_root() {
-  local dir; dir="$(pwd -P)"
-  while [[ "$dir" != "/" ]]; do
-    [[ -d "$dir/.context" ]] && { printf '%s\n' "$dir"; return 0; }
-    dir="$(dirname "$dir")"
-  done
-  return 1
-}
+# Shared resolver. This file used to carry its own copy, three fixes behind:
+# no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
+# so from inside a worktree it wrote into a directory that vanishes on teardown
+# while _lib.sh consumers wrote to the main tree. Pinned by
+# aidex-conventions/scripts/test-find-project-root.sh (no private copies).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/." && pwd -P)/_lib.sh"
 
 # Classify an index file: missing | auto | manual
 classify_index() {
@@ -107,7 +105,12 @@ backfill_project() {
 
 case "$MODE" in
   self)
-    proj="$(find_project_root)" || { warn "no .context found from $(pwd) — run inside a project or use --all/--project"; exit 0; }
+    # The shared resolver always answers — it falls back to a project marker and
+    # then to cwd rather than returning non-zero, so the "no .context" case has to
+    # be tested here. The private copy this replaced returned 1 instead, which is
+    # the only behavioural difference between them and the reason this line moved.
+    proj="$(find_project_root)"
+    [[ -d "$proj/.context" ]] || { warn "no .context found from $(pwd) — run inside a project or use --all/--project"; exit 0; }
     backfill_project "$proj"
     ;;
   project)
