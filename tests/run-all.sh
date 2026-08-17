@@ -13,6 +13,13 @@
 # private `find_project_root`. That guard was unwired the day it was written, and
 # the runner still reported green. Naming style is not a reason to skip a test.
 #
+# And a third time, 2026-08-17: `hooks/` was never a discovery root, so both hook
+# tests were invisible. `test-context-depth-nudge.py` had been asserting that the
+# depth hook TELLS the assistant not to hand off on its own — pinning a rule the
+# hook does not own and that `rules/autonomy.md` answers the other way inside a
+# run. A test nobody runs is how a checker that certifies the defect survives.
+# Location is not a reason to skip a test either.
+#
 # Docker-dependent tests are opted into, not discovered: nine aidex-worktree
 # tests need a live daemon and take minutes, and folding them in by default would
 # turn a seconds-long daemon-free suite into one that cannot run on a laptop with
@@ -35,7 +42,8 @@ VERBOSE=0
 shopt -s nullglob
 TESTS=(tests/test-*.sh skills/*/tests/test-*.sh
        skills/*/scripts/test_*.sh skills/*/scripts/test_*.py
-       skills/aidex-conventions/scripts/test-*.sh)
+       skills/aidex-conventions/scripts/test-*.sh
+       hooks/test-*.sh hooks/test-*.py)
 if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
   # `test-db-preflight.sh` is a PRODUCTION script, not a test: it preflights the
   # TEST database, which is why its name starts that way. Discovery by filename
