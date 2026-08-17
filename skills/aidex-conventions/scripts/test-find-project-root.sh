@@ -40,6 +40,25 @@ got="$(run "$P1" "$FAKEHOME")"
 [[ "$got" == "$P1" ]] || fail "fresh project resolved to '$got', expected '$P1' — an ancestor .context must never capture an uninitialised project"
 [[ "$got" == "$FAKEHOME" ]] && fail "resolved to \$HOME: artifacts would be written to the home directory"
 
+# --- case 1b: the boundary must hold for an UNRESOLVED $HOME ---
+# Every case here resolves TMP with `pwd -P` first (see above), which quietly made
+# the boundary untestable: the walk compares `pwd -P` output against `$HOME`
+# verbatim, so a $HOME reached through a symlink never matched and the walk
+# continued straight past it into the stray `.context/`. On macOS that is the
+# default shape of any temp dir (/var -> /private/var), and it is also what a home
+# directory on a symlinked volume looks like. Pass the logical path on purpose.
+RAWTMP="$(dirname "$TMP")/$(basename "$TMP")"
+if [[ -L /var && "$TMP" == /private/var/* ]]; then
+  RAWTMP="${TMP#/private}"
+fi
+if [[ "$RAWTMP" != "$TMP" && -d "$RAWTMP/home" ]]; then
+  got="$(run "$P1" "$RAWTMP/home")"
+  [[ "$got" == "$P1" ]] \
+    || fail "with a symlinked \$HOME the boundary was skipped: resolved to '$got', expected '$P1'"
+else
+  printf 'note: no symlinked path available for the unresolved-$HOME case\n'
+fi
+
 # --- case 2: an initialised project still resolves exactly as before ---
 P2="$FAKEHOME/projects/inited"
 mkdir -p "$P2/.context" "$P2/sub/deeper"

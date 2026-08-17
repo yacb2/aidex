@@ -693,6 +693,71 @@ grep -q '<html lang="en"' "$FAKEHOME/proj/r.html" \
 [[ ! -f "$FAKEHOME/.context/.aidex-artifact-style-offered" ]] \
   && ok "no offer marker is dropped in \$HOME" || bad "the offer marker landed in \$HOME"
 
+# An unreadable profile must not take the artifact down with it. `isfile` only
+# stats — it does not imply readability — and the read was a bare open(), so a
+# mode-000 artifact-style.md aborted the whole wrap with a PermissionError
+# traceback and NO file was written. The profile is an optimisation, not a
+# contract: an unreadable one degrades to the D-04 default and says so.
+NOREAD="$TMP/noread"; mkdir -p "$NOREAD/.context/reports"
+printf '## Language\n\n- language: es\n' > "$NOREAD/.context/artifact-style.md"
+chmod 000 "$NOREAD/.context/artifact-style.md"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
+        --out "$NOREAD/.context/reports/a.html" 2>&1 >/dev/null)"; rc=$?
+chmod 644 "$NOREAD/.context/artifact-style.md"
+[[ "$err" != *"Traceback"* ]] && ok "an unreadable style profile does not raise" \
+                             || bad "the wrap died on an unreadable profile: $err"
+[[ -f "$NOREAD/.context/reports/a.html" ]] \
+  && ok "the artifact is still written when the profile cannot be read" \
+  || bad "an unreadable profile prevented the artifact from being written"
+grep -q '<html lang="en"' "$NOREAD/.context/reports/a.html" 2>/dev/null \
+  && ok "an unreadable profile falls back to en (D-04)" \
+  || bad "the fallback language was not applied"
+# Require the NOTE, not just the filename: a traceback also contains the path, so
+# a substring check on `artifact-style.md` passes on the unfixed code.
+[[ "$err" == *"NOTE:"*"artifact-style.md"* ]] \
+  && ok "and the unreadable profile is reported as a NOTE, not silently ignored" \
+  || bad "the profile read failed without a readable warning: $err"
+
+# --- The project root is resolved by the SHARED resolver ----------------------
+# find_context_dir was a private Python reimplementation of _lib.sh's
+# find_project_root, missing the linked-worktree hop — so route B (this script)
+# and route A (render.sh, which sources _lib.sh) resolved DIFFERENT roots for the
+# same project. render.sh:15-19 records that its own copy was deleted for exactly
+# these fixes, and the no-private-copies guard could not see this one because it
+# greps for a bash function definition.
+#
+# A linked worktree is a SIBLING of the project, never a descendant, so an upward
+# walk cannot reach the main tree's `.context/` — which is gitignored and
+# therefore absent from the worktree.
+echo "== the project root comes from _lib.sh =="
+
+if command -v git >/dev/null 2>&1; then
+  WT="$TMP/wtproj"
+  mkdir -p "$WT/main"
+  ( cd "$WT/main" && git init -q . && git config user.email t@t && git config user.name t \
+    && printf '.context/\n' > .gitignore && git add -A && git commit -qm init ) >/dev/null 2>&1
+  mkdir -p "$WT/main/.context/reports"
+  printf '## Language\n\n- language: es\n' > "$WT/main/.context/artifact-style.md"
+  ( cd "$WT/main" && git worktree add -q "$WT/main-wt-feature" -b feature ) >/dev/null 2>&1
+
+  # Control first: from the main tree the profile is found, so a failure below is
+  # about the worktree hop and not about the profile being unreadable.
+  ( cd "$WT/main" && printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
+      --out ".context/reports/main.html" ) >/dev/null 2>&1
+  grep -q '<html lang="es"' "$WT/main/.context/reports/main.html" 2>/dev/null \
+    && ok "control: from the main tree the profile is applied" \
+    || bad "control failed: the profile was not read from the main tree"
+
+  mkdir -p "$WT/main-wt-feature/out"
+  ( cd "$WT/main-wt-feature" && printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
+      --out "out/wt.html" ) >/dev/null 2>&1
+  grep -q '<html lang="es"' "$WT/main-wt-feature/out/wt.html" 2>/dev/null \
+    && ok "from a linked worktree the main tree's profile is still applied" \
+    || bad "a worktree run ignored the project's artifact language (no --git-common-dir hop)"
+else
+  ok "SKIP: git is unavailable, so the worktree hop cannot be exercised"
+fi
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

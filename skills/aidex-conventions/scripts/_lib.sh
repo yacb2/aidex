@@ -50,7 +50,14 @@ die()   { err "error: $*"; exit 2; }
 find_project_root() {
   local start stop dir
   start="$(pwd -P)"
+  # Resolve $HOME the same way `start` is resolved, or the boundary silently does
+  # not exist: the walk compares `pwd -P` output against `$HOME` verbatim, so a
+  # home directory reached through a symlink never matched and the walk continued
+  # past it into a stray `~/.context/` — the failure this boundary was added for.
+  # macOS /var -> /private/var makes that the default shape for any temp dir, and
+  # a home on a symlinked volume has it too.
   stop="${HOME:-}"
+  [[ -n "$stop" && -d "$stop" ]] && stop="$(cd "$stop" 2>/dev/null && pwd -P)"
 
   dir="$start"
   while [[ "$dir" != "/" && -n "$dir" ]]; do
