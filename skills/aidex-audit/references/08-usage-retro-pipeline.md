@@ -37,6 +37,12 @@ have already analyzed. Each run reads it, processes only the **gap** since the l
 a new dated run, and advances the cursor, so covered conversations are never re-reviewed. A first
 run, or `--since 90d`, sets the baseline.
 
+A cursor that cannot be parsed is a **hard error**, not a fallback. It used to be swallowed: the
+run silently narrowed to the 7-day `--days` default and then advanced the cursor to the end of
+that window, so every later catch-up resumed *after* a span nothing had extracted (83 days, in the
+reproduction, at exit 0). Pass `--since` or `--all` explicitly, or delete the cursor to start a
+fresh incremental history.
+
 ## Pipeline
 
 ```
@@ -53,8 +59,13 @@ prior_assistant, prior_skills, skills_fired }`.
 - `prior_skills` = skills that fired in that prior response (detects "fired X, then asked to fix X").
 - `skills_fired` = skills that fired in the response TO this prompt (detects trigger-miss when empty).
 - Skill-fires are assistant `tool_use` blocks with `name == "Skill"`, `input.skill`.
-- Excludes synthetic project dirs (tmp, eval-harness CWDs, bare `-claude`) and known-noise prompts.
+- Excludes synthetic project dirs (tmp, eval-harness CWDs, bare `-claude`). Exclusion is at the
+  PROJECT level only: there is no text filter on prompts. One existed and was deleted — it ran
+  after `prompt_kinds`, which had already vouched for those records as human-typed, so five of its
+  six patterns were unreachable and the sixth's only three hits over the whole corpus were genuine
+  prompts that merely discussed the trigger-eval marker.
 - Cursor lineage: `--cursor` honors a prior `through` timestamp; `--since <N>d` or `--all` override.
+  An unparseable cursor refuses rather than guessing a window.
 
 ### 2. prefilter.py (rank, don't classify)
 Tags candidates with NOISY signals: `friction`, `miss?:<skill>`, `evolve?:<skill>`, `improve?`.
