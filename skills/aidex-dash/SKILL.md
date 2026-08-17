@@ -49,7 +49,9 @@ deployed `user-invocable-only` — the natural-language entry point for every
 artifact ask is `rules/artifacts-local-first.md`, which invokes dash's
 `render.sh` for board-shaped requests. `/aidex-dash` stays for explicit calls.
 Per-project design tokens live in `.context/artifact-style.md` (template:
-`assets/templates/artifact-style.md.template`).
+`assets/templates/artifact-style.md.template`), including a `language:` field
+that `wrap-report.sh` reads as the artifact's `<html lang>` — artifacts only;
+`.context/` stays English (D-04).
 
 ## Render-per-index rule
 

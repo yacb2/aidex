@@ -155,6 +155,153 @@ err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" \
 [[ ! -d "$TMP/anchor/nope" ]] && ok "no directory tree was invented" \
                              || bad "a directory tree was created for a wrong cwd"
 
+# --- BL-168: the § 8 consultation contract is checked, not merely written ------
+# §8 shipped with a template and three requirements and was violated three ways by
+# its own author on first contact. These assert the checks that make each one fail
+# loudly. The fixture below is the real violating page reduced to its shape: reply
+# boxes, no stable ids, nothing copied from the template.
+echo "== consultation contract (§8) =="
+
+TPL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/consultation-block.html.template"
+
+# The compliant form is the shipped template itself. If this ever fails, the checks
+# demand something the suite does not ship — the worst kind of gate.
+python3 - "$TPL" > "$TMP/consult-body.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+print(re.sub(r"\A\s*<!--.*?-->\s*", "", t, flags=re.S))
+PY
+bash "$WRAP" --title "C" --out "$TMP/consult-ok.html" < "$TMP/consult-body.html" >/dev/null 2>&1 \
+  && ok "the shipped consultation template passes its own checks" \
+  || bad "the consultation template fails the checks written for it"
+
+# The real BL-168 violation: hand-rolled reply boxes, no ids, no composer.
+mk handrolled.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+<h3>D4 · Visuales</h3><textarea></textarea>
+<h3>D5 · Idioma</h3><textarea></textarea>
+<button onclick=\"copiar()\">Copiar</button>"
+out="$(bash "$CHECK" "$TMP/handrolled.html" 2>&1)"
+[[ "$out" == *"[consult]"* ]] && ok "a hand-rolled consultation page is caught" \
+                              || bad "hand-rolled consultation page passed: $out"
+[[ "$out" == *"data-id"* ]] && ok "the failure names the missing stable ids" \
+                            || bad "the consult failure did not mention data-id"
+[[ "$out" == *"consultation-block.html.template"* ]] \
+  && ok "the failure points at the template to copy" \
+  || bad "the consult failure does not name the template"
+
+# A report meant to be READ has no reply boxes, so none of this may fire on it.
+bash "$CHECK" "$TMP/wrapped.html" >/dev/null 2>&1 \
+  && ok "a plain report is not judged as a consultation" \
+  || bad "the consultation checks fired on a page with no textarea"
+
+# Each remaining requirement, one fixture per rule, built by breaking the good page.
+sed 's/data-id="c2"/data-id="c1"/' "$TMP/consult-ok.html" > "$TMP/consult-dupe.html"
+sed 's/id="consult-copy"/id="other"/' "$TMP/consult-ok.html" > "$TMP/consult-nobtn.html"
+sed 's/:root\[data-theme="dark"\] \.consult-bar/:root[data-theme="dark"] .nothing/' \
+  "$TMP/consult-ok.html" > "$TMP/consult-nodark.html"
+for case in "consult-dupe duplicate" "consult-nobtn consult-copy" "consult-nodark data-theme"; do
+  set -- $case
+  out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
+  if [[ "$out" == *"[consult]"* && "$out" == *"$2"* ]]; then ok "catches $2 ($1.html)"
+  else bad "did not catch $2 in $1.html: $out"; fi
+done
+
+# Requirement 1 across regenerations — the rule that was unenforceable, so it broke.
+cp "$TMP/consult-ok.html" "$TMP/regen-same.html"
+bash "$CHECK" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
+  && ok "an unchanged regeneration passes --prev" || bad "--prev flagged an identical page"
+
+sed 's/data-title="Second claim"/data-title="A different claim"/' \
+  "$TMP/consult-ok.html" > "$TMP/regen-shift.html"
+out="$(bash "$CHECK" "$TMP/regen-shift.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* ]] && ok "a shifted id is caught across regenerations" \
+                                  || bad "an id now naming a different claim passed: $out"
+[[ "$out" == *"c2"* ]] && ok "the shift report names the offending id" \
+                       || bad "the consult-ids failure did not name the id: $out"
+
+# A retyped title is not a moved claim: normalisation must keep this green, or the
+# check gets disabled the first time someone fixes a typo.
+sed 's/data-title="Second claim"/data-title="Second   Claim"/' \
+  "$TMP/consult-ok.html" > "$TMP/regen-retitle.html"
+bash "$CHECK" "$TMP/regen-retitle.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
+  && ok "case and whitespace changes in a title are not a shift" \
+  || bad "a retyped title was reported as a moved claim"
+
+# Documented non-failure: ids are never renumbered, but they may be closed out.
+python3 - "$TMP/consult-ok.html" "$TMP/regen-dropped.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+t = re.sub(r'<section class="consult-item" data-id="c2".*?</section>', "", t, flags=re.S)
+open(sys.argv[2], "w").write(t)
+PY
+bash "$CHECK" "$TMP/regen-dropped.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
+  && ok "a removed item is not a renumbering" || bad "--prev failed on a legitimately closed item"
+
+bash "$CHECK" "$TMP/consult-ok.html" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1
+[[ $? -eq 2 ]] && ok "--prev with several files is a usage error, not a guess" \
+               || bad "--prev accepted an ambiguous comparison"
+
+# --- BL-168: --out couples the regeneration checks to the write ---------------
+# The prior version exists only until the write, so the snapshot has to happen there.
+PROJ="$TMP/proj"; mkdir -p "$PROJ/.context/reports"
+bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" < "$TMP/consult-body.html" >/dev/null 2>&1
+err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/consult-body.html" \
+       | bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -ne 0 ]] && ok "regenerating with a shifted id fails the write" \
+                || bad "--out accepted a regeneration that renumbered a claim"
+[[ "$err" == *"typed"* ]] && ok "overwriting a consultation page warns about typed answers" \
+                          || bad "no warning that a regeneration discards answers: $err"
+
+# --- BL-168: the style profile is a FIELD the wrapper reads (D2) --------------
+echo "== style profile =="
+LANGP="$TMP/langproj"; mkdir -p "$LANGP/.context/reports"
+GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><h1>x</h1>'
+
+# The one-time offer: it fires when the project has no profile, and records itself
+# so it cannot become the 14-offers-across-7-projects nag the usage-retro measured.
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/a.html" 2>&1 >/dev/null)"
+[[ "$err" == *"artifact-style.md"* ]] && ok "a first artifact offers the style profile" \
+                                      || bad "the one-time style-profile offer never fired: $err"
+[[ -f "$LANGP/.context/.aidex-artifact-style-offered" ]] \
+  && ok "the offer records itself" || bad "the offer left no record, so it will repeat"
+[[ ! -f "$LANGP/.context/artifact-style.md" ]] \
+  && ok "the profile itself is never auto-created (e87bbd3)" \
+  || bad "the offer created the profile unasked"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/b.html" 2>&1 >/dev/null)"
+[[ "$err" != *"artifact-style.md"* ]] && ok "the offer does not repeat on the next artifact" \
+                                      || bad "the offer nagged a second time: $err"
+
+grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact-style.md.template" \
+  && ok "the style template carries a parseable language: field" \
+  || bad "artifact-style.md.template has no language: field"
+
+grep -o '<html lang="[a-z]*"' "$LANGP/.context/reports/a.html" | grep -q 'lang="en"' \
+  && ok "no profile falls back to en (D-04)" || bad "wrong default language"
+
+printf '## Language\n\n- language: es\n' > "$LANGP/.context/artifact-style.md"
+printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/c.html" >/dev/null 2>&1
+grep -q '<html lang="es"' "$LANGP/.context/reports/c.html" \
+  && ok "the profile's language: is applied without --lang" \
+  || bad "the language: field is not load-bearing"
+
+printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang fr --out "$LANGP/.context/reports/d.html" >/dev/null 2>&1
+grep -q '<html lang="fr"' "$LANGP/.context/reports/d.html" \
+  && ok "an explicit --lang wins over the profile" || bad "--lang was overridden by the profile"
+
+# The upward walk stops at $HOME, like _lib.sh's find_project_root. Without the
+# boundary a stray ~/.context/ captures every uninitialised project (field-observed
+# 2026-07-25): the artifact would take a neighbour's language and drop this
+# project's one-time offer marker in the home directory.
+FAKEHOME="$TMP/home"; mkdir -p "$FAKEHOME/.context" "$FAKEHOME/proj"
+printf '## Language\n\n- language: de\n' > "$FAKEHOME/.context/artifact-style.md"
+printf '%s\n' "$GOODB" | HOME="$FAKEHOME" bash "$WRAP" --title "T" \
+  --out "$FAKEHOME/proj/r.html" >/dev/null 2>&1
+grep -q '<html lang="en"' "$FAKEHOME/proj/r.html" \
+  && ok "the profile walk stops at \$HOME" \
+  || bad "a stray ~/.context/ captured an uninitialised project's language"
+[[ ! -f "$FAKEHOME/.context/.aidex-artifact-style-offered" ]] \
+  && ok "no offer marker is dropped in \$HOME" || bad "the offer marker landed in \$HOME"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
