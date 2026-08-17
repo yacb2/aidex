@@ -185,5 +185,44 @@ print(len(labs))' "$OUT/full.jsonl")"
 [[ "$n_labels" -ge 3 ]] \
   || fail "(i) expected >=3 distinct labels across the fixture, got $n_labels"
 
+# Case (j) asks about the LEXICON, so it calls the detector on a literal string
+# rather than fishing a fixture session out of the pipeline output. Both matter:
+# the fixture cases above prove the pipeline carries labels end to end, this one
+# proves a specific phrasing is recognised at all.
+detect_direct() {  # detect_direct <text>
+  python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import mine_preferences as MP
+print(",".join(sorted(MP.detect(sys.argv[2]))))' "$RETRO" "$1"
+}
+
+# ---------------------------------------------------------------------------
+# (j) THE VOCABULARY THE 2026-08-17 RECALL STUDY PAID FOR. Measured recall was
+#     13.8%, and 13 of the 17 false negatives carried no SHAPE match at all: the
+#     lexicon was the binding constraint, not the conjunction. These four
+#     phrasings are the ones the study proved were being lost, and each is
+#     pinned so a future tightening cannot silently drop them again.
+#
+#     `spa` matters more than it looks: it is this user's own abbreviation for
+#     Spanish, it appears in the corpus, and nothing matched it.
+# ---------------------------------------------------------------------------
+[[ "$(detect_direct 'presentame el plan en un artefacto en spa con visuales')" == *"lang:artifact"* ]] \
+  || fail "(j) 'en spa' must label lang:artifact: '$(detect_direct 'presentame el plan en un artefacto en spa con visuales')'"
+[[ "$(detect_direct 'presentame el plan en un artefacto en spa con visuales')" == *"viz:mockup"* ]] \
+  || fail "(j) a bare 'visuales' must label viz:mockup"
+[[ "$(detect_direct 'prepara el correo, no utilices tablas porque se rompen al copiar y pegar')" == *"fmt:copyable"* ]] \
+  || fail "(j) a paste-into-Outlook request must label fmt:copyable: '$(detect_direct 'prepara el correo, no utilices tablas porque se rompen al copiar y pegar')'"
+[[ "$(detect_direct 'presentame el informe y no me muestres un millon de caracteres de texto')" == *"fmt:length"* ]] \
+  || fail "(j) a length preference must label fmt:length: '$(detect_direct 'presentame el informe y no me muestres un millon de caracteres de texto')'"
+
+# And the widening must not have dissolved the DELIVERABLE clause: a UI
+# discussion carrying BOTH a directive and the new shape words is still not a
+# preference about a deliverable. The directive is deliberate — without one the
+# case passes for the wrong reason and guards nothing, which is what a first
+# draft of this line did.
+[[ -z "$(detect_direct 'haz que el boton de la pista sea mas visual y permita copiar y pegar el segmento')" ]] \
+  || fail "(j) product-UI talk must stay unlabelled: '$(detect_direct 'haz que el boton de la pista sea mas visual y permita copiar y pegar el segmento')'"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — mine_preferences: conjunction fires, DELIVERABLE and DIRECTIVE clauses each pinned by a false positive, head_tail boundary, D5 tail recovery both directions, provenance gate non-vacuous, root honoured, labels distinguish the ask"

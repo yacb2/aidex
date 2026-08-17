@@ -114,6 +114,8 @@ DIRECTIVE = re.compile(
     r"usa|utiliza|"
     r"quiero que|necesito que|prefiero que|me gustar[ií]a que|"
     r"recuerda|no olvides|siempre que|cada vez que|"
+    r"ordena|ap[óo]yate|prepara|prep[aá]rame|preparame|"
+    r"no utilices|no me muestres|deben quedarse|deben ir|deben estar|"
     r"give me|show me|add|include|use|i want you to|i need you to|make sure"
     r")\b", re.I)
 
@@ -143,16 +145,28 @@ SHAPE = {
     "viz:mockup": re.compile(
         r"\b(mock-?ups?|wireframes?|maquetas?|"
         r"diagramas?|diagram|esquema visual|"
-        r"gr[áa]fic[oa]s?|charts?|ascii[- ]art|bocetos?)\b", re.I),
+        r"gr[áa]fic[oa]s?|charts?|ascii[- ]art|bocetos?|visuales?)\b", re.I),
     "viz:comprehension": re.compile(
         r"\b(para (que )?(lo )?(entienda|comprenda|se entienda|quede claro)|"
         r"(m[áa]s )?f[áa]cil de entender|esclarecer|"
         r"visualmente|de (forma|manera) visual|ayudas? visuales?|"
-        r"para (mejor|mayor) comprensi[óo]n|m[áa]s comprensible)\b", re.I),
+        r"para (mejor|mayor) comprensi[óo]n|m[áa]s comprensible|"
+        r"m[áa]s visual|entender(lo)? mejor)\b", re.I),
     "lang:artifact": re.compile(
         r"\b(en espa[ñn]ol|en castellano|en ingl[ée]s|in spanish|in english|"
         r"el idioma del? (documento|artefacto|informe|reporte)|"
-        r"(documentos?|artefactos?|informes?|reportes?|artifacts?) en espa[ñn]ol)\b", re.I),
+        r"(documentos?|artefactos?|informes?|reportes?|artifacts?) en espa[ñn]ol|"
+        r"en spa\b|idioma (espa[ñn]ol|ingl[ée]s))\b", re.I),
+    # Derived from the half-A false negatives of the 2026-08-17 recall study:
+    # the reader keeps asking for something he can paste into Outlook, and for
+    # less text. Neither had a word in the lexicon, so neither was ever counted.
+    "fmt:copyable": re.compile(
+        r"\b(no utilices tablas?|sin tablas?|se rompen al (copiar|pegar)|"
+        r"copiarlo?s? y pegar|copiar y pegar|para (poder )?copiar(lo)? y pegar|"
+        r"formato correcto|sigu(es|as|iendo) la estructura)\b", re.I),
+    "fmt:length": re.compile(
+        r"\b(un mill[óo]n de caracteres|sin exagerar en texto|"
+        r"de manera resumida|no tan (enorme|largo)|m[áa]s corto)\b", re.I),
 }
 
 # 3. ...of a DELIVERABLE. Without this clause the detector reads every UI
@@ -161,6 +175,7 @@ DELIVERABLE = re.compile(
     r"\b(artifacts?|artefactos?|informes?|reportes?|documentos?|"
     r"mock-?ups?|maquetas?|res[uú]menes|resumen|an[áa]lisis|"
     r"backlogs?|planes?|plan|adr|decisiones|"
+    r"correos?|e-?mails?|docs?|comunicaci[oó]n|"
     r"me lo (presentes?|muestres?|escribas?)|pres[eé]ntame|presentame|"
     r"me (escribas|generes|presentes|muestres))\b", re.I)
 
