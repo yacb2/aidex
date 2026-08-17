@@ -85,8 +85,18 @@ check "ad-hoc dir surfaced"       'grep -q "## Unrecognized run folders" "$IDX" 
 check "asset dir skipped"         '! grep -q "_shots" "$IDX"'
 
 echo "== close-audit regenerates =="
-bash "$CLOSE" 20260601-foo --force >/dev/null 2>&1
+close_out="$(bash "$CLOSE" 20260601-foo --force 2>&1)"
 check "run archived"              '[[ -d .context/audits/_archive/20260601-foo ]]'
+# The reported destination must be the one that exists. It used to be assembled as
+# `$(dirname "$DEST")/_archive/`, where dirname is ALREADY <parent>/_archive, so the
+# success line named a doubled path nobody could open.
+# Scoped to the "Archived audit run" LINE. close-audit.sh also prints $DEST on its
+# own line, so a grep over the whole output is satisfied by that one and passes even
+# when the message is wrong — verified by mutation. An assertion about a message has
+# to read that message.
+check "the archived-run message names a path that exists" \
+  'line="$(grep "Archived audit run" <<<"$close_out")"; dest="$(grep -oE "/[^ ]*20260601-foo" <<<"$line" | head -1)"; [[ -n "$dest" && -d "$dest" ]]'
+check "no doubled _archive in the message" '[[ "$close_out" != *"_archive/_archive"* ]]'
 check "now under Archived runs"   'sed -n "/## Archived runs/,\$p" "$IDX" | grep -q "Foo audit"'
 check "gone from Active"          '! sed -n "/## Active runs/,/^---/p" "$IDX" | grep -q "(20260601-foo/index.md)"'
 check "counts survive archive"    'grep -q "1 open / 2 findings" "$IDX"'
