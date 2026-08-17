@@ -55,6 +55,38 @@ if [[ -f "$TMO" ]]; then
   perl "$TMO" 30 /no/such/binary >/dev/null 2>&1
   [[ $? -ne 0 ]] && ok "a missing command is a failure, not a silent pass" \
                  || bad "an unrunnable command exited 0"
+
+  # --- the cap must reach the GRANDCHILDREN too -------------------------------
+  # The assertions above all use `sleep 30`: a direct child with no descendants,
+  # which cannot tell a process-group kill from a single-process kill. So the
+  # group kill was dead code for as long as it existed — the child was never made
+  # a group leader, `kill 'KILL', -$pid` failed with ESRCH every time, and only
+  # the fallback branch ever ran.
+  #
+  # It matters because the real caller is `perl tmo.pl 600 claude -p ...`, and
+  # `claude` spawns MCP servers and tool subprocesses. Returning 124 while those
+  # keep running is the leak, not the cap.
+  MARK="$(mktemp -d)"
+  cat > "$MARK/wrapper.sh" <<'EOS'
+#!/usr/bin/env bash
+# A shell wrapper that forks and waits — the shape of every real caller.
+sh -c 'sleep 45; echo leaked > "$1"/leaked' _ "$1" &
+echo "$!" > "$1/worker.pid"
+wait
+EOS
+  chmod +x "$MARK/wrapper.sh"
+  perl "$TMO" 2 "$MARK/wrapper.sh" "$MARK" >/dev/null 2>&1
+  rc=$?
+  worker="$(cat "$MARK/worker.pid" 2>/dev/null || echo 0)"
+  [[ $rc -eq 124 ]] && ok "a forking wrapper is still capped at 124" \
+                    || bad "the wrapper exited $rc, not 124"
+  if [[ "$worker" -gt 0 ]] && kill -0 "$worker" 2>/dev/null; then
+    bad "the grandchild survived the cap (pid $worker still alive) — the group kill is dead code"
+    kill -9 "$worker" 2>/dev/null
+  else
+    ok "the grandchild is killed with it, not orphaned to PID 1"
+  fi
+  rm -rf "$MARK"
 fi
 
 # --- and no branch of the eval may run unbounded ------------------------------
@@ -62,16 +94,76 @@ fi
 if [[ ! -f "$EVAL_SH" ]]; then
   bad "eval-local-first-behavior.sh not found"
 else
-  if grep -qE '^\s*else\s+TO=""' "$EVAL_SH"; then
-    bad "the eval still falls back to running UNBOUNDED when no timeout binary exists"
-  else
-    ok "no unbounded fallback branch remains"
-  fi
-  if grep -q "tmo.pl" "$EVAL_SH"; then
-    ok "the eval uses the portable helper as its floor"
-  else
-    bad "the eval does not reference the portable helper — its cap is still binary-dependent"
-  fi
+  # Read the ASSIGNMENTS, not one physical-line spelling.
+  #
+  # These were `grep -qE '^\s*else\s+TO=""'` and `grep -q "tmo.pl"`, and both were
+  # satisfiable while the guard they name was gone. The first requires `else` and
+  # `TO=""` on the SAME line — bash does not, so the identical two-line form was
+  # invisible, as were `TO=`, `TO=''` and `TO="${AIDEX_NO_TIMEOUT:+}"`. Merely
+  # reformatting the eval's `if/elif/else` blinded it, without anyone touching the
+  # timeout logic. The second was a substring search over the whole file, so
+  # `else TO="" # was: perl .../tmo.pl 600` kept it green.
+  #
+  # This is the file's own stated failure mode — "a guard whose absent branch is
+  # indistinguishable from a guard that passed" — reproduced inside the guard.
+  #
+  # An assignment is judged by its VALUE: every branch must set a non-empty
+  # runner, and the portable helper must appear in one of those values rather than
+  # anywhere in the file.
+  #
+  # The comment stripper is quote-aware and hand-rolled because shlex is not
+  # enough on its own: it splits inside `$( )`, so the real assignment
+  # `TO="perl $(cd ...)/lib/tmo.pl 600"` truncates to `TO=perl $(cd $(dirname`
+  # and the helper disappears from the value. Getting that wrong is how this check
+  # would have gone green while measuring nothing — twice.
+  verdict="$(python3 - "$EVAL_SH" <<'PY'
+import shlex
+import sys
+
+
+def code_of(line):
+    """The line with any trailing shell comment removed, quotes respected."""
+    quote = None
+    for i, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in ("\"", "'"):
+            quote = ch
+        elif ch == "#" and (i == 0 or line[i - 1] in " \t"):
+            return line[:i]
+    return line
+
+
+empty, helper = [], False
+for n, raw in enumerate(open(sys.argv[1], encoding="utf-8"), 1):
+    if raw.lstrip().startswith("#"):
+        continue
+    code = code_of(raw)
+    if "TO=" not in code:
+        continue
+    if "tmo.pl" in code:
+        helper = True
+    try:
+        toks = shlex.split(code)
+    except ValueError:
+        continue          # quotes spanning lines: not a single-line assignment
+    for t in toks:
+        if t.startswith("TO=") and not t[3:].strip():
+            empty.append(f"line {n}")
+print("EMPTY " + ";".join(empty) if empty else
+      ("OK" if helper else "NOHELPER"))
+PY
+)"
+  case "$verdict" in
+    OK*)       ok "every timeout branch assigns a non-empty runner ($verdict)" ;;
+    EMPTY*)    bad "the eval still has a branch that runs UNBOUNDED: $verdict" ;;
+    NOHELPER*) bad "no timeout branch uses the portable helper — the cap is still binary-dependent" ;;
+    *)         bad "the assignment scan did not run: $verdict" ;;
+  esac
+  case "$verdict" in
+    OK*) ok "and the portable helper is one of those runners, not just a mention" ;;
+  esac
 fi
 
 echo
