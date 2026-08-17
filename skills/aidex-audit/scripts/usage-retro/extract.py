@@ -53,18 +53,23 @@ EXCLUDE_PROJECT = re.compile(
     r"(/private/tmp|/tmp/|-claude-tmp|aidex-ml-ab|-cwd-[AB]\b|Claude-Projects-tests"
     r"|^-+$|^-Users-yoelacevedo--?claude$|^-Users-yoelacevedo-\.claude$)"
 )
-# prompt text that is harness/synthetic, not a real ask
-NOISE = [
-    re.compile(r"^Review (this change|the following code) for security vulnerabilities", re.I),
-    re.compile(r"Trigger-eval probe", re.I),
-    re.compile(r"AIDEX_TRIGGER_EVAL_MARKER"),
-    re.compile(r"^Base directory for this skill"),
-    re.compile(r"Stop hook feedback", re.I),
-    re.compile(r"^This session is being continued from a previous", re.I),
-]
-SYS_PREFIXES = ("<task-notification", "<local-command", "<bash-", "<system-reminder",
-                "[Request interrupted")
-
+# There is no local NOISE list, and that is deliberate.
+#
+# One lived here, applied at the point marked below — AFTER the prompt_kinds gate.
+# prompt_kinds.classify returns early on `origin=="human"` or
+# `promptSource=="typed"` before it ever reaches INJECTED_PREFIXES, so the only
+# records that could still reach a local filter were ones the shipped classifier
+# had already vouched for as typed by a human. Five of its six patterns were
+# therefore unreachable (replayed over 6,885 human-classified prompts they fired
+# 0/0/3/0/0/0), and the reported "pre-filtered noise prompts" count was a
+# near-constant zero implying a filter that was not doing the work it named.
+#
+# The sixth was worse than dead. It matched with `.search` where prompt_kinds
+# matches with `startswith`, so all 3 of its hits were GENUINE typed prompts that
+# merely DISCUSSED the trigger-eval marker — including a user asking to have it
+# explained. A text match on human prompts cannot tell a synthetic probe from a
+# question about one; that distinction is a property of the SESSION, so it belongs
+# in EXCLUDE_PROJECT above, at the project level, where it is already handled.
 def parse_ts(s):
     """An AWARE datetime, or None. A naive input is read as UTC.
 
@@ -93,26 +98,6 @@ def text_of(o):
         return "\n".join(x.get("text", "") for x in c
                          if isinstance(x, dict) and x.get("type") == "text")
     return ""
-
-def classify_user(o):
-    if o.get("type") != "user": return ("skip", "")
-    c = o.get("message", {}).get("content")
-    if isinstance(c, list):
-        if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in c):
-            return ("skip", "")
-        c = "\n".join(x.get("text", "") for x in c
-                      if isinstance(x, dict) and x.get("type") == "text")
-    if not isinstance(c, str): return ("skip", "")
-    s = c.strip()
-    if not s: return ("skip", "")
-    if s.startswith("<command-name>"):
-        inner = s.split("<command-name>", 1)[1].split("</command-name>", 1)[0].strip()
-        return ("slash", inner)
-    if s.startswith(SYS_PREFIXES) or s.startswith("<command-message>") or s.startswith("Caveat:"):
-        return ("skip", "")
-    if any(rx.search(s) for rx in NOISE):
-        return ("noise", "")
-    return ("real", s)
 
 def skills_in_assistant(o):
     out = []
@@ -172,7 +157,7 @@ def main():
     now = datetime.datetime.now(datetime.timezone.utc)
     cutoff = resolve_cutoff(args)
     records, max_ts = [], cutoff
-    skipped_noise = skipped_machine = skipped_unparseable = 0
+    skipped_machine = skipped_unparseable = 0
 
     for d in glob.glob(root + "/*/"):
         name = os.path.basename(d.rstrip("/"))
@@ -229,8 +214,9 @@ def main():
                 if kind in prompt_kinds.MACHINE_KINDS:
                     skipped_machine += 1; continue
                 if kind not in prompt_kinds.HUMAN_KINDS: continue
-                if any(rx.search(txt) for rx in NOISE):
-                    skipped_noise += 1; continue
+                # No local noise filter here: see the note where NOISE used to be
+                # defined. Anything reaching this line has already passed
+                # prompt_kinds, which is the one classifier that decides this.
                 ts = parse_ts(o.get("timestamp", ""))
                 if not ts or ts < cutoff: continue
                 fired = []
@@ -306,7 +292,6 @@ def main():
 
     from collections import Counter
     print(f"records: {len(records)}  (window from {cutoff.isoformat()[:19]})")
-    print(f"  pre-filtered noise prompts: {skipped_noise}")
     print(f"  unparseable lines skipped: {skipped_unparseable} "
           f"(the line only, never the session)")
     print(f"  machine-authored prompts excluded: {skipped_machine} "
