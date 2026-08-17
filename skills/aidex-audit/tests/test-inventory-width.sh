@@ -108,6 +108,57 @@ done
 cd "$TMP" || exit 1
 
 # ---------------------------------------------------------------------------
+# A pipe inside a Summary cell. Markdown escapes it as `\|`; the parser split on
+# the raw character, so the escape shifted every column right by one,
+# looks_like_status read the wrong field, and the row was skipped SILENTLY. The
+# validator then reported the row's own id as an orphan reference — accusing the
+# findings file of citing something the board does in fact carry.
+#
+# Found while landing the 2026-08-17 code-review run, whose CR-20 summary quotes
+# `grep -qE "duplicate|replayed"`. Escaping did not help, so the character was
+# removed from the cell as a workaround; this is the fix.
+#
+# Both halves are asserted, because they fail differently:
+#   escaped   -> must parse, exactly like any other row
+#   unescaped -> is malformed markdown and cannot parse, but must be REPORTED
+#                rather than dropped. A skipped row that nothing mentions is the
+#                same lie-by-omission one level up.
+# ---------------------------------------------------------------------------
+echo "== pipe in a Summary cell =="
+pipeboard() {  # pipeboard <dir> <summary-cell>
+  local d="$1" summary="$2"
+  mkdir -p "$d/.context/audits/ux/2026-06-01-run"
+  { printf '# UX Audit Inventory\n\n'
+    printf '| ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |\n'
+    printf '|---|---|---|---|---|---|---|---|---|\n'
+    printf '| UX-01-9 | bug | tests | %s | open | P3 | 2026-06-01-run | — | — |\n' "$summary"
+  } > "$d/.context/audits/ux/00-inventory.md"
+  printf -- '---\ntitle: "run"\nstatus: open\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n# Run\n' \
+    > "$d/.context/audits/ux/2026-06-01-run/index.md"
+  printf -- '---\ntitle: "findings"\nstatus: open\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n# Findings\n\nUX-01-9\n' \
+    > "$d/.context/audits/ux/2026-06-01-run/findings.md"
+}
+
+D="$TMP/pipe-esc"; pipeboard "$D" 'the assertion greps "duplicate\|replayed"'
+cd "$D" || exit 1
+OUT="$(bash "$SCRIPTS/validate-audit.sh" 2>&1)"
+check "an escaped pipe in Summary still parses (no orphan accusation)" \
+      '[[ "$OUT" != *"audit-orphan-finding-ref"* ]]'
+check "the escaped-pipe row is counted, not skipped" \
+      '[[ "$OUT" != *"audit-legacy-schema"* ]]'
+cd "$TMP" || exit 1
+
+D="$TMP/pipe-raw"; pipeboard "$D" 'the assertion greps "duplicate|replayed"'
+cd "$D" || exit 1
+OUT_RAW="$(bash "$SCRIPTS/validate-audit.sh" 2>&1)"
+# Assert the RULE, not the id: the orphan violation quotes UX-01-9 in its own
+# message, so a substring check on the id passes on the unfixed parser — the
+# vacuous-assertion shape this run is closing elsewhere.
+check "an unescaped pipe is reported as an unparseable row, never dropped" \
+      '[[ "$OUT_RAW" == *"audit-inventory-row-unparseable"* ]]'
+cd "$TMP" || exit 1
+
+# ---------------------------------------------------------------------------
 # The playbooks ship a SECOND copy of the row contract, into the same directory.
 #
 # new-audit.sh seeds 00-inventory.md and 00-methodology.md side by side, and six

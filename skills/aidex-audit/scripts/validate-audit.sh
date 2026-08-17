@@ -60,6 +60,10 @@ inventory_ids=""   # newline-separated "<id>" across all methodologies
 # Whitespace trim without xargs (xargs dies on unbalanced quotes in cell text —
 # same field bug class as the backlog --list apostrophe crash).
 trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
+# Restore the `\|` escapes that validate_inventory() swaps out before splitting a
+# row on the raw pipe. Reports quote cell contents verbatim, so this runs on
+# every cell that is read, not only on the one that carried the escape.
+unescape_pipes() { printf '%s' "${1//$'\x1f'/\\|}"; }
 
 # A finding is <rule> US <path> US <message>. US (0x1f) and not "|", because
 # messages legitimately contain pipes — the legacy-schema warning prints a whole
@@ -141,8 +145,8 @@ looks_like_status() {
 # Parse one inventory file; appends findings/violations/warnings. $1=path $2=scope label.
 validate_inventory() {
   local inv="$1" scope="$2"
-  local legacy_here=0 parsed_here=0 pipe_rows=0 oversize_notes=0
-  local line pipe_count c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest notes nb
+  local legacy_here=0 parsed_here=0 pipe_rows=0 oversize_notes=0 unparsed_ids=""
+  local line row pipe_count c_id c_type c_module c_summary c_status c_severity c_first c_last c_runs c_escalated rest notes nb
   local id status escalated mapped
 
   # Soft budget: board file > 30 KB (warn only, never a violation).
@@ -156,7 +160,15 @@ validate_inventory() {
     [[ "$line" =~ ^\|[[:space:]]*ID[[:space:]]*\| ]] && continue
     [[ "$line" =~ ^\|[[:space:]]*-+ ]] && continue
     [[ "$line" =~ ^\|[[:space:]]*— ]] && continue
-    pipe_count="$(printf '%s' "$line" | tr -cd '|' | wc -c | tr -d ' ')"
+    # Markdown escapes a literal pipe inside a cell as `\|`, and a Summary that
+    # quotes one is ordinary (an alternation in a grep pattern, a shell pipeline).
+    # Splitting on the raw character shifted every column right by one, so
+    # looks_like_status read the wrong field and the row was skipped in silence —
+    # after which the run's own findings.md reference to that id was reported as
+    # an orphan. Swap the escapes out before counting and splitting, then restore
+    # them per cell (US, \x1f, cannot occur in a markdown table row).
+    row="${line//\\|/$'\x1f'}"
+    pipe_count="$(printf '%s' "$row" | tr -cd '|' | wc -c | tr -d ' ')"
     [[ "$pipe_count" -ge 5 ]] || continue
     # Two widths are canonical-enough to parse. 9 columns is current; 11 is the
     # pre-2026-08-06 schema that also carried First Seen / Last Updated, dropped
@@ -165,17 +177,26 @@ validate_inventory() {
     # the new width would report every unmigrated project as unparseable.
     # 9 cols -> 10 pipes, 11 cols -> 12 pipes.
     if [[ "$pipe_count" -ge 12 ]]; then
-      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity _c_first _c_last c_runs c_escalated rest <<< "$line"
+      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity _c_first _c_last c_runs c_escalated rest <<< "$row"
     else
-      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity c_runs c_escalated rest <<< "$line"
+      IFS='|' read -r _ c_id c_type c_module c_summary c_status c_severity c_runs c_escalated rest <<< "$row"
     fi
-    id="$(trim "${c_id:-}")"
-    status="$(trim "${c_status:-}")"
-    escalated="$(trim "${c_escalated:-}")"
-    notes="$(trim "${rest%%|*}")"
+    id="$(trim "$(unescape_pipes "${c_id:-}")")"
+    status="$(trim "$(unescape_pipes "${c_status:-}")")"
+    escalated="$(trim "$(unescape_pipes "${c_escalated:-}")")"
+    notes="$(trim "$(unescape_pipes "${rest%%|*}")")"
     [[ -z "$id" || "$id" == "—" ]] && continue
     [[ "$id" =~ [A-Za-z] ]] || continue
-    [[ "$id" =~ ^[A-Z]+[-A-Z0-9]*-[0-9]+$ ]] && pipe_rows=$((pipe_rows+1))
+    if [[ "$id" =~ ^[A-Z]+[-A-Z0-9]*-[0-9]+$ ]]; then
+      pipe_rows=$((pipe_rows+1))
+      # An id-shaped row that does not parse is the case that used to vanish. It
+      # is still not parsed — the row is malformed markdown and guessing which
+      # cell moved would be worse — but it is now NAMED, so the board's own
+      # orphan check cannot accuse a reference to a row it dropped.
+      if ! looks_like_status "$status"; then
+        unparsed_ids="$unparsed_ids $id"
+      fi
+    fi
     looks_like_status "$status" || continue
     # A canonical row has every column present: 9 cols = 10 pipes, 11 cols = 12.
     [[ "$pipe_count" -ge 10 ]] || continue
@@ -232,6 +253,9 @@ validate_inventory() {
   fi
   if [[ $oversize_notes -gt 0 ]]; then
     add_warning audit-notes-oversize "$inv" "$scope inventory has $oversize_notes Notes cell(s) over 300 B — move the resolution narrative to the run findings.md or .context/proofs/ (canon: Notes is a one-line state note)"
+  fi
+  if [[ -n "$unparsed_ids" ]]; then
+    add_warning audit-inventory-row-unparseable "$inv" "$scope inventory has row(s) whose columns do not line up and were not read:${unparsed_ids} — a literal pipe inside a cell must be escaped as \\| , otherwise it shifts every column right and the row is dropped (and its id then reads as an orphan reference)"
   fi
   if [[ $pipe_rows -gt 0 && $parsed_here -eq 0 ]]; then
     add_warning audit-legacy-schema "$inv" "$scope inventory uses a legacy schema ($pipe_rows pipe-rows, 0 parse as canonical). Expected: | ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes | (the 11-column form with First Seen / Last Updated is also accepted). Run /aidex-audit migrate."
