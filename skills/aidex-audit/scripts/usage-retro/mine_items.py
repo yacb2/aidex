@@ -220,6 +220,7 @@ def main():
     print(f"registry: {len(items)} tracked items across {len(by_proj)} projects")
 
     spans = []
+    n_unparseable = 0
     for proj, its in sorted(by_proj.items()):
         # slug -> item ; id -> item (ids are project-scoped)
         slug_map = {it["slug"]: it for it in its}
@@ -241,10 +242,22 @@ def main():
                 continue
             if not hits_in(raw):
                 continue
-            try:
-                objs = [json.loads(l) for l in raw.splitlines() if l.strip()]
-            except Exception:
-                continue
+            # Per line. This was a list comprehension inside
+            # `except Exception: continue`, so one malformed line discarded the
+            # whole session — including the sessions that just PASSED the
+            # `hits_in(raw)` token pre-filter, i.e. exactly the ones known to
+            # mention a tracked item. Every sibling reader in this package skips
+            # only the bad record; this one disagreed with all of them, and the
+            # effect was an item's mention and span counts silently omitting whole
+            # sessions with no diagnostic output.
+            objs = []
+            for l in raw.splitlines():
+                if not l.strip():
+                    continue
+                try:
+                    objs.append(json.loads(l))
+                except ValueError:
+                    n_unparseable += 1
 
             # per-item accumulators for this session
             acc = defaultdict(lambda: {
@@ -353,6 +366,9 @@ def main():
     print(f"\nwrote {len(items)} items, {len(spans)} spans "
           f"({working} working, {len(spans) - working} below the strict-span rule) "
           f"-> {args.out}")
+    if n_unparseable:
+        print(f"skipped {n_unparseable} unparseable line(s) — the line only, never "
+              f"the session")
     if MACHINE_PROMPTS:
         excluded = ", ".join(f"{n} {k}" for k, n in MACHINE_PROMPTS.most_common())
         print(f"excluded from attribution: {excluded} "
