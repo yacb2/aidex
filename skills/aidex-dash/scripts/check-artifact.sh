@@ -16,8 +16,9 @@
 #   themes       prefers-color-scheme — readable in dark mode
 #   self         no external stylesheet/script/font/image: one file, no network
 #   siblings     no .css/.js dropped next to it — the artifact IS the file
-#   consult      a page the reader must ANSWER carries the §8 shape (only fires
-#                when the page has a <textarea>)
+#   consult      a page the reader must ANSWER carries the §8 shape (fires when
+#                the page offers a reply surface: <textarea>, contenteditable,
+#                boxes appended by script, or an id="consult-copy" composer)
 #   consult-ids  with --prev: an id kept between two regenerations still names
 #                the same claim
 
@@ -63,17 +64,26 @@ for f in "$@"; do
   grep -q 'prefers-color-scheme' <<<"$body" \
     || report themes "$name" "no prefers-color-scheme — unreadable for a dark-mode reader"
 
-  grep -qiE '<link[^>]+rel=["'"'"']?stylesheet' <<<"$body" \
+  # EVERY self check runs against the flattened body. grep is line-based and
+  # `[^>]+` cannot cross a newline, so a `<script>` or `<link>` wrapped past the
+  # print width by any HTML formatter walked through the contract and the page was
+  # handed over fetching remote JS and CSS. The @font-face check already flattened
+  # (a block spans lines by nature); that fix reached one of the five.
+  #
+  # `tr '\n' ' '` rather than `tr -d '\n'`: deleting the newline joins `<script`
+  # to `src=` and the pattern stops matching for a second, quieter reason. The
+  # tag-internal patterns are all `[^>]`-bounded, so the extra spaces are inert.
+  flat="$(tr '\n' ' ' <<<"$body")"
+  grep -qiE '<link[^>]+rel=["'"'"']?stylesheet' <<<"$flat" \
     && report self "$name" "external stylesheet — the file must stand alone offline"
-  grep -qiE '<script[^>]+src=' <<<"$body" \
+  grep -qiE '<script[^>]+src=' <<<"$flat" \
     && report self "$name" "external script — the file must stand alone offline"
-  grep -qiE '@import[[:space:]]+(url\()?["'"'"']?https?:' <<<"$body" \
+  grep -qiE '@import[[:space:]]+(url\()?["'"'"']?https?:' <<<"$flat" \
     && report self "$name" "@import of a remote stylesheet"
-  grep -qiE '<img[^>]+src=["'"'"']?https?:' <<<"$body" \
+  grep -qiE '<img[^>]+src=["'"'"']?https?:' <<<"$flat" \
     && report self "$name" "remote image — breaks offline and leaks a request"
-  # A @font-face block can span lines, so flatten before matching it. Only a
-  # remote src counts: url(data:…) is inlined and honours the contract.
-  tr -d '\n' <<<"$body" | grep -qiE '@font-face[^}]*url\([[:space:]]*["'"'"']?(https?:)?//' \
+  # Only a remote src counts: url(data:…) is inlined and honours the contract.
+  grep -qiE '@font-face[^}]*url\([[:space:]]*["'"'"']?(https?:)?//' <<<"$flat" \
     && report self "$name" "remote @font-face src — the font never loads offline and leaks a request"
 
   dir="$(dirname "$f")"
@@ -82,14 +92,23 @@ for f in "$@"; do
     && report siblings "$name" "sibling assets next to it ($(basename "$(head -1 <<<"$assets")")…) — inline them"
 
   # --- § 8: the page is a CONSULTATION, not a read ---------------------------
-  # Detection is the <textarea>, not the template's own class name: a page that
+  # Detection is any REPLY SURFACE, not the template's own class name: a page that
   # never copied the template is precisely the case that has no `.consult-item`
   # to key on, and that is the violation observed in the field (BL-168 — a
   # hand-rolled consultation page with 9 reply boxes, 0 stable ids and no
   # doctype). A report meant to be read has no inputs, so this stays silent for
   # an ordinary route B page.
-  if grep -qi '<textarea' <<<"$body"; then
-    n_area="$(grep -oiE '<textarea' <<<"$body" | wc -l | tr -d ' ')"
+  #
+  # The gate was the literal string `<textarea`, which is the one element a
+  # hand-rolled page is free NOT to use: contenteditable divs and boxes appended
+  # by script both skipped all of §8 and printed `artifact contract OK`. Every
+  # alternative below is structural — a tag, an attribute, a DOM call, the
+  # composer's own id — so prose that merely NAMES a textarea is still a read.
+  if grep -qiE '<textarea|contenteditable=|createElement\([^)]*textarea|id="consult-copy"' <<<"$flat"; then
+    # Reply boxes, however they are spelled. Counted against data-id below, so a
+    # contenteditable page is told which ids it is missing instead of being told
+    # nothing at all.
+    n_area="$(grep -oiE '<textarea|contenteditable=' <<<"$body" | wc -l | tr -d ' ')"
     n_id="$(grep -oiE 'data-id=' <<<"$body" | wc -l | tr -d ' ')"
     n_title="$(grep -oiE 'data-title=' <<<"$body" | wc -l | tr -d ' ')"
 

@@ -299,6 +299,65 @@ err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/c
 [[ "$err" == *"typed"* ]] && ok "overwriting a consultation page warns about typed answers" \
                           || bad "no warning that a regeneration discards answers: $err"
 
+# --- The self and consult gates must survive real formatting ------------------
+# Both of these are the same shape: a grep that describes the page it expects
+# rather than the pages that exist. A tag split across lines, or a reply box that
+# is not a literal <textarea>, walked straight through.
+echo "== self and consult gates =="
+
+# (1) grep is line-based and `[^>]+` cannot cross a newline, so a remote
+#     stylesheet or script wrapped by any HTML formatter passed the self
+#     contract. The author knew tags span lines — the @font-face check flattens
+#     first — but that fix reached one of the five self checks.
+#
+#     `tr '\n' ' '`, not `tr -d`: deleting the newline joins `<script` to `src=`
+#     and the pattern stops matching for a second reason.
+mk extjs-wrapped.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+<script
+  src=\"https://cdn.example.com/tracker.js\"></script>"
+mk extcss-wrapped.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+<link
+  rel=\"stylesheet\"
+  href=\"https://cdn.example.com/theme.css\">"
+for case in "extjs-wrapped script" "extcss-wrapped stylesheet"; do
+  set -- $case
+  out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
+  [[ "$out" == *"[self]"* ]] \
+    && ok "a line-wrapped remote $2 is still caught ($1.html)" \
+    || bad "a line-wrapped remote $2 passed the self contract: $out"
+done
+
+# (2) The consultation gate keyed on the literal string `<textarea`, so a page
+#     whose reply boxes are contenteditable divs — or are created at runtime —
+#     skipped ALL of §8: no stable ids, no data-title, no duplicate check, no
+#     composer, no status line, no visual declaration. A hand-rolled page is
+#     exactly the one free to use a different element, and hand-rolled pages are
+#     what the gate was widened for in the first place (BL-168).
+mk consult-ce.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+<h1>Please answer each claim below</h1>
+<div contenteditable=\"true\" class=\"reply\"></div>
+<div contenteditable=\"true\" class=\"reply\"></div>"
+out="$(bash "$CHECK" "$TMP/consult-ce.html" 2>&1)"
+[[ "$out" == *"[consult]"* ]] \
+  && ok "contenteditable reply boxes are judged as a consultation" \
+  || bad "a contenteditable consultation skipped every SS8 requirement: $out"
+
+mk consult-runtime.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+<section class=\"consult-item\"></section>
+<script>document.querySelectorAll('.consult-item').forEach(function(s){s.appendChild(document.createElement('textarea'));});</script>"
+out="$(bash "$CHECK" "$TMP/consult-runtime.html" 2>&1)"
+[[ "$out" == *"[consult]"* ]] \
+  && ok "reply boxes created at runtime are judged as a consultation" \
+  || bad "a script-built consultation skipped every SS8 requirement: $out"
+
+# The control that keeps (2) honest: widening the gate must not start judging an
+# ordinary report. A page that merely NAMES textareas in its prose is a read.
+mk mentions-textarea.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+<h1>Report</h1><p>The consultation gate used to key on the textarea element.</p>"
+bash "$CHECK" "$TMP/mentions-textarea.html" >/dev/null 2>&1 \
+  && ok "prose naming a textarea is not a consultation" \
+  || bad "the widened gate fired on an ordinary report"
+
 # --- The --prev diff must FAIL CLOSED, and must survive real HTML -------------
 # Every assertion in this block is about the same thing: `moved="$(python3 …)"`
 # captured stdout and never the exit status, under `set -uo pipefail` with no
