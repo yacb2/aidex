@@ -17,14 +17,12 @@ case "${1:-}" in
   --check) CHECK=1 ;;
 esac
 
-find_project_root() {
-  local dir; dir="$(pwd -P)"
-  while [[ "$dir" != "/" ]]; do
-    [[ -d "$dir/.context" ]] && { printf '%s\n' "$dir"; return 0; }
-    dir="$(dirname "$dir")"
-  done
-  pwd -P
-}
+# Shared resolver. This file used to carry its own copy, three fixes behind:
+# no $HOME boundary, no project-marker fallback, and no linked-worktree hop --
+# so from inside a worktree it wrote into a directory that vanishes on teardown
+# while _lib.sh consumers wrote to the main tree. Pinned by
+# aidex-conventions/scripts/test-find-project-root.sh (no private copies).
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../aidex-conventions/scripts" && pwd -P)/_lib.sh"
 
 ROOT="$(find_project_root)"
 BACKLOG_DIR="$ROOT/.context/backlog"

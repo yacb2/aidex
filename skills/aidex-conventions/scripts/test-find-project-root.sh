@@ -112,6 +112,25 @@ else
   echo "skip: git not on PATH — case 8 not exercised"
 fi
 
+# --- case 9: there is exactly ONE definition of this function in the suite ------
+# Nineteen scripts carried a private copy. All of them were three fixes behind:
+# no $HOME boundary (2026-07-25), no project-marker fallback, no linked-worktree
+# hop. That was survivable while every copy was equally wrong; it stopped being
+# survivable the moment the shared one was fixed, because then two artifacts
+# written in the same session could land in different trees.
+#
+# So the invariant is not "the copies are in sync" — it is that there are none.
+SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+if [[ -d "$SKILLS_DIR" ]]; then
+  extra=""
+  while IFS= read -r hit; do
+    [[ "$hit" == */aidex-conventions/scripts/_lib.sh ]] && continue
+    extra="$extra $hit"
+  done < <(grep -rl 'find_project_root()[[:space:]]*{' "$SKILLS_DIR" 2>/dev/null || true)
+  [[ -z "${extra// /}" ]] \
+    || fail "find_project_root is defined outside _lib.sh:${extra} — source the shared library instead; a private copy silently drifts behind every fix"
+fi
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

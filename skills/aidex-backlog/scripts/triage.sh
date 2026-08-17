@@ -20,15 +20,13 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# The fallback here used to be a private find_project_root, three fixes behind the
+# shared one. A silent fallback to a worse resolver is the wrong failure: it wrote
+# into a worktree that vanishes on teardown and said nothing. If the library is
+# missing the install is broken, so say so and stop.
 . "$SCRIPT_DIR/../../aidex-conventions/scripts/_lib.sh" 2>/dev/null || {
-  find_project_root() {
-    local dir; dir="$(pwd -P)"
-    while [[ "$dir" != "/" ]]; do
-      [[ -d "$dir/.context" ]] && { printf '%s\n' "$dir"; return 0; }
-      dir="$(dirname "$dir")"
-    done
-    pwd -P
-  }
+  echo "ERROR: cannot source aidex-conventions/scripts/_lib.sh from $SCRIPT_DIR" >&2
+  exit 1
 }
 
 QUIET=0
