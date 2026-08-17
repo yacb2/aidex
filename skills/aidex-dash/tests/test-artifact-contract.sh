@@ -209,10 +209,23 @@ done
 # A consultation carries a visual by default, or says why not (BL-171 / USAGE-19).
 # The check is on the DECLARATION because no checker can judge whether a subject
 # has a shape — and an unenforceable sentence is what § 8 was written after.
+# The composer is a real one, minimal but genuine: the blank-count requirement
+# reads <script> content with comments stripped, so a fixture that "reported"
+# blanks by carrying the word in its HTML text was relying on the very tautology
+# this suite now rejects. It has to count them.
 mk noviz.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}
 :root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
 <section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><textarea></textarea></section>
-<button id=\"consult-copy\"></button><span id=\"consult-status\">blank</span>"
+<button id=\"consult-copy\"></button><span id=\"consult-status\"></span>
+<script>
+document.getElementById('consult-copy').addEventListener('click', function () {
+  var blank = [];
+  document.querySelectorAll('.consult-item').forEach(function (el) {
+    if (!el.querySelector('textarea').value.trim()) blank.push(el.dataset.id);
+  });
+  document.getElementById('consult-status').textContent = blank.length + ' still blank';
+});
+</script>"
 out="$(bash "$CHECK" "$TMP/noviz.html" 2>&1)"
 [[ "$out" == *"consult-visual"* ]] && ok "a consultation with neither a visual nor a reason is caught" \
                                   || bad "the missing-visual declaration was not caught: $out"
@@ -298,6 +311,76 @@ err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/c
                 || bad "--out accepted a regeneration that renumbered a claim"
 [[ "$err" == *"typed"* ]] && ok "overwriting a consultation page warns about typed answers" \
                           || bad "no warning that a regeneration discards answers: $err"
+
+# --- The blank-count requirement must measure the COMPOSER --------------------
+# It was `grep -qi 'blank'` over the whole file, which measures nothing about the
+# thing it names. Two failures, and the false NEGATIVE is the load-bearing one:
+# the check was a tautology on the suite's own documented happy path, because the
+# only surviving match on a page with the accounting torn out is a CSS comment
+# inside the style block that references/02 §8 tells authors to copy verbatim.
+echo "== blank count is about the composer =="
+
+# fn.html — the shipped page with its blank accounting removed entirely, and
+# NOTHING else touched. The CSS comment, both textarea placeholders ("leave blank
+# to skip it") and the JS comment that says the blank count is reported before the
+# paste are all left in place, because they are what the old check was matching.
+python3 - "$TMP/consult-ok.html" "$TMP/consult-noblank.html" <<'PY'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+subs = [
+    ("var answered = [], blank = [];", "var answered = [];"),
+    ("else blank.push(id);", "else { /* skipped */ }"),
+    ("return { markdown: answered.join('\\n\\n'), answered: answered.length, blank: blank };",
+     "return { markdown: answered.join('\\n\\n'), answered: answered.length };"),
+]
+for old, new in subs:
+    assert old in t, f"template drift: {old[:40]!r} not found"
+    t = t.replace(old, new, 1)
+# The status line, reduced to a count with no blank accounting.
+i = t.index("var msg = r.answered")
+j = t.index(";", t.index("r.blank.join(', ')"))
+t = t[:i] + "var msg = r.answered + ' item(s) copied'" + t[j:]
+assert "r.blank" not in t and "blank.push" not in t, "mutation left the accounting in"
+assert "still blank" not in t, "mutation left the status text in"
+assert "leave blank to skip it" in t, "control: the placeholders must survive"
+assert "blank-count status landed at 1.31:1" in t, "control: the CSS comment must survive"
+assert "The blank count is reported BEFORE the paste" in t, "control: the JS comment must survive"
+open(sys.argv[2], "w").write(t)
+PY
+out="$(bash "$CHECK" "$TMP/consult-noblank.html" 2>&1)"
+[[ "$out" == *"[consult]"* && "$out" == *"blank"* ]] \
+  && ok "a composer with the blank accounting torn out is caught" \
+  || bad "the blank-count check passed a page that does not count blanks: $out"
+
+# The discriminator that keeps the above from being a new tautology in a smaller
+# box: the surviving JS comment SAYS "blank count", inside the script. Scoping to
+# script content is not enough on its own — comments have to go too, or the check
+# has only moved the tautology.
+python3 - "$TMP/consult-noblank.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+js = "\n".join(m.group(1) for m in
+               re.finditer(r"<script\b[^>]*>(.*?)</script>", t, re.I | re.S))
+assert "blank" in js.lower(), "fixture drift: the JS comment no longer mentions blank"
+print("ok: the mutant still says 'blank' inside its script, so comments must be stripped")
+PY
+
+# The false positive, which is the reason the language field and §8 were unusable
+# together: a correct Spanish consultation reports "sin responder" in its status
+# text. House rules keep identifiers in English, so the composer still computes
+# `blank` — the check must read the code, not the copy.
+python3 - "$TMP/consult-ok.html" "$TMP/consult-es.html" <<'PY'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+t = t.replace("' still blank: '", "' sin responder: '")
+t = t.replace("' · none left blank'", "' · ninguno sin responder'")
+t = t.replace("leave blank to skip it", "dejalo vacio para omitirlo")
+t = t.replace("' item(s) copied'", "' elemento(s) copiado(s)'")
+open(sys.argv[2], "w").write(t)
+PY
+bash "$CHECK" "$TMP/consult-es.html" >/dev/null 2>&1 \
+  && ok "a Spanish consultation whose composer still counts blanks passes" \
+  || bad "a correct non-English consultation was rejected for not saying 'blank'"
 
 # --- The self and consult gates must survive real formatting ------------------
 # Both of these are the same shape: a grep that describes the page it expects
