@@ -277,6 +277,13 @@ def iter_html_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
     if not base.is_dir():
         return
     for path in sorted(base.rglob("*.html")):
+        # Mirror the .md walker's archive policy for this type, so a page and its
+        # markdown twin are never judged differently. Only `audits` skips its
+        # archive (plans, backlog, requests and decisions all walk theirs), and
+        # that outlier is not this change's to settle — following it keeps the
+        # two walkers consistent, which is the whole point.
+        if type_name == "audits" and "/_archive/" in str(path):
+            continue
         yield path
 
 
@@ -1125,6 +1132,27 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
 
         summary_by_type[type_name] = {"files": type_files, "violations": type_v,
                                       "warnings": type_w, "info": type_i}
+
+    # `.context/reports/` is where the anchorless artifact fallback lands, so it
+    # holds pages the owner reads — but it is not an artifact TYPE and must not
+    # become one: adding it to TYPES would drag `reports/` through every filename
+    # and front-matter rule, and OPTIONAL_TYPES is not consulted on this path at
+    # all. Only the language check runs, and only on a full (unscoped) run, since
+    # a --type run is asking about one type and this is not one.
+    if not type_filter:
+        for path in iter_html_for_type(context_dir, "reports"):
+            if is_ignored(context_dir, path, ignore_prefixes):
+                files_ignored += 1
+                continue
+            files_scanned += 1
+            try:
+                html = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                findings.append(Finding("reports", str(path), "io-error", "violation", str(e)))
+                continue
+            lf = check_body_language("reports", path, strip_html(html))
+            if lf:
+                findings.append(lf)
 
     summary = {
         "files_scanned": files_scanned,

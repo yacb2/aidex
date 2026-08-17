@@ -71,15 +71,23 @@ find_project_root() {
   # project root. Everything then wrote into a directory that disappears on
   # teardown, and `worktree.sh` in particular reads
   # "$ROOT/.context/worktrees/config.env", which does not exist at that root.
-  # Nine aidex-worktree scripts source this file, and they are most often invoked
-  # from inside a worktree, so this is the common case rather than an edge one.
+  # Eight aidex-worktree scripts source this file, and they are most often
+  # invoked from inside a worktree, so this is the common case, not an edge one.
   #
-  # `--git-common-dir` differs from `--git-dir` only inside a linked worktree, so
-  # a normal checkout takes no new behaviour from this block. Resolution failure
-  # is not an error: fall through to the marker pass exactly as before.
+  # BOTH paths are asked for in absolute form. `--git-common-dir` answers
+  # relatively from the repo root (".git") while `--git-dir` answers absolutely,
+  # so the plain forms differ in an ordinary checkout too — the test would have
+  # been true everywhere, and `dirname` of a relative ".git" would then have
+  # walked from the wrong place. Asked absolutely, they differ only inside a
+  # linked worktree, which is what this block is for.
+  #
+  # Out of reach by construction, and fine: a non-git multi-repo root (git fails,
+  # so the hop is skipped) and a project that tracks `.context/` (pass 1 already
+  # answered). Resolution failure is not an error — fall through to the marker
+  # pass exactly as before.
   local common gitdir mainroot
-  if common="$(git rev-parse --git-common-dir 2>/dev/null)" \
-     && gitdir="$(git rev-parse --git-dir 2>/dev/null)" \
+  if common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+     && gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" \
      && [[ -n "$common" && "$common" != "$gitdir" ]]; then
     mainroot="$(cd "$(dirname "$common")" 2>/dev/null && pwd -P)" || mainroot=""
     dir="$mainroot"

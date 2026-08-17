@@ -16,10 +16,10 @@ artifact-diagramming), expanded slash-command bodies (`# /handoff`,
 None of it starts with an angle bracket, so the previous predicates — which
 rejected only `<`-prefixed text and a short prefix tuple — passed all of it
 through as typed input. Measured over 2026-07-23..2026-08-16 (938 sessions,
-2,208 user-typed records): **38.4% of the "prompts" were machine-authored**
-(29.8% injected bodies, 8.5% wrapper kickoffs). Every rate the retro has
-published for three runs carried that inflation in its denominator, and the
-per-model "autonomy nudge" table was 70% wrapper kickoffs.
+2,208 user-CHANNEL records): **37.9% of the "prompts" were machine-authored**
+(29.8% injected bodies, 8.0% wrapper kickoffs) — 836 records that were never
+typed. Every rate the retro published for three runs carried that inflation in
+its denominator, and the per-model "autonomy nudge" table was 70% kickoffs.
 
 HOW THIS DECIDES
 ----------------
@@ -29,8 +29,10 @@ provenance fields the answer needs:
   origin.kind == "human"   set on genuinely typed input (1,474 records in the
                            validation window, ZERO of them injected — exact)
   promptSource == "typed"  the same signal on records predating `origin`
-  promptSource == "sdk" /  the harness speaking through the user channel
-  entrypoint "sdk-*"
+  entrypoint "sdk-*"       the harness speaking through the user channel.
+                           `promptSource == "sdk"` counts only when there is no
+                           entrypoint at all — the desktop app stamps sdk on
+                           genuinely typed input.
   isMeta                   image-paste placeholders and re-invocation notices
 
 `origin.kind` is checked FIRST and wins, because a genuine prompt from the
@@ -139,7 +141,15 @@ def classify(o):
     # promptSource="sdk" together with origin.kind="human".
     if origin == "human" or source == "typed":
         return kind, text
-    if source == "sdk" or entry.startswith("sdk"):
+    # `entrypoint` is the reliable machine signal; `promptSource == "sdk"` alone
+    # is not. The desktop app stamps sdk on genuinely typed input, so on
+    # transcripts predating `origin` the source-only test discarded 39 real
+    # prompts — one whole project read as having no human in it at all. That is
+    # the same inversion this module exists to prevent, arriving from the other
+    # side. The `and not entry` clause keeps the signal for records that carry no
+    # entrypoint; it must stay an `or`, since 9,819 records carry an sdk
+    # entrypoint with no promptSource and an `and` would call them all human.
+    if entry.startswith("sdk") or (source == "sdk" and not entry):
         return INJECTED, text
     if text.startswith(INJECTED_PREFIXES) or _COMMAND_BODY_RX.match(text):
         return INJECTED, text

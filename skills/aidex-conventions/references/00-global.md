@@ -294,7 +294,7 @@ Both consumers suppress matching findings from counts and the exit code but
 always report them under a one-line `waived: N` summary — waived findings are
 never silently dropped. Deleting a waiver line resurfaces the finding, and
 unparseable lines are counted, not swallowed. The ratchet baseline
-(`--baseline`) is written post-waiver.
+(`--baseline`) is written **pre**-waiver — see §10.2.
 
 The file is the project-wide waiver store, read by **`validate.py`** (`.context/`
 artifacts) and **`aidex-audit`'s `validate-audit.sh`** (`.context/audits/`
@@ -309,7 +309,12 @@ baseline, so waivers are its only escape hatch.
 
 - **Key granularity (v2):** a key is `file|rule|message`. The earlier `file|rule` key meant a file already dirty for a rule masked every *new* violation of that same rule in that same file (BL-043). Baselines written before v2 have no `version` field; they keep matching on the coarse key and the report says so — refresh with `--baseline` to tighten them.
 - **Refresh policy:** accepted keys that no longer occur are reported (`N accepted violation(s) no longer present — refresh with --baseline`). A validation run **never** rewrites the baseline; tightening it is always an explicit `--baseline`. There is no age-based expiry.
-- The baseline is written post-waiver, so a waived finding never enters it.
+- The baseline is written **pre-waiver**: a waived finding still enters it. Waivers
+  are reversible, so the frozen set has to remember what the tree actually contains
+  — otherwise deleting a waiver line would promote an already-accepted finding to
+  NEW. For the same reason the "no longer present" refresh advice is computed
+  pre-waiver: computed after, waiving a baselined finding made it read as fixed,
+  and taking the advice would have dropped a violation still sitting in the tree.
 
 ### 10.3 Ignored subtrees (`.aidex-ignore`)
 

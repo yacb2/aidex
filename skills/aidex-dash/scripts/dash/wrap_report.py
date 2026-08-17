@@ -96,6 +96,15 @@ def main():
         print(f"ERROR: wrote {args.outfile} but check-artifact.sh is missing at {checker} "
               f"— the contract was not verified", file=sys.stderr)
         return 3
+    # Say where it landed, absolutely. `--out` takes a relative path in the
+    # documented flow, so a run standing in the wrong project writes a perfectly
+    # valid report into a neighbour's `.context/` and exits 0 — the one-level
+    # makedirs cannot tell that apart from a first report, and widening it would
+    # break the primary placement (a report is a sibling of its anchor, anywhere
+    # in the tree). Printing the resolved path is what makes the landing visible,
+    # and it is this suite's own rule for consultation pages.
+    print(os.path.abspath(args.outfile))
+
     rc = subprocess.run(["bash", checker, args.outfile]).returncode
     if rc != 0:
         print(f"ERROR: {args.outfile} was written but FAILS the artifact contract above. "
