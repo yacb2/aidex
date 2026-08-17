@@ -29,10 +29,14 @@ pass() { printf '  PASS  %s\n' "$*"; }
 
 command -v claude >/dev/null || { echo "SKIP: claude CLI not on PATH"; exit 0; }
 
-# macOS has no GNU timeout by default — use whichever exists, else run bare.
+# macOS has no GNU timeout by default. The last branch used to be `run bare`,
+# which meant the 600s cap documented above did not exist on the machine this
+# repo is developed on — a scenario that never returned hung until something
+# outside killed it. The perl fallback cannot be absent, so the cap is real on
+# every platform. Pinned by tests/test-timeout-guard.sh.
 if command -v timeout >/dev/null; then TO="timeout 600"
 elif command -v gtimeout >/dev/null; then TO="gtimeout 600"
-else TO=""; fi
+else TO="perl $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/lib/tmo.pl 600"; fi
 
 WORK="$(mktemp -d /tmp/aidex-lf-eval.XXXXXX)"
 # Keep the workdir (streams, err logs) when any assertion fails — deleting the
