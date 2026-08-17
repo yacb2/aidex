@@ -24,6 +24,7 @@ ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 
 TX="$(bash "$HERE/fixtures/extract-corpus.sh")"
+fixture_rc=$?
 OUT="$(mktemp -d)"
 trap 'rm -rf "$TX" "$OUT"' EXIT
 
@@ -37,8 +38,38 @@ rc=$?
                 || bad "extract failed on the fixture: $run_out"
 
 # --- the root is a parameter, which is what makes everything below possible ---
-[[ -s "$OUT/dataset.jsonl" ]] && ok "--transcripts-root is honoured (a dataset was written)" \
-                              || bad "--transcripts-root produced no records — the root is still hardcoded"
+# The fixture's own exit code first. This file runs under `set -uo pipefail` with no
+# `-e`, so a fixture that died left TX as the EMPTY STRING — and extract.py resolves
+# `root = abspath(...) if args.transcripts_root else TX_ROOT`, where "" is falsy. So
+# `--transcripts-root ""` is indistinguishable from omitting the flag, and the run
+# silently mined the author's real private transcript corpus over a 10-year window.
+[[ $fixture_rc -eq 0 ]] && ok "the fixture corpus built successfully" \
+                        || bad "fixtures/extract-corpus.sh exited $fixture_rc — TX may be empty"
+[[ -n "$TX" && -d "$TX" ]] && ok "the fixture returned a transcripts root" \
+                           || bad "TX is not a directory ('$TX') — every assertion below would measure the real corpus"
+
+# And the assertion itself has to be able to FAIL. `[[ -s dataset.jsonl ]]` is
+# satisfied by ANY non-empty corpus, including the hardcoded default this very
+# assertion claims to rule out. Pointing CLAUDE_PROJECTS_ROOT at an empty directory
+# is what separates the two: if the flag is honoured the fixture is mined, and if it
+# is ignored the fallback yields nothing.
+EMPTY_ROOT="$(mktemp -d)"
+out_root="$(CLAUDE_PROJECTS_ROOT="$EMPTY_ROOT" python3 "$EXTRACT" --out "$OUT/root.jsonl" \
+                   --since 3650d --transcripts-root "$TX" 2>&1)"
+n_root="$(grep -oE '^records: [0-9]+' <<<"$out_root" | grep -oE '[0-9]+' || echo 0)"
+[[ "${n_root:-0}" -gt 0 ]] \
+  && ok "--transcripts-root is honoured even when the default root is empty ($n_root records)" \
+  || bad "the flag was ignored and the empty default was mined instead: $out_root"
+# The control: with the flag absent, that same empty default really does yield zero.
+out_none="$(CLAUDE_PROJECTS_ROOT="$EMPTY_ROOT" python3 "$EXTRACT" --out "$OUT/none.jsonl" \
+                   --since 3650d 2>&1)"
+grep -qE '^records: 0' <<<"$out_none" \
+  && ok "control: the empty default root really does yield zero records" \
+  || bad "the empty-root control did not yield zero, so the check above proves nothing: $out_none"
+rm -rf "$EMPTY_ROOT"
+
+[[ -s "$OUT/dataset.jsonl" ]] && ok "the fixture run wrote a dataset" \
+                              || bad "the fixture run produced no records"
 
 prompts() { python3 -c '
 import json, sys
@@ -127,9 +158,33 @@ print(sum(1 for l in open(sys.argv[1], encoding="utf-8")
 [[ "$n_same_ts" == "2" ]] && ok "two different prompts sharing a timestamp both survive" \
                           || bad "$n_same_ts of 2 same-timestamp prompts survived — the dedup key is too coarse"
 
-grep -qE "duplicate|replayed" <<<"$run_out" \
-  && ok "collapsed duplicates are reported, not silently dropped" \
-  || bad "the duplicate count is not reported: $run_out"
+# Both counters, and both NON-ZERO. This was `grep -qE "duplicate|replayed"`,
+# which matches extract.py's UNCONDITIONAL format string — "duplicate records
+# collapsed: {n} exact + {m} near (same prompt replayed ...)" contains both
+# alternates whatever the numbers are. So the assertion could only fail if the
+# message were deleted or reworded, never if the counts went to zero: with
+# `n_dupes += 1` / `n_near += 1` replaced by `pass`, the dataset stayed
+# byte-identical at 10 records while the report went from "1 exact + 1 near" to
+# "0 exact + 0 near", and this assertion — the one named after exactly that
+# regression — stayed green. The sibling at line 82 already had the stricter shape.
+grep -qE "duplicate records collapsed: [1-9][0-9]* exact \+ [1-9][0-9]* near" <<<"$run_out" \
+  && ok "collapsed duplicates are reported with non-zero counts, not silently dropped" \
+  || bad "the duplicate counts are missing or zero: $run_out"
+
+# THE EXACT-TIMESTAMP BRANCH, isolated. s4/s5 replay a 49-character prompt at one
+# timestamp, which satisfies the NEAR-dup predicate on both axes (>= 40 chars, 0s
+# apart), so the near branch collapses it even with the exact branch disabled —
+# `if key in seen:` -> `if False:` left the suite at 16 passed, 0 failed. s10/s11
+# replay a 13-character prompt, below NEAR_DUP_MINLEN, so the near branch cannot
+# fire and only the exact key can collapse it.
+n_short="$(python3 -c '
+import json, sys
+print(sum(1 for l in open(sys.argv[1], encoding="utf-8")
+          if l.strip() and json.loads(l)["prompt"] == "sigue con eso"))
+' "$OUT/dataset.jsonl")"
+[[ "$n_short" == "1" ]] \
+  && ok "a SHORT prompt replayed at the same timestamp counts once (exact-key dedup)" \
+  || bad "$n_short of 1: the exact-timestamp dedup branch is not doing the work"
 
 # The fork whose replay carries a FRESH timestamp — the mode an exact-ts key
 # cannot see. The observed pair was 4.19s apart across two session files.

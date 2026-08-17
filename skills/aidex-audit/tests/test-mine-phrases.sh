@@ -26,6 +26,30 @@ bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# run_miner <label> <args...> — sets `out` and FAILS if the miner did not actually
+# run. Every negative assertion below ("phrase X is absent") is satisfied by empty
+# output, so without this a miner that CRASHED passed them: verified by inserting
+# one plausible edit at the natural empty-result boundary
+# (`max(len(k) for ... in kept)`), which raises ValueError on the all-stopword
+# dataset and exits 1 with zero stdout — and the suite reported 4 passed, 0 failed
+# against it. Absence of a phrase is only evidence when the instrument spoke.
+run_miner() {
+  local label="$1"; shift
+  local err="$TMP/err.$$"
+  out="$(python3 "$MINER" "$@" 2>"$err")"
+  local rc=$?
+  if [[ $rc -ne 0 ]]; then
+    bad "$label: the miner exited $rc — $(tr '\n' ' ' < "$err" | tail -c 200)"
+    return 1
+  fi
+  if ! grep -q 'phrase' <<<"$out"; then
+    bad "$label: the miner produced no header, so it did not report anything"
+    return 1
+  fi
+  ok "$label: the miner ran and reported"
+  return 0
+}
+
 # Two sessions shouting a topic 40 times, ten sessions each saying a habit once.
 python3 - "$TMP/d.jsonl" <<'PY'
 import json, sys
@@ -46,7 +70,8 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
         fh.write(json.dumps(r, ensure_ascii=False) + "\n")
 PY
 
-out="$(python3 "$MINER" --dataset "$TMP/d.jsonl" --min-n 3 --max-n 5 --top 40 --min-sessions 2 2>/dev/null)"
+run_miner "ranking dataset" --dataset "$TMP/d.jsonl" --min-n 3 --max-n 5 \
+          --top 40 --min-sessions 2
 
 habit_line="$(grep -n 'no te detengas' <<<"$out" | head -1 | cut -d: -f1)"
 topic_line="$(grep -n 'conciliacion bancaria' <<<"$out" | head -1 | cut -d: -f1)"
@@ -62,10 +87,12 @@ else
 fi
 
 # A phrase confined to two sessions is not a habit, whatever its count.
-out2="$(python3 "$MINER" --dataset "$TMP/d.jsonl" --min-n 3 --max-n 5 --top 40 --min-sessions 3 2>/dev/null)"
-grep -q 'conciliacion bancaria' <<<"$out2" \
-  && bad "a phrase living in two sessions survived --min-sessions 3" \
-  || ok "--min-sessions excludes a low-dispersion phrase regardless of its count"
+if run_miner "min-sessions 3" --dataset "$TMP/d.jsonl" --min-n 3 --max-n 5 \
+             --top 40 --min-sessions 3; then
+  grep -q 'conciliacion bancaria' <<<"$out" \
+    && bad "a phrase living in two sessions survived --min-sessions 3" \
+    || ok "--min-sessions excludes a low-dispersion phrase regardless of its count"
+fi
 
 # Function words alone are not a finding; without this the top of the list is
 # "por lo tanto" and the instrument is unreadable.
@@ -76,9 +103,11 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
         fh.write(json.dumps({"session": f"s{i}", "project": "p", "ts": "2026-01-01T00:00:00",
                              "prompt": "de la que se lo de la que"}, ensure_ascii=False) + "\n")
 PY
-out3="$(python3 "$MINER" --dataset "$TMP/stop.jsonl" --min-n 3 --max-n 5 --top 20 --min-sessions 2 2>/dev/null)"
-[[ "$(grep -c 'de la que' <<<"$out3")" -eq 0 ]] \
-  && ok "an all-stopword phrase is not reported" || bad "stopword-only n-grams reached the output"
+if run_miner "all-stopword dataset" --dataset "$TMP/stop.jsonl" --min-n 3 --max-n 5 \
+             --top 20 --min-sessions 2; then
+  [[ "$(grep -c 'de la que' <<<"$out")" -eq 0 ]] \
+    && ok "an all-stopword phrase is not reported" || bad "stopword-only n-grams reached the output"
+fi
 
 echo
 echo "mine_phrases: $PASS passed, $FAIL failed"
