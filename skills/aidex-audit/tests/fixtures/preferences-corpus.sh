@@ -120,4 +120,30 @@ print(json.dumps({"type": "user", "timestamp": "2026-08-01T08:59:00.000Z",
   py_human "dame el resumen en un artefacto y ponme casillas bajo cada opcion para poder marcarlas" typed
 } > "$D/s6.jsonl"
 
+# --- s7: the same handoff seeding, in the shape REAL transcripts use. s6 writes
+#     the marker as a `type: "user"` record, which is the shape a fixture author
+#     reaches for and is not what Claude Code emits: the SessionStart hook's
+#     payload arrives as a `type: "attachment"` record whose only user-ish key is
+#     `userType`. Censused over 400 live transcripts — every marker-bearing
+#     record is an attachment, and none of them contains the token `"user"`.
+#
+#     That difference is the whole point of this session. Any reader that
+#     pre-filters raw lines on the substring `"user"` keeps s6's marker and drops
+#     s7's, so `is_handoff_seeded` goes False, the wrapper's `continue` is
+#     re-admitted as a typed prompt, and the corpus denominator inflates. s7 adds
+#     no real prompt of its own, so it moves the human-prompt total by exactly
+#     one and only when that bug is present.
+{
+  python3 -c '
+import json
+print(json.dumps({"type": "attachment", "userType": "external",
+                  "timestamp": "2026-08-01T09:30:00.000Z",
+                  "entrypoint": "cli", "isSidechain": False,
+                  "attachment": {"type": "hook_success", "hookEvent": "SessionStart",
+                                 "hookName": "handoff",
+                                 "content": "=== HANDOFF FROM PREVIOUS SESSION ===\nseeded\n=== END HANDOFF ==="}}))'
+  py_human "continue"
+  py_assistant "Retomando donde quedamos."
+} > "$D/s7.jsonl"
+
 printf '%s\n' "$TX"
