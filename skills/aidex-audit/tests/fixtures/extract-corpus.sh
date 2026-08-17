@@ -20,6 +20,11 @@
 #       prompt. The kickoff must not appear; the real prompt must.
 #   s3  a session with only machine records, so the excluded COUNT has to be
 #       non-zero and reported — a silently smaller denominator is the original bug.
+#   s4/s5  one session resumed into a second transcript file, replaying its
+#       earlier prompt. One thing said once must be one record, and the new
+#       prompt in the second file must survive the dedup.
+#   s6  two DIFFERENT prompts at the SAME timestamp, so a dedup keyed on the
+#       timestamp alone is caught eating a real record.
 
 set -euo pipefail
 
@@ -77,5 +82,55 @@ Close the current session and open a new one, seeding handoff context." "2026-01
   py_assistant_text "ok"
   py_plain "You are the durability-arbiter. Return CONTINUE, ASK or STOP." "2026-01-03T08:05:00Z"
 } > "$D/s3.jsonl"
+
+# --- s4/s5: the SAME session resumed into a second file --------------------
+# Claude Code opens a new .jsonl for a resumed or forked session and replays the
+# earlier records into it. A file-walking extractor emits the replayed prompt
+# once per file, so one thing the user said becomes two data points (BL-170).
+# The second file also carries a NEW prompt, which must survive.
+{
+  py_typed "usa siempre mockups cuando presentes alternativas" "2026-01-04T07:00:00Z"
+  py_assistant_text "ok"
+} > "$D/s4.jsonl"
+{
+  py_typed "usa siempre mockups cuando presentes alternativas" "2026-01-04T07:00:00Z"
+  py_assistant_text "ok"
+  py_typed "y ahora sigue con la fase dos" "2026-01-04T07:30:00Z"
+} > "$D/s5.jsonl"
+
+# --- s7/s8: the same fork, but the replay gets a FRESH timestamp ------------
+# The observed pair was 4.19s apart across two session files, so an exact-ts key
+# does not see it. What separates it from a real repetition is length: nobody
+# retypes 125 characters byte-identically in four seconds, while "continue" is
+# retyped constantly. Both axes are asserted, because either one alone is wrong.
+LONG="presentame esto en un artefacto en espanol, usa graficos o mockups para apoyarte al presentar, y dame la opcion de dejar notas"
+{
+  py_typed "$LONG" "2026-01-06T07:00:00Z"
+  py_assistant_text "ok"
+} > "$D/s7.jsonl"
+{
+  py_typed "$LONG" "2026-01-06T07:00:05Z"
+  py_assistant_text "ok"
+  py_typed "continue" "2026-01-06T07:00:30Z"
+  py_assistant_text "ok"
+  py_typed "continue" "2026-01-06T07:00:35Z"
+} > "$D/s8.jsonl"
+
+# --- s9: the same long prompt, genuinely asked again much later -------------
+# A window with no upper bound would collapse a preference the user had to
+# repeat — which is the very signal STANDING-PREFERENCE exists to count.
+{
+  py_typed "$LONG" "2026-01-07T09:00:00Z"
+  py_assistant_text "ok"
+} > "$D/s9.jsonl"
+
+# --- s6: two DIFFERENT prompts sharing one timestamp -----------------------
+# Dedup keyed on the timestamp alone would silently eat one of these. The key
+# has to include the text, or the fix trades a 0.4% inflation for a real loss.
+{
+  py_typed "primera pregunta distinta" "2026-01-05T07:00:00Z"
+  py_assistant_text "ok"
+  py_typed "segunda pregunta distinta" "2026-01-05T07:00:00Z"
+} > "$D/s6.jsonl"
 
 printf '%s\n' "$TX"

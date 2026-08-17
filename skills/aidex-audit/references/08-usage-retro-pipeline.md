@@ -90,8 +90,33 @@ A commit date is necessary but not sufficient (install.sh must run for the canon
 | EVOLVE | skill works, user asked to extend it | the skill's behavior/output |
 | WORKFLOW-GAP | recurring need, no skill covers it | a NEW skill |
 | FRICTION | repeated dissatisfaction, not one skill | cross-cutting |
+| STANDING-PREFERENCE | a repeated, *satisfied* instruction about the FORM of a deliverable | the default, so it stops being asked for |
 
 Exclude pure approval/continuation ("ok", "avanza", "dale", "sigue") — not findings.
+
+### STANDING-PREFERENCE is admitted by REPETITION, not by complaint
+
+The six tags above are defect-shaped: every one needs a complaint, a correction,
+or a miss. That shape is what made this class invisible for every run to date.
+
+A standing preference is an instruction the user gives, the assistant obeys, and
+the user is satisfied — and then gives again next time, because obeying it once
+changed no default. There is no friction to detect. The signal is that the same
+ask recurs across sessions and projects; the fix is to move it into a default,
+not to correct an output.
+
+The consequence for reading a run: **do not ask "was the user unhappy?"** — that
+question rejects the whole class. Ask "has this been asked before, and does the
+suite already do it without being asked?" A polite, granted request repeated four
+times over 90 days is a stronger finding than a single complaint, because the
+cost is paid on every future occurrence and nobody registers it as a defect.
+
+`prefilter.py` admits these through a fourth gate that is deliberately not
+defect-shaped, tagging `pref:<label>` (`fmt:markable`, `fmt:notes-field`,
+`fmt:options`, `fmt:running-summary`, `viz:mockup`, `viz:comprehension`,
+`lang:artifact`). The detector is `mine_preferences.py` — a three-part
+conjunction of DIRECTIVE + SHAPE + DELIVERABLE in proximity, pinned by
+`tests/test-mine-preferences.sh`.
 
 ## Output
 
