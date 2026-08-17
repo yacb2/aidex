@@ -198,9 +198,42 @@ import re, sys
 t = open(sys.argv[1], encoding="utf-8").read()
 print(re.sub(r"\A\s*<!--.*?-->\s*", "", t, flags=re.S))
 PY
-bash "$WRAP" --title "C" --out "$TMP/consult-ok.html" < "$TMP/consult-body.html" >/dev/null 2>&1 \
-  && ok "the shipped consultation template passes its own checks" \
-  || bad "the consultation template fails the checks written for it"
+# The shipped template must satisfy every check EXCEPT the one that is, by
+# definition, an author's decision about a specific subject.
+#
+# It used to satisfy that one too, with `content="none: replace this with the
+# reason, or with svg/mermaid/img"` — a "reason" that is the instruction to write a
+# reason. references/02 §8 tells authors to copy this template rather than
+# re-derive it, so every derived consultation shipped the visual gate already
+# satisfied by a page with no visual and no reason: exactly the state §8 says must
+# fail ("the reason is one grep away from review, which silence never is" — and the
+# grep returned the placeholder).
+#
+# So the assertion is split rather than dropped. The original rationale still
+# stands and is worth restating: if the template failed a check for any OTHER
+# reason, the checks would demand something the suite does not ship, which is the
+# worst kind of gate. What the template must NOT do is pre-answer the question.
+tpl_out="$(bash "$WRAP" --title "C" --out "$TMP/consult-tpl.html" < "$TMP/consult-body.html" 2>&1)"
+[[ "$tpl_out" == *"consult-visual"* ]] \
+  && ok "the shipped template does not pre-satisfy the visual declaration" \
+  || bad "the template ships the visual gate already answered: $tpl_out"
+[[ "$(grep -c 'FAIL \[' <<<"$tpl_out")" -eq 1 ]] \
+  && ok "and it fails NOTHING else — the checks demand only what the suite ships" \
+  || bad "the template fails a check other than the visual declaration: $tpl_out"
+
+# Replacing the placeholder is what makes it pass, so the template is one edit
+# from compliant rather than broken.
+python3 - "$TMP/consult-body.html" "$TMP/consult-body-decided.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+new, n = re.subn(r'content="none:[^"]*"',
+                 'content="none: a wording decision, nothing to draw"', t)
+assert n == 1, f"expected one consult-visual placeholder, found {n}"
+open(sys.argv[2], "w").write(new)
+PY
+bash "$WRAP" --title "C" --out "$TMP/consult-ok.html" < "$TMP/consult-body-decided.html" >/dev/null 2>&1 \
+  && ok "the template passes as soon as the author states the reason" \
+  || bad "a template with its visual declaration answered still fails"
 
 # The real BL-168 violation: hand-rolled reply boxes, no ids, no composer.
 mk handrolled.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
@@ -340,8 +373,8 @@ bash "$CHECK" "$TMP/consult-ok.html" "$TMP/regen-same.html" --prev "$TMP/consult
 # --- BL-168: --out couples the regeneration checks to the write ---------------
 # The prior version exists only until the write, so the snapshot has to happen there.
 PROJ="$TMP/proj"; mkdir -p "$PROJ/.context/reports"
-bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" < "$TMP/consult-body.html" >/dev/null 2>&1
-err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/consult-body.html" \
+bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" < "$TMP/consult-body-decided.html" >/dev/null 2>&1
+err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/consult-body-decided.html" \
        | bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" 2>&1 >/dev/null)"; rc=$?
 [[ $rc -ne 0 ]] && ok "regenerating with a shifted id fails the write" \
                 || bad "--out accepted a regeneration that renumbered a claim"
@@ -582,11 +615,11 @@ echo "== the baseline is the last PASSING version =="
 INV="$TMP/inv"; mkdir -p "$INV/.context/reports"
 PAGE="$INV/.context/reports/c.html"
 shifted() {  # shifted <title> — regenerate c2 with the given claim
-  sed "s/data-title=\"Second claim\"/data-title=\"$1\"/" "$TMP/consult-body.html" \
+  sed "s/data-title=\"Second claim\"/data-title=\"$1\"/" "$TMP/consult-body-decided.html" \
     | bash "$WRAP" --title "C" --out "$PAGE" 2>&1 >/dev/null
 }
 
-bash "$WRAP" --title "C" --out "$PAGE" < "$TMP/consult-body.html" >/dev/null 2>&1
+bash "$WRAP" --title "C" --out "$PAGE" < "$TMP/consult-body-decided.html" >/dev/null 2>&1
 rc1=$?
 [[ $rc1 -eq 0 ]] && ok "run 1: the original consultation passes" \
                  || bad "run 1 did not pass, so nothing below measures the baseline"
