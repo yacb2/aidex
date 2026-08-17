@@ -20,6 +20,8 @@
 #   (i) a rootless run refuses rather than mining a guessed default
 #   (j) a BL id shared by two projects resolves inside its own project
 #   (k) one malformed line skips the LINE, never the whole session
+#   (l) a transcript root under a DIFFERENT user's home still resolves
+#   (m) mine_items and mine_slow_tests share one runner vocabulary
 #
 # Run with: bash skills/aidex-audit/tests/test-usage-retro.sh
 
@@ -247,5 +249,52 @@ grep -q 'demo_ws: 1 spans' <<<"$out_k" \
 grep -qE 'skipped 1 unparseable line' <<<"$out_k" \
   || fail "(k) the skipped line must be COUNTED, not silently dropped: $out_k"
 
+# ---------------------------------------------------------------------------
+# (l) THE TRANSCRIPT PREFIX IS NOT THE AUTHOR'S HOME PATH. tx_dirs_for used to
+#     strip the literal `-Users-yoelacevedo-Documents-projects-`, so on any
+#     machine with a different user `core` kept the whole encoded path, matched
+#     neither branch, and the function returned [] for EVERY project. The run then
+#     reported its registry and wrote zero spans, and mine_defect_proneness said
+#     "nothing to measure" — silent zeros dressed as results.
+#
+#     The fixture is the shared corpus with ONE variable changed: the username in
+#     the transcript directory name. Everything else is identical, so a failure
+#     here can only be the prefix.
+ALT="$(mktemp -d)"
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws \
+      "$ALT/-Users-alice-Documents-projects-demo-ws"
+out_l="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" \
+  --transcripts-root "$ALT" --out "$OUT/l" --min-mentions 1 2>&1)"
+rm -rf "$ALT"
+grep -q 'registry: 4 tracked items' <<<"$out_l" \
+  || fail "(l) fixture drift: the registry should be unchanged: $out_l"
+grep -q 'demo_ws: 4 spans' <<<"$out_l" \
+  || fail "(l) a transcript root under another user's home found no sessions: $out_l"
+
+# ---------------------------------------------------------------------------
+# (m) ONE RUNNER VOCABULARY. mine_items carried a narrower second copy of
+#     mine_slow_tests' TESTCMD — no optional `run `, no yarn/tox/go/cargo — so a
+#     session verifying with `npm run test` or `go test ./...` reported
+#     test_runs=0 in spans.jsonl while the same commands landed in the >60s tail
+#     analysis. `test_runs` is a documented headline output of this instrument.
+#
+#     Asserted as identity, not as a list of commands: a shared definition is the
+#     only thing that cannot drift, and a per-command assertion would pass on two
+#     copies that happen to agree today.
+out_m="$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+import mine_items as A, mine_slow_tests as B
+same = A.TESTCMD.pattern == B.TESTCMD.pattern
+runners = ["npm run test", "pnpm run test", "yarn test", "tox -e py311",
+           "go test ./...", "cargo test", "pytest -q", "vitest run"]
+missed = [c for c in runners if not A.TESTCMD.search(c)]
+print("SAME" if same else "DIVERGED", "|", ",".join(missed) if missed else "-")
+' "$RETRO" 2>&1)"
+[[ "$out_m" == SAME* ]] \
+  || fail "(m) the two runner vocabularies are not the same object: $out_m"
+[[ "$out_m" == *"| -" ]] \
+  || fail "(m) mine_items misses real test runners: $out_m"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary"

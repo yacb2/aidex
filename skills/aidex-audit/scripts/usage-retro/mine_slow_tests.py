@@ -38,10 +38,15 @@ import statistics as st
 
 TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claude/projects")
 
-# Same runner vocabulary as mine_verification.py, kept in sync deliberately.
-TESTCMD = re.compile(
-    r'\b(pytest|vitest|npm (run )?test|pnpm (run )?test|yarn test|playwright|jest'
-    r'|manage\.py test|test-e2e|tox|go test|cargo test)\b')
+# The runner vocabulary is IMPORTED, not copied. It used to be a second copy with a
+# comment claiming it was "kept in sync with mine_verification.py, deliberately" —
+# a file that lives only under .context/audits/2026-06-21-usage-retro/ and is
+# documented as not re-runnable. Nothing was keeping them in sync, and they had in
+# fact diverged: mine_items matched none of `npm run test`, `yarn test`, `tox`,
+# `go test`, `cargo test`.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mine_items as _MI  # noqa: E402
+TESTCMD = _MI.TESTCMD
 
 # A selector NARROWS the run. Flags that only change reporting are not selectors.
 PATHLIKE = re.compile(r'(?<![-\w])[\w./-]*\.(py|ts|tsx|js|jsx|vue|spec|test)\b'

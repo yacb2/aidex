@@ -68,7 +68,22 @@ FM = re.compile(r'^---\n(.*?)\n---', re.S)
 TOKEN = re.compile(r'\bBL-\d{3}\b|\b20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]{2,70}\b')
 
 REVERT = re.compile(r'git\s+(checkout\s+--|revert|reset\s+--hard|stash|restore)')
-TESTCMD = re.compile(r'\b(pytest|vitest|npm test|pnpm test|playwright|jest|manage\.py test|test-e2e)')
+# THE runner vocabulary for this package. mine_slow_tests.py imports it from here
+# rather than keeping a copy, because the copies diverged: this one had no optional
+# `run `, no yarn, tox, go or cargo, so a session verifying with `npm run test` or
+# `go test ./...` reported test_runs=0 in spans.jsonl while the very same commands
+# landed in the >60s tail analysis — two instruments disagreeing about what a test
+# run is. `test_runs` is a documented headline output of this instrument
+# (references/07-usage-retro.md), and it was silently wrong in both directions with
+# nothing covering it.
+#
+# The comment that used to sit on the other copy said the two were "kept in sync
+# with mine_verification.py, deliberately" — a file that exists only under
+# .context/audits/2026-06-21-usage-retro/ and is documented as not re-runnable, so
+# nothing was keeping anything in sync. An import is what keeps them in sync.
+TESTCMD = re.compile(
+    r'\b(pytest|vitest|npm (run )?test|pnpm (run )?test|yarn test|playwright|jest'
+    r'|manage\.py test|test-e2e|tox|go test|cargo test)\b')
 
 
 def parse_fm(path):
@@ -134,13 +149,37 @@ def build_registry():
     return items
 
 
+# `-Users-anyone-Documents-projects-foo-ws` -> `foo-ws`. Greedy on purpose, so it
+# strips up to the LAST `-projects-`, and leaves a name that has no such segment
+# untouched.
+PROJ_PREFIX = re.compile(r'^-.*-projects-')
+
+
+def short_project_dir(name):
+    """The project a transcript directory belongs to, from its encoded name."""
+    return PROJ_PREFIX.sub("", name) or name
+
+
 def tx_dirs_for(proj):
-    """Transcript dirs belonging to a project (root + subdir sessions)."""
+    """Transcript dirs belonging to a project (root + subdir sessions).
+
+    The prefix is matched GENERICALLY. This used to strip the string literal
+    `-Users-yoelacevedo-Documents-projects-`, so on any machine whose user is not
+    yoelacevedo `core` kept the whole encoded path, matched neither branch, and the
+    function returned [] for EVERY project — not a partial miss, a total one. The
+    run then printed `registry: N tracked items across M projects` followed by zero
+    spans and wrote an empty spans.jsonl, and mine_defect_proneness (which calls
+    this) printed "no typed items attributed — nothing to measure". Both are silent
+    zeros dressed as results, in a file whose own docstring makes "a wrong answer
+    that looks like an answer" its stated design constraint.
+
+    Two siblings already derived this correctly (mine_preferences.short,
+    mine_slow_tests.project_of); this one was the odd copy out.
+    """
     a = proj.replace("_", "-")
     out = []
     for d in glob.glob(TX_ROOT + "/*/"):
-        n = os.path.basename(d.rstrip("/"))
-        core = n.replace("-Users-yoelacevedo-Documents-projects-", "")
+        core = short_project_dir(os.path.basename(d.rstrip("/")))
         if core == proj or core == a or core.startswith(proj + "-") or core.startswith(a + "-"):
             out.append(d)
     return out
