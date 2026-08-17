@@ -205,11 +205,19 @@ silence never is.
 ### What is checked, and how
 
 All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.
-A page counts as a consultation when it has a `<textarea>` — not when it has the
-template's class names, because a page that never copied the template is exactly the one
-with no class names to key on. That is the observed violation: a hand-rolled consultation
-page with 14 reply boxes, zero stable ids and no doctype, which no check ever saw because
-the whole procedure was bypassed.
+A page counts as a consultation when it offers the reader a **reply surface** — a
+`<textarea>`, a `contenteditable` element, reply boxes appended by script, or the
+composer's own `id="consult-copy"`. Not when it has the template's class names, because a
+page that never copied the template is exactly the one with no class names to key on.
+That is the observed violation: a hand-rolled consultation page with 14 reply boxes, zero
+stable ids and no doctype, which no check ever saw because the whole procedure was
+bypassed.
+
+The definition is deliberately broader than one element. It used to be the literal string
+`<textarea`, which is the one thing a hand-rolled page is free not to use: a page of
+`contenteditable` divs skipped every requirement below and printed `artifact contract OK`.
+Every alternative is structural — a tag, an attribute, a DOM call, an id — so a report
+that merely *mentions* textareas in its prose is still a read, not a consultation.
 
 | Check | Fails when |
 |---|---|
