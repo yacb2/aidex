@@ -78,7 +78,11 @@ mkdir -p "$PARENT/_archive"
 DEST="$PARENT/_archive/$RUN_SLUG"
 [[ -e "$DEST" ]] && die "archive collision: $DEST already exists"
 mv "$RUN_PATH" "$DEST"
-ok "Archived audit run '$RUN_SLUG' → $(dirname "$DEST")/_archive/"
+# $DEST itself, not a path reassembled from its own dirname: `dirname "$DEST"`
+# is already <parent>/_archive, so appending /_archive/ printed a doubled path
+# that does not exist. The archive landed correctly; the line describing it did
+# not, which is the same class of defect as a check that misreports its result.
+ok "Archived audit run '$RUN_SLUG' → $DEST"
 
 # Regenerate the audits run-level roll-up so the closed run moves to Archived runs.
 # Best-effort: a missing reindexer never blocks the close.
