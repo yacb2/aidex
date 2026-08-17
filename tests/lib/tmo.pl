@@ -25,6 +25,16 @@ my $pid = fork();
 die "tmo.pl: fork failed: $!\n" unless defined $pid;
 
 if ($pid == 0) {
+    # Become a process-group LEADER before exec, so the group kill below has a
+    # group to kill. Without this the child inherits the invoking shell's process
+    # group, `kill 'KILL', -$pid` fails with ESRCH every time (there is no group
+    # with that id), and only the direct child dies — so a wrapper that has
+    # already forked returns 124 while its real worker keeps running. Reproduced:
+    # `tmo.pl 2 ./wrapper.sh` where the wrapper does `sleep 60 & wait` exited 124
+    # after 2s with the sleeper still alive, reparented to PID 1. That is exactly
+    # the leak the comment below claims to prevent, and coreutils `timeout` does
+    # the same thing for the same reason.
+    setpgrp(0, 0);
     # exec replaces the child; reaching the next line means it could not run.
     exec { $ARGV[0] } @ARGV;
     exit 127;
