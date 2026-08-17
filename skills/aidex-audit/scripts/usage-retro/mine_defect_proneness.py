@@ -82,12 +82,18 @@ def main():
 
     items = M.build_registry()
     # slug and id both address an item; either mention attributes the session.
-    by_token, typed, bug, all_items = {}, set(), set(), set()
+    # Keyed PER PROJECT, because BL ids are project-scoped (mine_items.py:224-226
+    # builds its id_map the same way, for the same reason). A single flat map
+    # resolved every shared id to whichever project sorts last in
+    # build_registry()'s glob — 178 ids collide across this workspace's 17
+    # projects — so a session's files were attributed to a stranger's item and
+    # that item's `type:` decided the bug numerator.
+    by_token, typed, bug, all_items = defaultdict(dict), set(), set(), set()
     for it in items:
         key = (it["project"], it["slug"])
-        by_token[it["slug"]] = key
+        by_token[it["project"]][it["slug"]] = key
         if it.get("id"):
-            by_token[it["id"]] = key
+            by_token[it["project"]][it["id"]] = key
         # build_registry() does not carry `type` — reading it from the item dict
         # silently yielded an empty typed set and a "nothing to measure" result
         # that looked like a finding. Re-parse the front-matter for it.
@@ -106,6 +112,9 @@ def main():
     seen_items = set()
 
     for proj in projects:
+        tokens = by_token[proj]
+        if not tokens:
+            continue
         for f in [x for d in M.tx_dirs_for(proj) for x in glob.glob(d + "*.jsonl")]:
             mentioned, files = set(), set()
             try:
@@ -120,18 +129,18 @@ def main():
                         continue
                     if o.get("type") == "user":
                         for tok in M.TOKEN.findall(M.user_text(o) or ""):
-                            if tok in by_token:
-                                mentioned.add(by_token[tok])
+                            if tok in tokens:
+                                mentioned.add(tokens[tok])
                     elif o.get("type") == "assistant":
                         txt, tools = M.assistant_parts(o)
                         for tok in M.TOKEN.findall(txt or ""):
-                            if tok in by_token:
-                                mentioned.add(by_token[tok])
+                            if tok in tokens:
+                                mentioned.add(tokens[tok])
                         # assistant_parts yields (name, searchable, file_path, command)
                         for name, searchable, fp, _cmd in tools:
                             for tok in M.TOKEN.findall(searchable):
-                                if tok in by_token:
-                                    mentioned.add(by_token[tok])
+                                if tok in tokens:
+                                    mentioned.add(tokens[tok])
                             if name in ("Edit", "Write", "NotebookEdit") and fp \
                                     and is_production_code(fp):
                                 files.add(collapse_worktree(fp))
