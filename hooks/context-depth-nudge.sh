@@ -9,6 +9,15 @@
 # arithmetic and cannot misfire; judging whether a thread is mid-hypothesis is the
 # thing that did. So this hook counts, states the number, and stops there.
 #
+# It did not, until 2026-08-17. Bands 2 and 3 shipped telling the assistant who
+# decides a handoff ("the decision is theirs", "do not hand off on your own").
+# That is `rules/autonomy.md`'s question, and inside an unattended run the canon
+# answers it the other way: the handoff is a mandated step, not the user's call.
+# Measured over the armed population, band 3's wording came back as a near-verbatim
+# translation in six real sessions; one of them declined to launch a remaining
+# review gate in order to ask. Restating a rule this file does not own is what
+# turned a counter into a stop, so the prescription is gone and the pointer stays.
+#
 # UserPromptSubmit rather than Stop for two reasons: it fires at the boundary
 # where a handoff is cheapest (a new instruction is starting, not a thread being
 # cut), and it can inform without blocking — Stop can only act by blocking, which
@@ -86,8 +95,8 @@ DEPTH_K=$((DEPTH / 1000))
 
 case "$BAND" in
   1) MSG="Context depth is now ~${DEPTH_K}k tokens. Turns here run about 1.4x slower than this session did below 100k. Nothing to do yet — but if the current thread is close to a natural boundary, that is the cheap moment to hand off." ;;
-  2) MSG="Context depth is now ~${DEPTH_K}k tokens — past the point where staying in-session stops paying for itself. Recommended: finish the current step, then hand off at the next boundary (end of a phase, after a commit). Mention this to the user once, in one line, and let them decide; do not hand off on your own." ;;
-  3) MSG="Context depth is now ~${DEPTH_K}k tokens. Over half of all input spend sits above this line and the speed loss has plateaued, so continuing here buys nothing a fresh session would not give back. Tell the user plainly, in one line, that a handoff is due and offer to draft the brief. The decision is theirs — do not hand off on your own." ;;
+  2) MSG="Context depth is now ~${DEPTH_K}k tokens — past the point where staying in-session stops paying for itself. The next natural boundary (end of a phase, after a commit) is the cheap place to hand off. Who makes that call is already governed by rules/autonomy.md and the session-handoff skill; this hook reports the number and nothing else." ;;
+  3) MSG="Context depth is now ~${DEPTH_K}k tokens. Over half of all input spend sits above this line and the speed loss has plateaued, so continuing here buys nothing a fresh session would not give back. Who makes that call is already governed by rules/autonomy.md and the session-handoff skill; this hook reports the number and nothing else." ;;
 esac
 
 jq -n --arg m "$MSG" '{
