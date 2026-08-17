@@ -35,7 +35,10 @@
 #          takes the main tree's dev server and every sibling project's with it.
 #          --delete-branch also deletes the worktree's branch in each participant
 #          repo, with `git branch -d` — which refuses an unmerged branch, so it is
-#          its own merged-ness gate and no separate check is invented. Default off:
+#          its own merged-ness gate and no separate check is invented. Only the
+#          branch `new` created is ever a candidate: it is recorded in .wt-branch
+#          at creation, and a checkout that has since moved on is skipped with a
+#          warning rather than having its current branch deleted. Default off:
 #          the branch is the only trace a torn-down worktree leaves, and deleting
 #          it by default would destroy unmerged work. This deliberately does NOT
 #          merge anything — an unrequested merge consumes the review window the
@@ -463,6 +466,17 @@ if [[ "$cmd" == "new" ]]; then
   CREATED_DIR=true
   ok "worktrees created: $DEST"
 
+  # Record the branch this worktree was CREATED with. `down --delete-branch`
+  # cannot ask git for it later: `branch --show-current` answers with whatever is
+  # checked out at teardown, and a worktree switched to another branch would hand
+  # the deletion an unrelated ref from the main repo. Nothing else stores it --
+  # the slot claim holds only "<pid> <slug>" and .wt-slot only the number.
+  #
+  # Written HERE, before the --no-infra split below, because this is the one
+  # unconditional point after creation succeeds. (.wt-slot is written twice, once
+  # per branch of that split; do not copy that shape.)
+  printf '%s\n' "$BRANCH" > "$DEST/.wt-branch" 2>/dev/null || true
+
   if $NO_INFRA; then
     echo "${SLOT:-}" > "$DEST/.wt-slot" 2>/dev/null
     ok "--no-infra: code only, no stack started"
@@ -675,11 +689,27 @@ if [[ "$cmd" == "down" ]]; then
   # it keeps the ordering trap from reappearing if the flag is ever moved.
   declare -a WT_BRANCHES=()
   if [[ -d "$DEST" ]]; then
+    want="$(cat "$DEST/.wt-branch" 2>/dev/null || true)"
     for pp in $WT_PARTICIPANTS; do
       b="$(basename "$pp")"
       [[ -d "$DEST/$b" ]] || continue
       brname="$(git -C "$DEST/$b" branch --show-current 2>/dev/null || true)"
-      [[ -n "$brname" ]] && WT_BRANCHES+=("$b|$brname")
+      # Only the branch this worktree was CREATED with is ever a candidate. If
+      # the checkout has moved on -- switched to another branch, or detached --
+      # the current name belongs to something else and deleting it would remove
+      # a ref nobody asked about while leaving the intended one behind.
+      #
+      # A missing .wt-branch SKIPS. It must never fall back to the current
+      # branch: that fallback is precisely the wrong-target deletion, and a
+      # worktree created before this file existed is exactly the case that would
+      # take it.
+      if [[ -z "$want" ]]; then
+        $DELETE_BRANCH && warn "--delete-branch: no recorded branch for $b (pre-dates .wt-branch) — skipped"
+      elif [[ "$want" != "$brname" ]]; then
+        $DELETE_BRANCH && warn "--delete-branch: $b is on '${brname:-detached HEAD}', not the created '$want' — skipped"
+      else
+        WT_BRANCHES+=("$b|$want")
+      fi
     done
   fi
 
@@ -726,10 +756,16 @@ if [[ "$cmd" == "down" ]]; then
   # or HEAD. So there is no "recorded base" to invent and no state to keep, and a
   # refusal is reported rather than escalated. There is deliberately no --force
   # sibling: the whole point of refusing is that the work is not in the trunk yet.
+  # The empty case is an ELSE, not a warning followed by the loop anyway. On
+  # bash 3.2 (the macOS system shell) expanding an empty array under `set -u` is
+  # fatal, so the loop aborted the script with a raw "unbound variable" and exit
+  # 1 over a teardown that had already fully succeeded. Two reachable paths hit
+  # it: the stranded-directory recovery `list` itself prescribes, and an ordinary
+  # detached HEAD.
   if $DELETE_BRANCH; then
     if [[ ${#WT_BRANCHES[@]} -eq 0 ]]; then
-      warn "--delete-branch: no branch was readable before removal; nothing deleted"
-    fi
+      warn "--delete-branch: no branch was eligible for deletion; nothing deleted"
+    else
     for entry in "${WT_BRANCHES[@]}"; do
       repo="${entry%%|*}"; br="${entry#*|}"
       [[ -d "$ROOT/$repo" ]] || { warn "--delete-branch: $repo is not in $ROOT — skipped"; continue; }
@@ -739,6 +775,7 @@ if [[ "$cmd" == "down" ]]; then
         warn "kept branch $br in $repo — $(printf '%s' "$out" | tr '\n' ' ' | head -c 160)"
       fi
     done
+    fi
   fi
   exit 0
 fi

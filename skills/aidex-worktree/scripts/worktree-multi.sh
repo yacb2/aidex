@@ -258,7 +258,10 @@ done
 # previous version warned and still exited 0, so a caller printed "removed"
 # over a directory that was still there.
 find "$DEST" -type l -delete 2>/dev/null
-rm -f "$DEST/.wt-slot"
+# .wt-slot: the slot number. .wt-branch: the branch `new` created, which
+# `down --delete-branch` needs and cannot re-derive (git answers with whatever
+# is checked out at teardown, not with what the worktree was made for).
+rm -f "$DEST/.wt-slot" "$DEST/.wt-branch"
 # The slot env file worktree.sh writes, and ONLY that one: it is matched by the
 # marker its generator puts on line 1, never by name. A project's own .env that
 # somehow landed here is the user's file and must still block removal — which is
