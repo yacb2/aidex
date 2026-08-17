@@ -91,12 +91,27 @@ A commit date is necessary but not sufficient (install.sh must run for the canon
 | WORKFLOW-GAP | recurring need, no skill covers it | a NEW skill |
 | FRICTION | repeated dissatisfaction, not one skill | cross-cutting |
 | STANDING-PREFERENCE | a repeated, *satisfied* instruction about the FORM of a deliverable | the default, so it stops being asked for |
+| STANDING-PROCESS | a repeated, *satisfied* instruction about HOW THE WORK IS RUN — session lifecycle, autonomy, gates, bookkeeping | the default, or a durable run state |
 
 Exclude pure approval/continuation ("ok", "avanza", "dale", "sigue") — not findings.
 
+### The two STANDING-* tags, and why they are two
+
+`STANDING-PREFERENCE` is about the FORM of a deliverable; `STANDING-PROCESS` is about how
+the work is run. They share an admission rule and nothing else, and separating them is the
+result of the open-discovery pass (USAGE-24), which found the second class by not being
+told what to look for: four instruments — three LLM lenses plus a deterministic phrase
+miner ranking by dispersion — independently ranked the session/context boundary as the
+most repeated thing in the corpus, ahead of everything about documents.
+
+Keep them apart because the fixes differ. A preference is answered by a default in a
+template or a config field. A process instruction is answered by a gate, a standing
+authorization, or state that survives a session boundary — and the last of those is the
+one the corpus asks for most.
+
 ### STANDING-PREFERENCE is admitted by REPETITION, not by complaint
 
-The six tags above are defect-shaped: every one needs a complaint, a correction,
+The first six tags are defect-shaped: every one needs a complaint, a correction,
 or a miss. That shape is what made this class invisible for every run to date.
 
 A standing preference is an instruction the user gives, the assistant obeys, and
