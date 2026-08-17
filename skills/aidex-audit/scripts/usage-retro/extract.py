@@ -211,7 +211,48 @@ def main():
                 if ts > max_ts: max_ts = ts
                 prior, prior_sk = "", []
 
-    records.sort(key=lambda r: r["ts"])
+    # One thing said once is one record. A resumed or forked session is written
+    # to a NEW transcript file with the earlier records replayed into it, and a
+    # walk over files emits those prompts once per file. Measured over 90 days:
+    # 20 of 4,688 records, every one of them spanning two session files and none
+    # inside a single session — but 2 of the 32 standing-preference candidates,
+    # because the smaller the class the more a duplicate distorts its rate.
+    #
+    # The key carries the TEXT deliberately. Two different prompts can share a
+    # timestamp (a paste that lands as two records), and a ts-only key would
+    # trade a 0.4% inflation for a silent loss of real data.
+    # A fork's replay does not always keep the timestamp: the observed pair was
+    # 4.19s apart across two session files. What separates that from a genuine
+    # repetition is LENGTH. Measured over the same 90 days, identical prompts
+    # recur 356 times more than a minute apart, and the short ones recur at every
+    # distance — 15 of the sub-second pairs are 8 characters long ("continue").
+    # Nobody retypes 125 characters byte-identically in four seconds; everybody
+    # retypes "continue". So both axes are required, and a repeated preference,
+    # which is the signal STANDING-PREFERENCE exists to count, survives untouched.
+    #
+    # Known limitation, stated rather than hidden: pairs beyond the window are
+    # left alone. In the 90-day corpus that is one 170-character pair 59.7s apart
+    # which cannot be told from a re-paste without reading it.
+    NEAR_DUP_WINDOW = 30      # seconds
+    NEAR_DUP_MINLEN = 40      # characters — below this, repetition is normal typing
+    seen, last_seen, deduped = set(), {}, []
+    n_dupes = n_near = 0
+    for r in sorted(records, key=lambda r: r["ts"]):
+        key = (r["ts"], r["project"], r["prompt"])
+        if key in seen:
+            n_dupes += 1
+            continue
+        text_key = (r["project"], r["prompt"], r["prompt_chars"])
+        prev = last_seen.get(text_key)
+        ts = parse_ts(r["ts"])
+        if (prev is not None and r["prompt_chars"] >= NEAR_DUP_MINLEN
+                and (ts - prev).total_seconds() <= NEAR_DUP_WINDOW):
+            n_near += 1
+            continue
+        seen.add(key)
+        last_seen[text_key] = ts
+        deduped.append(r)
+    records = deduped
     with open(args.out, "w") as fh:
         for r in records:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -226,6 +267,9 @@ def main():
     print(f"  pre-filtered noise prompts: {skipped_noise}")
     print(f"  machine-authored prompts excluded: {skipped_machine} "
           f"(injected bodies + handoff kickoffs)")
+    print(f"  duplicate records collapsed: {n_dupes} exact + {n_near} near "
+          f"(same prompt replayed into a resumed or forked session file; "
+          f"near = identical text >={NEAR_DUP_MINLEN} chars within {NEAR_DUP_WINDOW}s)")
     print(f"buckets: {dict(Counter(r['bucket'] for r in records))}")
     print(f"sessions: {len(set(r['session'] for r in records))} | projects: {len(set(r['project'] for r in records))}")
     print(f"skills fired: {dict(Counter(s for r in records for s in r['skills_fired']).most_common(20))}")
