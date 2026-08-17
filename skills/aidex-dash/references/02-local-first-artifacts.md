@@ -170,6 +170,38 @@ Copy the shape from
 re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
 the page's own tokens.
 
+### A consultation carries a VISUAL by default
+
+Over 90 days the reader asked for one about nine times across three projects, and
+got it every time — *"hazme un mockup de cada alternativa"*, *"usa graficos o lo que
+necesites para poder mostrarme mejor el problema, porque sigo sin entenderlo"*,
+*"con los graficos, mockups o vectores que creas necesario"*. Being granted every
+time is exactly why it never registered as a defect: obeying it once changed no
+default, so the ask came back (`audit/2026-06-21-usage-retro` USAGE-19).
+
+So the default inverts. When the thing under discussion has a **shape** — a flow, a
+layout, a state machine, two alternatives to compare, a before/after — the page opens
+with the drawing and the prose explains it. Load `artifact-diagramming` for the
+mechanics; inline SVG and mermaid both satisfy the contract (no external host).
+
+**The default is bounded, and the bound is the point.** Plenty of consultations are
+claims about which nothing can be drawn — a naming decision, a yes/no on a policy.
+A decorative diagram added to satisfy a checker is worse than prose, because it costs
+the reader attention and returns nothing.
+
+That bound is why the check is on a **declaration**, not on the presence of a picture.
+No checker can judge whether a topic has a shape, and a rule that cannot be checked is
+the exact failure § 8 was written after. So the page states which it is:
+
+```html
+<meta name="consult-visual" content="svg">              <!-- or: mermaid, img -->
+<meta name="consult-visual" content="none: a naming decision, nothing to draw">
+```
+
+A consultation page with no visual and no stated reason fails. A page that declares
+`none:` with a reason passes — and the reason is one grep away from review, which
+silence never is.
+
 ### What is checked, and how
 
 All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.

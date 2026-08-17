@@ -206,6 +206,53 @@ for case in "consult-dupe duplicate" "consult-nobtn consult-copy" "consult-nodar
   else bad "did not catch $2 in $1.html: $out"; fi
 done
 
+# A consultation carries a visual by default, or says why not (BL-171 / USAGE-19).
+# The check is on the DECLARATION because no checker can judge whether a subject
+# has a shape — and an unenforceable sentence is what § 8 was written after.
+mk noviz.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}
+:root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
+<section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><textarea></textarea></section>
+<button id=\"consult-copy\"></button><span id=\"consult-status\">blank</span>"
+out="$(bash "$CHECK" "$TMP/noviz.html" 2>&1)"
+[[ "$out" == *"consult-visual"* ]] && ok "a consultation with neither a visual nor a reason is caught" \
+                                  || bad "the missing-visual declaration was not caught: $out"
+
+# Either half satisfies it: a real drawing, or an explicit reason there is none.
+python3 - "$TMP/noviz.html" "$TMP/withviz.html" <<'PY'
+import sys
+t = open(sys.argv[1]).read().replace("<title>t</title>",
+    '<title>t</title><svg width="10" height="10"></svg>')
+open(sys.argv[2], "w").write(t)
+PY
+bash "$CHECK" "$TMP/withviz.html" >/dev/null 2>&1 \
+  && ok "an inline SVG satisfies the visual default" || bad "a page WITH a drawing still failed"
+
+python3 - "$TMP/noviz.html" "$TMP/declared.html" <<'PY'
+import sys
+t = open(sys.argv[1]).read().replace("<title>t</title>",
+    '<title>t</title><meta name="consult-visual" content="none: a naming decision, nothing to draw">')
+open(sys.argv[2], "w").write(t)
+PY
+bash "$CHECK" "$TMP/declared.html" >/dev/null 2>&1 \
+  && ok "a declared reason for having no visual passes" || bad "an explicit none: reason was rejected"
+
+# An empty declaration is silence wearing a meta tag.
+python3 - "$TMP/noviz.html" "$TMP/emptydecl.html" <<'PY'
+import sys
+t = open(sys.argv[1]).read().replace("<title>t</title>",
+    '<title>t</title><meta name="consult-visual" content="none:">')
+open(sys.argv[2], "w").write(t)
+PY
+out="$(bash "$CHECK" "$TMP/emptydecl.html" 2>&1)"
+[[ "$out" == *"consult-visual"* ]] && ok "an empty none: declaration does not satisfy it" \
+                                   || bad "a reasonless declaration passed"
+
+# And it must stay silent on an ordinary report: a page with no reply boxes is
+# not a consultation, and most reports have no diagram by design.
+bash "$CHECK" "$TMP/wrapped.html" >/dev/null 2>&1 \
+  && ok "the visual default does not fire on a plain report" \
+  || bad "the visual check leaked onto a non-consultation page"
+
 # Requirement 1 across regenerations — the rule that was unenforceable, so it broke.
 cp "$TMP/consult-ok.html" "$TMP/regen-same.html"
 bash "$CHECK" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \

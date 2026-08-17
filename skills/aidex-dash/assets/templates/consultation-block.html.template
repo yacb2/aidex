@@ -50,6 +50,18 @@
   :root[data-theme="dark"] .consult-bar button { border-color: #24333A; }
 </style>
 
+<!--
+  A consultation opens with the DRAWING when the subject has a shape — a flow, a
+  layout, two alternatives to compare — and the prose explains it. Inline SVG and
+  mermaid both work offline, which the contract requires. Declare which case this
+  page is; a page that carries neither a visual nor a reason fails the check,
+  because the reader asked for the picture nine times over 90 days and got it
+  every time, so the ask kept coming back (USAGE-19).
+
+  Replace `none:` with `svg` / `mermaid` / `img` as soon as the page has one.
+-->
+<meta name="consult-visual" content="none: replace this with the reason, or with svg/mermaid/img">
+
 <!-- One block per claim or question. Duplicate it; never renumber it. -->
 <section class="consult-item" data-id="c1" data-title="Short claim title">
   <h3><span class="consult-id">c1</span>Short claim title</h3>
