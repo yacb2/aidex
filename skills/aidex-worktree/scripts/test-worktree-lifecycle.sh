@@ -289,6 +289,51 @@ branch_exists svc feat/kept \
   || fail "delete-branch: a plain 'down' deleted the branch — the flag must be opt-in"
 git -C "$WS/svc" branch -D feat/kept >/dev/null 2>&1
 
+# (d) THE WRONG-TARGET CASE. `branch --show-current` answers with whatever is
+#     checked out at teardown. A worktree switched to a pre-existing main-tree
+#     branch would hand that unrelated ref to the deletion, and leave the branch
+#     the flag exists to remove. Silent wrong-target mutation of someone else's
+#     ref, printed as success.
+git -C "$WS/svc" branch colleague/review >/dev/null 2>&1
+bash "$WT" new a --branch feat/created --no-infra >/dev/null 2>&1 || fail "delete-branch: create (d) failed"
+git -C "$TMP/wtfix-wt-a/svc" checkout -q colleague/review 2>/dev/null
+out="$(bash "$WT" down a --delete-branch 2>&1)"
+branch_exists svc colleague/review \
+  || fail "delete-branch: deleted 'colleague/review', a main-tree branch the worktree merely had checked out — only the CREATED branch is ever a candidate"
+branch_exists svc feat/created \
+  || fail "delete-branch: deleted the created branch while the checkout was elsewhere — the recorded name must match the current one"
+[[ "$out" == *"not the created"* ]] \
+  || fail "delete-branch: the mismatch was not reported: $(printf '%s' "$out" | tr '\n' ' ' | tail -c 200)"
+git -C "$WS/svc" branch -D colleague/review feat/created >/dev/null 2>&1
+
+# (e) THE EMPTY-ARRAY CASE. On bash 3.2 (the macOS system shell) expanding an
+#     empty array under `set -u` is fatal, so a teardown with nothing eligible
+#     aborted with a raw "unbound variable" and exit 1 — over a teardown that had
+#     already fully succeeded. Reached by the stranded-directory recovery path
+#     that `list` itself prescribes.
+bash "$WT" new a --branch feat/gone --no-infra >/dev/null 2>&1 || fail "delete-branch: create (e) failed"
+rm -rf "$TMP/wtfix-wt-a"
+out="$(bash "$WT" down a --delete-branch 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] \
+  || fail "delete-branch: a teardown with no eligible branch must still exit 0 (got $rc): $(printf '%s' "$out" | tr '\n' ' ' | tail -c 220)"
+[[ "$out" != *"unbound variable"* ]] \
+  || fail "delete-branch: empty array expanded under set -u — the guard must be an else-branch"
+# `rm -rf` left git's worktree registry pointing at a path that no longer exists,
+# so the next `new` on this slug would hit "missing but already registered".
+# That is the test's own mess, not the tool's.
+git -C "$WS/svc" worktree prune >/dev/null 2>&1
+git -C "$WS/svc" branch -D feat/gone >/dev/null 2>&1
+
+# (f) A worktree created before .wt-branch existed has no recorded name. It must
+#     SKIP, never fall back to the current branch — that fallback IS case (d).
+bash "$WT" new a --branch feat/legacy --no-infra >/dev/null 2>&1 || fail "delete-branch: create (f) failed"
+rm -f "$TMP/wtfix-wt-a/.wt-branch"
+out="$(bash "$WT" down a --delete-branch 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "delete-branch: a worktree with no .wt-branch must not fail the teardown (got $rc)"
+branch_exists svc feat/legacy \
+  || fail "delete-branch: fell back to the current branch when .wt-branch was absent — absence must skip"
+git -C "$WS/svc" branch -D feat/legacy >/dev/null 2>&1
+
 # --- 3c. WT_PRE_DOWN_CMD: the project's own stop recipe ----------------------
 #
 # `down` reclaims only what Docker owns, so a hybrid stack keeps running the
