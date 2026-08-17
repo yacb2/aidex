@@ -155,5 +155,65 @@ echo "$out_h" | grep -q 'base rate              : 0.0%' \
 echo "$out_h" | grep -q 'items attributed       : 3' \
   || fail "(h) defect-proneness should attribute the same 3 items: $out_h"
 
+# ---------------------------------------------------------------------------
+# (j) CROSS-PROJECT ID COLLISION. `BL-NNN` ids are project-scoped — mine_items
+#     builds `id_map` per project for exactly this reason, and in the real
+#     workspace 178 ids are shared across projects. A token map built globally
+#     resolves every mention to whichever project sorts LAST, so one project's
+#     session is attributed to a stranger's item and that item's `type:` is
+#     what decides the bug numerator.
+#
+#     The corpus is two projects, one shared id, opposite types, and a session
+#     that belongs to the alphabetically FIRST project. Its own item is a task,
+#     so the honest base rate is 0%; resolving to zz_ws's bug item makes it
+#     100%. The assertion is on the rate rather than on a file name because the
+#     rate is what the flagged ranking is normalized against.
+# ---------------------------------------------------------------------------
+CP="$(mktemp -d)"; CPTX="$(mktemp -d)"
+cp_cleanup() { rm -rf "$CP" "$CPTX"; }
+trap 'cleanup; cp_cleanup' EXIT
+
+cp_item() {  # cp_item <project> <slug> <type>
+  mkdir -p "$CP/$1/.context/backlog"
+  cat > "$CP/$1/.context/backlog/$2.md" <<EOF
+---
+title: "Shared id, $3 in $1"
+id: BL-901
+status: done
+created: 2026-02-01
+updated: 2026-02-01
+type: $3
+---
+
+# Shared id
+EOF
+}
+cp_item aa_ws 2026-02-01-alpha-task task
+cp_item zz_ws 2026-02-09-zulu-bug   bug
+
+CPD="$CPTX/-Users-yoelacevedo-Documents-projects-aa-ws"
+mkdir -p "$CPD"
+{
+  python3 -c 'import json; print(json.dumps({"type":"user","timestamp":"2026-02-01T00:00:00Z","message":{"content":"fix BL-901 please"}}))'
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-02-01T00:01:00Z","message":{"content":[{"type":"tool_use","name":"Edit","id":"t","input":{"file_path":"/home/u/Documents/projects/aa_ws/src/pay.py","old_string":"a","new_string":"b"}}]}}))'
+} > "$CPD/c1.jsonl"
+
+out_j="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$CP" \
+  --transcripts-root "$CPTX" --denominator typed --min-touches 1 2>&1)"
+echo "$out_j" | grep -q 'items attributed       : 1  (bug 0)' \
+  || fail "(j) a shared BL id must resolve inside its own project, not the last-sorted one: $out_j"
+echo "$out_j" | grep -q 'base rate              : 0.0%' \
+  || fail "(j) the base rate must come from aa_ws's own task item, not zz_ws's bug: $out_j"
+
+# The control: zz_ws's own session DOES resolve to zz_ws's bug item, or (j)
+# would pass by attributing nothing at all.
+CPD2="$CPTX/-Users-yoelacevedo-Documents-projects-zz-ws"
+mkdir -p "$CPD2"
+cp "$CPD/c1.jsonl" "$CPD2/c1.jsonl"
+out_j2="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$CP" \
+  --transcripts-root "$CPTX" --denominator typed --min-touches 1 2>&1)"
+echo "$out_j2" | grep -q 'items attributed       : 2  (bug 1)' \
+  || fail "(j) control: each project's own session should attribute its own item: $out_j2"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution"
