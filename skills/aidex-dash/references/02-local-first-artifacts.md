@@ -62,6 +62,27 @@ palette is invented and then lost — this single offer is the only moment it ca
 captured. Seed from `aidex-dash/assets/templates/artifact-style.md.template`, prefilled
 with the choices just made. Never repeat the offer, never nag.
 
+**"Exactly once" is kept by a marker, not by memory.** `wrap-report.sh --out` prints the
+offer when the project has a `.context/` and no profile, and records it in
+`.context/.aidex-artifact-style-offered` so it never fires again. The profile itself is
+still never auto-created (`e87bbd3`) — only the record of the offer is. Both halves of
+the rule were broken without it: it never fired on the artifact that prompted BL-168,
+while a usage-retro measured 14 offers across 7 projects, 6 of them ignored. A rule that
+is simultaneously missed and nagging is a rule with no memory.
+
+The profile also carries the artifact's **language** as a field:
+
+```
+## Language
+
+- language: es
+```
+
+`wrap-report.sh` reads it and uses it as `<html lang>`; precedence is `--lang` > this
+field > `en`. The scope is artifacts only — `.context/` stays English (D-04) and
+`communications/` keep the language they arrived in, so this is configured once per
+project instead of restated per request.
+
 ### 4. Write page content, then wrap it — do not hand-roll the document
 
 Write what `artifact-design` teaches: styles and markup, no `<!doctype>` / `<html>` /
@@ -86,8 +107,9 @@ prints a NOTE saying the contract went unverified.
 ### 5. Read what the contract check said
 
 `--out` already ran it. It checks doctype, charset, viewport, title, dark mode, no
-external CSS/JS/fonts/images, no sibling assets. Fix what it reports; never open or hand
-over a file that fails it. A non-zero exit means the file on disk is not deliverable.
+external CSS/JS/fonts/images, no sibling assets — plus the consultation shape of § 8 when
+the page has reply boxes. Fix what it reports; never open or hand over a file that fails
+it. A non-zero exit means the file on disk is not deliverable.
 
 To re-check a file you did not just wrap:
 
@@ -147,6 +169,33 @@ Copy the shape from
 `~/.aidex/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
 re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
 the page's own tokens.
+
+### What is checked, and how
+
+All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.
+A page counts as a consultation when it has a `<textarea>` — not when it has the
+template's class names, because a page that never copied the template is exactly the one
+with no class names to key on. That is the observed violation: a hand-rolled consultation
+page with 14 reply boxes, zero stable ids and no doctype, which no check ever saw because
+the whole procedure was bypassed.
+
+| Check | Fails when |
+|---|---|
+| `consult` | reply boxes without a `data-id` / `data-title`, duplicate ids, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, or no `:root[data-theme="dark"]` rule for `.consult-bar` |
+| `consult-ids` | an id kept between two versions now names a different claim |
+
+`consult-ids` needs both versions, so `--out` snapshots the file it is about to replace
+and passes it as `--prev`. To compare by hand:
+
+```
+check-artifact.sh <new.html> --prev <old.html>
+```
+
+It fails on a **shift** — an id whose title moved — which is what actually happened
+(a claim moved from D4 to D5 between two versions of one consultation, so a reply about
+"D5" meant two different things, and the violation was then papered over with a note to
+the reader). It does **not** fail on an id that disappears: ids are never renumbered, but
+they are allowed to be closed out.
 
 ---
 

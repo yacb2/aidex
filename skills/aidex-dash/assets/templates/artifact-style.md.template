@@ -32,5 +32,14 @@ don't want to constrain.
 
 ## Language
 
-- Default: English (D-04). Override here only if this project's artifacts
-  must ship in another language: {{...}}
+- language: en
+
+Read as a field, not as prose: `wrap-report.sh` parses the first `language:`
+line in this file and uses it as the document's `<html lang>` when no explicit
+`--lang` is passed. Precedence is `--lang` > this field > `en`.
+
+Scope is ARTIFACTS only. `.context/` stays English (D-04) whatever this says —
+it is a historical record and is cheaper to search in one language — and
+`communications/` bodies stay in the language they arrived in. This field
+exists so a project whose reader wants Spanish reports configures it once here
+instead of restating it per request.
