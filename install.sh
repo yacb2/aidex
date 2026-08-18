@@ -35,6 +35,28 @@ warn()  { echo -e "  ${YELLOW}[!]${NC} $1"; }
 error() { echo -e "  ${RED}[-]${NC} $1"; }
 header() { echo -e "\n${BOLD}$1${NC}"; }
 
+# The commit the installed tree came from. VERSION only moves on a release, so a
+# matching version says nothing about the fixes that landed between two of them:
+# 19 commits were installed once with no marker disagreeing with reality, and the
+# only way to detect it was diffing files. Empty when the source is not a git
+# checkout (tests build a bare fixture repo), in which case nothing is stamped.
+repo_commit() {
+  git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || true
+}
+
+# The only writer of the install markers — version and commit move together or
+# they can disagree, which is the failure they exist to make visible.
+stamp_install() {
+  echo "$VERSION" > "$AIDEX_DIR/.version"
+  local sha
+  sha="$(repo_commit)"
+  if [ -n "$sha" ]; then
+    echo "$sha" > "$AIDEX_DIR/.commit"
+  else
+    rm -f "$AIDEX_DIR/.commit"
+  fi
+}
+
 ask_choice() {
   local prompt="$1"
   local default="$2"
@@ -299,7 +321,7 @@ do_install() {
 
   # Write manifest and version
   write_manifest "${items[@]}"
-  echo "$VERSION" > "$AIDEX_DIR/.version"
+  stamp_install
 
   echo ""
   echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -395,7 +417,7 @@ do_update() {
   if [ "${#modified[@]}" -eq 0 ] && [ "${#new_items[@]}" -eq 0 ] && [ "${#removed[@]}" -eq 0 ]; then
     info "Everything is up to date ($unchanged items unchanged)"
     # Still stamp the version: a release commit may bump VERSION= with no item changes.
-    echo "$VERSION" > "$AIDEX_DIR/.version"
+    stamp_install
     exit 0
   fi
 
@@ -495,6 +517,13 @@ do_update() {
       echo "  Cancelled."
       exit 0
       ;;
+    *)
+      # No fallback arm meant an unrecognized answer fell through to the manifest
+      # write and the version stamp: nothing installed, yet the run printed
+      # "Updated to vX" and the marker agreed. Refuse loudly instead.
+      error "Unrecognized choice '$choice' — nothing was changed. Re-run with 1, 2 or 3."
+      exit 1
+      ;;
   esac
 
   # v0.4.0: registry concept removed. Clean up stale skill-registry.json from older installs.
@@ -536,7 +565,7 @@ do_update() {
   write_manifest "${all_items[@]}"
 
   # Update version
-  echo "$VERSION" > "$AIDEX_DIR/.version"
+  stamp_install
 
   header "Done"
   echo "  Updated to v$VERSION"
@@ -586,7 +615,7 @@ do_uninstall() {
       # manifest is what still describes it. Deleting it here stranded every
       # later option (2 and 3 removed 0 of 268 files) and broke --doctor and
       # --update until a bare re-install rebuilt it.
-      rm -f "$AIDEX_DIR/.version"
+      rm -f "$AIDEX_DIR/.version" "$AIDEX_DIR/.commit"
       ;;
     2)
       # Remove symlinks + aidex files
@@ -641,12 +670,12 @@ do_uninstall() {
       # directory itself (the rm -rf below): while ~/.aidex/ still exists, it is
       # the only record of what aidex owns, and a follow-up run needs it to
       # finish the job it was asked to do.
-      rm -f "$AIDEX_DIR/.version"
+      rm -f "$AIDEX_DIR/.version" "$AIDEX_DIR/.commit"
 
       local personal
       # aidex's own bookkeeping is not personal content — the manifest is still
       # here by design, and counting it would report a clean tree as personal.
-      personal=$(find "$AIDEX_DIR" -mindepth 1 -not -type d -not -name '.manifest' 2>/dev/null | head -20 || true)
+      personal=$(find "$AIDEX_DIR" -mindepth 1 -not -type d -not -name '.manifest' -not -name '.commit' 2>/dev/null | head -20 || true)
       if [ -z "$personal" ]; then
         rm -rf "$AIDEX_DIR"
         info "Removed ~/.aidex/ (contained nothing personal)"
@@ -712,6 +741,24 @@ run_doctor() {
   else
     echo "FAIL: $AIDEX_DIR/.version not found"
     fail_count=$((fail_count + 1))
+  fi
+
+  # 1b. Content drift. A matching version is not a matching tree: between two
+  # releases the repo moves and .version does not, so this is the only check that
+  # can tell "up to date" from "installed a while ago". Silent when either side
+  # has no commit to compare (source is not a git checkout, or the install
+  # predates the marker) — an absent marker is not evidence of drift.
+  local repo_sha
+  repo_sha="$(repo_commit)"
+  if [ -n "$repo_sha" ] && [ -f "$AIDEX_DIR/.commit" ]; then
+    local installed_sha
+    installed_sha="$(cat "$AIDEX_DIR/.commit")"
+    if [ "$installed_sha" = "$repo_sha" ]; then
+      echo "PASS: installed from commit $installed_sha"
+    else
+      echo "FAIL: content drift — installed from $installed_sha, repo HEAD is $repo_sha (run ./install.sh --update)"
+      fail_count=$((fail_count + 1))
+    fi
   fi
 
   # 2. Skill symlinks in $CLAUDE_DIR/skills/ pointing into $AIDEX_DIR: count + broken.
