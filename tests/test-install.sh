@@ -150,5 +150,23 @@ run_install --update || fail "G4: no-change --update exited non-zero"
 [[ "$(cat "$H/.aidex/.version" 2>/dev/null)" == "9.9.9" ]] \
   || fail "G4: .version not refreshed on no-change update (got '$(cat "$H/.aidex/.version" 2>/dev/null)')"
 
+# ---------- G8: an unrecognized update choice must not report success over a no-op ----------
+# The choice `case` had arms for 1/2/3 and no fallback: anything else fell straight
+# through to the manifest write and the version stamp, so the updater printed
+# "Updated to vX", stamped .version and rewrote .manifest while installing nothing.
+# That is the marker-lies-about-reality failure the version work exists to prevent.
+make_fixture
+run_install || fail "G8: fresh install exited non-zero"
+before_version="$(cat "$H/.aidex/.version")"
+echo "# a CHANGED" > "$FIX/skills/skill-a/SKILL.md"
+sed -i '' 's/^VERSION=.*/VERSION="9.9.9"/' "$FIX/install.sh"
+out="$( (cd "$FIX" && HOME="$H" printf 'x\n' | HOME="$H" bash install.sh --update 2>&1) )"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "G8: unrecognized choice exited 0 over a no-op"
+[[ "$out" != *"Updated to v"* ]] || fail "G8: reported 'Updated to v...' without installing anything"
+[[ "$(cat "$H/.aidex/.version" 2>/dev/null)" == "$before_version" ]] \
+  || fail "G8: stamped .version on a choice that installed nothing (got '$(cat "$H/.aidex/.version" 2>/dev/null)')"
+[[ "$(cat "$H/.aidex/skills/skill-a/SKILL.md")" == "# a" ]] \
+  || fail "G8: installed content changed on an unrecognized choice"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — pycache excluded, manifest reflects choices, personal files guarded, no dangling symlinks, version stamped on no-change update, hook subdirs installed executable"

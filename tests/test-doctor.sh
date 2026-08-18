@@ -25,6 +25,8 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 # owns must be read from that file, or the test rots on the owner's next edit.
 REPO_VERSION="$(sed -n 's/^VERSION="\(.*\)"/\1/p' "$REPO_ROOT/install.sh" | head -1)"
 [[ -n "$REPO_VERSION" ]] || { echo "FAIL: could not parse VERSION from install.sh"; exit 1; }
+REPO_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+[[ -n "$REPO_COMMIT" ]] || { echo "FAIL: could not read HEAD sha"; exit 1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -46,6 +48,7 @@ make_fixture() {
   ln -s "$A/rules/aidex-demo.md" "$C/rules/aidex-demo.md"
   printf 'skills/skill-a\nhooks/aidex-router.sh\nhooks/durability-run.sh\nrules/aidex-demo.md\n' > "$A/.manifest"
   echo "$REPO_VERSION" > "$A/.version"
+  echo "$REPO_COMMIT" > "$A/.commit"
   ln -s "$A/skills/skill-a" "$C/skills/skill-a"
 }
 
@@ -137,6 +140,18 @@ out="$(bash "$REPO_ROOT/install.sh" --doctor 2>&1)"; rc=$?
 [[ "$rc" -eq 0 || "$rc" -eq 1 ]] || fail "(e) real install smoke: unexpected exit $rc"
 echo "$out" | grep -q "aidex doctor" || fail "(e) real install smoke: missing report header"
 echo "$out" | grep -qE "PASS:|FAIL:" || fail "(e) real install smoke: no PASS/FAIL lines in report"
+
+# ---------- (h) content drift: same version, different commit ----------
+# VERSION only moves on a release, so a matching version says nothing about the
+# commits that landed since. Without a commit marker, an install 19 commits stale
+# and a current one are indistinguishable and doctor calls both healthy.
+make_fixture
+echo "deadbee" > "$A/.commit"
+out="$(run_doctor)"; rc=$?
+[[ "$rc" -eq 1 ]] || fail "(h) content drift: expected exit 1, got $rc"
+echo "$out" | grep -q "FAIL:.*drift" || fail "(h) content drift: missing drift FAIL line"
+echo "$out" | grep -q "deadbee" || fail "(h) content drift: did not name the installed commit"
+echo "$out" | grep -q "$REPO_COMMIT" || fail "(h) content drift: did not name the repo commit"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — doctor reports version/symlinks/exec-bits/python3/manifest/hooks; exits 0 healthy, 1 on any failure"
