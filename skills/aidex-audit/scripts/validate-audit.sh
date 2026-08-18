@@ -319,7 +319,27 @@ for entry in "$AUDITS_DIR"/*/; do
     fi
     continue
   fi
-  # Anything else is a methodology folder: boards inside + dated runs.
+  # Anything else MAY be a methodology folder. Not every folder is one:
+  # `test-coverage/` is a data directory this same script special-cases below
+  # (module-map.json, coverage-matrix.md, defect-prone.jsonl), and its path is
+  # hard-coded in coverage/defect_prone.py, references 06 and 07, and
+  # test-defect-prone.sh — so demanding three methodology boards there produced
+  # three violations with no correct way to close them. Require the boards only
+  # where the folder BEHAVES like a methodology: it holds at least one dated run
+  # folder, or at least one board already. A folder with neither is data.
+  behaves_like_methodology=0
+  for board in 00-inventory.md 00-methodology.md 00-changelog.md; do
+    [[ -f "$entry/$board" ]] && { behaves_like_methodology=1; break; }
+  done
+  if [[ "$behaves_like_methodology" -eq 0 ]]; then
+    if find "${entry%/}" -mindepth 1 -maxdepth 1 -type d \
+         \( -name '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*' -o -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*' \) \
+         2>/dev/null | grep -q .; then
+      behaves_like_methodology=1
+    fi
+  fi
+  [[ "$behaves_like_methodology" -eq 0 ]] && continue
+
   methodologies=$((methodologies+1))
   for board in 00-inventory.md 00-methodology.md 00-changelog.md; do
     [[ -f "$entry/$board" ]] || add_violation audit-methodology-missing-board "$entry/$board" "methodology '$name' missing $board"
