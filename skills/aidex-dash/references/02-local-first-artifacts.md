@@ -265,6 +265,23 @@ responsive collapse — there is no opt-out marker, because the cascade already 
 Inside that container, write what `artifact-design` teaches: styles and markup, no
 `<!doctype>` / `<html>` / `<head>` / `<body>` of your own.
 
+**A page never writes a theme block.** Light, dark-by-system and dark-by-toggle are all
+three shipped by `tokens.css`, for every token the kit has — surfaces, ink, accent, flag,
+and `--s0`…`--s8`, the chart series slots. Write `fill="var(--s3)"` and the chart is
+correct in both themes with no `@media (prefers-color-scheme)` of your own. This is not
+a style preference: it is the one thing a per-page block gets wrong, because the media
+query alone loses to an explicit toggle in one direction and the page ends up half-dark.
+The series slots exist because charted artifacts were re-declaring five colours across
+three blocks every single time.
+
+Assign the series in fixed order — `--s1` is the first series whatever the chart is,
+`--s0` is the neutral rest/other fill — and never cycle. Past `--s8`, fold into "other"
+or facet. The values are dataviz's reference instance, re-validated against the kit's own
+surfaces; in light mode four of the slots sit below 3:1 contrast, which is the documented
+relief case — a light chart using them ships visible direct labels or a table view. A
+page needing a colour the kit does not have adds it in its own `<style>`, in all three
+theme forms; a project needing a different one changes the value in its `## Delta`.
+
 The Artifact tool supplies that envelope at publish time; a local file gets the same one
 from:
 
