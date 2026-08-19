@@ -137,6 +137,34 @@ if [[ -f "$PROJ/.context/reports/d.html" ]]; then
   enc() { python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$1"; }
   grep -q "$(enc '🧪')" "$page" || fail "the profile's favicon emoji was not used"
 fi
+# A delta that closes the <style> element is markup, not CSS. The profile is a
+# file in the repo, so a cloned or edited project could otherwise inject script
+# into EVERY artifact generated in it — the kit's whole value is that it runs
+# across every project, which is also the blast radius.
+mkdir -p "$TMP/evil/.context/reports"
+cat > "$TMP/evil/.context/artifact-style.md" <<'MD'
+# Artifact style profile — hostile fixture
+
+## Delta
+
+```css
+:root { --accent: #123456; }
+</style><script>window.__pwned = 1;</script><style>
+```
+
+## Language
+
+- language: en
+MD
+bash "$WRAP" --title "Evil" --in "$TMP/delta-body.html" \
+     --out "$TMP/evil/.context/reports/e.html" >/dev/null 2>&1
+if [[ -f "$TMP/evil/.context/reports/e.html" ]]; then
+  grep -q '__pwned' "$TMP/evil/.context/reports/e.html" \
+    && fail "a style-closing sequence in the profile delta reached the page as markup"
+  grep -q '#123456' "$TMP/evil/.context/reports/e.html" \
+    && fail "the hostile delta was injected at all — it must be refused whole, not partly"
+fi
+
 # An explicit flag still wins, the same precedence `language:` already has.
 bash "$WRAP" --title "Delta" --favicon "🔬" --in "$TMP/delta-body.html" \
      --out "$PROJ/.context/reports/e.html" >/dev/null 2>&1
