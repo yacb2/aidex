@@ -86,7 +86,11 @@ Route: move content to `.context/references/<topic>/NN-topic.md`, replace MEMORY
 
 Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable content:
 
-- Full directory trees → move to `.context/references/architecture/00-index.md`.
+- Full directory trees → **delete them**, do not relocate. `ls` regenerates a tree
+  correctly and for free, and a copy in `.context/` goes stale exactly as fast as the
+  one in CLAUDE.md. What survives the cut is the annotation a tree cannot carry — why a
+  retired file is still present, which of two similar directories is live. See
+  `aidex-conventions/references/claudemd-conventions.md` § What NOT to Include.
 - Command catalogs with >5 entries → move to `.context/references/commands/`.
 - Stack tables with versions → keep a one-liner, move detail out.
 - Keep in CLAUDE.md: active constraints, critical gotchas that change behavior, entry points to references.
