@@ -8,7 +8,8 @@ user to name a tool; route by request shape.
 `~/.aidex/skills/aidex-dash/scripts/render.sh <target>` — zero-token and idempotent —
 then open the output locally. Do not hand-generate what a renderer already produces.
 
-**B. Ad-hoc report** — anything else. Two gates apply before anything is written:
+**B. Ad-hoc report** — anything else. Three gates, two before anything is written and
+one that keeps applying for as long as the page is being discussed:
 
 1. **Load design guidance before writing any page markup** — `artifact-design` via the
    Skill tool (or `theme-factory` / `dataviz` where it is unavailable). Never hand-roll
@@ -17,6 +18,13 @@ then open the output locally. Do not hand-generate what a renderer already produ
    the work it documents, is the durable copy. This deliberately overrides the `Artifact`
    tool's own default ("publishing proactively is fine"); when the two disagree, this
    rule wins.
+3. **The artifact carries the discussion, not the chat.** Every time the reader answers
+   or decides something about the page, that answer goes INTO the page — summarised at
+   the top, with what is still open below it — before the reply that acknowledges it.
+   A thread is never concluded while its decisions live only in the conversation: that
+   is how a questionnaire's four approved items survived and the other nine were lost.
+   Mechanics (stable ids, decided items leaving the question set, the ledger) are in
+   the procedure below.
 
 Then read the full procedure — anchor selection, style profile, wrapping, contract
 check, placement — and follow it:
