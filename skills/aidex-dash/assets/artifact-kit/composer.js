@@ -1,0 +1,171 @@
+/* artifact-kit — the composer.
+ *
+ * Builds the rail (sections, then the consultation items), tracks which items
+ * are answered, and composes every reply surface in an item into one markdown
+ * block the reader copies in a click.
+ *
+ * Reply surfaces read, in this order: checked radios and checkboxes (by
+ * `data-label`, falling back to `value`), selects (the selected option's text),
+ * short text inputs, then textareas. An item needs at least one of them; which
+ * one is the author's choice.
+ *
+ * Display strings are keyed off `<html lang>`, which wrap-report.sh already sets
+ * from the project's `.context/artifact-style.md`. They are NOT hard-coded in
+ * one language: the kit ships to every project and only the project carries a
+ * language. Adding a language is one entry in STRINGS; an unknown lang falls
+ * back to English rather than showing keys.
+ *
+ * `blank` is the identifier the artifact contract greps for in the composer
+ * (comments stripped), and it is what a half-answered page is judged by. Do not
+ * rename it, in any language. */
+(function () {
+  var STRINGS = {
+    en: {
+      none: 'Nothing answered yet.',
+      progress: function (n, total) { return n + ' of ' + total + ' answered'; },
+      missing: function (ids) { return ' · missing ' + ids.join(', '); },
+      nothingToCopy: 'Nothing answered yet — there is nothing to copy.',
+      copied: function (n) { return n + ' copied'; },
+      blankList: function (ids) { return ' · ' + ids.length + ' blank: ' + ids.join(', '); },
+      noneBlank: ' · none blank',
+      paste: ' — paste them into the chat.',
+      noClipboard: ' — clipboard unavailable, copy the selected text.'
+    },
+    es: {
+      none: 'Sin responder todavía.',
+      progress: function (n, total) { return n + ' de ' + total + ' respondidas'; },
+      missing: function (ids) { return ' · falta ' + ids.join(', '); },
+      nothingToCopy: 'Todavía no has respondido nada — no hay nada que copiar.',
+      copied: function (n) { return n + ' copiada(s)'; },
+      blankList: function (ids) { return ' · ' + ids.length + ' en blanco: ' + ids.join(', '); },
+      noneBlank: ' · ninguna en blanco',
+      paste: ' — pégalas en el chat.',
+      noClipboard: ' — portapapeles no disponible, copia el texto seleccionado.'
+    }
+  };
+  var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
+
+  // Built with DOM nodes rather than innerHTML: the id and the title are author
+  // text, and a title carrying an angle bracket would otherwise be parsed as
+  // markup instead of shown.
+  function railLink(cls, href, id, title) {
+    var a = document.createElement('a');
+    a.className = cls;
+    a.href = href;
+    var dot = document.createElement('span');
+    dot.className = 'dot';
+    a.appendChild(dot);
+    if (id) {
+      var rid = document.createElement('span');
+      rid.className = 'rid';
+      rid.textContent = id;
+      a.appendChild(rid);
+    }
+    var rt = document.createElement('span');
+    rt.className = 'rt';
+    rt.textContent = title;
+    a.appendChild(rt);
+    return a;
+  }
+
+  var status = [].slice.call(document.querySelectorAll('.consult-status'));
+  var buttons = [].slice.call(document.querySelectorAll('#consult-copy, #consult-copy-end'));
+  var list = document.getElementById('raillist');
+  var items = [].slice.call(document.querySelectorAll('.consult-item'));
+
+  // The rail carries the sections as well as the questions: on a read with no
+  // questions it is still the index, which is why it stays on every page.
+  if (list) {
+    document.querySelectorAll('.main > section[id]').forEach(function (sec) {
+      var h = sec.querySelector('h2');
+      if (!h) return;
+      list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
+    });
+    if (items.length) {
+      var sep = document.createElement('div');
+      sep.className = 'railsep';
+      list.appendChild(sep);
+    }
+  }
+
+  var links = items.map(function (el) {
+    el.id = el.dataset.id;
+    if (!list) return null;
+    var a = railLink('railitem', '#' + el.dataset.id, el.dataset.id, el.dataset.title || '');
+    list.appendChild(a);
+    return a;
+  });
+
+  function readItem(el) {
+    var parts = [], marked = [];
+    el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
+      .forEach(function (i) { marked.push(i.dataset.label || i.value || ''); });
+    if (marked.length) parts.push(marked.map(function (m) { return '- ' + m; }).join('\n'));
+    el.querySelectorAll('select').forEach(function (s) {
+      if (s.value) parts.push(s.options[s.selectedIndex].text.trim());
+    });
+    el.querySelectorAll('input[type="text"]').forEach(function (i) {
+      if (i.value.trim()) parts.push(i.value.trim());
+    });
+    el.querySelectorAll('[contenteditable]').forEach(function (c) {
+      if (c.textContent.trim()) parts.push(c.textContent.trim());
+    });
+    el.querySelectorAll('textarea').forEach(function (t) {
+      if (t.value.trim()) parts.push(t.value.trim());
+    });
+    return parts.join('\n\n');
+  }
+
+  function collect() {
+    var answered = [], blank = [];
+    items.forEach(function (el, i) {
+      var body = readItem(el);
+      if (links[i]) links[i].classList.toggle('done', !!body);
+      if (body) answered.push('### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
+      else blank.push(el.dataset.id);
+    });
+    return { markdown: answered.join('\n\n'), answered: answered.length, blank: blank };
+  }
+
+  function say(text) { status.forEach(function (s) { s.textContent = text; }); }
+
+  function refresh() {
+    var r = collect();
+    say(r.answered
+      ? L.progress(r.answered, items.length) + (r.blank.length ? L.missing(r.blank) : '')
+      : L.none);
+  }
+
+  function copy() {
+    var r = collect();
+    if (!r.answered) {
+      say(L.nothingToCopy);
+      return;
+    }
+    var msg = L.copied(r.answered) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
+
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = r.markdown;
+      ta.style.cssText = 'position:fixed;left:0;bottom:0;width:100%;height:9rem';
+      document.body.appendChild(ta);
+      ta.select();
+      say(msg + L.noClipboard);
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(r.markdown)
+        .then(function () { say(msg + L.paste); })
+        .catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  if (items.length) {
+    document.addEventListener('input', refresh);
+    document.addEventListener('change', refresh);
+    refresh();
+    buttons.forEach(function (b) { b.addEventListener('click', copy); });
+  }
+})();

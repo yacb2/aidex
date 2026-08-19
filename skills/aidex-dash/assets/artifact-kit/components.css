@@ -1,0 +1,160 @@
+/* artifact-kit — components: every rule the page renders with.
+ *
+ * Reads the tokens from tokens.css; never hard-codes a colour or a font stack,
+ * so a project's delta can restyle the whole system by overriding tokens alone.
+ *
+ * Layout B, with ONE width. The content column is sized to land in reading
+ * measure (~77 characters), so prose needs no cap of its own: prose, tables,
+ * figures and questions share an edge. The earlier shape capped prose at 68ch
+ * inside a wider column, and what a reader saw was text hanging on the left
+ * next to tables that did fill. */
+
+body { background: var(--paper); color: var(--ink); font-family: var(--serif);
+       font-size: 17px; line-height: 1.62; margin: 0; padding: 0 1.5rem 4rem; }
+
+.page { max-width: 64rem; margin-inline: auto; padding-top: 3.5rem;
+        display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3.5rem; align-items: start; }
+.main { min-width: 0; display: flex; flex-direction: column; }
+.rail { position: sticky; top: 2rem; display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
+
+h1, h2, h3 { font-family: var(--serif); text-wrap: balance; margin: 0; font-weight: 600; }
+h1 { font-size: 2.6rem; line-height: 1.1; letter-spacing: -0.015em; }
+h2 { font-size: 1.5rem; line-height: 1.22; margin-top: 0.2rem; }
+h3 { font-size: 1.12rem; line-height: 1.3; color: var(--ink); }
+p { margin: 0; }
+
+.eyebrow { font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
+           letter-spacing: 0.14em; color: var(--muted); margin: 0; }
+.standfirst { font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
+
+.main > header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
+.main > section { display: flex; flex-direction: column; gap: 1rem; padding: 2.4rem 0; border-bottom: 1px solid var(--rule); }
+.main > section:last-of-type { border-bottom: none; }
+.sec-head { display: flex; flex-direction: column; gap: 0.35rem; }
+
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--paper-sunk); padding: 0.08em 0.32em; border-radius: 2px; }
+pre { font-family: var(--mono); font-size: 0.78rem; line-height: 1.6; background: var(--paper-sunk);
+      border: 1px solid var(--rule); padding: 0.9rem 1rem; overflow-x: auto; margin: 0; }
+pre code { background: none; padding: 0; font-size: 1em; }
+
+/* Wide content scrolls inside its own container; the page body never scrolls
+   sideways. `.tw` is the wrapper a table goes in, never the table itself. */
+.tw { overflow-x: auto; border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.83rem; }
+th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.11em; color: var(--muted); font-weight: 600; background: var(--paper-sunk); }
+tr:last-child td { border-bottom: none; }
+
+/* Scrollbars inherited the system style, and in dark mode they read as a loose
+   piece of some other page. Painted with the tokens instead. */
+textarea, .tw, pre { scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+textarea::-webkit-scrollbar, .tw::-webkit-scrollbar, pre::-webkit-scrollbar { width: 10px; height: 10px; }
+textarea::-webkit-scrollbar-track, .tw::-webkit-scrollbar-track, pre::-webkit-scrollbar-track { background: transparent; }
+textarea::-webkit-scrollbar-thumb, .tw::-webkit-scrollbar-thumb, pre::-webkit-scrollbar-thumb {
+  background: var(--rule); border-radius: 999px; border: 2px solid var(--paper); }
+textarea::-webkit-scrollbar-thumb:hover, .tw::-webkit-scrollbar-thumb:hover, pre::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* Accents inside a figure are set with a CLASS and `stroke="currentColor"` /
+   `fill="currentColor"`, never with `var(--accent)` as a presentation
+   attribute: the browser does not resolve a custom property there and falls
+   back to black, which is invisible in dark mode. An arrow <marker> carries the
+   class on the <marker> itself, because its content inherits from its position
+   in the DOM, not from the element that references it. */
+figure { margin: 0.4rem 0; display: flex; flex-direction: column; gap: 0.6rem; }
+figure svg { width: 100%; max-width: 100%; height: auto; color: var(--ink); }
+figure svg .acc { color: var(--accent); }
+figure svg .flg { color: var(--flag); }
+figure svg .mut { color: var(--muted); }
+figcaption { font-family: var(--sans); font-size: 0.76rem; line-height: 1.5; color: var(--muted); }
+
+ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; }
+li::marker { color: var(--muted); }
+
+.note { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
+        background: var(--paper-sunk); border-left: 2px solid var(--accent-dim); padding: 0.75rem 0.95rem; }
+.note.warn { border-left-color: var(--flag); }
+.ex { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
+      border-left: 2px solid var(--rule); padding-left: 0.8rem; }
+.ex b { color: var(--ink); font-weight: 600; }
+
+/* The ledger: what this thread already decided, so a decided item leaves the
+   interface instead of being asked again. */
+.ledger { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1px; background: var(--rule); }
+.ledger > div { background: var(--paper); display: flex; gap: 0.7rem; align-items: baseline;
+                padding: 0.55rem 0.9rem; font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
+.ledger .k { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); min-width: 1.8rem; }
+.ledger .v { color: var(--ink-soft); }
+.ledger .v b { color: var(--ink); font-weight: 600; }
+
+.consult-item { border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem;
+                display: flex; flex-direction: column; gap: 0.7rem; scroll-margin-top: 2rem; }
+.consult-item > h3 { margin: 0; font-size: 1.05rem; }
+.consult-id { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-right: .5rem; }
+.consult-item p { font-size: 0.95rem; }
+
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 0.1rem 1.5rem; }
+.opts.one { grid-template-columns: 1fr; }
+.opts label { display: flex; gap: 0.6rem; align-items: flex-start; font-family: var(--sans);
+              font-size: 0.88rem; line-height: 1.45; padding: 0.4rem 0.5rem; border-radius: 4px; cursor: pointer; }
+.opts label:hover { background: var(--paper-sunk); }
+.opts input { accent-color: var(--accent); margin-top: 0.28rem; flex: none; }
+.opts .hint { color: var(--muted); font-size: 0.8rem; display: block; }
+
+.consult-item select, .consult-item input[type="text"], .consult-item textarea {
+  width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
+  color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
+.consult-item textarea { min-height: 4rem; }
+.fieldlabel { font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.consult-notes { border-color: var(--accent-dim); background: var(--paper-sunk); }
+
+/* The rail carries the section index as well as the questions: on a page with
+   no questions it is still the table of contents, which is why it stays. */
+.railhead { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
+.raillist { display: flex; flex-direction: column; gap: 0.1rem; }
+.railitem { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.32rem 0.5rem;
+            border-radius: 4px; text-decoration: none; color: var(--ink-soft); font-size: 0.82rem; line-height: 1.4; }
+.railitem:hover { background: var(--paper-sunk); }
+.railitem .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; border: 1px solid var(--muted); flex: none; transform: translateY(0.05rem); }
+.railitem.done .dot { background: var(--accent); border-color: var(--accent); }
+.railitem.done { color: var(--ink); }
+.railitem .rid { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); }
+.railitem.sec { color: var(--muted); }
+.railitem.sec .dot { border: none; background: none; }
+.railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
+
+/* Two copy bars, one status. The rail bar carries the bare ids the contract
+   checker greps for; the end bar carries the -end suffixes. Do not unify them:
+   `id="consult-copy-end"` does not satisfy a grep for `id="consult-copy"`. */
+.consult-bar { display: flex; flex-direction: column; gap: 0.55rem; align-items: flex-start;
+               padding-top: 0.8rem; border-top: 1px solid var(--rule); background: var(--paper); }
+.consult-bar button { font-family: var(--sans); font-size: 0.85rem; padding: .5rem .9rem; border-radius: 4px;
+                      border: 1px solid var(--rule); cursor: pointer; color: inherit; background: var(--paper-sunk); width: 100%; }
+.consult-status { font-size: .78rem; line-height: 1.45; color: var(--ink-soft); }
+/* Recorded regression, and a contract check: with only the media query above, an
+   explicitly-toggled dark page keeps the light sticky bar and the blank-count
+   status lands at 1.31:1. check-artifact.sh greps for `data-theme="dark"` and
+   `consult-bar` with no `{` between them, so this stays one selector. */
+:root[data-theme="dark"] .consult-bar { background: var(--paper); border-top-color: var(--rule); }
+
+/* The same button at the end of the content. Finishing the answers and not
+   seeing where to hand them in is the failure a reader reported. */
+.endbar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
+          border: 1px solid var(--accent-dim); border-radius: 4px; padding: 0.9rem 1.1rem; background: var(--paper-sunk); }
+.endbar button { font-family: var(--sans); font-size: 0.9rem; padding: .55rem 1.1rem; border-radius: 4px;
+                 border: 1px solid var(--accent-dim); cursor: pointer; color: inherit; background: var(--paper); }
+
+@media (max-width: 62rem) {
+  .page { grid-template-columns: 1fr; gap: 0; }
+  .rail { position: sticky; top: auto; bottom: 0; order: 2; padding: 0.6rem 0;
+          background: var(--paper); border-top: 1px solid var(--rule); gap: 0.5rem; }
+  .rail .railhead, .rail .raillist, .rail .railsep { display: none; }
+  .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .consult-bar button { width: auto; }
+}
+
+footer { margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--rule); font-family: var(--sans);
+         font-size: 0.75rem; line-height: 1.6; color: var(--muted); display: flex; flex-direction: column; gap: 0.5rem; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }

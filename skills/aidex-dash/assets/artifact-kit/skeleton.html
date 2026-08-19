@@ -1,0 +1,132 @@
+<!-- artifact-kit — page skeleton.
+
+     Page CONTENT only: no doctype, no <html>, no <head>, no <body>. Pipe it
+     through wrap-report.sh, which supplies the envelope and injects tokens.css,
+     components.css, the project's style delta and composer.js.
+
+     Writing a page means replacing this text and adding sections. It does not
+     mean writing a <style> block: every class used below is in components.css,
+     and a local <style> is for the one rule this page genuinely needs that the
+     kit does not have.
+
+     Two things the artifact contract checks that are easy to break by tidying:
+       - the rail bar's ids are `consult-copy` / `consult-status`; the end bar's
+         are the same with `-end`. They are not interchangeable.
+       - every consultation item needs a stable id, a title and at least one
+         reply surface, and the three counts must agree. Add items by copying a
+         whole block, never by adding a lone reply box.
+
+     Drop the consultation parts (the items, both bars, the meta below) when the
+     page is a read rather than a consultation. The rail stays either way — with
+     no questions it is the section index. -->
+
+<meta name="consult-visual" content="svg">
+
+<div class="page">
+
+<main class="main">
+
+<header>
+  <p class="eyebrow">PROJECT &middot; KIND &middot; YYYY-MM-DD</p>
+  <h1>The claim, stated as a claim</h1>
+  <p class="standfirst">The strongest thing this page has to say, on the first screen, in one or two sentences. Not a description of what follows.</p>
+</header>
+
+<section id="sec-one">
+  <div class="sec-head">
+    <p class="eyebrow">Section eyebrow</p>
+    <h2>What this section establishes</h2>
+  </div>
+
+  <p>Body copy. Prose, tables and figures share one width, so nothing needs its own cap.</p>
+
+  <figure>
+    <svg viewBox="0 0 620 120" role="img" aria-label="Replace with the diagram this page needs">
+      <defs>
+        <marker id="ar" class="acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g fill="none" stroke="currentColor" stroke-width="1.2">
+        <rect x="14" y="34" width="186" height="52"/>
+        <rect x="420" y="34" width="186" height="52"/>
+      </g>
+      <g class="acc" fill="none" stroke="currentColor" stroke-width="1.2">
+        <path d="M 200 60 H 414" marker-end="url(#ar)"/>
+      </g>
+      <g fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="12">
+        <text x="26" y="58">where it starts</text>
+        <text x="432" y="58">where it ends up</text>
+      </g>
+      <g class="mut" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="10.5">
+        <text x="26" y="75">the state before</text>
+        <text x="432" y="75">the state after</text>
+        <text x="238" y="52">what moves it</text>
+      </g>
+    </svg>
+    <figcaption>What the drawing shows that the prose does not. A caption that only names the picture is a caption worth deleting.</figcaption>
+  </figure>
+
+  <div class="note">
+    An aside the reader needs but that would derail the paragraph. <code>.note.warn</code> for the ones that cost something.
+  </div>
+</section>
+
+<section id="sec-ledger">
+  <div class="sec-head">
+    <p class="eyebrow">Already decided &middot; N</p>
+    <h2>What this thread has settled</h2>
+  </div>
+
+  <div class="ledger">
+    <div><span class="k">d1</span><span class="v"><b>Done.</b> The decision, in one line.</span></div>
+    <div><span class="k">d2</span><span class="v"><b>Queued.</b> The next one.</span></div>
+  </div>
+</section>
+
+<section id="sec-ask">
+  <div class="sec-head">
+    <p class="eyebrow">What I need from you</p>
+    <h2>The open questions</h2>
+  </div>
+
+  <section class="consult-item" data-id="Q1" data-title="Short name for this question">
+    <h3><span class="consult-id">Q1</span>The question, asked as a question</h3>
+    <p>What is at stake, and what each answer costs. A reader who cannot see the consequence is guessing.</p>
+    <div class="opts one">
+      <label><input type="radio" name="Q1" data-label="First option"><span>First option <span class="hint">What it buys, and what it costs.</span></span></label>
+      <label><input type="radio" name="Q1" data-label="Second option"><span>Second option <span class="hint">What it buys, and what it costs.</span></span></label>
+    </div>
+    <p class="fieldlabel">Notes on this one</p>
+    <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
+  </section>
+
+  <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
+    <h3><span class="consult-id">notes</span>General notes</h3>
+    <p class="fieldlabel">Anything that does not fit above</p>
+    <textarea placeholder="Whatever it is&hellip;"></textarea>
+  </section>
+
+  <div class="endbar">
+    <button type="button" id="consult-copy-end">Copy my answers</button>
+    <span class="consult-status" id="consult-status-end"></span>
+  </div>
+</section>
+
+<footer>
+  <p>Where the figures come from, and which parts are command output rather than judgement. Settled here, not left for the reader to infer.</p>
+  <p>Local file, not published.</p>
+</footer>
+
+</main>
+
+<aside class="rail">
+  <p class="railhead">Contents</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy">Copy my answers</button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>
+
+</div>
