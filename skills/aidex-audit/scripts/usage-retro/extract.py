@@ -51,8 +51,12 @@ PROMPT_HEAD, PROMPT_TAIL = 1200, 800
 # project dirs that are scaffolding, not real work
 EXCLUDE_PROJECT = re.compile(
     r"(/private/tmp|/tmp/|-claude-tmp|aidex-ml-ab|-cwd-[AB]\b|Claude-Projects-tests"
-    r"|^-+$|^-Users-yoelacevedo--?claude$|^-Users-yoelacevedo-\.claude$)"
+    r"|^-+$|^-Users-[^-]+--?claude$|^-Users-[^-]+-\.claude$)"
 )
+# Encoded transcript-dir prefixes, both machine-agnostic on purpose.
+PROJECTS_PREFIX = re.compile(r"^-.*-projects-")
+HOME_PREFIX = re.compile(r"^-Users-[^-]+-")
+
 # There is no local NOISE list, and that is deliberate.
 #
 # One lived here, applied at the point marked below — AFTER the prompt_kinds gate.
@@ -85,8 +89,22 @@ def parse_ts(s):
     return t if t.tzinfo else t.replace(tzinfo=datetime.timezone.utc)
 
 def short_project(name):
-    return (name.replace("-Users-yoelacevedo-Documents-projects-", "")
-                .replace("-Users-yoelacevedo-", "~/"))
+    """`-Users-me-Documents-projects-foo-ws` -> `foo-ws`; any other encoded home
+    path -> `~/rest`.
+
+    Matched GENERICALLY. Both this and EXCLUDE_PROJECT above used to spell the
+    author's own username, so on any other machine every row was attributed to a
+    project literally called `-Users-<them>-Documents-projects-x` and the two
+    `.claude` scaffolding dirs were mined as if they were real work. Neither
+    failure announces itself: the run reports a clean success either way.
+
+    `mine_items.tx_dirs_for` had the same defect and was fixed with the same
+    `^-.*-projects-` form (its docstring records it); this was the copy left
+    behind. It survived because every fixture in the suite spells that same
+    username, which is exactly what made the literal invisible — the regression
+    test copies the corpus under another one."""
+    short = PROJECTS_PREFIX.sub("", name)
+    return short if short != name else HOME_PREFIX.sub("~/", name)
 
 def bucket_for(name):
     return "aidex-dev" if "projects-aidex" in name else "real-usage"

@@ -326,6 +326,40 @@ grep -qE "unparseable (line|record)" <<<"$out_b" \
   || bad "nothing in the output reports the discarded line: $out_b"
 rm -rf "$BAD"
 
+# --- the transcript prefix is not the author's home path --------------------
+# extract.py hardcoded `-Users-yoelacevedo-...` in BOTH of its project helpers:
+# short_project() stripped that literal, and EXCLUDE_PROJECT named that user when
+# skipping the two `.claude` scaffolding dirs. On any other machine the first
+# returned the whole encoded path as the project name and the second matched
+# nothing, so every row was attributed to a project called
+# `-Users-<them>-Documents-projects-x` and the scaffolding sessions joined the
+# corpus. `mine_items.tx_dirs_for` had the same defect and was fixed generically
+# (test-usage-retro.sh case (l)); this file is the copy that was left behind.
+#
+# The fixture is the shared corpus with ONE variable changed — the username in
+# the directory name — so a failure here can only be the prefix. It could not
+# have been caught before: every fixture in this suite spells the author's own
+# username, which is exactly what made the literal invisible.
+ALT="$(mktemp -d)"
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws \
+      "$ALT/-Users-alice-Documents-projects-demo-ws"
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws "$ALT/-Users-alice--claude"
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws "$ALT/-Users-alice-.claude"
+python3 "$EXTRACT" --out "$OUT/alt.jsonl" --cursor "$OUT/alt-cursor.json" \
+        --since 3650d --transcripts-root "$ALT" >/dev/null 2>&1
+projects="$(python3 -c '
+import json, sys
+seen = set()
+for line in open(sys.argv[1], encoding="utf-8"):
+    if line.strip():
+        seen.add(json.loads(line).get("project", ""))
+print(" ".join(sorted(seen)))
+' "$OUT/alt.jsonl" 2>/dev/null)"
+rm -rf "$ALT"
+[[ "$projects" == "demo-ws" ]] \
+  && ok "another user's home: the project is named, and their .claude scaffolding is excluded" \
+  || bad "the project name kept the encoded home path: got '"'"'$projects'"'"'"
+
 echo
 echo "extract provenance: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
