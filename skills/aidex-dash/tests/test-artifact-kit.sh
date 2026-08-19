@@ -116,7 +116,7 @@ how a profile documents the feature without becoming it.
 
 - language: en
 MD
-printf '<h1>Delta</h1>\n' > "$TMP/delta-body.html"
+printf '<div class="page"><main class="main"><h1>Delta</h1></main></div>\n' > "$TMP/delta-body.html"
 bash "$WRAP" --title "Delta" --in "$TMP/delta-body.html" \
      --out "$PROJ/.context/reports/d.html" >/dev/null 2>&1 \
   || fail "wrapping into a project with a style delta failed"
