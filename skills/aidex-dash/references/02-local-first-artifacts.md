@@ -24,6 +24,118 @@ renderer already produces.
 
 Anything else: an analysis, a comparison, a one-off dashboard.
 
+### 0. Answer the intake questionnaire before writing anything
+
+Thirteen questions, answered **before** the first line of markup. They are cheap —
+most take a sentence — and each one is here because skipping it produced a page that
+had to be rewritten or, worse, one that shipped wrong.
+
+Answer them in your own head or out loud; there is no form. What matters is that they
+are settled BEFORE writing, because every one of them is expensive to change after.
+
+**What the page is about**
+
+1. **Does a page for this thread already exist?** If it does, UPDATE it — same path,
+   same ids — rather than starting a new one. This is the most important question on
+   the list, and it is first for that reason: one conversation produced four files
+   before it was asked, where it should have produced one or two. See
+   *Update in place* below for what "update" means concretely.
+2. **What is the anchor?** The plan, backlog item, audit run or request this content
+   belongs to — step 1 below. The report is a sibling of its anchor.
+3. **Is this a read or a CONSULTATION?** A page the reader must answer carries
+   obligations a read does not (§ 8). Deciding this after the prose is written means
+   retrofitting items and ids onto paragraphs that were not built as claims.
+
+**Who it is for**
+
+4. **Who reads it, and what must they be able to DO when they finish** — decide,
+   execute, archive, forward? The register changes completely between a note to
+   yourself, a page for a client, and a page for your own self six months from now.
+   Nothing else on this list survives getting this one wrong.
+5. **What language?** The project style profile's `language:` field decides it; an
+   explicit request for this one page overrides it. Both, before writing — not as a
+   translation pass afterwards.
+
+**What goes in it**
+
+6. **What is the strongest claim, and is it on the first screen?** Nothing else on
+   this list orders by importance, so without it a page comes out in the order it was
+   built. If the reader sees only the first third, do they get the essential thing?
+   The best finding of one session was a repetition measurement that sat in the fourth
+   section.
+7. **What does NOT go in?** Asked as an exclusion, because a page otherwise grows to
+   the size of the available material rather than to the size of the question. If the
+   decision needs three questions, six sections is five too many.
+8. **Which parts are command output and which are my own judgement?** Settled here,
+   before writing, not sorted out in the footer afterwards — by then the two are
+   already interleaved and the separation becomes a reconstruction.
+9. **Does the subject have a SHAPE?** A flow, a layout, a state machine, two
+   alternatives to compare, a before/after. If it does, the page opens with the
+   drawing (§ *A consultation carries a VISUAL by default*). If it does not, say so in
+   one line — that declaration is checked.
+10. **Does this thread have previous decisions?** If it does, the page opens with the
+    ledger. See *The ledger* below.
+
+**How it is built**
+
+11. **How deep does each question go?** Set by the cost of undoing it — see *Depth is
+    set by the cost of undoing* below.
+12. **Where does it land, and what is its filename?** Step 6. A sibling of the anchor,
+    `.context/reports/` only as the fallback, and never a new dated file when
+    question 1 said to update an existing one.
+13. **Is it being published?** Default no. Publishing happens only when explicitly
+    asked, and the local file stays the durable copy either way.
+
+**One question was considered and rejected: "does this artifact expire?"** It sounds
+responsible and changes no behaviour. Every figure on the page is already dated in the
+footer, so the answer is always derivable from what is already there; adding it would
+be one more box to tick that no reader and no check would ever consult. A question
+that cannot change what gets written does not belong on a list whose whole cost is
+being asked every time.
+
+### Update in place
+
+When question 1 says a page for this thread exists, the regeneration overwrites the
+SAME path. Concretely:
+
+- **Ids are kept.** An item that was `c3` stays `c3` for the same claim, forever. New
+  claims append new ids; nothing is renumbered. This is the same rule § 8 states, and
+  `check-artifact.sh --prev` enforces it across regenerations.
+- **Decided items leave the interface.** An item the reader has answered is removed
+  from the question set and summarised in the ledger. Leaving it in is asking a
+  settled question again; deleting it without recording the answer loses the decision.
+- **The reply states the absolute path** of what was written, so the reader can tell
+  whether the tab they are looking at is the file that was just produced.
+- **Warn before overwriting a page that may hold typed answers** — they live in the
+  DOM and a reload discards them. `wrap-report.sh` prints that warning when it is
+  about to replace a page containing reply surfaces.
+
+### Depth is set by the cost of undoing
+
+How much explanation a question carries is not a style preference; it is a function of
+what it costs to be wrong.
+
+| Cost of undoing | What the question carries |
+|---|---|
+| Reversible in a minute | The question alone. |
+| Touches code or a shared contract | The question plus a concrete example. |
+| Rewrites something that already exists | The question, a worked example, the consequence of each option, and the files it touches. |
+
+The bound is the point. The deepest level lengthens a consultation by roughly a third,
+and spending it on a question that can be undone in a minute is how a page becomes too
+long to answer.
+
+### The ledger
+
+A page opens with a **ledger of decisions already taken** only when the thread has
+previous decisions. On the first page of a thread there is nothing to record and the
+block is noise.
+
+It is one line per decision — id, state, the decision itself — using the `.ledger`
+component. Its job is that opening a new page in an ongoing thread does not mean
+re-reading the previous ones to find out what is already settled, and that an item
+that has been decided has somewhere to go when it leaves the question set.
+
 ### 1. Find the anchor before writing
 
 An artifact is *about* something. Search `.context/` for the plan, backlog item, audit
