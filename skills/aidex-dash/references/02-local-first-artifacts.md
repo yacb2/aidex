@@ -395,7 +395,10 @@ that fails is left on disk to be fixed in place, so it must not become the basel
 did once, and the gate inverted — restoring the correct claim was reported as the
 violation, and re-running the same violating content passed. The baseline only advances on
 a passing run. When there is no stored baseline yet, `--out` falls back to snapshotting the
-file it is about to replace. To compare by hand:
+file it is about to replace. `validate.py` does not walk that directory — its contents
+are superseded copies of pages already judged at their canonical paths, and a waiver
+could never settle them because the anchor hashes a file the next passing run replaces.
+To compare by hand:
 
 ```
 check-artifact.sh <new.html> --prev <old.html>

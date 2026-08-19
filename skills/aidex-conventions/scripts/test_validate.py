@@ -528,6 +528,45 @@ def check_ignored_subtrees(failures: list[str]) -> None:
                             f"count (got {after['summary'].get('ignored')!r}, expected 2)")
 
 
+def check_artifact_prev_skipped(failures: list[str]) -> None:
+    """BL-176: `.aidex-artifact-prev/` is wrap_report.py's baseline store, not a
+    tier of `.context/`. Every file in it is a superseded copy of a page already
+    judged at its canonical path, so judging the snapshot reports the same page
+    twice — and a waiver cannot settle it, because the anchor is a hash of a file
+    the next passing run replaces.
+
+    Asserted as a PAIR. A test that only checked for silence would also pass if
+    the walkers stopped reaching the type at all, which is how an exemption test
+    quietly turns into a test of nothing."""
+    import shutil, tempfile
+    spanish = ("<html><body><p>Este informe describe la migracion de los datos y "
+               "las decisiones que se tomaron para que el equipo pueda revisar el "
+               "resultado de cada una de las fases del trabajo.</p></body></html>\n")
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        research = ctx / "research"
+        (research / "2026-06-20-informe.html").write_text(spanish, encoding="utf-8")
+        prev = research / ".aidex-artifact-prev"
+        prev.mkdir()
+        (prev / "2026-06-20-informe.html").write_text(spanish, encoding="utf-8")
+        # The markdown walker must skip it too: what is exempt is the directory,
+        # not one extension.
+        (prev / "Not A Valid Name.md").write_text("no front-matter here\n",
+                                                  encoding="utf-8")
+
+        res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                             capture_output=True, text=True)
+        out = json.loads(res.stdout)
+        flagged = {f["file"] for f in out["violations"] + out["warnings"]}
+        if not any(f.endswith("research/2026-06-20-informe.html") for f in flagged):
+            failures.append("artifact-prev: the canonical Spanish page was not flagged, "
+                            "so this test no longer discriminates")
+        leaked = sorted(f for f in flagged if ".aidex-artifact-prev/" in f)
+        if leaked:
+            failures.append(f"artifact-prev: baseline snapshots were judged: {leaked}")
+
+
 def check_baseline_scoped_write(failures: list[str]) -> None:
     """A scoped run must never be able to shrink or contradict the ratchet.
 
@@ -846,6 +885,7 @@ def main() -> int:
     check_html_body_language(failures)
     check_external_crossrefs(failures)
     check_ignored_subtrees(failures)
+    check_artifact_prev_skipped(failures)
     check_baseline_scoped_write(failures)
     check_ignored_visible_in_plain(failures)
     check_body_language_unit(failures)
