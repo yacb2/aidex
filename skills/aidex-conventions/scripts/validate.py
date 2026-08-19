@@ -252,6 +252,25 @@ def is_ignored(context_dir: Path, path: Path, prefixes: list[str]) -> bool:
         return False
     return any(rel == p or rel.startswith(p + "/") for p in prefixes)
 
+# ---------- Tooling state that is not an artifact ----------
+
+# `wrap_report.py` keeps the last version that PASSED the artifact contract in a
+# `.aidex-artifact-prev/` sibling of the report it wrapped. Its contents are
+# tooling state, not a `.context/` tier: every file there is a superseded copy of
+# a page already judged at its canonical path, so judging the snapshot too reports
+# the same page twice. A waiver cannot settle it either — the waiver anchor hashes
+# a file that the next passing run replaces, so the line goes stale by design.
+#
+# Skipped in the walkers, the way `audits/_archive/` is, rather than counted as an
+# `.aidex-ignore` exemption: that count reports subtrees the USER declared, and
+# this one is ours.
+BASELINE_DIR_NAME = ".aidex-artifact-prev"
+
+
+def is_baseline_snapshot(path: Path) -> bool:
+    return BASELINE_DIR_NAME in path.parts
+
+
 # ---------- File walkers ----------
 
 # Rendered reports are the artifacts most often READ, and they were invisible to
@@ -284,10 +303,21 @@ def iter_html_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
         # two walkers consistent, which is the whole point.
         if type_name == "audits" and "/_archive/" in str(path):
             continue
+        if is_baseline_snapshot(path):
+            continue
         yield path
 
 
 def iter_files_for_type(context_dir: Path, type_name: str) -> Iterable[Path]:
+    """Public walker: `_iter_md_by_type` minus the baseline snapshots. Filtered
+    here rather than at each of the eleven `yield` sites below it."""
+    for path in _iter_md_by_type(context_dir, type_name):
+        if is_baseline_snapshot(path):
+            continue
+        yield path
+
+
+def _iter_md_by_type(context_dir: Path, type_name: str) -> Iterable[Path]:
     base = context_dir / type_name
     if not base.is_dir():
         return
