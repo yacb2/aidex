@@ -43,6 +43,9 @@ mkpage() {
   } > "$out"
 }
 
+# The page-level general-notes item. Every consultation fixture that is not
+# testing its absence carries it, the way the template ships it.
+notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
 bars='<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>'
 visual='<meta name="consult-visual" content="none: the subject is a single number, so there is no shape to draw">'
 # The WHOLE kit, exactly as wrap-report.sh injects it. Inlining the composer
@@ -55,7 +58,7 @@ composer="$kit$(printf '<script>\n'; cat "$KIT/composer.js"; printf '</script>\n
 
 run() { bash "$CHECK" "$@" > "$TMP/out" 2>&1; echo $?; }
 
-# ---- 1. an item whose only reply surface is a radio group passes ----------
+# ---- 1. a radio group plus its notes box passes --------------------------
 mkpage "$TMP/radios.html" "$visual
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
   <h3>Pick one</h3>
@@ -63,11 +66,13 @@ mkpage "$TMP/radios.html" "$visual
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
+  <textarea placeholder=\"Anything the options do not cover\"></textarea>
 </section>
+$notesitem
 $bars
 $composer"
 rc="$(run "$TMP/radios.html")"
-[[ "$rc" == "0" ]] || fail "1. radio-only item rejected: $(cat "$TMP/out")"
+[[ "$rc" == "0" ]] || fail "1. an answered-and-annotatable item rejected: $(cat "$TMP/out")"
 
 # ---- 2. an item with no reply surface at all fails ------------------------
 mkpage "$TMP/empty-item.html" "$visual
@@ -111,16 +116,52 @@ grep -qiE 'data-id|consult-copy' "$TMP/out" || fail "5. the failure names neithe
 mkpage "$TMP/prev.html" "$visual
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"The first claim\">
   <h3>Q1</h3><textarea></textarea></section>
+$notesitem
 $bars
 $composer"
 mkpage "$TMP/now.html" "$visual
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"A completely different claim\">
   <h3>Q1</h3><textarea></textarea></section>
+$notesitem
 $bars
 $composer"
 rc="$(run "$TMP/now.html" --prev "$TMP/prev.html")"
 [[ "$rc" == "1" ]] || fail "6. --prev no longer catches an id reused for a different claim"
 grep -qi 'id reused' "$TMP/out" || fail "6. the --prev failure message changed shape"
+
+# ---- 8. a choice with nowhere to qualify it fails -------------------------
+# The reported defect: "si quiero mencionar algo más, además de la selección que
+# realicé, sea simple o múltiple, tengo que tener el espacio para comentarlo".
+# A radio group, a checkbox set and a select are all closed lists; the answer
+# that does not fit one of them is lost unless the item carries free text.
+mkpage "$TMP/no-notes.html" "$visual
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+  <h3>Pick one</h3>
+  <div class=\"opts\">
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
+  </div>
+</section>
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/no-notes.html")"
+[[ "$rc" == "1" ]] || fail "8. an item with a closed choice and no notes box passed"
+grep -qi 'Q1' "$TMP/out" || fail "8. the failure does not name the item that has no notes box"
+
+# ---- 9. a consultation with no general-notes item fails -------------------
+# The reply that fits no question has to land somewhere. The fixture carries the
+# WHOLE kit, which defines `.consult-notes` in components.css: the check must key
+# off the markup, not off the injected stylesheet, or it passes every page.
+mkpage "$TMP/no-general.html" "$visual
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+  <h3>Pick one</h3><textarea></textarea>
+</section>
+$bars
+$composer"
+rc="$(run "$TMP/no-general.html")"
+[[ "$rc" == "1" ]] || fail "9. a consultation with no general-notes item passed (or the check was satisfied by components.css)"
+grep -qi 'consult-notes' "$TMP/out" || fail "9. the failure does not name the missing general-notes item"
 
 # ---- 7. the template ships the full component set ------------------------
 TPL="$SKILL/assets/templates/consultation-block.html.template"
@@ -134,6 +175,12 @@ grep -q '</style>' "$TPL" \
   && fail "7. the consultation template still carries a <style> block — the kit supplies it now"
 grep -q '</script>' "$TPL" \
   && fail "7. the consultation template still carries a <script> block — the kit supplies the composer"
+# Every block the template offers carries free text: an author copying the
+# select block or the checkbox block must not have to remember to add it.
+n_tpl_id="$(grep -oiE 'data-id=' "$TPL" | wc -l | tr -d ' ')"
+n_tpl_area="$(grep -oiE '<textarea' "$TPL" | wc -l | tr -d ' ')"
+[[ "$n_tpl_area" -ge "$n_tpl_id" ]] \
+  || fail "7. the template has $n_tpl_id item(s) and only $n_tpl_area notes box(es) — a copied block would ship a choice with nowhere to qualify it"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, and leaves a read alone"

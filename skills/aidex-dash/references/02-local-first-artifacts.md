@@ -300,7 +300,7 @@ the dominant shape in practice — a proposal, a set of claims to confirm, a des
 with open questions — and rebuilding the mechanics each time produced a page whose
 answers were lost on the next regeneration.
 
-Three requirements. They exist because each one was violated in the field.
+Five requirements. They exist because each one was violated in the field.
 
 1. **Every claim is a numbered item with a STABLE id.** `c1`, `c2`, `q1`… assigned once
    and never renumbered. A regeneration that inserts a claim in the middle appends a new
@@ -313,7 +313,36 @@ Three requirements. They exist because each one was violated in the field.
    reports **how many items are still blank**, so a half-answered page is visible before
    it is pasted rather than after. Skipped items are omitted, not sent empty.
 
-3. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
+3. **Every item has a notes box, whatever else it offers, and the page has a general
+   one.** A radio group, a checkbox set and a select are closed lists: they carry the
+   answer the author anticipated and lose the one they did not, so a reader with
+   something to add picks the nearest wrong option instead. Reported from use — *"si
+   quiero mencionar algo más, además de la selección que realicé, sea simple o
+   múltiple, tengo que tener el espacio para comentarlo"*. The per-item box is the
+   `<textarea>` of requirement 2; the page-level `consult-item consult-notes` item is
+   **additional**, always last, and is where the reply that fits no question goes.
+   Both are checked: an item without free text fails, and so does a consultation with
+   no general-notes item.
+
+4. **The explanation lives INSIDE the item it explains.** What is at stake, the example,
+   the consequence of each option — inside the `<section class="consult-item">`, above
+   its own reply surface. Never gathered into a context section at the top with the
+   questions gathered at the bottom. That shape forces the reader to understand in one
+   place and answer in another, and since a question's short title rarely matches the
+   prose that explained it, answering item nine means scrolling back to find which
+   paragraph it was and then scrolling down again. It also duplicates the navigation:
+   one entry for the explanation, one for the question. Reported from use — *"me obliga
+   a entender arriba y a responder abajo… cuando pudiéramos tener preguntas y
+   explicación juntas"*.
+
+   **This one is not machine-checked, and that is deliberate.** Every proxy for it is
+   satisfiable without satisfying it: a page can carry a `<p>` inside every item and
+   still keep all the real context above, and requiring prose per item would fail the
+   reversible one-minute question that legitimately stands alone. A grep here would buy
+   false confidence, which is worse than an honest rule an author has to hold. What
+   *is* checked is the ledger and the ids; this is the rule you keep yourself.
+
+5. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
    Not a new dated file. The user has the page open in a browser and cannot otherwise
    tell whether what he is looking at is what was just written — he has asked which file
    is which, verbatim, twice inside one minute.

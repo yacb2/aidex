@@ -326,6 +326,7 @@ done
 mk noviz.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}
 :root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
 <section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><textarea></textarea></section>
+<section class=\"consult-item consult-notes\" data-id=\"notes\" data-title=\"General notes\"><textarea></textarea></section>
 <button id=\"consult-copy\"></button><span id=\"consult-status\"></span>
 <script>
 document.getElementById('consult-copy').addEventListener('click', function () {
