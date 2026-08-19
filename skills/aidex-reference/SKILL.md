@@ -1,6 +1,6 @@
 ---
 name: aidex-reference
-description: Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); investigating something not yet settled (aidex-research); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).
+description: 'Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); investigating something not yet settled (aidex-research); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Agent
 model-policy: per-stage

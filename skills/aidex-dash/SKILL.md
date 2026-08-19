@@ -1,6 +1,6 @@
 ---
 name: aidex-dash
-description: Use when the user wants an interactive HTML dashboard/render/board of `.context/` data — the backlog board, a plan's progress, an audit inventory, the coverage matrix — or says "render X as HTML", "generate the dashboard", "show this as a page". Not for: authoring content (the markdown stays canon); publishing without being asked.
+description: 'Use when the user wants an interactive HTML dashboard/render/board of `.context/` data — the backlog board, a plan''s progress, an audit inventory, the coverage matrix — or says "render X as HTML", "generate the dashboard", "show this as a page". Not for: authoring content (the markdown stays canon); publishing without being asked.'
 argument-hint: "[backlog | plans [slug] | audit <methodology> | coverage]"
 disable-model-invocation: false
 allowed-tools: Bash Read Glob Grep Write Skill

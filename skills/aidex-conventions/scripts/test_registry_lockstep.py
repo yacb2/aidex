@@ -490,6 +490,22 @@ def main() -> int:
     section_re = re.compile(r"^##\s+(Boundaries|Related)\s*$.*?(?=^##\s|\Z)",
                             re.M | re.S)
 
+    def _unquote(v: str) -> str:
+        """Strip a YAML quoted scalar back to its value.
+
+        The descriptions were quoted on 2026-08-19 so `yaml.safe_load` accepts
+        them (`Not for: ...` is a mapping key to a strict parser). This test is
+        deliberately dependency-free, so it un-quotes by hand rather than
+        importing yaml — otherwise the two quote characters would count against
+        the 900-char budget below.
+        """
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] == "'":
+            return v[1:-1].replace("''", "'")
+        if len(v) >= 2 and v[0] == v[-1] == '"':
+            return v[1:-1]
+        return v
+
     def _referenced_names(text: str) -> set[str]:
         found: set[str] = set()
         fm = re.match(r"^---\n(.*?)\n---\n", text, re.S)
@@ -497,7 +513,7 @@ def main() -> int:
             desc = re.search(r"^description:\s*(>[-+]?|\|[-+]?)?\s*\n?"
                              r"((?:.|\n)*?)(?=\n[a-zA-Z_-]+:|\Z)", fm.group(1), re.M)
             if desc:
-                found |= set(name_re.findall(desc.group(2)))
+                found |= set(name_re.findall(_unquote(desc.group(2))))
         for sec in section_re.findall(text):
             found |= set(name_re.findall(sec))
         return found
@@ -524,7 +540,7 @@ def main() -> int:
         d = desc_re.search(fm.group(1))
         if not d:
             continue
-        n = len(" ".join(d.group(2).split()))
+        n = len(" ".join(_unquote(d.group(2)).split()))
         if n >= 900:
             failures.append(f"{skill_md.relative_to(SKILLS_DIR)} description is {n} "
                             f"chars — the canon budget is <900 (hard cap 1,024)")
