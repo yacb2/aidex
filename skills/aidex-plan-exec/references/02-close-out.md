@@ -4,7 +4,7 @@
 > `aidex-conventions/references/skill-conventions.md` § Size Constraints. These run once, at
 > the end of a plan. Paths are relative to the skill root (`../`).
 
-Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-7.
+Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-8.
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
@@ -19,7 +19,26 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-7.
 6. If the project has `.context/audits/test-coverage/module-map.json` and the plan
    touched mapped src paths, suggest running `/aidex-audit coverage-sweep` (advisory
    drift check — do not run it unprompted mid-plan; mention it in the close summary).
-7. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
+7. **Owner-review handoff** — when the plan changed anything a person will see or
+   operate (UI, flows, copy; skip for pure backend/tooling plans). The user re-dictated
+   this protocol ~8 times across three projects in a single 3-day window
+   (usage-retro run 6, R6-04), so it is a step, not a preference to rediscover:
+   1. Suites first — the full verification of final-phase step 1 has already run.
+   2. **Claude smoke-tests via browser automation** (Chrome DevTools MCP or the
+      project's tooling) until every mechanically checkable behavior is verified —
+      the human should never be the first to find a broken click. For responsive
+      checks, **emulate the viewport**; a narrow desktop window is not a phone and
+      reads as a squashed layout to the user watching the shared browser.
+   3. **Leave a visible browser window open** on the changed feature, signed in,
+      positioned where the review starts — in the browser the user watches, never a
+      headless or background context the user cannot see ("¿dónde lo estás viendo?"
+      is this step failing).
+   4. **Hand over a written checklist of only what a human must judge** — visual
+      feel, UX, wording, anything Claude cannot reproduce or evaluate mechanically.
+      Everything already machine-verified is listed as done with its evidence, not
+      re-delegated to the user. This is the HITL division of labor: the human
+      judges what needs eyes; nothing 100%-checkable is theirs to re-check.
+8. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
    run it with a short completion message (e.g.
    `bash "$HOME/.claude/scripts/notify.sh" "plan-exec: <plan slug> complete"`). This
    reuses the user's existing permission/idle notifier — do not assume it exists;

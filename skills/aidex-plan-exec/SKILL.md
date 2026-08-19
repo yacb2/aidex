@@ -240,9 +240,12 @@ After the last phase:
 4. Update the plan document: mark all phases complete, add a closing note
    with the final commit SHAs if useful.
 5. **Close out the run**: tear down isolation if a worktree was entered at Orient, log the
-   worktree usage line, suggest a coverage sweep if the plan touched mapped src paths, and
-   fire the completion notifier. **Read** `~/.claude/skills/aidex-plan-exec/references/02-close-out.md`
-   **and follow it step by step** — each of the four has a guard and an ordering that
+   worktree usage line, suggest a coverage sweep if the plan touched mapped src paths,
+   run the owner-review handoff when the plan changed anything a person will see
+   (smoke via browser automation first, then a visible browser window plus a
+   human-only checklist), and fire the completion notifier. **Read**
+   `~/.claude/skills/aidex-plan-exec/references/02-close-out.md`
+   **and follow it step by step** — each step has a guard and an ordering that
    matter, and doing them from memory is how a worktree survives its plan.
 
 ## Per-project adjustments
