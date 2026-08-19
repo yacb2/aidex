@@ -42,6 +42,14 @@ FAVICON_FIELD = re.compile(r"^\s*[-*]?\s*favicon(?:\s+emoji)?\s*:\s*`?([^`\n]{1,
 DELTA_SECTION = re.compile(r"^(#{2,6})[ \t]*Delta\b[^\n]*\n(.*?)(?=^\1[ \t]|\Z)",
                            re.M | re.S | re.I)
 DELTA_CSS = re.compile(r"^```css[ \t]*\n(.*?)^```", re.M | re.S)
+# The one sequence that ends a <style> element, per the HTML spec. A delta
+# carrying it is markup, not CSS: everything after it is parsed as HTML, so a
+# profile could put a <script> into every artifact the project generates. The
+# profile is a file in the repo, which a clone or an edit can carry, and the
+# kit's whole value is that it runs in every project — which is also the blast
+# radius. Matched narrowly rather than rejecting every `<`, so CSS that
+# legitimately contains one (`content: "<"`) still works.
+STYLE_BREAKOUT = re.compile(r"</\s*style", re.I)
 OFFER_MARKER = ".aidex-artifact-style-offered"
 
 # .../scripts/dash/wrap_report.py -> .../assets/artifact-kit
@@ -154,7 +162,19 @@ def profile_delta(ctx):
     if not section:
         return ""
     m = DELTA_CSS.search(section.group(2))
-    return "" if not m else f"<style>\n{m.group(1)}</style>"
+    if not m:
+        return ""
+    css = m.group(1)
+    if STYLE_BREAKOUT.search(css):
+        # Refused WHOLE and out loud. Escaping the sequence would inject
+        # something the author did not write, and dropping it quietly would make
+        # a refused delta look like a project that simply has none.
+        print("ERROR: the project's CSS delta closes the <style> element, so it is "
+              "markup rather than CSS. It has NOT been injected. Remove the "
+              "</style> from the `## Delta` section of .context/artifact-style.md.",
+              file=sys.stderr)
+        return ""
+    return f"<style>\n{css}</style>"
 
 
 def profile_favicon(ctx):
