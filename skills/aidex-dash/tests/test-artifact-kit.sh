@@ -49,6 +49,15 @@ for trigger in 'data-id=' 'data-title=' '<textarea' 'contenteditable=' 'class="c
   grep -qF "$trigger" "$KIT/tokens.css" "$KIT/components.css" "$KIT/composer.js" \
     && fail "an injected kit file spells the contract trigger '$trigger' — every page would match it"
 done
+# Every token the kit ships exists in ALL FOUR blocks — :root, the media query,
+# and both explicit toggles — or a page carrying a chart writes its own three
+# theme blocks by hand, which is what every charted artifact on disk did.
+for tok in s0 s1 s2 s3 s4 s5 s6 s7 s8 accent paper ink; do
+  n="$(grep -oE -- "--$tok:" "$KIT/tokens.css" | wc -l | tr -d ' ')"
+  [[ "$n" == "4" ]] \
+    || fail "tokens.css declares --$tok in $n block(s), not 4 (:root, the media query, [data-theme=dark], [data-theme=light]) — a page would have to re-declare it per theme"
+done
+
 # A textarea defaults to `resize: both`, and dragging one wider than its column
 # overlaps the rail and the content beside it. Only the vertical axis has room.
 grep -qE 'textarea[^}]*resize:[[:space:]]*vertical' "$KIT/components.css" \

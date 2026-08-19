@@ -11,12 +11,32 @@
  *   @media (prefers-color-scheme: dark) + :not([data-theme="light"])   system dark
  *   :root[data-theme="dark"] / [data-theme="light"]                    explicit toggle
  * A palette defined only under the media query loses to an explicit toggle in
- * one direction, which is how a page ends up half-dark. */
+ * one direction, which is how a page ends up half-dark.
+ *
+ * --s0..--s8 are the CHART series slots, and they are here for the same reason
+ * everything else is: a page that carries a chart was writing its own three
+ * theme blocks for them, every time, by hand — one artifact on disk declares
+ * five series colours four times over. Assign them in FIXED ORDER, never
+ * cycled: --s1 is the first series whatever the chart is, --s0 is the neutral
+ * "rest"/"other" fill. Past --s8 the answer is to fold into "other" or facet,
+ * not to invent a ninth hue.
+ *
+ * The values are the dataviz reference instance, re-validated against THIS
+ * kit's surfaces rather than assumed:
+ *   light (#F3F5F1) — lightness band, chroma floor, CVD separation and the
+ *     normal-vision floor all pass; 4 slots sit below 3:1 contrast, which is
+ *     the documented relief case: a light-mode chart using --s2/--s3/--s4/--s5
+ *     ships visible direct labels or a table view.
+ *   dark (#131614) — all five checks pass, contrast included.
+ * Changing a value means re-running dataviz's validate_palette.js for both
+ * modes with those surfaces. */
 
 :root {
   --paper:#F3F5F1; --paper-sunk:#E8EBE5; --rule:#D2D8CD;
   --ink:#191D1A; --ink-soft:#4A5249; --muted:#868D83;
   --accent:#1E5F4B; --accent-dim:#2F7A62; --flag:#A6412C;
+  --s0:#C9D2C6; --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
+  --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;
   --serif:"Iowan Old Style", Charter, "Palatino Linotype", Palatino, Georgia, serif;
   --sans:-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -27,6 +47,8 @@
     --paper:#131614; --paper-sunk:#1B201C; --rule:#2E352F;
     --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#767E74;
     --accent:#6FBFA1; --accent-dim:#4E9C80; --flag:#D9765C;
+    --s0:#39413A; --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
+    --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
   }
 }
 
@@ -34,10 +56,14 @@
   --paper:#131614; --paper-sunk:#1B201C; --rule:#2E352F;
   --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#767E74;
   --accent:#6FBFA1; --accent-dim:#4E9C80; --flag:#D9765C;
+  --s0:#39413A; --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
+  --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
 }
 
 :root[data-theme="light"] {
   --paper:#F3F5F1; --paper-sunk:#E8EBE5; --rule:#D2D8CD;
   --ink:#191D1A; --ink-soft:#4A5249; --muted:#868D83;
   --accent:#1E5F4B; --accent-dim:#2F7A62; --flag:#A6412C;
+  --s0:#C9D2C6; --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
+  --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;
 }
