@@ -136,6 +136,26 @@ component. Its job is that opening a new page in an ongoing thread does not mean
 re-reading the previous ones to find out what is already settled, and that an item
 that has been decided has somewhere to go when it leaves the question set.
 
+**The ledger is written every iteration, not at the end.** Each time the reader answers
+something, the answer is summarised into the ledger and the page is re-wrapped BEFORE
+the reply that acknowledges it. Settled at the top, still-open below: that ordering is
+the whole shape, and it means the page always reads as "here is where we are", never as
+a transcript.
+
+Two reasons it is the page and not a script. The summary is worth what the reading of it
+costs — condensing an answer is the same work as acting on it, and a mechanical capture
+of the raw paste would preserve the words while losing the decision. And the reader
+verifies it: a summary he can see and correct is a record, while one nobody re-reads is
+a log. It costs tokens, and that cost is the point — the artifact gets reviewed before
+the plan is implemented or the backlog item resolved, which is a pass that had to happen
+anyway.
+
+**A thread is not concluded until this is done.** The failure it prevents is on record:
+a 13-question intake set where the four items the reader had approved survived into a
+file and the other nine, discussed in the same conversation, had to be reconstructed
+from the decisions they implied. Nothing had gone wrong — the answers were simply never
+written down anywhere but the chat.
+
 ### 1. Find the anchor before writing
 
 An artifact is *about* something. Search `.context/` for the plan, backlog item, audit
