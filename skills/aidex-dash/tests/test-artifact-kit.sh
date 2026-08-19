@@ -175,6 +175,46 @@ bash "$WRAP" --title "Delta" --favicon "🔬" --in "$TMP/delta-body.html" \
     && fail "--favicon did not replace the profile's favicon, it added to it"
 }
 
+# ---------- the shipped template documents the delta without BECOMING it ---
+# The delta is the only mechanism a project has to restyle anything, and the two
+# files a new project actually starts from are this template and the reference.
+# It was documented in neither: the only prose explaining it lived in aidex's own
+# .context/, which is gitignored and never travels. A project seeded from the
+# template filled in its palette table in good faith and nothing happened.
+TPL="$SKILL/assets/templates/artifact-style.md.template"
+grep -qE '^#{2,6}[ \t]*Delta\b' "$TPL" \
+  || fail "artifact-style.md.template has no ## Delta section — the one section the wrapper reads as CSS is missing from the file every new project copies"
+
+# ...and that section must not carry a worked example. Scoping the rule to a
+# section stops an example placed ELSEWHERE from being injected; it does nothing
+# about one placed here, which every seeded project would inherit as its palette.
+python3 - "$TPL" <<'TPLCHK' || fail "the template's ## Delta section ships a CSS declaration — every project seeded from it would inject that as its own palette"
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+sec = re.search(r"^(#{2,6})[ \t]*Delta\b[^\n]*\n(.*?)(?=^\1[ \t]|\Z)", text, re.M | re.S | re.I)
+if sec is None:
+    sys.exit(0)                    # the grep above already reported the missing section
+fence = re.search(r"^```css[ \t]*\n(.*?)^```", sec.group(2), re.M | re.S)
+if fence is None:
+    sys.exit(0)                    # no fence at all also injects nothing
+body = re.sub(r"/\*.*?\*/", "", fence.group(1), flags=re.S)
+sys.exit(1 if re.search(r"[\w-]+\s*:\s*\S", body) else 0)
+TPLCHK
+
+# End to end: a project seeded from the unedited template inherits the kit and
+# adds nothing of its own.
+mkdir -p "$TMP/tpl/.context/reports"
+cp "$TPL" "$TMP/tpl/.context/artifact-style.md"
+bash "$WRAP" --title "From the template" --in "$TMP/delta-body.html" \
+     --out "$TMP/tpl/.context/reports/t.html" >/dev/null 2>&1 \
+  || fail "wrapping in a project seeded from the unedited template failed"
+if [[ -f "$TMP/tpl/.context/reports/t.html" ]]; then
+  grep -q '#116B5F' "$TMP/tpl/.context/reports/t.html" \
+    && fail "the template's worked EXAMPLE reached the page — an example is not the delta"
+  grep -q 'artifact-kit — components' "$TMP/tpl/.context/reports/t.html" \
+    || fail "a page built in a template-seeded project lost the kit"
+fi
+
 # ---------- the composer speaks the page's language, not one hard-coded ----
 # The kit ships to every project; only the project carries a language. Spanish
 # display strings baked into the suite would ship Spanish to all of them.
