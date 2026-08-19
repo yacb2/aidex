@@ -37,6 +37,18 @@ grep -q 'blank' "$KIT/composer.js" \
   || fail "composer.js never says 'blank' — the contract's composer scan reads the identifier, not the display text"
 tr -d '\n' < "$KIT/components.css" | grep -qE 'data-theme="dark"[^{]*consult-bar' \
   || fail "components.css lost the :root[data-theme=\"dark\"] .consult-bar rule, or split it across selectors"
+# ...and it is satisfied by the RULE, not by prose about the rule. The kit is
+# injected into every page, so a comment that spells a check's tokens answers
+# that check for pages that do not carry the rule at all. It happened twice
+# during this file's own construction: once with the copy-button id, which made
+# every read page fail as a consultation, and once here.
+sed '/^:root\[data-theme="dark"\] \.consult-bar/d' "$KIT/components.css" | tr -d '\n' \
+  | grep -qE 'data-theme="dark"[^{]*consult-bar' \
+  && fail "components.css satisfies the dark-bar check from a COMMENT — delete the rule and the grep still passes"
+for trigger in 'data-id=' 'data-title=' '<textarea' 'contenteditable=' 'class="consult-item'; do
+  grep -qF "$trigger" "$KIT/tokens.css" "$KIT/components.css" "$KIT/composer.js" \
+    && fail "an injected kit file spells the contract trigger '$trigger' — every page would match it"
+done
 grep -q 'id="consult-copy"' "$KIT/skeleton.html" \
   || fail "skeleton.html has no id=\"consult-copy\" (the -end variant does not satisfy the contract)"
 grep -q 'id="consult-status"' "$KIT/skeleton.html" \
@@ -70,6 +82,55 @@ grep -q 'artifact contract OK' <<<"$out" \
     && fail "the built page links an external asset instead of inlining it"
   grep -q 'prefers-color-scheme' "$OUT" \
     || fail "the built page has no prefers-color-scheme — tokens.css did not make it in"
+}
+
+# ---------- the project delta lands on top of the kit ----------------------
+# This project's own delta is EMPTY by design — the kit is aidex's palette — so
+# without a fixture "the delta injects" would be a claim no test makes, and the
+# phase-7 regeneration cannot catch it either.
+PROJ="$TMP/proj"
+mkdir -p "$PROJ/.context/reports"
+cat > "$PROJ/.context/artifact-style.md" <<'MD'
+# Artifact style profile — fixture
+
+## Identity
+
+- Favicon emoji: `🧪`
+
+## Delta
+
+```css
+:root { --accent: #B4005A; }
+```
+
+## Language
+
+- language: en
+MD
+printf '<h1>Delta</h1>\n' > "$TMP/delta-body.html"
+bash "$WRAP" --title "Delta" --in "$TMP/delta-body.html" \
+     --out "$PROJ/.context/reports/d.html" >/dev/null 2>&1 \
+  || fail "wrapping into a project with a style delta failed"
+if [[ -f "$PROJ/.context/reports/d.html" ]]; then
+  page="$PROJ/.context/reports/d.html"
+  grep -q '#B4005A' "$page" || fail "the project's CSS delta was not injected"
+  # After the kit, or it does not override anything.
+  [[ "$(grep -n '#B4005A' "$page" | head -1 | cut -d: -f1)" -gt \
+     "$(grep -n 'artifact-kit — components' "$page" | head -1 | cut -d: -f1)" ]] \
+    || fail "the project delta is injected BEFORE the kit, so it cannot override it"
+  # The emoji is percent-encoded into an inline SVG data URI, so grep for the
+  # encoding rather than the character.
+  enc() { python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$1"; }
+  grep -q "$(enc '🧪')" "$page" || fail "the profile's favicon emoji was not used"
+fi
+# An explicit flag still wins, the same precedence `language:` already has.
+bash "$WRAP" --title "Delta" --favicon "🔬" --in "$TMP/delta-body.html" \
+     --out "$PROJ/.context/reports/e.html" >/dev/null 2>&1
+[[ -f "$PROJ/.context/reports/e.html" ]] && {
+  grep -q "$(enc '🔬')" "$PROJ/.context/reports/e.html" \
+    || fail "--favicon did not win over the profile's favicon"
+  grep -q "$(enc '🧪')" "$PROJ/.context/reports/e.html" \
+    && fail "--favicon did not replace the profile's favicon, it added to it"
 }
 
 # ---------- the composer speaks the page's language, not one hard-coded ----

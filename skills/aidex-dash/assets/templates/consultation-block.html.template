@@ -1,54 +1,25 @@
 <!--
-  consultation-block.html.template — the item block and the compose-and-copy
-  button for a Route B report that has to be ANSWERED rather than read.
+  consultation-block.html.template — the consultation component set for a route B
+  report that has to be ANSWERED rather than read.
 
-  See references/02-local-first-artifacts.md § 8. Copy this into the page body;
-  it inherits the page's own colour tokens and adds no external dependency (a
-  published artifact is served under a CSP that blocks every external host).
+  See references/02-local-first-artifacts.md § 8. Copy the blocks you need into
+  the page body. There is no <style> and no <script> here any more: wrap-report.sh
+  injects artifact-kit's tokens.css, components.css and composer.js, so writing a
+  page is writing content plus class names. A local <style> is for the one rule
+  this page genuinely needs that the kit does not have.
 
   THE ONE RULE THAT MATTERS: `data-id` is assigned once and never renumbered.
   Inserting a claim appends a new id; it does not shift the existing ones. A
   reply that says "on 3 I disagree" has to still mean the same claim after the
   next regeneration, and renumbering is what silently breaks that.
+
+  Every item needs a title and at least ONE reply surface — radio, checkbox,
+  select, short text, or a notes box. Which one is your choice; none of them is
+  a valid answer. Depth is set by the cost of undoing the decision: a reversible
+  one-minute choice gets the question alone; something touching code or a shared
+  contract gets a concrete example; something that rewrites what exists gets the
+  example, the consequence of each option, and the file it touches.
 -->
-
-<style>
-  .consult-item { border: 1px solid var(--border, #d4d4d8); border-radius: 8px;
-                  padding: 1rem 1.15rem; margin: 1rem 0; }
-  .consult-item > h3 { margin: 0 0 .5rem; font-size: 1rem; }
-  .consult-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-                font-size: .8rem; opacity: .65; margin-right: .5rem; }
-  .consult-item textarea { width: 100%; box-sizing: border-box; min-height: 4.5rem;
-                           margin-top: .6rem; padding: .55rem .7rem; font: inherit;
-                           color: inherit; background: transparent;
-                           border: 1px solid var(--border, #d4d4d8); border-radius: 6px; }
-  .consult-bar { position: sticky; bottom: 0; display: flex; gap: .75rem;
-                 align-items: center; padding: .75rem 0;
-                 background: var(--bg, #fff); border-top: 1px solid var(--border, #d4d4d8); }
-  .consult-bar button { font: inherit; padding: .5rem .9rem; border-radius: 6px;
-                        border: 1px solid var(--border, #d4d4d8); cursor: pointer;
-                        color: inherit; background: transparent; }
-  .consult-status { font-size: .9rem; opacity: .8; }
-
-  /* The var() fallbacks above are light-only, and a host page is not obliged to
-     name its tokens --bg/--border: the suite's own style-profile template names
-     its palette ground/ink/accent, so on a dark page the sticky bar fell back to
-     white and the blank-count status landed at 1.31:1 contrast — unreadable, and
-     it is the one element that tells the reader what is still unanswered.
-     Neutrals are local to this template on purpose; copying the dash palette
-     here would make this file a second site for it. Both forms are needed: an
-     explicitly toggled page sets data-theme and never matches the media query. */
-  @media (prefers-color-scheme: dark) {
-    .consult-bar { background: #101619; }
-    .consult-item, .consult-item textarea,
-    .consult-bar, .consult-bar button { border-color: #24333A; }
-  }
-  :root[data-theme="dark"] .consult-bar { background: #101619; }
-  :root[data-theme="dark"] .consult-item,
-  :root[data-theme="dark"] .consult-item textarea,
-  :root[data-theme="dark"] .consult-bar,
-  :root[data-theme="dark"] .consult-bar button { border-color: #24333A; }
-</style>
 
 <!--
   A consultation opens with the DRAWING when the subject has a shape — a flow, a
@@ -68,74 +39,72 @@
 -->
 <meta name="consult-visual" content="none: replace this with the reason, or with svg/mermaid/img">
 
-<!-- One block per claim or question. Duplicate it; never renumber it. -->
+<!-- Single choice. `data-label` is what the composed reply says; without it the
+     paste carries the input value, which is usually a bare id. -->
 <section class="consult-item" data-id="c1" data-title="Short claim title">
-  <h3><span class="consult-id">c1</span>Short claim title</h3>
-  <p>The claim, stated so it can be agreed with or corrected.</p>
-  <textarea placeholder="Your reply to c1 — leave blank to skip it"></textarea>
+  <h3><span class="consult-id">c1</span>The question, asked as a question</h3>
+  <p>What is at stake, and what each answer costs.</p>
+  <div class="opts one">
+    <label><input type="radio" name="c1" data-label="First option"><span>First option <span class="hint">What it buys, and what it costs.</span></span></label>
+    <label><input type="radio" name="c1" data-label="Second option"><span>Second option <span class="hint">What it buys, and what it costs.</span></span></label>
+  </div>
+  <p class="fieldlabel">Notes on this one</p>
+  <textarea placeholder="Anything the options do not cover…"></textarea>
 </section>
 
-<section class="consult-item" data-id="c2" data-title="Second claim">
-  <h3><span class="consult-id">c2</span>Second claim</h3>
-  <p>…</p>
-  <textarea placeholder="Your reply to c2 — leave blank to skip it"></textarea>
+<!-- Multiple choice. Same markup, `type="checkbox"`; the composer lists every
+     checked label. Drop `.one` to let short labels lay out in columns. -->
+<section class="consult-item" data-id="c2" data-title="Which of these apply">
+  <h3><span class="consult-id">c2</span>Which of these apply?</h3>
+  <div class="opts">
+    <label><input type="checkbox" name="c2a" data-label="First"><span>First</span></label>
+    <label><input type="checkbox" name="c2b" data-label="Second"><span>Second</span></label>
+    <label><input type="checkbox" name="c2c" data-label="Third"><span>Third</span></label>
+  </div>
 </section>
 
-<div class="consult-bar">
-  <button type="button" id="consult-copy">Copy my replies</button>
-  <span class="consult-status" id="consult-status"></span>
+<!-- Select, for a closed list too long to lay out as options. The composer sends
+     the selected option's TEXT, so the first entry must not read as an answer. -->
+<section class="consult-item" data-id="c3" data-title="Pick one from the list">
+  <h3><span class="consult-id">c3</span>Pick one from the list</h3>
+  <p class="fieldlabel">The choice</p>
+  <select>
+    <option value="">— not answered —</option>
+    <option>First</option>
+    <option>Second</option>
+  </select>
+</section>
+
+<!-- Short text, for a value rather than an opinion: a name, a number, a path. -->
+<section class="consult-item" data-id="c4" data-title="A single value">
+  <h3><span class="consult-id">c4</span>A single value</h3>
+  <p class="fieldlabel">The value</p>
+  <input type="text" placeholder="e.g. 15rem">
+</section>
+
+<!-- The page-level general-notes item. Always last, always present: it is where
+     the reply that does not fit any question goes, and without it that reply is
+     lost or forced into the wrong item. -->
+<section class="consult-item consult-notes" data-id="notes" data-title="General notes">
+  <h3><span class="consult-id">notes</span>General notes</h3>
+  <p class="fieldlabel">Anything that does not fit above</p>
+  <textarea placeholder="Whatever it is…"></textarea>
+</section>
+
+<!-- The copy button appears TWICE, sharing one status string: once at the end of
+     the content, and once in the rail. A reader who finishes answering and finds
+     no button where the answers ended has been failed by the page.
+
+     The ids are not interchangeable. The contract greps for `id="consult-copy"`
+     and `id="consult-status"` literally; the `-end` pair does not satisfy it. -->
+<div class="endbar">
+  <button type="button" id="consult-copy-end">Copy my answers</button>
+  <span class="consult-status" id="consult-status-end"></span>
 </div>
 
-<script>
-(function () {
-  var btn = document.getElementById('consult-copy');
-  var status = document.getElementById('consult-status');
-
-  function collect() {
-    var answered = [], blank = [];
-    document.querySelectorAll('.consult-item').forEach(function (el) {
-      var id = el.dataset.id;
-      var title = el.dataset.title || '';
-      var text = (el.querySelector('textarea') || {}).value || '';
-      text = text.trim();
-      // A skipped item is OMITTED, never sent as an empty heading: an empty
-      // section reads as "no comment" when it usually means "not yet read".
-      if (text) answered.push('### ' + id + ' · ' + title + '\n\n' + text);
-      else blank.push(id);
-    });
-    return { markdown: answered.join('\n\n'), answered: answered.length, blank: blank };
-  }
-
-  btn.addEventListener('click', function () {
-    var r = collect();
-    if (!r.answered) {
-      status.textContent = 'Nothing typed yet — no items to copy.';
-      return;
-    }
-    // The blank count is reported BEFORE the paste, so a half-answered page is
-    // visible while it can still be finished rather than after it is sent.
-    var msg = r.answered + ' item(s) copied'
-            + (r.blank.length ? ' · ' + r.blank.length + ' still blank: ' + r.blank.join(', ') : ' · none left blank');
-
-    // The published-artifact sandbox blocks downloads, and clipboard access can
-    // be denied, so there is always a visible fallback: select the text so the
-    // reader can copy it by hand instead of being told it worked when it did not.
-    function fallback() {
-      var ta = document.createElement('textarea');
-      ta.value = r.markdown;
-      ta.style.cssText = 'position:fixed;left:0;bottom:0;width:100%;height:9rem';
-      document.body.appendChild(ta);
-      ta.select();
-      status.textContent = msg + ' — clipboard unavailable, copy the selected text.';
-    }
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(r.markdown)
-        .then(function () { status.textContent = msg + ' — paste it back in the chat.'; })
-        .catch(fallback);
-    } else {
-      fallback();
-    }
-  });
-})();
-</script>
+<!-- …and this one lives inside the page's <aside class="rail">, after the
+     <nav class="raillist" id="raillist"></nav> the composer fills in. -->
+<div class="consult-bar">
+  <button type="button" id="consult-copy">Copy my answers</button>
+  <span class="consult-status" id="consult-status"></span>
+</div>

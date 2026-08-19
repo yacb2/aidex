@@ -122,12 +122,18 @@ printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-ok.html" >/
   && ok "--out writes and passes a conforming page" || bad "--out rejected a conforming page"
 [[ -f "$TMP/coupled-ok.html" ]] && ok "--out actually wrote the file" || bad "--out wrote nothing"
 
-# A page with no dark-mode rule violates the contract. --out must surface that as a
-# non-zero exit, not write it and return success.
-out="$(printf '<h1>no theme</h1>\n' | bash "$WRAP" --title "T" --out "$TMP/coupled-bad.html" 2>&1)"; rc=$?
+# A page that violates the contract must come back as a non-zero exit, not be
+# written and reported as success.
+#
+# The fixture used to be a page with no dark-mode rule. artifact-kit injects
+# tokens.css into every wrap, so [themes] is now unreachable THROUGH THE WRAPPER
+# — which is the kit doing its job, not a hole: the check still fires on a
+# hand-written file, asserted further down. The coupling is exercised here
+# through §8 instead, which the wrapper cannot answer on the author behalf.
+out="$(printf '<h1>answer me</h1>\n<textarea></textarea>\n' | bash "$WRAP" --title "T" --out "$TMP/coupled-bad.html" 2>&1)"; rc=$?
 [[ $rc -ne 0 ]] && ok "--out exits non-zero when the wrapped file fails the contract" \
                 || bad "--out returned 0 for a file that violates the contract"
-[[ "$out" == *"[themes]"* ]] && ok "--out surfaces which check failed" \
+[[ "$out" == *"[consult]"* ]] && ok "--out surfaces which check failed" \
                              || bad "--out hid the failing check: $out"
 # The file is still written, so the author can fix it in place rather than re-derive it.
 [[ -f "$TMP/coupled-bad.html" ]] && ok "the failing file is kept for fixing" \
@@ -231,6 +237,21 @@ new, n = re.subn(r'content="none:[^"]*"',
 assert n == 1, f"expected one consult-visual placeholder, found {n}"
 open(sys.argv[2], "w").write(new)
 PY
+# The title of item c2 in the SHIPPED template, read from it rather than spelled
+# here. Three fixtures below regenerate that item with a different claim, and
+# they were all keyed to the literal "Second claim"; when the template's second
+# item was retitled every one of them silently no-opped and stopped testing
+# anything, while still reporting ok.
+C2_TITLE="$(python3 - "$TMP/consult-body-decided.html" <<'PY'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<[^>]*\bdata-id\s*=\s*"c2"[^>]*\bdata-title\s*=\s*"([^"]*)"', t)
+assert m, 'fixture drift: item c2 has no data-title in the shipped template'
+print(m.group(1))
+PY
+)"
+[[ -n "$C2_TITLE" ]] || { echo "FAIL: could not read item c2's title from the template"; exit 1; }
+
 bash "$WRAP" --title "C" --out "$TMP/consult-ok.html" < "$TMP/consult-body-decided.html" >/dev/null 2>&1 \
   && ok "the template passes as soon as the author states the reason" \
   || bad "a template with its visual declaration answered still fails"
@@ -265,7 +286,27 @@ sed 's/id="consult-status"/id="other-status"/' "$TMP/consult-ok.html" > "$TMP/co
 # look for `[consult]`, `data-id` and the template name — so a page with named
 # reply boxes but no data-title had nothing discriminating it. Removing the
 # attribute from the good page is what isolates the rule.
-sed 's/ data-title="Second claim"//' "$TMP/consult-ok.html" > "$TMP/consult-notitle.html"
+# Structural, not keyed to the template's wording: the previous form was
+# `sed 's/ data-title="Second claim"//'`, and when the template's second item was
+# retitled the sed quietly no-opped and the fixture stopped testing anything.
+# `drop` removes item c2's data-title; `retitle` replaces it. Both assert the
+# mutation landed, which the previous form could not: it was
+# `sed 's/ data-title="Second claim"//'`, and when the template's second item was
+# retitled the sed quietly no-opped and the fixture stopped testing anything.
+mutate_c2() {  # <in> <out> <drop|retitle>
+  python3 - "$1" "$2" "$3" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<[^>]*\bdata-id\s*=\s*"c2"[^>]*>', text)
+assert m, 'fixture drift: no item with data-id="c2" in the wrapped template'
+attr = re.compile(r'\s*data-title\s*=\s*"[^"]*"')
+tag = attr.sub("" if sys.argv[3] == "drop" else ' data-title="A different claim"',
+               m.group(0), count=1)
+assert tag != m.group(0), "fixture drift: the mutation changed nothing"
+open(sys.argv[2], "w").write(text[:m.start()] + tag + text[m.end():])
+PY
+}
+mutate_c2 "$TMP/consult-ok.html" "$TMP/consult-notitle.html" drop
 for case in "consult-dupe duplicate" "consult-nobtn consult-copy" \
             "consult-nostatus consult-status" "consult-notitle data-title" \
             "consult-nodark data-theme"; do
@@ -340,8 +381,7 @@ cp "$TMP/consult-ok.html" "$TMP/regen-same.html"
 bash "$CHECK" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
   && ok "an unchanged regeneration passes --prev" || bad "--prev flagged an identical page"
 
-sed 's/data-title="Second claim"/data-title="A different claim"/' \
-  "$TMP/consult-ok.html" > "$TMP/regen-shift.html"
+mutate_c2 "$TMP/consult-ok.html" "$TMP/regen-shift.html" retitle
 out="$(bash "$CHECK" "$TMP/regen-shift.html" --prev "$TMP/consult-ok.html" 2>&1)"
 [[ "$out" == *"[consult-ids]"* ]] && ok "a shifted id is caught across regenerations" \
                                   || bad "an id now naming a different claim passed: $out"
@@ -374,7 +414,7 @@ bash "$CHECK" "$TMP/consult-ok.html" "$TMP/regen-same.html" --prev "$TMP/consult
 # The prior version exists only until the write, so the snapshot has to happen there.
 PROJ="$TMP/proj"; mkdir -p "$PROJ/.context/reports"
 bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" < "$TMP/consult-body-decided.html" >/dev/null 2>&1
-err="$(sed 's/data-title="Second claim"/data-title="A different claim"/' "$TMP/consult-body-decided.html" \
+err="$(sed "s/data-title=\"$C2_TITLE\"/data-title=\"A different claim\"/" "$TMP/consult-body-decided.html" \
        | bash "$WRAP" --title "C" --out "$PROJ/.context/reports/c.html" 2>&1 >/dev/null)"; rc=$?
 [[ $rc -ne 0 ]] && ok "regenerating with a shifted id fails the write" \
                 || bad "--out accepted a regeneration that renumbered a claim"
@@ -394,26 +434,52 @@ echo "== blank count is about the composer =="
 # to skip it") and the JS comment that says the blank count is reported before the
 # paste are all left in place, because they are what the old check was matching.
 python3 - "$TMP/consult-ok.html" "$TMP/consult-noblank.html" <<'PY'
-import sys
+import re, sys
 t = open(sys.argv[1], encoding="utf-8").read()
-subs = [
-    ("var answered = [], blank = [];", "var answered = [];"),
-    ("else blank.push(id);", "else { /* skipped */ }"),
-    ("return { markdown: answered.join('\\n\\n'), answered: answered.length, blank: blank };",
-     "return { markdown: answered.join('\\n\\n'), answered: answered.length };"),
-]
-for old, new in subs:
-    assert old in t, f"template drift: {old[:40]!r} not found"
-    t = t.replace(old, new, 1)
-# The status line, reduced to a count with no blank accounting.
-i = t.index("var msg = r.answered")
-j = t.index(";", t.index("r.blank.join(', ')"))
-t = t[:i] + "var msg = r.answered + ' item(s) copied'" + t[j:]
-assert "r.blank" not in t and "blank.push" not in t, "mutation left the accounting in"
-assert "still blank" not in t, "mutation left the status text in"
-assert "leave blank to skip it" in t, "control: the placeholders must survive"
-assert "blank-count status landed at 1.31:1" in t, "control: the CSS comment must survive"
-assert "The blank count is reported BEFORE the paste" in t, "control: the JS comment must survive"
+
+# The kit composer, replaced by one that composes a reply and reports a count but
+# does no blank accounting at all. Surgical substitutions into the shipped
+# composer is what this used to do, and every edit to the composer broke the
+# fixture instead of the check; swapping the whole script is stable and tests the
+# same thing, because what the check must read is the code that ships.
+MUTANT = """
+(function () {
+  var items = [].slice.call(document.querySelectorAll('.consult-item'));
+  var status = [].slice.call(document.querySelectorAll('.consult-status'));
+  // The blank count is reported before the paste, so a half-answered page is
+  // visible while it can still be finished. This sentence is the CONTROL: it
+  // names the blank count, and the code below accounts for nothing, so a check
+  // that reads comments passes a page that does not do the work.
+  function collect() {
+    var answered = [];
+    items.forEach(function (el) {
+      var t = (el.querySelector('textarea') || {}).value || '';
+      if (t.trim()) answered.push('### ' + el.dataset.id + '\\n\\n' + t.trim());
+    });
+    return { markdown: answered.join('\\n\\n'), answered: answered.length };
+  }
+  document.querySelectorAll('#consult-copy, #consult-copy-end').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var r = collect();
+      status.forEach(function (s) { s.textContent = r.answered + ' item(s) copied'; });
+    });
+  });
+})();
+"""
+
+t, n = re.subn(r"<script\b[^>]*>.*?</script>", "<script>" + MUTANT + "</script>",
+               t, count=1, flags=re.S | re.I)
+assert n == 1, "fixture drift: no <script> to replace in the wrapped page"
+js = "\n".join(m.group(1) for m in
+                re.finditer(r"<script\b[^>]*>(.*?)</script>", t, re.I | re.S))
+code = re.sub(r"(?m)//.*$", " ", re.sub(r"/\*.*?\*/", " ", js, flags=re.S))
+assert "blank" not in code.lower(), "mutation left the accounting in the CODE"
+# Controls: the word survives in a JS comment AND in the kit's own CSS comment,
+# so a check that does not strip comments is satisfied by a page that counts
+# nothing. That false negative is the whole reason the check reads the composer.
+assert "blank" in js.lower(), "control: the JS comment must survive"
+assert "blank" in re.sub(r"<script\b[^>]*>.*?</script>", " ", t, flags=re.S | re.I).lower(), \
+    "control: the word must still appear outside the script"
 open(sys.argv[2], "w").write(t)
 PY
 out="$(bash "$CHECK" "$TMP/consult-noblank.html" 2>&1)"
@@ -573,13 +639,13 @@ out="$(bash "$CHECK" "$TMP/sq-new.html" --prev "$TMP/sq-old.html" 2>&1)"
 #     QUOTES something forces single quotes on that one attribute, on an
 #     otherwise fully double-quoted template-derived page. That item dropped out
 #     of the map and any shift on it went unreported.
-python3 - "$TMP/consult-ok.html" "$TMP/mix-old.html" "$TMP/mix-new.html" <<'PY'
+python3 - "$TMP/consult-ok.html" "$TMP/mix-old.html" "$TMP/mix-new.html" "$C2_TITLE" <<'PY'
 import sys
 t = open(sys.argv[1], encoding="utf-8").read()
-old = t.replace('data-title="Second claim"',
-                """data-title='The "fix" that broke deploys'""")
-new = t.replace('data-title="Second claim"',
-                """data-title='A different claim about "auth"'""")
+target = f'data-title="{sys.argv[4]}"'
+assert target in t, "fixture drift: item c2's title is not in the wrapped page"
+old = t.replace(target, """data-title='The "fix" that broke deploys'""")
+new = t.replace(target, """data-title='A different claim about "auth"'""")
 open(sys.argv[2], "w").write(old)
 open(sys.argv[3], "w").write(new)
 PY
@@ -615,7 +681,7 @@ echo "== the baseline is the last PASSING version =="
 INV="$TMP/inv"; mkdir -p "$INV/.context/reports"
 PAGE="$INV/.context/reports/c.html"
 shifted() {  # shifted <title> — regenerate c2 with the given claim
-  sed "s/data-title=\"Second claim\"/data-title=\"$1\"/" "$TMP/consult-body-decided.html" \
+  sed "s/data-title=\"$C2_TITLE\"/data-title=\"$1\"/" "$TMP/consult-body-decided.html" \
     | bash "$WRAP" --title "C" --out "$PAGE" 2>&1 >/dev/null
 }
 
@@ -632,7 +698,7 @@ grep -q 'data-title="A different claim"' "$PAGE" \
   || bad "run 2: the failing write was rolled back (that behaviour is asserted above)"
 
 # 3a — the author does what the message told them to do.
-out3a="$(shifted "Second claim")"; rc3a=$?
+out3a="$(shifted "$C2_TITLE")"; rc3a=$?
 [[ $rc3a -eq 0 ]] && ok "run 3a: restoring the correct claim PASSES" \
                   || bad "run 3a: the fix was reported as the violation: $out3a"
 

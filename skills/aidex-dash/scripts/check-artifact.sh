@@ -92,62 +92,112 @@ for f in "$@"; do
     && report siblings "$name" "sibling assets next to it ($(basename "$(head -1 <<<"$assets")")…) — inline them"
 
   # --- § 8: the page is a CONSULTATION, not a read ---------------------------
-  # Detection is any REPLY SURFACE, not the template's own class name: a page that
-  # never copied the template is precisely the case that has no `.consult-item`
-  # to key on, and that is the violation observed in the field (BL-168 — a
-  # hand-rolled consultation page with 9 reply boxes, 0 stable ids and no
-  # doctype). A report meant to be read has no inputs, so this stays silent for
-  # an ordinary route B page.
+  # Detection is an OR over three arms, and it has to stay one:
+  #   a reply surface in the MARKUP  — a page that never copied the template has
+  #     no `.consult-item` to key on, and that is the violation observed in the
+  #     field (BL-168 — a hand-rolled page with 9 reply boxes, 0 stable ids and
+  #     no doctype). Keying only off data-id would drop exactly that case.
+  #   a data-id item                 — an item whose reply surface is a radio
+  #     group or a select carries no textarea and would otherwise be invisible.
+  #   the composer button id         — a page that offers to compose a reply.
+  #   the item CLASS in an attribute — a page that builds its reply boxes at
+  #     runtime has no reply surface in its markup at all, and this is what is
+  #     left of it. Matched as `class="…consult-item…"`, never as the bare word:
+  #     components.css is injected into every page and defines `.consult-item`,
+  #     so an unanchored match would fire on every read.
+  # A report meant to be read hits none of the four and this stays silent.
   #
-  # The gate was the literal string `<textarea`, which is the one element a
-  # hand-rolled page is free NOT to use: contenteditable divs and boxes appended
-  # by script both skipped all of §8 and printed `artifact contract OK`. Every
-  # alternative below is structural — a tag, an attribute, a DOM call, the
-  # composer's own id — so prose that merely NAMES a textarea is still a read.
-  if grep -qiE '<textarea|contenteditable=|createElement\([^)]*textarea|id=["'"'"']?consult-copy' <<<"$flat"; then
-    # Reply boxes, however they are spelled. Counted against data-id below, so a
-    # contenteditable page is told which ids it is missing instead of being told
-    # nothing at all.
-    n_area="$(grep -oiE '<textarea|contenteditable=' <<<"$body" | wc -l | tr -d ' ')"
-    n_id="$(grep -oiE 'data-id=' <<<"$body" | wc -l | tr -d ' ')"
-    n_title="$(grep -oiE 'data-title=' <<<"$body" | wc -l | tr -d ' ')"
+  # The patterns are `<tag`-anchored so the injected composer does not match its
+  # own querySelector strings. The v1 clause `createElement\([^)]*textarea` was
+  # REMOVED rather than worked around: once artifact-kit ships composer.js on
+  # every page, its clipboard fallback contains that string always, so the clause
+  # fired on 100% of pages and discriminated nothing. What it existed for —
+  # reply boxes appended by script — is covered by the data-id arm.
+  surface_pat='<textarea|contenteditable=|<select|<input[^>]+type=["'"'"']?(radio|checkbox|text)'
+  if grep -qiE "$surface_pat"'|data-id=|id=["'"'"']?consult-copy|class=["'"'"'][^"'"'"']*consult-item' <<<"$flat"; then
+    # Items, not boxes. v1 counted `<textarea` occurrences against data-id, which
+    # told a radio-only page it had ids for boxes that did not exist. The unit is
+    # the ITEM: it needs a stable id, a title, and at least one reply surface of
+    # any kind inside it.
+    items="$(python3 - "$f" <<'PY'
+import re, sys
+
+# Subtree by tag-name balance, not by an HTML parser: a page with an unclosed
+# <p> is still well formed enough to answer, and counting only the item own tag
+# name is immune to it.
+OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bdata-id\s*=\s*'
+                  r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))[^>]*>', re.I | re.S)
+TITLE = re.compile(r'\bdata-title\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))', re.I | re.S)
+SURFACE = re.compile(r'<textarea\b|contenteditable\s*=|<select\b'
+                     r'|<input\b[^>]*\btype\s*=\s*["\x27]?(?:radio|checkbox|text)\b'
+                     r'|<input\b(?![^>]*\btype\s*=)', re.I | re.S)
+
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+
+
+def subtree(tag, start):
+    """Text between the item open tag and its matching close tag."""
+    op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
+    cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
+    depth, pos = 1, start
+    while depth:
+        m_o, m_c = op.search(text, pos), cl.search(text, pos)
+        if not m_c:
+            return text[start:]            # unclosed: judge what is left
+        if m_o and m_o.start() < m_c.start():
+            depth, pos = depth + 1, m_o.end()
+        else:
+            depth, pos = depth - 1, m_c.end()
+            if not depth:
+                return text[start:m_c.start()]
+    return ""
+
+
+for m in OPEN.finditer(text):
+    tag = m.group(1)
+    ident = next(g for g in m.groups()[1:] if g is not None)
+    body = subtree(tag, m.end())
+    has_title = 1 if TITLE.search(m.group(0)) else 0
+    # The open tag itself may BE the surface (an <input data-id=...>).
+    has_surface = 1 if (SURFACE.search(body) or SURFACE.search(m.group(0))) else 0
+    print(f"{ident}\t{has_title}\t{has_surface}")
+PY
+)"
+    items_rc=$?
+    if [[ $items_rc -ne 0 ]]; then
+      report consult "$name" "the consultation-item scan did not run (python3 exited $items_rc)"
+      items=""
+    fi
+    n_items=0
+    [[ -n "$items" ]] && n_items="$(wc -l <<<"$items" | tr -d ' ')"
 
     # Requirement 1 — every claim is an item with a stable id. Without data-id
     # there is nothing to keep stable and nothing --prev can compare.
-    [[ "$n_id" -ne "$n_area" ]] \
-      && report consult "$name" "$n_area reply box(es) but $n_id data-id — every consultation item needs a stable id (copy assets/templates/consultation-block.html.template)"
-    # data-title is what the composed reply is headed with; without it the paste
-    # says '### c3' and the reader must return to the page to learn what c3 was.
-    [[ "$n_title" -ne "$n_area" ]] \
-      && report consult "$name" "$n_area reply box(es) but $n_title data-title — the composed reply would have unnamed headings"
-    # Quote style is the author's choice — and a title that quotes something
-    # forces single quotes on that attribute even on a template-derived page — so
-    # read the VALUE rather than requiring one spelling of the delimiters. The
-    # double-quote-only form silently reported no duplicates on a single-quoted
-    # page while the count checks above (which are quote-agnostic) passed it.
-    dupes="$(python3 - "$f" <<'PY'
-import collections, re, sys
+    if [[ "$n_items" -eq 0 ]]; then
+      n_surface="$(grep -oiE "$surface_pat" <<<"$flat" | wc -l | tr -d ' ')"
+      report consult "$name" "$n_surface reply surface(s) but no data-id item — every consultation item needs a stable id (copy assets/templates/consultation-block.html.template)"
+    else
+      while IFS=$'\t' read -r ident has_title has_surface; do
+        [[ -z "$ident" ]] && continue
+        # data-title is what the composed reply is headed with; without it the
+        # paste says (### c3) and the reader must return to the page to learn
+        # what c3 was.
+        [[ "$has_title" == "1" ]] \
+          || report consult "$name" "item '$ident' has no data-title — the composed reply would have an unnamed heading"
+        # Any reply surface counts: textarea, contenteditable, radio, checkbox,
+        # select, short text. An item with NONE is a claim the reader cannot
+        # answer, which is the one shape that still fails.
+        [[ "$has_surface" == "1" ]] \
+          || report consult "$name" "item '$ident' has no reply surface — a consultation item the reader cannot answer"
+      done <<<"$items"
 
-# \x27 rather than a literal apostrophe. The bash lexer for $( ) counts
-# apostrophes even inside a quoted heredoc, and an odd number of them swallows
-# the closing paren. `re` reads \x27 as the apostrophe, so the pattern is the
-# same one. (This comment is written without apostrophes for the same reason.)
-ATTR = re.compile(r'\bdata-id\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))', re.I | re.S)
-text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-# finditer + groups(), never findall: findall reports a non-participating group
-# as "" rather than None, so every id collapsed onto the empty string and the
-# scan reported one duplicate that did not exist instead of the ones that did.
-vals = [next(g for g in m.groups() if g is not None) for m in ATTR.finditer(text)]
-print(" ".join(v for v, n in sorted(collections.Counter(vals).items()) if n > 1)[:200])
-PY
-)"
-    dupe_rc=$?
-    if [[ $dupe_rc -ne 0 ]]; then
-      report consult "$name" "the duplicate-id scan did not run (python3 exited $dupe_rc)"
-    elif [[ -n "$dupes" ]]; then
-      report consult "$name" "duplicate ids ($dupes) — two claims answering to one id"
+      # Two claims answering to one id: a reply about that id points at both.
+      # Read off the parsed items rather than a second regex over the file, so
+      # every quote form the item scan accepts is covered here too.
+      dupes="$(cut -f1 <<<"$items" | sort | uniq -d | tr '\n' ' ' | sed 's/ *$//')"
+      [[ -n "$dupes" ]] \
+        && report consult "$name" "duplicate ids ($dupes) — two claims answering to one id"
     fi
-
     # Requirement 2 — the page composes the reply, and says how many are blank.
     grep -q 'id="consult-copy"' <<<"$body" \
       || report consult "$name" "no compose-and-copy button (id=\"consult-copy\") — the reader has to assemble the reply by hand"
