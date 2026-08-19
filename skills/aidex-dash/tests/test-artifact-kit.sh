@@ -75,6 +75,18 @@ n_root="$(grep -cE -- '^[[:space:]]*--s[0-9]:' "$KIT/tokens.css")"
 [[ "$n_root" -ge 4 ]] \
   || fail "the chart series slots are gone from tokens.css — a charted page would invent its own palette again"
 
+# Typed answers persist across reloads (usage-retro run 6, R6-02). These two
+# greps are structural, not functional — the functional proof is a live browser
+# probe (type → reload → restored), recorded in the run's proofs. What they pin
+# is the two halves a refactor could silently drop: the path-scoped storage key
+# (local artifacts share the file:// origin, so a key without the path restores
+# one page's answers onto another), and the recovered-answers banner the reader
+# discards from.
+grep -qF "'aidex-kit-answers:' + location.pathname" "$KIT/composer.js" \
+  || fail "composer.js lost the path-scoped answer store — answers stop surviving reloads, or bleed between artifacts"
+grep -qF 'consult-restored' "$KIT/composer.js" \
+  || fail "composer.js lost the recovered-answers banner — restored state would be invisible and undiscardable"
+
 # A textarea defaults to `resize: both`, and dragging one wider than its column
 # overlaps the rail and the content beside it. Only the vertical axis has room.
 grep -qE 'textarea[^}]*resize:[[:space:]]*vertical' "$KIT/components.css" \
