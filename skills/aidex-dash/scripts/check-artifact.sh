@@ -16,6 +16,7 @@
 #   themes       prefers-color-scheme — readable in dark mode
 #   self         no external stylesheet/script/font/image: one file, no network
 #   siblings     no .css/.js dropped next to it — the artifact IS the file
+#   layout       a kit page keeps its content inside .page / .main (BL-177)
 #   consult      a page the reader must ANSWER carries the §8 shape (fires when
 #                the page offers a reply surface: <textarea>, contenteditable,
 #                boxes appended by script, or an id="consult-copy" composer)
@@ -90,6 +91,32 @@ for f in "$@"; do
   assets="$(find "$dir" -maxdepth 1 \( -name '*.css' -o -name '*.js' \) 2>/dev/null | head -3)"
   [[ -n "$assets" ]] \
     && report siblings "$name" "sibling assets next to it ($(basename "$(head -1 <<<"$assets")")…) — inline them"
+
+  # --- the kit's layout container (BL-177) -----------------------------------
+  # The kit puts the entire width system on two classes: `.page` caps the measure
+  # and lays the two-column grid, `.main` is the content column. wrap-report.sh
+  # injects the STYLES; the STRUCTURE comes from skeleton.html, which is a file
+  # the author is expected to copy and nothing made them. A page written as a bare
+  # <h1> plus sections got every token and no layout — full bleed at the browser's
+  # default width, enormous type past 64rem — and passed every check here.
+  #
+  # Scoped to pages that carry the kit stamp: a page without it has no `.page`
+  # rule to be inside of, and judging it would fail every pre-kit artifact.
+  #
+  # Matched as class TOKENS. components.css spells `.page` and `.main` as
+  # selectors and is injected into every page, so a looser grep is answered by the
+  # stylesheet on precisely the page that has none of the structure.
+  #
+  # There is no opt-out marker and there is deliberately none: a page that wants
+  # to be full-bleed overrides `.page { max-width: none }` in its own <style> and
+  # keeps the grid, the rail and the responsive collapse. A second mechanism would
+  # buy nothing the cascade does not already give.
+  if grep -qiE '<meta[^>]+name=["'"'"']artifact-kit' <<<"$flat"; then
+    for cls in page main; do
+      grep -qE 'class=["'"'"']([^["'"'"']]*[[:space:]])?'"$cls"'([[:space:]][^["'"'"']]*)?["'"'"']' <<<"$flat" \
+        || report layout "$name" "no element with class=\"$cls\" — the content is outside the kit's layout container, so the page renders full-bleed with no reading measure. Wrap it the way assets/artifact-kit/skeleton.html does: <div class=\"page\"><main class=\"main\">…</main><aside class=\"rail\">…</aside></div>"
+    done
+  fi
 
   # --- § 8: the page is a CONSULTATION, not a read ---------------------------
   # Detection is an OR over three arms, and it has to stay one:

@@ -243,8 +243,27 @@ project instead of restated per request.
 
 ### 4. Write page content, then wrap it — do not hand-roll the document
 
-Write what `artifact-design` teaches: styles and markup, no `<!doctype>` / `<html>` /
-`<head>` / `<body>` of your own.
+**Start from `assets/artifact-kit/skeleton.html`.** Copy it and replace its text; do not
+start from a bare `<h1>`. The wording here used to enumerate only what to leave out —
+no `<!doctype>` / `<html>` / `<head>` / `<body>` of your own — and never said what to put
+in, which is what produced BL-177: `wrap-report.sh` injects the kit's STYLES, and the
+skeleton is what supplies its STRUCTURE. The entire width system lives on two classes:
+
+```html
+<div class="page">          <!-- caps the measure, lays the two-column grid -->
+  <main class="main">…</main>
+  <aside class="rail">…</aside>
+</div>
+```
+
+A page written without them gets every token and no layout: it renders full-bleed at the
+browser's default width, and past 64rem the type reads enormous. The contract now fails
+that page and names the skeleton. A page that genuinely wants to be full-bleed overrides
+`.page { max-width: none }` in its own `<style>` and keeps the grid, the rail and the
+responsive collapse — there is no opt-out marker, because the cascade already is one.
+
+Inside that container, write what `artifact-design` teaches: styles and markup, no
+`<!doctype>` / `<html>` / `<head>` / `<body>` of your own.
 
 The Artifact tool supplies that envelope at publish time; a local file gets the same one
 from:
@@ -265,8 +284,8 @@ prints a NOTE saying the contract went unverified.
 ### 5. Read what the contract check said
 
 `--out` already ran it. It checks doctype, charset, viewport, title, dark mode, no
-external CSS/JS/fonts/images, no sibling assets — plus the consultation shape of § 8 when
-the page has reply boxes. Fix what it reports; never open or hand over a file that fails
+external CSS/JS/fonts/images, no sibling assets, the kit's layout container on any page
+carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
 it. A non-zero exit means the file on disk is not deliverable.
 
 To re-check a file you did not just wrap:

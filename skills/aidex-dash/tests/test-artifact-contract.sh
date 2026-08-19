@@ -23,7 +23,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 BODY='<style>:root{--ink:#111}
 @media (prefers-color-scheme: dark){:root{--ink:#eee}}</style>
-<h1>Informe</h1><p>Acentuaci&oacute;n y datos.</p>'
+<div class="page"><main class="main"><h1>Informe</h1><p>Acentuaci&oacute;n y datos.</p></main></div>'
 
 echo "== wrap-report.sh =="
 
@@ -117,7 +117,7 @@ bash "$CHECK" "$TMP/does-not-exist.html" >/dev/null 2>&1 \
 # showing the check fired once — a probe samples behaviour, this makes skipping impossible.
 WRAP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)/wrap-report.sh"
 
-GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><h1>ok</h1>'
+GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>ok</h1></main></div>'
 printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-ok.html" >/dev/null 2>&1 \
   && ok "--out writes and passes a conforming page" || bad "--out rejected a conforming page"
 [[ -f "$TMP/coupled-ok.html" ]] && ok "--out actually wrote the file" || bad "--out wrote nothing"
@@ -130,7 +130,7 @@ printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-ok.html" >/
 # — which is the kit doing its job, not a hole: the check still fires on a
 # hand-written file, asserted further down. The coupling is exercised here
 # through §8 instead, which the wrapper cannot answer on the author behalf.
-out="$(printf '<h1>answer me</h1>\n<textarea></textarea>\n' | bash "$WRAP" --title "T" --out "$TMP/coupled-bad.html" 2>&1)"; rc=$?
+out="$(printf '<div class="page"><main class="main"><h1>answer me</h1>\n<textarea></textarea></main></div>\n' | bash "$WRAP" --title "T" --out "$TMP/coupled-bad.html" 2>&1)"; rc=$?
 [[ $rc -ne 0 ]] && ok "--out exits non-zero when the wrapped file fails the contract" \
                 || bad "--out returned 0 for a file that violates the contract"
 [[ "$out" == *"[consult]"* ]] && ok "--out surfaces which check failed" \
@@ -202,7 +202,13 @@ TPL="$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/consul
 python3 - "$TPL" > "$TMP/consult-body.html" <<'PY'
 import re, sys
 t = open(sys.argv[1], encoding="utf-8").read()
+# The template ships BLOCKS to paste into skeleton.html, so the fixture supplies
+# the layout container the skeleton would have. Without it the page is judged
+# full-bleed (BL-177) and "the template fails nothing else" stops being about
+# the template.
+print('<div class="page"><main class="main">')
 print(re.sub(r"\A\s*<!--.*?-->\s*", "", t, flags=re.S))
+print('</main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>')
 PY
 # The shipped template must satisfy every check EXCEPT the one that is, by
 # definition, an author's decision about a specific subject.
@@ -713,7 +719,7 @@ out3b="$(shifted "A different claim")"; rc3b=$?
 # --- BL-168: the style profile is a FIELD the wrapper reads (D2) --------------
 echo "== style profile =="
 LANGP="$TMP/langproj"; mkdir -p "$LANGP/.context/reports"
-GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><h1>x</h1>'
+GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
 
 # The one-time offer: it fires when the project has no profile, and records itself
 # so it cannot become the 14-offers-across-7-projects nag the usage-retro measured.
@@ -824,6 +830,53 @@ if command -v git >/dev/null 2>&1; then
 else
   ok "SKIP: git is unavailable, so the worktree hop cannot be exercised"
 fi
+
+echo "== the kit layout container (BL-177) =="
+# The kit puts the whole width and column system on two classes — `.page` caps
+# the measure and lays the grid, `.main` is the column — and wrap-report.sh
+# injects the STYLES, never the structure. A page written as a bare <h1> plus
+# sections therefore gets every token and no layout: it renders full-bleed at the
+# browser's default width, and at 64rem+ the type reads enormous. That page
+# passed every check the contract had.
+KITCSS="$(cat "$SCRIPTS/../assets/artifact-kit/tokens.css" "$SCRIPTS/../assets/artifact-kit/components.css")"
+
+mkkit() {  # $1 = filename, $2 = body markup
+  { printf '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+    printf '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+    printf '<title>Fixture</title>\n<meta name="artifact-kit" content="1">\n'
+    printf '<style>\n%s\n</style>\n</head>\n<body>\n%s\n</body>\n</html>\n' "$KITCSS" "$2"
+  } > "$TMP/$1"
+}
+
+# The fixture carries the WHOLE kit stylesheet, which spells `.page` and `.main`
+# as selectors. The check must read the MARKUP: an unanchored grep is answered by
+# the injected CSS on exactly the page that has none of the structure.
+mkkit nowrap.html '<h1>Full bleed</h1><section id="s1"><h2>A section</h2><p>Prose.</p></section>'
+out="$(bash "$CHECK" "$TMP/nowrap.html" 2>&1)"
+[[ "$out" == *"layout"* || "$out" == *"skeleton.html"* ]] \
+  && ok "a kit page whose content is not inside .page/.main is caught" \
+  || bad "the wrapper-less page passed: $out"
+[[ "$out" == *"skeleton.html"* ]] \
+  && ok "the failure names skeleton.html as the fix" \
+  || bad "the failure does not say where the structure comes from: $out"
+
+mkkit wrapped-ok.html '<div class="page"><main class="main"><h1>Contained</h1><section id="s1"><h2>A section</h2><p>Prose.</p></section></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
+bash "$CHECK" "$TMP/wrapped-ok.html" >/dev/null 2>&1 \
+  && ok "control: the same page inside the container passes" \
+  || bad "a correctly wrapped page was rejected: $(bash "$CHECK" "$TMP/wrapped-ok.html" 2>&1)"
+
+# `.main` alone is not the layout: without `.page` there is no cap and no grid.
+mkkit halfwrap.html '<main class="main"><h1>Half</h1><section id="s1"><h2>A section</h2><p>Prose.</p></section></main>'
+bash "$CHECK" "$TMP/halfwrap.html" >/dev/null 2>&1 \
+  && bad "a page with .main but no .page passed — the cap and the grid both live on .page" \
+  || ok "a page with .main but no .page is caught"
+
+# A page that does NOT carry the kit is out of scope: it has no .page rule to be
+# inside of, and judging it would fail every pre-kit artifact on disk.
+printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><h1>Pre-kit</h1></body></html>\n' > "$TMP/prekit.html"
+bash "$CHECK" "$TMP/prekit.html" >/dev/null 2>&1 \
+  && ok "a page without the kit stamp is not judged on the kit's layout" \
+  || bad "a pre-kit page was failed for a container it never had"
 
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
