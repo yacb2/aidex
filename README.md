@@ -99,7 +99,7 @@ project/.claude/settings.local.json      <-- Per-project skill silencing
 |-------|----------|-----------|---------|
 | **Global** | `~/.aidex/skills/` symlinked into `~/.claude/skills/` | All projects | Personal + reusable skills |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific |
-| **Per-project silencing** | `project/.claude/settings.local.json` `skillOverrides` | That project only | Hide a global skill where it's noise — values: `name-only`, `user-invocable-only`, `off`. Shipped in Claude Code 2.1.131. |
+| **Per-project silencing** | `project/.claude/settings.local.json` `skillOverrides` | That project only | Hide a global skill where it's noise — values: `name-only`, `user-invocable-only`, `off`. Shipped in Claude Code 2.1.131. Skills **provided by a plugin are exempt**: user/project/local `skillOverrides` never applies to them, at any key format. The only lever is `enabledPlugins: {"<plugin>@<marketplace>": false}`, which is all-or-nothing for the whole plugin. |
 
 ### Pillar 2: Structured Project Context (`.context/`)
 
