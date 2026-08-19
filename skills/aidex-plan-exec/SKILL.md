@@ -122,8 +122,18 @@ plan qualifies: a run-to-completion kickoff already **is** the opt-in.
    committed files, so update the plan and record `proof_links` at its main-tree path
    (a gitignored/uncommitted `.context/` plan is absent from the worktree) — see the
    canon's Lifecycle note.
-6. Create a TaskList mirroring the plan's phases so progress is visible.
-7. **Front-load the work-list for chained multi-item runs.** A single plan's phases
+6. **Probe for concurrent work before touching anything.** The user runs
+   parallel sessions and worktrees on the same project, and sessions blind to
+   each other have triaged items a parallel session owned, asked the user about
+   work running elsewhere, and left the user asking why a second worktree
+   exists (usage-retro run 6, R6-06). Two commands, seconds:
+   `git worktree list` and `git log --all --since="24 hours ago" --oneline`.
+   If another live line of work shows — a worktree you did not create, fresh
+   commits this session did not make — name it in your first status message,
+   keep hands off its files and branches, and route any decision that belongs
+   to it back to the user instead of taking it here.
+7. Create a TaskList mirroring the plan's phases so progress is visible.
+8. **Front-load the work-list for chained multi-item runs.** A single plan's phases
    are already an ordered queue (walk them). But when this session chains **multiple
    plans/items** (close several plans, then clear backlog), fix the cross-item order
    **once** here — via the `AskUserQuestion` survey → a durable
@@ -221,7 +231,10 @@ After each phase passes verification, before starting the next phase:
    hand seed-writing back to the user. The seed must carry: plan path, current
    phase (first unchecked checkbox), what was just completed, what is next, the
    **autonomy surface / mode** in effect, the **language rule**, and any
-   baseline-failure notes. **Otherwise**, run `/compact` or continue in-session.
+   baseline-failure notes. **Environment and data claims in the seed carry their
+   standing — VERIFIED (re-checked now, check named) or ASSUMED — never bare
+   fact**: an arriving session repeats the seed to the user as truth, and seeds
+   have asserted a DB state that was false and a UI control that did not exist. **Otherwise**, run `/compact` or continue in-session.
    Pick whichever is available — do not hard-depend on any handoff skill.
    This is the *mechanical* durability layer: context exhaustion is not a
    judgment call, so it never routes to the arbiter — it just hands off.
