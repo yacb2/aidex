@@ -360,6 +360,22 @@ rm -rf "$ALT"
   && ok "another user's home: the project is named, and their .claude scaffolding is excluded" \
   || bad "the project name kept the encoded home path: got '"'"'$projects'"'"'"
 
+# --- a bare-filename cursor does not crash the run --------------------------
+# The documented catch-up invocation runs from inside the audit folder with
+# `--cursor cursor.json`. os.path.dirname of a bare filename is "", and
+# makedirs("") raises FileNotFoundError — so the pipeline's own canonical
+# invocation crashed after parsing args, before mining anything (run 6,
+# 2026-08-19). Every cell above passes a cursor with a directory component,
+# which is why none of them could see it.
+BARE="$(mktemp -d)"
+out_bare="$(cd "$BARE" && python3 "$EXTRACT" --out dataset.jsonl --cursor cursor.json \
+        --since 3650d --transcripts-root "$TX" 2>&1)"
+rc_bare=$?
+[[ $rc_bare -eq 0 && -s "$BARE/cursor.json" ]] \
+  && ok "a bare-filename --cursor writes to the cwd instead of crashing" \
+  || bad "bare '--cursor cursor.json' exited $rc_bare: $(tail -1 <<<"$out_bare")"
+rm -rf "$BARE"
+
 echo
 echo "extract provenance: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

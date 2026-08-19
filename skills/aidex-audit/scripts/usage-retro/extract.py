@@ -303,7 +303,9 @@ def main():
         for r in records:
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
     if args.cursor:
-        os.makedirs(os.path.dirname(args.cursor), exist_ok=True)
+        cursor_dir = os.path.dirname(args.cursor)
+        if cursor_dir:
+            os.makedirs(cursor_dir, exist_ok=True)
         json.dump({"through": max_ts.isoformat(), "generated": now.isoformat(),
                    "window_start": cutoff.isoformat(), "records": len(records)},
                   open(args.cursor, "w"), indent=2)
