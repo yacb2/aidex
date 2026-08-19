@@ -36,11 +36,22 @@ occasionally wanted — removal is correct only when it is never wanted.
 |---|---|---|
 | Skills | Metadata only; the body loads on invocation. This is already the default | delete / unlink the skill |
 | Skills, per project | `skillOverrides: name-only` or `user-invocable-only` — **these are deferrals, not removals**; the skill is still reachable | `skillOverrides: off` |
+| Skills, per project, **from a plugin** | None — `skillOverrides` does not apply to them (see below) | `enabledPlugins: {"<plugin>@<marketplace>": false}` — takes the whole plugin |
 | MCP servers | Tools listed by name; schemas fetched on demand via `ToolSearch` | disable the server |
 | Plugin subagents | No deferred form — an installed plugin's `agents/*.md` load every session | uninstall the plugin |
 
 The last row is why plugins rank first among the cost drivers: they are the one layer with
 no middle option, so their cost is the least avoidable and the most worth acting on.
+
+**Never propose a `skillOverrides` entry for a plugin-provided skill.** It is silently
+inert — the entry is written, no error is raised, and the skill keeps appearing in the
+listing with its full description. Verified against Claude Code **2.1.235**: the override
+resolver returns `"on"` for any skill whose `source` is `"plugin"` *before* it reads
+`skillOverrides` at all, so no key format works — neither the qualified `plugin:skill`
+nor the bare `skill`. Re-check on a new build by grepping the binary for the
+`e.source==="plugin"` early return in that resolver; if it is gone, the exemption is gone.
+The only per-project lever for a plugin skill is `enabledPlugins: false`, and it takes the
+plugin's commands, agents and hooks with it — so it is a real trade, not a silencing.
 
 **How to tell whether an MCP server is actually deferred.** Read the session's own
 signals rather than the config: a deferred server's tools arrive as *names only* in a
