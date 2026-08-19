@@ -52,6 +52,9 @@ nor the bare `skill`. Re-check on a new build by grepping the binary for the
 `e.source==="plugin"` early return in that resolver; if it is gone, the exemption is gone.
 The only per-project lever for a plugin skill is `enabledPlugins: false`, and it takes the
 plugin's commands, agents and hooks with it — so it is a real trade, not a silencing.
+That lever was measured, not assumed: disabling one plugin dropped exactly its skill from
+a fresh session's listing while the other two plugins' skills stayed, which is the control
+that makes the before/after read as the toggle rather than as listing noise.
 
 **How to tell whether an MCP server is actually deferred.** Read the session's own
 signals rather than the config: a deferred server's tools arrive as *names only* in a
