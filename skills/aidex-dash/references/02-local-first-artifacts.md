@@ -161,9 +161,35 @@ Not every surface ships `artifact-design`: headless `claude -p` does not
 
 ### 3. Apply the project style profile
 
-`<project>/.context/artifact-style.md` — palette, fonts, favicon, tone, layout
-preferences. The profile wins over the skill's placeholder palette; the user's explicit
-words win over both.
+`<project>/.context/artifact-style.md`. Since the kit shipped, this file is a **delta
+over the kit**, not a design system of its own, and the wrapper reads exactly three
+things from it:
+
+| In the profile | What it does |
+|---|---|
+| the first `css` fence inside a `## Delta` section | injected as a style block after the kit and before the page's own, so it overrides the kit |
+| `- Favicon emoji: X` | the document's icon; `--favicon` wins over it |
+| `- language: es` | the document's `<html lang>`; `--lang` > this field > `en` |
+
+Everything else in the profile — the palette table, the type roles, the layout and tone
+notes — is **prose for whoever writes the page**. It is worth writing and it changes
+nothing by itself: a project that fills in the palette table and adds no `## Delta`
+renders in the kit's own colours. The user's explicit words still win over all of it.
+
+The delta overrides **tokens**, not rules. The kit's components read every colour and
+font stack from custom properties, so a project restyles the whole system by changing
+values — and it writes both blocks, `:root` and `:root[data-theme="dark"]`, because the
+kit ships a dark palette too and a delta that only redefines the light one leaves the
+page half-restyled.
+
+**The scoping to a section is load-bearing.** The first version read the first `css`
+fence anywhere in the file, and the first profile written against it carried an example,
+which was injected as the project's real palette and turned the next artifact's accents
+magenta. Marking the fence instead only moved the collision, since an example has to
+show the marker. So: examples live outside `## Delta`, and whatever sits in the first
+fence inside it is the project's palette. A delta that closes the style element is
+refused whole and out loud — the profile is a file a clone can carry, and the kit runs
+in every project, which is also the blast radius.
 
 **If absent, never create it silently — but do offer it once.** One line, exactly once
 per project: on the FIRST artifact (no profile and no earlier report), or whenever the

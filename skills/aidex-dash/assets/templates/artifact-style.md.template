@@ -1,10 +1,15 @@
 # Artifact style profile — {{PROJECT_NAME}}
 
 Consumed by the local-first artifact flow (`rules/artifacts-local-first.md`,
-step B.2) for every HTML artifact/report generated in this project. The
-`artifact-design` skill's "honor what's already there" rule makes this file
-the project's design system of record for reports. Delete any section you
-don't want to constrain.
+step B.2) for every HTML artifact/report generated in this project.
+
+**This file is a DELTA, not a design system.** The design system is the kit —
+`~/.aidex/skills/aidex-dash/assets/artifact-kit/` — which `wrap-report.sh`
+injects into every artifact. Of everything below, the wrapper reads exactly
+three things: the `css` fence in `## Delta`, `Favicon emoji:`, and `language:`.
+The rest is prose for whoever writes the page; filling in the palette table
+below changes nothing on its own. Delete any section you don't want to
+constrain.
 
 ## Palette
 
@@ -14,6 +19,18 @@ don't want to constrain.
 | ink | #1F2A31 | #DAE2E4 | body text |
 | accent | #116B5F | #52B0A0 | one accent, used sparingly |
 | good / warn / critical | — | — | semantic states, distinct from accent |
+
+The table is documentation. To actually restyle the pages, put the same values
+in `## Delta` below as CSS, in BOTH blocks — the kit ships a dark palette of its
+own, and a delta that only redefines the light one leaves the page half-restyled:
+
+```css
+:root { --accent: #116B5F; }
+:root[data-theme="dark"] { --accent: #52B0A0; }
+```
+
+That fence is an EXAMPLE and is not injected, because it sits here rather than
+under `## Delta`. That is the whole reason the rule is scoped to a section.
 
 ## Type
 
@@ -29,6 +46,22 @@ don't want to constrain.
 ## Layout & tone
 
 - {{e.g. "summary stats band on top", "no horizontal-scroll tables", "terse copy"}}
+
+## Delta
+
+The one section `wrap-report.sh` reads as CSS. It injects the FIRST `css` fence
+inside this section, after the kit and before the page's own styles, so anything
+here overrides the kit and nothing here has to restate it. A project whose
+identity IS the kit's leaves the fence as it stands.
+
+```css
+/* No delta yet: this project uses the kit's own identity. */
+```
+
+Only override tokens here — the kit's components read every colour and font
+stack from them, so changing values restyles the whole system without touching
+a single rule. And keep worked examples OUT of this section: whatever sits in
+the first fence here becomes the project's real palette.
 
 ## Language
 
