@@ -123,9 +123,17 @@ li::marker { color: var(--muted); }
 .railitem.sec .dot { border: none; background: none; }
 .railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
 
-/* Two copy bars, one status. The rail bar carries the bare ids the contract
-   checker greps for; the end bar carries the -end suffixes. Do not unify them:
-   `id="consult-copy-end"` does not satisfy a grep for `id="consult-copy"`. */
+/* Two copy bars, one status. The rail bar carries the bare consult-copy and
+   consult-status ids; the end bar carries the same two with an -end suffix. Do
+   not unify them: the contract greps for the bare pair literally, and the
+   suffixed one does not satisfy it.
+
+   This comment deliberately does not spell either id in its attribute form.
+   components.css is INJECTED into every page, and the first draft did spell
+   one — which made every read page match the consultation detection and fail
+   for missing a copy button it has no use for. Prose satisfying a grep is the
+   defect this whole contract exists to prevent; it does not get to happen
+   inside the kit either. */
 .consult-bar { display: flex; flex-direction: column; gap: 0.55rem; align-items: flex-start;
                padding-top: 0.8rem; border-top: 1px solid var(--rule); background: var(--paper); }
 .consult-bar button { font-family: var(--sans); font-size: 0.85rem; padding: .5rem .9rem; border-radius: 4px;
@@ -133,8 +141,15 @@ li::marker { color: var(--muted); }
 .consult-status { font-size: .78rem; line-height: 1.45; color: var(--ink-soft); }
 /* Recorded regression, and a contract check: with only the media query above, an
    explicitly-toggled dark page keeps the light sticky bar and the blank-count
-   status lands at 1.31:1. check-artifact.sh greps for `data-theme="dark"` and
-   `consult-bar` with no `{` between them, so this stays one selector. */
+   status lands at 1.31:1, which is the one element that says what is still
+   unanswered. The contract requires the explicit-toggle form as ONE selector, so
+   do not split it and do not fold it into the media query.
+
+   Written without naming the two tokens next to each other on purpose: the
+   contract check is a grep, this file is injected into every page, and a comment
+   that spells the pair satisfies the grep for pages that do not carry the rule
+   at all. That is the second time kit prose has answered a check on behalf of a
+   page; there is not going to be a third. */
 :root[data-theme="dark"] .consult-bar { background: var(--paper); border-top-color: var(--rule); }
 
 /* The same button at the end of the content. Finishing the answers and not

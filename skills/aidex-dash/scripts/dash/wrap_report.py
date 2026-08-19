@@ -21,13 +21,25 @@ import sys
 import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from _shell import document  # noqa: E402
+from _shell import document, esc  # noqa: E402
 
 LEADING_STYLE = re.compile(r"\A\s*((?:<style\b[^>]*>.*?</style>\s*)+)", re.S | re.I)
 # `- language: es` in the project style profile. A FIELD, not prose: the prose
 # form sat in the template for weeks and nothing could read it.
 LANG_FIELD = re.compile(r"^\s*[-*]?\s*language\s*:\s*([A-Za-z][A-Za-z0-9-]*)", re.M)
+# `- Favicon emoji: `X`` in the style profile, backticks optional. Same shape as
+# LANG_FIELD and for the same reason: a value the wrapper can act on, not prose.
+FAVICON_FIELD = re.compile(r"^\s*[-*]?\s*favicon(?:\s+emoji)?\s*:\s*`?([^`\n]{1,8}?)`?\s*$",
+                           re.M | re.I)
+# The project's CSS delta over the kit: the FIRST ```css fence in the profile.
+# Prose cannot be injected, and parsing the palette table would make the profile
+# a format instead of a document.
+DELTA_CSS = re.compile(r"^```css\s*\n(.*?)^```", re.M | re.S)
 OFFER_MARKER = ".aidex-artifact-style-offered"
+
+# .../scripts/dash/wrap_report.py -> .../assets/artifact-kit
+KIT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       os.pardir, os.pardir, "assets", "artifact-kit"))
 
 
 def split_head_style(content):
@@ -80,13 +92,80 @@ def find_context_dir(start):
     return os.path.join(root, ".context")
 
 
-def profile_language(ctx):
-    """The project's configured artifact language, or None.
+def _kit(name):
+    """One kit file, or None when the kit is missing.
 
-    Scope is ARTIFACTS. `.context/` stays English (D-04) whatever this says, and
-    `communications/` keep the language they arrived in — this field only decides
-    what a report a human reads is written in.
+    Missing is a real state — an install that predates the kit, or a checkout of
+    the scripts alone — and it degrades to the pre-kit behaviour (the page keeps
+    whatever styles it carries itself) rather than failing the wrap.
     """
+    path = os.path.join(KIT_DIR, name)
+    try:
+        return open(path, encoding="utf-8").read()
+    except OSError:
+        return None
+
+
+def kit_head():
+    """The kit's head half: a version stamp and the two stylesheets, INJECTED.
+
+    Never linked. A local artifact is one file with no network, and a published
+    one is served under a CSP that blocks every external host; a <link> would
+    strip the page of its styles in both places.
+
+    Order matters. `document()` emits the reset first, this second, and the
+    caller appends the project delta and then the page's own <style> — so a
+    project overriding a token beats the kit, and a page overriding a rule beats
+    its project.
+    """
+    tokens, components = _kit("tokens.css"), _kit("components.css")
+    if tokens is None or components is None:
+        return ""
+    version = (_kit("VERSION") or "").strip() or "unknown"
+    return (f'<meta name="artifact-kit" content="{esc(version)}">\n'
+            f"<style>\n{tokens}</style>\n"
+            f"<style>\n{components}</style>")
+
+
+def kit_script():
+    """The composer, for the END of <body>.
+
+    Not <head>: it queries `#raillist` and `.consult-item` on load, and from the
+    head those are all null, so the rail never builds and every page silently
+    loses its index.
+    """
+    composer = _kit("composer.js")
+    return "" if composer is None else f"<script>\n{composer}</script>"
+
+
+def profile_delta(ctx):
+    """The project's CSS delta over the kit, as a <style> block, or ""."""
+    text = _profile_text(ctx)
+    if not text:
+        return ""
+    m = DELTA_CSS.search(text)
+    return "" if not m else f"<style>\n{m.group(1)}</style>"
+
+
+def profile_favicon(ctx):
+    """The project's favicon emoji, or None.
+
+    Precedence mirrors `language:` — an explicit --favicon wins, this fills in.
+    """
+    text = _profile_text(ctx)
+    if not text:
+        return None
+    m = FAVICON_FIELD.search(text)
+    if not m:
+        return None
+    value = m.group(1).strip()
+    # The template ships a `{{one emoji, ...}}` placeholder; a project that never
+    # filled it in has no favicon, not a favicon spelled with braces.
+    return None if not value or value.startswith("{{") else value
+
+
+def _profile_text(ctx):
+    """artifact-style.md as text, or None. Shared by every profile reader."""
     if not ctx:
         return None
     path = os.path.join(ctx, "artifact-style.md")
@@ -95,12 +174,24 @@ def profile_language(ctx):
     # `isfile` only stats; it does not imply readable, and `errors="replace"`
     # covers decode failures but not OSError. A mode-000 profile used to abort the
     # whole wrap with a traceback and write no artifact at all. The profile is an
-    # optimisation, not a contract: say so and fall back to the D-04 default.
+    # optimisation, not a contract: say so and fall back to the defaults.
     try:
-        text = open(path, encoding="utf-8", errors="replace").read()
+        return open(path, encoding="utf-8", errors="replace").read()
     except OSError as e:
         print(f"NOTE: could not read {path} ({e}); falling back to the default "
-              f"artifact language.", file=sys.stderr)
+              f"artifact style.", file=sys.stderr)
+        return None
+
+
+def profile_language(ctx):
+    """The project's configured artifact language, or None.
+
+    Scope is ARTIFACTS. `.context/` stays English (D-04) whatever this says, and
+    `communications/` keep the language they arrived in — this field only decides
+    what a report a human reads is written in.
+    """
+    text = _profile_text(ctx)
+    if not text:
         return None
     m = LANG_FIELD.search(text)
     return m.group(1) if m else None
@@ -167,8 +258,15 @@ def main():
     lang = args.lang or profile_language(ctx) or "en"
 
     head_extra, body = split_head_style(content)
+    # Reset -> kit tokens -> kit components -> project delta -> the page's own
+    # <style>. Each layer may override the one before it, and the author's block
+    # is last so a local rule still wins. Writing a page is writing content plus
+    # class names; the boilerplate is no longer re-authored per artifact.
+    head_extra = "\n".join(p for p in (kit_head(), profile_delta(ctx), head_extra) if p)
+    body = "\n".join(p for p in (body, kit_script()) if p)
     doc = document(args.title, body, lang=lang,
-                   favicon=args.favicon, head_extra=head_extra)
+                   favicon=args.favicon or profile_favicon(ctx) or "",
+                   head_extra=head_extra)
 
     if not args.outfile:
         sys.stdout.write(doc)
