@@ -49,6 +49,11 @@ for trigger in 'data-id=' 'data-title=' '<textarea' 'contenteditable=' 'class="c
   grep -qF "$trigger" "$KIT/tokens.css" "$KIT/components.css" "$KIT/composer.js" \
     && fail "an injected kit file spells the contract trigger '$trigger' — every page would match it"
 done
+# A textarea defaults to `resize: both`, and dragging one wider than its column
+# overlaps the rail and the content beside it. Only the vertical axis has room.
+grep -qE 'textarea[^}]*resize:[[:space:]]*vertical' "$KIT/components.css" \
+  || fail "components.css does not pin the notes boxes to resize: vertical — the default lets the reader drag one over the content"
+
 grep -q 'id="consult-copy"' "$KIT/skeleton.html" \
   || fail "skeleton.html has no id=\"consult-copy\" (the -end variant does not satisfy the contract)"
 grep -q 'id="consult-status"' "$KIT/skeleton.html" \

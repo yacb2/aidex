@@ -104,7 +104,7 @@ li::marker { color: var(--muted); }
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
   color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
-.consult-item textarea { min-height: 4rem; }
+.consult-item textarea { min-height: 4rem; resize: vertical; }
 .fieldlabel { font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .consult-notes { border-color: var(--accent-dim); background: var(--paper-sunk); }
 
