@@ -1,6 +1,6 @@
 ---
 name: aidex-research
-description: Use when the user needs to investigate, explore, or spike on how something works and the findings should land as written `.context/research/` notes before any plan or implementation. Fires on "research how X works", "investigate X", "spike on X", "look into how X is done", "I need to understand X before planning". Not for: planning multi-step work once the approach is known (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); documenting a settled, stable reference (aidex-reference); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).
+description: 'Use when the user needs to investigate, explore, or spike on how something works and the findings should land as written `.context/research/` notes before any plan or implementation. Fires on "research how X works", "investigate X", "spike on X", "look into how X is done", "I need to understand X before planning". Not for: planning multi-step work once the approach is known (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); documenting a settled, stable reference (aidex-reference); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---

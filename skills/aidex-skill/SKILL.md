@@ -1,6 +1,6 @@
 ---
 name: aidex-skill
-description: Use when the user wants an existing or in-progress skill checked or structured against THIS project's house skill conventions — "what are our skill conventions", "review this skill against our standards", "does this skill follow our patterns", "structure this skill the way we do", "audit this skill's front-matter/description for our rules". Not for: creating a skill from scratch, optimizing a skill's description for triggering, or running skill evals (all skill-creator); planning (aidex-plan); decisions (aidex-decision); requests (aidex-request); research (aidex-research); references (aidex-reference); ecosystem audits (aidex).
+description: 'Use when the user wants an existing or in-progress skill checked or structured against THIS project''s house skill conventions — "what are our skill conventions", "review this skill against our standards", "does this skill follow our patterns", "structure this skill the way we do", "audit this skill''s front-matter/description for our rules". Not for: creating a skill from scratch, optimizing a skill''s description for triggering, or running skill evals (all skill-creator); planning (aidex-plan); decisions (aidex-decision); requests (aidex-request); research (aidex-research); references (aidex-reference); ecosystem audits (aidex).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
