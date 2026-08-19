@@ -150,6 +150,10 @@ for sel, decls in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
 # 2. Walk the markup keeping an ancestor stack. Script and style content goes
 #    first: a template string inside the composer is not markup.
 body = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>", " ", text, flags=re.I | re.S)
+# Comments too. A page whose comment carries an example table is not shipping an
+# unwrapped table, and skeleton.html is a file of examples in comments — the
+# checker would have invented a defect on the one page authors copy from.
+body = re.sub(r"<!--.*?-->", " ", body, flags=re.S)
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
         "meta", "param", "source", "track", "wbr"}
 stack, bad = [], 0
