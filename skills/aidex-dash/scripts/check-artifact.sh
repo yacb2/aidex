@@ -131,6 +131,11 @@ TITLE = re.compile(r'\bdata-title\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+
 SURFACE = re.compile(r'<textarea\b|contenteditable\s*=|<select\b'
                      r'|<input\b[^>]*\btype\s*=\s*["\x27]?(?:radio|checkbox|text)\b'
                      r'|<input\b(?![^>]*\btype\s*=)', re.I | re.S)
+# Free text, which is a SEPARATE requirement from having a reply surface at all.
+# A radio group, a checkbox set and a select are closed lists: they carry the
+# answer the author anticipated and lose the one they did not. Every item gets a
+# place to say the rest, so the reader never has to pick the nearest wrong option.
+NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
 
 text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 
@@ -160,7 +165,8 @@ for m in OPEN.finditer(text):
     has_title = 1 if TITLE.search(m.group(0)) else 0
     # The open tag itself may BE the surface (an <input data-id=...>).
     has_surface = 1 if (SURFACE.search(body) or SURFACE.search(m.group(0))) else 0
-    print(f"{ident}\t{has_title}\t{has_surface}")
+    has_notes = 1 if (NOTES.search(body) or NOTES.search(m.group(0))) else 0
+    print(f"{ident}\t{has_title}\t{has_surface}\t{has_notes}")
 PY
 )"
     items_rc=$?
@@ -177,7 +183,7 @@ PY
       n_surface="$(grep -oiE "$surface_pat" <<<"$flat" | wc -l | tr -d ' ')"
       report consult "$name" "$n_surface reply surface(s) but no data-id item — every consultation item needs a stable id (copy assets/templates/consultation-block.html.template)"
     else
-      while IFS=$'\t' read -r ident has_title has_surface; do
+      while IFS=$'\t' read -r ident has_title has_surface has_notes; do
         [[ -z "$ident" ]] && continue
         # data-title is what the composed reply is headed with; without it the
         # paste says (### c3) and the reader must return to the page to learn
@@ -189,6 +195,13 @@ PY
         # answer, which is the one shape that still fails.
         [[ "$has_surface" == "1" ]] \
           || report consult "$name" "item '$ident' has no reply surface — a consultation item the reader cannot answer"
+        # ...and every item also carries FREE TEXT, whatever else it offers.
+        # Reported from use: "si quiero mencionar algo más, además de la selección
+        # que realicé, sea simple o múltiple, tengo que tener el espacio para
+        # comentarlo". A closed list with no room to qualify the choice makes the
+        # reader answer the question the page asked instead of the one they have.
+        [[ "$has_notes" == "1" ]] \
+          || report consult "$name" "item '$ident' has no notes box — a closed choice with nowhere to qualify it loses everything the options do not cover. Add a <textarea> to the item (assets/templates/consultation-block.html.template ships one in every block)"
       done <<<"$items"
 
       # Two claims answering to one id: a reply about that id points at both.
@@ -198,6 +211,18 @@ PY
       [[ -n "$dupes" ]] \
         && report consult "$name" "duplicate ids ($dupes) — two claims answering to one id"
     fi
+    # ...and the page carries the general-notes item, always last, always present:
+    # it is where the reply that fits no question goes, and without it that reply
+    # is lost or forced into the wrong item.
+    #
+    # Matched as `class="…consult-notes…"`, never as the bare word. components.css
+    # DEFINES `.consult-notes` and is injected into every page, so an unanchored
+    # grep would be answered by the stylesheet on a page that carries no such item
+    # — the lie-by-omission this contract exists to prevent, and it has already
+    # happened twice inside this kit.
+    grep -qE 'class=["'"'"'][^"'"'"']*consult-notes' <<<"$flat" \
+      || report consult "$name" "no general-notes item (class=\"consult-item consult-notes\") — the answer that fits none of the questions has nowhere to go"
+
     # Requirement 2 — the page composes the reply, and says how many are blank.
     grep -q 'id="consult-copy"' <<<"$body" \
       || report consult "$name" "no compose-and-copy button (id=\"consult-copy\") — the reader has to assemble the reply by hand"

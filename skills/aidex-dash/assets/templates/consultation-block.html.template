@@ -13,12 +13,24 @@
   reply that says "on 3 I disagree" has to still mean the same claim after the
   next regeneration, and renumbering is what silently breaks that.
 
-  Every item needs a title and at least ONE reply surface — radio, checkbox,
-  select, short text, or a notes box. Which one is your choice; none of them is
-  a valid answer. Depth is set by the cost of undoing the decision: a reversible
-  one-minute choice gets the question alone; something touching code or a shared
-  contract gets a concrete example; something that rewrites what exists gets the
-  example, the consequence of each option, and the file it touches.
+  Every item needs a title, a reply surface — radio, checkbox, select, short
+  text — AND a notes box. The choice surface is your pick; the notes box is not
+  optional on any of them. A closed list carries the answer the author
+  anticipated and loses the one they did not, so the reader ends up picking the
+  nearest wrong option instead of saying what they mean. The contract check
+  fails an item without one.
+
+  The page-level general-notes item is the same rule one level up, and it is
+  additional: per-item notes do not replace it.
+
+  Depth is set by the cost of undoing the decision: a reversible one-minute
+  choice gets the question alone; something touching code or a shared contract
+  gets a concrete example; something that rewrites what exists gets the example,
+  the consequence of each option, and the file it touches.
+
+  The EXPLANATION belongs inside the item, next to the question it explains —
+  never gathered into a context section above with the questions below it. See
+  references/02-local-first-artifacts.md § 8.
 -->
 
 <!--
@@ -61,6 +73,8 @@
     <label><input type="checkbox" name="c2b" data-label="Second"><span>Second</span></label>
     <label><input type="checkbox" name="c2c" data-label="Third"><span>Third</span></label>
   </div>
+  <p class="fieldlabel">Notes on this one</p>
+  <textarea placeholder="Anything the options do not cover…"></textarea>
 </section>
 
 <!-- Select, for a closed list too long to lay out as options. The composer sends
@@ -73,6 +87,8 @@
     <option>First</option>
     <option>Second</option>
   </select>
+  <p class="fieldlabel">Notes on this one</p>
+  <textarea placeholder="Anything the list does not cover…"></textarea>
 </section>
 
 <!-- Short text, for a value rather than an opinion: a name, a number, a path. -->
@@ -80,6 +96,8 @@
   <h3><span class="consult-id">c4</span>A single value</h3>
   <p class="fieldlabel">The value</p>
   <input type="text" placeholder="e.g. 15rem">
+  <p class="fieldlabel">Notes on this one</p>
+  <textarea placeholder="Anything the value alone does not say…"></textarea>
 </section>
 
 <!-- The page-level general-notes item. Always last, always present: it is where
