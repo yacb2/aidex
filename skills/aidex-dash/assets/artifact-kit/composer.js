@@ -29,7 +29,9 @@
       blankList: function (ids) { return ' · ' + ids.length + ' blank: ' + ids.join(', '); },
       noneBlank: ' · none blank',
       paste: ' — paste them into the chat.',
-      noClipboard: ' — clipboard unavailable, copy the selected text.'
+      noClipboard: ' — clipboard unavailable, copy the selected text.',
+      restored: function (n) { return n + ' answer(s) recovered from your last visit on this machine.'; },
+      discard: 'Discard them'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -40,7 +42,9 @@
       blankList: function (ids) { return ' · ' + ids.length + ' en blanco: ' + ids.join(', '); },
       noneBlank: ' · ninguna en blanco',
       paste: ' — pégalas en el chat.',
-      noClipboard: ' — portapapeles no disponible, copia el texto seleccionado.'
+      noClipboard: ' — portapapeles no disponible, copia el texto seleccionado.',
+      restored: function (n) { return n + ' respuesta(s) recuperada(s) de tu última visita en esta máquina.'; },
+      discard: 'Descartarlas'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -129,6 +133,92 @@
 
   function say(text) { status.forEach(function (s) { s.textContent = text; }); }
 
+  /* Typed answers used to live only in the open tab, so every regeneration or
+   * reload discarded them — the reader lost a full answer set once and was
+   * warned about the risk on every round (usage-retro run 6, R6-02). The kit
+   * now keeps them in localStorage, keyed by the file's own path: local
+   * artifacts share the file:// origin, so the path is what separates pages.
+   *
+   * Marks are stored by their data-label (the stable semantic the composer
+   * already pastes), free text by surface order inside the item. Ids that left
+   * the page — a decided item moved to the ledger — are dropped on the next
+   * save rather than restored onto the wrong claim. Storage can be unavailable
+   * (some engines refuse it on file://); every touch is wrapped, and the kit
+   * degrades to exactly the old behaviour. */
+  var STORE_KEY = 'aidex-kit-answers:' + location.pathname;
+
+  function snapshotItem(el) {
+    var s = { m: [], f: [] };
+    el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
+      .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
+    el.querySelectorAll('select').forEach(function (x) { s.f.push(x.value); });
+    el.querySelectorAll('input[type="text"]').forEach(function (x) { s.f.push(x.value); });
+    el.querySelectorAll('[contenteditable]').forEach(function (x) { s.f.push(x.textContent); });
+    el.querySelectorAll('textarea').forEach(function (x) { s.f.push(x.value); });
+    return (s.m.length || s.f.some(function (v) { return v.trim(); })) ? s : null;
+  }
+
+  function save() {
+    try {
+      var data = {};
+      items.forEach(function (el) {
+        var s = snapshotItem(el);
+        if (s) data[el.dataset.id] = s;
+      });
+      if (Object.keys(data).length) localStorage.setItem(STORE_KEY, JSON.stringify(data));
+      else localStorage.removeItem(STORE_KEY);
+    } catch (e) { /* storage unavailable — the page still works, unsaved */ }
+  }
+
+  function restore() {
+    var n = 0;
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return 0;
+      var data = JSON.parse(raw);
+      items.forEach(function (el) {
+        var s = data[el.dataset.id];
+        if (!s) return;
+        var hit = false;
+        el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
+          .forEach(function (i) {
+            if (s.m.indexOf(i.dataset.label || i.value || '') !== -1) { i.checked = true; hit = true; }
+          });
+        var free = [].slice.call(el.querySelectorAll('select'))
+          .concat([].slice.call(el.querySelectorAll('input[type="text"]')))
+          .concat([].slice.call(el.querySelectorAll('[contenteditable]')))
+          .concat([].slice.call(el.querySelectorAll('textarea')));
+        (s.f || []).forEach(function (v, i) {
+          if (!free[i] || !v) return;
+          if (free[i].hasAttribute('contenteditable')) free[i].textContent = v;
+          else free[i].value = v;
+          if (v.trim()) hit = true;
+        });
+        if (hit) n++;
+      });
+    } catch (e) { return 0; }
+    return n;
+  }
+
+  function showRestoredNote(n) {
+    var main = document.querySelector('.main');
+    if (!main) return;
+    var note = document.createElement('div');
+    note.className = 'note';
+    note.id = 'consult-restored';
+    note.appendChild(document.createTextNode(L.restored(n) + ' '));
+    var a = document.createElement('a');
+    a.href = '#';
+    a.textContent = L.discard;
+    a.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+      location.reload();
+    });
+    note.appendChild(a);
+    main.insertBefore(note, main.firstChild);
+  }
+
   function refresh() {
     var r = collect();
     say(r.answered
@@ -163,8 +253,10 @@
   }
 
   if (items.length) {
-    document.addEventListener('input', refresh);
-    document.addEventListener('change', refresh);
+    var recovered = restore();
+    if (recovered) showRestoredNote(recovered);
+    document.addEventListener('input', function () { refresh(); save(); });
+    document.addEventListener('change', function () { refresh(); save(); });
     refresh();
     buttons.forEach(function (b) { b.addEventListener('click', copy); });
   }

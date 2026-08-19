@@ -106,9 +106,13 @@ SAME path. Concretely:
   settled question again; deleting it without recording the answer loses the decision.
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
-- **Warn before overwriting a page that may hold typed answers** — they live in the
-  DOM and a reload discards them. `wrap-report.sh` prints that warning when it is
-  about to replace a page containing reply surfaces.
+- **Typed answers survive a reload since kit v4** — the composer keeps them in
+  `localStorage`, keyed by the file's path, restores them on load behind a visible
+  "answers recovered" banner with a discard link, and drops ids that left the page
+  so a decided item's stale answer never lands on a different claim. What that does
+  NOT cover: another browser or machine, private windows, and engines that refuse
+  storage on `file://` — there the old rule stands, so `wrap-report.sh` still
+  prints a (narrower) note when replacing a page with reply surfaces.
 
 ### Depth is set by the cost of undoing
 
@@ -392,10 +396,13 @@ Five requirements. They exist because each one was violated in the field.
    tell whether what he is looking at is what was just written — he has asked which file
    is which, verbatim, twice inside one minute.
 
-**Warn before rewriting a page that may hold typed answers.** The answers live in the DOM,
-so any regeneration discards them. Say so and let the reader choose: answer first, or
-accept the loss. Do not decide it silently — the choice is real and the reader is the only
-one who knows whether he has typed anything yet.
+**Typed answers persist across reloads since kit v4.** The composer stores them in
+`localStorage` keyed by the file's path and restores them behind a visible banner, so a
+regeneration no longer costs whatever the reader had typed — the round that produced this
+rule lost a full answer set that way. The residual risk is real but narrow: a different
+browser or machine, a private window, or an engine that refuses storage on `file://`.
+Mention it only when one of those is plausibly in play, not as a ritual warning on every
+round.
 
 Copy the shape from
 `~/.aidex/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than

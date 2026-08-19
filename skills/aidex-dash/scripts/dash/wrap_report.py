@@ -352,12 +352,16 @@ def main():
         os.close(fd)
         shutil.copyfile(args.outfile, prev_snapshot)
         if "<textarea" in prev_text.lower():
-            # §8's warn-before-rewrite clause, stated truthfully after the fact:
-            # the file is replaced, but the reader's open tab still holds whatever
-            # was typed until it is reloaded. That window is the whole warning.
-            print("NOTE: this path held a consultation page. Any answers the reader typed "
-                  "live in the open tab, not in the file — tell them before they reload, "
-                  "because reloading is what discards them.", file=sys.stderr)
+            # §8's warn-before-rewrite clause, narrowed since kit v4: the composer
+            # keeps typed answers in localStorage keyed by this path and restores
+            # them on reload, so the everyday loss case is gone. What remains is
+            # the storage-less case — another browser/machine, a private window,
+            # an engine refusing storage on file:// — and a pre-v4 page whose
+            # composer never saved anything.
+            print("NOTE: this path held a consultation page. Since kit v4 typed answers "
+                  "are restored from this machine's browser storage on reload; they are "
+                  "still lost on another browser/machine or if the page predates v4.",
+                  file=sys.stderr)
 
     with open(args.outfile, "w", encoding="utf-8") as fh:
         fh.write(doc)
