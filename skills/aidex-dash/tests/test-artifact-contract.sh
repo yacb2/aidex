@@ -905,6 +905,14 @@ bash "$CHECK" "$TMP/own-scroll.html" >/dev/null 2>&1 \
   && ok "a page's own overflow wrapper counts, without a whitelist" \
   || bad "a table in the page's own scroll wrapper was rejected: $(bash "$CHECK" "$TMP/own-scroll.html" 2>&1)"
 
+# A commented-out table is not markup. skeleton.html is a file of examples in
+# comments, so this is the false positive that would have fired on the very page
+# authors copy from.
+mkkit commented-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><!-- <table><tr><td>example</td></tr></table> --><p>Prose.</p></section></main></div>'
+bash "$CHECK" "$TMP/commented-table.html" >/dev/null 2>&1 \
+  && ok "a table inside an HTML comment is not counted" \
+  || bad "a commented-out table was reported as unwrapped: $(bash "$CHECK" "$TMP/commented-table.html" 2>&1)"
+
 # Route A boards are full of tables and are not kit pages: the same stamp gate as
 # the layout check keeps them out of it.
 printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><table><tr><td>a</td></tr></table></body></html>\n' > "$TMP/board.html"
