@@ -58,7 +58,8 @@ Read the project's MEMORY.md (commonly `~/.claude/projects/<project-slug>/memory
 
 For each CLAUDE.md found:
 - Line count and rough token estimate (≈ chars / 4).
-- >3k tokens → `CB-CM` WARNING. Identify movable blocks: directory trees (```... ├── ...```), command catalogs (tables with 5+ rows), stack detail sections.
+- >3k tokens → `CB-CM` WARNING. Identify movable blocks: command catalogs (tables with 5+ rows), stack detail sections.
+- A directory tree (```... ├── ...```) is a **cut**, not a move, at any file size: it is derivable from `ls`. Report the lines that carry an annotation separately — those are what the project loses if the whole block goes.
 
 ### 6. Emit report
 

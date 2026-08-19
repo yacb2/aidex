@@ -12,6 +12,14 @@ CLAUDE.md provides concise project context for Claude. It is:
 - **Not full documentation** - Avoids context bloat
 - **Always loaded** - Sent with every conversation
 
+### The one test every line must pass
+
+> Would removing this line cause Claude to make a mistake?
+
+If not, cut it. The cost of a bloated CLAUDE.md is not the tokens — it is that the
+instructions you *do* need get ignored among the ones you did not. That is Anthropic's
+own framing, and it is why "it is only a few hundred tokens" is not a defence.
+
 ## Size Constraints
 
 | Level | Recommended | Maximum |
@@ -36,12 +44,14 @@ Brief project description (1-2 sentences).
 
 ## Project Structure
 
-```
-src/
-├── components/    # React components
-├── services/      # Business logic
-└── utils/         # Shared utilities
-```
+<!-- No directory tree. `ls` is current and this file is not. Write only what
+     reading the tree does not tell you: which of two similar dirs is live,
+     why something retired is still present, where a path is load-bearing. -->
+
+- `src/services/` is the only place business logic lives; `utils/` is pure helpers
+  with no imports from `services/`
+- `src/legacy/` is dead but still imported by two tests — do not delete it as part
+  of another change
 
 ## Critical Conventions
 
@@ -80,7 +90,7 @@ npm run build     # Production build
 | Section | Content |
 |---------|---------|
 | Tech Stack | Languages, frameworks, key dependencies |
-| Project Structure | High-level directory layout |
+| Project Structure | What the tree does *not* say. Never the tree itself |
 | Key Commands | Common development tasks |
 | Critical Conventions | Rules that affect every change |
 
@@ -103,6 +113,11 @@ npm run build     # Production build
 - Complete setup guides
 - Verbose explanations
 - Changelog or version history
+- A directory tree, a dependency list, or anything else `ls`, the manifest or the
+  code answers. Anthropic's own guidance puts "anything Claude can figure out by
+  reading code" and "file-by-file descriptions of the codebase" on its exclude list,
+  and `/doctor` trims exactly these. Keep the pitfalls and the rationale; drop the
+  layout that produced them
 
 ### Move Elsewhere
 
@@ -112,6 +127,7 @@ npm run build     # Production build
 | API reference | `.context/docs/api/` |
 | Library guides | `.context/docs/<library>/` |
 | Architecture deep-dive | `.context/references/architecture/` |
+| Directory tree | Nowhere — delete it. `ls` regenerates it correctly and for free |
 
 ## Project Context Directory (.context/)
 
