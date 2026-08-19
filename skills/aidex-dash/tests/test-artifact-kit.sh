@@ -97,6 +97,15 @@ cat > "$PROJ/.context/artifact-style.md" <<'MD'
 
 - Favicon emoji: `🧪`
 
+## Palette
+
+A fence OUTSIDE the Delta section is an example and must not be injected. This is
+how a profile documents the feature without becoming it.
+
+```css
+:root { --accent: #00FF00; }
+```
+
 ## Delta
 
 ```css
@@ -114,6 +123,11 @@ bash "$WRAP" --title "Delta" --in "$TMP/delta-body.html" \
 if [[ -f "$PROJ/.context/reports/d.html" ]]; then
   page="$PROJ/.context/reports/d.html"
   grep -q '#B4005A' "$page" || fail "the project's CSS delta was not injected"
+  # A fence outside the Delta section is documentation. Injecting it is how the
+  # first real profile written against this feature turned a report's accents
+  # magenta — the example it used to explain the rule became the rule.
+  grep -q '#00FF00' "$page" \
+    && fail "a css fence outside the ## Delta section was injected — an example is not the delta"
   # After the kit, or it does not override anything.
   [[ "$(grep -n '#B4005A' "$page" | head -1 | cut -d: -f1)" -gt \
      "$(grep -n 'artifact-kit — components' "$page" | head -1 | cut -d: -f1)" ]] \

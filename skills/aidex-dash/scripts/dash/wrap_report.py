@@ -31,10 +31,17 @@ LANG_FIELD = re.compile(r"^\s*[-*]?\s*language\s*:\s*([A-Za-z][A-Za-z0-9-]*)", r
 # LANG_FIELD and for the same reason: a value the wrapper can act on, not prose.
 FAVICON_FIELD = re.compile(r"^\s*[-*]?\s*favicon(?:\s+emoji)?\s*:\s*`?([^`\n]{1,8}?)`?\s*$",
                            re.M | re.I)
-# The project's CSS delta over the kit: the FIRST ```css fence in the profile.
-# Prose cannot be injected, and parsing the palette table would make the profile
-# a format instead of a document.
-DELTA_CSS = re.compile(r"^```css\s*\n(.*?)^```", re.M | re.S)
+# The project's CSS delta over the kit: the first ```css fence inside a `## Delta`
+# SECTION. Scoped by section, not by "the first css fence in the file" and not by
+# a marker on the fence, because both of those are satisfied by the profile
+# DOCUMENTING the feature. The first version took the first fence; the first
+# profile written against it carried an example, which was injected as the
+# project's real palette and turned the next artifact's accents magenta. Marking
+# the fence only moved the collision, since the example has to show the marker.
+# A section is the one form a document can explain without becoming.
+DELTA_SECTION = re.compile(r"^(#{2,6})[ \t]*Delta\b[^\n]*\n(.*?)(?=^\1[ \t]|\Z)",
+                           re.M | re.S | re.I)
+DELTA_CSS = re.compile(r"^```css[ \t]*\n(.*?)^```", re.M | re.S)
 OFFER_MARKER = ".aidex-artifact-style-offered"
 
 # .../scripts/dash/wrap_report.py -> .../assets/artifact-kit
@@ -143,7 +150,10 @@ def profile_delta(ctx):
     text = _profile_text(ctx)
     if not text:
         return ""
-    m = DELTA_CSS.search(text)
+    section = DELTA_SECTION.search(text)
+    if not section:
+        return ""
+    m = DELTA_CSS.search(section.group(2))
     return "" if not m else f"<style>\n{m.group(1)}</style>"
 
 
