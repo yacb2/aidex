@@ -13,7 +13,11 @@ one that keeps applying for as long as the page is being discussed:
 
 1. **Load design guidance before writing any page markup** — `artifact-design` via the
    Skill tool (or `theme-factory` / `dataviz` where it is unavailable). Never hand-roll
-   an unstyled page, and never hand-roll the document envelope.
+   an unstyled page, and never hand-roll the document envelope. **Start the page from
+   `aidex-dash/assets/artifact-kit/skeleton.html`**, not from a bare `<h1>`: the wrapper
+   injects the kit's styles and the skeleton is what carries its structure. A page
+   without `.page` / `.main` renders full-bleed with no reading measure (BL-177), and it
+   is checked.
 2. **Never publish unless explicitly asked to share.** The local file, anchored next to
    the work it documents, is the durable copy. This deliberately overrides the `Artifact`
    tool's own default ("publishing proactively is fine"); when the two disagree, this

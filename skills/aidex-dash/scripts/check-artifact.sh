@@ -16,7 +16,8 @@
 #   themes       prefers-color-scheme — readable in dark mode
 #   self         no external stylesheet/script/font/image: one file, no network
 #   siblings     no .css/.js dropped next to it — the artifact IS the file
-#   layout       a kit page keeps its content inside .page / .main (BL-177)
+#   layout       a kit page keeps its content inside .page / .main (BL-177),
+#                and every table inside a scrolling wrapper
 #   consult      a page the reader must ANSWER carries the §8 shape (fires when
 #                the page offers a reply surface: <textarea>, contenteditable,
 #                boxes appended by script, or an id="consult-copy" composer)
@@ -116,6 +117,68 @@ for f in "$@"; do
       grep -qE 'class=["'"'"']([^["'"'"']]*[[:space:]])?'"$cls"'([[:space:]][^["'"'"']]*)?["'"'"']' <<<"$flat" \
         || report layout "$name" "no element with class=\"$cls\" — the content is outside the kit's layout container, so the page renders full-bleed with no reading measure. Wrap it the way assets/artifact-kit/skeleton.html does: <div class=\"page\"><main class=\"main\">…</main><aside class=\"rail\">…</aside></div>"
     done
+  fi
+
+  # --- wide content sits inside a scroll container ---------------------------
+  # `.tw` is the kit's table wrapper and nothing made a page use it. A table is
+  # the one element that cannot be capped: `max-width` will not take it below its
+  # min-content width, and `display: block` collapses a narrow table's cells — so
+  # there is no CSS net, only the wrapper. Measured on a real page: a 12-column
+  # table in the 728px column renders 1055px wide, right edge at x=1299, with the
+  # rail starting at x=1028. It paints OVER the rail, and while the viewport is
+  # wider than the page there is no scrollbar to give it away.
+  #
+  # Same stamp gate as the layout check above, for the same reason and one more:
+  # a route-A board is nothing but tables and is not a kit page.
+  if grep -qiE '<meta[^>]+name=["'"'"']?artifact-kit' <<<"$flat"; then
+    unwrapped="$(python3 - "$f" <<'PYTBL'
+import re, sys
+
+text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+
+# 1. Which classes scroll, according to the stylesheets THIS document carries. Read
+#    rather than whitelisted: a page that wraps its tables in a `.scroll` of its own
+#    is honouring the rule, and failing it would be a checker inventing a defect.
+css = "\n".join(m.group(1) for m in
+                re.finditer(r"<style\b[^>]*>(.*?)</style>", text, re.I | re.S))
+css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+scroll = set()
+for sel, decls in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+    if re.search(r"overflow(-x)?\s*:\s*(auto|scroll)", decls, re.I):
+        scroll.update(re.findall(r"\.([A-Za-z_][\w-]*)", sel))
+
+# 2. Walk the markup keeping an ancestor stack. Script and style content goes
+#    first: a template string inside the composer is not markup.
+body = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>", " ", text, flags=re.I | re.S)
+VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+        "meta", "param", "source", "track", "wbr"}
+stack, bad = [], 0
+for m in re.finditer(r"<(/?)([a-zA-Z][\w:-]*)([^>]*)>", body):
+    closing, tag, attrs = m.group(1), m.group(2).lower(), m.group(3)
+    if closing:
+        for i in range(len(stack) - 1, -1, -1):
+            if stack[i][0] == tag:
+                del stack[i:]
+                break
+        continue
+    if tag in VOID or attrs.rstrip().endswith("/"):
+        continue
+    cm = re.search(r"\bclass\s*=\s*(?:\"([^\"]*)\"|\x27([^\x27]*)\x27|([^\s>]+))",
+                   attrs, re.I)
+    classes = set(next(g for g in cm.groups() if g is not None).split()) if cm else set()
+    if tag == "table" and not any(c in scroll for _, anc in stack for c in anc):
+        bad += 1
+    stack.append((tag, classes))
+
+print(bad)
+PYTBL
+)"
+    unwrapped_rc=$?
+    if [[ $unwrapped_rc -ne 0 ]]; then
+      report layout "$name" "the table-wrapper scan did not run (python3 exited $unwrapped_rc)"
+    elif [[ "$unwrapped" != "0" ]]; then
+      report layout "$name" "$unwrapped table(s) outside any scrolling container — a table cannot be capped, so a wide one renders over the rail with no scrollbar to show it. Wrap each in <div class=\"tw\">…</div>, or in any wrapper this page declares with overflow-x: auto"
+    fi
   fi
 
   # --- § 8: the page is a CONSULTATION, not a read ---------------------------
