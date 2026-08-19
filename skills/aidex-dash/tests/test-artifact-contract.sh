@@ -878,6 +878,40 @@ bash "$CHECK" "$TMP/prekit.html" >/dev/null 2>&1 \
   && ok "a page without the kit stamp is not judged on the kit's layout" \
   || bad "a pre-kit page was failed for a container it never had"
 
+# A wide table is the second way the same mechanism breaks: the kit ships `.tw`
+# (overflow-x:auto) and nothing makes the page use it. Measured on a real page —
+# a 12-column table in the 728px column renders 1055px wide, its right edge at
+# x=1299 while the rail starts at x=1028, so it PAINTS OVER the rail. There is no
+# page-level scrollbar to give it away, and no CSS net is possible: max-width
+# cannot shrink a table below its min-content width, and display:block collapses
+# a narrow table's cells.
+mkkit bare-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><table><tr><td>a</td><td>b</td></tr></table></section></main></div>'
+out="$(bash "$CHECK" "$TMP/bare-table.html" 2>&1)"
+[[ "$out" == *"tw"* ]] \
+  && ok "a table outside any scroll container is caught" \
+  || bad "a bare table passed, so it is free to paint over the rail: $out"
+
+mkkit tw-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><div class="tw"><table><tr><td>a</td><td>b</td></tr></table></div></section></main></div>'
+bash "$CHECK" "$TMP/tw-table.html" >/dev/null 2>&1 \
+  && ok "control: the same table inside .tw passes" \
+  || bad "a table inside the kit wrapper was rejected: $(bash "$CHECK" "$TMP/tw-table.html" 2>&1)"
+
+# The page's OWN scroll wrapper counts. The class set is read from the CSS the
+# document carries, not from a whitelist — a page that wraps its tables in
+# `.scroll` is honouring the rule, and a checker that only knows `.tw` would fail
+# it for a defect it does not have. One artifact on disk does exactly this.
+mkkit own-scroll.html '<style>.roll{overflow-x:auto}</style><div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><div class="roll"><table><tr><td>a</td></tr></table></div></section></main></div>'
+bash "$CHECK" "$TMP/own-scroll.html" >/dev/null 2>&1 \
+  && ok "a page's own overflow wrapper counts, without a whitelist" \
+  || bad "a table in the page's own scroll wrapper was rejected: $(bash "$CHECK" "$TMP/own-scroll.html" 2>&1)"
+
+# Route A boards are full of tables and are not kit pages: the same stamp gate as
+# the layout check keeps them out of it.
+printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><table><tr><td>a</td></tr></table></body></html>\n' > "$TMP/board.html"
+bash "$CHECK" "$TMP/board.html" >/dev/null 2>&1 \
+  && ok "a page without the kit stamp is not judged on the kit's table wrapper" \
+  || bad "a non-kit page was failed for the kit's table wrapper"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

@@ -19,6 +19,11 @@
      Every item carries a notes box on top of whatever it asks with, and the
      page carries the general-notes item last. Both are checked.
 
+     Every table goes inside <div class="tw">, which is checked too. A table is
+     the one element the page cannot cap — max-width will not take it below its
+     min-content width — so an unwrapped wide one is drawn straight over the
+     rail, with no scrollbar to show it.
+
      The explanation of a question goes INSIDE its item, the way the item below
      shows it. Gathering the context into a section above and the questions into
      a section below is the shape to avoid: it makes the reader understand in
@@ -74,6 +79,16 @@
     </svg>
     <figcaption>What the drawing shows that the prose does not. A caption that only names the picture is a caption worth deleting.</figcaption>
   </figure>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>What</th><th>Measured</th><th>Where it came from</th></tr></thead>
+      <tbody>
+        <tr><td>A row</td><td>17</td><td>command output</td></tr>
+        <tr><td>Another</td><td>3</td><td>judgement, and it says so</td></tr>
+      </tbody>
+    </table>
+  </div>
 
   <div class="note">
     An aside the reader needs but that would derail the paragraph. <code>.note.warn</code> for the ones that cost something.

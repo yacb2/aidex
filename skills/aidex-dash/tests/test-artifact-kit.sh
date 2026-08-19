@@ -49,14 +49,31 @@ for trigger in 'data-id=' 'data-title=' '<textarea' 'contenteditable=' 'class="c
   grep -qF "$trigger" "$KIT/tokens.css" "$KIT/components.css" "$KIT/composer.js" \
     && fail "an injected kit file spells the contract trigger '$trigger' — every page would match it"
 done
-# Every token the kit ships exists in ALL FOUR blocks — :root, the media query,
-# and both explicit toggles — or a page carrying a chart writes its own three
-# theme blocks by hand, which is what every charted artifact on disk did.
-for tok in s0 s1 s2 s3 s4 s5 s6 s7 s8 accent paper ink; do
-  n="$(grep -oE -- "--$tok:" "$KIT/tokens.css" | wc -l | tr -d ' ')"
-  [[ "$n" == "4" ]] \
-    || fail "tokens.css declares --$tok in $n block(s), not 4 (:root, the media query, [data-theme=dark], [data-theme=light]) — a page would have to re-declare it per theme"
-done
+# Every COLOUR token the kit ships exists in all four blocks — :root, the media
+# query, and both explicit toggles — or a page carrying that token writes its own
+# three theme blocks by hand, which is what every charted artifact on disk did.
+#
+# The list is DERIVED from tokens.css, never spelled here: a hand-written list of
+# twelve is a check that cannot see the thirteenth token, which is this repo own
+# systemic failure (a checker that lies by omission). The type stacks are the
+# documented exception — a font does not change with the theme.
+missing="$(python3 - "$KIT/tokens.css" <<'PYTOK'
+import re, sys
+css = open(sys.argv[1], encoding="utf-8").read()
+css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+counts = {}
+for name in re.findall(r"--([\w-]+)\s*:", css):
+    counts[name] = counts.get(name, 0) + 1
+skip = {"serif", "sans", "mono"}          # type stacks: one theme, by design
+print(" ".join(sorted(f"{k}={v}" for k, v in counts.items()
+                      if k not in skip and v != 4)))
+PYTOK
+)"
+[[ -z "$missing" ]] \
+  || fail "tokens.css declares these in a number of blocks other than 4 (:root, the media query, [data-theme=dark], [data-theme=light]): $missing — a page would have to re-declare them per theme"
+n_root="$(grep -cE -- '^[[:space:]]*--s[0-9]:' "$KIT/tokens.css")"
+[[ "$n_root" -ge 4 ]] \
+  || fail "the chart series slots are gone from tokens.css — a charted page would invent its own palette again"
 
 # A textarea defaults to `resize: both`, and dragging one wider than its column
 # overlaps the rail and the content beside it. Only the vertical axis has room.

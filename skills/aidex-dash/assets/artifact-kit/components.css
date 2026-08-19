@@ -104,7 +104,12 @@ li::marker { color: var(--muted); }
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
   color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
-.consult-item textarea { min-height: 4rem; resize: vertical; }
+.consult-item textarea { min-height: 4rem; }
+/* Every box, not only the ones inside an item: a textarea defaults to
+   `resize: both`, and the horizontal handle offers an axis the layout has no
+   room for — dragging it wider lays the box over the rail and whatever sits
+   beside it. Vertical is the only direction with anywhere to go. */
+textarea { resize: vertical; }
 .fieldlabel { font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .consult-notes { border-color: var(--accent-dim); background: var(--paper-sunk); }
 

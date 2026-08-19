@@ -258,7 +258,16 @@ skeleton is what supplies its STRUCTURE. The entire width system lives on two cl
 
 A page written without them gets every token and no layout: it renders full-bleed at the
 browser's default width, and past 64rem the type reads enormous. The contract now fails
-that page and names the skeleton. A page that genuinely wants to be full-bleed overrides
+that page and names the skeleton.
+
+**Every table goes inside `<div class="tw">`**, and that is checked too. A table is the
+one element a page cannot cap: `max-width` will not take it below its min-content width,
+and `display: block` collapses a narrow table's cells — so there is no CSS net, only the
+wrapper. Measured: a 12-column table in the 728px column renders 1055px wide with its
+right edge at x=1299, while the rail starts at x=1028. It is drawn straight over the
+rail, and while the viewport is wider than the page there is no scrollbar to show it. Any
+wrapper the page declares with `overflow-x: auto` satisfies the check — the class set is
+read from the document's own CSS, not from a list of blessed names. A page that genuinely wants to be full-bleed overrides
 `.page { max-width: none }` in its own `<style>` and keeps the grid, the rail and the
 responsive collapse — there is no opt-out marker, because the cascade already is one.
 
@@ -301,8 +310,8 @@ prints a NOTE saying the contract went unverified.
 ### 5. Read what the contract check said
 
 `--out` already ran it. It checks doctype, charset, viewport, title, dark mode, no
-external CSS/JS/fonts/images, no sibling assets, the kit's layout container on any page
-carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
+external CSS/JS/fonts/images, no sibling assets, the kit's layout container and wrapped
+tables on any page carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
 it. A non-zero exit means the file on disk is not deliverable.
 
 To re-check a file you did not just wrap:
