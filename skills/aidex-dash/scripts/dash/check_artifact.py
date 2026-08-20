@@ -53,6 +53,16 @@ CONSULT_GATE = re.compile(
 
 KIT_STAMP = re.compile(r'<meta[^>]+name=["\']?artifact-kit', re.I)
 
+# The two halves of the gate, split for the consult-surfaces declaration below.
+# FREE_TEXT is what a consultation IS — BL-168's page was hand-rolled textareas
+# — and STRUCTURE is a page already claiming to be one; neither can be declared
+# away. What CAN be is the remainder: closed controls (select, radio, checkbox,
+# short text) on a page meant only to be read, which is the ordinary shape of a
+# dashboard filter and was a false positive with no exit.
+FREE_TEXT = re.compile(r'<textarea|contenteditable=', re.I)
+CONSULT_STRUCTURE = re.compile(
+    r'data-id=|id=["\']?consult-copy|class=["\'][^"\']*consult-item', re.I)
+
 
 def flatten(text):
     """Newlines to spaces, never deleted: deleting joins `<script` to `src=`
@@ -210,6 +220,18 @@ PLACEHOLDER_REASON = re.compile(
     r'^(replace this|replace with|tbd|todo|fixme|xxx|why|the reason)\b', re.I)
 
 
+def surfaces_declaration(text):
+    """The consult-surfaces meta's `none:` reason, or "" when there is none.
+    Same shape as consult-visual, and for the same reason: no checker can judge
+    whether a select is a filter or a question, so the page states which it is
+    — and the reason is one grep away from review, which silence never is."""
+    m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-surfaces["\x27]?'
+                  r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
+                  text, re.I | re.S)
+    val = "" if not m else next(g for g in m.groups() if g is not None).strip()
+    return val[5:].strip() if val.lower().startswith("none:") else ""
+
+
 # --- Requirement 1, across regenerations (--prev) -----------------------------
 
 ID_TAG = re.compile(r'<[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
@@ -340,8 +362,23 @@ def check_file(path):
     #   the composer button id       — a page that offers to compose a reply
     #   the item CLASS in an attribute — reply boxes built at runtime
     # A report meant to be read hits none of the four and this stays silent.
+    #
+    # One BOUNDED exemption: a page whose only match is a closed control — no
+    # free text, no consultation structure — may declare the controls as
+    # filters with a reason (`consult-surfaces`, checked below). A dashboard's
+    # row-filter <select> is not a question, and without the declaration that
+    # page collected the whole §8 battery with no way to comply.
     if CONSULT_GATE.search(flat):
-        fails.extend(check_consultation(path, text, flat))
+        declared = ""
+        if not FREE_TEXT.search(flat) and not CONSULT_STRUCTURE.search(flat):
+            try:
+                declared = surfaces_declaration(text)
+            except Exception:                       # noqa: BLE001 — fail closed
+                declared = ""
+            if PLACEHOLDER_REASON.search(declared):
+                declared = ""
+        if not declared:
+            fails.extend(check_consultation(path, text, flat))
 
     return fails
 
@@ -362,9 +399,17 @@ def check_consultation(path, text, flat):
     # there is nothing to keep stable and nothing --prev can compare.
     if not items:
         n_surface = sum(1 for _ in SURFACE_PAT.finditer(flat))
+        # A page with only closed controls has a second legitimate reading —
+        # they are filters on a read — so the failure names the exit. A page
+        # with free text does not get the offer: that is BL-168's shape.
+        escape = ("" if FREE_TEXT.search(flat) else
+                  ' — or, if these controls only filter what is shown, declare '
+                  '<meta name="consult-surfaces" content="none: why"> and the '
+                  'page is a read')
         report("consult", f"{n_surface} reply surface(s) but no data-id item — "
                f"every consultation item needs a stable id (copy "
-               f"assets/templates/consultation-block.html.template)")
+               f"assets/templates/consultation-block.html.template)"
+               f"{escape}")
     else:
         for ident, has_title, has_surface, has_notes in items:
             if not ident:

@@ -383,6 +383,62 @@ bash "$CHECK" "$TMP/wrapped.html" >/dev/null 2>&1 \
   && ok "the visual default does not fire on a plain report" \
   || bad "the visual check leaked onto a non-consultation page"
 
+# --- A read page with interactive CONTROLS can declare itself one -------------
+# The consultation gate is deliberately broad, and that produced a false
+# positive with no exit: a dashboard whose one <select> filters rows
+# client-side collected the whole §8 battery (5 violations, probed on a real
+# wrap) and could not comply without dropping the filter or dressing as a
+# consultation with items nobody is meant to answer. The escape is a
+# declaration with a reason — the same shape consult-visual already has, one
+# grep away from review, which silence never is. And it is BOUNDED: it can
+# only exempt closed controls (select, radio, checkbox, short text). Free-text
+# surfaces are what a consultation IS — BL-168's page was hand-rolled
+# textareas — and real consultation structure can never be declared away.
+echo "== declared filter controls =="
+
+FILTER_BODY="<h1>Rows</h1><label>Filter <select id=\"row-filter\"><option>all</option><option>open</option></select></label>"
+mk filter.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>
+$FILTER_BODY"
+out="$(bash "$CHECK" "$TMP/filter.html" 2>&1)"
+[[ "$out" == *"[consult]"* ]] \
+  && ok "an undeclared filter select is still judged a consultation (the BL-168 arm stands)" \
+  || bad "a bare select stopped triggering the gate — BL-168 pages with selects would pass: $out"
+[[ "$out" == *"consult-surfaces"* ]] \
+  && ok "…and the failure names the declaration that would exempt it" \
+  || bad "the reader is offered no way out of the false positive: $out"
+
+mk filter-declared.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><meta name=\"consult-surfaces\" content=\"none: the select filters rows client-side, there is nothing to answer\"><style>@media (prefers-color-scheme: dark){}</style>
+$FILTER_BODY"
+bash "$CHECK" "$TMP/filter-declared.html" >/dev/null 2>&1 \
+  && ok "a declared filter select passes as a read" \
+  || bad "the declaration did not exempt a read page's filter control: $(bash "$CHECK" "$TMP/filter-declared.html" 2>&1)"
+
+# The bound, three ways. (1) free text can never be declared away.
+mk ta-declared.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><meta name=\"consult-surfaces\" content=\"none: just a comment box\"><style>@media (prefers-color-scheme: dark){}</style>
+<h1>Answer me</h1><textarea></textarea>"
+out="$(bash "$CHECK" "$TMP/ta-declared.html" 2>&1)"
+[[ "$out" == *"[consult]"* ]] \
+  && ok "a textarea cannot be declared away — free text is what a consultation is" \
+  || bad "the declaration laundered a hand-rolled reply box (BL-168 reopened): $out"
+
+# (2) consultation STRUCTURE can never be declared away.
+mk item-declared.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><meta name=\"consult-surfaces\" content=\"none: these are filters\"><style>@media (prefers-color-scheme: dark){}
+:root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
+<section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><div class=\"opts\"><label><input type=\"radio\" name=\"c1\" data-label=\"A\"><span>A</span></label></div></section>"
+out="$(bash "$CHECK" "$TMP/item-declared.html" 2>&1)"
+[[ "$out" == *"[consult]"* && "$out" == *"notes box"* ]] \
+  && ok "a page with real consult items keeps the whole battery despite the declaration" \
+  || bad "the declaration silenced §8 on a page with consultation structure: $out"
+
+# (3) a placeholder reason is silence wearing a meta tag — same rule as
+# consult-visual, or the template-shaped bypass returns through the new door.
+mk filter-placeholder.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><meta name=\"consult-surfaces\" content=\"none: replace this with the reason\"><style>@media (prefers-color-scheme: dark){}</style>
+$FILTER_BODY"
+out="$(bash "$CHECK" "$TMP/filter-placeholder.html" 2>&1)"
+[[ "$out" == *"[consult]"* ]] \
+  && ok "a placeholder reason does not exempt anything" \
+  || bad "the instruction to write a reason passed as a reason, again: $out"
+
 # Requirement 1 across regenerations — the rule that was unenforceable, so it broke.
 cp "$TMP/consult-ok.html" "$TMP/regen-same.html"
 bash "$CHECK" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
