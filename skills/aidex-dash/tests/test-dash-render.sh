@@ -284,5 +284,58 @@ n_notes="$(grep -c '^NOTE: skipped (unparseable front matter)' "$BROKEN/err2.txt
 [[ "$n_notes" -eq 2 ]] || fail "backlog: expected 2 NOTE lines for the 2 unparseable files (got $n_notes)"
 grep -q 'BL-912' "$BROKEN/.context/backlog/00-index.html" || fail "backlog: parsed item missing from mixed board"
 
+# --- glob-metacharacter roots: items must not vanish -------------------------
+# (no glob.escape anywhere in the dash layer meant a root like foo-[bl-9]
+# treated [...] as a pattern: every glob matched nothing and both boards
+# rendered confidently empty — archived tiles zero too — where pre-d4cfe74
+# the empty result at least died)
+BR="$WS2/br-[bl-9]"
+mkdir -p "$BR/.context/plans/_archive" "$BR/.context/backlog/_archive"
+cat > "$BR/.context/plans/2026-02-01-live.md" <<'EOF'
+---
+title: "Live plan in bracketed root"
+status: open
+---
+# Live
+EOF
+cat > "$BR/.context/plans/_archive/2026-01-01-old.md" <<'EOF'
+---
+title: "Archived plan"
+status: done
+---
+# Old
+EOF
+cat > "$BR/.context/backlog/2026-02-01-bl-920-live.md" <<'EOF'
+---
+title: "Live item in bracketed root"
+id: BL-920
+status: open
+priority: P1
+estimate: S
+---
+# Live
+EOF
+cat > "$BR/.context/backlog/_archive/2026-01-01-bl-919-old.md" <<'EOF'
+---
+title: "Old archived item"
+id: BL-919
+status: done
+---
+# Old
+EOF
+run "$BR" plans >/dev/null 2>&1; rc=$?
+[[ "$rc" -eq 0 ]] || fail "plans: bracketed root should render (got $rc)"
+BRPL="$BR/.context/plans/00-index.html"
+grep -q '<span class="n">1</span><span class="l">plans</span>' "$BRPL" \
+  || fail "plans: bracketed root lost its live plan (glob metachars unescaped)"
+grep -q '<span class="n">1</span><span class="l">archived</span>' "$BRPL" \
+  || fail "plans: bracketed root lost its archived count"
+run "$BR" backlog >/dev/null 2>&1; rc=$?
+[[ "$rc" -eq 0 ]] || fail "backlog: bracketed root should render (got $rc)"
+BRBL="$BR/.context/backlog/00-index.html"
+grep -q 'BL-920' "$BRBL" || fail "backlog: bracketed root lost its live item (glob metachars unescaped)"
+grep -q '<span class="n">1</span><span class="l">archived</span>' "$BRBL" \
+  || fail "backlog: bracketed root lost its archived count"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"

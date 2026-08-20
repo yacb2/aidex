@@ -30,7 +30,8 @@ STATUS_TONE = {"doing": "warn", "open": "", "done": "ok", "dropped": "plain",
 
 def _items(backlog_dir):
     items, skipped = [], []
-    for path in sorted(glob.glob(os.path.join(backlog_dir, "*.md"))):
+    # glob.escape: the workspace path is data, not a pattern (foo-[bl-9] roots)
+    for path in sorted(glob.glob(os.path.join(glob.escape(backlog_dir), "*.md"))):
         if os.path.basename(path) == "00-index.md":
             continue
         fm = P.front_matter(path)
@@ -68,7 +69,7 @@ def render(root):
               f"— front matter must open with '---' on line 1 (a BOM, leading blank "
               f"line or merge marker breaks it); first offender: "
               f"{os.path.basename(skipped[0])}")
-    archived = len(glob.glob(os.path.join(backlog_dir, "_archive", "*.md")))
+    archived = len(glob.glob(os.path.join(glob.escape(backlog_dir), "_archive", "*.md")))
     active = sum(1 for it in items if it["status"] not in ("done", "dropped"))
     doing = sum(1 for it in items if it["status"] == "doing")
 

@@ -37,22 +37,23 @@ def _phases_overview(text):
 
 
 def _rollup(root, plans_dir):
+    pd = glob.escape(plans_dir)  # the workspace path is data, not a pattern (foo-[bl-9] roots)
     plans = []
     # single-file plans
-    for path in sorted(glob.glob(os.path.join(plans_dir, "*.md"))):
+    for path in sorted(glob.glob(os.path.join(pd, "*.md"))):
         if os.path.basename(path) == "00-index.md":
             continue
         plans.append((os.path.splitext(os.path.basename(path))[0], path))
     # multi-file plans
-    for path in sorted(glob.glob(os.path.join(plans_dir, "*", "00-index.md"))):
+    for path in sorted(glob.glob(os.path.join(pd, "*", "00-index.md"))):
         plans.append((os.path.basename(os.path.dirname(path)), path))
 
     # Zero active plans is a legitimate state — the all-archived end-state after
     # a D-10 close — not a missing source, so no guard here: the board renders
     # with an empty table and the tiles still carry the archived count. Only a
     # missing plans/ directory (render()) is an error.
-    archived = (len(glob.glob(os.path.join(plans_dir, "_archive", "*.md")))
-                + len(glob.glob(os.path.join(plans_dir, "_archive", "*", "00-index.md"))))
+    archived = (len(glob.glob(os.path.join(pd, "_archive", "*.md")))
+                + len(glob.glob(os.path.join(pd, "_archive", "*", "00-index.md"))))
 
     rows, open_n = [], 0
     for slug, path in plans:
