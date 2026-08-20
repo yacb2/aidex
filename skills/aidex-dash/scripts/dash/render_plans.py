@@ -44,9 +44,25 @@ def _rollup(root, plans_dir):
         if os.path.basename(path) == "00-index.md":
             continue
         plans.append((os.path.splitext(os.path.basename(path))[0], path))
-    # multi-file plans
+    # multi-file plans; _archive and dotted dirs are never live plans
     for path in sorted(glob.glob(os.path.join(pd, "*", "00-index.md"))):
-        plans.append((os.path.basename(os.path.dirname(path)), path))
+        d = os.path.basename(os.path.dirname(path))
+        if d == "_archive" or d.startswith("."):
+            continue
+        plans.append((d, path))
+
+    # A plan directory whose 00-index.md is missing (renamed, or an
+    # interrupted plan creation) is corpus both globs are blind to — die
+    # rather than render a board the plan silently vanished from.
+    for entry in sorted(os.listdir(plans_dir)):
+        d = os.path.join(plans_dir, entry)
+        if not os.path.isdir(d) or entry == "_archive" or entry.startswith("."):
+            continue
+        if not os.path.isfile(os.path.join(d, "00-index.md")) \
+                and glob.glob(os.path.join(glob.escape(d), "*.md")):
+            P.die(f"plan directory without 00-index.md: {entry}/ — its phase "
+                  f"files are invisible to the rollup; add the index or move "
+                  f"the directory to _archive/")
 
     # Zero active plans is a legitimate state — the all-archived end-state after
     # a D-10 close — not a missing source, so no guard here: the board renders
