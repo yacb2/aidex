@@ -19,8 +19,7 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 WS="$(mktemp -d)"
 WS2="$(mktemp -d)"
-WS3="$(mktemp -d)"
-trap 'rm -rf "$WS" "$WS2" "$WS3"' EXIT
+trap 'rm -rf "$WS" "$WS2"' EXIT
 CTX="$WS/.context"
 
 # --- build the fixture ------------------------------------------------------
@@ -126,11 +125,11 @@ cat > "$CTX/audits/test-coverage/coverage-matrix.json" <<'EOF'
 }
 EOF
 
-run() { python3 "$RENDER" "$WS" "$@"; }
+run() { python3 "$RENDER" "$1" "${@:2}"; }   # root-parameterized: one spelling for every invocation
 
 # --- backlog ----------------------------------------------------------------
 BL_HTML="$CTX/backlog/00-index.html"
-run backlog >/dev/null || fail "backlog render exited non-zero"
+run "$WS" backlog >/dev/null || fail "backlog render exited non-zero"
 [[ -f "$BL_HTML" ]] || fail "backlog: sibling 00-index.html not written"
 head -1 "$BL_HTML" | grep -q '^<!-- GENERATED' || fail "backlog: first line missing GENERATED"
 grep -q 'BL-001' "$BL_HTML" || fail "backlog: item id BL-001 missing"
@@ -140,14 +139,14 @@ grep -q '>bug<' "$BL_HTML" || fail "backlog: type chip 'bug' missing"
 
 # --- plans rollup -----------------------------------------------------------
 PL_HTML="$CTX/plans/00-index.html"
-run plans >/dev/null || fail "plans rollup render exited non-zero"
+run "$WS" plans >/dev/null || fail "plans rollup render exited non-zero"
 [[ -f "$PL_HTML" ]] || fail "plans: rollup 00-index.html not written"
 head -1 "$PL_HTML" | grep -q '^<!-- GENERATED' || fail "plans rollup: first line missing GENERATED"
 grep -q 'Test plan' "$PL_HTML" || fail "plans rollup: plan title missing"
 
 # --- plan progress (multi-file) ---------------------------------------------
 PP_HTML="$CTX/plans/testplan/00-index.html"
-run plans testplan >/dev/null || fail "plan progress render exited non-zero"
+run "$WS" plans testplan >/dev/null || fail "plan progress render exited non-zero"
 [[ -f "$PP_HTML" ]] || fail "plans: testplan progress 00-index.html not written"
 head -1 "$PP_HTML" | grep -q '^<!-- GENERATED' || fail "plan progress: first line missing GENERATED"
 grep -q '2/3' "$PP_HTML" || fail "plan progress: phase 1 count 2/3 missing"
@@ -155,20 +154,20 @@ grep -q 'Alpha phase' "$PP_HTML" || fail "plan progress: phase description missi
 
 # --- audit ------------------------------------------------------------------
 AU_HTML="$CTX/audits/testaudit/00-inventory.html"
-run audit testaudit >/dev/null || fail "audit render exited non-zero"
+run "$WS" audit testaudit >/dev/null || fail "audit render exited non-zero"
 [[ -f "$AU_HTML" ]] || fail "audit: 00-inventory.html not written"
 head -1 "$AU_HTML" | grep -q '^<!-- GENERATED' || fail "audit: first line missing GENERATED"
 grep -q 'FIND-01' "$AU_HTML" || fail "audit: finding id FIND-01 missing"
 
 # --- coverage ---------------------------------------------------------------
 CO_HTML="$CTX/audits/test-coverage/coverage-matrix.html"
-run coverage >/dev/null || fail "coverage render exited non-zero"
+run "$WS" coverage >/dev/null || fail "coverage render exited non-zero"
 [[ -f "$CO_HTML" ]] || fail "coverage: coverage-matrix.html not written"
 head -1 "$CO_HTML" | grep -q '^<!-- GENERATED' || fail "coverage: first line missing GENERATED"
 grep -q 'billing' "$CO_HTML" || fail "coverage: module row billing missing"
 
 # --- idempotency: re-run is structurally identical --------------------------
-run backlog >/dev/null || fail "backlog second run exited non-zero"
+run "$WS" backlog >/dev/null || fail "backlog second run exited non-zero"
 gen_count="$(grep -c '<!-- GENERATED' "$BL_HTML")"
 [[ "$gen_count" -eq 1 ]] || fail "backlog: duplicate GENERATED header on re-run (count=$gen_count)"
 wrap_count="$(grep -c 'class="wrap"' "$BL_HTML")"
@@ -178,16 +177,16 @@ id_count="$(grep -c 'BL-001' "$BL_HTML")"
 
 # --- hand-edit is overwritten on regeneration -------------------------------
 printf '\n<!-- HAND EDITED — SHOULD NOT SURVIVE -->\n' >> "$BL_HTML"
-run backlog >/dev/null || fail "backlog render exited non-zero after hand-edit"
+run "$WS" backlog >/dev/null || fail "backlog render exited non-zero after hand-edit"
 grep -q 'HAND EDITED' "$BL_HTML" && fail "backlog: hand-edit survived regeneration"
 
 # --- unknown target exits 2 -------------------------------------------------
-run bogus >/dev/null 2>"$WS/err.txt"; rc=$?
+run "$WS" bogus >/dev/null 2>"$WS/err.txt"; rc=$?
 [[ "$rc" -eq 2 ]] || fail "unknown target should exit 2 (got $rc)"
 grep -q '^ERROR:' "$WS/err.txt" || fail "unknown target should print ERROR: on stderr"
 
 # --- missing source exits 2 with ERROR: -------------------------------------
-run audit does-not-exist >/dev/null 2>"$WS/err2.txt"; rc=$?
+run "$WS" audit does-not-exist >/dev/null 2>"$WS/err2.txt"; rc=$?
 [[ "$rc" -eq 2 ]] || fail "missing audit source should exit 2 (got $rc)"
 grep -q '^ERROR:' "$WS/err2.txt" || fail "missing source should print ERROR: on stderr"
 
@@ -195,53 +194,63 @@ grep -q '^ERROR:' "$WS/err2.txt" || fail "missing source should print ERROR: on 
 # (was: zero active plans / backlog items — the healthy all-archived end-state
 # after a D-10 close — made the rollups die "no plans found" / "no backlog
 # items found", leaving a stale board that still showed the closed item open)
+#
+# The archived fixtures are deliberate LEAK TRIPWIRES: archived bodies are
+# glob-counted, never parsed, so their `status: open` changes nothing today —
+# but if the live scan ever leaks into _archive/, they parse as open and the
+# open/active/parsed tiles asserted at 0 below stop matching.
 mkdir -p "$WS2/.context/plans/_archive" "$WS2/.context/backlog/_archive"
-cat > "$WS2/.context/plans/_archive/2026-01-01-closed.md" <<'EOF'
+cat > "$WS2/.context/plans/_archive/2026-01-01-leak-tripwire.md" <<'EOF'
 ---
-title: "Closed plan"
-status: done
+title: "Archived plan (leak tripwire)"
+status: open
 ---
-# Closed
+# Archived — glob-counted only; the open status is the tripwire
 EOF
-cat > "$WS2/.context/backlog/_archive/2026-01-01-bl-001-old.md" <<'EOF'
+cat > "$WS2/.context/backlog/_archive/2026-01-01-bl-901-leak-tripwire.md" <<'EOF'
 ---
-title: "Old item"
-id: BL-001
-status: done
-priority: P2
-estimate: S
+title: "Archived item (leak tripwire)"
+id: BL-901
+status: open
 ---
-# Old
+# Archived — glob-counted only; the open status is the tripwire
 EOF
 
-run2() { python3 "$RENDER" "$WS2" "$@"; }
-
-run2 plans >/dev/null 2>"$WS2/err.txt"; rc=$?
+run "$WS2" plans >/dev/null 2>"$WS2/err.txt"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "plans: empty active set should render, not exit $rc ($(head -1 "$WS2/err.txt"))"
 EPL="$WS2/.context/plans/00-index.html"
 [[ -f "$EPL" ]] || fail "plans: empty board 00-index.html not written"
-if [[ -f "$EPL" ]]; then
-  head -1 "$EPL" | grep -q '^<!-- GENERATED' || fail "plans empty board: first line missing GENERATED"
-  grep -q '<span class="n">0</span><span class="l">open</span>' "$EPL" \
-    || fail "plans empty board: open=0 tile missing"
-  grep -q '<span class="n">1</span><span class="l">archived</span>' "$EPL" \
-    || fail "plans empty board: archived=1 tile missing"
-fi
+head -1 "$EPL" | grep -q '^<!-- GENERATED' || fail "plans empty board: first line missing GENERATED"
+grep -q '<span class="n">0</span><span class="l">plans</span>' "$EPL" \
+  || fail "plans empty board: plans=0 tile missing (archive leaked into live set?)"
+grep -q '<span class="n">0</span><span class="l">open</span>' "$EPL" \
+  || fail "plans empty board: open=0 tile missing"
+grep -q '<span class="n">1</span><span class="l">archived</span>' "$EPL" \
+  || fail "plans empty board: archived=1 tile missing"
+grep -q 'leak tripwire' "$EPL" && fail "plans empty board: archived fixture rendered as live content"
 
-run2 backlog >/dev/null 2>"$WS2/err2.txt"; rc=$?
+run "$WS2" backlog >/dev/null 2>"$WS2/err2.txt"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "backlog: empty active set should render, not exit $rc ($(head -1 "$WS2/err2.txt"))"
 EBL="$WS2/.context/backlog/00-index.html"
 [[ -f "$EBL" ]] || fail "backlog: empty board 00-index.html not written"
-if [[ -f "$EBL" ]]; then
-  grep -q '<span class="n">1</span><span class="l">archived</span>' "$EBL" \
-    || fail "backlog empty board: archived=1 tile missing"
-fi
+head -1 "$EBL" | grep -q '^<!-- GENERATED' || fail "backlog empty board: first line missing GENERATED"
+grep -q '<span class="n">0</span><span class="l">active items</span>' "$EBL" \
+  || fail "backlog empty board: active=0 tile missing (archive leaked into live set?)"
+grep -q '<span class="n">0</span><span class="l">live files parsed</span>' "$EBL" \
+  || fail "backlog empty board: parsed=0 tile missing"
+grep -q '<span class="n">1</span><span class="l">archived</span>' "$EBL" \
+  || fail "backlog empty board: archived=1 tile missing"
+grep -q 'BL-901' "$EBL" && fail "backlog empty board: archived fixture rendered as live content"
 
-# the boundary stays: a MISSING plans dir (unlike an empty one) is still exit 2
-mkdir -p "$WS3/.context"
-python3 "$RENDER" "$WS3" plans >/dev/null 2>"$WS3/err.txt"; rc=$?
+# the boundary stays: a MISSING plans/ or backlog/ directory (unlike an empty
+# one) is still exit 2 — one nested root exercises both targets
+mkdir -p "$WS2/no-plans/.context"
+run "$WS2/no-plans" plans >/dev/null 2>"$WS2/no-plans/err.txt"; rc=$?
 [[ "$rc" -eq 2 ]] || fail "plans: missing plans directory should still exit 2 (got $rc)"
-grep -q '^ERROR:' "$WS3/err.txt" || fail "plans: missing dir should print ERROR: on stderr"
+grep -q '^ERROR: no plans directory' "$WS2/no-plans/err.txt" || fail "plans: missing dir should print the designed ERROR:"
+run "$WS2/no-plans" backlog >/dev/null 2>"$WS2/no-plans/err2.txt"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "backlog: missing backlog directory should still exit 2 (got $rc)"
+grep -q '^ERROR: no backlog directory' "$WS2/no-plans/err2.txt" || fail "backlog: missing dir should print the designed ERROR:"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders (missing dir still exit 2)"
+echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"
