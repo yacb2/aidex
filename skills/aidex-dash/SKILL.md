@@ -33,9 +33,15 @@ bash "${CLAUDE_SKILL_DIR}/scripts/render.sh" <target> [arg]
 | `audit <methodology>` | `.context/audits/<methodology>/00-inventory.md` table | `.context/audits/<methodology>/00-inventory.html` |
 | `coverage` | existing `audits/test-coverage/coverage-matrix.json` | `.context/audits/test-coverage/coverage-matrix.html` |
 
-The script prints the output path on success. On a missing or malformed source
-it prints a plain-text `ERROR: ...` and exits 2 — never a traceback. Re-running
-is idempotent (the render is overwritten, not appended).
+The script prints the output path on success, and always prints the resolved
+workspace root on stderr (`root: …`) — the wrong-root tripwire. On a missing or
+malformed source it prints a plain-text `ERROR: ...` and exits 2 — never a
+traceback. An **empty-but-present** source is neither: all items archived, a
+zero-row findings table, a sentinel-only scaffold all render an empty board
+(the legitimate D-10 end-state). The one exception is `coverage` — its matrix
+is machine-produced, so `modules: []` means producer drift and still errors.
+Re-running is idempotent (the render is replaced atomically, never appended,
+and a failed write keeps the previous good render).
 
 Ad-hoc reports (not one of dash's own boards) follow the same sibling-path
 and publish-gated conventions — see `rules/artifacts-local-first.md`; dash
