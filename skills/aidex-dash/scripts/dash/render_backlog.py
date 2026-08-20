@@ -118,6 +118,5 @@ def render(root):
     html = S.page("Backlog board", sections, "backlog")
 
     out = os.path.join(backlog_dir, "00-index.html")
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
+    S.write_page(out, html)
     return out

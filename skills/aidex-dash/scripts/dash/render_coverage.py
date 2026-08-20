@@ -81,6 +81,5 @@ def render(root):
     html = S.page("Coverage matrix", sections, "coverage")
 
     out = os.path.join(root, ".context", "audits", "test-coverage", "coverage-matrix.html")
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
+    S.write_page(out, html)
     return out

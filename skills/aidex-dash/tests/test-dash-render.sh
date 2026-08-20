@@ -389,5 +389,16 @@ grep -Fxq "root: $WS2" "$WS2/root.txt" || fail "render: resolved root missing fr
 run "$WS2/no-plans" plans >/dev/null 2>"$WS2/no-plans/root.txt"
 grep -Fxq "root: $WS2/no-plans" "$WS2/no-plans/root.txt" || fail "render: resolved root missing from stderr on error"
 
+# --- a failed write never truncates the previous good board ------------------
+# (open(out,'w') truncated in place: an I/O failure mid-write left a half
+# file whose intact GENERATED first line still passed every first-line check)
+run "$WS2" plans >/dev/null 2>&1 || fail "plans: pre-write render failed"
+cp "$EPL" "$WS2/board-before.html"
+( ulimit -f 1; run "$WS2" plans >/dev/null 2>"$WS2/ulimit-err.txt" ); rc=$?
+[[ "$rc" -ne 0 ]] || fail "plans: write beyond ulimit should fail (got rc=0)"
+cmp -s "$EPL" "$WS2/board-before.html" || fail "plans: failed write corrupted the previous good board"
+stray="$(find "$WS2/.context/plans" -name '*.tmp' | wc -l | tr -d ' ')"
+[[ "$stray" -eq 0 ]] || fail "plans: failed write left $stray .tmp file(s) behind"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"
