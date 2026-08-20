@@ -49,6 +49,11 @@ def main(argv):
         P.die("missing arguments\n" + USAGE)
     root, target = argv[1], argv[2]
     arg = argv[3] if len(argv) > 3 else None
+    # The resolved root is data the caller must be able to see: with empty
+    # states rendering (not dying), a wrong-root resolution — nearest-ancestor
+    # find_project_root hitting a stray .context-bearing subtree — would
+    # otherwise be silent. This stderr line is the tripwire.
+    print(f"root: {os.path.abspath(root)}", file=sys.stderr)
     try:
         out = _dispatch(root, target, arg)
     except SystemExit:
