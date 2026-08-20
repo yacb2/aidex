@@ -337,5 +337,48 @@ grep -q 'BL-920' "$BRBL" || fail "backlog: bracketed root lost its live item (gl
 grep -q '<span class="n">1</span><span class="l">archived</span>' "$BRBL" \
   || fail "backlog: bracketed root lost its archived count"
 
+# --- a stray _archive/00-index.md is never a live plan ----------------------
+GH="$WS2/ghost"
+mkdir -p "$GH/.context/plans/_archive"
+cat > "$GH/.context/plans/_archive/00-index.md" <<'EOF'
+---
+title: "Archive ghost index"
+status: open
+---
+# Ghost
+EOF
+cat > "$GH/.context/plans/2026-03-01-real.md" <<'EOF'
+---
+title: "Real live plan"
+status: open
+---
+# Real
+EOF
+run "$GH" plans >/dev/null 2>&1; rc=$?
+[[ "$rc" -eq 0 ]] || fail "plans: ghost fixture should render (got $rc)"
+GHPL="$GH/.context/plans/00-index.html"
+grep -q '<span class="n">1</span><span class="l">plans</span>' "$GHPL" \
+  || fail "plans: stray _archive/00-index.md counted as a live plan"
+grep -q '<span class="n">1</span><span class="l">open</span>' "$GHPL" \
+  || fail "plans: stray _archive/00-index.md counted as open"
+grep -q 'Archive ghost index' "$GHPL" && fail "plans: ghost index rendered as a live row"
+grep -q '<span class="n">1</span><span class="l">archived</span>' "$GHPL" \
+  || fail "plans: ghost index should count once, as archived"
+
+# --- a plan directory without 00-index.md dies, never vanishes --------------
+# (its phase files are invisible to both rollup globs, so pre-fix the plan
+# silently disappeared from the board — plans=0 over live work)
+NOIX="$WS2/noindex"
+mkdir -p "$NOIX/.context/plans/2026-03-01-broken"
+cat > "$NOIX/.context/plans/2026-03-01-broken/01-phase.md" <<'EOF'
+# Phase 1
+- [ ] Task
+EOF
+run "$NOIX" plans >/dev/null 2>"$NOIX/err.txt"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "plans: index-less plan dir should exit 2, not render it invisible (got $rc)"
+grep -q '^ERROR: plan directory without 00-index.md: 2026-03-01-broken/' "$NOIX/err.txt" \
+  || fail "plans: index-less ERROR should name the directory"
+[[ ! -f "$NOIX/.context/plans/00-index.html" ]] || fail "plans: index-less failure must not write a board"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"
