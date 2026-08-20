@@ -380,5 +380,14 @@ grep -q '^ERROR: plan directory without 00-index.md: 2026-03-01-broken/' "$NOIX/
   || fail "plans: index-less ERROR should name the directory"
 [[ ! -f "$NOIX/.context/plans/00-index.html" ]] || fail "plans: index-less failure must not write a board"
 
+# --- the resolved root is always visible on stderr ---------------------------
+# (nearest-ancestor find_project_root can resolve to a stray .context-bearing
+# subtree; with empty states now rendering instead of dying, the resolved
+# root on stderr is the wrong-root tripwire — on success AND on error)
+run "$WS2" plans >/dev/null 2>"$WS2/root.txt"
+grep -Fxq "root: $WS2" "$WS2/root.txt" || fail "render: resolved root missing from stderr on success"
+run "$WS2/no-plans" plans >/dev/null 2>"$WS2/no-plans/root.txt"
+grep -Fxq "root: $WS2/no-plans" "$WS2/no-plans/root.txt" || fail "render: resolved root missing from stderr on error"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"
