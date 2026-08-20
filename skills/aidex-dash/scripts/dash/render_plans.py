@@ -97,8 +97,7 @@ def _rollup(root, plans_dir):
     html = S.page("Plans rollup", sections, "plans")
 
     out = os.path.join(plans_dir, "00-index.html")
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
+    S.write_page(out, html)
     return out
 
 
@@ -160,8 +159,7 @@ def _progress(root, plans_dir, slug):
     ]
     html = S.page(fm.get("title", slug), sections, f"plans {slug}")
 
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
+    S.write_page(out, html)
     return out
 
 

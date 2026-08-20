@@ -15,6 +15,8 @@ Public surface:
   prio_rows(rows)                       -> priority-bar rows block
   esc(s)                                -> HTML-escape a value
 """
+import os
+
 from datetime import datetime
 from html import escape
 from urllib.parse import quote
@@ -331,6 +333,23 @@ def prio_rows(rows):
 def legend(spans):
     """Legend row. spans: list of pre-built HTML strings."""
     return '<div class="legend">' + "".join(f"<span>{s}</span>" for s in spans) + "</div>"
+
+
+def write_page(out, html):
+    """Write the rendered page atomically (tmp + os.replace): a failed write
+    must never truncate the previous good render in place — a half-written
+    board with an intact GENERATED first line passes every first-line check."""
+    tmp = out + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(html)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    os.replace(tmp, out)
 
 
 def page(title, sections, generated_by):

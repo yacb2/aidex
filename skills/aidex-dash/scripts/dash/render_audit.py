@@ -122,6 +122,5 @@ def render(root, methodology):
     html = S.page(f"Audit inventory — {methodology}", sections, f"audit {methodology}")
 
     out = os.path.join(root, ".context", "audits", methodology, "00-inventory.html")
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
+    S.write_page(out, html)
     return out
