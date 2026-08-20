@@ -31,12 +31,16 @@
       paste: ' — paste them into the chat.',
       noClipboard: ' — clipboard unavailable, copy the selected text.',
       restored: function (n) { return n + ' answer(s) recovered from your last visit on this machine.'; },
-      discard: 'Discard them'
+      discard: 'Discard them',
+      copy: 'Copy my answers',
+      contents: 'Contents'
     },
     es: {
       none: 'Sin responder todavía.',
       progress: function (n, total) { return n + ' de ' + total + ' respondidas'; },
-      missing: function (ids) { return ' · falta ' + ids.join(', '); },
+      missing: function (ids) {
+        return ' · ' + (ids.length === 1 ? 'falta ' : 'faltan ') + ids.join(', ');
+      },
       nothingToCopy: 'Todavía no has respondido nada — no hay nada que copiar.',
       copied: function (n) { return n + ' copiada(s)'; },
       blankList: function (ids) { return ' · ' + ids.length + ' en blanco: ' + ids.join(', '); },
@@ -44,7 +48,9 @@
       paste: ' — pégalas en el chat.',
       noClipboard: ' — portapapeles no disponible, copia el texto seleccionado.',
       restored: function (n) { return n + ' respuesta(s) recuperada(s) de tu última visita en esta máquina.'; },
-      discard: 'Descartarlas'
+      discard: 'Descartarlas',
+      copy: 'Copiar mis respuestas',
+      contents: 'Contenido'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -76,6 +82,22 @@
   var buttons = [].slice.call(document.querySelectorAll('#consult-copy, #consult-copy-end'));
   var list = document.getElementById('raillist');
   var items = [].slice.call(document.querySelectorAll('.consult-item'));
+
+  // The status line is what says "3 of 5 answered · 2 blank" — a live region,
+  // or a screen reader never hears it change.
+  status.forEach(function (s) { s.setAttribute('role', 'status'); });
+
+  // The composer owns the chrome, so it speaks the page's language too. The
+  // skeleton ships English defaults; only those exact defaults are replaced —
+  // a label the author wrote deliberately is left alone. Without this, the
+  // STRINGS table localised every status message while the buttons above them
+  // stayed English, and field pages translated them by hand (or forgot to).
+  buttons.forEach(function (b) {
+    if (b.textContent.trim() === STRINGS.en.copy) b.textContent = L.copy;
+  });
+  document.querySelectorAll('.railhead').forEach(function (h) {
+    if (h.textContent.trim() === STRINGS.en.contents) h.textContent = L.contents;
+  });
 
   // The rail carries the sections as well as the questions: on a read with no
   // questions it is still the index, which is why it stays on every page.
@@ -147,15 +169,41 @@
    * degrades to exactly the old behaviour. */
   var STORE_KEY = 'aidex-kit-answers:' + location.pathname;
 
+  /* Free text is keyed by surface TYPE plus index within that type, never by
+   * one global order: the v4 schema stored a single flat list, so an author
+   * inserting a select before an existing textarea in the same item shifted
+   * every later saved answer into the wrong box on restore. Same-type
+   * insertion can still shift within its own list — that is the floor for
+   * order-keyed storage — but a regeneration that adds a different control no
+   * longer corrupts anything. */
+  var FREE = [
+    { k: 's', q: 'select' },
+    { k: 't', q: 'input[type="text"]' },
+    { k: 'c', q: '[contenteditable]' },
+    { k: 'a', q: 'textarea' }
+  ];
+
+  function freeValue(el) {
+    return el.hasAttribute('contenteditable') ? el.textContent : el.value;
+  }
+
+  function setFreeValue(el, v) {
+    if (el.hasAttribute('contenteditable')) el.textContent = v;
+    else el.value = v;
+  }
+
   function snapshotItem(el) {
-    var s = { m: [], f: [] };
+    var s = { m: [] }, any = false;
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
       .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
-    el.querySelectorAll('select').forEach(function (x) { s.f.push(x.value); });
-    el.querySelectorAll('input[type="text"]').forEach(function (x) { s.f.push(x.value); });
-    el.querySelectorAll('[contenteditable]').forEach(function (x) { s.f.push(x.textContent); });
-    el.querySelectorAll('textarea').forEach(function (x) { s.f.push(x.value); });
-    return (s.m.length || s.f.some(function (v) { return v.trim(); })) ? s : null;
+    if (s.m.length) any = true;
+    FREE.forEach(function (kind) {
+      var vals = [];
+      el.querySelectorAll(kind.q).forEach(function (x) { vals.push(freeValue(x)); });
+      if (vals.some(function (v) { return v.trim(); })) any = true;
+      if (vals.length) s[kind.k] = vals;
+    });
+    return any ? s : null;
   }
 
   function save() {
@@ -182,18 +230,28 @@
         var hit = false;
         el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
           .forEach(function (i) {
-            if (s.m.indexOf(i.dataset.label || i.value || '') !== -1) { i.checked = true; hit = true; }
+            if ((s.m || []).indexOf(i.dataset.label || i.value || '') !== -1) { i.checked = true; hit = true; }
           });
-        var free = [].slice.call(el.querySelectorAll('select'))
-          .concat([].slice.call(el.querySelectorAll('input[type="text"]')))
-          .concat([].slice.call(el.querySelectorAll('[contenteditable]')))
-          .concat([].slice.call(el.querySelectorAll('textarea')));
-        (s.f || []).forEach(function (v, i) {
-          if (!free[i] || !v) return;
-          if (free[i].hasAttribute('contenteditable')) free[i].textContent = v;
-          else free[i].value = v;
-          if (v.trim()) hit = true;
-        });
+        function fill(list, vals) {
+          (vals || []).forEach(function (v, i) {
+            if (!list[i] || !v) return;
+            setFreeValue(list[i], v);
+            if (v.trim()) hit = true;
+          });
+        }
+        if (Array.isArray(s.f)) {
+          // v4 schema: one flat list in fixed query order. Restored the old
+          // way, so an answer set saved before the typed keying still lands.
+          var free = [];
+          FREE.forEach(function (kind) {
+            free = free.concat([].slice.call(el.querySelectorAll(kind.q)));
+          });
+          fill(free, s.f);
+        } else {
+          FREE.forEach(function (kind) {
+            fill([].slice.call(el.querySelectorAll(kind.q)), s[kind.k]);
+          });
+        }
         if (hit) n++;
       });
     } catch (e) { return 0; }
@@ -206,6 +264,7 @@
     var note = document.createElement('div');
     note.className = 'note';
     note.id = 'consult-restored';
+    note.setAttribute('role', 'status');
     note.appendChild(document.createTextNode(L.restored(n) + ' '));
     var a = document.createElement('a');
     a.href = '#';
