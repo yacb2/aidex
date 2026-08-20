@@ -7,6 +7,31 @@ field sessions.
 
 Read this file **before writing any page markup**, not after.
 
+## The procedure at a glance
+
+The canon below carries, on purpose, the incident behind every rule — that is what keeps
+the rules from being relitigated. This block is the other reading: just the moves, each
+pointing into its section.
+
+- **Route A** — the request maps to a deterministic board → run the renderer, open. Done.
+- **Route B** — everything else:
+  1. Intake questionnaire (§0), answered before any markup — existing page for this
+     thread (grep `artifact-anchor`)? anchor? read or CONSULTATION? strongest claim first?
+  2. Load design guidance via the Skill tool (§2).
+  3. Apply the project style profile — a delta over the kit (§3).
+  4. **Copy `assets/artifact-kit/skeleton.html`** and replace its text (§4): content plus
+     class names, no doctype/head/body, **no theme blocks** (tokens carry all three),
+     every table inside `.tw`, chart series on `--s1…--s8` in fixed order.
+  5. Wrap and verify in one step (§5):
+     `wrap-report.sh --title "<t>" --out <sibling-of-anchor>.html` — fix anything it
+     reports; never hand over a failing file. It also NOTEs neighbours that drifted.
+  6. Link the page from its anchor, set `artifact-anchor`, state the absolute path in
+     the reply, `open` it (§6-7).
+- **Consultation?** §8 on top: stable ids never renumbered, a notes box on every item,
+  the general-notes item last, the composer with both bars, a visual or a declared
+  `none:` reason — and the ledger updated every iteration, before the reply.
+- **Publish** only when explicitly asked. The local file is the durable copy.
+
 ---
 
 ## Route A — structured board
@@ -39,9 +64,14 @@ are settled BEFORE writing, because every one of them is expensive to change aft
    same ids — rather than starting a new one. This is the most important question on
    the list, and it is first for that reason: one conversation produced four files
    before it was asked, where it should have produced one or two. See
-   *Update in place* below for what "update" means concretely.
+   *Update in place* below for what "update" means concretely. Answer it with a grep,
+   not a memory: pages record their anchor in `<meta name="artifact-anchor">`, so
+   `grep -rl 'artifact-anchor" content="<type>/<file>' .context/` finds the thread's
+   existing page.
 2. **What is the anchor?** The plan, backlog item, audit run or request this content
-   belongs to — step 1 below. The report is a sibling of its anchor.
+   belongs to — step 1 below. The report is a sibling of its anchor, and it records
+   the marker in its own `<meta name="artifact-anchor" content="<type>/<filename>">`
+   (the skeleton ships the tag) so the link exists in both directions.
 3. **Is this a read or a CONSULTATION?** A page the reader must answer carries
    obligations a read does not (§ 8). Deciding this after the prose is written means
    retrofitting items and ids onto paragraphs that were not built as claims.
@@ -360,9 +390,11 @@ it never deletes.
 
 `<slug>-report.html` next to a single-file artifact, or inside the folder for folder
 artifacts (`plans/<slug>/<slug>-report.html`). Add a link line back to it from the anchor
-(or its `proof_links`) so the artifact is reachable from the work it documents.
+(or its `proof_links`) so the artifact is reachable from the work it documents — and make
+sure the page's `<meta name="artifact-anchor">` names the anchor, so the link holds in
+both directions and intake question 1 stays a grep.
 
-No anchor at all: `.context/reports/YYYY-MM-DD-<slug>.html`.
+No anchor at all: `.context/reports/YYYY-MM-DD-<slug>.html`, with the meta left empty.
 
 ### 7. Open it locally
 
@@ -476,6 +508,13 @@ A page derived from the template fails this check until someone decides — copy
 deciding.
 
 ### What is checked, and how
+
+**No contract rule ships without a named field incident.** Every check below cites the
+failure that created it, and that is the admission bar, not a writing style: a rule
+whose incident cannot be named is speculative, and each new rule costs five surfaces
+kept in lockstep (checker, kit, skeleton, template, tests) plus a round of retroactive
+drift on every page already on disk. The contract grows when the field breaks something,
+not when a rule sounds prudent.
 
 All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.
 A page counts as a consultation when it offers the reader a **reply surface** — a
