@@ -4,7 +4,9 @@
 # renderer writes its sibling HTML with a GENERATED first line and the expected
 # key values; re-running is idempotent (one GENERATED line, no duplicate
 # sections); a hand-edit is overwritten; an unknown target and a missing source
-# both exit 2 with a plain-text ERROR (never a traceback).
+# both exit 2 with a plain-text ERROR (never a traceback); an EMPTY active set
+# (all plans/backlog items closed and archived, D-10) renders an empty board —
+# only a missing directory is an error.
 #
 # Run with: bash skills/aidex-dash/tests/test-dash-render.sh
 
@@ -16,7 +18,9 @@ failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 WS="$(mktemp -d)"
-trap 'rm -rf "$WS"' EXIT
+WS2="$(mktemp -d)"
+WS3="$(mktemp -d)"
+trap 'rm -rf "$WS" "$WS2" "$WS3"' EXIT
 CTX="$WS/.context"
 
 # --- build the fixture ------------------------------------------------------
@@ -187,5 +191,57 @@ run audit does-not-exist >/dev/null 2>"$WS/err2.txt"; rc=$?
 [[ "$rc" -eq 2 ]] || fail "missing audit source should exit 2 (got $rc)"
 grep -q '^ERROR:' "$WS/err2.txt" || fail "missing source should print ERROR: on stderr"
 
+# --- empty active set renders an empty board, not exit 2 --------------------
+# (was: zero active plans / backlog items — the healthy all-archived end-state
+# after a D-10 close — made the rollups die "no plans found" / "no backlog
+# items found", leaving a stale board that still showed the closed item open)
+mkdir -p "$WS2/.context/plans/_archive" "$WS2/.context/backlog/_archive"
+cat > "$WS2/.context/plans/_archive/2026-01-01-closed.md" <<'EOF'
+---
+title: "Closed plan"
+status: done
+---
+# Closed
+EOF
+cat > "$WS2/.context/backlog/_archive/2026-01-01-bl-001-old.md" <<'EOF'
+---
+title: "Old item"
+id: BL-001
+status: done
+priority: P2
+estimate: S
+---
+# Old
+EOF
+
+run2() { python3 "$RENDER" "$WS2" "$@"; }
+
+run2 plans >/dev/null 2>"$WS2/err.txt"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "plans: empty active set should render, not exit $rc ($(head -1 "$WS2/err.txt"))"
+EPL="$WS2/.context/plans/00-index.html"
+[[ -f "$EPL" ]] || fail "plans: empty board 00-index.html not written"
+if [[ -f "$EPL" ]]; then
+  head -1 "$EPL" | grep -q '^<!-- GENERATED' || fail "plans empty board: first line missing GENERATED"
+  grep -q '<span class="n">0</span><span class="l">open</span>' "$EPL" \
+    || fail "plans empty board: open=0 tile missing"
+  grep -q '<span class="n">1</span><span class="l">archived</span>' "$EPL" \
+    || fail "plans empty board: archived=1 tile missing"
+fi
+
+run2 backlog >/dev/null 2>"$WS2/err2.txt"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "backlog: empty active set should render, not exit $rc ($(head -1 "$WS2/err2.txt"))"
+EBL="$WS2/.context/backlog/00-index.html"
+[[ -f "$EBL" ]] || fail "backlog: empty board 00-index.html not written"
+if [[ -f "$EBL" ]]; then
+  grep -q '<span class="n">1</span><span class="l">archived</span>' "$EBL" \
+    || fail "backlog empty board: archived=1 tile missing"
+fi
+
+# the boundary stays: a MISSING plans dir (unlike an empty one) is still exit 2
+mkdir -p "$WS3/.context"
+python3 "$RENDER" "$WS3" plans >/dev/null 2>"$WS3/err.txt"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "plans: missing plans directory should still exit 2 (got $rc)"
+grep -q '^ERROR:' "$WS3/err.txt" || fail "plans: missing dir should print ERROR: on stderr"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2"
+echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders (missing dir still exit 2)"

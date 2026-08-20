@@ -52,10 +52,11 @@ def render(root):
     if not os.path.isdir(backlog_dir):
         P.die(f"no backlog directory at {backlog_dir}")
 
+    # Zero active items is a legitimate state — everything closed and archived
+    # per D-10 — not a missing source, so no guard here (same decision as
+    # render_plans). Downstream math is already zero-safe (peak guard, empty
+    # table body).
     items = _items(backlog_dir)
-    if not items:
-        P.die(f"no backlog items found under {backlog_dir}")
-
     archived = len(glob.glob(os.path.join(backlog_dir, "_archive", "*.md")))
     active = sum(1 for it in items if it["status"] not in ("done", "dropped"))
     doing = sum(1 for it in items if it["status"] == "doing")

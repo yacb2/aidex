@@ -47,9 +47,10 @@ def _rollup(root, plans_dir):
     for path in sorted(glob.glob(os.path.join(plans_dir, "*", "00-index.md"))):
         plans.append((os.path.basename(os.path.dirname(path)), path))
 
-    if not plans:
-        P.die(f"no plans found under {plans_dir}")
-
+    # Zero active plans is a legitimate state — the all-archived end-state after
+    # a D-10 close — not a missing source, so no guard here: the board renders
+    # with an empty table and the tiles still carry the archived count. Only a
+    # missing plans/ directory (render()) is an error.
     archived = (len(glob.glob(os.path.join(plans_dir, "_archive", "*.md")))
                 + len(glob.glob(os.path.join(plans_dir, "_archive", "*", "00-index.md"))))
 
