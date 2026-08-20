@@ -252,5 +252,37 @@ run "$WS2/no-plans" backlog >/dev/null 2>"$WS2/no-plans/err2.txt"; rc=$?
 [[ "$rc" -eq 2 ]] || fail "backlog: missing backlog directory should still exit 2 (got $rc)"
 grep -q '^ERROR: no backlog directory' "$WS2/no-plans/err2.txt" || fail "backlog: missing dir should print the designed ERROR:"
 
+# --- N files, zero parsed: die loudly, never a healthy zero board -----------
+# (the guard removed in d4cfe74 was also the only detector of total parse
+# failure: _items() dropped unparseable files silently, so a BOM/blank-led
+# corpus rendered exit-0 byte-identical to the legitimate all-archived board)
+BROKEN="$WS2/broken"
+mkdir -p "$BROKEN/.context/backlog"
+printf '\xef\xbb\xbf---\ntitle: "BOM item"\nid: BL-910\nstatus: open\npriority: P1\n---\n# BOM\n' \
+  > "$BROKEN/.context/backlog/2026-01-01-bl-910-bom.md"
+printf '\n---\ntitle: "Blank-led item"\nid: BL-911\nstatus: open\npriority: P1\n---\n# Blank\n' \
+  > "$BROKEN/.context/backlog/2026-01-01-bl-911-blank.md"
+run "$BROKEN" backlog >/dev/null 2>"$BROKEN/err.txt"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "backlog: all-unparseable corpus should exit 2, not render a healthy board (got $rc)"
+grep -q '^ERROR:.*none parsed' "$BROKEN/err.txt" || fail "backlog: total-parse-failure ERROR should say none parsed"
+grep -q 'bl-910-bom.md' "$BROKEN/err.txt" || fail "backlog: total-parse-failure ERROR should name the first offender"
+[[ ! -f "$BROKEN/.context/backlog/00-index.html" ]] || fail "backlog: total parse failure must not write a board"
+
+# partial failure renders, but every skipped file is a NOTE on stderr
+cat > "$BROKEN/.context/backlog/2026-01-02-bl-912-good.md" <<'EOF'
+---
+title: "Good item"
+id: BL-912
+status: open
+priority: P2
+---
+# Good
+EOF
+run "$BROKEN" backlog >/dev/null 2>"$BROKEN/err2.txt"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "backlog: mixed corpus should render (got $rc)"
+n_notes="$(grep -c '^NOTE: skipped (unparseable front matter)' "$BROKEN/err2.txt")"
+[[ "$n_notes" -eq 2 ]] || fail "backlog: expected 2 NOTE lines for the 2 unparseable files (got $n_notes)"
+grep -q 'BL-912' "$BROKEN/.context/backlog/00-index.html" || fail "backlog: parsed item missing from mixed board"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"

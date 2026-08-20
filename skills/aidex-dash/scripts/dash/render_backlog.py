@@ -7,6 +7,7 @@ the `_archive/` bodies — those are counted only) and writes the sibling render
 """
 import glob
 import os
+import sys
 
 import _parse as P
 import _shell as S
@@ -28,12 +29,16 @@ STATUS_TONE = {"doing": "warn", "open": "", "done": "ok", "dropped": "plain",
 
 
 def _items(backlog_dir):
-    items = []
+    items, skipped = [], []
     for path in sorted(glob.glob(os.path.join(backlog_dir, "*.md"))):
         if os.path.basename(path) == "00-index.md":
             continue
         fm = P.front_matter(path)
         if not fm:
+            # An unparseable item must stay visible: dropping it silently is
+            # how a malformed corpus masquerades as the all-archived end-state.
+            skipped.append(path)
+            print(f"NOTE: skipped (unparseable front matter): {path}", file=sys.stderr)
             continue
         items.append({
             "id": fm.get("id", ""),
@@ -44,7 +49,7 @@ def _items(backlog_dir):
             "estimate": fm.get("estimate", ""),
             "origin_ref": fm.get("origin_ref", ""),
         })
-    return items
+    return items, skipped
 
 
 def render(root):
@@ -52,11 +57,17 @@ def render(root):
     if not os.path.isdir(backlog_dir):
         P.die(f"no backlog directory at {backlog_dir}")
 
-    # Zero active items is a legitimate state — everything closed and archived
-    # per D-10 — not a missing source, so no guard here (same decision as
-    # render_plans). Downstream math is already zero-safe (peak guard, empty
-    # table body).
-    items = _items(backlog_dir)
+    # Zero item FILES is a legitimate state — everything closed and archived
+    # per D-10 — and renders as an empty board (same decision as render_plans;
+    # downstream math is zero-safe). N files with zero PARSED is not: that is
+    # a malformed corpus, and rendering it healthy is the lie-by-omission the
+    # 2026-08-20 review confirmed, so it dies before any board is written.
+    items, skipped = _items(backlog_dir)
+    if skipped and not items:
+        P.die(f"{len(skipped)} backlog item file(s) under {backlog_dir} but none parsed "
+              f"— front matter must open with '---' on line 1 (a BOM, leading blank "
+              f"line or merge marker breaks it); first offender: "
+              f"{os.path.basename(skipped[0])}")
     archived = len(glob.glob(os.path.join(backlog_dir, "_archive", "*.md")))
     active = sum(1 for it in items if it["status"] not in ("done", "dropped"))
     doing = sum(1 for it in items if it["status"] == "doing")
