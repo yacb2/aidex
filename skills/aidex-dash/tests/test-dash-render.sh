@@ -400,5 +400,69 @@ cmp -s "$EPL" "$WS2/board-before.html" || fail "plans: failed write corrupted th
 stray="$(find "$WS2/.context/plans" -name '*.tmp' | wc -l | tr -d ' ')"
 [[ "$stray" -eq 0 ]] || fail "plans: failed write left $stray .tmp file(s) behind"
 
+# --- audit: zero data rows is a board, not a structural error ---------------
+# (the old guard 'not headers or not rows' died on sparse data with a
+# factually false message — the exact class d4cfe74 fixed, one renderer over;
+# a D-10 cycle close archives every resolved row off the board legitimately)
+mkdir -p "$WS/.context/audits/emptyaudit"
+cat > "$WS/.context/audits/emptyaudit/00-inventory.md" <<'EOF'
+---
+title: "Audit Inventory"
+status: active
+---
+# Inventory
+
+| ID | Type | Module | Summary | Status | Severity |
+|---|---|---|---|---|---|
+EOF
+run "$WS" audit emptyaudit >/dev/null 2>"$WS/err3.txt"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "audit: zero-row inventory should render, not exit $rc ($(grep '^ERROR:' "$WS/err3.txt" | head -1))"
+EAU="$WS/.context/audits/emptyaudit/00-inventory.html"
+[[ -f "$EAU" ]] && head -1 "$EAU" | grep -q '^<!-- GENERATED' || fail "audit: empty board missing or missing GENERATED"
+grep -q '<span class="n">0</span><span class="l">findings</span>' "$EAU" \
+  || fail "audit: zero-row inventory should show findings=0"
+
+# --- audit: the template sentinel row is not a finding -----------------------
+# (a fresh new-audit.sh scaffold rendered '1 findings / 1 resolved' while
+# validate-audit.sh skips the same '^| —' row and reports 0 — two consumers
+# of one canon disagreeing on a virgin scaffold)
+mkdir -p "$WS/.context/audits/freshaudit"
+cat > "$WS/.context/audits/freshaudit/00-inventory.md" <<'EOF'
+---
+title: "Audit Inventory"
+status: active
+---
+# Inventory
+
+| ID | Type | Module | Summary | Status | Severity |
+|---|---|---|---|---|---|
+| — | — | — | *No findings yet — first sweep pending.* | — | — |
+EOF
+run "$WS" audit freshaudit >/dev/null 2>&1; rc=$?
+[[ "$rc" -eq 0 ]] || fail "audit: sentinel-only scaffold should render (got $rc)"
+FAU="$WS/.context/audits/freshaudit/00-inventory.html"
+grep -q '<span class="n">0</span><span class="l">findings</span>' "$FAU" \
+  || fail "audit: sentinel row counted as a finding"
+grep -q '<span class="n">0</span><span class="l">resolved</span>' "$FAU" \
+  || fail "audit: sentinel row counted as resolved"
+
+# the kept half of the split guard: a renamed required column still dies
+mkdir -p "$WS/.context/audits/renamedaudit"
+cat > "$WS/.context/audits/renamedaudit/00-inventory.md" <<'EOF'
+---
+title: "Audit Inventory"
+status: active
+---
+# Inventory
+
+| Identifier | Type | Module | Summary | Status | Severity |
+|---|---|---|---|---|---|
+| FIND-01 | bug | auth | Something. | open | P1 |
+EOF
+run "$WS" audit renamedaudit >/dev/null 2>"$WS/err4.txt"; rc=$?
+[[ "$rc" -eq 2 ]] || fail "audit: renamed required column should still exit 2 (got $rc)"
+grep -q '^ERROR: no findings table with ID/Status/Severity columns' "$WS/err4.txt" \
+  || fail "audit: renamed-column ERROR message changed"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — four renderers (backlog/plans/audit/coverage), sibling paths, GENERATED header, key values, idempotency, hand-edit overwrite, unknown-target and missing-source exit 2, empty active set renders symmetrically (missing dirs still exit 2)"

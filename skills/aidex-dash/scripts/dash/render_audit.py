@@ -60,11 +60,18 @@ def render(root, methodology):
         P.die(f"no inventory at {inv}")
 
     headers, rows = _findings_table(P.read_text(inv))
-    if not headers or not rows:
+    if not headers:
         # No table carries all of ID / Status / Severity — a renamed or absent
         # required column, not sparse data. Refuse rather than render a
         # structurally valid but wrong board under the GENERATED authority header.
         P.die(f"no findings table with ID/Status/Severity columns in {inv}")
+    # Zero data rows is sparse data, not structure: a D-10 cycle close archives
+    # every resolved row off the board, and that legitimate state renders as an
+    # empty board (same decision as render_plans/render_backlog, 2026-08-20).
+    # The template's placeholder ('| — | … | *No findings yet…* |') is a
+    # sentinel, not a finding — validate-audit.sh skips '^| —' rows, and the
+    # board must agree with the validator on a virgin scaffold.
+    rows = [r for r in rows if r and r[0].strip() != "—"]
 
     i_id = _col(headers, "id")
     i_type = _col(headers, "type")
