@@ -546,8 +546,198 @@ def check_prev(new_path, prev_path):
     return fails
 
 
+# --- census: the contract, re-judged after the fact ---------------------------
+# The contract used to be evaluated exactly once, at the moment of the wrap, and
+# never again. Two holes, both observed: a page that PASSED and then the
+# contract evolved past it the same evening (a field report fails today with
+# rules that landed ten hours after it was written), and a page that never went
+# through the wrapper at all (BL-168), which no check ever saw. An absence
+# claim needs a census.
+#
+# Waivers make the census livable: retroactive drift is EXPECTED, and a sweep
+# whose failures cannot be settled becomes noise nobody reads. The format and
+# semantics are validate.py's (.aidex-waivers, `<rule> | <path> | <anchor> |
+# <reason> [| <date>]`, path project-root-relative, sha256-prefix anchors that
+# resurface the finding when the file changes) with the rule spelled
+# `artifact-<check>`, e.g. `artifact-layout | .context/reports/x.html | - |
+# accepted full-bleed`.
+
+WAIVER_ANCHOR = re.compile(r"^sha256:([0-9a-f]{8,64})$")
+ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def load_waivers(context_dir):
+    """[(rule, path, anchor, reason)] from <context>/.aidex-waivers."""
+    out = []
+    wp = os.path.join(context_dir, ".aidex-waivers")
+    if not os.path.isfile(wp):
+        return out
+    for raw in open(wp, encoding="utf-8", errors="replace").read().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) < 4 or not parts[0] or not parts[1]:
+            continue
+        tail = parts[3:]
+        reason = " | ".join(tail[:-1]) if (len(tail) > 1
+                                           and ISO_DATE.match(tail[-1])) \
+            else " | ".join(tail)
+        out.append((parts[0], parts[1], parts[2] or "-", reason))
+    return out
+
+
+def _anchor_matches(anchor, project_root, relpath):
+    """"-" always matches; a sha256 prefix matches while the file's content
+    still starts with it — any change resurfaces the finding."""
+    if anchor in ("", "-"):
+        return True
+    m = WAIVER_ANCHOR.match(anchor)
+    if not m:
+        return False
+    target = os.path.join(project_root, relpath)
+    if not os.path.isfile(target):
+        return False
+    import hashlib
+    try:
+        digest = hashlib.sha256(open(target, "rb").read()).hexdigest()
+    except OSError:
+        return False
+    return digest.startswith(m.group(1))
+
+
+def split_waived(failures, context_dir, project_root):
+    """(active, n_waived) — a waiver keys on (artifact-<check>, relpath)."""
+    keys = set()
+    for rule, path, anchor, _ in load_waivers(context_dir):
+        if _anchor_matches(anchor, project_root, path):
+            keys.add((rule, path))
+    active, waived = [], 0
+    for check, relpath, msg in failures:
+        if ("artifact-" + check, relpath) in keys:
+            waived += 1
+        else:
+            active.append((check, relpath, msg))
+    return active, waived
+
+
+def _resolve_census_root(arg):
+    """(walk_root, context_dir, project_root). The waiver base is the project
+    root — the same base validate.py prints paths against."""
+    if arg:
+        root = os.path.realpath(arg)
+        if os.path.basename(root) == ".context":
+            return root, root, os.path.dirname(root)
+        if os.path.isdir(os.path.join(root, ".context")):
+            ctx = os.path.join(root, ".context")
+            return ctx, ctx, root
+        return root, root, root
+    # No argument: the project the cwd belongs to, via the shared resolver.
+    import wrap_report                              # lazy — avoids an import cycle
+    ctx = wrap_report.find_context_dir(os.getcwd())
+    if not ctx or not os.path.isdir(ctx):
+        return None, None, None
+    return ctx, ctx, os.path.dirname(ctx)
+
+
+def _skip_part(path):
+    parts = path.split(os.sep)
+    return ".aidex-artifact-prev" in parts or "_archive" in parts
+
+
+def baseline_hygiene(walk_root):
+    """Dead .aidex-artifact-prev content, as note strings with the exact rm to
+    run. Report-only, never deletes: a baseline is dead when its artifact is
+    gone (nothing will ever compare against it) or when the whole set was moved
+    into _archive/ (the artifact is closed, so no wrap runs at that path
+    again). Without this, every report is silently doubled on disk forever —
+    field-observed following archived items into _archive/."""
+    notes = []
+    for dirpath, dirnames, filenames in os.walk(walk_root):
+        for d in list(dirnames):
+            if d != ".aidex-artifact-prev":
+                continue
+            bdir = os.path.join(dirpath, d)
+            if "_archive" in dirpath.split(os.sep):
+                notes.append(f"dead baseline (archived artifact): rm -r "
+                             f"'{bdir}'")
+                dirnames.remove(d)
+                continue
+            entries = os.listdir(bdir)
+            orphans = [e for e in entries
+                       if not os.path.exists(os.path.join(dirpath, e))]
+            for e in orphans:
+                notes.append(f"orphaned baseline (its artifact is gone): rm "
+                             f"'{os.path.join(bdir, e)}'")
+            if not entries:
+                notes.append(f"empty baseline directory: rmdir '{bdir}'")
+    return notes
+
+
+def sweep_directory(dirpath, exclude=(), context_dir=None, project_root=None):
+    """Re-judge the .html files sitting next to a just-written artifact.
+    Returns (active_failures, n_waived) with project-root-relative names.
+    Depth 1 only — the census walks trees, this keeps a wrap honest about the
+    directory it just touched."""
+    if _skip_part(os.path.abspath(dirpath)):
+        return [], 0
+    failures = []
+    # realpath, not abspath: the context dir comes back from the shared
+    # resolver in PHYSICAL form (pwd -P), while the caller's outdir may be the
+    # logical spelling of the same place (/var vs /private/var on macOS) — and
+    # a relpath across the two is ../../ garbage that no waiver key can match.
+    base = os.path.realpath(project_root or dirpath)
+    excluded = {os.path.realpath(x) for x in exclude}
+    for e in sorted(os.listdir(dirpath)):
+        p = os.path.join(dirpath, e)
+        if (not e.endswith(".html") or not os.path.isfile(p)
+                or os.path.realpath(p) in excluded):
+            continue
+        rel = os.path.relpath(os.path.realpath(p), base)
+        failures.extend((c, rel, m) for c, _, m in check_file(p))
+    if context_dir:
+        return split_waived(failures, context_dir, base)
+    return failures, 0
+
+
+def run_census(arg):
+    walk_root, ctx, project_root = _resolve_census_root(arg)
+    if not walk_root or not os.path.isdir(walk_root):
+        print("ERROR: --census found no directory to walk (pass one, or run "
+              "inside a project with a .context/)", file=sys.stderr)
+        return 2
+    failures, n_files = [], 0
+    for dirpath, dirnames, filenames in os.walk(walk_root):
+        dirnames[:] = [d for d in dirnames
+                       if d not in (".aidex-artifact-prev", "_archive")]
+        for e in sorted(filenames):
+            if not e.endswith(".html"):
+                continue
+            p = os.path.join(dirpath, e)
+            n_files += 1
+            rel = os.path.relpath(p, project_root)
+            failures.extend((c, rel, m) for c, _, m in check_file(p))
+    active, waived = split_waived(failures, ctx, project_root)
+    for check, name, msg in active:
+        print(f"  FAIL [{check}] {name}: {msg}")
+    for note in baseline_hygiene(walk_root):
+        print(f"  NOTE [baselines] {note}")
+    if waived:
+        print(f"waived: {waived}")
+    if active:
+        print(f"{len(active)} contract violation(s) across {n_files} file(s). "
+              f"Fix by re-wrapping, or waive a retroactive drift with "
+              f"'artifact-<check> | <path> | - | <reason>' in "
+              f"{os.path.join(ctx, '.aidex-waivers')}")
+        return 1
+    print(f"artifact census OK ({n_files} file(s))")
+    return 0
+
+
 def main(argv):
     prev = None
+    census = False
+    census_arg = None
     files = []
     args = list(argv)
     while args:
@@ -557,8 +747,19 @@ def main(argv):
                 print("ERROR: --prev needs a file", file=sys.stderr)
                 return 2
             prev = args.pop(0)
+        elif a == "--census":
+            census = True
+            if args and not args[0].startswith("--"):
+                census_arg = args.pop(0)
         else:
             files.append(a)
+
+    if census:
+        if files or prev is not None:
+            print("ERROR: --census takes at most a directory, not files or "
+                  "--prev", file=sys.stderr)
+            return 2
+        return run_census(census_arg)
 
     if not files:
         print("ERROR: usage: check-artifact.sh <file.html> [...] "

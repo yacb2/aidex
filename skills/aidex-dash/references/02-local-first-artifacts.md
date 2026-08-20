@@ -329,6 +329,33 @@ real run drops first: across two headless probes of this procedure, five steps l
 2 and the contract check landed 1 of 2. A check that is skipped is indistinguishable from
 a check that passed (BL-126).
 
+**The contract is also re-judged after the fact.** It used to be evaluated exactly once,
+at the wrap, and never again — so a page that passed at 10:31 failed by 20:15 the same day
+when two rules landed that evening, invisibly, and a page that bypassed the wrapper
+entirely (BL-168) was never seen at all. Two mechanisms close that:
+
+- **Every `--out` wrap re-judges the `.html` neighbours of the file it just wrote** and
+  prints a NOTE per drifted page — non-blocking (this wrap's own file passed), but audible
+  exactly where new work happens.
+- **`check-artifact.sh --census [<dir>]`** walks a whole `.context/` (default: the current
+  project's), skipping `_archive/` (closed work) and `.aidex-artifact-prev/` (superseded
+  copies), and exits non-zero on active violations.
+
+Retroactive drift is *expected* — rules evolve past pages already written — so both read
+`.context/.aidex-waivers` (validate.py's format and anchor semantics) with the rule
+spelled `artifact-<check>`:
+
+```
+artifact-layout | .context/reports/x.html | sha256:<prefix> | pre-.tw page, thread closed | 2026-08-20
+```
+
+Anchored waivers resurface when the file changes; waived findings are reported as
+`waived: N`, never dropped. Fix a drifted page by re-wrapping it; waive it when the
+thread is closed and the page is kept as a record. The census also reports **baseline
+hygiene** — orphaned `.aidex-artifact-prev/` copies whose artifact is gone, and baseline
+dirs that followed an artifact into `_archive/` — with the exact `rm` to run. It reports;
+it never deletes.
+
 ### 6. Save it as a sibling of the anchor
 
 `<slug>-report.html` next to a single-file artifact, or inside the folder for folder

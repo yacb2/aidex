@@ -976,6 +976,96 @@ bash "$CHECK" "$TMP/board.html" >/dev/null 2>&1 \
   && ok "a page without the kit stamp is not judged on the kit's table wrapper" \
   || bad "a non-kit page was failed for the kit's table wrapper"
 
+# --- The census: the contract, re-judged after the fact -----------------------
+# The contract was evaluated exactly once, at the wrap, and never again. Two
+# observed holes: a page that passed at 10:31 and failed by 20:15 the same day
+# (the .tw and notes-box rules landed that evening), and a page that never went
+# through the wrapper at all (BL-168). An absence claim needs a census; waivers
+# make it livable, because retroactive drift is EXPECTED and a sweep whose
+# failures cannot be settled becomes noise nobody reads.
+echo "== census =="
+
+CEN="$TMP/census-proj"
+mkdir -p "$CEN/.context/reports/.aidex-artifact-prev" \
+         "$CEN/.context/backlog/_archive/.aidex-artifact-prev"
+# A passing page, a kit page that drifted out of contract (layout only), an
+# archived page (closed work is not re-judged), and a baseline copy (superseded
+# versions are not re-judged either — they were judged at their canonical path).
+bash "$WRAP" --title "G" --out "$CEN/.context/reports/good.html" >/dev/null 2>&1 <<<"$GOOD"
+mk_census_bad() {
+  printf '<!doctype html>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<meta name="artifact-kit" content="1">\n<style>@media (prefers-color-scheme: dark){}</style>\n<h1>Full bleed</h1>\n' > "$1"
+}
+mk_census_bad "$CEN/.context/reports/bad.html"
+printf '<h1>fragment</h1>\n' > "$CEN/.context/backlog/_archive/old.html"
+printf '<h1>fragment</h1>\n' > "$CEN/.context/reports/.aidex-artifact-prev/ghost.html"
+printf '<h1>fragment</h1>\n' > "$CEN/.context/backlog/_archive/.aidex-artifact-prev/dead.html"
+
+out="$(bash "$CHECK" --census "$CEN" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "census: a drifted artifact fails the sweep" \
+                || bad "census exited $rc on a tree with a known-failing page: $out"
+[[ "$out" == *"bad.html"* && "$out" == *"[layout]"* ]] \
+  && ok "census: the drifted page is named with its failing check" \
+  || bad "census did not name the drifted page: $out"
+# Judged means a FAIL line — the hygiene NOTEs below legitimately name these
+# files, so the assertion reads FAIL lines only, never the whole capture.
+grep -E '^  FAIL' <<<"$out" | grep -q 'old.html' \
+  && bad "census re-judged a page under _archive/: $out" \
+  || ok "census: archived pages are closed work, not re-judged"
+grep -E '^  FAIL' <<<"$out" | grep -qE 'ghost.html|dead.html' \
+  && bad "census judged a .aidex-artifact-prev copy: $out" \
+  || ok "census: baseline copies are superseded versions, not re-judged"
+[[ "$out" == *"good.html"* ]] \
+  && bad "census flagged the passing page: $out" \
+  || ok "census: the passing page is not flagged"
+
+# Baseline hygiene: report-only, with the exact rm to run — never deletes.
+[[ "$out" == *"orphaned baseline"* && "$out" == *"ghost.html"* ]] \
+  && ok "census: an orphaned baseline is reported with its rm" \
+  || bad "the orphaned baseline went unreported: $out"
+[[ "$out" == *"dead baseline"* ]] \
+  && ok "census: a baseline under _archive/ is reported as dead" \
+  || bad "the archived baseline went unreported: $out"
+[[ -f "$CEN/.context/reports/.aidex-artifact-prev/ghost.html" \
+   && -f "$CEN/.context/backlog/_archive/.aidex-artifact-prev/dead.html" ]] \
+  && ok "census: hygiene reports, it does not delete" \
+  || bad "the census DELETED baseline files instead of reporting them"
+
+# A waiver settles accepted drift — same store, same format as validate.py,
+# rule spelled artifact-<check>.
+printf 'artifact-layout | .context/reports/bad.html | - | accepted full-bleed, pre-.page page\n' \
+  > "$CEN/.context/.aidex-waivers"
+out="$(bash "$CHECK" --census "$CEN" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "census: waived drift settles the sweep" \
+                || bad "a waived finding still failed the census: $out"
+[[ "$out" == *"waived: 2"* ]] \
+  && ok "census: waived findings are reported, never silently dropped" \
+  || bad "the waived count is missing or wrong: $out"
+
+# An anchored waiver resurfaces when the file changes (here: a wrong anchor).
+printf 'artifact-layout | .context/reports/bad.html | sha256:0000000000 | stale anchor\n' \
+  > "$CEN/.context/.aidex-waivers"
+bash "$CHECK" --census "$CEN" >/dev/null 2>&1 \
+  && bad "a stale-anchored waiver kept suppressing the finding" \
+  || ok "census: a stale anchor resurfaces the finding"
+rm "$CEN/.context/.aidex-waivers"
+
+# --- The wrap re-judges its own directory --------------------------------------
+# NOTE-only: the file just written passed, and a neighbour's drift must not
+# block it — but it must be AUDIBLE where new work happens, or drift stays
+# invisible until someone remembers to run a census by hand.
+err="$(bash "$WRAP" --title "G" --out "$CEN/.context/reports/good.html" 2>&1 >/dev/null <<<"$GOOD")"; rc=$?
+[[ $rc -eq 0 ]] && ok "sweep: a passing wrap is not blocked by a drifted neighbour" \
+                || bad "a neighbour's drift failed this wrap (exit $rc): $err"
+[[ "$err" == *"neighbouring artifact"* && "$err" == *"bad.html"* ]] \
+  && ok "sweep: the drifted neighbour is named at wrap time" \
+  || bad "the wrap stayed silent about a drifted neighbour: $err"
+printf 'artifact-layout | .context/reports/bad.html | - | accepted full-bleed\n' \
+  > "$CEN/.context/.aidex-waivers"
+err="$(bash "$WRAP" --title "G" --out "$CEN/.context/reports/good.html" 2>&1 >/dev/null <<<"$GOOD")"
+[[ "$err" != *"neighbouring artifact"* ]] \
+  && ok "sweep: waived drift stays quiet, so the note cannot become a nag" \
+  || bad "the wrap nagged about drift that is already waived: $err"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

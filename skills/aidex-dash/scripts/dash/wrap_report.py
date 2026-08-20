@@ -413,6 +413,34 @@ def main():
         print(f"NOTE: could not record the contract baseline at {baseline} ({e}); "
               f"the next run will compare against the file on disk instead.",
               file=sys.stderr)
+
+    # The contract is re-judged where new work happens. It used to be evaluated
+    # exactly once, at the wrap, so a rule added later left an existing page
+    # silently out of contract forever — a field report passed at 10:31 and
+    # failed by 20:15 the same day, invisibly. NOTE-only: this wrap's own file
+    # passed, and a neighbour's drift must not block it. Waived drift stays
+    # quiet, so the note cannot decay into a nag; best-effort, because a sweep
+    # crash must never fail a page that just satisfied the contract.
+    try:
+        import check_artifact as ca
+        proot = os.path.dirname(ctx) if ctx else None
+        drifted, _ = ca.sweep_directory(
+            outdir, exclude={os.path.abspath(args.outfile)},
+            context_dir=ctx, project_root=proot)
+        per = {}
+        for check, rel, _msg in drifted:
+            per.setdefault(rel, []).append(check)
+        for rel, checks in sorted(per.items()):
+            print(f"NOTE: neighbouring artifact {rel} no longer passes the "
+                  f"contract ({len(checks)} violation(s): "
+                  f"{', '.join(sorted(set(checks)))}) — the contract evolved "
+                  f"since it was written. Re-wrap it, or record the drift as "
+                  f"'artifact-<check> | {rel} | - | <reason>' in "
+                  f".context/.aidex-waivers", file=sys.stderr)
+        for note in ca.baseline_hygiene(outdir):
+            print(f"NOTE [baselines]: {note}", file=sys.stderr)
+    except Exception as e:                          # noqa: BLE001 — best-effort
+        print(f"NOTE: the neighbour sweep did not run ({e})", file=sys.stderr)
     return 0
 
 
