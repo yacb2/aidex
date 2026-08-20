@@ -465,9 +465,27 @@ The definition is deliberately broader than one element. It used to be the liter
 Every alternative is structural — a tag, an attribute, a DOM call, an id — so a report
 that merely *mentions* textareas in its prose is still a read, not a consultation.
 
+**A read with interactive controls declares them.** The broad gate has one false
+positive: a dashboard whose `<select>` or text input only *filters* what is shown is not
+asking the reader anything, yet it collected the whole battery with no way to comply. The
+exit is a declaration with a reason — the same shape `consult-visual` has, one grep away
+from review:
+
+```html
+<meta name="consult-surfaces" content="none: the select filters rows, nothing to answer">
+```
+
+The exemption is **bounded**, in both directions that matter. It covers only closed
+controls (select, radio, checkbox, short text): a `<textarea>` or `contenteditable`
+element can never be declared away, because free text is what a consultation *is* and
+BL-168's page was exactly hand-rolled textareas. And a page carrying real consultation
+structure — a `data-id` item, the composer button, the item class — keeps the full
+battery whatever the meta says. A placeholder reason (`none: replace this…`, `tbd`)
+exempts nothing, same rule as the visual declaration.
+
 | Check | Fails when |
 |---|---|
-| `consult` | reply boxes without a `data-id` / `data-title`, duplicate ids, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, or no `:root[data-theme="dark"]` rule for `.consult-bar` |
+| `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
 | `consult-ids` | an id kept between two versions now names a different claim |
 
 `consult-ids` needs both versions, so `--out` compares against the last version that
