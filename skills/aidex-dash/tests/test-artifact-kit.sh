@@ -268,5 +268,25 @@ for key in en es; do
     || fail "composer.js has no '$key' entry in its strings table"
 done
 
+# ...and the chrome too, not only the status messages. The composer replaces a
+# button or rail-head label only when it is EXACTLY the skeleton's English
+# default — so the two must stay in lockstep, or retitling the skeleton
+# silently turns the localisation off and every non-English page ships English
+# buttons again (field pages were translating them by hand).
+en_copy="$(sed -nE "s/^[[:space:]]*copy: '([^']*)'.*/\1/p" "$KIT/composer.js" | head -1)"
+en_contents="$(sed -nE "s/^[[:space:]]*contents: '([^']*)'.*/\1/p" "$KIT/composer.js" | head -1)"
+[[ -n "$en_copy" && -n "$en_contents" ]] \
+  || fail "composer.js lost its chrome labels (copy/contents) — the buttons stop being localised"
+grep -qF ">$en_copy<" "$KIT/skeleton.html" \
+  || fail "skeleton.html's copy-button label is not the composer's en.copy ('$en_copy') — the exact-match replacement no-ops and non-English pages keep English buttons"
+grep -qF ">$en_contents<" "$KIT/skeleton.html" \
+  || fail "skeleton.html's rail head is not the composer's en.contents ('$en_contents') — same silent no-op"
+
+# The v4 storage schema (one flat free-text list) must keep restoring: a
+# reader's browser may hold an answer set saved before the typed keying, and
+# dropping the branch would lose it on the very reload that should recover it.
+grep -q "Array.isArray(s.f)" "$KIT/composer.js" \
+  || fail "composer.js lost the v4 flat-schema restore branch — pre-v5 saved answers stop restoring"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the kit builds a page that passes the artifact contract, and stays in lockstep with it"
