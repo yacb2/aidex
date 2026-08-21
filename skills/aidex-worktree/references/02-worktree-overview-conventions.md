@@ -51,7 +51,18 @@ status: doing          # base lifecycle: open | doing | done | dropped
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 version: 1.0.0
+worktree_new:  "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh new <slug> --branch <branch>"
+worktree_up:   "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh up <slug>"
+worktree_down: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh down <slug>"
+worktree_list: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh list --porcelain"
 ```
+
+- The `worktree_*` fields are what executors read (aidex-plan-exec Orient,
+  `detect-project-commands.sh`). The mechanism is shipped and project-agnostic, so the
+  values above are already correct for any project carrying a
+  `.context/worktrees/config.env`. `check-overview.sh` rejects an **empty** one: a field
+  with no command runs nothing, and that is the shape a doc takes when its mechanism was
+  retired and nobody updated the front-matter.
 
 - `status` uses the shared base vocabulary — typically `doing` once bootstrapped
   (there is always more to refine as the project's topology or infra evolves) or
@@ -61,26 +72,41 @@ version: 1.0.0
 
 ## Required body sections
 
-In order: **Topology · Participants & scope · Tier decision · Tier 2 infra strategy ·
-Lifecycle & cleanup · Open questions** — the four-axis structure from
-[03-case-taxonomy.md](03-case-taxonomy.md), bracketed by the raw topology facts and any
-unresolved questions the interview flagged.
+In order: **One path, no tiers · Topology and configuration · Participants & scope ·
+Lifecycle & cleanup · Procedure · Running this worktree · Never run here · Usage log ·
+Open questions**. `check-overview.sh` enforces four of them mechanically — `Procedure`,
+`Running this worktree`, `Never run here`, `Usage log` — and rejects any `## Tier …`
+heading, because there are no tiers.
 
-- **Topology** — the raw facts from `scripts/detect-topology.sh` plus the human
-  summary (single-repo monorepo / split-git services + unversioned wrapper / classic
-  multi-repo / a hybrid actually observed). Never assumed — always detected
-  per-project (see [01-topology-detection.md](01-topology-detection.md)).
-- **Participants & scope** — Axis 2: which directories/repos participate in worktree
-  work at all, and the cross-repo branch-naming convention (if any) that keeps
-  coordinated work together.
-- **Tier decision** — Axis 1: the concrete, project-specific signal distinguishing
-  Tier 0/1/2.
-- **Tier 2 infra strategy** — Axis 3: which strategy applies (clone full, clone
-  partial, share with logical partitioning, or not yet available), only meaningful
-  when Tier 2 is reachable.
-- **Lifecycle & cleanup** — Axis 4: ephemeral vs persistent, the concrete cleanup
-  steps, and the deterministic port/offset allocation rule for N concurrent
-  worktrees.
+- **One path, no tiers** — a worktree is born with its full isolated stack, always;
+  `--no-infra` is the explicit opt-out for a code-only checkout. State the
+  project-specific version: which services, which port band, what "full" means here.
+- **Topology and configuration** — the raw facts from `scripts/detect-topology.sh` plus
+  the human summary (single-repo monorepo / split-git services + unversioned wrapper /
+  classic multi-repo / a hybrid actually observed). Never assumed — always detected
+  per-project (see [01-topology-detection.md](01-topology-detection.md)). Then what
+  `.context/worktrees/config.env` says and, for anything that breaks a family
+  convention, **why** — the value is already in `config.env`, the reason is not.
+- **Participants & scope** — which directories/repos participate in worktree work at
+  all, and the cross-repo branch-naming convention (if any) that keeps coordinated work
+  together. Name anything deliberately **out** of `WT_PARTICIPANTS` and why: a component
+  whose port the slot allocator cannot offset belongs here, and it is the reason for a
+  row in `Never run here`.
+- **Lifecycle & cleanup** — ephemeral vs persistent, what `worktree.sh down` must leave
+  behind and what it must not, and how many worktrees can run at once.
+- **Procedure** — the executable side: exact commands, not prose. Every `*.sh` it names
+  must exist, or the check fails.
+- **Running this worktree** — a table answering *how do I run X here*, generated from the
+  derivation: the start-at-create list is `WT_SERVICES`, and the on-demand services are
+  the profile-gated ones in neither `WT_SERVICES` nor `WT_SERVICES_BY_HOOK`. Ports are
+  read from the slot's `.env`, **never written as literals** — the commands must work
+  unchanged on any slot.
+- **Never run here** — the project-specific forbidden set, which no shipped script can
+  hold: a bare `playwright test` here, an un-offsettable Metro port there. Every row
+  names **the damage**, not just the command — a prohibition without a mechanism is the
+  kind a person overrides at 19:00. Where a mechanism already refuses the command, say
+  so, so the row documents an enforced rule instead of substituting for one.
+- **Usage log** — one distilled line per real run.
 - **Open questions** — anything the interview left unresolved; not a placeholder
   section to skip.
 
@@ -90,14 +116,14 @@ detection + interview answers before the doc is considered scaffolded.
 ## Evergreen vs task-scoped content (prune rule)
 
 This doc is **evergreen** — it records the project's standing procedure, not the state of
-any one run. Task-scoped facts — the branches currently in flight, the tier a specific
-task chose, the analysis of today's work — live in the **triggering artifact** (the plan,
+any one run. Task-scoped facts — the branches currently in flight, the slot a specific
+run used, the analysis of today's work — live in the **triggering artifact** (the plan,
 loop-spec, backlog item, or audit that prompted the run), **never** in the overview. When
 they leak in, the doc drifts and can end up contradicting its own body.
 
-- The **Usage log** holds only the distilled one-liner per run (date · tier · participants
-  · collisions observed) and codified patterns promoted from it — not a task's working
-  notes.
+- The **Usage log** holds only the distilled one-liner per run (date · participants ·
+  slot · collisions observed) and codified patterns promoted from it — not a task's
+  working notes.
 - **Open questions** is not a scratchpad for a run's in-flight doubts. At teardown, the
   run **prunes** the entries it resolved: delete the Open-questions lines the run answered
   (the answer belongs in the section it settled, or in the triggering artifact), leaving
