@@ -134,6 +134,47 @@ SH
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "unlinked: a script outside WT_LINKS is out of scope, got: $out"
 
+# --- 7. a project's OWN kill helper, called with a literal -> FINDING --------
+# `free_port 3424` in work_hours/dev.sh:279,306. The check's first two patterns
+# (`lsof -ti :N`, `--port N`) matched neither, so it reported clean on a call
+# site that does the same kill -9. Matching only the shapes one script happens
+# to use is how a checker misses the defect it was written for.
+p="$(mk_project helper dev.sh)"
+cat > "$p/dev.sh" <<'SH'
+#!/usr/bin/env bash
+start_mobile() {
+    free_port 3424
+}
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "helper: a kill helper called with a literal must be a finding"
+grep -q '3424' <<<"$out" || fail "helper: must name the port, got: $out"
+
+# --- 8. THE EXEMPTION IS SCOPED TO ASSIGNMENTS -> still a FINDING ------------
+# Sourcing the worktree .env sets VARIABLES. It cannot reach a literal that no
+# variable stands in front of. When the exemption covered the whole file,
+# work_hours/dev.sh went clean the moment Task 2.2 added its `.env` line, while
+# `free_port 3424` sat two hundred lines below, unchanged and still lethal.
+p="$(mk_project scoped dev.sh)"
+cat > "$p/dev.sh" <<'SH'
+#!/usr/bin/env bash
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ -f "$PROJECT_ROOT/.env" ] && . "$PROJECT_ROOT/.env"
+FRONTEND_PORT=${FRONTEND_PORT:-3423}
+free_port $FRONTEND_PORT
+free_port 3424
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "scoped: sourcing .env must NOT exempt an inline literal"
+grep -q '3424' <<<"$out" || fail "scoped: must name the un-overridable literal, got: $out"
+# Exactly one finding: the literal on line 6. `free_port $FRONTEND_PORT` on
+# line 5 is parameterized and must stay clean. Assert on the COUNT and the
+# line, not on the text -- the remediation hint names FRONTEND_PORT too, so a
+# grep for it matches the advice rather than a finding.
+[[ "$(grep -c 'inline-literal' <<<"$out")" == "1" ]] \
+  || fail "scoped: expected exactly 1 finding (the literal), got: $out"
+grep -q 'dev.sh:6' <<<"$out" || fail "scoped: the finding must be line 6, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

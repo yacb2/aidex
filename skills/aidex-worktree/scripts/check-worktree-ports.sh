@@ -36,9 +36,15 @@
 #   pinned-assignment   <VAR>=<literal> for a VAR named in WT_PORT_VARS, with no
 #                       ${VAR:-...} form anywhere in the file.
 #   inline-literal      a bare port literal in a kill or bind call site
-#                       (`lsof -ti :3911`, `--port 3911`). This shape has NO
-#                       variable at all, so it is strictly worse: there is
-#                       nothing for an environment to override.
+#                       (`lsof -ti :3911`, `--port 3911`, `free_port 3424`).
+#                       This shape has NO variable at all, so it is strictly
+#                       worse: there is nothing for an environment to override.
+#
+# The third of those patterns was added after the first two MISSED
+# `free_port 3424` in work_hours/dev.sh:279,306 — a project's own kill helper,
+# called with a literal. Matching only the shapes a specific script happens to
+# use is how a checker reports clean on a defect it was written to catch, so the
+# pattern is any identifier containing "port" called with a bare literal.
 #
 # The second shape is here because the first alone MISSES it. An earlier draft
 # of this check reported loom_lab and ns_backoffice clean; both embed the
@@ -93,10 +99,12 @@ scan_project() {
     f="$root/$rel"
     [[ -f "$f" ]] || continue
     head -1 "$f" | grep -q '^#!.*sh' || continue      # shell scripts only
-    sources_slot_env "$f" && continue                  # the slot can win: exempt
 
     # -- shape 1: a pinned assignment to a slot-managed variable --------------
-    for var in $names; do
+    # Exempt when the script sources the worktree .env: the assignment is then
+    # overridden by the slot, which is exactly what every test-e2e.sh does on
+    # purpose. The exemption applies to THIS SHAPE ONLY -- see shape 2.
+    sources_slot_env "$f" || for var in $names; do
       grep -qE "^[[:space:]]*$var=[0-9]{2,5}([[:space:]]|$|#)" "$f" || continue
       # A ${VAR:-...} anywhere means the environment already has a path in.
       grep -qE "\\\$\{$var:-" "$f" && continue
@@ -110,18 +118,25 @@ scan_project() {
     # -- shape 2: a bare literal at a kill or bind call site ------------------
     # No variable exists here at all, so no environment can reach it. Reported
     # separately because the fix is different: a variable must be INTRODUCED.
+    #
+    # NEVER exempted by sources_slot_env, and that distinction is load-bearing.
+    # Sourcing the worktree .env sets VARIABLES; it cannot touch a literal that
+    # no variable stands in front of. Applying the exemption to this shape made
+    # work_hours/dev.sh report clean the moment Task 2.2 added its `.env` line,
+    # while `free_port 3424` sat two hundred lines below, unchanged and still
+    # killing whatever holds dev's Metro port.
     while IFS=: read -r line _; do
       [[ -z "$line" ]] && continue
       # A COMMENT is not a call site. work_hours/dev.sh:255 documents Metro's
       # port in prose (`# \`expo start --port 3424\` in package.json`) and was
       # the check's one false positive before this line existed.
       sed -n "${line}p" "$f" | grep -qE '^[[:space:]]*#' && continue
-      lit="$(sed -n "${line}p" "$f" | grep -oE '(:|--port[= ]|-p )[0-9]{4,5}' | grep -oE '[0-9]{4,5}' | head -1)"
+      lit="$(sed -n "${line}p" "$f" | grep -oE '(:|--port[= ]|-p |[Pp]ort[a-zA-Z_]*[[:space:]]+)[0-9]{4,5}' | grep -oE '[0-9]{4,5}' | head -1)"
       [[ -z "$lit" ]] && continue
       printf '%s:%s\tinline-literal\tport %s is written into the call site itself\t%s\n' \
         "$rel" "$line" "$lit" \
         "there is no variable to override; introduce one (\${FRONTEND_PORT:-$lit}) and use it here"
-    done < <(grep -nE 'lsof[^|]*-ti[^|]*:[0-9]{4,5}|--port[= ][0-9]{4,5}' "$f" | cut -d: -f1 | sort -un | sed 's/$/:/')
+    done < <(grep -nE 'lsof[^|]*-ti[^|]*:[0-9]{4,5}|--port[= ][0-9]{4,5}|[a-zA-Z_]*[Pp]ort[a-zA-Z_]*[[:space:]]+[0-9]{4,5}' "$f" | cut -d: -f1 | sort -un | sed 's/$/:/')
   done
   return 0
 }
