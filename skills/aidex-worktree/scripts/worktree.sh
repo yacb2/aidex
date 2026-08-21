@@ -387,7 +387,11 @@ assert_services_running() {
   for svc in $(decl_names "$WT_SERVICES"); do
     case " $running " in *" $svc "*) ;; *) down="$down $svc" ;; esac
   done
-  allowed=" $(decl_names "$WT_SERVICES")$(decl_names "$WT_SERVICES_BY_HOOK")"
+  # EXCLUDE members belong here too: they are profile-LESS, so `depends_on`
+  # can pull one in implicitly even though nobody named it on the command
+  # line. Without them the check would report an excluded service as
+  # "profile-gated, declared nowhere" and print the wrong line to add.
+  allowed=" $(decl_names "$WT_SERVICES")$(decl_names "$WT_SERVICES_BY_HOOK")$(decl_names "$WT_SERVICES_EXCLUDE")"
   for svc in $running; do
     case "$allowed" in *" $svc "*) ;; *) extra="$extra $svc" ;; esac
   done
