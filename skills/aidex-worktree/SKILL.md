@@ -152,9 +152,23 @@ substitute an eyeball.
   Docker state file, `diff` it later. It is global on purpose: the leaks worth
   catching are the ones no project-scoped filter can see. Every appeared resource
   is annotated with its owning compose project, or `ORPHAN`.
-- [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) — run
-  BEFORE enabling worktrees on a project. A stack whose names do not vary with
-  `COMPOSE_PROJECT_NAME` cannot run twice, and no teardown can fix that later.
+- [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) —
+  **the one command.** Runs every isolation check in order and reports them
+  together; `--census` does it across every project with a `config.env`. Run this
+  BEFORE enabling worktrees on a project, and again whenever the compose file or
+  a linked script changes. Every finding is a blocker, not a warning.
+  It exists because the checks below were individually correct and nobody ran
+  them: the 2026-08-21 audit found seven defects, and every one lived outside the
+  only check that was ever invoked.
+  - [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) —
+    compose addressing. A stack whose names do not vary with
+    `COMPOSE_PROJECT_NAME` cannot run twice, and no teardown can fix that later.
+  - [scripts/check-worktree-ports.sh](scripts/check-worktree-ports.sh) — host
+    ports a linked script can bind, or `kill -9` the holder of. `./dev.sh` in a
+    worktree killed dev's Vite and took its port.
+  - [scripts/check-worktree-runner.sh](scripts/check-worktree-runner.sh) — test
+    harnesses that reach dev's stack when invoked directly instead of through
+    the project's own wrapper. That path DROPs dev's E2E database.
 
 ### No-args status check
 
