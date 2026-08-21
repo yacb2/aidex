@@ -60,7 +60,14 @@
 #   WT_COPIES         "backend/poetry.lock"  same, but COPIED — for files a Docker
 #                                            build context reads (it cannot follow a
 #                                            symlink that escapes the context)
-#   WT_SERVICES       "db backend"           services to start
+#   WT_SERVICES       "db backend"           services to start (must cover every
+#                                            profile-less compose service)
+#   WT_SERVICES_BY_HOOK "backend-test # <what starts it>"
+#                                            profile-gated services that legitimately
+#                                            run here; allowlist for the running check
+#   WT_SERVICES_EXCLUDE "heavy-svc # <reason>"
+#                                            profile-less services deliberately NOT
+#                                            started; the reason is required
 #   WT_PORT_VARS      "DB_PORT=4400 BACKEND_PORT=4500"
 #                                            var=dev-base pairs; slot N adds N*WT_PORT_STRIDE
 #   WT_PORT_STRIDE    100                    per-slot offset
@@ -91,6 +98,7 @@ CONFIG="$ROOT/.context/worktrees/config.env"
 
 # --- defaults, then the project's own values ---
 WT_PARTICIPANTS=""; WT_LINKS=""; WT_COPIES=""; WT_SERVICES=""
+WT_SERVICES_BY_HOOK=""; WT_SERVICES_EXCLUDE=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
 WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""; WT_PRE_DOWN_CMD=""
 # `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
@@ -290,6 +298,122 @@ assert_port_scheme() {
 }
 assert_port_scheme
 
+# --- services parity: the three-class partition -------------------------------
+#
+# `WT_SERVICES` was a static "db backend", with the profile's instruction to
+# override it per project left in prose. Two of the three field projects with an
+# always-on worker never did, and the symptom was silent: a worktree whose queue
+# never drained, for five hours, with every port check passing. A comment can
+# assert anything about the compose file; nothing compared the two.
+#
+# Every compose service lands in exactly one class:
+#   start-at-create  no `profiles:` key       -> MUST be in WT_SERVICES (or EXCLUDE)
+#   start-by-hook    profile-gated, but a project workflow legitimately starts it
+#                    here                     -> declared in WT_SERVICES_BY_HOOK
+#   on-demand        profile-gated, nobody starts it -> in neither
+#
+# The derivation needs NO parser and no second source of truth: `docker compose
+# config --services` WITHOUT a --profile flag returns exactly the profile-less
+# set — compose's own definition of what a bare `up -d` starts. Verified
+# 2026-08-21 against an independent YAML parse of all five field projects: same
+# set, five for five. It is a client-side parse, so it works with Docker closed;
+# do not gate it behind a daemon check.
+#
+# Both declaration lists are "<names...> # <reason>": names before the '#', one
+# reason covering them. The reason is what keeps an escape from becoming the
+# default, so a list without one is itself a refusal.
+decl_names() { printf '%s\n' "${1%%#*}" | tr -s ' \t' '\n' | sed '/^$/d' | tr '\n' ' '; }
+
+assert_services_declared() {
+  local dir="$1" svc at_create declared missing="" list
+  at_create="$( cd "$dir" && docker compose config --services 2>/dev/null )"
+  [[ -n "$at_create" ]] || return 0   # no readable compose file: not our gate
+
+  for list in WT_SERVICES_EXCLUDE WT_SERVICES_BY_HOOK; do
+    [[ -z "${!list}" ]] && continue
+    case "${!list}" in
+      *"#"*) [[ -n "$(printf '%s' "${!list#*#}" | tr -d ' \t')" ]] && continue ;;
+    esac
+    err "$list carries no '# reason': ${!list}"
+    err "Write it as: $list=\"<service> # <why>\". Config: $CONFIG"
+    exit 2
+  done
+
+  declared=" $(decl_names "$WT_SERVICES")$(decl_names "$WT_SERVICES_EXCLUDE")"
+  for svc in $at_create; do
+    case "$declared" in *" $svc "*) ;; *) missing="$missing $svc" ;; esac
+  done
+  [[ -z "$missing" ]] && return 0
+
+  err "services parity: dev starts$missing here, and this worktree would not."
+  err "They carry no 'profiles:' key, so a bare 'docker compose up -d' starts"
+  err "them; WT_SERVICES does not list them. The result is a worktree that looks"
+  err "healthy and diverges silently — no port check can see it."
+  err ""
+  err "Start them too:"
+  err "  WT_SERVICES=\"$(decl_names "$WT_SERVICES" | sed 's/ $//')$missing\""
+  err "or, if one is deliberately not wanted here, say why:"
+  for svc in $missing; do
+    err "  WT_SERVICES_EXCLUDE=\"$svc # <reason it is not needed in a worktree>\""
+  done
+  err ""
+  err "Config: $CONFIG"
+  exit 2
+}
+
+# The running check compares the config against REALITY, which is the half that
+# catches the compose file changing under a config that did not.
+#
+# Two directions, and they are different assertions:
+#   running MUST cover WT_SERVICES ................ a declared service that never
+#     came up is the original symptom itself (a crash loop looks like this)
+#   running MUST NOT exceed WT_SERVICES u BY_HOOK . something profile-gated is up
+#     that nobody declared — e.g. echo_lab's `worker`, whose `ai` profile makes
+#     paid API calls
+#
+# BY_HOOK is an ALLOWLIST, never a requirement. The plan that specified it
+# assumed `WT_POST_CMD` starts `backend-test`; it does not — the profile's
+# `./test-e2e.sh --setup-template` uses `docker compose run --rm backend`
+# throwaways, and `backend-test` is started later by the full E2E run (by
+# test-e2e.sh in echo_lab/work_hours, by Playwright's globalSetup in the other
+# three). Requiring BY_HOOK members to be running would fail every fresh create.
+# Field-checked 2026-08-21 on both live echo_lab worktrees: `ps --services`
+# lists `backend-test` with no --profile flag, so the allowlist has real work.
+assert_services_running() {
+  local dir="$1" svc running allowed down="" extra=""
+  running="$( cd "$dir" && env "${envs[@]}" docker compose ps --services 2>/dev/null | tr '\n' ' ' )"
+  [[ -n "$running" ]] || return 0
+
+  for svc in $(decl_names "$WT_SERVICES"); do
+    case " $running " in *" $svc "*) ;; *) down="$down $svc" ;; esac
+  done
+  allowed=" $(decl_names "$WT_SERVICES")$(decl_names "$WT_SERVICES_BY_HOOK")"
+  for svc in $running; do
+    case "$allowed" in *" $svc "*) ;; *) extra="$extra $svc" ;; esac
+  done
+
+  if [[ -n "$down" ]]; then
+    err "services parity: WT_SERVICES declares$down, but they are not running."
+    err "Running: $running"
+    err "Read 'docker compose logs' in $dir — a crash loop looks exactly like this."
+    exit 2
+  fi
+  [[ -z "$extra" ]] && return 0
+
+  err "services parity: profile-gated service(s)$extra are running here but are"
+  err "declared nowhere. Running what dev does not is as much a divergence as"
+  err "missing what dev does, and an undeclared profile can carry live credentials."
+  err ""
+  err "If a project workflow legitimately starts it here, name what starts it:"
+  for svc in $extra; do
+    err "  WT_SERVICES_BY_HOOK=\"$svc # started by <command>\""
+  done
+  err "Otherwise stop it:  docker compose --profile '*' stop$extra"
+  err ""
+  err "Config: $CONFIG"
+  exit 2
+}
+
 # --- the slot's environment, as a file the worktree carries -------------------
 #
 # Everything this script runs, it runs through `env "${envs[@]}"`. Anything run
@@ -335,6 +459,10 @@ write_wt_env() {
 # to resolve without discarding anything.
 if [[ "$cmd" == "up" ]]; then
   [[ -d "$DEST" ]] || die "no worktree directory at $DEST — use: worktree.sh new $SLUG --branch <b>"
+  # Before the slot claim: a refusal must leave no state behind. The compose
+  # file lives in the worktree (linked), so the derivation reads the same one
+  # the `up` below will.
+  assert_services_declared "$DEST"
   SLOT="${SLOT:-$(cat "$DEST/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$SLUG" || echo '')}"
   [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
 
@@ -355,6 +483,7 @@ if [[ "$cmd" == "up" ]]; then
       sleep 1
     done
   fi
+  assert_services_running "$DEST"
   ok "stack up: $CPROJ (slot $SLOT)"
   port_env "$SLOT" | sed 's/^/  port     /'
   exit 0
@@ -364,6 +493,10 @@ fi
 if [[ "$cmd" == "new" ]]; then
   [[ -n "$BRANCH" ]] || die "new requires --branch"
   [[ -e "$DEST" ]] && die "destination already exists: $DEST"
+  # Before the worktree exists, so the derivation reads the MAIN tree's compose
+  # file — the same one WT_LINKS is about to link in. A refusal here creates
+  # nothing, which is why it comes before the branch resolution below.
+  assert_services_declared "$ROOT"
   [[ "${#REPOS[@]}" -gt 0 ]] || read -r -a REPOS <<< "$WT_PARTICIPANTS"
   [[ "${#REPOS[@]}" -gt 0 ]] || die "no participants: pass --repo or set WT_PARTICIPANTS in $CONFIG"
 
@@ -516,6 +649,11 @@ if [[ "$cmd" == "new" ]]; then
     ( cd "$DEST" && env "${envs[@]}" bash -c "$WT_POST_CMD" ) || rollback "WT_POST_CMD failed"
     ok "post-create done"
   fi
+
+  # Deliberately NOT a rollback: the stack is up and the worktree is usable —
+  # what is wrong is the declaration, and discarding a freshly built tree to
+  # punish a config line would cost more than the finding.
+  assert_services_running "$DEST"
 
   # --- every resource we just made must be attributable, or the teardown we
   #     ship cannot reclaim it. Assert it now, while the author is watching. ---
