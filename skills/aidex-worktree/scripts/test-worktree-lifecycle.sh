@@ -542,6 +542,22 @@ cp "$CONF_BASE" "$CONF"
 echo 'WT_SERVICES_EXCLUDE="extra # busybox filler, nothing depends on it"' >> "$CONF"
 bash "$WT" new p2 --branch feat/p2 >/dev/null 2>&1 \
   || fail "parity(b): WT_SERVICES_EXCLUDE with a reason must allow the create"
+
+# (a2) the SAME refusal, reached through `up` rather than `new`. Not redundant:
+# `up` and `new` are separate call sites, and deleting the one in `up` leaves
+# every other case in this file green — verified by mutation on 2026-08-21.
+# `up` is also the path an EXISTING worktree takes when the compose file gains a
+# service later, which is the drift this check exists to catch.
+slot_before="$(cat "$TMP/wtfix-wt-p2/.wt-slot" 2>/dev/null)"
+cp "$CONF_BASE" "$CONF"          # drop the EXCLUDE line; `extra` is now undeclared
+out="$(bash "$WT" up p2 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(a2): 'up' must refuse a profile-less service that is unlisted"
+grep -q 'extra' <<<"$out" || fail "parity(a2): the refusal must NAME the service, got: $out"
+[[ "$(cat "$TMP/wtfix-wt-p2/.wt-slot" 2>/dev/null)" == "$slot_before" ]] \
+  || fail "parity(a2): a refusal must come BEFORE the slot re-claim, not after"
+
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_EXCLUDE="extra # busybox filler, nothing depends on it"' >> "$CONF"
 bash "$WT" down p2 >/dev/null 2>&1 || fail "parity(b): teardown failed"
 
 # (b2) ...and WITHOUT a reason it is itself a refusal. An escape nobody has to
