@@ -501,6 +501,89 @@ bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
   || { fail "straydir/keepdir: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
 [[ "$(claims)" == "0" ]] || fail "straydir/keepdir: slot claim not released"
 
+# --- 5. services parity: the set is DERIVED from compose, not declared -------
+#
+# The defect this pins: `WT_SERVICES` was a static "db backend" and the
+# instruction to override it per project lived in prose. Two of the three field
+# projects with an always-on worker never did, and the symptom was silent — a
+# worktree whose queue never drained, with every port check passing.
+#
+# Four cases, and (c) is the one that would otherwise have shipped a WRONG
+# blocker: a naive "must equal the profile-less set" rule flags a healthy
+# worktree, because a profile-gated service can legitimately be up here.
+COMPOSE_BASE="$TMP/compose.base.yml"
+cp "$WS/docker-compose.yml" "$COMPOSE_BASE"
+cp "$CONF_BASE" "$CONF"
+
+write_compose_with_extra() {  # write_compose_with_extra [profiles-line]
+  { sed '/^volumes:/,$d' "$COMPOSE_BASE"
+    echo '  extra:'
+    echo '    image: busybox:latest'
+    echo '    container_name: wtfix-extra${WT_SUFFIX:-}'
+    echo '    command: sh -c "while true; do sleep 3600; done"'
+    [[ -n "${1:-}" ]] && printf '    profiles: [%s]\n' "$1"
+    echo 'volumes:'
+    echo '  appdata:'
+  } > "$WS/docker-compose.yml"
+}
+
+# (a) a profile-less service the config does not list -> refuse, create NOTHING.
+write_compose_with_extra ""
+out="$(bash "$WT" new p1 --branch feat/p1 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(a): a profile-less service missing from WT_SERVICES must refuse"
+grep -q 'extra' <<<"$out" || fail "parity(a): the refusal must NAME the service, got: $out"
+grep -q 'WT_SERVICES="app extra"' <<<"$out" \
+  || fail "parity(a): the refusal must print the exact line to add, got: $out"
+[[ -e "$TMP/wtfix-wt-p1" ]] && fail "parity(a): a refusal must create nothing"
+[[ "$(claims)" == "0" ]] || fail "parity(a): a refusal must claim no slot"
+
+# (b) the same service excluded WITH a reason -> the escape works.
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_EXCLUDE="extra # busybox filler, nothing depends on it"' >> "$CONF"
+bash "$WT" new p2 --branch feat/p2 >/dev/null 2>&1 \
+  || fail "parity(b): WT_SERVICES_EXCLUDE with a reason must allow the create"
+bash "$WT" down p2 >/dev/null 2>&1 || fail "parity(b): teardown failed"
+
+# (b2) ...and WITHOUT a reason it is itself a refusal. An escape nobody has to
+# justify becomes the default, which is how the original prose failed.
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_EXCLUDE="extra"' >> "$CONF"
+out="$(bash "$WT" new p3 --branch feat/p3 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(b2): WT_SERVICES_EXCLUDE with no '# reason' must refuse"
+grep -qi 'reason' <<<"$out" || fail "parity(b2): the refusal must say a reason is required, got: $out"
+
+# (c) THE CASE THAT WOULD HAVE SHIPPED A WRONG BLOCKER.
+# `extra` is profile-gated and RUNNING, declared only in WT_SERVICES_BY_HOOK and
+# deliberately NOT in WT_SERVICES. A healthy worktree looks exactly like this —
+# in the field it is `backend-test`, started by the E2E run. Parity must PASS.
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_BY_HOOK="extra # started by the E2E run, not by WT_SERVICES"' >> "$CONF"
+write_compose_with_extra "e2e"
+bash "$WT" new p4 --branch feat/p4 >/dev/null 2>&1 \
+  || fail "parity(c): a BY_HOOK service must not be required in WT_SERVICES"
+( cd "$TMP/wtfix-wt-p4" && docker compose --profile e2e up -d extra ) >/dev/null 2>&1 \
+  || fail "parity(c): could not start the profile-gated service"
+out="$(bash "$WT" up p4 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "parity(c): a RUNNING BY_HOOK service must not fail the running check, got: $out"
+
+# (d) the same service running, declared NOWHERE -> the running check fires.
+# Without this, WT_SERVICES_BY_HOOK is unfalsifiable: deleting the key would
+# break no test. In the field this is echo_lab's `worker`, whose `ai` profile
+# makes paid API calls if someone leaves it up.
+cp "$CONF_BASE" "$CONF"
+out="$(bash "$WT" up p4 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(d): an undeclared profile-gated service running here must fail"
+grep -q 'extra' <<<"$out" || fail "parity(d): the failure must NAME the service, got: $out"
+grep -q 'WT_SERVICES_BY_HOOK' <<<"$out" \
+  || fail "parity(d): the failure must print the line that declares it, got: $out"
+
+bash "$WT" down p4 >/dev/null 2>&1 || fail "parity: teardown of p4 failed"
+cp "$COMPOSE_BASE" "$WS/docker-compose.yml"
+cp "$CONF_BASE" "$CONF"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "parity: RESIDUE after the parity cases"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+[[ "$(claims)" == "0" ]] || fail "parity: slot claim not released"
+
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
 cat >> "$WS/.context/worktrees/config.env" <<'ENV'
@@ -519,4 +602,4 @@ if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — worktree lifecycle: repeatable cycle, 4 concurrent creates on distinct slots, zero residue, complete rollback"
+echo "OK — worktree lifecycle: repeatable cycle, 4 concurrent creates on distinct slots, services parity derived + refused, zero residue, complete rollback"
