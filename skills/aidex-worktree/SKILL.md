@@ -208,8 +208,11 @@ bash "${CLAUDE_SKILL_DIR}/scripts/check-overview.sh"
 ```
 
 It verifies the machine-consumed surface is intact: the `worktree_up`/`worktree_down`
-front-matter fields are present, the `## Procedure` and `## Usage log` sections exist, and
-every `backlog/...` path the doc references resolves (active / `_archive/` / `_deferred/`).
+front-matter fields are present **and non-empty**, the `## Procedure`, `## Usage log`,
+`## Running this worktree` and `## Never run here` sections exist, no `## Tier …` section
+documents the retired tier mechanism, every script `## Procedure` names actually exists,
+and every `backlog/...` path the doc references resolves (active / `_archive/` /
+`_deferred/`).
 A non-zero exit lists the gaps. **Amend them in-session** via the existing scripts and
 edits — fill the missing sections/fields from the recorded decisions, and re-register or
 correct a dangling backlog ref (`aidex-backlog`) — rather than passively recommending a
