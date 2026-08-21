@@ -175,6 +175,45 @@ grep -q '3424' <<<"$out" || fail "scoped: must name the un-overridable literal, 
   || fail "scoped: expected exactly 1 finding (the literal), got: $out"
 grep -q 'dev.sh:6' <<<"$out" || fail "scoped: the finding must be line 6, got: $out"
 
+# --- 9. the GUARDED ONE-LINER sourcing form is also an exemption -------------
+# Code review, 2026-08-21: `sources_slot_env` was anchored to the start of a line
+# and to three specific variable names, so
+# `[ -f "$PROJECT_ROOT/.env" ] && . "$PROJECT_ROOT/.env"` -- the common shape --
+# was NOT matched, and a script using it got two pinned-assignment findings even
+# though the slot's values win. A false positive in a BLOCKING check.
+#
+# Fixture 5 already used this one-liner but was clean for an unrelated reason
+# (it also used ${VAR:-...}), so it could not catch this. Here the assignments
+# are BARE, so the exemption is the only thing that can make it clean.
+p="$(mk_project oneliner test-e2e.sh)"
+cat > "$p/test-e2e.sh" <<'SH'
+#!/usr/bin/env bash
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DB_PORT=5700
+BACKEND_PORT=8700
+[ -f "$PROJECT_ROOT/.env" ] && . "$PROJECT_ROOT/.env"
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "oneliner: the guarded one-liner sourcing form must exempt, got: $out"
+
+# ...including a root variable this check does not know by name.
+p="$(mk_project othervar test-e2e.sh)"
+cat > "$p/test-e2e.sh" <<'SH'
+#!/usr/bin/env bash
+DB_PORT=5700
+BACKEND_PORT=8700
+. "$(dirname "$0")/.env"
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "othervar: sourcing via \$(dirname \$0) must exempt, got: $out"
+
+# --- 10. a census that examined NOTHING is not a pass -----------------------
+# The glob was hardcoded to ~/Documents/projects, so on any other layout the loop
+# body never ran, rc stayed 0, and the gate printed green having checked nothing.
+out="$(AIDEX_PROJECTS_DIR=/tmp/aidex-no-such-dir bash "$CHECK" --census 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "census: examining 0 projects must NOT report clean, got: $out"
+grep -qi '0 projects' <<<"$out" || fail "census: must say it examined nothing, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

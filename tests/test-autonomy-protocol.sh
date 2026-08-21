@@ -25,6 +25,9 @@ trap 'rm -f "$PLAN_EXEC_ALL"' EXIT
 cat "$PLAN_EXEC" "$REPO_ROOT"/skills/aidex-plan-exec/references/*.md > "$PLAN_EXEC_ALL" 2>/dev/null
 LOOP="$REPO_ROOT/skills/aidex-loop/SKILL.md"
 AUDIT="$REPO_ROOT/skills/aidex-audit/SKILL.md"
+RULE="$REPO_ROOT/rules/autonomy.md"
+CANON="$REPO_ROOT/skills/aidex-conventions/references/autonomy-conventions.md"
+WORKTREE="$REPO_ROOT/skills/aidex-worktree/SKILL.md"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -90,5 +93,45 @@ grep -q "prior phase's review evidence" "$PLAN_EXEC" \
 grep -q 'missing' "$PLAN_EXEC" \
   || fail "(h) plan-exec: no handling for a missing review entry"
 
+# ---------- (i) the merge clause exists on BOTH surfaces ----------
+# A worktree branch was merged into main unasked on 2026-08-15. Not a violation --
+# a hole: class 4 read as "safe + additive", `git commit` was listed as ungated, and
+# nothing distinguished a local merge from one. The only anti-merge sentence in the
+# suite was a comment inside worktree.sh, invisible from the plan-exec session doing
+# the merging.
+#
+# Asserted on the ALWAYS-ON rule file first, because that is the surface the session
+# that breaks this actually loads. A clause that lived only in the canon reference
+# would reproduce the original failure exactly.
+# These are hard-wrapped prose files with markdown emphasis, so an exact phrase is
+# routinely split across a newline or interrupted by `*`. Normalize before grepping --
+# assert the WORDS, not the typesetting. Matching raw text here would make the test
+# fail on a reflow, and the usual repair for that is to weaken the assertion.
+flat() { tr '\n' ' ' < "$1" | tr -d '*`' | tr -s ' '; }
+
+for _f in "$RULE" "$CANON"; do
+  _n="$(basename "$(dirname "$_f")")/$(basename "$_f")"
+  _t="$(flat "$_f")"
+  grep -qi 'Integrating a branch is not a commit' <<<"$_t" \
+    || fail "(i) $_n: no merge clause"
+  grep -qi 'class 2' <<<"$_t" \
+    || fail "(i) $_n: merge clause does not classify the action (must be class 2)"
+  # Direction is the whole safety of the clause: a session updating a feature branch
+  # from main merges INTO the branch many times a day, and a clause that caught that
+  # would be worse than the silence it replaces.
+  grep -qi 'trunk into a feature branch' <<<"$_t" \
+    || fail "(i) $_n: merge clause does not state the ungated direction (trunk -> branch)"
+done
+
+# ---------- (j) the two skills POINT at the clause, and do not restate it ----------
+# One owner per rule. A pointer keeps the rule single-sourced; a copy drifts.
+grep -qi 'Integrating a branch is not a commit' <<<"$(flat "$PLAN_EXEC_ALL")" \
+  || fail "(j) plan-exec: close-out does not point at the merge clause"
+_wt="$(flat "$WORKTREE")"
+grep -qi 'autonomy.md' <<<"$_wt" \
+  || fail "(j) aidex-worktree: SKILL.md does not point at the autonomy rule"
+grep -qi 'Integrating a branch is not a commit' <<<"$_wt" \
+  || fail "(j) aidex-worktree: SKILL.md does not name the merge clause"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate"
+echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate; the merge clause is on both surfaces with its direction, and both skills point at it"
