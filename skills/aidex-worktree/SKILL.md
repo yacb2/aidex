@@ -89,6 +89,15 @@ Dispatch by first argument:
 | `/aidex-worktree list` | Every worktree of this project: slot, branch, stack state |
 | `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback (BL-136) |
 
+**Tearing a worktree down is not integrating its branch.** `down` never merges, and
+that is deliberate — but the rule belongs where a session that is not running this
+skill can see it, which is `rules/autonomy.md` § *Integrating a branch is not a
+commit* (class 2: pre-authorizable up front, never assumed mid-run; rationale in
+`../aidex-conventions/references/autonomy-conventions.md`). A worktree branch merged
+into `main` unasked on 2026-08-15 precisely because the only statement of this rule
+was a comment inside `worktree.sh`, invisible from the plan-exec session doing the
+merging. Leave the branch ready to merge; say so; do not merge it.
+
 `new` / `down` / `list` are thin wrappers over
 [scripts/worktree.sh](scripts/worktree.sh) — run it directly, do not reimplement
 its steps. It handles slot reservation, participant worktrees, wrapper symlinks,

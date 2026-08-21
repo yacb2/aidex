@@ -68,6 +68,8 @@
 #   WT_SERVICES_EXCLUDE "heavy-svc # <reason>"
 #                                            profile-less services deliberately NOT
 #                                            started; the reason is required
+#   WT_ENV_RENDER     "frontend/.env.local"  host env files rendered per slot from
+#                                            .context/worktrees/env-templates/<path>.tmpl
 #   WT_PORT_VARS      "DB_PORT=4400 BACKEND_PORT=4500"
 #                                            var=dev-base pairs; slot N adds N*WT_PORT_STRIDE
 #   WT_PORT_STRIDE    100                    per-slot offset
@@ -98,7 +100,7 @@ CONFIG="$ROOT/.context/worktrees/config.env"
 
 # --- defaults, then the project's own values ---
 WT_PARTICIPANTS=""; WT_LINKS=""; WT_COPIES=""; WT_SERVICES=""
-WT_SERVICES_BY_HOOK=""; WT_SERVICES_EXCLUDE=""
+WT_SERVICES_BY_HOOK=""; WT_SERVICES_EXCLUDE=""; WT_ENV_RENDER=""
 WT_PORT_VARS=""; WT_PORT_STRIDE=100; WT_MAX_SLOTS=9
 WT_SUFFIX_VAR="WT_SUFFIX"; WT_SEED_CMD=""; WT_READY_CMD=""; WT_POST_CMD=""; WT_PRE_DOWN_CMD=""
 # `set -a` so everything the project defines here is EXPORTED. WT_READY_CMD and
@@ -326,9 +328,10 @@ decl_names() { printf '%s\n' "${1%%#*}" | tr -s ' \t' '\n' | sed '/^$/d' | tr '\
 
 assert_services_declared() {
   local dir="$1" svc at_create declared missing="" list
-  at_create="$( cd "$dir" && docker compose config --services 2>/dev/null )"
-  [[ -n "$at_create" ]] || return 0   # no readable compose file: not our gate
-
+  # The reason gate is checked FIRST, and unconditionally: it reads only the
+  # config, so an unreadable compose file must not disable it. Ordering these the
+  # other way round silently restored the free escape hatch on exactly the
+  # projects whose compose the derivation could not read.
   for list in WT_SERVICES_EXCLUDE WT_SERVICES_BY_HOOK; do
     [[ -z "${!list}" ]] && continue
     case "${!list}" in
@@ -336,8 +339,15 @@ assert_services_declared() {
     esac
     err "$list carries no '# reason': ${!list}"
     err "Write it as: $list=\"<service> # <why>\". Config: $CONFIG"
-    exit 2
+    return 1
   done
+
+  at_create="$( cd "$dir" && docker compose config --services 2>/dev/null )"
+  # Fails OPEN, deliberately and narrowly: an unreadable compose file is the
+  # `docker compose up` below failing anyway, with a better message than this
+  # check could produce. It must never be the reason a reason-less escape passes,
+  # which is why the loop above already ran.
+  [[ -n "$at_create" ]] || return 0
 
   declared=" $(decl_names "$WT_SERVICES")$(decl_names "$WT_SERVICES_EXCLUDE")"
   for svc in $at_create; do
@@ -358,7 +368,7 @@ assert_services_declared() {
   done
   err ""
   err "Config: $CONFIG"
-  exit 2
+  return 1
 }
 
 # The running check compares the config against REALITY, which is the half that
@@ -382,7 +392,17 @@ assert_services_declared() {
 assert_services_running() {
   local dir="$1" svc running allowed down="" extra=""
   running="$( cd "$dir" && env "${envs[@]}" docker compose ps --services 2>/dev/null | tr '\n' ' ' )"
-  [[ -n "$running" ]] || return 0
+  # An EMPTY set is not "nothing to check" -- it is every declared service being
+  # down at once, which is the loudest form of the very defect this function is
+  # for (a stack that crash-looped out, or a daemon that went away). Returning 0
+  # here made the check blind precisely where it mattered most, and `up` has no
+  # readiness failure path, so it would have printed "stack up" and exited 0.
+  if [[ -z "$running" ]]; then
+    [[ -z "$(decl_names "$WT_SERVICES")" ]] && return 0
+    err "services parity: NOTHING is running in $dir, but WT_SERVICES declares $(decl_names "$WT_SERVICES")."
+    err "The stack is down or every container exited. Read 'docker compose logs' there."
+    return 1
+  fi
 
   for svc in $(decl_names "$WT_SERVICES"); do
     case " $running " in *" $svc "*) ;; *) down="$down $svc" ;; esac
@@ -415,7 +435,7 @@ assert_services_running() {
   err "Otherwise stop it:  docker compose --profile '*' stop$extra"
   err ""
   err "Config: $CONFIG"
-  exit 2
+  return 1
 }
 
 # --- the slot's environment, as a file the worktree carries -------------------
@@ -454,6 +474,107 @@ write_wt_env() {
   } > "$f"
 }
 
+# --- slot-dependent host env files: rendered, never linked or copied ----------
+#
+# `write_wt_env` above generates the worktree root `.env` -- everything Compose
+# needs, and nothing else. The HOST half of the stack reads its own env file
+# (`frontend/.env.local`), and no mechanism produced it. Neither list can supply
+# one: WT_LINKS gives a symlink to the main tree's file and WT_COPIES a copy of
+# it, and both carry the MAIN TREE's ports. The values are slot-dependent, which
+# is exactly why they ended up hand-written.
+#
+# The cost of hand-writing, field-observed 2026-08-21: the two live echo_lab
+# worktrees held two DIFFERENT files. One documented that VITE_API_URL must be
+# absolute and name this slot's backend port -- a relative URL makes the Vite dev
+# server answer `/auth/login/` with index.html, so login silently never happens
+# -- and that Vite does not load .env.local into process.env. The other carried
+# the same values with none of the warnings. A future worktree inherits whichever
+# its author happens to copy.
+#
+# So: one template per destination, rendered with the slot environment. The
+# knowledge lives in the template, where every worktree gets it.
+#
+# Templates use `${VAR}` and ONLY `${VAR}`. The bare `$VAR` form is deliberately
+# unsupported: it cannot be substituted safely without word-boundary handling,
+# and `$FRONTEND_PORT` is a prefix of nothing today but would be tomorrow.
+
+# The COMPLETE set of variables a template may reference. Declared explicitly
+# rather than inherited from the ambient environment on purpose: a template that
+# silently picked up a variable from the invoking shell would render differently
+# for two people on the same slot, which is the class of bug this replaces.
+slot_env_pairs() {  # slot_env_pairs <slot> -> VAR=VALUE per line
+  port_env "$1"
+  printf 'COMPOSE_PROJECT_NAME=%s\n' "$CPROJ"
+  printf '%s=-%s\n' "$WT_SUFFIX_VAR" "$SLUG"
+  printf 'WT_SLUG=%s\n' "$SLUG"
+  printf 'WT_SLOT=%s\n' "$1"
+}
+
+render_env_files() {  # render_env_files <worktree-dir> <slot>
+  [[ -n "${WT_ENV_RENDER:-}" ]] || return 0
+  local dir="$1" slot="$2" rel tmpl dest part inner pairs names refs missing v val script
+
+  pairs="$(slot_env_pairs "$slot")"
+  names=" $(printf '%s\n' "$pairs" | cut -d= -f1 | tr '\n' ' ')"
+
+  for rel in $WT_ENV_RENDER; do
+    tmpl="$ROOT/.context/worktrees/env-templates/$rel.tmpl"
+    dest="$dir/$rel"
+
+    [[ -f "$tmpl" ]] || { err "WT_ENV_RENDER lists '$rel' but its template is missing: $tmpl"; return 1; }
+
+    # A destination that is ALSO linked or copied gets two writers, and the last
+    # one wins silently. Refuse rather than pick one.
+    case " $WT_LINKS $WT_COPIES " in
+      *" $rel "*) err "WT_ENV_RENDER and WT_LINKS/WT_COPIES both claim '$rel' -- remove it from one. Config: $CONFIG"; return 1 ;;
+    esac
+
+    # A rendered file MUST be gitignored. `git worktree remove` refuses a tree
+    # holding untracked non-ignored files, so rendering into a tracked path
+    # builds a worktree that can be created and then never torn down -- a failure
+    # that surfaces at teardown, long after its cause.
+    part="${rel%%/*}"; inner="${rel#*/}"
+    if [[ "$part" != "$rel" && -e "$ROOT/$part/.git" ]]; then
+      if ! git -C "$ROOT/$part" check-ignore -q "$inner" 2>/dev/null; then
+        err "WT_ENV_RENDER destination '$rel' is NOT gitignored in the '$part' repo."
+        err "git worktree remove refuses a tree with untracked non-ignored files, so"
+        err "this worktree could be created and then never torn down. Add it to"
+        err "$part/.gitignore, or render somewhere already ignored. Config: $CONFIG"
+        return 1
+      fi
+    fi
+
+    # Every ${VAR} the template names must exist in the slot environment. A hole
+    # rendered as an empty string is worse than a failed create: the file looks
+    # right and the app fails somewhere else entirely.
+    refs="$(grep -oE '\$\{[A-Za-z_][A-Za-z0-9_]*\}' "$tmpl" 2>/dev/null | tr -d '${}' | sort -u)"
+    missing=""
+    for v in $refs; do
+      case "$names" in *" $v "*) ;; *) missing="$missing $v" ;; esac
+    done
+    if [[ -n "$missing" ]]; then
+      err "template $rel.tmpl references variable(s)$missing that the slot environment does not define."
+      err "Available: $(printf '%s' "$names" | sed 's/^ //;s/ $//')"
+      err "An undefined variable renders as an empty string and fails somewhere else."
+      return 1
+    fi
+
+    mkdir -p "$(dirname "$dest")"
+    if [[ -e "$dest" || -L "$dest" ]] && ! head -1 "$dest" 2>/dev/null | grep -qF -- "$WT_ENV_MARKER"; then
+      { err "$dest exists and was not written by worktree.sh -- refusing to overwrite it"; return 1; }
+    fi
+
+    script=""
+    while IFS='=' read -r v val; do
+      [[ -z "$v" ]] && continue
+      script="${script}s|\\\${${v}}|${val}|g;"
+    done <<< "$pairs"
+
+    { echo "$WT_ENV_MARKER"; sed "$script" "$tmpl"; } > "$dest"
+    ok "rendered $rel (slot $slot)"
+  done
+}
+
 # ---------------------------------------------------------------- up
 #
 # A worktree whose stack is down used to have no way back: `new` refuses an
@@ -466,7 +587,7 @@ if [[ "$cmd" == "up" ]]; then
   # Before the slot claim: a refusal must leave no state behind. The compose
   # file lives in the worktree (linked), so the derivation reads the same one
   # the `up` below will.
-  assert_services_declared "$DEST"
+  assert_services_declared "$DEST" || exit 2
   SLOT="${SLOT:-$(cat "$DEST/.wt-slot" 2>/dev/null || CLAIMED_SLOT "$SLUG" || echo '')}"
   [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
 
@@ -477,6 +598,7 @@ if [[ "$cmd" == "up" ]]; then
   printf '%s %s\n' "$$" "$SLUG" > "$SLOTDIR/slot-$SLOT"
   echo "$SLOT" > "$DEST/.wt-slot"
   write_wt_env "$DEST" "$SLOT"
+  render_env_files "$DEST" "$SLOT" || exit 2
 
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
@@ -487,7 +609,7 @@ if [[ "$cmd" == "up" ]]; then
       sleep 1
     done
   fi
-  assert_services_running "$DEST"
+  assert_services_running "$DEST" || exit 2
   ok "stack up: $CPROJ (slot $SLOT)"
   port_env "$SLOT" | sed 's/^/  port     /'
   exit 0
@@ -500,7 +622,13 @@ if [[ "$cmd" == "new" ]]; then
   # Before the worktree exists, so the derivation reads the MAIN tree's compose
   # file — the same one WT_LINKS is about to link in. A refusal here creates
   # nothing, which is why it comes before the branch resolution below.
-  assert_services_declared "$ROOT"
+  # Fast-fail courtesy check against the MAIN tree, so the common case refuses
+  # before anything is created. It is not authoritative: the worktree checks out
+  # $BRANCH, whose docker-compose.yml may declare a different service set. The
+  # authoritative check runs against $DEST after checkout, below.
+  # Skipped under --no-infra, which starts no stack at all -- refusing there
+  # complains about services it would never have started.
+  $NO_INFRA || assert_services_declared "$ROOT" || exit 2
   [[ "${#REPOS[@]}" -gt 0 ]] || read -r -a REPOS <<< "$WT_PARTICIPANTS"
   [[ "${#REPOS[@]}" -gt 0 ]] || die "no participants: pass --repo or set WT_PARTICIPANTS in $CONFIG"
 
@@ -622,10 +750,18 @@ if [[ "$cmd" == "new" ]]; then
 
   echo "$SLOT" > "$DEST/.wt-slot"
   write_wt_env "$DEST" "$SLOT"
+  render_env_files "$DEST" "$SLOT" || rollback "WT_ENV_RENDER failed"
 
   # --- the isolated stack ---
   envs=(COMPOSE_PROJECT_NAME="$CPROJ" "$WT_SUFFIX_VAR=-$SLUG")
   while IFS= read -r line; do [[ -n "$line" ]] && envs+=("$line"); done < <(port_env "$SLOT")
+
+  # Authoritative parity check: this reads the BRANCH's compose file, which is
+  # the one the `up` below actually uses. A branch that adds a profile-less
+  # service passes the $ROOT check and would otherwise surface later as
+  # "profile-gated, declared nowhere" -- the wrong class, with a
+  # WT_SERVICES_BY_HOOK line that would permanently hide a real parity gap.
+  assert_services_declared "$DEST" || rollback "services parity (branch compose)"
 
   ( cd "$DEST" && env "${envs[@]}" docker compose up -d ${WT_SERVICES:-} ) || rollback "stack failed to start"
   ok "stack up: project $CPROJ"
@@ -656,8 +792,10 @@ if [[ "$cmd" == "new" ]]; then
 
   # Deliberately NOT a rollback: the stack is up and the worktree is usable —
   # what is wrong is the declaration, and discarding a freshly built tree to
-  # punish a config line would cost more than the finding.
-  assert_services_running "$DEST"
+  # punish a config line would cost more than the finding. Held until AFTER the
+  # handle is printed, and reported with its own exit code — see below.
+  parity_rc=0
+  assert_services_running "$DEST" || parity_rc=3
 
   # --- every resource we just made must be attributable, or the teardown we
   #     ship cannot reclaim it. Assert it now, while the author is watching. ---
@@ -677,7 +815,14 @@ worktree ready
 $(port_env "$SLOT" | sed 's/^/  port     /')
   teardown worktree.sh down $SLUG
 EOF
-  exit 0
+  # Exit 3, NOT 2, and only after the handle above is printed. The worktree
+  # EXISTS and its stack is up; what failed is the declaration. Exiting 2 here —
+  # the code the "created nothing" refusals use — told a caller to retry `new`,
+  # which then died on "destination already exists", stranding a running stack
+  # and a claimed slot whose directory the caller had never been shown.
+  #   2 = refused, nothing was created
+  #   3 = created and running, but the config does not describe it
+  exit $parity_rc
 fi
 
 # ---------------------------------------------------------------- down

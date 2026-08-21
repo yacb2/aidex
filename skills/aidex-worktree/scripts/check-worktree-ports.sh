@@ -76,8 +76,22 @@ done
 # A script that sources the worktree root `.env` can always be overridden by the
 # slot, whatever it pins above that line. This is the whole false-positive
 # defence — keep it first, and keep it broad.
+# Anchoring this to the start of a line, and to three specific variable names,
+# made it miss the forms projects actually use. The guarded one-liner
+# `[ -f "$PROJECT_ROOT/.env" ] && . "$PROJECT_ROOT/.env"` is the common shape and
+# was reported as two pinned-assignment findings even though the slot's values
+# win — a false positive in a BLOCKING check, which is the expensive kind.
+# `. "$(dirname "$0")/.env"` and any differently-named root variable missed too.
+#
+# So: any `.`/`source` of a path ending in `.env`, anywhere on the line. Broad on
+# purpose — the exemption only suppresses the pinned-assignment shape, and an
+# inline literal stays a finding no matter what the script sources.
 sources_slot_env() {
-  grep -qE '^[[:space:]]*(\.|source)[[:space:]]+"?\$\{?(PROJECT_ROOT|WORKSPACE_ROOT|WT_ROOT)\}?/\.env"?' "$1"
+  # The path may itself contain spaces -- `. "$(dirname "$0")/.env"` is a real
+  # form -- so do not stop at the first one. Comment lines are excluded so a
+  # sentence mentioning .env cannot grant an exemption.
+  grep -vE '^[[:space:]]*#' "$1" \
+    | grep -qE '(^|[[:space:]]|;|&&|\|\|)(\.|source)[[:space:]]+.*\.env'
 }
 
 # One project. Prints findings as <file>\t<kind>\t<what>\t<why>, and nothing when
@@ -143,9 +157,14 @@ scan_project() {
 
 # ---------------------------------------------------------------- census
 if $CENSUS; then
-  rc=0
-  for cfg in "$HOME"/Documents/projects/*/.context/worktrees/config.env; do
+  rc=0; seen=0
+  # Overridable, because a hardcoded path makes the census silently examine
+  # NOTHING on any other machine or layout — and this command is wired as a
+  # phase gate, so "0 projects" printed as green is a gate that passes vacuously.
+  CENSUS_ROOT="${AIDEX_PROJECTS_DIR:-$HOME/Documents/projects}"
+  for cfg in "$CENSUS_ROOT"/*/.context/worktrees/config.env; do
     [[ -f "$cfg" ]] || continue
+    seen=$((seen + 1))
     root="${cfg%/.context/worktrees/config.env}"
     out="$(scan_project "$root")"
     name="$(basename "$root")"
@@ -161,7 +180,12 @@ if $CENSUS; then
       rc=1
     fi
   done
-  [[ $rc -eq 0 ]] && ok "host ports: every project parameterizes them — a worktree cannot reach the main tree's"
+  if [[ $seen -eq 0 ]]; then
+    err "census examined 0 projects under $CENSUS_ROOT — nothing was checked."
+    err "Set AIDEX_PROJECTS_DIR to the directory holding the projects."
+    exit 2
+  fi
+  [[ $rc -eq 0 ]] && ok "host ports: all $seen project(s) parameterize them — a worktree cannot reach the main tree's"
   exit $rc
 fi
 

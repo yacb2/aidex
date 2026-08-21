@@ -600,6 +600,92 @@ bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
   || { fail "parity: RESIDUE after the parity cases"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
 [[ "$(claims)" == "0" ]] || fail "parity: slot claim not released"
 
+# --- 6. WT_ENV_RENDER: slot-dependent host env files are generated ----------
+#
+# The defect: worktree.sh generated the root .env for Compose and stopped, so the
+# HOST half's env file was hand-written per worktree. The two live echo_lab
+# worktrees held two different versions, one missing the warning that keeps the
+# other working. Neither WT_LINKS nor WT_COPIES can supply it -- both carry the
+# main tree's ports.
+cp "$CONF_BASE" "$CONF"
+mkdir -p "$WS/.context/worktrees/env-templates/svc"
+cat > "$WS/.context/worktrees/env-templates/svc/.env.local.tmpl" <<'TMPL'
+APP_URL=http://localhost:${APP_PORT}/api
+SLOT=${WT_SLOT}
+TMPL
+printf '.env.local\n' > "$WS/svc/.gitignore"
+git -C "$WS/svc" -c user.email=t@t -c user.name=t add .gitignore >/dev/null 2>&1
+git -C "$WS/svc" -c user.email=t@t -c user.name=t commit -q -m gitignore >/dev/null 2>&1
+echo 'WT_ENV_RENDER="svc/.env.local"' >> "$CONF"
+
+# (a) the rendered file carries THIS slot's port, on two different slots.
+render_port_for() {  # render_port_for <slug> <slot>
+  bash "$WT" new "$1" --branch "feat/$1" --slot "$2" >/dev/null 2>&1 \
+    || { fail "render($1): create failed"; return 1; }
+  sed -n 's/^APP_URL=http:\/\/localhost:\([0-9]*\)\/api$/\1/p' "$TMP/wtfix-wt-$1/svc/.env.local"
+}
+p1="$(render_port_for r1 3)"
+p2="$(render_port_for r2 4)"
+[[ "$p1" == "47030" ]] || fail "render(a): slot 3 must render APP_PORT=47030, got '$p1'"
+[[ "$p2" == "47040" ]] || fail "render(a): slot 4 must render APP_PORT=47040, got '$p2'"
+[[ "$p1" != "$p2" ]] || fail "render(a): two slots rendered the SAME port -- the template is not slot-aware"
+
+# (b) the do-not-edit header, same guarantee the root .env carries.
+head -1 "$TMP/wtfix-wt-r1/svc/.env.local" | grep -q 'do not edit' \
+  || fail "render(b): the rendered file must carry the generated/do-not-edit header"
+
+# (c) a hand-edited file is NOT silently clobbered on `up`.
+echo 'HAND EDITED' > "$TMP/wtfix-wt-r1/svc/.env.local"
+out="$(bash "$WT" up r1 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "render(c): a file worktree.sh did not write must not be overwritten"
+grep -qi 'refusing to overwrite' <<<"$out" || fail "render(c): wrong refusal, got: $out"
+bash "$WT" down r1 >/dev/null 2>&1 || fail "render: teardown r1 failed"
+bash "$WT" down r2 >/dev/null 2>&1 || fail "render: teardown r2 failed"
+
+# (d) a template naming an unknown variable fails LOUDLY and creates nothing.
+# A hole rendered as an empty string is worse than a failed create: the file
+# looks right and the app fails somewhere else entirely.
+cat > "$WS/.context/worktrees/env-templates/svc/.env.local.tmpl" <<'TMPL'
+APP_URL=http://localhost:${APP_PORT}/api
+OOPS=${NO_SUCH_VARIABLE}
+TMPL
+out="$(bash "$WT" new r3 --branch feat/r3 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "render(d): an undefined template variable must fail the create"
+grep -q 'NO_SUCH_VARIABLE' <<<"$out" || fail "render(d): the failure must NAME the variable, got: $out"
+[[ -e "$TMP/wtfix-wt-r3" ]] && fail "render(d): a failed render left its directory behind"
+
+# (e) a destination that is NOT gitignored is refused. `git worktree remove`
+# refuses a tree holding untracked non-ignored files, so this would build a
+# worktree that can never be torn down -- surfacing at teardown, not at create.
+cat > "$WS/.context/worktrees/env-templates/svc/.env.local.tmpl" <<'TMPL'
+APP_URL=http://localhost:${APP_PORT}/api
+TMPL
+: > "$WS/svc/.gitignore"
+git -C "$WS/svc" -c user.email=t@t -c user.name=t commit -aqm 'unignore' >/dev/null 2>&1
+out="$(bash "$WT" new r4 --branch feat/r4 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "render(e): a non-gitignored destination must be refused"
+grep -qi 'gitignored' <<<"$out" || fail "render(e): the refusal must say why, got: $out"
+
+printf '.env.local\n' > "$WS/svc/.gitignore"
+git -C "$WS/svc" -c user.email=t@t -c user.name=t commit -aqm 'reignore' >/dev/null 2>&1
+cp "$CONF_BASE" "$CONF"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "render: RESIDUE after the WT_ENV_RENDER cases"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+[[ "$(claims)" == "0" ]] || fail "render: slot claim not released"
+
+# --- 7. --no-infra starts no stack, so no services-parity refusal applies ----
+# Code review, 2026-08-21: assert_services_declared sat ~114 lines above the
+# --no-infra early return, so a code-only checkout hard-refused over services it
+# would never have started. Nothing covered --no-infra at all.
+cp "$CONF_BASE" "$CONF"
+write_compose_with_extra ""          # a profile-less service NOT in WT_SERVICES
+bash "$WT" new codeonly --branch feat/codeonly --no-infra >/dev/null 2>&1 \
+  || fail "no-infra: a code-only checkout must not be refused over services it never starts"
+[[ -d "$TMP/wtfix-wt-codeonly" ]] || fail "no-infra: worktree directory missing"
+bash "$WT" down codeonly >/dev/null 2>&1 || fail "no-infra: teardown failed"
+cp "$COMPOSE_BASE" "$WS/docker-compose.yml"
+cp "$CONF_BASE" "$CONF"
+
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
 cat >> "$WS/.context/worktrees/config.env" <<'ENV'
@@ -618,4 +704,4 @@ if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — worktree lifecycle: repeatable cycle, 4 concurrent creates on distinct slots, services parity derived + refused, zero residue, complete rollback"
+echo "OK — worktree lifecycle: repeatable cycle, 4 concurrent creates on distinct slots, services parity derived + refused, slot env files rendered, zero residue, complete rollback"

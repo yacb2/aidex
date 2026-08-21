@@ -6,6 +6,16 @@
 
 Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-8.
 
+> **Close-out does not include merging.** Tearing the worktree down and integrating its
+> branch happen at the same moment and are routinely confused; only the first is
+> close-out. `git merge` into the trunk is **class 2** — pre-authorizable at Orient,
+> never assumed mid-run — because it ends the review window this plan's work still
+> needs. Finish, leave the branch **ready to merge**, and say so in the final summary.
+> Rule: `rules/autonomy.md` § Integrating a branch is not a commit; rationale:
+> `../../aidex-conventions/references/autonomy-conventions.md`. (A run that merged
+> unasked on 2026-08-15 is why this note exists — these steps had no occurrence of the
+> word at all.)
+
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
    work unless `discard_changes`), and run the project's `worktree-down` for Tier 2 to
