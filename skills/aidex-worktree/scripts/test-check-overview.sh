@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # test-check-overview.sh — exercises check-overview.sh against a temp .context
 # fixture: a well-formed overview passes; each missing machine-consumed piece
-# (worktree_up/down field, Procedure section, Usage log section) fails; a
-# dangling backlog reference fails; a ref that resolves via _archive/_deferred
-# passes.
+# (worktree_up/down field, Procedure section, Usage log section, the
+# Running-this-worktree and Never-run-here guides) fails; a dangling backlog
+# reference fails; a ref that resolves via _archive/_deferred passes.
+#
+# The two guide cases assert the MESSAGE, not just the exit code: this checker
+# has eleven ways to exit 1, so a status-only assertion passes on a failure that
+# has nothing to do with the section it claims to cover.
 #
 # Run with: bash skills/aidex-worktree/scripts/test-check-overview.sh
 
@@ -23,6 +27,11 @@ mkdir -p "$CTX/worktrees" "$CTX/backlog/_archive" "$CTX/backlog/_deferred"
 : > "$CTX/backlog/2026-07-01-active-item.md"
 : > "$CTX/backlog/_archive/2026-06-01-archived-item.md"
 : > "$CTX/backlog/_deferred/2026-06-15-deferred-item.md"
+# The Running-this-worktree table names ./test-e2e.sh. Deleting that heading
+# merges the table into ## Procedure, whose scripts ARE checked -- so without
+# this the negative case would fail with two gaps and the message assertion
+# would be passing on a coincidence.
+: > "$TMP/proj/test-e2e.sh"
 
 DOC="$CTX/worktrees/00-index.md"
 
@@ -58,6 +67,21 @@ and backlog/_deferred/2026-06-15-deferred-item.md.
 
 Create with worktree.sh new <slug> --branch <b>; verify with docker-snapshot.sh.
 
+## Running this worktree
+
+| I want to... | Command (from the worktree root) |
+|---|---|
+| bring the stack up | `worktree.sh up <slug>` — starts: db, backend |
+| run the E2E suite | `./test-e2e.sh` |
+
+Ports for this slot are in `<worktree>/.env`.
+
+## Never run here
+
+| Command | What it does to the MAIN tree |
+|---|---|
+| `nope.sh` | binds dev's port and kills whoever holds it |
+
 ## Usage log
 
 - 2026-07-20 · slug `alpha` (Tier 2, slot 3) — historical entry, kept verbatim.
@@ -88,6 +112,18 @@ bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "missing Procedure: should fail"
 # --- missing Usage log section fails ---
 write_doc '/^## Usage log$/d'
 bash "$SCRIPT" "$DOC" >/dev/null 2>&1 && fail "missing Usage log: should fail"
+
+# --- missing '## Running this worktree' fails, and SAYS SO ---
+write_doc '/^## Running this worktree$/d'
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "missing Running this worktree: should fail"
+grep -q "missing '## Running this worktree'" <<<"$out" \
+  || fail "missing Running this worktree: failed for some other reason -- $out"
+
+# --- missing '## Never run here' fails, and SAYS SO ---
+write_doc '/^## Never run here$/d'
+out="$(bash "$SCRIPT" "$DOC" 2>&1)" && fail "missing Never run here: should fail"
+grep -q "missing '## Never run here'" <<<"$out" \
+  || fail "missing Never run here: failed for some other reason -- $out"
 
 # --- an EMPTY worktree_up fails, because presence alone certified three
 #     retired-mechanism docs as healthy ---
@@ -120,4 +156,4 @@ if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — doc-shape check: good passes; missing/empty fields, tier sections, dead Procedure scripts and dangling refs fail; history is left alone"
+echo "OK — doc-shape check: good passes; missing/empty fields, missing guide sections, tier sections, dead Procedure scripts and dangling refs fail; history is left alone"
