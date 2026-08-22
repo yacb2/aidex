@@ -18,7 +18,11 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    actually found in plain language. Never assume monorepo or any prior default.
 
 3. **Verify the stack can be isolated AT ALL.** Run
-   [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh).
+   [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) —
+   the umbrella, which runs the compose check plus the host-port and
+   test-runner checks. Citing the compose check alone here is what let four
+   surfaces ship unverified: it is a good check of the surface it covers, and
+   every defect the 2026-08-21 audit found lived outside it.
    Every finding is a blocker, not a warning — each one is a name that will not
    vary between two stacks:
    - an image pinned to the main project, or one that resolves identically in

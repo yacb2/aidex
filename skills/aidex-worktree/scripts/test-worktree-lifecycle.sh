@@ -501,6 +501,191 @@ bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
   || { fail "straydir/keepdir: RESIDUE"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
 [[ "$(claims)" == "0" ]] || fail "straydir/keepdir: slot claim not released"
 
+# --- 5. services parity: the set is DERIVED from compose, not declared -------
+#
+# The defect this pins: `WT_SERVICES` was a static "db backend" and the
+# instruction to override it per project lived in prose. Two of the three field
+# projects with an always-on worker never did, and the symptom was silent — a
+# worktree whose queue never drained, with every port check passing.
+#
+# Four cases, and (c) is the one that would otherwise have shipped a WRONG
+# blocker: a naive "must equal the profile-less set" rule flags a healthy
+# worktree, because a profile-gated service can legitimately be up here.
+COMPOSE_BASE="$TMP/compose.base.yml"
+cp "$WS/docker-compose.yml" "$COMPOSE_BASE"
+cp "$CONF_BASE" "$CONF"
+
+write_compose_with_extra() {  # write_compose_with_extra [profiles-line]
+  { sed '/^volumes:/,$d' "$COMPOSE_BASE"
+    echo '  extra:'
+    echo '    image: busybox:latest'
+    echo '    container_name: wtfix-extra${WT_SUFFIX:-}'
+    echo '    command: sh -c "while true; do sleep 3600; done"'
+    [[ -n "${1:-}" ]] && printf '    profiles: [%s]\n' "$1"
+    echo 'volumes:'
+    echo '  appdata:'
+  } > "$WS/docker-compose.yml"
+}
+
+# (a) a profile-less service the config does not list -> refuse, create NOTHING.
+write_compose_with_extra ""
+out="$(bash "$WT" new p1 --branch feat/p1 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(a): a profile-less service missing from WT_SERVICES must refuse"
+grep -q 'extra' <<<"$out" || fail "parity(a): the refusal must NAME the service, got: $out"
+grep -q 'WT_SERVICES="app extra"' <<<"$out" \
+  || fail "parity(a): the refusal must print the exact line to add, got: $out"
+[[ -e "$TMP/wtfix-wt-p1" ]] && fail "parity(a): a refusal must create nothing"
+[[ "$(claims)" == "0" ]] || fail "parity(a): a refusal must claim no slot"
+
+# (b) the same service excluded WITH a reason -> the escape works.
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_EXCLUDE="extra # busybox filler, nothing depends on it"' >> "$CONF"
+bash "$WT" new p2 --branch feat/p2 >/dev/null 2>&1 \
+  || fail "parity(b): WT_SERVICES_EXCLUDE with a reason must allow the create"
+
+# (a2) the SAME refusal, reached through `up` rather than `new`. Not redundant:
+# `up` and `new` are separate call sites, and deleting the one in `up` leaves
+# every other case in this file green — verified by mutation on 2026-08-21.
+# `up` is also the path an EXISTING worktree takes when the compose file gains a
+# service later, which is the drift this check exists to catch.
+slot_before="$(cat "$TMP/wtfix-wt-p2/.wt-slot" 2>/dev/null)"
+cp "$CONF_BASE" "$CONF"          # drop the EXCLUDE line; `extra` is now undeclared
+out="$(bash "$WT" up p2 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(a2): 'up' must refuse a profile-less service that is unlisted"
+grep -q 'extra' <<<"$out" || fail "parity(a2): the refusal must NAME the service, got: $out"
+[[ "$(cat "$TMP/wtfix-wt-p2/.wt-slot" 2>/dev/null)" == "$slot_before" ]] \
+  || fail "parity(a2): a refusal must come BEFORE the slot re-claim, not after"
+
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_EXCLUDE="extra # busybox filler, nothing depends on it"' >> "$CONF"
+bash "$WT" down p2 >/dev/null 2>&1 || fail "parity(b): teardown failed"
+
+# (b2) ...and WITHOUT a reason it is itself a refusal. An escape nobody has to
+# justify becomes the default, which is how the original prose failed.
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_EXCLUDE="extra"' >> "$CONF"
+out="$(bash "$WT" new p3 --branch feat/p3 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(b2): WT_SERVICES_EXCLUDE with no '# reason' must refuse"
+grep -qi 'reason' <<<"$out" || fail "parity(b2): the refusal must say a reason is required, got: $out"
+
+# (c) THE CASE THAT WOULD HAVE SHIPPED A WRONG BLOCKER.
+# `extra` is profile-gated and RUNNING, declared only in WT_SERVICES_BY_HOOK and
+# deliberately NOT in WT_SERVICES. A healthy worktree looks exactly like this —
+# in the field it is `backend-test`, started by the E2E run. Parity must PASS.
+cp "$CONF_BASE" "$CONF"
+echo 'WT_SERVICES_BY_HOOK="extra # started by the E2E run, not by WT_SERVICES"' >> "$CONF"
+write_compose_with_extra "e2e"
+bash "$WT" new p4 --branch feat/p4 >/dev/null 2>&1 \
+  || fail "parity(c): a BY_HOOK service must not be required in WT_SERVICES"
+( cd "$TMP/wtfix-wt-p4" && docker compose --profile e2e up -d extra ) >/dev/null 2>&1 \
+  || fail "parity(c): could not start the profile-gated service"
+out="$(bash "$WT" up p4 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "parity(c): a RUNNING BY_HOOK service must not fail the running check, got: $out"
+
+# (d) the same service running, declared NOWHERE -> the running check fires.
+# Without this, WT_SERVICES_BY_HOOK is unfalsifiable: deleting the key would
+# break no test. In the field this is echo_lab's `worker`, whose `ai` profile
+# makes paid API calls if someone leaves it up.
+cp "$CONF_BASE" "$CONF"
+out="$(bash "$WT" up p4 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "parity(d): an undeclared profile-gated service running here must fail"
+grep -q 'extra' <<<"$out" || fail "parity(d): the failure must NAME the service, got: $out"
+grep -q 'WT_SERVICES_BY_HOOK' <<<"$out" \
+  || fail "parity(d): the failure must print the line that declares it, got: $out"
+
+bash "$WT" down p4 >/dev/null 2>&1 || fail "parity: teardown of p4 failed"
+cp "$COMPOSE_BASE" "$WS/docker-compose.yml"
+cp "$CONF_BASE" "$CONF"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "parity: RESIDUE after the parity cases"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+[[ "$(claims)" == "0" ]] || fail "parity: slot claim not released"
+
+# --- 6. WT_ENV_RENDER: slot-dependent host env files are generated ----------
+#
+# The defect: worktree.sh generated the root .env for Compose and stopped, so the
+# HOST half's env file was hand-written per worktree. The two live echo_lab
+# worktrees held two different versions, one missing the warning that keeps the
+# other working. Neither WT_LINKS nor WT_COPIES can supply it -- both carry the
+# main tree's ports.
+cp "$CONF_BASE" "$CONF"
+mkdir -p "$WS/.context/worktrees/env-templates/svc"
+cat > "$WS/.context/worktrees/env-templates/svc/.env.local.tmpl" <<'TMPL'
+APP_URL=http://localhost:${APP_PORT}/api
+SLOT=${WT_SLOT}
+TMPL
+printf '.env.local\n' > "$WS/svc/.gitignore"
+git -C "$WS/svc" -c user.email=t@t -c user.name=t add .gitignore >/dev/null 2>&1
+git -C "$WS/svc" -c user.email=t@t -c user.name=t commit -q -m gitignore >/dev/null 2>&1
+echo 'WT_ENV_RENDER="svc/.env.local"' >> "$CONF"
+
+# (a) the rendered file carries THIS slot's port, on two different slots.
+render_port_for() {  # render_port_for <slug> <slot>
+  bash "$WT" new "$1" --branch "feat/$1" --slot "$2" >/dev/null 2>&1 \
+    || { fail "render($1): create failed"; return 1; }
+  sed -n 's/^APP_URL=http:\/\/localhost:\([0-9]*\)\/api$/\1/p' "$TMP/wtfix-wt-$1/svc/.env.local"
+}
+p1="$(render_port_for r1 3)"
+p2="$(render_port_for r2 4)"
+[[ "$p1" == "47030" ]] || fail "render(a): slot 3 must render APP_PORT=47030, got '$p1'"
+[[ "$p2" == "47040" ]] || fail "render(a): slot 4 must render APP_PORT=47040, got '$p2'"
+[[ "$p1" != "$p2" ]] || fail "render(a): two slots rendered the SAME port -- the template is not slot-aware"
+
+# (b) the do-not-edit header, same guarantee the root .env carries.
+head -1 "$TMP/wtfix-wt-r1/svc/.env.local" | grep -q 'do not edit' \
+  || fail "render(b): the rendered file must carry the generated/do-not-edit header"
+
+# (c) a hand-edited file is NOT silently clobbered on `up`.
+echo 'HAND EDITED' > "$TMP/wtfix-wt-r1/svc/.env.local"
+out="$(bash "$WT" up r1 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "render(c): a file worktree.sh did not write must not be overwritten"
+grep -qi 'refusing to overwrite' <<<"$out" || fail "render(c): wrong refusal, got: $out"
+bash "$WT" down r1 >/dev/null 2>&1 || fail "render: teardown r1 failed"
+bash "$WT" down r2 >/dev/null 2>&1 || fail "render: teardown r2 failed"
+
+# (d) a template naming an unknown variable fails LOUDLY and creates nothing.
+# A hole rendered as an empty string is worse than a failed create: the file
+# looks right and the app fails somewhere else entirely.
+cat > "$WS/.context/worktrees/env-templates/svc/.env.local.tmpl" <<'TMPL'
+APP_URL=http://localhost:${APP_PORT}/api
+OOPS=${NO_SUCH_VARIABLE}
+TMPL
+out="$(bash "$WT" new r3 --branch feat/r3 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "render(d): an undefined template variable must fail the create"
+grep -q 'NO_SUCH_VARIABLE' <<<"$out" || fail "render(d): the failure must NAME the variable, got: $out"
+[[ -e "$TMP/wtfix-wt-r3" ]] && fail "render(d): a failed render left its directory behind"
+
+# (e) a destination that is NOT gitignored is refused. `git worktree remove`
+# refuses a tree holding untracked non-ignored files, so this would build a
+# worktree that can never be torn down -- surfacing at teardown, not at create.
+cat > "$WS/.context/worktrees/env-templates/svc/.env.local.tmpl" <<'TMPL'
+APP_URL=http://localhost:${APP_PORT}/api
+TMPL
+: > "$WS/svc/.gitignore"
+git -C "$WS/svc" -c user.email=t@t -c user.name=t commit -aqm 'unignore' >/dev/null 2>&1
+out="$(bash "$WT" new r4 --branch feat/r4 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "render(e): a non-gitignored destination must be refused"
+grep -qi 'gitignored' <<<"$out" || fail "render(e): the refusal must say why, got: $out"
+
+printf '.env.local\n' > "$WS/svc/.gitignore"
+git -C "$WS/svc" -c user.email=t@t -c user.name=t commit -aqm 'reignore' >/dev/null 2>&1
+cp "$CONF_BASE" "$CONF"
+bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
+  || { fail "render: RESIDUE after the WT_ENV_RENDER cases"; bash "$SNAP" diff "$BASE" 2>&1 | sed 's/^/    /'; }
+[[ "$(claims)" == "0" ]] || fail "render: slot claim not released"
+
+# --- 7. --no-infra starts no stack, so no services-parity refusal applies ----
+# Code review, 2026-08-21: assert_services_declared sat ~114 lines above the
+# --no-infra early return, so a code-only checkout hard-refused over services it
+# would never have started. Nothing covered --no-infra at all.
+cp "$CONF_BASE" "$CONF"
+write_compose_with_extra ""          # a profile-less service NOT in WT_SERVICES
+bash "$WT" new codeonly --branch feat/codeonly --no-infra >/dev/null 2>&1 \
+  || fail "no-infra: a code-only checkout must not be refused over services it never starts"
+[[ -d "$TMP/wtfix-wt-codeonly" ]] || fail "no-infra: worktree directory missing"
+bash "$WT" down codeonly >/dev/null 2>&1 || fail "no-infra: teardown failed"
+cp "$COMPOSE_BASE" "$WS/docker-compose.yml"
+cp "$CONF_BASE" "$CONF"
+
 # --- 4. a failed create must roll back completely ---------------------------
 # WT_READY_CMD that can never succeed: the stack starts, readiness never comes.
 cat >> "$WS/.context/worktrees/config.env" <<'ENV'
@@ -519,4 +704,4 @@ if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — worktree lifecycle: repeatable cycle, 4 concurrent creates on distinct slots, zero residue, complete rollback"
+echo "OK — worktree lifecycle: repeatable cycle, 4 concurrent creates on distinct slots, services parity derived + refused, slot env files rendered, zero residue, complete rollback"

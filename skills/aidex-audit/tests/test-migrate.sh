@@ -52,7 +52,11 @@ if grep -qE 'escalated \||in-progress \||triaged \||closed \|' "$INV"; then
   fail "legacy status words survive in status cells: $(grep -E 'B-[0-9]' "$INV" | head -2)"
 fi
 grep -q '2026-06-10' "$INV" || fail "YYYYMMDD cell dates not converted to ISO"
-if grep -qE '\| 2026061[0-9] \|'; then :; fi
+# (removed 2026-08-21) A `grep -qE '\| 2026061[0-9] \|'` sat here with NO FILE
+# ARGUMENT and an empty body (`then :; fi`), so it asserted nothing and read
+# STDIN — hanging the whole suite forever whenever stdin was not already at EOF.
+# Observed: run-all.sh stuck at 24/83 with no output and no timeout. The check it
+# was reaching for is the next line, which does it against "$INV".
 if grep -qE '20260610|20260611|20260612' "$INV"; then fail "legacy YYYYMMDD dates survive: $(grep -E '2026061' "$INV" | head -1)"; fi
 
 # --- validator is clean (no violations) after migration ---

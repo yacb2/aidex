@@ -89,6 +89,15 @@ Dispatch by first argument:
 | `/aidex-worktree list` | Every worktree of this project: slot, branch, stack state |
 | `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback (BL-136) |
 
+**Tearing a worktree down is not integrating its branch.** `down` never merges, and
+that is deliberate — but the rule belongs where a session that is not running this
+skill can see it, which is `rules/autonomy.md` § *Integrating a branch is not a
+commit* (class 2: pre-authorizable up front, never assumed mid-run; rationale in
+`../aidex-conventions/references/autonomy-conventions.md`). A worktree branch merged
+into `main` unasked on 2026-08-15 precisely because the only statement of this rule
+was a comment inside `worktree.sh`, invisible from the plan-exec session doing the
+merging. Leave the branch ready to merge; say so; do not merge it.
+
 `new` / `down` / `list` are thin wrappers over
 [scripts/worktree.sh](scripts/worktree.sh) — run it directly, do not reimplement
 its steps. It handles slot reservation, participant worktrees, wrapper symlinks,
@@ -143,9 +152,23 @@ substitute an eyeball.
   Docker state file, `diff` it later. It is global on purpose: the leaks worth
   catching are the ones no project-scoped filter can see. Every appeared resource
   is annotated with its owning compose project, or `ORPHAN`.
-- [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) — run
-  BEFORE enabling worktrees on a project. A stack whose names do not vary with
-  `COMPOSE_PROJECT_NAME` cannot run twice, and no teardown can fix that later.
+- [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) —
+  **the one command.** Runs every isolation check in order and reports them
+  together; `--census` does it across every project with a `config.env`. Run this
+  BEFORE enabling worktrees on a project, and again whenever the compose file or
+  a linked script changes. Every finding is a blocker, not a warning.
+  It exists because the checks below were individually correct and nobody ran
+  them: the 2026-08-21 audit found seven defects, and every one lived outside the
+  only check that was ever invoked.
+  - [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) —
+    compose addressing. A stack whose names do not vary with
+    `COMPOSE_PROJECT_NAME` cannot run twice, and no teardown can fix that later.
+  - [scripts/check-worktree-ports.sh](scripts/check-worktree-ports.sh) — host
+    ports a linked script can bind, or `kill -9` the holder of. `./dev.sh` in a
+    worktree killed dev's Vite and took its port.
+  - [scripts/check-worktree-runner.sh](scripts/check-worktree-runner.sh) — test
+    harnesses that reach dev's stack when invoked directly instead of through
+    the project's own wrapper. That path DROPs dev's E2E database.
 
 ### No-args status check
 
@@ -185,8 +208,11 @@ bash "${CLAUDE_SKILL_DIR}/scripts/check-overview.sh"
 ```
 
 It verifies the machine-consumed surface is intact: the `worktree_up`/`worktree_down`
-front-matter fields are present, the `## Procedure` and `## Usage log` sections exist, and
-every `backlog/...` path the doc references resolves (active / `_archive/` / `_deferred/`).
+front-matter fields are present **and non-empty**, the `## Procedure`, `## Usage log`,
+`## Running this worktree` and `## Never run here` sections exist, no `## Tier …` section
+documents the retired tier mechanism, every script `## Procedure` names actually exists,
+and every `backlog/...` path the doc references resolves (active / `_archive/` /
+`_deferred/`).
 A non-zero exit lists the gaps. **Amend them in-session** via the existing scripts and
 edits — fill the missing sections/fields from the recorded decisions, and re-register or
 correct a dangling backlog ref (`aidex-backlog`) — rather than passively recommending a
