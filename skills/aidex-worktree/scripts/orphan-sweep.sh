@@ -42,11 +42,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 # --- resolve the workspace root + name (drives the naming contract) ---
-if command -v git >/dev/null 2>&1 && git rev-parse --show-toplevel >/dev/null 2>&1; then
-  WS_ROOT="$(git rev-parse --show-toplevel)"
-else
-  WS_ROOT="$(find_project_root)"
-fi
+# find_project_root, never `git rev-parse`. The naming contract is
+# "<workspace>-wt-<slug>", and `git rev-parse --show-toplevel` answers a
+# different question: which repo is the CALLER standing in. In a split-git
+# workspace -- participants are separate repos and the workspace root is not one
+# -- calling the sweep from inside a participant made it scan "backend-wt-*",
+# a namespace nothing can ever be in, and it reported a confident all-clear.
+# find_project_root prefers the nearest .context/, so single-repo behaviour is
+# unchanged and a split workspace resolves to the same root every caller uses.
+WS_ROOT="$(find_project_root)"
 WS_NAME="$(basename "$WS_ROOT")"
 WS_PARENT="$(dirname "$WS_ROOT")"
 
