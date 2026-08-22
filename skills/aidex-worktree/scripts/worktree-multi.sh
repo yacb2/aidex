@@ -199,7 +199,13 @@ else
     DOC="$ROOT/.context/worktrees/00-index.md"
     WT_DOWN=""
     if [[ -f "$DOC" ]]; then
-      WT_DOWN="$(sed -n '/^---$/,/^---$/p' "$DOC" | sed -n 's/^worktree_down: *//p' | head -1)"
+      # awk, not a sed RANGE: `/^---$/,/^---$/` re-opens on every later pair of
+      # `---`, so a `worktree_down:` line anywhere below the front matter was
+      # picked up -- and this value is EVAL'd as the teardown recipe. Bounded to
+      # the leading block, and a document that does not open with one yields
+      # nothing at all.
+      WT_DOWN="$(awk 'NR==1{if($0!="---")exit;next} $0=="---"{exit} {print}' "$DOC" \
+                 | sed -n 's/^worktree_down: *//p' | head -1)"
       WT_DOWN="${WT_DOWN%\"}"; WT_DOWN="${WT_DOWN#\"}"
     fi
 

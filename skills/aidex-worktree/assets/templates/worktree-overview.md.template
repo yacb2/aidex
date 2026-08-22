@@ -4,117 +4,150 @@ status: doing
 created: {{DATE}}
 updated: {{DATE}}
 version: 1.0.0
-worktree_up: ""
-worktree_down: ""
+worktree_new: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh new <slug> --branch <branch>"
+worktree_up: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh up <slug>"
+worktree_down: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh down <slug>"
+worktree_list: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh list --porcelain"
 ---
 
-<!-- worktree_up / worktree_down: the EXACT commands that bring up / tear down an
-     isolated Tier-2 environment for a worktree, once the project has them (e.g.
-     "./worktree-up.sh <slug>"). Leave "" while Tier 2 is not yet available —
-     executors (aidex-plan-exec Orient) and detect-project-commands.sh read these
-     fields, so filling them is what makes Tier 2 machine-actionable.
-
-     Contract: Tier 2 = full isolation including isolated E2E capability by
-     default. worktree_up must leave a runnable per-worktree test-e2e.sh
-     (template DB clone + namespaced E2E ports) with no additional ask —
-     included by default, not "decide per task."
+<!-- The worktree_* fields are the EXACT commands executors (aidex-plan-exec
+     Orient, detect-project-commands.sh) read. The mechanism is shipped by the
+     aidex-worktree skill and is project-agnostic, so the defaults above are
+     already correct for every project that has a
+     .context/worktrees/config.env. Change them only if this project genuinely
+     deviates — and say why in ## Topology and configuration.
 
      Naming/teardown contract: COMPOSE_PROJECT_NAME=<project>-wt-<slug> (the
-     -wt- infix is the orphan-sweep marker); worktree_down should read
-     "docker compose -p <project>-wt-<slug> down -v --rmi local --remove-orphans"
-     unless the project has a documented reason to deviate. -->
+     -wt- infix is the orphan-sweep marker); `worktree.sh down` implements the
+     teardown. Do not hand-roll `docker compose -p … down` in its place. -->
 
 # Worktree procedure — <project>
 
-## Topology
+## One path, no tiers
 
-<!-- The raw facts from scripts/detect-topology.sh, plus the human summary (single
-     repo / split-git services + unversioned wrapper / classic multi-repo / …).
-     Do not assume this generalizes to other projects — topology is detected
-     per-project, never inherited as a default. -->
+<!-- There is no per-task tier decision. A worktree is born with its full
+     isolated stack — its own database on its own port, its own services, its
+     own network and volume, and its own runnable E2E — always. `--no-infra` is
+     the explicit opt-out for a code-only checkout.
+
+     CONTRACT: isolated E2E capability is included by default, not decided per
+     task. `worktree_up` must leave a runnable per-worktree test-e2e.sh (template
+     DB clone + namespaced E2E ports) with no additional ask — do not ask whether
+     to include it.
+
+     State the project-specific version of that sentence here: which services,
+     which port band, what "full" means in this repo. -->
+
+## Topology and configuration
+
+<!-- The raw facts from scripts/detect-topology.sh, plus the human summary
+     (single repo / split-git services + unversioned wrapper / classic
+     multi-repo / …). Do not assume this generalizes to other projects —
+     topology is detected per-project, never inherited as a default.
+
+     Then the project's one input file, .context/worktrees/config.env: the dev
+     ports, the worktree port band and stride, WT_LINKS / WT_COPIES, and any
+     value that breaks a family convention (a database user that is not
+     <project>_user, a port band chosen to avoid a neighbour). Record WHY, not
+     just the value — the value is already in config.env. -->
 
 ## Participants & scope
 
 <!-- Which directories/repos participate in worktree work at all (some may never
      need one — e.g. a docs-only sibling repo). The branch-naming convention used
      when work spans more than one participant, so they stay coordinated. Only
-     touched participants get worktreed — never "all or nothing." -->
+     touched participants get worktreed — never "all or nothing."
 
-## Tier decision
-
-<!-- The concrete, project-specific signal that distinguishes:
-     - Tier 0 (not parallel to anything — no worktree)
-     - Tier 1 (code-only parallelism — no services/DB touched)
-     - Tier 2 (full environment isolation — runs migrations / needs the stack
-       live / mutates shared state)
-     Record the concrete signal (e.g. "touches migrations/" or "runs
-     docker compose up"), not a vague description. -->
-
-## Tier 2 infra strategy
-
-<!-- Only relevant if Tier 2 is reachable at all. Which strategy applies:
-     clone full infra, clone partial infra (same DB server, new DB name), share
-     with logical partitioning, or not yet available. If not yet available, note
-     exactly what's missing (this doc records the recipe; it does not author new
-     worktree-up scripts for the project). -->
+     Name anything deliberately OUT of WT_PARTICIPANTS and why: a component whose
+     port the slot allocator cannot offset belongs here, and it is the reason for
+     a row in ## Never run here below. -->
 
 ## Lifecycle & cleanup
 
-<!-- Contract: Tier 2 = full isolation including isolated E2E capability by
-     default, included by default (not "decide per task").
+<!-- Ephemeral (spin up -> run -> auto-teardown) or persistent (iterate for
+     hours/days -> explicit teardown on exit).
 
-     Naming/teardown contract: COMPOSE_PROJECT_NAME=<project>-wt-<slug>;
-     worktree_down = "docker compose -p <project>-wt-<slug> down -v --rmi
-     local --remove-orphans" (front-matter field above). "Dangling is not
-     disposable" — a dev DB volume whose containers were removed by `compose
-     down` still holds real data; never `docker volume prune -a`/`--all`. See
-     aidex-conventions/references/worktree-conventions.md for the full safety
+     What exactly `worktree.sh down` must leave behind and what it must not:
+     isolated DB dropped, isolated compose project/containers/network stopped,
+     images built for the worktree removed (--rmi local), anonymous volumes
+     reclaimed (NEVER shared named volumes), allocated slot freed, worktree
+     directory kept or removed.
+
+     "Dangling is not disposable" — a dev DB volume whose containers were removed
+     by `compose down` still holds real data; never `docker volume prune -a`.
+     See aidex-conventions/references/worktree-conventions.md for the full safety
      doctrine.
 
-     Ephemeral (spin up -> run -> auto-teardown) or persistent (iterate for
-     hours/days -> explicit teardown on exit). What exactly must be cleaned up
-     when a Tier-2 worktree closes: isolated DB dropped, isolated compose
-     project/containers/network stopped, images built for the worktree removed
-     (--rmi local), anonymous volumes reclaimed (never shared named volumes),
-     allocated port offset freed, worktree directory kept or removed. If N
-     worktrees can run at once, the concrete, deterministic port/offset
-     allocation rule (not just "offset by index" — how collisions between
-     concurrent sessions are avoided). -->
+     How many worktrees can run at once (WT_MAX_SLOTS) and how collisions between
+     concurrent sessions are avoided. -->
 
 ## Procedure
 
 <!-- The EXECUTABLE side of the decisions above: exact commands, not prose. This is
      what makes later runs progressively simpler — an executor (or a future session)
-     follows these steps verbatim instead of re-deriving them. Fill from the
-     bootstrap interview + detected topology; refine after each real use (see the
-     Usage log below).
+     follows these steps verbatim instead of re-deriving them.
 
-     ### Tier 1 — create
-     For a SINGLE-REPO project this is native EnterWorktree (or git worktree add).
-     For SPLIT-GIT topologies (root has no .git) EnterWorktree alone is NOT enough:
-     each touched participant needs its own worktree, and the unversioned root
-     wrapper (compose file, dev scripts) must be made available in the parallel
-     workspace. Record the exact commands — the generic helper
-     `aidex-worktree/scripts/worktree-multi.sh` does this per-participant + wrapper
-     symlinks, e.g.:
-       worktree-multi.sh create --slug <slug> --branch <branch> \
-         --repo backend --repo frontend --link docker-compose.yml --link dev.sh
+     Read state before acting:
 
-     ### Tier 1 — teardown
-       worktree-multi.sh remove --slug <slug>   (refuses dirty trees)
+       WT=~/.claude/skills/aidex-worktree/scripts/worktree.sh
+       bash $WT list --porcelain
 
-     ### Tier 2 — create / teardown
-     The project's worktree_up / worktree_down commands (front-matter above), plus
-     any manual steps they don't cover yet. If Tier 2 is "not yet available",
-     say so here and point at the backlog item that will build it. -->
+       bash $WT new  <slug> --branch <branch>   # checkouts + stack + migrate + E2E
+       bash $WT up   <slug>                     # bring an existing stack back
+       bash $WT down <slug> [--keep-dir]        # full teardown
+
+     `new` is transactional — a failed step rolls the whole thing back — and it
+     allocates the first free slot itself. `--force` discards uncommitted work and
+     is NEVER the agent's decision.
+
+     Add only what those commands do not cover for THIS project: a base-branch
+     caveat, a `pnpm install` a fresh checkout needs, the gate commands run from
+     the worktree root against its own stack. Refine after each real use (see the
+     Usage log below). -->
+
+## Running this worktree
+
+<!-- Two questions a person actually has, answered as commands. Generate this from
+     the derivation, not from memory: the start-at-create list is WT_SERVICES from
+     config.env, and the on-demand services are the profile-gated ones that are in
+     neither WT_SERVICES nor WT_SERVICES_BY_HOOK.
+
+     Ports are read from the slot, never written as literals — the whole point is
+     that these commands work unchanged on any slot. -->
+
+| I want to… | Command (from the worktree root) |
+|---|---|
+| bring the stack up | `bash $WT up <slug>` — starts: `<WT_SERVICES>` |
+| run the frontend | `<the resolved command; it must read the slot's port>` |
+| run the E2E suite | `./test-e2e.sh` |
+| start an on-demand service | `docker compose --profile <p> up -d <svc>` |
+
+where `WT=~/.claude/skills/aidex-worktree/scripts/worktree.sh`, as in ## Procedure above.
+
+Ports for this slot are in `<worktree>/.env`. Every command above reads them.
+
+## Never run here
+
+<!-- The project-specific forbidden set. No shipped script can hold this list —
+     it is a bare `playwright test` here, an un-offsettable Metro port there — so
+     this table is the only place it lives.
+
+     Every row NAMES THE DAMAGE, not just the command. A prohibition without a
+     mechanism is the kind a person overrides at 19:00. If a mechanism already
+     refuses the command, say so: the row then documents an enforced rule rather
+     than substituting for one. -->
+
+| Command | What it does to the MAIN tree |
+|---|---|
+| … | … |
 
 ## Usage log
 
 <!-- One line per real worktree run, appended at teardown (aidex-plan-exec does this
-     automatically): date · tier used · participants · collisions/problems observed.
-     When a pattern emerges (e.g. the same case-by-case trigger decided the same way
-     three times), promote it into the Tier decision section as a codified rule —
-     this ratchet is how the procedure gets simpler over time. -->
+     automatically): date · participants · slot · collisions/problems observed.
+     When a pattern emerges (e.g. the same decision made the same way three times),
+     promote it into the sections above — this ratchet is how the procedure gets
+     simpler over time. -->
 
 ## Open questions
 

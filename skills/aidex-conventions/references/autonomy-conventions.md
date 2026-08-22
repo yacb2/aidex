@@ -109,6 +109,40 @@ A genuine **hard blocker** (missing credentials, a test whose intended behavior 
 truly unknowable) is not "asking permission" — you literally cannot proceed. That
 still stops. Everything resolvable does not.
 
+### Integrating a branch is not a commit (class 2)
+
+`git merge` into the trunk — and `rebase --onto` it, a `cherry-pick` onto it, a
+fast-forward of `main` — is **class 2**, not class 4. It is grouped with publication
+rather than with commit for one reason: it **ends the review window**. A commit is
+local and reversible and leaves the work still reviewable as a unit; a merge into the
+trunk dissolves that unit. A run that finishes its work leaves the branch **ready to
+merge** and says so in its final summary.
+
+**The direction is part of the rule, not an inference.** Merging the trunk *into* a
+feature branch to stay current is routine class-4 work and stays ungated — a session
+does it several times a day, and a clause that caught it would be worse than the
+silence it replaces. Only branch → trunk is gated.
+
+**Class 2, deliberately, not class 1.** "Close it and merge when green" is a perfectly
+good standing instruction at planning time, so the pre-authorization path must exist.
+Making it class 1 would break legitimate unattended flows and get the rule quietly
+ignored, which is the failure mode that produces rules nobody reads.
+
+**Why this is written down.** On 2026-08-15 a plan-exec run merged its worktree branch
+into `main` in both participant repos, with no merge request anywhere in the chain —
+the last user instruction was a `/handoff` to continue Phase 6 in the worktree. It was
+**not a violation of this canon; it was a hole in it.** Class 4 read as "safe +
+additive", `git commit` was listed as ungated, and nothing distinguished a local merge
+from one. `aidex-plan-exec`'s close-out contains zero occurrences of merge/branch/main —
+close-out meant tearing the worktree down, not integrating it. The only anti-merge
+sentence in the entire suite lived in a comment inside `worktree.sh`'s teardown path,
+invisible from a plan-exec session. Two other merges the same fortnight were explicitly
+requested (2026-08-13 *"luego podemos mezclar"*; 2026-08-19 *"after owner review"*),
+which is what makes the third legible as a gap rather than a habit.
+
+**Tearing down a worktree is close-out; integrating its branch is not.** The two are
+routinely confused because they happen at the same moment.
+
 ## The durability-arbiter (active enforcement)
 
 The rules above are static; at a real mid-run boundary the executing agent still

@@ -5,10 +5,17 @@
 # recommended:
 #   - front-matter has the worktree_up / worktree_down fields, NON-EMPTY
 #   - the ## Procedure and ## Usage log sections are present
+#   - the ## Running this worktree and ## Never run here sections are present
 #   - the doc does not document the RETIRED tier mechanism
 #   - every script the ## Procedure names actually exists
 #   - every backlog/... path the doc references resolves (active / _archive /
 #     _deferred)
+#
+# `## Running this worktree` / `## Never run here` are required because the
+# forbidden set is PROJECT-SPECIFIC — a bare `playwright test` here, an
+# un-offsettable Metro port there — so no shipped script can hold it. A doc that
+# records topology and ports but not "what will hurt the main tree" leaves the
+# only project-specific half of the contract to memory.
 #
 # The last three exist because presence checks alone certified three
 # retired-mechanism docs as healthy. `worktree_up: ""` satisfied a
@@ -56,6 +63,10 @@ done
 # --- required sections ---
 grep -qE '^## +Procedure *$' "$DOC" || gaps+=("section: missing '## Procedure'")
 grep -qE '^## +Usage log *$' "$DOC" || gaps+=("section: missing '## Usage log'")
+grep -qE '^## +Running this worktree *$' "$DOC" \
+  || gaps+=("section: missing '## Running this worktree'")
+grep -qE '^## +Never run here *$' "$DOC" \
+  || gaps+=("section: missing '## Never run here'")
 
 # --- the retired tier mechanism ---
 # Anchored at the start of a heading on purpose: a usage-log entry titled
