@@ -183,6 +183,20 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "outer: a participant-root harness config must be scanned, got: $out"
 grep -q 'playwright.e2e.config.ts' <<<"$out" || fail "outer: must name the outer config, got: $out"
 
+# --- 10. a SINGLE project with nothing to examine is not a pass -------------
+# Same shape as case 7, on the other path: `scan_project` returns 0 when there
+# is no config.env and when WT_PARTICIPANTS is empty, and the caller printed
+# "test runner OK" for both.
+p="$TMP/runner-noconfig"; mkdir -p "$p"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "noconfig: a project with no worktree config must NOT report clean, got: $out"
+grep -qi 'nothing was checked' <<<"$out" || fail "noconfig: must say it examined nothing, got: $out"
+
+p="$TMP/runner-noparts"; mkdir -p "$p/.context/worktrees"
+printf 'WT_PARTICIPANTS=""\nWT_LINKS="dev.sh"\n' > "$p/.context/worktrees/config.env"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "noparts: an empty WT_PARTICIPANTS must NOT report clean, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
