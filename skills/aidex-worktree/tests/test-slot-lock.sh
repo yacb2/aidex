@@ -46,7 +46,10 @@ ENV
 SLOTS="$TMP/slots"; SD="$SLOTS/aidex-wt-slots-lockproj"
 mkdir -p "$SD"
 
-run_wt() { out="$( cd "$PROJ" && TMPDIR="$SLOTS" bash "$WT" "$@" 2>&1 )"; RC=$?; }
+# The full 30s acquire wait is what this test would otherwise cost the default
+# suite, which is meant to run in seconds. The wait is shortened, not removed:
+# what the cases assert is WHICH owner gets reclaimed, not how long we wait.
+run_wt() { out="$( cd "$PROJ" && TMPDIR="$SLOTS" AIDEX_WT_LOCK_TRIES=8 bash "$WT" "$@" 2>&1 )"; RC=$?; }
 
 # --- 1. a lock whose owner is dead must be reclaimed, not waited out --------
 # A PID that cannot exist stands in for the interrupted run. Before the fix the
@@ -58,7 +61,7 @@ run_wt new stale-lock --branch wt/stale
 elapsed=$((SECONDS - start))
 grep -qi 'could not acquire the slot lock' <<<"$out" \
   && fail "stale lock: an owner that is gone must be reclaimed, got: $out"
-[[ "$elapsed" -lt 25 ]] \
+[[ "$elapsed" -lt 3 ]] \
   || fail "stale lock: waited ${elapsed}s — the lock was not reclaimed"
 rm -rf "$SD/.lock"
 

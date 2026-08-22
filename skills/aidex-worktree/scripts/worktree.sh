@@ -208,8 +208,11 @@ slot_taken() { [[ -e "$1/slot-$2" || -L "$1/slot-$2" ]]; }
 # previous form was a bare `mkdir` directory carrying no owner: one interrupted
 # `new` wedged slot allocation for the project until somebody removed it by hand.
 acquire_slot_lock() {  # acquire_slot_lock <slotdir>
-  local lock="$1/.lock" owner="" _
-  for _ in $(seq 1 300); do
+  # 300 x 0.1s = the 30s wait. Overridable ONLY so the regression test can assert
+  # "a live owner is not stolen from" without spending 30s of a suite whose whole
+  # design point is running in seconds with Docker closed. Never set in normal use.
+  local lock="$1/.lock" owner="" _ tries="${AIDEX_WT_LOCK_TRIES:-300}"
+  for _ in $(seq 1 "$tries"); do
     ln -s "$$" "$lock" 2>/dev/null && return 0
     if [[ -d "$lock" && ! -L "$lock" ]]; then
       # A legacy ownerless `mkdir` lock. It cannot be attributed to anyone, which
