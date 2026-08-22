@@ -280,7 +280,63 @@ out_g="$(python3 "$EXTRACT" --out "$OUT/g.jsonl" --cursor "$CUR2" \
 grep -q '"through"' "$CUR2" && ok "control: a healthy run does advance the cursor" \
                             || bad "the cursor was not written on a good run"
 
-# (3) ONE BAD LINE MUST NOT DISCARD A WHOLE SESSION. The read was a list
+# (2b) BL-183: --all IS THE FLAG NAMED FOR THE WHOLE CORPUS, and it was the one
+#      path that guaranteed the narrowest default window. resolve_cutoff treated
+#      it as "ignore the cursor", never as "no lower bound", so with no --since it
+#      fell through to `now - days` with days=7. Measured in the field: 323 records
+#      from a 7-day window where --since 3650d over the same corpus returned 7,038,
+#      1,348 sessions, 23 projects. Exit 0, nothing said.
+#
+#      This is the SAME defect as (2), one branch over: the comment written to fix
+#      the cursor path names --all as a safe alternative while --all silently used
+#      the unsafe default.
+#
+#      The fixture's timestamps are all in 2026-01, so on any run day past
+#      2026-01-14 a 7-day window returns nothing at all while the corpus is
+#      non-empty. That is what makes this checkable without freezing the clock.
+n_since="$(python3 "$EXTRACT" --out "$OUT/all-ref.jsonl" --since 3650d \
+                   --transcripts-root "$TX" 2>/dev/null | sed -nE 's/^records: ([0-9]+).*/\1/p')"
+out_all="$(python3 "$EXTRACT" --out "$OUT/all.jsonl" --all \
+                   --transcripts-root "$TX" 2>&1)"; rc_all=$?
+n_all="$(sed -nE 's/^records: ([0-9]+).*/\1/p' <<<"$out_all")"
+
+[[ $rc_all -eq 0 ]] && ok "--all runs" || bad "--all failed: $out_all"
+# The reference is asserted non-empty first: if the fixture ever returned nothing,
+# `n_all == n_since` would be 0 == 0 and the assertion below could not fail.
+[[ "${n_since:-0}" -gt 0 ]] \
+  && ok "control: the fixture corpus is non-empty over a 10-year window ($n_since records)" \
+  || bad "the reference run returned no records — the --all assertion would be vacuous"
+[[ "${n_all:-0}" -eq "${n_since:-0}" ]] \
+  && ok "--all returns the whole corpus ($n_all records), not a 7-day slice" \
+  || bad "--all returned $n_all of $n_since records — it fell through to the --days default"
+
+# --days must not be able to narrow --all. Stated separately because the defect
+# was precisely that --all inherited that default.
+n_all_d="$(python3 "$EXTRACT" --out "$OUT/all-d.jsonl" --all --days 1 \
+                   --transcripts-root "$TX" 2>/dev/null | sed -nE 's/^records: ([0-9]+).*/\1/p')"
+[[ "${n_all_d:-0}" -eq "${n_since:-0}" ]] \
+  && ok "--all ignores --days entirely" \
+  || bad "--all --days 1 returned $n_all_d of $n_since — --days still narrows --all"
+
+# --since keeps winning over --all, as it does today.
+n_both="$(python3 "$EXTRACT" --out "$OUT/both.jsonl" --all --since 2026-01-05T00:00:00Z \
+                  --transcripts-root "$TX" 2>/dev/null | sed -nE 's/^records: ([0-9]+).*/\1/p')"
+[[ -n "$n_both" && "${n_both:-0}" -lt "${n_since:-0}" ]] \
+  && ok "an explicit --since still wins over --all ($n_both of $n_since)" \
+  || bad "--all --since <mid-corpus> returned $n_both of $n_since — --since stopped winning"
+
+# The summary must not let a DEFAULT window read as a full run. The `window from
+# <ts>` line alone cannot: it is the same sentence whether the caller chose the
+# span or inherited it, which is how the field run was read as full history.
+out_def="$(python3 "$EXTRACT" --out "$OUT/def.jsonl" --transcripts-root "$TX" 2>&1)"
+grep -qiE 'records:.*window.*(default|not full)' <<<"$out_def" \
+  && ok "a defaulted window says so in the summary" \
+  || bad "the default 7-day window is reported like any other: $(grep -i '^records:' <<<"$out_def")"
+grep -qiE 'records:.*window.*all history' <<<"$out_all" \
+  && ok "--all names its window as all history" \
+  || bad "--all's summary does not distinguish itself: $(grep -i '^records:' <<<"$out_all")"
+
+# --- (3) ONE BAD LINE MUST NOT DISCARD A WHOLE SESSION. The read was a list
 #     comprehension inside `except Exception: continue` over a bare `open()`, so a
 #     single truncated line — or one invalid UTF-8 byte, where every sibling reader
 #     uses errors="replace" — dropped every prompt in that file with no counter
