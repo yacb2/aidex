@@ -183,7 +183,15 @@ CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
   local sl f
   for f in "$(SLOTDIR_FOR)"/slot-*; do
     [[ -e "$f" ]] || continue
-    [[ "$(awk '{print $2}' "$f" 2>/dev/null)" == "$1" ]] && { sl="$(basename "$f")"; printf '%s' "${sl#slot-}"; return 0; }
+    [[ "$(awk '{print $2}' "$f" 2>/dev/null)" == "$1" ]] || continue
+    sl="$(basename "$f")"; sl="${sl#slot-}"
+    # The value returned here reaches `$(( ))` in port_env. A claim directory
+    # under a shared /tmp is writable by anything running as this user, so the
+    # FILENAME is untrusted input -- and arithmetic evaluation does execute an
+    # array-subscript payload like `a[$(cmd)]`. A claim that is not a plain
+    # number is not a slot.
+    [[ "$sl" =~ ^[0-9]+$ ]] || continue
+    printf '%s' "$sl"; return 0
   done
   return 1
 }
@@ -263,6 +271,17 @@ fi
 [[ -n "$SLUG" ]] || die "a <slug> is required"
 is_valid_slug "$SLUG" || die "invalid slug: $SLUG (kebab-case, [a-z0-9-])"
 case "$SLUG" in "$PROJECT"|dev|prod|main) die "refusing dev/prod-like slug: $SLUG" ;; esac
+
+# An explicit --slot was never checked. Two consequences, both live: `--slot 0`
+# is the MAIN tree, so the worktree was handed dev's exact ports and wrote them
+# into its own .env and rendered env files; and a non-numeric value flows into
+# `$(( base + slot * WT_PORT_STRIDE ))` in port_env, which executes an
+# array-subscript substitution. Validated here, at the parse boundary, so `up`
+# is covered as well as `new`.
+if [[ -n "$SLOT" ]]; then
+  [[ "$SLOT" =~ ^[0-9]+$ ]] && [[ "$SLOT" -ge 1 && "$SLOT" -le "$WT_MAX_SLOTS" ]] \
+    || die "invalid --slot '$SLOT': must be an integer in 1..$WT_MAX_SLOTS (slot 0 is the main tree)"
+fi
 
 DEST="$(cd "$(dirname "$(DEST_FOR "$SLUG")")" && pwd -P)/$(basename "$(DEST_FOR "$SLUG")")"
 CPROJ="$(PROJ_FOR "$SLUG")"
