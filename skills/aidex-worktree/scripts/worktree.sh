@@ -179,6 +179,54 @@ PROJ_FOR() { printf '%s-wt-%s\n' "$PROJECT" "$1"; }
 # uncommitted work that blocks its own removal. A supervising agent needs both
 # facts before it decides anything, so both are columns.
 SLOTDIR_FOR() { printf '%s/aidex-wt-slots-%s\n' "${TMPDIR:-/tmp}" "$PROJECT"; }
+
+# The claim directory is shared, mutable state in /tmp. Its path is deliberately
+# NOT uid-scoped: scoping it would be tidier, but it makes every existing claim
+# invisible, and a live worktree's `down` would then find no slot recorded. What
+# is checked instead is that the directory is ours and is not a symlink.
+ensure_slotdir() {
+  local d; d="$(SLOTDIR_FOR)"
+  [[ -L "$d" ]] && die "refusing slot directory $d: it is a symlink"
+  mkdir -p "$d" 2>/dev/null
+  [[ -d "$d" ]] || die "could not create the slot directory $d"
+  [[ -O "$d" ]] || die "refusing slot directory $d: it is not owned by this user"
+  printf '%s' "$d"
+}
+
+# A dangling symlink named `slot-N` turns this write into an arbitrary-file
+# create/truncate as the invoking user -- and, because a dangling symlink is not
+# `-e`, the same slot also reads as FREE to the allocator.
+write_claim() {  # write_claim <slotdir> <slot> <slug>
+  local f="$1/slot-$2"
+  [[ -L "$f" ]] && die "refusing claim $f: it is a symlink, not a claim file"
+  printf '%s %s\n' "$$" "$3" > "$f"
+}
+slot_taken() { [[ -e "$1/slot-$2" || -L "$1/slot-$2" ]]; }
+
+# A PID-anchored symlink publishes the lock's name and its owner in one atomic
+# step, so no trap is needed and a lock left by a dead process self-heals. The
+# previous form was a bare `mkdir` directory carrying no owner: one interrupted
+# `new` wedged slot allocation for the project until somebody removed it by hand.
+acquire_slot_lock() {  # acquire_slot_lock <slotdir>
+  local lock="$1/.lock" owner="" _
+  for _ in $(seq 1 300); do
+    ln -s "$$" "$lock" 2>/dev/null && return 0
+    if [[ -d "$lock" && ! -L "$lock" ]]; then
+      # A legacy ownerless `mkdir` lock. It cannot be attributed to anyone, which
+      # is the defect; reclaim it rather than wait out a lock nobody may hold.
+      warn "reclaiming a legacy ownerless slot lock at $lock"
+      rmdir "$lock" 2>/dev/null
+      continue
+    fi
+    owner="$(readlink "$lock" 2>/dev/null || true)"
+    if [[ -n "$owner" ]] && ! kill -0 "$owner" 2>/dev/null; then
+      rm -f "$lock"; continue
+    fi
+    sleep 0.1
+  done
+  die "could not acquire the slot lock at $lock after 30s (held by PID ${owner:-unknown})"
+}
+release_slot_lock() { rm -f "$1/.lock"; }
 CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
   local sl f
   for f in "$(SLOTDIR_FOR)"/slot-*; do
@@ -617,10 +665,18 @@ if [[ "$cmd" == "up" ]]; then
   [[ -n "$SLOT" ]] || die "no slot recorded for $SLUG (missing .wt-slot and no claim) — pass --slot N"
 
   # Re-assert the claim: the slot is ours again while the stack is up.
-  SLOTDIR="$(SLOTDIR_FOR)"; mkdir -p "$SLOTDIR"
+  #
+  # Under the SAME lock `new` uses. This read-check-write used to run unlocked,
+  # so it raced `new`'s allocator: `new` reads slot N as free, `up` writes its
+  # claim to N, `new` writes over it, and two worktrees hold one slot with only
+  # one of them named. The lock is held only around the three lines that decide,
+  # never across the stack start.
+  SLOTDIR="$(ensure_slotdir)"
+  acquire_slot_lock "$SLOTDIR"
   other="$(awk '{print $2}' "$SLOTDIR/slot-$SLOT" 2>/dev/null)"
-  [[ -n "$other" && "$other" != "$SLUG" ]] && die "slot $SLOT is held by '$other' — free it first"
-  printf '%s %s\n' "$$" "$SLUG" > "$SLOTDIR/slot-$SLOT"
+  [[ -n "$other" && "$other" != "$SLUG" ]] && { release_slot_lock "$SLOTDIR"; die "slot $SLOT is held by '$other' — free it first"; }
+  write_claim "$SLOTDIR" "$SLOT" "$SLUG"
+  release_slot_lock "$SLOTDIR"
   echo "$SLOT" > "$DEST/.wt-slot"
   write_wt_env "$DEST" "$SLOT"
   render_env_files "$DEST" "$SLOT" || exit 2
@@ -677,13 +733,8 @@ if [[ "$cmd" == "new" ]]; then
   # claim file — the claim is what makes the choice visible to the next process
   # before this one has bound anything.
   if ! $NO_INFRA && [[ -n "$WT_PORT_VARS" ]]; then
-    SLOTDIR="${TMPDIR:-/tmp}/aidex-wt-slots-${PROJECT}"
-    LOCK="$SLOTDIR/.lock"
-    mkdir -p "$SLOTDIR"
-
-    locked=false
-    for _ in $(seq 1 300); do mkdir "$LOCK" 2>/dev/null && { locked=true; break; }; sleep 0.1; done
-    $locked || die "could not acquire the slot lock at $LOCK after 30s — remove it if no worktree creation is running"
+    SLOTDIR="$(ensure_slotdir)"
+    acquire_slot_lock "$SLOTDIR"
 
     # Reap claims whose owner is gone. A claim carries the PID of the process
     # that made it, and that is load-bearing: an in-flight creation has claimed
@@ -704,10 +755,18 @@ if [[ "$cmd" == "new" ]]; then
     done
 
     if [[ -n "$SLOT" ]]; then
-      [[ -e "$SLOTDIR/slot-$SLOT" ]] && { rmdir "$LOCK"; die "slot $SLOT is claimed by '$(awk '{print $2}' "$SLOTDIR/slot-$SLOT")'"; }
+      if slot_taken "$SLOTDIR" "$SLOT"; then
+        release_slot_lock "$SLOTDIR"
+        # A symlink here is not a claim by another slug -- it is a planted path,
+        # and saying "claimed by ''" would send the reader looking for a worktree
+        # that does not exist.
+        [[ -L "$SLOTDIR/slot-$SLOT" ]] \
+          && die "refusing claim $SLOTDIR/slot-$SLOT: it is a symlink, not a claim file"
+        die "slot $SLOT is claimed by '$(awk '{print $2}' "$SLOTDIR/slot-$SLOT" 2>/dev/null)'"
+      fi
     else
       for cand in $(seq 1 "$WT_MAX_SLOTS"); do
-        [[ -e "$SLOTDIR/slot-$cand" ]] && continue
+        slot_taken "$SLOTDIR" "$cand" && continue
         busy=0
         while IFS= read -r line; do
           p="${line##*=}"
@@ -715,11 +774,11 @@ if [[ "$cmd" == "new" ]]; then
         done < <(port_env "$cand")
         [[ "$busy" -eq 0 ]] && { SLOT="$cand"; break; }
       done
-      [[ -n "$SLOT" ]] || { rmdir "$LOCK"; die "no free slot in 1..$WT_MAX_SLOTS — tear an existing worktree down"; }
+      [[ -n "$SLOT" ]] || { release_slot_lock "$SLOTDIR"; die "no free slot in 1..$WT_MAX_SLOTS — tear an existing worktree down"; }
     fi
 
-    printf '%s %s\n' "$$" "$SLUG" > "$SLOTDIR/slot-$SLOT"
-    rmdir "$LOCK"
+    write_claim "$SLOTDIR" "$SLOT" "$SLUG"
+    release_slot_lock "$SLOTDIR"
     CLAIM="$SLOTDIR/slot-$SLOT"
     info "slot $SLOT -> $(port_env "$SLOT" | tr '\n' ' ')"
   fi
