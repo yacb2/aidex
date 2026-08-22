@@ -91,6 +91,10 @@ exit 0'
 out2="$( cd "$TMP/p2" && PATH="$BIN:$PATH" bash "$S/worktree.sh" new good --branch wt/good 2>&1 )"; rc2=$?
 grep -qi 'no Docker resource carries the project label' <<<"$out2" \
   && fail "4: a properly labelled stack was reported as unattributable, got: $out2"
+# The exit code too, not only the message: asserting the absence of a string
+# leaves parity_rc free to become 3 for an unrelated reason and still pass.
+[[ "$rc2" -eq 0 ]] \
+  || fail "5: a properly labelled stack must exit 0, got $rc2: $out2"
 
 if [[ "$failures" -eq 0 ]]; then
   echo "PASS: test-attributability.sh"
