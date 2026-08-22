@@ -127,13 +127,25 @@ def skills_in_assistant(o):
     return out
 
 def resolve_cutoff(args):
+    """Return (cutoff, label). The label is what the summary prints, and it exists
+    because `records: N (window from <ts>)` reads identically whether the caller
+    CHOSE the span or inherited it -- which is how a defaulted seven-day run was
+    read as full history."""
     now = datetime.datetime.now(datetime.timezone.utc)
     if args.since:
         m = re.fullmatch(r"(\d+)d", args.since.strip())
-        if m: return now - datetime.timedelta(days=int(m.group(1)))
+        if m: return now - datetime.timedelta(days=int(m.group(1))), "set by --since"
         t = parse_ts(args.since)
-        if t: return t
-    if not args.all and args.cursor and os.path.exists(args.cursor):
+        if t: return t, "set by --since"
+    # BL-183. `--all` used to mean only "ignore the cursor", so with no --since it
+    # fell through to `now - days` and the flag named for the whole corpus was the
+    # one path that guaranteed the narrowest default window: 323 records where the
+    # same corpus held 7,038, exit 0, nothing said. The comment below already named
+    # --all as the safe alternative to guessing while --all was doing the guessing.
+    # Checked before the cursor branch so no later path can narrow it.
+    if args.all:
+        return datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc), "all history"
+    if args.cursor and os.path.exists(args.cursor):
         # A cursor that cannot be read is a HARD ERROR, never a fallback. This was
         # `except Exception: pass`, which fell through to `now - days` — a silent
         # SEVEN-DAY window — and then rewrote the cursor to the end of it, so every
@@ -152,11 +164,12 @@ def resolve_cutoff(args):
                 f"cursor to start a fresh incremental history.")
         pc = parse_ts(prev) if prev else None
         if pc:
-            return pc
+            return pc, "resumed from cursor"
         raise SystemExit(
             f"ERROR: cursor {args.cursor} has no usable `through` timestamp "
             f"(found {prev!r}). Re-run with an explicit --since or --all.")
-    return now - datetime.timedelta(days=args.days)
+    return (now - datetime.timedelta(days=args.days),
+            f"DEFAULT last {args.days} days, NOT full history; pass --all or --since")
 
 def main():
     ap = argparse.ArgumentParser()
@@ -173,7 +186,7 @@ def main():
             if args.transcripts_root else TX_ROOT)
 
     now = datetime.datetime.now(datetime.timezone.utc)
-    cutoff = resolve_cutoff(args)
+    cutoff, window_label = resolve_cutoff(args)
     records, max_ts = [], cutoff
     skipped_machine = skipped_unparseable = 0
 
@@ -311,7 +324,9 @@ def main():
                   open(args.cursor, "w"), indent=2)
 
     from collections import Counter
-    print(f"records: {len(records)}  (window from {cutoff.isoformat()[:19]})")
+    print(f"records: {len(records)}  "
+          + (f"(window: {window_label})" if window_label == "all history"
+             else f"(window from {cutoff.isoformat()[:19]} — {window_label})"))
     print(f"  unparseable lines skipped: {skipped_unparseable} "
           f"(the line only, never the session)")
     print(f"  machine-authored prompts excluded: {skipped_machine} "
