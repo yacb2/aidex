@@ -420,7 +420,13 @@ assert_services_running() {
     err "services parity: WT_SERVICES declares$down, but they are not running."
     err "Running: $running"
     err "Read 'docker compose logs' in $dir — a crash loop looks exactly like this."
-    exit 2
+    # `return 1`, not `exit 2`. This is a predicate with two callers: `up` writes
+    # `|| exit 2` and still exits 2, so nothing changes there; `new` writes
+    # `|| parity_rc=3` precisely so the failure is reported AFTER the worktree
+    # handle is printed. Exiting here bypassed that and stranded a created
+    # worktree with its slot still claimed -- the failure the comment at the
+    # `new` call site claims to have fixed.
+    return 1
   fi
   [[ -z "$extra" ]] && return 0
 

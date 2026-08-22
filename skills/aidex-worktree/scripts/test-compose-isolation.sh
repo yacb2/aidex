@@ -21,7 +21,10 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   echo "SKIP — docker unavailable; check-compose-isolation needs it to render compose files"
-  exit 0
+  # Exit 2, not 0: run-all.sh counts a SKIP only when the message AND the code
+  # agree. Exiting 0 here made a check that never ran indistinguishable from one
+  # that ran and held, in the suite's own summary.
+  exit 2
 fi
 
 TMP="$(mktemp -d)"
