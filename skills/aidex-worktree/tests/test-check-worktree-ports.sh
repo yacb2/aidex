@@ -214,6 +214,23 @@ out="$(AIDEX_PROJECTS_DIR=/tmp/aidex-no-such-dir bash "$CHECK" --census 2>&1)"; 
 [[ "$rc" -ne 0 ]] || fail "census: examining 0 projects must NOT report clean, got: $out"
 grep -qi '0 projects' <<<"$out" || fail "census: must say it examined nothing, got: $out"
 
+# --- 11. a SINGLE project with nothing to examine is not a pass -------------
+# The census learned this (case 10) and the single-project path did not:
+# `scan_project` returns 0 both when every linked script is clean and when there
+# was no config.env, or no WT_LINKS, to look at. The caller printed the same
+# "host ports OK" either way, which is a positive isolation guarantee derived
+# from having examined nothing.
+p="$TMP/noconfig"; mkdir -p "$p"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "noconfig: a project with no worktree config must NOT report clean, got: $out"
+grep -qi 'nothing was checked' <<<"$out" || fail "noconfig: must say it examined nothing, got: $out"
+
+p="$TMP/nolinks"; mkdir -p "$p/.context/worktrees"
+printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\n' > "$p/.context/worktrees/config.env"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "nolinks: an empty WT_LINKS must NOT report clean, got: $out"
+grep -qi 'nothing was checked' <<<"$out" || fail "nolinks: must say it examined nothing, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

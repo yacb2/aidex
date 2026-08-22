@@ -48,9 +48,18 @@ run_all_for() {  # run_all_for <project-root> -> 0 clean, 1 findings
 
   # 1. compose addressing — image / container_name / published ports / volumes.
   #    Runs from the project root because it defaults to ./docker-compose.yml.
-  if [[ -f "$root/docker-compose.yml" ]]; then
-    ( cd "$root" && bash "$SELF_DIR/check-compose-isolation.sh" ) || rc=1
-  fi
+  #    All four names Compose itself accepts are resolved: gating on the literal
+  #    `docker-compose.yml` meant a project on `compose.yaml` had this surface
+  #    silently skipped while the verdict line below still named it.
+  COMPOSE_RAN=false
+  local cf
+  for cf in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+    if [[ -f "$root/$cf" ]]; then
+      COMPOSE_RAN=true
+      ( cd "$root" && bash "$SELF_DIR/check-compose-isolation.sh" "$root/$cf" ) || rc=1
+      break
+    fi
+  done
 
   # 2. host-process ports — a linked script that can bind or KILL dev's ports.
   bash "$SELF_DIR/check-worktree-ports.sh" "$root" || rc=1
@@ -86,4 +95,11 @@ fi
 
 ROOT="${TARGET:-$(find_project_root)}"
 run_all_for "$ROOT" || exit 1
-ok "worktree isolation OK: $(basename "$ROOT") — compose, host ports and test runners all hold"
+# Name only the surfaces that actually ran. Claiming compose when no compose
+# file was found is the umbrella starting to lie, which is the one thing the
+# header says it must never do.
+if $COMPOSE_RAN; then
+  ok "worktree isolation OK: $(basename "$ROOT") — compose, host ports and test runners all hold"
+else
+  ok "worktree isolation OK: $(basename "$ROOT") — host ports and test runners hold (no compose file found; that surface was not checked)"
+fi

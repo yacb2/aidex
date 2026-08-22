@@ -191,6 +191,22 @@ fi
 
 # ---------------------------------------------------------------- one project
 ROOT="${TARGET:-$(find_project_root)}"
+
+# Examining nothing is not a pass. `scan_project` returns 0 both when every
+# linked script is clean and when there was no config.env, or no WT_LINKS, to
+# look at -- and the verdict below cannot tell the two apart. The census path
+# has refused this since it was written; this path did not, and a project with
+# no worktree setup was handed a positive isolation guarantee.
+PORTS_CFG="$ROOT/.context/worktrees/config.env"
+if [[ ! -f "$PORTS_CFG" ]]; then
+  err "no worktree config at $PORTS_CFG — nothing was checked."
+  exit 2
+fi
+if [[ -z "$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$PORTS_CFG" | head -1)" ]]; then
+  err "WT_LINKS is empty in $PORTS_CFG — nothing was checked."
+  exit 2
+fi
+
 findings="$(scan_project "$ROOT")"
 if [[ -z "$findings" ]]; then
   ok "host ports OK: $(basename "$ROOT") — no linked script can bind or kill the main tree's ports"

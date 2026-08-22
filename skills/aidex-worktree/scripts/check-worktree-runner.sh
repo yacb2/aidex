@@ -186,6 +186,21 @@ if $CENSUS; then
 fi
 
 ROOT="${TARGET:-$(find_project_root)}"
+
+# Examining nothing is not a pass -- the same rule the census above already
+# applies. `scan_project` returns 0 when there is no config.env and when
+# WT_PARTICIPANTS is empty, and the verdict below cannot tell either from a
+# project whose harnesses are genuinely clean.
+RUNNER_CFG="$ROOT/.context/worktrees/config.env"
+if [[ ! -f "$RUNNER_CFG" ]]; then
+  err "no worktree config at $RUNNER_CFG — nothing was checked."
+  exit 2
+fi
+if [[ -z "$(sed -n 's/^[[:space:]]*WT_PARTICIPANTS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$RUNNER_CFG" | head -1)" ]]; then
+  err "WT_PARTICIPANTS is empty in $RUNNER_CFG — nothing was checked."
+  exit 2
+fi
+
 findings="$(scan_project "$ROOT")"
 if [[ -z "$findings" ]]; then
   ok "test runner OK: $(basename "$ROOT") — no directly-invokable harness falls back to dev"
