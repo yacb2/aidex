@@ -59,6 +59,68 @@ grep -q 'PRE_DB=6400' <<<"$out" \
 grep -qi 'no slot' <<<"$out" \
   || fail "#5: a blank .wt-slot must be reported as no slot recorded, got: $out"
 
+# --- BL-193. --delete-branch cannot name the branch -> it must REFUSE --------
+#
+# `down --delete-branch` reads the branch from `<worktree>/.wt-branch`. When that
+# file is missing or empty it cannot identify the branch, skips the deletion and
+# reports SUCCESS -- leaving a branch nobody will remember to remove. Both states
+# are live: `echo_lab_ws-wt-editor-week` has NO `.wt-branch` (created 2026-08-15,
+# before the file existed), which is the case the item mis-recorded as empty.
+#
+# What is NOT done here, deliberately: falling back to `git worktree list
+# --porcelain`. Measured 2026-08-22 -- after a checkout switches branches that
+# command reports the NEW branch, so it is the current branch under another name
+# and using it is exactly the wrong-target deletion worktree.sh:1173 forbids.
+# The refusal names the current checkout as information and refuses to act on it.
+mk_branch_fixture() {  # mk_branch_fixture <dir> <slug>
+  mkdir -p "$1/.context/worktrees" "$1/backend"
+  printf 'WT_PARTICIPANTS="backend"\nWT_LINKS=""\nWT_PORT_VARS="DB_PORT=6400"\n' \
+    > "$1/.context/worktrees/config.env"
+  ( cd "$1/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+    && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A \
+    && /usr/bin/git commit -qm i ) >/dev/null 2>&1
+  ( cd "$1" && bash "$S/worktree.sh" new "$2" --branch "wt/$2" --no-infra ) >/dev/null 2>&1
+}
+mk_docker '#!/bin/sh
+exit 0'
+
+# (a) CONTROL FIRST. With .wt-branch intact the deletion happens and exits 0 --
+#     without this, every assertion below is satisfied by a command that refuses
+#     unconditionally.
+mk_branch_fixture "$TMP/pb-ok" keep
+out="$( cd "$TMP/pb-ok" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down keep --force --delete-branch 2>&1 )"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "BL-193 control: an intact .wt-branch must still exit 0, got $rc: $out"
+/usr/bin/git -C "$TMP/pb-ok/backend" rev-parse --verify -q wt/keep >/dev/null \
+  && fail "BL-193 control: the branch was not deleted although .wt-branch named it: $out"
+
+# (b) EMPTY .wt-branch — mutated at the call site, which is the state the item names.
+mk_branch_fixture "$TMP/pb-empty" mt
+: > "$TMP/pb-empty-wt-mt/.wt-branch"
+out="$( cd "$TMP/pb-empty" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down mt --force --delete-branch 2>&1 )"; rc=$?
+# The exit code is the whole point: this item is about a command that reports
+# success while doing nothing, so grepping the message alone would reproduce the
+# defect class inside the test.
+[[ "$rc" -ne 0 ]] \
+  || fail "BL-193: an empty .wt-branch skipped the deletion and reported SUCCESS (rc=0): $out"
+grep -qi 'empty' <<<"$out" \
+  || fail "BL-193: the refusal does not say the recorded branch is empty: $out"
+/usr/bin/git -C "$TMP/pb-empty/backend" rev-parse --verify -q wt/mt >/dev/null \
+  || fail "BL-193: refusing must not delete anything — wt/mt is gone: $out"
+
+# (c) MISSING .wt-branch — the live case, and it must NOT be described as empty.
+mk_branch_fixture "$TMP/pb-gone" old
+rm -f "$TMP/pb-gone-wt-old/.wt-branch"
+out="$( cd "$TMP/pb-gone" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down old --force --delete-branch 2>&1 )"; rc=$?
+[[ "$rc" -ne 0 ]] \
+  || fail "BL-193: a missing .wt-branch skipped the deletion and reported SUCCESS (rc=0): $out"
+grep -qi 'no .wt-branch' <<<"$out" \
+  || fail "BL-193: the refusal does not distinguish a MISSING file from an empty one: $out"
+
+# (d) The teardown itself still succeeded — the refusal is about the branch only,
+#     and must not read as a failed teardown.
+[[ -d "$TMP/pb-gone-wt-old" ]] \
+  && fail "BL-193: the worktree directory survived — the refusal aborted the teardown"
+
 # --- #6. the sweep's namespace comes from the WORKSPACE, not the caller -----
 # Split-git: the workspace root has no .git; each participant is its own repo.
 mkdir -p "$TMP/wsproj/.context/worktrees" "$TMP/wsproj/backend"
