@@ -31,6 +31,7 @@
       paste: ' — paste them into the chat.',
       noClipboard: ' — clipboard unavailable, copy the selected text.',
       restored: function (n) { return n + ' answer(s) recovered from your last visit on this machine.'; },
+      stale: function (n) { return ' ' + n + ' were left blank because their question changed since you answered it.'; },
       discard: 'Discard them',
       copy: 'Copy my answers',
       contents: 'Contents'
@@ -48,6 +49,7 @@
       paste: ' — pégalas en el chat.',
       noClipboard: ' — portapapeles no disponible, copia el texto seleccionado.',
       restored: function (n) { return n + ' respuesta(s) recuperada(s) de tu última visita en esta máquina.'; },
+      stale: function (n) { return ' ' + n + ' se dejaron en blanco porque su pregunta cambió desde que la respondiste.'; },
       discard: 'Descartarlas',
       copy: 'Copiar mis respuestas',
       contents: 'Contenido'
@@ -192,6 +194,46 @@
     else el.value = v;
   }
 
+  /* A fingerprint of the QUESTION, so an answer does not restore onto a question
+   * that was rephrased under it. The reported case: the reader answered, asked
+   * for some questions to be explained better, and the regenerated page showed
+   * those items as already answered with the old text in them. The id is
+   * unchanged by design there -- the claim is the same, so `check_prev` requires
+   * the id to stay, and it also refuses a changed `data-title` -- so the id
+   * cannot be the discriminant. The question BODY is.
+   *
+   * The trigger is per item, deliberately. Clearing the store on regeneration
+   * reverts R6-02: persistence exists BECAUSE "every regeneration or reload
+   * discarded them -- the reader lost a full answer set once". In a set where
+   * four items were handed back and nine were half-typed, that destroys the nine.
+   *
+   * `[contenteditable]` subtrees are blanked before hashing, and that is the one
+   * thing this must get right. `setFreeValue` writes them via `.textContent`, so
+   * hashing the raw text would fold the reader's own typing into the
+   * fingerprint: a plain reload with no regeneration would then fail to match
+   * and the answer would never come back -- R6-02 again, in the worse direction.
+   * `textarea` needs no such care (`.value` does not touch child text) and
+   * `<option>` text is left in on purpose: changed options invalidate the answer.
+   *
+   * `textContent`, never `innerHTML`: the latter fires on cosmetic markup churn
+   * and would discard answers to questions that never changed.
+   *
+   * FNV-1a, not a crypto digest: `crypto.subtle` is async and unavailable on
+   * file://, which is where these pages live. A collision restores a stale
+   * answer -- exactly today's behaviour, so the failure mode is the status quo,
+   * not a new one. */
+  function questionHash(el) {
+    var clone = el.cloneNode(true);
+    clone.querySelectorAll('[contenteditable]').forEach(function (c) { c.textContent = ''; });
+    var s = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+    }
+    return h.toString(16);
+  }
+
   function snapshotItem(el) {
     var s = { m: [] }, any = false;
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
@@ -203,6 +245,7 @@
       if (vals.some(function (v) { return v.trim(); })) any = true;
       if (vals.length) s[kind.k] = vals;
     });
+    if (any) s.h = questionHash(el);
     return any ? s : null;
   }
 
@@ -219,14 +262,19 @@
   }
 
   function restore() {
-    var n = 0;
+    var n = 0, stale = 0;
     try {
       var raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return 0;
+      if (!raw) return { n: 0, stale: 0 };
       var data = JSON.parse(raw);
       items.forEach(function (el) {
         var s = data[el.dataset.id];
         if (!s) return;
+        /* No `h` means an answer set saved before this existed. It is restored,
+         * not discarded: upgrading the kit must not blank answers a reader
+         * already typed, and the first input event re-saves the entry with a
+         * fingerprint. */
+        if (s.h && s.h !== questionHash(el)) { stale++; return; }
         var hit = false;
         el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
           .forEach(function (i) {
@@ -254,18 +302,18 @@
         }
         if (hit) n++;
       });
-    } catch (e) { return 0; }
-    return n;
+    } catch (e) { return { n: 0, stale: 0 }; }
+    return { n: n, stale: stale };
   }
 
-  function showRestoredNote(n) {
+  function showRestoredNote(n, stale) {
     var main = document.querySelector('.main');
     if (!main) return;
     var note = document.createElement('div');
     note.className = 'note';
     note.id = 'consult-restored';
     note.setAttribute('role', 'status');
-    note.appendChild(document.createTextNode(L.restored(n) + ' '));
+    note.appendChild(document.createTextNode(L.restored(n) + (stale ? L.stale(stale) : '') + ' '));
     var a = document.createElement('a');
     a.href = '#';
     a.textContent = L.discard;
@@ -313,7 +361,10 @@
 
   if (items.length) {
     var recovered = restore();
-    if (recovered) showRestoredNote(recovered);
+    /* Shown when anything was DROPPED too, not only when something was
+     * recovered: an answer the reader typed is missing from the page, and the
+     * banner is the only thing that says why. */
+    if (recovered.n || recovered.stale) showRestoredNote(recovered.n, recovered.stale);
     document.addEventListener('input', function () { refresh(); save(); });
     document.addEventListener('change', function () { refresh(); save(); });
     refresh();
