@@ -68,7 +68,12 @@ done
 # path ending in .env AND writes into process.env.
 dir_loads_slot_env() {
   local f
-  grep -rqE "require\\(['\"]dotenv|from ['\"]dotenv|dotenv\\.config\\(" "$1" 2>/dev/null && return 0
+  # Vendored trees are pruned: the dotenv package itself and dozens of its
+  # dependents live under node_modules, so an unpruned recursive grep matches
+  # every real frontend and exempts the whole directory before a single fallback
+  # is examined -- a blocking gate reporting green having looked at nothing.
+  grep -rqE --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=.venv \
+    "require\\(['\"]dotenv|from ['\"]dotenv|dotenv\\.config\\(" "$1" 2>/dev/null && return 0
   # Three conditions in the SAME file: it reads a file, it names `.env`, and it
   # writes into process.env. Requiring the literal `.env` INSIDE the read call
   # was too strict -- real loaders build the path into a variable first, so the
@@ -139,7 +144,11 @@ scan_project() {  # -> <file>:<line>\t<kind>\t<what>\t<why> per finding
             "invoked directly from a worktree this reaches the MAIN tree's stack; load <root>/.env in this harness before the fallback"
         done < <(grep -nE '[0-9]{4,5}' "$f" | cut -d: -f1 | sort -un | sed 's/$/:/')
       done < <(find "$d" -maxdepth 1 -type f \( -name '*e2e*.config.ts' -o -name 'test-config.ts' -o -name 'global-setup.ts' \) 2>/dev/null)
-      break   # the innermost existing harness dir wins; do not double-report
+      # No `break` here. It used to stop at the innermost EXISTING directory,
+      # which left a participant-root `playwright.e2e.config.ts` -- the file this
+      # check exists to catch -- unexamined whenever an inner `tests/` happened to
+      # exist, and the project was reported clean. The three `find -maxdepth 1`
+      # sets are disjoint, so scanning all three cannot double-report.
     done
   done
   return 0

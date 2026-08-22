@@ -146,6 +146,43 @@ out="$(AIDEX_PROJECTS_DIR=/tmp/aidex-no-such-dir bash "$CHECK" --census 2>&1)"; 
 [[ "$rc" -ne 0 ]] || fail "census: examining 0 projects must NOT report clean, got: $out"
 grep -qi '0 projects' <<<"$out" || fail "census: must say it examined nothing, got: $out"
 
+# --- 8. a vendored dotenv must NOT exempt the directory -> still a FINDING ---
+# The exemption grep is recursive. Every real frontend has `dotenv` somewhere
+# under node_modules (the package itself, and dozens of dependents that mention
+# it), so without a prune the grep matches vendored code and the whole
+# participant directory is skipped before a single fallback is examined. That is
+# a blocking gate reporting green having examined nothing.
+p="$(mk_project vendored)"
+cat > "$p/frontend/tests/e2e-setup/test-config.ts" <<'TS'
+export const CONFIG = {
+  BACKEND_URL: process.env.E2E_BACKEND_URL || 'http://localhost:8710',
+}
+TS
+mkdir -p "$p/frontend/tests/e2e-setup/node_modules/dotenv/lib"
+echo 'dotenv.config()' > "$p/frontend/tests/e2e-setup/node_modules/dotenv/lib/main.js"
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "vendored: a dotenv inside node_modules must NOT exempt the dir, got: $out"
+grep -q '8710' <<<"$out" || fail "vendored: must still name the port, got: $out"
+
+# --- 9. an OUTER harness config is scanned even when an inner dir exists -----
+# The dir loop used to `break` at the first EXISTING directory, so a project
+# with an empty-ish `tests/e2e-setup/` had its participant-root
+# `playwright.e2e.config.ts` — the file the check exists to catch — never
+# examined, and the project reported clean. The three `find -maxdepth 1` sets
+# are disjoint, so scanning all three cannot double-report.
+p="$(mk_project outer)"
+cat > "$p/frontend/tests/e2e-setup/global-setup.ts" <<'TS'
+export default async function () { /* nothing to see here */ }
+TS
+cat > "$p/frontend/playwright.e2e.config.ts" <<'TS'
+export default {
+  use: { baseURL: process.env.E2E_BACKEND_URL || 'http://localhost:8710' },
+}
+TS
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "outer: a participant-root harness config must be scanned, got: $out"
+grep -q 'playwright.e2e.config.ts' <<<"$out" || fail "outer: must name the outer config, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
