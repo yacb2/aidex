@@ -38,7 +38,11 @@
 #          its own merged-ness gate and no separate check is invented. Only the
 #          branch `new` created is ever a candidate: it is recorded in .wt-branch
 #          at creation, and a checkout that has since moved on is skipped with a
-#          warning rather than having its current branch deleted. Default off:
+#          warning rather than having its current branch deleted. When .wt-branch
+#          is missing or empty the branch cannot be named at all: that is REFUSED
+#          with exit 3, never reported as success — the teardown itself still
+#          completes, and 3 is not 1 (a failed teardown) for that reason.
+#          Default off:
 #          the branch is the only trace a torn-down worktree leaves, and deleting
 #          it by default would destroy unmerged work. This deliberately does NOT
 #          merge anything — an unrequested merge consumes the review window the
@@ -1159,6 +1163,7 @@ if [[ "$cmd" == "down" ]]; then
   # does nothing. Captured unconditionally: the cost is one git call per repo and
   # it keeps the ordering trap from reappearing if the flag is ever moved.
   declare -a WT_BRANCHES=()
+  BRANCH_UNRESOLVED=0
   if [[ -d "$DEST" ]]; then
     want="$(cat "$DEST/.wt-branch" 2>/dev/null || true)"
     for pp in $WT_PARTICIPANTS; do
@@ -1170,12 +1175,33 @@ if [[ "$cmd" == "down" ]]; then
       # the current name belongs to something else and deleting it would remove
       # a ref nobody asked about while leaving the intended one behind.
       #
-      # A missing .wt-branch SKIPS. It must never fall back to the current
-      # branch: that fallback is precisely the wrong-target deletion, and a
-      # worktree created before this file existed is exactly the case that would
-      # take it.
+      # A missing or empty .wt-branch cannot name the branch. It must never fall
+      # back to the current one: that fallback is precisely the wrong-target
+      # deletion, and a worktree created before this file existed is exactly the
+      # case that would take it.
+      #
+      # BL-193 proposed `git worktree list --porcelain` as a second, authoritative
+      # source. It is not one. Measured 2026-08-22: after a checkout switches
+      # branches that command reports the NEW branch, so it is `branch
+      # --show-current` under another name and using it would be the same
+      # wrong-target deletion. $brname below already holds that value; it is
+      # REPORTED as information and never acted on.
+      #
+      # So the branch cannot be deleted here -- but the command must not report
+      # success over it either, which is what it did. It sets a flag and the exit
+      # code is held until after the teardown, which succeeded and must not read
+      # as failed.
       if [[ -z "$want" ]]; then
-        $DELETE_BRANCH && warn "--delete-branch: no recorded branch for $b (pre-dates .wt-branch) — skipped"
+        if $DELETE_BRANCH; then
+          if [[ -e "$DEST/.wt-branch" ]]; then
+            err "--delete-branch: $b has an EMPTY .wt-branch — the branch it was created with was never recorded"
+          else
+            err "--delete-branch: $b has no .wt-branch — this worktree pre-dates the file"
+          fi
+          err "  its checkout is on '${brname:-detached HEAD}', which is NOT proof of what it was created with"
+          err "  delete it yourself once you know:  git -C $ROOT/$pp branch -d <branch>"
+          BRANCH_UNRESOLVED=1
+        fi
       elif [[ "$want" != "$brname" ]]; then
         $DELETE_BRANCH && warn "--delete-branch: $b is on '${brname:-detached HEAD}', not the created '$want' — skipped"
       else
@@ -1250,6 +1276,16 @@ if [[ "$cmd" == "down" ]]; then
       fi
     done
     fi
+  fi
+  # Held until here, and 3 rather than 1, for the reason `new` holds its parity
+  # failure: 1 is what a FAILED teardown returns (the directory is still there,
+  # the slot still claimed, "resume with: worktree.sh up"), and this teardown
+  # fully succeeded. What is unfinished is one branch nobody can name.
+  #   1 = the teardown itself failed; the worktree is still there
+  #   3 = torn down, but --delete-branch could not identify a branch to delete
+  if [[ "${BRANCH_UNRESOLVED:-0}" -ne 0 ]]; then
+    err "--delete-branch could not identify the branch; the teardown itself succeeded."
+    exit 3
   fi
   exit 0
 fi

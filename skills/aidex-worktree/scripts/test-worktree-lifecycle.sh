@@ -325,13 +325,27 @@ git -C "$WS/svc" worktree prune >/dev/null 2>&1
 git -C "$WS/svc" branch -D feat/gone >/dev/null 2>&1
 
 # (f) A worktree created before .wt-branch existed has no recorded name. It must
-#     SKIP, never fall back to the current branch — that fallback IS case (d).
+#     never fall back to the current branch — that fallback IS case (d).
+#
+#     CONTRACT CHANGE, BL-193 (2026-08-22). This asserted `rc == 0`: the branch
+#     was skipped with a warning and the run reported success, leaving a branch
+#     nobody would remember to remove. `echo_lab_ws-wt-editor-week` is that state
+#     in the field. Refusing is now the contract, and 3 is deliberately not 1 —
+#     1 means the teardown FAILED and the worktree is still there, which is what
+#     case (e) exists to protect and is unchanged: there $DEST is already gone,
+#     the branch block never runs, and the exit stays 0.
+#
+#     The no-fallback assertion below is the one that did not change, and it is
+#     still the load-bearing one: refusing must not turn into deleting.
 bash "$WT" new a --branch feat/legacy --no-infra >/dev/null 2>&1 || fail "delete-branch: create (f) failed"
 rm -f "$TMP/wtfix-wt-a/.wt-branch"
 out="$(bash "$WT" down a --delete-branch 2>&1)"; rc=$?
-[[ "$rc" -eq 0 ]] || fail "delete-branch: a worktree with no .wt-branch must not fail the teardown (got $rc)"
+[[ "$rc" -eq 3 ]] \
+  || fail "delete-branch: an unnameable branch must be refused with exit 3, not reported as success (got $rc)"
+[[ "$out" == *"no .wt-branch"* ]] \
+  || fail "delete-branch: the refusal does not say the file is absent: $(printf '%s' "$out" | tr '\n' ' ' | tail -c 220)"
 branch_exists svc feat/legacy \
-  || fail "delete-branch: fell back to the current branch when .wt-branch was absent — absence must skip"
+  || fail "delete-branch: fell back to the current branch when .wt-branch was absent — absence must never delete"
 git -C "$WS/svc" branch -D feat/legacy >/dev/null 2>&1
 
 # --- 3c. WT_PRE_DOWN_CMD: the project's own stop recipe ----------------------
