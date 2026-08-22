@@ -937,17 +937,34 @@ if [[ "$cmd" == "new" ]]; then
 
   # --- every resource we just made must be attributable, or the teardown we
   #     ship cannot reclaim it. Assert it now, while the author is watching. ---
-  unattributed="$(
+  #
+  # BL-195: this counted and reported, and the comment above it promised an
+  # assertion. Zero is not a legitimate outcome here -- `--no-infra` exited
+  # above and a failed `up` rolled back, so reaching this line means a stack
+  # came up. Zero therefore means the project label did not take, and `down`,
+  # which searches by exactly that label, has nothing to reclaim by.
+  #
+  # The name is `attributable`, not `unattributed`: the pipeline counts names
+  # that MATCH $CPROJ. The old identifier said the opposite of its own value,
+  # so the `info` line below had to re-label it to stay honest.
+  attributable="$(
     { docker ps -a  --filter "label=com.docker.compose.project=$CPROJ" --format '{{.Names}}'
       docker volume ls  --format '{{.Name}}'   | grep -F "$CPROJ" || true
       docker network ls --format '{{.Name}}'   | grep -F "$CPROJ" || true
       # No `|| echo 0` here: `grep -c` already prints 0 on empty input, so the
       # fallback could only ever append a SECOND line and make the count
-      # malformed. Removing it is the fix; whether this line should be an
-      # assertion rather than a report is a separate call -- see BL-195.
+      # malformed.
     } | grep -cv "^$" 2>/dev/null
   )"
-  info "attributable resources for $CPROJ: $unattributed"
+  info "attributable resources for $CPROJ: $attributable"
+  # Joins parity's deferred path rather than dying here, for parity's own
+  # reason: the worktree EXISTS and its stack is up. Killing the run before the
+  # handle is printed would leave a running stack whose directory the caller was
+  # never shown -- strictly harder to clean up than the defect being reported.
+  if [[ "$attributable" -eq 0 ]]; then
+    err "no Docker resource carries the project label $CPROJ — 'worktree.sh down $SLUG' has nothing to reclaim by"
+    parity_rc=3
+  fi
 
   cat <<EOF
 
