@@ -28,6 +28,11 @@
 set -uo pipefail
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../aidex-conventions/scripts" && pwd -P)/_lib.sh"
+# _lib.sh turns errexit ON; this script reports its own failures (see the header)
+# and needs it off. Without this the failing `A="$(render ...)"` assignment killed
+# the script before its own `die "docker compose config failed"` could run --
+# exit 1, no message, no cause, on the one path a reader most needs explained.
+set +e
 
 FILE="docker-compose.yml"
 SUFFIX_VAR="WT_SUFFIX"
