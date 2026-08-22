@@ -139,8 +139,12 @@ SAME path. Concretely:
 - **Typed answers survive a reload since kit v4** — the composer keeps them in
   `localStorage`, keyed by the file's path, restores them on load behind a visible
   "answers recovered" banner with a discard link, and drops ids that left the page
-  so a decided item's stale answer never lands on a different claim. What that does
-  NOT cover: another browser or machine, private windows, and engines that refuse
+  so a decided item's stale answer never lands on a different claim. **Since kit
+  v6 it also fingerprints each question's body**: an item whose question was
+  rephrased is left blank rather than restored onto, and the banner says how many
+  were dropped and why. That is per item, not per page — regenerating a page does
+  not discard answers to the questions that did not change. What none of it
+  covers: another browser or machine, private windows, and engines that refuse
   storage on `file://` — there the old rule stands, so `wrap-report.sh` still
   prints a (narrower) note when replacing a page with reply surfaces.
 
@@ -462,6 +466,17 @@ rule lost a full answer set that way. The residual risk is real but narrow: a di
 browser or machine, a private window, or an engine that refuses storage on `file://`.
 Mention it only when one of those is plausibly in play, not as a ritual warning on every
 round.
+
+**Since kit v6 an answer does not restore onto a question that changed.** Each stored
+answer carries a fingerprint of its item's question body, and `restore()` skips any item
+whose fingerprint no longer matches; the skipped item reads blank and the banner reports
+how many were dropped and why. This closes the case where the reader answered, asked for
+some questions to be explained better, and found them marked answered with the old text
+still in them. Two things it deliberately is not. It is not keyed on whether the session
+considered the item decided — a decided item leaves the question set (above), which is a
+separate obligation this does not discharge. And it is not per page: clearing the store on
+regeneration would blank every half-typed answer in the set, which is the loss the
+persistence exists to prevent.
 
 Copy the shape from
 `~/.aidex/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than

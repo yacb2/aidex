@@ -360,7 +360,9 @@ def main():
             # composer never saved anything.
             print("NOTE: this path held a consultation page. Since kit v4 typed answers "
                   "are restored from this machine's browser storage on reload; they are "
-                  "still lost on another browser/machine or if the page predates v4.",
+                  "still lost on another browser/machine or if the page predates v4. "
+                  "Since kit v6 an answer whose question you rephrased is deliberately "
+                  "NOT restored — that item reads blank and the page's banner says so.",
                   file=sys.stderr)
 
     with open(args.outfile, "w", encoding="utf-8") as fh:
