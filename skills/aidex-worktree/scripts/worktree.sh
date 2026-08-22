@@ -243,6 +243,18 @@ CLAIMED_SLOT() {  # slug -> slot number held in the claim files, or ""
   done
   return 1
 }
+# WT_PARTICIPANTS may name a NESTED repo ("apps/backend"), whose checkout lands
+# at $DEST/backend. Anything that starts from a basename and needs the repo back
+# must come through here -- resolving it by hand at each site is what produced
+# three separate silent skips.
+PARTICIPANT_PATH() {  # basename -> the WT_PARTICIPANTS entry it came from, or ""
+  local want="$1" pp
+  for pp in $WT_PARTICIPANTS; do
+    [[ "$(basename "$pp")" == "$want" ]] && { printf '%s' "$pp"; return 0; }
+  done
+  return 1
+}
+
 IS_DIRTY() {  # dest -> 0 when any participant has uncommitted or untracked work
   local d="$1" p
   for p in $WT_PARTICIPANTS; do
@@ -585,7 +597,7 @@ slot_env_pairs() {  # slot_env_pairs <slot> -> VAR=VALUE per line
 
 render_env_files() {  # render_env_files <worktree-dir> <slot>
   [[ -n "${WT_ENV_RENDER:-}" ]] || return 0
-  local dir="$1" slot="$2" rel tmpl dest part inner pairs names refs missing v val script
+  local dir="$1" slot="$2" rel tmpl dest part inner pairs names refs missing v val script _p _repo
 
   pairs="$(slot_env_pairs "$slot")"
   names=" $(printf '%s\n' "$pairs" | cut -d= -f1 | tr '\n' ' ')"
@@ -601,14 +613,33 @@ render_env_files() {  # render_env_files <worktree-dir> <slot>
     case " $WT_LINKS $WT_COPIES " in
       *" $rel "*) err "WT_ENV_RENDER and WT_LINKS/WT_COPIES both claim '$rel' -- remove it from one. Config: $CONFIG"; return 1 ;;
     esac
+    # ...and every DIRECTORY above it, not just the exact path. WT_LINKS=".docker"
+    # symlinks the main tree's directory into the worktree, so rendering to
+    # ".docker/env.local" writes THROUGH the symlink into the main tree -- a
+    # per-slot file landing in shared state, which is the one thing this
+    # mechanism exists to prevent.
+    _p="$rel"
+    while [[ "$_p" == */* ]]; do
+      _p="${_p%/*}"
+      case " $WT_LINKS $WT_COPIES " in
+        *" $_p "*) err "WT_ENV_RENDER '$rel' renders inside '$_p', which WT_LINKS/WT_COPIES already claims."
+                   err "That path is a symlink into the MAIN tree, so the render would leave the worktree."
+                   err "Render somewhere the worktree owns. Config: $CONFIG"; return 1 ;;
+      esac
+    done
 
     # A rendered file MUST be gitignored. `git worktree remove` refuses a tree
     # holding untracked non-ignored files, so rendering into a tracked path
     # builds a worktree that can be created and then never torn down -- a failure
     # that surfaces at teardown, long after its cause.
+    # Resolve the first path component back to its participant: for a nested
+    # participant the repo is at $ROOT/apps/backend while the render path names
+    # only `backend`, and probing $ROOT/backend found no .git -- so the gate was
+    # silently SKIPPED for exactly the layout it most needed to cover.
     part="${rel%%/*}"; inner="${rel#*/}"
-    if [[ "$part" != "$rel" && -e "$ROOT/$part/.git" ]]; then
-      if ! git -C "$ROOT/$part" check-ignore -q "$inner" 2>/dev/null; then
+    _repo="$(PARTICIPANT_PATH "$part" || true)"; _repo="${_repo:-$part}"
+    if [[ "$part" != "$rel" && -e "$ROOT/$_repo/.git" ]]; then
+      if ! git -C "$ROOT/$_repo" check-ignore -q "$inner" 2>/dev/null; then
         err "WT_ENV_RENDER destination '$rel' is NOT gitignored in the '$part' repo."
         err "git worktree remove refuses a tree with untracked non-ignored files, so"
         err "this worktree could be created and then never torn down. Add it to"
@@ -1079,7 +1110,10 @@ if [[ "$cmd" == "down" ]]; then
       elif [[ "$want" != "$brname" ]]; then
         $DELETE_BRANCH && warn "--delete-branch: $b is on '${brname:-detached HEAD}', not the created '$want' — skipped"
       else
-        WT_BRANCHES+=("$b|$want")
+        # The PATH, not the basename: the deletion below resolves "$ROOT/$repo",
+        # and for a nested participant $ROOT/<basename> does not exist, so the
+        # branch was reported "not in the workspace" and silently never deleted.
+        WT_BRANCHES+=("$pp|$want")
       fi
     done
   fi
