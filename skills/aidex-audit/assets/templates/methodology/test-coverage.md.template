@@ -58,6 +58,75 @@ This step is **assisted**: propose module → src-glob → test-glob boundaries 
 layout, and have the human confirm the module boundaries. The map is the only
 hand-maintained input; everything downstream derives from it.
 
+**3. Configuration compliance check.** Read-only, on-demand — never CI, never a
+pre-commit hook (`q4`). Four checks over five keys; each is a command plus its expected
+answer. A configuration failure here is an ordinary inventory finding row, not a special
+category — record it with the standard `COV-<module>-<n>` lifecycle if it warrants one.
+
+The fastest path is the portfolio sweep, which runs all five keys for this project (and
+every other, if invoked without a project name):
+
+```bash
+bash skills/aidex-audit/scripts/coverage-config-check.sh <this-project-name>
+```
+
+The five keys, as the commands the sweep runs under the hood — read these when
+diagnosing a single project by hand rather than trusting the sweep blind:
+
+1. **`hasher_pytest`** — does the settings module *pytest* loads put MD5 **first**?
+   Resolve `DJANGO_SETTINGS_MODULE` from `backend/pyproject.toml`
+   (`[tool.pytest.ini_options]`), turn the dotted path into a file under `backend/`, and
+   read its `PASSWORD_HASHERS` (following any `from X import *` chain to a base settings
+   module if the leaf does not define it):
+   ```bash
+   grep -n "DJANGO_SETTINGS_MODULE" backend/pyproject.toml
+   grep -n "PASSWORD_HASHERS" backend/config/settings/*.py
+   ```
+   Expected: the first entry is `django.contrib.auth.hashers.MD5PasswordHasher`.
+   **Trap:** if the dotted module does not resolve to a file that exists under
+   `backend/`, the check is `unresolvable`, not silently skipped and not `absent` — a
+   project can declare a settings module that was renamed or never existed
+   (`anamnesis_poc_ws` declares `core.settings`; no `core` package exists in that
+   backend). A check keyed only on `config/settings/` would miss this project entirely
+   and report it clean.
+2. **`hasher_e2e`** — the same question, always at the fixed path
+   `backend/config/settings/test_e2e.py`, never resolved via `DJANGO_SETTINGS_MODULE`
+   (that file is loaded directly by `test-e2e.sh`, not through pytest's settings
+   resolution):
+   ```bash
+   grep -n "PASSWORD_HASHERS" backend/config/settings/test_e2e.py
+   ```
+   Expected: MD5 first. **Trap:** the assertion is "MD5 is first", never "MD5 is the
+   only one" — a second entry is not a violation. `work_hours_ws` deliberately keeps
+   `PBKDF2PasswordHasher` second so cloned-database passwords still verify; a check
+   asserting "MD5 is the only hasher" false-positives on it.
+3. **`vitest_include`** — does each `vitest.config.*` declare `coverage.include`?
+   ```bash
+   grep -A15 "coverage:" frontend/vitest.config.ts | grep "include:"
+   ```
+   Expected: present. **Misread hazard:** the `include:` near the top of every live
+   `vitest.config.*` is `test.include` (the spec-file glob), not `coverage.include` —
+   read inside the `coverage: { ... }` block specifically, not the whole file.
+4. **`coverage_provider`** — is `@vitest/coverage-v8` a real `devDependencies` entry,
+   *and* does it agree with the declared `coverage.provider`?
+   ```bash
+   grep "provider:" frontend/vitest.config.ts
+   grep "@vitest/coverage-v8" frontend/package.json
+   ```
+   Expected: both present. A declared `provider` with no installed package is `absent`,
+   the same value as no declaration at all — a declaration nobody backed with a package
+   is not compliance.
+5. **`no_n_auto`** — is `-n auto` / `--numprocesses` absent from project configuration,
+   and `pytest-xdist` absent as an actually locked package (not merely mentioned in
+   another dependency's lockfile metadata)?
+   ```bash
+   grep -rn -- "-n auto\|--numprocesses" --include="*.sh" --include="*.toml" \
+     --include="*.yml" --include="*.yaml" --include="Makefile" .
+   grep '^name = "pytest-xdist"' backend/poetry.lock
+   ```
+   Expected: no matches. A fixed integer chosen by measurement is the compliant
+   alternative once a worker count is adopted; `-n auto` itself is never compliant.
+
 ---
 
 ## Check matrix — two distinct passes per module
