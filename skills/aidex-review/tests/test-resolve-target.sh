@@ -386,6 +386,27 @@ grep -q '01-review-angles.md' "$RESOLVER" \
 #     A row that never mentions refusing is not this skill's row to police.
 #     Skipped when the README is absent — install.sh ships no README, so an
 #     unconditional read FAILs from the installed ~/.aidex/ tree (db45759's idiom).
+# ── The named target is never emptied by its own name ────────────────────────
+# Field-found 2026-08-23 reviewing skills/aidex-audit/scripts/coverage: EXCLUDE_DIRS
+# carries `coverage` (the artifact dir), and the exclusion ran over the FULL path, so
+# a first-party directory named coverage/ — named explicitly as the target — resolved
+# to 0 files and exit 3, which reads as a fact about the target. The exclusion's job
+# is below the target, never on the path the user typed.
+mkdir -p "$TMP/proj/scripts/coverage"
+printf 'def g():\n    return 2\n' > "$TMP/proj/scripts/coverage/tool.py"
+[ "$(run_code "$TMP/proj/scripts/coverage")" = "0" ] \
+  || fail "a named first-party coverage/ dir must resolve, got exit $(run_code "$TMP/proj/scripts/coverage")"
+[ "$(field files "$TMP/proj/scripts/coverage")" = "1" ] \
+  || fail "named coverage/ dir: expected 1 reviewed file, got '$(field files "$TMP/proj/scripts/coverage")'"
+[ "$(run_code "$TMP/proj/scripts/coverage/tool.py")" = "0" ] \
+  || fail "a single-file target under a coverage/ dir must resolve, got exit $(run_code "$TMP/proj/scripts/coverage/tool.py")"
+# ...while a coverage/ BELOW the target keeps its artifact-dir exclusion.
+mkdir -p "$TMP/proj2/src/coverage"
+printf 'var lcov = 1;\n' > "$TMP/proj2/src/coverage/lcov.js"
+printf 'def h():\n    return 3\n' > "$TMP/proj2/src/main.py"
+[ "$(field files "$TMP/proj2/src")" = "1" ] \
+  || fail "a coverage/ below the target must stay excluded, got '$(field files "$TMP/proj2/src")' files"
+
 README="$SCRIPT_DIR/../../../README.md"
 if [ -f "$README" ]; then
   ROW="$(grep -F '| **`aidex-review`**' "$README" | head -1)"
@@ -406,7 +427,7 @@ else
 fi
 
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 34 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 5 prose lockstep)"
+  echo "OK — resolve-review-target: 38 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 5 prose lockstep, 4 named-target-vs-exclusion)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"
