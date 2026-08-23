@@ -174,6 +174,16 @@ flags is unverifiable, and the consumer says so.
 
 ### Producing it
 
+The file regenerates from nothing on its own — it is Preparation step 4 of the
+test-coverage playbook, run per audit (BL-199: no project had ever generated it,
+so the ranking was silently inert everywhere). The exact command:
+
+```bash
+python3 ~/.aidex/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
+  --denominator all --projects-root <workspace-parent-dir> \
+  --out .context/audits/test-coverage/defect-prone.jsonl
+```
+
 The producer is a defect-proneness miner: **bug items touching a file / all
 items touching it**, compared against the corpus base rate, with a minimum
 touch count and worktree copies collapsed onto the main path. Raw recurrence

@@ -127,6 +127,23 @@ diagnosing a single project by hand rather than trusting the sweep blind:
    Expected: no matches. A fixed integer chosen by measurement is the compliant
    alternative once a worker count is adopted; `-n auto` itself is never compliant.
 
+**4. Generate `defect-prone.jsonl`.** The defect-history input `affected-tests` reads
+is not committed anywhere and does not regenerate itself — a run that skips this step
+silently loses the whole defect-proneness ranking (`affected-tests` renders nothing and
+that reads as "nothing is defect-prone"). Generate it as part of this run (read-only
+miner over `.context/` items and transcripts; writes only the jsonl):
+
+```bash
+python3 ~/.aidex/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
+  --denominator all --projects-root <workspace-parent-dir> \
+  --out .context/audits/test-coverage/defect-prone.jsonl
+```
+
+If you deliberately skip it, record `defect-prone.jsonl: absent — ranking inert` in the
+run's output artifacts so the silence is on the page, not in the tooling. Use
+`--denominator all`: `typed` raises the base rate ~3x and can leave nothing flagged
+(see `06-test-coverage.md` § Producing it).
+
 ---
 
 ## Check matrix — two distinct passes per module
