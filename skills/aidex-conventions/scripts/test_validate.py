@@ -19,6 +19,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 FIXTURES = SCRIPT_DIR / "fixtures"
 VALIDATOR = SCRIPT_DIR / "validate.py"
 COMM_CANON = SCRIPT_DIR.parent / "references" / "communication-conventions.md"
+PLAN_CANON = SCRIPT_DIR.parent / "references" / "plan-conventions.md"
 
 EXPECTED_BAD_RULES = {
     "filename-format",
@@ -32,6 +33,9 @@ EXPECTED_BAD_RULES = {
     "communication-channel-invalid",
     "plan-phase-gateless-afk",
     "plan-phase-missing-acceptance",
+    "plan-phase-tests-missing",
+    "plan-phase-tests-invalid",
+    "plan-phase-tests-none-no-reason",
     "plan-file-oversize",
     "plan-code-heavy",
     "readme-in-context",
@@ -55,7 +59,7 @@ def _canon_enum(text: str, key: str, must_contain: str) -> set[str] | None:
     """Extract the `a | b | c` enum from a `key: value  # a | b | c` YAML example
     line in the canon. Picks the enum whose tokens include `must_contain` (so the
     two `channel:` examples — async vs meeting — are told apart)."""
-    for m in re.finditer(rf"^\s*{key}:\s*\S+\s+#\s*([a-z |]+)", text, re.M):
+    for m in re.finditer(rf"^\s*{key}:\s*\S+\s+#\s*([a-z0-9 |]+)", text, re.M):
         tokens = {t.strip() for t in m.group(1).split("|") if t.strip()}
         if must_contain in tokens:
             return tokens
@@ -66,7 +70,8 @@ def check_canon_lockstep(failures: list[str]) -> None:
     """Guard (BL-023): validate.py's COMM_* enums must stay in lockstep with the
     communication-conventions.md canon. A canon edit that adds/changes a channel,
     direction, or status without updating validate.py fails here loudly — so the
-    validator cannot drift behind the canon again."""
+    validator cannot drift behind the canon again. Also guards PLAN_TESTS_VOCAB
+    against plan-conventions.md's `tests:` canon line (Phase 7, tests: field)."""
     if not COMM_CANON.exists():
         failures.append(f"canon lockstep: canon not found at {COMM_CANON}")
         return
@@ -78,6 +83,11 @@ def check_canon_lockstep(failures: list[str]) -> None:
         ("directions", _canon_enum(text, "direction", "received"), v.COMM_DIRECTIONS),
         ("status", _canon_enum(text, "status", "draft"), v.COMM_STATUS),
     ]
+    if not PLAN_CANON.exists():
+        failures.append(f"canon lockstep: canon not found at {PLAN_CANON}")
+    else:
+        plan_text = PLAN_CANON.read_text(encoding="utf-8")
+        pairs.append(("plan tests vocab", _canon_enum(plan_text, "tests", "e2e"), v.PLAN_TESTS_VOCAB))
     for label, canon_set, code_set in pairs:
         if canon_set is None:
             failures.append(
@@ -119,6 +129,78 @@ def check_phase_gate_unit(failures: list[str]) -> None:
         Path(".context/plans/_archive/2026-01-01-old/01-x.md"), pos, None)]
     if "plan-phase-gateless-afk" in archived:
         failures.append("phase-gate unit: archived plan warned (should be exempt — _archive/)")
+
+
+def check_plan_tests_field_unit(failures: list[str]) -> None:
+    """Direct cells for check_plan_tests_field (Phase 7, tests: field): an afk-impl
+    phase with no `tests:` warns missing; an out-of-vocabulary value warns invalid;
+    `tests: none` with no reason comment warns; a valid value, a written reason, a
+    list of valid values, and hitl-align/_archive all pass clean."""
+    v = _load_validator()
+    def rules(text: str, fm: dict | None = None,
+              path: Path = Path("x.md")) -> list[str]:
+        return [f.rule for f in v.check_plan_tests_field(path, text, fm)]
+
+    missing = "### Phase 1 — Do it  (phase-type: afk-impl)\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if "plan-phase-tests-missing" not in rules(missing):
+        failures.append("tests-field unit: afk-impl phase with no tests: did not warn missing")
+
+    valid = "### Phase 1 — Do it  (phase-type: afk-impl, tests: unit)\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if rules(valid):
+        failures.append("tests-field unit: valid tests: unit warned (false positive)")
+
+    invalid = "### Phase 1 — Do it  (phase-type: afk-impl, tests: fuzz)\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if "plan-phase-tests-invalid" not in rules(invalid):
+        failures.append("tests-field unit: out-of-vocabulary tests: value did not warn invalid")
+
+    none_no_reason = "### Phase 1 — Do it  (phase-type: afk-impl, tests: none)\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if "plan-phase-tests-none-no-reason" not in rules(none_no_reason):
+        failures.append("tests-field unit: tests: none with no reason did not warn")
+
+    none_reason = ("### Phase 1 — Do it  (phase-type: afk-impl, tests: none)  "
+                   "# reason: config only, no code path to assert on\n"
+                   "**Acceptance:**\n- x\n\n**Verify:** `pytest`\n")
+    if "plan-phase-tests-none-no-reason" in rules(none_reason):
+        failures.append("tests-field unit: tests: none with a written reason still warned (false positive)")
+
+    none_mixed = "### Phase 1 — Do it  (phase-type: afk-impl, tests: [unit, none])\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if "plan-phase-tests-invalid" not in rules(none_mixed):
+        failures.append("tests-field unit: tests: [unit, none] (none mixed with other values) did not warn invalid")
+
+    valid_list = "### Phase 1 — Do it  (phase-type: afk-impl, tests: [unit, api])\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if rules(valid_list):
+        failures.append("tests-field unit: valid tests: [unit, api] list warned (false positive)")
+
+    hitl = "### Phase 1 — Align  (phase-type: hitl-align)\n- decide scope\n"
+    if rules(hitl):
+        failures.append("tests-field unit: hitl-align phase warned (should be exempt)")
+
+    # multi-file phase file: tests: carried in front-matter
+    fm_missing = "# Phase 1: Do it\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if "plan-phase-tests-missing" not in rules(fm_missing, {"phase-type": "afk-impl", "gate": "pytest"}):
+        failures.append("tests-field unit: front-matter afk-impl phase with no tests: did not warn missing")
+    if rules(fm_missing, {"phase-type": "afk-impl", "gate": "pytest", "tests": "e2e"}):
+        failures.append("tests-field unit: front-matter tests: e2e warned (false positive)")
+    if "plan-phase-tests-none-no-reason" not in rules(
+            "---\nphase-type: afk-impl\ngate: pytest\ntests: none\n---\n# Phase 1: Do it\n"
+            "**Acceptance:**\n- x\n\n**Verify:** `pytest`\n",
+            {"phase-type": "afk-impl", "gate": "pytest", "tests": "none"}):
+        failures.append("tests-field unit: front-matter tests: none with no reason comment did not warn")
+    if "plan-phase-tests-none-no-reason" in rules(
+            "---\nphase-type: afk-impl\ngate: pytest\ntests: none  # reason: config only\n---\n"
+            "# Phase 1: Do it\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n",
+            {"phase-type": "afk-impl", "gate": "pytest", "tests": "none"}):
+        failures.append("tests-field unit: front-matter tests: none with a written reason still warned (false positive)")
+
+    # Archived plans are finished — exempt, same as the gate/acceptance checks.
+    archived_path = Path(".context/plans/_archive/2026-01-01-old/01-x.md")
+    if rules(missing, None, archived_path):
+        failures.append("tests-field unit: archived plan warned (should be exempt — _archive/)")
+
+    # 'Phase N Checkpoint' sections must not be treated as a phase.
+    checkpoint = valid + "\n## Phase 1 Checkpoint\n\n- [ ] Task 1.1: brief\n"
+    if rules(checkpoint):
+        failures.append("tests-field unit: 'Phase N Checkpoint' section treated as a phase (FP)")
 
 
 def check_plan_spec_shape_unit(failures: list[str]) -> None:
@@ -876,6 +958,7 @@ def main() -> int:
     check_canon_lockstep(failures)
     check_phase_gate_unit(failures)
     check_plan_spec_shape_unit(failures)
+    check_plan_tests_field_unit(failures)
     check_plan_scoped_shape_unit(failures)
     check_crossref_prefix_coverage(failures)
     check_worktrees_no_double_count(good, failures)

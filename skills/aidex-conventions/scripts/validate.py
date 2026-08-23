@@ -828,6 +828,12 @@ def check_audit_folders(context_dir: Path) -> list[Finding]:
 
 # ---------- Plan phase-gate presence (workflow promotion threshold) ----------
 
+# Phase 7 (tests: field, ADR forthcoming): the vocabulary an afk-impl phase's
+# `tests:` field may declare. Kept in lockstep with plan-conventions.md's
+# `tests: unit  # unit | api | component | e2e | none` canon line by
+# test_validate.py's check_canon_lockstep.
+PLAN_TESTS_VOCAB = {"unit", "api", "component", "e2e", "none"}
+
 PHASE_HEADING_RE = re.compile(r"(?m)^#{1,4}[ \t]+Phase\b[^\n]*$")
 
 def _is_checkpoint_heading(heading: str) -> bool:
@@ -885,6 +891,106 @@ def check_plan_phase_gates(path: Path, text: str, fm: dict | None) -> list[Findi
             findings.append(Finding("plans", str(path), "plan-phase-gateless-afk", "warning",
                 f"afk-impl phase {label!r} has no machine-checkable gate — AI output for this "
                 f"phase is unconstrained; add tests/type-check/build before implementing"))
+    return findings
+
+# ---------- Plan `tests:` field (Phase 7, tests-field programme) ----------
+
+_TESTS_ANNOTATION_RE = re.compile(r"\(([^()]*)\)")
+_TESTS_VALUE_RE = re.compile(r"tests:\s*(\[[^\]]*\]|[^,\)\n#]+)")
+_TESTS_REASON_RE = re.compile(r"tests:\s*none[^\n]*?#\s*reason:\s*([^\n\)]+)")
+
+def _parse_tests_values(raw: str) -> list[str]:
+    """`unit` -> ["unit"]; `[unit, api]` -> ["unit", "api"]. Strips quotes/whitespace."""
+    raw = raw.strip()
+    if raw.startswith("[") and raw.endswith("]"):
+        raw = raw[1:-1]
+    return [p.strip().strip("\"'") for p in raw.split(",") if p.strip()]
+
+def _frontmatter_raw_block(text: str) -> str:
+    """The front-matter block's raw lines (inline comments intact), or "" if none.
+    Needed because parse_frontmatter strips each value's trailing `# ...` comment —
+    the `tests: none  # reason: ...` reason lives only in the raw text."""
+    lines = text.splitlines()
+    if not lines or not FM_DELIM.match(lines[0]):
+        return ""
+    for i in range(1, len(lines)):
+        if FM_DELIM.match(lines[i]):
+            return "\n".join(lines[1:i])
+    return ""
+
+def _phase_tests(heading: str, fm: dict | None, fm_raw: str) -> tuple[list[str] | None, str | None]:
+    """The phase's `tests:` values and, if `tests: none`, its written reason (else
+    None for both). Inline heading annotation (single-file carrier) wins; falls
+    back to front-matter (multi-file carrier) — same precedence as `_phase_type`.
+
+    The value search is restricted to the heading's `(key: value, ...)` annotation
+    blob(s), not the whole heading line — a phase title that happens to mention
+    "tests:" in prose (as this very field's own phase does) must not be read as a
+    declaration."""
+    values = None
+    for blob in _TESTS_ANNOTATION_RE.findall(heading):
+        m = _TESTS_VALUE_RE.search(blob)
+        if m:
+            values = _parse_tests_values(m.group(1))
+            break
+    if values is not None:
+        reason_m = _TESTS_REASON_RE.search(heading)
+        return values, (reason_m.group(1).strip() if reason_m else None)
+    if fm and fm.get("tests"):
+        values = _parse_tests_values(fm["tests"])
+        reason_m = _TESTS_REASON_RE.search(fm_raw)
+        return values, (reason_m.group(1).strip() if reason_m else None)
+    return None, None
+
+def check_plan_tests_field(path: Path, text: str, fm: dict | None) -> list[Finding]:
+    """Warn when an afk-impl phase's `tests:` field is missing, out of vocabulary,
+    or `tests: none` with no written reason.
+
+    Only afk-impl phases carry the field (hitl-align is exempt, same as the gate
+    rule); one acceptance test per phase, at the layer `tests:` names, written up
+    front and left red (aidex-plan / aidex-plan-exec, Phase 7)."""
+    findings: list[Finding] = []
+    if "_archive" in path.parts:
+        return findings
+    fm_raw = _frontmatter_raw_block(text)
+    headings = list(PHASE_HEADING_RE.finditer(text))
+
+    def _check(heading: str, label: str) -> None:
+        if _phase_type(heading, fm) != "afk-impl":
+            return
+        values, reason = _phase_tests(heading, fm, fm_raw)
+        if values is None:
+            findings.append(Finding("plans", str(path), "plan-phase-tests-missing", "warning",
+                f"afk-impl phase {label!r} declares no `tests:` field — name the test "
+                f"layer (unit | api | component | e2e | none) that closes this phase"))
+            return
+        if "none" in values and len(values) > 1:
+            findings.append(Finding("plans", str(path), "plan-phase-tests-invalid", "warning",
+                f"afk-impl phase {label!r} mixes `none` with other `tests:` values "
+                f"{values!r} — `none` must stand alone"))
+            return
+        invalid = [v for v in values if v not in PLAN_TESTS_VOCAB]
+        if invalid:
+            findings.append(Finding("plans", str(path), "plan-phase-tests-invalid", "warning",
+                f"afk-impl phase {label!r} declares `tests:` value(s) {invalid!r} outside "
+                f"the vocabulary (unit | api | component | e2e | none)"))
+            return
+        if values == ["none"] and not reason:
+            findings.append(Finding("plans", str(path), "plan-phase-tests-none-no-reason", "warning",
+                f"afk-impl phase {label!r} declares `tests: none` with no written reason "
+                f"— add `# reason: <why no acceptance test applies>`"))
+
+    for i, m in enumerate(headings):
+        heading = m.group(0)
+        if _is_checkpoint_heading(heading):
+            continue
+        _check(heading, heading.lstrip("#").strip())
+
+    # Multi-file phase file whose metadata lives entirely in front-matter, with
+    # no in-file "# Phase N" heading to annotate (mirrors check_plan_spec_shape).
+    if not headings and _plan_file_kind(path) == "phase":
+        _check("", path.name)
+
     return findings
 
 # ---------- Plan spec-shape checks (spec-first canon, ADR 2026-07-19-plan-spec-first) ----------
@@ -1121,6 +1227,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                     file_findings.append(bpf)
             if type_name == "plans":
                 file_findings.extend(check_plan_phase_gates(path, text, fm))
+                file_findings.extend(check_plan_tests_field(path, text, fm))
                 file_findings.extend(check_plan_spec_shape(path, text, fm))
                 file_findings.extend(check_plan_scoped_shape(path, text, fm))
             findings.extend(file_findings)

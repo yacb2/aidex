@@ -287,6 +287,7 @@ depends_on: [1]
 tier: standard
 gate: "pytest tests/test_phase2.py"
 phase-type: afk-impl
+tests: api
 ---
 
 # Phase N: [Phase Name]
@@ -365,10 +366,10 @@ if that is intended, mark the phase `phase-type: hitl-align` explicitly.
 
 ### Optional phase metadata (and how it is carried)
 
-A phase may declare up to four optional fields that the executor (`aidex-plan-exec`) reads to drive batch execution. **All four share one carrier rule:**
+A phase may declare the optional fields below that the executor (`aidex-plan-exec`) reads to drive batch execution. **All of them share one carrier rule:**
 
 - **Single-file plan** → inline on the phase heading, as `(key: value)` annotations:
-  `# Phase N: [Phase Name]  (depends_on: [1, 2], tier: standard, phase-type: afk-impl)`
+  `# Phase N: [Phase Name]  (depends_on: [1, 2], tier: standard, phase-type: afk-impl, tests: api)`
 - **Multi-file plan** → in the phase file's **front-matter**, one key per line:
   ```yaml
   ---
@@ -376,6 +377,7 @@ A phase may declare up to four optional fields that the executor (`aidex-plan-ex
   tier: standard
   gate: "pytest tests/test_phase2.py"
   phase-type: afk-impl
+  tests: unit  # unit | api | component | e2e | none
   ---
   ```
 
@@ -387,6 +389,7 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.
   - **`hitl-align`** — a phase that requires human-in-the-loop alignment (defining scope, success criteria, or a design concept; see `aidex-plan` Step 0). It is **never** promoted into a Workflow — the executor runs it interactively. Defining a phase's own spec/gate is the judgment an agent grading its own questions gets wrong, so it stays human-gated.
+- **`tests: unit | api | component | e2e | none`** — `afk-impl`-only: which test layer's acceptance test closes this phase (API or E2E, whichever describes what the phase promises; unit tests still run in parallel regardless). Write that one acceptance test up front and leave it red — see `aidex-plan` Step 3 and `aidex-plan-exec`'s batch gate. A list is allowed when more than one layer genuinely closes the phase. `none` requires a written reason: `tests: none  # reason: <why no acceptance test applies>`. `hitl-align` phases are exempt, same as the gate rule.
 
 ---
 
