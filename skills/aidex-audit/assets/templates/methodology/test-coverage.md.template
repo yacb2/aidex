@@ -176,7 +176,7 @@ Escalate per the standard lifecycle (`/aidex-audit escalate <id>` → backlog, o
 remediation plan). One canonical row per finding in `00-inventory.md`.
 
 **Closing a `gap` finding remediated with new tests:** run `diff-cover` against the branch
-that added them before marking the finding `closed`, rather than trusting that "tests were
+that added them before marking the finding `done`, rather than trusting that "tests were
 added" closed the gap on the lines that mattered. On-demand only — this is never a build
 gate, per `q4` — and it is a frontend-only check today (backend `diff-cover` is blocked on
 `p2`, NS's full-suite `pytest-cov` verification). Invocation, threshold and provenance:
