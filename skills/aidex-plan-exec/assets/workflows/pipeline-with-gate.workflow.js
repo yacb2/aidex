@@ -45,7 +45,12 @@ Classify the pending action, in order:
 2. Stop condition met (loop/sweep target reached, or no safe work left) -> STOP.
 3. Unauthorized publication (push, publish, deploy, release NOT pre-authorized in the initial
    phase) -> ASK; do not authorize mid-run; finish all other safe work and surface ONE batched
-   question at the end.
+   question at the end. This tier is ASK and never STOP, including when the executor reports
+   MANY unpublished units across MANY repositories: it is telling you it declined to publish,
+   which is the behaviour you want, and in a run whose surface is "local commits only" an
+   unpushed commit is the desired end state rather than a hazard. Answering STOP here kills a
+   phase that already did its work and blocks every phase downstream of it. Reserve STOP for
+   tier 1 and tier 2.
 4. Mandated step of the running skill (code-review, commit, commit-message authoring, handoff,
    escalate-to-backlog) -> CONTINUE; never let the executor re-confirm these.
 5. Safe + additive (dependency changes, additive migrations, an unforeseen non-breaking decision)
