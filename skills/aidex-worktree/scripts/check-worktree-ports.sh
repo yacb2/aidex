@@ -173,8 +173,14 @@ scan_project() {
     while IFS= read -r var; do
       [[ -z "$var" ]] && continue
       case " $names " in *" $var "*) continue ;; esac   # the slot supplies it
-      grep -qE "\\$\\{$var:\\+" "$f" && continue          # provenance captured
-      grep -qE "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" || continue
+      def_line="$(grep -nE "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | head -1 | cut -d: -f1)"
+      [[ -z "$def_line" ]] && continue
+      # Provenance only exempts when captured ABOVE the default -- the comment
+      # above says why: after `VAR=${VAR:-lit}` runs the variable is set either
+      # way and `${VAR:+...}` is always-true, so a below-the-default capture is
+      # the silenced-checker state this shape exists to report.
+      cap_line="$(grep -nE "\\$\\{$var:\\+" "$f" | head -1 | cut -d: -f1)"
+      [[ -n "$cap_line" && "$cap_line" -lt "$def_line" ]] && continue
       lit="$(grep -E "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | head -1 \
              | sed "s/.*:-\\([0-9]*\\)}.*/\\1/")"
       line="$(grep -nE "[a-zA-Z_]*[Pp]ort[a-zA-Z_]*[[:space:]]+\"?\\$\\{?$var\\b" "$f" \
