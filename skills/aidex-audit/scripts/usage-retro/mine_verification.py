@@ -7,9 +7,13 @@ and splits every detected defect by its DISCOVERER. That split is bounded and
 size-normalized, unlike raw test-run counts.
 
   test-caught : a test command ran, its result shows failure, an edit followed
-  me-caught   : I flagged a problem in assistant text with no failing command
   user-caught : a user turn reports a defect  (strongest sub-signal: it carries a
                 pasted image, or lands after the commit that closed the work)
+
+A third bucket, me-caught (a problem flagged in assistant text with no failing
+command), is DESIGNED but not implemented — nothing computes it and the report
+prints only the two above. Do not read the ratio as three-way. (Weekend review
+2026-08-23, finding 5.)
 
 Traps handled:
   - tool_result.is_error is NOT test failure (it catches typos, denied perms, missing
