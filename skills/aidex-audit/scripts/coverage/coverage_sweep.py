@@ -46,6 +46,15 @@ def resolve_since(root, cli_since):
         with open(mp) as f:
             gen = json.load(f).get("generated")
         if gen:
+            # A baseline stamped today measures nothing: every drift is 0 by
+            # construction, and a table of zeros right after a rebuild reads
+            # as "all clear" when it is really "no elapsed window".
+            if _date_part(gen) == datetime.now().date().isoformat():
+                print(
+                    "NOTE: baseline regenerated today — the sweep carries no "
+                    "signal until src/test commits accrue after the matrix run",
+                    file=sys.stderr,
+                )
             return gen, _date_part(gen), "coverage-matrix.json"
     fallback = (datetime.now() - timedelta(days=90)).isoformat(timespec="seconds")
     print(
@@ -162,6 +171,9 @@ def main():
     positional = []
     i = 0
     while i < len(args):
+        if args[i] in ("-h", "--help"):
+            print(__doc__.strip())
+            sys.exit(0)
         if args[i] == "--since":
             if i + 1 >= len(args):
                 sys.exit("usage: coverage_sweep.py <workspace-root> [--since ISO]")

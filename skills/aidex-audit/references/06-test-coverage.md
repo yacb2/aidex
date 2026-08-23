@@ -141,6 +141,27 @@ the map claims but the router does not define is a defect in the map.
 - `test_hint` is optional at the repo level; omit it if there's no single
   reliable one-liner to re-run tests for a path in that repo.
 
+### Migrating a v1 map to v2
+
+A v1 map (routes as glob strings, or no `surfaces.routes` at all) still runs and
+still stamps `coverage-matrix/2` — the route board is simply empty, which is how
+one project's board sat silently inert for a month. The matrix now prints a
+stderr NOTE when no module declares typed routes; treat that note as "migrate
+now", not as information.
+
+To migrate:
+
+- Routes come from the router, not from memory: Vue Router `path:` entries
+  (`grep -rhoE "path:\s*['\"][^'\"]+['\"]" frontend/src/router`), Django URLConf
+  `path()`/`re_path()` for API-serving pages.
+- **Regex-constrained params are written bare.** The router may say
+  `:projectId(\d+)`; the map must say `:projectId` — the matcher's param class
+  does not swallow the constraint, and a constrained param silently matches
+  nothing (every spec mention reads as a gap).
+- Each route entry gets the `spec` (what the page serves) and its `actions`
+  where they exist; an action's `route` must equal a declared `path` or it is
+  reported as a map defect.
+
 ### Generated artifacts are never hand-edited
 
 Anything produced by `coverage-matrix`, `coverage-sweep`, or

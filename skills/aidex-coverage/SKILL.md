@@ -46,6 +46,7 @@ authoring rule for anyone writing a new coverage-bearing test.
 | When does a frontend test file move to `__tests__/`? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | Which layer does a specific EchoLab editor spec belong in? | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
+| How do I audit a module for missing/duplicate/low-quality tests? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
 
 Start at [references/00-index.md](references/00-index.md) if none of the above obviously
 applies.

@@ -1,5 +1,12 @@
 # EchoLab editor-spec layer audit (`s3`)
 
+**This file is a worked example, not generic canon.** It applies the
+[layer-assignment rubric](01-layer-model.md#the-layer-assignment-rubric) to one
+real suite (EchoLab's timeline E2E) so the transferable part — how a verdict is
+argued, what a `candidate` row looks like — can be read at full scale. On any
+other project, run [06-judgment-pass.md](06-judgment-pass.md) step v; do not
+look for your specs here.
+
 Every non-`playback` spec in EchoLab's timeline E2E suite, judged against the
 [layer-assignment rubric](01-layer-model.md#the-layer-assignment-rubric) — "test the
 decision, not the pixels — except when the browser is what decides." One row per spec:
