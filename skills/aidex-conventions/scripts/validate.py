@@ -959,7 +959,10 @@ def check_plan_tests_field(path: Path, text: str, fm: dict | None) -> list[Findi
         if _phase_type(heading, fm) != "afk-impl":
             return
         values, reason = _phase_tests(heading, fm, fm_raw)
-        if values is None:
+        # A declared-but-empty field ([] — e.g. `tests: )`, where the value
+        # regex admits a bare space) is the same defect as no field, and must
+        # not validate cleaner than either the missing or the invalid case.
+        if not values:
             findings.append(Finding("plans", str(path), "plan-phase-tests-missing", "warning",
                 f"afk-impl phase {label!r} declares no `tests:` field — name the test "
                 f"layer (unit | api | component | e2e | none) that closes this phase"))
