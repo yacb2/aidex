@@ -103,5 +103,15 @@
     "query": "No lo hagamos ahora, pero anótalo: el buscador debería soportar búsqueda difusa.",
     "should_trigger": true,
     "expected_behavior": "ES defer phrasing — park an idea without acting. aidex-backlog should register it."
+  },
+  {
+    "query": "ok, y con respecto al backlog crealo y resuelvelo",
+    "should_trigger": true,
+    "expected_behavior": "Native field query (usage-retro 2026-08-23, aidex 08-19: fired nothing). A direct create-then-resolve ask referencing 'el backlog' registers the item first, then works it."
+  },
+  {
+    "query": "apunta esto en el backlog para no perderlo y seguimos con lo nuestro",
+    "should_trigger": true,
+    "expected_behavior": "Defer-and-continue in informal Spanish: register the item via the backlog register, do not derail the current task."
   }
 ]
