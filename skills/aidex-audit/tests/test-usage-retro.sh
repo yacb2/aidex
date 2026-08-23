@@ -377,5 +377,51 @@ grep -q 'base rate              : 50.0%' <<<"$out_n" \
 [[ -z "$(share_of 'task_only\.py')" ]] \
   || fail "(n) task_only.py was flagged at $(share_of 'task_only\.py') — the cross product smeared the bug item onto it: $out_n"
 
+# ---------------------------------------------------------------------------
+# (o) mine_verification.py SMOKE CELL — promoted 2026-08-23 out of a gitignored
+#     `.context/` (findings §8.10). Its old `agg.json` input has no producer, so
+#     it now derives targets from items.jsonl + spans.jsonl (mine_items.py's own
+#     output) via a --min-edits threshold, and takes --since for a forward
+#     census window. Two checks: it runs end to end against the shared fixture,
+#     and --since excludes rather than silently ignoring the window.
+# ---------------------------------------------------------------------------
+out_o="$(python3 "$RETRO/mine_verification.py" --projects-root "$PROJ" \
+  --transcripts-root "$TX" --data-dir "$OUT" --min-edits 1 2>&1)"
+echo "$out_o" | grep -q 'items analysed (real-usage, >=1 edits): 3' \
+  || fail "(o) mine_verification did not run against the fixture: $out_o"
+
+out_o2="$(python3 "$RETRO/mine_verification.py" --projects-root "$PROJ" \
+  --transcripts-root "$TX" --data-dir "$OUT" --min-edits 1 --since 2099-01-01 2>&1)"; rc_o2=$?
+[[ $rc_o2 -ne 0 ]] || fail "(o) --since 2099-01-01 should exclude everything and exit non-zero: $out_o2"
+echo "$out_o2" | grep -q 'nothing to measure' \
+  || fail "(o) an empty window should say so, not print zeroed stats: $out_o2"
+
+# ---------------------------------------------------------------------------
+# (p) mine_slow_tests.py --since. It had no window filter at all, which is the
+#     constraint a forward census (BL-135) depends on — an unwindowed run mixes
+#     the pre-change baseline back into the figure meant to be compared against
+#     it. Two invocations, one before the cutoff, one after; --since must keep
+#     only the second and report the first as excluded, not silently drop it.
+# ---------------------------------------------------------------------------
+SLOWTX="$(mktemp -d)/-Users-yoelacevedo-Documents-projects-slow-ws"
+mkdir -p "$SLOWTX"
+{
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Bash","id":"t1","input":{"command":"pytest"}}]}}))'
+  python3 -c 'import json; print(json.dumps({"type":"user","timestamp":"2026-01-01T00:01:05Z","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"1 passed"}]}]}}))'
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-06-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Bash","id":"t2","input":{"command":"pytest"}}]}}))'
+  python3 -c 'import json; print(json.dumps({"type":"user","timestamp":"2026-06-01T00:01:10Z","message":{"content":[{"type":"tool_result","tool_use_id":"t2","content":[{"type":"text","text":"1 passed"}]}]}}))'
+} > "$SLOWTX/s.jsonl"
+
+out_p1="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$(dirname "$SLOWTX")" 2>&1)"
+echo "$out_p1" | grep -q 'timed test invocations : 2' \
+  || fail "(p) control: both invocations should count with no --since: $out_p1"
+
+out_p2="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$(dirname "$SLOWTX")" --since 2026-03-01 2>&1)"
+echo "$out_p2" | grep -q 'timed test invocations : 1' \
+  || fail "(p) --since 2026-03-01 should keep only the later invocation: $out_p2"
+echo "$out_p2" | grep -q '1 before 2026-03-01' \
+  || fail "(p) the excluded pre-window invocation must be counted, not silently dropped: $out_p2"
+rm -rf "$(dirname "$SLOWTX")"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary"
