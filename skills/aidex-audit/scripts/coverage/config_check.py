@@ -8,6 +8,11 @@ modules a project actually loads. Never runs a test, never starts a service,
 never writes into a project. Reports NAME / KEY / VALUE — never a verdict; the
 verdict is the human's, recorded as a finding.
 
+A clean run is SILENT (compliance-sweep.sh's contract): the table prints only
+when at least one enumerated project drifted. `--verbose` prints the full
+table even when nothing drifted; `--json` always emits every row regardless
+of drift, since it is the machine-readable roll-up, not the silent surface.
+
 Five keys, per project:
 
   hasher_pytest     - does the settings module *pytest* loads put MD5 first?
@@ -435,6 +440,7 @@ def main(argv):
     root = os.path.expanduser("~/Documents/projects")
     include_worktrees = False
     as_json = False
+    verbose = False
     only = []
     i = 0
     while i < len(argv):
@@ -446,6 +452,8 @@ def main(argv):
             include_worktrees = True
         elif a == "--json":
             as_json = True
+        elif a in ("-v", "--verbose"):
+            verbose = True
         elif a in ("-h", "--help"):
             print(__doc__)
             return 0
@@ -471,8 +479,15 @@ def main(argv):
     drifted_names = [n for n, r in rows.items() if _project_drifted(r)]
 
     if as_json:
+        # --json is the machine-readable roll-up: always emits every row,
+        # n/a included, regardless of drift — never gated by silent-when-clean.
         print(json.dumps(rows, indent=2, sort_keys=True))
-    else:
+    elif drifted_names or verbose:
+        # A clean run is SILENT (compliance-sweep.sh's contract): the table
+        # prints only when at least one project drifted, or --verbose was
+        # given. Whenever it does print, every enumerated project gets a
+        # row — n/a included, that is the recorded denominator, not a
+        # filtered "just the drifted ones" view.
         header = f"{'project':<30} {'hasher_pytest':<14} {'hasher_e2e':<10} {'vitest_include':<18} {'coverage_provider':<20} no_n_auto"
         print(header)
         for name in sorted(rows):
@@ -487,6 +502,8 @@ def main(argv):
             )
         if drifted_names:
             print(f"\n{len(drifted_names)} of {len(rows)} project(s) drifted: {', '.join(sorted(drifted_names))}")
+        elif verbose:
+            print(f"\n{len(rows)} project(s) clean")
 
     return 1 if drifted_names else 0
 

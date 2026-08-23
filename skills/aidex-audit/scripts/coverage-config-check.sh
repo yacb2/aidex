@@ -2,15 +2,16 @@
 # coverage-config-check.sh — read-only drift check for the five suite-speed-
 # and-coverage configuration keys (hasher_pytest, hasher_e2e, vitest_include,
 # coverage_provider, no_n_auto) across every project. Thin wrapper; all logic
-# lives in coverage/config_check.py. Mirrors compliance-sweep.sh's contract:
-# silent-when-clean is not this script's shape (it always prints a table),
-# but read-only, on-demand, and exit 1 on drift are shared exactly.
+# lives in coverage/config_check.py. Mirrors compliance-sweep.sh's contract
+# in full: read-only, on-demand, silent when clean, exit 1 when any project
+# drifts.
 #
 # Usage:
 #   coverage-config-check.sh                       # every project under the workspace root
 #   coverage-config-check.sh --root <dir>           # ...under <dir> instead
 #   coverage-config-check.sh --include-worktrees    # include *-wt-* copies (excluded by default)
-#   coverage-config-check.sh --json                 # machine-readable roll-up
+#   coverage-config-check.sh --verbose              # also print the table when nothing drifted
+#   coverage-config-check.sh --json                 # machine-readable roll-up (always full, never silent)
 #   coverage-config-check.sh <project> [<proj>..]   # only these, a named list
 
 set -euo pipefail

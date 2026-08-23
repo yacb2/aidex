@@ -1,7 +1,7 @@
 ---
 name: aidex-audit
 description: 'Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog).'
-argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | affected-tests [--since <ref>] [--command]]"
+argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | affected-tests [--since <ref>] [--command] | config-check [project ...] [--root <dir>] [--verbose] [--json]]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Workflow Agent
 model-policy: per-stage
@@ -42,6 +42,7 @@ Dispatch by first argument:
 | `/aidex-audit coverage-matrix` | [scripts/coverage-matrix.sh](scripts/coverage-matrix.sh) | Regenerate the breadth matrix (modules × tests; surface counts in the `.json`) from `module-map.json` — generated artifact, never hand-edited |
 | `/aidex-audit coverage-sweep [--since ISO]` | [scripts/coverage-sweep.sh](scripts/coverage-sweep.sh) | Drift report: which modules changed without their tests moving since the last matrix — suggests re-runs, advisory only |
 | `/aidex-audit affected-tests [--since <ref>] [--command]` | [scripts/affected-tests.sh](scripts/affected-tests.sh) | Map current diff → affected modules → which tests to run (module-level, advisory). `--command` prints ONE runnable unit command per repo, paths merged — so a caller runs the selection instead of composing it. Exit 3 = no selection available: fall back to the full suite **and say so**. E2E is never emitted as a command (it stays behind `test-e2e.sh`) |
+| `/aidex-audit config-check [project ...] [--root <dir>] [--verbose] [--json]` | [scripts/coverage-config-check.sh](scripts/coverage-config-check.sh) | Read-only portfolio sweep for the test-coverage playbook's five configuration keys (`hasher_pytest`, `hasher_e2e`, `vitest_include`, `coverage_provider`, `no_n_auto`). Silent when clean, exit 1 on drift — same contract as the `aidex` skill's fleet-wide `sweep` sub-action. Never CI, never a hook |
 
 > **`--loop` guard (anti-cargo-cult).** Use `--loop` **ONLY** when the finding is
 > bulk + machine-checkable — a gate the machine can run to say pass/fail across many
