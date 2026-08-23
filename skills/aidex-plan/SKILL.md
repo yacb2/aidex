@@ -106,6 +106,11 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
      code** — literal code only in a **Contract** block where the exact text IS
      the spec (signatures, schemas, DDL, invariants). Anchor with symbol names,
      never bare line numbers.
+   - **`afk-impl` phases declare `tests: unit | api | component | e2e | none`**
+     (`none` needs a written reason) and name the single acceptance test that
+     closes the phase, at that layer — write it **before** the implementation
+     so it starts red; unit tests continue alongside it. `aidex-plan-exec`
+     keeps that acceptance test red until the phase's gate passes.
    - **Investigate while planning and record the evidence**: the constraints and
      landmines you discover (existing patterns to mirror, cache/hash seams,
      dead code paths) go in each task's Spec — that investigation, not code, is

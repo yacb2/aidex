@@ -103,8 +103,8 @@ You (the skill) build the `args` object from the plan you already read at Orient
 no codegen. **Multi-file plans:** Orient reads only the *current* phase file, but a batch run
 executes **every** unchecked phase, so first read `00-index.md` **plus each unchecked phase file
 it points to** and flatten them into one `phases[]` array (take each phase file's gate → `gateCmd`,
-its tier → `model`/`effort`, its body → `spec`). All four phase-metadata fields (`depends_on`,
-`tier`, `gate`, `phase-type`) share **one canonical carrier** per the plan canon
+its tier → `model`/`effort`, its body → `spec`). All phase-metadata fields (`depends_on`,
+`tier`, `gate`, `phase-type`, `tests`) share **one canonical carrier** per the plan canon
 ([plan-conventions.md](../../aidex-conventions/references/plan-conventions.md) §"Optional phase metadata"):
 **inline `(key: value)` on the phase heading** in single-file plans, **front-matter** in multi-file
 phase files. Read whichever carrier the plan uses — there is no third place to look.
@@ -134,6 +134,15 @@ excludes). Batch **only** `afk-impl` phases (the default when a phase declares n
 A phase that is `afk-impl` but declares **no machine gate** is also not batch-eligible — run it
 interactively; do not invent a gate. So `phases[]` contains exactly the gated `afk-impl` phases,
 in plan order; a plan whose remaining phases are all `hitl-align`/gateless has nothing to batch.
+
+**The acceptance test stays red until the phase closes.** A phase's `tests:` value names the
+layer of its acceptance test (unit/api/component/e2e), written up front per `aidex-plan`'s
+authoring step. That test is expected to be red when the phase's implementer starts and green
+only once the gate passes — do not treat an already-green acceptance test as satisfying the
+phase (it means the wrong test was picked, or the phase was already done). The phase gate
+(`gateCmd`) must run that acceptance test as part of what it checks; a gate that skips it is
+not proving the phase's Acceptance block. `tests: none` phases (a written reason required) have
+no acceptance test to track — the declared `gateCmd` is still the sole gate.
 
 **Pick the form from the derived `depends_on` shape.** Once every phase's `depends_on` is filled,
 look at the dependency graph: if it is a single chain (each phase depends on the prior), use
