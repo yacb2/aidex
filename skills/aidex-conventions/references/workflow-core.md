@@ -173,7 +173,19 @@ async function checkAction(action, ctx) {
   const deny = /\b(drop|delete|destroy|truncate|rm -rf)\b/i.test(action)
   if (!pub && !deny) return { verdict: 'CONTINUE' }
   if (pub && (ctx.preAuthorized || []).includes(action)) return { verdict: 'CONTINUE' }
-  return arbiter(`Pending action "${action}" crosses ${pub ? 'publication' : 'deny'}-set.`, ctx.autonomySurface)
+  const v = await arbiter(`Pending action "${action}" crosses ${pub ? 'publication' : 'deny'}-set.`, ctx.autonomySurface)
+  // A publication the implementer REPORTED instead of performing is a question, never a
+  // halt. Nothing was published — declining and reporting is the behaviour CORE asks for —
+  // and in a run whose surface is "local commits only" an unpushed commit is the DESIRED
+  // END STATE. A STOP here kills the phase before its gate and blocks every descendant,
+  // which is BL-202: observed 2026-08-23, the arbiter returned STOP while its own reason
+  // named tier 3 (ASK). Downgrade it to the batched question the tier actually calls for.
+  // The deny-set keeps its terminal STOP: an action that is destructive stays a halt.
+  if (pub && !deny && v && v.verdict === 'STOP') {
+    return { verdict: 'ASK', reason: v.reason,
+             batched_question: v.batched_question || `Authorize: ${action}?` }
+  }
+  return v
 }
 // === CORE:END ===
 ```
@@ -241,3 +253,9 @@ the JSON.`
    single+arbiter) that calls `parseArgs` / `runPhase` / `checkAction`.
 4. Run the drift-lock: `bash skills/aidex-conventions/scripts/test_workflow_core_drift.sh` (it
    checks both the CORE and ARBITER blocks).
+5. Run the behaviour guard: `bash skills/aidex-conventions/scripts/test_workflow_core_publication.sh`.
+   It extracts CORE from this file and executes it against a mocked `agent()`, so it catches
+   what the drift-lock structurally cannot: a CORE that is internally consistent across every
+   asset and still wrong. It pins both directions of `checkAction` — a REPORTED publication
+   reaches its gate and batches its question (BL-202), a REPORTED destructive action stays a
+   terminal STOP.
