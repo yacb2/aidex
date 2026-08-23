@@ -101,6 +101,25 @@ async function main() {
     asks: rPub.asks.length,
   }
 
+  // --- case 3 (precedence): an action that crosses BOTH sets ----------------
+  // The sharpest edge of the BL-202 fix, and the one a security review will ask
+  // about first: `pub && !deny` means a string matching both regexes keeps the
+  // terminal STOP. Destructive wins over publishable; the downgrade is only ever
+  // reachable by an action that is publication and nothing else.
+  scenario = 'deny'
+  calls = []
+  const phaseBoth = {
+    id: 'p-both',
+    gateCmd: 'true',
+    implement: async () => ({ done: true, summary: 'work finished',
+                              pending_actions: ['push the branch and drop the old database'] }),
+  }
+  const rBoth = await runPhase(phaseBoth, ctx)
+  out.both = {
+    passed: rBoth.passed,
+    reachedGate: calls.some((c) => c.startsWith('verify:')),
+  }
+
   // --- case 2 (the guard): a REPORTED destructive action --------------------
   scenario = 'deny'
   calls = []
@@ -143,6 +162,10 @@ echo "publication path — a reported, unauthorized push:"
 check "reaches its gate instead of dying on the arbiter" "$(jqf publication.reachedGate)" "true"
 check "the phase passes once the gate passes"            "$(jqf publication.passed)"     "true"
 check "the question is batched, not lost"                "$(jqf publication.asks)"       "1"
+
+echo "both sets — publication AND destructive in one action (deny must win):"
+check "never reaches the gate"  "$(jqf both.reachedGate)" "false"
+check "the phase does not pass" "$(jqf both.passed)"      "false"
 
 echo "deny path — a reported destructive action (must stay terminal):"
 check "never reaches the gate"       "$(jqf deny.reachedGate)" "false"
