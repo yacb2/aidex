@@ -140,11 +140,11 @@ first attempt did not finish in 20 minutes; the rewrite takes ~4.
 
 ## Not promoted
 
-`mine_verification.py` stays in the study's audit folder. It reads an `agg.json` whose
-producer did not survive the study, so it is **not re-runnable today** — and its
-`bucket == 'real'` filter cannot be reconstructed without guessing, which is the exact
-class of error the study's §5 documents. Any forward census depending on it is blocked
-on rebuilding that aggregation deliberately, not on re-running a script.
+`mine_verification.py` WAS in this list until 2026-08-23: the study copy read an
+`agg.json` whose producer did not survive. The promoted copy in
+`scripts/usage-retro/` derives its targets from `items.jsonl` + `spans.jsonl`
+directly and is re-runnable (see its module docstring); this paragraph used to say
+otherwise and was stale relative to the rebuilt script.
 
 `mine_askuserquestion.py`, `mine_autonomy.py`, `mine_stops.py`, `extract.py`,
 `prefilter.py` and `mine_repetition.py` also stay: closed-study artifacts, not
