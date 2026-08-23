@@ -16,27 +16,23 @@ defines its scope, and the question it is suited to answer.
 
 **Sources, each with its date checked and the version it describes:**
 
-- **Layer 1.** Django documentation, *Testing tools* — `django.test.TestCase` "encloses the
-  test code in a database transaction that is rolled back at the end of the test" versus
-  `TransactionTestCase`, which "resets the database after the test runs by truncating all
-  tables." Django 5.2, `docs.djangoproject.com/en/5.2/topics/testing/tools/`, checked
-  2026-08-23.
+- **Layer 1.** Django documentation, *Testing tools* — `django.test.TestCase` rolls its
+  transaction back, `TransactionTestCase` truncates. The quote, URL and check date live in
+  [02-best-practices.md](02-best-practices.md) item 2; not duplicated here.
 - **Layer 2.** Django REST Framework documentation, *Testing* and *Schemas* — DRF ships
   `APIClient`/`APITestCase` for making authenticated requests against views in tests, and
-  states that its own built-in OpenAPI schema generation "is deprecated in favor of 3rd
-  party packages," recommending `drf-spectacular` "as a full-fledged replacement." DRF
-  documentation, `www.django-rest-framework.org/api-guide/schemas/`, checked 2026-08-23.
-  Version pinned by the plan that created this corpus: DRF 3.18 (unverified against the
-  fetched page, which does not print a version number).
+  deprecates its built-in OpenAPI schema generation in favour of `drf-spectacular`. The
+  quote, URL and check date live in [02-best-practices.md](02-best-practices.md) item 5;
+  not duplicated here. Version pinned by the plan that created this corpus: DRF 3.18
+  (unverified against the fetched page, which does not print a version number).
 - **Layers 3–4.** Vitest documentation, *Guide* — "Vitest ... is a next generation testing
   framework powered by Vite," with browser-mode component-testing support documented for
   Vue and other frameworks. Version on the fetched page: **v4.1.11**, matching the plan's
   "Vitest 4.1". `vitest.dev/guide/`, checked 2026-08-23.
 - **Layer 5.** MSW (Mock Service Worker) documentation, `setupServer().listen()` —
-  `onUnhandledRequest` accepts `"warn"` (default: "print a warning but perform the request
-  as-is"), `"bypass"` ("does not print anything and perform the request as-is") and
-  `"error"` ("print an error and halt request execution"). `mswjs.io/docs/api/setup-server/listen/`,
-  checked 2026-08-23. Version not printed on the fetched page; carried as **unverified**
+  `onUnhandledRequest` accepts `"warn"` (default), `"bypass"` and `"error"`. The quote, URL
+  and check date live in [02-best-practices.md](02-best-practices.md) item 6; not
+  duplicated here. Version not printed on the fetched page; carried as **unverified**
   against a specific MSW release.
 - **Layer 6.** Playwright documentation, *Getting started* — "Playwright Test is an
   end-to-end test framework for modern web apps... Playwright supports Chromium, WebKit and
@@ -69,10 +65,11 @@ layer that can observe that failure:
 
 **The rubric's failure mode is over-assignment to E2E**, not under-assignment: E2E is the
 layer that can observe everything, which makes it tempting to default to when unsure. That
-is the wrong default — it is also the slowest and flakiest layer (see
-[02-best-practices.md](02-best-practices.md) item 1 on the invocation-floor and per-test
-cost asymmetry between layers). Assign down, and only move a test up when a lower layer
-provably cannot see the failure.
+is the wrong default — it is also the slowest and flakiest layer (the per-test cost
+asymmetry between layers is measured by the playbook's `m4` invocation-floor step,
+`skills/aidex-audit/assets/templates/methodology/test-coverage.md.template`; this skill does
+not carry those figures). Assign down, and only move a test up when a lower layer provably
+cannot see the failure.
 
 ## Vocabulary: "pyramid" versus "trophy"
 

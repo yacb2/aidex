@@ -5,7 +5,7 @@ model `claude-sonnet-5`, 90s per-query timeout.
 
 ## What actually ran
 
-**Partial, not the full protocol.** Queries 1–6 of `trigger-eval.json` (all
+**Partial, not the full protocol.** Queries 1–6 of `trigger_eval.json` (all
 `should_trigger: true`) ran to completion:
 
 ```
@@ -54,10 +54,10 @@ controlled for. Both readings point the same direction on the scoping decision b
 the figure being soft.
 
 **This eval set cannot be re-run meaningfully against the shipped config as-is.**
-`disable-model-invocation: true` (set below) means every query in `trigger-eval.json` will
+`disable-model-invocation: true` (set below) means every query in `trigger_eval.json` will
 now register 0/13 by construction, not by measurement — the config still exists so that
 the eventual full pass has a starting point, but running it today would produce a number
-that looks like a regression and is actually just the flag. Whoever runs the owed follow-up
+that looks like a regression and is actually just the flag. Whoever runs the eventual re-run
 must temporarily flip `disable-model-invocation` back to `false` for the run, and should
 first rephrase queries 02/03/05/06 as imperatives (e.g. "tell me what MSW's docs say about
 X" rather than "what does X say") to remove the single-turn question artifact before
@@ -80,7 +80,8 @@ directly regardless of trigger behaviour.
 
 A full, multi-run, session-state-controlled `skill-trigger-eval` pass (all 13 queries,
 k≥2 runs, sequential — per the methodology's own anti-parallelism rule) would give a
-number this note's caveats do not currently support. That run is the ADR's named open
-follow-up (`.context/decisions/2026-08-22-suite-speed-and-coverage-programme.md`, ledger
-`q9`/`s2`: "the new skill's name... and the exact line of the split against the playbook
-[are] both conditional on s2's recall measurement") and is not executed by this phase.
+number this note's caveats do not currently support. That run is **not owed**: the
+programme ADR's ledger `q9`/`s2` made the name and the split conditional on it, and
+`.context/decisions/2026-08-23-aidex-coverage-name-split-and-scoping.md` closed both on
+the criterion instead. Re-run only when that ADR's reopen threshold is met — a
+modular-siblings result above family baseline, or 10 manual invocations inside one month.
