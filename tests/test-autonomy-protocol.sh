@@ -123,6 +123,26 @@ for _f in "$RULE" "$CANON"; do
     || fail "(i) $_n: merge clause does not state the ungated direction (trunk -> branch)"
 done
 
+# ---------- (k) the deferral clause exists on BOTH surfaces ----------
+# Same hazard as (i), in the mirror direction. Classes 1 and 2 both end in "surface
+# it at the end", and the end of a run is not where anyone is standing once the run
+# spans sessions: three phase decisions deferred that way were absent one link later.
+# The fix landed first on the always-on rule file only, which is the half a session
+# that reads the canon would never see.
+for _f in "$RULE" "$CANON"; do
+  _n="$(basename "$(dirname "$_f")")/$(basename "$_f")"
+  _t="$(flat "$_f")"
+  grep -qi 'deferral must outlive' <<<"$_t" \
+    || fail "(k) $_n: no deferral-survives-the-run clause"
+  # The remedy has to be named, or the clause is an observation rather than a rule.
+  grep -qi 'OPEN OWED' <<<"$_t" \
+    || fail "(k) $_n: deferral clause does not name the OPEN OWED delta as the remedy"
+  # And it must be ADDITIVE. Read as a replacement it would delete the surfacing that
+  # classes 1 and 2 already mandate, which is the half that works when no ledger exists.
+  grep -qiE 'as well|in addition' <<<"$_t" \
+    || fail "(k) $_n: deferral clause does not say the ledger item is IN ADDITION to surfacing"
+done
+
 # ---------- (j) the two skills POINT at the clause, and do not restate it ----------
 # One owner per rule. A pointer keeps the rule single-sourced; a copy drifts.
 grep -qi 'Integrating a branch is not a commit' <<<"$(flat "$PLAN_EXEC_ALL")" \
@@ -134,4 +154,4 @@ grep -qi 'Integrating a branch is not a commit' <<<"$_wt" \
   || fail "(j) aidex-worktree: SKILL.md does not name the merge clause"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate; the merge clause is on both surfaces with its direction, and both skills point at it"
+echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate; the merge and deferral clauses are on both surfaces, and both skills point at the merge clause"

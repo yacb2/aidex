@@ -234,8 +234,30 @@ After each phase passes verification, before starting the next phase:
    baseline-failure notes. **Environment and data claims in the seed carry their
    standing — VERIFIED (re-checked now, check named) or ASSUMED — never bare
    fact**: an arriving session repeats the seed to the user as truth, and seeds
-   have asserted a DB state that was false and a UI control that did not exist. **Otherwise**, run `/compact` or continue in-session.
+   have asserted a DB state that was false and a UI control that did not exist.
+   **Otherwise**, run `/compact` or continue in-session.
    Pick whichever is available — do not hard-depend on any handoff skill.
+
+   **The seed's `slug:` line names the chain, and it comes from the PLAN** — not
+   from a phrase composed at this hop. It is the line that drifts: 6 of the 10
+   recorded chains with more than one link renamed themselves mid-chain (measured
+   2026-08-23 over `~/.claude/handoff-chains/`), and a chain that renames itself
+   renders as unrelated rows in the `--resume` picker instead of one thread. Take
+   the plan's own name and append the phase; that name existed before the first
+   handoff and does not move.
+
+   **Where a chain ledger exists, two things go to it as DELTA lines — never as
+   text in the seed.** They are carried by the mechanism, and re-typing them into
+   the seed is how the two records start disagreeing.
+   - `CHARTER`, from the plan's name and goal. Written **once, at the chain's
+     first handoff**, so emit it there and never again — it is not re-stated per
+     phase, and nothing but a `CLOSE` removes it.
+   - `OPEN OWED`, for a decision this run **deferred rather than took** — an
+     autonomy class-1 skip, a class-2 publication left unpublished. Not a line in
+     the final summary: a run that spans sessions loses that summary, and three
+     phase decisions deferred exactly this way were absent one link later with no
+     record they had ever been owed (`research/2026-08-22-chain-context-decay.md`
+     in `claude-session-handoff`, Result 2).
    This is the *mechanical* durability layer: context exhaustion is not a
    judgment call, so it never routes to the arbiter — it just hands off.
 
