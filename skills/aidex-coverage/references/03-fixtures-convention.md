@@ -48,3 +48,37 @@ number to publish as-is.
 
 Source of the underlying measurement this rule generalizes from:
 `research/2026-08-22-suite-speed-and-coverage-findings/04-rules.md`, `m7`.
+
+---
+
+# The `__tests__/` layout ratchet (`s4`)
+
+Same shape of mechanical trigger as the rule-of-three above: a small, per-file decision
+made at the moment code is touched, never a scheduled bulk pass.
+
+**Rule.**
+
+1. **A frontend test file moves to `__tests__/` when the surrounding code it covers is
+   touched.** Touching a component, composable, or module is what earns its co-located
+   spec the move — not a separate pass over files nobody is editing.
+2. **There is no mass migration.** `echo_lab_ws`'s frontend carries 442 test files still
+   outside `__tests__/`; none of them are moved by this rule at once, and no future task
+   should propose moving them at once either.
+3. **The layout decision itself is not reopened.** `__tests__/` for test files,
+   `__fixtures__/` as its sibling for shared fixtures, both type-checked via
+   `tsconfig.vitest.json` — settled in
+   `dashboard_template_ws/.context/decisions/2026-08-06-frontend-test-location-and-type-checking.md`.
+   This ratchet is how the settled layout is *reached*, not a re-litigation of *what* the
+   layout is.
+
+**Why the rejection is worth stating, not just the rule.** A single commit moving 442
+files would hide every other change in that review — the diff a reviewer actually needs to
+read (a real behavior change) drowns in mechanical renames. The ratchet gets the same
+end state without ever producing that commit: every file eventually moves, each move rides
+inside a diff a reviewer was already going to read for its actual change.
+
+**Scope note.** Nothing here goes to `rules/` — this is a per-file authoring convention,
+not an always-on rule, and the always-on budget is not spent on it.
+
+Source: `.context/plans/2026-08-22-suite-speed-and-coverage-rollout/11-e2e-layer-and-layout.md`
+Task 11.3, ledger `s4` of `.context/decisions/2026-08-22-suite-speed-and-coverage-programme.md`.

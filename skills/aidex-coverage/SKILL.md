@@ -43,8 +43,10 @@ authoring rule for anyone writing a new coverage-bearing test.
 | Which layer does this test belong in? | [references/01-layer-model.md](references/01-layer-model.md) |
 | What does current upstream documentation say about a specific correctness or cost trap in this stack? | [references/02-best-practices.md](references/02-best-practices.md) |
 | When do I extract a fixture? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
+| When does a frontend test file move to `__tests__/`? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
+| Which layer does a specific EchoLab editor spec belong in? | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 
-Start at [references/00-index.md](references/00-index.md) if none of the three obviously
+Start at [references/00-index.md](references/00-index.md) if none of the above obviously
 applies.
 
 ## How to use the layer model
@@ -76,11 +78,15 @@ the source.
 
 [references/03-fixtures-convention.md](references/03-fixtures-convention.md) states the
 rule-of-three trigger (extract to `__fixtures__/` at the third test repeating the same
-setup) and the authoring form of `m7`. It is mechanical, not a judgment call — apply it
-while writing tests, not only when reviewing them later.
+setup), the authoring form of `m7`, and the `__tests__/` layout ratchet (`s4`): a test file
+moves to `__tests__/` when the code it covers is touched, never as a scheduled mass move.
+All three are mechanical, not a judgment call — apply them while writing or moving tests,
+not only when reviewing them later.
 
-## Scope note
+## How to use the E2E layer audit
 
-`[Phase 11]` of the rollout plan that created this skill (`__tests__/` layout ratchet, `s4`)
-adds a fourth reference file here; it does not exist yet as of this skill's creation and is
-not to be invented ahead of that phase.
+[references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) carries a verdict for
+every non-`playback` spec in EchoLab's timeline E2E suite, judged against the layer-
+assignment rubric above: `E2E` (stays) or `candidate` (a lower layer could observe the same
+failure). It is an audit, not a queue — a `candidate` verdict names the reason and the
+likely lower layer; deciding to move a spec, and moving it, is separate work.
