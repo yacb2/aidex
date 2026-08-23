@@ -283,6 +283,29 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "guarded: a script that captures provenance before defaulting must be clean, got: $out"
 
 
+# --- 13b. provenance captured BELOW the default -> still a FINDING -----------
+# The exemption's own comment says the capture is only meaningful ABOVE
+# `VAR=${VAR:-lit}`: after that line the variable is set either way and
+# `${VAR:+1}` is always-true — a guard built on it never skips the sweep. The
+# first implementation was a whole-file grep with no position check, so the
+# broken ordering (one wrong fix away from case 13) went clean. Weekend review
+# 2026-08-23, finding 3.
+p="$(mk_project misordered dev.sh)"
+cat > "$p/dev.sh" <<'SH'
+#!/usr/bin/env bash
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$PROJECT_ROOT/.env" ]; then . "$PROJECT_ROOT/.env"; fi
+FRONTEND_PORT=${FRONTEND_PORT:-3700}
+FRONTEND_MOBILE_PORT=${FRONTEND_MOBILE_PORT:-3701}
+FRONTEND_MOBILE_PORT_FROM_SLOT=${FRONTEND_MOBILE_PORT:+1}
+free_port "$FRONTEND_PORT"
+if [ -n "$FRONTEND_MOBILE_PORT_FROM_SLOT" ]; then free_port "$FRONTEND_MOBILE_PORT"; fi
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "misordered: a provenance capture BELOW the default is always-true and must NOT exempt -- got: $out"
+grep -q 'FRONTEND_MOBILE_PORT' <<<"$out" || fail "misordered: must name the variable, got: $out"
+grep -q 'unsupplied-var' <<<"$out" || fail "misordered: must classify the shape, got: $out"
+
 # --- 14. the guard idiom must be `set -e` safe (BL-192) ---------------------
 # Both field dev.sh files run under `set -e`, and the obvious spelling of the
 # guard is NOT safe there. `own_mobile_port && free_port ...` as a FUNCTION's
