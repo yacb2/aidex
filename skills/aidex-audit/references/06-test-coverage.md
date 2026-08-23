@@ -30,7 +30,7 @@ workspace-root-relative).
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "repos": [
     { "name": "backend",  "path": "backend",  "test_hint": "cd backend && pytest {path}" },
     { "name": "frontend", "path": "frontend", "test_hint": "./test-e2e.sh {path}" }
@@ -48,8 +48,14 @@ workspace-root-relative).
         "e2e":  ["frontend/tests/e2e/billing/invoices/**"]
       },
       "surfaces": {
-        "routes": ["frontend/src/router/**"],
-        "endpoints": ["backend/apps/billing/urls.py"]
+        "routes": [
+          { "path": "/billing/invoices",     "spec": "frontend/src/views/billing/InvoiceList.vue" },
+          { "path": "/billing/invoices/:id", "spec": "frontend/src/views/billing/InvoiceDetail.vue" }
+        ],
+        "endpoints": ["backend/apps/billing/urls.py"],
+        "actions": [
+          { "route": "/billing/invoices", "action": "create-invoice", "endpoint": "POST /api/invoices/" }
+        ]
       }
     }
   ]
@@ -58,7 +64,9 @@ workspace-root-relative).
 
 ### Field rules
 
-- `version` — schema version, currently `1`.
+- `version` — schema version, currently `2`. A `version: 1` map still loads and
+  still produces a matrix; it simply contributes no routes to the route board
+  (see `surfaces.routes` below).
 - `repos[]` — the workspace's git repos. `path` is workspace-root-relative;
   use `"."` (or `""`) for a workspace whose root itself is the git repo.
   `test_hint` is optional, a shell command template with a `{path}`
@@ -68,13 +76,68 @@ workspace-root-relative).
 - `modules[].src` — glob list of source paths this module owns.
 - `modules[].tests` — glob lists keyed by test kind (`unit`, `e2e`, etc — the
   keys are open-ended, not a fixed enum).
-- `modules[].surfaces` — optional glob lists of user-facing or API surfaces
-  (routes, endpoints) associated with the module, used to spot drift between
-  what a module exposes and what it tests.
+- `modules[].surfaces` — optional, and the one place where two value shapes
+  live side by side:
+  - **glob-shaped keys** (`endpoints`, and any project-specific key) — lists of
+    glob **strings**, matched against tracked files exactly like `src` and
+    `tests`. These, and only these, are summed into the matrix's
+    `surface_files` count. The key set stays open-ended.
+  - **`routes`** — a list of **objects**, one per URL route: `path` is the URL
+    the router serves (`:param` segments allowed) and `spec` is the file that
+    serves it (the Vue view / template / handler). A URL is not a file path, so
+    `routes` is deliberately excluded from `surface_files`; a v1 map whose
+    `routes` is still a list of globs keeps being counted as files, unchanged.
+  - **`actions`** — a list of objects naming a per-route action and the endpoint
+    it calls: `{"route": "/billing/invoices", "action": "create-invoice",
+    "endpoint": "POST /api/invoices/"}`. `route` must equal a declared
+    `routes[].path`; one that does not is reported under "Actions on an
+    undeclared route" as a defect in the map.
+
+  The shape is sniffed from the value, never from the key name: a list of
+  strings is globs, a list of objects is typed. That is what keeps a project's
+  own custom surface key counted after the bump.
 - All paths are **workspace-root-relative** and may use `**` (spans any
   number of directories, including zero) and `*` (matches within a single
   path segment) globs.
 - `surfaces` is optional at the module level; omit it if not applicable.
+
+### Route coverage — how "reached by an E2E spec" is decided
+
+`coverage-matrix` decides it by **text**, not by module ownership: a route is
+covered when some E2E spec file mentions its path literally (`page.goto(
+'/billing/invoices')` and friends). Three details change what the gap count
+means, so they are stated rather than left to the reader:
+
+- **Scope is the union of every module's `tests.e2e` globs**, not the owning
+  module's. A top-level smoke spec that walks many routes belongs to no module,
+  and scoping the scan per module would make the coverage it really provides
+  invisible.
+- **Only files that are specs are scanned** (`*.spec.ts` / `*.test.ts` /
+  `test_*.py` naming), not everything an e2e glob happens to cover. Measured on
+  NS 2026-08-23: the globs also pull in `tests/e2e-setup/test-routes.ts`, a
+  table of route *constants*, and counting it marked 13 of 79 routes covered
+  with no spec behind any of them. If a project's specs match none of those
+  conventions the scan falls back to the whole glob set, so an unusual naming
+  scheme degrades to the old behaviour rather than reporting every route as a
+  gap.
+- **`:param` segments are translated to "one path segment"** before matching, so
+  `/billing/invoices/:id` is reached by a spec visiting `/billing/invoices/7`.
+  Without that, every parameterised route would read uncovered forever.
+- **The URL must end where the route ends** — at a closing quote/backtick, or
+  at the `?`/`#` starting a query or fragment. A bare mention with no closing
+  delimiter (a trailing `// go to /billing/settings` comment) is not coverage.
+  `/people` is therefore *not*
+  marked covered by a spec that only ever visits `/people/create`. Silent
+  over-reporting is the failure this board exists to prevent, so that is the
+  side that gets the strict rule; the character *before* the path only has to
+  not continue a longer path or identifier, which keeps
+  `` `${BASE_URL}/suppliers/invoices` `` matching. A route mentioned only
+  through a constant defined outside the scanned specs reads as a gap — a false
+  alarm a human resolves, which is the direction to err in.
+
+The outputs are `route_gaps` in the JSON, a "Routes with no reaching E2E spec"
+list in `coverage-matrix.md`, and the route board in the dash render. A route
+the map claims but the router does not define is a defect in the map.
 - `test_hint` is optional at the repo level; omit it if there's no single
   reliable one-liner to re-run tests for a path in that repo.
 

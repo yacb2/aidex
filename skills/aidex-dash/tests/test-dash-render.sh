@@ -114,14 +114,25 @@ EOF
 
 cat > "$CTX/audits/test-coverage/coverage-matrix.json" <<'EOF'
 {
-  "schema": "coverage-matrix/1",
+  "schema": "coverage-matrix/2",
   "generated": "2026-07-05T00:00:00",
   "modules": [
-    {"id": "billing", "src_files": 596, "unit_files": 40, "unit_tests": 1181, "e2e_files": 61, "e2e_tests": 1296, "notes": "—"},
-    {"id": "banking", "src_files": 226, "unit_files": 12, "unit_tests": 271, "e2e_files": 0, "e2e_tests": 0, "notes": "no E2E"}
+    {"id": "billing", "src_files": 596, "unit_files": 40, "unit_tests": 1181, "e2e_files": 61, "e2e_tests": 1296, "notes": "—",
+     "routes": [
+       {"path": "/billing/invoices", "spec": "frontend/src/views/billing/InvoiceList.vue",
+        "actions": [{"action": "create-invoice", "endpoint": "POST /api/invoices/"}],
+        "reached_by": ["frontend/tests/e2e/billing/invoices.spec.ts"], "covered": true},
+       {"path": "/billing/settings", "spec": "frontend/src/views/billing/Settings.vue",
+        "actions": [], "reached_by": [], "covered": false}
+     ],
+     "routes_total": 2, "routes_uncovered": 1},
+    {"id": "banking", "src_files": 226, "unit_files": 12, "unit_tests": 271, "e2e_files": 0, "e2e_tests": 0, "notes": "no E2E",
+     "routes": [], "routes_total": 0, "routes_uncovered": 0}
   ],
-  "totals": {"src_files": 822, "unit_files": 52, "unit_tests": 1452, "e2e_files": 61, "e2e_tests": 1296},
-  "unmapped_test_files": ["backend/apps/x/tests/test_y.py"]
+  "totals": {"src_files": 822, "unit_files": 52, "unit_tests": 1452, "e2e_files": 61, "e2e_tests": 1296, "routes": 2, "routes_uncovered": 1},
+  "unmapped_test_files": ["backend/apps/x/tests/test_y.py"],
+  "route_gaps": [{"module": "billing", "path": "/billing/settings", "spec": "frontend/src/views/billing/Settings.vue"}],
+  "unmapped_actions": []
 }
 EOF
 
@@ -165,6 +176,30 @@ run "$WS" coverage >/dev/null || fail "coverage render exited non-zero"
 [[ -f "$CO_HTML" ]] || fail "coverage: coverage-matrix.html not written"
 head -1 "$CO_HTML" | grep -q '^<!-- GENERATED' || fail "coverage: first line missing GENERATED"
 grep -q 'billing' "$CO_HTML" || fail "coverage: module row billing missing"
+
+# --- coverage route board: the uncovered route must be NAMED ----------------
+# The whole reason the routes field stopped being dead: a page with no E2E spec
+# has to appear as an output, not as an absence the reader must notice.
+grep -q '/billing/invoices' "$CO_HTML" || fail "coverage: route /billing/invoices missing from the board"
+grep -q 'InvoiceList.vue' "$CO_HTML" || fail "coverage: the spec serving the route missing from the board"
+grep -q 'create-invoice' "$CO_HTML" || fail "coverage: route action missing from the board"
+grep -q 'POST /api/invoices/' "$CO_HTML" || fail "coverage: the endpoint an action calls missing from the board"
+grep -q '/billing/settings' "$CO_HTML" || fail "coverage: the UNCOVERED route must be named on the board"
+grep -q 'no E2E spec' "$CO_HTML" || fail "coverage: uncovered route must be flagged 'no E2E spec'"
+grep -q 'routes with no E2E spec' "$CO_HTML" || fail "coverage: route-gap tile missing"
+
+# --- a routeless matrix (the shape most maps still have) renders fine -------
+python3 - "$CTX/audits/test-coverage/coverage-matrix.json" <<'PYNR'
+import json, sys
+d = json.load(open(sys.argv[1]))
+for m in d["modules"]:
+    m["routes"], m["routes_total"], m["routes_uncovered"] = [], 0, 0
+d["totals"]["routes"] = d["totals"]["routes_uncovered"] = 0
+d["route_gaps"] = []
+json.dump(d, open(sys.argv[1], "w"), indent=2)
+PYNR
+run "$WS" coverage >/dev/null || fail "coverage: a routeless matrix must still render, not die"
+grep -q '/billing/settings' "$CO_HTML" && fail "coverage: stale route board survived a routeless regeneration"
 
 # --- idempotency: re-run is structurally identical --------------------------
 run "$WS" backlog >/dev/null || fail "backlog second run exited non-zero"

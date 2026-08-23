@@ -29,7 +29,7 @@ out="$(python3 -c "
 import sys; sys.path.insert(0, '$LIB_DIR')
 import _coverage_lib as lib
 m = lib.load_map('$WS')
-assert m['version'] == 1
+assert m['version'] == 2
 assert len(m['modules']) == 2
 ids = {mod['id'] for mod in m['modules']}
 assert ids == {'billing', 'people'}, ids

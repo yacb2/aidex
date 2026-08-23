@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # test-coverage-matrix.sh — coverage_matrix.py against the coverage-workspace
 # fixture (house pattern, same assert style as test-coverage-lib.sh): matrix
-# file exists with GENERATED header; billing row shows 1 e2e spec / 2 e2e
-# tests / 1 unit file / 1 unit test; people row shows NO TESTS;
+# file exists with GENERATED header; billing row shows 2 e2e spec files (a
+# real spec plus a route-constants helper the glob covers) / 2 e2e tests /
+# 1 unit file / 1 unit test; people row shows NO TESTS;
 # coverage-matrix.json parses and carries a timestamp; running twice is
 # idempotent (no duplicate sections); a hand-edit is overwritten on
 # regeneration.
@@ -34,8 +35,8 @@ billing_row="$(grep -E '^\| billing \|' "$MD")"
 echo "$billing_row" | awk -F'|' '{
   gsub(/^[ \t]+|[ \t]+$/, "", $4); gsub(/^[ \t]+|[ \t]+$/, "", $5);
   gsub(/^[ \t]+|[ \t]+$/, "", $6); gsub(/^[ \t]+|[ \t]+$/, "", $7);
-  exit !($4 == "1" && $5 == "1" && $6 == "1" && $7 == "2")
-}' || fail "billing row counts wrong (expected unit files=1 unit tests=1 e2e specs=1 e2e tests=2): $billing_row"
+  exit !($4 == "1" && $5 == "1" && $6 == "2" && $7 == "2")
+}' || fail "billing row counts wrong (expected unit files=1 unit tests=1 e2e specs=2 e2e tests=2): $billing_row"
 
 # --- people row: NO TESTS ---
 people_row="$(grep -E '^\| people \|' "$MD")"
@@ -48,11 +49,114 @@ import json
 with open('$JSON') as f:
     data = json.load(f)
 assert 'generated' in data and data['generated'], data
-assert data.get('schema') == 'coverage-matrix/1', data.get('schema')
+assert data.get('schema') == 'coverage-matrix/2', data.get('schema')
 assert len(data['modules']) == 2, data['modules']
 print('OK')
 ")"
 [[ "$out" == "OK" ]] || fail "coverage-matrix.json parse/shape: $out"
+
+# --- typed routes: covered vs uncovered, actions, and the gap list -----------
+# The point of the whole field: '/billing/settings' is declared and no e2e spec
+# ever visits it, so it must be REPORTED, not silently absent.
+out="$(python3 -c "
+import json
+data = json.load(open('$JSON'))
+mods = {m['id']: m for m in data['modules']}
+b = mods['billing']
+routes = {r['path']: r for r in b['routes']}
+assert set(routes) == {'/billing/invoices', '/billing/invoices/:id/edit', '/billing/settings'}, sorted(routes)
+assert routes['/billing/invoices']['covered'] is True, routes['/billing/invoices']
+assert routes['/billing/invoices']['reached_by'] == ['frontend/tests/e2e/billing/a.spec.ts'], routes['/billing/invoices']
+assert routes['/billing/invoices']['spec'] == 'frontend/src/billing/Form.vue', routes['/billing/invoices']
+assert routes['/billing/invoices/:id/edit']['covered'] is True, routes['/billing/invoices/:id/edit']
+# and a non-spec file inside the e2e globs (routes.ts, a constants table) is
+# not coverage either, however literally it names the route
+assert routes['/billing/settings']['covered'] is False, routes['/billing/settings']
+assert routes['/billing/invoices']['actions'] == [{'action': 'create-invoice', 'endpoint': 'POST /api/invoices/'}], routes['/billing/invoices']['actions']
+gaps = [(g['module'], g['path']) for g in data['route_gaps']]
+assert gaps == [('billing', '/billing/settings')], gaps
+assert data['totals']['routes'] == 3, data['totals']
+assert data['totals']['routes_uncovered'] == 1, data['totals']
+assert mods['people']['routes'] == [], mods['people']
+assert data['unmapped_actions'] == [], data['unmapped_actions']
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "route shape/coverage: $out"
+
+grep -q '/billing/settings' "$MD" || fail "markdown must name the uncovered route"
+grep -q 'NO E2E SPEC' "$MD" || fail "markdown must flag the route with no reaching spec"
+grep -q 'POST /api/invoices/' "$MD" || fail "markdown must show the endpoint an action calls"
+
+# --- route matching: the boundary rules, against the forms real specs use ----
+# Cases taken from the measured NS e2e corpus (plain literal, template literal
+# with a ${} placeholder, query string) plus the two over-reporting traps: a
+# prefix route and a `*/` comment terminator standing in for the root route.
+out="$(python3 - "$SCRIPTS_DIR/coverage" <<'PYRX'
+import sys
+sys.path.insert(0, sys.argv[1])
+import coverage_matrix as cm
+
+BT = chr(96)
+cases = [
+    ("/people",             "goto('/people')",                             True),
+    ("/people",             "goto('/people/create')",                      False),
+    ("/people/:id/edit",    "goto(" + BT + "/people/${id}/edit" + BT + ")", True),
+    ("/suppliers/invoices",
+     "goto(" + BT + "${BASE_URL}/suppliers/invoices" + BT + ")",           True),
+    ("/x/create",           "goto('/x/create?from=1')",                    True),
+    ("/",                   "goto('/')",                                   True),
+    ("/",                   "   */",                                       False),
+    ("/",                   "const r = a / b",                             False),
+]
+for path, text, want in cases:
+    got = bool(cm.route_regex(path).search(text))
+    assert got == want, (path, text, want, got)
+print("OK")
+PYRX
+)"
+[[ "$out" == "OK" ]] || fail "route_regex boundary rules: $out"
+
+# --- surface_files counts glob-shaped keys only, and still sums a v1 map -----
+# The trap in the schema change: a URL route is not a file path, so counting the
+# typed `routes` list would report zero surface files for exactly the modules
+# that adopt the new shape.
+sf_v2="$(python3 -c "
+import json
+m = {x['id']: x for x in json.load(open('$JSON'))['modules']}
+print(m['billing']['surface_files'])
+")"
+[[ "$sf_v2" == "1" ]] || fail "v2 surface_files should count only the endpoints glob (got $sf_v2)"
+
+MAP="$WS/.context/audits/test-coverage/module-map.json"
+cp "$MAP" "$WS/map-v2.json"
+python3 - "$MAP" <<'PYV1'
+import json, sys
+m = json.load(open(sys.argv[1]))
+m['version'] = 1
+for mod in m['modules']:
+    if mod['id'] == 'billing':
+        mod['surfaces'] = {
+            'routes': ['frontend/src/billing/**'],
+            'endpoints': ['backend/apps/billing/views.py'],
+        }
+json.dump(m, open(sys.argv[1], 'w'), indent=2)
+PYV1
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
+  || fail "coverage_matrix.py exited non-zero on a v1 map"
+out="$(python3 -c "
+import json
+data = json.load(open('$JSON'))
+m = {x['id']: x for x in data['modules']}
+assert m['billing']['surface_files'] == 2, m['billing']['surface_files']
+assert m['billing']['has_surfaces'] is True, m['billing']
+assert m['billing']['routes'] == [], m['billing']['routes']
+assert data['schema'] == 'coverage-matrix/2', data['schema']
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "v1 map compatibility (surface_files must stay 2): $out"
+cp "$WS/map-v2.json" "$MAP"
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
+  || fail "coverage_matrix.py exited non-zero after restoring the v2 map"
 
 # --- idempotent: second run rewrites cleanly, no duplicate sections ---
 python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
