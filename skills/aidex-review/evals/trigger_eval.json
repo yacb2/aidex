@@ -88,5 +88,15 @@
     "query": "What skills do I have installed, and is my .context/ a mess?",
     "should_trigger": false,
     "expected_behavior": "Ecosystem audit of the Claude Code setup — aidex, not code review."
+  },
+  {
+    "query": "Necesito que ejecutes un AIDEX Review sobre todos los cambios realizados este fin de semana",
+    "should_trigger": true,
+    "expected_behavior": "Native field query (usage-retro 2026-08-23, echo_lab 08-16: fired nothing). 'Review de los cambios' resolves to the MODULES the changes touched, reviewed as they stand — not a diff review; the skill must not bounce it to /code-review."
+  },
+  {
+    "query": "hazme un aidex review de lo que tocamos en la sesion de hoy",
+    "should_trigger": true,
+    "expected_behavior": "Same shape, informal Spanish. Resolve today's touched files to their owning modules and review those as they stand."
   }
 ]
