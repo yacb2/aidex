@@ -91,7 +91,12 @@ Classify before you pause:
    asking. Both files load into the same session, so the conflict is live rather than
    theoretical, and the observed symptom is a run pausing to ask permission to hand off
    — precisely the stop the process exists to prevent (field-observed 2026-08-01).
-   Outside a run, `session-handoff`'s propose-first behaviour is unchanged.
+   Outside a run, `session-handoff`'s propose-first behaviour is unchanged — unless
+   the user grants a **standing in-session authorization** ("haz handoff cada vez que
+   necesites, no me lo consultes"): that grant switches the guard off for the rest of
+   the session and is not re-asked. Usage-retro 2026-08-23 found the guard being
+   hand-overridden at least twice a week (2026-08-17 echo_lab, 2026-08-18
+   dashboard_template).
    Note the ownership limit: `session-handoff` is not in `~/.aidex/.manifest`, so this
    repo can state precedence but cannot edit that skill. It does have an owner, though,
    and it is not this codebase: the skill ships from `claude-session-handoff`, which
@@ -110,6 +115,16 @@ Classify before you pause:
 A genuine **hard blocker** (missing credentials, a test whose intended behavior is
 truly unknowable) is not "asking permission" — you literally cannot proceed. That
 still stops. Everything resolvable does not.
+
+### Interactive sessions: analyze means read-only
+
+The classes above widen autonomy inside a sanctioned run. They do not transfer to a
+conversational session: there, an "analiza / explora / investiga" ask requests
+findings and the decision points, and presenting them **is** the deliverable —
+mutating anything is a separate ask. The inverse failure was observed twice in the
+week of 2026-08-18 (dashboard_template 08-18, echo_lab 08-19): an analysis request
+turned into unrequested propagation the user had to walk back, which spends exactly
+the trust the unattended classes depend on.
 
 ### A deferral must outlive its run
 
