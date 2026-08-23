@@ -120,7 +120,7 @@ diagnosing a single project by hand rather than trusting the sweep blind:
    and `pytest-xdist` absent as an actually locked package (not merely mentioned in
    another dependency's lockfile metadata)?
    ```bash
-   grep -rn -- "-n auto\|--numprocesses" --include="*.sh" --include="*.toml" \
+   grep -rn -E -- "-n +auto|--numprocesses(=| +)auto" --include="*.sh" --include="*.toml" \
      --include="*.yml" --include="*.yaml" --include="Makefile" .
    grep '^name = "pytest-xdist"' backend/poetry.lock
    ```

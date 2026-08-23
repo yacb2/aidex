@@ -77,6 +77,19 @@ v_e_xdist="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['clean']
 [[ $rc_e -eq 0 ]] || fail "(e) clean project should exit 0, got $rc_e"
 
 # ---------------------------------------------------------------------------
+# (f) silent when clean: the non-JSON table run against ONLY the clean
+# project prints nothing and exits 0 (compliance-sweep.sh's contract);
+# --verbose restores the table even though nothing drifted.
+# ---------------------------------------------------------------------------
+out_f="$(python3 "$CHECK" --root "$WS" clean)"; rc_f=$?
+[[ -z "$out_f" ]] || fail "(f) a clean-only run should print nothing, got: $out_f"
+[[ $rc_f -eq 0 ]] || fail "(f) a clean-only run should exit 0, got $rc_f"
+out_f_v="$(python3 "$CHECK" --root "$WS" clean --verbose)"
+[[ -n "$out_f_v" ]] || fail "(f) --verbose should print the table even when clean"
+echo "$out_f_v" | grep -q '^clean ' \
+  || fail "(f) --verbose output should include the clean project's row: $out_f_v"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 if [[ $failures -eq 0 ]]; then
