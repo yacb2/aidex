@@ -61,7 +61,7 @@ python3 "$AUDIT_SCRIPTS/coverage/coverage_matrix.py" "$COV_WS" >/dev/null 2>&1 \
 COV_JSON="$COV_WS/.context/audits/test-coverage/coverage-matrix.json"
 [[ -f "$COV_JSON" ]] || fail "producer wrote no coverage-matrix.json"
 # the producer must stamp the pinned schema the consumer expects (lockstep)
-grep -q '"schema": "coverage-matrix/1"' "$COV_JSON" \
+grep -q '"schema": "coverage-matrix/2"' "$COV_JSON" \
   || fail "producer did not emit the pinned schema key render_coverage expects"
 
 # positive: dash parses the real producer output

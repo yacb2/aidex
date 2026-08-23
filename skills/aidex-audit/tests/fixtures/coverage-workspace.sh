@@ -69,8 +69,18 @@ EOF
 <template><div /></template>
 EOF
   cat > "$WS/frontend/tests/e2e/billing/a.spec.ts" <<'EOF'
-test('shows the invoice form', () => {});
-test('submits the invoice form', () => {});
+test('shows the invoice form', async ({ page }) => {
+  await page.goto('/billing/invoices');
+});
+test('submits the invoice form', async ({ page }) => {
+  await page.goto('/billing/invoices/7/edit');
+});
+EOF
+  # NOT a spec: a table of route constants that an e2e glob happens to cover.
+  # Mentioning a route here must never count as coverage (field-measured on NS
+  # 2026-08-23: doing so marked 13 of 79 routes covered with no spec behind them).
+  cat > "$WS/frontend/tests/e2e/billing/routes.ts" <<'EOF'
+export const ROUTES = { settings: '/billing/settings' };
 EOF
   git_init_commit "$WS/frontend"
 
@@ -78,7 +88,7 @@ EOF
   mkdir -p "$WS/.context/audits/test-coverage"
   cat > "$WS/.context/audits/test-coverage/module-map.json" <<'EOF'
 {
-  "version": 1,
+  "version": 2,
   "repos": [
     { "name": "backend",  "path": "backend",  "test_hint": "cd backend && pytest {path}" },
     { "name": "frontend", "path": "frontend", "test_hint": "./test-e2e.sh {path}" }
@@ -94,6 +104,17 @@ EOF
       "tests": {
         "unit": ["backend/apps/billing/tests/**"],
         "e2e":  ["frontend/tests/e2e/billing/**"]
+      },
+      "surfaces": {
+        "routes": [
+          { "path": "/billing/invoices",          "spec": "frontend/src/billing/Form.vue" },
+          { "path": "/billing/invoices/:id/edit", "spec": "frontend/src/billing/Form.vue" },
+          { "path": "/billing/settings",          "spec": "frontend/src/billing/Form.vue" }
+        ],
+        "endpoints": ["backend/apps/billing/views.py"],
+        "actions": [
+          { "route": "/billing/invoices", "action": "create-invoice", "endpoint": "POST /api/invoices/" }
+        ]
       }
     },
     {

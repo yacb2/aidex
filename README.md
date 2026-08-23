@@ -77,6 +77,7 @@ aidex solves this with two pillars:
     ├── aidex-worktree/              <-- (from aidex)
     ├── aidex-dash/                 <-- (from aidex)
     ├── aidex-review/                <-- (from aidex)
+    ├── aidex-coverage/              <-- (from aidex)
     └── my-personal-skill/           <-- Your own (not in manifest)
         │
         │  symlinks
@@ -137,7 +138,7 @@ Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.
 | `verification-before-claims.md` | No "tests pass" / "build succeeds" / "bug is fixed" without running the command and showing output; partial-success commands need before/after counts, not just exit code 0 |
 | `root-cause-first.md` | Investigate before fixing, form a hypothesis before implementing, and after three failed attempts stop and question the architecture |
 
-### 18 skills
+### 19 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -158,6 +159,7 @@ Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.
 | **`aidex-review`** | User-invoked + context-triggered | Reviews code **as it stands** — a module, feature, path, or whole app — where every built-in instrument (`/code-review`, `/simplify`, `/security-review`) is anchored to a diff. Measures the target first (`resolve-review-target.sh`: files, LOC, security/perf surface, size class), proposes which finder angles are worth launching and what they cost, then fans out find→verify across four lenses (correctness · simplify · security · perf). An oversize target is refused **as a single pass** — a small-target finder count spread over a whole app produces a sample, and a sample reported as a review is the failure that check exists to stop — and `--partition` then emits the split to phase it: one part per immediate subdirectory, each measured as a target in its own right, the parts summing to the whole. The union of the phases is the coverage one sampled pass never had. |
 | **`aidex-bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
 | **`aidex-worktree`** | User-invoked + context-triggered | Creates and destroys fully isolated worktrees — one git worktree per participant repo, its own port slot, its own compose stack. The mechanism ships as `worktree.sh`; a project supplies only parameters in `.context/worktrees/config.env`. **One path, not tiers:** a worktree is born with its full stack always (`--no-infra` is the explicit code-only opt-out), because full isolation now costs ~25s to create and ~3s to tear down. `down` verifies nothing is left attributable to the slug, reports host processes it will not kill, and with `--delete-branch` removes the branch `new` created — via `git branch -d`, which refuses an unmerged branch. |
+| **`aidex-coverage`** | User-invoked only (`disable-model-invocation`) | Authoring guidance for testing a Django + DRF + Vue + Vitest + Playwright stack: which layer a behaviour belongs in, the stack's sharpest traps sourced from primary docs, and when shared setup becomes a fixture. Deliberately does **not** run audits or touch `module-map.json` / `coverage-matrix.json` — that split belongs to `aidex-audit`'s `test-coverage` playbook. |
 | **`aidex-dash`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
 
 ### How it works
