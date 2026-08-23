@@ -130,11 +130,20 @@ fi
 [ "$INCLUDE_DOCS" -eq 1 ] && SOURCE_EXT="$SOURCE_EXT|md"
 
 collect_files() {
+  # The exclusion's job is BELOW the target, never on the path the user typed:
+  # EXCLUDE_DIRS carries `coverage`, and matching it against the full path
+  # emptied a first-party scripts/coverage/ named explicitly as the target —
+  # exit 3 reading as a fact about the target (field-found 2026-08-23). The
+  # target prefix is stripped before the exclusion grep and restored after.
+  local prefix
+  if [ -d "$TARGET" ]; then prefix="${TARGET%/}/"; else prefix="$(dirname "$TARGET")/"; fi
   find "$TARGET" -type f 2>/dev/null \
-    | grep -Ev "/($EXCLUDE_DIRS)/" \
+    | awk -v p="$prefix" 'index($0, p) == 1 { print substr($0, length(p) + 1); next } { print }' \
+    | grep -Ev "(^|/)($EXCLUDE_DIRS)/" \
     | grep -E "\.($SOURCE_EXT)$" \
     | grep -Ev '\.min\.(js|css)$|\.lock$|-lock\.json$' \
-    | LC_ALL=C sort
+    | LC_ALL=C sort \
+    | awk -v p="$prefix" '{ print p $0 }'
 }
 
 ALL_FILES="$(collect_files)"
