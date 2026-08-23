@@ -232,6 +232,29 @@ def surfaces_declaration(text):
     return val[5:].strip() if val.lower().startswith("none:") else ""
 
 
+LEDGER_OPEN = re.compile(r'<(\w+)\b[^>]*\bclass\s*=\s*["\x27][^"\x27]*\bledger\b'
+                         r'[^"\x27]*["\x27][^>]*>', re.I | re.S)
+LEDGER_KEY = re.compile(r'class\s*=\s*["\x27][^"\x27]*\bk\b[^"\x27]*["\x27][^>]*>'
+                        r'(.*?)<', re.I | re.S)
+# A key is a compound in the field — "c35 · BL-265", "c1 + c12" — so the id is a
+# TOKEN inside it, not the key. Leading letter required: a ledger keyed 1/2/3 is
+# a numbered list, not a set of item ids, and must not be read as one.
+LEDGER_TOKEN = re.compile(r'[A-Za-z][\w.-]*')
+
+
+def ledger_ids(text):
+    """Ids named by the ledger. Empty is a LEGITIMATE answer twice over: the
+    first page of a thread carries no ledger at all, and `.ledger` is also used
+    as a plain grid whose rows have no `.k` key. Neither is a violation, so
+    neither reports."""
+    out = set()
+    for m in LEDGER_OPEN.finditer(text):
+        body = _subtree(text, m.group(1), m.end())
+        for k in LEDGER_KEY.findall(body):
+            out.update(LEDGER_TOKEN.findall(flatten(k)))
+    return out
+
+
 # --- Requirement 1, across regenerations (--prev) -----------------------------
 
 ID_TAG = re.compile(r'<[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
@@ -444,6 +467,35 @@ def check_consultation(path, text, flat):
         if dupes:
             report("consult", f"duplicate ids ({' '.join(dupes)}) — two claims "
                    f"answering to one id")
+
+        # A decided item LEAVES the question set and is summarised into the
+        # ledger (02-local-first-artifacts.md § Update in place). An id sitting
+        # in both is that obligation half-done: the answer was recorded and the
+        # question is still being asked. What this can see is bounded, and the
+        # bound is worth stating — "decided" is not a property of the markup,
+        # so the ledger IS the declaration, and an item decided and never
+        # written to the ledger at all stays invisible here. That half is the
+        # one BL-190 actually observed and it is not mechanically reachable
+        # from the page alone.
+        try:
+            settled = ledger_ids(text)
+        except Exception as e:                      # noqa: BLE001 — fail closed
+            report("consult", f"the ledger scan did not run ({e})")
+            settled = set()
+        # `notes` is excluded: it is the ONE id the contract mandates be
+        # present on every page, so it cannot leave the question set — a
+        # ledger key whose trailing word happens to be it (keys carry bare
+        # words in the field: `c11 · auth`, `AWS · blocker`) would raise a
+        # failure no author could clear by complying.
+        still_asked = sorted({i for i, *_ in items if i and i != "notes"}
+                             & settled)
+        if still_asked:
+            report("consult", f"decided but still asked ({' '.join(still_asked)}"
+                   f") — the ledger records these as settled while the question "
+                   f"set still carries them. A decided item leaves the "
+                   f"questions and lives in the ledger only. (This sees only "
+                   f"items the ledger names; one decided and never written "
+                   f"there is invisible to any check.)")
 
     # ...and the page carries the general-notes item, always last, always
     # present. Matched inside a class ATTRIBUTE, never as the bare word:

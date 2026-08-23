@@ -133,7 +133,9 @@ SAME path. Concretely:
   `check-artifact.sh --prev` enforces it across regenerations.
 - **Decided items leave the interface.** An item the reader has answered is removed
   from the question set and summarised in the ledger. Leaving it in is asking a
-  settled question again; deleting it without recording the answer loses the decision.
+  settled question again; deleting it without recording the answer loses the decision. `check-artifact.sh` flags an id that sits in the ledger AND in the question set;
+  it cannot see one decided and never written to the ledger, because the ledger is
+  the only declaration of decidedness the page carries (BL-198).
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
 - **Typed answers survive a reload since kit v4** — the composer keeps them in

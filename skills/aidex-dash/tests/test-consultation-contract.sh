@@ -164,6 +164,59 @@ rc="$(run "$TMP/no-general.html")"
 grep -qi 'consult-notes' "$TMP/out" || fail "9. the failure does not name the missing general-notes item"
 
 # ---- 7. the template ships the full component set ------------------------
+# ---- 8. BL-198: an id in the ledger AND still in the question set fails ----
+# The contract's "decided items leave the interface". The ledger is the only
+# declaration of decidedness a page carries, so the intersection is what a
+# checker can reach.
+ledger_ok='<div class="ledger"><div><span class="k">c1</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
+ledger_bad='<div class="ledger"><div><span class="k">c1 &middot; BL-265</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
+item() { printf '<section class="consult-item" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
+
+mkpage "$TMP/ledger-clean.html" "$visual
+$ledger_ok
+$(item c2)
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/ledger-clean.html")"
+[[ "$rc" == "0" ]] || fail "8. a ledger disjoint from the question set was rejected: $(cat "$TMP/out")"
+
+mkpage "$TMP/ledger-dirty.html" "$visual
+$ledger_bad
+$(item c1)
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/ledger-dirty.html")"
+[[ "$rc" == "1" ]] || fail "8. a decided item left in the question set passed"
+grep -qi 'decided but still asked' "$TMP/out" \
+  || fail "8. the failure does not name the shape: $(cat "$TMP/out")"
+grep -qi 'c1' "$TMP/out" || fail "8. the failure does not name the id"
+
+# The mandated general-notes item can never leave the question set, so a ledger
+# key that tokenizes to it must not raise a failure nobody can clear.
+mkpage "$TMP/ledger-notes.html" "$visual
+<div class=\"ledger\"><div><span class=\"k\">c1 &middot; notes</span><span class=\"v\">Settled.</span></div></div>
+$(item c2)
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/ledger-notes.html")"
+[[ "$rc" == "0" ]] || fail "8. a ledger key naming 'notes' flagged the mandated general-notes item: $(cat "$TMP/out")"
+
+# A ledger keyed 1/2/3 is a numbered list, not item ids — and `.ledger` is also
+# used as a plain grid with no `.k` at all. Neither may be read as a decision.
+mkpage "$TMP/ledger-numbered.html" "$visual
+<div class=\"ledger\"><div><span class=\"k\">1</span><span class=\"v\">A numbered row.</span></div></div>
+<div class=\"ledger\"><article><p>A grid row with no key at all.</p></article></div>
+$(item c1)
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/ledger-numbered.html")"
+[[ "$rc" == "0" ]] || fail "8. a numbered or keyless ledger was read as item ids: $(cat "$TMP/out")"
+
+
 TPL="$SKILL/assets/templates/consultation-block.html.template"
 for needle in 'type="radio"' 'type="checkbox"' '<select' 'type="text"' '<textarea' \
               'id="consult-copy"' 'id="consult-copy-end"' 'consult-notes'; do
