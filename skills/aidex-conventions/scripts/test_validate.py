@@ -145,6 +145,13 @@ def check_plan_tests_field_unit(failures: list[str]) -> None:
     if "plan-phase-tests-missing" not in rules(missing):
         failures.append("tests-field unit: afk-impl phase with no tests: did not warn missing")
 
+    # Weekend review 2026-08-23, finding 4: a declared-but-EMPTY field parsed to
+    # [] and validated cleaner than no field at all — the value regex admits a
+    # bare space, so `tests: )` slipped past both missing and invalid.
+    empty = "### Phase 1 — Do it  (phase-type: afk-impl, tests: )\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
+    if "plan-phase-tests-missing" not in rules(empty):
+        failures.append("tests-field unit: afk-impl phase with EMPTY tests: did not warn missing")
+
     valid = "### Phase 1 — Do it  (phase-type: afk-impl, tests: unit)\n**Acceptance:**\n- x\n\n**Verify:** `pytest`\n"
     if rules(valid):
         failures.append("tests-field unit: valid tests: unit warned (false positive)")
