@@ -1,0 +1,21 @@
+{
+  "skill": "aidex-coverage",
+  "model": "claude-sonnet-5",
+  "setup": {
+    "env": {
+      "AIDEX_TRIGGER_EVAL_MARKER": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}"
+    },
+    "permissions_allow": [
+      "Bash(printenv:*)",
+      "Bash(touch:*)"
+    ]
+  },
+  "success_check": {
+    "type": "file_exists",
+    "path": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-coverage"
+  },
+  "cleanup_paths": [
+    "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-coverage"
+  ],
+  "queries_file": "./trigger-eval.json"
+}
