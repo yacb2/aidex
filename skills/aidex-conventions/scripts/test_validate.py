@@ -202,6 +202,14 @@ def check_plan_tests_field_unit(failures: list[str]) -> None:
     if rules(checkpoint):
         failures.append("tests-field unit: 'Phase N Checkpoint' section treated as a phase (FP)")
 
+    # Regression: a phase title that mentions "tests:" in prose (as this very
+    # field's own phase does — "the `tests:` phase field") must not be misread
+    # as a declaration; it should fall through to the correct front-matter value.
+    prose = ("### Phase 7 (q1, q2): the `tests:` phase field  (phase-type: afk-impl)\n"
+             "**Acceptance:**\n- x\n\n**Verify:** `pytest`\n")
+    if rules(prose, {"phase-type": "afk-impl", "gate": "pytest", "tests": "unit"}):
+        failures.append("tests-field unit: `tests:` mentioned in heading prose read as a declaration (FP)")
+
 
 def check_plan_spec_shape_unit(failures: list[str]) -> None:
     """Direct cells for check_plan_spec_shape (spec-first canon, ADR
