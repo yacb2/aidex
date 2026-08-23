@@ -122,6 +122,132 @@ finding.**
 
 ---
 
+## Suite speed
+
+**This is a measurement procedure, not a lever list.** The two most-cited Django speed
+levers (`--reuse-db`, `synchronous_commit=off`) measured at 1.9% and 5% in this fleet; the
+lever almost no guide names first — the MD5 test password hasher — was the only one worth
+a full factor, and even it turned out to be the *weakest* of three that compose. A
+recommended-lever list is a claim about a project nobody measured (`m1`); this section
+runs a procedure against the project under audit and records what it actually finds in the
+results table below. Full incidents and figures:
+`skills/aidex-coverage/references/02-best-practices.md` and
+`research/2026-08-22-suite-speed-and-coverage-findings/` in the aidex repo's `.context/`.
+
+### m1 — Measure the lever before recommending it
+
+Run the project's suite once, unmodified, and record the wall time before touching any
+configuration. Every figure below this line is a measured delta against that number, not
+an assumed one. Example of the failure this guards against, so the illustration is not
+itself a lever list: round one of the 2026-08-21/22 campaign concluded the MD5 hasher was
+"the one real lever." Round two, measuring three candidates together for the first time,
+found it the **weakest of the three that work** on the NS project — hasher 2.30x × xdist
+n=8 2.99x × removing `debug_toolbar` 2.00x = **13.63x** compounded, taking that suite from
+29:51 to 2:11. A rule against publishing lever lists whose own illustration turns out to
+be wrong is the most followable version of this rule available — measure this project,
+don't reuse another project's ranking.
+
+### m2 — Profile the distribution before choosing a class of lever
+
+Run with `--durations` (pytest) or the equivalent before choosing a lever. A flat
+distribution (many tests at a similar small cost, no small set dominating the clock)
+rules out "chase the slow tests" as a strategy — in one measured case the 120 slowest
+tests were only 13.3% of the total clock. A flat distribution admits three lever classes
+only: cut the fixed per-test cost, parallelise, or run fewer tests. A concentrated
+distribution (a handful of tests dominating) makes all three over-engineering — fix those
+tests instead. The profile costs one run; do it before picking a lever class.
+
+### m3 — Never measure a parallel mode on cold state
+
+Any mode with persistent state (xdist worker databases, caches, containers) must be
+measured with a discarded warm-up run first, then at steady state — never on the first,
+cold invocation. A cold-state measurement of xdist in this fleet showed "no good here";
+the same lever at steady state, on the same suite, gave **2.99x** at 8 workers (263.0 s
+against a clean 787.0 s interleaved sequential mean). The cold reading was an artifact of
+the instrument, not the lever, and it closed a real door for two weeks before being
+re-measured. State explicitly in the write-up that a warm-up was taken and discarded.
+
+### m4 — Measure the invocation floor from the inside, never by difference
+
+Measure what a single invocation costs (process start, framework setup, before any test
+body runs) directly — instrument the floor itself — rather than inferring it as the
+difference between two long runs, and never inherit a "typical" cost from a usage corpus.
+A usage corpus in this fleet charged one Docker invocation path a 15 s median from
+observed runs; measured directly the real difference between the two invocation paths
+was **0.68–0.70 s**. The corpus number was cold-stack cost the corpus never labelled as
+such, and the cheaper path could not even run in that cold state — so it never appears in
+the corpus carrying its own true cost.
+
+### m6 — Recommend xdist by suite duration, never by project or by `-n auto`
+
+Measure the same parallel lever on this project's own suite duration before recommending
+a worker count; do not assume a count that worked elsewhere transfers. The same lever
+measured **2.99x on an ~800 s suite and only 1.30x on a 19 s one**, with 2 workers
+*below* sequential in both cases. Worker startup and database creation amortise against
+total work — a 19 s suite has nothing to amortise against.
+
+**Ban `-n auto` outright**, for two reasons: it resolves to a different worker count on
+every machine, so timings stop being comparable between developers or between CI runs; and
+each worker costs one database connection plus a database to create, migrate and maintain.
+Choose a fixed integer, by measuring — this project's own elbow, not a borrowed one. In one
+fleet project, clean interleaved measurement put the elbow at: 1.85x at 4 workers, 2.51x at
+6, 2.99x at 8, **still gaining at 8** with clearly diminishing marginal returns (1.85x →
+1.35x → 1.19x marginal per step) — record this project's own curve rather than assuming it
+flattens where another project's did.
+
+`--dist loadfile` versus `--dist loadscope`: **do not carry a preference between these into
+a recommendation.** A clean interleaved measurement at n=8 put them 1.7% apart (267.5 s vs
+272.0 s) — inside noise. Report whichever mode the project already uses; there is nothing
+here to change it for.
+
+### m8 — In E2E, find out which fraction does not scale before assuming it is startup
+
+Run the E2E suite **twice** with services already live, before touching worker count. If
+the second run costs the same as the first, the flat share is not startup — go look at what
+the workers share (a shared dev server transforming modules on demand is a common cause,
+not a per-worker cost). One measured case attributed a non-scaling clock to startup and was
+wrong: `globalSetup` cost ~17 s and a database template clone cost 112 ms, neither large
+enough to explain it; the actual cause was every worker sharing one development server.
+
+**State which quantity you mean, and show the division.** Two different numbers describe
+"how much doesn't scale" and they are not interchangeable: the non-scaling *share of a
+single-worker run* (fixed cost ÷ total time at n=1) and the *clock still present at N
+workers relative to n=1* (time at N ÷ time at 1) answer different questions and can differ
+by several points — in one measured case, 249/316 = 79% by the first definition and
+275.0/315.9 = 87% by the second. Printing "88% does not scale" without saying which
+division was meant, and without the arithmetic, is not a reproducible claim; this playbook
+rejects it as a finding until both are shown.
+
+### m10 — A matching test total is necessary, not sufficient: compare the work actually done
+
+Before treating any before/after pair as comparable, check three things, not one:
+
+1. **Same total test count** in both arms.
+2. **Same work done** — passed-test count within about 2% between arms.
+3. **No errors in either arm.**
+
+A matching total alone can hide mass erroring: a fleet project measured `n_tests = 2684` in
+both arms of a configuration change with an apparent 1.41x "improvement," while 1963 of
+those tests were erroring at setup and doing no work in the faster arm. The total holds
+while the clock falls — the perfect disguise for a false speed-up, and the reason clause 1
+alone (the comparability rule this playbook already applies to load, `m5`, see
+`skills/aidex-conventions/references/measurement-conventions.md`) is not enough on its own.
+Whatever computes "total" in your tooling must sum **every** outcome category (passed,
+failed, skipped, errored, xfailed) — a parser that drops one category can under-report the
+total enough to hide exactly this failure.
+
+### Results table
+
+Record every row measured for this project. Date and machine are mandatory; a row without
+them is not admissible evidence for a recommendation.
+
+| Date | Machine | Lever/config | Wall time | vs. baseline | Load start/end | Notes (warm-up taken? comparable per m10?) |
+|---|---|---|---|---|---|---|
+| | | (unmodified baseline) | | 1.00x | | |
+| | | | | | | |
+
+---
+
 ## Tips
 
 The NS Backoffice war stories, condensed:
