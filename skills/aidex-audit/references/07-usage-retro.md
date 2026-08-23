@@ -19,12 +19,20 @@ python3 $R/mine_items.py --out <dir> [--min-mentions 2]
 python3 $R/mine_defect_proneness.py --denominator all --min-touches 8 \
         --out .context/audits/test-coverage/defect-prone.jsonl
 
-# Where slow test-run time lives, by project and command shape.
-python3 $R/mine_slow_tests.py
+# Where slow test-run time lives, by project and command shape. --since windows
+# it for a forward re-measurement against a prior baseline.
+python3 $R/mine_slow_tests.py [--since YYYY-MM-DD]
+
+# Who catches the defect (test / me / user), over items mine_items.py already
+# wrote to <dir>. --since windows it the same way, for the same reason.
+python3 $R/mine_verification.py --data-dir <dir> [--min-edits 10] [--since YYYY-MM-DD]
 ```
 
-All three accept `--transcripts-root`; the two that read tracked items also accept
+All four accept `--transcripts-root`; the three that read tracked items also accept
 `--projects-root`. Env fallbacks are `CLAUDE_PROJECTS_ROOT` / `AIDEX_PROJECTS_ROOT`.
+`mine_verification.py` additionally requires `mine_items.py --out <dir>` to have run
+first — it reads that directory's `items.jsonl` + `spans.jsonl` rather than walking
+transcripts on its own.
 
 **The transcripts root defaults to `~/.claude/projects`; the projects root has no
 default and is required.** Claude Code puts transcripts in the same place for

@@ -40,10 +40,10 @@ TX_ROOT = os.environ.get("CLAUDE_PROJECTS_ROOT") or os.path.expanduser("~/.claud
 
 # The runner vocabulary is IMPORTED, not copied. It used to be a second copy with a
 # comment claiming it was "kept in sync with mine_verification.py, deliberately" —
-# a file that lives only under .context/audits/2026-06-21-usage-retro/ and is
-# documented as not re-runnable. Nothing was keeping them in sync, and they had in
-# fact diverged: mine_items matched none of `npm run test`, `yarn test`, `tox`,
-# `go test`, `cargo test`.
+# a file that at the time lived only under .context/audits/2026-06-21-usage-retro/
+# and was documented as not re-runnable (promoted to this same directory 2026-08-23).
+# Nothing was keeping them in sync, and they had in fact diverged: mine_items matched
+# none of `npm run test`, `yarn test`, `tox`, `go test`, `cargo test`.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mine_items as _MI  # noqa: E402
 TESTCMD = _MI.TESTCMD
@@ -112,12 +112,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--transcripts-root", default="",
                     help=f"Claude Code transcript root (default: {TX_ROOT})")
+    ap.add_argument("--since", default="",
+                    help="ISO date (YYYY-MM-DD); only invocations that STARTED on or "
+                         "after this date. Required for a forward census — an "
+                         "unwindowed run mixes the baseline period back into the "
+                         "figure it is meant to be compared against.")
     args = ap.parse_args()
     tx_root = (os.path.abspath(os.path.expanduser(args.transcripts_root))
                if args.transcripts_root else TX_ROOT)
+    since_dt = (datetime.datetime.fromisoformat(args.since + "T00:00:00+00:00")
+                if args.since else None)
 
     runs = []           # (project, seconds, cmd, shape)
     dropped_long = 0
+    dropped_before_since = 0
     unanswered = 0
 
     for d in sorted(glob.glob(tx_root + "/*/")):
@@ -150,6 +158,9 @@ def main():
                                 if secs > MAX_S:
                                     dropped_long += 1
                                     continue
+                                if since_dt is not None and start < since_dt:
+                                    dropped_before_since += 1
+                                    continue
                                 runs.append((proj, secs, cmd, shape(cmd)))
             unanswered += len(pending)
 
@@ -165,11 +176,13 @@ def main():
     def pct(v):
         return durs[min(len(durs) - 1, int(len(durs) * v))]
 
-    print(f"timed test invocations : {len(runs)}   total {total/3600:.1f} h")
+    print(f"timed test invocations : {len(runs)}   total {total/3600:.1f} h" +
+          (f"   (since {args.since})" if args.since else ""))
     print(f"  median {st.median(durs):.0f}s · p90 {pct(.90):.0f}s · p99 {pct(.99):.0f}s")
     print(f"  >{SLOW_S:.0f}s        : {len(slow)} ({len(slow)/len(runs)*100:.0f}%) "
           f"consuming {slow_t/3600:.1f} h ({slow_t/total*100:.0f}% of run time)")
-    print(f"  excluded             : {unanswered} unanswered, {dropped_long} over {MAX_S/3600:.0f}h (clock artifacts)")
+    print(f"  excluded             : {unanswered} unanswered, {dropped_long} over {MAX_S/3600:.0f}h (clock artifacts)"
+          + (f", {dropped_before_since} before {args.since}" if args.since else ""))
 
     print("\n== the >60s tail, by project ==")
     by_p = defaultdict(lambda: [0, 0.0])
