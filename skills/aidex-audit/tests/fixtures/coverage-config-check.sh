@@ -96,6 +96,37 @@ mkpy "$P/frontend/package.json" <<'EOF'
 EOF
 
 # ---------------------------------------------------------------------------
+# ci-n-auto: -n auto lives in .github/workflows/ci.yml — hidden dir, the exact
+# place it lingers in the field. A walk that prunes every dot-directory reads
+# this project compliant (weekend review 2026-08-23, finding 1).
+# ---------------------------------------------------------------------------
+P="$WS/ci-n-auto"
+mkpy "$P/.github/workflows/ci.yml" <<'EOF'
+jobs:
+  test:
+    steps:
+      - run: pytest -n auto backend/
+EOF
+
+# ---------------------------------------------------------------------------
+# custom-hasher-first: a NON-django.contrib hasher first, MD5 second. The
+# check exists to catch a slow hasher running first under pytest; an entry
+# regex pinned to django.contrib.* skips the real first entry and reports
+# MD5-first (weekend review 2026-08-23, finding 2).
+# ---------------------------------------------------------------------------
+P="$WS/custom-hasher-first"
+mkpy "$P/backend/pyproject.toml" <<'EOF'
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+EOF
+mkpy "$P/backend/config/settings/test.py" <<'EOF'
+PASSWORD_HASHERS = [
+    "myproj.hashers.SlowCustomHasher",
+    "django.contrib.auth.hashers.MD5PasswordHasher",
+]
+EOF
+
+# ---------------------------------------------------------------------------
 # clean: every key compliant
 # ---------------------------------------------------------------------------
 P="$WS/clean"

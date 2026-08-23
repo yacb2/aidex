@@ -90,6 +90,24 @@ echo "$out_f_v" | grep -q '^clean ' \
   || fail "(f) --verbose output should include the clean project's row: $out_f_v"
 
 # ---------------------------------------------------------------------------
+# (g) ci-n-auto: `-n auto` in .github/workflows/ci.yml must be drift — a walk
+# that prunes hidden directories passes the one place CI config lives
+# ---------------------------------------------------------------------------
+out_g="$(run_one ci-n-auto)"
+v_g="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['ci-n-auto']['no_n_auto']['value'])" "$out_g")"
+[[ "$v_g" == "drift" ]] || fail "(g) -n auto in .github/workflows must be drift, got: $v_g"
+
+# ---------------------------------------------------------------------------
+# (h) custom-hasher-first: a non-django.contrib hasher first must NOT read as
+# MD5-first — the first list entry decides, whatever module it comes from
+# ---------------------------------------------------------------------------
+out_h="$(run_one custom-hasher-first)"
+v_h="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['custom-hasher-first']['hasher_pytest']['value'])" "$out_h")"
+[[ "$v_h" == "absent" ]] || fail "(h) custom hasher first must be absent, got: $v_h"
+d_h="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['custom-hasher-first']['hasher_pytest']['detail'])" "$out_h")"
+grep -q 'SlowCustomHasher' <<<"$d_h" || fail "(h) detail must name the real first hasher, got: $d_h"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 if [[ $failures -eq 0 ]]; then

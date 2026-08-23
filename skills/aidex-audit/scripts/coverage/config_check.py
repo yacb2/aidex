@@ -20,8 +20,9 @@ Five keys, per project:
   vitest_include    - does each vitest.config.* declare coverage.include?
   coverage_provider - is @vitest/coverage-v8 a real devDependency, and does
                        it agree with the declared coverage.provider?
-  no_n_auto         - is `-n auto` / `--numprocesses` absent from project
-                       configuration, and pytest-xdist absent from lockfiles?
+  no_n_auto         - is `-n auto` / `--numprocesses auto` absent from project
+                       configuration (a fixed integer is compliant), and
+                       pytest-xdist absent from lockfiles?
 
 Values: "present" | "absent" | "n/a" | "unresolvable" for hasher_pytest (the
 DJANGO_SETTINGS_MODULE names a module that does not resolve to a file — the
@@ -46,6 +47,12 @@ SKIP_DIRS = {
     "_db_bkps", "_bp", "_tmp", "_scratch", "_scripts",
 }
 
+# Hidden directories are pruned wholesale (.git, .venv, caches) EXCEPT the
+# ones that carry first-party CI configuration — .github/workflows is exactly
+# where a lingering `-n auto` lives, and pruning it read such projects
+# compliant.
+HIDDEN_SCAN_DIRS = {".github", ".circleci", ".gitlab"}
+
 VITEST_CONFIG_RE = re.compile(r"^vitest\.config\.(ts|mts|js|mjs|cjs)$")
 MD5_HASHER = "MD5PasswordHasher"
 
@@ -64,7 +71,11 @@ def _walk(root, skip_dirs=SKIP_DIRS, max_depth=6):
         depth = dirpath.rstrip(os.sep).count(os.sep) - base_depth
         if depth >= max_depth:
             dirnames[:] = []
-        dirnames[:] = [d for d in dirnames if d not in skip_dirs and not d.startswith(".")]
+        dirnames[:] = [
+            d for d in dirnames
+            if d not in skip_dirs
+            and (not d.startswith(".") or d in HIDDEN_SCAN_DIRS)
+        ]
         yield dirpath, dirnames, filenames
 
 
@@ -105,7 +116,10 @@ def _module_to_path(backend_dir, dotted):
 
 _IMPORT_STAR_RE = re.compile(r"^\s*from\s+([.\w]+)\s+import\s+\*", re.MULTILINE)
 _PASSWORD_HASHERS_RE = re.compile(r"PASSWORD_HASHERS\s*=\s*\[([^\]]*)\]")
-_HASHER_CLASS_RE = re.compile(r"[\"']django\.contrib\.auth\.hashers\.(\w+)[\"']")
+# The FIRST list entry decides, whatever module it comes from. Matching only
+# django.contrib.* entries skipped a custom hasher sitting first — the exact
+# slow-hasher-under-pytest state the check exists to catch.
+_HASHER_ENTRY_RE = re.compile(r"[\"']([\w.]+)[\"']")
 
 
 def _resolve_import_target(from_dir, backend_dir, spec):
@@ -151,9 +165,9 @@ def _first_hasher_in_file(path, backend_dir, seen=None, depth=0):
 
     m = _PASSWORD_HASHERS_RE.search(text)
     if m:
-        cm = _HASHER_CLASS_RE.search(m.group(1))
+        cm = _HASHER_ENTRY_RE.search(m.group(1))
         if cm:
-            return cm.group(1)
+            return cm.group(1).rsplit(".", 1)[-1]
 
     for spec in _IMPORT_STAR_RE.findall(text):
         target = _resolve_import_target(os.path.dirname(path), backend_dir, spec)
@@ -297,7 +311,9 @@ _N_AUTO_RE = re.compile(r"-n\s+auto|--numprocesses(?:=|\s+)auto")
 # (poetry.lock's `test = ["pytest-xdist (>=3.6.1)", ...]` on an unrelated,
 # vendored dependency), and those are not this project's own dependency.
 # Only a real package declaration counts: a poetry/Pipfile.lock `[[package]]`
-# name field, an npm lockfile key, or a bare requirements.txt entry.
+# name field, a quoted-key form in a scanned .lock file, or a bare
+# requirements.txt entry. (package-lock.json is .json and is never a candidate
+# file — the quoted-key alternative exists for yarn.lock-style entries.)
 _XDIST_PKG_RE = re.compile(
     r'^\s*name\s*=\s*"pytest-xdist"'      # poetry.lock / Pipfile.lock style
     r'|"pytest-xdist"\s*:'                 # package-lock.json / yarn.lock key
