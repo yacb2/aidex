@@ -14,9 +14,9 @@ without being absurd.
 
 ## Prerequisite chain
 
-1. `coverage.include` (Phase 2) fixes the denominator — without it Vitest 4 measures only
-   what some test imported, and a threshold set on that number would bless untested code as
-   covered.
+1. `coverage.include` (Phase 2) fixes the denominator — why a threshold on an implicit
+   denominator is not a measurement is `m7`, stated in
+   [03-fixtures-convention.md](03-fixtures-convention.md#m7-as-an-authoring-rule).
 2. The `cobertura` reporter (Phase 9 Task 9.1) is the report file `diff-cover` reads. Every
    `vitest.config.*` this rollout touched emits `['text', 'html', 'lcov', 'cobertura']` —
    the existing reporters stay, `cobertura` is additive.
@@ -49,7 +49,8 @@ cd <project>/backend
 - `<project>/backend` is where the pinned `diff-cover` lives (its own `.venv`, via
   `poetry add --group dev diff-cover`).
 - `../frontend/coverage/cobertura-coverage.xml` is Task 9.1's report — run
-  `pnpm exec vitest run --coverage` first if it is stale or missing.
+  `pnpm exec vitest run --coverage` from `../frontend` first if it is stale or missing
+  (prerequisite 2 above: the `cobertura` reporter must be in `coverage.reporter`).
 - `--compare-branch` names the trunk ref the current branch diverged from (`main` in most
   of this fleet).
 - `--fail-under=60` is the threshold from
@@ -90,19 +91,21 @@ against a branch, not only against a commit range on the trunk.
 Not a tooling gap any more — `Q4` (Phase 13) installed `pytest-cov` fleet-wide. What is
 still open is the verification Phase 13 itself required: that NS's suite collects and runs
 under `pytest-cov` **without failures across its full 4,504 tests** (`p2`). Phase 2 Task
-2.5 verified only the `apps/parties/` subset. Until `p2` closes, this stays frontend-only —
+2.5 verified the `apps/parties/` (276 passed, 6 skipped) and `apps/billing/` (1469 passed)
+subsets, not the full suite. Until `p2` closes, this stays frontend-only —
 the reason is the outstanding verification, never a decision to exclude the backend
 permanently.
 
 ## Threshold
 
-**60%.** Full arithmetic and reopen condition:
+**60%.** (Repeated here and in the quoted command on purpose — each copy names the ADR
+below as its single owner.) Full arithmetic and reopen condition:
 `.context/decisions/2026-08-23-changed-lines-coverage-threshold.md`. In short: it is
 derived from 8 real `diff-cover` runs against this fleet (7 trunk diffs plus the
 `feat/bl-461-multi-selection` branch above), not from a margin over any whole-codebase
 baseline — a changed-lines percentage and a whole-codebase percentage are different
 quantities, and asserting a margin between them would be exactly the "picked round" failure
-the number is required to avoid. Six of the eight sampled diffs cluster at 77–90%; one
+the number is required to avoid. Seven of the eight sampled diffs cluster at 77–90%; one
 (`ph_backoffice_ws`, 46%) sits well below that cluster. 60% sits in the gap between them, so
 it has real discriminating power against this fleet's actual recent work: 7 of 8 sampled
 diffs clear it, the one genuine outlier does not.

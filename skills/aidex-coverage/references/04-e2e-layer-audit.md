@@ -59,7 +59,8 @@ it, and doing so, is separate per-spec work sized once these verdicts exist.
 | `video-upload.spec.ts` | A non-video file is rejected client-side with no upload attempted; an allowed video type is staged and shown; a staged (never-submitted) file does not survive a page reload. | candidate | No upload or transcription ever fires in this file (by design — in-memory files only) and no persisted server state is asserted. The MIME allowlist and the "unpersisted state does not survive a remount" claim are both pure component behaviour (`VideoUpload.vue`'s own client-side check), reachable by mounting the component directly with Vitest instead of a full editor page. |
 | `voice-param-overrides.spec.ts` | The three new `voice_settings` controls (stability/similarity/style) render in the AD-segment inspector, served by the real backend's new serializer fields, and an edit saves (the "sin guardar" badge clears). | E2E | The file's own docstring says the point: the controls are "served by the real backend with the new serializer fields." The claim under test is that the real serializer now emits `stability`/`similarity`/`style` and the frontend renders whatever it emits — a hand-written mock carrying those three fields would assert the mock, not the serializer change, the same reasoning `editor-audio-sources.spec.ts` states explicitly ("a mock would need to reproduce exactly the thing under test"). |
 
-**Tally (as of the 2026-08-23 audit date above, a derived observation, not a contract):**
+**Tally (as of the 2026-08-23 audit date above, a derived observation, not a contract —
+kept as a hand count because the gate below checks rows, not verdicts; re-tally on edit):**
 20 rows. 17 `E2E`, 3 `candidate` (`bulk-render-confirm.spec.ts`,
 `track-options-menu.spec.ts`, `video-upload.spec.ts`). The five specs the merge added are all
 `E2E`, and none of them narrowly: each states in its own docstring which mock makes the claim

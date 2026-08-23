@@ -2,7 +2,7 @@
 name: aidex-coverage
 description: 'Use when authoring or consulting test-layer guidance for a Django + DRF + Vue + Vitest + Playwright stack — which test layer a given behaviour belongs in, best-practice rules for that stack sourced from primary docs, or when a suite is growing shared setup that should become a fixture. Fires on "which layer should this test live in", "unit or E2E for X", "is this a Vitest or Playwright case", "best practices for testing this stack", "when do I extract a fixture", "test the decision or the pixels". Not for: running a coverage audit, building or reading the module map / coverage matrix, tracking a finding''s lifecycle, or the suite-speed measurement procedure — all of that is `aidex-audit`''s `test-coverage` playbook, which this skill does not duplicate.'
 disable-model-invocation: true
-allowed-tools: Read Grep Glob
+allowed-tools: Bash Read Grep Glob
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-coverage"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -16,9 +16,10 @@ allowed-tools: Read Grep Glob
 > Per the plan that created this skill, the honest outcome at that recall is
 > `user-invocable-only` from day one rather than a description-tuning campaign — wording is
 > a closed lever. Invoke explicitly (`/aidex-coverage`) or reference `references/` directly;
-> do not expect this skill to auto-trigger on a matching query. The final name and the exact
-> split against `aidex-audit`'s playbook remain an open ADR follow-up, conditional on a full
-> (not partial) recall run — see `evals/RESULTS.md`.
+> do not expect this skill to auto-trigger on a matching query. The name and the split
+> against `aidex-audit`'s playbook are closed on the criterion, not on a recall run
+> (`.context/decisions/2026-08-23-aidex-coverage-name-split-and-scoping.md`); a full run is
+> owed only if that ADR's reopen threshold is met — see `evals/RESULTS.md`.
 
 Authoring guidance for testing a Django + DRF + Vue + Vitest + Playwright stack: which
 layer a piece of behaviour belongs in, what current upstream documentation actually says
@@ -30,7 +31,9 @@ when shared test setup becomes a fixture.
 lifecycle, and does not carry the suite-speed measurement procedure. All of that is
 `aidex-audit`'s `test-coverage` playbook (`skills/aidex-audit/assets/templates/methodology/test-coverage.md.template`).
 The split is by type, not by overlap: this skill owns the reference corpus and authoring
-rules; the playbook owns inventory, finding lifecycle, matrix, sweep and escalation. The
+rules — including the per-module judgment-pass checklist (`references/06-judgment-pass.md`)
+that the playbook's judged layer runs; the playbook owns inventory, finding lifecycle,
+matrix, sweep and escalation, and is the one that executes that checklist. The
 one rule with a foot in both — "a coverage percentage without a declared denominator is
 not a measurement" (`m7`) — is not duplicated: the playbook runs it as an inventory-time
 check ("is the denominator declared? can coverage even run?"), this skill states it as an
@@ -44,12 +47,12 @@ authoring rule for anyone writing a new coverage-bearing test.
 | What does current upstream documentation say about a specific correctness or cost trap in this stack? | [references/02-best-practices.md](references/02-best-practices.md) |
 | When do I extract a fixture? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | When does a frontend test file move to `__tests__/`? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
-| Which layer does a specific EchoLab editor spec belong in? | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
+| What does a full-scale layer audit of an E2E suite look like? (worked example, EchoLab) | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
-| How do I audit a module for missing/duplicate/low-quality tests? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
+| What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
 
-Start at [references/00-index.md](references/00-index.md) if none of the above obviously
-applies.
+This is the only table of references; [references/00-index.md](references/00-index.md)
+records which plan phase produced each file.
 
 ## How to use the layer model
 
@@ -59,17 +62,19 @@ applies.
    is what decides.** If the correctness question is "did the right thing happen" (a total
    computed, a row persisted, a permission enforced), it belongs at the lowest layer that
    can observe that. If the correctness question is "did the browser render, lay out, or
-   navigate correctly" — CSS-dependent behaviour, focus order, a router transition — no
-   layer below E2E can answer it, so that is where it belongs.
+   navigate correctly" — CSS-dependent behaviour, focus order, a router transition — or
+   "does the real frontend + backend + database integration hold", which a mock cannot
+   vouch for, no layer below E2E can answer it, so that is where it belongs.
 3. State the layer and the one-sentence reason when proposing where a new test goes; do
    not silently default to E2E because it is the layer that can see everything — that is
    exactly the over-assignment the rubric exists to prevent.
 
 ## How to use the best-practices corpus
 
-[references/02-best-practices.md](references/02-best-practices.md) holds eight items, each
-with its own primary source, that source's date and the tool version it was checked
-against. **Do not extend this file by transcribing anything from a chat, a consultation
+[references/02-best-practices.md](references/02-best-practices.md) holds eight entries:
+items 2, 3, 5 and 6 quote a fetched primary source with its check date (only item 2 names a
+tool version), item 1 records the sweep itself, item 4 is flagged `unverified`, and items 7
+and 8 point to `01-layer-model.md`. **Do not extend this file by transcribing anything from a chat, a consultation
 artifact, or a session transcript.** A new item is only added once its primary source has
 been fetched and quoted, with a version and a date attached — that constraint is the reason
 this file exists rather than a copy of an unverifiable draft. Items marked `unverified` are
@@ -87,8 +92,8 @@ not only when reviewing them later.
 
 ## How to use the E2E layer audit
 
-[references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) carries a verdict for
-every non-`playback` spec in EchoLab's timeline E2E suite, judged against the layer-
+[references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) is a worked example,
+not generic canon: a verdict for every non-`playback` spec in EchoLab's timeline E2E suite, judged against the layer-
 assignment rubric above: `E2E` (stays) or `candidate` (a lower layer could observe the same
 failure). It is an audit, not a queue — a `candidate` verdict names the reason and the
 likely lower layer; deciding to move a spec, and moving it, is separate work.

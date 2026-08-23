@@ -11,8 +11,10 @@ Run per module under audit, in order. Steps i, iv and half of v are grep-shaped;
 ii is generated; iii and the rest of v are reading work.
 
 **i. Endpoint census.** Enumerate the module's URL names (`urls.py` `name=`
-entries; serializer class names too) and grep the backend tests for each. A name
-that appears only in `urls.py` is an untested endpoint — check it first against
+entries; serializer class names too) and grep the backend tests for each — by name
+(`reverse(...)`) **and** by literal path, since a suite that calls
+`client.get('/api/...')` never mentions the name. A route that appears in neither
+form is an untested endpoint — check it first against
 best-practices item 4 (workspace-scoped and permission-bearing endpoints need
 the cross-tenant/IDOR case, not just a 200).
 

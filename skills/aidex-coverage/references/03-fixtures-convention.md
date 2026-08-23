@@ -5,7 +5,7 @@
 enough to name and share, and premature extraction produces a fixture that gets
 special-cased back apart by the second caller. Not later than the third — waiting produces
 the same setup copy-pasted a fourth and fifth time, which is the drift `s4`'s `__tests__/`
-layout ratchet (Phase 11, not yet landed — see [00-index.md](00-index.md)) exists to stop
+layout ratchet (see the `s4` section below) exists to stop
 from compounding further.
 
 **Applies at whichever layer the repetition happens in** — a backend `pytest` fixture

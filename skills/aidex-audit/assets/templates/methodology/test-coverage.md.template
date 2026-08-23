@@ -165,8 +165,11 @@ The matrix is a generated artifact. Never hand-edit it; if a number looks wrong,
 ### Depth (judgment)
 
 Sample the critical flows' *existing* tests and read their assertions against a
-checklist. A test that navigates but asserts nothing meaningful is the green-but-broken
-failure mode — count it as a `gap`, not as coverage.
+checklist — the per-module procedure is
+`skills/aidex-coverage/references/06-judgment-pass.md` (endpoint census, route census,
+repeated-setup count, scaffold/dead-file sweep, cross-layer duplicates). A test that
+navigates but asserts nothing meaningful is the green-but-broken failure mode — count it
+as a `gap`, not as coverage.
 
 - [ ] Asserts the **outcome**, not just visibility (data persisted / totals correct /
       status changed) — not merely "the element is on screen"
@@ -224,8 +227,9 @@ a full factor, and even it turned out to be the *weakest* of three that compose.
 recommended-lever list is a claim about a project nobody measured (`m1`); this section
 runs a procedure against the project under audit and records what it actually finds in the
 results table below. Full incidents and figures:
-`skills/aidex-coverage/references/02-best-practices.md` and
-`research/2026-08-22-suite-speed-and-coverage-findings/` in the aidex repo's `.context/`.
+`research/2026-08-22-suite-speed-and-coverage-findings/` in the aidex repo's `.context/`
+(the `aidex-coverage` skill carries only item 3's loadfile/loadscope tie, not the
+suite-speed procedure or its figures).
 
 ### m1 — Measure the lever before recommending it
 

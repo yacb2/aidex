@@ -17,5 +17,5 @@
   "cleanup_paths": [
     "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-coverage"
   ],
-  "queries_file": "./trigger-eval.json"
+  "queries_file": "./trigger_eval.json"
 }
