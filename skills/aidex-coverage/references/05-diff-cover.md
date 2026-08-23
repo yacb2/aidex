@@ -20,13 +20,15 @@ without being absurd.
 2. The `cobertura` reporter (Phase 9 Task 9.1) is the report file `diff-cover` reads. Every
    `vitest.config.*` this rollout touched emits `['text', 'html', 'lcov', 'cobertura']` —
    the existing reporters stay, `cobertura` is additive.
-3. `diff-cover` itself is a Python tool, pinned as a dev dependency in each project's
-   **backend** `pyproject.toml` (`[tool.poetry.group.dev.dependencies]`), the group that
-   already carries `pytest-cov` and `factory-boy` — not because it runs against backend
-   coverage (it does not; backend `diff-cover` is separately out of scope, see below), but
-   because the backend's Python dev-dependency group is where every project in this rollout
-   already keeps its Python tooling. `dashboard_template_ws/backend` carries the pin first,
-   as the template (`q8`).
+3. `diff-cover` itself is a Python tool, and its version belongs pinned as a dev dependency
+   in a project's **backend** `pyproject.toml` (`[tool.poetry.group.dev.dependencies]`),
+   the group that already carries `pytest-cov` and `factory-boy` — not because it runs
+   against backend coverage (it does not; backend `diff-cover` is separately out of scope,
+   see below), but because the backend's Python dev-dependency group is where every project
+   in this rollout already keeps its Python tooling. `dashboard_template_ws/backend` carries
+   the pin today (`poetry add --group dev diff-cover@^10.5.1`), as the template (`q8`) —
+   this is not yet a fleet-wide install; pin it the same way in a project's backend before
+   running the command there for the first time.
 
 ## The invocation
 
@@ -78,6 +80,11 @@ Coverage: 77%
 The command prints a changed-lines percentage and a per-file breakdown of missing lines;
 that is the whole output contract.
 
+**Also verified against a real, still-open feature branch** —
+`echo_lab_ws-wt-editor-week/frontend` on `feat/bl-461-multi-selection`, compared to `main`
+(1344 changed lines, `Coverage: 90%`) — so the acceptance criterion is closed literally
+against a branch, not only against a commit range on the trunk.
+
 ## Backend `diff-cover`: out of scope, and why
 
 Not a tooling gap any more — `Q4` (Phase 13) installed `pytest-cov` fleet-wide. What is
@@ -89,12 +96,20 @@ permanently.
 
 ## Threshold
 
-See `.context/decisions/2026-08-23-changed-lines-coverage-threshold.md` for the value and
-its arithmetic. It is one fleet-wide number, not per-project, chosen against the two
-projects this rollout treats as reference points (the template and the largest derived
-project) — re-derive it if a project whose whole-codebase baseline exceeds it becomes a new
-reference point, or if `q4` is revisited and a gate becomes viable (a gated threshold needs
-different arithmetic than an on-demand one).
+**60%.** Full arithmetic and reopen condition:
+`.context/decisions/2026-08-23-changed-lines-coverage-threshold.md`. In short: it is
+derived from 8 real `diff-cover` runs against this fleet (7 trunk diffs plus the
+`feat/bl-461-multi-selection` branch above), not from a margin over any whole-codebase
+baseline — a changed-lines percentage and a whole-codebase percentage are different
+quantities, and asserting a margin between them would be exactly the "picked round" failure
+the number is required to avoid. Six of the eight sampled diffs cluster at 77–90%; one
+(`ph_backoffice_ws`, 46%) sits well below that cluster. 60% sits in the gap between them, so
+it has real discriminating power against this fleet's actual recent work: 7 of 8 sampled
+diffs clear it, the one genuine outlier does not.
+
+It is one fleet-wide number, not per-project. Re-derive if a larger sample changes the
+shape of that distribution, or if `q4` is revisited and a gate becomes viable (a gated
+threshold needs different arithmetic than an on-demand one).
 
 Source: `.context/plans/2026-08-22-suite-speed-and-coverage-rollout/09-diff-cover.md`
 (Phase 9), executing `q5` of
