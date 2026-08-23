@@ -231,6 +231,90 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -ne 0 ]] || fail "nolinks: an empty WT_LINKS must NOT report clean, got: $out"
 grep -qi 'nothing was checked' <<<"$out" || fail "nolinks: must say it examined nothing, got: $out"
 
+# --- 12. BL-192: a port VARIABLE the slot never supplies -> FINDING ----------
+# The gap this closes, and it is the checker's own success turned against it.
+# Case 5 catches `free_port 3424` as an inline-literal. The field fix for that
+# was to parameterize it -- `free_port "$FRONTEND_MOBILE_PORT"` with
+# `FRONTEND_MOBILE_PORT=${FRONTEND_MOBILE_PORT:-3424}` above. That silences BOTH
+# existing shapes: shape 1 skips the var because it is not in WT_PORT_VARS, and
+# shape 2 needs a bare literal and now sees a variable. The kill still lands on
+# the main tree's Metro, and the checker reports clean. Measured on
+# work_hours_ws and room_booking_ws 2026-08-23: both clean, both defective.
+p="$(mk_project unsupplied dev.sh)"
+cat > "$p/dev.sh" <<'SH'
+#!/usr/bin/env bash
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$PROJECT_ROOT/.env" ]; then . "$PROJECT_ROOT/.env"; fi
+FRONTEND_PORT=${FRONTEND_PORT:-3700}
+FRONTEND_MOBILE_PORT=${FRONTEND_MOBILE_PORT:-3701}
+free_port "$FRONTEND_PORT"
+free_port "$FRONTEND_MOBILE_PORT"
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -ne 0 ]] || fail "unsupplied: a port var absent from WT_PORT_VARS, defaulted to the main tree's literal and swept, must be a finding -- got: $out"
+grep -q 'FRONTEND_MOBILE_PORT' <<<"$out" || fail "unsupplied: must name the variable, got: $out"
+grep -q '3701' <<<"$out" || fail "unsupplied: must name the literal it resolves to, got: $out"
+grep -q 'unsupplied-var' <<<"$out" || fail "unsupplied: must classify the shape, got: $out"
+# FRONTEND_PORT is in WT_PORT_VARS and is swept the same way -- it must NOT be
+# reported. Without this the rule would fire on every correctly-isolated port.
+grep -q 'FRONTEND_PORT=' <<<"$out" && fail "unsupplied: reported a var the slot DOES supply, got: $out"
+
+# --- 13. the same file, with provenance captured -> CLEAN -------------------
+# The exempting case, and the one that decides whether the rule can ship. After
+# `VAR=${VAR:-literal}` runs, the variable is set either way and nothing can
+# tell a slot-supplied value from the default. Capturing `${VAR:+1}` ABOVE that
+# line is what makes a guard possible, and it keeps working unchanged the day
+# the var is added to the slot allocator.
+p="$(mk_project guarded dev.sh)"
+cat > "$p/dev.sh" <<'SH'
+#!/usr/bin/env bash
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$PROJECT_ROOT/.env" ]; then . "$PROJECT_ROOT/.env"; fi
+FRONTEND_PORT=${FRONTEND_PORT:-3700}
+FRONTEND_MOBILE_PORT_FROM_SLOT=${FRONTEND_MOBILE_PORT:+1}
+FRONTEND_MOBILE_PORT=${FRONTEND_MOBILE_PORT:-3701}
+own_mobile_port() {
+    [ ! -f "$PROJECT_ROOT/.env" ] || [ -n "${FRONTEND_MOBILE_PORT_FROM_SLOT:-}" ]
+}
+free_port "$FRONTEND_PORT"
+if own_mobile_port; then free_port "$FRONTEND_MOBILE_PORT"; fi
+SH
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "guarded: a script that captures provenance before defaulting must be clean, got: $out"
+
+
+# --- 14. the guard idiom must be `set -e` safe (BL-192) ---------------------
+# Both field dev.sh files run under `set -e`, and the obvious spelling of the
+# guard is NOT safe there. `own_mobile_port && free_port ...` as a FUNCTION's
+# last statement makes the function return 1; the bare call in stop_all then
+# trips set -e and the shutdown aborts half-done. Measured, not reasoned: the
+# AND-form never printed "ALL-STOPPED" and exited 1. An `if` condition is exempt
+# from set -e, which is why the fixture above and both projects use it.
+#
+# This RUNS the idiom rather than grepping for it: a static check would have
+# been satisfied by the broken spelling.
+: > "$TMP/.env"    # a worktree: the guard is FALSE, so the sweep must be skipped
+and_form="$(bash -c 'set -e
+R="$1"; FROM_SLOT=
+own_mobile_port() { [ ! -f "$R/.env" ] || [ -n "$FROM_SLOT" ]; }
+free_port() { echo SWEPT; }
+kill_mobile() { own_mobile_port && free_port 3901; }
+stop_all() { kill_mobile; echo ALL-STOPPED; }
+stop_all' _ "$TMP" 2>&1)"
+[[ "$and_form" != *ALL-STOPPED* ]] || fail "set-e: the AND-form no longer aborts shutdown — this test's premise is stale, re-derive before trusting the if-form fixture"
+
+if_form="$(bash -c 'set -e
+R="$1"; FROM_SLOT=
+own_mobile_port() { [ ! -f "$R/.env" ] || [ -n "$FROM_SLOT" ]; }
+free_port() { echo SWEPT; }
+kill_mobile() { if own_mobile_port; then free_port 3901; fi; }
+stop_all() { kill_mobile; echo ALL-STOPPED; }
+stop_all' _ "$TMP" 2>&1)"
+[[ "$if_form" == *ALL-STOPPED* ]] || fail "set-e: the if-form must let shutdown finish, got: $if_form"
+[[ "$if_form" != *SWEPT* ]] || fail "set-e: a worktree must not sweep the main tree's port, got: $if_form"
+rm -f "$TMP/.env"
+
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1

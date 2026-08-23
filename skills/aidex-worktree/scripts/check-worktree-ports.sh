@@ -151,6 +151,40 @@ scan_project() {
         "$rel" "$line" "$lit" \
         "there is no variable to override; introduce one (\${FRONTEND_PORT:-$lit}) and use it here"
     done < <(grep -nE 'lsof[^|]*-ti[^|]*:[0-9]{4,5}|--port[= ][0-9]{4,5}|[a-zA-Z_]*[Pp]ort[a-zA-Z_]*[[:space:]]+[0-9]{4,5}' "$f" | cut -d: -f1 | sort -un | sed 's/$/:/')
+
+    # -- shape 3: a port VARIABLE the slot never supplies (BL-192) ------------
+    # The shape the first two create between them. Parameterizing a shape-2
+    # literal is the documented fix -- but if the variable is NOT in
+    # WT_PORT_VARS, no worktree .env ever assigns it, so `${VAR:-<dev literal>}`
+    # resolves to the MAIN TREE's port inside a worktree and the sweep kills
+    # across trees exactly as the bare literal did. Shape 1 skips it (not a
+    # slot var); shape 2 skips it (a variable, not a literal). Both field
+    # projects with a Metro port sat clean in this state.
+    #
+    # EXEMPT when the file captures provenance -- `${VAR:+...}` -- because after
+    # `VAR=${VAR:-lit}` runs the variable is set either way and nothing can
+    # distinguish a slot value from the default. Capturing it above that line is
+    # the only thing that makes a guard possible, and it keeps working unchanged
+    # if the var is later added to the allocator.
+    #
+    # Reported ONLY when the file also defaults the var to a port literal: that
+    # literal is the proof the value is a real port this tree does not own.
+    # Without it there is nothing to name and no evidence of a hazard.
+    while IFS= read -r var; do
+      [[ -z "$var" ]] && continue
+      case " $names " in *" $var "*) continue ;; esac   # the slot supplies it
+      grep -qE "\\$\\{$var:\\+" "$f" && continue          # provenance captured
+      grep -qE "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" || continue
+      lit="$(grep -E "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | head -1 \
+             | sed "s/.*:-\\([0-9]*\\)}.*/\\1/")"
+      line="$(grep -nE "[a-zA-Z_]*[Pp]ort[a-zA-Z_]*[[:space:]]+\"?\\$\\{?$var\\b" "$f" \
+              | grep -v '^[0-9]*:[[:space:]]*#' | head -1 | cut -d: -f1)"
+      [[ -z "$line" ]] && continue
+      printf '%s:%s\tunsupplied-var\t%s is swept but no slot .env supplies it (resolves to %s)\t%s\n' \
+        "$rel" "$line" "$var" "$lit" \
+        "add $var to WT_PORT_VARS, or capture \${$var:+1} above the default and guard the call site on it"
+    done < <(grep -oE '[a-zA-Z_]*[Pp]ort[a-zA-Z_]*[[:space:]]+"?\$\{?[A-Za-z_][A-Za-z0-9_]*' "$f" \
+             | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*$' | tr -d '${' | sort -u)
   done
   return 0
 }
