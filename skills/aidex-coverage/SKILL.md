@@ -45,6 +45,7 @@ authoring rule for anyone writing a new coverage-bearing test.
 | When do I extract a fixture? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | When does a frontend test file move to `__tests__/`? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | Which layer does a specific EchoLab editor spec belong in? | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
+| How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 
 Start at [references/00-index.md](references/00-index.md) if none of the above obviously
 applies.
@@ -90,3 +91,11 @@ every non-`playback` spec in EchoLab's timeline E2E suite, judged against the la
 assignment rubric above: `E2E` (stays) or `candidate` (a lower layer could observe the same
 failure). It is an audit, not a queue — a `candidate` verdict names the reason and the
 likely lower layer; deciding to move a spec, and moving it, is separate work.
+
+## How to use diff-cover
+
+[references/05-diff-cover.md](references/05-diff-cover.md) documents the on-demand
+changed-lines coverage check: the exact host-run command, the recorded threshold and its
+ADR, and why it is never a hook or CI gate (`q4`). Point someone here when a `gap` finding
+is being closed with new tests, or when asked "did the branch I just wrote test its own
+changes" — never propose wiring this into a hook or pipeline; the reference states why not.
