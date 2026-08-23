@@ -341,11 +341,25 @@ def render_markdown(data):
 
 
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0)
     if len(sys.argv) < 2:
         sys.exit("usage: coverage_matrix.py <workspace-root>")
     root = sys.argv[1]
 
     data = build_matrix(root)
+
+    # A v1 map (routes as globs, or no routes at all) yields an empty route
+    # board while the run still stamps coverage-matrix/2 and exits 0 — which is
+    # how echo_lab's board sat silently inert for a month. Say it out loud.
+    if not any(r["routes_total"] for r in data["modules"]):
+        print(
+            "NOTE: no typed surfaces.routes in the map — route board suppressed. "
+            "If this workspace serves pages, migrate the map to v2 "
+            "(06-test-coverage.md § Migrating a v1 map).",
+            file=sys.stderr,
+        )
 
     out_dir = os.path.join(root, ".context", "audits", "test-coverage")
     os.makedirs(out_dir, exist_ok=True)

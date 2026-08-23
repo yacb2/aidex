@@ -7,6 +7,7 @@
 | 03 | [03-fixtures-convention.md](03-fixtures-convention.md) | The rule-of-three fixture-extraction trigger, `m7` as an authoring rule, and the `__tests__/` layout ratchet (`s4`) |
 | 04 | [04-e2e-layer-audit.md](04-e2e-layer-audit.md) | Layer verdicts for every non-`playback` EchoLab editor spec (`s3`) |
 | 05 | [05-diff-cover.md](05-diff-cover.md) | The `diff-cover` on-demand invocation, its threshold, and the `q4` boundary (`q5`) |
+| 06 | [06-judgment-pass.md](06-judgment-pass.md) | The five-step mechanical checklist for the judged layer (endpoint census, route census, repeated-setup count, scaffold sweep, cross-layer duplicates) |
 
 Origin: `.context/plans/2026-08-22-suite-speed-and-coverage-rollout/03-coverage-skill.md`
 Task 3.1, executing ledger entries `q9`/`s2` of
