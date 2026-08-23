@@ -58,7 +58,8 @@ Classify before you pause:
    truncating an application database in any environment (local, dev, staging, prod),
    a **destructive migration** (data loss), or anything conflicting with a registered
    ADR or existing code. → Do **not** execute; **document the skip and surface it**
-   at the end.
+   at the end — and, where a chain ledger exists, as an `OPEN OWED` delta too
+   (see *A deferral must outlive its run* below).
 
    Unlike class 2, this class has **no pre-authorization path** — deliberately. A
    run cannot be granted permission up front to destroy real data, because at
@@ -78,7 +79,8 @@ Classify before you pause:
    **only if the user pre-authorized them in the initial phase**. If not
    pre-authorized and a need arises mid-run: do **not** publish and do **not** block
    — finish all safe work, leave the publish undone, and surface it at the end as
-   the one open question.
+   the one open question, and as an `OPEN OWED` delta where a chain ledger exists
+   (see *A deferral must outlive its run* below).
 3. **A step this skill/spec already mandates** (review, commit, handoff, message
    authoring) → **do it; do not re-confirm.** (Mode B.)
 
@@ -108,6 +110,22 @@ Classify before you pause:
 A genuine **hard blocker** (missing credentials, a test whose intended behavior is
 truly unknowable) is not "asking permission" — you literally cannot proceed. That
 still stops. Everything resolvable does not.
+
+### A deferral must outlive its run
+
+Classes 1 and 2 both end in "surface it at the end", and the end of a run is not where
+anyone is standing when the run spans sessions: a handoff re-drafts the brief from
+scratch, so the final summary is exactly what does not survive. Three phase decisions
+deferred this way were absent one link later with no record they had ever been owed
+(`research/2026-08-22-chain-context-decay.md` in `claude-session-handoff`, Result 2;
+user-owed obligations survived a hop 17% of the time, the worst class measured).
+
+So where a chain ledger exists, a deferral is an **`OPEN OWED` delta as well** — not
+instead of the final summary, in addition to it. An item there leaves only when a
+`CLOSE` delta closes it, so it survives until it is answered rather than until the next
+re-draft. This is the canon for the one-line form in `rules/autonomy.md`; the two must
+agree, and a clause living on only one of the two surfaces is the failure this file has
+already litigated once.
 
 ### Integrating a branch is not a commit (class 2)
 
@@ -180,7 +198,9 @@ safe?", not merely "is it in the allow-set?".
 2. **Fail open to the canon, never block** — if the arbiter errors or returns nothing,
    apply the inline rule above and proceed. It is a forcing function, not a single point of failure.
 3. **ASK is batched and deferred** — surfaced once, at the end, after all safe work is
-   done. The run never silently waits (the Stop-hook deadlock failure mode).
+   done. The run never silently waits (the Stop-hook deadlock failure mode). "The end"
+   is the end of the RUN, not of the session: where the run spans a handoff, the batched
+   ASK is also an `OPEN OWED` delta (see *A deferral must outlive its run*).
 
 The arbiter prompt lives at
 [`../agents/durability-arbiter.md`](../agents/durability-arbiter.md); consuming skills
@@ -294,8 +314,9 @@ word here would make every "verify the harness" line ambiguous.
 - **aidex-plan-exec** — resolve all clarifications at **Orient** (phase 0), then run
   every phase autonomously. Planned migrations/deps execute without asking; commit
   per phase, review, handoff are mandated (do them). Mid-run non-destructive
-  bifurcation → do + document (in the plan doc / final summary). Only publish stays
-  gated, surfaced at the end if not pre-authorized. **Consult the durability-arbiter**
+  bifurcation → do + document (in the plan doc / final summary, and as an `OPEN OWED`
+  delta where a chain ledger exists). Only publish stays gated, surfaced at the end if
+  not pre-authorized. **Consult the durability-arbiter**
   on an ambiguous mid-phase fork or before any would-stop at the between-phase
   checkpoint, passing the phase's proof (verification output, commit SHA).
 - **aidex-audit** — scope and borders are set at `new` (phase 0). The run is an
