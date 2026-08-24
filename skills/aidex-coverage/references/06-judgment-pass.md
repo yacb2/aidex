@@ -38,8 +38,8 @@ the sibling unit/component tests do not. The
 [rubric](01-layer-model.md#the-layer-assignment-rubric) decides: if the browser
 is not what decides, and a lower-layer test already observes the same failure,
 the E2E case is a duplicate (candidate to demote), not extra safety.
-[04-e2e-layer-audit.md](04-e2e-layer-audit.md) is the worked example of this
-step at full scale.
+[04-e2e-layer-audit.md](04-e2e-layer-audit.md) is the template for this step
+at full scale; the completed table lands in the project's own `.context/`.
 
 Untested-logic complement to v: a composable/helper that many tests **mock** but
 none tests is a gap the mock count itself reveals — grep for the module name in

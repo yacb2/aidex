@@ -19,7 +19,11 @@
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-AUDIT="$DIR/references/04-e2e-layer-audit.md"
+# The completed table is project data, relocated out of the public skill
+# (BL-211): it lives in this workspace's private .context/, and the skill
+# keeps only the template. The gate follows the table.
+REPO_ROOT="$(cd "$DIR/../.." && pwd -P)"
+AUDIT="$REPO_ROOT/.context/references/aidex-coverage/01-echolab-e2e-layer-audit.md"
 
 ECHOLAB="${ECHOLAB_PATH:-$HOME/Documents/projects/echo_lab_ws}"
 TIMELINE_DIR="$ECHOLAB/frontend/tests/e2e/timeline"
@@ -33,7 +37,11 @@ fail=0
 err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
 
 if [ ! -f "$AUDIT" ]; then
-  err "audit table not found: $AUDIT"
+  # EchoLab IS on disk here, so on this workspace a missing table is a real
+  # failure; on a machine with EchoLab but no aidex .context/ it cannot be —
+  # there is nothing to ratchet. Absence of the private table with the private
+  # project present is the one combination that must stay loud.
+  err "audit table not found: $AUDIT (EchoLab is on disk — the relocated table should exist here)"
   exit 1
 fi
 

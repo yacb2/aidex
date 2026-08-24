@@ -29,6 +29,11 @@ import _coverage_lib as lib
 # E2E reach, and `route_gaps`. Stamped on EVERY run, including a v1 input map —
 # the consumer pins a single value, so emitting /1 for unmigrated maps would break
 # their board instead of just leaving it routeless.
+# `modules[].has_surfaces` has NO consumer (BL-210): the dash reader takes
+# src_files/unit_tests/routes/route_gaps. It is kept, documented, so that
+# dropping it does not spend a schema bump on its own — every generated
+# coverage-matrix.json fleet-wide goes unrenderable until regenerated on a
+# bump. Drop it WITH the next real key-set change, in the same /3 commit.
 SCHEMA = "coverage-matrix/2"
 
 # Heuristic for "this tracked file is a test file", used only to find test
