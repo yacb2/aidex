@@ -91,7 +91,7 @@ async function main() {
   const phasePub = {
     id: 'p-pub',
     gateCmd: 'true',
-    implement: async () => ({ done: true, summary: 'work finished',
+    implement: async () => ({ done: true, summary: 'work finished', proof: 'proofs/x.txt',
                               pending_actions: ['git push origin main'] }),
   }
   const rPub = await runPhase(phasePub, ctx)
@@ -111,7 +111,7 @@ async function main() {
   const phaseBoth = {
     id: 'p-both',
     gateCmd: 'true',
-    implement: async () => ({ done: true, summary: 'work finished',
+    implement: async () => ({ done: true, summary: 'work finished', proof: 'proofs/x.txt',
                               pending_actions: ['push the branch and drop the old database'] }),
   }
   const rBoth = await runPhase(phaseBoth, ctx)
@@ -126,7 +126,7 @@ async function main() {
   const phaseDeny = {
     id: 'p-deny',
     gateCmd: 'true',
-    implement: async () => ({ done: true, summary: 'work finished',
+    implement: async () => ({ done: true, summary: 'work finished', proof: 'proofs/x.txt',
                               pending_actions: ['drop database ns_backoffice'] }),
   }
   const rDeny = await runPhase(phaseDeny, ctx)
