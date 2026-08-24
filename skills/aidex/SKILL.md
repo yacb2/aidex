@@ -82,6 +82,13 @@ never writes to a project.
    "checked on this version". This exists because the auditor once recommended removing
    plugins that were fine, and nothing made that visible.
 
+7. For done-but-not-archived across all four tiers of ONE project — plans, audits,
+   requests, backlog — run
+   `python3 ~/.aidex/skills/aidex-conventions/scripts/archive-sweep.py`. `sweep.sh`
+   covers the backlog only, which is how D-10 came to be applied there and skipped in
+   the other three. Dry run by default; `--check` exits 1 for a gate; `--apply` moves
+   the terminal set and never the status-drift set.
+
 Cadence and engine are yours to pick: it is a plain command, so schedule it with a
 routine, cron, or `/loop`. Nothing about the schedule is baked into the script.
 

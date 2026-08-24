@@ -30,6 +30,8 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
 | `/aidex-backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
+| `/aidex-backlog quick-wins` | [scripts/quick-wins.py](scripts/quick-wins.py) | **A proposed attack order**, grouped by priority then cheapest estimate then oldest, with blocked items apart. Reads front-matter and **never opens a body** — that constraint is the feature, not an optimisation |
+| `/aidex-backlog detect-resolved` | [scripts/detect-resolved.py](scripts/detect-resolved.py) | **Which open items the code may already have fixed.** The script builds the work-list — per item, the paths and commits its body cites; the skill fans one read-only subagent per item over those anchors. Proposes with a cited path or commit; **never closes** |
 | `/aidex-backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
 | `bash scripts/normalize-language.sh` | [scripts/normalize-language.sh](scripts/normalize-language.sh) | **Reports** backlog bodies that read Spanish-dominant (D-04). Read-only, and it translates nothing — rewriting an item's prose is a human or assisted step, never automatic. No second detector: it filters `validate.py --type backlog --json` for `body-language-not-english`, so the sweep and the validator can never disagree. Exit 1 when any item is reported |
 | `bash scripts/sweep.sh [--apply\|--check]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default; `--check` is the dry-run that exits 1 on findings |
@@ -52,6 +54,8 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 # register-item.sh and died on "unknown option: triage".
 case "${1:-}" in
   triage)   shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
+  quick-wins) shift; python3 "${CLAUDE_SKILL_DIR}/scripts/quick-wins.py" "$@" ;;
+  detect-resolved) shift; python3 "${CLAUDE_SKILL_DIR}/scripts/detect-resolved.py" "$@" ;;
   worklist) sub="${2:-}"; shift 2
             bash "${CLAUDE_SKILL_DIR}/../aidex-conventions/scripts/worklist-${sub}.sh" "$@" ;;
   *)        bash "${CLAUDE_SKILL_DIR}/scripts/register-item.sh" "$@" ;;
@@ -182,3 +186,35 @@ a non-zero exit means you introduced a NEW violation — fix it before closing.
 - **aidex-audit** — uses this skill for escalation (`/aidex-audit escalate`)
 - **aidex-conventions** — parent convention for `.context/backlog/`
 - **aidex-dash** — renders the backlog as an interactive HTML board on demand (`render.sh backlog`); publishing stays user-gated
+
+---
+
+## `triage`, `quick-wins` and `detect-resolved` answer three different questions
+
+They are easy to confuse and were, which is why the separation is written down rather
+than left to the names.
+
+| Action | Question | Reads |
+|---|---|---|
+| `triage` | *Is the backlog itself healthy?* Malformed ids, duplicates, items closed but never archived, cross-artifact drift. | front-matter + the index |
+| `quick-wins` | *What should I do first?* | front-matter only — **never a body** |
+| `detect-resolved` | *Is any of this already done?* | bodies, for the paths and commits they cite |
+
+`triage` is **health, not prioritization**: it will tell you an item is malformed and say
+nothing about whether it is worth doing. `quick-wins` is the opposite — it assumes the
+backlog is well-formed and answers only about order.
+
+### Running `detect-resolved`
+
+1. `python3 scripts/detect-resolved.py` — the work-list: open items, and per item the code
+   paths and commits its body cites. Items with no anchor are marked; they are not worth a
+   subagent, because a reviewer would have nothing to open.
+2. Fan out **one read-only subagent per anchored item**. Give it the item's title,
+   acceptance and anchors, and ask a single question: *does the current code satisfy this?*
+   Require a **cited path or commit** in the answer — an unevidenced "looks done" is the
+   thing this action exists to replace.
+3. Report the suspected-resolved set to the user and stop. **Never close an item from this
+   signal**, however confident the subagent sounds. An item can be open for a reason the
+   code cannot show: a decision deferred, a follow-up owed, a residual the finding named
+   and the commit did not. Closing on code alone is the auto-close defect one layer down.
+4. Closing is a separate, deliberate act — `close-item.sh`, with the evidence attached.
