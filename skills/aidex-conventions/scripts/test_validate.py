@@ -981,6 +981,27 @@ def check_comm_direction_and_legacy_unit(failures: list[str]) -> None:
         failures.append("legacy-name unit: a stray email.md outside an entry folder should be "
                         "communication-shape-invalid, not a legacy-name finding")
 
+    # communication-direction-mismatch, which the bad fixture pins with a single row:
+    # gutting the branch would otherwise leave the suite green but for that one line.
+    def dir_rules(folder: str, fm: dict) -> list[str]:
+        path = Path(f"/x/.context/communications/{folder}/2026-06-19-s/body.md")
+        text = "---\nx\n---\n\nbody\n"
+        return [f.rule for f in v.check_frontmatter("communications", path, text, fm)]
+
+    full = {"channel": "email", "from": "a", "to": "b", "subject": "s", "date": "2026-06-19",
+            "status": "sent", "created": "2026-06-19", "updated": "2026-06-19"}
+    for folder, other in (("sent", "received"), ("received", "sent")):
+        if "communication-direction-mismatch" not in dir_rules(folder, {**full, "direction": other}):
+            failures.append(f"direction unit: direction={other!r} under {folder}/ was not flagged")
+        if "communication-direction-mismatch" in dir_rules(folder, {**full, "direction": folder}):
+            failures.append(f"direction unit: a matching direction under {folder}/ was flagged")
+    # Meetings carry no direction key at all — the rule must not reach into that branch.
+    if "communication-direction-mismatch" in dir_rules(
+            "meetings", {"channel": "meeting", "participants": "", "subject": "s",
+                         "date": "2026-06-19", "status": "sent",
+                         "created": "2026-06-19", "updated": "2026-06-19"}):
+        failures.append("direction unit: a meetings/ entry was flagged for direction")
+
 
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
