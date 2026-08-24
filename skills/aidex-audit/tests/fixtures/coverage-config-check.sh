@@ -17,6 +17,11 @@
 #                      never penalized for the second entry
 #   provider-no-pkg    vitest.config.ts declares coverage.provider but package.json
 #                      has no @vitest/coverage-v8 -> coverage_provider = absent
+#   ci-n-auto          -n auto in .github/workflows/ci.yml -> no_n_auto = drift
+#   custom-hasher-first a non-django.contrib hasher first -> hasher_pytest = absent
+#   ini-settings       unquoted pytest.ini form, and pytest.ini beats pyproject.toml
+#   req-dir            requirements/<env>.txt + Dockerfile -n auto -> no_n_auto = drift
+#   provider-mismatch  provider 'istanbul' with only coverage-v8 installed -> absent
 #   clean              every key compliant
 
 set -euo pipefail
@@ -124,6 +129,69 @@ PASSWORD_HASHERS = [
     "myproj.hashers.SlowCustomHasher",
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
+EOF
+
+# ---------------------------------------------------------------------------
+# ini-settings: DJANGO_SETTINGS_MODULE in the unquoted pytest.ini form, and a
+# pyproject.toml naming a DIFFERENT module. pytest reads pytest.ini first, so
+# the ini module (slow hasher first) is the one that decides (review
+# 2026-08-23, #29: the quoted-only regex read this project n/a).
+# ---------------------------------------------------------------------------
+P="$WS/ini-settings"
+mkpy "$P/backend/pytest.ini" <<'EOF'
+[pytest]
+DJANGO_SETTINGS_MODULE = config.settings.test
+EOF
+mkpy "$P/backend/pyproject.toml" <<'EOF'
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.other"
+EOF
+mkpy "$P/backend/config/settings/test.py" <<'EOF'
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.PBKDF2PasswordHasher']
+EOF
+mkpy "$P/backend/config/settings/other.py" <<'EOF'
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+EOF
+
+# ---------------------------------------------------------------------------
+# req-dir: the requirements/<env>.txt layout with pytest-xdist pinned, plus a
+# Dockerfile exporting PYTEST_ADDOPTS="-n auto" (review 2026-08-23, #30: the
+# basename-prefix match never saw dev.txt, and Dockerfile was not a candidate).
+# ---------------------------------------------------------------------------
+P="$WS/req-dir"
+mkpy "$P/backend/requirements/dev.txt" <<'EOF'
+pytest==8.0.0
+pytest-xdist==3.6.1
+EOF
+mkpy "$P/backend/Dockerfile" <<'EOF'
+FROM python:3.12
+ENV PYTEST_ADDOPTS="-n auto"
+EOF
+
+# ---------------------------------------------------------------------------
+# provider-mismatch: coverage.provider 'istanbul' declared, but only
+# @vitest/coverage-v8 installed -> `vitest --coverage` would fail, so the
+# key must read absent (review 2026-08-23, #31).
+# ---------------------------------------------------------------------------
+P="$WS/provider-mismatch"
+mkpy "$P/frontend/vitest.config.ts" <<'EOF'
+export default {
+  test: {
+    coverage: {
+      provider: 'istanbul',
+      include: ['src/**/*.ts'],
+    },
+  },
+}
+EOF
+mkpy "$P/frontend/package.json" <<'EOF'
+{
+  "name": "provider-mismatch-frontend",
+  "devDependencies": {
+    "vitest": "^4.0.0",
+    "@vitest/coverage-v8": "^4.1.7"
+  }
+}
 EOF
 
 # ---------------------------------------------------------------------------

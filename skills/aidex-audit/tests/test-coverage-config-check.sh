@@ -108,6 +108,49 @@ d_h="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['custom-hasher
 grep -q 'SlowCustomHasher' <<<"$d_h" || fail "(h) detail must name the real first hasher, got: $d_h"
 
 # ---------------------------------------------------------------------------
+# (i) ini-settings: the unquoted pytest.ini form is parsed, and pytest.ini
+# wins over pyproject.toml (pytest's own precedence). The ini module puts a
+# slow hasher first; the pyproject one puts MD5 first (#29)
+# ---------------------------------------------------------------------------
+out_i="$(run_one ini-settings)"
+v_i="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['ini-settings']['hasher_pytest']['value'])" "$out_i")"
+[[ "$v_i" == "absent" ]] || fail "(i) unquoted pytest.ini DJANGO_SETTINGS_MODULE must be parsed and win: got $v_i"
+d_i="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['ini-settings']['hasher_pytest']['detail'])" "$out_i")"
+grep -q 'PBKDF2PasswordHasher' <<<"$d_i" || fail "(i) detail must come from the pytest.ini module, got: $d_i"
+
+# ---------------------------------------------------------------------------
+# (j) req-dir: requirements/<env>.txt layout and a Dockerfile carrying
+# PYTEST_ADDOPTS="-n auto" are both scanned (#30)
+# ---------------------------------------------------------------------------
+out_j="$(run_one req-dir)"
+v_j="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['req-dir']['no_n_auto']['value'])" "$out_j")"
+[[ "$v_j" == "drift" ]] || fail "(j) requirements/dev.txt + Dockerfile -n auto must be drift, got: $v_j"
+h_j="$(python3 -c "import json,sys; print('\n'.join(json.loads(sys.argv[1])['req-dir']['no_n_auto']['hits']))" "$out_j")"
+grep -q 'requirements/dev.txt: pytest-xdist locked' <<<"$h_j" || fail "(j) hits must name requirements/dev.txt: $h_j"
+grep -q 'Dockerfile' <<<"$h_j" || fail "(j) hits must name the Dockerfile: $h_j"
+
+# ---------------------------------------------------------------------------
+# (k) provider-mismatch: provider 'istanbul' declared with only
+# @vitest/coverage-v8 installed -> absent, the package must match the
+# declared provider (#31)
+# ---------------------------------------------------------------------------
+out_k="$(run_one provider-mismatch)"
+v_k="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['provider-mismatch']['coverage_provider']['value'])" "$out_k")"
+[[ "$v_k" == "absent" ]] || fail "(k) provider istanbul + coverage-v8 package must be absent, got: $v_k"
+
+# ---------------------------------------------------------------------------
+# (l) usage errors are exit 2, never silent-clean (#42) or a traceback (#62)
+# ---------------------------------------------------------------------------
+EMPTY="$(mktemp -d)"
+err_l="$(python3 "$CHECK" --root "$EMPTY" 2>&1 >/dev/null)"; rc_l=$?
+[[ $rc_l -eq 2 ]] || fail "(l) a root with no projects must exit 2, got $rc_l"
+grep -q 'no projects' <<<"$err_l" || fail "(l) empty root must say 'no projects' on stderr: $err_l"
+rmdir "$EMPTY"
+err_l2="$(python3 "$CHECK" --root 2>&1 >/dev/null)"; rc_l2=$?
+[[ $rc_l2 -eq 2 ]] || fail "(l) --root without a value must exit 2, got $rc_l2"
+grep -q 'Traceback' <<<"$err_l2" && fail "(l) --root without a value must not traceback: $err_l2"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 if [[ $failures -eq 0 ]]; then

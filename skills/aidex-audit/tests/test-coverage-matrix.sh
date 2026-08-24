@@ -107,6 +107,9 @@ cases = [
     ("/",                   "goto('/')",                                   True),
     ("/",                   "   */",                                       False),
     ("/",                   "const r = a / b",                             False),
+    # a Vite alias import is not a visit (#37): `@/login` names a src folder
+    ("/login",              "import { login } from '@/login'",             False),
+    ("/login",              "import { login } from '~/login'",             False),
 ]
 for path, text, want in cases:
     got = bool(cm.route_regex(path).search(text))
@@ -138,11 +141,16 @@ for mod in m['modules']:
         mod['surfaces'] = {
             'routes': ['frontend/src/billing/**'],
             'endpoints': ['backend/apps/billing/views.py'],
+            'actions': [{'route': '/people', 'action': 'create', 'endpoint': 'POST /api/people'}],
         }
 json.dump(m, open(sys.argv[1], 'w'), indent=2)
 PYV1
 python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
   || fail "coverage_matrix.py exited non-zero on a v1 map"
+# an action on a v1 map has no declared route to sit under; the JSON reports it
+# and the markdown must too (#49: the section was nested under the route board)
+grep -q 'undeclared route' "$MD" || fail "v1 map: markdown must carry the undeclared-route section"
+grep -q '/people' "$MD" || fail "v1 map: markdown must name the orphan action's route"
 out="$(python3 -c "
 import json
 data = json.load(open('$JSON'))
@@ -188,6 +196,31 @@ grep -q 'backend/apps/other/tests/test_z.py' "$MD" \
   || fail "unmapped real test file should be listed"
 grep -q 'backend/apps/other/tests/__init__.py' "$MD" \
   && fail "__init__.py must not be listed as an unmapped test file"
+
+# --- a third test kind (keys are open-ended per 06-test-coverage.md) is a
+# module's test file too: never listed as unmapped (#48) ---
+mkdir -p "$WS/backend/apps/billing/integration"
+printf 'def test_i():\n    assert True\n' > "$WS/backend/apps/billing/integration/test_i.py"
+git -C "$WS/backend" add -A >/dev/null
+git -C "$WS/backend" commit -q -m "integration test"
+python3 - "$MAP" <<'PYK'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for mod in m['modules']:
+    if mod['id'] == 'billing':
+        mod['tests']['integration'] = ['backend/apps/billing/integration/**']
+json.dump(m, open(sys.argv[1], 'w'), indent=2)
+PYK
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS" >/dev/null \
+  || fail "coverage_matrix.py exited non-zero with an integration kind"
+out="$(python3 -c "
+import json
+data = json.load(open('$JSON'))
+assert 'backend/apps/billing/integration/test_i.py' not in data['unmapped_test_files'], data['unmapped_test_files']
+assert 'backend/apps/other/tests/test_z.py' in data['unmapped_test_files'], data['unmapped_test_files']
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "third test kind must not be reported as unmapped: $out"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — coverage-matrix generation, billing/people rows, json shape, idempotency, hand-edit overwrite, unmapped noise filter"

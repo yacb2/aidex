@@ -75,7 +75,12 @@ workspace-root-relative).
 - `modules[].title` — human-readable label.
 - `modules[].src` — glob list of source paths this module owns.
 - `modules[].tests` — glob lists keyed by test kind (`unit`, `e2e`, etc — the
-  keys are open-ended, not a fixed enum).
+  keys are open-ended, not a fixed enum). **A module's test files are the files
+  matching any kind's globs**, and every tool applies that one definition: the
+  matrix's `NO TESTS` note and its "unmapped test files" list, the sweep's
+  test-commit count. The `unit` / `e2e` columns and the route board read those
+  two kinds specifically; a third kind is mapped and counted as tests, it just
+  has no column of its own.
 - `modules[].surfaces` — optional, and the one place where two value shapes
   live side by side:
   - **glob-shaped keys** (`endpoints`, and any project-specific key) — lists of
@@ -97,9 +102,23 @@ workspace-root-relative).
   strings is globs, a list of objects is typed. That is what keeps a project's
   own custom surface key counted after the bump.
 - All paths are **workspace-root-relative** and may use `**` (spans any
-  number of directories, including zero) and `*` (matches within a single
-  path segment) globs.
+  number of *whole* directories, including zero — `a/**/b` matches `a/b` and
+  `a/x/y/b`, never `a/xb`) and `*` (matches within a single path segment)
+  globs. A bare directory, with or without a trailing slash (`backend/tests`,
+  `backend/tests/`), means everything under it. The same matcher attributes
+  files and commits alike, so a module's file count and its commit count always
+  come from one file set.
 - `surfaces` is optional at the module level; omit it if not applicable.
+
+### What counts as a test
+
+The `unit tests` / `e2e tests` columns count **test cases**, not files: a
+`test(` or `it(` call — optionally through one modifier (`test.only(`,
+`it.skip(`, `test.each(`) — or a pytest `def test_`. Structural calls are not
+tests: `test.describe(`, `test.beforeEach(`, `test.step(` and `RegExp.test(`
+do not count. Measured 2026-08-23 on two `it()`-style projects: counting only
+`test(` under-reported unit depth ~2x, and counting every `test.<x>(` inflated a
+Playwright suite by one per describe/hook/step.
 
 ### Route coverage — how "reached by an E2E spec" is decided
 

@@ -62,18 +62,19 @@ NO_N_AUTO_GLOBS = (
 )
 NO_N_AUTO_NAMES = ("Makefile", "package.json")
 NO_N_AUTO_PREFIX = "requirements"
+WALK_MAX_DEPTH = 6
 
 
-def _walk(root, skip_dirs=SKIP_DIRS, max_depth=6):
+def _walk(root):
     root = os.path.abspath(root)
     base_depth = root.rstrip(os.sep).count(os.sep)
     for dirpath, dirnames, filenames in os.walk(root):
         depth = dirpath.rstrip(os.sep).count(os.sep) - base_depth
-        if depth >= max_depth:
+        if depth >= WALK_MAX_DEPTH:
             dirnames[:] = []
         dirnames[:] = [
             d for d in dirnames
-            if d not in skip_dirs
+            if d not in SKIP_DIRS
             and (not d.startswith(".") or d in HIDDEN_SCAN_DIRS)
         ]
         yield dirpath, dirnames, filenames
@@ -85,8 +86,13 @@ def _walk(root, skip_dirs=SKIP_DIRS, max_depth=6):
 
 def _find_django_settings_module(backend_dir):
     """Return the DJANGO_SETTINGS_MODULE dotted path declared for pytest, or
-    None if no pytest/Django configuration exists in this backend at all."""
-    for name in ("pyproject.toml", "pytest.ini", "setup.cfg"):
+    None if no pytest/Django configuration exists in this backend at all.
+
+    File order is pytest's own precedence (pytest.ini beats pyproject.toml).
+    The value may be quoted (pyproject) or bare (pytest.ini / setup.cfg /
+    pytest-env's `env = ["DJANGO_SETTINGS_MODULE=..."]`) — a quoted-only
+    regex read the bare forms as "no configuration" and the project as clean."""
+    for name in ("pytest.ini", "pyproject.toml", "setup.cfg"):
         path = os.path.join(backend_dir, name)
         if not os.path.isfile(path):
             continue
@@ -94,7 +100,7 @@ def _find_django_settings_module(backend_dir):
             text = open(path, encoding="utf-8", errors="replace").read()
         except OSError:
             continue
-        m = re.search(r"DJANGO_SETTINGS_MODULE\s*=\s*[\"']([\w.]+)[\"']", text)
+        m = re.search(r"DJANGO_SETTINGS_MODULE\s*=\s*[\"']?([\w.]+)", text)
         if m:
             return m.group(1)
     return None
@@ -132,20 +138,9 @@ def _resolve_import_target(from_dir, backend_dir, spec):
         for _ in range(dots - 1):
             base = os.path.dirname(base)
         if rest:
-            return _resolve_relative(base, rest)
+            return _module_to_path(base, rest)
         return None
     return _module_to_path(backend_dir, spec)
-
-
-def _resolve_relative(base_dir, rest):
-    rel = rest.replace(".", os.sep)
-    candidate = os.path.join(base_dir, rel + ".py")
-    if os.path.isfile(candidate):
-        return candidate
-    candidate = os.path.join(base_dir, rel, "__init__.py")
-    if os.path.isfile(candidate):
-        return candidate
-    return None
 
 
 def _first_hasher_in_file(path, backend_dir, seen=None, depth=0):
@@ -264,9 +259,10 @@ def check_vitest_include(project_dir):
 
 def check_coverage_provider(project_dir):
     """('n/a'|'present'|'absent', count, total). 'present' for a package
-    requires BOTH a declared coverage.provider AND a matching
-    @vitest/coverage-v8 devDependency — a declaration with no installed
-    package (the ns_backoffice_ws trap) reports 'absent' for that package,
+    requires BOTH a declared coverage.provider AND the @vitest/coverage-<provider>
+    package it names as a dependency — a declaration with no installed
+    package (the ns_backoffice_ws trap), or with the wrong one (istanbul
+    declared, coverage-v8 installed), reports 'absent' for that package,
     same as no declaration at all."""
     total = 0
     present = 0
@@ -292,7 +288,7 @@ def check_coverage_provider(project_dir):
             deps = {}
             for section in ("dependencies", "devDependencies"):
                 deps.update(data.get(section) or {})
-            has_dep = "@vitest/coverage-v8" in deps
+            has_dep = f"@vitest/coverage-{provider}" in deps
         if provider and has_dep:
             present += 1
     if total == 0:
@@ -310,14 +306,14 @@ _N_AUTO_RE = re.compile(r"-n\s+auto|--numprocesses(?:=|\s+)auto")
 # lockfile records every transitive package's optional "extras" metadata too
 # (poetry.lock's `test = ["pytest-xdist (>=3.6.1)", ...]` on an unrelated,
 # vendored dependency), and those are not this project's own dependency.
-# Only a real package declaration counts: a poetry/Pipfile.lock `[[package]]`
-# name field, a quoted-key form in a scanned .lock file, or a bare
-# requirements.txt entry. (package-lock.json is .json and is never a candidate
-# file — the quoted-key alternative exists for yarn.lock-style entries.)
+# Only a real package declaration counts: a poetry.lock `[[package]]` name
+# field (TOML), a Pipfile.lock package key (JSON), or a bare requirements
+# entry. (yarn.lock / package-lock.json never list a Python package, and
+# package-lock.json is .json, never a candidate file.)
 _XDIST_PKG_RE = re.compile(
-    r'^\s*name\s*=\s*"pytest-xdist"'      # poetry.lock / Pipfile.lock style
-    r'|"pytest-xdist"\s*:'                 # package-lock.json / yarn.lock key
-    r'|^pytest-xdist\s*(?:[=><~!\[]|$)',   # requirements*.txt bare entry
+    r'^\s*name\s*=\s*"pytest-xdist"'      # poetry.lock (TOML `name = "..."`)
+    r'|"pytest-xdist"\s*:'                 # Pipfile.lock (JSON `"pytest-xdist": {`)
+    r'|^pytest-xdist\s*(?:[=><~!\[]|$)',   # requirements*.txt / requirements/<env>.txt bare entry
     re.MULTILINE,
 )
 
@@ -330,12 +326,18 @@ def check_no_n_auto(project_dir):
     package in a lockfile or requirements file specifically."""
     hits = []
     for dirpath, _dirnames, filenames in _walk(project_dir):
+        # requirements*.txt, or the cookiecutter `requirements/<env>.txt` layout
+        # — matching the basename prefix alone never saw `dev.txt`.
+        in_req_dir = os.path.basename(dirpath) == NO_N_AUTO_PREFIX
         for fn in filenames:
-            is_lockish = fn.endswith(".lock") or fn.startswith(NO_N_AUTO_PREFIX)
+            is_req = fn.startswith(NO_N_AUTO_PREFIX) or (in_req_dir and fn.endswith(".txt"))
+            is_lockish = fn.endswith(".lock") or is_req
             is_candidate = (
                 fn.endswith(NO_N_AUTO_GLOBS)
                 or fn in NO_N_AUTO_NAMES
-                or fn.startswith(NO_N_AUTO_PREFIX)
+                or is_req
+                # PYTEST_ADDOPTS="-n auto" lives in a Dockerfile or .env as well
+                or fn.startswith(("Dockerfile", ".env"))
             )
             if not is_candidate:
                 continue
@@ -463,6 +465,9 @@ def main(argv):
         a = argv[i]
         if a == "--root":
             i += 1
+            if i >= len(argv):
+                print("--root requires a value", file=sys.stderr)
+                return 2
             root = os.path.abspath(os.path.expanduser(argv[i]))
         elif a == "--include-worktrees":
             include_worktrees = True
@@ -491,6 +496,11 @@ def main(argv):
             rows[name] = check_project(path)
     else:
         rows = sweep(root, include_worktrees=include_worktrees)
+        if not rows:
+            # compliance-sweep.sh's guard: silent-when-clean must never cover
+            # "nothing was checked" (a --root typo landing on a real directory).
+            print(f"no projects to check under {root}", file=sys.stderr)
+            return 2
 
     drifted_names = [n for n, r in rows.items() if _project_drifted(r)]
 
