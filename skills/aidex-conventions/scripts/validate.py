@@ -208,11 +208,23 @@ def crossref_target_exists(context_dir: Path, ref: str) -> bool:
     # Audit references include methodology/<run>/<finding-id> — we can't fully
     # resolve finding IDs from filesystem; settle for directory existence.
     if folder == "audits":
-        if (base / rest).exists() or (base / rest).is_dir():
+        # Every position a run folder can occupy. D-10 archives a finished run
+        # precisely so inbound refs keep resolving, so the archived shapes are
+        # not a fallback here — they are the steady state of any closed run.
+        def audit_run_exists(run: str) -> bool:
+            if (base / run).exists():
+                return True
+            if (base / "_archive" / run).exists():          # audits/_archive/<run>
+                return True
+            head, _, tail = run.rpartition("/")             # audits/<meth>/_archive/<run>
+            return bool(head) and (base / head / "_archive" / tail).exists()
+
+        if audit_run_exists(rest):
             return True
-        # Strip trailing finding-id segment and retry on the run folder.
+        # Strip trailing finding-id segment and retry on the run folder: a finding
+        # id is not a path, so it never resolves on its own.
         parts = rest.split("/")
-        if len(parts) > 1 and (base / "/".join(parts[:-1])).exists():
+        if len(parts) > 1 and audit_run_exists("/".join(parts[:-1])):
             return True
     return False
 
