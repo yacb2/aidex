@@ -1,7 +1,7 @@
 ---
 name: aidex-comm
 description: 'Use when the user wants to log or draft a real communication with a person — capture an email/WhatsApp that was received, log a meeting or call that happened, or draft a message/email to send — as a written `.context/communications/` entry, kept in the communication''s native language. Fires on "log this email", "save the email the client sent", "capture this WhatsApp from X", "record the call with X", "log the meeting with X", "draft an email to X", "write a reply to the client", "save this thread", and /aidex-comm commands. Not for: capturing a stakeholder/product requirement to act on (aidex-request); recording a decision/ADR (aidex-decision); planning multi-step work (aidex-plan); deferring an idea (aidex-backlog); research notes (aidex-research); references (aidex-reference); ecosystem audits (aidex); project-state audits (aidex-audit).'
-argument-hint: "[new <received|sent|meeting|call> <slug> [--channel email]]"
+argument-hint: "[new <received|sent|meeting|call> <slug> [--channel email] | migrate]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -28,6 +28,7 @@ English-default does NOT apply here; D-11 governs skill *descriptions*, not arti
 | `/aidex-comm new sent <slug> [--channel whatsapp]` | same | Scaffold an outgoing async draft under `sent/` (status starts `draft`) |
 | `/aidex-comm new meeting <slug>` | same | Scaffold a synchronous meeting record under `meetings/` (participant-based, `status: sent`) |
 | `/aidex-comm new call <slug>` | same | Scaffold a synchronous call record under `meetings/` (participant-based, `status: sent`) |
+| `/aidex-comm migrate` | [scripts/migrate-communications.sh](scripts/migrate-communications.sh) | Rename pre-canonical `email.md` / `conversation.md` bodies to `body.md`, reporting each |
 
 `--channel` is async-only and accepts `email` (default), `whatsapp`, `other`. For meetings
 and calls use `new meeting` / `new call` — the channel is fixed to the kind.
@@ -39,6 +40,17 @@ and calls use `new meeting` / `new call` — the channel is fixed to the kind.
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/new-communication.sh" "$@"
 ```
+
+For `migrate`:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/migrate-communications.sh"
+```
+
+It renames only files sitting directly inside a `<YYYY-MM-DD>-<slug>/` entry folder, never
+attachments, and refuses any rename that would clobber an existing `body.md` (exit 1). Run
+`validate.py --type communications` first if you want the preview — the
+`communication-legacy-body-name` findings are exactly what it will rename.
 
 The script scaffolds `.context/communications/<received|sent|meetings>/<YYYY-MM-DD>-<slug>/body.md`
 from the matching template, refuses to overwrite, and prints the created path on stdout.
@@ -143,6 +155,26 @@ nothing of the same kind. Say which prior entries you leaned on.
 **Never translate to match a sample.** D-04 keeps every body in the communication's own
 language; a Spanish thread stays Spanish even when the closest structural example is
 English. Borrow the shape, never the language.
+
+### An outgoing email body must survive a paste into Outlook or Gmail
+
+Neither client renders markdown, and the body is going to be pasted into one of them. Two
+constructs have already reached real recipients broken — a table as a literal `|` grid, a
+blockquote as literal `>` characters. So in a `sent/` entry with `channel: email`:
+
+| Do not write | Write instead |
+|---|---|
+| a markdown table | a bulleted list, or short `Label — value` lines |
+| a markdown blockquote (`> …`) | plain prose, or `Ana escribió:` followed by the text |
+
+Bold, links and bullets paste correctly, so they stay available. `validate.py` enforces
+this as `communication-paste-unsafe` — scoped to `sent/` + `channel: email` only. A
+`received/` body is a faithful capture of what arrived: a table there is *correct*, and
+`>`-quoted thread text is the normal inbound shape, so neither is flagged.
+
+If the recipient genuinely needs a rendered table, write a `body.html` **alongside**
+`body.md` and have the user paste that one — attachments already live next to the body,
+so this needs no new file tier. It is opt-in: do not emit one unless it is asked for.
 
 ---
 

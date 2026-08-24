@@ -31,6 +31,9 @@ EXPECTED_BAD_RULES = {
     "cross-ref-target-missing",
     "backlog-priority-invalid",
     "communication-channel-invalid",
+    "communication-legacy-body-name",
+    "communication-direction-mismatch",
+    "communication-paste-unsafe",
     "plan-phase-gateless-afk",
     "plan-phase-missing-acceptance",
     "plan-phase-tests-missing",
@@ -921,6 +924,64 @@ def check_waivers(failures: list[str]) -> None:
             failures.append("waivers: unparseable waiver line was not counted")
 
 
+def check_comm_paste_safe_unit(failures: list[str]) -> None:
+    """The paste-safe rule (BL-218) is only correct if it stays OFF everywhere the
+    construct is legitimate. The bad fixture proves it fires; these cells prove it
+    does not over-fire — a received/ body full of tables and quoted `>` lines is a
+    faithful capture, and RETRO-46 (quoted-inbound guardrail) was dismissed, so
+    nothing else in the skill handles quoted text."""
+    v = _load_validator()
+    fm_base = {"channel": "email", "direction": "sent"}
+    table = "\n| a | b |\n|---|---|\n| 1 | 2 |\n"
+    quote = "\n> lo que escribiste\n"
+
+    def rules(folder: str, name: str, body: str, fm: dict | None) -> list[str]:
+        path = Path(f"/x/.context/communications/{folder}/2026-06-18-s/{name}")
+        return [f.rule for f in v.check_comm_paste_safe(path, body, fm)]
+
+    # Fires: outgoing email with either construct.
+    for label, body in (("table", table), ("quote", quote)):
+        if "communication-paste-unsafe" not in rules("sent", "body.md", body, fm_base):
+            failures.append(f"paste-safe unit: a sent/ email {label} was not flagged")
+    # Silent: inbound capture, non-email channels, meetings, fenced code, plain prose.
+    for label, folder, name, body, fm in (
+            ("received table", "received", "body.md", table, {"channel": "email", "direction": "received"}),
+            ("received quote", "received", "body.md", quote, {"channel": "email", "direction": "received"}),
+            ("sent whatsapp", "sent", "body.md", table, {"channel": "whatsapp", "direction": "sent"}),
+            ("meeting notes", "meetings", "body.md", table, {"channel": "meeting"}),
+            ("attachment", "sent", "notes.md", table, fm_base),
+            ("no front-matter", "sent", "body.md", table, None),
+            ("fenced code", "sent", "body.md", "\n```\n| a | b |\n|---|---|\n```\n", fm_base),
+            ("prose with a pipe", "sent", "body.md", "\nel campo a | b es opcional\n", fm_base),
+    ):
+        fired = rules(folder, name, body, fm)
+        if fired:
+            failures.append(f"paste-safe unit: {label} was flagged {fired} — the rule is "
+                            f"scoped to sent/ + channel email, and only real constructs")
+
+
+def check_comm_direction_and_legacy_unit(failures: list[str]) -> None:
+    """The legacy-name rule must beat the attachment exemption that hid `email.md`
+    for as long as it existed, and must NOT touch real attachments."""
+    v = _load_validator()
+    def rule(rel: str) -> str | None:
+        f = v.check_filename("communications", Path(f"/x/.context/communications/{rel}"))
+        return f.rule if f else None
+
+    if rule("received/2026-06-19-s/email.md") != "communication-legacy-body-name":
+        failures.append("legacy-name unit: email.md inside an entry folder was not flagged")
+    if rule("meetings/2026-06-19-s/conversation.md") != "communication-legacy-body-name":
+        failures.append("legacy-name unit: conversation.md was not flagged")
+    for ok in ("received/2026-06-19-s/body.md", "received/2026-06-19-s/transcript.md",
+               "received/2026-06-19-s/email.html"):
+        if rule(ok) is not None:
+            failures.append(f"legacy-name unit: {ok} was flagged — attachments and body.md are fine")
+    # Outside a dated entry folder the generic shape rule owns it, not this one.
+    if rule("received/email.md") == "communication-legacy-body-name":
+        failures.append("legacy-name unit: a stray email.md outside an entry folder should be "
+                        "communication-shape-invalid, not a legacy-name finding")
+
+
 def run(fixture: str) -> dict:
     ctx = FIXTURES / fixture / ".context"
     res = subprocess.run(
@@ -992,6 +1053,8 @@ def main() -> int:
     check_backlog_type_unit(failures)
     check_backlog_priority_unit(failures)
     check_waivers(failures)
+    check_comm_paste_safe_unit(failures)
+    check_comm_direction_and_legacy_unit(failures)
 
     if failures:
         print("FAIL")
