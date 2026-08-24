@@ -40,16 +40,64 @@ For each module × each check, note whether it passes, fails, or is not applicab
 | 8 | **Loading feedback** — any operation >200ms has a loading indicator | `bug` or `gap` |
 | 9 | **Destructive action guardrails** — confirmations, undo where possible | `risk` |
 | 10 | **First-run / onboarding** — new users understand what to do | `gap` |
+| 11 | **Text truncation** — clipped text either wraps or exposes its full value on hover/focus; never an ellipsis with neither | `bug` |
+
+**Check 11 in practice.** The recurring case is **table column headers**: a header truncated
+to `Fecha de creaci…` with no `title`, no tooltip and no wrap leaves the column unnameable,
+and it is the kind of defect a person spots in one second and an audit that does not name
+it walks straight past. Same defect, same verdict on: truncated cell values, nav items,
+buttons and tabs, breadcrumbs, and any label inside a fixed-width chip or badge. Resize the
+viewport and lengthen the content — a header that fits the seed data is not evidence.
+
+A tooltip is a pass only if it is reachable by keyboard focus, not hover alone; otherwise
+the finding stands and belongs to the a11y run as well.
 
 ### Advanced checks (apply selectively)
 
 | # | Check | When |
 |---|---|---|
-| 11 | **Dark mode parity** | If dark mode is offered |
-| 12 | **Internationalization** — strings externalized, RTL tested | If i18n is shipped |
-| 13 | **Print stylesheet** | If users print |
-| 14 | **Browser parity** — Chrome, Safari, Firefox, mobile Safari | Pre-release |
-| 15 | **Animation / motion** — respects `prefers-reduced-motion` | If heavy animation |
+| 12 | **Dark mode parity** | If dark mode is offered |
+| 13 | **Internationalization** — strings externalized, RTL tested | If i18n is shipped |
+| 14 | **Print stylesheet** | If users print |
+| 15 | **Browser parity** — Chrome, Safari, Firefox, mobile Safari | Pre-release |
+| 16 | **Animation / motion** — respects `prefers-reduced-motion` | If heavy animation |
+
+---
+
+## Post-implementation style-consistency comparison
+
+Run this **after** a page or component ships, on the new surface only. It is not a repeat
+of core check 1: that one compares against the design system as written, which a new page
+can satisfy in the abstract while still looking visibly unlike its own neighbours. This one
+compares against **a concrete sibling that already shipped** — the established page a user
+would see immediately before or after the new one.
+
+1. **Name the reference in `index.md`.** One existing page or component, chosen because a
+   user actually moves between it and the new surface (the list a form is reached from; the
+   card that already exists in the same grid). Unnamed, "compare against an established
+   reference" is unfalsifiable and the step quietly becomes a no-op.
+2. **Put them side by side at the same viewport** — same zoom, same theme, same data density.
+   Screenshot both; the pair is the evidence.
+3. **Walk the drift axes**, in this order — earlier ones are the ones people notice:
+   - alignment and grid — do the two share a left edge, gutter and column rhythm?
+   - vertical rhythm — heading sizes, section spacing, density of the same kind of row
+   - control shape — button height, radius, icon size, input height
+   - color roles — is the accent used for the same job in both?
+   - state and interaction — hover, focus and disabled read the same way
+   - copy register — sentence case vs title case, terminology for the same object
+4. **Repeat at one narrow viewport.** Drift that hides at desktop width is common.
+
+Drift becomes findings, one row each, using the format under
+[Recording findings](#recording-findings):
+
+- **misalignment or a mismatched control against the reference** → `bug`
+- **an established pattern the reference has and the new surface omits** (empty state,
+  loading skeleton, row action affordance) → `gap`
+
+Two guardrails. If the reference itself is the outlier, say so and pick another — this
+comparison propagates whatever it is pointed at. And drift that turns out to be a
+deliberate divergence is not a finding: record the decision instead, and name it in
+`index.md` so the next run does not re-raise it.
 
 ---
 

@@ -35,6 +35,28 @@ for f in title status created updated; do
   grep -q "^$f:" "$RUN/index.md" || fail "run index.md missing front-matter field '$f'"
 done
 
+# --- RETRO-19 / BL-217: the seeded ux playbook carries both checks -----------------
+# Asserted against the SCAFFOLDED file, never against the template: grepping the
+# template directly stays green if new-audit.sh ever stops seeding it, which is the
+# checker-lies-by-omission shape the 2026-07-25 suite audit named.
+PB="$M/00-methodology.md"
+grep -q 'Text truncation' "$PB" \
+  || fail "seeded ux playbook has no text-truncation check (BL-217)"
+grep -qi 'table column headers' "$PB" \
+  || fail "the truncation check does not name table column headers as a covered surface"
+grep -qi 'tooltip' "$PB" || fail "the truncation check does not mention a tooltip"
+grep -q 'Post-implementation style-consistency comparison' "$PB" \
+  || fail "seeded ux playbook has no post-implementation style-consistency comparison"
+grep -qi 'Name the reference in .index.md' "$PB" \
+  || fail "the style comparison does not require naming a concrete reference"
+# "Emitting drift as findings" needs an output contract, or the section is advice.
+grep -q 'Drift becomes findings' "$PB" \
+  || fail "the style comparison does not route drift into findings"
+# The advanced-checks table was renumbered when truncation took #11; a stale 11 there
+# would give the playbook two check 11s.
+grep -q '^| 16 | \*\*Animation / motion\*\*' "$PB" \
+  || fail "advanced checks were not renumbered after truncation took #11"
+
 # --- legacy alias input normalizes to the same short methodology ---
 bash "$SCRIPTS/new-audit.sh" ux-audit second-pass >/dev/null 2>&1 || fail "legacy alias ux-audit: exited non-zero"
 [[ -d "$M/$TODAY-second-pass" ]] || fail "alias ux-audit did not normalize into audits/ux/"
@@ -43,6 +65,19 @@ bash "$SCRIPTS/new-audit.sh" ia-opportunities ai-scan >/dev/null 2>&1 || fail "l
 [[ -d ".context/audits/ai-opportunities/$TODAY-ai-scan" ]] || fail "ia-opportunities did not normalize to ai-opportunities/"
 
 # --- hitl (BL-046): methodology seeded from the playbook; aliases normalize ---
+# --- BL-217, a11y half: the manual AT sweep gains the same defect, WCAG list intact ---
+bash "$SCRIPTS/new-audit.sh" a11y wcag-pass >/dev/null 2>&1 || fail "new a11y: exited non-zero"
+A11Y=".context/audits/a11y/00-methodology.md"
+[[ -f "$A11Y" ]] || fail "a11y 00-methodology.md not seeded"
+grep -qi 'truncated text recoverable' "$A11Y" \
+  || fail "seeded a11y playbook has no truncated-text check in the manual sweep"
+awk '/^## Manual assistive technology sweep/{s=1} /^## Recording findings/{s=0} s' "$A11Y" \
+  | grep -qi 'table column headers' \
+  || fail "the a11y truncation bullet is not inside the Manual AT sweep section"
+awk '/^## WCAG Level A \+ AA checks/{s=1} /^## Manual assistive/{s=0} s' "$A11Y" \
+  | grep -qi 'truncated text recoverable' \
+  && fail "the truncation bullet leaked into the numbered WCAG list, which stays strictly WCAG"
+
 bash "$SCRIPTS/new-audit.sh" hitl release-signoff >/dev/null 2>&1 || fail "new hitl: exited non-zero"
 H=".context/audits/hitl"
 [[ -d "$H/$TODAY-release-signoff" ]] || fail "hitl run folder missing"
