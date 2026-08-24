@@ -355,7 +355,13 @@ for entry in "$AUDITS_DIR"/*/; do
         rel="${findings_file#"$AUDITS_DIR"/}"
         add_violation audit-orphan-finding-ref "$findings_file" "$rel references $mentioned_id which is not in any inventory"
       fi
-    done < <(strip_html_comments "$findings_file" | grep -oE '\b[A-Z]+(-[A-Z0-9]+)?-[0-9]+\b' 2>/dev/null | sort -u)
+    # `BL-<n>` (backlog) and `D-<n>` (ADR) are ids of SIBLING TIERS, reserved by the
+    # canon and living in backlog/ and decisions/. A findings narrative cites them
+    # constantly ("unmeasured (BL-166)", "stays English (D-04)"), and they can never
+    # appear in an audit inventory — so reporting them is noise with no correct fix,
+    # and the pressure it creates is to waive the rule, silencing the real orphans.
+    done < <(strip_html_comments "$findings_file" | grep -oE '\b[A-Z]+(-[A-Z0-9]+)?-[0-9]+\b' 2>/dev/null \
+             | grep -vE '^(BL|D)-[0-9]+$' | sort -u)
   done < <(find "${entry%/}" -type f -name findings.md -path '*/[0-9]*-*/findings.md' 2>/dev/null)
 done
 
