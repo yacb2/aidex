@@ -81,6 +81,11 @@ workspace-root-relative).
   test-commit count. The `unit` / `e2e` columns and the route board read those
   two kinds specifically; a third kind is mapped and counted as tests, it just
   has no column of its own.
+- `unmapped_ok` — optional top-level glob list: tracked test files matching
+  no module's globs but matching one of these are a *deliberate* scope-out.
+  They are reported as a `scoped out: N` count (and `unmapped_scoped_out` in
+  the JSON), never listed — so the unmapped list shows only new drift, not
+  the ~90% intentional rows that buried echo_lab's real signal.
 - `modules[].surfaces` — optional, and the one place where two value shapes
   live side by side:
   - **glob-shaped keys** (`endpoints`, and any project-specific key) — lists of
