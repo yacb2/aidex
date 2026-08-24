@@ -901,7 +901,8 @@ fi
 # --- write entry (through the one template — see emit_backlog_entry) ---
 emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN_REF:-}" \
   "$PRIORITY" "$TYPE" "$ESTIMATE" "$BLOCKED_BY" "" \
-  "<!-- Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
+  "<!-- Write this item in ENGLISH (D-04), even when the conversation is not.
+     Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
   "$NOTES_BLOCK"
 
 ok "Backlog entry created"

@@ -153,7 +153,7 @@ def parse_frontmatter(text: str) -> dict | None:
             # YAML semantics: an unquoted scalar ends at ` #` (inline comment).
             # Field regression 2026-07-02: `channel: call  # meeting | call` must
             # parse as `call`, not the whole line.
-            val = re.split(r"\s+#", val, 1)[0].rstrip()
+            val = re.split(r"\s+#", val, maxsplit=1)[0].rstrip()
         fields[key] = val
     return fields
 
