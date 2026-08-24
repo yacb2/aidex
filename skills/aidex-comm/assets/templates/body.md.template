@@ -12,4 +12,11 @@ updated: {{DATE}}
 ---
 
 <!-- Body text is in the NATIVE language of the communication.
-     Communications are EXEMPT from the English-only rule. -->
+     Communications are EXEMPT from the English-only rule.
+
+     OUTGOING EMAIL (sent/ + channel: email) is pasted into Outlook or Gmail, which
+     render no markdown: NO tables (use bullets or "Label — value" lines) and NO
+     blockquotes (write prose, or "Ana escribio:" before the quoted text). Bold,
+     links and bullets survive the paste. Checked by validate.py as
+     communication-paste-unsafe. A received/ body is a capture of what arrived —
+     tables and "> " quoting there are correct and are not flagged. -->

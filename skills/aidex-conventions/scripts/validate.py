@@ -47,6 +47,10 @@ COMM_REQUIRED_FIELDS = ("channel", "direction", "from", "to", "subject", "date",
 # Synchronous records (meetings/) replace direction/from/to with a participants list.
 COMM_MEETING_REQUIRED_FIELDS = ("channel", "participants", "subject", "date", "status",
                                 "created", "updated")
+# Pre-canonical body filenames, mapped to what they should become. The canonical
+# layout shipped in 1898b60 but nothing enforced it, so entries written after that
+# commit still used these names (RETRO-49). `migrate-communications.sh` renames them.
+COMM_LEGACY_BODY_FILES = {"email.md": "body.md", "conversation.md": "body.md"}
 
 BASE_STATUS = {"open", "doing", "done", "dropped"}
 DECISION_STATUS = {"accepted", "superseded", "dropped"}
@@ -390,15 +394,20 @@ def _iter_md_by_type(context_dir: Path, type_name: str) -> Iterable[Path]:
 
 # ---------- Checks ----------
 
+def in_comm_entry_folder(path: Path) -> bool:
+    """True when `path` sits directly inside a well-formed communication entry folder
+    (`{received,sent,meetings}/<YYYY-MM-DD>-<slug>/`). Says nothing about the filename."""
+    parent = path.parent
+    return (parent.parent.name in (COMM_DIRECTIONS | {COMM_MEETING_DIR})
+            and bool(ISO_FOLDER.match(parent.name)))
+
 def is_comm_attachment(type_name: str, path: Path) -> bool:
     """A non-body.md file inside a valid dated communication folder is an attachment
     (transcript, slides, summary, action items) — canon explicitly allows files
     alongside body.md. Attachments are free-form: no shape/front-matter checks."""
     if type_name != "communications" or path.name == "body.md":
         return False
-    parent = path.parent
-    return (parent.parent.name in (COMM_DIRECTIONS | {COMM_MEETING_DIR})
-            and bool(ISO_FOLDER.match(parent.name)))
+    return in_comm_entry_folder(path)
 
 def is_loop_state_sidecar(type_name: str, path: Path) -> bool:
     """Loop engines keep an operational state sidecar (`<spec-basename>-STATE.md`)
@@ -433,6 +442,13 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
         # Dated unit is the <YYYY-MM-DD>-<slug>/ folder; the main file is body.md,
         # with attachments allowed alongside (canon: transcript/slides/summary).
         # The folder lives under received/, sent/ (async) or meetings/ (synchronous).
+        # A pre-canonical body name (email.md, conversation.md) would otherwise pass as
+        # a free-form attachment — checked FIRST so the exemption cannot swallow it.
+        if name in COMM_LEGACY_BODY_FILES and in_comm_entry_folder(path):
+            return Finding(type_name, str(path), "communication-legacy-body-name", "violation",
+                           f"{name!r} is a pre-canonical body filename — rename it to "
+                           f"{COMM_LEGACY_BODY_FILES[name]!r} "
+                           f"(bash ~/.claude/skills/aidex-comm/scripts/migrate-communications.sh)")
         if is_comm_attachment(type_name, path):
             return None
         if name == "body.md":
@@ -550,6 +566,15 @@ def check_frontmatter(type_name: str, path: Path, text: str, fm: dict | None) ->
             if ch and ch not in COMM_ASYNC_CHANNELS:
                 findings.append(Finding(type_name, str(path), "communication-channel-invalid", "violation",
                                         f"channel={ch!r} not in {sorted(COMM_ASYNC_CHANNELS)}"))
+            # Canon: `direction` mirrors the folder it lives in. Stated since the
+            # layout shipped, enforced by nobody — which is how `sent/` entries with
+            # `direction: received` accumulated (RETRO-49).
+            folder = path.parent.parent.name
+            dr = fm.get("direction", "")
+            if dr and folder in COMM_DIRECTIONS and dr != folder:
+                findings.append(Finding(type_name, str(path), "communication-direction-mismatch", "violation",
+                                        f"direction={dr!r} but the entry lives under {folder}/ — "
+                                        f"direction mirrors the folder (move the entry or fix the field)"))
         st = fm.get("status", "")
         if st and st not in COMM_STATUS:
             findings.append(Finding(type_name, str(path), "communication-status-invalid", "violation",
@@ -765,6 +790,11 @@ def check_index_files(context_dir: Path, type_name: str) -> list[Finding]:
 
 FENCED_CODE_RE = re.compile(r"(?ms)^[ \t]*```.*?^[ \t]*```[ \t]*$")
 WORD_RE = re.compile(r"[a-záéíóúñü]+")
+# Paste-unsafe markdown in an outgoing email body (RETRO-23). The table pattern needs a
+# header row AND a delimiter row, so a lone `|` in prose is not a table; the quote pattern
+# is the ordinary blockquote indent range.
+COMM_MD_TABLE_RE = re.compile(r"^[ \t]*\|.*\|[ \t]*\n[ \t]*\|?[ \t]*:?-{3,}", re.M)
+COMM_MD_QUOTE_RE = re.compile(r"^[ \t]{0,3}>", re.M)
 
 def body_after_frontmatter(text: str) -> str:
     """Body text only — front-matter values are exempt from the language check
@@ -775,6 +805,32 @@ def body_after_frontmatter(text: str) -> str:
             if FM_DELIM.match(lines[i]):
                 return "\n".join(lines[i + 1:])
     return text
+
+def check_comm_paste_safe(path: Path, text: str, fm: dict | None) -> list[Finding]:
+    """An outgoing email body is pasted into Outlook or Gmail, which render neither
+    markdown tables nor blockquotes — both have shipped to real recipients as literal
+    `|` grids and `>` characters (RETRO-23). Prose or bullets are the substitute.
+
+    Scoped deliberately to `sent/` + `channel: email`. A `received/` body is a faithful
+    capture of what arrived: a table in it is CORRECT, and `>`-prefixed lines are the
+    normal quoted-thread shape. WhatsApp and meetings are not pasted anywhere."""
+    if fm is None or path.name != "body.md":
+        return []
+    if path.parent.parent.name != "sent" or fm.get("channel", "") != "email":
+        return []
+    body = FENCED_CODE_RE.sub("", body_after_frontmatter(text))
+    findings: list[Finding] = []
+    for rule_line, label, substitute in (
+            (COMM_MD_TABLE_RE, "markdown table", "a bulleted list or short labelled lines"),
+            (COMM_MD_QUOTE_RE, "markdown blockquote", "plain prose, or 'X wrote:' before the text")):
+        m = rule_line.search(body)
+        if m:
+            n = body[:m.start()].count("\n") + 1
+            findings.append(Finding("communications", str(path), "communication-paste-unsafe",
+                                    "violation",
+                                    f"{label} at body line ~{n} — Outlook/Gmail do not render it; "
+                                    f"use {substitute}"))
+    return findings
 
 def check_body_language(type_name: str, path: Path, text: str) -> Finding | None:
     """Warn when a knowledge artifact's body reads Spanish-dominant (D-04:
@@ -1240,6 +1296,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                 bpf = check_backlog_placeholder_body(path, text)
                 if bpf:
                     file_findings.append(bpf)
+            if type_name == "communications":
+                file_findings.extend(check_comm_paste_safe(path, text, fm))
             if type_name == "plans":
                 file_findings.extend(check_plan_phase_gates(path, text, fm))
                 file_findings.extend(check_plan_tests_field(path, text, fm))

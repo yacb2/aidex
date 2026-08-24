@@ -97,7 +97,8 @@ updated: 2026-06-17
 ```
 
 - `channel` — one of `email | whatsapp | other`.
-- `direction` — `received | sent`; mirrors the folder it lives in.
+- `direction` — `received | sent`; mirrors the folder it lives in. Checked:
+  a mismatch is `communication-direction-mismatch` (either move the entry or fix the field).
 - `from` / `to` — free text; whatever identifies the parties.
 - `subject` — the subject line, or a short topic for channels without one.
 - `status` — `draft` while composing an outgoing message, `sent` once it has gone out (or
@@ -134,6 +135,28 @@ updated: 2026-06-10
 The body is free-form prose. For async, the message text or summary. For a meeting/call,
 notes organized however fits — a common shape is **Agenda · Notes · Decisions · Action
 items**.
+
+#### Paste-safe constraint — outgoing email only
+
+An outgoing email body does not stay in markdown: it is pasted into Outlook or Gmail,
+neither of which renders markdown. Two constructs have reached real recipients broken —
+a table arriving as a literal `|` grid, and a blockquote arriving as literal `>`
+characters. So a `sent/` entry with `channel: email` must **not** contain:
+
+- **markdown tables** — use a bulleted list, or short `Label — value` lines
+- **markdown blockquotes** — write plain prose, or introduce the quoted text with
+  `Ana escribió:` and indent it
+
+Everything else stays available: bold, links and bullets survive a paste in both clients.
+
+The constraint is scoped deliberately. A `received/` body is a faithful capture of what
+arrived, so a table in it is *correct* and `>`-prefixed lines are the ordinary quoted-thread
+shape; WhatsApp and `meetings/` bodies are never pasted into a mail client. `validate.py`
+enforces exactly that scope as `communication-paste-unsafe`.
+
+When a recipient genuinely needs a rendered table, emit a `body.html` **alongside**
+`body.md` and paste that instead — attachments sit next to the body by design, and an
+`.html` companion needs no new tier.
 
 ---
 
@@ -174,6 +197,22 @@ This exemption is scoped to the **body and the human-facing front-matter values*
 is the only `.context/` type with such an exemption — everywhere else, English always.
 
 ---
+
+## Pre-canonical body filenames
+
+Before the layout settled, entry bodies were written as `email.md` or `conversation.md`.
+Both mean `body.md`. `validate.py` reports them as `communication-legacy-body-name`, and
+the rename is a single pass:
+
+```bash
+bash ~/.claude/skills/aidex-comm/scripts/migrate-communications.sh
+```
+
+It only touches files sitting directly inside a `<YYYY-MM-DD>-<slug>/` entry folder, never
+attachments, and refuses any rename that would clobber an existing `body.md`. Unlike the
+`drafts/` rename below, this one is safe to run unprompted *when the user asks for the
+migration* — it changes a filename inside an already-canonical folder, not the folder
+someone navigates by.
 
 ## Migrating from `drafts/`
 
