@@ -94,6 +94,15 @@ errors, fall back to the [autonomy canon](../aidex-conventions/references/autono
 and proceed. This is the gate that turns "I resolved 2, the other 15 need you" into "I
 resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
+**Running a whole batch of XS/S items** is a different problem from working one, and
+it has its own policy: **[references/sweep-execution-policy.md](references/sweep-execution-policy.md)**.
+Read it before starting a sweep. In short — `scripts/sweep-eligible.py --size XS,S`
+partitions the open set, and an item enters the run only when its Acceptance block says
+what done means; per-item verification is the targeted test only, with the full suite
+run once before merge; any suite longer than the foreground tool ceiling runs detached.
+Size was the wrong gate: measured on a 34-item sweep, the two worst items took four
+commits each and both had no Acceptance.
+
 ---
 
 ## Entry format
