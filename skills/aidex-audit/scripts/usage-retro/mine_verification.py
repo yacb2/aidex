@@ -87,7 +87,45 @@ def test_outcome(txt):
         return 'pass'
     if re.search(r'\b\d+\s+(error|errors)\b', txt, re.I):
         return 'fail'
+    # go test: `ok  <pkg> 0.5s` / a FAIL line. Anchored to line starts so prose
+    # mentioning "ok" cannot pass a run.
+    if re.search(r'^\s*FAIL\b', txt, re.M) or re.search(r'Failed Tests \d+', txt):
+        return 'fail'
+    if re.search(r'^ok\s+\S', txt, re.M):
+        return 'pass'
+    # a bare `ok` as the whole result (rtk's tersest summary)
+    if re.fullmatch(r'ok\.?', txt.strip(), re.I):
+        return 'pass'
+    # this repo's own bash suites: `OK — <summary>` on success, `N failure(s)`
+    # on failure (never printed with N=0).
+    m = re.search(r'\b(\d+)\s+failure\(s\)', txt)
+    if m:
+        return 'fail' if int(m.group(1)) > 0 else 'pass'
+    if re.search(r'^OK\s*\u2014', txt, re.M):
+        return 'pass'
     return 'unknown'
+
+
+def unknown_shape(txt):
+    """Bucket an unparseable test-run result by WHAT it is, so the report can
+    say `unparseable by shape: ...` instead of one opaque count (BL-207 —
+    37% of a real window was unparseable and indistinguishable)."""
+    t = (txt or "").strip()
+    if not t:
+        return "empty"
+    if re.fullmatch(r'Exit code \d+\.?', t):
+        return "exit-code-only"
+    if re.search(r'command not found|No such file or directory|Traceback \(most recent', t):
+        return "tool-noise"
+    if re.search(r'^SKIP', t, re.M):
+        return "skip"
+    if t == "(Bash completed with no output)":
+        return "no-output"
+    if "did not complete within" in t and "timeout" in t:
+        return "timed-out"
+    if "test session starts" in t or t.endswith("\u23af"):
+        return "truncated"
+    return "other"
 
 
 def result_text(o):
@@ -165,6 +203,7 @@ def main():
     targets = load_targets(args.data_dir, args.min_edits, since_dt)
 
     per = {}
+    unknown_shapes = Counter()
     for k, sessions in targets.items():
         proj, slug = k
         files = [f for d in M.tx_dirs_for(proj) for f in glob.glob(d + "*.jsonl")
@@ -201,6 +240,8 @@ def main():
                             kind, _ = pending.pop(tid)
                             if kind == 'test':
                                 oc = test_outcome(txt)
+                                if oc == 'unknown':
+                                    unknown_shapes[unknown_shape(txt)] += 1
                                 ev.append((ts, 'test_' + ('fail' if oc == 'fail'
                                            else 'pass' if oc == 'pass' else 'unknown'), ''))
                     t = M.user_text(o)
@@ -239,6 +280,9 @@ def main():
     print(f"  items where a test command ran: {ran}/{n} = {ran/n*100:.0f}%")
     print(f"  test runs: fail={sum(x['test_fail'] for x in v)} pass={sum(x['test_pass'] for x in v)} "
           f"unparseable={sum(x['test_unknown'] for x in v)}")
+    if unknown_shapes:
+        print("  unparseable by shape: "
+              + " ".join(f"{k}={c}" for k, c in unknown_shapes.most_common()))
     print(f"  items where NO test ever ran:   {n-ran}/{n} = {(n-ran)/n*100:.0f}%")
     print(f"\n--- who caught the defect (totals across all items)")
     tot_tc = sum(x['test_caught'] for x in v)
@@ -257,7 +301,10 @@ def main():
     with_t = [x for x in band if x['ran_tests']]
     no_t = [x for x in band if not x['ran_tests']]
     for nm, g in (("tests ran", with_t), ("no tests ran", no_t)):
+        # An empty side is said out loud: a one-row table silently missing its
+        # counterpart reads as a comparison when there is none (BL-207).
         if not g:
+            print(f"  {nm:14s} n=  0  — no comparison group")
             continue
         print(f"  {nm:14s} n={len(g):3d}  user-defects/item {st.mean([x['user_defect'] for x in g]):.2f}"
               f"  median edits {st.median([x['edits'] for x in g]):.0f}")
