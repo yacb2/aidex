@@ -4,7 +4,9 @@
 # valid module-map; a missing-key map dies with ERROR:; matches() honors ** glob
 # scoping; repo_for() resolves both repos; commits_since() counts real commits
 # for in-repo globs and 0 for out-of-repo globs; count_tests() counts test( /
-# def test_ occurrences.
+# it( / def test_ occurrences and not describe/hook/step calls. Plus the
+# review-2026-08-23 regressions: wildcard-above-repo globs, ** segment
+# anchoring, trailing-slash dirs, load_map shape checks, non-ASCII paths.
 #
 # Run with: bash skills/aidex-audit/tests/test-coverage-lib.sh
 
@@ -126,6 +128,95 @@ assert n_py == 1, n_py
 print('OK')
 ")"
 [[ "$out" == "OK" ]] || fail "count_tests(): $out"
+
+# --- commits_since(): a glob whose first wildcard sits ABOVE the repo path
+# (review 2026-08-23 #32: `**/views.py` matched the files but counted 0 commits
+# because the repo-prefix filter dropped the glob) ---
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+m = lib.load_map('$WS')
+backend = next(r for r in m['repos'] if r['name'] == 'backend')
+n = lib.commits_since('$WS', backend, '1970-01-01', ['**/views.py'])
+assert n >= 1, n
+n2 = lib.commits_since('$WS', backend, '1970-01-01', ['*/apps/billing/**'])
+assert n2 >= 1, n2
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "commits_since() glob with wildcard above repo path: $out"
+
+# --- glob_to_re(): a mid-path ** re-anchors at a segment boundary (#38),
+# and a trailing-slash directory glob matches its contents (#34) ---
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+assert lib.matches('a/xb', ['a/**/b']) is False
+assert lib.matches('a/b', ['a/**/b']) is True
+assert lib.matches('a/x/y/b', ['a/**/b']) is True
+assert lib.matches('backend/apps/old_views.py', ['backend/**/views.py']) is False
+assert lib.matches('backend/apps/billing/views.py', ['backend/**/views.py']) is True
+assert lib.matches('backend/apps/auth/x.py', ['backend/apps/auth/']) is True
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "glob_to_re() ** segment anchoring / trailing slash: $out"
+
+# --- count_tests(): structural calls (describe/beforeEach/step) and
+# RegExp.test( are not tests; it( is (#33) ---
+mkdir -p "$TMP/cnt"
+cat > "$TMP/cnt/a.spec.ts" <<'EOF'
+test.describe('suite', () => {
+  test.beforeEach(async () => {});
+  it('a', async () => { await test.step('s', () => {}); });
+  it('b', () => {});
+});
+EOF
+cat > "$TMP/cnt/b.test.ts" <<'EOF'
+it('a', () => {}); it('b', () => {}); test('c', () => {}); const ok = /x/.test(s);
+EOF
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+assert lib.count_tests('$TMP/cnt', ['a.spec.ts']) == 2, lib.count_tests('$TMP/cnt', ['a.spec.ts'])
+assert lib.count_tests('$TMP/cnt', ['b.test.ts']) == 3, lib.count_tests('$TMP/cnt', ['b.test.ts'])
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "count_tests() it()/describe rules: $out"
+
+# --- load_map: repos [] (#43), string-typed src (#63) and invalid JSON (#59)
+# all die with ERROR: instead of yielding an all-zero result ---
+for case in 'repos-empty:{"version": 2, "repos": [], "modules": [{"id": "m", "src": ["a/**"], "tests": {}}]}' \
+            'src-string:{"version": 2, "repos": [{"name": "r", "path": "."}], "modules": [{"id": "m", "src": "a/**", "tests": {}}]}' \
+            'not-json:{not json'; do
+  name="${case%%:*}"; body="${case#*:}"
+  D="$TMP/$name"
+  mkdir -p "$D/.context/audits/test-coverage"
+  printf '%s' "$body" > "$D/.context/audits/test-coverage/module-map.json"
+  out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+lib.load_map('$D')
+" 2>&1)"
+  rc=$?
+  [[ $rc -ne 0 ]] || fail "load_map on $name should exit non-zero"
+  printf '%s' "$out" | grep -q "ERROR:" || fail "load_map on $name should say ERROR:, got: $out"
+done
+
+# --- list_files(): a non-ASCII path arrives unquoted (#46: git's default
+# core.quotePath C-quotes it, and the quoted name matches no glob) ---
+U="$TMP/unicode-repo"
+mkdir -p "$U/api"
+printf 'def test_a():\n    pass\n' > "$U/api/tést.py"
+printf 'def test_b():\n    pass\n' > "$U/api/plain.py"
+git -C "$U" init -q && git -C "$U" add -A && git -C "$U" -c user.email=t@e.com -c user.name=T commit -q -m init
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+files = lib.list_files('$U', [{'name': 'r', 'path': '.'}])
+assert sorted(files) == ['api/plain.py', 'api/tést.py'], files
+assert lib.count_tests('$U', [f for f in files if lib.matches(f, ['api/**'])]) == 2
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "list_files() non-ASCII path: $out"
 
 rm -rf "$WS"
 

@@ -48,9 +48,10 @@ _SEGMENT = r"[^/'\"`?\s]+"
 # the failure mode the board exists to expose, so it is the side that gets the
 # strict rule. The preceding character may be anything that is not part of a
 # longer path or identifier; `*` and `/` are excluded so that a `*/` comment
-# terminator or a `//` cannot pass as the root route.
+# terminator or a `//` cannot pass as the root route, and `@`/`~` so that a
+# Vite alias import (`from '@/login'`) is not a visit to `/login`.
 _ROUTE_END = r"(?=['\"`?#])"
-_ROUTE_START = r"(?<![\w*./-])"
+_ROUTE_START = r"(?<![\w*./@~-])"
 
 
 def route_regex(path):
@@ -94,7 +95,7 @@ def e2e_spec_index(root, files, modules):
     """
     globs = []
     for mod in modules:
-        globs.extend((mod.get("tests", {}) or {}).get("e2e", []) or [])
+        globs.extend(lib.e2e_globs(mod))
     matched = [f for f in files if lib.matches(f, globs)]
     specs = [f for f in matched if E2E_SPEC_RE.search(f)]
     # A project whose specs use none of the known naming conventions would
@@ -166,18 +167,16 @@ def route_rows(mod, spec_index):
 def module_row(root, files, mod, spec_index):
     src = [f for f in files if lib.matches(f, mod.get("src", []))]
 
-    tests = mod.get("tests", {}) or {}
-    unit_globs = tests.get("unit", []) or []
-    e2e_globs = tests.get("e2e", []) or []
+    unit_globs = (mod.get("tests", {}) or {}).get("unit", []) or []
     unit_files = [f for f in files if lib.matches(f, unit_globs)]
-    e2e_files = [f for f in files if lib.matches(f, e2e_globs)]
+    e2e_files = [f for f in files if lib.matches(f, lib.e2e_globs(mod))]
+    # "The module's test files" is every kind, not unit + e2e: the columns
+    # report those two, but a file under a third kind is mapped (never
+    # "unmapped") and a module with only that kind is not NO TESTS.
+    all_test_files = [f for f in files if lib.matches(f, lib.test_globs(mod))]
 
     unit_tests = lib.count_tests(root, unit_files)
     e2e_tests = lib.count_tests(root, e2e_files)
-
-    total_test_files = 0
-    for kind_globs in tests.values():
-        total_test_files += len([f for f in files if lib.matches(f, kind_globs or [])])
 
     surfaces = mod.get("surfaces")
     surface_files = 0
@@ -190,7 +189,7 @@ def module_row(root, files, mod, spec_index):
     routes, unmapped_actions = route_rows(mod, spec_index)
     uncovered = [r for r in routes if not r["covered"]]
 
-    notes = "NO TESTS" if total_test_files == 0 else "—"
+    notes = "NO TESTS" if not all_test_files else "—"
 
     return {
         "id": mod["id"],
@@ -206,7 +205,7 @@ def module_row(root, files, mod, spec_index):
         "routes_total": len(routes),
         "routes_uncovered": len(uncovered),
         "notes": notes,
-    }, unit_files + e2e_files, unmapped_actions
+    }, all_test_files, unmapped_actions
 
 
 def find_unmapped_test_files(files, mapped_test_files):
@@ -314,15 +313,17 @@ def render_markdown(data):
         else:
             lines.append("None.")
         lines.append("")
-        if data["unmapped_actions"]:
-            lines.append("### Actions on an undeclared route")
-            lines.append("")
-            lines.append("Declared under `surfaces.actions` with a `route` no `surfaces.routes` "
-                         "entry declares — a defect in the map, not in the router:")
-            lines.append("")
-            for a in data["unmapped_actions"]:
-                lines.append(f"- `{a['route']}` -> {a['action']} ({a['module']})")
-            lines.append("")
+    # Outside `if routes:` on purpose: a v1 map has no route board at all, and
+    # that is exactly when every action it declares is orphaned.
+    if data["unmapped_actions"]:
+        lines.append("### Actions on an undeclared route")
+        lines.append("")
+        lines.append("Declared under `surfaces.actions` with a `route` no `surfaces.routes` "
+                     "entry declares — a defect in the map, not in the router:")
+        lines.append("")
+        for a in data["unmapped_actions"]:
+            lines.append(f"- `{a['route']}` -> {a['action']} ({a['module']})")
+        lines.append("")
 
     lines.append("## Unmapped test files")
     lines.append("")

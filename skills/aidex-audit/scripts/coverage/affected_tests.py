@@ -6,9 +6,10 @@ CLI: affected_tests.py <workspace-root> [--since <ref>] [--command]
 
 --command prints ONE runnable unit-test command per repo (paths merged) and
 nothing else, so a caller can run the selection directly instead of composing it
-from the human-readable report. Exit 3 means "no selection available" — no map, no
-changed files, or nothing matched — and the caller must fall back to the full suite
-and say so.
+from the human-readable report. Exit 3 means "no selection available" — no map, git
+failure, no changed files, nothing matched, or only advisories (e2e-only match,
+no test_hint) — and the caller must fall back to the full suite and say so. The
+reason is always on stderr.
 
 Changed-file collection per repo:
   - default: working tree + staged (`git status --porcelain`)
@@ -36,20 +37,16 @@ import defect_prone
 # Anything that is not a path or a glob. `--command` output is executed by the
 # caller, so a map entry containing any of these is refused, not emitted.
 #
-# The leading `-`/`~` alternative is not cosmetic: paths are joined with spaces,
-# so a rel of exactly `-rf` or `--rootdir=x` arrives at the runner as an OPTION,
-# not a path, and `~` is expanded by the shell before the runner sees it. The
-# metacharacter class alone missed these — it only looks for a dash *after*
-# whitespace, and the first path in the join has none.
-UNSAFE = re.compile(r'[;&|`$(){}<>\n\r\\"\']|\s-{1,2}\w|^[-~]')
+# Whitespace is in the class because paths are joined with spaces and never
+# quoted (globs must expand): a rel containing a space word-splits into two bogus
+# paths, and one that *starts* with a dash (`-rf`, `--rootdir=x`) arrives at the
+# runner as an OPTION, not a path — hence the leading `-`/`~` alternative (`~` is
+# expanded by the shell before the runner sees it).
+UNSAFE = re.compile(r'[;&|`$(){}<>\s\\"\']|^[-~]')
 
 
 class UnsafeMapEntry(Exception):
     """A module-map path that cannot be safely rendered into a shell command."""
-
-
-def repo_dir_for(root, repo):
-    return root if repo["path"] in (".", "") else os.path.join(root, repo["path"])
 
 
 def repo_prefix_for(repo):
@@ -58,8 +55,8 @@ def repo_prefix_for(repo):
 
 def parse_status_line(line):
     """`git status --porcelain` line -> repo-relative path (last token, handles
-    rename arrows and quoted paths)."""
-    rest = line[3:] if len(line) > 3 else line.strip()
+    rename arrows and quoted paths). Every line is `XY<space><path>`."""
+    rest = line[3:]
     if " -> " in rest:
         rest = rest.split(" -> ")[-1]
     return rest.strip().strip('"')
@@ -67,7 +64,7 @@ def parse_status_line(line):
 
 def status_changes(root, repo):
     """Working tree + staged changes for one repo, as workspace-relative paths."""
-    repo_dir = repo_dir_for(root, repo)
+    repo_dir = lib.repo_dir(root, repo)
     out = lib.git(repo_dir, "status", "--porcelain")
     prefix = repo_prefix_for(repo)
     files = []
@@ -81,7 +78,10 @@ def status_changes(root, repo):
 def diff_changes(root, repo, since):
     """Changes since `since` for one repo. Returns None (with a stderr warning)
     if `since` doesn't resolve in this repo's history."""
-    repo_dir = repo_dir_for(root, repo)
+    repo_dir = lib.repo_dir(root, repo)
+    # Kept as a direct subprocess.run rather than lib.git on purpose: lib.git
+    # sys.exit()s on any non-zero return, and a ref missing from ONE repo must be
+    # a warning + skip (repos have independent histories), not a hard stop.
     check = subprocess.run(
         ["git", "-C", repo_dir, "rev-parse", "--verify", "--quiet", since],
         capture_output=True, text=True,
@@ -99,11 +99,17 @@ def diff_changes(root, repo, since):
 
 def collect_changed_files(root, repos, since):
     files = []
+    skipped = 0
     for repo in repos:
         changed = diff_changes(root, repo, since) if since else status_changes(root, repo)
         if changed is None:
+            skipped += 1
             continue
         files.extend(changed)
+    # Skipping one repo is a partial result; skipping ALL of them is "nothing was
+    # checked", which must not come back as "nothing changed".
+    if since and repos and skipped == len(repos):
+        sys.exit(f"ERROR: ref {since!r} not found in any repo — nothing was checked")
     return files
 
 
@@ -149,12 +155,14 @@ def affected_modules(root, repos, modules, changed_files):
         unmapped = [f for f in unmapped if f not in matched]
 
         groups = []
-        for kind in ("unit", "e2e"):
-            globs = tests.get(kind) or []
-            if not globs:
-                continue
-            display_dir, hint = render_hint(root, repos, globs[0])
-            groups.append((kind, display_dir, hint))
+        # Every kind, not ("unit", "e2e"): the keys are open-ended
+        # (06-test-coverage.md), and a module mapped only through a third kind
+        # read as "no tests mapped". A non-e2e kind runs through the repo's
+        # test_hint exactly as unit does.
+        for kind, kind_globs in tests.items():
+            for glob in kind_globs or []:
+                display_dir, hint = render_hint(root, repos, glob)
+                groups.append((kind, display_dir, hint))
 
         rows.append({"id": mod["id"], "groups": groups, "changed": matched})
     return rows, sorted(set(unmapped))
@@ -188,7 +196,10 @@ def render(rows, unmapped, n_changed):
 
 
 def render_commands(root, repos, rows, unmapped):
-    """One runnable unit-test command per repo, or None when there is nothing to run.
+    """One runnable unit-test command per repo plus `#` advisory lines, or None when
+    there is nothing at all to say. Advisories are emitted even when no command
+    renders: main() decides between exit 0 and exit 3 by whether a runnable line
+    exists, so an e2e-only or no-test_hint match still tells the caller why.
 
     Why combined and not per-module (BL-135): a containerised run carries a fixed
     per-invocation floor — `docker compose run --rm` has a 15 s median and a 114 s p90
@@ -211,7 +222,10 @@ def render_commands(root, repos, rows, unmapped):
     by_repo = {}          # repo name -> (test_hint, [repo-relative dirs])
     e2e_specs = []
     no_command = []       # affected modules that yield no runnable command
+    no_tests = []         # affected modules with no tests mapped at all
     for row in rows:
+        if not row["groups"]:
+            no_tests.append(row["id"])
         for kind, display_dir, hint in row["groups"]:
             if kind == "e2e":
                 e2e_specs.append(display_dir)
@@ -238,7 +252,7 @@ def render_commands(root, repos, rows, unmapped):
                 raise UnsafeMapEntry(
                     f"unsafe path in module-map for repo {name!r}: {rel!r} "
                     f"contains {bad.group(0)!r}. --command output is executed; "
-                    "only glob characters (* ? [ ]) are allowed beyond a path.")
+                    "only glob characters (* ?) are allowed beyond a path.")
     for spec in e2e_specs:
         bad = UNSAFE.search(spec)
         if bad:
@@ -248,13 +262,14 @@ def render_commands(root, repos, rows, unmapped):
     lines = []
     for _, (hint, rels) in sorted(by_repo.items()):
         lines.append(hint.replace("{path}", " ".join(rels)))
-    if not lines:
-        return None
     if no_command:
         mods = ", ".join(sorted(set(no_command)))
         lines.append(f"# INCOMPLETE: {len(set(no_command))} affected module(s) have no "
                      f"runnable command (no test_hint on their repo): {mods} — "
                      "their tests are NOT in the selection above")
+    if no_tests:
+        lines.append(f"# INCOMPLETE: {len(no_tests)} changed module(s) have no tests mapped: "
+                     + ", ".join(sorted(no_tests)))
 
     # An unmapped change means the selection does not cover everything that moved.
     # Saying so is the difference between a faster loop and a false all-clear.
@@ -264,7 +279,10 @@ def render_commands(root, repos, rows, unmapped):
     if e2e_specs:
         lines.append("# e2e specs affected (run via the project's test-e2e.sh, never directly): "
                      + " ".join(sorted(set(e2e_specs))))
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else None
+
+
+USAGE = "usage: affected_tests.py <workspace-root> [--since <ref>] [--command]"
 
 
 def main():
@@ -274,31 +292,38 @@ def main():
     positional = []
     i = 0
     while i < len(args):
-        if args[i] == "--command":
+        if args[i] in ("-h", "--help"):
+            print(__doc__)
+            sys.exit(0)
+        elif args[i] == "--command":
             as_command = True
             i += 1
         elif args[i] == "--since":
             if i + 1 >= len(args):
-                sys.exit("usage: affected_tests.py <workspace-root> [--since <ref>]")
+                sys.exit(USAGE)
             since = args[i + 1]
             i += 2
+        elif args[i].startswith("-"):
+            sys.exit(f"unknown option {args[i]!r}\n{USAGE}")
         else:
             positional.append(args[i])
             i += 1
     if not positional:
-        sys.exit("usage: affected_tests.py <workspace-root> [--since <ref>]")
+        sys.exit(USAGE)
     root = positional[0]
 
     try:
         m = lib.load_map(root)
         changed_files = collect_changed_files(root, m["repos"], since)
     except SystemExit as e:
-        # --command is consumed by a caller deciding what to run, so a missing map is
-        # "no selection available" (exit 3), not a hard error. The caller falls back to
-        # the full suite and says why — a silent empty result would read as "nothing to
-        # run", inverting the always-on verification rule at the loop level.
+        # --command is consumed by a caller deciding what to run, so a missing map or
+        # a git failure is "no selection available" (exit 3), not a hard error. The
+        # caller falls back to the full suite and says why — a silent empty result
+        # would read as "nothing to run", inverting the always-on verification rule
+        # at the loop level. The real error text still goes out, or the operator is
+        # sent hunting for the wrong cause.
         if as_command:
-            print("# no module-map — no selection available; run the full suite", file=sys.stderr)
+            print(f"# {e} — no selection available; run the full suite", file=sys.stderr)
             sys.exit(3)
         print(e, file=sys.stderr)
         sys.exit(2)
@@ -336,6 +361,12 @@ def main():
         if cmds is None:
             print("# changed files match no mapped module — no selection available; "
                   "run the full suite", file=sys.stderr)
+            sys.exit(3)
+        if not any(not line.startswith("#") for line in cmds.splitlines()):
+            # Only advisories (e2e pointer, INCOMPLETE reasons): nothing runnable, so
+            # they belong on stderr and the exit is the full-suite fallback.
+            print(cmds, file=sys.stderr)
+            print("# no runnable unit selection; run the full suite", file=sys.stderr)
             sys.exit(3)
         print(cmds)
         sys.exit(0)

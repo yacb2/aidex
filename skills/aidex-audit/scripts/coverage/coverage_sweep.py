@@ -4,10 +4,12 @@
 CLI: coverage_sweep.py <workspace-root> [--since ISO]
 
 Advisory only. Prints a ranked plain-text table of per-module drift and never
-runs anything (exit code always 0, mirroring backlog sweep.sh's dry-run
-philosophy). The high-signal event is the asymmetry "commits touched a module's
-src but not its tests" since the last coverage matrix — the proforma-16338
-failure mode.
+runs anything. Exit 0 whenever it ran, flagged rows or not (backlog sweep.sh's
+dry-run philosophy); exit 2 when it could not run at all — no or invalid
+module-map, a bad flag — so that a broken map is never read as "drift" (exit 1
+is config_check's drift code in this script family). The high-signal event is
+the asymmetry "commits touched a module's src but not its tests" since the last
+coverage matrix — the proforma-16338 failure mode.
 
 Baseline (reference date) per module, first match wins:
   1. --since flag
@@ -40,6 +42,13 @@ def matrix_path(root):
 def resolve_since(root, cli_since):
     """(since_for_git, display_date, baseline_label). First match wins."""
     if cli_since:
+        # git's approxidate turns an unparsable --since into "now" (or a
+        # mangled nearby date) and still exits 0, so a typo prints a table of
+        # zeros labelled "since <typo>" — the all-clear the sweep exists to catch.
+        try:
+            datetime.fromisoformat(_date_part(cli_since))
+        except ValueError:
+            usage(f"--since must be an ISO date, got {cli_since!r}")
         return cli_since, _date_part(cli_since), "--since flag"
     mp = matrix_path(root)
     if os.path.isfile(mp):
@@ -78,21 +87,15 @@ def load_stored(root):
     return {r["id"]: r for r in data.get("modules", [])}
 
 
-def test_globs(mod):
-    tests = mod.get("tests", {}) or {}
-    return (tests.get("unit") or []) + (tests.get("e2e") or [])
-
-
 def module_drift(root, repos, files, mod, since, stored):
     src_globs = mod.get("src", [])
-    t_globs = test_globs(mod)
+    t_globs = lib.test_globs(mod)  # every kind, so a third kind is not read as src-only drift
 
     src_commits = sum(lib.commits_since(root, r, since, src_globs) for r in repos)
     test_commits = sum(lib.commits_since(root, r, since, t_globs) for r in repos)
 
     cur_src = len([f for f in files if lib.matches(f, src_globs)])
-    e2e_globs = (mod.get("tests", {}) or {}).get("e2e", []) or []
-    cur_specs = len([f for f in files if lib.matches(f, e2e_globs)])
+    cur_specs = len([f for f in files if lib.matches(f, lib.e2e_globs(mod))])
 
     row = stored.get(mod["id"], {})
     stored_src = row.get("src_files", 0)
@@ -165,6 +168,11 @@ def render(rows, display_date, baseline_label):
     return "\n".join(lines)
 
 
+def usage(msg):
+    print(f"{msg}\nusage: coverage_sweep.py <workspace-root> [--since ISO]", file=sys.stderr)
+    sys.exit(2)
+
+
 def main():
     args = sys.argv[1:]
     cli_since = None
@@ -176,18 +184,26 @@ def main():
             sys.exit(0)
         if args[i] == "--since":
             if i + 1 >= len(args):
-                sys.exit("usage: coverage_sweep.py <workspace-root> [--since ISO]")
+                usage("--since requires a value")
             cli_since = args[i + 1]
             i += 2
+        elif args[i].startswith("-"):
+            # A misspelled flag used to land in positional[1:] and vanish, so
+            # `--sinc 2020-01-01` ran a baseline-dated sweep that looked answered.
+            usage(f"unknown flag: {args[i]}")
         else:
             positional.append(args[i])
             i += 1
-    if not positional:
-        sys.exit("usage: coverage_sweep.py <workspace-root> [--since ISO]")
+    if len(positional) != 1:
+        usage("expected exactly one <workspace-root>")
     root = positional[0]
 
-    m = lib.load_map(root)
-    files = lib.list_files(root, m["repos"])
+    try:
+        m = lib.load_map(root)
+        files = lib.list_files(root, m["repos"])
+    except SystemExit as e:
+        print(e.code, file=sys.stderr)
+        sys.exit(2)  # could not run — distinct from 0 (ran) and from drift elsewhere
     since, display_date, baseline_label = resolve_since(root, cli_since)
     stored = load_stored(root)
 

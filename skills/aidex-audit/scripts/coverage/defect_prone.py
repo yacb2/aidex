@@ -44,6 +44,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _coverage_lib as lib
+from coverage_matrix import E2E_SPEC_RE
 
 DATA_REL = os.path.join(".context", "audits", "test-coverage", "defect-prone.jsonl")
 
@@ -108,10 +109,12 @@ def gap_for(path, modules, tracked):
     mod = next((m for m in modules if lib.matches(path, m.get("src", []) or [])), None)
     if mod is None:
         return "no module in the map — the gap cannot even be located"
-    e2e_globs = (mod.get("tests", {}) or {}).get("e2e") or []
+    e2e_globs = lib.e2e_globs(mod)
     if not e2e_globs:
         return f"module {mod['id']} — no e2e tests mapped"
-    if not any(lib.matches(f, e2e_globs) for f in tracked):
+    # A tracked file under the glob is not a spec (a route-constants table sits
+    # there too); the name filter is the matrix's, so the two agree.
+    if not any(E2E_SPEC_RE.search(f) and lib.matches(f, e2e_globs) for f in tracked):
         return f"module {mod['id']} — e2e mapped but no spec files exist"
     return None
 
@@ -131,10 +134,21 @@ def section(root, repos, modules, changed_files):
                 f"(expected paths under {workspace_prefix(root)!r}) — "
                 f"the data file was produced elsewhere; nothing was checked")
 
+    # Decided before the no-hits return: the typed NOTE exists for the file that
+    # flagged nothing, so it must print exactly when there is nothing else to print.
+    note = None
+    if (meta or {}).get("denominator") == "typed":
+        note = ("NOTE: this data file was produced with --denominator typed, which "
+                "raises the base rate ~3x and can leave nothing flagged. Regenerate "
+                "with --denominator all if the list looks empty.")
+    elif meta is None:
+        note = ("NOTE: data file carries no meta line — base rate and denominator "
+                "unknown, so the threshold behind these flags is unverifiable.")
+
     hits = [(rows[f], f) for f in sorted(set(changed_files))
             if f in rows and rows[f].get("flagged")]
     if not hits:
-        return None
+        return f"DEFECT-PRONE DATA — nothing flagged in this diff. {note}" if note else None
 
     suppressed = [f for _, f in hits if NOT_COVERABLE.search(f)]
     candidates = [(r, f) for r, f in hits if not NOT_COVERABLE.search(f)]
@@ -170,11 +184,6 @@ def section(root, repos, modules, changed_files):
         lines.append(f"  suppressed: {len(suppressed)} migration"
                      f"{'s' if len(suppressed) != 1 else ''} "
                      "(not a surface an E2E spec can cover)")
-    if (meta or {}).get("denominator") == "typed":
-        lines.append("  NOTE: this data file was produced with --denominator typed, which "
-                     "raises the base rate ~3x and can leave nothing flagged. Regenerate "
-                     "with --denominator all if the list looks empty.")
-    elif meta is None:
-        lines.append("  NOTE: data file carries no meta line — base rate and denominator "
-                     "unknown, so the threshold behind these flags is unverifiable.")
+    if note:
+        lines.append("  " + note)
     return "\n".join(lines)

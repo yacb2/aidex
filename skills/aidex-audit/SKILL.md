@@ -242,7 +242,7 @@ natural moments when src is likely to have outpaced tests —
 - after **closing a plan** that touched tracked paths,
 - after **any incident** (something broke → coverage was probably thin there).
 
-It is advisory (always exits 0): a ranked table of modules whose src commits moved
+It is advisory (exit 0 whenever it runs; 2 when it cannot — no/invalid map, bad flag): a ranked table of modules whose src commits moved
 without their tests since the last matrix. Act on the flagged rows with
 `/aidex-audit new test-coverage <slug>` scoped to them, then regenerate the matrix.
 `aidex-plan-exec` (at plan close) and `aidex-bugfix` (at GREEN) surface a one-line

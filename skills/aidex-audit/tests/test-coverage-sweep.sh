@@ -102,5 +102,49 @@ out_e="$(python3 "$SWEEP" "$WS" 2>/dev/null)"
   || fail "(e) billing src_commits should sum both repos to 5: $(echo "$out_e" | grep billing)"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (f) CLI hygiene: a malformed --since (#47) and an unknown flag (#60) are
+#     usage errors, never a legitimate-looking table; a missing module-map is
+#     a hard error with exit 2, distinct from config_check's exit 1 = drift (#59)
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+out_f="$(python3 "$SWEEP" "$WS" --since garbage 2>/dev/null)"; rc=$?
+[[ $rc -ne 0 ]] || fail "(f) --since garbage must exit non-zero (got $rc)"
+echo "$out_f" | grep -q 'COVERAGE SWEEP' && fail "(f) --since garbage must not print a table: $out_f"
+out_f2="$(python3 "$SWEEP" "$WS" --sinc 2020-01-01 2>/dev/null)"; rc=$?
+[[ $rc -ne 0 ]] || fail "(f) unknown flag --sinc must exit non-zero (got $rc)"
+echo "$out_f2" | grep -q 'COVERAGE SWEEP' && fail "(f) unknown flag must not print a table: $out_f2"
+rm -rf "$WS"
+NOMAP="$(mktemp -d)"
+git -C "$NOMAP" init -q
+err_f="$(python3 "$SWEEP" "$NOMAP" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 2 ]] || fail "(f) missing module-map must exit 2 (got $rc): $err_f"
+echo "$err_f" | grep -q 'ERROR:' || fail "(f) missing module-map must say ERROR: on stderr: $err_f"
+rm -rf "$NOMAP"
+
+# ---------------------------------------------------------------------------
+# (g) a third test kind counts as test commits (#48): a commit touching only
+#     an `integration` test must not read as src-only drift
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+python3 "$MATRIX" "$WS" >/dev/null || fail "(g) matrix generation failed"
+python3 - "$WS/.context/audits/test-coverage/module-map.json" <<'PYK'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for mod in m['modules']:
+    if mod['id'] == 'billing':
+        mod['tests']['integration'] = ['backend/apps/billing/integration/**']
+json.dump(m, open(sys.argv[1], 'w'), indent=2)
+PYK
+mkdir -p "$WS/backend/apps/billing/integration"
+printf 'def test_i():\n    assert True\n' > "$WS/backend/apps/billing/integration/test_i.py"
+git -C "$WS/backend" add -A
+GIT_AUTHOR_DATE="2099-01-01T00:00:00" GIT_COMMITTER_DATE="2099-01-01T00:00:00" \
+  git -C "$WS/backend" commit -q -m "billing: integration test"
+out_g="$(python3 "$SWEEP" "$WS" 2>/dev/null)"
+[[ "$(echo "$out_g" | field billing 3)" == "1" ]] \
+  || fail "(g) billing test_commits should count the integration kind (1): $(echo "$out_g" | grep billing)"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — coverage-sweep drift: no-drift baseline, flagged RE-RUN, no-matrix warning, --since override, multi-repo sum"
+echo "OK — coverage-sweep drift: no-drift baseline, flagged RE-RUN, no-matrix warning, --since override, multi-repo sum, CLI hygiene, open-ended test kinds"

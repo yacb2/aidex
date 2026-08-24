@@ -261,5 +261,41 @@ echo "$out_k" | grep -q 'NO E2E: module people' \
   || fail "(k) a worktree checkout should still match the collapsed prefix: $out_k"
 rm -rf "$WT"
 
+# ---------------------------------------------------------------------------
+# (l) typed denominator and NOTHING flagged — the exact case the NOTE exists
+#     for ("can leave nothing flagged"). It was emitted only after the
+#     no-hits early return, so the empty-by-construction file was consumed
+#     silently.
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+PFX="$(basename "$WS")/"
+write_data "$WS" "$PFX" \
+  '{"meta": {"denominator": "typed", "base_rate": 0.485, "ratio": 2.0, "min_touches": 8}}' \
+  '{"file": "@backend/apps/people/views.py", "share": 0.30, "bug": 4, "touches": 13, "flagged": false}'
+echo x >> "$WS/backend/apps/people/views.py"
+out_l="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
+echo "$out_l" | grep -q 'denominator typed' \
+  || fail "(l) a typed data file with nothing flagged must still be called out: $out_l"
+rm -rf "$WS"
+
+# ---------------------------------------------------------------------------
+# (m) the e2e glob matches only a NON-spec helper (the fixture's routes.ts,
+#     the NS 2026-08-23 case). "A tracked file matches the glob" is not a
+#     spec; the matrix already filters by E2E_SPEC_RE and this must agree.
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+PFX="$(basename "$WS")/"
+git -C "$WS/frontend" rm -q tests/e2e/billing/a.spec.ts
+git -C "$WS/frontend" commit -qm "drop the spec, keep the route table"
+write_data "$WS" "$PFX" "$META" \
+  '{"file": "@backend/apps/billing/views.py", "share": 0.44, "bug": 39, "touches": 88, "flagged": true}'
+echo x >> "$WS/backend/apps/billing/views.py"
+out_m="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
+echo "$out_m" | grep -q 'e2e mapped but no spec files exist' \
+  || fail "(m) a non-spec file under the e2e glob is not cover: $out_m"
+echo "$out_m" | grep -q 'covered:' \
+  && fail "(m) zero specs must not read as covered: $out_m"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — defect-prone: silent without data, gap naming (no-module/no-e2e/no-specs), covered, migration suppressed+counted, prefix-mismatch named, --command stdout untouched but routed on stderr (incl. exit 3), typed-denominator flagged, worktree prefix collapse"
+echo "OK — defect-prone: silent without data, gap naming (no-module/no-e2e/no-specs), covered, migration suppressed+counted, prefix-mismatch named, --command stdout untouched but routed on stderr (incl. exit 3), typed-denominator flagged (with and without hits), non-spec helper is not cover, worktree prefix collapse"

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # coverage-sweep.sh — drift report: which modules changed without their tests
 # moving since the last matrix. Thin wrapper; all logic lives in
-# coverage/coverage_sweep.py. Advisory only (always exits 0).
+# coverage/coverage_sweep.py. Advisory only: exit 0 whenever it runs, 2 when it
+# cannot (no/invalid module-map, bad flag).
 #
 # Usage: coverage-sweep.sh [workspace-root] [--since ISO]
 #   workspace-root defaults to the discovered project root.
