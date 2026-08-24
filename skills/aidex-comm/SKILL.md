@@ -156,6 +156,16 @@ nothing of the same kind. Say which prior entries you leaned on.
 language; a Spanish thread stays Spanish even when the closest structural example is
 English. Borrow the shape, never the language.
 
+### The house style is already in the scaffolded body
+
+`new-communication.sh` reads `.context/communication-style.md` and renders its five axes —
+voice, sign-off, tone, address, date format — into the `body.md` it creates, so the draft
+starts in this workspace's voice instead of being corrected into it. A workspace with no
+profile gets the documented defaults; that is the normal case, not an error. Read the block
+at the top of the scaffolded file before writing, and if a correction keeps recurring on a
+sixth axis, record it in the profile rather than re-applying it. Full shape:
+`aidex-conventions/references/communication-conventions.md` § House style.
+
 ### An outgoing email body must survive a paste into Outlook or Gmail
 
 Neither client renders markdown, and the body is going to be pasted into one of them. Two

@@ -198,6 +198,36 @@ is the only `.context/` type with such an exemption — everywhere else, English
 
 ---
 
+## House style — the workspace communications profile
+
+A generated draft that gets the same five corrections applied by hand every time is a
+draft the tool wrote in the wrong voice. Those corrections are recorded once, per
+workspace, in `.context/communication-style.md`, and `new-communication.sh` renders them
+into every scaffolded `body.md` — at the point of writing, not as a later review step.
+
+The file is documentation first: prose explaining the choices, with one machine-readable
+fenced block under a `## Profile` heading. Only that block is parsed, and only these five
+keys (anything else in it is ignored, not rejected):
+
+```
+voice: first-person singular — never the editorial "we" for work one person did
+sign_off: none — the message ends with its last paragraph
+tone: cordial-professional — one line of courtesy opening and closing
+address: tú by default; usted when the interlocutor's register calls for it
+date_format: prose in the body's own language, e.g. "el 24 de agosto"
+```
+
+**A workspace with no profile is the normal case, not an error.** Each axis falls back on
+its own to the shipped default (`STYLE_DEFAULTS` in `new-communication.sh`), so a partial
+profile declaring only `tone` still gets the documented voice. The shape mirrors
+`.context/artifact-style.md`: a delta over a shipped system, never a second copy of it.
+
+Two things do **not** belong in a profile. **Language** — D-04 keeps every communication in
+its own native language, and pinning one would translate a supplier's thread. And
+**paste-safety** — "no markdown tables or blockquotes in an outgoing email" is a property
+of Outlook and Gmail, not of anyone's taste, so it is canon above and a `validate.py` rule,
+applying to every workspace.
+
 ## Pre-canonical body filenames
 
 Before the layout settled, entry bodies were written as `email.md` or `conversation.md`.

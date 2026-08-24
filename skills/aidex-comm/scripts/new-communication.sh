@@ -6,6 +6,11 @@
 #   <slug>: kebab-case identifier, e.g. "client-pricing-question"
 #   --channel: async only; defaults to email. Ignored for meeting/call (the kind is the channel).
 #
+# Reads the workspace communications style profile (.context/communication-style.md) and
+# renders it into the scaffolded body, so voice/sign-off/tone/address/date format are in
+# front of whoever writes the body instead of being corrected afterwards (BL-216). A
+# project with no profile gets the documented defaults, never an error.
+#
 # Scaffolds .context/communications/<folder>/<YYYY-MM-DD>-<slug>/body.md from the template.
 # received entries default to status=sent (a record); sent entries default to status=draft;
 # meeting/call entries default to status=sent (they already happened).
@@ -54,6 +59,83 @@ render_template() {
     content="$(printf '%s' "$content" | sed "s|{{$key}}|$val|g")"
   done
   printf '%s' "$content" > "$out"
+}
+
+# --- Communications style profile (BL-216) ---------------------------------------
+# Same shape as .context/artifact-style.md: a human-readable markdown file whose
+# machine-readable part is the first fenced block under `## Profile`. Five axes, each
+# with a shipped default, because a workspace with no profile must still scaffold.
+STYLE_PROFILE_REL=".context/communication-style.md"
+STYLE_AXES="voice sign_off tone address date_format"
+
+# Shipped defaults, one per axis. A case statement rather than an associative array:
+# macOS ships bash 3.2, where `declare -A` does not exist and the assignment fails
+# under `set -u` with an unhelpful "unbound variable" (caught in probe, 2026-08-24).
+style_default() {
+  case "$1" in
+    voice)       printf '%s' "first-person singular — never the editorial 'we' for work one person did" ;;
+    sign_off)    printf '%s' "none — the message ends with its last paragraph, no signature block" ;;
+    tone)        printf '%s' "cordial-professional — one line of courtesy opening and closing, plain vocabulary" ;;
+    address)     printf '%s' "mirror the interlocutor's own register" ;;
+    date_format) printf '%s' "spelled out in the body's own language (front-matter stays ISO per D-01)" ;;
+  esac
+}
+
+# Echo the profile's machine-readable part: the first fenced block under `## Profile`.
+# Same shape as .context/artifact-style.md — human-readable file, one parsed section.
+read_style_profile() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    /^##[[:space:]]+Profile[[:space:]]*$/ { in_section = 1; next }
+    in_section && /^##[[:space:]]/        { exit }
+    in_section && /^```/                  { in_fence = !in_fence; if (!in_fence) exit; next }
+    in_fence                              { print }
+  ' "$file"
+}
+
+# The value for one axis, or the shipped default when the profile omits it. Keys the
+# profile carries that are not axes are ignored rather than rejected: the file is
+# documentation first, config second.
+style_value() {
+  local axis="$1" file="$2" line val=""
+  while IFS= read -r line; do
+    case "$line" in
+      "$axis":*) val="${line#*:}" ;;
+      *) continue ;;
+    esac
+    val="${val# }"
+    val="${val%\"}"; val="${val#\"}"
+    [[ -n "$val" ]] && { printf '%s' "$val"; return 0; }
+  done < <(read_style_profile "$file")
+  style_default "$axis"
+}
+
+# Render the profile as the guidance block the body template embeds.
+style_block() {
+  local file="$1" axis
+  if [[ -f "$file" ]]; then
+    printf '     HOUSE STYLE (from %s — edit it there, not here):\n' "$STYLE_PROFILE_REL"
+  else
+    printf '     HOUSE STYLE (defaults — no %s in this workspace):\n' "$STYLE_PROFILE_REL"
+  fi
+  for axis in $STYLE_AXES; do
+    printf '       - %-12s %s\n' "$axis:" "$(style_value "$axis" "$file")"
+  done
+}
+
+# Swap the {{STYLE}} placeholder line for the rendered block. NOT done through
+# render_template: that one substitutes with sed, and a literal newline in a sed
+# replacement is invalid — a multi-line value would have silently mangled the file.
+inject_style() {
+  local out="$1" block_file="$2"
+  awk -v bf="$block_file" '
+    index($0, "{{STYLE}}") {
+      while ((getline line < bf) > 0) print line
+      close(bf); next
+    }
+    { print }
+  ' "$out" > "$out.tmp" && mv "$out.tmp" "$out"
 }
 
 usage() {
@@ -122,6 +204,10 @@ if [[ "$SYNC" -eq 1 ]]; then
 else
   render_template "$TEMPLATES_DIR/$TEMPLATE" "$OUT" \
     CHANNEL="$CHANNEL" DIRECTION="$KIND" STATUS="$STATUS" SLUG="$SLUG" DATE="$DATE_ISO"
+  STYLE_TMP="$(mktemp)"
+  style_block "$ROOT/$STYLE_PROFILE_REL" > "$STYLE_TMP"
+  inject_style "$OUT" "$STYLE_TMP"
+  rm -f "$STYLE_TMP"
 fi
 
 ok "Communication scaffolded: $OUT"
