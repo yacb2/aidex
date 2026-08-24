@@ -79,6 +79,13 @@ On critical flows (sign-up, checkout), with keyboard only and with screen reader
 - [ ] Are errors announced?
 - [ ] Is loading state announced?
 - [ ] Is the focus managed on navigation (SPA moves focus to new page's h1)?
+- [ ] **Is any truncated text recoverable?** Clipped labels — **table column headers** first,
+      then nav items, buttons, breadcrumbs and cell values — must either wrap or expose the
+      full string to assistive tech (`title`, `aria-label`) AND to a keyboard user. A tooltip
+      that only appears on hover fails both a screen-reader user and a keyboard-only one.
+      This sits outside the numbered WCAG list on purpose: it is adjacent to 1.4.4 and 1.4.10
+      but is not one of their success criteria, and the list above stays strictly WCAG. The
+      UX playbook carries the visual half as core check 11.
 
 ---
 
