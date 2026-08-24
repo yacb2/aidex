@@ -1,71 +1,58 @@
-# EchoLab editor-spec layer audit (`s3`)
+# E2E layer audit — the template (step v at full scale)
 
-**This file is a worked example, not generic canon.** It applies the
-[layer-assignment rubric](01-layer-model.md#the-layer-assignment-rubric) to one
-real suite (EchoLab's timeline E2E) so the transferable part — how a verdict is
-argued, what a `candidate` row looks like — can be read at full scale. On any
-other project, run [06-judgment-pass.md](06-judgment-pass.md) step v; do not
-look for your specs here.
+**This file is a skeleton, not an audit.** It carries the transferable part of a
+full-suite layer audit — the scope discipline, the row format, how a verdict is
+argued — with a fictional example row. Run it via
+[06-judgment-pass.md](06-judgment-pass.md) step v; the verdicts come from the
+[layer-assignment rubric](01-layer-model.md#the-layer-assignment-rubric) — "test
+the decision, not the pixels — except when the browser is what decides."
 
-Every non-`playback` spec in EchoLab's timeline E2E suite, judged against the
-[layer-assignment rubric](01-layer-model.md#the-layer-assignment-rubric) — "test the
-decision, not the pixels — except when the browser is what decides." One row per spec:
-what it actually asserts, and a verdict.
+A completed audit table is **project data, not skill canon**: it names real spec
+files and what they assert, so it lives in that project's own `.context/` (an
+audit run, or a reference next to the plan that ordered it) — never inside this
+installed-everywhere skill. The original worked example (EchoLab's timeline
+suite, 20 rows) was relocated out of the public repo for exactly that reason
+(BL-211); a completeness ratchet
+([tests/test-spec-audit-complete.sh](../tests/test-spec-audit-complete.sh))
+keeps gating it where it now lives.
 
-**Scope and provenance.** `frontend/tests/e2e/timeline/` in `echo_lab_ws` (audited
-2026-08-23, re-derived the same day) holds 33 specs: 13 matching `playback-*` (out of scope
-by decision — the browser is what decides there) and **20 not**, which is this audit's full
-denominator. It was 27/12/15 earlier on 2026-08-23; the five added rows arrived with the
-owner's own merge of the editor-week worktree into `main` (`78232e1`, 20:54) and were caught
-by the ratchet rather than noticed by hand, which is what the ratchet is for.
-`frontend/e2e/debug-sorting.spec.ts` sits outside every `testDir` in
-`playwright.config.ts`/`playwright.e2e.config.ts` and never runs; it is not part of this
-denominator. Re-derive the count at `frontend/tests/e2e/timeline` with:
+## Scope and provenance — pin these before the first row
 
-```bash
-ls *.spec.ts | grep -vc '^playback-'
-```
+- **Denominator, derived from disk, never transcribed:** name the spec
+  directory and the exclusion rule, and give the one-liner that re-derives the
+  count (e.g. `ls *.spec.ts | grep -vc '^playback-'`). A row set with no
+  derivable denominator cannot be checked for completeness.
+- **Out-of-scope classes go in the provenance note** ("13 matching `playback-*`
+  are out of scope by decision — the browser is what decides there"), so a
+  reader can tell scoped-out from missed.
+- **Date the audit.** Suites move; a ratchet catching rows the next merge adds
+  is the mechanism, not hand-vigilance.
 
-**Verdict key:** `E2E` — stays; the browser (real rendering, real focus/pointer/portal
-behaviour, real persistence timing, or a real cross-service payload a mock cannot vouch
-for) is what the assertion needs. `candidate` — the decision under test does not itself
-need a real browser/backend and a lower layer (component test, mocked-network
-integration test, or a pure unit) could observe the same failure.
+## Verdict key
 
-**This audit assigns no mover and performs no move** — Phase 11 is audit-only. A
-`candidate` row names the lower layer and the reason; deciding whether to actually move
-it, and doing so, is separate per-spec work sized once these verdicts exist.
+`E2E` — stays; the browser (real rendering, real focus/pointer/portal
+behaviour, real persistence timing, or a real cross-service payload a mock
+cannot vouch for) is what the assertion needs. `candidate` — the decision under
+test does not itself need a real browser/backend and a lower layer (component
+test, mocked-network integration test, or a pure unit) could observe the same
+failure.
+
+**An audit assigns no mover and performs no move.** A `candidate` row names the
+lower layer and the reason; deciding whether to actually move it, and doing so,
+is separate per-spec work sized once the verdicts exist.
+
+## Row format
+
+One row per spec: what it *actually asserts* (read the file, not its name), and
+a verdict argued against the rubric — the reason must name what a lower layer
+could or could not observe, not restate the verdict.
 
 | Spec | What it actually asserts | Verdict | Reason |
 |---|---|---|---|
-| `bulk-render-confirm.spec.ts` | Triggering bulk render past a 21-segment (>20) threshold pops a confirm dialog with the exact count and copy; cancelling does not render. | candidate | The eligible-segment *count* is a backend query (Layer 2 territory); the dialog's ">20 → confirm, cancel → no render" behaviour is pure logic over a count prop, observable with a mocked count at Layer 4/5. Nothing here needs a real browser. |
-| `editor-audio-sources.spec.ts` | The rendered lane set (DX stem, M&E) and their mute buttons come from the real assembled timeline payload; a pipeline-owned lane's menu omits rename/delete. | E2E | Self-documented: "the stem picker's own checked radio is the assertion a mocked timeline cannot vouch for: it is resolved from the real payload." Two lazy materializers run only on the real timeline GET — a mock would need to reproduce exactly the thing under test. |
-| `editor-load-budget.spec.ts` | `window.__editorLoadProbe` is absent by default and present (with a pinned report shape) only when the editor route carries `?perf=1`. | E2E | The flag is wired at real app bootstrap (query-param parsing → instrumentation install), not inside a mountable component. No lower layer observes `main.ts`-level wiring without standing up the real app and a real route. |
-| `generator-text.spec.ts` | The generator-text field is served by the real serializer, round-trips through a real `PATCH`, survives a full page reload, and the reloaded transcript still shows the deliverable script, never the adaptation. | E2E | Self-documented: "what only a real stack can vouch for is what this file covers: the field is served by the real serializer, persists through a real PATCH." The hash/hidden-cache semantics are already covered in pytest (`test_generator_text_*.py`) — this file deliberately covers only the cross-service round-trip, which is the part a mock would have to fake to test. |
-| `inspector-writing-first.spec.ts` | The writing tab's content clears the panel's scroll box at a real 1280×900 viewport (a pixel-layout claim); the selected tab survives a real reload via a debounced localStorage write; adopting a lane-default voice server-side makes an untouched second segment resolve one. | E2E | Self-documented on all three counts: happy-dom does no layout so a pixel-overflow claim cannot be made there; the reload path exercises a real debounce timer; the inheritance claim is checked on the server response, not the panel, and is explicitly "invisible from inside one segment's component test." |
-| `lane-language.spec.ts` | No lane's header ever shows the `und` sentinel; a narration lane shows the deliverable language, M&E shows none, and a source lane shows its own stem's language. | E2E | Self-documented: "this is E2E and not a component test on purpose: the value under test is SERVED, not rendered." The defect was a stored-column drift a component test cannot see because it only ever gets fed correct props. |
-| `media-harness.spec.ts` | A synthesized WAV is valid RIFF (one sub-case, already node-side and not E2E); media genuinely decodes in a real `<video>` with real HTTP Range requests honoured; a stalled stem lane is not fed until released. | E2E (the WAV-validity sub-case is already Layer 3, node-side, inside this same file) | Real browser codec decode and real Range-request negotiation are exactly rubric case 4 — "an actual browser... something jsdom/happy-dom does not implement." The harness's whole job is proving media truly plays, which is unfalsifiable outside a real browser. |
-| `replace-video-staged-recovery.spec.ts` | A staged/finished upload job (seeded into `localStorage`, and separately via a mocked video-detail response) makes the replace-video dialog reopen on the right step across a dialog close/reopen and a full page reload; a real multipart upload is never driven. | E2E | The mocking mechanics alone would argue `candidate`, but the file's own history overrides that: its last two tests exist because a server-signal regression "was found in the browser 2026-08-20 with all three suites green" — every earlier spec seeded only the browser-side store, and nothing asked what happens when ONLY the server knows. A component/MSW test is exactly the shape of the three suites that were green while that regression shipped; demoting this file would remove the one layer that caught it. |
-| `tooltip-after-dialog.spec.ts` | Closing a dialog by click (focus restored, not typed) leaves no stray tooltip behind; a neighbouring trigger then shows exactly one; a keyboard user still gets the tooltip on focus. | E2E | Self-documented: "this has to be E2E. The state is a real focus/pointer interaction across a dialog's close-and-restore, and the tooltip renders through a portal — a component test stubs away exactly the parts that produce the bug." |
-| `gap-to-ad-roundtrip.spec.ts` | Double-clicking a suggested gap creates the AD the server describes and it survives a reload; creating an AD from the lane menu POSTs a real segment and the new clip is the one selected. | E2E | Both paths are page-level orchestration whose primitive is mocked everywhere below: `usePromoteGap` is a bare `vi.fn()` in all ~14 EditorPage specs, so it resolves `undefined` and the `if (res?.segment)` branch is never taken. What is under test is the real POST and what the server hands back, which a mock of the primitive cannot vouch for. |
-| `multi-selection-block-move.spec.ts` | Every member of a dragged block lands on the same delta, keeps its duration and survives a reload; block-moving three approved clips leaves all three approved. | E2E | Two defects live in the seam between the drag and the fan-out, and each half is currently asserted against a mock of the other — the unit spec stops at the `segments-change` emit, the page spec hand-writes the payload against a stubbed `TimelineView`. "The page called mutation X" cannot catch "the WRONG row's id was passed". The approval claim is a real serializer side-effect: `approved_neighbours_now_overlapped` runs on every geometry PATCH and clears sign-off on a *transient* overlap the staggered commit creates, which only exists against a real server. |
-| `multi-selection-gestures.spec.ts` | The gesture matrix (what selects, adds, removes, narrows, and the two ways out); Backspace over the retakes lane takes the clip out of the lane and leaves the take alone; a block dragged at a locked clip stops at the wall instead of committing half of itself. | E2E | Written after a browser review found seven defects that 2,600 green unit tests had not. These three are about a real pointer sequence over real geometry rather than a component's props — the rubric's "the browser is what decides" case. The Backspace row also guards real data loss with no undo. |
-| `script-panel-gaps.spec.ts` | The script panel renders the timecode of a gap the detector actually produced, not an interval the panel invented. | E2E | Its own reason for existing is that nothing else at any level asserts a gap row a user can see came from the detector: the fix it guards landed with a unit call-site guard only, because "every existing test calls `buildRows(segments, gaps)` directly with gaps already in hand, so the body was covered and the call site was not". It was authored RED before the merge and GREEN after, which is what turned a "should survive the merge" into a measurement. |
-| `script-search-replace.spec.ts` | Replace-all writes each hit to its own field, leaves the locked line alone, and reports what it skipped. | E2E | The 1,726-line unit suite mocks the store, the scroller, permissions and prefs, so "which segment id a replace PATCHes" is asserted against the mock and the row-index-to-segment mapping is stubbed away. The three failures that would actually destroy a script — writing to the wrong row's id, writing `text` where the hit was in `generator_text`, and mutating a locked line the server must refuse — are all outside its reach by construction. |
-| `track-options-menu.spec.ts` | The M&E track keeps its options trigger (same as an editable track); the AD lane's menu keeps four daily actions at the top level and groups the rest into exactly seven items. | candidate | The underlying decision (`trackHasMenuActions` → always true) already has its own unit test (`utils/trackMenu.test.ts`). What is asserted here is menu *shape* given a track's kind and its available actions — pure rendering logic, reachable with a mounted component and a fixture track object, no real backend or real focus/portal mechanics required. |
-| `track-properties.mutating.spec.ts` | Setting a lane's default voice round-trips through a real (deliberately delayed) `PATCH` and survives reload; a new segment's create payload omits `voice_profile` entirely; the voice chip never overflows a 144px header at real layout; destructive menu items are absent. | E2E | Two independent E2E-only claims: a real pixel-overflow measurement (`boundingBox()`, explicitly "the assertion happy-dom cannot make: it does no layout") and a real database race — the delayed-PATCH test exists specifically because the regression "only loses under directory-run load," reproduced by holding the real request before the real server sees it. |
-| `track-sync-offset.mutating.spec.ts` | A typed sync-offset value reaches the `PATCH` body (not `0`), shows in the chip, and survives reload; a negative offset round-trips with its sign; reopening the dialog seeds the field from the lane's current value, not `0`. | E2E | Self-documented: the defect was in `Input.vue`'s native fallthrough-attr casting in a real DOM — "a harness that stubs the input away models a component that does not exist and passes on broken code." A sibling unit test (`TrackOffsetDialog.save.test.ts`) already drives the real `Input` component; this file closes the loop specifically "on the wire" (the real PATCH body). |
-| `video-delete-guard.spec.ts` | A video carrying authored segments renders its delete control disabled with a hoverable reason naming the alternative; a video with no segments renders it enabled and the confirm dialog enumerates what it destroys. | E2E | Self-documented: the server-side refusal is already covered by a backend test (`test_deleting_a_video_with_authored_ad_is_refused`); "what only an E2E can prove is that a describer meets the guard in the interface, is told why, and is pointed at the route that preserves her work" — an interface-guarantee claim, not a data claim. |
-| `video-upload.spec.ts` | A non-video file is rejected client-side with no upload attempted; an allowed video type is staged and shown; a staged (never-submitted) file does not survive a page reload. | candidate | No upload or transcription ever fires in this file (by design — in-memory files only) and no persisted server state is asserted. The MIME allowlist and the "unpersisted state does not survive a remount" claim are both pure component behaviour (`VideoUpload.vue`'s own client-side check), reachable by mounting the component directly with Vitest instead of a full editor page. |
-| `voice-param-overrides.spec.ts` | The three new `voice_settings` controls (stability/similarity/style) render in the AD-segment inspector, served by the real backend's new serializer fields, and an edit saves (the "sin guardar" badge clears). | E2E | The file's own docstring says the point: the controls are "served by the real backend with the new serializer fields." The claim under test is that the real serializer now emits `stability`/`similarity`/`style` and the frontend renders whatever it emits — a hand-written mock carrying those three fields would assert the mock, not the serializer change, the same reasoning `editor-audio-sources.spec.ts` states explicitly ("a mock would need to reproduce exactly the thing under test"). |
+| `example-form-confirm.spec.ts` | Submitting past a threshold pops a confirm dialog with the exact count; cancelling does not mutate. | candidate | The threshold-→-confirm behaviour is pure logic over a count prop, observable with a mocked count at the component layer. Nothing here needs a real browser. |
 
-**Tally (as of the 2026-08-23 audit date above, a derived observation, not a contract —
-kept as a hand count because the gate below checks rows, not verdicts; re-tally on edit):**
-20 rows. 17 `E2E`, 3 `candidate` (`bulk-render-confirm.spec.ts`,
-`track-options-menu.spec.ts`, `video-upload.spec.ts`). The five specs the merge added are all
-`E2E`, and none of them narrowly: each states in its own docstring which mock makes the claim
-unreachable below the browser.
+## Tally
 
-Source: `.context/plans/2026-08-22-suite-speed-and-coverage-rollout/11-e2e-layer-and-layout.md`
-Task 11.1, `s3`. Gated by
-`skills/aidex-coverage/tests/test-spec-audit-complete.sh`.
+Close with a hand tally (rows, `E2E` vs `candidate`, and which specs) marked as
+a derived observation, not a contract — the ratchet checks rows, not verdicts;
+re-tally on edit.

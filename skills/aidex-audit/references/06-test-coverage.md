@@ -86,6 +86,11 @@ workspace-root-relative).
   They are reported as a `scoped out: N` count (and `unmapped_scoped_out` in
   the JSON), never listed — so the unmapped list shows only new drift, not
   the ~90% intentional rows that buried echo_lab's real signal.
+- `modules[].has_surfaces` (JSON output) — emitted, read by nothing (BL-210).
+  Kept deliberately: the schema rule is "bump on key-set change", a bump makes
+  every already-generated matrix unrenderable until regenerated, and spending
+  that fleet-wide cost on deleting an unread boolean buys nothing. It leaves
+  with the next real key-set change, batched into the same `/3` bump.
 - `modules[].surfaces` — optional, and the one place where two value shapes
   live side by side:
   - **glob-shaped keys** (`endpoints`, and any project-specific key) — lists of

@@ -47,7 +47,7 @@ authoring rule for anyone writing a new coverage-bearing test.
 | What does current upstream documentation say about a specific correctness or cost trap in this stack? | [references/02-best-practices.md](references/02-best-practices.md) |
 | When do I extract a fixture? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | When does a frontend test file move to `__tests__/`? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
-| What does a full-scale layer audit of an E2E suite look like? (worked example, EchoLab) | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
+| How do I run a full-scale layer audit of an E2E suite? (template + row format) | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 | What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
 
@@ -92,10 +92,11 @@ not only when reviewing them later.
 
 ## How to use the E2E layer audit
 
-[references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) is a worked example,
-not generic canon: a verdict for every non-`playback` spec in EchoLab's timeline E2E suite, judged against the layer-
-assignment rubric above: `E2E` (stays) or `candidate` (a lower layer could observe the same
-failure). It is an audit, not a queue — a `candidate` verdict names the reason and the
+[references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) is the template:
+scope discipline, row format, and how a verdict is argued against the rubric above —
+`E2E` (stays) or `candidate` (a lower layer could observe the same failure). A completed
+table is project data and lives in that project's own `.context/`, never in this skill
+(BL-211). It is an audit, not a queue — a `candidate` verdict names the reason and the
 likely lower layer; deciding to move a spec, and moving it, is separate work.
 
 ## How to use diff-cover
