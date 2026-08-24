@@ -11,7 +11,10 @@ created: {{DATE}}
 updated: {{DATE}}
 ---
 
-<!-- Body text is in the NATIVE language of the communication.
+<!--
+{{STYLE}}
+
+     Body text is in the NATIVE language of the communication.
      Communications are EXEMPT from the English-only rule.
 
      OUTGOING EMAIL (sent/ + channel: email) is pasted into Outlook or Gmail, which
