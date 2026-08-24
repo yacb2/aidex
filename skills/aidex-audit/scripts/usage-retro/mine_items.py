@@ -319,9 +319,20 @@ def main():
     ap.add_argument("--out", default=".")
     ap.add_argument("--min-mentions", type=int, default=2,
                     help="attributed mentions required for a session to count as WORK")
+    ap.add_argument("--since", default="",
+                    help="ISO date: keep only spans whose last timestamp is on/after it "
+                         "(and skip transcript files not touched since — the speed win)")
     add_root_args(ap)
     args = ap.parse_args()
     configure(args)
+    since_dt = None
+    since_epoch = 0.0
+    if args.since:
+        try:
+            since_dt = datetime.datetime.fromisoformat(args.since + "T00:00:00+00:00")
+        except ValueError:
+            sys.exit(f"ERROR: --since must be an ISO date, got {args.since!r}")
+        since_epoch = since_dt.timestamp()
 
     items = build_registry()
     by_proj = defaultdict(list)
@@ -331,6 +342,7 @@ def main():
 
     spans = []
     n_unparseable = 0
+    n_files_before = 0
     for proj, its in sorted(by_proj.items()):
         # slug -> item ; id -> item (ids are project-scoped)
         slug_map = {it["slug"]: it for it in its}
@@ -345,6 +357,10 @@ def main():
             return {t for t in TOKEN.findall(s) if t in keys}
 
         files = [f for d in tx_dirs_for(proj) for f in glob.glob(d + "*.jsonl")]
+        if since_epoch:
+            live = [f for f in files if os.path.getmtime(f) >= since_epoch]
+            n_files_before += len(files) - len(live)
+            files = live
         for f in files:
             try:
                 raw = open(f, errors='replace').read()
@@ -435,6 +451,20 @@ def main():
                 span["working"] = is_working_span(span)
                 spans.append(span)
         print(f"  {proj}: {len([s for s in spans if s['project']==proj])} spans")
+
+    if since_dt is not None:
+        def _last_dt(s):
+            try:
+                return datetime.datetime.fromisoformat((s["last"] or "").replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        kept = [s for s in spans if (d := _last_dt(s)) is not None and d >= since_dt]
+        n_before = len(spans) - len(kept)
+        # Out loud, never silent — the mtime prefilter alone would otherwise
+        # make a windowed run indistinguishable from an empty corpus.
+        print(f"excluded {n_files_before} untouched file(s) and {n_before} span(s) "
+              f"before {args.since} (--since)")
+        spans = kept
 
     os.makedirs(args.out, exist_ok=True)
     with open(os.path.join(args.out, "items.jsonl"), "w") as fh:

@@ -65,6 +65,9 @@ prior_assistant, prior_skills, skills_fired }`.
   six patterns were unreachable and the sixth's only three hits over the whole corpus were genuine
   prompts that merely discussed the trigger-eval marker.
 - Cursor lineage: `--cursor` honors a prior `through` timestamp; `--since <N>d` or `--all` override.
+- `mine_items.py --since <ISO-date>`: keeps only spans whose `last` timestamp is
+  on/after the date, and skips transcript files not touched since (the ~4-min
+  full-corpus walk drops to the window). Exclusions are counted out loud.
   An unparseable cursor refuses rather than guessing a window.
 
 ### 2. prefilter.py (rank, don't classify)
