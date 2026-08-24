@@ -31,6 +31,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
 | `/aidex-backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
 | `/aidex-backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
+| `bash scripts/normalize-language.sh` | [scripts/normalize-language.sh](scripts/normalize-language.sh) | **Reports** backlog bodies that read Spanish-dominant (D-04). Read-only, and it translates nothing — rewriting an item's prose is a human or assisted step, never automatic. No second detector: it filters `validate.py --type backlog --json` for `body-language-not-english`, so the sweep and the validator can never disagree. Exit 1 when any item is reported |
 | `bash scripts/sweep.sh [--apply\|--check]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default; `--check` is the dry-run that exits 1 on findings |
 | `bash scripts/reconcile.sh` | [scripts/reconcile.sh](scripts/reconcile.sh) | Read-only cross-artifact drift detector (shared): flags open backlog whose plan is done (close candidates) + done-without-commits. Exit 1 on actionable drift |
 | `bash scripts/migrate-ids.sh [--apply]` | [scripts/migrate-ids.sh](scripts/migrate-ids.sh) | Backfill stable `id: BL-NNN` into items predating the id scheme (D-09). Idempotent. **Only safe where every existing id already conforms** — it skips any file that has an id, and feeds every id's digits into its max, so one legacy `BL-20260610` makes it mint `BL-20260611`. Use `renumber-ids.py` where that is the case |
@@ -95,6 +96,12 @@ resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
 Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-bl-nnn-<slug>.md`, written by
 `register-item.sh` — front-matter followed by a Context / Acceptance / Notes body.
+
+**Write the entry in English (canon §Language, D-04)** — even when the conversation
+is in another language. The `description`/title and body are both English; only
+`communications/` bodies keep their native language. `register-item.sh`'s Context
+placeholder repeats this at the point of writing, and
+`bash scripts/normalize-language.sh` reports items that drifted.
 
 The complete front-matter schema is the single-source **12-field table** in
 [references/01-backlog-conventions.md](references/01-backlog-conventions.md#front-matter-required)
