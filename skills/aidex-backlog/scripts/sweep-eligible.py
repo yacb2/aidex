@@ -47,6 +47,33 @@ def acceptance_body(text):
     return '\n'.join(lines).strip()
 
 
+# §1b of the sweep policy, mechanized. Every one of these was learned from an item
+# that passed the Acceptance gate and had to be pulled after a full body read:
+# an owner call on a name already delivered, a backfill against a production
+# database, a fix living in another workspace, a fork with API-compat stakes.
+#
+# A signal does NOT exclude — it says "read this body before starting". Tried as an
+# auto-exclusion first and it gutted the queue: 38 of 48 items, because `\bMAC\b`
+# matches any passing mention of the client and `\bdroplet\b` any mention of where
+# the app runs. A regex over prose can say where to look; it cannot say what a
+# sentence means. So the run reads 10 bodies instead of 48, and still decides.
+_SIGNALS = [
+    (re.compile(r'\bowner call\b|\bowner\'s call\b|is an owner\b', re.I), 'owner call'),
+    (re.compile(r'\bdecide whether\b|\bdecided by\b|\ba decision is recorded\b', re.I), 'decision, not a task'),
+    (re.compile(r'_prod\b|\bproduction database\b|\bagainst prod\b', re.I), 'class 1 — production data'),
+    (re.compile(r'\bmust not be run\b|\bnot settleable\b|\bdo not run\b', re.I), 'explicitly not runnable here'),
+    (re.compile(r'\bdroplet\b|\bfirewall\b|\bsystemctl\b|\bnginx\b', re.I), 'class 1 — live server'),
+    (re.compile(r'\b\w+_ws/|\bboilerplate\b|\bbackport\b', re.I), 'outside this repo'),
+    (re.compile(r'\bMAC\b|\bthe client\b|\bthird party\b', re.I), 'depends on a third party'),
+    (re.compile(r'\bexceeds\b.{0,40}\bboundary\b|\bmore than the sweep\b', re.I), 'item says it exceeds the sweep'),
+]
+
+
+def body_signals(text):
+    """Reasons the body gives for why a run must not take this on."""
+    return sorted({label for rx, label in _SIGNALS if rx.search(text)})
+
+
 def parse(path):
     t = open(path).read()
     m = re.match(r'---\n(.*?)\n---', t, re.S)
@@ -62,6 +89,7 @@ def parse(path):
         'estimate': fm.get('estimate', '-'),
         'blocked_by': fm.get('blocked_by', ''),
         'acceptance': acceptance_body(t),
+        'signals': body_signals(t),
         'context': section(t, 'Context'),
     }
 
@@ -86,7 +114,7 @@ def main():
     if sizes:
         items = [i for i in items if i['estimate'].upper() in sizes]
 
-    eligible, needs = [], []
+    eligible, review, needs = [], [], []
     for i in items:
         if i['blocked_by']:
             i['reason'] = 'blocked_by ' + i['blocked_by']
@@ -94,6 +122,9 @@ def main():
         elif len(i['acceptance']) < 10:
             i['reason'] = 'no Acceptance'
             needs.append(i)
+        elif i['signals']:
+            i['reason'] = ', '.join(i['signals'])
+            review.append(i)
         else:
             eligible.append(i)
 
@@ -101,14 +132,20 @@ def main():
     rank = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4, '-': 5}
     eligible.sort(key=lambda i: (i['priority'], rank.get(i['estimate'].upper(), 9), i['file']))
 
+    review.sort(key=lambda i: (i['priority'], rank.get(i['estimate'].upper(), 9), i['file']))
+
     if a.json:
-        print(json.dumps({'eligible': eligible, 'needs_decision': needs}, indent=2))
+        print(json.dumps({'eligible': eligible, 'review': review, 'needs_decision': needs}, indent=2))
         return
 
     if not a.needs_decision:
-        print(f'ELIGIBLE ({len(eligible)}) — Acceptance filled, not blocked')
+        print(f'ELIGIBLE ({len(eligible)}) — Acceptance filled, no autonomy signal')
         for i in eligible:
             print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['title'][:70]}")
+        print()
+        print(f'REVIEW ({len(review)}) — defined, but read the body before starting')
+        for i in review:
+            print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason'][:34]:34} {i['title'][:40]}")
         print()
     print(f'NEEDS-DECISION ({len(needs)}) — route to the user, never into the run')
     for i in needs:

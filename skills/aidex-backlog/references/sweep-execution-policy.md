@@ -32,8 +32,15 @@ the run is *allowed* to do it, and the two are independent: an item can carry a
 perfect Acceptance block and still be a destructive op on a real database, a
 production infra change, a cross-repo edit, or a message to a client.
 
-So filter the ELIGIBLE list once more against `rules/autonomy.md`, and move to
-NEEDS-DECISION anything that is:
+`sweep-eligible.py` reports this as a third tier, **REVIEW** — items that are
+defined but whose body carries a signal the run must read before starting. The
+signals do not exclude, and that is a correction from the first trial: run as an
+auto-exclusion they took 38 of 48 items, because a regex matches any passing
+mention of the client or of the server the app runs on. A pattern over prose can
+say *where to look*; it cannot say what a sentence means. Ten bodies read instead
+of forty-eight, with the run still deciding, is the whole value.
+
+Move to NEEDS-DECISION anything that is:
 
 - **class 1** — touches real data or a production system (`... against <app>_prod`,
   firewall/DNS/server config, a destructive migration);
@@ -44,7 +51,10 @@ NEEDS-DECISION anything that is:
   would be inventing the answer.
 
 Where a `durability-arbiter` is available this is its call; where it is not, apply
-the list above. Getting this wrong in the permissive direction is the incident the
+the list above. Note what the signals still miss: an item titled "reactivate or
+remove X" or "decide where Y reconnects" is a decision that no phrase in the list
+matches, so a clean ELIGIBLE row is not a promise — it is the absence of a known
+warning. Getting this wrong in the permissive direction is the incident the
 autonomy canon exists to prevent, and an Acceptance block does not authorize
 anything — only the user does.
 
