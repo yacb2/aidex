@@ -29,6 +29,10 @@ def load_map(root, coverage_dir=None):
         for key in ("name", "path"):
             if key not in repo:
                 sys.exit(f"ERROR: repo {repo.get('name','?')} missing key: {key}")
+    if not isinstance(m.get("unmapped_ok", []), list):
+        # A string glob iterates character by character (same trap as tests
+        # kinds below) — "backend/**" would become the globs b, a, c, ...
+        sys.exit("ERROR: unmapped_ok must be a list of globs")
     for mod in m["modules"]:
         for key in ("id", "src", "tests"):
             if key not in mod:

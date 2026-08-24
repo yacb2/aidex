@@ -222,6 +222,41 @@ print('OK')
 ")"
 [[ "$out" == "OK" ]] || fail "third test kind must not be reported as unmapped: $out"
 
+# --- unmapped_ok: deliberate scope-out is counted, not listed (BL-205) ------
+WS3="$(bash "$TESTS_DIR/fixtures/coverage-workspace.sh")"
+MAP3="$WS3/.context/audits/test-coverage/module-map.json"
+python3 - "$MAP3" <<'PYOK'
+import json, sys
+m = json.load(open(sys.argv[1]))
+m["unmapped_ok"] = ["backend/apps/other/**"]
+json.dump(m, open(sys.argv[1], "w"), indent=2)
+PYOK
+mkdir -p "$WS3/backend/apps/other/tests"
+printf 'def test_z():\n    assert True\n' > "$WS3/backend/apps/other/tests/test_z.py"
+git -C "$WS3/backend" add -A
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS3" >/dev/null \
+  || fail "unmapped_ok run exited non-zero"
+out="$(python3 -c "
+import json
+data = json.load(open('$WS3/.context/audits/test-coverage/coverage-matrix.json'))
+assert 'backend/apps/other/tests/test_z.py' not in data['unmapped_test_files'], data['unmapped_test_files']
+assert data['unmapped_scoped_out'] == 1, data.get('unmapped_scoped_out')
+print('OK')
+")"
+[[ "$out" == "OK" ]] || fail "unmapped_ok JSON shape: $out"
+grep -q 'scoped out: 1' "$WS3/.context/audits/test-coverage/coverage-matrix.md" \
+  || fail "coverage-matrix.md must say 'scoped out: 1'"
+# a string glob would iterate character by character — reject it loudly
+python3 - "$MAP3" <<'PYBAD'
+import json, sys
+m = json.load(open(sys.argv[1]))
+m["unmapped_ok"] = "backend/**"
+json.dump(m, open(sys.argv[1], "w"), indent=2)
+PYBAD
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS3" >/dev/null 2>&1 \
+  && fail "a string unmapped_ok must be rejected, not iterated per character"
+rm -rf "$WS3"
+
 # --- --out: read the map from, and write outputs to, an external dir --------
 # BL-204: a read-only field run against a workspace you may not write into.
 WS2="$(bash "$TESTS_DIR/fixtures/coverage-workspace.sh")"
@@ -236,4 +271,4 @@ python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS2" --out "$OUT2" >/dev/nu
 rm -rf "$WS2" "$OUT2"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — coverage-matrix generation, billing/people rows, json shape, idempotency, hand-edit overwrite, unmapped noise filter"
+echo "OK — coverage-matrix generation, billing/people rows, json shape, idempotency, hand-edit overwrite, unmapped noise filter, unmapped_ok scope-out, --out"

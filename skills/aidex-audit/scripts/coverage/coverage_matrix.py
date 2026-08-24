@@ -239,6 +239,13 @@ def build_matrix(root, coverage_dir=None):
 
     unmapped = find_unmapped_test_files(files, all_mapped_test_files)
 
+    # Deliberate scope-out (BL-205): files matching the map's top-level
+    # `unmapped_ok` globs are counted, not listed — ~90% of echo_lab's 280
+    # "unmapped" rows were intentional, burying the real drift.
+    ok_globs = m.get("unmapped_ok") or []
+    scoped_out = [f for f in unmapped if lib.matches(f, ok_globs)]
+    unmapped = [f for f in unmapped if f not in set(scoped_out)]
+
     # The output the field exists for: a declared route no E2E spec ever visits.
     route_gaps = [
         {"module": r["id"], "path": rt["path"], "spec": rt["spec"]}
@@ -261,6 +268,7 @@ def build_matrix(root, coverage_dir=None):
         "modules": rows,
         "totals": totals,
         "unmapped_test_files": unmapped,
+        "unmapped_scoped_out": len(scoped_out),
         "route_gaps": route_gaps,
         "unmapped_actions": unmapped_actions,
     }
@@ -331,6 +339,9 @@ def render_markdown(data):
 
     lines.append("## Unmapped test files")
     lines.append("")
+    if data["unmapped_scoped_out"]:
+        lines.append(f"scoped out: {data['unmapped_scoped_out']} (map `unmapped_ok`)")
+        lines.append("")
     if data["unmapped_test_files"]:
         lines.append(
             "Tracked test files matching no module's test globs "
