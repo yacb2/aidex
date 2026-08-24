@@ -359,5 +359,6 @@ The NS Backoffice war stories, condensed:
 - **During iteration, run affected tests, not the suite.** Usage-retro 2026-08-23:
   of 18.2 h of timed test runs in one week, full-suite invocations were 57% of the
   >60s tail — while `affected-tests` (which maps a diff to the tests that reach it)
-  sat unused. The full suite is for the gate before a commit; the inner loop selects.
+  sat unused. The full suite is for the integration gate — merge, push, deploy, or the
+  end of a run; the inner loop selects.
   This is an adoption problem, not a tooling one — name it in the audit when you see it.

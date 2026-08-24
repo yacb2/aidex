@@ -162,10 +162,13 @@ For each phase in order:
    works (relevant test suite + type-check). **Iterate on the selection, not the
    whole suite:** `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command`
    prints one runnable command for the tests covering the phase's diff; exit 3 means
-   no selection is available, so run everything and say so. The **full suite still
-   gates the commit** at the between-phase checkpoint — selection speeds the inner
-   loop, never replaces the gate, and an `# INCOMPLETE` selection does not even do
-   that (BL-135). It also names changed files that **measurably break** and have no
+   no selection is available, so run everything and say so. The between-phase
+   checkpoint commits on the **selection**, stated rather than silent — say which
+   subset ran and that the full suite has not. **The full suite gates the INTEGRATION
+   boundary**: the merge, the push, or the end of the run
+   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`, partially
+   reversing BL-135). An `# INCOMPLETE` selection is the exception — unmapped scope
+   forces the full suite in-phase. It also names changed files that **measurably break** and have no
    E2E — write that spec in-phase (BL-133).
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.
