@@ -67,6 +67,32 @@ PROVEN_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$PROVE
 printf -- '\nRED: AssertionError expected full IBAN / GREEN: vitest 730/730\n' >> "$PROVEN"
 PROVEN_OUT="$(bash "$SCRIPTS/close-item.sh" "$PROVEN_ID" 2>&1 >/dev/null)"
 check "bug close with RED/GREEN line does not warn" '[[ "$PROVEN_OUT" != *"no RED->GREEN proof"* ]]'
+# proof_links written as a YAML block list — the shape the conventions document
+# and the shape `aidex-audit`'s own items use. Reading only the same-line value
+# made a correctly-proven item warn (found closing BL-229).
+BLOCK="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "block-list proof bug" --priority P2 --type bug 2>/dev/null)"
+BLOCK_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$BLOCK")"
+python3 - "$BLOCK" <<'EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+s = s.replace('commits: ""\n', 'commits: ""\nproof_links:\n  - ".context/proofs/x/run.txt"\n', 1)
+open(p, "w").write(s)
+EOF
+BLOCK_OUT="$(bash "$SCRIPTS/close-item.sh" "$BLOCK_ID" 2>&1 >/dev/null)"
+check "block-list proof_links counts as proof" '[[ "$BLOCK_OUT" != *"no RED->GREEN proof"* ]]'
+# and an EMPTY block list is still no proof
+EMPTYB="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "empty block proof bug" --priority P2 --type bug 2>/dev/null)"
+EMPTYB_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$EMPTYB")"
+python3 - "$EMPTYB" <<'EOF'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+s = s.replace('commits: ""\n', 'commits: ""\nproof_links:\n', 1)
+open(p, "w").write(s)
+EOF
+EMPTYB_OUT="$(bash "$SCRIPTS/close-item.sh" "$EMPTYB_ID" 2>&1 >/dev/null)"
+check "empty block list is still no proof" '[[ "$EMPTYB_OUT" == *"no RED->GREEN proof"* ]]'
 TASK_CLOSE="$(bash "$SCRIPTS/close-item.sh" "$TASK_ID" 2>&1 >/dev/null)"
 check "non-bug close never mentions the proof gate" '[[ "$TASK_CLOSE" != *"RED->GREEN"* ]]'
 

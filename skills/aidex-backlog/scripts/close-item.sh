@@ -122,8 +122,15 @@ fi
 if [[ "$STATUS" == "done" ]]; then
   ITEM_TYPE="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="type:"{print $2; exit}' "$FILE")"
   if [[ "$ITEM_TYPE" == "bug" ]]; then
-    PROOF="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="proof_links:"{
-      sub(/^[^:]*:[[:space:]]*/,""); print; exit}' "$FILE")"
+    # Both YAML shapes: `proof_links: [a, b]` on one line, and the block list
+    # the conventions document (`proof_links:` then indented `- ` entries).
+    # Reading only the same-line value made a correctly-proven item warn.
+    PROOF="$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit}
+      c==1 && $1=="proof_links:"{inline=$0; sub(/^[^:]*:[[:space:]]*/,"",inline); inlist=1; next}
+      c==1 && inlist{
+        if ($0 ~ /^[[:space:]]+-[[:space:]]*[^[:space:]]/) {found=1; exit}
+        else if ($0 ~ /^[^[:space:]]/) {inlist=0}}
+      END{print (found ? "LIST" : inline)}' "$FILE")"
     HAS_PROOF=1
     [[ -z "$PROOF" || "$PROOF" == "[]" || "$PROOF" == '""' ]] && HAS_PROOF=0
     if [[ $HAS_PROOF -eq 0 ]] && ! { grep -qE '\bRED\b' "$FILE" && grep -qE '\bGREEN\b' "$FILE"; }; then
