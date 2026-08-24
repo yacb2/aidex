@@ -107,6 +107,23 @@ an unbounded item and a queue that grows faster than the sweep drains it; the
 measured run deferred five of six discovered S items, which is the safe failure
 but leaves the queue growing.
 
+## 5b. Merge the trunk in BEFORE the end-of-batch gate, and expect it to cost
+
+A gate run on a branch the trunk has moved past proves less than it looks. Merging
+the trunk INTO the branch is routine class-4 work and ungated — do it first.
+
+Budget for it, though, when another session has been working the same repo. On the
+first trial the backend merged clean (the two sessions touched different apps) and
+the frontend did not: the other session had **split the i18n catalogue into modules**
+while this branch grew its copy, so git reported a 1,666-line conflict whose trunk
+side was empty. Taking either side loses strings, and the failure is silent — a
+dropped key renders as its own name.
+
+The rule that follows: **a conflict whose resolution is per-key across a moved file
+is not sweep work.** Abort it, register it with what was measured, and gate on the
+un-merged branch saying so. Resolving it badly at the end of a long run is how a
+sweep that closed nine items costs more than it saved.
+
 ## 6. What the run reports
 
 - items closed, with the commit per item (`close-item.sh --commit`);
