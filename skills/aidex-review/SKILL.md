@@ -1,6 +1,6 @@
 ---
 name: aidex-review
-description: 'Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "code review of src/panels", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app". Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (aidex-audit); fixing a specific known bug (aidex-bugfix).'
+description: 'Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app", "review the changes since Friday / this weekend" (the changes pick the modules, reviewed as they stand). Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (aidex-audit); fixing a specific known bug (aidex-bugfix).'
 argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--include-docs] [--go]"
 disable-model-invocation: false
 model-policy: inherit-session
@@ -29,6 +29,12 @@ bash "${CLAUDE_SKILL_DIR}/scripts/resolve-review-target.sh" <path>   # or --app
 
 There is **no default target**. If the user did not name one, ask — one line — and do
 not fall back to the repo root.
+
+**"Review the changes" resolves to the touched modules, not to a diff.** When the ask
+is "review the changes since Friday / this weekend's changes / lo que cambió esta
+semana", run `--touched-since <ref|date>` (no path): the changes decide WHICH modules,
+and each owning module is measured and reviewed as it stands — the untouched files
+included. A true diff review (a PR, a branch) still belongs to `/code-review`.
 
 **Tests are measured apart from source.** The reviewed set excludes test files by
 default and the size class comes from `source_loc`, not `loc` — otherwise a module is

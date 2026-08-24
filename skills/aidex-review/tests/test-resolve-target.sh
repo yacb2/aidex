@@ -426,8 +426,46 @@ else
   echo "  skip: no README at $README (installed tree) — cell 30 not exercised"
 fi
 
+# ── --touched-since: "review the changes since X" = the touched MODULES, as they
+#    stand (BL-209). Never a diff review: the module's untouched files are in the
+#    set too, and the measurement is per owning module.
+GITWS="$TMP/gitws"
+mkdir -p "$GITWS/alpha" "$GITWS/beta"
+printf 'a = 1\n' > "$GITWS/alpha/one.py"
+printf 'b = 2\n' > "$GITWS/alpha/two.py"
+printf 'c = 3\n' > "$GITWS/beta/three.py"
+git -C "$GITWS" init -q
+git -C "$GITWS" -c user.email=t@t -c user.name=t add -A >/dev/null
+GIT_AUTHOR_DATE="2020-01-01T00:00:00" GIT_COMMITTER_DATE="2020-01-01T00:00:00" \
+  git -C "$GITWS" -c user.email=t@t -c user.name=t commit -qm base
+printf 'a = 99\n' >> "$GITWS/alpha/one.py"
+git -C "$GITWS" add -A
+GIT_AUTHOR_DATE="2025-06-01T00:00:00" GIT_COMMITTER_DATE="2025-06-01T00:00:00" \
+  git -C "$GITWS" -c user.email=t@t -c user.name=t commit -qm change
+
+# 39. The touched module resolves whole: alpha was touched once but carries 2 files.
+out_ts="$( (cd "$GITWS" && bash "$RESOLVER" --touched-since 2025-01-01) 2>/dev/null )"
+rc_ts=$?
+[ "$rc_ts" = "0" ] || fail "--touched-since: expected exit 0, got $rc_ts"
+echo "$out_ts" | grep -q '^touched_files=1$' || fail "--touched-since: expected touched_files=1: $out_ts"
+echo "$out_ts" | grep -q '^module.alpha.files=2$' || fail "--touched-since: alpha must resolve AS IT STANDS (2 files): $out_ts"
+echo "$out_ts" | grep -q 'module.beta.' && fail "--touched-since: beta was not touched and must not appear: $out_ts"
+
+# 40. A ref works as the boundary too.
+first_sha="$(git -C "$GITWS" rev-list --max-parents=0 HEAD)"
+out_ref="$( (cd "$GITWS" && bash "$RESOLVER" --touched-since "$first_sha") 2>/dev/null )"
+echo "$out_ref" | grep -q '^module.alpha.files=2$' || fail "--touched-since <ref>: alpha expected: $out_ref"
+
+# 41. Combining with a path target is a usage error — the window names the scope.
+rc_mix="$( (cd "$GITWS" && bash "$RESOLVER" --touched-since 2025-01-01 alpha) >/dev/null 2>&1; echo $? )"
+[ "$rc_mix" = "2" ] || fail "--touched-since with a path: expected exit 2, got $rc_mix"
+
+# 42. An empty window is exit 3 — a fact to report, not a clean bill of health.
+rc_empty="$( (cd "$GITWS" && bash "$RESOLVER" --touched-since 2099-01-01) >/dev/null 2>&1; echo $? )"
+[ "$rc_empty" = "3" ] || fail "--touched-since empty window: expected exit 3, got $rc_empty"
+
 if [ "$FAILURES" -eq 0 ]; then
-  echo "OK — resolve-review-target: 38 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 5 prose lockstep, 4 named-target-vs-exclusion)"
+  echo "OK — resolve-review-target: 42 cells (3 refusals, 2 exclusions, 3 measurements, 2 bounds, 1 cost-floor lockstep, 4 test-vs-source, 3 depth-override, 9 partition, 2 doc-target, 5 prose lockstep, 4 named-target-vs-exclusion, 4 touched-since)"
   exit 0
 fi
 echo "FAIL — $FAILURES cell(s)"
