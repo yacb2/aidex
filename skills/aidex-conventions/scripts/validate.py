@@ -837,7 +837,40 @@ def check_body_language(type_name: str, path: Path, text: str) -> Finding | None
     knowledge artifacts are always English). Conservative by design — flags
     clearly-Spanish bodies only, never borderline bilingual quotes.
     communications/ are exempt (native language per D-04); loop STATE sidecars
-    (operational working state) and fenced code blocks are skipped."""
+    (operational working state) and fenced code blocks are skipped.
+
+    SEVERITY IS `warning`, DELIBERATELY (BL-227, decided 2026-08-24). The finding
+    that raised it is right that a rule which cannot fail the exit code is a
+    convention rather than enforcement — the decision rests on what the standing
+    waivers turned out to be, not on disagreeing with that. All 43 in this repo were
+    audited and none is a D-04 violation parked out of sight:
+
+      - 31 are rendered .html artifacts the project writes in Spanish ON PURPOSE, by
+        the `language:` field of its own `.context/artifact-style.md`. This checker
+        does not read that profile, so promotion would hard-fail a project on output
+        its own declared style authorises. Reading the profile is the fix for those,
+        not a harsher severity.
+      - 9 are frozen historical markdown (pre-enforcement research and plans from
+        2026-04/05) that nobody will rewrite.
+      - 1 is a verbatim corpus of the user's own Spanish prompts, quoted as evidence.
+        Translating it destroys the thing it exists to carry, so there is no remedy a
+        violation could demand.
+
+    Two mechanics also argue against it. Archive-on-close (D-10) is mandatory and
+    moves files, orphaning path-keyed waivers — 2 of the 43 were already dead from
+    exactly that within days, and one had started warning. Promotion would turn
+    routine archiving into a hard build failure at an unrelated moment. And the slice
+    where language leakage actually mattered, the backlog, already gates at exit 1
+    through aidex-backlog/scripts/normalize-language.sh (BL-226), which filters this
+    rule's JSON rather than reimplementing it.
+
+    The middle option — `violation` for .md, `warning` for .html — was considered and
+    rejected: it adds a second severity axis to a rule whose value is being one rule,
+    and all ten markdown waivers are the frozen-or-verbatim cases above, so the split
+    would hard-fail every one of them with no correct fix available.
+
+    Revisit if the waiver set starts accumulating LIVE markdown that could simply have
+    been written in English. That, not the raw count, is the signal."""
     if type_name == "communications":
         return None
     if is_loop_state_sidecar(type_name, path):
