@@ -68,7 +68,11 @@ WALK_MAX_DEPTH = 6
 def _walk(root):
     root = os.path.abspath(root)
     base_depth = root.rstrip(os.sep).count(os.sep)
-    for dirpath, dirnames, filenames in os.walk(root):
+    # followlinks: a symlink-built scratch workspace (the BL-204 read-only
+    # field run) read every discovery-based key as a silent n/a because
+    # os.walk never descends symlinked dirs by default. WALK_MAX_DEPTH
+    # bounds any symlink cycle.
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         depth = dirpath.rstrip(os.sep).count(os.sep) - base_depth
         if depth >= WALK_MAX_DEPTH:
             dirnames[:] = []

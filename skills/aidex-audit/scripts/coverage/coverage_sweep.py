@@ -21,6 +21,10 @@ Drift score, simple and explainable:
 where new_untested_surfaces = max(0, current_src_files - stored_src_files).
 Surfaces are counted from tracked files (git ls-files), the same method the
 matrix uses, so current - stored is apples-to-apples.
+
+--out <dir>: read module-map.json from, and write any output to, <dir>
+instead of <workspace-root>/.context/audits/test-coverage — the read-only
+mode for auditing a workspace you must not write into (BL-204).
 """
 import json
 import os
@@ -35,11 +39,12 @@ import _coverage_lib as lib
 RERUN_THRESHOLD = 3
 
 
-def matrix_path(root):
-    return os.path.join(root, ".context", "audits", "test-coverage", "coverage-matrix.json")
+def matrix_path(root, coverage_dir=None):
+    return os.path.join(coverage_dir or os.path.join(
+        root, ".context", "audits", "test-coverage"), "coverage-matrix.json")
 
 
-def resolve_since(root, cli_since):
+def resolve_since(root, cli_since, coverage_dir=None):
     """(since_for_git, display_date, baseline_label). First match wins."""
     if cli_since:
         # git's approxidate turns an unparsable --since into "now" (or a
@@ -50,7 +55,7 @@ def resolve_since(root, cli_since):
         except ValueError:
             usage(f"--since must be an ISO date, got {cli_since!r}")
         return cli_since, _date_part(cli_since), "--since flag"
-    mp = matrix_path(root)
+    mp = matrix_path(root, coverage_dir)
     if os.path.isfile(mp):
         with open(mp) as f:
             gen = json.load(f).get("generated")
@@ -77,9 +82,9 @@ def _date_part(s):
     return s.split("T")[0] if "T" in s else s
 
 
-def load_stored(root):
+def load_stored(root, coverage_dir=None):
     """module id -> stored matrix row, {} if no matrix on disk."""
-    mp = matrix_path(root)
+    mp = matrix_path(root, coverage_dir)
     if not os.path.isfile(mp):
         return {}
     with open(mp) as f:
@@ -169,13 +174,15 @@ def render(rows, display_date, baseline_label):
 
 
 def usage(msg):
-    print(f"{msg}\nusage: coverage_sweep.py <workspace-root> [--since ISO]", file=sys.stderr)
+    print(f"{msg}\nusage: coverage_sweep.py <workspace-root> [--since ISO] [--out <dir>]",
+          file=sys.stderr)
     sys.exit(2)
 
 
 def main():
     args = sys.argv[1:]
     cli_since = None
+    out_override = None
     positional = []
     i = 0
     while i < len(args):
@@ -186,6 +193,11 @@ def main():
             if i + 1 >= len(args):
                 usage("--since requires a value")
             cli_since = args[i + 1]
+            i += 2
+        elif args[i] == "--out":
+            if i + 1 >= len(args):
+                usage("--out requires a value")
+            out_override = args[i + 1]
             i += 2
         elif args[i].startswith("-"):
             # A misspelled flag used to land in positional[1:] and vanish, so
@@ -199,13 +211,13 @@ def main():
     root = positional[0]
 
     try:
-        m = lib.load_map(root)
+        m = lib.load_map(root, out_override)
         files = lib.list_files(root, m["repos"])
     except SystemExit as e:
         print(e.code, file=sys.stderr)
         sys.exit(2)  # could not run — distinct from 0 (ran) and from drift elsewhere
-    since, display_date, baseline_label = resolve_since(root, cli_since)
-    stored = load_stored(root)
+    since, display_date, baseline_label = resolve_since(root, cli_since, out_override)
+    stored = load_stored(root, out_override)
 
     rows = [
         module_drift(root, m["repos"], files, mod, since, stored)
