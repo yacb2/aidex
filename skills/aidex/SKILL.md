@@ -22,6 +22,8 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
+| **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.aidex/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
+| **Workspace root** | `~/Documents/projects/` (the folder holding the projects) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups moved to `~/.aidex/backups/` in `1627663`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.aidex/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
 | **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
 
 ---
@@ -63,6 +65,22 @@ never writes to a project.
 4. For rule-propagation drift specifically (a project restating a globally-owned
    rule, or `skillOverrides` that contradict one), run
    `python3 ~/.aidex/skills/aidex/scripts/conformance-sweep.py` instead.
+5. For what has accumulated OUTSIDE the projects — at the workspace root itself — run
+   `python3 ~/.aidex/skills/aidex/scripts/root-litter-sweep.py`. Each finding is
+   labelled `aidex` or `foreign`: aidex leaving something behind is a bug in aidex,
+   you leaving something behind is information, and the two must not read the same.
+   **Report the categories and offer to act; never act on them yourself.** Several are
+   things a person keeps on purpose — an `_archive/` is a decision, not a mistake.
+
+6. Before trusting any of the auditor's own configuration advice — especially after
+   updating Claude Code — run
+   `python3 ~/.aidex/skills/aidex/scripts/surface-drift-check.py`. It names which
+   recommendations have not been checked against the installed version. Re-verify the
+   named rows (ask the `claude-code-guide` agent, not memory), then bump the version
+   column in `references/06-claude-code-surface.md`. Unchanged behaviour is the normal
+   outcome and bumping the column IS the work: it converts "nobody has looked" into
+   "checked on this version". This exists because the auditor once recommended removing
+   plugins that were fine, and nothing made that visible.
 
 Cadence and engine are yours to pick: it is a plain command, so schedule it with a
 routine, cron, or `/loop`. Nothing about the schedule is baked into the script.
