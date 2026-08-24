@@ -34,6 +34,19 @@ def section(text, name):
     return re.sub(r'<!--.*?-->', '', m.group(1), flags=re.S).strip()
 
 
+# The register-item template writes a skeleton: a "Done means:" lead-in and an
+# empty bullet holding a comment. Stripping comments alone leaves "Done means:\n-",
+# which is long enough to read as filled — BL-521 entered a sweep that way. Strip
+# the scaffolding too, so what remains is only what a human wrote.
+_SCAFFOLD = re.compile(r'^\s*(done means:?|-|\*|\d+\.)\s*$', re.I)
+
+
+def acceptance_body(text):
+    lines = [ln for ln in section(text, 'Acceptance').splitlines()
+             if ln.strip() and not _SCAFFOLD.match(ln)]
+    return '\n'.join(lines).strip()
+
+
 def parse(path):
     t = open(path).read()
     m = re.match(r'---\n(.*?)\n---', t, re.S)
@@ -48,7 +61,7 @@ def parse(path):
         'priority': fm.get('priority', '-'),
         'estimate': fm.get('estimate', '-'),
         'blocked_by': fm.get('blocked_by', ''),
-        'acceptance': section(t, 'Acceptance'),
+        'acceptance': acceptance_body(t),
         'context': section(t, 'Context'),
     }
 
