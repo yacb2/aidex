@@ -442,5 +442,46 @@ echo "$out_q" | grep -q "before 2099-01-01" \
   || fail "(q) excluded pre-window spans must be counted out loud: $out_q"
 rm -rf "$PROJ" "$TX" "$OUTQ" "$OUTQ2"
 
+# ---------------------------------------------------------------------------
+# (r) mine_verification parser shapes + honest empties (BL-207): 37% of real
+#     test-run results were unparseable; go/house-suite shapes must parse,
+#     unknowns must be reported BY SHAPE, and an empty comparison group must
+#     say so instead of vanishing from the size-controlled table.
+# ---------------------------------------------------------------------------
+out_r="$(cd "$RETRO" && python3 - <<'PYR'
+import mine_verification as MV
+# runner shapes that were landing in 'unknown'
+assert MV.test_outcome("ok  \tgithub.com/x/pkg\t0.51s") == "pass", "go ok"
+assert MV.test_outcome("--- FAIL: TestX (0.00s)\nFAIL\ngithub.com/x/pkg 0.5s") == "fail", "go FAIL"
+assert MV.test_outcome("OK \u2014 coverage-matrix generation, billing rows") == "pass", "house OK"
+assert MV.test_outcome("FAIL: (b) hasher\n2 failure(s)") == "fail", "house failures"
+assert MV.test_outcome("93/93 passed") == "pass", "run-all"
+# still refusing to guess
+assert MV.test_outcome("") == "unknown", "empty stays unknown"
+assert MV.test_outcome("zsh: command not found: pytest") == "unknown", "noise stays unknown"
+# and the unknowns are bucketed by shape, not lumped
+assert MV.unknown_shape("") == "empty"
+assert MV.unknown_shape("Exit code 1") == "exit-code-only"
+assert MV.unknown_shape("zsh: command not found: pytest") == "tool-noise"
+assert MV.test_outcome("\u23af\u23af Failed Tests 3 \u23af\u23af") == "fail", "vitest failed-tests"
+assert MV.test_outcome("  FAIL  src/a.test.ts > x") == "fail", "indented FAIL"
+assert MV.test_outcome("ok") == "pass", "bare ok"
+assert MV.unknown_shape("(Bash completed with no output)") == "no-output"
+assert MV.unknown_shape("Command did not complete within its 120s timeout and was moved to the background") == "timed-out"
+print("PYOK")
+PYR
+)"
+[[ "$out_r" == *PYOK* ]] || fail "(r) parser shapes/buckets: $out_r"
+
+read -r PROJ TX <<< "$(bash "$FIXTURE")"
+OUTR="$(mktemp -d)"
+python3 "$RETRO/mine_items.py" --projects-root "$PROJ" --transcripts-root "$TX" \
+  --out "$OUTR" --min-mentions 1 >/dev/null 2>&1
+out_r2="$(python3 "$RETRO/mine_verification.py" --projects-root "$PROJ" \
+  --transcripts-root "$TX" --data-dir "$OUTR" --min-edits 1 2>&1)"
+echo "$out_r2" | grep -qi 'no comparison group' \
+  || fail "(r) an empty tests-ran group must say 'no comparison group', not vanish: $out_r2"
+rm -rf "$PROJ" "$TX" "$OUTR"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary"
