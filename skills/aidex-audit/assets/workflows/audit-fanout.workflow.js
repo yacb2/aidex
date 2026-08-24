@@ -116,6 +116,7 @@ const WORK_SCHEMA = {
   properties: {
     done: { type: 'boolean' },
     summary: { type: 'string' },
+    proof: { type: 'string' },
     blocked_reason: { type: 'string' },
     pending_actions: { type: 'array', items: { type: 'string' } },
   },
@@ -173,7 +174,21 @@ async function runPhase(phase, ctx) {
     }
     let proof = await verify(phase.id, phase.gateCmd)
     if (!proof) proof = await verify(phase.id, phase.gateCmd) // null = transient verifier failure, not a gate verdict: one retry
-    if (proof && proof.passed) return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+    if (proof && proof.passed) {
+      // BL-208: a green machine gate is not enough — the phase result must carry
+      // the implementer's own proof artifact (test output, request/response
+      // payload, screenshot path, proof_links entry) BEFORE the phase commit.
+      // 10 user-caught defects in one measured week arrived after the first
+      // commit; proof_links adoption by prose mandate alone sat at 7.6%.
+      if (!(work && typeof work.proof === 'string' && work.proof.trim())) {
+        feedback = `The gate passed but your report carries no proof artifact. Re-report with ` +
+          `proof = a path or reference to the evidence (test output, payload capture, screenshot, ` +
+          `proof_links entry). Do not re-implement; produce and name the artifact.`
+        log(`gate ${phase.id}: attempt ${attempt} green but no proof artifact — retrying for proof`)
+        continue
+      }
+      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+    }
     feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
     log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
   }
