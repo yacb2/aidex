@@ -372,6 +372,12 @@ if [[ -d "$BACKLOG_DIR" ]]; then
     origin_ref_line="$(grep -E '^origin_ref:[[:space:]]*"?audit/' "$bl_entry" 2>/dev/null | head -1 || true)"
     [[ -z "$origin_ref_line" ]] && continue
     ref="$(printf '%s' "$origin_ref_line" | sed -E 's/^origin_ref:[[:space:]]*"?//; s/"?[[:space:]]*$//')"
+    # D-10 archives a finished run into _archive/, which adds a segment and would
+    # push a standalone run into the 4-segment (methodology) branch — reading
+    # `_archive` as a methodology name and orphaning every reference. Archiving is
+    # what D-10 mandates, so drop the marker and count the shape the run had before
+    # it moved. Same defect f405d8d fixed in validate.py.
+    ref="${ref/#audit\/_archive\//audit/}"
     # audit/<methodology>/<run>/<id> = 4 segments -> checkable.
     # audit/<run>/<id> (standalone, 3 segments) -> no inventory to check; skip.
     # audit/<id> (2, legacy) -> check against aggregate ids.
