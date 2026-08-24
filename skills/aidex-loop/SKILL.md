@@ -73,6 +73,11 @@ spec and stop rather than guess one.
 2. **The gate (step 1).** What is the verifiable stop condition? (tests pass /
    exit 0 / type-check clean / lint clean / screenshot diff / a verifier
    subagent). Pin it down concretely — this becomes the spec's stop condition.
+   **A per-iteration "tests pass" means the SELECTED suite, never the full one**
+   (`affected-tests.sh --command`): a loop pays its stop condition on every
+   iteration, so a full suite there is the largest repeated cost a loop can carry.
+   The full suite belongs once, at the loop's end, which is its integration boundary
+   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`).
 3. **Shape.** Greenfield or existing code? One task or many? Must it run with the
    machine off? Budget ceiling?
 4. **Engine.** First cut: ask what the user is handing off — the verification
