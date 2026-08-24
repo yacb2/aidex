@@ -105,6 +105,38 @@ printf '%s\n' "$aff" | grep -q 'billing' \
 printf '%s\n' "$aff" | grep -qi 'unmapped' \
   && fail "affected-tests reported the changed fixture as unmapped: $aff"
 
+# --- 5b. defect_prone: an excluded path is not a located-nowhere gap --------
+# gap_for()'s own docstring calls "no module in the map" the WORSE of the two
+# gaps. Without the exclusion check an intentionally excluded fixture falls
+# through to exactly that, so declaring it would make the report LOUDER — the
+# opposite of what the declaration meant.
+out="$(python3 - "$COV" "$MAP" <<'EOF' 2>&1
+import importlib.util, json, sys
+
+cov, map_path = sys.argv[1], sys.argv[2]
+sys.path.insert(0, cov)
+spec = importlib.util.spec_from_file_location("dp", cov + "/defect_prone.py")
+dp = importlib.util.module_from_spec(spec); spec.loader.exec_module(dp)
+
+modules = json.load(open(map_path))["modules"]
+excluded = "frontend/src/billing/__fixtures__/formMocks.ts"
+tracked = ["frontend/tests/e2e/billing/a.spec.ts"]
+
+why = dp.gap_for(excluded, modules, tracked)
+assert why is None, f"excluded fixture reported as a gap: {why!r}"
+
+# and a real, non-excluded source file in the same module is unaffected
+why = dp.gap_for("frontend/src/billing/Form.vue", modules, tracked)
+assert why is None, f"a covered src file regressed: {why!r}"
+
+# a file in no module at all still gets the located-nowhere gap
+why = dp.gap_for("frontend/src/unknown/Thing.vue", modules, tracked)
+assert why is not None and "no module" in why, f"unmapped file: {why!r}"
+print("OK")
+EOF
+)"
+[[ "$out" == "OK" ]] || fail "defect_prone gap_for and src_exclude: $out"
+
 # --- 6. a malformed src_exclude is rejected, like src is --------------------
 python3 - "$MAP" <<'EOF'
 import json, sys
