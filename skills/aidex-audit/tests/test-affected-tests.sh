@@ -479,5 +479,59 @@ echo "$out_u" | grep -q '^\[billing\]$' \
   || fail "(u) --out must read the map from the --out dir: $out_u"
 rm -rf "$WS" "$OUT"
 
+# ---------------------------------------------------------------------------
+# (v)-(y) file-granularity narrowing (BL-212): a changed file with a colocated
+#     test narrows the module's selection to that file; a module where ANY
+#     changed file lacks one keeps the whole-module selection (all-or-nothing,
+#     never fast-and-wrong); a changed test file targets itself; the unmapped
+#     gate line names the INTEGRATION boundary (ADR 2026-08-24), not the commit.
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+mkdir -p "$WS/backend/apps/billing/tests"
+printf 'def test_views():\n    assert True\n' > "$WS/backend/apps/billing/tests/test_views.py"
+git -C "$WS/backend" add -A >/dev/null 2>&1
+git -C "$WS/backend" -c user.email=t@t -c user.name=t commit -qm colocated >/dev/null 2>&1
+echo x >> "$WS/backend/apps/billing/views.py"
+out_v="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+echo "$out_v" | grep -q 'apps/billing/tests/test_views.py' \
+  || fail "(v) selection should narrow to the colocated test file: $out_v"
+echo "$out_v" | grep -E 'pytest[^#]*apps/billing/tests/( |$)' -q \
+  && fail "(v) the whole-module dir must not ride along once narrowed: $out_v"
+out_v2="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
+echo "$out_v2" | grep -q 'targeted:' \
+  || fail "(v) human report should show the targeted narrowing: $out_v2"
+
+# (w) partial coverage -> whole module, no narrowing
+echo x >> "$WS/backend/apps/billing/serializers.py"
+out_w="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+echo "$out_w" | grep -E 'pytest[^#]*apps/billing/tests/' -q \
+  || fail "(w) a module with an un-targeted changed file keeps the module selection: $out_w"
+rm -rf "$WS"
+
+# (x) a changed test file targets itself
+WS="$(bash "$FIXTURE")"
+mkdir -p "$WS/backend/apps/billing/tests"
+printf 'def test_a():\n    assert True\n' > "$WS/backend/apps/billing/tests/test_only.py"
+git -C "$WS/backend" add -A >/dev/null 2>&1
+git -C "$WS/backend" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
+echo x >> "$WS/backend/apps/billing/tests/test_only.py"
+out_x="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+echo "$out_x" | grep -q 'apps/billing/tests/test_only.py' \
+  || fail "(x) a changed test file should target itself: $out_x"
+rm -rf "$WS"
+
+# (y) the unmapped INCOMPLETE line states the integration gate, not the commit
+WS="$(bash "$FIXTURE")"
+mkdir -p "$WS/frontend/src/shared"
+echo "export const x = 1;" > "$WS/frontend/src/shared/util.ts"
+git -C "$WS/frontend" add -A >/dev/null 2>&1
+echo x >> "$WS/backend/apps/billing/views.py"
+out_y="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+echo "$out_y" | grep -q 'full suite before integration' \
+  || fail "(y) unmapped gate line should name the integration boundary (ADR 2026-08-24): $out_y"
+echo "$out_y" | grep -q 'before this commit' \
+  && fail "(y) the commit-gate wording must be gone: $out_y"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3, multi-glob, no-tests module, e2e-only/no-hint advisories, --since all-missing, git error text, whitespace path, --help/unknown flag"

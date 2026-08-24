@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Affected-tests resolver — dev-time answer to "I changed something, what do
-I run?". Module-level impact only (non-goal: per-line TIA).
+I run?". Two tiers: a changed file with a COLOCATED test narrows to it
+(all-or-nothing per module, BL-212); otherwise module-level impact
+(non-goal: per-line TIA). The full suite gates integration, never the
+inner loop (decision 2026-08-24).
 
 CLI: affected_tests.py <workspace-root> [--since <ref>] [--command]
 
@@ -142,6 +145,38 @@ def render_hint(root, repos, glob):
     return display_dir, test_hint.replace("{path}", rel)
 
 
+# Test-file extensions a colocated JS/TS test can carry.
+TEST_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".mts")
+
+
+def colocated_tests(root, path, test_globs):
+    """Changed workspace-relative file -> the test files that plainly name it.
+
+    File-granularity selection (BL-212): at real module sizes the module tier
+    barely selects (echo_lab's `timeline` is 170 of 322 test files — mapping a
+    diff to it recovers 16% of the wall clock where the one colocated file
+    recovers 92%). The signal is deliberately the CHEAPEST one: a test file
+    named after the changed file, in the same directory or its __tests__/ /
+    tests/ sibling. No import graph, no coverage data — a file this rule
+    cannot find keeps the module tier (see the all-or-nothing rule at the
+    call site), because a narrow-but-wrong selection is worse than a wide one.
+    A changed file that is itself one of the module's tests targets itself.
+    """
+    if lib.matches(path, test_globs):
+        return [path]
+    d, base = os.path.split(path)
+    name, _ = os.path.splitext(base)
+    cands = []
+    for sub in ("", "__tests__", "tests"):
+        pdir = os.path.join(d, sub) if sub else d
+        cands.append(os.path.join(pdir, f"test_{name}.py"))
+        cands.append(os.path.join(pdir, f"test-{name}.sh"))
+        for infix in (".test", ".spec"):
+            for ext in TEST_EXTS:
+                cands.append(os.path.join(pdir, name + infix + ext))
+    return [c for c in cands if os.path.isfile(os.path.join(root, c))]
+
+
 def affected_modules(root, repos, modules, changed_files):
     """(module rows, unmapped files)."""
     rows = []
@@ -168,7 +203,22 @@ def affected_modules(root, repos, modules, changed_files):
                 display_dir, hint = render_hint(root, repos, glob)
                 groups.append((kind, display_dir, hint))
 
-        rows.append({"id": mod["id"], "groups": groups, "changed": matched})
+        # All-or-nothing narrowing (BL-212): the module's selection narrows to
+        # colocated test files ONLY when every changed file in it has one.
+        # A module where any changed file is un-targeted keeps the whole-module
+        # tier — src/lib-shaped fan-out surfaces (36 feature tests reading
+        # i18n locales in the measured case) are exactly what a partial narrow
+        # would silently miss. Fast and wrong is the one outcome this refuses.
+        test_globs = [g for kind_globs in tests.values() for g in (kind_globs or [])]
+        targeted, complete = [], True
+        for f in matched:
+            hits = colocated_tests(root, f, test_globs)
+            if hits:
+                targeted.extend(hits)
+            else:
+                complete = False
+        rows.append({"id": mod["id"], "groups": groups, "changed": matched,
+                     "targeted": sorted(set(targeted)) if complete and targeted else None})
     return rows, sorted(set(unmapped))
 
 
@@ -180,6 +230,10 @@ def render(rows, unmapped, n_changed):
     )
     for row in rows:
         lines.append(f"[{row['id']}]")
+        if row.get("targeted"):
+            lines.append("  targeted: " + " ".join(row["targeted"])
+                         + "   (colocated; the selection narrows to these — "
+                           "the full suite still gates integration)")
         if not row["groups"]:
             lines.append("  (no tests mapped for this module)")
             continue
@@ -227,9 +281,34 @@ def render_commands(root, repos, rows, unmapped):
     e2e_specs = []
     no_command = []       # affected modules that yield no runnable command
     no_tests = []         # affected modules with no tests mapped at all
+    narrowed = []
     for row in rows:
         if not row["groups"]:
             no_tests.append(row["id"])
+        # Narrowed module (BL-212): the colocated test files replace the module
+        # dirs in the runnable selection; its e2e globs stay surfaced as the
+        # usual advisory. Anything that stops the narrow tier from rendering
+        # (no repo, no test_hint) falls back to the module tier rather than
+        # dropping the module from the selection.
+        if row.get("targeted"):
+            ok = True
+            for tf in row["targeted"]:
+                repo = lib.repo_for(tf, repos)
+                if repo is None or not repo.get("test_hint"):
+                    ok = False
+                    break
+            if ok:
+                for tf in row["targeted"]:
+                    repo = lib.repo_for(tf, repos)
+                    slot = by_repo.setdefault(repo["name"], (repo["test_hint"], []))
+                    rel = lib.to_repo_relative(tf, repo)
+                    if rel not in slot[1]:
+                        slot[1].append(rel)
+                narrowed.append(row["id"])
+                for kind, display_dir, hint in row["groups"]:
+                    if kind == "e2e":
+                        e2e_specs.append(display_dir)
+                continue
         for kind, display_dir, hint in row["groups"]:
             if kind == "e2e":
                 e2e_specs.append(display_dir)
@@ -266,6 +345,10 @@ def render_commands(root, repos, rows, unmapped):
     lines = []
     for _, (hint, rels) in sorted(by_repo.items()):
         lines.append(hint.replace("{path}", " ".join(rels)))
+    if narrowed:
+        lines.append("# targeted: " + ", ".join(sorted(narrowed))
+                     + " narrowed to colocated test file(s) — the full suite still "
+                       "gates integration (decision 2026-08-24)")
     if no_command:
         mods = ", ".join(sorted(set(no_command)))
         lines.append(f"# INCOMPLETE: {len(set(no_command))} affected module(s) have no "
@@ -280,7 +363,8 @@ def render_commands(root, repos, rows, unmapped):
     if unmapped:
         lines.append(f"# INCOMPLETE: {len(unmapped)} changed file(s) match no module — "
                      "this selection does not cover them; unmapped scope still requires "
-                     "the full suite before this commit")
+                     "the full suite before integration (decision 2026-08-24: the full-"
+                     "suite gate sits at the integration boundary)")
     if e2e_specs:
         lines.append("# e2e specs affected (run via the project's test-e2e.sh, never directly): "
                      + " ".join(sorted(set(e2e_specs))))
