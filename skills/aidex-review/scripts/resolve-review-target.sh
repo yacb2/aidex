@@ -44,6 +44,7 @@ INCLUDE_TESTS=0
 INCLUDE_DOCS=0
 FINDERS_OVERRIDE=""
 PARTITION=0
+TOUCHED_SINCE=""
 # The angle catalog's own maximum: correctness has 4 angles, security has 2. Asking for
 # more finders than there are angles would announce coverage the catalog cannot supply.
 CATALOG_MAX_ANGLES=4
@@ -59,6 +60,8 @@ usage: resolve-review-target.sh [--files] (<path> | --app)
   --include-tests  review test files too, and size on the total
   --include-docs   review markdown too (implied when the target is a skill)
   --partition      also propose a split, one part per immediate subdirectory
+  --touched-since <ref|date>  resolve "the changes since X" to the OWNING MODULES of
+                   the touched files, each measured as it stands (never a diff review)
 
 There is no default target. Naming what is reviewed is the caller's job.
 USAGE
@@ -71,6 +74,9 @@ while [ $# -gt 0 ]; do
     --include-tests) INCLUDE_TESTS=1; shift ;;
     --include-docs)  INCLUDE_DOCS=1; shift ;;
     --partition) PARTITION=1; shift ;;
+    --touched-since)
+      [ $# -ge 2 ] || { echo "resolve-review-target: --touched-since needs a ref or an ISO date" >&2; exit 2; }
+      TOUCHED_SINCE="$2"; shift 2 ;;
     --finders)
       [ $# -ge 2 ] || { echo "resolve-review-target: --finders needs a number" >&2; exit 2; }
       case "$2" in
@@ -88,7 +94,75 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+EXCLUDE_DIRS='node_modules|\.git|dist|build|coverage|__pycache__|\.venv|venv|vendor|_archive|\.next|\.turbo|target|site-packages'
+SOURCE_EXT='py|js|jsx|ts|tsx|vue|sh|bash|rb|go|rs|java|kt|php|c|h|cpp|hpp|cs|swift|sql'
+
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+# ── --touched-since: the changes name the scope; the modules are the target ───
+# "Review the changes since Friday / this weekend's changes" means the modules the
+# changes touched, reviewed AS THEY STAND — the diff decides WHICH modules, never
+# WHAT IS READ. A true diff review belongs to /code-review and stays refused here.
+if [ -n "$TOUCHED_SINCE" ]; then
+  if [ -n "$TARGET" ] || [ "$WHOLE_APP" -eq 1 ]; then
+    echo "resolve-review-target: --touched-since takes no path and no --app — the window names the scope" >&2
+    exit 2
+  fi
+  git -C "$ROOT" rev-parse --show-toplevel >/dev/null 2>&1 \
+    || { echo "resolve-review-target: --touched-since needs a git repository" >&2; exit 2; }
+  cd "$ROOT" || exit 2
+
+  # Committed changes in the window (ref boundary or --since date) + the working tree.
+  if git rev-parse -q --verify "$TOUCHED_SINCE^{commit}" >/dev/null 2>&1; then
+    touched_raw="$( { git diff --name-only "$TOUCHED_SINCE...HEAD" 2>/dev/null; \
+                      git diff --name-only HEAD 2>/dev/null; } )"
+  else
+    touched_raw="$( { git log --since="$TOUCHED_SINCE" --name-only --pretty=format: 2>/dev/null; \
+                      git diff --name-only HEAD 2>/dev/null; } )"
+  fi
+  # Reviewable source files that still exist, under the same exclusion rules.
+  TOUCHED_FILES="$(printf '%s\n' "$touched_raw" \
+    | grep -v '^$' | LC_ALL=C sort -u \
+    | grep -Ev "(^|/)($EXCLUDE_DIRS)/" \
+    | grep -E "\.($SOURCE_EXT)$" \
+    | grep -Ev '\.min\.(js|css)$|\.lock$|-lock\.json$' \
+    | while IFS= read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done)"
+  if [ -z "$TOUCHED_FILES" ]; then
+    echo "resolve-review-target: no reviewable source file was touched since '$TOUCHED_SINCE'." >&2
+    echo "This is a fact to report, never a clean bill of health." >&2
+    exit 3
+  fi
+
+  # Owning modules: each touched file's directory, ancestors collapsing descendants.
+  # A file at the repo root owns only itself — '.' as a module would be --app by
+  # accident, the silent widening this resolver exists to refuse.
+  MODULE_DIRS="$(printf '%s\n' "$TOUCHED_FILES" | while IFS= read -r f; do
+      d="$(dirname "$f")"; [ "$d" = "." ] && d="$f"; printf '%s\n' "$d"
+    done | LC_ALL=C sort -u | awk '
+      { keep = 1
+        for (i = 1; i <= n; i++) if (index($0, kept[i] "/") == 1) { keep = 0; break }
+        if (keep) { kept[++n] = $0; print } }')"
+
+  if [ "$PRINT_FILES" -eq 1 ]; then
+    printf '%s\n' "$MODULE_DIRS" | while IFS= read -r m; do
+      if [ -f "$m" ]; then printf '%s\n' "$m"; else "$SELF" --files "$m" 2>/dev/null; fi
+    done | LC_ALL=C sort -u
+    exit 0
+  fi
+
+  echo "mode=touched-since"
+  echo "since=$TOUCHED_SINCE"
+  echo "touched_files=$(printf '%s\n' "$TOUCHED_FILES" | grep -c .)"
+  echo "modules=$(printf '%s\n' "$MODULE_DIRS" | grep -c .)"
+  printf '%s\n' "$MODULE_DIRS" | while IFS= read -r m; do
+    "$SELF" "$m" 2>/dev/null | while IFS= read -r line; do
+      case "$line" in
+        files=*|source_loc=*|size_class=*|finders_per_lens=*) echo "module.$m.$line" ;;
+      esac
+    done
+  done
+  exit 0
+fi
 
 if [ "$WHOLE_APP" -eq 1 ]; then
   [ -n "$TARGET" ] && { echo "resolve-review-target: --app takes no path" >&2; exit 2; }
@@ -109,8 +183,6 @@ fi
 # ── Reviewable file set ───────────────────────────────────────────────────────
 # Source files only. Generated, vendored, and archived trees are excluded because a
 # finder spending its budget on node_modules is budget that never reached the module.
-EXCLUDE_DIRS='node_modules|\.git|dist|build|coverage|__pycache__|\.venv|venv|vendor|_archive|\.next|\.turbo|target|site-packages'
-SOURCE_EXT='py|js|jsx|ts|tsx|vue|sh|bash|rb|go|rs|java|kt|php|c|h|cpp|hpp|cs|swift|sql'
 
 # ── A skill is markdown ───────────────────────────────────────────────────────
 # Pointing this at skills/aidex-review returned ONE file: the SKILL.md and the
