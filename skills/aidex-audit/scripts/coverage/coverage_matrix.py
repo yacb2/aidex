@@ -8,6 +8,10 @@ workspace's tracked files, and writes two GENERATED artifacts under
 .context/audits/test-coverage/: coverage-matrix.md (human-readable) and
 coverage-matrix.json (machine-readable, consumed by coverage-sweep's
 surface-delta). Never hand-edit the outputs — re-run this script instead.
+
+--out <dir>: read module-map.json from, and write any output to, <dir>
+instead of <workspace-root>/.context/audits/test-coverage — the read-only
+mode for auditing a workspace you must not write into (BL-204).
 """
 import json
 import os
@@ -218,8 +222,8 @@ def find_unmapped_test_files(files, mapped_test_files):
     return sorted(unmapped)
 
 
-def build_matrix(root):
-    m = lib.load_map(root)
+def build_matrix(root, coverage_dir=None):
+    m = lib.load_map(root, coverage_dir)
     files = lib.list_files(root, m["repos"])
 
     spec_index = e2e_spec_index(root, files, m["modules"])
@@ -341,15 +345,33 @@ def render_markdown(data):
     return "\n".join(lines)
 
 
-def main():
-    if len(sys.argv) >= 2 and sys.argv[1] in ("-h", "--help"):
-        print(__doc__.strip())
-        sys.exit(0)
-    if len(sys.argv) < 2:
-        sys.exit("usage: coverage_matrix.py <workspace-root>")
-    root = sys.argv[1]
+USAGE = "usage: coverage_matrix.py <workspace-root> [--out <dir>]"
 
-    data = build_matrix(root)
+
+def main():
+    args = sys.argv[1:]
+    out_override = None
+    positional = []
+    i = 0
+    while i < len(args):
+        if args[i] in ("-h", "--help"):
+            print(__doc__.strip())
+            sys.exit(0)
+        elif args[i] == "--out":
+            if i + 1 >= len(args):
+                sys.exit(f"--out requires a value\n{USAGE}")
+            out_override = args[i + 1]
+            i += 2
+        elif args[i].startswith("-"):
+            sys.exit(f"unknown option {args[i]!r}\n{USAGE}")
+        else:
+            positional.append(args[i])
+            i += 1
+    if len(positional) != 1:
+        sys.exit(USAGE)
+    root = positional[0]
+
+    data = build_matrix(root, out_override)
 
     # A v1 map (routes as globs, or no routes at all) yields an empty route
     # board while the run still stamps coverage-matrix/2 and exits 0 — which is
@@ -362,7 +384,7 @@ def main():
             file=sys.stderr,
         )
 
-    out_dir = os.path.join(root, ".context", "audits", "test-coverage")
+    out_dir = out_override or os.path.join(root, ".context", "audits", "test-coverage")
     os.makedirs(out_dir, exist_ok=True)
 
     md_path = os.path.join(out_dir, "coverage-matrix.md")

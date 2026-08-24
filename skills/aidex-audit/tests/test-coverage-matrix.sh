@@ -222,5 +222,18 @@ print('OK')
 ")"
 [[ "$out" == "OK" ]] || fail "third test kind must not be reported as unmapped: $out"
 
+# --- --out: read the map from, and write outputs to, an external dir --------
+# BL-204: a read-only field run against a workspace you may not write into.
+WS2="$(bash "$TESTS_DIR/fixtures/coverage-workspace.sh")"
+OUT2="$(mktemp -d)"
+cp "$WS2/.context/audits/test-coverage/module-map.json" "$OUT2/"
+rm -rf "$WS2/.context"          # the target workspace carries no .context at all
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS2" --out "$OUT2" >/dev/null \
+  || fail "--out run exited non-zero"
+[[ -f "$OUT2/coverage-matrix.md" && -f "$OUT2/coverage-matrix.json" ]] \
+  || fail "--out must write both outputs into the --out dir"
+[[ -e "$WS2/.context" ]] && fail "--out run must not create .context in the target workspace"
+rm -rf "$WS2" "$OUT2"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — coverage-matrix generation, billing/people rows, json shape, idempotency, hand-edit overwrite, unmapped noise filter"

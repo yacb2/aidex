@@ -24,6 +24,10 @@ test-e2e.sh, per global rules.
 
 Exit 0 always, except exit 2 on hard errors (no map, git failure, or a
 module-map path that cannot be safely rendered into a shell command).
+
+--out <dir>: read module-map.json from, and write any output to, <dir>
+instead of <workspace-root>/.context/audits/test-coverage — the read-only
+mode for auditing a workspace you must not write into (BL-204).
 """
 import os
 import re
@@ -282,13 +286,14 @@ def render_commands(root, repos, rows, unmapped):
     return "\n".join(lines) if lines else None
 
 
-USAGE = "usage: affected_tests.py <workspace-root> [--since <ref>] [--command]"
+USAGE = "usage: affected_tests.py <workspace-root> [--since <ref>] [--command] [--out <dir>]"
 
 
 def main():
     args = sys.argv[1:]
     since = None
     as_command = False
+    out_override = None
     positional = []
     i = 0
     while i < len(args):
@@ -303,6 +308,11 @@ def main():
                 sys.exit(USAGE)
             since = args[i + 1]
             i += 2
+        elif args[i] == "--out":
+            if i + 1 >= len(args):
+                sys.exit(USAGE)
+            out_override = args[i + 1]
+            i += 2
         elif args[i].startswith("-"):
             sys.exit(f"unknown option {args[i]!r}\n{USAGE}")
         else:
@@ -313,7 +323,7 @@ def main():
     root = positional[0]
 
     try:
-        m = lib.load_map(root)
+        m = lib.load_map(root, out_override)
         changed_files = collect_changed_files(root, m["repos"], since)
     except SystemExit as e:
         # --command is consumed by a caller deciding what to run, so a missing map or

@@ -465,5 +465,19 @@ echo "$out_t" | grep -q 'no tests mapped.*people' \
   && fail "(t) a module mapped through a third kind is NOT 'no tests mapped': $out_t"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (u) --out: the module-map lives outside the workspace (BL-204)
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+OUT="$(mktemp -d)"
+cp "$WS/.context/audits/test-coverage/module-map.json" "$OUT/"
+rm -rf "$WS/.context"
+echo x >> "$WS/backend/apps/billing/views.py"
+out_u="$(python3 "$AFFECTED" "$WS" --out "$OUT" 2>/dev/null)"; rc=$?
+[[ $rc -eq 0 ]] || fail "(u) --out run should exit 0 (got $rc)"
+echo "$out_u" | grep -q '^\[billing\]$' \
+  || fail "(u) --out must read the map from the --out dir: $out_u"
+rm -rf "$WS" "$OUT"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3, multi-glob, no-tests module, e2e-only/no-hint advisories, --since all-missing, git error text, whitespace path, --help/unknown flag"

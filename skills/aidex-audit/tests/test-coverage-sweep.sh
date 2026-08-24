@@ -146,5 +146,20 @@ out_g="$(python3 "$SWEEP" "$WS" 2>/dev/null)"
   || fail "(g) billing test_commits should count the integration kind (1): $(echo "$out_g" | grep billing)"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (h) --out: map + matrix baseline live outside the workspace (BL-204)
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+OUT="$(mktemp -d)"
+cp "$WS/.context/audits/test-coverage/module-map.json" "$OUT/"
+rm -rf "$WS/.context"
+python3 "$MATRIX" "$WS" --out "$OUT" >/dev/null 2>&1 || fail "(h) matrix --out failed"
+err_h="$(python3 "$SWEEP" "$WS" --out "$OUT" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 0 ]] || fail "(h) sweep --out should exit 0 (got $rc): $err_h"
+echo "$err_h" | grep -q 'WARNING: no baseline' \
+  && fail "(h) sweep --out must read the matrix baseline from the --out dir: $err_h"
+[[ -e "$WS/.context" ]] && fail "(h) sweep --out must not touch the target workspace"
+rm -rf "$WS" "$OUT"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — coverage-sweep drift: no-drift baseline, flagged RE-RUN, no-matrix warning, --since override, multi-repo sum, CLI hygiene, open-ended test kinds"

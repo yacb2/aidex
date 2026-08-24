@@ -5,8 +5,12 @@ import functools
 import json, os, re, subprocess, sys
 
 
-def load_map(root):
-    path = os.path.join(root, ".context", "audits", "test-coverage", "module-map.json")
+def load_map(root, coverage_dir=None):
+    """coverage_dir overrides <root>/.context/audits/test-coverage — the
+    read-only mode (BL-204): map read from, and outputs written to, a
+    directory outside the target workspace."""
+    path = os.path.join(coverage_dir or os.path.join(
+        root, ".context", "audits", "test-coverage"), "module-map.json")
     if not os.path.isfile(path):
         sys.exit(f"ERROR: no module-map at {path} — run the test-coverage playbook first")
     try:

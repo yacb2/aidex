@@ -151,6 +151,22 @@ err_l2="$(python3 "$CHECK" --root 2>&1 >/dev/null)"; rc_l2=$?
 grep -q 'Traceback' <<<"$err_l2" && fail "(l) --root without a value must not traceback: $err_l2"
 
 # ---------------------------------------------------------------------------
+# (m) symlinked project dir: discovery must follow symlinks (BL-204) — a
+#     symlink-built scratch workspace read vitest_include as a silent n/a
+# ---------------------------------------------------------------------------
+REAL_M="$(mktemp -d)"
+mkdir -p "$REAL_M/frontend"
+cat > "$REAL_M/frontend/vitest.config.ts" <<'EOF_M'
+export default { test: { coverage: { include: ['src/**'] } } }
+EOF_M
+mkdir -p "$WS/symlinked-frontend"
+ln -s "$REAL_M/frontend" "$WS/symlinked-frontend/frontend"
+out_m="$(run_one symlinked-frontend)"
+v_m="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['symlinked-frontend']['vitest_include']['value'])" "$out_m")"
+[[ "$v_m" == "present" ]] || fail "(m) vitest_include must follow a symlinked dir, got: $v_m"
+rm -rf "$REAL_M"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 if [[ $failures -eq 0 ]]; then
