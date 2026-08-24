@@ -43,6 +43,20 @@ and has no standing to judge (BL-115).
      (BL-153). Each trigger carries its own good/bad probes — a trigger with no probe is
      the omission this guard exists to catch.
 
+  8. skill-NAME lockstep + 8b. the `description` surface budget (<900 chars).
+  9. every owned skill directory is inside the `aidex` namespace — the `aidex-`
+     prefix, or the bare orchestrator `aidex` itself. FAILS. Two bundled skills
+     lost the prefix once (a9da52b) and it was restored by hand, by the user
+     noticing (BL-225).
+ 10. WARNING, never a failure: an agent declaring the weakest model together
+     with reasoning effort above `low`. That pair is the `memory-auditor` shape
+     (53d97ba: moved off haiku after the user asked why a judgment-heavy agent
+     ran on the weaker model). Enforcement limit, stated so nobody reads more
+     into a clean run than it means: the warning is silenced by writing
+     `effort: low`, and nothing here can tell a genuinely mechanical scan from
+     one whose effort was quietly lowered to buy silence. It is advisory for
+     exactly that reason — a hard failure would just be answered that way.
+
 Adding a new artifact type? Update validate.py AND every file above, or this
 test fails loudly. Run with:
 
@@ -129,6 +143,59 @@ def _model_policy_failures(rel: str, head: str, body: str) -> list[str]:
                         f"states it in the body — a policy that satisfies only the linter "
                         f"is not one the reader can act on")
     return failures
+
+
+# The orchestrator directory is the bare namespace root, not a prefixed member.
+# Spelling it out because a naive startswith("aidex-") FAILs this repo on a clean
+# tree — the BL-115 shape this file's SCOPE note already warns about.
+NAMESPACE_ROOT = "aidex"
+WEAK_MODEL = "haiku"
+MECHANICAL_EFFORT = "low"
+
+
+def _in_namespace(n: str) -> bool:
+    return n == NAMESPACE_ROOT or n.startswith(NAMESPACE_ROOT + "-")
+
+
+def _name_prefix_failures(pairs: list[tuple[str, str]]) -> list[str]:
+    """Guard 9. (directory, front-matter `name:`) -> failures.
+
+    skill-conventions.md:80 requires the prefix in BOTH the directory and
+    `name:` — "the prefix *is* the namespace" — so both are checked, and so is
+    their agreement: a directory renamed without its `name:` (or the reverse)
+    is half a rename and installs under a name nothing cross-references.
+    """
+    out = []
+    for d, name in pairs:
+        if not _in_namespace(d):
+            out.append(f"skills/{d}/ is outside the aidex namespace — a suite skill is "
+                       f"'{NAMESPACE_ROOT}' or '{NAMESPACE_ROOT}-<name>'")
+        if not name:
+            out.append(f"skills/{d}/SKILL.md declares no `name:`")
+        elif not _in_namespace(name):
+            out.append(f"skills/{d}/SKILL.md declares name '{name}', outside the "
+                       f"aidex namespace")
+        elif name != d:
+            out.append(f"skills/{d}/SKILL.md declares name '{name}' — directory and "
+                       f"`name:` must agree")
+    return out
+
+
+def _weak_model_warnings(agents: list[tuple[str, str, str]]) -> list[str]:
+    """Guard 10. (rel, model, effort) triples -> advisory lines, never failures.
+
+    The signal is the agent's OWN declaration disagreeing with itself: effort
+    above `low` says the work needs reasoning depth, and the weakest model is
+    where that depth is least available. Judged on effort rather than on the
+    agent's name — `symlink-checker` and `freshness-checker` are genuinely
+    mechanical, and a name regex would flag them alongside `conventions-auditor`.
+    """
+    return [
+        f"{rel} runs on {WEAK_MODEL} at effort '{effort}' — effort above "
+        f"'{MECHANICAL_EFFORT}' says the work needs judgment; re-verify the model"
+        for rel, model, effort in agents
+        if model == WEAK_MODEL and effort and effort != MECHANICAL_EFFORT
+    ]
 
 
 def _owned_skills() -> list[Path]:
@@ -282,6 +349,7 @@ def main() -> int:
         failures.append("no subagent definitions found under skills/*/agents/ — "
                         "this guard is looking in the wrong place")
     valid_effort = {"low", "medium", "high", "xhigh", "max"}
+    declared_agents: list[tuple[str, str, str]] = []
     for path in agent_files:
         fm = path.read_text(encoding="utf-8").split("---")
         head = fm[1] if len(fm) > 2 else ""
@@ -296,6 +364,9 @@ def main() -> int:
         elif effort.group(1) not in valid_effort:
             failures.append(f"{rel} has effort '{effort.group(1)}'; valid: "
                             f"{', '.join(sorted(valid_effort))}")
+        declared_agents.append((str(rel),
+                                model.group(1) if model else "",
+                                effort.group(1) if effort else ""))
 
     # 7b. Every skill that fans out must declare a model policy.
     #
@@ -556,6 +627,47 @@ def main() -> int:
                 failures.append(f"hooks/aidex-router.sh can emit skill '{name}', "
                                 f"which has no skills/{name}/SKILL.md")
 
+    # 9. Skill-name prefix. Both instances of drift were caught by the user
+    #    noticing, never by a check (BL-225).
+    name_re_fm = re.compile(r"^name:\s*(\S+)", re.M)
+    owned_pairs = []
+    for d in sorted(owned, key=lambda p: p.name):
+        fm = re.match(r"^---\n(.*?)\n---\n", (d / "SKILL.md").read_text(encoding="utf-8"),
+                      re.S)
+        hit = name_re_fm.search(fm.group(1)) if fm else None
+        owned_pairs.append((d.name, hit.group(1) if hit else ""))
+    owned_names = [d for d, _ in owned_pairs]
+    failures.extend(_name_prefix_failures(owned_pairs))
+    # A guard with no violating probe is the omission this file exists to catch.
+    for probe, label in (
+        ([("helper-scripts", "helper-scripts")], "a skill outside the aidex namespace"),
+        ([(f"{NAMESPACE_ROOT}-audit", "audit")], "a SKILL.md name outside the namespace"),
+        ([(f"{NAMESPACE_ROOT}-audit", f"{NAMESPACE_ROOT}-audits")],
+         "a directory and `name:` that disagree"),
+        ([(f"{NAMESPACE_ROOT}-audit", "")], "a SKILL.md with no `name:`"),
+    ):
+        if not _name_prefix_failures(probe):
+            failures.append(f"the name-prefix guard passed {label}")
+    if _name_prefix_failures([(NAMESPACE_ROOT, NAMESPACE_ROOT),
+                              (f"{NAMESPACE_ROOT}-audit", f"{NAMESPACE_ROOT}-audit")]):
+        failures.append("the name-prefix guard rejects the orchestrator or a valid "
+                        "prefixed skill")
+
+    # 10. Weak model on judgment-shaped work — advisory, see the docstring.
+    warnings = _weak_model_warnings(declared_agents)
+    if not _weak_model_warnings([("probe/agents/x.md", WEAK_MODEL, "medium")]):
+        failures.append("the weak-model guard passed haiku at effort 'medium'")
+    if _weak_model_warnings([("probe/agents/y.md", WEAK_MODEL, MECHANICAL_EFFORT),
+                             ("probe/agents/z.md", "sonnet", "high")]):
+        failures.append("the weak-model guard fires on a mechanical haiku agent or on "
+                        "a stronger model")
+
+    if warnings:
+        print(f"WARN — {len(warnings)} agent(s) on {WEAK_MODEL} above effort "
+              f"'{MECHANICAL_EFFORT}' (advisory, does not fail):")
+        for w in warnings:
+            print(f"  {w}")
+
     if failures:
         print("FAIL")
         for f in failures:
@@ -568,7 +680,8 @@ def main() -> int:
           f"{len(agent_files)} subagents declaring model+effort, "
           f"{len(fanout_skills)} fan-out skills declaring a model policy, "
           f"{len(names) if 'names' in dir() else 0} canonical prefix-zero names, "
-          f"{checked_refs} skill-name references over {len(live_skills)} live skills "
+          f"{checked_refs} skill-name references over {len(live_skills)} live skills, "
+          f"{len(owned_names)} skills in the aidex namespace "
           f"all in sync")
     return 0
 
