@@ -141,8 +141,8 @@ git -C "$WS/frontend" add -A
 out_g="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
 echo "$out_g" | grep -q '^# INCOMPLETE: 1 changed file' \
   || fail "(g) unmapped change should mark the selection INCOMPLETE: $out_g"
-echo "$out_g" | grep -q 'full suite still gates the commit' \
-  || fail "(g) INCOMPLETE line must name the full-suite gate: $out_g"
+echo "$out_g" | grep -q 'still requires the full suite' \
+  || fail "(g) INCOMPLETE line must name the full-suite requirement: $out_g"
 rm -rf "$WS"
 
 # ---------------------------------------------------------------------------

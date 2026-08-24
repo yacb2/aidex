@@ -279,7 +279,8 @@ def render_commands(root, repos, rows, unmapped):
     # Saying so is the difference between a faster loop and a false all-clear.
     if unmapped:
         lines.append(f"# INCOMPLETE: {len(unmapped)} changed file(s) match no module — "
-                     "this selection does not cover them; the full suite still gates the commit")
+                     "this selection does not cover them; unmapped scope still requires "
+                     "the full suite before this commit")
     if e2e_specs:
         lines.append("# e2e specs affected (run via the project's test-e2e.sh, never directly): "
                      + " ".join(sorted(set(e2e_specs))))

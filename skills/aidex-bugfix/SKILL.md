@@ -44,8 +44,13 @@ The bug-fix workflow is these seven steps — the agent table and prose below ke
    `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command` prints one
    runnable command for the tests covering your diff. Exit 3 means no selection is
    available (no `module-map.json`, or nothing matched) — run the full suite and say
-   which it was. Selection is for the loop; **the full suite is what gates the commit
-   in step 7**, and a run marked `# INCOMPLETE` never substitutes for it (BL-135).
+   which it was. **The full suite gates the INTEGRATION boundary — merge to trunk,
+   push, deploy, or the end of an unattended run — not this commit**
+   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`, partially
+   reversing BL-135). Committing on a selected run is legitimate and must never be
+   silent: state which subset ran and that the full suite has not. A selection marked
+   `# INCOMPLETE` is the one exception that still forces the full suite before the
+   commit — an unmapped change is unknown scope, so the selection proves nothing.
    That same command also names, on stderr, any file in your diff that **measurably
    breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
    against a disposable database, never dev (`rules/e2e-testing.md`) (BL-133).
@@ -95,10 +100,12 @@ detects the project's actual runners from its config files:
   byproduct of Steps 3 and 5, not a separate step.
 - **Loop (opt-in):** once the RED test exists *and* the root cause is understood, a fix that needs
   many mechanical variations to land green can be spec'd as an `aidex-loop` loop-spec (stop
-  condition = the RED test passes **and** the full suite stays green) and handed to `/goal` or
+  condition = the RED test passes **and** the selected suite stays green, with the full suite
+  once at the loop's end, not per iteration) and handed to `/goal` or
   `ralph-loop`. Default stays the in-session RED→fix→GREEN cycle — do **not** make this skill a
   loop runner. **Guardrail:** a single green test rewards overfitting, not a real fix — the gate
-  must be the test **plus** the Step-1 root-cause hypothesis **plus** the full suite, ideally with
+  must be the test **plus** the Step-1 root-cause hypothesis **plus** the suite covering the
+  diff (the full one at the integration boundary), ideally with
   a maker≠checker split, and only once the RED test failed **for the right reason** (the failure
   message named the buggy behavior, not an import/syntax/setup error). Green-one-test ≠ bug fixed.
 
