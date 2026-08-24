@@ -283,3 +283,46 @@ workspace root is not itself a repo.
 
 If the workspace root *is* the git repo (single-repo project), declare one
 entry with `"path": "."`.
+
+## Coverage thresholds — flag enforcement, not just the number (BL-200)
+
+A coverage number nobody gates on can regress silently forever. The audit
+therefore reports, per project, whether a threshold is **enforced**, not only
+what the number is. `coverage-config-check.sh` carries two informational keys:
+
+- `fail_under` — backend: `[tool.coverage.report] fail_under` in
+  `pyproject.toml`, `[report] fail_under` in `.coveragerc` / `setup.cfg`, or
+  `--cov-fail-under` in pytest addopts.
+- `vitest_thresholds` — frontend: a `coverage.thresholds` block in every
+  `vitest.config.*`.
+
+`absent` never counts as drift — adopting a threshold is a per-project
+decision. What the audit does with `absent`: **record it as a finding** in the
+run, so the decision gets made instead of defaulted.
+
+### Setting one (guidance to point a project at)
+
+**Ratchet from the measured number, never aspire.** Set the threshold at the
+current measured coverage (rounded down to the nearest whole point), so it can
+only fail on regression. Raising it is a later, deliberate edit after coverage
+genuinely rises. An aspirational threshold (e.g. 80% on a 46% suite) fails
+every run from day one and gets deleted or ignored — worse than none.
+
+Backend (`backend/pyproject.toml`):
+
+```toml
+[tool.coverage.report]
+fail_under = 46   # measured 46.8% on 2026-08-24 — ratchet, do not aspire
+```
+
+Frontend (`vitest.config.ts`):
+
+```ts
+coverage: {
+  thresholds: { lines: 61, branches: 52 },  // measured, rounded down
+},
+```
+
+The comment with the measured value and date is part of the guidance: without
+it the next reader cannot tell a ratchet from an aspiration, and the threshold
+behind the number cannot be audited.

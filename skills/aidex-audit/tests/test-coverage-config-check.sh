@@ -167,6 +167,29 @@ v_m="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['symlinked-fro
 rm -rf "$REAL_M"
 
 # ---------------------------------------------------------------------------
+# (n) coverage_threshold (BL-200): INFORMATIONAL, never drift. threshold-set
+# reports present on both halves; clean has no threshold anywhere and must
+# report absent on both — while STILL exiting 0, because adopting a
+# threshold is a per-project decision the audit records as a finding, not
+# rollout drift.
+# ---------------------------------------------------------------------------
+out_n="$(run_one threshold-set)"; rc_n=$?
+v_n_fu="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['threshold-set']['fail_under']['value'])" "$out_n")"
+[[ "$v_n_fu" == "present" ]] || fail "(n) threshold-set fail_under should be present: $v_n_fu"
+d_n_fu="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['threshold-set']['fail_under']['detail'])" "$out_n")"
+grep -q 'pyproject.toml' <<<"$d_n_fu" || fail "(n) fail_under detail must name where it was found: $d_n_fu"
+v_n_vt="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['threshold-set']['vitest_thresholds']['value'])" "$out_n")"
+[[ "$v_n_vt" == "present" ]] || fail "(n) threshold-set vitest_thresholds should be present: $v_n_vt"
+[[ $rc_n -eq 0 ]] || fail "(n) threshold-set should be clean overall, got exit $rc_n"
+
+out_n2="$(run_one clean)"; rc_n2=$?
+v_n2_fu="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['clean']['fail_under']['value'])" "$out_n2")"
+[[ "$v_n2_fu" == "absent" ]] || fail "(n) clean has no fail_under anywhere, should be absent: $v_n2_fu"
+v_n2_vt="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['clean']['vitest_thresholds']['value'])" "$out_n2")"
+[[ "$v_n2_vt" == "absent" ]] || fail "(n) clean has no vitest thresholds, should be absent: $v_n2_vt"
+[[ $rc_n2 -eq 0 ]] || fail "(n) an absent coverage threshold must NOT count as drift (exit 0), got $rc_n2"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 if [[ $failures -eq 0 ]]; then
