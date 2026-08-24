@@ -423,5 +423,24 @@ echo "$out_p2" | grep -q '1 before 2026-03-01' \
   || fail "(p) the excluded pre-window invocation must be counted, not silently dropped: $out_p2"
 rm -rf "$(dirname "$SLOWTX")"
 
+# ---------------------------------------------------------------------------
+# (q) mine_items --since: spans ending before the window are excluded and the
+#     exclusion is announced, never silent (BL-206 — every other miner has one)
+# ---------------------------------------------------------------------------
+read -r PROJ TX <<< "$(bash "$FIXTURE")"
+OUTQ="$(mktemp -d)"
+python3 "$RETRO/mine_items.py" --projects-root "$PROJ" --transcripts-root "$TX" \
+  --out "$OUTQ" --min-mentions 1 >/dev/null 2>&1
+n_all="$(wc -l < "$OUTQ/spans.jsonl" | tr -d ' ')"
+[[ "$n_all" -gt 0 ]] || fail "(q) control run produced no spans"
+OUTQ2="$(mktemp -d)"
+out_q="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" --transcripts-root "$TX" \
+  --out "$OUTQ2" --min-mentions 1 --since 2099-01-01 2>&1)"
+n_fut="$(wc -l < "$OUTQ2/spans.jsonl" | tr -d ' ')"
+[[ "$n_fut" -eq 0 ]] || fail "(q) --since 2099-01-01 should keep no span, got $n_fut"
+echo "$out_q" | grep -q "before 2099-01-01" \
+  || fail "(q) excluded pre-window spans must be counted out loud: $out_q"
+rm -rf "$PROJ" "$TX" "$OUTQ" "$OUTQ2"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary"
