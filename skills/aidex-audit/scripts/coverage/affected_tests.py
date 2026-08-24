@@ -185,6 +185,10 @@ def affected_modules(root, repos, modules, changed_files):
         # A change belongs to the module if it touches its src OR its tests —
         # a modified test file must attribute here, not read as "unmapped".
         tests = mod.get("tests", {}) or {}
+        # Raw `src`, NOT lib.src_matches: `src_exclude` (BL-229) is coverage
+        # ACCOUNTING, not change ATTRIBUTION. A changed co-located fixture can
+        # break the tests that read it, so it must still select this module
+        # rather than fall through to "Unmapped changes".
         own_globs = list(mod.get("src", []))
         for kind_globs in tests.values():
             own_globs.extend(kind_globs or [])

@@ -43,6 +43,8 @@ def load_map(root, coverage_dir=None):
         if not isinstance(mod["src"], list) or not isinstance(tests, dict) \
                 or not all(isinstance(g or [], list) for g in tests.values()):
             sys.exit(f"ERROR: module {mod['id']}: src and each tests kind must be a list of globs")
+        if not isinstance(mod.get("src_exclude", []) or [], list):
+            sys.exit(f"ERROR: module {mod['id']}: src_exclude must be a list of globs")
     return m
 
 
@@ -69,6 +71,24 @@ def glob_to_re(pattern):
 
 def matches(path, patterns):
     return any(glob_to_re(p).match(path) for p in patterns)
+
+
+def src_matches(path, mod):
+    """Is `path` this module's PRODUCT source — `src` minus `src_exclude`?
+
+    Exclusion is a separate key rather than `!pattern` negation inside
+    `matches()` (BL-229): `matches` is shared by `tests`, `unmapped_ok`,
+    `surfaces` and `commits_since`, so teaching it negation would change four
+    semantics to fix one, and the exclusion is wanted for `src` alone.
+
+    Use this — never `matches(path, mod["src"])` — wherever a module's source
+    files or source commits are COUNTED, so `coverage-matrix` and
+    `coverage-sweep` read one definition and `delta_src` cannot go phantom.
+    Change ATTRIBUTION (affected_tests) deliberately does not use it: editing an
+    excluded fixture can still break the tests that read it.
+    """
+    return (matches(path, mod.get("src", []))
+            and not matches(path, mod.get("src_exclude", []) or []))
 
 
 def repo_for(path, repos):
@@ -133,8 +153,11 @@ def list_files(root, repos):
     return files
 
 
-def commits_since(root, repo, since, workspace_globs):
+def commits_since(root, repo, since, workspace_globs, exclude=()):
     """Count commits since ISO date touching any file the globs match.
+
+    `exclude` drops files the caller does not count (a module's `src_exclude`),
+    so a src-commit count and a src-file count stay one definition.
 
     Files are attributed with the same matcher the matrix uses (`matches`), so
     a module's commit count and its file count come from ONE definition. The
@@ -145,9 +168,13 @@ def commits_since(root, repo, since, workspace_globs):
     if not workspace_globs:
         return 0
     prefix = _repo_prefix(repo)
+    def counts(f):
+        p = prefix + f
+        return matches(p, workspace_globs) and not matches(p, exclude or [])
+
     return sum(
         1 for files in _commit_files(repo_dir(root, repo), since)
-        if any(matches(prefix + f, workspace_globs) for f in files)
+        if any(counts(f) for f in files)
     )
 
 

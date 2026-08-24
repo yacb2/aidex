@@ -43,6 +43,7 @@ workspace-root-relative).
         "backend/apps/billing/**",
         "frontend/src/**/billing/invoices/**"
       ],
+      "src_exclude": ["frontend/src/**/__fixtures__/**"],
       "tests": {
         "unit": ["backend/apps/billing/tests/**"],
         "e2e":  ["frontend/tests/e2e/billing/invoices/**"]
@@ -74,6 +75,17 @@ workspace-root-relative).
 - `modules[].id` — short slug, unique within the map.
 - `modules[].title` — human-readable label.
 - `modules[].src` — glob list of source paths this module owns.
+- `modules[].src_exclude` — optional glob list subtracted from `src` (BL-229).
+  For co-located test scaffolding that lives inside the module's own source
+  tree — `__fixtures__/`, `__mocks__/`, a `testUtils.ts` next to the component —
+  and would otherwise count as product source and inflate `src_files`, which is
+  the exact ratio the judgment pass reads. Three rules: it subtracts from `src`
+  **only**, so an excluded file is not silently added to the test set; the
+  sweep's src-file *and* src-commit counts apply it too, so `delta_src` cannot
+  go phantom; and `affected-tests` deliberately does **not**, because editing an
+  excluded fixture can still break the tests that read it. `src` itself takes no
+  `!pattern` negation — the matcher is shared with `tests`, `unmapped_ok` and
+  `surfaces`, and negation there would change four semantics to fix one.
 - `modules[].tests` — glob lists keyed by test kind (`unit`, `e2e`, etc — the
   keys are open-ended, not a fixed enum). **A module's test files are the files
   matching any kind's globs**, and every tool applies that one definition: the
