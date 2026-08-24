@@ -25,6 +25,29 @@ decides."* Do not soften it by inferring acceptance from the Context block — i
 you can write the criteria confidently from Context, write them into the item
 first and say so in the commit; if you cannot, it is NEEDS-DECISION.
 
+## 1b. Eligible is not the same as safe
+
+`sweep-eligible.py` answers one question — is it defined. It cannot answer whether
+the run is *allowed* to do it, and the two are independent: an item can carry a
+perfect Acceptance block and still be a destructive op on a real database, a
+production infra change, a cross-repo edit, or a message to a client.
+
+So filter the ELIGIBLE list once more against `rules/autonomy.md`, and move to
+NEEDS-DECISION anything that is:
+
+- **class 1** — touches real data or a production system (`... against <app>_prod`,
+  firewall/DNS/server config, a destructive migration);
+- **class 2** — publishes, deploys, or integrates a branch;
+- **outside this repo** — another project's files, a boilerplate backport;
+- **dependent on a third party** — needs client material, or *is* a message to one;
+- **a decision, not a task** — the Acceptance says "decide whether…", and the run
+  would be inventing the answer.
+
+Where a `durability-arbiter` is available this is its call; where it is not, apply
+the list above. Getting this wrong in the permissive direction is the incident the
+autonomy canon exists to prevent, and an Acceptance block does not authorize
+anything — only the user does.
+
 ## 2. Verification ladder — per item, then once per batch
 
 | Scope | Per item (XS/S/M) | Once, at end of batch, before merge |
