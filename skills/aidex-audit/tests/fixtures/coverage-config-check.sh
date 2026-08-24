@@ -195,6 +195,42 @@ mkpy "$P/frontend/package.json" <<'EOF'
 EOF
 
 # ---------------------------------------------------------------------------
+# threshold-set: fail_under in pyproject [tool.coverage.report] + vitest
+# coverage.thresholds -> coverage_threshold present on both halves (BL-200)
+# ---------------------------------------------------------------------------
+P="$WS/threshold-set"
+mkpy "$P/backend/pyproject.toml" <<'EOF'
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+
+[tool.coverage.report]
+fail_under = 70
+EOF
+mkpy "$P/backend/config/settings/test.py" <<'EOF'
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+EOF
+mkpy "$P/backend/config/settings/test_e2e.py" <<'EOF'
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+EOF
+mkpy "$P/frontend/vitest.config.ts" <<'EOF'
+export default {
+  test: {
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      thresholds: { lines: 70, branches: 60 },
+    },
+  },
+}
+EOF
+mkpy "$P/frontend/package.json" <<'EOF'
+{
+  "name": "threshold-frontend",
+  "devDependencies": { "@vitest/coverage-v8": "^2.0.0" }
+}
+EOF
+
+# ---------------------------------------------------------------------------
 # clean: every key compliant
 # ---------------------------------------------------------------------------
 P="$WS/clean"

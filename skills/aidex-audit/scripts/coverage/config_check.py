@@ -13,7 +13,7 @@ when at least one enumerated project drifted. `--verbose` prints the full
 table even when nothing drifted; `--json` always emits every row regardless
 of drift, since it is the machine-readable roll-up, not the silent surface.
 
-Five keys, per project:
+Seven keys, per project:
 
   hasher_pytest     - does the settings module *pytest* loads put MD5 first?
   hasher_e2e        - does backend/config/settings/test_e2e.py put MD5 first?
@@ -23,6 +23,17 @@ Five keys, per project:
   no_n_auto         - is `-n auto` / `--numprocesses auto` absent from project
                        configuration (a fixed integer is compliant), and
                        pytest-xdist absent from lockfiles?
+  fail_under        - does the backend enforce a coverage threshold —
+                       [tool.coverage.report] fail_under in pyproject.toml,
+                       [report] fail_under in .coveragerc / setup.cfg, or
+                       --cov-fail-under in pytest addopts? (BL-200)
+  vitest_thresholds - does each vitest.config.* declare coverage.thresholds?
+                       (BL-200)
+
+The two BL-200 keys are INFORMATIONAL: `absent` never counts as drift,
+because adopting a threshold is a per-project decision — the test-coverage
+audit records an absent threshold as a finding; this table only makes the
+absence visible instead of only reporting the number.
 
 Values: "present" | "absent" | "n/a" | "unresolvable" for hasher_pytest (the
 DJANGO_SETTINGS_MODULE names a module that does not resolve to a file — the
@@ -301,6 +312,87 @@ def check_coverage_provider(project_dir):
 
 
 # ---------------------------------------------------------------------------
+# coverage thresholds (BL-200)
+# ---------------------------------------------------------------------------
+
+_FAIL_UNDER_TOML_RE = re.compile(
+    r"^\s*fail_under\s*=\s*([0-9]+(?:\.[0-9]+)?)", re.MULTILINE)
+_COV_FAIL_UNDER_OPT_RE = re.compile(r"--cov-fail-under(?:=|\s+)([0-9]+(?:\.[0-9]+)?)")
+
+
+def _fail_under_in_section(text, section_re):
+    """A fail_under line inside the section the regex names, tracked by
+    scanning section headers — an INI/TOML file can carry several sections
+    and a flat search would credit fail_under from an unrelated one."""
+    current = None
+    for line in text.splitlines():
+        m = re.match(r"\s*\[([^\]]+)\]", line)
+        if m:
+            current = m.group(1).strip()
+            continue
+        if current is not None and re.fullmatch(section_re, current):
+            fm = re.match(r"\s*fail_under\s*=\s*([0-9]+(?:\.[0-9]+)?)", line)
+            if fm:
+                return fm.group(1)
+    return None
+
+
+def check_fail_under(backend_dir):
+    """('present'|'absent', detail). Looks where coverage.py and pytest-cov
+    actually read a threshold: [tool.coverage.report] in pyproject.toml,
+    [report] in .coveragerc, [coverage:report] in setup.cfg, and a
+    --cov-fail-under in any pytest addopts (pyproject/pytest.ini/setup.cfg)."""
+    candidates = (
+        ("pyproject.toml", r"tool\.coverage\.report"),
+        (".coveragerc", r"report"),
+        ("setup.cfg", r"coverage:report"),
+    )
+    for fname, section_re in candidates:
+        path = os.path.join(backend_dir, fname)
+        if not os.path.isfile(path):
+            continue
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        value = _fail_under_in_section(text, section_re)
+        if value is not None:
+            return "present", f"{fname}: fail_under = {value}"
+    for fname in ("pyproject.toml", "pytest.ini", "setup.cfg", "tox.ini"):
+        path = os.path.join(backend_dir, fname)
+        if not os.path.isfile(path):
+            continue
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        m = _COV_FAIL_UNDER_OPT_RE.search(text)
+        if m:
+            return "present", f"{fname}: --cov-fail-under={m.group(1)}"
+    return "absent", "no fail_under / --cov-fail-under in coverage or pytest config"
+
+
+def check_vitest_thresholds(project_dir):
+    """('n/a'|'present'|'absent', count, total). Same denominator as
+    vitest_include: every vitest.config.* found, `present` only when all of
+    them declare a coverage.thresholds block."""
+    total = 0
+    present = 0
+    for cfg_path, _pkg_dir in _find_vitest_packages(project_dir):
+        total += 1
+        try:
+            text = open(cfg_path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        block = _extract_coverage_block(text)
+        if block and re.search(r"\bthresholds\s*:", block):
+            present += 1
+    if total == 0:
+        return "n/a", 0, 0
+    return ("present" if present == total else "absent"), present, total
+
+
+# ---------------------------------------------------------------------------
 # no_n_auto
 # ---------------------------------------------------------------------------
 
@@ -378,6 +470,11 @@ def check_project(project_dir):
     vitest_include, vi_count, vi_total = check_vitest_include(project_dir)
     coverage_provider, cp_count, cp_total = check_coverage_provider(project_dir)
     no_n_auto, n_hits = check_no_n_auto(project_dir)
+    if has_backend:
+        fail_under, fu_detail = check_fail_under(backend_dir)
+    else:
+        fail_under, fu_detail = "n/a", "no backend/ directory"
+    vitest_thresholds, vt_count, vt_total = check_vitest_thresholds(project_dir)
 
     stack_bits = []
     if has_backend and hasher_pytest != "n/a":
@@ -395,6 +492,9 @@ def check_project(project_dir):
         "vitest_include": {"value": vitest_include, "count": vi_count, "total": vi_total},
         "coverage_provider": {"value": coverage_provider, "count": cp_count, "total": cp_total},
         "no_n_auto": {"value": no_n_auto, "hits": n_hits},
+        # BL-200 — informational: absent is a finding for the audit, not drift.
+        "fail_under": {"value": fail_under, "detail": fu_detail},
+        "vitest_thresholds": {"value": vitest_thresholds, "count": vt_count, "total": vt_total},
     }
 
 
@@ -518,7 +618,7 @@ def main(argv):
         # given. Whenever it does print, every enumerated project gets a
         # row — n/a included, that is the recorded denominator, not a
         # filtered "just the drifted ones" view.
-        header = f"{'project':<30} {'hasher_pytest':<14} {'hasher_e2e':<10} {'vitest_include':<18} {'coverage_provider':<20} no_n_auto"
+        header = f"{'project':<30} {'hasher_pytest':<14} {'hasher_e2e':<10} {'vitest_include':<18} {'coverage_provider':<20} {'no_n_auto':<10} {'fail_under':<11} vitest_thresholds"
         print(header)
         for name in sorted(rows):
             r = rows[name]
@@ -528,7 +628,9 @@ def main(argv):
                 f"{_fmt_scalar(r['hasher_e2e']):<10} "
                 f"{_fmt_frac(r['vitest_include']):<18} "
                 f"{_fmt_frac(r['coverage_provider']):<20} "
-                f"{_fmt_scalar(r['no_n_auto'])}"
+                f"{_fmt_scalar(r['no_n_auto']):<10} "
+                f"{_fmt_scalar(r['fail_under']):<11} "
+                f"{_fmt_frac(r['vitest_thresholds'])}"
             )
         if drifted_names:
             print(f"\n{len(drifted_names)} of {len(rows)} project(s) drifted: {', '.join(sorted(drifted_names))}")
