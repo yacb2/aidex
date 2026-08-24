@@ -126,7 +126,9 @@ Measured wall-clock (80 queries = 4 skills × 20, unless noted):
 collapse (4h34m → 19m) but the fast configs produce *garbage numbers*. The valid path
 got **no speedup** from parallelism (sequential by necessity). A valid full 4-skill
 run is ~2h+. There is no known fast *valid* full-ecosystem measurement with this
-harness.
+harness — and "with this harness" is load-bearing: §3a's detector is ~17x faster
+but answers a different question, so it does not close this gap, it routes around
+it for the questions it can answer.
 
 Timeout notes: harness default `PER_QUERY_TIMEOUT=150`; runs 2–4 used `--timeout 60`
 (prior optimization, safe, validated). `--timeout 30` was tried only under (invalid)
@@ -138,6 +140,79 @@ absence of the marker. That is the dominant cost, not model latency.
 Practical guidance: for a quick recall-only check use `--query-limit 10` (skips the
 false set, ~halves time) sequentially. For a reportable number, full 20-query
 sequential per the changed skill only.
+
+### 3a. The fast path: `claude -p` stream-json Skill-event detection (2026-06-18)
+
+**Use this by default for iteration; keep `eval-pty.sh` for the number you report.**
+The PTY harness is slow for a structural reason, not a tunable one: it infers
+*no trigger* by waiting for a marker file that never appears, so every
+non-triggering query — all `should_trigger=false` plus the recall gap, i.e. most
+of the set — burns the full per-query timeout. You pay the most for the cheapest
+dimension.
+
+The detector reads the routing decision directly instead of waiting for its
+absence:
+
+```bash
+claude -p "<query>" --output-format stream-json --verbose --max-turns 1 < /dev/null
+# firing = a tool_use event named `Skill`; input.skill is which one
+```
+
+`--max-turns 1` cuts after routing (no body execution); `< /dev/null` stops
+`claude` from eating the caller loop's stdin. Reference implementation:
+`.context/loops/_snapshots/2026-06-17-eval-speedup-182AC4AC/detector.sh` (LOOP-004).
+
+Measured, both sides N=3, from that snapshot's own logs:
+
+| Skill | PTY (`eval-pty.sh`) | Detector | Speed |
+|---|---|---|---|
+| `aidex-loop` | 12/15, median **1766 s** | 13, 13, 12 /15 @ 101/114/104 s | **~17x** |
+| `aidex-comm` | 14/20, median **1314 s** | 19/20 twice @ ~150 s | ~9x |
+
+**It also attributes exactly** — the stream names *which* skill took the query,
+which the marker cannot, so it is strictly better than the PTY harness for
+collision and precision work.
+
+**The bias is real, systematic, and skill-dependent — this is the whole caveat.**
+`claude -p` headless routes more eagerly than the interactive binary, so the
+detector **over-reports recall** against what a user actually experiences. Not
+noise and not timeout truncation: `aidex-comm` q1/q5/q7/q9 were PTY-FAIL x3 stable
+against detector-PASS x3 stable. Magnitude ranges from ~7% (`aidex-loop`, one
+divergent query) to ~25% (`aidex-comm`, 19/20 vs 14/20), and is **zero** on others
+(`aidex-decision` 20/20, `aidex-conventions` 10/10). You cannot predict which
+kind a given skill is without measuring both.
+
+So the split is by QUESTION, not by convenience:
+
+| Question | Instrument |
+|---|---|
+| Is variant B better than variant A? | **Detector.** The bias is ~constant within a skill, so it cancels in the delta |
+| Which sibling stole this query? | **Detector.** Exact attribution; the marker has none |
+| Regression smoke / repeatability | **Detector** |
+| What IS this skill's recall? | **`eval-pty.sh`.** Interactive is the real user experience — it is ground truth |
+| Recall-ceiling work, anything reported as a number | **`eval-pty.sh`** |
+| Did the skill produce the RIGHT artifact? | Neither — `eval-grade-artifact.sh` (§9). The detector measures routing, not side effects |
+
+**Predicate-path constraint (carried, not dropped).** Under
+`claude -p --permission-mode default`, writes into `~/.claude/**` hit a
+sensitive-path guard that `permissions.allow` does not override and print mode
+cannot prompt past. A file-marker predicate placed there scores 0 by *predicate
+denial*, not trigger-blindness. The detector sidesteps this by reading the Skill
+event rather than a marker — but the moment you add any file predicate to a
+`claude -p` run, it applies again. Drive markers to a non-sensitive path via the
+skill probe's env var. Full statement: §6 `claude -p` instrument facts.
+
+**§8 applies unchanged.** Being 17x cheaper is not a licence to fan out: the
+contamination modes in §8 are properties of concurrent `claude` sessions over a
+shared skills tree and a shared `/tmp`, and nothing about the instrument changes
+them. Before any multi-skill panel — fast path included — a **frozen snapshot**
+of the skills tree, a **singleton lock**, and a **UUID watchdog**, and the same
+non-negotiable response to contamination (invalidate the whole run, do not
+interpret, do not auto-rerun).
+
+Provenance: LOOP-004 `skill-eval-speedup` 2026-06-18; logs under
+`.context/loops/_snapshots/2026-06-17-eval-speedup-182AC4AC/` (`results/base/summary.tsv`,
+`results/comm-pty-resolution/summary.tsv`, `detector/`).
 
 ## 4. Inventory curation rules
 
@@ -232,7 +307,8 @@ Consequences (mandatory, portable to any project):
 - The `run_eval.py` / `skill-creator` **`claude -p` slash-command shim** is blind
   to context-triggered skills — it only exercises *user-invocable* skills and
   reports ~0% for context-triggered ones regardless of true recall. Do not use it
-  to measure a context-triggered skill. Use `eval-pty.sh` (real interactive PTY).
+  to measure a context-triggered skill. Use `eval-pty.sh` (real interactive PTY)
+  for a reported number, or the stream-json detector of §3a for iteration.
 - `claude -p` **non-shim** (raw NL prompt, skill in context) **does** fire
   context-triggered skill bodies — trace-proven (`TOOL_USE Skill:` under
   `--output-format stream-json`). The historical "claude -p can't fire skills"
