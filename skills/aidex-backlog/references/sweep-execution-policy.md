@@ -74,6 +74,34 @@ single largest recoverable cost: 2.3 of 3.7 test-hours in the measured sweep.
 A bug fix still gets its RED→GREEN regression test per item. That is the
 targeted test — it is not in tension with this ladder.
 
+### 2b. A test that DENIES something needs a different proof than one that asserts it
+
+RED→GREEN proves the call site is load-bearing. It does **not** prove the
+assertion can see the thing it denies. Where the regression test asserts an
+absence — no dialog, no error toast, no second request, no leaked row — add the
+mutation that makes the denied thing **appear**, and require the test to go red.
+
+Two failure modes this catches, both observed closing BL-600 in `echo_lab_ws`:
+
+- **A negative assertion samples; it does not wait.** `toHaveCount(0)` polls
+  once, finds nothing, and passes. The suppressed modal there opened ~4 s after
+  the spec's last `await`, so the first version of the spec passed while the
+  bug was live.
+- **A positive assertion in front of it is not enough**, which is the guidance
+  that failed here. It only covers the denial if it settles *later* than the
+  denied thing appears — and an app shell renders well before a lazily-loaded
+  dialog mounts. Check the ordering rather than assuming it.
+
+**Prefer an anchor to a settle.** Find an event that is strictly later than the
+appearance — a specific response, `networkidle`, a rendered marker — and wait on
+that; a fixed sleep is a constant that a loaded machine outgrows silently. If
+you must keep a fixed tail, keep it short and let the anchor absorb the variance.
+
+**Run the appearance-mutation in the configuration the spec will live in** — the
+suite's worker count, alongside other specs, not solo on an idle machine. A
+settle validated at one worker says nothing about the same spec under
+contention, and going vacuous under load is invisible: the test still passes.
+
 ## 3. Any suite longer than the foreground tool ceiling runs detached
 
 Launch with `run_in_background` and read the log **once** when the task reports
