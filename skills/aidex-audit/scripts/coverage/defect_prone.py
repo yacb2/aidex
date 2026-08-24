@@ -106,7 +106,12 @@ def gap_for(path, modules, tracked):
     A file matching no module is the worse gap of the two and is reported as
     such: the map cannot even locate where its spec would go.
     """
-    mod = next((m for m in modules if lib.matches(path, m.get("src", []) or [])), None)
+    # An explicitly excluded path (BL-229) is declared test scaffolding, not an
+    # E2E gap: without this it falls through to `mod is None` and is reported as
+    # the WORSE of the two gaps, which is the opposite of what declaring it said.
+    if any(lib.matches(path, m.get("src_exclude", []) or []) for m in modules):
+        return None
+    mod = next((m for m in modules if lib.src_matches(path, m)), None)
     if mod is None:
         return "no module in the map — the gap cannot even be located"
     e2e_globs = lib.e2e_globs(mod)

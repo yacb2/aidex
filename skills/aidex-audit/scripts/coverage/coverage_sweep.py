@@ -94,12 +94,17 @@ def load_stored(root, coverage_dir=None):
 
 def module_drift(root, repos, files, mod, since, stored):
     src_globs = mod.get("src", [])
+    src_excl = mod.get("src_exclude", []) or []
     t_globs = lib.test_globs(mod)  # every kind, so a third kind is not read as src-only drift
 
-    src_commits = sum(lib.commits_since(root, r, since, src_globs) for r in repos)
+    # `stored_src` below comes from the matrix, which counts src minus
+    # src_exclude (BL-229). Counting either commits or files here without the
+    # same exclusion leaves delta_src permanently positive by the number of
+    # excluded files, and drift += 2 * that, on every run. One definition.
+    src_commits = sum(lib.commits_since(root, r, since, src_globs, src_excl) for r in repos)
     test_commits = sum(lib.commits_since(root, r, since, t_globs) for r in repos)
 
-    cur_src = len([f for f in files if lib.matches(f, src_globs)])
+    cur_src = len([f for f in files if lib.src_matches(f, mod)])
     cur_specs = len([f for f in files if lib.matches(f, lib.e2e_globs(mod))])
 
     row = stored.get(mod["id"], {})

@@ -174,7 +174,9 @@ def route_rows(mod, spec_index):
 
 
 def module_row(root, files, mod, spec_index):
-    src = [f for f in files if lib.matches(f, mod.get("src", []))]
+    # src minus src_exclude (BL-229): co-located test scaffolding under the
+    # module's own src tree is not product source.
+    src = [f for f in files if lib.src_matches(f, mod)]
 
     unit_globs = (mod.get("tests", {}) or {}).get("unit", []) or []
     unit_files = [f for f in files if lib.matches(f, unit_globs)]
