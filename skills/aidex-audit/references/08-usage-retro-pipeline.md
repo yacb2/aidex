@@ -16,10 +16,10 @@ scripts are read-only over whatever transcript root they are pointed at.
 
 ```bash
 R=~/.claude/skills/aidex-audit/scripts/usage-retro       # or <repo>/skills/aidex-audit/scripts/usage-retro
-RUN=.context/audits/$(date +%F)-usage-retro
+RUN=.context/audits/usage-retro/$(date +%F)-usage-retro
 CUR=.context/audits/.usage-retro/cursor.json
 
-bash ~/.claude/skills/aidex-audit/scripts/new-audit.sh new custom usage-retro   # scaffold the run
+bash ~/.claude/skills/aidex-audit/scripts/new-audit.sh custom usage-retro   # scaffold the run
 python3 $R/extract.py   --out "$RUN/dataset.jsonl" --cursor "$CUR"             # catch-up since cursor
 #   baseline instead:   --out "$RUN/dataset.jsonl" --cursor "$CUR" --since 90d
 python3 $R/prefilter.py --in "$RUN/dataset.jsonl"  --out "$RUN/candidates.jsonl"
