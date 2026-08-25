@@ -1022,6 +1022,88 @@ def check_waivers(failures: list[str]) -> None:
             failures.append("waivers: unparseable waiver line was not counted")
 
 
+
+def check_waiver_moved_path(failures: list[str]) -> None:
+    """BL-232: archive-on-close (D-10) is mandatory and MOVES files. A waiver keys on
+    a physical path, so the line silently stops suppressing — the finding reappears
+    attributed to nothing. Measured 2026-08-24: 2 of 43 lines were already dead from
+    exactly this, within days of being written, and one had produced a live unwaived
+    warning nobody had noticed.
+
+    Quiet in the worse direction: an orphaned waiver does not error, it just stops
+    working. And it is guaranteed to recur, because archiving is not optional.
+
+    The three states the format already implies are asserted here: matched (unchanged),
+    stale anchor (content changed — the resurface behaviour the anchor exists to give),
+    and moved path (content identical, location different).
+    """
+    import hashlib, shutil, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "bad" / ".context", ctx)
+        readme = ctx / "plans" / "README.md"
+        anchor = hashlib.sha256(readme.read_bytes()).hexdigest()[:12]
+
+        def run_v() -> dict:
+            res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                                 capture_output=True, text=True)
+            return json.loads(res.stdout)
+
+        wfile = ctx / ".aidex-waivers"
+        wfile.write_text(
+            f"readme-in-context | .context/plans/README.md | sha256:{anchor} | "
+            "legacy readme kept on purpose | 2026-07-04\n", encoding="utf-8")
+
+        # state 1 — matched. The control: without it the rest proves nothing.
+        d = run_v()
+        if d["summary"].get("waived") != 1:
+            failures.append("waiver states: the control (path present, anchor matching) "
+                            "did not suppress — the fixture is wrong, not the states")
+            return
+
+        # state 3 — MOVED. Same bytes, new location, exactly what archiving produces.
+        moved = ctx / "requests" / "README.md"
+        moved.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(readme), str(moved))
+        d = run_v()
+        if not any(x["rule"] == "readme-in-context" and x["file"].endswith("requests/README.md")
+                   for x in d.get("waived", [])):
+            failures.append("waiver states: a waiver whose file MOVED with its content "
+                            "unchanged stopped suppressing — the finding reappeared "
+                            "attributed to nothing, which is the D-10 orphaning this "
+                            "item exists to close")
+        moves = d["summary"].get("waiver_paths_moved")
+        if not moves:
+            failures.append("waiver states: the move was absorbed silently — it must be "
+                            "REPORTED naming both paths, or the path field quietly stops "
+                            "meaning anything")
+        elif not any(".context/plans/README.md" in str(m) and "requests/README.md" in str(m)
+                     for m in moves):
+            failures.append(f"waiver states: the moved-path report does not name both "
+                            f"paths: {moves!r}")
+
+        # state 2 — STALE ANCHOR, unchanged behaviour. The content changed, so the
+        # waiver must NOT follow it: that is the property the anchor exists to provide,
+        # and content-addressing must not turn into a rubber stamp.
+        moved.write_text(moved.read_text(encoding="utf-8") + "\nchanged\n", encoding="utf-8")
+        d = run_v()
+        if d["summary"].get("waived") != 0:
+            failures.append("waiver states: a waiver followed its file across a move AND "
+                            "a content change — relocation must be keyed on the anchor, "
+                            "not on the rule alone")
+
+        # An anchorless waiver whose path no longer resolves cannot be relocated —
+        # there is nothing to match on. It must be reported, not silently ignored.
+        wfile.write_text("readme-in-context | .context/plans/README.md | - | accepted\n",
+                         encoding="utf-8")
+        d = run_v()
+        if not d["summary"].get("waiver_paths_orphaned"):
+            failures.append("waiver states: an anchorless waiver pointing at a path that "
+                            "no longer resolves was silently ignored — with no anchor "
+                            "there is nothing to relocate it by, so reporting is all "
+                            "that is left")
+
+
 def check_comm_paste_safe_unit(failures: list[str]) -> None:
     """The paste-safe rule (BL-218) is only correct if it stays OFF everywhere the
     construct is legitimate. The bad fixture proves it fires; these cells prove it
@@ -1173,6 +1255,7 @@ def main() -> int:
     check_backlog_type_unit(failures)
     check_backlog_priority_unit(failures)
     check_waivers(failures)
+    check_waiver_moved_path(failures)
     check_comm_paste_safe_unit(failures)
     check_comm_direction_and_legacy_unit(failures)
 

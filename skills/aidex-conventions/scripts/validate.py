@@ -1570,14 +1570,99 @@ def waiver_anchor_matches(w: Waiver, project_root: Path) -> bool:
         return False
     return digest.startswith(m.group(1))
 
+def waiver_state(w: Waiver, project_root: Path) -> str:
+    """The state of the file the waiver NAMES: matched | stale-anchor | path-missing.
+
+    Three states, because the format already implies three (BL-232) and only one of
+    them used to be visible. `waiver_anchor_matches` collapses the last two into
+    False, which is right for suppression and wrong for reporting: a content change
+    is the anchor doing its job, a moved path is the anchor being unable to.
+    """
+    target = project_root / w.path
+    if not target.is_file():
+        return "path-missing"
+    if w.anchor in ("", "-"):
+        return "matched"
+    m = WAIVER_ANCHOR_RE.match(w.anchor)
+    if not m:
+        return "stale-anchor"
+    try:
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    except OSError:
+        return "stale-anchor"
+    return "matched" if digest.startswith(m.group(1)) else "stale-anchor"
+
+
 def apply_waivers(findings: list[Finding], waivers: list[Waiver],
-                  project_root: Path) -> tuple[list[Finding], list[tuple[Finding, Waiver]]]:
-    """Split findings into (active, waived). A waiver keys on (rule, path) and
-    suppresses every finding with that key while its anchor still matches."""
+                  project_root: Path) -> tuple[list[Finding], list[tuple[Finding, Waiver]],
+                                               list[tuple[str, str, str]], list[Waiver]]:
+    """Split findings into (active, waived), and report what happened to the waivers
+    that did not simply match: `moved` as (rule, old_path, new_path), `orphaned` as
+    the lines that now suppress nothing.
+
+    A waiver keys on (rule, path). Archive-on-close (D-10) is mandatory and moves
+    files, so that key breaks routinely — measured 2026-08-24, 2 of this repo's 43
+    lines were already dead from it within days, one of them producing a live
+    unwaived warning nobody had noticed. The failure is quiet in the worse direction:
+    an orphaned waiver does not error, it stops suppressing.
+
+    Decided explicitly, because the acceptance offered either: a moved waiver **keeps
+    applying AND is reported**. Applying alone would auto-heal silently, which the
+    three-state report is supposed to make impossible; reporting alone would leave
+    the finding live in the meantime, punishing exactly the housekeeping the canon
+    mandates. Relocation is keyed on the ANCHOR, never on the rule alone — so a file
+    that also changed content does not get followed, which is the property the anchor
+    exists to provide.
+    """
     by_key: dict[tuple[str, str], Waiver] = {}
+    moved: list[tuple[str, str, str]] = []
+    unresolved: list[Waiver] = []
     for w in waivers:
-        if waiver_anchor_matches(w, project_root):
+        state = waiver_state(w, project_root)
+        if state == "matched":
             by_key.setdefault((w.rule, w.path), w)
+        elif state == "path-missing":
+            unresolved.append(w)
+        # stale-anchor: the content changed. Unchanged behaviour — the finding
+        # resurfaces, which is the whole point of anchoring.
+
+    # Relocate by content: for a waiver whose path is gone, look for a finding of the
+    # same rule whose file still hashes to the recorded anchor. Bounded by construction
+    # — only path-missing anchored lines reach here, and only same-rule findings are
+    # hashed.
+    if unresolved:
+        by_rule: dict[str, list[Finding]] = {}
+        for f in findings:
+            by_rule.setdefault(f.rule, []).append(f)
+        digests: dict[str, str | None] = {}
+        still_unresolved: list[Waiver] = []
+        for w in unresolved:
+            m = WAIVER_ANCHOR_RE.match(w.anchor) if w.anchor not in ("", "-") else None
+            hit = None
+            if m:
+                for f in by_rule.get(w.rule, []):
+                    if f.file == w.path:
+                        continue
+                    if f.file not in digests:
+                        t = project_root / f.file
+                        try:
+                            digests[f.file] = hashlib.sha256(t.read_bytes()).hexdigest()
+                        except OSError:
+                            digests[f.file] = None
+                    d = digests[f.file]
+                    if d and d.startswith(m.group(1)):
+                        hit = f.file
+                        break
+            if hit:
+                by_key.setdefault((w.rule, hit), w)
+                moved.append((w.rule, w.path, hit))
+            else:
+                # Nothing to relocate by: an anchorless line has no content to match,
+                # and an anchored one whose content is nowhere is simply dead. Either
+                # way it suppresses nothing and must be said out loud.
+                still_unresolved.append(w)
+        unresolved = still_unresolved
+
     active: list[Finding] = []
     waived: list[tuple[Finding, Waiver]] = []
     for f in findings:
@@ -1586,7 +1671,7 @@ def apply_waivers(findings: list[Finding], waivers: list[Waiver],
             waived.append((f, w))
         else:
             active.append(f)
-    return active, waived
+    return active, waived, moved, unresolved
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Validate .context/ artifacts against aidex conventions")
@@ -1638,8 +1723,11 @@ def main() -> int:
     # "waived: N" summary — never silently dropped (BL-048).
     waivers, waiver_parse_errors = load_waivers(context_dir)
     waived: list[tuple[Finding, Waiver]] = []
+    waiver_moved: list[tuple[str, str, str]] = []
+    waiver_orphaned: list[Waiver] = []
     if waivers:
-        findings, waived = apply_waivers(findings, waivers, context_dir.resolve().parent)
+        findings, waived, waiver_moved, waiver_orphaned = apply_waivers(
+            findings, waivers, context_dir.resolve().parent)
         sev_key = {"violation": "violations", "warning": "warnings", "info": "info"}
         for f, _ in waived:
             summary[sev_key[f.severity]] -= 1
@@ -1647,6 +1735,12 @@ def main() -> int:
             if bt:
                 bt[sev_key[f.severity]] -= 1
     summary["waived"] = len(waived)
+    if waiver_moved:
+        summary["waiver_paths_moved"] = [
+            {"rule": r, "from": a, "to": b} for r, a, b in waiver_moved]
+    if waiver_orphaned:
+        summary["waiver_paths_orphaned"] = [
+            {"rule": w.rule, "path": w.path, "anchor": w.anchor} for w in waiver_orphaned]
     if waiver_parse_errors:
         summary["waiver_parse_errors"] = waiver_parse_errors
 
@@ -1742,6 +1836,17 @@ def main() -> int:
             for f, w in waived:
                 date = f" ({w.date})" if w.date else ""
                 print(f"  [{f.rule}] {f.file}: {w.reason}{date}")
+        if waiver_moved:
+            print(f"\nwaiver paths moved: {len(waiver_moved)} (still applied — the content "
+                  f"anchor still matches; fix the path so the line keeps meaning something)")
+            for rule, old_p, new_p in waiver_moved:
+                print(f"  [{rule}] {old_p} -> {new_p}")
+        if waiver_orphaned:
+            print(f"\nwaiver paths orphaned: {len(waiver_orphaned)} (suppressing nothing — "
+                  f"the path does not resolve and nothing can relocate the line)")
+            for w in waiver_orphaned:
+                why = "no anchor to relocate by" if w.anchor in ("", "-") else "no file matches the anchor"
+                print(f"  [{w.rule}] {w.path}: {why}")
         if waiver_parse_errors:
             print(f"\nwaiver file: {waiver_parse_errors} unparseable line(s) ignored")
         if new_violations is not None:
