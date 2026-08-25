@@ -118,7 +118,7 @@ the rest are backlog-specific. When hand-authoring an entry, write all 13 — `i
 | `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it, and the filename carries it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id. `next_backlog_id` counts only conforming ids toward the max, so a hand-authored `BL-20260610` no longer inflates the sequence; it is still reported until fixed. |
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
-| `origin` | `manual` · `audit` · `issue` · `request` | Where it came from. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
+| `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping (BL-220). (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
 | `origin_ref` | `<type>/<filename>` (D-03) or empty | *Human-optional:* provenance archaeology — no script reads it. Format depends on origin — see below. |
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
 | `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
@@ -135,6 +135,8 @@ the rest are backlog-specific. When hand-authoring an entry, write all 13 — `i
 | `audit` | `audit/<methodology>/<run>/<finding-id>` | `audit/ux/2026-04-15-ux-review/IDEA-FF-2` |
 | `issue` | `issue/<id>` | `issue/ISSUE-042` |
 | `request` | `request/<filename>` | `request/2026-04-10-export-feature.md` |
+| `communication` | `communication/<YYYY-MM-DD>-<slug>` | `communication/2026-05-02-kickoff-call` |
+| `plan` | `plan/<filename-or-folder>` | `plan/2026-08-22-suite-speed-rollout` |
 
 ---
 
