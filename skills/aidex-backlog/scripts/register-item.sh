@@ -377,6 +377,31 @@ regen_index() {
   local index_file="$dir/00-index.md"
   local today; today="$(date +%Y-%m-%d)"
 
+  # Rendered companions, scanned ONCE per regeneration (BL-234). Derived from $dir
+  # rather than from $ROOT: --escalate-to regenerates the TARGET repo's index too,
+  # and $ROOT is this repo's.
+  local ctx_dir; ctx_dir="$(dirname "$dir")"
+  local ANCHORS; ANCHORS="$(scan_artifact_anchors "$ctx_dir")"
+
+  # Sub-bullets naming an item's companions, or nothing. Links are relative to the
+  # index, which lives in the backlog dir.
+  #
+  # Rows are joined with \036, NOT with a newline, and expanded only at print time
+  # (emit_rows). The Closed and Deferred sections sort their rows through `sort`,
+  # which is line-oriented: a row carrying a real newline is torn apart and its
+  # companions surface as orphan bullets under an unrelated entry.
+  companion_lines() {
+    local ref="$1" comp out=""
+    while IFS= read -r comp; do
+      [[ -n "$comp" ]] || continue
+      out="${out}"$'\036'"  - companion: [$(basename "$comp")]($(relpath_from "$ctx_dir/$comp" "$index_file"))"
+    done < <(companions_of "$ANCHORS" "$ref")
+    printf '%s' "$out"
+  }
+
+  # Print index rows, expanding the \036 companion separator back to newlines.
+  emit_rows() { printf '%s\n' "$@" | tr '\036' '\n'; }
+
   # Single awk pass per file: emit status, title, priority, estimate, blocked_by, id tab-separated.
   read_fm_fields() {
     awk '
@@ -460,7 +485,7 @@ regen_index() {
     esac
 
     if [[ -n "$blocked_by" ]]; then
-      line="- ${idp}**[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\""
+      line="- ${idp}**[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\"$(companion_lines "backlog/$base")"
       SEC_BLOCKED+=("$line")
       continue
     fi
@@ -468,7 +493,7 @@ regen_index() {
     [[ "$status" == "doing" ]] && doing_count=$((doing_count+1))
     [[ "$status" == "open" ]]  && active_count=$((active_count+1))
 
-    line="- ${idp}**[${title}](${base})** — ${status} · ${estimate:-?}"
+    line="- ${idp}**[${title}](${base})** — ${status} · ${estimate:-?}$(companion_lines "backlog/$base")"
     case "$priority" in
       P0) SEC_P0+=("$line") ;;
       P1) SEC_P1+=("$line") ;;
@@ -493,7 +518,7 @@ regen_index() {
       if [[ -n "$csuperseded" ]]; then clabel="superseded → ${csuperseded}"
       elif [[ -n "$cescalated" ]]; then clabel="${cstatus:-done} → ${cescalated}"
       else clabel="${cstatus:-done}"; fi
-      cline="- ${cid:+**${cid}** · }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}"
+      cline="- ${cid:+**${cid}** · }[${ctitle}](_archive/${cbase}) — ${clabel}${cupdated:+ · ${cupdated}}$(companion_lines "backlog/$cbase")"
       # prefix with sort key (updated date, fallback empty sorts last)
       closed_tmp+=("${cupdated:-0000-00-00}"$'\t'"$cline")
     done
@@ -516,7 +541,7 @@ regen_index() {
       fields="$(read_deferred_fields "$f")"
       IFS=$'\037' read -r dtitle did dpriority dupdated dblocked <<<"$fields"
       [[ -z "$dtitle" ]] && dtitle="(untitled)"
-      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}"
+      dline="- ${did:+**${did}** · }[${dtitle}](_deferred/${dbase}) — ${dpriority:-P?} · blocked_by: \"${dblocked}\"${dupdated:+ · ${dupdated}}$(companion_lines "backlog/$dbase")"
       deferred_tmp+=("${dupdated:-0000-00-00}"$'\t'"$dline")
     done
     if [[ ${#deferred_tmp[@]} -gt 0 ]]; then
@@ -537,7 +562,7 @@ regen_index() {
       local first="${1:-}"
       [[ -z "$first" ]] && return
       printf '## %s\n\n' "$heading"
-      printf '%s\n' "$@"
+      emit_rows "$@"
       printf '\n'
     }
 
@@ -550,7 +575,7 @@ regen_index() {
     if [[ ${#DEFERRED_SORTED[@]} -gt 0 ]]; then
       printf '## Deferred\n\n'
       printf '_Open but blocked — parked in [`_deferred/`](_deferred/), not in the active queue. Reactivate with `defer`/`reactivate`:_\n\n'
-      printf '%s\n' "${DEFERRED_SORTED[@]}"
+      emit_rows "${DEFERRED_SORTED[@]}"
       printf '\n'
     fi
 
@@ -561,10 +586,10 @@ regen_index() {
       # Window to the most recent 20 closures; older ones live in _archive/, so the
       # index tracks the active queue instead of lifetime throughput (BL-058).
       if [[ ${#CLOSED_SORTED[@]} -gt 20 ]]; then
-        printf '%s\n' "${CLOSED_SORTED[@]:0:20}"
+        emit_rows "${CLOSED_SORTED[@]:0:20}"
         printf '…and %d older closed items — see [`_archive/`](_archive/)\n' "$((${#CLOSED_SORTED[@]} - 20))"
       else
-        printf '%s\n' "${CLOSED_SORTED[@]}"
+        emit_rows "${CLOSED_SORTED[@]}"
       fi
       printf '\n'
     else
