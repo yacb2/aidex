@@ -172,7 +172,7 @@ updated: YYYY-MM-DD
 
 | Field | Purpose | Format |
 |---|---|---|
-| `origin` | Where this came from | `manual` · `audit` · `issue` · `request` · free text |
+| `origin` | Where this came from | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · free text |
 | `origin_ref` | Pointer to the originating artifact | `<type>/<filename>` per §3 |
 | `escalated_to` | Downstream artifact that picks up the work | `<type>/<filename>` per §3 |
 | `blocked_by` | Third party blocking progress | free text or `<type>/<filename>` |
