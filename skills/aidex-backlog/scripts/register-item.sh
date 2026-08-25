@@ -135,7 +135,71 @@ next_backlog_id() {
     n="$((10#${BASH_REMATCH[1]}))"
     (( n > max )) && max=$n
   done < <(scan_backlog_raw_ids "$dir")
+  # Claims count too, or the whole claim mechanism is decorative: an id taken by a
+  # session still writing its entry is exactly the state this must not re-mint.
+  while IFS= read -r rawid; do
+    [[ "$rawid" =~ ^BL-([0-9]{3,5})$ ]] || continue
+    n="$((10#${BASH_REMATCH[1]}))"
+    (( n > max )) && max=$n
+  done < <(scan_claimed_ids "$dir")
   printf 'BL-%03d' $((max+1))
+}
+
+# --- id claiming (BL-235) -----------------------------------------------------
+#
+# `next_backlog_id` is a read-max-then-add-one, and the scan is separated from the
+# eventual file write by the whole body of the run. Two sessions in one `.context/`
+# therefore both see max=N and both mint N+1 — a TOCTOU race wide enough that a
+# human-paced session loses it routinely. `report_duplicate_ids` catches it only
+# AFTER both files exist, which is what the user observes.
+#
+# The claim is an empty marker named for the id, taken with `set -o noclobber` —
+# an atomic create. It has to be keyed on the ID and not on the entry filename:
+# two sessions registering different titles produce different filenames, so a
+# no-clobber on the entry would let both through with the same number.
+#
+# `_claims/` is invisible to everything that reads this tree: the markers carry no
+# `.md` extension, and validate.py's backlog walker is `glob("*.md")` over the
+# folder plus `_archive/` and `_deferred/`. Git never records the directory once
+# it is empty again, so a marker showing up in `git status` means a leak, which is
+# the right way for one to surface.
+CLAIMS_SUBDIR="_claims"
+
+# Emit every claimed id, one per line.
+scan_claimed_ids() {
+  local d="$1/$CLAIMS_SUBDIR" f
+  [[ -d "$d" ]] || return 0
+  shopt -s nullglob
+  for f in "$d"/BL-*; do
+    [[ -f "$f" ]] && basename "$f"
+  done
+  shopt -u nullglob
+}
+
+# Atomically claim the next id. Sets CLAIMED_ID and CLAIMED_FILE.
+# Retries because losing the race is the EXPECTED outcome for one of two sessions:
+# the loser recomputes the max — which now includes the winner's claim — and takes
+# the next number instead.
+claim_backlog_id() {
+  local dir="$1" id attempt=0
+  while (( attempt < 100 )); do
+    id="$(next_backlog_id "$dir")"
+    mkdir -p "$dir/$CLAIMS_SUBDIR"
+    if ( set -o noclobber; : > "$dir/$CLAIMS_SUBDIR/$id" ) 2>/dev/null; then
+      CLAIMED_ID="$id"
+      CLAIMED_FILE="$dir/$CLAIMS_SUBDIR/$id"
+      return 0
+    fi
+    attempt=$((attempt+1))
+  done
+  die "could not claim a backlog id after 100 attempts in $dir/$CLAIMS_SUBDIR"
+}
+
+# Release a claim once the entry carrying that id exists — or once the run that
+# took it has given up. Held claims burn ids, so every path that claims releases.
+release_backlog_claim() {
+  [[ -n "${1:-}" ]] && rm -f "$1"
+  return 0
 }
 
 # Emit every assigned id VERBATIM as "<raw-id><TAB><path>", one per line. Unlike
@@ -847,8 +911,6 @@ if [[ -n "$ESCALATE_TO" ]]; then
   SRC_NAME="$(basename "$ROOT")"
   TGT_NAME="$(basename "$(cd "$TARGET_ROOT" && pwd -P)")"
   [[ "$SRC_NAME" != "$TGT_NAME" ]] || die "--escalate-to: source and target are the same repo ($SRC_NAME)"
-  TARGET_ID="$(next_backlog_id "$TARGET_BACKLOG")"
-
   # Resolve the source REFERENCE before anything is written — the counterpart needs it,
   # and both forms are knowable without writing: an existing id, or a freshly minted one.
   if [[ -n "$SOURCE_ID" ]]; then
@@ -856,7 +918,8 @@ if [[ -n "$ESCALATE_TO" ]]; then
       || die "--source-id: no item with id $SOURCE_ID in $BACKLOG_DIR"
     SRC_REF="$SOURCE_ID"
   else
-    SRC_ID="$(next_backlog_id "$BACKLOG_DIR")"
+    claim_backlog_id "$BACKLOG_DIR"
+    SRC_ID="$CLAIMED_ID"; SRC_CLAIM="$CLAIMED_FILE"
     SRC_REF="$SRC_ID"
   fi
 
@@ -870,9 +933,22 @@ if [[ -n "$ESCALATE_TO" ]]; then
   #
   # origin is not a validate.py cross-ref field, so the cross-repo value stays clean in
   # the target's validate run.
-  TGT_FILE="$(emit_backlog_stub "$TARGET_BACKLOG" "$TARGET_ID" "$TITLE" "$SRC_NAME/$SRC_REF" "" \
+  # Claimed HERE, not at the top of the block: everything above can still `die`
+  # (an unresolvable --source-id is the common one), and a claim held across a die
+  # burns a number in the OTHER repo — a repo this run has no business costing.
+  claim_backlog_id "$TARGET_BACKLOG"
+  TARGET_ID="$CLAIMED_ID"; TGT_CLAIM="$CLAIMED_FILE"
+
+  # `if !` so a failed write releases the claim instead of aborting under `set -e`
+  # with it still held.
+  if ! TGT_FILE="$(emit_backlog_stub "$TARGET_BACKLOG" "$TARGET_ID" "$TITLE" "$SRC_NAME/$SRC_REF" "" \
     "$PRIORITY" "$TYPE" "" \
-    "Discovered in $SRC_NAME (origin: $SRC_NAME/$SRC_REF); routed here for execution.")"
+    "Discovered in $SRC_NAME (origin: $SRC_NAME/$SRC_REF); routed here for execution.")"; then
+    release_backlog_claim "$TGT_CLAIM"
+    release_backlog_claim "${SRC_CLAIM:-}"
+    die "could not write the counterpart in $TGT_NAME"
+  fi
+  release_backlog_claim "$TGT_CLAIM"
   ok "Registered counterpart $TARGET_ID in $TGT_NAME (origin: $SRC_NAME/$SRC_REF)"
   printf '  %s\n' "$TGT_FILE" >&2
 
@@ -886,7 +962,10 @@ if [[ -n "$ESCALATE_TO" ]]; then
   # stamp call needs its own `( )` because its `die` would otherwise exit this script.
   if [[ -n "$SOURCE_ID" ]]; then
     if ! ( stamp_escalated_to "$SRC_FILE" "$TGT_NAME/$TARGET_ID" ); then
+      # Roll the counterpart back AND give its id back. Without the second half a
+      # failed handshake costs the OTHER repo a number, every time.
       rm -f "$TGT_FILE"
+      release_backlog_claim "$TGT_CLAIM"
       die "could not stamp source $SOURCE_ID — counterpart $TARGET_ID rolled back"
     fi
     ok "Stamped source $SOURCE_ID → escalated_to: $TGT_NAME/$TARGET_ID"
@@ -896,8 +975,11 @@ if [[ -n "$ESCALATE_TO" ]]; then
       "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID." \
       "$ESTIMATE" "$STATUS" "$BLOCKED_BY")"; then
       rm -f "$TGT_FILE"
+      release_backlog_claim "$TGT_CLAIM"
+      release_backlog_claim "${SRC_CLAIM:-}"
       die "could not write the source item — counterpart $TARGET_ID rolled back"
     fi
+    release_backlog_claim "${SRC_CLAIM:-}"
     ok "Registered source stub $SRC_REF (escalated_to: $TGT_NAME/$TARGET_ID)"
   fi
   printf '  %s\n' "$SRC_FILE" >&2
@@ -922,10 +1004,12 @@ fi
 DATE_ISO="$(date +%Y-%m-%d)"
 mkdir -p "$BACKLOG_DIR"
 
-# --- assign stable short id (BL-NNN) for commit-trailer references (D-09) ---
-# Minted before the filename because the name carries it. No clobber guard is
-# needed: the id is unique across active + _archive + _deferred by construction.
-ITEM_ID="$(next_backlog_id "$BACKLOG_DIR")"
+# --- claim a stable short id (BL-NNN) for commit-trailer references (D-09) ---
+# Minted before the filename because the name carries it, and CLAIMED rather than
+# merely read: uniqueness "by construction" held only for one session at a time
+# (BL-235). The claim is released once the entry file exists.
+claim_backlog_id "$BACKLOG_DIR"
+ITEM_ID="$CLAIMED_ID"
 OUT_FILE="$BACKLOG_DIR/$DATE_ISO-$(printf '%s' "$ITEM_ID" | tr 'A-Z' 'a-z')-$SLUG.md"
 
 # --- audit provenance, appended under ## Notes ---
@@ -950,6 +1034,9 @@ emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN
   "<!-- Write this item in ENGLISH (D-04), even when the conversation is not.
      Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
   "$NOTES_BLOCK"
+
+# The entry now carries the id, so the claim has done its job.
+release_backlog_claim "$CLAIMED_FILE"
 
 ok "Backlog entry created"
 printf '  %s\n' "$OUT_FILE" >&2
