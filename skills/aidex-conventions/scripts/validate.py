@@ -221,7 +221,15 @@ def crossref_target_exists(context_dir: Path, ref: str) -> bool:
             if (base / "_archive" / run).exists():          # audits/_archive/<run>
                 return True
             head, _, tail = run.rpartition("/")             # audits/<meth>/_archive/<run>
-            return bool(head) and (base / head / "_archive" / tail).exists()
+            if head and (base / head / "_archive" / tail).exists():
+                return True
+            # audits/_archive/<run>, reached by a ref that still names the methodology.
+            # archive-sweep.py flattens a grouped run into the root archive (D-10 and
+            # 00-global §5 both put it there), while the ref that points at it keeps the
+            # `<meth>/<run>` shape it was written with. Applying the sweep's own proposal
+            # otherwise turns clean items into violations — the housekeeping punishing
+            # itself, which is the failure D-10 exists to prevent (2026-08-25).
+            return bool(head) and (base / "_archive" / tail).exists()
 
         if audit_run_exists(rest):
             return True
