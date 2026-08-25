@@ -198,6 +198,8 @@ if not ctx.is_dir():
 # passes validation and still fails to appear under its entry.
 META = re.compile(r"""<meta\s[^>]*\bname\s*=\s*["']artifact-anchor["'][^>]*>""", re.I)
 CONTENT = re.compile(r"""\bcontent\s*=\s*["']([^"']*)["']""", re.I)
+ANCHOR_SHAPE = re.compile(
+    r"^(audit|backlog|plan|request|decision|reference|research|communication|loop|worktree)/\S+$")
 for p in sorted(ctx.rglob("*.html")):
     # wrap_report.py's superseded snapshots are tooling state, not companions —
     # listing them would show every entry its own history.
@@ -211,8 +213,20 @@ for p in sorted(ctx.rglob("*.html")):
         continue
     c = CONTENT.search(m.group(0))
     anchor = (c.group(1).strip() if c else "")
-    if anchor:
-        print(f"{anchor}\t{p.relative_to(ctx)}")
+    # The anchor is arbitrary text read out of a page, and it is emitted as the FIRST
+    # tab-separated field. A tab inside content="…" shifts the fields, so the consumer
+    # reads the injected text as the companion's path — and `archive_companions` feeds
+    # that path to `mv`. Verified 2026-08-25: content="plan/x<TAB>../outside.txt" made
+    # companions_of return a path outside `.context/` entirely.
+    #
+    # Requiring the canonical `<type>/<filename>` shape closes it at the root rather
+    # than stripping control characters one at a time: field 2 is then always a real
+    # rglob path under ctx. Nothing legitimate is lost — an anchor that does not match
+    # this could never join a local entry anyway, and validate.py still reports it as
+    # `artifact-anchor-format-invalid`. The type enum is the one from 00-global §3.
+    if not ANCHOR_SHAPE.match(anchor):
+        continue
+    print(f"{anchor}\t{p.relative_to(ctx)}")
 PY
 }
 
