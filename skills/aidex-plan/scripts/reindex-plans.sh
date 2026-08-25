@@ -45,6 +45,32 @@ PLANS_DIR="$ROOT/.context/plans"
 INDEX_FILE="$PLANS_DIR/00-index.md"
 TODAY="$(date +%Y-%m-%d)"
 
+# Rendered companions, scanned ONCE for the whole run (BL-234). Before this, the
+# index was regenerated purely from markdown front-matter and had no idea `.html`
+# companions existed, so one could be orphaned or left pointing at a moved anchor
+# and the index still rendered as if nothing were wrong.
+ANCHORS="$(scan_artifact_anchors "$ROOT/.context")"
+
+# Sub-bullets naming this plan's companions, or nothing. `$REF` is set by
+# resolve_plan; links are relative to the index, not to `.context/`.
+#
+# Rows are separated by \036, NOT by a newline, and expanded only at print time
+# (see emit_rows). The Closed section sorts its rows through `sort`, which is
+# line-oriented: a row carrying a real newline is torn apart and its companions
+# land as orphan bullets under whichever entry happens to sort next. Observed on
+# the first run of this change, 2026-08-25.
+companion_lines() {
+  local ref="$1" comp out=""
+  while IFS= read -r comp; do
+    [[ -n "$comp" ]] || continue
+    out="${out}"$'\036'"  - companion: [$(basename "$comp")]($(relpath_from "$ROOT/.context/$comp" "$INDEX_FILE"))"
+  done < <(companions_of "$ANCHORS" "$ref")
+  printf '%s' "$out"
+}
+
+# Print index rows, expanding the \036 companion separator back to newlines.
+emit_rows() { printf '%s\n' "$@" | tr '\036' '\n'; }
+
 # Read selected front-matter fields from a plan's fm file, tab-separated:
 #   status, title, current-phase, updated, superseded_by
 read_fm_fields() {
@@ -77,9 +103,10 @@ count_phases() {
 }
 
 # Resolve the fm file, link path, and phase total for one plan target.
-# Sets globals: FM_FILE LINK PHASES
+# Sets globals: FM_FILE LINK PHASES REF
 resolve_plan() {
   local target="$1" prefix="$2"
+  REF="plan/$(basename "$target")"
   if [[ -d "$target" ]]; then
     FM_FILE="$target/00-index.md"
     LINK="${prefix}$(basename "$target")/00-index.md"
@@ -134,7 +161,7 @@ emit_active_row() {
   case "$status" in
     open|doing) ;;
     done|dropped)
-      CLOSED_EXTRA+=("${updated:-0000-00-00}"$'\t'"- [${title}](${LINK}) — ${status} · not archived (run close-plan.sh)${updated:+ · ${updated}}")
+      CLOSED_EXTRA+=("${updated:-0000-00-00}"$'\t'"- [${title}](${LINK}) — ${status} · not archived (run close-plan.sh)${updated:+ · ${updated}}$(companion_lines "$REF")")
       return 0 ;;
     *)
       # A real plan file with no parseable YAML status (e.g. legacy bold-key prose
@@ -152,6 +179,7 @@ emit_active_row() {
   line="- **[${title}](${LINK})** — ${status}"
   [[ -n "$plabel" ]] && line="${line} · ${plabel}"
   [[ -n "$updated" ]] && line="${line} · updated ${updated}"
+  line="${line}$(companion_lines "$REF")"
 
   if [[ "$status" == "doing" ]]; then
     SEC_DOING+=("$line"); doing_count=$((doing_count+1))
@@ -163,23 +191,23 @@ emit_active_row() {
 # Closed plans from _archive/, newest-closed (by updated) first.
 declare -a CLOSED_SORTED=()
 collect_closed() {
-  local f status title phase updated superseded fields clabel cline base tmp=()
+  local f status title phase updated superseded fields clabel cline base pname tmp=()
   # Seed with done/dropped plans still in the active dir (collected by collect_active).
   [[ ${#CLOSED_EXTRA[@]} -gt 0 ]] && tmp+=("${CLOSED_EXTRA[@]}")
   shopt -s nullglob
   for f in "$PLANS_DIR"/_archive/*.md "$PLANS_DIR"/_archive/*/00-index.md; do
     [[ -f "$f" ]] || continue
     if [[ "$(basename "$f")" == "00-index.md" ]]; then
-      base="$(basename "$(dirname "$f")")/00-index.md"; base="_archive/$base"
+      pname="$(basename "$(dirname "$f")")"; base="_archive/$pname/00-index.md"
     else
-      base="_archive/$(basename "$f")"
+      pname="$(basename "$f")"; base="_archive/$pname"
     fi
     fields="$(read_fm_fields "$f")"
     IFS=$'\037' read -r status title phase updated superseded <<<"$fields"
     [[ -z "$title" ]] && title="(untitled)"
     if [[ -n "$superseded" ]]; then clabel="superseded → ${superseded}"
     else clabel="${status:-done}"; fi
-    cline="- [${title}](${base}) — ${clabel}${updated:+ · ${updated}}"
+    cline="- [${title}](${base}) — ${clabel}${updated:+ · ${updated}}$(companion_lines "plan/$pname")"
     tmp+=("${updated:-0000-00-00}"$'\t'"$cline")
   done
   shopt -u nullglob
@@ -200,10 +228,10 @@ NEW_IDX="$(mktemp)"; trap 'rm -f "$NEW_IDX"' EXIT
   printf '**Open:** %d · **Doing:** %d · **Closed:** %d\n\n' "$active_count" "$doing_count" "${#CLOSED_SORTED[@]}"
 
   if [[ ${#SEC_DOING[@]} -gt 0 ]]; then
-    printf '## Doing\n\n'; printf '%s\n' "${SEC_DOING[@]}"; printf '\n'
+    printf '## Doing\n\n'; emit_rows "${SEC_DOING[@]}"; printf '\n'
   fi
   if [[ ${#SEC_OPEN[@]} -gt 0 ]]; then
-    printf '## Open\n\n'; printf '%s\n' "${SEC_OPEN[@]}"; printf '\n'
+    printf '## Open\n\n'; emit_rows "${SEC_OPEN[@]}"; printf '\n'
   fi
   if [[ ${#SEC_DOING[@]} -eq 0 && ${#SEC_OPEN[@]} -eq 0 ]]; then
     printf '_No active plans._\n\n'
@@ -212,7 +240,7 @@ NEW_IDX="$(mktemp)"; trap 'rm -f "$NEW_IDX"' EXIT
   if [[ ${#SEC_UNTRACKED[@]} -gt 0 ]]; then
     printf '## Untracked (%d)\n\n' "${#SEC_UNTRACKED[@]}"
     printf '_Plan files with no `status:` front-matter — add one (`open`/`doing`/`done`/`dropped`) to track them here:_\n\n'
-    printf '%s\n' "${SEC_UNTRACKED[@]}"
+    emit_rows "${SEC_UNTRACKED[@]}"
     printf '\n'
   fi
 
@@ -220,7 +248,7 @@ NEW_IDX="$(mktemp)"; trap 'rm -f "$NEW_IDX"' EXIT
   if [[ ${#CLOSED_SORTED[@]} -gt 0 ]]; then
     printf '## Closed\n\n'
     printf '_Closed plans (full bodies in [`_archive/`](_archive/)):_\n\n'
-    printf '%s\n' "${CLOSED_SORTED[@]}"
+    emit_rows "${CLOSED_SORTED[@]}"
     printf '\n'
   else
     printf '_Archived plans: see [`_archive/`](_archive/)._\n'

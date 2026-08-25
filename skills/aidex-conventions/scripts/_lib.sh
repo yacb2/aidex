@@ -171,3 +171,59 @@ slugify() {
 relpath_from() {
   python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], start=os.path.dirname(sys.argv[2])))" "$1" "$2" 2>/dev/null || printf '%s\n' "$1"
 }
+
+# --- rendered companions (BL-234) ---------------------------------------------
+#
+# A rendered `.html` companion has no front-matter, so it names the artifact it
+# belongs to in the page: `<meta name="artifact-anchor" content="plan/…">`. That
+# meta is the ONLY join between the two, and the auto-generated indexes were blind
+# to it — a companion could be orphaned, duplicated or left pointing at a moved
+# anchor and every index still rendered as if nothing were wrong (2026-08-25).
+#
+# Emit "<anchor><TAB><path>" for every page declaring a NON-EMPTY anchor, path
+# relative to `.context/`. One pass over the tree on purpose: a generator captures
+# this once and filters it per entry, rather than re-scanning for each row.
+# `validate.py` owns the integrity half (empty / malformed / unresolvable anchors);
+# this function only reports what pages claim.
+scan_artifact_anchors() {
+  python3 - "$1" <<'PY'
+import re, sys
+from pathlib import Path
+
+ctx = Path(sys.argv[1])
+if not ctx.is_dir():
+    sys.exit(0)
+# Same two regexes as validate.py's read_artifact_anchor, deliberately: the
+# checker and the indexers must agree on what a page declares, or a companion
+# passes validation and still fails to appear under its entry.
+META = re.compile(r"""<meta\s[^>]*\bname\s*=\s*["']artifact-anchor["'][^>]*>""", re.I)
+CONTENT = re.compile(r"""\bcontent\s*=\s*["']([^"']*)["']""", re.I)
+for p in sorted(ctx.rglob("*.html")):
+    # wrap_report.py's superseded snapshots are tooling state, not companions —
+    # listing them would show every entry its own history.
+    if ".aidex-artifact-prev" in p.parts:
+        continue
+    try:
+        m = META.search(p.read_text(encoding="utf-8", errors="replace"))
+    except OSError:
+        continue
+    if not m:
+        continue
+    c = CONTENT.search(m.group(0))
+    anchor = (c.group(1).strip() if c else "")
+    if anchor:
+        print(f"{anchor}\t{p.relative_to(ctx)}")
+PY
+}
+
+# Filter a scan_artifact_anchors stream down to one artifact's companions, newest
+# path last. Usage: companions_of "<stream>" "<type>/<name>"
+#
+# Both sides are normalised by dropping a trailing `.md`: the cross-ref canon
+# accepts the bare slug and the explicit filename as the same target (§3), so a
+# page anchored `plan/x.md` must join an entry keyed `plan/x`.
+companions_of() {
+  printf '%s\n' "$1" | awk -F'\t' -v want="$2" '
+    function norm(s) { sub(/\.md$/, "", s); return s }
+    NF >= 2 && norm($1) == norm(want) { print $2 }'
+}

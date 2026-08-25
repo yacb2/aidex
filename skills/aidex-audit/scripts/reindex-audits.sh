@@ -135,6 +135,35 @@ run_counts() {
 declare -a ACTIVE=() ARCHIVED=() UNREC=()
 active_n=0 archived_n=0
 
+# Rendered companions, scanned ONCE for the whole run (BL-234). Before this the
+# index knew only about markdown front-matter, so a page anchored to a run could
+# be orphaned by an archive sweep and nothing would show it.
+ANCHORS="$(scan_artifact_anchors "$ROOT/.context")"
+
+# Sub-bullets naming a run's companions, or nothing. Takes SEVERAL candidate refs
+# because an audit ref has more than one legal shape for the same run — bare slug,
+# `<methodology>/<run>`, and the archived paths — exactly the set
+# crossref_target_exists accepts. First match wins per companion; `$seen` keeps a
+# page listed once when two candidates resolve to it.
+companion_lines() {
+  local ref comp out="" seen=""
+  for ref in "$@"; do
+    [[ -n "$ref" ]] || continue
+    while IFS= read -r comp; do
+      [[ -n "$comp" ]] || continue
+      case "$seen" in *"|$comp|"*) continue ;; esac
+      seen="${seen}|$comp|"
+      out="${out}"$'\036'"  - companion: [$(basename "$comp")]($(relpath_from "$ROOT/.context/$comp" "$INDEX_FILE"))"
+    done < <(companions_of "$ANCHORS" "$ref")
+  done
+  printf '%s' "$out"
+}
+
+# Print index rows, expanding the \036 companion separator back to newlines. Rows
+# are joined with \036 rather than a newline because sort_section pipes them
+# through `sort`, which is line-oriented and would tear a multi-line row apart.
+emit_rows() { printf '%s\n' "$@" | tr '\036' '\n'; }
+
 # Emit one run row. rundir = the run folder; rel = its path relative to audits/.
 emit_run() {
   local rundir="$1" rel="$2" arr_name="$3"
@@ -159,7 +188,9 @@ emit_run() {
   else meta="${meta} · ${open} open / ${total} findings"; fi
   [[ -n "$created" ]] && meta="${meta} · ${created}"
 
-  line="- **[${title}](${link})** — ${meta}"
+  line="- **[${title}](${link})** — ${meta}$(companion_lines \
+        "audit/$rel" "audit/${rel#_archive/}" "audit/$slug" \
+        "${methodology:+audit/$methodology/$slug}")"
   if [[ "$arr_name" == "ACTIVE" ]]; then
     ACTIVE+=("${created:-0000-00-00}"$'\t'"$line"); active_n=$((active_n+1))
   else
@@ -202,7 +233,7 @@ sort_section() {
   [[ $# -eq 0 ]] && return 0
   local line
   while IFS= read -r line; do
-    printf '%s\n' "${line#*$'\t'}"
+    emit_rows "${line#*$'\t'}"
   done < <(printf '%s\n' "$@" | sort -r)
 }
 
