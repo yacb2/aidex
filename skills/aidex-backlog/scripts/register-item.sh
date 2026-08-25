@@ -165,9 +165,37 @@ next_backlog_id() {
 # the right way for one to surface.
 CLAIMS_SUBDIR="_claims"
 
+# Where the ledger lives, for a given backlog dir (BL-239).
+#
+# The id sequence has to be global to the REPOSITORY, not to the checkout. When a project
+# TRACKS `.context/` — 13 of 17 projects here do, measured 2026-08-25 — each linked
+# worktree carries its own committed copy, `find_project_root` resolves to the WORKTREE,
+# and two trees scan two different backlogs and legitimately mint the same N+1. The
+# collision only surfaces when the branches merge. (With `.context/` gitignored the
+# worktree has no copy at all and the resolver already hops to the main tree, which is
+# why this was never visible in aidex itself.)
+#
+# So the LEDGER is anchored in the main working tree while the entry file stays where the
+# session is: only the sequence is shared, and the item still belongs to its branch and
+# merges normally. Resolved from $dir, never from the cwd — `--escalate-to` mints in
+# ANOTHER repo, and asking git about the wrong tree would anchor that repo's ledger here.
+backlog_claims_dir() {
+  local dir="$1" common gitdir main
+  if common="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+     && gitdir="$(git -C "$dir" rev-parse --absolute-git-dir 2>/dev/null)" \
+     && [[ -n "$common" && "$common" != "$gitdir" ]] \
+     && main="$(cd "$(dirname "$common")" 2>/dev/null && pwd -P)" \
+     && [[ -n "$main" && -d "$main/.context" ]]; then
+    printf '%s' "$main/.context/backlog/$CLAIMS_SUBDIR"
+  else
+    printf '%s' "$dir/$CLAIMS_SUBDIR"
+  fi
+}
+
 # Emit every claimed id, one per line.
 scan_claimed_ids() {
-  local d="$1/$CLAIMS_SUBDIR" f
+  local d f
+  d="$(backlog_claims_dir "$1")"
   [[ -d "$d" ]] || return 0
   shopt -s nullglob
   for f in "$d"/BL-*; do
@@ -181,22 +209,33 @@ scan_claimed_ids() {
 # the loser recomputes the max — which now includes the winner's claim — and takes
 # the next number instead.
 claim_backlog_id() {
-  local dir="$1" id attempt=0
+  local dir="$1" claims id attempt=0
+  claims="$(backlog_claims_dir "$dir")"
   while (( attempt < 100 )); do
     id="$(next_backlog_id "$dir")"
-    mkdir -p "$dir/$CLAIMS_SUBDIR"
-    if ( set -o noclobber; : > "$dir/$CLAIMS_SUBDIR/$id" ) 2>/dev/null; then
+    mkdir -p "$claims"
+    # Self-ignoring: 13 of 17 projects TRACK `.context/`, and without this every
+    # registration would add an empty marker to their diff. The ledger is machine-local
+    # coordination state, not repo content. `scan_claimed_ids` globs `BL-*`, so this file
+    # is invisible to it.
+    [[ -f "$claims/.gitignore" ]] || printf '*\n' > "$claims/.gitignore"
+    if ( set -o noclobber; : > "$claims/$id" ) 2>/dev/null; then
       CLAIMED_ID="$id"
-      CLAIMED_FILE="$dir/$CLAIMS_SUBDIR/$id"
+      CLAIMED_FILE="$claims/$id"
       return 0
     fi
     attempt=$((attempt+1))
   done
-  die "could not claim a backlog id after 100 attempts in $dir/$CLAIMS_SUBDIR"
+  die "could not claim a backlog id after 100 attempts in $claims"
 }
 
-# Release a claim once the entry carrying that id exists — or once the run that
-# took it has given up. Held claims burn ids, so every path that claims releases.
+# Give a claimed id back. Called ONLY when no entry was written — a failed
+# `--escalate-to` handshake, which would otherwise cost the other repo a number.
+#
+# A successful registration deliberately KEEPS its marker. The entry it wrote may live on
+# a branch the main tree cannot read, so the ledger is the only shared record that the
+# number is spent; releasing on success would hand the same id to a sibling worktree,
+# which is the exact bug the ledger exists to close (BL-239).
 release_backlog_claim() {
   [[ -n "${1:-}" ]] && rm -f "$1"
   return 0
@@ -948,7 +987,6 @@ if [[ -n "$ESCALATE_TO" ]]; then
     release_backlog_claim "${SRC_CLAIM:-}"
     die "could not write the counterpart in $TGT_NAME"
   fi
-  release_backlog_claim "$TGT_CLAIM"
   ok "Registered counterpart $TARGET_ID in $TGT_NAME (origin: $SRC_NAME/$SRC_REF)"
   printf '  %s\n' "$TGT_FILE" >&2
 
@@ -979,7 +1017,6 @@ if [[ -n "$ESCALATE_TO" ]]; then
       release_backlog_claim "${SRC_CLAIM:-}"
       die "could not write the source item — counterpart $TARGET_ID rolled back"
     fi
-    release_backlog_claim "${SRC_CLAIM:-}"
     ok "Registered source stub $SRC_REF (escalated_to: $TGT_NAME/$TARGET_ID)"
   fi
   printf '  %s\n' "$SRC_FILE" >&2
@@ -1035,9 +1072,8 @@ emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN
      Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
   "$NOTES_BLOCK"
 
-# The entry now carries the id, so the claim has done its job.
-release_backlog_claim "$CLAIMED_FILE"
-
+# The marker STAYS: it is the repo-global record that this number is spent. The entry
+# carries the id too, but only on this checkout's branch (BL-239).
 ok "Backlog entry created"
 printf '  %s\n' "$OUT_FILE" >&2
 
