@@ -310,6 +310,36 @@ HTML_BLOCK_RE = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 
+# `- language: es` in the project's artifact style profile. The regex is a COPY of
+# aidex-dash's `LANG_FIELD` (scripts/dash/wrap_report.py) on purpose: that script is
+# what writes the field and turns it into `<html lang>`, so the checker must read it
+# exactly as the writer does or it silences the wrong set. A field, not prose — the
+# profile's own body says "language, favicon, tone" and must not match.
+ARTIFACT_LANG_FIELD = re.compile(r"^\s*[-*]?\s*language\s*:\s*([A-Za-z][A-Za-z0-9-]*)", re.M)
+
+# Languages `check_body_language` can actually detect. The profile silences only what
+# it authorises: declaring `fr` does not make a Spanish page acceptable, and declaring
+# `en` leaves the rule exactly as it was.
+SPANISH_LANG_CODES = frozenset({"es", "spa", "spanish"})
+
+
+def declared_artifact_language(context_dir: Path) -> str | None:
+    """The language this project declares for its RENDERED artifacts, or None.
+
+    Scope is artifacts. `.context/` markdown stays English (D-04) whatever this
+    says — see check_body_language, which is where the scoping is enforced.
+    """
+    profile = context_dir / "artifact-style.md"
+    try:
+        text = profile.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        # The profile is an optimisation, not a contract: an unreadable one falls
+        # back to "nothing declared" rather than aborting the run.
+        return None
+    m = ARTIFACT_LANG_FIELD.search(text)
+    return m.group(1).lower() if m else None
+
+
 def strip_html(text: str) -> str:
     """Visible text of a page: script/style contents removed, then tags."""
     return HTML_TAG_RE.sub(" ", HTML_BLOCK_RE.sub(" ", text))
@@ -840,7 +870,8 @@ def check_comm_paste_safe(path: Path, text: str, fm: dict | None) -> list[Findin
                                     f"use {substitute}"))
     return findings
 
-def check_body_language(type_name: str, path: Path, text: str) -> Finding | None:
+def check_body_language(type_name: str, path: Path, text: str,
+                        declared_language: str | None = None) -> Finding | None:
     """Warn when a knowledge artifact's body reads Spanish-dominant (D-04:
     knowledge artifacts are always English). Conservative by design — flags
     clearly-Spanish bodies only, never borderline bilingual quotes.
@@ -853,11 +884,13 @@ def check_body_language(type_name: str, path: Path, text: str) -> Finding | None
     waivers turned out to be, not on disagreeing with that. All 43 in this repo were
     audited and none is a D-04 violation parked out of sight:
 
-      - 31 are rendered .html artifacts the project writes in Spanish ON PURPOSE, by
-        the `language:` field of its own `.context/artifact-style.md`. This checker
-        does not read that profile, so promotion would hard-fail a project on output
-        its own declared style authorises. Reading the profile is the fix for those,
-        not a harsher severity.
+      - 31 were rendered .html artifacts the project writes in Spanish ON PURPOSE, by
+        the `language:` field of its own `.context/artifact-style.md`. Reading the
+        profile was named there as the fix for those rather than a harsher severity,
+        and it SHIPPED as BL-231 (2026-08-25): those artifacts are now silent at the
+        source and their 32 waiver lines are gone (waived 52 -> 20). The severity
+        argument below is unaffected — it rests on the other two groups, which have
+        no such fix.
       - 9 are frozen historical markdown (pre-enforcement research and plans from
         2026-04/05) that nobody will rewrite.
       - 1 is a verbatim corpus of the user's own Spanish prompts, quoted as evidence.
@@ -882,6 +915,13 @@ def check_body_language(type_name: str, path: Path, text: str) -> Finding | None
     if type_name == "communications":
         return None
     if is_loop_state_sidecar(type_name, path):
+        return None
+    # A project declaring Spanish artifacts is not a project with 31 parked
+    # violations (BL-231). `declared_language` is passed ONLY from the two rendered
+    # (.html) call sites, so the markdown walker cannot reach this branch: D-04 keeps
+    # knowledge artifacts English whatever the profile says, and a profile that could
+    # opt out of it would be a bypass rather than a fix.
+    if declared_language and declared_language.lower() in SPANISH_LANG_CODES:
         return None
     body = FENCED_CODE_RE.sub("", body_after_frontmatter(text))
     tokens = WORD_RE.findall(body.lower())
@@ -1266,6 +1306,9 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
     files_scanned = 0
     ignore_prefixes = load_ignores(context_dir)
     files_ignored = 0
+    # Read once per run, not once per page: the profile is one file and the
+    # rendered walkers touch it for every artifact they yield.
+    artifact_language = declared_artifact_language(context_dir)
     types_to_scan = [type_filter] if type_filter else TYPES
 
     for type_name in types_to_scan:
@@ -1366,7 +1409,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             except OSError as e:
                 findings.append(Finding(type_name, str(path), "io-error", "violation", str(e)))
                 continue
-            lf = check_body_language(type_name, path, strip_html(html))
+            lf = check_body_language(type_name, path, strip_html(html),
+                                     declared_language=artifact_language)
             if lf:
                 findings.append(lf)
                 type_w += 1
@@ -1401,7 +1445,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             except OSError as e:
                 findings.append(Finding("reports", str(path), "io-error", "violation", str(e)))
                 continue
-            lf = check_body_language("reports", path, strip_html(html))
+            lf = check_body_language("reports", path, strip_html(html),
+                                     declared_language=artifact_language)
             if lf:
                 findings.append(lf)
 
