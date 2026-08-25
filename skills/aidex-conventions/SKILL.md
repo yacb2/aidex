@@ -66,6 +66,7 @@ status vocabulary and the archive rule that `validate.py` actually enforces.
 | Workflow CORE (single-sourced blocks) | [workflow-core.md](references/workflow-core.md) |
 | Review scope (what am I reviewing?) | [review-scope-conventions.md](references/review-scope-conventions.md) |
 | Human verification (what only a person can judge) | [human-verification-conventions.md](references/human-verification-conventions.md) |
+| Fleet version/release procedure + `git-repos.json` schema | [fleet-version-conventions.md](references/fleet-version-conventions.md) |
 | Measurement (machine load, unattended stop conditions) | [measurement-conventions.md](references/measurement-conventions.md) |
 | Library docs | Uses reference conventions |
 | CLAUDE.md | [claudemd-conventions.md](references/claudemd-conventions.md) |
