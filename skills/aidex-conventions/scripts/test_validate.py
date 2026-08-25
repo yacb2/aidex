@@ -47,6 +47,9 @@ EXPECTED_BAD_RULES = {
     "audit-board-duplicate",
     "audit-run-legacy-name",
     "audit-run-name-invalid",
+    "artifact-anchor-empty",
+    "artifact-anchor-format-invalid",
+    "artifact-anchor-target-missing",
 }
 
 def _load_validator():
@@ -691,6 +694,57 @@ def check_external_crossrefs(failures: list[str]) -> None:
         failures.append("external cross-ref: a local ref to a missing target must still fail")
 
 
+def check_artifact_anchor_unit(failures: list[str]) -> None:
+    """BL-234: a rendered companion is held to the anchor it declares, and to nothing
+    more. The end-to-end half (the three failure rules firing through validate()) is
+    covered by EXPECTED_BAD_RULES; what needs its own cells is the NEGATIVE — 55 of
+    aidex's own 74 pages declare no anchor, so an absent meta must stay silent or the
+    rule becomes the convention change the item explicitly refuses to make."""
+    v = _load_validator()
+    ctx = FIXTURES / "good" / ".context"
+
+    def rules(html: str) -> list[str]:
+        return [f.rule for f in v.check_artifact_anchor("research", Path("r.html"), html, ctx)]
+
+    # ABSENT vs DECLARED-BUT-EMPTY are different states, and the parser must say so.
+    if v.read_artifact_anchor("<h1>no meta here</h1>") is not None:
+        failures.append("artifact-anchor: a page with no meta must read as None (absent), "
+                        "not as an empty anchor")
+    if v.read_artifact_anchor('<meta name="artifact-anchor" content="">') != "":
+        failures.append("artifact-anchor: a declared-but-blank meta must read as \"\", "
+                        "the state that distinguishes it from absent")
+    if rules("<h1>plain page</h1><p>no anchor at all</p>"):
+        failures.append(f"artifact-anchor: an absent anchor produced findings "
+                        f"{rules('<h1>plain page</h1>')} — absence is not a violation")
+
+    # A resolving anchor is silent, in every quoting/attribute-order shape the kit emits.
+    for html in ('<meta name="artifact-anchor" content="backlog/2026-05-14-clean-example">',
+                 "<meta name='artifact-anchor' content='backlog/2026-05-14-clean-example'>",
+                 '<meta content="backlog/2026-05-14-clean-example" name="artifact-anchor">',
+                 '<meta NAME="ARTIFACT-ANCHOR" CONTENT="backlog/2026-05-14-clean-example">'):
+        if rules(html):
+            failures.append(f"artifact-anchor: a resolving anchor was flagged {rules(html)} "
+                            f"in {html!r}")
+
+    # An anchor is a cross-reference, so it inherits the cross-ref escapes verbatim:
+    # external ids are format-only, and the pending sentinel warns rather than fails.
+    for html in ('<meta name="artifact-anchor" content="issue/GH-1234">',
+                 '<meta name="artifact-anchor" content="echo_lab_ws/BL-206">'):
+        if rules(html):
+            failures.append(f"artifact-anchor: an external anchor was flagged {rules(html)} — "
+                            f"externals are accepted on format alone, as in check_crossrefs")
+    if rules('<meta name="artifact-anchor" content="plan/pending">') != ["artifact-anchor-pending"]:
+        failures.append("artifact-anchor: the <type>/pending sentinel must warn, not fail")
+
+    # The three failure modes, as units (the same three fire end-to-end in fixtures/bad).
+    cells = {'<meta name="artifact-anchor" content="">': "artifact-anchor-empty",
+             '<meta name="artifact-anchor" content="../plans/x.md">': "artifact-anchor-format-invalid",
+             '<meta name="artifact-anchor" content="plan/2099-12-31-nope">': "artifact-anchor-target-missing"}
+    for html, want in cells.items():
+        if rules(html) != [want]:
+            failures.append(f"artifact-anchor: {html!r} gave {rules(html)}, expected [{want!r}]")
+
+
 def check_ignored_subtrees(failures: list[str]) -> None:
     """BL-037: a vendored/imported subtree listed in `<context>/.aidex-ignore` is
     exempt from every validator rule and reported as an `ignored` count, never
@@ -1243,6 +1297,7 @@ def main() -> int:
     check_baseline_key_granularity(failures)
     check_waived_is_not_resolved(failures)
     check_html_body_language(failures)
+    check_artifact_anchor_unit(failures)
     check_artifact_style_language(failures)
     check_external_crossrefs(failures)
     check_ignored_subtrees(failures)
