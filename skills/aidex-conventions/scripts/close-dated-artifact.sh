@@ -72,4 +72,6 @@ dest="$DIR/_archive/$(basename "$file")"
 [[ -e "$dest" ]] && die "archive collision: $dest already exists"
 mv "$file" "$dest"
 ok "closed $TYPE/$(basename "$file") -> _archive/ (status: $STATUS)"
+# `requests`/`decisions` -> the singular cross-ref prefix the anchor is written with.
+archive_companions "$ROOT/.context" "${TYPE%s}/$(basename "$file")" "$DIR/_archive"
 echo "CLOSED $dest"

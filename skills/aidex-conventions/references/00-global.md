@@ -128,6 +128,8 @@ ADRs: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/20
 
 Cross-references resolve via the two-folder lookup in §3 — archiving is a zero-edit operation for inbound links.
 
+**Companions move with their anchor.** A rendered `.html` companion (§3.2) joins its artifact through the page, not through the filesystem, so a plain `mv` carries only the pages that happen to sit *inside* a folder that moves — a single-file artifact's companion is always a sibling and was never carried at all. The `close-*` scripts now move a closed artifact's companions into the same `_archive/` and print one line per page moved; a page they cannot move (a name already taken in the archive) is **reported and left in place**, never dropped silently and never a reason to fail a close that already happened.
+
 ---
 
 ## 6. Status vocabulary

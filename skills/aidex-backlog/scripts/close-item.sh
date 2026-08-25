@@ -147,6 +147,9 @@ DEST="$BACKLOG_DIR/_archive/$(basename "$FILE")"
 [[ -e "$DEST" ]] && die "archive collision: $DEST already exists"
 mv "$FILE" "$DEST"
 ok "Closed $(basename "$FILE") → $STATUS · archived"
+# A backlog item's companion is always a sibling, never inside it, so `mv` alone
+# leaves every one of them behind.
+archive_companions "$ROOT/.context" "backlog/$(basename "$FILE")" "$BACKLOG_DIR/_archive"
 [[ -n "$COMMITS_STR" ]] && ok "  commits: $COMMITS_STR"
 
 # --- rebuild index ---

@@ -227,3 +227,46 @@ companions_of() {
     function norm(s) { sub(/\.md$/, "", s); return s }
     NF >= 2 && norm($1) == norm(want) { print $2 }'
 }
+
+# Move an artifact's rendered companions into the archive beside it, and SAY SO —
+# both when a page moves and when one is left behind (BL-234).
+#
+# Archive-on-close (D-10) exists so inbound `<type>/<filename>` references keep
+# resolving. A companion joins its anchor through the page, not through the
+# filesystem, so `mv` carries only the ones that happen to live INSIDE a moved
+# folder. Everything else — a single-file plan's `-report.html` sibling, a backlog
+# item's companion, a page that sat next to a modular plan rather than in it — is
+# silently orphaned. That is what happened to `plan/2026-08-22-suite-speed-and-
+# coverage-rollout` on 2026-08-25: two companions travelled with the folder, the
+# third stayed in `plans/`, and nothing anywhere said a word.
+#
+# Call AFTER the artifact has moved: the scan reads current paths, so a page that
+# already travelled is recognised by its destination and left alone.
+#
+# Usage: archive_companions <context-dir> <type>/<name> <dest-dir>
+# Always returns 0 — a companion that cannot be moved is a thing to report, never
+# a reason to fail a close that has already happened.
+archive_companions() {
+  local ctx="$1" ref="$2" dest="$3"
+  local anchors comp src base
+  anchors="$(scan_artifact_anchors "$ctx")"
+  while IFS= read -r comp; do
+    [[ -n "$comp" ]] || continue
+    src="$ctx/$comp"
+    [[ -f "$src" ]] || continue
+    # Already in the destination: it travelled inside the folder that just moved.
+    case "$src" in "$dest"/*) continue ;; esac
+    base="$(basename "$src")"
+    if [[ -e "$dest/$base" ]]; then
+      warn "companion left behind (a file named $base is already in the archive): $comp"
+      continue
+    fi
+    mkdir -p "$dest"
+    if mv "$src" "$dest/$base"; then
+      ok "archived companion $base"
+    else
+      warn "companion left behind (move failed): $comp"
+    fi
+  done < <(companions_of "$anchors" "$ref")
+  return 0
+}
