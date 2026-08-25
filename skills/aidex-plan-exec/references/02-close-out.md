@@ -29,25 +29,23 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-8.
 6. If the project has `.context/audits/test-coverage/module-map.json` and the plan
    touched mapped src paths, suggest running `/aidex-audit coverage-sweep` (advisory
    drift check — do not run it unprompted mid-plan; mention it in the close summary).
-7. **Owner-review handoff** — when the plan changed anything a person will see or
-   operate (UI, flows, copy; skip for pure backend/tooling plans). The user re-dictated
-   this protocol ~8 times across three projects in a single 3-day window
-   (usage-retro run 6, R6-04), so it is a step, not a preference to rediscover:
-   1. Suites first — the full verification of final-phase step 1 has already run.
-   2. **Claude smoke-tests via browser automation** (Chrome DevTools MCP or the
-      project's tooling) until every mechanically checkable behavior is verified —
-      the human should never be the first to find a broken click. For responsive
-      checks, **emulate the viewport**; a narrow desktop window is not a phone and
-      reads as a squashed layout to the user watching the shared browser.
-   3. **Leave a visible browser window open** on the changed feature, signed in,
-      positioned where the review starts — in the browser the user watches, never a
-      headless or background context the user cannot see ("¿dónde lo estás viendo?"
-      is this step failing).
-   4. **Hand over a written checklist of only what a human must judge** — visual
-      feel, UX, wording, anything Claude cannot reproduce or evaluate mechanically.
-      Everything already machine-verified is listed as done with its evidence, not
-      re-delegated to the user. This is the HITL division of labor: the human
-      judges what needs eyes; nothing 100%-checkable is theirs to re-check.
+7. **Guided human verification — at the integration boundary, and it emits a proof.**
+   This is the last thing before the work leaves the review window: the full suite of
+   final-phase step 1 has run, and what remains is what only a person can judge.
+   **Read and follow**
+   `~/.claude/skills/aidex-conventions/references/human-verification-conventions.md`
+   — it owns the four moves (suites → Claude smoke-tests mechanically → a visible
+   browser window on the changed feature → a checklist of only what needs eyes), the
+   proof artifact they write, and the recorded skip. Two things this step gets wrong if
+   done from memory:
+   - **It writes `.context/proofs/<slug>/human-verification.md`** and links it from the
+     plan's `proof_links`. A verification that lives only in the chat vanishes with the
+     session — which is what 5 of 6 verification actions do today.
+   - **A plan with nothing human-visible skips it by RECORDING one line**
+     (`human-verification: skipped — <reason>`), never by the step being absent. "Pure
+     backend/tooling, nothing a person operates" is a fine reason and a bad silence:
+     absent, it is indistinguishable from nobody having thought about it (BL-228).
+
 8. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
    run it with a short completion message (e.g.
    `bash "$HOME/.claude/scripts/notify.sh" "plan-exec: <plan slug> complete"`). This
