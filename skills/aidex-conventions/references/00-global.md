@@ -287,6 +287,16 @@ noise. Line-oriented format (`#` comments and blank lines ignored):
 - `rule` — the finding's rule id exactly as the validator prints it (`readme-in-context` from `validate.py`, `audit-lifecycle-dropped-unreasoned` from `validate-audit.sh`; audit rules all carry the `audit-` prefix).
 - `path` — the finding's file path exactly as printed (project-root-relative, e.g. `.context/plans/README.md`).
 - `anchor` — `sha256:<hex-prefix>` of the file's content (`shasum -a 256 <file> | cut -c1-12`), or `-` for no anchor. An anchored waiver stops matching — and the finding **resurfaces** — as soon as the file changes.
+
+A waiver is therefore in one of three states, and the validator reports all three (BL-232):
+
+| State | What it means | What happens |
+|---|---|---|
+| matched | path resolves, anchor still describes the content | suppressed, counted under `waived: N` |
+| stale anchor | path resolves, content changed | the finding **resurfaces** — this is what the anchor is for |
+| moved path | path does not resolve, but the anchor still matches a file elsewhere | **still suppressed**, and reported as `waiver paths moved: <old> -> <new>` so the path gets fixed |
+
+The third state exists because archive-on-close (D-10) is mandatory and *moves files*: the content is unchanged, so the anchor still describes it perfectly, while the path silently stops resolving. Measured 2026-08-24: 2 of this repo's 43 lines were already dead from exactly that, within days of being written, one of them producing a live unwaived warning nobody had noticed. Relocation is keyed on the **anchor**, never on the rule alone — a file that also changed content is not followed. A line that resolves to nothing and cannot be relocated (an anchorless one, or an anchored one whose content is nowhere) is reported as **orphaned**, never silently ignored.
 - `reason` — why the finding is accepted (free text; may contain `|`).
 - `date` — `YYYY-MM-DD` the waiver was granted (optional).
 
