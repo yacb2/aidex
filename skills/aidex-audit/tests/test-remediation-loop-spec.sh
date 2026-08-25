@@ -122,7 +122,49 @@ printf '%s' "$V_OUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.
   || fail "emitted loop-spec fails validate.py --type loops: $V_OUT"
 [[ "$V_CODE" -eq 0 ]] || fail "validate.py --type loops exited $V_CODE: $V_OUT"
 
-# ---------- 6. refusals ----------
+# ---------- 6. the LEGACY 11-column board (First Seen / Last Updated) ----------
+# Not hypothetical: .context/audits/ecosystem/00-inventory.md in this repo is
+# this shape. A fixed cell index on it reads Escalated To where Audit Runs
+# lives, and every finding then looks out of scope — silently.
+mkdir -p "$A/perf/2026-07-04-legacy-board"
+cat > "$A/perf/00-inventory.md" <<'EOF'
+| ID | Type | Module | Summary | Status | Severity | First Seen | Last Updated | Audit Runs | Escalated To | Notes |
+|---|---|---|---|---|---|---|---|---|---|---|
+| PERF-1 | bug | api | N+1 query on the list endpoint | open | P1 | 2026-05-01 | 2026-06-02 | 2026-07-04 | — | — |
+| PERF-2 | gap | web | No bundle-size budget | done | P3 | 2026-05-01 | 2026-06-02 | 2026-07-04 | — | Closed: def5678 — added |
+EOF
+echo "# m" > "$A/perf/00-methodology.md"; echo "# c" > "$A/perf/00-changelog.md"
+printf -- '---\ntitle: "legacy board"\nstatus: doing\ncreated: 2026-07-04\nupdated: 2026-07-04\nmethodology: perf\n---\n' \
+  > "$A/perf/2026-07-04-legacy-board/index.md"
+printf '# Findings\n\n- **PERF-1** n+1\n' > "$A/perf/2026-07-04-legacy-board/findings.md"
+
+bash "$EMIT" 2026-07-04-legacy-board >/dev/null 2>&1 || fail "emit on a legacy 11-column board exited non-zero"
+LSPEC="$(ls .context/loops/*legacy-board*.md 2>/dev/null | head -1)"
+[[ -n "$LSPEC" ]] || fail "no loop-spec emitted for the legacy board"
+if [[ -n "$LSPEC" ]]; then
+  grep -q '\*\*PERF-1\*\*' "$LSPEC" || fail "legacy board: PERF-1 missing from the work-list (Audit Runs cell read from the wrong column?)"
+  grep -q '\*\*PERF-2\*\*' "$LSPEC" && fail "legacy board: PERF-2 is done — must not be listed"
+fi
+lrow="$(grep '^| PERF-1 ' "$A/perf/00-inventory.md")"
+printf '%s' "$lrow" | grep -q '| doing |' || fail "legacy board: PERF-1 should be doing, row: $lrow"
+printf '%s' "$lrow" | grep -qE '\| loop/[0-9]{4}-[0-9]{2}-[0-9]{2}-remediate-[a-z0-9-]+ \|' \
+  || fail "legacy board: marker written to the wrong column, row: $lrow"
+printf '%s' "$lrow" | grep -qE '\| 2026-05-01 \| 2026-06-02 \| 2026-07-04 \|' \
+  || fail "legacy board: the First Seen / Last Updated / Audit Runs cells were disturbed, row: $lrow"
+bash "$EMIT" 2026-07-04-legacy-board --check >/dev/null 2>&1
+[[ $? -eq 1 ]] || fail "legacy board: gate should be RED while PERF-1 is unresolved"
+
+# ---------- 7. refusals ----------
+# Re-emit while a live spec still holds the rows: the marker only fills an EMPTY
+# cell, so a second spec would list rows that point at the first one.
+RE_OUT="$(bash "$EMIT" 2026-06-21-3mo-retro 2>&1)"
+[[ $? -ne 0 ]] || fail "re-emit should refuse while a live remediation spec holds the rows"
+# The refusal must be the MARKER check, not an incidental same-day filename
+# collision -- that one disappears tomorrow and takes the guard with it.
+printf '%s' "$RE_OUT" | grep -q 'already held by loop/' \
+  || fail "re-emit refused for the wrong reason (expected the held-marker check), got: $RE_OUT"
+[[ "$(ls .context/loops/*3mo-retro*.md 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] \
+  || fail "a refused re-emit must not leave a second spec behind"
 bash "$EMIT" no-such-run >/dev/null 2>&1
 [[ $? -ne 0 ]] || fail "unknown run should exit non-zero"
 

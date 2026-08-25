@@ -15,6 +15,11 @@
 #   --dry-run   print what would be emitted; write nothing.
 #
 # Unresolved statuses: open, doing (+ read-tolerated legacy triaged/in-progress).
+#
+# Re-emit is refused while a previous remediation spec still holds the rows: the
+# marker is only written into an EMPTY cell, so a second emit would leave the
+# rows pointing at spec #1 while spec #2 lists them. Archive the old spec (and
+# clear its markers) first.
 
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
@@ -123,6 +128,22 @@ if [[ "$CHECK" -eq 1 ]]; then
 fi
 
 [[ -n "$ROWS" ]] || die "$RUN_SLUG has no unresolved findings — nothing to remediate"
+
+# Refuse a second emit while a live remediation spec still owns these rows.
+HELD="$(awk -v run="$RUN_SLUG" -v rundate="$RUN_DATE" '
+  /^\|/ {
+    n = split($0, c, "|"); if (n < 11) next
+    i_runs = (n >= 13 ? 10 : 8); i_esc = (n >= 13 ? 11 : 9)
+    runs = c[i_runs]; esc = c[i_esc]
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", runs)
+    gsub(/^[[:space:]]+|[[:space:]]+$/, "", esc)
+    if (index(runs, run) == 0 && index(runs, rundate) == 0) next
+    if (esc ~ /^loop\/.*-remediate-/) { print esc; exit }
+  }
+' "$INV")"
+if [[ -n "$HELD" ]]; then
+  die "$RUN_SLUG is already held by $HELD — archive that spec and clear its markers before re-emitting"
+fi
 
 COUNT="$(printf '%s\n' "$ROWS" | wc -l | tr -d ' ')"
 RUN_REF="$RUN_SLUG"
