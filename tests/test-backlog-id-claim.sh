@@ -88,8 +88,14 @@ got="$(ids_in "$B" | tr '\n' ' ')"
 if [[ "$got" != "BL-001 BL-002 " ]]; then
   fail "(3) two sequential registrations gave [$got], expected [BL-001 BL-002] — a claim that is never released burns an id per item"
 fi
-leftover="$(find "$B/_claims" -type f 2>/dev/null | wc -l | tr -d ' ')"
-[[ "$leftover" == 0 ]] || fail "(3b) $leftover claim marker(s) survived a successful registration"
+# The marker is KEPT on success — it is the ledger. (This assertion is the inverse of
+# what it was when claims were released on success: once the sequence became repo-global,
+# main's front-matter scan stopped being able to see items written on other branches, so
+# the markers are the only shared record of which numbers are spent. Releasing them would
+# hand the same number back out.) A claim is released only when NO entry was written —
+# cell (4) covers that.
+kept="$(find "$B/_claims" -name 'BL-*' 2>/dev/null | wc -l | tr -d ' ')"
+[[ "$kept" == 2 ]] || fail "(3b) the ledger holds $kept marker(s) after two registrations, expected 2 — the markers are what a sibling worktree reads"
 
 # ---------- (4) a failed --escalate-to must not burn an id in the TARGET repo ----------
 # That path mints in two repos and already rolls the counterpart back on failure; a claim
@@ -156,8 +162,56 @@ if [[ $rc -eq 0 ]] || ! grep -q "duplicate id BL-005" <<<"$out"; then
   fail "(6) --check-ids no longer reports a hand-authored duplicate (rc=$rc): $out"
 fi
 
+# ---------- (7) two linked worktrees of one repo do not mint the same id ----------
+# The mode BL-235 could not fix and BL-239 closes. It only exists when `.context/` is
+# TRACKED — measured 2026-08-25: 13 of 17 projects here track it, and a worktree of those
+# gets its own committed `.context/`, so `find_project_root` resolves to the WORKTREE and
+# each tree scans a different backlog. (With `.context/` gitignored the worktree has none
+# and the resolver already hops to the main tree, which is why aidex never saw this.)
+#
+# The fix keeps the ID SEQUENCE repo-global while the entry file stays where the session
+# is: the claim is taken in the MAIN tree's ledger, so a sibling worktree sees the number
+# as spent even though the item lives on a branch it cannot read.
+R="$TMP/repo"; mkdir -p "$R"
+( cd "$R"
+  /usr/bin/git init -q .
+  mkdir -p .context/backlog
+  printf 'seed
+' > .context/backlog/.keep
+  /usr/bin/git add -A
+  /usr/bin/git -c user.email=t@t -c user.name=t commit -qm init
+  /usr/bin/git worktree add -q "$TMP/wt-a" -b branch-a
+  /usr/bin/git worktree add -q "$TMP/wt-b" -b branch-b ) >/dev/null 2>&1
+
+if [[ ! -d "$TMP/wt-a/.context/backlog" ]]; then
+  fail "(7) the fixture is wrong: a worktree of a repo that TRACKS .context/ must carry its own copy"
+else
+  ( cd "$TMP/wt-a" && bash "$SCRIPT" --origin manual --title "From worktree A" --no-index >/dev/null 2>&1 )
+  ( cd "$TMP/wt-b" && bash "$SCRIPT" --origin manual --title "From worktree B" --no-index >/dev/null 2>&1 )
+  id_a="$(grep -h '^id:' "$TMP/wt-a/.context/backlog"/*.md 2>/dev/null | awk '{print $2}')"
+  id_b="$(grep -h '^id:' "$TMP/wt-b/.context/backlog"/*.md 2>/dev/null | awk '{print $2}')"
+  if [[ -z "$id_a" || -z "$id_b" ]]; then
+    fail "(7) a worktree registration wrote no id (a=[$id_a] b=[$id_b])"
+  elif [[ "$id_a" == "$id_b" ]]; then
+    fail "(7) two worktrees of one repo both minted $id_a — the sequence must be repo-global, not per-checkout"
+  fi
+  # And the entry itself stays on its own branch, where the session was working.
+  [[ -n "$(find "$TMP/wt-a/.context/backlog" -maxdepth 1 -name '*.md' ! -name '00-index.md')" ]]     || fail "(7b) worktree A's item did not land in worktree A — only the id sequence is shared, not the entries"
+  # The ledger lives in the MAIN tree, and holds both numbers.
+  n_led="$(find "$R/.context/backlog/_claims" -name 'BL-*' 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$n_led" == 2 ]]     || fail "(7c) the main tree's ledger holds $n_led marker(s), expected 2 — it is what makes the sequence repo-global"
+fi
+
+# ---------- (8) the ledger is never committed ----------
+# 13 of 17 projects track `.context/`, so without this every registration would add an
+# empty marker to the diff.
+if [[ -d "$R/.context/backlog/_claims" ]]; then
+  tracked="$( cd "$R" && /usr/bin/git status --porcelain --untracked-files=all -- .context/backlog/_claims 2>/dev/null | wc -l | tr -d ' ')"
+  [[ "$tracked" == 0 ]]     || fail "(8) the claim ledger shows up in git status ($tracked path(s)) — it is machine-local coordination state, not repo content"
+fi
+
 if [[ $failures -eq 0 ]]; then
-  echo "OK: ids are claimed atomically — parallel registrations never collide, claims are released, and the digit window and duplicate backstop both survive"
+  echo "OK: the id sequence is repo-global — parallel sessions and sibling worktrees never collide, entries stay on their branch, and the digit window and duplicate backstop both survive"
   exit 0
 fi
 printf '\n%d assertion(s) failed\n' "$failures"

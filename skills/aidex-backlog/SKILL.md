@@ -111,6 +111,14 @@ commits each and both had no Acceptance.
 Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-bl-nnn-<slug>.md`, written by
 `register-item.sh` — front-matter followed by a Context / Acceptance / Notes body.
 
+> **Never choose the `BL-NNN` yourself — always register through the script.** Reading the
+> index for the highest id and adding one is the same race the script exists to prevent,
+> with a much wider window: the script's scan-to-write gap is microseconds, a human or an
+> agent doing it by hand leaves minutes. It is how BL-166, BL-233 and BL-235 were each
+> minted twice. `register-item.sh` claims the number atomically against a repo-global
+> ledger; nothing outside it can. `--check-ids` remains the detector for ids that got in
+> some other way, but detection after both files exist is not the same as prevention.
+
 **Write the entry in English (canon §Language, D-04)** — even when the conversation
 is in another language. The `description`/title and body are both English; only
 `communications/` bodies keep their native language. `register-item.sh`'s Context
