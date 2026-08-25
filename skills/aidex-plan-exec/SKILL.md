@@ -68,19 +68,16 @@ Otherwise: proceed. The user will redirect if needed.
 
 ## Unattended / batch execution (opt-in, gated)
 
-The default path above is **interactive** (you run the plan turn-by-turn). For
-**unattended/batch** runs ("execute the whole plan while I'm away"), this skill can launch the
-plan as a durable `Workflow` — each phase a fresh bounded agent, a two-stage gate per phase,
-crash-resumable via the journal.
+The default path above is **interactive**. For **unattended/batch** runs ("execute the
+whole plan while I'm away"), this skill can launch the plan as a durable `Workflow` — each
+phase a fresh bounded agent, a two-stage gate per phase, crash-resumable via the journal.
+Promote only when the work is **decomposable + machine-verifiable + unattended** and each
+phase's real work dwarfs the per-agent floor; the mandatory Orient evaluation is the opt-in.
 
 **Read `~/.claude/skills/aidex-plan-exec/references/01-unattended-batch-execution.md`
-before promoting anything.** It holds the promotion threshold and its measured ~22k/agent cost
-floor, the three shipped workflow forms and how to pick one, how to derive `args` from the plan,
+before promoting anything** — promotion threshold and its measured ~22k/agent cost floor,
+the three shipped workflow forms and how to pick one, how to derive `args` from the plan,
 the phase tier map, and what happens when a phase fails its gate.
-
-Promote only when the work is **decomposable + machine-verifiable + unattended** and each phase's
-real work dwarfs the per-agent floor. The mandatory Orient evaluation handles the opt-in when the
-plan qualifies: a run-to-completion kickoff already **is** the opt-in.
 
 ## Workflow
 
@@ -225,7 +222,14 @@ After each phase passes verification, before starting the next phase:
    same way — e.g. a `/commit`-style helper); otherwise craft a conventional
    commit message following the project's style. Stage only files relevant to
    the completed phase. One commit per phase is the default.
-3. **Context check → auto-handoff (do not ask).** Estimate session context
+3. **Defer what the phase uncovered — register it, never discuss it.** Emergent work
+   (autonomy class b) goes to `register-item.sh --origin plan --plan <this plan>` and the
+   run continues; `origin_ref: plan/<slug>` survives the plan's archival. No pause, and
+   its own commit —
+   [`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md)
+   (BL-220).
+
+4. **Context check → auto-handoff (do not ask).** Estimate session context
    growth. If the conversation has grown substantially (long tool outputs, many
    file reads, multiple phases completed in one session), **hand off between
    phases automatically** — handoff is a mandated step, never a question. **If a

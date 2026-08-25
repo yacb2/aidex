@@ -2,7 +2,7 @@
 # register-item.sh — create a backlog entry in .context/backlog/.
 #
 # Usage (non-interactive):
-#   register-item.sh --origin <manual|audit|issue|request|communication> [options]
+#   register-item.sh --origin <manual|audit|issue|request|communication|plan> [options]
 #
 # Options:
 #   --title "<title>"              title for the entry (required for non-interactive)
@@ -12,6 +12,9 @@
 #   --request <file>               (when --origin request) request file path
 #   --communication <folder>       (when --origin communication) the communication folder
 #                                  (received|sent|meetings)/<YYYY-MM-DD>-<slug>
+#   --plan <slug|path>             (when --origin plan) the plan this was deferred from,
+#                                  mid-run by aidex-plan-exec: a single-file plan's
+#                                  filename or a modular plan's folder
 #   --priority <P0|P1|P2|P3>       default: P2 (code only — see references/01-backlog-conventions.md)
 #   --type <bug|improvement|task|idea>  work kind (default: task) — a facet, one queue
 #   --blocked-by "<who/what>"      optional Blocked modifier; priority is kept, item listed under Blocked
@@ -319,6 +322,7 @@ AUDIT_RUN=""
 ISSUE=""
 REQUEST=""
 COMMUNICATION=""
+PLAN=""
 PRIORITY=""
 TYPE=""
 BLOCKED_BY=""
@@ -341,6 +345,7 @@ while [[ $# -gt 0 ]]; do
     --issue)       ISSUE="$2"; shift 2 ;;
     --request)     REQUEST="$2"; shift 2 ;;
     --communication) COMMUNICATION="$2"; shift 2 ;;
+    --plan)        PLAN="$2"; shift 2 ;;
     --priority)    PRIORITY="$2"; shift 2 ;;
     --type)        TYPE="$2"; shift 2 ;;
     --blocked-by)  BLOCKED_BY="$2"; shift 2 ;;
@@ -668,15 +673,15 @@ fi
 
 # --- interactive prompts if missing required fields ---
 if [[ -z "$ORIGIN" && -t 0 ]]; then
-  printf 'Origin [manual/audit/issue/request] (default: manual): ' >&2
+  printf 'Origin [manual/audit/issue/request/communication/plan] (default: manual): ' >&2
   read -r ORIGIN
   ORIGIN="${ORIGIN:-manual}"
 fi
 ORIGIN="${ORIGIN:-manual}"
 
 case "$ORIGIN" in
-  manual|audit|issue|request|communication) ;;
-  *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, request, or communication)" ;;
+  manual|audit|issue|request|communication|plan) ;;
+  *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, request, communication, or plan)" ;;
 esac
 
 if [[ -z "$TITLE" && -t 0 ]]; then
@@ -782,6 +787,22 @@ case "$ORIGIN" in
     done
     [[ $comm_found -eq 1 ]] \
       || warn "warning: origin_ref $ORIGIN_REF resolves to no folder under .context/communications/{received,sent,meetings}/"
+    ;;
+  plan)
+    # aidex-plan-exec defers emergent work mid-run (BL-220): the run keeps going and the
+    # finding is registered here instead of being discussed or lost. Same marker
+    # discipline as request and communication — `plan/<filename-or-folder>`, never a
+    # path (D-03). A plan is single-file (`<slug>.md`) or modular (`<slug>/`); the
+    # basename covers both, and validate.py resolves either shape.
+    [[ -n "$PLAN" ]] || die "--plan <slug|path> is required when --origin plan"
+    PLAN_REF="$(basename "${PLAN%/}")"
+    ORIGIN_REF="plan/$PLAN_REF"
+    plan_found=0
+    for _cand in "$PLAN_REF" "$PLAN_REF.md"; do
+      [[ -e "$ROOT/.context/plans/$_cand" || -e "$ROOT/.context/plans/_archive/$_cand" ]] && plan_found=1
+    done
+    [[ $plan_found -eq 1 ]] \
+      || warn "warning: origin_ref $ORIGIN_REF resolves to no plan under .context/plans/"
     ;;
 esac
 fi

@@ -23,6 +23,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog --origin manual --title "<title>"` | same | Non-interactive manual entry |
 | `/aidex-backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
+| `/aidex-backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `aidex-plan-exec`'s between-phase checkpoint) |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
 | `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure (BL-134) |
