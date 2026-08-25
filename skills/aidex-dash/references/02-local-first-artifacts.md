@@ -400,7 +400,10 @@ artifacts (`plans/<slug>/<slug>-report.html`). Add a link line back to it from t
 sure the page's `<meta name="artifact-anchor">` names the anchor, so the link holds in
 both directions and intake question 1 stays a grep.
 
-No anchor at all: `.context/reports/YYYY-MM-DD-<slug>.html`, with the meta left empty.
+No anchor at all: `.context/reports/YYYY-MM-DD-<slug>.html`, with the `artifact-anchor` meta
+**deleted** — not left blank. A blank one declares a join the page cannot make and is reported
+as `artifact-anchor-empty`; an absent one is silent, because most pages legitimately have no
+anchor (§3.2 of `00-global.md`).
 
 ### 7. Open it locally
 
