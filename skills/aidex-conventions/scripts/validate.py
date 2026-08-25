@@ -697,6 +697,65 @@ def check_crossrefs(type_name: str, path: Path, fm: dict | None,
                                     f"{field_name}={ref!r} resolves to no file in active or _archive/"))
     return findings
 
+# ---------- Rendered-artifact anchors (BL-234) ----------
+
+# A rendered companion declares the artifact it belongs to in the page itself:
+#
+#     <meta name="artifact-anchor" content="plan/2026-08-22-suite-speed-rollout">
+#
+# That is a `<type>/<filename>` cross-reference in the canonical form, so it is
+# checked exactly like a front-matter one — same format regex, same resolver, same
+# external-ref escape. It is the ONLY join between a page and its anchor, which is
+# why an unresolvable one is invisible today: on 2026-08-25 archiving a plan left a
+# companion behind in `plans/` with its anchor pointing at the moved folder, and
+# validate.py reported 0 violations because no rule ever read the page.
+ARTIFACT_ANCHOR_META = re.compile(
+    r"""<meta\s[^>]*\bname\s*=\s*["']artifact-anchor["'][^>]*>""", re.I)
+ARTIFACT_ANCHOR_CONTENT = re.compile(r"""\bcontent\s*=\s*["']([^"']*)["']""", re.I)
+
+
+def read_artifact_anchor(html: str) -> str | None:
+    """The declared anchor, or None when the page declares no meta at all.
+
+    ABSENT and DECLARED-BUT-EMPTY are deliberately different return values. Only
+    the second is a finding: 55 of aidex's own 74 pages carry no anchor, and
+    requiring one of every page would be a convention change — this rule only
+    holds a page to what it already claims about itself.
+    """
+    m = ARTIFACT_ANCHOR_META.search(html)
+    if not m:
+        return None
+    c = ARTIFACT_ANCHOR_CONTENT.search(m.group(0))
+    return c.group(1).strip() if c else ""
+
+
+def check_artifact_anchor(type_name: str, path: Path, html: str,
+                          context_dir: Path) -> list[Finding]:
+    anchor = read_artifact_anchor(html)
+    if anchor is None:
+        return []
+    if not anchor:
+        # The kit's skeleton.html ships `content=""` for the author to fill; a page
+        # published with it untouched declares a join it cannot make. Four such
+        # pages existed in aidex on 2026-08-25, all invisible.
+        return [Finding(type_name, str(path), "artifact-anchor-empty", "violation",
+                        "artifact-anchor is declared but empty — name the anchor "
+                        "as <type>/<filename>, or remove the meta")]
+    if is_external_ref(anchor):
+        return []
+    if not CROSSREF_FORMAT.match(anchor):
+        return [Finding(type_name, str(path), "artifact-anchor-format-invalid", "violation",
+                        f"artifact-anchor={anchor!r} does not match <type>/<filename>")]
+    if anchor.endswith("/pending"):
+        return [Finding(type_name, str(path), "artifact-anchor-pending", "warning",
+                        f"artifact-anchor={anchor!r} is a placeholder sentinel")]
+    if not crossref_target_exists(context_dir, anchor):
+        return [Finding(type_name, str(path), "artifact-anchor-target-missing", "violation",
+                        f"artifact-anchor={anchor!r} resolves to no file in active or "
+                        "_archive/ — the page is orphaned from the artifact it documents")]
+    return []
+
+
 def check_backlog_priority(path: Path, fm: dict | None) -> Finding | None:
     if fm is None or "priority" not in fm:
         return None
@@ -1409,11 +1468,19 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             except OSError as e:
                 findings.append(Finding(type_name, str(path), "io-error", "violation", str(e)))
                 continue
+            page_findings = check_artifact_anchor(type_name, path, html, context_dir)
             lf = check_body_language(type_name, path, strip_html(html),
                                      declared_language=artifact_language)
             if lf:
-                findings.append(lf)
-                type_w += 1
+                page_findings.append(lf)
+            for fnd in page_findings:
+                findings.append(fnd)
+                if fnd.severity == "violation":
+                    type_v += 1
+                elif fnd.severity == "info":
+                    type_i += 1
+                else:
+                    type_w += 1
 
         # Aggregate folder findings
         for fnd in folder_findings:
@@ -1445,6 +1512,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             except OSError as e:
                 findings.append(Finding("reports", str(path), "io-error", "violation", str(e)))
                 continue
+            findings.extend(check_artifact_anchor("reports", path, html, context_dir))
             lf = check_body_language("reports", path, strip_html(html),
                                      declared_language=artifact_language)
             if lf:

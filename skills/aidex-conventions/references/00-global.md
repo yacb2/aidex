@@ -69,6 +69,24 @@ A `<type>/…` ref is **never** external: the ten local types stay fully resolva
 
 Path leaks are a different problem and are **not** accepted here: an `origin_ref` carrying a filesystem path (`request/../../requests/x.md`) is malformed and gets normalised to its `<type>/<filename>` marker at the source, not swallowed by the schema.
 
+### 3.2 The anchor of a rendered companion (BL-234)
+
+A rendered `.html` companion has no front-matter, so it declares the artifact it belongs to **in the page**:
+
+```html
+<meta name="artifact-anchor" content="plan/2026-08-22-suite-speed-and-coverage-rollout">
+```
+
+That value is a cross-reference in the form above and is checked as one — same format enum, same active-then-`_archive/` lookup, same `pending` sentinel, same external-ref escape. Three findings, all on `.html` files under a type folder or under `reports/`:
+
+| Rule | Fires when |
+|---|---|
+| `artifact-anchor-empty` | the meta is present with `content=""` — the kit's `skeleton.html` ships it blank for the author to fill |
+| `artifact-anchor-format-invalid` | the value is neither an external id nor `<type>/<filename>` |
+| `artifact-anchor-target-missing` | the value resolves to no file in active or `_archive/` |
+
+**A page with no `artifact-anchor` at all is not a violation** and never becomes one here. Most rendered pages carry none (55 of aidex's own 74 on 2026-08-25), and requiring one would be a convention change rather than an integrity check — this rule only holds a page to what it already claims about itself. Whether companions should live beside their anchor or centrally in `reports/` is likewise not settled here; both are in use, and the check is correct under either.
+
 ---
 
 ## 4. Language (D-04)
