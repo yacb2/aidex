@@ -140,6 +140,23 @@ migrated, and it must never be "improved" into auto-detection. `split-by-minor` 
 `schemaPath`, the changelog's `schema.json`, which owns the section vocabulary — a heading
 spelling is never invented at write time; a missing category is added to the schema.
 
+**When no `schemaPath` is declared**, the changelog has no schema of its own and this
+mapping is the fallback. It was carried in the prose of every reduced copy and would
+otherwise have been lost with them — `anamnesis_poc_ws` and `loom_lab_ws` have a single-file
+changelog and no `schema.json`, so this table is the only thing that answers the question
+for them.
+
+| Commit prefix | Section | User-facing? |
+|---|---|---|
+| `feat:` | Novedades | yes |
+| `fix:` | Correcciones | yes |
+| `perf:` | Mejoras | yes |
+| `BREAKING CHANGE:` / `feat!:` | Cambios importantes | yes |
+| `style:` (visible UI) | Mejoras | yes |
+| `refactor:` `test:` `chore:` `docs:` `ci:` | — | no |
+
+Where `schemaPath` **is** declared, the schema wins and this table is not consulted.
+
 ### `release`
 
 | Field | Meaning |
