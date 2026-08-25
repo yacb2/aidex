@@ -128,6 +128,9 @@ DEST="$PLANS_DIR/_archive/$(basename "$PLAN_PATH")"
 [[ -e "$DEST" ]] && die "archive collision: $DEST already exists"
 mv "$PLAN_PATH" "$DEST"
 ok "Closed plan $(basename "$PLAN_PATH") → $STATUS · archived"
+# Companions that did NOT travel inside the folder (a single-file plan's sibling
+# page, or one that sat beside a modular plan rather than in it) follow it here.
+archive_companions "$ROOT/.context" "plan/$(basename "$PLAN_PATH")" "$PLANS_DIR/_archive"
 [[ -n "$COMMITS_STR" ]] && ok "  commits: $COMMITS_STR"
 
 # Regenerate the plans roll-up index (00-index.md) so the closed plan moves to the

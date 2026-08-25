@@ -83,6 +83,16 @@ mv "$RUN_PATH" "$DEST"
 # that does not exist. The archive landed correctly; the line describing it did
 # not, which is the same class of defect as a check that misreports its result.
 ok "Archived audit run '$RUN_SLUG' → $DEST"
+# Companions inside the run folder travelled with it; one anchored to the run from
+# elsewhere did not. An audit ref has several legal shapes for the same run, so
+# each is offered — archive_companions skips whatever already sits in $DEST.
+AUDIT_METH="$(basename "$PARENT")"
+archive_companions "$ROOT/.context" "audit/$RUN_SLUG" "$PARENT/_archive"
+if [[ "$AUDIT_METH" != "audits" ]]; then
+  # `if`, not `[[ … ]] &&`: under `set -e` a false one-liner at this position aborts
+  # the script after the run has already moved.
+  archive_companions "$ROOT/.context" "audit/$AUDIT_METH/$RUN_SLUG" "$PARENT/_archive"
+fi
 
 # Regenerate the audits run-level roll-up so the closed run moves to Archived runs.
 # Best-effort: a missing reindexer never blocks the close.
