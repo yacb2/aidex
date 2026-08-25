@@ -570,6 +570,104 @@ def check_html_body_language(failures: list[str]) -> None:
                             f"fixture page (found={sorted(found)})")
 
 
+
+def check_artifact_style_language(failures: list[str]) -> None:
+    """BL-231: the project's own `artifact-style.md` decides what language its
+    RENDERED artifacts are written in, and the checker was blind to it — 31 of this
+    repo's 43 `body-language-not-english` waivers were the same declared-Spanish
+    .html, waived once each, forever. Nine of those lines literally read
+    "validate.py does not read the profile".
+
+    The scope is the whole point and is asserted in both directions. A profile
+    silences a rendered artifact; it must NOT silence `.context/` markdown, because
+    D-04 keeps knowledge artifacts English whatever any profile says. A profile that
+    could opt out of D-04 would be a bypass, not a fix.
+    """
+    import tempfile
+    v = _load_validator()
+
+    spanish = ("Este es el informe de la migracion que hemos hecho para el equipo, "
+               "con las decisiones que se tomaron y por que se tomaron, para que "
+               "todos los cambios queden documentados.")
+
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        ctx.mkdir()
+
+        # (a) no profile at all — behaves exactly as before
+        if v.declared_artifact_language(ctx) is not None:
+            failures.append("artifact-style language: a project with no profile must "
+                            "declare no language")
+        if v.check_body_language("research", Path("r.html"), spanish,
+                                 declared_language=v.declared_artifact_language(ctx)) is None:
+            failures.append("artifact-style language: no profile must leave the rule "
+                            "firing exactly as today")
+
+        # (b) a profile that declares no language — also unchanged
+        (ctx / "artifact-style.md").write_text(
+            "# Artifact style profile\n\nPalette, favicon, tone.\n", encoding="utf-8")
+        if v.declared_artifact_language(ctx) is not None:
+            failures.append("artifact-style language: a profile with no `language:` "
+                            "field must declare no language")
+
+        # (c) `- language: es` — the shape aidex-dash writes and parses
+        (ctx / "artifact-style.md").write_text(
+            "# Artifact style profile\n\n## Language\n\n- language: es\n",
+            encoding="utf-8")
+        declared = v.declared_artifact_language(ctx)
+        if declared != "es":
+            failures.append(f"artifact-style language: `- language: es` parsed as "
+                            f"{declared!r} — must match aidex-dash's own LANG_FIELD")
+
+        # the artifact the profile authorises: silent
+        if v.check_body_language("reports", Path("r.html"), spanish,
+                                 declared_language=declared) is not None:
+            failures.append("artifact-style language: a Spanish rendered artifact was "
+                            "flagged in a project whose profile declares Spanish — that "
+                            "is the checker disagreeing with the project's own style, "
+                            "once per artifact, forever")
+
+        # .context/ markdown: STILL flagged. The profile is not a D-04 opt-out.
+        if v.check_body_language("research", Path("r.md"), spanish) is None:
+            failures.append("artifact-style language: Spanish .context/ markdown stopped "
+                            "being flagged — a style profile must never become a way to "
+                            "opt out of D-04")
+
+        # (c2) END-TO-END, because the scoping lives at the CALL SITES, not in the
+        # function: only the two rendered walkers pass `declared_language`. A unit
+        # call cannot see a mutation that starts passing it from the markdown walker
+        # too — which is exactly what a D-04 opt-out would look like, and it reads
+        # like "the checker reads the profile" while being the bypass this item
+        # promised not to build.
+        (ctx / "artifact-style.md").write_text(
+            "# Artifact style profile\n\n- language: es\n", encoding="utf-8")
+        (ctx / "research").mkdir(exist_ok=True)
+        fm = ('---\ntitle: "t"\nstatus: open\ncreated: 2026-01-01\n'
+              'updated: 2026-01-01\n---\n\n')
+        (ctx / "research" / "2026-01-01-spanish-notes.md").write_text(
+            fm + spanish + "\n", encoding="utf-8")
+        (ctx / "research" / "2026-01-01-spanish-report.html").write_text(
+            "<h1>Informe</h1><p>" + spanish + "</p>", encoding="utf-8")
+        e2e, _ = v.validate(ctx, None)
+        lang = [f for f in e2e if f.rule == "body-language-not-english"]
+        if not any(f.file.endswith("2026-01-01-spanish-notes.md") for f in lang):
+            failures.append("artifact-style language (e2e): Spanish .context/ markdown was "
+                            "not reported in a Spanish-declaring project — the profile "
+                            "reached the markdown walker, which is a D-04 opt-out")
+        if any(f.file.endswith("2026-01-01-spanish-report.html") for f in lang):
+            failures.append("artifact-style language (e2e): the declared-Spanish rendered "
+                            "artifact was still reported")
+
+        # (d) a profile declaring English leaves the rule with its teeth
+        (ctx / "artifact-style.md").write_text(
+            "# Artifact style profile\n\n- language: en\n", encoding="utf-8")
+        if v.check_body_language("reports", Path("r.html"), spanish,
+                                 declared_language=v.declared_artifact_language(ctx)) is None:
+            failures.append("artifact-style language: a Spanish artifact in an "
+                            "English-declaring project was not flagged — the profile "
+                            "silences only what it actually authorises")
+
+
 def check_external_crossrefs(failures: list[str]) -> None:
     """BL-070: refs whose target lives outside this .context/ — `issue/<id>` and the
     cross-repo `<repo>/BL-NNN` written by aidex-backlog's --escalate-to — are accepted
@@ -1063,6 +1161,7 @@ def main() -> int:
     check_baseline_key_granularity(failures)
     check_waived_is_not_resolved(failures)
     check_html_body_language(failures)
+    check_artifact_style_language(failures)
     check_external_crossrefs(failures)
     check_ignored_subtrees(failures)
     check_artifact_prev_skipped(failures)
