@@ -1,7 +1,7 @@
 ---
 name: aidex-audit
 description: 'Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog).'
-argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | affected-tests [--since <ref>] [--command] | config-check [project ...] [--root <dir>] [--verbose] [--json]]"
+argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | remediate <run> [--check] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | affected-tests [--since <ref>] [--command] | config-check [project ...] [--root <dir>] [--verbose] [--json]]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Workflow Agent
 model-policy: per-stage
@@ -36,6 +36,7 @@ Dispatch by first argument:
 | `/aidex-audit validate [path]` | [scripts/validate-audit.sh](scripts/validate-audit.sh) | Check coherence INVENTORY ↔ findings ↔ backlog. Every finding prints its rule id; accept one by adding a line to `.context/.aidex-waivers` (same store and format as `validate.py`, canon `00-global.md` §10.1) |
 | `/aidex-audit escalate <finding-id>` | [scripts/escalate-finding.sh](scripts/escalate-finding.sh) | Move finding to backlog |
 | `/aidex-audit escalate <finding-id> --loop` | [scripts/escalate-finding-to-loop.sh](scripts/escalate-finding-to-loop.sh) | Escalate a **bulk, machine-checkable** finding to an `aidex-loop` loop-spec instead of the backlog (see guard below) |
+| `/aidex-audit remediate <run> [--check] [--dry-run]` | [scripts/remediation-loop-spec.sh](scripts/remediation-loop-spec.sh) | Emit ONE remediation loop-spec from a run's **unresolved** findings, priority-grouped, that `aidex-loop` runs without hand-editing. Rows move to `doing` + the `loop/<file>` marker — never `done`, which would satisfy the gate before any work. `--check` IS the gate: it reads the inventory, so an item only counts once its row moves |
 | `/aidex-audit migrate [project-dir]` | [scripts/migrate-audit.sh](scripts/migrate-audit.sh) | Move legacy audit-like folders from `plans/` |
 | `/aidex-audit close <run> [--force]` | [scripts/close-audit.sh](scripts/close-audit.sh) | Archive a run folder on cycle close (D-10) once in-scope findings are resolved; rolling inventory stays. `--force` for upstream/out-of-scope findings |
 | `/aidex-audit reindex` | [scripts/reindex-audits.sh](scripts/reindex-audits.sh) | Regenerate the run-level roll-up `00-index.md` (all runs + per-run finding counts). Auto-run by `new` and `close`. `--check` reports drift read-only (used by `validate` + shared `reconcile.sh`) |
@@ -209,6 +210,7 @@ the defaulting in the audit brief —
 /aidex-audit validate              # verify coherence
 /aidex-audit escalate BUG-01-1     # one finding at a time → backlog
 /aidex-audit escalate A11Y-02-1 --loop  # bulk, machine-checkable finding → loop-spec
+/aidex-audit remediate 2026-06-21-retro  # the whole run's open findings → one remediation loop-spec
 ```
 
 ### Re-testing

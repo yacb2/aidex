@@ -32,6 +32,7 @@ only ever **writes** base vocabulary; `/aidex-audit migrate` converts boards.
 ```
 open --plan starts--> doing --verify--> done (verifying ref in Notes)
 open --escalate-----> done + Escalated To: backlog/<…> | loop/<…>
+open --remediate----> doing + Escalated To: loop/<…>   (run-level, whole run)
 any  --won't fix----> dropped (reason in Notes)
 
 done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to parent)
@@ -45,7 +46,14 @@ done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to par
   `loop/<filename>` — D-03 format, never a relative markdown link), and the
   created artifact gets the back-link `origin_ref:
   audit/<methodology>/<run>/<finding-id>` (standalone runs: `audit/<run>/<id>`).
-- **open → doing:** plan started; `Escalated To` updated to `plan/<…>`.
+- **open → doing:** plan started; `Escalated To` updated to `plan/<…>` — or a
+  run-level remediation loop-spec started (`/aidex-audit remediate <run>`),
+  which sets `loop/<…>` on every unresolved row of that run. It stops at
+  `doing` on purpose: emitting them `done` would satisfy the loop's own gate
+  before any work happened, and the write-back that closes each row would
+  have nothing left to move. The single-finding `escalate --loop` path is the
+  other direction and still goes straight to `done` — there the loop-spec IS
+  where the work is tracked from then on.
 - **doing → done (verified):** the verification **marker** in `Notes` — commit
   SHA, PR link, or re-test run (`verified in audit/retest/2026-05-01-post-fixes`)
   — plus an optional proof pointer. `Notes` stays one line; the resolution
