@@ -116,6 +116,16 @@ the rest are backlog-specific. When hand-authoring an entry, write all 13 — `i
 |---|---|---|
 | `title` | quoted string | Global (§7). |
 | `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it, and the filename carries it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id. `next_backlog_id` counts only conforming ids toward the max, so a hand-authored `BL-20260610` no longer inflates the sequence; it is still reported until fixed. |
+
+### How an id is claimed (BL-235)
+
+`register-item.sh` does not read the next id — it **claims** it. Before the run body starts it creates an empty marker named for the id under `backlog/_claims/`, with `set -o noclobber`; losing that create means another session took the number, so the mint recomputes the max — which counts claims as well as written entries — and takes the next one instead. The claim is deleted as soon as the entry file carrying the id exists, and the `--escalate-to` rollback releases it too, so a failed handshake never costs the other repo a number.
+
+It has to be keyed on the **id**, not on the entry filename: two sessions registering different titles produce different filenames, so a no-clobber on the entry file would let both through with the same id.
+
+`_claims/` is invisible to every reader of this tree — the markers carry no `.md` extension, and `validate.py`'s backlog walker globs `*.md` over the folder plus `_archive/` and `_deferred/`. Git records nothing once it is empty again, so a marker surfacing in `git status` means a claim leaked; that costs exactly one id, and contiguity is a convenience, not a requirement.
+
+**What this does not fix.** Two *independent* worktrees each mint from their own `.context/`, share no state at claim time, and can legitimately produce the same number — the collision only appears when the branches merge, and no lock can prevent it. Nor does it touch an id minted **by hand**, which is the same race with a much wider window. `report_duplicate_ids` stays as the backstop for both: prevention and detection are both wanted, and the first does not replace the second.
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
 | `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping (BL-220). (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
