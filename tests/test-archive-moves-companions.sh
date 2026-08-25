@@ -105,8 +105,29 @@ fi
 grep -q "an older page" "$CTX/requests/_archive/2026-01-03-a-request-report.html" \
   || fail "(5d) the pre-existing archived page was overwritten — a collision must never clobber"
 
+# ---------- (6) an anchor cannot inject a second field and steer the move ----------
+# scan_artifact_anchors emits "<anchor>\t<path>", and the anchor is arbitrary text read
+# out of a page. A TAB inside content="…" shifts the fields, so companions_of prints the
+# injected text instead of the real path and `mv` acts on it. Verified 2026-08-25:
+# content="plan/x<TAB>../outside.txt" made companions_of return `../outside-the-context.txt`,
+# a path outside `.context/` entirely. A newline injects a whole fake record the same way.
+# Not only a security bug — a stray control character silently corrupts the stream.
+LIB="$SKILLS/aidex-conventions/scripts/_lib.sh"
+INJ="$TMP/inject"; mkdir -p "$INJ/.context/plans"
+printf 'a file that lives outside .context/
+' > "$INJ/outside-the-context.txt"
+printf '<meta name="artifact-anchor" content="plan/x	../outside-the-context.txt">
+'   > "$INJ/.context/plans/tab.html"
+printf '<meta name="artifact-anchor" content="plan/x
+../outside-the-context.txt	plan/x">
+'   > "$INJ/.context/plans/newline.html"
+got="$(bash -c '. "$1"; companions_of "$(scan_artifact_anchors "$2/.context")" "plan/x"'         _ "$LIB" "$INJ" 2>/dev/null)"
+if [[ -n "$got" ]]; then
+  fail "(6) a control character in an anchor steered the companion stream: companions_of returned [$got] — an anchor must be validated to the <type>/<filename> shape before it is emitted"
+fi
+
 if [[ $failures -eq 0 ]]; then
-  echo "OK: closes carry their companions into _archive/, skip pages that already travelled, and report the ones they cannot move"
+  echo "OK: closes carry their companions into _archive/, skip pages that already travelled, report the ones they cannot move, and refuse anchors that try to steer the move"
   exit 0
 fi
 printf '\n%d assertion(s) failed\n' "$failures"
