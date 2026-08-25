@@ -9,6 +9,12 @@
 #   it by stripping that segment and testing the RUN FOLDER — but it tested only
 #   `audits/<rest>`, never the archive. Both archive shapes were therefore invisible:
 #   `audits/_archive/<run>` (root-level run) and `audits/<methodology>/_archive/<run>`.
+#
+# Second regression, same family (2026-08-25): the fix above resolved a root-archived run
+# only when the REF was also flat. `archive-sweep.py` moves a grouped run to
+# `audits/_archive/<run>` — dropping the methodology — while the ref that points at it
+# still reads `audit/<methodology>/<run>/<finding>`. Neither shape matched, so applying
+# the sweep's own proposal turned two clean backlog items into violations. Cell (5).
 #   Harm, observed: running `close-audit.sh` on two finished runs turned 10 previously
 #   clean backlog items into `cross-ref-target-missing` violations — the validator
 #   punishing exactly the housekeeping the canon mandates, which pushes a user to either
@@ -41,6 +47,7 @@ CTX="$TMP/.context"
 mkdir -p "$CTX/audits/active-meth/2026-01-01-live-run" \
          "$CTX/audits/_archive/2026-01-02-root-archived" \
          "$CTX/audits/meth/_archive/2026-01-03-meth-archived" \
+         "$CTX/audits/_archive/2026-01-05-swept-from-a-methodology" \
          "$CTX/backlog/_archive"
 
 seed_item() {  # $1 = slug, $2 = origin_ref
@@ -65,6 +72,9 @@ seed_item live      "audit/active-meth/2026-01-01-live-run/HIGH-1"
 seed_item rootarch  "audit/2026-01-02-root-archived/HIGH-2"
 seed_item metharch  "audit/meth/2026-01-03-meth-archived/HIGH-3"
 seed_item ghost     "audit/2026-01-04-never-existed/HIGH-4"
+# The shape archive-sweep.py actually produces: the run left its methodology folder,
+# the ref did not.
+seed_item swept     "audit/some-meth/2026-01-05-swept-from-a-methodology/HIGH-5"
 
 OUT="$(python3 "$VALIDATE" "$CTX" 2>&1)"
 
@@ -81,6 +91,11 @@ fi
 # ---------- (3) per-methodology archive: audits/<meth>/_archive/<run> ----------
 if grep -q "2026-01-03-meth-archived/HIGH-3" <<<"$OUT"; then
   fail "(3) a ref into a run archived at audits/<methodology>/_archive/ was reported missing — close-audit.sh writes this shape whenever the run sits under a methodology"
+fi
+
+# ---------- (5) a grouped ref into a run the sweep flattened into audits/_archive/ ----
+if grep -q "2026-01-05-swept-from-a-methodology/HIGH-5" <<<"$OUT"; then
+  fail "(5) a methodology-qualified ref was reported missing after archive-sweep.py moved the run to audits/_archive/ — the destination the sweep writes must be a shape the resolver knows"
 fi
 
 # ---------- (4) the check must keep its teeth ----------
