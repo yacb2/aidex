@@ -191,6 +191,17 @@ window.addEventListener('load', function () {
     ce.textContent = 'retyped-after-sending-000';
     ce.dispatchEvent(new Event('input', { bubbles: true }));
     document.title = 'RETYPED';
+  } else if (q.indexOf('phase=downgrade') !== -1) {
+    /* A reader mid-thread when the kit is upgraded: their stored answers were
+     * saved by v6, so they carry no round and no sent flag. Rebuilt by sending
+     * and then stripping both keys, rather than hand-written, so the question
+     * fingerprint is a real one this page will match. */
+    var K = 'aidex-kit-answers:' + location.pathname;
+    document.getElementById('consult-copy').click();
+    var d = JSON.parse(localStorage.getItem(K) || '{}');
+    Object.keys(d).forEach(function (k) { delete d[k].r; delete d[k].x; });
+    localStorage.setItem(K, JSON.stringify(d));
+    document.title = 'DOWNGRADED=' + JSON.stringify(d).replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=clear') !== -1) {
     var btn = document.querySelector('[data-id="Q1"] .consult-clear');
     if (btn) btn.click();
@@ -357,6 +368,29 @@ t="$(run 'phase=verify')"
 # silently reverting the whole rule to the v6 behaviour.
 [[ "$t" == *"ROUND="[0-9]* ]] \
   || fail "BL-241: the page carries no consult-round marker: $t"
+
+# ---- the v6 -> v7 upgrade never blanks a reader who is mid-thread -----------
+#
+# Every cell above starts from a fresh profile, so none of them sees the case
+# that applies to every page already on disk: answers saved before rounds
+# existed. They carry no `r` and no `x`, and both guards require both sides to
+# be known — so the answer comes back. Getting this wrong would blank the whole
+# field on the upgrade, silently, once.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+t="$(run 'phase=fill')"
+[[ "$t" == *FILLED* ]] || fail "the fill phase did not run before the upgrade probe: $t"
+t="$(run 'phase=downgrade')"
+[[ "$t" == *DOWNGRADED* ]] || fail "the downgrade phase did not run: $t"
+[[ "$t" == *'"r"'* || "$t" == *'"x"'* ]] \
+  && fail "the downgraded entry still carries a round or sent key — it is not a v6 entry: $t"
+wrap_page                                   # a new round arrives with the upgrade
+t="$(run 'phase=verify')"
+[[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
+  || fail "a pre-round answer set was blanked by the upgrade: $t"
+[[ "$t" == *"MARK=A"* ]] \
+  || fail "a pre-round mark was blanked by the upgrade: $t"
 
 # ---- BL-242: per-item clear -------------------------------------------------
 rm -rf "$TMP/profile"
