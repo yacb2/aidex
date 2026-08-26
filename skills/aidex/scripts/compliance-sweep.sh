@@ -17,7 +17,7 @@
 # trusting.
 #
 # Usage:
-#   compliance-sweep.sh                      # every project under ~/Documents/projects
+#   compliance-sweep.sh                      # every project under $AIDEX_WORKSPACE_ROOT (default ~/Documents/projects)
 #   compliance-sweep.sh --root <dir>         # ...under <dir> instead
 #   compliance-sweep.sh <project> [<proj>..] # ...only these, a named list
 #   compliance-sweep.sh --verbose            # also name the clean and skipped ones
@@ -33,7 +33,7 @@ VALIDATE="$SCRIPT_DIR/../../aidex-conventions/scripts/validate.py"
 RECONCILE="$SCRIPT_DIR/../../aidex-backlog/scripts/reconcile.sh"
 SWEEP="$SCRIPT_DIR/../../aidex-backlog/scripts/sweep.sh"
 
-ROOT="$HOME/Documents/projects"
+ROOT="${AIDEX_WORKSPACE_ROOT:-$HOME/Documents/projects}"
 VERBOSE=0
 PROJECTS=()
 
