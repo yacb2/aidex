@@ -25,6 +25,19 @@ Checks (per file):
   consult-ids  with --prev: an id kept between two regenerations still names
                the same claim
 
+Warnings (`WARN [check]`) are a SECOND channel and deliberately not a third
+severity of the first. They report a shape that renders badly or reads wrong
+without being a contract violation, they never change the exit code, and they
+are not waivable — a waiver keys on (`artifact-<check>`, path) and sharing that
+namespace would let one waiver silence a real failure on the same file. They
+run at authoring time only (a direct check of named files), never in `--census`:
+a census warning on a page nobody is editing is noise no one can clear.
+
+  consult-opts marks outside `.opts` — the kit styles option groups only there,
+               so any other wrapper renders them unstyled (BL-244)
+  consult-rec  "(recommended)" typed into `data-label` — the marker then travels
+               in the pasted reply and is invisible on the page (BL-245)
+
 Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
 """
@@ -253,6 +266,112 @@ def ledger_ids(text):
         for k in LEDGER_KEY.findall(body):
             out.update(LEDGER_TOKEN.findall(flatten(k)))
     return out
+
+
+# --- warnings: shapes that render wrong without violating the contract --------
+# Both cases below were written by hand on the SAME page in one session
+# (dashboard_template_ws BL-066), and both passed the contract while failing the
+# reader: the contract checks ids, notes boxes and buttons, never the wrapper an
+# option group sits in nor where a recommendation is legible from.
+
+ATTR_CLASS = re.compile(r'\bclass\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27'
+                        r'|([^\s>]+))', re.I)
+MARK_INPUT = re.compile(r'<input\b[^>]*\btype\s*=\s*["\x27]?(?:radio|checkbox)\b',
+                        re.I | re.S)
+
+
+def consult_item_bodies(text):
+    """[(id, body)] for every data-id item. A second walk rather than a wider
+    return from `consult_items`: that one answers the contract in booleans and
+    is read by the failure path, and warnings must not be able to change it."""
+    out = []
+    for m in ITEM_OPEN.finditer(text):
+        ident = next(g for g in m.groups()[1:] if g is not None)
+        out.append((ident, _subtree(text, m.group(1), m.end())))
+    return out
+
+
+def marks_outside_opts(body):
+    """True when the item holds a radio/checkbox with no `.opts` ancestor.
+
+    Walked with an ancestor stack, not grepped for `.opts` anywhere in the item:
+    the observed page had one group correctly wrapped and a second one in a
+    hand-invented `consult-options`, and any presence test passes that."""
+    body = strip_html_comments(strip_script_style(body))
+    stack = []
+    for m in re.finditer(r"<(/?)([a-zA-Z][\w:-]*)([^>]*)>", body):
+        closing, tag, attrs = m.group(1), m.group(2).lower(), m.group(3)
+        if closing:
+            for i in range(len(stack) - 1, -1, -1):
+                if stack[i][0] == tag:
+                    del stack[i:]
+                    break
+            continue
+        if tag == "input" and MARK_INPUT.match(m.group(0)):
+            if not any("opts" in anc for _, anc in stack):
+                return True
+        if tag in VOID_TAGS or attrs.rstrip().endswith("/"):
+            continue
+        cm = ATTR_CLASS.search(attrs)
+        classes = (set(next(g for g in cm.groups() if g is not None).split())
+                   if cm else set())
+        stack.append((tag, classes))
+    return False
+
+
+DATA_LABEL = re.compile(r'\bdata-label\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
+                        re.I | re.S)
+# The two spellings the field produced, plus the negative form the same page
+# needed. Bounded on purpose: this warns about a marker typed into the copied
+# label, and a wider net would fire on an option legitimately CALLED
+# "recommended" in its own text.
+REC_IN_LABEL = re.compile(r'\(\s*(?:not\s+)?(?:recommended|recomendad[ao]|no\s+'
+                          r'recomendad[ao])\s*\)', re.I)
+
+
+def warn_file(path):
+    """Non-fatal findings as (check, name, message). Exit-neutral and never
+    waived — see the module docstring for why they are a separate channel."""
+    warns = []
+    name = os.path.basename(path)
+    if not os.path.isfile(path):
+        return warns
+    text = open(path, encoding="utf-8", errors="replace").read()
+    flat = flatten(text)
+    if not CONSULT_GATE.search(flat):
+        return warns
+    try:
+        bodies = consult_item_bodies(text)
+    except Exception:                               # noqa: BLE001 — advisory
+        return warns
+
+    for ident, body in bodies:
+        try:
+            loose = marks_outside_opts(body)
+        except Exception:                           # noqa: BLE001 — advisory
+            continue
+        if loose:
+            warns.append(("consult-opts", name,
+                          f"item '{ident}' has radio/checkbox options outside "
+                          f"any .opts wrapper — components.css styles options "
+                          f'only under .opts (radio groups: class="opts one", '
+                          f'checkbox groups: class="opts"), so these render '
+                          f"with no grid, no hover and the hints inline"))
+
+    for ident, body in bodies:
+        for m in DATA_LABEL.finditer(body):
+            val = next(g for g in m.groups() if g is not None)
+            if REC_IN_LABEL.search(val):
+                warns.append(("consult-rec", name,
+                              f"item '{ident}' spells the recommendation "
+                              f"inside data-label (\"{val.strip()}\") — that "
+                              f"attribute is what the composer copies, so the "
+                              f"marker travels in the pasted reply and is "
+                              f"invisible on the page. Put data-recommended on "
+                              f"the input instead; the kit renders the badge "
+                              f"and the composer appends the suffix"))
+                break
+    return warns
 
 
 # --- Requirement 1, across regenerations (--prev) -----------------------------
@@ -825,16 +944,28 @@ def main(argv):
               file=sys.stderr)
         return 2
 
-    failures = []
+    failures, warnings = [], []
     for f in files:
         failures.extend(check_file(f))
+        try:
+            warnings.extend(warn_file(f))
+        except Exception as e:                      # noqa: BLE001 — advisory
+            print(f"  NOTE [warnings] the advisory scan did not run ({e})")
+
     if prev is not None:
         failures.extend(check_prev(files[0], prev))
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")
+    # Printed on a passing file too, and that is the whole point: a warning
+    # about a page that failed is drowned by the failure the author is fixing,
+    # while the two shapes these catch ship on pages that pass everything.
+    for check, name, msg in warnings:
+        print(f"  WARN [{check}] {name}: {msg}")
     if not failures:
-        print(f"artifact contract OK ({len(files)} file(s))")
+        print(f"artifact contract OK ({len(files)} file(s))"
+              + (f" — {len(warnings)} warning(s), exit unaffected"
+                 if warnings else ""))
         return 0
     print(f"{len(failures)} contract violation(s)")
     return 1

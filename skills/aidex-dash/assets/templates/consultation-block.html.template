@@ -23,6 +23,10 @@
   The page-level general-notes item is the same rule one level up, and it is
   additional: per-item notes do not replace it.
 
+  Every item also gets a per-item "Clear" control, injected by the composer in
+  the page's own language. Do not write one into a block: it arrives by wrapping,
+  so a page cannot ship without it and an author cannot get it wrong.
+
   Depth is set by the cost of undoing the decision: a reversible one-minute
   choice gets the question alone; something touching code or a shared contract
   gets a concrete example; something that rewrites what exists gets the example,
@@ -31,6 +35,28 @@
   The EXPLANATION belongs inside the item, next to the question it explains —
   never gathered into a context section above with the questions below it. See
   references/02-local-first-artifacts.md § 8.
+
+  THE ITEM IS SELF-SUFFICIENT. The test to apply to each one: could the reader
+  answer it if the page began at its <h3>? The item carries the finding, the
+  evidence for it (the numbers, the paths, the visual or a slice of it), the
+  options with what each buys and costs, and the recommendation with its reason.
+  The introduction may summarise; it must not be the only place a fact a question
+  needs lives. Reported from use — "tengo que seguir viendo arriba… termino
+  respondiendo sobre la poca información que me agregas en la pregunta".
+
+  The shape each item follows: evidence -> options with hints -> recommendation.
+
+  AND THE RECOMMENDATION IS VISIBLE. An item with options says which one the
+  session backs, through `data-recommended` on that option's input. Never by
+  typing "(recommended)" into `data-label`: that attribute is what the composer
+  copies, so the marker reaches the pasted reply and never reaches the page.
+  check-artifact.sh warns when it finds one there.
+
+  OPTION GROUPS LIVE IN `.opts`, AND ONLY THERE. `class="opts one"` for a radio
+  group, `class="opts"` for checkboxes. components.css styles options under no
+  other class, so a group in a wrapper of your own invention renders with no
+  grid, no hover and its hints inline — and passes the contract, which checks
+  ids, notes boxes and buttons. That is a warning now, not a silence.
 -->
 
 <!--
@@ -52,13 +78,23 @@
 <meta name="consult-visual" content="none: replace this with the reason, or with svg/mermaid/img">
 
 <!-- Single choice. `data-label` is what the composed reply says; without it the
-     paste carries the input value, which is usually a bare id. -->
+     paste carries the input value, which is usually a bare id.
+
+     `data-recommended` on ONE input marks the option this session backs: the kit
+     draws a visible pill next to its title AND appends "(recommended)" to the
+     copied label, from that one attribute. `data-recommended="no"` marks an
+     option explicitly advised against (a muted, dashed pill). Optional is simply
+     the absence of the attribute — do not invent a third value. On a checkbox
+     group every marked option is a recommendation. -->
 <section class="consult-item" data-id="c1" data-title="Short claim title">
   <h3><span class="consult-id">c1</span>The question, asked as a question</h3>
+  <p>The finding, and the evidence for it: the number, the path, the slice of the
+     visual. Everything the reader needs to answer without scrolling back up.</p>
   <p>What is at stake, and what each answer costs.</p>
   <div class="opts one">
-    <label><input type="radio" name="c1" data-label="First option"><span>First option <span class="hint">What it buys, and what it costs.</span></span></label>
+    <label><input type="radio" name="c1" data-label="First option" data-recommended><span>First option <span class="hint">What it buys, and what it costs — and, on this one, why it is the recommendation.</span></span></label>
     <label><input type="radio" name="c1" data-label="Second option"><span>Second option <span class="hint">What it buys, and what it costs.</span></span></label>
+    <label><input type="radio" name="c1" data-label="Third option" data-recommended="no"><span>Third option <span class="hint">Why this one is advised against.</span></span></label>
   </div>
   <p class="fieldlabel">Notes on this one</p>
   <textarea placeholder="Anything the options do not cover…"></textarea>

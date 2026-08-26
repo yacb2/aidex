@@ -101,10 +101,37 @@ li::marker { color: var(--muted); }
 .opts input { accent-color: var(--accent); margin-top: 0.28rem; flex: none; }
 .opts .hint { color: var(--muted); font-size: 0.8rem; display: block; }
 
+/* The recommendation, made VISIBLE. `data-recommended` on the input is the one
+   declaration; the composer renders the pill from it and appends the same word
+   to the copied label, so nothing is written twice and nothing can say one
+   thing on the page and another in the paste.
+
+   The pill is drawn from the page's own tokens, so it inherits every theme the
+   page has: `--accent` for the backed option, `--muted` with a dashed edge for
+   one explicitly advised against. `background: transparent` rather than a tint,
+   because the accent is a foreground colour in both themes and a filled pill
+   loses its own text in one of them. */
+.kit-tag { font-family: var(--sans); font-size: 0.62rem; font-weight: 600;
+           text-transform: uppercase; letter-spacing: 0.09em; white-space: nowrap;
+           padding: 0.08rem 0.36rem; border-radius: 3px; margin-left: 0.45rem;
+           vertical-align: 0.06em; background: transparent; }
+.kit-tag.rec { color: var(--accent); border: 1px solid var(--accent-dim); }
+.kit-tag.no  { color: var(--muted);  border: 1px dashed var(--muted); }
+.opts label:has(input[data-recommended]) { background: var(--paper-sunk); }
+.opts label:has(input[data-recommended="no"]) { background: none; }
+
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
   color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
 .consult-item textarea { min-height: 4rem; }
+
+/* Per-item clear, injected by the composer. Aligned to the item's trailing edge
+   and drawn as a quiet link rather than a button: it is a recovery affordance,
+   not one of the two answers the item is asking for. */
+.consult-clear { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
+                 font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase;
+                 letter-spacing: 0.09em; color: var(--muted); cursor: pointer; }
+.consult-clear:hover { color: var(--flag); text-decoration: underline; }
 /* Every box, not only the ones inside an item: a textarea defaults to
    `resize: both`, and the horizontal handle offers an axis the layout has no
    room for — dragging it wider lays the box over the rail and whatever sits

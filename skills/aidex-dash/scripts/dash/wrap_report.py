@@ -142,6 +142,56 @@ def kit_head():
             f"<style>\n{components}</style>")
 
 
+CONSULT_ROUND = re.compile(
+    r'<meta\b[^>]*\bname\s*=\s*["\']?consult-round["\']?[^>]*'
+    r'\bcontent\s*=\s*(?:"(\d+)"|\'(\d+)\'|(\d+))', re.I | re.S)
+
+
+def _round_of(path):
+    """The `consult-round` a page on disk carries, or 0 when it carries none."""
+    try:
+        m = CONSULT_ROUND.search(open(path, encoding="utf-8",
+                                      errors="replace").read())
+    except OSError:
+        return 0
+    return int(next(g for g in m.groups() if g is not None)) if m else 0
+
+
+def round_meta(outfile):
+    """`<meta name="consult-round">` for the page about to be written.
+
+    What it is for: the composer keeps typed answers in localStorage and used to
+    restore them into every later regeneration, so notes the session had already
+    read and acted on were handed back to the reader round after round. The
+    marker is how the page tells "the reader reloaded me" from "this is a new
+    round"; the composer then drops only what was already SENT (see composer.js
+    § the ROUND).
+
+    Derived from the BASELINE, never from the file on disk. A wrap that fails
+    the contract leaves its output in place deliberately and does NOT advance the
+    baseline, so counting from disk would increment twice across a failed wrap
+    and a fixed one — blanking sent-answer state on a round the reader never saw.
+    The on-disk file is only the fallback for a page written before baselines
+    existed.
+
+    A wrap to stdout has no path and therefore no round. That is correct rather
+    than a gap: without `--out` there is no thread to be a round of, and a page
+    with no marker keeps the pre-round behaviour exactly.
+    """
+    if not outfile:
+        return ""
+    out = os.path.abspath(outfile)
+    baseline = os.path.join(os.path.dirname(out), ".aidex-artifact-prev",
+                            os.path.basename(out))
+    if os.path.isfile(baseline):
+        prev = _round_of(baseline) or 1
+    elif os.path.isfile(out):
+        prev = _round_of(out) or 1
+    else:
+        prev = 0
+    return f'<meta name="consult-round" content="{prev + 1}">'
+
+
 def kit_script():
     """The composer, for the END of <body>.
 
@@ -292,7 +342,8 @@ def main():
     # <style>. Each layer may override the one before it, and the author's block
     # is last so a local rule still wins. Writing a page is writing content plus
     # class names; the boilerplate is no longer re-authored per artifact.
-    head_extra = "\n".join(p for p in (kit_head(), profile_delta(ctx), head_extra) if p)
+    head_extra = "\n".join(p for p in (kit_head(), round_meta(args.outfile),
+                                       profile_delta(ctx), head_extra) if p)
     body = "\n".join(p for p in (body, kit_script()) if p)
     doc = document(args.title, body, lang=lang,
                    favicon=args.favicon or profile_favicon(ctx) or "",
@@ -362,7 +413,9 @@ def main():
                   "are restored from this machine's browser storage on reload; they are "
                   "still lost on another browser/machine or if the page predates v4. "
                   "Since kit v6 an answer whose question you rephrased is deliberately "
-                  "NOT restored — that item reads blank and the page's banner says so.",
+                  "NOT restored — that item reads blank and the page's banner says so. "
+                  "Since kit v7 an answer already SENT with the copy button does not "
+                  "cross into a new round either; one typed and never sent still does.",
                   file=sys.stderr)
 
     with open(args.outfile, "w", encoding="utf-8") as fh:

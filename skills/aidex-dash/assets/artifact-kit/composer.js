@@ -32,9 +32,16 @@
       noClipboard: ' — clipboard unavailable, copy the selected text.',
       restored: function (n) { return n + ' answer(s) recovered from your last visit on this machine.'; },
       stale: function (n) { return ' ' + n + ' were left blank because their question changed since you answered it.'; },
+      consumed: function (n) { return ' ' + n + ' were left blank because you already sent them in an earlier round.'; },
       discard: 'Discard them',
       copy: 'Copy my answers',
-      contents: 'Contents'
+      contents: 'Contents',
+      clear: 'Clear',
+      clearTitle: 'Clear this answer',
+      rec: 'Recommended',
+      notRec: 'Not recommended',
+      recSuffix: ' (recommended)',
+      notRecSuffix: ' (not recommended)'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -50,9 +57,16 @@
       noClipboard: ' — portapapeles no disponible, copia el texto seleccionado.',
       restored: function (n) { return n + ' respuesta(s) recuperada(s) de tu última visita en esta máquina.'; },
       stale: function (n) { return ' ' + n + ' se dejaron en blanco porque su pregunta cambió desde que la respondiste.'; },
+      consumed: function (n) { return ' ' + n + ' se dejaron en blanco porque ya las enviaste en una ronda anterior.'; },
       discard: 'Descartarlas',
       copy: 'Copiar mis respuestas',
-      contents: 'Contenido'
+      contents: 'Contenido',
+      clear: 'Limpiar',
+      clearTitle: 'Limpiar esta respuesta',
+      rec: 'Recomendada',
+      notRec: 'No recomendada',
+      recSuffix: ' (recomendada)',
+      notRecSuffix: ' (no recomendada)'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -124,10 +138,22 @@
     return a;
   });
 
+  /* The suffix the copied label carries, read from `data-recommended` — the
+   * SAME attribute the badge is drawn from. Before this, a session with a
+   * recommendation to make had no affordance and typed "(recomendada)" into
+   * `data-label`, which is the string the composer pastes: the marker reached
+   * the reply and never reached the page, so the reader could not see which
+   * option was backed on any of ten items. One declaration, both surfaces. */
+  function recSuffix(input) {
+    var r = input.getAttribute('data-recommended');
+    if (r === null) return '';
+    return String(r).toLowerCase() === 'no' ? L.notRecSuffix : L.recSuffix;
+  }
+
   function readItem(el) {
     var parts = [], marked = [];
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
-      .forEach(function (i) { marked.push(i.dataset.label || i.value || ''); });
+      .forEach(function (i) { marked.push((i.dataset.label || i.value || '') + recSuffix(i)); });
     if (marked.length) parts.push(marked.map(function (m) { return '- ' + m; }).join('\n'));
     el.querySelectorAll('select').forEach(function (s) {
       if (s.value) parts.push(s.options[s.selectedIndex].text.trim());
@@ -171,6 +197,36 @@
    * degrades to exactly the old behaviour. */
   var STORE_KEY = 'aidex-kit-answers:' + location.pathname;
 
+  /* The ROUND, and what it is for.
+   *
+   * Persistence is for surviving a RELOAD mid-answer. It was carrying notes into
+   * the next ROUND too: an item whose question did not change kept whatever the
+   * reader had typed, so every regeneration handed back notes the session had
+   * already read and acted on — observed with an "explain this one better"
+   * request that restored into the box after the explanation had been written
+   * into the page. The reader then deletes it by hand, or re-sends it.
+   *
+   * The discriminant is NOT the round alone. Restoring only same-round answers
+   * is what the report proposed and it reverts R6-02: a regeneration would blank
+   * every half-typed answer in the set, which is the loss the persistence exists
+   * to prevent and which `test-composer-functional.sh` asserts against. What
+   * separates the two cases is whether the answer was ever SENT — so the store
+   * records that (`c`), the page records its round (`r`), and the rule is:
+   *
+   *   same round        -> restore everything, sent or not (the reload case)
+   *   a later round     -> restore only what was never sent
+   *
+   * Editing an item after sending it un-sends it: `c` is derived by comparing
+   * the copied fingerprint against the item's CURRENT body on every save, so no
+   * extra event wiring can get out of step with it.
+   *
+   * No `<meta name="consult-round">` means a page written before this existed:
+   * ROUND is "" and every comparison is skipped, so such a page keeps exactly
+   * the v6 behaviour rather than blanking on the upgrade. */
+  var roundMeta = document.querySelector('meta[name="consult-round"]');
+  var ROUND = roundMeta ? (roundMeta.getAttribute('content') || '') : '';
+  var copied = {};
+
   /* Free text is keyed by surface TYPE plus index within that type, never by
    * one global order: the v4 schema stored a single flat list, so an author
    * inserting a select before an existing textarea in the same item shifted
@@ -178,6 +234,12 @@
    * insertion can still shift within its own list — that is the floor for
    * order-keyed storage — but a regeneration that adds a different control no
    * longer corrupts anything. */
+  /* Keys, and why they are a fixed list rather than free choice: `m` marks,
+   * `h` question fingerprint, `r` round, `x` sent, `f` the v4 flat list, plus
+   * one per FREE kind below. The sent flag was first written as `c` and
+   * silently WAS the contenteditable array — every such answer read as already
+   * sent and vanished on the next round, which `test-composer-functional.sh`
+   * caught. Adding a key means checking it against both lists. */
   var FREE = [
     { k: 's', q: 'select' },
     { k: 't', q: 'input[type="text"]' },
@@ -222,16 +284,25 @@
    * file://, which is where these pages live. A collision restores a stale
    * answer -- exactly today's behaviour, so the failure mode is the status quo,
    * not a new one. */
-  function questionHash(el) {
-    var clone = el.cloneNode(true);
-    clone.querySelectorAll('[contenteditable]').forEach(function (c) { c.textContent = ''; });
-    var s = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+  function fnv(s) {
     var h = 0x811c9dc5;
     for (var i = 0; i < s.length; i++) {
       h ^= s.charCodeAt(i);
       h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
     }
     return h.toString(16);
+  }
+
+  function questionHash(el) {
+    var clone = el.cloneNode(true);
+    clone.querySelectorAll('[contenteditable]').forEach(function (c) { c.textContent = ''; });
+    /* Chrome this file injects — the recommendation badges and the per-item
+     * clear button — is removed before hashing. Not cosmetic: it is text inside
+     * the item, so leaving it in would change every fingerprint the moment the
+     * kit gained these controls, and every answer stored by a reader mid-thread
+     * would read as "the question changed" and be dropped on the upgrade. */
+    clone.querySelectorAll('.kit-tag, .consult-clear').forEach(function (c) { c.remove(); });
+    return fnv((clone.textContent || '').replace(/\s+/g, ' ').trim());
   }
 
   function snapshotItem(el) {
@@ -245,7 +316,11 @@
       if (vals.some(function (v) { return v.trim(); })) any = true;
       if (vals.length) s[kind.k] = vals;
     });
-    if (any) s.h = questionHash(el);
+    if (any) {
+      s.h = questionHash(el);
+      if (ROUND) s.r = ROUND;
+      if (copied[el.dataset.id] === fnv(readItem(el))) s.x = 1;
+    }
     return any ? s : null;
   }
 
@@ -262,10 +337,10 @@
   }
 
   function restore() {
-    var n = 0, stale = 0;
+    var n = 0, stale = 0, spent = 0;
     try {
       var raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return { n: 0, stale: 0 };
+      if (!raw) return { n: 0, stale: 0, spent: 0 };
       var data = JSON.parse(raw);
       items.forEach(function (el) {
         var s = data[el.dataset.id];
@@ -275,6 +350,11 @@
          * already typed, and the first input event re-saves the entry with a
          * fingerprint. */
         if (s.h && s.h !== questionHash(el)) { stale++; return; }
+        /* Both rounds must be known before this can drop anything: an entry
+         * saved before rounds existed has no `r`, and a page that predates the
+         * marker has no ROUND. Either way the answer comes back, because
+         * upgrading the kit must never blank what a reader already typed. */
+        if (s.x && s.r && ROUND && s.r !== ROUND) { spent++; return; }
         var hit = false;
         el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
           .forEach(function (i) {
@@ -300,20 +380,27 @@
             fill([].slice.call(el.querySelectorAll(kind.q)), s[kind.k]);
           });
         }
-        if (hit) n++;
+        if (hit) {
+          n++;
+          // Restored INSIDE its own round: the answer is still a sent one, and
+          // forgetting that here would make the next save record it as unsent.
+          if (s.x) copied[el.dataset.id] = fnv(readItem(el));
+        }
       });
-    } catch (e) { return { n: 0, stale: 0 }; }
-    return { n: n, stale: stale };
+    } catch (e) { return { n: 0, stale: 0, spent: 0 }; }
+    return { n: n, stale: stale, spent: spent };
   }
 
-  function showRestoredNote(n, stale) {
+  function showRestoredNote(n, stale, spent) {
     var main = document.querySelector('.main');
     if (!main) return;
     var note = document.createElement('div');
     note.className = 'note';
     note.id = 'consult-restored';
     note.setAttribute('role', 'status');
-    note.appendChild(document.createTextNode(L.restored(n) + (stale ? L.stale(stale) : '') + ' '));
+    note.appendChild(document.createTextNode(
+      L.restored(n) + (stale ? L.stale(stale) : '')
+                    + (spent ? L.consumed(spent) : '') + ' '));
     var a = document.createElement('a');
     a.href = '#';
     a.textContent = L.discard;
@@ -324,6 +411,58 @@
     });
     note.appendChild(a);
     main.insertBefore(note, main.firstChild);
+  }
+
+  /* The recommendation badge. Drawn here rather than from a CSS `::after`, for
+   * two reasons a stylesheet cannot cover: the word has to be in the page's own
+   * language (the kit ships to every project and only the project carries one),
+   * and it belongs after the option title and BEFORE its hint, which is a
+   * position generated content cannot reach. */
+  function markRecommendations() {
+    document.querySelectorAll('.opts input[data-recommended]').forEach(function (i) {
+      var lab = i.closest ? i.closest('label') : null;
+      if (!lab || lab.querySelector('.kit-tag')) return;
+      var no = String(i.getAttribute('data-recommended')).toLowerCase() === 'no';
+      var tag = document.createElement('span');
+      tag.className = 'kit-tag ' + (no ? 'no' : 'rec');
+      tag.textContent = no ? L.notRec : L.rec;
+      var hint = lab.querySelector('.hint');
+      if (hint) hint.parentNode.insertBefore(tag, hint);
+      else (lab.querySelector('span') || lab).appendChild(tag);
+    });
+  }
+
+  /* Per-item clear. Radios cannot be un-selected by clicking them again and a
+   * textarea has to be emptied by hand, so with persistence a wrong click
+   * survived every reload and the only recovery was editing the markdown the
+   * composer had already copied. Injected from here, not written into each
+   * block: it is a kit affordance, so a page gets it by being wrapped rather
+   * than by its author having remembered it. */
+  function clearItem(el) {
+    el.querySelectorAll('input[type="radio"], input[type="checkbox"]')
+      .forEach(function (i) { i.checked = false; });
+    FREE.forEach(function (kind) {
+      el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
+    });
+    delete copied[el.dataset.id];
+    // save() rebuilds the whole store from the page, so an emptied item drops
+    // out of localStorage on its own — there is no per-key delete to keep in
+    // step with it.
+    refresh();
+    save();
+  }
+
+  function addClearControls() {
+    items.forEach(function (el) {
+      if (el.querySelector('.consult-clear')) return;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'consult-clear';
+      b.textContent = L.clear;
+      b.title = L.clearTitle;
+      b.addEventListener('click', function () { clearItem(el); });
+      el.appendChild(b);
+    });
   }
 
   function refresh() {
@@ -339,6 +478,15 @@
       say(L.nothingToCopy);
       return;
     }
+    /* Pressing the button IS sending: from here the session has the answers,
+     * and the next regeneration must not hand them back. Recorded on the
+     * fallback path too — there the reader copies the pre-selected text, which
+     * is the same act with a worse clipboard. */
+    items.forEach(function (el) {
+      var body = readItem(el);
+      if (body) copied[el.dataset.id] = fnv(body);
+    });
+    save();
     var msg = L.copied(r.answered) + (r.blank.length ? L.blankList(r.blank) : L.noneBlank);
 
     function fallback() {
@@ -364,7 +512,11 @@
     /* Shown when anything was DROPPED too, not only when something was
      * recovered: an answer the reader typed is missing from the page, and the
      * banner is the only thing that says why. */
-    if (recovered.n || recovered.stale) showRestoredNote(recovered.n, recovered.stale);
+    if (recovered.n || recovered.stale || recovered.spent) {
+      showRestoredNote(recovered.n, recovered.stale, recovered.spent);
+    }
+    markRecommendations();
+    addClearControls();
     document.addEventListener('input', function () { refresh(); save(); });
     document.addEventListener('change', function () { refresh(); save(); });
     refresh();

@@ -145,7 +145,10 @@ SAME path. Concretely:
   v6 it also fingerprints each question's body**: an item whose question was
   rephrased is left blank rather than restored onto, and the banner says how many
   were dropped and why. That is per item, not per page — regenerating a page does
-  not discard answers to the questions that did not change. What none of it
+  not discard answers to the questions that did not change. **Since kit v7 an
+  answer already SENT (the copy button was pressed) does not cross into a new
+  round either**, so a note the session has already consumed stops being handed
+  back; one typed and never sent still survives the regeneration. What none of it
   covers: another browser or machine, private windows, and engines that refuse
   storage on `file://` — there the old rule stands, so `wrap-report.sh` still
   prints a (narrower) note when replacing a page with reply surfaces.
@@ -452,12 +455,38 @@ Five requirements. They exist because each one was violated in the field.
    a entender arriba y a responder abajo… cuando pudiéramos tener preguntas y
    explicación juntas"*.
 
+   **The item is self-sufficient, and this is the test:** could the reader answer it if
+   the page began at its `<h3>`? Each item carries the finding, the evidence for it
+   (the numbers, the paths, the visual or a slice of it), the options with what each
+   buys and costs, and the recommendation with its reason. The introduction may
+   summarise; it may not be the only place a fact a question needs lives. Reported from
+   use, on a page that satisfied every clause above — *"tengo que seguir viendo arriba…
+   termino respondiendo sobre la poca información que me agregas en la pregunta"*. The
+   shape is evidence → options with hints → recommendation.
+
+   **An item with options states which one the session recommends, and why.** The
+   recommendation is not optional and not a neutral menu — that is a separate rule the
+   reader has flagged on two artifacts in one day. It is declared with
+   `data-recommended` on that option's input, which the kit renders as a visible pill
+   *and* appends to the copied label. Never typed into `data-label`: that attribute is
+   what the composer pastes, so the marker travels in the reply and is invisible on the
+   page, which is exactly what happened for all ten items of one round. `check-artifact.sh`
+   warns (`consult-rec`) when it finds it there.
+
    **This one is not machine-checked, and that is deliberate.** Every proxy for it is
    satisfiable without satisfying it: a page can carry a `<p>` inside every item and
    still keep all the real context above, and requiring prose per item would fail the
    reversible one-minute question that legitimately stands alone. A grep here would buy
    false confidence, which is worse than an honest rule an author has to hold. What
    *is* checked is the ledger and the ids; this is the rule you keep yourself.
+
+   **The word-count heuristic proposed for this was rejected on those grounds** (BL-243
+   asked for a "thin item" warning at ~60 words). It is the proxy the paragraph above
+   already names, it would fire on the reversible question that is legitimately short,
+   and it is silenced by padding. What shipped instead is checkable without being a
+   proxy: the *wrapper* an option group sits in and the *place* a recommendation is
+   written — both mechanical facts, neither a stand-in for whether the item explains
+   itself.
 
 5. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
    Not a new dated file. The user has the page open in a browser and cannot otherwise
@@ -482,6 +511,46 @@ considered the item decided — a decided item leaves the question set (above), 
 separate obligation this does not discharge. And it is not per page: clearing the store on
 regeneration would blank every half-typed answer in the set, which is the loss the
 persistence exists to prevent.
+
+**Since kit v7 a SENT answer does not cross into a new round.** Persistence is for
+surviving a reload mid-answer; it was also carrying consumed notes forward, so an item
+whose question did not change handed the reader back a note the session had already read
+and acted on — round after round, until the reader deleted it by hand or re-sent it.
+Observed with an "explain this one better" request that restored into its box after the
+explanation had been written into the page.
+
+`wrap-report.sh` stamps `<meta name="consult-round">` on each regeneration, counted from
+the stored **baseline** (`.aidex-artifact-prev/`), never from the file on disk — a failing
+wrap is left in place and does not advance the baseline, so counting from disk would
+increment across a round the reader never saw. The composer then applies one rule:
+
+| | Restored |
+|---|---|
+| Same round (a reload) | everything, sent or not |
+| A later round (a regeneration) | only what was never sent |
+
+"Sent" means the copy button was pressed while that answer was in the box; editing the
+item afterwards un-sends it. **Round equality alone was considered and rejected**: it is
+what the report proposed, and it blanks every half-typed answer on every regeneration —
+R6-02 again, the loss the persistence was built to prevent, and the case
+`test-composer-functional.sh` asserts against by name. What separates a reload from a new
+round is not enough; what separates a consumed note from an unfinished one is whether it
+was ever sent. A page with no round marker (written before v7) keeps the v6 behaviour
+exactly, and so does a stored answer saved without one — upgrading the kit never blanks
+what a reader already typed.
+
+**Option groups live in `.opts`, and only there.** `class="opts one"` for a radio group,
+`class="opts"` for checkboxes. `components.css` styles options under no other class, so a
+group in a hand-invented wrapper renders with no grid, no hover and its hints inline —
+and still passes the contract, which checks ids, notes boxes and buttons rather than
+wrappers. That combination shipped (`class="consult-options"`, written by hand mid-round);
+`check-artifact.sh` now warns (`consult-opts`) when a mark sits outside `.opts`.
+
+**Every item carries a per-item Clear control**, injected by the composer in the page's
+language. Radios cannot be un-selected and a textarea has to be emptied by hand, so with
+persistence a wrong click survived every reload and the only recovery was editing the
+markdown the composer had already copied. It arrives by wrapping, so it is not written
+into a block and cannot be forgotten.
 
 Copy the shape from
 `~/.aidex/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
@@ -573,6 +642,19 @@ exempts nothing, same rule as the visual declaration.
 |---|---|
 | `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
 | `consult-ids` | an id kept between two versions now names a different claim |
+
+**Two findings are WARNINGS, not violations.** They print as `WARN [check]`, never change
+the exit code, and are not waivable — a waiver keys on (`artifact-<check>`, path), and
+sharing that namespace would let one waiver silence a real failure on the same file. They
+run at authoring time only (a direct check of named files), never in `--census`: a warning
+on a page nobody is editing is noise no one can clear.
+
+| Warning | Fires when |
+|---|---|
+| `consult-opts` | an item's radio/checkbox sits outside any `.opts` wrapper — the kit styles options nowhere else, so they render unstyled and the contract passes anyway |
+| `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
+
+Both shipped on the same page in one round, and both passed everything above.
 
 `consult-ids` needs both versions, so `--out` compares against the last version that
 **passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A file

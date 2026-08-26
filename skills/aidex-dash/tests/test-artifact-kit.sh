@@ -288,5 +288,65 @@ grep -qF ">$en_contents<" "$KIT/skeleton.html" \
 grep -q "Array.isArray(s.f)" "$KIT/composer.js" \
   || fail "composer.js lost the v4 flat-schema restore branch — pre-v5 saved answers stop restoring"
 
+# ---------- the round marker counts from the BASELINE, not from disk -------
+#
+# The composer drops a SENT answer when the round advances, so what counts as a
+# new round is load-bearing. A failing wrap is left on disk on purpose and does
+# NOT advance the baseline, so counting from the file would increment across a
+# round the reader never saw and blank answers on it.
+RND="$TMP/rounds"
+mkdir -p "$RND/.context/reports"
+PG="$RND/.context/reports/r.html"
+round_of() { sed -nE 's/.*<meta name="consult-round" content="([0-9]+)">.*/\1/p' "$1" | head -1; }
+
+printf '<div class="page"><main class="main"><h1>Round probe</h1></main></div>\n' > "$TMP/rbody.html"
+bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null 2>&1 \
+  || fail "the round probe failed to wrap"
+[[ "$(round_of "$PG")" == "1" ]] \
+  || fail "a first page is not round 1 (got '$(round_of "$PG")')"
+
+bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null 2>&1
+[[ "$(round_of "$PG")" == "2" ]] \
+  || fail "a regeneration did not advance the round (got '$(round_of "$PG")')"
+
+# A wrap that FAILS the contract: an external script is the cheapest violation
+# that leaves the file on disk.
+printf '<div class="page"><main class="main"><h1>Bad</h1><script src="https://x/y.js"></script></main></div>\n' > "$TMP/rbad.html"
+bash "$WRAP" --title "Round probe" --in "$TMP/rbad.html" --out "$PG" >/dev/null 2>&1
+rc=$?
+[[ "$rc" -ne 0 ]] || fail "the deliberately-violating page passed the contract — the round test proves nothing"
+[[ "$(round_of "$PG")" == "3" ]] \
+  || fail "the failing wrap did not stamp its own round (got '$(round_of "$PG")')"
+
+bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null 2>&1 \
+  || fail "the fixed page failed to wrap"
+[[ "$(round_of "$PG")" == "3" ]] \
+  || fail "the round was counted from the file on disk, not from the baseline: a failed wrap and its fix advanced it twice (got '$(round_of "$PG")', expected 3)"
+
+# The composer must actually read it, or the wrapper stamps a marker nothing uses.
+grep -q 'consult-round' "$KIT/composer.js" \
+  || fail "composer.js never reads the consult-round marker the wrapper stamps"
+
+# ---------- the recommendation is ONE declaration, on both surfaces --------
+# It travelled in `data-label` alone once, which is the composer's copy string:
+# the marker reached the pasted reply and was invisible on the page.
+grep -q 'data-recommended' "$KIT/composer.js" \
+  || fail "composer.js does not read data-recommended — the badge and the copied suffix have no source"
+grep -q 'data-recommended' "$KIT/components.css" \
+  || fail "components.css has no data-recommended rule — the badge has no styles"
+grep -q 'data-recommended' "$SKILL/assets/templates/consultation-block.html.template" \
+  || fail "the consultation template does not show data-recommended — an author copying it has no affordance and will type the marker into data-label again"
+# ...and the template names .opts as the wrapper, so the group is not re-invented.
+grep -q 'class="opts one"' "$SKILL/assets/templates/consultation-block.html.template" \
+  || fail "the consultation template no longer shows class=\"opts one\" for a radio group"
+
+# ---------- per-item clear arrives by wrapping, not by authoring -----------
+grep -q 'consult-clear' "$KIT/composer.js" \
+  || fail "composer.js does not inject a per-item clear control"
+grep -q 'consult-clear' "$KIT/components.css" \
+  || fail "components.css has no .consult-clear rule — the injected control is unstyled"
+grep -q 'consult-clear' "$SKILL/assets/templates/consultation-block.html.template" \
+  && fail "the consultation template hand-writes a clear control — it is injected, so a copied block would end up with two"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the kit builds a page that passes the artifact contract, and stays in lockstep with it"

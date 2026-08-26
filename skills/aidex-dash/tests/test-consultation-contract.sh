@@ -235,5 +235,77 @@ n_tpl_area="$(grep -oiE '<textarea' "$TPL" | wc -l | tr -d ' ')"
 [[ "$n_tpl_area" -ge "$n_tpl_id" ]] \
   || fail "7. the template has $n_tpl_id item(s) and only $n_tpl_area notes box(es) — a copied block would ship a choice with nowhere to qualify it"
 
+# ---- 10. the WARN channel: reports without failing, and only where it should
+#
+# Both shapes below shipped on the SAME page in one round and passed everything
+# above. They are warnings rather than violations on purpose — neither makes a
+# page unanswerable — so the load-bearing assertion is the EXIT CODE: a warning
+# that failed the wrap would block a correct page, and one that printed nothing
+# would be the silence it exists to break.
+mkpage "$TMP/warn-opts.html" "$visual
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Wrapped right\">
+  <h3>Wrapped right</h3>
+  <div class=\"opts one\">
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Hand-rolled wrapper\">
+  <h3>Hand-rolled wrapper</h3>
+  <div class=\"consult-options\">
+    <label><input type=\"radio\" name=\"Q2\" data-label=\"B (recomendada)\"><span>B</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/warn-opts.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10. a warning changed the exit code — a correct page would be blocked: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-opts\].*Q2' "$TMP/out" \
+  || fail "10. BL-244: options outside .opts were not reported: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-opts\].*Q1' "$TMP/out" \
+  && fail "10. BL-244: a correctly wrapped group was reported — the check is a presence test, not an ancestor walk: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-rec\].*Q2' "$TMP/out" \
+  || fail "10. BL-245: '(recomendada)' inside data-label was not reported: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-rec\].*Q1' "$TMP/out" \
+  && fail "10. BL-245: an ordinary data-label was reported as carrying a recommendation: $(cat "$TMP/out")"
+
+# The declared affordance is the thing the warning points AT, so it must be
+# silent: a page that complied and still got warned teaches authors to ignore it.
+mkpage "$TMP/warn-clean.html" "$visual
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Declared properly\">
+  <h3>Declared properly</h3>
+  <div class=\"opts one\">
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"A\" data-recommended><span>A</span></label>
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"B\" data-recommended=\"no\"><span>B</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/warn-clean.html")"
+[[ "$rc" == "0" ]] || fail "10. the compliant page failed: $(cat "$TMP/out")"
+grep -q 'WARN' "$TMP/out" \
+  && fail "10. the page using data-recommended and .opts was still warned: $(cat "$TMP/out")"
+
+# A read page never enters the channel at all — the whole battery is gated on
+# the consultation gate, and warnings must not widen it.
+mkpage "$TMP/warn-read.html" "<p>A report with no questions.</p>
+<table><tr><td>x</td></tr></table>
+$composer"
+rc="$(run "$TMP/warn-read.html")"
+[[ "$rc" == "0" ]] || fail "10. a read page failed: $(cat "$TMP/out")"
+grep -q 'WARN' "$TMP/out" && fail "10. a read page collected warnings: $(cat "$TMP/out")"
+
+# ...and warnings stay out of --census, where nobody can clear them.
+mkdir -p "$TMP/census/.context/reports"
+cp "$TMP/warn-opts.html" "$TMP/census/.context/reports/w.html"
+bash "$CHECK" --census "$TMP/census" > "$TMP/out" 2>&1
+grep -q 'WARN' "$TMP/out" \
+  && fail "10. --census printed a warning — noise on a page nobody is editing: $(cat "$TMP/out")"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — the consultation contract counts items, accepts any reply surface, and leaves a read alone"
+echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"
