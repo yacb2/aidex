@@ -114,7 +114,7 @@ cat > "$TMP/body.html" <<HTML
   <section class="consult-item" data-id="Q1" data-title="The probed question">
     <h3><span class="consult-id">Q1</span>$1</h3>
     <div class="opts one">
-      <label><input type="radio" name="Q1" data-label="Option A"><span>Option A</span></label>
+      <label><input type="radio" name="Q1" data-label="Option A" data-recommended><span>Option A <span class="hint">why</span></span></label>
       <label><input type="radio" name="Q1" data-label="Option B"><span>Option B</span></label>
     </div>
     <p class="fieldlabel">Notes on this one</p>
@@ -171,6 +171,35 @@ window.addEventListener('load', function () {
     localStorage.setItem('aidex-kit-answers:' + location.pathname,
       JSON.stringify({ Q1: { m: ['Option B'], f: ['legacy-answer-456'] } }));
     document.title = 'SEEDED';
+  } else if (q.indexOf('phase=send') !== -1) {
+    /* Pressing the copy button IS sending. The clipboard is stubbed rather than
+     * read back: navigator.clipboard.writeText is what the composer calls, so
+     * capturing it proves the composed markdown the reader actually pastes —
+     * including the recommendation suffix, which is the half of BL-245 that a
+     * DOM assertion cannot see. */
+    var captured = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { captured = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    document.title = 'SENT|PASTE=' + captured.replace(/[|<>\n]/g, ' ');
+  } else if (q.indexOf('phase=retype') !== -1) {
+    /* Editing an item after sending it un-sends it: the sent flag is derived by
+     * comparing the copied fingerprint against the CURRENT body on every save,
+     * so this needs no event of its own to stay in step. */
+    ce.textContent = 'retyped-after-sending-000';
+    ce.dispatchEvent(new Event('input', { bubbles: true }));
+    document.title = 'RETYPED';
+  } else if (q.indexOf('phase=clear') !== -1) {
+    var btn = document.querySelector('[data-id="Q1"] .consult-clear');
+    if (btn) btn.click();
+    document.title = 'CLEARED=' + (btn ? '1' : '0')
+      + '|TA=' + ta.value
+      + '|MARK=' + (radio.checked ? 'A' : '-')
+      + '|STORE=' + (localStorage.getItem('aidex-kit-answers:' + location.pathname) || '')
+          .replace(/[|<>]/g, ' ')
+      + '|LABEL=' + btn.textContent;
   } else if (q.indexOf('phase=verify') !== -1) {
     var banner = document.getElementById('consult-restored');
     document.title = 'RESTORED=' + ta.value
@@ -180,7 +209,10 @@ window.addEventListener('load', function () {
       + '|NOTE=' + (banner ? banner.textContent.replace(/[|<>]/g, ' ') : '')
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ')
       + '|BTN=' + document.getElementById('consult-copy').textContent
-      + '|RAIL=' + document.querySelector('.railhead').textContent;
+      + '|RAIL=' + document.querySelector('.railhead').textContent
+      + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
+      + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
+      + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere');
   }
 });
 </script>
@@ -276,5 +308,69 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"MARK=B"* ]] \
   || fail "a v4 flat-schema mark no longer restores: $t"
 
+# ---- BL-245: the recommendation is visible AND in the paste -----------------
+#
+# It had neither. Left with no affordance, a session typed "(recomendada)" into
+# `data-label` — the string the composer copies — so the marker reached the
+# pasted reply and never reached the page, on all ten items of one round.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+t="$(run 'phase=verify')"
+[[ "$t" == *"REC=Recomendada"* ]] \
+  || fail "BL-245: data-recommended rendered no visible badge, in the page's language: $t"
+[[ "$t" == *"RECPOS=before-hint"* ]] \
+  || fail "BL-245: the badge is not next to the option title, before its hint: $t"
+
+t="$(run 'phase=fill')"
+[[ "$t" == *FILLED* ]] || fail "the fill phase did not run before the send probe: $t"
+t="$(run 'phase=send')"
+[[ "$t" == *SENT* ]] || fail "the send phase did not run: $t"
+[[ "$t" == *"Option A (recomendada)"* ]] \
+  || fail "BL-245: the copied label lost the recommendation — the reply no longer records which option was backed: $t"
+
+# ---- BL-241: a SENT answer does not cross into a new round; an unsent one does
+#
+# The reported case: an item whose question did not change handed back a note the
+# session had already read and acted on, every regeneration. Q1 is sent and must
+# be gone; Q2 is sent and then EDITED, which un-sends it, and must survive — that
+# pair is the whole rule, and a page-wide clear would pass the first and fail the
+# second (R6-02, again).
+t="$(run 'phase=retype')"
+[[ "$t" == *RETYPED* ]] || fail "the retype phase did not run: $t"
+
+t="$(run 'phase=verify')"
+[[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
+  || fail "BL-241: a sent answer did not survive a RELOAD in its own round — the discriminant is the round, not the send: $t"
+
+wrap_page                                   # same content, new round
+t="$(run 'phase=verify')"
+[[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
+  && fail "BL-241: an answer already sent came back in the next round: $t"
+[[ "$t" == *"MARK=A"* ]] \
+  && fail "BL-241: a mark already sent came back in the next round: $t"
+[[ "$t" == *"CE=retyped-after-sending-000"* ]] \
+  || fail "BL-241: an answer edited AFTER sending was dropped — editing must un-send it: $t"
+[[ "$t" == *"NOTE="*"ya las enviaste en una ronda anterior"* ]] \
+  || fail "BL-241: nothing told the reader why a sent answer is not in its box: $t"
+# The marker itself, so a wrapper that stops stamping it fails here rather than
+# silently reverting the whole rule to the v6 behaviour.
+[[ "$t" == *"ROUND="[0-9]* ]] \
+  || fail "BL-241: the page carries no consult-round marker: $t"
+
+# ---- BL-242: per-item clear -------------------------------------------------
+rm -rf "$TMP/profile"
+t="$(run 'phase=fill')"
+[[ "$t" == *FILLED* ]] || fail "the fill phase did not run before the clear probe: $t"
+t="$(run 'phase=clear')"
+[[ "$t" == *"CLEARED=1"* ]] || fail "BL-242: no per-item clear control was injected: $t"
+[[ "$t" == *"LABEL=Limpiar"* ]] \
+  || fail "BL-242: the clear control stayed in English on a lang=es page: $t"
+[[ "$t" == *"|TA=|"* ]] || fail "BL-242: clearing left the textarea filled: $t"
+[[ "$t" == *"MARK=-"* ]] \
+  || fail "BL-242: clearing did not un-check the radio — the one thing a reader cannot undo by hand: $t"
+[[ "$t" == *"persisted-answer-123"* ]] \
+  && fail "BL-242: the cleared item is still in localStorage, so it returns on the next reload: $t"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; v4 answer sets and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, v4 answer sets and the localised chrome included"
