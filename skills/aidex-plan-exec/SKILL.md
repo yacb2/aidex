@@ -284,8 +284,8 @@ After the last phase:
 5. **Close out the run**: tear down isolation if a worktree was entered at Orient, log the
    worktree usage line, suggest a coverage sweep if the plan touched mapped src paths,
    run guided human verification — it emits a proof artifact, and a plan with
-   nothing human-visible skips it by recording the reason, never by omission — and
-   fire the completion notifier. **Read**
+   nothing human-visible skips it by recording the reason, never by omission —
+   reconcile deferrals to a `BL-NNN` or a `CLOSE`, and fire the notifier. **Read**
    `~/.claude/skills/aidex-plan-exec/references/02-close-out.md`
    **and follow it step by step** — each step has a guard and an ordering that
    matter, and doing them from memory is how a worktree survives its plan.
