@@ -15,11 +15,14 @@ restating it.
 
 ## ALWAYS
 
-- Prefer `./test-e2e.sh` from the workspace root: it creates an isolated test database
+- Prefer `./test-e2e.sh e2e/<spec>.spec.ts` from the workspace root — one spec, or `--grep`;
+  the bare form (whole suite, ~5 min) is the boundary gate at plan close-out or pre-merge,
+  never the per-change check. It creates an isolated test database
   (cloned from template), starts separate backend/frontend on different ports (dev + 10),
   and runs Playwright with `playwright.e2e.config.ts`. When it exists, it is the way.
 - **When the project has no `test-e2e.sh`:** the legal path is to establish a disposable
-  environment first — generate the script (`aidex-worktree` knows how) or stand up an
+  environment first — generate the script (`aidex-coverage` owns the template:
+  `scripts/gen-test-e2e.sh` reads `.context/testing-profile.md`) or stand up an
   equivalent throwaway database and point the runner at it. Running E2E is allowed the
   moment the target is disposable; it is the target that gates, not the filename.
 - Unit tests (Vitest) are safe — they run in happy-dom with no database connection

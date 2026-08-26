@@ -69,7 +69,7 @@ Brief project description (1-2 sentences).
 
 ```bash
 npm run dev       # Start development
-npm run test      # Run tests
+npm run test -- src/<module>   # Run the tests for one module (the full suite is a boundary gate)
 npm run build     # Production build
 ```
 

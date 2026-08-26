@@ -43,8 +43,8 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
 6. Run surrounding tests (no regressions) — **select them, don't run everything**:
    `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command` prints one
    runnable command for the tests covering your diff. Exit 3 means no selection is
-   available (no `module-map.json`, or nothing matched) — run the full suite and say
-   which it was. **The full suite gates the INTEGRATION boundary — merge to trunk,
+   available (no `module-map.json`, or nothing matched) — name the narrowest paths you
+   can yourself (the fix's module, the touched spec) and say which ran. **The full suite gates the INTEGRATION boundary — merge to trunk,
    push, deploy, or the end of an unattended run — not this commit**
    (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`, partially
    reversing BL-135). Committing on a selected run is legitimate and must never be

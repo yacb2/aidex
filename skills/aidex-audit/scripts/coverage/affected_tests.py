@@ -370,7 +370,7 @@ def render_commands(root, repos, rows, unmapped):
                      "the full suite before integration (decision 2026-08-24: the full-"
                      "suite gate sits at the integration boundary)")
     if e2e_specs:
-        lines.append("# e2e specs affected (run via the project's test-e2e.sh, never directly): "
+        lines.append("# e2e specs affected — run ONLY these, one spec at a time (./test-e2e.sh <spec>, never playwright directly): "
                      + " ".join(sorted(set(e2e_specs))))
     return "\n".join(lines) if lines else None
 
@@ -417,12 +417,12 @@ def main():
     except SystemExit as e:
         # --command is consumed by a caller deciding what to run, so a missing map or
         # a git failure is "no selection available" (exit 3), not a hard error. The
-        # caller falls back to the full suite and says why — a silent empty result
+        # caller names the narrowest paths it can, or falls back to the full suite at the boundary, and says why — a silent empty result
         # would read as "nothing to run", inverting the always-on verification rule
         # at the loop level. The real error text still goes out, or the operator is
         # sent hunting for the wrong cause.
         if as_command:
-            print(f"# {e} — no selection available; run the full suite", file=sys.stderr)
+            print(f"# {e} — no selection available; name the narrowest paths you can (the full suite is the boundary gate only)", file=sys.stderr)
             sys.exit(3)
         print(e, file=sys.stderr)
         sys.exit(2)
@@ -459,13 +459,13 @@ def main():
             sys.exit(2)
         if cmds is None:
             print("# changed files match no mapped module — no selection available; "
-                  "run the full suite", file=sys.stderr)
+                  "name the narrowest paths you can (the full suite is the boundary gate only)", file=sys.stderr)
             sys.exit(3)
         if not any(not line.startswith("#") for line in cmds.splitlines()):
             # Only advisories (e2e pointer, INCOMPLETE reasons): nothing runnable, so
             # they belong on stderr and the exit is the full-suite fallback.
             print(cmds, file=sys.stderr)
-            print("# no runnable unit selection; run the full suite", file=sys.stderr)
+            print("# no runnable unit selection; name the narrowest paths you can (the full suite is the boundary gate only)", file=sys.stderr)
             sys.exit(3)
         print(cmds)
         sys.exit(0)

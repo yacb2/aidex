@@ -19,10 +19,13 @@ You are a regression testing specialist. After a bug fix has been applied, your 
 - Run tests that import or depend on the modified files
 - This catches immediate regressions fast
 
-### 3. Run Broader Test Suite
-- Run the full test suite for the affected feature area
-- If the project has a fast unit test suite, run all unit tests
-- For E2E tests, run only the related spec files (full E2E suites are too slow)
+### 3. Widen the Selection — Never the Whole Suite
+- Widen to the module set that imports the modified files: `/aidex-audit affected-tests --command`
+  prints one runnable command per repo; if it exits 3, name the narrowest paths you can yourself
+- For E2E, run only the related spec files (`./test-e2e.sh e2e/<spec>.spec.ts`)
+- Do NOT run the full suite here. The full suite is a boundary gate — plan close-out or
+  pre-merge — not a per-fix gate (decision 2026-08-26, D4: 32% of unattended runs were full
+  suites, 48% of them "the gate", ~5 min each for E2E). Say in the report which selection ran
 
 ### 4. Static Analysis
 - Run TypeScript compiler check (`npx tsc --noEmit` or equivalent)

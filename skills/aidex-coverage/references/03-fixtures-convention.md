@@ -80,5 +80,5 @@ inside a diff a reviewer was already going to read for its actual change.
 **Scope note.** Nothing here goes to `rules/` — this is a per-file authoring convention,
 not an always-on rule, and the always-on budget is not spent on it.
 
-Source: `.context/plans/2026-08-22-suite-speed-and-coverage-rollout/11-e2e-layer-and-layout.md`
+Source: `.context/plans/_archive/2026-08-22-suite-speed-and-coverage-rollout/11-e2e-layer-and-layout.md`
 Task 11.3, ledger `s4` of `.context/decisions/2026-08-22-suite-speed-and-coverage-programme.md`.

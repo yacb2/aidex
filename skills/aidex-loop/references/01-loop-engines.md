@@ -190,17 +190,17 @@ them as benchmarks. Total unattended autonomy is risky; a human-in-the-loop
 
 ```bash
 # goal
-/goal "All CRUD endpoints pass `pnpm test` and `pnpm typecheck` is clean, or stop after 20 turns"
+/goal "All CRUD endpoints pass `pnpm vitest run src/api` and `pnpm typecheck` is clean, or stop after 20 turns"
 
 # loop (polling)
 /loop 5m /check-deploy
 
 # ralph (greenfield, unattended)
-/ralph-loop "Build X per specs/. Output <promise>DONE</promise> when `pnpm test` is green." \
+/ralph-loop "Build X per specs/. Output <promise>DONE</promise> when `pnpm vitest run src/<module>` is green." \
   --completion-promise "DONE" --max-iterations 30
 
 # claude -p while-loop (the real Ralph)
-while :; do cat PROMPT.md | claude -p --allowedTools "Edit,Bash(pnpm test:*)"; done
+while :; do cat PROMPT.md | claude -p --allowedTools "Edit,Bash(pnpm vitest:*)"; done
 
 # routine (machine off)
 /schedule "Every night, sweep open PRs and rebase green ones"

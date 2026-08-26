@@ -114,6 +114,6 @@ It is one fleet-wide number, not per-project. Re-derive if a larger sample chang
 shape of that distribution, or if `q4` is revisited and a gate becomes viable (a gated
 threshold needs different arithmetic than an on-demand one).
 
-Source: `.context/plans/2026-08-22-suite-speed-and-coverage-rollout/09-diff-cover.md`
+Source: `.context/plans/_archive/2026-08-22-suite-speed-and-coverage-rollout/09-diff-cover.md`
 (Phase 9), executing `q5` of
 `.context/decisions/2026-08-22-suite-speed-and-coverage-programme.md`.

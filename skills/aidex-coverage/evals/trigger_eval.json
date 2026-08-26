@@ -2,66 +2,76 @@
   {
     "query": "Should this permission check go in a Vitest component test or a Playwright E2E test?",
     "should_trigger": true,
-    "expected_behavior": "Should apply the layer-assignment rubric from references/01-layer-model.md."
+    "expected_behavior": "Layer rubric, references/01-layer-model.md."
+  },
+  {
+    "query": "Write a pytest test for the supplier list endpoint that proves a user from another workspace gets a 404.",
+    "should_trigger": true,
+    "expected_behavior": "references/07-backend-test-shapes.md cross-workspace shape."
+  },
+  {
+    "query": "Add a Vitest test for the InvoiceBadge component covering each status prop.",
+    "should_trigger": true,
+    "expected_behavior": "references/08-frontend-test-shapes.md, it.each component mount."
+  },
+  {
+    "query": "Write a Playwright spec that creates a payment term and checks it appears in the grid.",
+    "should_trigger": true,
+    "expected_behavior": "references/09-e2e-spec-shapes.md, CRUD with RUN_ID."
+  },
+  {
+    "query": "Which tests should I run for the files I just changed? Not the whole suite.",
+    "should_trigger": true,
+    "expected_behavior": "references/13-affected-tests-expansion.md + /aidex-audit affected-tests --command."
+  },
+  {
+    "query": "Set up isolated E2E testing for this new Django + Vue project and generate test-e2e.sh.",
+    "should_trigger": true,
+    "expected_behavior": "references/11-e2e-isolation-infra.md + scripts/gen-test-e2e.sh reading the profile."
+  },
+  {
+    "query": "Should I mock the API client with vi.mock or use MSW for this component test?",
+    "should_trigger": true,
+    "expected_behavior": "Layer 5 vs 4, references/08."
   },
   {
     "query": "We keep copy-pasting the same three lines of setup into every new API test — is there a rule for when to pull that into a shared fixture?",
     "should_trigger": true,
-    "expected_behavior": "Should cite the rule-of-three fixture-extraction trigger in references/03-fixtures-convention.md."
+    "expected_behavior": "references/03-fixtures-convention.md rule of three."
   },
   {
-    "query": "What does current MSW documentation say about onUnhandledRequest and why would I set it to 'error' in tests?",
+    "query": "Necesito una prueba de regresión para el bug del total de la factura; ¿en qué capa y cómo la escribo?",
     "should_trigger": true,
-    "expected_behavior": "Should read references/02-best-practices.md item 6 and answer from the sourced primary-doc quote."
-  },
-  {
-    "query": "¿En qué capa debería ir esta prueba: verificar que un usuario no puede ver los datos de otro tenant?",
-    "should_trigger": true,
-    "expected_behavior": "Should apply the layer model (Layer 2, DRF APITestCase) and reference the multi-tenant isolation item."
-  },
-  {
-    "query": "Is 'testing pyramid' and 'testing trophy' the same thing? Which one does our stack follow?",
-    "should_trigger": true,
-    "expected_behavior": "Should read the vocabulary section in references/01-layer-model.md."
-  },
-  {
-    "query": "Before I add transaction=True to this Django test, is there a cheaper alternative for asserting on an on_commit callback?",
-    "should_trigger": true,
-    "expected_behavior": "Should surface references/02-best-practices.md item 2 (django_capture_on_commit_callbacks)."
-  },
-  {
-    "query": "Best practices for testing this Django + DRF + Vue + Vitest + Playwright stack — where do I find them?",
-    "should_trigger": true,
-    "expected_behavior": "Should point to references/02-best-practices.md."
+    "expected_behavior": "Layer 1/2 + references/07."
   },
   {
     "query": "Build the coverage matrix for the billing module and flag every surface with zero mapped tests.",
     "should_trigger": false,
-    "expected_behavior": "Coverage matrix / inventory / finding lifecycle is aidex-audit's test-coverage playbook, not this skill."
+    "expected_behavior": "aidex-audit test-coverage playbook."
   },
   {
     "query": "Run a coverage audit on the checkout module and log P0/P1 findings to 00-inventory.md.",
     "should_trigger": false,
-    "expected_behavior": "Audit execution belongs to aidex-audit, not aidex-coverage."
+    "expected_behavior": "aidex-audit."
   },
   {
     "query": "How much faster does our suite get with pytest-xdist at 8 workers versus sequential?",
     "should_trigger": false,
-    "expected_behavior": "Suite-speed measurement procedure (m1-m10) lives in the aidex-audit test-coverage playbook's Suite speed section, not this skill."
+    "expected_behavior": "aidex-audit suite-speed procedure."
   },
   {
     "query": "Document how the payments module's Stripe webhook handler works.",
     "should_trigger": false,
-    "expected_behavior": "This is aidex-reference territory, not test-layer authoring guidance."
+    "expected_behavior": "aidex-reference."
   },
   {
     "query": "We decided to drop pytest-xdist in favor of running the suite sequentially in CI. Record this decision.",
     "should_trigger": false,
-    "expected_behavior": "Decision recording is aidex-decision, not aidex-coverage."
+    "expected_behavior": "aidex-decision."
   },
   {
     "query": "What's the weather like today?",
     "should_trigger": false,
-    "expected_behavior": "Unrelated query, no skill should fire."
+    "expected_behavior": "No skill."
   }
 ]
