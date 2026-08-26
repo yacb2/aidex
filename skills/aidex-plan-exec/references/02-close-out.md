@@ -4,7 +4,7 @@
 > `aidex-conventions/references/skill-conventions.md` § Size Constraints. These run once, at
 > the end of a plan. Paths are relative to the skill root (`../`).
 
-Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-8.
+Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 
 > **Close-out does not include merging.** Tearing the worktree down and integrating its
 > branch happen at the same moment and are routinely confused; only the first is
@@ -46,7 +46,35 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-8.
      backend/tooling, nothing a person operates" is a fine reason and a bad silence:
      absent, it is indistinguishable from nobody having thought about it (BL-228).
 
-8. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
+8. **Reconcile every deferral before the plan archives.** A deferral written as
+   *prose* — "carry this to Phase 6-7", "Phase 8 should note it", "follow-up" — is not
+   carried by anything. The mechanism that makes one outlive the run already exists
+   (final-phase step 3 / `references/03-deferring-emergent-work.md`:
+   `register-item.sh --origin plan`, whose `origin_ref: plan/<slug>` still resolves after
+   the archive), and the two were never connected: close-out reconciled nothing, so four
+   deferrals written that way vanished the moment their plan archived and two of them
+   were still live (found by comparing a plan, its chain ledger and its handoff briefs).
+
+   Grep the plan **and its execution log** for the phrasing — `defer`, `carry to`,
+   `later phase`, `follow-up`, `should note` — and for each hit either a `BL-NNN` already
+   exists on that line, or write an explicit `CLOSE: <reason>` on it saying why nothing
+   is owed. Register what is genuinely outstanding *now*, while it is still visible:
+   after the `mv` nobody will read the file again.
+
+   **`close-plan.sh` enforces this**: an unreconciled line refuses the archive, the same
+   way an unchecked checkbox does, and `--force` is the escape for a line that is prose
+   *about* deferring rather than a deferral. Modular plans are scanned across every
+   `NN-*.md`, not just `00-index.md`.
+
+   **Give the chain ledger the same pass**, where one exists (`~/.claude/handoff-chains/`):
+   every `OPEN OWED` row is a decision this run deferred rather than took, and it either
+   gets a `BL-NNN` or a `CLOSE` line now. This half is a read, not a script — the ledger
+   is a different mechanism with its own lifecycle, and turning every `OPEN OWED` row into
+   a backlog item at creation was considered and rejected in the same review: it
+   contradicts the ledger's design, and the observed losses were in-text deferrals, not
+   `OPEN OWED` rows.
+
+9. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
    run it with a short completion message (e.g.
    `bash "$HOME/.claude/scripts/notify.sh" "plan-exec: <plan slug> complete"`). This
    reuses the user's existing permission/idle notifier — do not assume it exists;

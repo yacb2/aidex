@@ -180,6 +180,13 @@ work happened (D-09), and archives the plan to `plans/_archive/` (D-10):
 bash "${CLAUDE_SKILL_DIR}/scripts/close-plan.sh" <slug> [--commit <sha>] [--status dropped] [--superseded-by <type/ref>]
 ```
 
+It refuses to archive a plan that still carries an **unreconciled in-text deferral** —
+a line reading "carry this to Phase 7", "follow-up", "should note" with no `BL-NNN` and
+no explicit `CLOSE: <reason>` on it. Prose is not a mechanism: four deferrals written
+that way vanished with their plan and two were still live. Register what is outstanding
+(`register-item.sh --origin plan`) or write the `CLOSE` line; `--force` is for a line
+that is prose *about* deferring.
+
 After closing, run the shared `reconcile.sh` to surface upstream backlog items /
 audit findings this plan resolved that may now be closeable (closure propagation).
 

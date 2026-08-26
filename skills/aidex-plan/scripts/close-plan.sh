@@ -87,6 +87,41 @@ if [[ "$STATUS" == "done" && "$FORCE" -eq 0 ]]; then
   fi
 fi
 
+# Deferral reconciliation (BL-246). A plan carries deferrals as PROSE — "carry
+# this to Phase 6-7", "Phase 8 should note it" — and the mechanism that makes one
+# outlive the run already exists (`register-item.sh --origin plan`, whose
+# `origin_ref: plan/<slug>` still resolves after the archive). Nothing connected
+# the two: close-out reconciled nothing, so four deferrals written that way
+# vanished the moment their plan archived, and two of them were still live.
+#
+# The check is per LINE and deliberately dumb: a line that reads as a deferral
+# either names a `BL-NNN` or carries an explicit `CLOSE:` with the reason it
+# needs neither. Anything cleverer would be a judgement this script cannot make,
+# and `--force` is the escape for a line that is prose about deferring rather
+# than a deferral.
+#
+# Modular plans are scanned across ALL their files, not just 00-index.md: the
+# deferrals in the incident were in phase files, and the execution log is in the
+# index — both have to be read.
+if [[ "$FORCE" -eq 0 ]]; then
+  if [[ -d "$PLAN_PATH" ]]; then
+    DEFER_FILES=("$PLAN_PATH"/*.md)
+  else
+    DEFER_FILES=("$PLAN_PATH")
+  fi
+  UNRECONCILED="$(grep -n -H -i -E \
+      '(defer(red|ral|rals|ring|s)?|carry (it |this |that )?(to|into)|later phase|follow-?up|should note)' \
+      "${DEFER_FILES[@]}" 2>/dev/null | grep -v -E 'BL-[0-9]+|CLOSE:' || true)"
+  if [[ -n "$UNRECONCILED" ]]; then
+    printf '%serror: this plan has unreconciled deferral(s) — they would vanish with the archive:%s\n' \
+      "$C_RED" "$C_RESET" >&2
+    printf '%s\n' "$UNRECONCILED" | head -12 | sed 's/^/    /' >&2
+    N_UNREC="$(printf '%s\n' "$UNRECONCILED" | wc -l | tr -d " ")"
+    [[ "$N_UNREC" -gt 12 ]] && printf '    … and %s more\n' "$((N_UNREC - 12))" >&2
+    die "reconcile each line before closing: register it with \`register-item.sh --origin plan --plan $(basename "$PLAN_PATH")\` and reference the BL-NNN on that line, or write an explicit \`CLOSE: <reason>\` on it. Pass --force only when the line is prose ABOUT deferring rather than a deferral"
+  fi
+fi
+
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
 
