@@ -12,6 +12,8 @@ Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), but the
 
 ## Quick start
 
+Prerequisites: macOS or Linux, `rsync`, `python3`, `git`.
+
 ```bash
 git clone https://github.com/yacb2/aidex.git
 cd aidex && ./install.sh      # copies to ~/.aidex/, symlinks into ~/.claude/
@@ -26,7 +28,9 @@ Then, in any project, just ask naturally — the right skill loads itself:
 - *"/aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
 - *"Render the backlog as an HTML board"* → `aidex-dash` generates a sortable, self-contained page
 
-Something not firing? Run `./install.sh --doctor` from the repo checkout to health-check the install (symlinks, versions, exec bits, manifest).
+Something not firing? Run `./install.sh --doctor` from the repo checkout to health-check the install (symlinks, versions, exec bits, manifest) — it also catches content drift when your checkout moved on but the install did not.
+
+<img src="docs/assets/doctor.svg" alt="./install.sh --doctor: eight PASS lines, all checks passed" width="760">
 
 ## What this solves
 
@@ -58,6 +62,7 @@ aidex solves this with two pillars:
 │   ├── memory-hygiene.md                <-- one file, one live fact; index budget (from aidex)
 │   ├── verification-before-claims.md    <-- no completion claim without output (from aidex)
 │   └── root-cause-first.md              <-- investigate before fixing (from aidex)
+├── hooks/                               <-- Shipped hooks, inert until wired (see hooks/README.md)
 └── skills/
     ├── aidex/                       <-- The orchestrator (from aidex)
     ├── aidex-conventions/           <-- Canon hub, non-invocable (from aidex)
@@ -121,11 +126,26 @@ project/.context/
 └── communications/  # Inbound/outbound comms log (received/ + sent/, native language)
 ```
 
+A complete, validator-clean example lives in [`examples/.context/`](examples/.context/) — a fictional
+booking app with a backlog, a modular plan, two ADRs (one superseding the other), a spike, a reference
+module, a request and a UX audit, all cross-linked. Every board below is rendered from files like those,
+at zero tokens, into a single self-contained HTML page:
+
+<img src="docs/assets/backlog-board.png" alt="aidex-dash backlog board rendered from examples/.context" width="900">
+
 ## What's included
+
+### Hooks (optional)
+
+`hooks/` is copied to `~/.aidex/hooks/` at install time but stays inert: nothing in
+`~/.aidex/` loads by itself, and no hook is wired into `~/.claude/settings.json` for
+you. Only `context-depth-nudge.sh` (a UserPromptSubmit depth counter) is meant to be
+wired; the rest are retired and kept for the record. Wiring instructions and the
+status of each hook live in `hooks/README.md`.
 
 ### Global rules
 
-Seven always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
+Eight always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
 
 | Rule | What it governs |
 |------|-----------------|
