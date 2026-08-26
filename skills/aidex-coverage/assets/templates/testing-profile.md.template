@@ -1,0 +1,39 @@
+---
+title: Testing profile
+status: open
+created:
+updated:
+project_slug:             # snake_case, also the DB base name: my_project
+project_kebab:            # kebab-case, compose/container prefix: my-project
+dev_frontend_port:        # Vite dev port: 3000
+dev_backend_port:         # Django dev port: 8000
+db_port:                  # host-exposed Postgres port: 5432
+e2e_frontend_port:        # dev + 10: 3010
+e2e_backend_port:         # dev + 10: 8010
+db_name:                  # dev database; E2E uses <db_name>_e2e: my_project
+db_user:                  # Postgres role: my_user
+db_password_env:          # env var holding the password, never the value: DB_PASSWORD
+e2e_service:              # compose service with profiles [e2e]: backend-test
+backend_test_cmd:         # single-file form: docker compose exec -T backend pytest {path}
+frontend_test_cmd:        # single-file form: cd frontend && pnpm vitest run {path}
+e2e_test_cmd:             # single-spec form: ./test-e2e.sh {spec}
+seed_bootstrap_cmd:       # base seed management command: bootstrap_data
+seed_e2e_bootstrap_cmd:   # E2E seed orchestrator: bootstrap_e2e_data
+helpers_dir:              # E2E helpers, repo-relative: frontend/tests/helpers
+ui_stack:                 # space-separated: shadcn-vue reka-ui vue-sonner ag-grid
+ui_locale:                # locale of rendered UI strings: en
+personas_ref:             # <type>/<filename> of the persona table: reference/testing/01-personas.md
+cross_deps_ref:           # <type>/<filename> of the cross-dependency map: reference/testing/06-cross-dependencies.md
+module_map:               # repo-relative path: .context/audits/test-coverage/module-map.json
+---
+
+# Testing profile
+
+This file is a DELTA over `aidex-coverage`. Facts about this project only: ports,
+names, commands, paths, personas, locale. Never a layer rule, never a copy of the
+canon; a deviation from the rubric is a decision in `.context/decisions/`.
+
+Read by `aidex-coverage` (every `{{key}}` in its references), by
+`scripts/gen-test-e2e.sh` (which writes `test-e2e.sh` from it) and by
+`aidex-audit affected-tests` (the `*_test_cmd` keys). Canon:
+`~/.claude/skills/aidex-coverage/references/14-testing-profile.md`.

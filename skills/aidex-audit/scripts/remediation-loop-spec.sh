@@ -301,7 +301,9 @@ progress file to keep in sync, and nothing to reconcile afterwards.
 - **Deny (never run):** base destructive config + anything conflicting with a
   registered ADR or existing code.
 - **Pre-authorized (run without asking):** \`git commit\`, dependency changes,
-  additive migrations, running the test suite.
+  additive migrations, running the SELECTED tests for the finding's module
+  (\`/aidex-audit affected-tests --command\`, or the paths you name). The full
+  suite runs once, at close-out — never per finding (decision 2026-08-26, D4).
 - **Always-ask (pause every time):** \`git push\` / publish / deploy / release,
   and merging into the trunk.
 - **Autonomous + log:** everything else safe, additive and non-breaking.

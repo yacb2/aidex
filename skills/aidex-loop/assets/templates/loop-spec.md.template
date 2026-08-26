@@ -28,7 +28,11 @@ updated: {{DATE}}
 ## Stop condition (the gate)
 
 <!-- The concrete, machine-checkable signal that ends the loop. e.g.
-     "pnpm test exits 0 AND pnpm typecheck exits 0". This is the heart of the loop. -->
+     "`pnpm vitest run src/lib/api` exits 0 AND `pnpm typecheck` exits 0". This is the
+     heart of the loop. Gate on the SELECTED tests for the loop's scope — the module set
+     `/aidex-audit affected-tests --command` names, or paths you name — never the whole
+     suite per iteration: the full suite runs once, at close-out, as the boundary gate
+     (decision 2026-08-26, D4). -->
 
 ## Engine
 

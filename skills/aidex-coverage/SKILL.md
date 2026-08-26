@@ -1,30 +1,27 @@
 ---
 name: aidex-coverage
-description: 'Use when authoring or consulting test-layer guidance for a Django + DRF + Vue + Vitest + Playwright stack — which test layer a given behaviour belongs in, best-practice rules for that stack sourced from primary docs, or when a suite is growing shared setup that should become a fixture. Fires on "which layer should this test live in", "unit or E2E for X", "is this a Vitest or Playwright case", "best practices for testing this stack", "when do I extract a fixture", "test the decision or the pixels". Not for: running a coverage audit, building or reading the module map / coverage matrix, tracking a finding''s lifecycle, or the suite-speed measurement procedure — all of that is `aidex-audit`''s `test-coverage` playbook, which this skill does not duplicate.'
-disable-model-invocation: true
-allowed-tools: Bash Read Grep Glob
+description: 'Use when writing, placing, or running tests for a Django + DRF + Vue + Vitest + Playwright project — which layer a behaviour belongs in ("unit or E2E for X", "Vitest or Playwright"), how to write a pytest/DRF test, a Vue component or Pinia test, or a Playwright spec, which tests to run for a change instead of the whole suite, setting up isolated E2E infrastructure (test-e2e.sh, template database, seed generators), MSW vs vi.mock, when to extract a fixture, or the per-project testing profile. Fires on "write a test for", "add a regression test", "which tests should I run", "run only the affected tests", "set up E2E for this project", "generate test-e2e.sh", "best practices for testing this stack". Not for: running a coverage audit, the module map / coverage matrix, tracking a finding, or suite-speed measurement — all of that is aidex-audit''s test-coverage playbook.'
+allowed-tools: Bash Read Grep Glob Write Edit
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-coverage"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
 
 # Coverage
 
-> **Scoping: `disable-model-invocation: true` (user-invocable-only).** A partial
-> `skill-trigger-eval` run (2/6 = 33% on positive-only queries, one run, `evals/RESULTS.md`)
-> came in at or below the family's own documented recall ceiling
-> (`skill-trigger-eval-methodology.md`: wording plateaus ~35%, single-purpose floor ~78%).
-> Per the plan that created this skill, the honest outcome at that recall is
-> `user-invocable-only` from day one rather than a description-tuning campaign — wording is
-> a closed lever. Invoke explicitly (`/aidex-coverage`) or reference `references/` directly;
-> do not expect this skill to auto-trigger on a matching query. The name and the split
-> against `aidex-audit`'s playbook are closed on the criterion, not on a recall run
-> (`.context/decisions/2026-08-23-aidex-coverage-name-split-and-scoping.md`); a full run is
-> owed only if that ADR's reopen threshold is met — see `evals/RESULTS.md`.
+> **Scope.** Model-invocable since 2026-08-26 (`decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md`, D1), superseding the 2026-08-23 `user-invocable-only` scoping: the personal `test-*` family this skill used to collide with was folded in here and deleted, so this is the only skill that answers "how do I test this" for the stack. Precision against `aidex-audit` is the `Not for` clause; the eval set in `evals/` is rewritten for this description and is owed a run before the next release.
 
-Authoring guidance for testing a Django + DRF + Vue + Vitest + Playwright stack: which
-layer a piece of behaviour belongs in, what current upstream documentation actually says
-about the sharpest correctness and cost traps in that stack, and the mechanical rule for
-when shared test setup becomes a fixture.
+The one testing canon for a Django + DRF + Vue + Vitest + Playwright stack: which layer a
+piece of behaviour belongs in, the test shapes per layer, the isolated E2E infrastructure
+and its generator, which tests to run for a change, and the mechanical rule for when shared
+setup becomes a fixture. Per-project facts (ports, database names, commands, personas)
+live in the project's `.context/testing-profile.md`, never here — see
+[references/14-testing-profile.md](references/14-testing-profile.md).
+
+**The full suite is a boundary gate, not a phase gate.** Per change, run the narrowest
+selection that can observe it (`/aidex-audit affected-tests --command`, or the profile's
+single-test command, or one spec via `./test-e2e.sh e2e/<spec>.spec.ts`); the whole suite
+runs once, at plan close-out or pre-merge (D4). Measured before this rule: 32% of test
+runs inside unattended sessions were full suites, E2E at ~5 min each.
 
 **What this skill is not.** It does not run an audit, does not build or read
 `module-map.json` or `coverage-matrix.json`, does not track a finding through its
@@ -50,6 +47,14 @@ authoring rule for anyone writing a new coverage-bearing test.
 | How do I run a full-scale layer audit of an E2E suite? (template + row format) | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 | What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
+| How do I write a backend test (conftest fixtures, factories, 401 / 404 isolation, dropdowns, freezegun)? | [references/07-backend-test-shapes.md](references/07-backend-test-shapes.md) |
+| How do I write a Vue unit / component / store test, and MSW vs `vi.mock`? | [references/08-frontend-test-shapes.md](references/08-frontend-test-shapes.md) |
+| How do I write a Playwright spec (login, CRUD with RUN_ID, interception, MailHog, roles, cleanup)? | [references/09-e2e-spec-shapes.md](references/09-e2e-spec-shapes.md) |
+| What helpers exist and what are the selector defaults for shadcn-vue / reka-ui / AG-Grid? | [references/10-e2e-helper-conventions.md](references/10-e2e-helper-conventions.md) |
+| How is isolated E2E built (compose profile, test settings, template DB, ports), and how do I generate `test-e2e.sh`? | [references/11-e2e-isolation-infra.md](references/11-e2e-isolation-infra.md) |
+| How do E2E seed generators and `bootstrap_e2e_data` work? | [references/12-e2e-seed-generators.md](references/12-e2e-seed-generators.md) |
+| Which tests do I run for this change, and when does the selection widen? | [references/13-affected-tests-expansion.md](references/13-affected-tests-expansion.md) |
+| What goes in the per-project profile, and what never does? | [references/14-testing-profile.md](references/14-testing-profile.md) |
 
 This is the only table of references; [references/00-index.md](references/00-index.md)
 records which plan phase produced each file.

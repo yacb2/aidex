@@ -154,7 +154,7 @@ NOMAP="$(mktemp -d)"; mkdir -p "$NOMAP/.context"
 python3 "$AFFECTED" "$NOMAP" --command >/dev/null 2>&1
 [[ $? -eq 3 ]] || fail "(h) no module-map under --command should exit 3"
 err_h="$(python3 "$AFFECTED" "$NOMAP" --command 2>&1 >/dev/null)"
-echo "$err_h" | grep -q 'run the full suite' \
+echo "$err_h" | grep -q 'narrowest paths' \
   || fail "(h) the no-map message must name the full-suite fallback: $err_h"
 rm -rf "$NOMAP"
 
@@ -396,7 +396,7 @@ echo "$err_q" | grep -q 'ghost' \
   || fail "(q) the real error (broken repo path) must reach stderr: $err_q"
 echo "$err_q" | grep -q 'no module-map' \
   && fail "(q) the map exists; the message must not say it is missing: $err_q"
-echo "$err_q" | grep -q 'run the full suite' \
+echo "$err_q" | grep -q 'narrowest paths' \
   || fail "(q) the fallback instruction must still be there: $err_q"
 rm -rf "$WS"
 
