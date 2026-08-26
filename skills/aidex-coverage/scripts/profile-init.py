@@ -42,7 +42,8 @@ def main():
     pkg = read(os.path.join(root, "frontend", "package.json"))
     v = dict.fromkeys(KEYS, "")
     vite = read(os.path.join(root, "frontend", "vite.config.ts"))
-    v["project_slug"] = first(r'^(?:export\s+)?DB_E2E=["\']?([a-z0-9_]+?)_e2e', e2e)
+    v["project_slug"] = first(r'^(?:export\s+)?DB_E2E=["\']?([a-z0-9_]+?)_e2e', e2e) \
+        or first(r'^(?:export\s+)?DB_TEMPLATE=["\']?([a-z0-9_]+?)_(?:e2e|test)_template', e2e)
     v["project_kebab"] = v["project_slug"].replace("_", "-")
     v["db_port"] = first(r'^(?:export\s+)?DB_PORT=["\']?\$\{DB_PORT:-(\d+)\}', e2e) or first(r'^(?:export\s+)?DB_PORT=["\']?(\d+)', e2e)
     v["db_user"] = first(r'^(?:export\s+)?DB_USER=["\']?\$\{DB_USER:-([a-z0-9_]+)', e2e) or first(r'^(?:export\s+)?DB_USER=["\']?([a-z0-9_]+)', e2e)
