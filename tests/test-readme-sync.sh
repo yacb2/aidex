@@ -56,6 +56,20 @@ done
   && pass "all installed rules are documented" \
   || fail "rules installed but undocumented: ${missing_rules[*]}"
 
+# --- the "N always-on rules" sentence states the real count ---
+rule_count="$(find "$REPO_ROOT/rules" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
+rule_word="$(sed -n 's/^\([A-Za-z0-9]*\) always-on rules are installed.*/\1/p' "$README" | head -1 | tr '[:upper:]' '[:lower:]')"
+case "$rule_word" in
+  one) rule_declared=1;; two) rule_declared=2;; three) rule_declared=3;; four) rule_declared=4;;
+  five) rule_declared=5;; six) rule_declared=6;; seven) rule_declared=7;; eight) rule_declared=8;;
+  nine) rule_declared=9;; ten) rule_declared=10;; *) rule_declared="$rule_word";;
+esac
+if [ "$rule_declared" = "$rule_count" ]; then
+  pass "the rules sentence declares the real count ($rule_count)"
+else
+  fail "README says '$rule_word always-on rules' but rules/ holds $rule_count"
+fi
+
 # --- no YYYYMMDD paths: the README must not teach what validate.py flags ---
 if legacy="$(grep -nE '/2[0-9]{7}-' "$README")"; then
   fail "YYYYMMDD dates violate D-01 (ISO YYYY-MM-DD):

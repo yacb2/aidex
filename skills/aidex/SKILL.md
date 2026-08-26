@@ -23,7 +23,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
 | **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.aidex/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
-| **Workspace root** | `~/Documents/projects/` (the folder holding the projects) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups moved to `~/.aidex/backups/` in `1627663`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.aidex/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
+| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups moved to `~/.aidex/backups/` in `1627663`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.aidex/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
 | **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
 
 ---
@@ -54,7 +54,7 @@ Check the whole fleet for drift instead of one project at a time. Read-only — 
 never writes to a project.
 
 1. Run `bash ~/.aidex/skills/aidex/scripts/compliance-sweep.sh`. Add `--root <dir>`
-   to scan somewhere other than `~/Documents/projects`, or name project paths to
+   to scan somewhere other than the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`), or name project paths to
    check only those. Add `--verbose` to also see the clean and skipped ones.
 2. Read the output. **A clean run prints nothing and exits 0** — that is the whole
    point, so it is safe to schedule. Each drifting project prints its name and which

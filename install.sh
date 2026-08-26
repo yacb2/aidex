@@ -938,6 +938,9 @@ case "${1:-}" in
     echo "  --help        Show this help"
     ;;
   "")
+    for tool in rsync python3; do
+      command -v "$tool" >/dev/null 2>&1 || { error "$tool not found on PATH — install it and re-run"; exit 1; }
+    done
     do_install
     ;;
   *)
