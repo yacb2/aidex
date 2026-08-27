@@ -17,6 +17,12 @@ e2e_service:              # compose service with profiles [e2e]: backend-test
 backend_test_cmd:         # single-file form: docker compose exec -T backend pytest {path}
 frontend_test_cmd:        # single-file form: cd frontend && pnpm vitest run {path}
 e2e_test_cmd:             # single-spec form: ./test-e2e.sh {spec}
+backend_suite_cmd:        # FULL suite, worker flags included (sweep-gate.sh leg `backend`): docker compose exec -T backend pytest -n 4 --dist loadscope
+frontend_suite_cmd:       # FULL suite (leg `frontend`): cd frontend && pnpm vitest run
+e2e_suite_cmd:            # FULL isolated E2E runner (leg `e2e`): ./test-e2e.sh
+build_cmd:                # the production build, not a type-check (leg `build`): cd frontend && pnpm build
+e2e_detached:             # true|false — the E2E suite outlives the foreground tool ceiling, so the gate prints the detached invocation instead of running it
+blindspot_expansions:     # mandatory selection widenings, one `- ` line each: migration => every app referencing the model; touched *.test.ts => vue-tsc -b; removed UI surface => grep tests/e2e/ for its endpoints and testids
 seed_bootstrap_cmd:       # base seed management command: bootstrap_data
 seed_e2e_bootstrap_cmd:   # E2E seed orchestrator: bootstrap_e2e_data
 helpers_dir:              # E2E helpers, repo-relative: frontend/tests/helpers
