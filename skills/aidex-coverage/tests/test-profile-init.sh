@@ -33,7 +33,7 @@ services:
     profiles: [e2e]
 YML
 printf '[tool.pytest.ini_options]\n' > "$TMP/p/backend/pyproject.toml"
-printf '{"devDependencies":{"vitest":"^4","reka-ui":"^2"}}\n' > "$TMP/p/frontend/package.json"
+printf '{"dependencies":{"vue":"^3"},"devDependencies":{"vitest":"^4","reka-ui":"^2","@playwright/test":"^1"}}\n' > "$TMP/p/frontend/package.json"
 printf 'export default { server: { port: 3600 } }\n' > "$TMP/p/frontend/vite.config.ts"
 
 out="$(python3 "$SCRIPT" "$TMP/p")"
@@ -43,7 +43,8 @@ for kv in "project_slug: demo_app" "project_kebab: demo-app" "db_port: 5600" "db
           "dev_frontend_port: 3600" "dev_backend_port: 8600" "e2e_frontend_port: 3610" "e2e_backend_port: 8610" \
           "e2e_service: backend-test" "seed_e2e_bootstrap_cmd: bootstrap_e2e_data" \
           "backend_test_cmd: docker compose exec backend pytest {path}" "e2e_test_cmd: ./test-e2e.sh {spec}" \
-          "helpers_dir: frontend/tests/e2e/helpers" "ui_stack: reka-ui"; do
+          "helpers_dir: frontend/tests/e2e/helpers" "ui_stack: reka-ui" \
+          "testing_packs: testing-django testing-vue testing-playwright-app"; do
   grep -qxF "$kv" "$prof" || fail "missing '$kv' in profile:
 $(cat "$prof")"
 done
@@ -57,4 +58,9 @@ python3 "$SCRIPT" --force "$TMP/p" >/dev/null || fail "--force must overwrite"
 # --print never writes.
 rm "$prof"; python3 "$SCRIPT" --print "$TMP/p" | grep -q "^project_slug: demo_app$" || fail "--print output"
 [[ -e "$prof" ]] && fail "--print must not write"
+# A web project (no backend/, root package.json) resolves the web packs, never the app ones.
+mkdir -p "$TMP/w"
+printf '{"dependencies":{"payload":"^3","svelte":"^5"},"devDependencies":{"vitest":"^4","@playwright/test":"^1"}}\n' > "$TMP/w/package.json"
+python3 "$SCRIPT" --print "$TMP/w" | grep -qx "testing_packs: testing-payload testing-svelte testing-playwright-web" \
+  || fail "web fixture packs: $(python3 "$SCRIPT" --print "$TMP/w" | grep testing_packs)"
 echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only"

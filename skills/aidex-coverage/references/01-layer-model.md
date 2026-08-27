@@ -1,9 +1,14 @@
 # The six-layer model
 
-What a Django 5.2 + DRF 3.18 + Vue + Vitest 4.1 + Playwright stack admits as distinct test
+What a backend + SPA frontend + browser stack admits as distinct test
 layers, built from what each tool's own documentation says it is for — not from a
 transcribed consultation artifact. Each layer names the tool, the primary source that
 defines its scope, and the question it is suited to answer.
+
+The tool column is illustrative — it names what this fleet's Django + Vue projects use, so the
+layers are concrete. The layer definitions and the rubric below are the doctrine; what a test
+at a given layer looks like in a given framework is the stack pack named by the project's
+`testing-profile.md` (`references/14-testing-profile.md`).
 
 | # | Layer | Tool | Answers |
 |---|---|---|---|

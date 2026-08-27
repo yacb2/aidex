@@ -1,5 +1,23 @@
 # Trigger-eval results — aidex-coverage
 
+## 2026-08-27 — baseline of the Django + Vue description (run 1 of 2)
+
+Run against the installed 2026-08-26 description (the stack-named one), `claude-sonnet-5`,
+timeout 90s, sequential, singleton lock, k=2 (run 2 appended below when it lands).
+
+| Run | Positives (9) | Negatives (6) | Total |
+|---|---|---|---|
+| 1 | 2 triggered (04 Playwright spec, 06 E2E setup) | 6/6 correctly skipped | 8/15 |
+
+Reading: precision against `aidex-audit` is clean — the number the 2026-08-26 ADR feared.
+Recall (2/9) sits under the ~35% plateau every aidex description has measured at (the
+"dead lever", `memory/feedback_skill_description_limits.md`); the two hits are the two
+imperative "write/set up X" queries, the misses are questions and Spanish. This is a
+BASELINE for the stack-agnostic description shipped the same day
+(`decision/2026-08-27-aidex-is-stack-agnostic-stack-packs.md`), which is owed its own run
+on the identical query set.
+
+
 ## 2026-08-26 — description rewritten, no run yet
 
 `decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md` (D1) made the skill
