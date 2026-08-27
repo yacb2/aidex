@@ -2,7 +2,7 @@
 # register-item.sh — create a backlog entry in .context/backlog/.
 #
 # Usage (non-interactive):
-#   register-item.sh --origin <manual|audit|issue|request|communication|plan> [options]
+#   register-item.sh --origin <manual|audit|issue|request|communication|plan|sweep> [options]
 #
 # Options:
 #   --title "<title>"              title for the entry (required for non-interactive)
@@ -15,10 +15,17 @@
 #   --plan <slug|path>             (when --origin plan) the plan this was deferred from,
 #                                  mid-run by aidex-plan-exec: a single-file plan's
 #                                  filename or a modular plan's folder
+#   --worklist <slug|path>         (when --origin sweep) the sweep's work-list: work found
+#                                  mid-sweep is registered, judged against the kickoff
+#                                  criteria and appended to the queue — never asked (Q11)
 #   --priority <P0|P1|P2|P3>       default: P2 (code only — see references/01-backlog-conventions.md)
 #   --type <bug|improvement|task|idea>  work kind (default: task) — a facet, one queue
 #   --blocked-by "<who/what>"      optional Blocked modifier; priority is kept, item listed under Blocked
 #   --estimate <XS|S|M|L|XL>       default: M
+#   --surface <internal|behaviour|ui>  what the change is visible as (default: internal);
+#                                  sets the minimum proof close-item.sh --sweep requires
+#   --verify "<how this will be proven>"  the registration hypothesis, one line; confirmed
+#                                  or corrected at triage, made concrete in ## Verification
 #   --status <open|doing|done|dropped>  default: open
 #   --slug <kebab-case>            override auto-generated slug
 #   --escalate-to <target-repo>    register a linked counterpart in another repo's backlog
@@ -331,15 +338,21 @@ stamp_escalated_to() {
 # the normal path has.
 #
 # Args: out id title status origin origin_ref priority type estimate blocked_by
-#       escalated_to context notes
+#       escalated_to context notes [surface verify]
+#
+# `surface` and `verify` are the 14th and 15th POSITIONAL arguments — the same hand-off
+# that once dropped --estimate/--status/--blocked-by. Both call sites pass them, and
+# tests/test-register-fields.sh reads them back off disk alongside estimate/blocked_by so
+# the next positional slip is a red test, not a silent default.
 emit_backlog_entry() {
   local out="$1" id="$2" title="$3" status="$4" origin="$5" origin_ref="$6" \
         priority="$7" type="$8" estimate="$9" blocked_by="${10}" escalated_to="${11}" \
-        context="${12}" notes="${13}"
-  local date_iso esc_title esc_blocked body_title
+        context="${12}" notes="${13}" surface="${14:-internal}" verify="${15:-}"
+  local date_iso esc_title esc_blocked esc_verify body_title
   date_iso="$(date +%Y-%m-%d)"
   esc_title="$(yaml_escape "$title")"
   esc_blocked="$(yaml_escape "$blocked_by")"
+  esc_verify="$(yaml_escape "$verify")"
   # The H1 takes the flattened title, never the YAML-escaped one. Both copies used the
   # escaped form in both places, so `a "quoted" word` rendered as `a \"quoted\" word` in
   # the markdown body. Only newlines need flattening here; a quote is legal markdown.
@@ -362,6 +375,8 @@ origin_ref: ${origin_ref:-}
 priority: $priority
 type: $type
 estimate: $estimate
+surface: $surface
+verify: "$esc_verify"
 blocked_by: "$esc_blocked"
 escalated_to: "$escalated_to"
 commits: ""
@@ -379,6 +394,16 @@ $context
 Done means:
 
 - <!-- concrete, verifiable criterion -->
+
+## Verification
+
+<!-- One row per criterion; kind is test | e2e | smoke | owner. Minimum by surface:
+     internal -> a test (type: bug -> the regression test first, plus the mutation); behaviour -> a test AND
+     an e2e or seeded smoke; ui -> a browser smoke with a screenshot. In a sweep,
+     close-item.sh --sweep refuses \`done\` while any non-owner row has an empty proof cell;
+     an owner row is answered by the owner and aggregated by the sweep report. -->
+| kind | what | proof |
+|---|---|---|
 
 ## Notes
 
@@ -403,6 +428,7 @@ emit_backlog_stub() {
   # their validation gates and then be silently overwritten here, so a declared-blocked
   # P0 item landed in the active queue as `open · M`. Found 2026-08-10 by aidex-review.
   local estimate="${10:-M}" status="${11:-open}" blocked_by="${12:-}"
+  local surface="${13:-internal}" verify="${14:-}"
   local date_iso slug id_seg out
   date_iso="$(date +%Y-%m-%d)"
   slug="$(title_to_slug "$title")"; [[ -n "$slug" ]] || slug="item"
@@ -410,7 +436,7 @@ emit_backlog_stub() {
   mkdir -p "$dir" || die "could not create $dir"
   out="$dir/$date_iso-$id_seg-$slug.md"
   emit_backlog_entry "$out" "$id" "$title" "$status" "$origin" "${origin_ref:-}" \
-    "$priority" "$type" "$estimate" "$blocked_by" "$escalated_to" "$note" ""
+    "$priority" "$type" "$estimate" "$blocked_by" "$escalated_to" "$note" "" "$surface" "$verify"
   printf '%s\n' "$out"
 }
 
@@ -426,10 +452,13 @@ ISSUE=""
 REQUEST=""
 COMMUNICATION=""
 PLAN=""
+WORKLIST=""
 PRIORITY=""
 TYPE=""
 BLOCKED_BY=""
 ESTIMATE="M"
+SURFACE="internal"
+VERIFY=""
 STATUS="open"
 SLUG_OVERRIDE=""
 ESCALATE_TO=""
@@ -449,10 +478,13 @@ while [[ $# -gt 0 ]]; do
     --request)     REQUEST="$2"; shift 2 ;;
     --communication) COMMUNICATION="$2"; shift 2 ;;
     --plan)        PLAN="$2"; shift 2 ;;
+    --worklist)    WORKLIST="$2"; shift 2 ;;
     --priority)    PRIORITY="$2"; shift 2 ;;
     --type)        TYPE="$2"; shift 2 ;;
     --blocked-by)  BLOCKED_BY="$2"; shift 2 ;;
     --estimate)    ESTIMATE="$2"; shift 2 ;;
+    --surface)     SURFACE="$2"; shift 2 ;;
+    --verify)      VERIFY="$2"; shift 2 ;;
     --status)      STATUS="$2"; shift 2 ;;
     --slug)        SLUG_OVERRIDE="$2"; shift 2 ;;
     --escalate-to) ESCALATE_TO="$2"; shift 2 ;;
@@ -801,15 +833,15 @@ fi
 
 # --- interactive prompts if missing required fields ---
 if [[ -z "$ORIGIN" && -t 0 ]]; then
-  printf 'Origin [manual/audit/issue/request/communication/plan] (default: manual): ' >&2
+  printf 'Origin [manual/audit/issue/request/communication/plan/sweep] (default: manual): ' >&2
   read -r ORIGIN
   ORIGIN="${ORIGIN:-manual}"
 fi
 ORIGIN="${ORIGIN:-manual}"
 
 case "$ORIGIN" in
-  manual|audit|issue|request|communication|plan) ;;
-  *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, request, communication, or plan)" ;;
+  manual|audit|issue|request|communication|plan|sweep) ;;
+  *) die "invalid --origin: $ORIGIN (must be manual, audit, issue, request, communication, plan, or sweep)" ;;
 esac
 
 if [[ -z "$TITLE" && -t 0 ]]; then
@@ -851,6 +883,10 @@ case "$TYPE" in
 esac
 
 case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
+# `behavior` is accepted and normalised: the enum is spelled one way on disk so the
+# close-time minimum can switch on it.
+[[ "$SURFACE" == "behavior" ]] && SURFACE="behaviour"
+case "$SURFACE" in internal|behaviour|ui) ;; *) die "invalid surface: $SURFACE (internal|behaviour|ui)" ;; esac
 case "$STATUS"   in open|doing|done|dropped) ;; *) die "invalid status: $STATUS" ;; esac
 
 # --- derive origin_ref ---
@@ -932,6 +968,18 @@ case "$ORIGIN" in
     [[ $plan_found -eq 1 ]] \
       || warn "warning: origin_ref $ORIGIN_REF resolves to no plan under .context/plans/"
     ;;
+  sweep)
+    # Work discovered mid-sweep (Q11). The ref is the run's work-list — `worklist/<file>`,
+    # the cross-ref type the 2026-08-27 ADR added so a run-queue is referenceable — and it
+    # is optional: a sweep that has not created its list yet (or an absorb-at-kickoff
+    # registration) still records the origin.
+    if [[ -n "$WORKLIST" ]]; then
+      WL_FILE="$(basename "${WORKLIST%/}")"; [[ "$WL_FILE" == *.md ]] || WL_FILE="$WL_FILE.md"
+      ORIGIN_REF="worklist/$WL_FILE"
+      [[ -e "$ROOT/.context/worklists/$WL_FILE" || -e "$ROOT/.context/worklists/_archive/$WL_FILE" ]] \
+        || warn "warning: origin_ref $ORIGIN_REF resolves to no work-list under .context/worklists/"
+    fi
+    ;;
 esac
 fi
 
@@ -980,9 +1028,12 @@ if [[ -n "$ESCALATE_TO" ]]; then
 
   # `if !` so a failed write releases the claim instead of aborting under `set -e`
   # with it still held.
+  # surface/verify travel to the counterpart too — the work happens THERE, and a UI
+  # change that arrived as `surface: internal` would be asked for the wrong proof.
   if ! TGT_FILE="$(emit_backlog_stub "$TARGET_BACKLOG" "$TARGET_ID" "$TITLE" "$SRC_NAME/$SRC_REF" "" \
     "$PRIORITY" "$TYPE" "" \
-    "Discovered in $SRC_NAME (origin: $SRC_NAME/$SRC_REF); routed here for execution.")"; then
+    "Discovered in $SRC_NAME (origin: $SRC_NAME/$SRC_REF); routed here for execution." \
+    "$ESTIMATE" "open" "" "$SURFACE" "$VERIFY")"; then
     release_backlog_claim "$TGT_CLAIM"
     release_backlog_claim "${SRC_CLAIM:-}"
     die "could not write the counterpart in $TGT_NAME"
@@ -1011,7 +1062,7 @@ if [[ -n "$ESCALATE_TO" ]]; then
     if ! SRC_FILE="$(emit_backlog_stub "$BACKLOG_DIR" "$SRC_ID" "$TITLE" "$ORIGIN" "$ORIGIN_REF" \
       "$PRIORITY" "$TYPE" "$TGT_NAME/$TARGET_ID" \
       "Escalated to $TGT_NAME — work is tracked at $TGT_NAME/$TARGET_ID." \
-      "$ESTIMATE" "$STATUS" "$BLOCKED_BY")"; then
+      "$ESTIMATE" "$STATUS" "$BLOCKED_BY" "$SURFACE" "$VERIFY")"; then
       rm -f "$TGT_FILE"
       release_backlog_claim "$TGT_CLAIM"
       release_backlog_claim "${SRC_CLAIM:-}"
@@ -1070,7 +1121,7 @@ emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN
   "$PRIORITY" "$TYPE" "$ESTIMATE" "$BLOCKED_BY" "" \
   "<!-- Write this item in ENGLISH (D-04), even when the conversation is not.
      Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
-  "$NOTES_BLOCK"
+  "$NOTES_BLOCK" "$SURFACE" "$VERIFY"
 
 # The marker STAYS: it is the repo-global record that this number is spent. The entry
 # carries the id too, but only on this checkout's branch (BL-239).

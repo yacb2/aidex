@@ -17,7 +17,8 @@ import argparse, json, re, sys
 from pathlib import Path
 
 STATUS = {"open", "doing", "done", "dropped"}
-PUBLISH = {"ask", "preauthorized"}
+PUBLISH = {"ask", "preauthorized", "never"}
+MODES = {"sweep"}
 REF_KINDS = {"backlog", "plan", "audit", "inline"}
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 QUEUE_ITEM = re.compile(r"^\s*(\d+)\.\s+\[[ x]\]\s+.+", )
@@ -78,6 +79,9 @@ def validate(path: Path) -> list[dict]:
         v = fm.get(d, "")
         if v and not ISO_DATE.match(v):
             err("date-format-invalid", f"{d}={v!r} is not YYYY-MM-DD")
+    mode = fm.get("mode", "")
+    if mode and mode not in MODES:
+        err("mode-invalid", f"mode={mode!r} not in {sorted(MODES)}")
     gp = fm.get("gate-policy")
     if not isinstance(gp, dict):
         err("gate-policy-missing", "gate-policy map missing (publish + destructive)")

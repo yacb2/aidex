@@ -195,78 +195,24 @@ For each phase in order:
 
 ### 2. Between-phase checkpoint (MANDATORY)
 
-After each phase passes verification, before starting the next phase:
+After each phase passes verification, before starting the next phase, run the shared
+checkpoint — **read**
+`~/.claude/skills/aidex-conventions/references/checkpoint-conventions.md` **and follow its
+four moves** (scoped review with its recorded anchor · commit · register-don't-discuss ·
+auto-handoff without asking). It is one canon with two consumers (this skill and the
+backlog sweep) and is not restated here; `test_checkpoint_lockstep.sh` fails this file if
+it grows its own copy. What is plan-specific:
 
-1. **Code-review the diff.** **Resolve the scope first** — run
-   `~/.aidex/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`
-   (or `--base <phase-start-sha> branch-vs-main` for a phase that spans commits)
-   so what is being reviewed is a recorded fact, not an assumption. **Exit 3
-   means the scope is empty: say so, never report it as a passing review.** Then
-   run the **correctness** angles over that scope, and the cleanup and security
-   angles only where the scope routing sends them. **Read**
-   `~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` **before
-   picking the reviewer** — it owns which instrument covers which scope, and why
-   `/security-review` must not be delegated to for a non-PR scope. Address
-   findings. **For high-risk or ambiguous phases**, route the diff through more
-   than one reviewer (e.g. the project's review command plus an independent
-   second model) and treat any disagreement between them as a high-priority
-   finding to resolve before committing — diverse reviewers catch what a single
-   pass misses.
-   **Record the review evidence before the commit step** — append an
-   Execution-log line to the plan's `00-index.md`
-   (`review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>`, e.g.
-   `review: PASS · 0 findings · scope=working-diff anchor=head`). A verdict
-   without an anchor is not auditable. This is what makes a skipped review
-   structurally visible instead of a silent gap (07-22 self-admitted skip).
-2. **Commit.** Use the project's own commit command if one exists (detect it the
-   same way — e.g. a `/commit`-style helper); otherwise craft a conventional
-   commit message following the project's style. Stage only files relevant to
-   the completed phase. One commit per phase is the default.
-3. **Defer what the phase uncovered — register it, never discuss it.** Emergent work
-   (autonomy class b) goes to `register-item.sh --origin plan --plan <this plan>` and the
-   run continues; `origin_ref: plan/<slug>` survives the plan's archival. No pause, and
-   its own commit —
-   [`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md)
-   (BL-220).
-
-4. **Context check → auto-handoff (do not ask).** Estimate session context
-   growth. If the conversation has grown substantially (long tool outputs, many
-   file reads, multiple phases completed in one session), **hand off between
-   phases automatically** — handoff is a mandated step, never a question. **If a
-   session-handoff skill is installed** (e.g. a `session-handoff` skill or a
-   `/handoff` command), invoke it and **auto-compose the seed** yourself — do not
-   hand seed-writing back to the user. The seed must carry: plan path, current
-   phase (first unchecked checkbox), what was just completed, what is next, the
-   **autonomy surface / mode** in effect, the **language rule**, and any
-   baseline-failure notes. **Environment and data claims in the seed carry their
-   standing — VERIFIED (re-checked now, check named) or ASSUMED — never bare
-   fact**: an arriving session repeats the seed to the user as truth, and seeds
-   have asserted a DB state that was false and a UI control that did not exist.
-   **Otherwise**, run `/compact` or continue in-session.
-   Pick whichever is available — do not hard-depend on any handoff skill.
-
-   **The seed's `slug:` line names the chain, and it comes from the PLAN** — not
-   from a phrase composed at this hop. It is the line that drifts: 6 of the 10
-   recorded chains with more than one link renamed themselves mid-chain (measured
-   2026-08-23 over `~/.claude/handoff-chains/`), and a chain that renames itself
-   renders as unrelated rows in the `--resume` picker instead of one thread. Take
-   the plan's own name and append the phase; that name existed before the first
-   handoff and does not move.
-
-   **Where a chain ledger exists, two things go to it as DELTA lines — never as
-   text in the seed.** They are carried by the mechanism, and re-typing them into
-   the seed is how the two records start disagreeing.
-   - `CHARTER`, from the plan's name and goal. Written **once, at the chain's
-     first handoff**, so emit it there and never again — it is not re-stated per
-     phase, and nothing but a `CLOSE` removes it.
-   - `OPEN OWED`, for a decision this run **deferred rather than took** — an
-     autonomy class-1 skip, a class-2 publication left unpublished. Not a line in
-     the final summary: a run that spans sessions loses that summary, and three
-     phase decisions deferred exactly this way were absent one link later with no
-     record they had ever been owed (`research/2026-08-22-chain-context-decay.md`
-     in `claude-session-handoff`, Result 2).
-   This is the *mechanical* durability layer: context exhaustion is not a
-   judgment call, so it never routes to the arbiter — it just hands off.
+- **Scope.** `~/.aidex/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`,
+  or `--base <phase-start-sha> branch-vs-main` for a phase that spans commits — and
+  `~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` owns which
+  reviewer covers which scope. **Exit 3 is an empty scope, never a passing review.**
+- **Where the evidence goes.** The Execution log in the plan's `00-index.md` takes the
+  `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
+- **Deferrals** use `register-item.sh --origin plan --plan <this plan>`
+  ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md), BL-220).
+- **The seed's `slug:` line is the PLAN's name** plus the phase — the name existed before
+  the first handoff and does not move. `CHARTER` comes from the plan's name and goal.
 
 ### 3. Final phase
 

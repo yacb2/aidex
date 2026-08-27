@@ -6,6 +6,9 @@
 #
 #   1. aidex-plan-exec/references/02-close-out.md   (close-out step 7)
 #   2. aidex-bugfix/SKILL.md                        (step 8)
+#   3. aidex-backlog/references/sweep-execution-policy.md (sweep close-out) — its proof
+#      artifact is the items' owner rows aggregated by the report, NOT a per-item
+#      human-verification.md; amended in as a consumer, never carved out
 #
 # What is guarded is NOT the four moves. Those were already written down, twice, and
 # still went missing. What is guarded is the property that makes the step survive
@@ -31,12 +34,13 @@ SKILLS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 CANON="${CANON_OVERRIDE:-$SKILLS/aidex-conventions/references/human-verification-conventions.md}"
 EXEC="${EXEC_OVERRIDE:-$SKILLS/aidex-plan-exec/references/02-close-out.md}"
 FIX="${FIX_OVERRIDE:-$SKILLS/aidex-bugfix/SKILL.md}"
+SWEEP="${SWEEP_OVERRIDE:-$SKILLS/aidex-backlog/references/sweep-execution-policy.md}"
 
 fail=0
 err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
 die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
-for f in "$CANON" "$EXEC" "$FIX"; do
+for f in "$CANON" "$EXEC" "$FIX" "$SWEEP"; do
   [ -f "$f" ] || die "missing file: $f"
 done
 
@@ -46,6 +50,7 @@ flat() { tr '\n' ' ' < "$1" | tr -s ' '; }
 CANON_FLAT="$(flat "$CANON")"
 EXEC_FLAT="$(flat "$EXEC")"
 FIX_FLAT="$(flat "$FIX")"
+SWEEP_FLAT="$(flat "$SWEEP")"
 
 # ---------- the canon states where it fires and what a skip costs ----------
 case "$CANON_FLAT" in
@@ -73,7 +78,7 @@ esac
 # The exact clause BL-228 removed. It is allowed to APPEAR while being named as the
 # failure (the canon quotes it to forbid it), so a bare occurrence is one that is not
 # accompanied by a word rejecting it.
-for pair in "canon:$CANON" "close-out:$EXEC" "bugfix:$FIX"; do
+for pair in "canon:$CANON" "close-out:$EXEC" "bugfix:$FIX" "sweep:$SWEEP"; do
   label="${pair%%:*}"; file="${pair#*:}"
   while IFS= read -r line; do
     case "$line" in
@@ -104,6 +109,25 @@ for pair in "close-out:$EXEC_FLAT" "bugfix:$FIX_FLAT"; do
   esac
 done
 
+# ---------- the sweep consumer: same three properties, its own proof artifact ----------
+case "$SWEEP_FLAT" in
+  *human-verification-conventions.md*) ;;
+  *) err "sweep policy does not point at human-verification-conventions.md" ;;
+esac
+case "$SWEEP_FLAT" in
+  *"owner"*"sweep-report"*|*"sweep-report"*"owner"*) ;;
+  *) err "sweep policy does not name its proof artifact (the items' owner rows aggregated by sweep-report.sh)" ;;
+esac
+case "$SWEEP_FLAT" in
+  *"human-verification: skipped"*) ;;
+  *) err "sweep policy does not carry the recorded-skip line" ;;
+esac
+# and the canon itself names the sweep shape, so the third consumer is amended in, not exempted
+case "$CANON_FLAT" in
+  *"sweep-report"*) ;;
+  *) err "canon does not name the sweep's proof artifact — a consumer the canon does not know is a carve-out" ;;
+esac
+
 # ---------- bugfix counts its own steps ----------
 # The step list is prose with a stated count; adding a step without moving the count
 # leaves a reader trusting the smaller number.
@@ -113,5 +137,5 @@ case "$FIX_FLAT" in
   *) err "aidex-bugfix's stated step count does not include the human-verification step" ;;
 esac
 
-[ "$fail" -eq 0 ] && echo "OK — human-verification canon and its two consumers are in lockstep"
+[ "$fail" -eq 0 ] && echo "OK — human-verification canon and its three consumers are in lockstep"
 exit "$fail"
