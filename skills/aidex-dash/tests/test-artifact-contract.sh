@@ -331,7 +331,7 @@ done
 # this suite now rejects. It has to count them.
 mk noviz.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}
 :root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
-<section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><textarea></textarea></section>
+<section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Ctx\"><h2>Ctx</h2><section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><textarea></textarea></section></section>
 <section class=\"consult-item consult-notes\" data-id=\"notes\" data-title=\"General notes\"><textarea></textarea></section>
 <button id=\"consult-copy\"></button><span id=\"consult-status\"></span>
 <script>

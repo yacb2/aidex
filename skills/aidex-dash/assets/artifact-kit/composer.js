@@ -117,26 +117,45 @@
 
   // The rail carries the sections as well as the questions: on a read with no
   // questions it is still the index, which is why it stays on every page.
+  // A BLOCK (`section.consult-group`, BL-247) is a section whose decisions are
+  // listed right under it, indented — one entry for the context, its items
+  // below, never a second entry for the same context elsewhere. Items outside
+  // any block (the general notes) follow after a separator.
+  var links = new Array(items.length);
+  function itemLink(el) {
+    el.id = el.dataset.id;
+    var i = items.indexOf(el);
+    if (!list) return;
+    var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
+    var a = railLink(cls, '#' + el.dataset.id, el.dataset.id, el.dataset.title || '');
+    list.appendChild(a);
+    links[i] = a;
+  }
   if (list) {
+    function groupEntry(sec) {
+      var h = sec.querySelector('h2, h3');
+      if (!sec.id) sec.id = sec.dataset.id || '';
+      list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
+      sec.querySelectorAll('.consult-item').forEach(itemLink);
+    }
     document.querySelectorAll('.main > section[id]').forEach(function (sec) {
+      if (sec.classList.contains('consult-group')) return groupEntry(sec);
       var h = sec.querySelector('h2');
       if (!h) return;
       list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
+      // Blocks wrapped in a container section still list under it.
+      sec.querySelectorAll('.consult-group').forEach(groupEntry);
     });
-    if (items.length) {
+    var loose = items.filter(function (el) { return !el.closest('.consult-group'); });
+    if (loose.length) {
       var sep = document.createElement('div');
       sep.className = 'railsep';
       list.appendChild(sep);
     }
+    loose.forEach(itemLink);
+  } else {
+    items.forEach(function (el) { el.id = el.dataset.id; });
   }
-
-  var links = items.map(function (el) {
-    el.id = el.dataset.id;
-    if (!list) return null;
-    var a = railLink('railitem', '#' + el.dataset.id, el.dataset.id, el.dataset.title || '');
-    list.appendChild(a);
-    return a;
-  });
 
   /* The suffix the copied label carries, read from `data-recommended` — the
    * SAME attribute the badge is drawn from. Before this, a session with a
@@ -171,11 +190,21 @@
   }
 
   function collect() {
-    var answered = [], blank = [];
+    var answered = [], blank = [], lastGroup = null;
     items.forEach(function (el, i) {
       var body = readItem(el);
       if (links[i]) links[i].classList.toggle('done', !!body);
-      if (body) answered.push('### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
+      if (body) {
+        /* The pasted reply keeps the block: `## G1 · title` before the first
+         * answered item of each block, so the session that reads it sees the
+         * grouping the reader answered under, not a flat list of ids. */
+        var g = el.closest('.consult-group');
+        if (g && g !== lastGroup) {
+          answered.push('## ' + (g.dataset.id || g.id || '') + ' · ' + (g.dataset.title || ''));
+          lastGroup = g;
+        }
+        answered.push('### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
+      }
       else blank.push(el.dataset.id);
     });
     return { markdown: answered.join('\n\n'), answered: answered.length, blank: blank };

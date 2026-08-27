@@ -97,8 +97,9 @@ grep -q 'id="consult-copy"' "$KIT/skeleton.html" \
 grep -q 'id="consult-status"' "$KIT/skeleton.html" \
   || fail "skeleton.html has no id=\"consult-status\""
 n_area="$(grep -oiE '<textarea|contenteditable=' "$KIT/skeleton.html" | wc -l | tr -d ' ')"
-n_id="$(grep -oiE 'data-id=' "$KIT/skeleton.html" | wc -l | tr -d ' ')"
-n_title="$(grep -oiE 'data-title=' "$KIT/skeleton.html" | wc -l | tr -d ' ')"
+# A block (`consult-group`) carries data-id/data-title for --prev but is not an item.
+n_id="$(grep -viE 'consult-group' "$KIT/skeleton.html" | grep -oiE 'data-id=' | wc -l | tr -d ' ')"
+n_title="$(grep -viE 'consult-group' "$KIT/skeleton.html" | grep -oiE 'data-title=' | wc -l | tr -d ' ')"
 [[ "$n_area" == "$n_id" && "$n_id" == "$n_title" ]] \
   || fail "skeleton counts disagree: $n_area reply box(es), $n_id data-id, $n_title data-title"
 

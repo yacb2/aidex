@@ -24,10 +24,12 @@
      min-content width — so an unwrapped wide one is drawn straight over the
      rail, with no scrollbar to show it.
 
-     The explanation of a question goes INSIDE its item, the way the item below
-     shows it. Gathering the context into a section above and the questions into
-     a section below is the shape to avoid: it makes the reader understand in
-     one place and answer in another, and duplicates the rail.
+     A consultation is a sequence of BLOCKS: one context with the decisions that
+     fall out of it (`section.consult-group`, see below). Every item lives in a
+     block; before the first block only the header, a figure and the ledger;
+     between blocks nothing; reference material after the notes. The checker
+     fails the other shape — context above, questions below — because it makes
+     the reader understand in one place and answer in another (BL-247).
 
      Drop the consultation parts (the items, both bars, the meta below) when the
      page is a read rather than a consultation. The rail stays either way — with
@@ -56,13 +58,11 @@
   <p class="standfirst">The strongest thing this page has to say, on the first screen, in one or two sentences. Not a description of what follows.</p>
 </header>
 
-<section id="sec-one">
+<section id="sec-shape">
   <div class="sec-head">
-    <p class="eyebrow">Section eyebrow</p>
-    <h2>What this section establishes</h2>
+    <p class="eyebrow">The shape, drawn</p>
+    <h2>What the drawing establishes</h2>
   </div>
-
-  <p>Body copy. Prose, tables and figures share one width, so nothing needs its own cap.</p>
 
   <figure>
     <svg viewBox="0 0 620 120" role="img" aria-label="Replace with the diagram this page needs">
@@ -91,19 +91,6 @@
     <figcaption>What the drawing shows that the prose does not. A caption that only names the picture is a caption worth deleting.</figcaption>
   </figure>
 
-  <div class="tw">
-    <table>
-      <thead><tr><th>What</th><th>Measured</th><th>Where it came from</th></tr></thead>
-      <tbody>
-        <tr><td>A row</td><td>17</td><td>command output</td></tr>
-        <tr><td>Another</td><td>3</td><td>judgement, and it says so</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="note">
-    An aside the reader needs but that would derail the paragraph. <code>.note.warn</code> for the ones that cost something.
-  </div>
 </section>
 
 <section id="sec-ledger">
@@ -118,32 +105,61 @@
   </div>
 </section>
 
-<section id="sec-ask">
+<section class="consult-group" id="G1" data-id="G1" data-title="Short name for this context">
   <div class="sec-head">
-    <p class="eyebrow">What I need from you</p>
-    <h2>The open questions</h2>
+    <p class="eyebrow">Block G1 &middot; what this is about</p>
+    <h2>The context, stated as a finding</h2>
   </div>
+  <p>The evidence every decision below shares: the numbers, the paths, the slice of the drawing. A reader who starts the page here can answer everything in this block.</p>
 
   <section class="consult-item" data-id="Q1" data-title="Short name for this question">
     <h3><span class="consult-id">Q1</span>The question, asked as a question</h3>
-    <p>What is at stake, and what each answer costs. A reader who cannot see the consequence is guessing.</p>
+    <p>What is at stake for this one, and what each answer costs. A reader who cannot see the consequence is guessing.</p>
     <div class="opts one">
-      <label><input type="radio" name="Q1" data-label="First option"><span>First option <span class="hint">What it buys, and what it costs.</span></span></label>
+      <label><input type="radio" name="Q1" data-label="First option" data-recommended><span>First option <span class="hint">What it buys, and what it costs — and why it is the recommendation.</span></span></label>
       <label><input type="radio" name="Q1" data-label="Second option"><span>Second option <span class="hint">What it buys, and what it costs.</span></span></label>
     </div>
     <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
 
-  <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
-    <h3><span class="consult-id">notes</span>General notes</h3>
-    <p class="fieldlabel">Anything that does not fit above</p>
-    <textarea placeholder="Whatever it is&hellip;"></textarea>
+  <section class="consult-item" data-id="Q2" data-title="A second decision from the same context">
+    <h3><span class="consult-id">Q2</span>The second question this context raises</h3>
+    <p class="fieldlabel">Notes on this one</p>
+    <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
+</section>
 
-  <div class="endbar">
-    <button type="button" id="consult-copy-end">Copy my answers</button>
-    <span class="consult-status" id="consult-status-end"></span>
+<section class="consult-item consult-notes" data-id="notes" data-title="General notes">
+  <h3><span class="consult-id">notes</span>General notes</h3>
+  <p class="fieldlabel">Anything that does not fit above</p>
+  <textarea placeholder="Whatever it is&hellip;"></textarea>
+</section>
+
+<div class="endbar">
+  <button type="button" id="consult-copy-end">Copy my answers</button>
+  <span class="consult-status" id="consult-status-end"></span>
+</div>
+
+<section id="sec-ref">
+  <div class="sec-head">
+    <p class="eyebrow">Reference &middot; after the decisions, on purpose</p>
+    <h2>Where the figures come from</h2>
+  </div>
+  <p>What was measured, with which command, and which parts above are judgement rather than output. It sits after the questions because the reader needs it to verify, not to decide.</p>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>What</th><th>Measured</th><th>Where it came from</th></tr></thead>
+      <tbody>
+        <tr><td>A row</td><td>17</td><td>command output</td></tr>
+        <tr><td>Another</td><td>3</td><td>judgement, and it says so</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    An aside the reader needs but that would derail the paragraph. <code>.note.warn</code> for the ones that cost something.
   </div>
 </section>
 
