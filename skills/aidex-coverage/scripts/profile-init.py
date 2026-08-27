@@ -13,6 +13,8 @@ import json, os, re, sys
 KEYS = ["project_slug", "project_kebab", "dev_frontend_port", "dev_backend_port", "db_port",
         "e2e_frontend_port", "e2e_backend_port", "db_name", "db_user", "db_password_env",
         "e2e_service", "backend_test_cmd", "frontend_test_cmd", "e2e_test_cmd",
+        "backend_suite_cmd", "frontend_suite_cmd", "e2e_suite_cmd", "build_cmd", "e2e_detached",
+        "blindspot_expansions",
         "seed_bootstrap_cmd", "seed_e2e_bootstrap_cmd", "helpers_dir", "ui_stack", "ui_locale",
         "personas_ref", "cross_deps_ref", "module_map", "testing_packs"]
 
