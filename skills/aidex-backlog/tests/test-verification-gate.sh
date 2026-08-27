@@ -52,11 +52,28 @@ refused "ui/test only" "$UID_" "$U" "smoke"
 add_row "$U" smoke "/settings at 390px" "proofs/bl/settings.png"
 bash "$SCRIPTS/close-item.sh" "$UID_" --sweep --no-index >/dev/null 2>&1 && ok "ui/smoke closes" || bad "ui smoke refused"
 
-# an owner row with an empty proof does NOT block the item close (worklist-close.sh owns that)
+# an owner row with an empty proof PARKS the item: exit 0, awaiting: owner, not done, not
+# archived (owner's call 2026-08-27 — a closed-looking item gets archived by mistake)
 O="$(reg --title "owner row" --surface internal)"; OID="$(idof "$O")"
 add_row "$O" test "tests/test_o.py" "4 passed"
 add_row "$O" owner "wording of the new toast" ""
-bash "$SCRIPTS/close-item.sh" "$OID" --sweep --no-index >/dev/null 2>&1 && ok "owner row with empty proof does not block the item" || bad "owner row blocked the close"
+OUT="$(bash "$SCRIPTS/close-item.sh" "$OID" --sweep --no-index 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 ]] && grep -q "^parked:" <<<"$OUT" && ok "owner row with empty proof parks (exit 0, says parked)" || bad "park: rc=$RC $OUT"
+[[ -f "$O" ]] && grep -q '^awaiting: owner$' "$O" && grep -q '^status: open$' "$O" && ok "parked item stays active with awaiting: owner, status untouched" || bad "parked item state wrong"
+bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1
+grep -q '^## Awaiting owner' .context/backlog/00-index.md && grep -q 'Awaiting owner:\*\* 1' .context/backlog/00-index.md && ok "index lists it under ## Awaiting owner, counted apart from Active" || bad "index section missing"
+sed -i.bak 's/| owner | wording of the new toast |  |/| owner | wording of the new toast | fine — owner 2026-08-27 |/' "$O" && rm -f "$O.bak"
+OUT="$(bash "$SCRIPTS/close-item.sh" "$OID" --sweep --no-index 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == */_archive/* ]] && ! grep -q '^awaiting:' "$OUT" && grep -q '^status: done' "$OUT" && ok "answered owner row: closes, archives, awaiting line dropped" || bad "answered close: rc=$RC $OUT"
+
+# ops: no test surface — one proven row of any kind is the minimum
+P="$(reg --title "ops" --surface ops)"; PID_="$(idof "$P")"
+add_row "$P" owner "bucket decision" ""
+OUT="$(bash "$SCRIPTS/close-item.sh" "$PID_" --sweep --no-index 2>"$TMP/err")"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "surface ops needs one proven row" "$TMP/err" && ok "ops/only an unanswered owner row: refused (nothing proven)" || bad "ops unproven: rc=$RC $(cat "$TMP/err")"
+add_row "$P" smoke "check-worktree-isolation.sh --census" "proofs/bl/census.txt: 0 findings"
+OUT="$(bash "$SCRIPTS/close-item.sh" "$PID_" --sweep --no-index 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 ]] && grep -q "^parked:" <<<"$OUT" && ok "ops/smoke proven + owner open: parked, not refused" || bad "ops parked: rc=$RC $OUT"
 
 # unknown kind is refused
 K="$(reg --title "bad kind")"; KID="$(idof "$K")"

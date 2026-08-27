@@ -18,7 +18,7 @@ import argparse, json, os, re, sys
 def fm(path):
     t = open(path).read()
     m = re.match(r'---\n(.*?)\n---', t, re.S)
-    return {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):\s*(.*)$', m.group(1), re.M)} if m else {}
+    return {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):[ \t]*(.*)$', m.group(1), re.M)} if m else {}
 
 
 RANK = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4}
@@ -112,7 +112,7 @@ def summary(d):
             n += 1
     if d["fan_out"]:
         print("\nFAN OUT: %d > 20 eligible — triage with parallel readers (5 was the measured shape);" % d["n_eligible"])
-        print("  each reader writes its verdict with sweep-triage.sh (estimate, surface, verify, touches, depends),")
+        print("  each reader writes its verdict with define-item.sh (estimate, surface, verify, touches, depends),")
         print("  then re-run the kickoff so the queue is ordered from the corrected items.")
     print("\nREVIEW (%d) — defined, but READ the body before starting; re-run with --include <id> to queue it" % len(d["review"]))
     for i in d["review"]:

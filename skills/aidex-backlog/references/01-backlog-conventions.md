@@ -142,11 +142,12 @@ That is also why a marker is **kept** on success. The entry it names may sit on 
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
 | `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
 | `estimate` | `XS` · `S` · `M` · `L` · `XL` | *Human-optional:* T-shirt sizing, display-only (index one-liner + dash cell); no logic branches on it. Independent of priority. **Confirmed or corrected at sweep triage** — an XS that is not XS distorts every downstream decision, so a corrected item is re-laned then, not carried at its filed size. |
-| `surface` | `internal` · `behaviour` · `ui` | What the change is visible as. Default `internal`. Sets the **minimum proof** `close-item.sh --sweep` requires (see [Verification](#verification)): `internal` → a targeted test; `behaviour` → a test **and** an E2E spec or seeded smoke; `ui` → a browser smoke with a screenshot. Written at registration as a hypothesis, confirmed at triage. |
-| `touches` | comma-separated paths or modules, or absent | *Sweep triage verdict* (`sweep-triage.sh`): what the item will change. Items sharing a token are **clustered** adjacently in the queue — one review per cluster, one context build per file. Absent outside a sweep. |
+| `surface` | `internal` · `behaviour` · `ui` · `ops` | What the change is visible as. Default `internal`; `ops` = no test surface — config, infrastructure, canon prose, another repo's state — where a test would be a lie (3 of aidex's 5 open items, 2026-08-27). Sets the **minimum proof** `close-item.sh --sweep` requires (see [Verification](#verification)): `internal` → a targeted test; `behaviour` → a test **and** an E2E spec or seeded smoke; `ui` → a browser smoke with a screenshot. Written at registration as a hypothesis, confirmed at triage. |
+| `touches` | comma-separated paths or modules, or absent | *Sweep triage verdict* (`define-item.sh`): what the item will change. Items sharing a token are **clustered** adjacently in the queue — one review per cluster, one context build per file. Absent outside a sweep. |
 | `depends` | `BL-NNN[, …]`, `merge:BL-NNN`, or absent | *Sweep triage verdict*: ids that must close before this one (`A→B` written on B). `merge:BL-NNN` marks the same change seen twice — a **MERGE** pair that closes in one commit carrying both `Backlog:` trailers. |
 | `verify` | one free line | *Human-optional:* the **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
+| `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake (owner, 2026-08-27). |
 | `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake). |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
 
@@ -238,10 +239,15 @@ The plain close path keeps its `type: bug` warning and nothing more: the warning
 we had, and measured adoption of a mandate that is merely written down is 2.2%.
 
 An **owner row** is the one thing the run cannot prove: a judgement only a person can
-make. Its empty proof cell does not block the item — it blocks the *run*:
-`worklist-close.sh` refuses to end a sweep while a queued item still carries an
-unanswered owner row, and `sweep-report.sh` aggregates every owner row into the one list
-the owner reads. That is the sweep's form of guided human verification
+make — taste, priority, a cost decision. It is *not* "is the button where it should be":
+position, styles and rendering are checked by the run itself with a browser (`smoke` row
+with a screenshot) or an E2E spec, and an owner row written for something the run could
+have proven is a defect of the run. An unanswered owner row does not refuse and does not
+close either: `close-item.sh --sweep` **parks** the item (`awaiting: owner`, status kept,
+nothing archived, exit 0) so the run moves on; `worklist-close.sh` refuses to end the
+sweep while a queued item is parked, and `sweep-report.sh` lists the parked items and
+aggregates every owner row into the one list the owner reads. The owner answers by
+filling the proof cell; the next `close-item.sh --sweep` closes and archives. That is the sweep's form of guided human verification
 ([`human-verification-conventions.md`](../../aidex-conventions/references/human-verification-conventions.md)):
 the proof artifact is the item's own rows plus the report, one artifact per run, never a
 `human-verification.md` per item.
@@ -252,6 +258,39 @@ is load-bearing, not that the assertion can see what it denies
 ([`sweep-execution-policy.md`](sweep-execution-policy.md) §2b).
 
 Keep entries short. If it needs more than one screen of content, it belongs in a plan.
+
+### Definition contract
+
+An item is **defined** when a session that has never seen it can start it, prove it and
+close it without a question — and a sweep only ever *chooses* among defined items, it
+does not define them (owner, 2026-08-27). The contract, checked by
+`scripts/define-check.py` and enforced by `sweep-eligible.py` (an underdefined item is
+NEEDS-DECISION, never queued):
+
+| Needed | Who fills it | Why |
+|---|---|---|
+| `type`, `priority` | whoever registers | `bug` demands RED→GREEN; priority orders the queue |
+| `estimate` | the agent proposes; the sweep re-lanes if wrong | a size nobody wrote is a size nobody can plan; a wrong one only defers |
+| `surface` | deduced from `touches` + type, confirmed at definition | fixes the minimum proof to close |
+| `verify` | agent, from the code; names a test, spec, route or command | an item nobody can say how to prove cannot close unattended |
+| `touches` | script (paths the body cites that exist) + agent | clusters the queue; a `<sibling-repo>/…` token means the work lives **elsewhere** — not eligible here |
+| `## Context` with prose | whoever registers | without the why, the agent reconstructs it wrong |
+| `## Acceptance` with ≥ 1 real criterion | agent proposes, owner may correct | what "done" means |
+
+`depends` is optional by nature. Casuistry is handled by combining these, never by a new
+field: UI → `surface: ui` and a `verify` naming the route; backend-only → `internal` and a
+test; changed behaviour → `behaviour`, test + E2E; XS → the minimum and nothing more;
+L/XL → not an item, a plan; another repo → `touches` says so. `estimate` and `##
+Acceptance` are written by the defining agent **without asking** — the owner's call
+(2026-08-27): an owner without the code in front of them cannot size faster than a
+reader of the code, and a wrong size only defers the item at the sweep.
+
+Bringing the backlog up to the contract is `/aidex-backlog define` (`triage.sh` reports
+the gap; `define-check.py` lists what each item lacks and what the body already tells a
+script — touches candidates, cross-repo paths, cited ids, clusters of items sharing a
+token or citing each other, the "these could be one change" list; `define-item.sh`
+writes the verdicts). Items registered in a hurry — five at once, mid-session — are the
+normal case, not the exception; the pass exists for them.
 
 ---
 
@@ -284,6 +323,10 @@ matching gate is at the other end — `close-item.sh` warns when a `type: bug` i
 ### doing → done
 
 Entry represents completed work. Per D-10, archive to `_archive/` **on close** — immediately, not after a delay (use the `close` sub-action, which does it atomically).
+
+### doing → awaiting owner → done
+
+Sweep only. `close-item.sh --sweep` with every mechanical row proven and an `owner` row unanswered writes `awaiting: owner` and stops: the item stays where it is, under `## Awaiting owner` in the index. The owner fills the proof cell; closing again drops the field, sets `done` and archives. Never archive a parked item by hand.
 
 ### * → dropped
 

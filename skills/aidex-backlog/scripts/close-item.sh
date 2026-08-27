@@ -92,9 +92,14 @@ COMMITS_STR="${COMMITS[*]:-}"
 # BEFORE the first mutation, so a refusal leaves the file exactly as it was.
 #
 # Rows: `| kind | what | proof |`, kind in test|e2e|smoke|owner. An OWNER row with an
-# empty proof does NOT block here: it is the owner's to answer, the report aggregates
-# it, and worklist-close.sh is what refuses to end the run over it. Every other empty
-# proof cell blocks.
+# empty proof does not REFUSE here, but it does not let the item become `done` either:
+# the item is PARKED — `awaiting: owner` written into its front-matter, status left as
+# it was, nothing archived, exit 0 — so the run moves on and the item sits under
+# `## Awaiting owner` in the index until the owner answers (fill the proof cell, close
+# again). Owner's call 2026-08-27: an item that still needs a judgement must never read
+# as closed, or it gets archived by mistake. worklist-close.sh refuses to end the run
+# while any queued item is parked; the report aggregates every parked row.
+# Every other empty proof cell refuses.
 read_fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
   sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row
@@ -114,7 +119,7 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
   SURFACE="$(read_fm "$FILE" surface)"; SURFACE="${SURFACE:-internal}"
   ROWS="$(verification_rows "$FILE")"
   [[ -n "$ROWS" ]] || die "sweep close refused: $(basename "$FILE") has no ## Verification rows — one row per criterion (kind | what | proof), then close again"
-  has_test=0 has_e2e=0 has_smoke=0 missing=""
+  has_test=0 has_e2e=0 has_smoke=0 has_owner_proof=0 owner_open=0 missing=""
   while IFS=$'\037' read -r kind what proof; do
     [[ -n "$kind" ]] || continue
     case "$kind" in
@@ -123,8 +128,8 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
     esac
     if [[ -z "$proof" && "$kind" != "owner" ]]; then missing="$missing
     - $kind: $what"; continue; fi
-    [[ -n "$proof" ]] || continue
-    case "$kind" in test) has_test=1;; e2e) has_e2e=1;; smoke) has_smoke=1;; esac
+    if [[ -z "$proof" ]]; then owner_open=$((owner_open+1)); continue; fi
+    case "$kind" in test) has_test=1;; e2e) has_e2e=1;; smoke) has_smoke=1;; owner) has_owner_proof=1;; esac
   done <<<"$ROWS"
   [[ -z "$missing" ]] || die "sweep close refused: ## Verification rows with an empty proof cell:$missing"
   case "$SURFACE" in
@@ -132,8 +137,21 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
     behaviour) [[ $has_test -eq 1 && ( $has_e2e -eq 1 || $has_smoke -eq 1 ) ]] \
                  || die "sweep close refused: surface behaviour needs a proven \`test\` row AND an \`e2e\` or \`smoke\` row" ;;
     ui)        [[ $has_smoke -eq 1 ]] || die "sweep close refused: surface ui needs a proven \`smoke\` row (a screenshot is the proof)" ;;
-    *)         die "sweep close refused: unknown surface '$SURFACE' (internal|behaviour|ui)" ;;
+    ops)       [[ $has_smoke -eq 1 || $has_test -eq 1 || $has_owner_proof -eq 1 ]] \
+                 || die "sweep close refused: surface ops needs one proven row (a \`smoke\` with the command output, a \`test\`, or an answered \`owner\`)" ;;
+    *)         die "sweep close refused: unknown surface '$SURFACE' (internal|behaviour|ui|ops)" ;;
   esac
+  if [[ $owner_open -gt 0 ]]; then
+    # Park, do not close: everything mechanical is proven, a judgement is still owed.
+    awk -v today="$TODAY" 'BEGIN{d=0;seen=0}
+      /^---[[:space:]]*$/ { d++; if (d==2 && !seen) print "awaiting: owner"; print; next }
+      d==1 && /^awaiting:/ { print "awaiting: owner"; seen=1; next }
+      d==1 && /^updated:/ { print "updated: " today; next }
+      { print }' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+    [[ $NO_INDEX -eq 1 ]] || bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null 2>&1 || true
+    printf 'parked: %s awaits the owner (%d owner row(s) unanswered) — not closed, not archived; fill the proof cell(s) and close again\n' "$(basename "$FILE")" "$owner_open"
+    exit 0
+  fi
 fi
 
 # --- mutate front-matter (status, updated, optional superseded_by/escalated_to/commits) ---
@@ -150,6 +168,7 @@ awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATE
     }
   }
   infm==1 {
+    if ($0 ~ /^awaiting:/) next
     if ($0 ~ /^status:/)  { print "status: " status; next }
     if ($0 ~ /^updated:/) { print "updated: " today; next }
     if (sup!="" && $0 ~ /^superseded_by:/) { print "superseded_by: " sup; seen_sup=1; next }

@@ -16,7 +16,7 @@ stages="$(grep -E '^## Stage [1-6] — ' "$POLICY" | sed -E 's/^## Stage ([1-6])
 [ "$stages" = "123456" ] || err "expected six '## Stage N —' headings in order, found: [$stages]"
 
 # each mechanical stage names its enforcing script, and that script exists
-for pair in "1:sweep-kickoff.sh" "1:sweep-eligible.py" "1:sweep-order.py" "1:sweep-triage.sh" \
+for pair in "1:sweep-kickoff.sh" "1:sweep-eligible.py" "1:sweep-order.py" "1:define-item.sh" \
             "3:start-item.sh" "3:close-item.sh" "3:affected-tests.sh" "5:sweep-gate.sh" \
             "6:sweep-report.sh" "6:worklist-close.sh"; do
   n="${pair%%:*}"; s="${pair#*:}"
