@@ -416,6 +416,26 @@ anchor (§3.2 of `00-global.md`).
 
 `open <file>`.
 
+### 7b. Width, measure and tables (kit v9, BL-248)
+
+The page takes the screen it is given, capped at `min(78rem, 100vw - 6rem)`; running
+text keeps a reading measure of 46rem (~80 characters) through the kit's `.measure`
+rules, and everything that benefits from width — tables in `.tw`, option groups, the
+ledger, figures, reply boxes — runs to the full column. Do not cap those by hand, and do
+not widen prose by hand: the measure is what keeps a 1440px screen readable.
+
+Inside `.tw`, the composer marks short cells (≤24 characters: numbers, dates, paths,
+ids) `nowrap`, so a 12-column table scrolls instead of breaking `2026-08-21` in two,
+and prose cells still wrap. A table that overflows gets a right-edge fade until the
+reader scrolls to its end — the scrollbar alone sits at the bottom of a tall table,
+out of view. Measured on a 12-column probe before the change: every date and every
+skill name wrapped, the ninth column was cut to "COLI" with no cue, and the scrollbar
+was 400px below the header.
+
+The per-item **Clear** control sits in the label row of the box it clears (label left,
+Clear right) and appears only once the item has an answer. It used to sit 11px under
+the textarea's resize handle, the same size, the same corner, with no confirmation.
+
 ### 8. When the report is a CONSULTATION, not a read
 
 Route B covers a document to be read. A consultation is the same route with one extra

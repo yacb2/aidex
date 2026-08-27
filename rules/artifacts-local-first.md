@@ -8,7 +8,14 @@ user to name a tool; route by request shape.
 `~/.aidex/skills/aidex-dash/scripts/render.sh <target>` — zero-token and idempotent —
 then open the output locally. Do not hand-generate what a renderer already produces.
 
-**B. Ad-hoc report** — anything else. Four gates, three before anything is written and
+**Sketch by default, in the analysis, not only on the page.** When the subject of a
+discussion has a SHAPE — a layout, a flow, a before/after, two alternatives, widths on a
+screen — the analysis arrives WITH a drawing, unasked: an SVG or a 20-line mockup in
+`_tmp/`, opened in the browser, or the real page re-rendered both ways. The consultation
+page already carries its visual by contract (22 of 22 in this repo); the gap is the chat
+before it, where the reader had to ask every time (BL-248). Do not wait to be asked.
+
+**B. Ad-hoc report** — anything else. Five gates, four before anything is written and
 one that keeps applying for as long as the page is being discussed:
 
 1. **Load design guidance before writing any page markup** — `artifact-design` via the
@@ -18,16 +25,22 @@ one that keeps applying for as long as the page is being discussed:
    injects the kit's styles and the skeleton is what carries its structure. A page
    without `.page` / `.main` renders full-bleed with no reading measure (BL-177), and it
    is checked.
-2. **Never publish unless explicitly asked to share.** The local file, anchored next to
+2. **Open the file ONCE, when it is final — and every create or update ends with that
+   one open.** The reader closes the tab after copying their answers, so a new tab means
+   "this is the version to read". Opening it early and then re-opening after each fix
+   (observed up to three times on one page) breaks that: verify with the checker and
+   DevTools first, `open` last. And never finish a create/update without the open — a
+   page that was rewritten and not opened is, to the reader, a page that did not change.
+3. **Never publish unless explicitly asked to share.** The local file, anchored next to
    the work it documents, is the durable copy. This deliberately overrides the `Artifact`
    tool's own default ("publishing proactively is fine"); when the two disagree, this
    rule wins.
-3. **A consultation is a sequence of BLOCKS** — one context with the decisions that
+4. **A consultation is a sequence of BLOCKS** — one context with the decisions that
    fall out of it, nothing before the first block but the header, a figure and the
    ledger, nothing between blocks, reference material after the questions.
    `check-artifact.sh` fails the other shape (context above, questions below); the
    full rule is §8.4 of the procedure below (BL-247).
-4. **The artifact carries the discussion, not the chat.** Every time the reader answers
+5. **The artifact carries the discussion, not the chat.** Every time the reader answers
    or decides something about the page, that answer goes INTO the page — summarised at
    the top, with what is still open below it — before the reply that acknowledges it.
    A thread is never concluded while its decisions live only in the conversation: that

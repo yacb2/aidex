@@ -214,7 +214,11 @@ window.addEventListener('load', function () {
       + '|MARK=' + (radio.checked ? 'A' : '-')
       + '|STORE=' + (localStorage.getItem('aidex-kit-answers:' + location.pathname) || '')
           .replace(/[|<>]/g, ' ')
-      + '|LABEL=' + btn.textContent;
+      + '|LABEL=' + btn.textContent
+      /* BL-248: the control lives in the label row, not under the resize
+       * handle, and disappears once the item is blank again. */
+      + '|CLEARROW=' + (btn && btn.parentElement.classList.contains('fieldrow') ? '1' : '0')
+      + '|CLEARVIS=' + (btn ? getComputedStyle(btn).display : '');
   } else if (q.indexOf('phase=verify') !== -1) {
     var banner = document.getElementById('consult-restored');
     document.title = 'RESTORED=' + ta.value
@@ -416,6 +420,10 @@ rm -rf "$TMP/profile"
 t="$(run 'phase=fill')"
 [[ "$t" == *FILLED* ]] || fail "the fill phase did not run before the clear probe: $t"
 t="$(run 'phase=clear')"
+[[ "$t" == *"CLEARROW=1"* ]] \
+  || fail "BL-248: the clear control is not in the label row next to the box it clears: $t"
+[[ "$t" == *"CLEARVIS=none"* ]] \
+  || fail "BL-248: the clear control stays visible on a blank item: $t"
 [[ "$t" == *"CLEARED=1"* ]] || fail "BL-242: no per-item clear control was injected: $t"
 [[ "$t" == *"LABEL=Limpiar"* ]] \
   || fail "BL-242: the clear control stayed in English on a lang=es page: $t"

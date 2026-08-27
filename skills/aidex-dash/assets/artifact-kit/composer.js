@@ -193,6 +193,7 @@
     var answered = [], blank = [], lastGroup = null;
     items.forEach(function (el, i) {
       var body = readItem(el);
+      el.classList.toggle('has-answer', !!body);
       if (links[i]) links[i].classList.toggle('done', !!body);
       if (body) {
         /* The pasted reply keeps the block: `## G1 · title` before the first
@@ -490,7 +491,41 @@
       b.textContent = L.clear;
       b.title = L.clearTitle;
       b.addEventListener('click', function () { clearItem(el); });
-      el.appendChild(b);
+      /* Away from the resize corner (BL-248): the control used to sit 11px
+       * under the textarea's drag handle, the same size and the same corner,
+       * with no confirmation. It now shares the row with the box's own label
+       * — label left, Clear right — and is only shown once the item has an
+       * answer (`.has-answer`, kept in step by collect()). */
+      var labels = el.querySelectorAll('.fieldlabel');
+      var label = labels.length ? labels[labels.length - 1] : null;
+      if (label) {
+        var row = document.createElement('div');
+        row.className = 'fieldrow';
+        label.parentNode.insertBefore(row, label);
+        row.appendChild(label);
+        row.appendChild(b);
+      } else {
+        el.appendChild(b);
+      }
+    });
+  }
+
+  /* Data tables (BL-248): a short cell — a number, a date, a path — never
+   * wraps, so a 12-column table scrolls instead of breaking "2026-08-21" in
+   * two; prose cells still wrap. `.overflows` lets the stylesheet draw the
+   * right-edge fade that says "there is more" where the scrollbar is out of
+   * view at the bottom of a tall table. */
+  function fitTables() {
+    document.querySelectorAll('.tw').forEach(function (tw) {
+      tw.querySelectorAll('td').forEach(function (td) {
+        if (td.textContent.trim().length <= 24) td.classList.add('nw');
+      });
+      var mark = function () { tw.classList.toggle('overflows', tw.scrollWidth > tw.clientWidth + 1); };
+      mark();
+      window.addEventListener('resize', mark);
+      tw.addEventListener('scroll', function () {
+        tw.classList.toggle('at-end', tw.scrollLeft + tw.clientWidth >= tw.scrollWidth - 1);
+      });
     });
   }
 
@@ -536,6 +571,7 @@
     }
   }
 
+  fitTables();
   if (items.length) {
     var recovered = restore();
     /* Shown when anything was DROPPED too, not only when something was
