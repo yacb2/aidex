@@ -20,11 +20,11 @@ A="$(reg --title "with owner row")"; AID="$(idof "$A")"
 row "$A" test "tests/test_a.py" "2 passed"; row "$A" owner "wording of the toast" ""
 B="$(reg --title "plain proven")"; BID="$(idof "$B")"; row "$B" test "t" "1 passed"
 WL="$(bash "$DIR/worklist-new.sh" --title "Refusal" --mode sweep --publish never --ref "backlog:$AID — a" --ref "backlog:$BID — b")"
-bash "$BL/close-item.sh" "$AID" --sweep --no-index >/dev/null 2>&1   # owner row does not block the ITEM
-[[ ! -f "$A" ]] && ok "item with an unanswered owner row closes (archived)" || bad "item did not close"
+bash "$BL/close-item.sh" "$AID" --sweep --no-index >/dev/null 2>&1   # owner row PARKS the item (awaiting: owner)
+[[ -f "$A" ]] && grep -q '^awaiting: owner$' "$A" && ok "item with an unanswered owner row is parked, not archived" || bad "item not parked"
 bash "$BL/close-item.sh" "$BID" --sweep --no-index >/dev/null 2>&1
 
-# 1 · unanswered owner row on an ARCHIVED queued item → refused, untouched
+# 1 · unanswered owner row on a PARKED queued item → refused, untouched
 before="$(cat "$WL")"
 bash "$DIR/worklist-close.sh" "$WL" >/dev/null 2>"$TMP/err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "owner rows still unanswered" "$TMP/err" && grep -q "$AID: wording of the toast" "$TMP/err" \
@@ -32,8 +32,9 @@ bash "$DIR/worklist-close.sh" "$WL" >/dev/null 2>"$TMP/err"; RC=$?
 [[ "$(cat "$WL")" == "$before" && -f "$WL" ]] && ok "refusal mutates nothing" || bad "refusal mutated"
 
 # the owner answers (proof filled) → close proceeds
-AR="$P/.context/backlog/_archive/$(basename "$A")"
-sed -i.bak 's/| owner | wording of the toast |  |/| owner | wording of the toast | approved by owner 2026-08-27 |/' "$AR" && rm -f "$AR.bak"
+sed -i.bak 's/| owner | wording of the toast |  |/| owner | wording of the toast | approved by owner 2026-08-27 |/' "$A" && rm -f "$A.bak"
+bash "$BL/close-item.sh" "$AID" --sweep --no-index >/dev/null 2>&1   # answered → closes and archives
+[[ ! -f "$A" ]] && ok "answered owner row: the item closes and archives" || bad "answered item did not close"
 # 2 · an unreconciled deferral → refused
 bash "$DIR/worklist-advance.sh" "$WL" --append "inline:found a stale row, carry to a later sweep" >/dev/null 2>&1
 bash "$DIR/worklist-close.sh" "$WL" >/dev/null 2>"$TMP/err"; RC=$?
