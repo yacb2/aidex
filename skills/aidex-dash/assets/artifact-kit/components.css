@@ -87,6 +87,11 @@ li::marker { color: var(--muted); }
 .ledger .v { color: var(--ink-soft); }
 .ledger .v b { color: var(--ink); font-weight: 600; }
 
+/* A block: one context, then the decisions that fall out of it (BL-247). The
+   rule down the left says "these belong together"; the items keep their own
+   frame inside it. */
+.consult-group { border-left: 3px solid var(--accent-dim); padding-left: 1.25rem; }
+.consult-group > .consult-item { margin-top: 0.25rem; }
 .consult-item { border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem;
                 display: flex; flex-direction: column; gap: 0.7rem; scroll-margin-top: 2rem; }
 .consult-item > h3 { margin: 0; font-size: 1.05rem; }
@@ -152,6 +157,8 @@ textarea { resize: vertical; }
 .railitem.done { color: var(--ink); }
 .railitem .rid { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); }
 .railitem.sec { color: var(--muted); }
+.railitem.sec.grp { color: var(--ink-soft); margin-top: 0.3rem; }
+.railitem.sub { padding-left: 1.4rem; }
 .railitem.sec .dot { border: none; background: none; }
 .railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
 

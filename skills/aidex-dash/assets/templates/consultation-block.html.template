@@ -32,19 +32,26 @@
   gets a concrete example; something that rewrites what exists gets the example,
   the consequence of each option, and the file it touches.
 
-  The EXPLANATION belongs inside the item, next to the question it explains —
-  never gathered into a context section above with the questions below it. See
-  references/02-local-first-artifacts.md § 8.
+  THE UNIT IS THE BLOCK, NOT THE ITEM (BL-247). A block is one context with the
+  decisions that fall out of it — one decision or several — and it is the ONLY
+  place an item may live: `<section class="consult-group" id="G1" data-id="G1"
+  data-title="…">` holding the shared evidence (prose, a table, a slice of the
+  drawing) above its `consult-item`s. The general-notes item is the one item
+  outside any block. Before the first block only the header (title +
+  standfirst), a figure section and the ledger may appear; between blocks,
+  nothing; reference material (where the figures come from) goes AFTER the
+  notes. check-artifact.sh FAILS a page that breaks any of that — the shape is
+  a fact of the DOM, unlike item quality, which stays the rule you hold.
 
-  THE ITEM IS SELF-SUFFICIENT. The test to apply to each one: could the reader
-  answer it if the page began at its <h3>? The item carries the finding, the
-  evidence for it (the numbers, the paths, the visual or a slice of it), the
-  options with what each buys and costs, and the recommendation with its reason.
-  The introduction may summarise; it must not be the only place a fact a question
-  needs lives. Reported from use — "tengo que seguir viendo arriba… termino
-  respondiendo sobre la poca información que me agregas en la pregunta".
+  THE BLOCK IS SELF-SUFFICIENT. The test: could the reader answer every decision
+  in it if the page began at the block's heading? What the decisions share goes
+  in the block's context; what only one needs (its example, its options, its
+  recommendation) goes in the item. Reported from use, twice — "me obliga a
+  entender arriba y a responder abajo" and, on a page whose items were long and
+  whose preamble was 1,553 words, "tengo que seguir viendo arriba".
 
   The shape each item follows: evidence -> options with hints -> recommendation.
+  A block's id (G1, G2…) is as stable as an item's: --prev holds it too.
 
   AND THE RECOMMENDATION IS VISIBLE. An item with options says which one the
   session backs, through `data-recommended` on that option's input. Never by
@@ -76,6 +83,17 @@
   from here fails until someone decides. That failure is the template working.
 -->
 <meta name="consult-visual" content="none: replace this with the reason, or with svg/mermaid/img">
+
+<!-- A BLOCK: the context, then the decisions that fall out of it. Copy the
+     whole block; a single decision still gets its own block. -->
+<section class="consult-group" id="G1" data-id="G1" data-title="Short name for this context">
+  <div class="sec-head">
+    <p class="eyebrow">Block G1 &middot; what this is about</p>
+    <h2>The context, stated as a finding</h2>
+  </div>
+  <p>The evidence the decisions below share: the numbers, the paths, the slice
+     of the visual. Everything the reader needs to answer every item in this
+     block without scrolling anywhere else.</p>
 
 <!-- Single choice. `data-label` is what the composed reply says; without it the
      paste carries the input value, which is usually a bare id.
@@ -135,6 +153,9 @@
   <p class="fieldlabel">Notes on this one</p>
   <textarea placeholder="Anything the value alone does not say…"></textarea>
 </section>
+
+</section>
+<!-- end of block G1 -->
 
 <!-- The page-level general-notes item. Always last, always present: it is where
      the reply that does not fit any question goes, and without it that reply is

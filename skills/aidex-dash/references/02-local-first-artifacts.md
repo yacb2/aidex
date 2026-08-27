@@ -88,11 +88,15 @@ are settled BEFORE writing, because every one of them is expensive to change aft
 
 **What goes in it**
 
-6. **What is the strongest claim, and is it on the first screen?** Nothing else on
+6. **What is the strongest claim, and is it in the standfirst?** Nothing else on
    this list orders by importance, so without it a page comes out in the order it was
-   built. If the reader sees only the first third, do they get the essential thing?
+   built. If the reader sees only the first screen, do they get the essential thing?
    The best finding of one session was a repetition measurement that sat in the fourth
-   section.
+   section. On a consultation the answer is bounded: the claim goes in the header
+   (title + standfirst) and nowhere else, because there is no introduction section to
+   put it in — see § 8.4. The old wording ("on the first screen") is what produced a
+   four-section, 1,553-word preamble on a page whose items were already long: the
+   claim had a whole narrative built around it *above* the questions (BL-247).
 7. **What does NOT go in?** Asked as an exclusion, because a page otherwise grows to
    the size of the available material rather than to the size of the question. If the
    decision needs three questions, six sections is five too many.
@@ -444,25 +448,37 @@ Five requirements. They exist because each one was violated in the field.
    Both are checked: an item without free text fails, and so does a consultation with
    no general-notes item.
 
-4. **The explanation lives INSIDE the item it explains.** What is at stake, the example,
-   the consequence of each option — inside the `<section class="consult-item">`, above
-   its own reply surface. Never gathered into a context section at the top with the
-   questions gathered at the bottom. That shape forces the reader to understand in one
-   place and answer in another, and since a question's short title rarely matches the
-   prose that explained it, answering item nine means scrolling back to find which
-   paragraph it was and then scrolling down again. It also duplicates the navigation:
-   one entry for the explanation, one for the question. Reported from use — *"me obliga
-   a entender arriba y a responder abajo… cuando pudiéramos tener preguntas y
-   explicación juntas"*.
+4. **The unit is the BLOCK: one context with the decisions that fall out of it.**
+   A consultation is a sequence of `<section class="consult-group">` blocks, each
+   carrying the shared evidence (the finding, the numbers, the paths, a slice of the
+   visual) above the one or several `consult-item`s it yields. Never a context
+   section at the top with the questions gathered at the bottom. That shape forces
+   the reader to understand in one place and answer in another, and since a
+   question's short title rarely matches the prose that explained it, answering item
+   nine means scrolling back to find which paragraph it was and then scrolling down
+   again. Reported from use — *"me obliga a entender arriba y a responder abajo…
+   cuando pudiéramos tener preguntas y explicación juntas"*.
 
-   **The item is self-sufficient, and this is the test:** could the reader answer it if
-   the page began at its `<h3>`? Each item carries the finding, the evidence for it
-   (the numbers, the paths, the visual or a slice of it), the options with what each
-   buys and costs, and the recommendation with its reason. The introduction may
-   summarise; it may not be the only place a fact a question needs lives. Reported from
-   use, on a page that satisfied every clause above — *"tengo que seguir viendo arriba…
-   termino respondiendo sobre la poca información que me agregas en la pregunta"*. The
-   shape is evidence → options with hints → recommendation.
+   **The block is self-sufficient, and this is the test:** could the reader answer
+   every decision in it if the page began at the block's heading? What the decisions
+   share goes in the block's context; what only one of them needs — its example, its
+   options with what each buys and costs, its recommendation with its reason — goes
+   in the item. The shape inside an item is evidence → options with hints →
+   recommendation. Reported from use, on a page that already kept the per-item rule
+   (items of 350-700 words) under a 1,553-word preamble two questions depended on —
+   *"tengo que seguir viendo arriba… termino respondiendo sobre la poca información
+   que me agregas en la pregunta"*. That page is why the unit moved from the item to
+   the block (BL-247): the item rule was being satisfied by growing the items while
+   the context above them never moved.
+
+   **The page around the blocks is fixed.** Before the first block: the header
+   (title + standfirst, where the strongest claim lives — intake question 6), a
+   figure section when the subject has a shape, and the ledger. Between blocks:
+   nothing. After the general-notes item: a reference section for what the reader
+   needs to *verify* rather than to *decide* — where the figures come from, which
+   parts are command output — and the footer. A fact several blocks need is repeated
+   in each (a row, a figure) and linked to the reference section by anchor; the
+   reference section is never the only place a fact a decision needs lives.
 
    **An item with options states which one the session recommends, and why.** The
    recommendation is not optional and not a neutral menu — that is a separate rule the
@@ -473,20 +489,20 @@ Five requirements. They exist because each one was violated in the field.
    page, which is exactly what happened for all ten items of one round. `check-artifact.sh`
    warns (`consult-rec`) when it finds it there.
 
-   **This one is not machine-checked, and that is deliberate.** Every proxy for it is
-   satisfiable without satisfying it: a page can carry a `<p>` inside every item and
-   still keep all the real context above, and requiring prose per item would fail the
-   reversible one-minute question that legitimately stands alone. A grep here would buy
-   false confidence, which is worse than an honest rule an author has to hold. What
-   *is* checked is the ledger and the ids; this is the rule you keep yourself.
+   **What is machine-checked is the SHAPE, not the quality — and that split is
+   deliberate.** `check-artifact.sh` fails (`consult-shape`) an item outside any
+   block, a block with no decision, a prose section between blocks, and a prose
+   section before the first block that is neither a figure nor the ledger. Each is a
+   fact of the DOM — *where* markup sits — not a stand-in for whether a block
+   explains itself. Whether the context a block carries is the context its decisions
+   need stays the rule you hold, now bounded to one block instead of a whole page.
+   Block ids (`G1`, `G2`…) are as stable as item ids and `--prev` holds them too.
 
-   **The word-count heuristic proposed for this was rejected on those grounds** (BL-243
-   asked for a "thin item" warning at ~60 words). It is the proxy the paragraph above
-   already names, it would fire on the reversible question that is legitimately short,
-   and it is silenced by padding. What shipped instead is checkable without being a
-   proxy: the *wrapper* an option group sits in and the *place* a recommendation is
-   written — both mechanical facts, neither a stand-in for whether the item explains
-   itself.
+   **The word-count heuristic proposed for this was rejected, and stays rejected**
+   (BL-243 asked for a "thin item" warning at ~60 words; BL-247 re-examined it). It
+   is a proxy: it would fire on the reversible question that is legitimately short,
+   and it is silenced by padding. The shape checks above are not proxies, which is
+   why they ship as failures rather than warnings (BL-247, Q6).
 
 5. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
    Not a new dated file. The user has the page open in a browser and cannot otherwise

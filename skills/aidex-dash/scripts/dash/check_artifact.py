@@ -22,6 +22,9 @@ Checks (per file):
   layout       a kit page keeps its content inside .page / .main (BL-177),
                and every table inside a scrolling wrapper
   consult      a page the reader must ANSWER carries the §8 shape
+  consult-shape every decision inside a block (`.consult-group`), every block
+               with a decision, nothing but blocks between the first block and
+               the general notes, only header/figure/ledger before them (BL-247)
   consult-ids  with --prev: an id kept between two regenerations still names
                the same claim
 
@@ -205,6 +208,11 @@ def consult_items(text):
     exist."""
     items = []
     for m in ITEM_OPEN.finditer(text):
+        # A block (`.consult-group`) carries data-id/data-title so --prev can
+        # hold its id stable, but it is a context, not a claim: it has no
+        # reply surface of its own and is judged by check_shape instead.
+        if GROUP_CLASS.search(m.group(0)):
+            continue
         tag = m.group(1)
         ident = next(g for g in m.groups()[1:] if g is not None)
         body = _subtree(text, tag, m.end())
@@ -525,6 +533,131 @@ def check_file(path):
     return fails
 
 
+# --- § 8.4 as a fact of the DOM: the block shape (BL-247) ---------------------
+# "The explanation lives inside the item" was declared not machine-checked
+# because every proxy for item QUALITY is satisfiable without satisfying it.
+# BL-240 kept the letter — items of 350-700 words — under a 1,553-word preamble
+# two questions depended on. What is checkable without being a proxy is WHERE
+# things sit: every item inside a block (`.consult-group` — one context with
+# the decisions it yields), every block with at least one decision, no prose
+# section between the first block and the general-notes item, and before the
+# first block only the header, a visual section and the ledger. Reference
+# material goes AFTER the questions. Word counts stay out (BL-243).
+
+GROUP_CLASS = re.compile(r'\bclass\s*=\s*["\'][^"\']*\bconsult-group\b', re.I)
+GROUP_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\'][^"\']*'
+                        r'\bconsult-group\b[^>]*>', re.I | re.S)
+NOTES_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\'][^"\']*'
+                        r'\bconsult-notes\b[^>]*>', re.I | re.S)
+SECTION_OPEN = re.compile(r'<section\b[^>]*>', re.I | re.S)
+H2 = re.compile(r'<h2\b[^>]*>(.*?)</h2\s*>', re.I | re.S)
+PROSE = re.compile(r'<(p|table|ul|ol|dl|blockquote|pre)\b', re.I)
+
+
+def _tag_attr(tag, name):
+    m = re.search(r'\b' + name + r'\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
+                  tag, re.I | re.S)
+    return next((g for g in m.groups() if g is not None), "") if m else ""
+
+
+def _h2_text(fragment):
+    m = H2.search(fragment)
+    return " ".join(re.sub(r'<[^>]+>', '', m.group(1)).split()) if m else "(untitled)"
+
+
+def _strip_subtrees(fragment, opener):
+    """fragment with every subtree opened by `opener` removed."""
+    out, pos = [], 0
+    for m in opener.finditer(fragment):
+        if m.start() < pos:
+            continue
+        body = _subtree(fragment, m.group(1), m.end())
+        out.append(fragment[pos:m.start()])
+        pos = m.end() + len(body)
+        close = re.match(r'</' + re.escape(m.group(1)) + r'\s*>', fragment[pos:], re.I)
+        if close:
+            pos += close.end()
+    out.append(fragment[pos:])
+    return "".join(out)
+
+
+FIGURE_OPEN = re.compile(r'<(figure)\b[^>]*>', re.I)
+LEDGER_SUB = re.compile(r'<(div)\b[^>]*\bclass\s*=\s*["\'][^"\']*\bledger\b[^>]*>', re.I)
+SECHEAD_SUB = re.compile(r'<(div)\b[^>]*\bclass\s*=\s*["\'][^"\']*\bsec-head\b[^>]*>', re.I)
+
+
+def check_shape(path, text):
+    """The block shape, judged on the ITEM-bearing page only: a read has no
+    blocks and no rules here."""
+    fails = []
+
+    def report(msg):
+        fails.append(("consult-shape", os.path.basename(path), msg))
+
+    groups = []   # (id, open_start, body_start, body_end)
+    for m in GROUP_OPEN.finditer(text):
+        body = _subtree(text, m.group(1), m.end())
+        ident = _tag_attr(m.group(0), "data-id") or _tag_attr(m.group(0), "id") or "?"
+        groups.append((ident, m.start(), m.end(), m.end() + len(body)))
+
+    def in_group(pos):
+        return any(a <= pos < b for _, _, a, b in groups)
+
+    # Every item lives inside a block — the general-notes item excepted, it is
+    # the one item that answers to no context.
+    for m in ITEM_OPEN.finditer(text):
+        tag = m.group(0)
+        if GROUP_CLASS.search(tag) or NOTES_OPEN.match(tag):
+            continue
+        ident = next(g for g in m.groups()[1:] if g is not None)
+        if not in_group(m.start()):
+            report(f"item '{ident}' sits outside any block — every decision "
+                   f"lives inside a <section class=\"consult-group\"> with "
+                   f"the context it comes from (02-local-first-artifacts.md "
+                   f"§ 8.4). A block may carry one decision or several")
+
+    # Every block carries a decision: a context with nothing to answer is the
+    # old preamble wearing a class.
+    for ident, _, a, b in groups:
+        if not any(a <= m.start() < b and not GROUP_CLASS.search(m.group(0))
+                   for m in ITEM_OPEN.finditer(text)):
+            report(f"block '{ident}' carries no decision — a context with "
+                   f"nothing to answer is prose. Move it into the block whose "
+                   f"decisions need it, or after the questions if it is "
+                   f"reference material")
+
+    if not groups:
+        return fails
+    first = min(s for _, s, _, _ in groups)
+    notes_m = NOTES_OPEN.search(text)
+    end = notes_m.start() if notes_m else len(text)
+
+    # Nothing but blocks between the first block and the general notes.
+    for m in H2.finditer(text, first, end):
+        if not in_group(m.start()):
+            report(f"prose between blocks: \"{_h2_text(m.group(0))}\" — the "
+                   f"context a decision needs sits in its block, above the "
+                   f"decision; there is no place for a section between blocks")
+
+    # Before the first block: the header, a visual section, the ledger, and the
+    # section that merely contains the blocks. Anything else is the preamble
+    # the reader scrolls back to.
+    for m in SECTION_OPEN.finditer(text, 0, first):
+        body = _subtree(text, "section", m.end())
+        if m.end() + len(body) > first:        # contains the first block
+            continue
+        rest = _strip_subtrees(body, SECHEAD_SUB)
+        rest = _strip_subtrees(rest, FIGURE_OPEN)
+        rest = _strip_subtrees(rest, LEDGER_SUB)
+        if PROSE.search(rest):
+            report(f"prose before the first block: \"{_h2_text(body)}\" — "
+                   f"before the blocks only the header (title + standfirst), "
+                   f"a figure and the ledger may appear. The strongest claim "
+                   f"goes in the standfirst; context goes in the block that "
+                   f"needs it; reference material goes after the questions")
+    return fails
+
+
 def check_consultation(path, text, flat):
     fails = []
 
@@ -539,6 +672,8 @@ def check_consultation(path, text, flat):
 
     # Requirement 1 — every claim is an item with a stable id. Without data-id
     # there is nothing to keep stable and nothing --prev can compare.
+    if items:
+        fails.extend(check_shape(path, text))
     if not items:
         n_surface = sum(1 for _ in SURFACE_PAT.finditer(flat))
         # A page with only closed controls has a second legitimate reading —

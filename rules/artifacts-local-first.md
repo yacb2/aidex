@@ -8,7 +8,7 @@ user to name a tool; route by request shape.
 `~/.aidex/skills/aidex-dash/scripts/render.sh <target>` — zero-token and idempotent —
 then open the output locally. Do not hand-generate what a renderer already produces.
 
-**B. Ad-hoc report** — anything else. Three gates, two before anything is written and
+**B. Ad-hoc report** — anything else. Four gates, three before anything is written and
 one that keeps applying for as long as the page is being discussed:
 
 1. **Load design guidance before writing any page markup** — `artifact-design` via the
@@ -22,7 +22,12 @@ one that keeps applying for as long as the page is being discussed:
    the work it documents, is the durable copy. This deliberately overrides the `Artifact`
    tool's own default ("publishing proactively is fine"); when the two disagree, this
    rule wins.
-3. **The artifact carries the discussion, not the chat.** Every time the reader answers
+3. **A consultation is a sequence of BLOCKS** — one context with the decisions that
+   fall out of it, nothing before the first block but the header, a figure and the
+   ledger, nothing between blocks, reference material after the questions.
+   `check-artifact.sh` fails the other shape (context above, questions below); the
+   full rule is §8.4 of the procedure below (BL-247).
+4. **The artifact carries the discussion, not the chat.** Every time the reader answers
    or decides something about the page, that answer goes INTO the page — summarised at
    the top, with what is still open below it — before the reply that acknowledges it.
    A thread is never concluded while its decisions live only in the conversation: that

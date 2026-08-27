@@ -46,6 +46,8 @@ mkpage() {
 # The page-level general-notes item. Every consultation fixture that is not
 # testing its absence carries it, the way the template ships it.
 notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
+gopen='<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>'
+gclose='</section>'
 bars='<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>'
 visual='<meta name="consult-visual" content="none: the subject is a single number, so there is no shape to draw">'
 # The WHOLE kit, exactly as wrap-report.sh injects it. Inlining the composer
@@ -60,6 +62,7 @@ run() { bash "$CHECK" "$@" > "$TMP/out" 2>&1; echo $?; }
 
 # ---- 1. a radio group plus its notes box passes --------------------------
 mkpage "$TMP/radios.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
   <h3>Pick one</h3>
   <div class=\"opts\">
@@ -68,6 +71,7 @@ mkpage "$TMP/radios.html" "$visual
   </div>
   <textarea placeholder=\"Anything the options do not cover\"></textarea>
 </section>
+$gclose
 $notesitem
 $bars
 $composer"
@@ -76,10 +80,12 @@ rc="$(run "$TMP/radios.html")"
 
 # ---- 2. an item with no reply surface at all fails ------------------------
 mkpage "$TMP/empty-item.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
   <h3>Pick one</h3>
   <p>Nothing to answer with.</p>
 </section>
+$gclose
 $bars
 $composer"
 rc="$(run "$TMP/empty-item.html")"
@@ -114,14 +120,18 @@ grep -qiE 'data-id|consult-copy' "$TMP/out" || fail "5. the failure names neithe
 
 # ---- 6. --prev still catches an id reused for a different claim -----------
 mkpage "$TMP/prev.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"The first claim\">
   <h3>Q1</h3><textarea></textarea></section>
+$gclose
 $notesitem
 $bars
 $composer"
 mkpage "$TMP/now.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"A completely different claim\">
   <h3>Q1</h3><textarea></textarea></section>
+$gclose
 $notesitem
 $bars
 $composer"
@@ -135,6 +145,7 @@ grep -qi 'id reused' "$TMP/out" || fail "6. the --prev failure message changed s
 # A radio group, a checkbox set and a select are all closed lists; the answer
 # that does not fit one of them is lost unless the item carries free text.
 mkpage "$TMP/no-notes.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
   <h3>Pick one</h3>
   <div class=\"opts\">
@@ -142,6 +153,7 @@ mkpage "$TMP/no-notes.html" "$visual
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
 </section>
+$gclose
 $notesitem
 $bars
 $composer"
@@ -154,9 +166,11 @@ grep -qi 'Q1' "$TMP/out" || fail "8. the failure does not name the item that has
 # WHOLE kit, which defines `.consult-notes` in components.css: the check must key
 # off the markup, not off the injected stylesheet, or it passes every page.
 mkpage "$TMP/no-general.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
   <h3>Pick one</h3><textarea></textarea>
 </section>
+$gclose
 $bars
 $composer"
 rc="$(run "$TMP/no-general.html")"
@@ -174,18 +188,22 @@ item() { printf '<section class="consult-item" data-id="%s" data-title="A questi
 
 mkpage "$TMP/ledger-clean.html" "$visual
 $ledger_ok
+$gopen
 $(item c2)
 $notesitem
 $bars
+$gclose
 $composer"
 rc="$(run "$TMP/ledger-clean.html")"
 [[ "$rc" == "0" ]] || fail "8. a ledger disjoint from the question set was rejected: $(cat "$TMP/out")"
 
 mkpage "$TMP/ledger-dirty.html" "$visual
 $ledger_bad
+$gopen
 $(item c1)
 $notesitem
 $bars
+$gclose
 $composer"
 rc="$(run "$TMP/ledger-dirty.html")"
 [[ "$rc" == "1" ]] || fail "8. a decided item left in the question set passed"
@@ -197,9 +215,11 @@ grep -qi 'c1' "$TMP/out" || fail "8. the failure does not name the id"
 # key that tokenizes to it must not raise a failure nobody can clear.
 mkpage "$TMP/ledger-notes.html" "$visual
 <div class=\"ledger\"><div><span class=\"k\">c1 &middot; notes</span><span class=\"v\">Settled.</span></div></div>
+$gopen
 $(item c2)
 $notesitem
 $bars
+$gclose
 $composer"
 rc="$(run "$TMP/ledger-notes.html")"
 [[ "$rc" == "0" ]] || fail "8. a ledger key naming 'notes' flagged the mandated general-notes item: $(cat "$TMP/out")"
@@ -209,9 +229,11 @@ rc="$(run "$TMP/ledger-notes.html")"
 mkpage "$TMP/ledger-numbered.html" "$visual
 <div class=\"ledger\"><div><span class=\"k\">1</span><span class=\"v\">A numbered row.</span></div></div>
 <div class=\"ledger\"><article><p>A grid row with no key at all.</p></article></div>
+$gopen
 $(item c1)
 $notesitem
 $bars
+$gclose
 $composer"
 rc="$(run "$TMP/ledger-numbered.html")"
 [[ "$rc" == "0" ]] || fail "8. a numbered or keyless ledger was read as item ids: $(cat "$TMP/out")"
@@ -230,7 +252,8 @@ grep -q '</script>' "$TPL" \
   && fail "7. the consultation template still carries a <script> block — the kit supplies the composer"
 # Every block the template offers carries free text: an author copying the
 # select block or the checkbox block must not have to remember to add it.
-n_tpl_id="$(grep -oiE 'data-id=' "$TPL" | wc -l | tr -d ' ')"
+# A block (`consult-group`) carries data-id for --prev but is not an item.
+n_tpl_id="$(grep -viE 'consult-group' "$TPL" | grep -oiE 'data-id=' | wc -l | tr -d ' ')"
 n_tpl_area="$(grep -oiE '<textarea' "$TPL" | wc -l | tr -d ' ')"
 [[ "$n_tpl_area" -ge "$n_tpl_id" ]] \
   || fail "7. the template has $n_tpl_id item(s) and only $n_tpl_area notes box(es) — a copied block would ship a choice with nowhere to qualify it"
@@ -243,6 +266,7 @@ n_tpl_area="$(grep -oiE '<textarea' "$TPL" | wc -l | tr -d ' ')"
 # that failed the wrap would block a correct page, and one that printed nothing
 # would be the silence it exists to break.
 mkpage "$TMP/warn-opts.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Wrapped right\">
   <h3>Wrapped right</h3>
   <div class=\"opts one\">
@@ -257,6 +281,7 @@ mkpage "$TMP/warn-opts.html" "$visual
   </div>
   <textarea></textarea>
 </section>
+$gclose
 $notesitem
 $bars
 $composer"
@@ -275,6 +300,7 @@ grep -q 'WARN \[consult-rec\].*Q1' "$TMP/out" \
 # The declared affordance is the thing the warning points AT, so it must be
 # silent: a page that complied and still got warned teaches authors to ignore it.
 mkpage "$TMP/warn-clean.html" "$visual
+$gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Declared properly\">
   <h3>Declared properly</h3>
   <div class=\"opts one\">
@@ -283,6 +309,7 @@ mkpage "$TMP/warn-clean.html" "$visual
   </div>
   <textarea></textarea>
 </section>
+$gclose
 $notesitem
 $bars
 $composer"

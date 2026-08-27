@@ -95,6 +95,8 @@ rm -rf "$TMP/profile"
 # A Spanish consultation page, so the run also proves the localised chrome:
 # the skeleton ships English button labels and the composer must swap them.
 mkdir -p "$TMP/reports"
+gopen='<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>'
+gclose='</section>'
 PAGE="$TMP/reports/consult.html"
 
 # The body is generated, not fixed, because BL-190 is about a page REGENERATED
@@ -111,6 +113,7 @@ cat > "$TMP/body.html" <<HTML
 <header><p class="eyebrow">PROBE</p><h1>Persistence probe</h1></header>
 <section id="sec-ask">
   <div class="sec-head"><h2>Questions</h2></div>
+$gopen
   <section class="consult-item" data-id="Q1" data-title="The probed question">
     <h3><span class="consult-id">Q1</span>$1</h3>
     <div class="opts one">
@@ -125,6 +128,7 @@ cat > "$TMP/body.html" <<HTML
     <p class="fieldlabel">Write freely</p>
     <div contenteditable="true"></div>
   </section>
+$gclose
   <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
     <h3><span class="consult-id">notes</span>General notes</h3>
     <textarea></textarea>
@@ -223,7 +227,13 @@ window.addEventListener('load', function () {
       + '|RAIL=' + document.querySelector('.railhead').textContent
       + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
-      + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere');
+      + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
+      /* BL-247: the rail nests a block's items under the block — one entry
+       * for the context, its decisions indented below, the loose general
+       * notes after the separator. Read as the ORDER of rail entries. */
+      + '|RAIL_ORDER=' + [].map.call(document.querySelectorAll('#raillist .railitem'), function (a) {
+          return (a.classList.contains('grp') ? 'G:' : a.classList.contains('sub') ? 'sub:' : a.classList.contains('sec') ? 'sec:' : 'item:') + a.getAttribute('href');
+        }).join(',');
   }
 });
 </script>
@@ -259,6 +269,8 @@ t="$(run 'phase=verify')"
   || fail "a checked mark did not survive the reload: $t"
 [[ "$t" == *"BANNER=1"* ]] \
   || fail "restored answers arrived without the visible banner: $t"
+[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,item:#notes"* ]] \
+  || fail "BL-247: the rail does not nest the block's items under the block (context once, decisions indented, loose notes after): $t"
 # The trap: a fingerprint over the item's RAW textContent would include this
 # text, so a plain reload with no regeneration would already fail to match.
 [[ "$t" == *"CE=typed-into-contenteditable-789"* ]] \
@@ -339,6 +351,13 @@ t="$(run 'phase=send')"
 [[ "$t" == *SENT* ]] || fail "the send phase did not run: $t"
 [[ "$t" == *"Option A (recomendada)"* ]] \
   || fail "BL-245: the copied label lost the recommendation — the reply no longer records which option was backed: $t"
+# BL-247: the pasted reply keeps the block — `## G1 · title` precedes the first
+# answered item of the block, once, and never precedes the loose general notes.
+# (newlines read as spaces inside <title>, hence the double space)
+[[ "$t" == *"## G1 · The context  ### Q1"* ]] \
+  || fail "BL-247: the copied reply does not open the block before its first item: $t"
+[[ "$(printf '%s' "$t" | grep -o '## G1' | wc -l | tr -d ' ')" == 1 ]] \
+  || fail "BL-247: the block heading was repeated (or missing) in the copied reply: $t"
 
 # ---- BL-241: a SENT answer does not cross into a new round; an unsent one does
 #
