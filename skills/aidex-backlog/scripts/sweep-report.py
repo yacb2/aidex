@@ -76,7 +76,7 @@ def render(root, wl_path):
     kickoff_n = int(kickoff_n.group(1)) if kickoff_n else None
     emergent_n = sum(1 for ln in queue_lines if '<!-- emergent -->' in ln)
 
-    closed, skipped, owner_rows, all_shas = [], [], [], []
+    closed, skipped, owner_rows, all_shas, parked = [], [], [], [], []
     for ln in queue_lines:
         if 'ref: backlog' not in ln:
             continue
@@ -102,6 +102,9 @@ def render(root, wl_path):
             all_shas += shas
         elif it['state'] == 'archived':
             skipped.append((bl, f'closed as {st}'))
+        elif it['fm'].get('awaiting'):
+            parked.append({'id': bl, 'title': it['fm'].get('title', ''), 'rows': rows,
+                           'open': [r for r in rows if r['kind'] == 'owner' and not r['proof']]})
         elif it['state'] == 'deferred':
             skipped.append((bl, f"deferred — blocked_by: {it['fm'].get('blocked_by', '')}"))
         elif ticked:
@@ -188,6 +191,16 @@ def render(root, wl_path):
         if not c['rows']:
             out.append('| — | no verification rows | |')
         out.append('')
+    out.append('## Awaiting owner — proven, parked, not closed')
+    out.append('')
+    if parked:
+        out.append('_Mechanically proven; each still owes a judgement. Fill the proof cell, then `close-item.sh --sweep` again. Never archive by hand._')
+        out.append('')
+        for c in parked:
+            out.append(f'- {c["id"]} — {c["title"]}: ' + '; '.join(r['what'] for r in c['open']))
+    else:
+        out.append('_none_')
+    out.append('')
     out.append('## Owner rows — what only the owner can judge')
     out.append('')
     if owner_rows:

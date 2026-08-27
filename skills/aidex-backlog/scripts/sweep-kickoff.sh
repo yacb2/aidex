@@ -16,7 +16,7 @@
 #
 # The route (sweep-execution-policy.md, stage 1):
 #   1. sweep-eligible.py --size → ELIGIBLE / REVIEW / NEEDS-DECISION
-#   2. > 20 eligible items: says so — fan out readers to triage (sweep-triage.sh writes
+#   2. > 20 eligible items: says so — fan out readers to triage (define-item.sh writes
 #      the verdicts INTO the items: estimate, surface, verify, touches, depends)
 #   3. worklist-new.sh --mode sweep --publish never, queue ordered BY CLUSTER:
 #      items sharing a `touches:` token run adjacently; `depends:` edges order within and

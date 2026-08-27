@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sweep-triage.sh — write a triage VERDICT into a backlog item's front-matter.
+# define-item.sh — write a triage VERDICT into a backlog item's front-matter.
 #
 # Kickoff triage confirms or corrects what registration only hypothesised, and the
 # verdict lives in the ITEM — the work-list is gitignored and per-run, so a verdict
@@ -10,7 +10,7 @@
 # `triage.sh` (the health report) stays READ-ONLY by contract; this is the writer.
 #
 # Usage:
-#   sweep-triage.sh <BL-id | path> [--estimate XS|S|M|L|XL] [--surface internal|behaviour|ui]
+#   define-item.sh <BL-id | path> [--estimate XS|S|M|L|XL] [--surface internal|behaviour|ui|ops]
 #                   [--verify "<how it will be proven>"] [--touches "<path, path, …>"]
 #                   [--depends "<BL-NNN[, BL-NNN…]>"] [--no-index]
 #
@@ -46,7 +46,7 @@ done
 
 [[ -z "$ESTIMATE" ]] || case "$ESTIMATE" in XS|S|M|L|XL) ;; *) die "invalid estimate: $ESTIMATE" ;; esac
 [[ "$SURFACE" == "behavior" ]] && SURFACE="behaviour"
-[[ -z "$SURFACE" ]] || case "$SURFACE" in internal|behaviour|ui) ;; *) die "invalid surface: $SURFACE (internal|behaviour|ui)" ;; esac
+[[ -z "$SURFACE" ]] || case "$SURFACE" in internal|behaviour|ui|ops) ;; *) die "invalid surface: $SURFACE (internal|behaviour|ui|ops)" ;; esac
 if [[ $SET_DEPENDS -eq 1 && -n "$DEPENDS" ]]; then
   IFS=',' read -ra _deps <<<"$DEPENDS"
   for d in "${_deps[@]}"; do

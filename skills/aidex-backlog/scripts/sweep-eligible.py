@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """sweep-eligible.py — partition open backlog items for an autonomous sweep.
 
-An item is ELIGIBLE only when its Acceptance block says what "done" means.
-Everything else is NEEDS-DECISION and belongs in the kickoff consultation, not
-in the run. Front-matter already declares Acceptance "required before
-open->doing"; this makes that declaration checkable.
+An item is ELIGIBLE only when it is DEFINED — the contract define-check.py reads
+(type, priority, estimate, surface, verify, touches, Context, Acceptance) — and
+nothing parks it: not blocked, not awaiting the owner, and not living in another
+repo (`touches` / cited paths under a sibling project — a sweep of THIS repo cannot
+close it). Everything else is NEEDS-DECISION and belongs in the kickoff consultation,
+not in the run; "underdefined" is answered by `/aidex-backlog define`, not by the
+sweep (owner's call 2026-08-27, Q8).
 
 Measured on echo_lab 2026-08-24 (research/2026-08-24-small-sweep-throughput-analysis):
 25% of a 79-item sweep carried no Acceptance, and the two worst rework items —
@@ -15,7 +18,12 @@ Usage:
 """
 import argparse, json, os, re, sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'aidex-conventions', 'scripts'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import importlib
+define_check = importlib.import_module('define-check')
+
+
+ROOT = None
 
 
 def find_root(start=None):
@@ -79,8 +87,12 @@ def parse(path):
     m = re.match(r'---\n(.*?)\n---', t, re.S)
     if not m:
         return None
-    fm = {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):\s*(.*)$', m.group(1), re.M)}
+    fm = {k: v.strip().strip('"') for k, v in re.findall(r'^([\w_]+):[ \t]*(.*)$', m.group(1), re.M)}
+    dc = define_check.check(ROOT, {'file': os.path.basename(path), 'fm': fm, 'body': t[m.end():], 'text': t})
     return {
+        'missing': dc['missing'],
+        'cross_repo': dc['cross_repo'],
+        'awaiting': fm.get('awaiting', ''),
         'file': os.path.basename(path),
         'id': fm.get('id', '?'),
         'title': fm.get('title', ''),
@@ -102,7 +114,9 @@ def main():
     a = ap.parse_args()
     sizes = [s.strip().upper() for s in a.size.split(',') if s.strip()]
 
-    d = os.path.join(find_root(), '.context', 'backlog')
+    global ROOT
+    ROOT = find_root()
+    d = os.path.join(ROOT, '.context', 'backlog')
     items = []
     for f in sorted(os.listdir(d)):
         if not f.endswith('.md') or f.startswith('00-'):
@@ -119,8 +133,14 @@ def main():
         if i['blocked_by']:
             i['reason'] = 'blocked_by ' + i['blocked_by']
             needs.append(i)
-        elif len(i['acceptance']) < 10:
-            i['reason'] = 'no Acceptance'
+        elif i['awaiting']:
+            i['reason'] = 'awaiting ' + i['awaiting']
+            needs.append(i)
+        elif i['missing']:
+            i['reason'] = 'underdefined: ' + ', '.join(i['missing'])
+            needs.append(i)
+        elif i['cross_repo']:
+            i['reason'] = 'cross-repo: ' + ', '.join(sorted({p.split('/', 1)[0] for p in i['cross_repo']}))
             needs.append(i)
         elif i['signals']:
             i['reason'] = ', '.join(i['signals'])
@@ -139,7 +159,7 @@ def main():
         return
 
     if not a.needs_decision:
-        print(f'ELIGIBLE ({len(eligible)}) — Acceptance filled, no autonomy signal')
+        print(f'ELIGIBLE ({len(eligible)}) — defined (define-check.py), in this repo, no autonomy signal')
         for i in eligible:
             print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['title'][:70]}")
         print()
@@ -149,7 +169,7 @@ def main():
         print()
     print(f'NEEDS-DECISION ({len(needs)}) — route to the user, never into the run')
     for i in needs:
-        print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason']:22} {i['title'][:50]}")
+        print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason'][:40]:40} {i['title'][:40]}")
 
 
 if __name__ == '__main__':

@@ -5,8 +5,10 @@
 #   sweep-report.sh <worklist slug|path> [--out <file>] [--print]
 #
 # Resolves the work-list (active or worklists/_archive/), then renders
-# `.context/research/YYYY-MM-DD-<slug>-sweep-report.md` (research is where the measured
-# sweep analyses already live) via sweep-report.py: closed items with their commits and
+# `.context/worklists/_archive/<worklist-basename>-report.md` — the run's COMPANION: it is
+# born from the work-list and archived with it (owner's call 2026-08-27, Q12: research/
+# is for investigations, not for what a run did). Rendered by sweep-report.py: closed
+# items with their commits and
 # `## Verification` rows; the OWNER rows aggregated across every item — the one list the
 # owner reads; the NEEDS-DECISION list recorded at kickoff, unchanged; deferrals and
 # mid-flight skips; emergent growth (flagged past 25 % of the kickoff queue); the gate
@@ -44,7 +46,7 @@ if [[ $PRINT -eq 1 ]]; then
   exit 0
 fi
 if [[ -z "$OUT" ]]; then
-  slug="$(basename "$WL" .md)"; slug="${slug#[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-}"
-  OUT="$ROOT/.context/research/$(date +%Y-%m-%d)-${slug}-sweep-report.md"
+  mkdir -p "$ROOT/.context/worklists/_archive"
+  OUT="$ROOT/.context/worklists/_archive/$(basename "$WL" .md)-report.md"
 fi
 python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"

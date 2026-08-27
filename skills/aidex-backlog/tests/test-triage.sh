@@ -2,7 +2,7 @@
 # test-triage.sh — the consolidated backlog health check, tested on failing inputs.
 #
 # Two things this must get right, and both are easy to get wrong:
-#   1. It reports each of its three checks independently and exits non-zero on any.
+#   1. It reports each of its four checks independently and exits non-zero on any.
 #   2. It is READ-ONLY. The id check is the trap: the obvious implementation is
 #      `register-item.sh --reindex`, which regenerates 00-index.md as a side effect. A
 #      "read-only" report that rewrites a file is the "mutators fake success" pattern the
@@ -25,8 +25,8 @@ cd "$TMP"
 # the clean case is not clean and every assertion below measures the fixture, not the code.
 bash "$SCRIPTS/../../aidex-plan/scripts/reindex-plans.sh" >/dev/null 2>&1 || true
 
-item() {  # item <file> <id> <status> [title]
-  printf -- '---\ntitle: "%s"\nid: %s\nstatus: %s\ncreated: 2026-01-01\nupdated: 2026-01-01\npriority: P2\ntype: task\nestimate: S\nblocked_by: ""\ncommits: "abc1234"\n---\n\nbody\n' \
+item() {  # item <file> <id> <status> [title] — a DEFINED item (the contract is its own check below)
+  printf -- '---\ntitle: "%s"\nid: %s\nstatus: %s\ncreated: 2026-01-01\nupdated: 2026-01-01\npriority: P2\ntype: task\nestimate: S\nsurface: internal\nverify: "a test"\ntouches: "src/x.py"\nblocked_by: ""\ncommits: "abc1234"\n---\n\n## Context\n\nWhy this exists, in prose.\n\n## Acceptance\n\n- the thing is done\n' \
     "${4:-item $2}" "$2" "$3" > ".context/backlog/$1"
 }
 
@@ -36,7 +36,7 @@ bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1
 OUT="$(bash "$TRIAGE" 2>&1)"; RC=$?
 check "clean tree exits 0" '[[ $RC -eq 0 ]]'
 check "clean tree says so" '[[ "$OUT" == *"clean"* ]]'
-check "all three checks report ok" '[[ "$(grep -c "\[ok\]" <<<"$OUT")" -eq 3 ]]'
+check "all four checks report ok" '[[ "$(grep -c "\[ok\]" <<<"$OUT")" -eq 4 ]]'
 
 echo "== read-only: the index is not rewritten =="
 # The whole point of --check-ids. Compare bytes, not mtime: a regeneration produces the
@@ -76,7 +76,15 @@ echo "== the report is per-check, not all-or-nothing =="
 item 2026-01-05-epsilon.md BL-002 open "second BL-002"
 OUT="$(bash "$TRIAGE" 2>&1)"
 check "two failing checks are both listed" '[[ "$(grep -c "^  - " <<<"$OUT")" -eq 2 ]]'
-check "the summary counts them" '[[ "$OUT" == *"2 of 3 checks"* ]]'
+check "the summary counts them" '[[ "$OUT" == *"2 of 4 checks"* ]]'
+
+echo "== the definition contract is the fourth check =="
+item 2026-01-06-zeta.md BL-003 open
+sed -i.bak '/^verify:/d' .context/backlog/2026-01-06-zeta.md && rm -f .context/backlog/2026-01-06-zeta.md.bak
+OUT="$(bash "$TRIAGE" 2>&1)"
+check "an item below the contract fires the definition check" '[[ "$OUT" == *"[!]    definition"* ]]'
+check "and the fix names define-item.sh" '[[ "$OUT" == *"define-item.sh"* ]]'
+check "three of four" '[[ "$OUT" == *"3 of 4 checks"* ]]'
 
 echo "== --quiet suppresses the per-check log, keeps the verdict =="
 OUT="$(bash "$TRIAGE" --quiet 2>&1)"

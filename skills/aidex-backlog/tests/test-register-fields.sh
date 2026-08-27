@@ -34,10 +34,12 @@ D="$(bash "$REG" --origin manual --title "defaults" 2>/dev/null)"
 B="$(bash "$REG" --origin manual --title "us spelling" --surface behavior 2>/dev/null)"
 [[ "$(fm "$B" surface)" == "behaviour" ]] && ok "behavior is normalised to behaviour" || bad "behavior: '$(fm "$B" surface)'"
 
+OPS="$(bash "$REG" --origin manual --title "ops surface" --surface ops 2>/dev/null)"
+[[ "$(fm "$OPS" surface)" == "ops" ]] && ok "ops is a valid surface (no test surface: config, infra, canon, other-repo state)" || bad "ops: '$(fm "$OPS" surface)'"
 if bash "$REG" --origin manual --title "bogus" --surface backend >/dev/null 2>"$TMP/err"; then bad "invalid surface accepted"
 else [[ $? -eq 2 ]] && grep -q "invalid surface" "$TMP/err" && ok "invalid surface exits 2 and says so" || bad "invalid surface: wrong exit/message"; fi
 # a refused registration must not have spent an id
-[[ "$(ls .context/backlog/*-bl-*.md | wc -l | tr -d ' ')" == "3" ]] && ok "the refusal wrote no entry" || bad "refusal wrote an entry"
+[[ "$(ls .context/backlog/*-bl-*.md | wc -l | tr -d ' ')" == "4" ]] && ok "the refusal wrote no entry" || bad "refusal wrote an entry"
 
 # the --escalate-to source stub goes through emit_backlog_stub — a second positional hand-off
 mkdir -p "$TMP/q/.context/backlog"

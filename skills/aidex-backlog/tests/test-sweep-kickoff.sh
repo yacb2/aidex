@@ -11,7 +11,15 @@ bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
 fm()  { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":" {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/p/.context/backlog"; cd "$TMP/p"
-reg() { bash "$SCRIPTS/register-item.sh" --origin manual --no-index "$@" 2>/dev/null; }
+# The definition contract (2026-08-27) keeps an underdefined item out of every queue, so the
+# fixture registers each item with the contract met (verify, Context prose, a touches token)
+# and the cells below take fields away deliberately.
+reg() { local f; f="$(bash "$SCRIPTS/register-item.sh" --origin manual --no-index --verify "a targeted test" "$@" 2>/dev/null)"
+  python3 - "$f" <<'PY'
+import sys,re;p=sys.argv[1];t=open(p).read()
+t=re.sub(r'(## Context\n)', r'\1\nWhy this matters, in prose.\n', t, count=1);open(p,'w').write(t)
+PY
+  bash "$SCRIPTS/define-item.sh" "$f" --touches "apps/misc.py" --no-index >/dev/null 2>&1; printf '%s\n' "$f"; }
 idof() { awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$1"; }
 accept() { sed -i.bak 's/^- <!-- concrete, verifiable criterion -->$/- the thing is done and a test says so/' "$1" && rm -f "$1.bak"; }
 
@@ -29,18 +37,18 @@ K="$(reg --title "blocked one" --estimate XS --blocked-by "vendor")"; KID="$(ido
 M="$(reg --title "medium sized" --estimate M)"; MID="$(idof "$M")"; accept "$M"
 
 # triage verdicts written INTO the items (Task 4.2)
-bash "$SCRIPTS/sweep-triage.sh" "$AID" --touches "apps/gap/lane.py" --surface ui --verify "screenshot" --no-index >/dev/null 2>&1
-bash "$SCRIPTS/sweep-triage.sh" "$CID" --touches "apps/gap/lane.py, frontend/Lane.vue" --no-index >/dev/null 2>&1
-bash "$SCRIPTS/sweep-triage.sh" "$BID" --touches "apps/export/csv.py" --depends "$DID" --estimate S --no-index >/dev/null 2>&1
-bash "$SCRIPTS/sweep-triage.sh" "$DID" --touches "apps/export/models.py" --no-index >/dev/null 2>&1
-bash "$SCRIPTS/sweep-triage.sh" "$EID" --depends "merge:$BID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$AID" --touches "apps/gap/lane.py" --surface ui --verify "screenshot" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$CID" --touches "apps/gap/lane.py, frontend/Lane.vue" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$BID" --touches "apps/export/csv.py" --depends "$DID" --estimate S --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$DID" --touches "apps/export/models.py" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$EID" --depends "merge:$BID" --no-index >/dev/null 2>&1
 for kv in "touches:apps/gap/lane.py" "surface:ui" "verify:screenshot"; do
   [[ "$(fm "$A" "${kv%%:*}")" == "${kv#*:}" ]] && ok "triage wrote ${kv%%:*} into the item" || bad "triage ${kv%%:*}: '$(fm "$A" "${kv%%:*}")'"
 done
 [[ "$(fm "$B" estimate)" == "S" && "$(fm "$B" depends)" == "$DID" ]] && ok "triage corrected estimate and wrote depends" || bad "B: $(fm "$B" estimate) / $(fm "$B" depends)"
 [[ "$(fm "$B" updated)" == "$(date +%F)" ]] && ok "triage stamps updated" || bad "updated not stamped"
-bash "$SCRIPTS/sweep-triage.sh" "$AID" --estimate XXL --no-index >/dev/null 2>&1 && bad "bad estimate accepted" || ok "triage refuses an invalid estimate"
-bash "$SCRIPTS/sweep-triage.sh" "$AID" --depends "nope" --no-index >/dev/null 2>&1 && bad "bad depends accepted" || ok "triage refuses a malformed depends"
+bash "$SCRIPTS/define-item.sh" "$AID" --estimate XXL --no-index >/dev/null 2>&1 && bad "bad estimate accepted" || ok "triage refuses an invalid estimate"
+bash "$SCRIPTS/define-item.sh" "$AID" --depends "nope" --no-index >/dev/null 2>&1 && bad "bad depends accepted" || ok "triage refuses a malformed depends"
 
 # --dry-run: the queue, nothing written
 OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"; RC=$?
@@ -77,7 +85,7 @@ assert sys.argv[2] in ids and sys.argv[3] not in ids and not d["review"], ids' "
   && ok "--include / --exclude move items across the boundary" || bad "--include/--exclude: $J"
 
 # a depends cycle cannot be ordered: exit 2, no work-list
-bash "$SCRIPTS/sweep-triage.sh" "$DID" --depends "$BID" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/define-item.sh" "$DID" --depends "$BID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-kickoff.sh" --title "cycle" --slug cycle >/dev/null 2>"$TMP/err"; RC=$?
 [[ $RC -eq 2 && ! -e .context/worklists/*cycle* ]] && grep -q "cycle" "$TMP/err" && ok "a depends cycle exits 2 and writes nothing" || bad "cycle: rc=$RC $(cat "$TMP/err")"
 

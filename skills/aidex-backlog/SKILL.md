@@ -27,12 +27,13 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog --origin sweep [--worklist <file>]` | same | Discovered mid-sweep: registered, judged against the kickoff criteria, appended to the queue — never asked |
 | `/aidex-backlog sweep --title "<run>" [--size XS,S] [--include\|--exclude BL-NNN] [--dry-run]` | [scripts/sweep-kickoff.sh](scripts/sweep-kickoff.sh) | **The sweep kickoff**: partition → cluster-ordered work-list (`mode: sweep`, publish never) → the NEEDS-DECISION list for one consultation artifact. See [Sweep run mode](#sweep-run-mode-aidex-backlog-sweep) |
 | `bash scripts/sweep-gate.sh [--only <leg>] [--json]` | [scripts/sweep-gate.sh](scripts/sweep-gate.sh) | **The boundary gate**, from `testing-profile.md`'s `*_suite_cmd`/`build_cmd`: raw exit + spec count per leg; a countless leg is FAIL, never PASS; a detached E2E leg is printed, not run (`--from-log` scores it). Not `sweep.sh`, the D-10 archiver |
-| `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk into `research/`, anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics |
-| `bash scripts/sweep-triage.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/sweep-triage.sh](scripts/sweep-triage.sh) | Write a triage verdict INTO the item (`triage.sh` stays read-only). A verdict that lives only in the queue dies with the queue |
+| `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk as the work-list's companion (`worklists/_archive/<worklist>-report.md`), anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics |
+| `python3 scripts/define-check.py [--json] [BL-NNN …]` | [scripts/define-check.py](scripts/define-check.py) | Read-only: open items below the definition contract, what each lacks, what the body already tells a script. Exit 1 while any is underdefined |
+| `bash scripts/define-item.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/define-item.sh](scripts/define-item.sh) | The writer: a definition verdict INTO the item (`triage.sh` stays read-only) |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
 | `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure (BL-134) |
-| `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>] [--sweep]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10). **`--sweep` makes proof a precondition**: `done` needs `## Verification` rows with proof that meet the item's `surface` minimum, else exit 2 and nothing changes |
+| `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>] [--sweep]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10). **`--sweep` makes proof a precondition**: `done` needs `## Verification` rows with proof that meet the item's `surface` minimum, else exit 2 and nothing changes; an unanswered `owner` row PARKS the item (`awaiting: owner`, never archived) |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
 | `/aidex-backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
@@ -61,6 +62,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 case "${1:-}" in
   triage)   shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
   sweep)    shift; bash "${CLAUDE_SKILL_DIR}/scripts/sweep-kickoff.sh" "$@" ;;
+  define)   shift; python3 "${CLAUDE_SKILL_DIR}/scripts/define-check.py" "$@" ;;   # then read § Define run mode
   quick-wins) shift; python3 "${CLAUDE_SKILL_DIR}/scripts/quick-wins.py" "$@" ;;
   detect-resolved) shift; python3 "${CLAUDE_SKILL_DIR}/scripts/detect-resolved.py" "$@" ;;
   worklist) sub="${2:-}"; shift 2
@@ -119,6 +121,11 @@ merge **asked**. Size was the wrong gate: measured on a 34-item sweep, the two w
 took four commits each and both had no Acceptance.
 
 ---
+
+## Define run mode (`/aidex-backlog define`)
+
+A sweep **chooses** among defined items; it does not define them. Contract and run:
+**[references/03-define-run-mode.md](references/03-define-run-mode.md)** — read it first.
 
 ## Entry format
 

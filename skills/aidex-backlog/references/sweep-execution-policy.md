@@ -22,12 +22,12 @@ verdict at all**.
 ## Stage 1 — Kickoff: interactive, once
 
 Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.py`,
-`sweep-triage.sh`, `worklist-new.sh --mode sweep`).
+`define-item.sh`, `worklist-new.sh --mode sweep`).
 
 1. `sweep-eligible.py --size XS,S` partitions the open set into ELIGIBLE / REVIEW /
    NEEDS-DECISION.
 2. Above **20 eligible items**, fan out readers to triage (five was the measured shape on
-   08-26). Each reader writes its verdict **into the item** with `sweep-triage.sh` —
+   08-26). Each reader writes its verdict **into the item** with `define-item.sh` —
    `estimate` confirmed or corrected (a corrected item is re-laned then and there),
    `surface` / `verify` confirmed against the registration hypothesis, `touches`,
    `depends` — then the kickoff is re-run so the queue is ordered from corrected items.
@@ -143,8 +143,10 @@ of a long run is how a sweep that closed nine items costs more than it saved.
 
 Enforced by `scripts/sweep-report.sh` and `worklist-close.sh`.
 
-1. `sweep-report.sh <worklist>` — the run's one artifact, generated from disk into
-   `research/`, anchored `worklist/<file>`: closed items with commits and rows, the owner
+1. `sweep-report.sh <worklist>` — the run's one artifact, generated from disk as the
+   work-list's **companion** (`worklists/_archive/<worklist>-report.md`, anchored
+   `worklist/<file>`; `research/` is for investigations, not for what a run did —
+   owner, 2026-08-27): closed items with commits and rows, the parked items, the owner
    rows aggregated, NEEDS-DECISION unchanged and unattempted, deferrals and mid-flight
    skips, emergent growth, the gate rows verbatim, and the per-sweep metrics.
 2. `worklist-close.sh` — refuses while an owner row is unanswered or a deferral is
@@ -156,9 +158,12 @@ Enforced by `scripts/sweep-report.sh` and `worklist-close.sh`.
 The sweep is the third consumer of
 [`human-verification-conventions.md`](../../aidex-conventions/references/human-verification-conventions.md).
 Its proof artifact is **not** a per-item `human-verification.md`: what only the owner can
-judge is an `owner` row in the item's `## Verification` table, and `sweep-report.sh`
-aggregates every owner row across the run into one list. `worklist-close.sh` refuses to
-end the run while one is unanswered (`--force` records the override). A run with nothing
+judge is an `owner` row in the item's `## Verification` table — a judgement, never
+something the run could have checked in a browser. An unanswered one **parks** the item
+(`close-item.sh --sweep` writes `awaiting: owner`; not `done`, not archived) and
+`sweep-report.sh` lists the parked items and aggregates every owner row across the run
+into one list. `worklist-close.sh` refuses to end the run while one is parked (`--force`
+records the override). A run with nothing
 human-visible records it, one line, in the report — `human-verification: skipped — <why>`
 — never by omission.
 
