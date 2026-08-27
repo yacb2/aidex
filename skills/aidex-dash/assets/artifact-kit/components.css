@@ -12,8 +12,18 @@
 body { background: var(--paper); color: var(--ink); font-family: var(--serif);
        font-size: 17px; line-height: 1.62; margin: 0; padding: 0 1.5rem 4rem; }
 
-.page { max-width: 64rem; margin-inline: auto; padding-top: 3.5rem;
+/* The page takes the screen it is given, capped (BL-248): on a 1440px viewport
+   the old 64rem cap left 200px unused on each side while tables, option grids
+   and reply boxes were squeezed into the prose column. Prose keeps its
+   reading measure through `.measure` below; everything else may run wide. */
+.page { max-width: min(78rem, 100vw - 6rem); margin-inline: auto; padding-top: 3.5rem;
         display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3.5rem; align-items: start; }
+/* The reading measure: ~46rem (about 80 characters of the body face). Applied
+   to running text only — tables, figures, option groups, ledger and reply
+   surfaces are not capped, so they get the width the page gained. */
+.main > header > *, .main p, .main ul, .main ol, .main blockquote, .main h1, .main h2, .main h3,
+.note, .ex, .adv { max-width: 46rem; }
+.main p.eyebrow { max-width: none; }
 .main { min-width: 0; display: flex; flex-direction: column; }
 .rail { position: sticky; top: 2rem; display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
 
@@ -40,7 +50,14 @@ pre code { background: none; padding: 0; font-size: 1em; }
 
 /* Wide content scrolls inside its own container; the page body never scrolls
    sideways. `.tw` is the wrapper a table goes in, never the table itself. */
-.tw { overflow-x: auto; border: 1px solid var(--rule); }
+.tw { overflow-x: auto; border: 1px solid var(--rule); position: relative; }
+/* "There is more to the right" — drawn only while the table overflows and the
+   reader has not reached its end (composer sets the two classes). The
+   scrollbar alone sits at the bottom of the table, out of view when it is tall. */
+.tw.overflows:not(.at-end) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent);
+                             mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent); }
+th { white-space: nowrap; }
+td.nw { white-space: nowrap; }
 table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.83rem; }
 th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
 th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.11em; color: var(--muted); font-weight: 600; background: var(--paper-sunk); }
@@ -139,6 +156,9 @@ li::marker { color: var(--muted); }
 /* Per-item clear, injected by the composer. Aligned to the item's trailing edge
    and drawn as a quiet link rather than a button: it is a recovery affordance,
    not one of the two answers the item is asking for. */
+.fieldrow { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.consult-clear { display: none; }
+.consult-item.has-answer .consult-clear { display: inline; }
 .consult-clear { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
                  font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase;
                  letter-spacing: 0.09em; color: var(--muted); cursor: pointer; }
