@@ -87,11 +87,17 @@ li::marker { color: var(--muted); }
 .ledger .v { color: var(--ink-soft); }
 .ledger .v b { color: var(--ink); font-weight: 600; }
 
-/* A block: one context, then the decisions that fall out of it (BL-247). The
-   rule down the left says "these belong together"; the items keep their own
-   frame inside it. */
-.consult-group { border-left: 3px solid var(--accent-dim); padding-left: 1.25rem; }
+/* A block: one context, then the decisions that fall out of it (BL-247). No
+   rule down the left: `.main > section` owns the section box (a left rule was
+   overridden to padding 0 and drew glued to the text), and the block already
+   reads from its accent eyebrow, its h2 and the section separator. */
+.consult-group > .sec-head .eyebrow { color: var(--accent); }
 .consult-group > .consult-item { margin-top: 0.25rem; }
+/* The general-notes item sits directly under .main once the blocks are the
+   sections, so `.main > section` would strip its inner padding and stretch it
+   with section padding. It keeps the item box; the end bar follows it. */
+.main > section.consult-item { padding: 1.1rem 1.25rem; margin-top: 2.4rem; }
+.main > .endbar { margin: 1rem 0 2.4rem; }
 .consult-item { border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem;
                 display: flex; flex-direction: column; gap: 0.7rem; scroll-margin-top: 2rem; }
 .consult-item > h3 { margin: 0; font-size: 1.05rem; }
