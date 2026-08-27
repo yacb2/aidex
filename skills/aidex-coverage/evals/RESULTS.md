@@ -3,11 +3,15 @@
 ## 2026-08-27 — baseline of the Django + Vue description (run 1 of 2)
 
 Run against the installed 2026-08-26 description (the stack-named one), `claude-sonnet-5`,
-timeout 90s, sequential, singleton lock, k=2 (run 2 appended below when it lands).
+timeout 90s, sequential, singleton lock, k=2, ~28 min per run.
 
 | Run | Positives (9) | Negatives (6) | Total |
 |---|---|---|---|
 | 1 | 2 triggered (04 Playwright spec, 06 E2E setup) | 6/6 correctly skipped | 8/15 |
+| 2 | 3 triggered (05 which tests, 06 E2E setup, 09 Spanish regression) | 6/6 correctly skipped | 9/15 |
+
+Union over k=2: 4 of 9 positives fired at least once; only 06 fired both times. Run-to-run
+variance is the known ±20pp, so neither run is a point estimate.
 
 Reading: precision against `aidex-audit` is clean — the number the 2026-08-26 ADR feared.
 Recall (2/9) sits under the ~35% plateau every aidex description has measured at (the
