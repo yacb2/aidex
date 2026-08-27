@@ -99,18 +99,21 @@ origin_ref: audit/ux/2026-04-15-ux-review/IDEA-FF-2
 priority: P2
 type: task
 estimate: M
+surface: internal
+verify: "a targeted test on the export serializer"
 blocked_by: ""
 escalated_to: ""
 commits: ""
 ---
 ```
 
-This is the **complete 13-field schema `register-item.sh` writes** — the single source
+This is the **complete 15-field schema `register-item.sh` writes** — the single source
 for the entry front-matter. `title`, `status`, `created`, `updated` are the required
 global fields from [`00-global.md` §7](../../aidex-conventions/references/00-global.md#7-front-matter-minimum-d-07);
-the rest are backlog-specific. When hand-authoring an entry, write all 13 — `id` and
-`commits` are **machine-required** (the lifecycle breaks without them), while
-`origin_ref` and `estimate` are human-optional (no script branches on them).
+the rest are backlog-specific. When hand-authoring an entry, write all 15 — `id` and
+`commits` are **machine-required** (the lifecycle breaks without them), `surface` is
+what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
+`estimate` and `verify` are human-optional (no script branches on them).
 
 | Field | Values / format | Notes |
 |---|---|---|
@@ -134,11 +137,15 @@ That is also why a marker is **kept** on success. The entry it names may sit on 
 **One transitional gap, deliberately not migrated.** An item created *before* this change and still unmerged on a branch has no ledger marker, so a tree that cannot see that branch could mint its number once. `--check-ids` reports it; building a migration for a one-off would cost more than the fix.
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
-| `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping (BL-220). (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
+| `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · `sweep` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping (BL-220). `sweep` is the same motion inside a backlog sweep: judged against the kickoff criteria already fixed and appended to the work-list as autonomy class (b) — continued, never asked; growth past 25 % of the original queue is **reported** by `sweep-report.sh`, not surfaced as a question. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
 | `origin_ref` | `<type>/<filename>` (D-03) or empty | *Human-optional:* provenance archaeology — no script reads it. Format depends on origin — see below. |
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
 | `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
-| `estimate` | `XS` · `S` · `M` · `L` · `XL` | *Human-optional:* T-shirt sizing, display-only (index one-liner + dash cell); no logic branches on it. Independent of priority. |
+| `estimate` | `XS` · `S` · `M` · `L` · `XL` | *Human-optional:* T-shirt sizing, display-only (index one-liner + dash cell); no logic branches on it. Independent of priority. **Confirmed or corrected at sweep triage** — an XS that is not XS distorts every downstream decision, so a corrected item is re-laned then, not carried at its filed size. |
+| `surface` | `internal` · `behaviour` · `ui` | What the change is visible as. Default `internal`. Sets the **minimum proof** `close-item.sh --sweep` requires (see [Verification](#verification)): `internal` → a targeted test; `behaviour` → a test **and** an E2E spec or seeded smoke; `ui` → a browser smoke with a screenshot. Written at registration as a hypothesis, confirmed at triage. |
+| `touches` | comma-separated paths or modules, or absent | *Sweep triage verdict* (`sweep-triage.sh`): what the item will change. Items sharing a token are **clustered** adjacently in the queue — one review per cluster, one context build per file. Absent outside a sweep. |
+| `depends` | `BL-NNN[, …]`, `merge:BL-NNN`, or absent | *Sweep triage verdict*: ids that must close before this one (`A→B` written on B). `merge:BL-NNN` marks the same change seen twice — a **MERGE** pair that closes in one commit carrying both `Backlog:` trailers. |
+| `verify` | one free line | *Human-optional:* the **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
 | `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake). |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
@@ -153,6 +160,7 @@ That is also why a marker is **kept** on success. The entry it names may sit on 
 | `request` | `request/<filename>` | `request/2026-04-10-export-feature.md` |
 | `communication` | `communication/<YYYY-MM-DD>-<slug>` | `communication/2026-05-02-kickoff-call` |
 | `plan` | `plan/<filename-or-folder>` | `plan/2026-08-22-suite-speed-rollout` |
+| `sweep` | `worklist/<filename>` or empty | `worklist/2026-08-27-small-sweep-3.md` |
 
 ---
 
@@ -198,6 +206,14 @@ Done means:
 - <concrete, verifiable criterion>
 - <another one>
 
+## Verification
+
+| kind | what | proof |
+|---|---|---|
+| test | apps/scripts/tests/test_gap.py::test_lane_is_stem | 3 passed |
+| smoke | /editor with seed video 4, gap lane renders | proofs/bl-612/gap-lane.png |
+| owner | wording of the new empty-state toast | |
+
 ## Notes
 
 <optional: links to related findings, plans, discussions>
@@ -208,6 +224,32 @@ Done means:
 Write criteria as plain `Done means:` bullets, **not** `- [ ]` checkboxes: measured across
 250 entries, 88% of closed items were archived with zero boxes ever checked, so the checkbox
 implied a tracking contract nothing honored.
+
+### Verification
+
+One row per criterion, `kind` ∈ `test` · `e2e` · `smoke` · `owner`; `what` names the test,
+spec, page or judgement; `proof` is the evidence — a count, a path under
+`.context/proofs/<slug>/`, a screenshot. The minimum is set by `surface` (above).
+
+**In a sweep the rows are a precondition, not a warning.** `close-item.sh --sweep` refuses
+to set `done` — exit 2, nothing mutated, nothing archived — while the section is empty,
+while any non-owner row has an empty proof cell, or while the surface minimum is unmet.
+The plain close path keeps its `type: bug` warning and nothing more: the warning is what
+we had, and measured adoption of a mandate that is merely written down is 2.2%.
+
+An **owner row** is the one thing the run cannot prove: a judgement only a person can
+make. Its empty proof cell does not block the item — it blocks the *run*:
+`worklist-close.sh` refuses to end a sweep while a queued item still carries an
+unanswered owner row, and `sweep-report.sh` aggregates every owner row into the one list
+the owner reads. That is the sweep's form of guided human verification
+([`human-verification-conventions.md`](../../aidex-conventions/references/human-verification-conventions.md)):
+the proof artifact is the item's own rows plus the report, one artifact per run, never a
+`human-verification.md` per item.
+
+A test that **denies** something (no dialog, no second request) needs the mutation that
+makes the denied thing appear and the test go red — RED→GREEN alone proves the call site
+is load-bearing, not that the assertion can see what it denies
+([`sweep-execution-policy.md`](sweep-execution-policy.md) §2b).
 
 Keep entries short. If it needs more than one screen of content, it belongs in a plan.
 

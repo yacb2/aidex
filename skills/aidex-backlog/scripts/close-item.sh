@@ -14,6 +14,11 @@
 #   --escalated-to <type/ref>   mark handed off (e.g. plan/<slug>)
 #   --reason "<text>"           appended under ## Notes
 #   --no-index                  skip index regeneration
+#   --sweep                     sweep mode: closing `done` REQUIRES a ## Verification
+#                               section whose non-owner rows all carry a proof and
+#                               whose rows meet the item's `surface` minimum; otherwise
+#                               exit 2, nothing mutated, nothing archived. Outside sweep
+#                               mode the type: bug warning below is all there is.
 #
 # Resolves <BL-id> against active backlog items' front-matter `id:` field.
 
@@ -33,7 +38,7 @@ die()  { printf '%serror: %s%s\n' "$C_RED" "$*" "$C_RESET" >&2; exit 2; }
 # aidex-conventions/scripts/test-find-project-root.sh (no private copies).
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../aidex-conventions/scripts" && pwd -P)/_lib.sh"
 
-TARGET="" STATUS="done" SUPERSEDED="" ESCALATED="" REASON="" NO_INDEX=0
+TARGET="" STATUS="done" SUPERSEDED="" ESCALATED="" REASON="" NO_INDEX=0 SWEEP=0
 COMMITS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --escalated-to)  ESCALATED="$2"; shift 2 ;;
     --reason)        REASON="$2"; shift 2 ;;
     --no-index)      NO_INDEX=1; shift ;;
+    --sweep)         SWEEP=1; shift ;;
     -h|--help)       sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*)              die "unknown option: $1" ;;
     *)               TARGET="$1"; shift ;;
@@ -78,6 +84,57 @@ fi
 
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
+
+# --- sweep mode: proof is a precondition, not a warning (Q15/Q16) ---
+# The warning further down is what we had, and it is the 2.2% number: measured adoption
+# of a mandate that is merely written down. In a sweep the item cannot become `done`
+# without a ## Verification row per criterion, each with a proof — and this check runs
+# BEFORE the first mutation, so a refusal leaves the file exactly as it was.
+#
+# Rows: `| kind | what | proof |`, kind in test|e2e|smoke|owner. An OWNER row with an
+# empty proof does NOT block here: it is the owner's to answer, the report aggregates
+# it, and worklist-close.sh is what refuses to end the run over it. Every other empty
+# proof cell blocks.
+read_fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
+  sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
+verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row
+  awk 'BEGIN{insec=0}
+    /^## /{insec=($0 ~ /^## Verification[[:space:]]*$/)}
+    insec && /^\|/ {
+      line=$0; sub(/^\|/,"",line); sub(/\|[[:space:]]*$/,"",line)
+      n=split(line, c, "|")
+      for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
+      if (c[1]=="kind" || c[1] ~ /^-+$/) next
+      # \x1f, not a tab: tab is IFS whitespace, so an empty `what` cell collapsed and
+      # the proof landed in the what slot — a proven row refused with a misleading message.
+      printf "%s\037%s\037%s\n", c[1], c[2], c[3]
+    }' "$1"
+}
+if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
+  SURFACE="$(read_fm "$FILE" surface)"; SURFACE="${SURFACE:-internal}"
+  ROWS="$(verification_rows "$FILE")"
+  [[ -n "$ROWS" ]] || die "sweep close refused: $(basename "$FILE") has no ## Verification rows — one row per criterion (kind | what | proof), then close again"
+  has_test=0 has_e2e=0 has_smoke=0 missing=""
+  while IFS=$'\037' read -r kind what proof; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in
+      test|e2e|smoke|owner) ;;
+      *) die "sweep close refused: ## Verification row has kind '$kind' (test|e2e|smoke|owner)" ;;
+    esac
+    if [[ -z "$proof" && "$kind" != "owner" ]]; then missing="$missing
+    - $kind: $what"; continue; fi
+    [[ -n "$proof" ]] || continue
+    case "$kind" in test) has_test=1;; e2e) has_e2e=1;; smoke) has_smoke=1;; esac
+  done <<<"$ROWS"
+  [[ -z "$missing" ]] || die "sweep close refused: ## Verification rows with an empty proof cell:$missing"
+  case "$SURFACE" in
+    internal)  [[ $has_test -eq 1 ]] || die "sweep close refused: surface internal needs a proven \`test\` row" ;;
+    behaviour) [[ $has_test -eq 1 && ( $has_e2e -eq 1 || $has_smoke -eq 1 ) ]] \
+                 || die "sweep close refused: surface behaviour needs a proven \`test\` row AND an \`e2e\` or \`smoke\` row" ;;
+    ui)        [[ $has_smoke -eq 1 ]] || die "sweep close refused: surface ui needs a proven \`smoke\` row (a screenshot is the proof)" ;;
+    *)         die "sweep close refused: unknown surface '$SURFACE' (internal|behaviour|ui)" ;;
+  esac
+fi
 
 # --- mutate front-matter (status, updated, optional superseded_by/escalated_to/commits) ---
 awk -v status="$STATUS" -v today="$TODAY" -v sup="$SUPERSEDED" -v esc="$ESCALATED" -v commits="$COMMITS_STR" '
@@ -133,7 +190,11 @@ if [[ "$STATUS" == "done" ]]; then
       END{print (found ? "LIST" : inline)}' "$FILE")"
     HAS_PROOF=1
     [[ -z "$PROOF" || "$PROOF" == "[]" || "$PROOF" == '""' ]] && HAS_PROOF=0
-    if [[ $HAS_PROOF -eq 0 ]] && ! { grep -qE '\bRED\b' "$FILE" && grep -qE '\bGREEN\b' "$FILE"; }; then
+    # HTML comments are stripped first: a template comment must never read as proof.
+    # python, not sed: BSD sed reads `:a; s/…` as one label name, emits the input
+    # unchanged and exits 0 — a silent no-op (found by review 2026-08-27).
+    BODY_NO_COMMENTS="$(python3 -c 'import re,sys; print(re.sub(r"<!--.*?-->", "", open(sys.argv[1]).read(), flags=re.S))' "$FILE")"
+    if [[ $HAS_PROOF -eq 0 ]] && ! { grep -qE '\bRED\b' <<<"$BODY_NO_COMMENTS" && grep -qE '\bGREEN\b' <<<"$BODY_NO_COMMENTS"; }; then
       warn "bug item closing with no RED->GREEN proof (no proof_links, no RED/GREEN line in the body)"
       warn "  the regression test is what proves this bug fixed — see aidex-bugfix, and the"
       warn "  bug-fix policy in CLAUDE.md. Purely visual/CSS bugs are the documented exception."

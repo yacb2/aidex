@@ -43,7 +43,7 @@ In `backlog/`, the `00-index.md` is **auto-regenerated** from front-matter — n
 
 ADR: [`2026-05-14-cross-reference-type-prefix.md`](../../../.context/decisions/2026-05-14-cross-reference-type-prefix.md)
 
-- **Format:** `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, communication, loop, worktree}`.
+- **Format:** `<type>/<filename>` where `<type>` ∈ `{audit, backlog, plan, request, decision, reference, research, communication, loop, worktree, worklist}`. `worklist` was added on 2026-08-27 (ADR `2026-08-27-worklists-are-durable-referenceable-artifacts`): a run-queue is execution state and stays an optional, workspace-private tier, but the artifact that records what a whole run did — the sweep report — needs something legal to point at.
 - **Lookup:** validators search `<type>/` and `<type>/_archive/`. Archive moves do not break inbound references.
 - **Sentinel:** `<type>/pending` for not-yet-created targets. Never flagged as missing.
 - **Fields that take this form:** `escalated_to`, `superseded_by`, `blocked_by`, `origin_ref`.
@@ -65,7 +65,7 @@ Some targets do not live in this `.context/` at all. They are **stable identifie
 | `issue/<id>` | an item in an external tracker | `register-item.sh --origin issue` |
 | `<repo>/BL-NNN` | a backlog counterpart in another repo | `register-item.sh --escalate-to` (both sides of the handshake) |
 
-A `<type>/…` ref is **never** external: the ten local types stay fully resolvable, so a typo in one is still caught. That is also why `<repo>/BL-NNN` is only recognised when the prefix is not a known type — `plan/BL-206` remains a broken local ref, not a cross-repo one.
+A `<type>/…` ref is **never** external: the eleven local types stay fully resolvable, so a typo in one is still caught. That is also why `<repo>/BL-NNN` is only recognised when the prefix is not a known type — `plan/BL-206` remains a broken local ref, not a cross-repo one.
 
 Path leaks are a different problem and are **not** accepted here: an `origin_ref` carrying a filesystem path (`request/../../requests/x.md`) is malformed and gets normalised to its `<type>/<filename>` marker at the source, not swallowed by the schema.
 
@@ -120,6 +120,7 @@ ADRs: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/20
 - `decisions/` — move on `superseded` or `reversed`.
 - `loops/` — move `done`/`dropped` loop-specs on close (see `aidex-loop`'s `02-loop-spec-conventions.md`).
 - `audits/` — move a **run folder** to `_archive/` once the cycle closes (all in-scope findings `closed` or escalated). The rolling cross-run inventory may stay as a live board; only completed run folders archive.
+- `worklists/` (optional tier) — `worklist-close.sh` moves a closed run-queue to `worklists/_archive/` so a `worklist/<file>` reference keeps resolving; the validator does not walk or require the folder.
 
 `_archive/` is **not used** in:
 
@@ -192,14 +193,14 @@ updated: YYYY-MM-DD
 
 | Field | Purpose | Format |
 |---|---|---|
-| `origin` | Where this came from | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · free text |
+| `origin` | Where this came from | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · `sweep` · free text |
 | `origin_ref` | Pointer to the originating artifact | `<type>/<filename>` per §3 |
 | `escalated_to` | Downstream artifact that picks up the work | `<type>/<filename>` per §3 |
 | `blocked_by` | Third party blocking progress | free text or `<type>/<filename>` |
 | `superseded_by` | Newer artifact replacing this one | `<type>/<filename>` per §3 |
 | `proof_links` | Evidence that the work actually works (see §7.1) | list of paths/URLs |
 
-Type-specific fields (`priority`, `estimate`, `methodology`, `severity`, `phase`, etc.) layer on top of this minimum.
+Type-specific fields (`priority`, `estimate`, `surface`, `verify`, `methodology`, `severity`, `phase`, etc.) layer on top of this minimum.
 
 **Audit findings are exempt** from per-file front-matter — they live in tabular `00-inventory.md` rows. Per-run audit reports (`<run>/index.md` and similar) still carry the four required fields.
 
@@ -242,7 +243,7 @@ without it (this materializes the global verification-before-claims rule).
 | Research (topic) | `research/YYYY-MM-DD-<slug>/` | `NN-<slug>.md` | `00-index.md` (or `00-overview.md`) | versioned in place |
 | Communication | `communications/{received,sent,meetings}/<YYYY-MM-DD>-<slug>/` | `body.md` | — | No |
 | Worktree overview | `worktrees/` | `00-index.md` (+ `NN-*.md` if it grows) | `00-index.md` | versioned in place |
-| Worklist (run-queue) | `worklists/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | No (ephemeral run artifact) |
+| Worklist (run-queue) | `worklists/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | `_archive/` on close (by `worklist-close.sh`); referenceable as `worklist/<file>` |
 | Workflow spec | `workflows/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | No |
 
 ---

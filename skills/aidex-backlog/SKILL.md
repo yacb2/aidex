@@ -24,10 +24,15 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex-backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex-backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `aidex-plan-exec`'s between-phase checkpoint) |
+| `/aidex-backlog --origin sweep [--worklist <file>]` | same | Discovered mid-sweep: registered, judged against the kickoff criteria, appended to the queue — never asked |
+| `/aidex-backlog sweep --title "<run>" [--size XS,S] [--include\|--exclude BL-NNN] [--dry-run]` | [scripts/sweep-kickoff.sh](scripts/sweep-kickoff.sh) | **The sweep kickoff**: partition → cluster-ordered work-list (`mode: sweep`, publish never) → the NEEDS-DECISION list for one consultation artifact. See [Sweep run mode](#sweep-run-mode-aidex-backlog-sweep) |
+| `bash scripts/sweep-gate.sh [--only <leg>] [--json]` | [scripts/sweep-gate.sh](scripts/sweep-gate.sh) | **The boundary gate**, from `testing-profile.md`'s `*_suite_cmd`/`build_cmd`: raw exit + spec count per leg; a countless leg is FAIL, never PASS; a detached E2E leg is printed, not run (`--from-log` scores it). Not `sweep.sh`, the D-10 archiver |
+| `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk into `research/`, anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics |
+| `bash scripts/sweep-triage.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/sweep-triage.sh](scripts/sweep-triage.sh) | Write a triage verdict INTO the item (`triage.sh` stays read-only). A verdict that lives only in the queue dies with the queue |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
 | `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure (BL-134) |
-| `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10) |
+| `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>] [--sweep]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10). **`--sweep` makes proof a precondition**: `done` needs `## Verification` rows with proof that meet the item's `surface` minimum, else exit 2 and nothing changes |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
 | `/aidex-backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
@@ -55,6 +60,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 # register-item.sh and died on "unknown option: triage".
 case "${1:-}" in
   triage)   shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
+  sweep)    shift; bash "${CLAUDE_SKILL_DIR}/scripts/sweep-kickoff.sh" "$@" ;;
   quick-wins) shift; python3 "${CLAUDE_SKILL_DIR}/scripts/quick-wins.py" "$@" ;;
   detect-resolved) shift; python3 "${CLAUDE_SKILL_DIR}/scripts/detect-resolved.py" "$@" ;;
   worklist) sub="${2:-}"; shift 2
@@ -95,14 +101,22 @@ errors, fall back to the [autonomy canon](../aidex-conventions/references/autono
 and proceed. This is the gate that turns "I resolved 2, the other 15 need you" into "I
 resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
-**Running a whole batch of XS/S items** is a different problem from working one, and
-it has its own policy: **[references/sweep-execution-policy.md](references/sweep-execution-policy.md)**.
-Read it before starting a sweep. In short — `scripts/sweep-eligible.py --size XS,S`
-partitions the open set, and an item enters the run only when its Acceptance block says
-what done means; per-item verification is the targeted test only, with the full suite
-run once before merge; any suite longer than the foreground tool ceiling runs detached.
-Size was the wrong gate: measured on a 34-item sweep, the two worst items took four
-commits each and both had no Acceptance.
+## Sweep run mode (`/aidex-backlog sweep`)
+
+**Running a whole batch of XS/S items** is a run mode of this skill, not a new skill
+(ADR `decision/2026-08-06-worklist-entry-point-is-aidex-backlog`). Its policy is
+**[references/sweep-execution-policy.md](references/sweep-execution-policy.md)** — read it
+before starting a sweep; the six stages there are the run. In short: one interactive
+kickoff (`sweep-eligible.py`, triage verdicts written into the items, `worklist-new.sh
+--mode sweep`, one consultation artifact), then headless; per item `start-item` →
+proof rows → `close-item --sweep`, which refuses without them; the **checkpoint every
+~5 items or at any cluster boundary is
+[`checkpoint-conventions.md`](../aidex-conventions/references/checkpoint-conventions.md)**,
+not restated here — its handoff seed additionally carries the work-list path, the item
+just closed, what ran with which exit codes, and what is ungated; `sweep-gate.sh` once at
+the boundary; `sweep-report.sh` + `worklist-close.sh` at close-out, branch left ready,
+merge **asked**. Size was the wrong gate: measured on a 34-item sweep, the two worst items
+took four commits each and both had no Acceptance.
 
 ---
 
@@ -125,9 +139,10 @@ is in another language. The `description`/title and body are both English; only
 placeholder repeats this at the point of writing, and
 `bash scripts/normalize-language.sh` reports items that drifted.
 
-The complete front-matter schema is the single-source **12-field table** in
+The complete front-matter schema is the single-source **15-field table** in
 [references/01-backlog-conventions.md](references/01-backlog-conventions.md#front-matter-required)
-(`id` and `commits` are machine-required — the lifecycle breaks without them). Don't
+(`id` and `commits` are machine-required — the lifecycle breaks without them; `surface`
+and `verify` say how the item will be proven, and a sweep cannot close it otherwise). Don't
 re-copy the schema here; author entries via the script or straight from that table.
 
 ---
@@ -209,30 +224,10 @@ a non-zero exit means you introduced a NEW violation — fix it before closing.
 
 ## `triage`, `quick-wins` and `detect-resolved` answer three different questions
 
-They are easy to confuse and were, which is why the separation is written down rather
-than left to the names.
-
-| Action | Question | Reads |
-|---|---|---|
-| `triage` | *Is the backlog itself healthy?* Malformed ids, duplicates, items closed but never archived, cross-artifact drift. | front-matter + the index |
-| `quick-wins` | *What should I do first?* | front-matter only — **never a body** |
-| `detect-resolved` | *Is any of this already done?* | bodies, for the paths and commits they cite |
-
-`triage` is **health, not prioritization**: it will tell you an item is malformed and say
-nothing about whether it is worth doing. `quick-wins` is the opposite — it assumes the
-backlog is well-formed and answers only about order.
-
-### Running `detect-resolved`
-
-1. `python3 scripts/detect-resolved.py` — the work-list: open items, and per item the code
-   paths and commits its body cites. Items with no anchor are marked; they are not worth a
-   subagent, because a reviewer would have nothing to open.
-2. Fan out **one read-only subagent per anchored item**. Give it the item's title,
-   acceptance and anchors, and ask a single question: *does the current code satisfy this?*
-   Require a **cited path or commit** in the answer — an unevidenced "looks done" is the
-   thing this action exists to replace.
-3. Report the suspected-resolved set to the user and stop. **Never close an item from this
-   signal**, however confident the subagent sounds. An item can be open for a reason the
-   code cannot show: a decision deferred, a follow-up owed, a residual the finding named
-   and the commit did not. Closing on code alone is the auto-close defect one layer down.
-4. Closing is a separate, deliberate act — `close-item.sh`, with the evidence attached.
+*Is the backlog healthy?* (`triage` — health, not prioritization) · *What should I do
+first?* (`quick-wins`) · *Is any of this already done?* (`detect-resolved`) — three actions,
+easy to confuse, separated in
+[references/02-triage-quick-wins-detect-resolved.md](references/02-triage-quick-wins-detect-resolved.md),
+which also carries the `detect-resolved` fan-out procedure. The one rule that must not be
+lost to the split: **`detect-resolved` never closes an item** — closing is a separate,
+deliberate act with the evidence attached.

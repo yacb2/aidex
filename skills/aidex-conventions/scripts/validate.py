@@ -69,7 +69,7 @@ ISO_FILENAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*\.md$")
 ISO_FOLDER = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9]+(-[a-z0-9]+)*$")
 LEGACY_FILENAME = re.compile(r"^\d{8}-")
 CROSSREF_FIELDS = ("escalated_to", "superseded_by", "blocked_by", "origin_ref")
-CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication|loop|worktree)/.+$")
+CROSSREF_FORMAT = re.compile(r"^(audit|backlog|plan|request|decision|reference|research|communication|loop|worktree|worklist)/.+$")
 # External refs (BL-070): stable identifiers whose target does not live in THIS
 # .context/ — an issue-tracker id, or a backlog item in another repo (written by
 # aidex-backlog's --escalate-to handshake). Format-checked, never existence-checked.
@@ -174,6 +174,11 @@ TYPE_FOLDER_TO_PREFIX = {
     "communications": "communication",
     "loops": "loop",
     "worktrees": "worktree",
+    # A run-queue is referenceable (ADR 2026-08-27-worklists-are-durable-referenceable-artifacts):
+    # the sweep report anchors to it. Still an OPTIONAL tier — not walked, not required —
+    # and it archives on close through worklist-close.sh, so the lookup below finds it in
+    # worklists/ or worklists/_archive/ like any other type.
+    "worklists": "worklist",
 }
 PREFIX_TO_FOLDER = {v: k for k, v in TYPE_FOLDER_TO_PREFIX.items()}
 

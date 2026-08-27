@@ -1,7 +1,8 @@
 # Guided human verification at the integration boundary
 
-Shared canon. Consumers: `aidex-plan-exec` (close-out step 7) and `aidex-bugfix`
-(step 8). Neither restates it — a restated protocol is a second place to drift, and
+Shared canon. Consumers: `aidex-plan-exec` (close-out step 7), `aidex-bugfix`
+(step 8) and `aidex-backlog`'s sweep run mode (`sweep-execution-policy.md`, close-out).
+None restates it — a restated protocol is a second place to drift, and
 this one was already re-dictated by hand ~8 times across three projects in a single
 3-day window (usage-retro run 6, R6-04).
 
@@ -49,10 +50,18 @@ leaves the review window.
 
 ## It emits a proof artifact
 
-The checklist is written to `.context/proofs/<slug>/human-verification.md` and linked
-from the work's `proof_links` (`00-global.md` §7.1). Without this the verification
-happens and then vanishes with the session, which is the failure mode the whole step
-exists to close — 5 of 6 verification actions leave no artifact today.
+The checklist is **a durable written record linked from `proof_links`** (`00-global.md`
+§7.1). Without this the verification happens and then vanishes with the session, which is
+the failure mode the whole step exists to close — 5 of 6 verification actions leave no
+artifact today. The record takes one of two shapes, by consumer:
+
+- **A plan or a bug fix** writes `.context/proofs/<slug>/human-verification.md`.
+- **A sweep** does not write that file per item. Its owner rows live in each item's
+  `## Verification` table (`kind: owner`, proof empty until the owner answers) and
+  `sweep-report.sh` aggregates every owner row across the run into one list — one artifact
+  per run, not one per item, so the owner answers in one place instead of across N stray
+  files. `worklist-close.sh` refuses to end the run while an owner row is unanswered
+  (amended 2026-08-27, plan `2026-08-27-backlog-sweep-run-mode`).
 
 The file carries three parts:
 
@@ -76,7 +85,8 @@ interface. Skipping is the right call there and needs no permission — but it i
 human-verification: skipped — <why nothing here is human-visible>
 ```
 
-in the same `.context/proofs/<slug>/` location (or the plan's Execution log), so a reader
+in the same `.context/proofs/<slug>/` location (or the plan's Execution log; for a sweep,
+the report carries the line verbatim), so a reader
 can tell "nothing a person operates changed" apart from "nobody thought about it". Those
 two look identical when the step is simply absent, and only one of them is fine.
 

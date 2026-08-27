@@ -27,17 +27,30 @@ re-asked. A single-item task needs no work-list.
 `.context/worklists/YYYY-MM-DD-<slug>.md` (kebab-case slug; date per `00-global.md`).
 `.context/worklists/` is workspace-private (gitignored), like all `.context/`.
 
+**Referenceable, and archived on close.** `worklist/<filename>` is a cross-reference
+type (`00-global.md` §3; ADR `2026-08-27-worklists-are-durable-referenceable-artifacts`),
+so a sweep report or a backlog item registered `--origin sweep` can point at the run that
+produced it. `worklist-close.sh` moves the closed file to `worklists/_archive/` (D-10) and
+the two-folder lookup keeps every inbound reference resolving. Being referenceable and
+being versioned are different questions — only the first is decided; the folder stays
+private to the workspace.
+
 ```yaml
 ---
 title: "<run name>"
 status: open | doing | done | dropped
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+mode: sweep                      # optional; present only for a backlog sweep (see below)
 gate-policy:
-  publish: ask | preauthorized   # the front-loaded publication gate for this run
+  publish: ask | preauthorized | never   # the front-loaded publication gate for this run
   destructive: deny              # always deny (global DB/destructive rule)
 ---
 ```
+
+`publish: never` is the sweep's value: a sweep closes many small items whose combined
+blast radius nobody reviewed as a unit, so the branch is left ready and the merge is
+asked for — never pre-authorized (`sweep-execution-policy.md`).
 
 Body — an **ordered** queue plus an emergent section:
 
@@ -89,8 +102,43 @@ completion**, then execution proceeds headless:
 |---|---|
 | Create from survey answers | `scripts/worklist-new.sh` |
 | Mark head done, print next (+ `--append` emergent) | `scripts/worklist-advance.sh` |
-| Close (status done/dropped, reconcile upstream) | `scripts/worklist-close.sh` |
+| …and in **sweep mode** (`mode: sweep`, or `--sweep`): close the head via `close-item.sh --sweep`, then start the next backlog item | same |
+| Close (status done/dropped, archive, reconcile upstream) — for a **sweep** work-list it **refuses** while a queued item carries an unanswered `owner` verification row or the emergent section holds an unreconciled deferral; `--force` overrides and prints what it overrode. A plain work-list closes as before | `scripts/worklist-close.sh` |
 | Validate shape | `scripts/validate-worklist.py` |
+
+## A sweep queue is ordered by cluster
+
+`sweep-kickoff.sh` (via `sweep-order.py`) writes the queue **by cluster**: items sharing a
+`touches:` token run adjacently, `depends:` edges order within and across clusters, and a
+pair joined by `merge:BL-NNN` is one **MERGE** cluster — the same change seen twice, closed
+in one commit carrying both `Backlog:` trailers. Each queue line carries its cluster in a
+comment (`<!-- cluster: apps/gap/lane.py · MERGE -->`) so the run can see a boundary
+without re-reading the items. Adjacency is what makes review tiering affordable (one
+review per cluster) and what stops two sessions' worth of context being rebuilt for the
+same file. The kickoff also records `queue-size-at-kickoff: N` in the front-matter — the baseline
+`sweep-report.sh` measures emergent growth against (flagged past 25 %) — and a
+`## Needs decision (kickoff)` section, placed before `## Deferred / emergent`, which must
+stay the last section because `--append` writes to the end of the file.
+
+## Sweep mode drives the item lifecycle
+
+A plain work-list only *names* the next item — the queue and the item lifecycle ran
+beside each other, which is how items were worked with `status: open` and closed out of
+band. With `mode: sweep` (written by `worklist-new.sh --mode sweep`, the shape
+`/aidex-backlog sweep` creates), a plain `worklist-advance.sh`:
+
+1. **closes the head** through `close-item.sh --sweep <BL-id>` when its ref is `backlog`.
+   The proof refusal is inherited: no `## Verification` rows with proof → the item is not
+   closed, the box stays unticked, and advance exits with close-item's code. A queue
+   cannot advance past an unproven item;
+2. ticks the box;
+3. **starts the next** backlog item with `start-item.sh` — the `doing` transition and, for
+   `type: bug`, the RED→GREEN route.
+
+`--peek` and `--append` stay read-only / purely additive in both modes, and a queue that
+orders plans and audits is unaffected. All three scripts resolve the project root through
+`_lib.sh`'s `find_project_root`, so from inside a Tier-2 worktree the queue and the item it
+closes live in the same tree.
 
 ## Related
 

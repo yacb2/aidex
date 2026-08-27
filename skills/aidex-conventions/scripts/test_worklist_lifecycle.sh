@@ -11,7 +11,7 @@ assert() { if eval "$2"; then echo "  [PASS] $1"; else echo "  [FAIL] $1"; fail=
 slug="lifecycle-test-$$"
 file="$(bash "$DIR/worklist-new.sh" --title "Lifecycle test $$" --slug "$slug" \
   --ref "backlog:BL-1 — do a" --ref "plan:p-2 — do b" --ref "inline:do c" --publish ask)"
-cleanup() { rm -f "$file"; }
+cleanup() { rm -f "$file" "$ROOT/.context/worklists/_archive/$(basename "$file")"; }
 trap cleanup EXIT
 
 assert "new: file created"              "[[ -f '$file' ]]"
@@ -34,8 +34,10 @@ assert "advance#3: queue DONE"          "[[ '$n3' == 'DONE' ]]"
 
 out="$(bash "$DIR/worklist-close.sh" "$file" 2>/dev/null)"
 assert "close: prints CLOSED"           "[[ '$out' == CLOSED* ]]"
-assert "close: status done"             "grep -q '^status: done' '$file'"
-assert "close: validates clean"         "python3 '$DIR/validate-worklist.py' '$file' >/dev/null"
+archived="${out#CLOSED }"
+assert "close: archived to _archive/"   "[[ '$archived' == */worklists/_archive/* && -f '$archived' && ! -f '$file' ]]"
+assert "close: status done"             "grep -q '^status: done' '$archived'"
+assert "close: validates clean"         "python3 '$DIR/validate-worklist.py' '$archived' >/dev/null"
 
 echo "== regressions (suite analysis 2026-07-02) =="
 # close must survive a queue with only inline refs: the grep|wc ref-count pipeline
@@ -47,7 +49,7 @@ file2="$(bash "$DIR/worklist-new.sh" --title "Inline only $$" --slug "$slug2" \
 rc=0; out2="$(bash "$DIR/worklist-close.sh" "$file2" 2>/dev/null)" || rc=$?
 assert "close: inline-only queue exits 0"   "[[ $rc -eq 0 ]]"
 assert "close: inline-only prints CLOSED"   "[[ '$out2' == CLOSED* ]]"
-rm -f "$file2"
+rm -f "$file2" "${out2#CLOSED }"
 
 # an unmatched slug must reach the intended diagnostic (exit 2 + message) instead
 # of dying silently with exit 1 at the ls|head lookup under pipefail.
