@@ -21,8 +21,9 @@ restating it.
   (cloned from template), starts separate backend/frontend on different ports (dev + 10),
   and runs Playwright with `playwright.e2e.config.ts`. When it exists, it is the way.
 - **When the project has no `test-e2e.sh`:** the legal path is to establish a disposable
-  environment first — generate the script (`aidex-coverage` owns the template:
-  `scripts/gen-test-e2e.sh` reads `.context/testing-profile.md`) or stand up an
+  environment first — generate the script (`aidex-coverage` owns the contract; the stack pack named by
+  `.context/testing-profile.md` `testing_packs` owns the template and generator, e.g.
+  `testing-playwright-app/scripts/gen-test-e2e.sh`) or stand up an
   equivalent throwaway database and point the runner at it. Running E2E is allowed the
   moment the target is disposable; it is the target that gates, not the filename.
 - Unit tests (Vitest) are safe — they run in happy-dom with no database connection

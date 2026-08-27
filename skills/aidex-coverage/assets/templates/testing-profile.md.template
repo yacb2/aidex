@@ -25,6 +25,7 @@ ui_locale:                # locale of rendered UI strings: en
 personas_ref:             # <type>/<filename> of the persona table: reference/testing/01-personas.md
 cross_deps_ref:           # <type>/<filename> of the cross-dependency map: reference/testing/06-cross-dependencies.md
 module_map:               # repo-relative path: .context/audits/test-coverage/module-map.json
+testing_packs:            # space-separated stack packs, resolved at ~/.claude/skills/<pack>/: testing-django testing-vue testing-playwright-app
 ---
 
 # Testing profile
@@ -33,7 +34,8 @@ This file is a DELTA over `aidex-coverage`. Facts about this project only: ports
 names, commands, paths, personas, locale. Never a layer rule, never a copy of the
 canon; a deviation from the rubric is a decision in `.context/decisions/`.
 
-Read by `aidex-coverage` (every `{{key}}` in its references), by
-`scripts/gen-test-e2e.sh` (which writes `test-e2e.sh` from it) and by
-`aidex-audit affected-tests` (the `*_test_cmd` keys). Canon:
+Read by `aidex-coverage` (which resolves `testing_packs` to the stack packs holding the
+framework-specific test shapes and infrastructure), by every `{{key}}` in those packs, by
+the packs' generators (e.g. `testing-playwright-app/scripts/gen-test-e2e.sh`, which writes
+`test-e2e.sh` from it) and by `aidex-audit affected-tests` (the `*_test_cmd` keys). Canon:
 `~/.claude/skills/aidex-coverage/references/14-testing-profile.md`.

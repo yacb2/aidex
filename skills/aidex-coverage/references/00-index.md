@@ -14,6 +14,12 @@ File 05 was added by Phase 9
 (`.context/plans/2026-08-22-suite-speed-and-coverage-rollout/09-diff-cover.md`). File 06
 was added after the playbook's field test against `echo_lab_ws` on 2026-08-23.
 
+**2026-08-27:** files 07–12, `assets/templates/test-e2e.sh.template` and `scripts/gen-test-e2e.sh`
+left this skill for the stack packs in `myskills` (`testing-django` 07 + items 2–3 of 02;
+`testing-vue` 08 + item 6 of 02; `testing-playwright-app` 09–12 + template + generator) under
+`decision/2026-08-27-aidex-is-stack-agnostic-stack-packs.md`. What follows is the record
+of how they got here first.
+
 Files 07–14, `assets/templates/test-e2e.sh.template`, `assets/templates/testing-profile.md.template`
 and `scripts/gen-test-e2e.sh` were folded in on 2026-08-26 under
 `decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md` from five personal

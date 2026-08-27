@@ -7,17 +7,17 @@
   {
     "query": "Write a pytest test for the supplier list endpoint that proves a user from another workspace gets a 404.",
     "should_trigger": true,
-    "expected_behavior": "references/07-backend-test-shapes.md cross-workspace shape."
+    "expected_behavior": "testing-django pack via the profile, cross-workspace shape."
   },
   {
     "query": "Add a Vitest test for the InvoiceBadge component covering each status prop.",
     "should_trigger": true,
-    "expected_behavior": "references/08-frontend-test-shapes.md, it.each component mount."
+    "expected_behavior": "testing-vue pack via the profile, it.each component mount."
   },
   {
     "query": "Write a Playwright spec that creates a payment term and checks it appears in the grid.",
     "should_trigger": true,
-    "expected_behavior": "references/09-e2e-spec-shapes.md, CRUD with RUN_ID."
+    "expected_behavior": "testing-playwright-app pack via the profile, CRUD with RUN_ID."
   },
   {
     "query": "Which tests should I run for the files I just changed? Not the whole suite.",
@@ -25,14 +25,14 @@
     "expected_behavior": "references/13-affected-tests-expansion.md + /aidex-audit affected-tests --command."
   },
   {
-    "query": "Set up isolated E2E testing for this new Django + Vue project and generate test-e2e.sh.",
+    "query": "Set up isolated E2E testing for this new project and generate test-e2e.sh.",
     "should_trigger": true,
-    "expected_behavior": "references/11-e2e-isolation-infra.md + scripts/gen-test-e2e.sh reading the profile."
+    "expected_behavior": "E2E isolation contract + the profile's pack generator (testing-playwright-app/scripts/gen-test-e2e.sh)."
   },
   {
     "query": "Should I mock the API client with vi.mock or use MSW for this component test?",
     "should_trigger": true,
-    "expected_behavior": "Layer 5 vs 4, references/08."
+    "expected_behavior": "Layer 5 vs 4, then the testing-vue pack."
   },
   {
     "query": "We keep copy-pasting the same three lines of setup into every new API test — is there a rule for when to pull that into a shared fixture?",
@@ -42,7 +42,7 @@
   {
     "query": "Necesito una prueba de regresión para el bug del total de la factura; ¿en qué capa y cómo la escribo?",
     "should_trigger": true,
-    "expected_behavior": "Layer 1/2 + references/07."
+    "expected_behavior": "Layer 1/2 + the testing-django pack."
   },
   {
     "query": "Build the coverage matrix for the billing module and flag every surface with zero mapped tests.",

@@ -14,7 +14,7 @@ KEYS = ["project_slug", "project_kebab", "dev_frontend_port", "dev_backend_port"
         "e2e_frontend_port", "e2e_backend_port", "db_name", "db_user", "db_password_env",
         "e2e_service", "backend_test_cmd", "frontend_test_cmd", "e2e_test_cmd",
         "seed_bootstrap_cmd", "seed_e2e_bootstrap_cmd", "helpers_dir", "ui_stack", "ui_locale",
-        "personas_ref", "cross_deps_ref", "module_map"]
+        "personas_ref", "cross_deps_ref", "module_map", "testing_packs"]
 
 
 def read(path):
@@ -40,6 +40,7 @@ def main():
     compose = read(os.path.join(root, "docker-compose.yml"))
     pyproject = read(os.path.join(root, "backend", "pyproject.toml"))
     pkg = read(os.path.join(root, "frontend", "package.json"))
+    root_pkg = "".join(read(os.path.join(root, d, "package.json")) for d in ("", "cms", "web", "site"))
     v = dict.fromkeys(KEYS, "")
     vite = read(os.path.join(root, "frontend", "vite.config.ts"))
     v["project_slug"] = first(r'^(?:export\s+)?DB_E2E=["\']?([a-z0-9_]+?)_e2e', e2e) \
@@ -72,6 +73,22 @@ def main():
             break
     ui = [n for n in ("shadcn-vue", "reka-ui", "vue-sonner", "ag-grid-vue3", "primevue") if f'"{n}"' in pkg]
     v["ui_stack"] = " ".join(ui)
+    # Stack packs: the framework-specific content aidex-coverage resolves by name from
+    # ~/.claude/skills/<pack>/. Derived from dependency markers only; blank means "no pack
+    # recognised", never a default.
+    anypkg = pkg + root_pkg
+    packs = []
+    if pyproject or os.path.exists(os.path.join(root, "backend", "manage.py")):
+        packs.append("testing-django")
+    if '"payload"' in anypkg:
+        packs.append("testing-payload")
+    if '"vue"' in anypkg:
+        packs.append("testing-vue")
+    if '"svelte"' in anypkg or '"@sveltejs/kit"' in anypkg or '"astro"' in anypkg:
+        packs.append("testing-svelte")
+    if '"@playwright/test"' in anypkg or e2e:
+        packs.append("testing-playwright-app" if "testing-django" in packs else "testing-playwright-web")
+    v["testing_packs"] = " ".join(packs)
     mm = ".context/audits/test-coverage/module-map.json"
     v["module_map"] = mm if os.path.exists(os.path.join(root, mm)) else ""
     lines = ["---"] + [f"{k}: {v[k]}" for k in KEYS] + ["---", "",

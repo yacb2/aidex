@@ -1,6 +1,6 @@
 ---
 name: aidex-coverage
-description: 'Use when writing, placing, or running tests for a Django + DRF + Vue + Vitest + Playwright project — which layer a behaviour belongs in ("unit or E2E for X", "Vitest or Playwright"), how to write a pytest/DRF test, a Vue component or Pinia test, or a Playwright spec, which tests to run for a change instead of the whole suite, setting up isolated E2E infrastructure (test-e2e.sh, template database, seed generators), MSW vs vi.mock, when to extract a fixture, or the per-project testing profile. Fires on "write a test for", "add a regression test", "which tests should I run", "run only the affected tests", "set up E2E for this project", "generate test-e2e.sh", "best practices for testing this stack". Not for: running a coverage audit, the module map / coverage matrix, tracking a finding, or suite-speed measurement — all of that is aidex-audit''s test-coverage playbook.'
+description: 'Use when writing, placing, or running tests in any project — which layer a behaviour belongs in ("unit or E2E for X", "component test or browser test"), which tests to run for a change instead of the whole suite, when to extract a fixture, setting up an isolated disposable E2E environment, or the per-project testing profile and the stack pack it names for the concrete test shapes (Django, Vue, Playwright, Payload, Svelte). Fires on "write a test for", "add a regression test", "which tests should I run", "run only the affected tests", "set up E2E for this project", "generate test-e2e.sh", "how do we test this stack". Not for: running a coverage audit, the module map / coverage matrix, tracking a finding, or suite-speed measurement — all of that is aidex-audit''s test-coverage playbook.'
 allowed-tools: Bash Read Grep Glob Write Edit
 ---
 
@@ -8,13 +8,15 @@ allowed-tools: Bash Read Grep Glob Write Edit
 
 # Coverage
 
-> **Scope.** Model-invocable since 2026-08-26 (`decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md`, D1), superseding the 2026-08-23 `user-invocable-only` scoping: the personal `test-*` family this skill used to collide with was folded in here and deleted, so this is the only skill that answers "how do I test this" for the stack. Precision against `aidex-audit` is the `Not for` clause; the eval set in `evals/` is rewritten for this description and is owed a run before the next release.
+> **Scope.** Model-invocable since 2026-08-26 (`decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md`, D1). Stack-agnostic since 2026-08-27 (`decision/2026-08-27-aidex-is-stack-agnostic-stack-packs.md`): this skill carries the doctrine — layers, selection, fixtures, the boundary gate, the profile — and no framework content; the concrete test shapes live in the stack packs the project's profile names. Precision against `aidex-audit` is the `Not for` clause; the eval set in `evals/` is owed a run against this description.
 
-The one testing canon for a Django + DRF + Vue + Vitest + Playwright stack: which layer a
-piece of behaviour belongs in, the test shapes per layer, the isolated E2E infrastructure
-and its generator, which tests to run for a change, and the mechanical rule for when shared
-setup becomes a fixture. Per-project facts (ports, database names, commands, personas)
-live in the project's `.context/testing-profile.md`, never here — see
+The testing canon, independent of stack: which layer a piece of behaviour belongs in,
+which tests to run for a change, when shared setup becomes a fixture, what an isolated
+E2E environment must guarantee, and how the per-project profile and its stack packs are
+resolved. What a test *looks like* in a given framework is not here: the project's
+`.context/testing-profile.md` names its **stack packs** (`testing_packs`), and this skill
+reads them — see [Resolving the stack packs](#resolving-the-stack-packs). Per-project
+facts (ports, database names, commands, personas) live in that profile, never here — see
 [references/14-testing-profile.md](references/14-testing-profile.md).
 
 **The full suite is a boundary gate, not a phase gate.** Per change, run the narrowest
@@ -41,23 +43,37 @@ authoring rule for anyone writing a new coverage-bearing test.
 | Question | Read |
 |---|---|
 | Which layer does this test belong in? | [references/01-layer-model.md](references/01-layer-model.md) |
-| What does current upstream documentation say about a specific correctness or cost trap in this stack? | [references/02-best-practices.md](references/02-best-practices.md) |
+| What does current upstream documentation say about a stack-independent correctness or cost trap? | [references/02-best-practices.md](references/02-best-practices.md) |
 | When do I extract a fixture? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | When does a frontend test file move to `__tests__/`? | [references/03-fixtures-convention.md](references/03-fixtures-convention.md) |
 | How do I run a full-scale layer audit of an E2E suite? (template + row format) | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 | What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
-| How do I write a backend test (conftest fixtures, factories, 401 / 404 isolation, dropdowns, freezegun)? | [references/07-backend-test-shapes.md](references/07-backend-test-shapes.md) |
-| How do I write a Vue unit / component / store test, and MSW vs `vi.mock`? | [references/08-frontend-test-shapes.md](references/08-frontend-test-shapes.md) |
-| How do I write a Playwright spec (login, CRUD with RUN_ID, interception, MailHog, roles, cleanup)? | [references/09-e2e-spec-shapes.md](references/09-e2e-spec-shapes.md) |
-| What helpers exist and what are the selector defaults for shadcn-vue / reka-ui / AG-Grid? | [references/10-e2e-helper-conventions.md](references/10-e2e-helper-conventions.md) |
-| How is isolated E2E built (compose profile, test settings, template DB, ports), and how do I generate `test-e2e.sh`? | [references/11-e2e-isolation-infra.md](references/11-e2e-isolation-infra.md) |
-| How do E2E seed generators and `bootstrap_e2e_data` work? | [references/12-e2e-seed-generators.md](references/12-e2e-seed-generators.md) |
 | Which tests do I run for this change, and when does the selection widen? | [references/13-affected-tests-expansion.md](references/13-affected-tests-expansion.md) |
-| What goes in the per-project profile, and what never does? | [references/14-testing-profile.md](references/14-testing-profile.md) |
+| What goes in the per-project profile, which stack packs exist, and what never goes in the profile? | [references/14-testing-profile.md](references/14-testing-profile.md) |
+| How do I write a backend / component / store / E2E test, which helpers exist, how is the disposable E2E environment built and `test-e2e.sh` generated, how do seed generators work? | The stack pack named by the profile — see below |
 
 This is the only table of references; [references/00-index.md](references/00-index.md)
 records which plan phase produced each file.
+
+## Resolving the stack packs
+
+1. Read `<project>/.context/testing-profile.md`. If it does not exist, seed it:
+   `python3 ~/.claude/skills/aidex-coverage/scripts/profile-init.py <project>` (never
+   `--force` over an existing one; blank keys are unanswered, not zero).
+2. Take `testing_packs` — a space-separated list of skill names — and read each pack's
+   `~/.claude/skills/<pack>/SKILL.md`; its "Question -> file" table says which of its
+   references answers the question at hand. Read with Read; a pack is never invoked as a
+   skill (`disable-model-invocation: true`), so nothing fires on its own.
+3. Apply the doctrine here first — layer, selection, gate — then the pack's shape. When
+   the two disagree, the doctrine wins and the disagreement is a project decision, not a
+   profile line.
+4. `testing_packs` blank or naming a pack that is not installed: say so and name the
+   missing pack; do not improvise the framework content from memory, and do not add it
+   to this skill. A stack with no pack gets a new `testing-<framework>` pack in
+   `myskills` (the shape is in `references/14-testing-profile.md`).
+
+The full pack table is in [references/14-testing-profile.md](references/14-testing-profile.md).
 
 ## How to use the layer model
 
@@ -76,10 +92,11 @@ records which plan phase produced each file.
 
 ## How to use the best-practices corpus
 
-[references/02-best-practices.md](references/02-best-practices.md) holds eight entries:
-items 2, 3, 5 and 6 quote a fetched primary source with its check date (only item 2 names a
-tool version), item 1 records the sweep itself, item 4 is flagged `unverified`, and items 7
-and 8 point to `01-layer-model.md`. **Do not extend this file by transcribing anything from a chat, a consultation
+[references/02-best-practices.md](references/02-best-practices.md) holds the
+stack-independent entries: item 5 quotes a fetched primary source with its check date, item
+1 records the sweep itself, item 4 is flagged `unverified`, items 7 and 8 point to
+`01-layer-model.md`, and items 2, 3 and 6 are stubs pointing at the stack pack that now
+carries them (a framework trap lives with its framework). **Do not extend this file by transcribing anything from a chat, a consultation
 artifact, or a session transcript.** A new item is only added once its primary source has
 been fetched and quoted, with a version and a date attached — that constraint is the reason
 this file exists rather than a copy of an unverifiable draft. Items marked `unverified` are
