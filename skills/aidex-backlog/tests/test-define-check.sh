@@ -112,4 +112,7 @@ assert it, 'not in REVIEW'; assert 'A decision is recorded on whether' in it[0][
 PY2
 [[ $? -eq 0 ]] && ok "REVIEW reason quotes the sentence, so the reader judges instead of guessing" || bad "signal excerpt: $J"
 
+OUT="$(python3 "$SCRIPTS/sweep-eligible.py" 2>/dev/null)"
+grep -q "«A decision is recorded on whether AD rewriting runs at 0.2.»" <<<"$OUT" && ok "the REVIEW table prints the whole quoted sentence on its own line" || bad "table quote: $(grep -A1 "$SID" <<<"$OUT")"
+
 echo; [[ $FAIL -eq 0 ]] && echo "OK — define-check: $PASS cells" || { echo "$FAIL failure(s)"; exit 1; }

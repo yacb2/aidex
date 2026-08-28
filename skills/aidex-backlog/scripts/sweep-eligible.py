@@ -204,7 +204,11 @@ def main():
         print()
         print(f'REVIEW ({len(review)}) — defined, but read the body before starting')
         for i in review:
-            print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason'][:34]:34} {i['title'][:40]}")
+            # the reason carries the quoted sentence; a 34-char column cut it at «A decision
+            label, _, quote = i['reason'].partition(' — ')
+            print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {label[:34]:34} {i['title'][:40]}")
+            if quote:
+                print(f"  {'':8} {'':3} {'':3}  {quote}")
         print()
     print(f'NEEDS-DECISION ({len(needs)}) — route to the user, never into the run')
     for i in needs:

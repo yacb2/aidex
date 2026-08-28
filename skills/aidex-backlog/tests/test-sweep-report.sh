@@ -94,4 +94,12 @@ R3="$(bash "$SCRIPTS/sweep-report.sh" multi-repo-run --print 2>/dev/null)"
 grep -q "| commits (from \`commits:\`) | 2 |" <<<"$R3" && ok "repo names beside hashes are not counted as commits (2, not 4)" || bad "commit count: $(grep 'commits (from' <<<"$R3")"
 grep -q "commits: \`$SHA1\`, \`$SHA2\`" <<<"$R3" && ok "only the hashes are listed per item" || bad "per-item commits: $(grep 'commits:' <<<"$R3" | head -2)"
 
+# the companion report sorts before the work-list; a second render by slug must read the
+# work-list, never its own previous report (2026-08-28)
+bash "$SCRIPTS/sweep-report.sh" multi-repo-run >/dev/null 2>&1   # writes the companion to disk
+mv "$WL3" .context/worklists/_archive/   # closed: both files now sit in _archive/, companion first
+R4="$(bash "$SCRIPTS/sweep-report.sh" multi-repo-run --print 2>/dev/null)"
+grep -q "^title: \"Sweep report — Multi repo run\"" <<<"$R4" && ! grep -q "Sweep report — Sweep report" <<<"$R4" \
+  && ok "re-rendering by slug reads the work-list, not its own -report.md companion" || bad "self-render: $(grep '^title' <<<"$R4")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
