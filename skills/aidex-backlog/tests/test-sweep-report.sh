@@ -102,4 +102,9 @@ R4="$(bash "$SCRIPTS/sweep-report.sh" multi-repo-run --print 2>/dev/null)"
 grep -q "^title: \"Sweep report — Multi repo run\"" <<<"$R4" && ! grep -q "Sweep report — Sweep report" <<<"$R4" \
   && ok "re-rendering by slug reads the work-list, not its own -report.md companion" || bad "self-render: $(grep '^title' <<<"$R4")"
 
+# BL-261: a parked item keeps the resolving commit — it was lost until the owner closed by hand
+K="$(reg --title "parked with commit" --estimate XS)"; KID="$(idof "$K")"; accept "$K"; row "$K" test "tests/k.py" "1 passed"; row "$K" owner "wording" ""
+bash "$SCRIPTS/close-item.sh" "$KID" --sweep --commit "$SHA1" --no-index >/dev/null 2>&1
+grep -q "^awaiting: owner$" "$K" && grep -q "^commits: \"$SHA1\"$" "$K" && ok "parked item carries awaiting: owner AND commits: <sha>" || bad "parked commits: $(grep -E '^(awaiting|commits)' "$K")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

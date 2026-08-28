@@ -204,6 +204,13 @@ bash "$SCRIPTS/register-item.sh" --reindex >/dev/null 2>&1
 check "active line prefixes the id" 'grep -q "^- \*\*BL-777\*\* · \*\*\[identified item\]" .context/backlog/00-index.md'
 check "empty blocked_by does not swallow the id" '! grep -q "blocked_by: \"BL-777\"" .context/backlog/00-index.md'
 check "id-less item degrades to a plain line" 'grep -q "^- \*\*\[anonymous item\]" .context/backlog/00-index.md'
+echo "== defer a doing item (BL-262) =="
+DD="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "doing then deferred" --no-index 2>/dev/null)"; DD_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$DD")"
+bash "$SCRIPTS/start-item.sh" "$DD_ID" >/dev/null 2>&1
+bash "$SCRIPTS/defer-item.sh" defer "$DD_ID" --reason "cross-repo" >/dev/null 2>&1
+DDF="$(ls .context/backlog/_deferred/*doing-then-deferred*.md 2>/dev/null | head -1)"
+check "a deferred item is status: open, never doing" '[[ -n "$DDF" ]] && grep -q "^status: open$" "$DDF"'
+
 
 # A malformed id (the hand-authored `BL-20260610` shape) still renders, and the
 # nonconforming guard still fails the run — surfacing it must not silence it.

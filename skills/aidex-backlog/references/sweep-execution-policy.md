@@ -129,7 +129,7 @@ Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver).
 Merge the trunk **into** the branch first (routine class-4 work, ungated), then run the
 gate: every leg from `testing-profile.md`'s full-suite commands, raw exit code and spec
 count per leg, a countless leg is FAIL, a detached E2E leg is printed and scored from its
-log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl` (durable; the leg logs stay in `_tmp/sweep-gate/`) for the report.
+log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl` (durable; the leg logs stay in `_tmp/sweep-gate/`). In a worktree of a project that tracks `.context/`, the work-list, its report, the proofs and this history live in the worktree's copy and vanish at teardown — copy them into the main tree's `.context/` before `worktree.sh down` (BL-266; moot once BL-259 gives the root repo a participant) for the report.
 
 *Prose — a conflict whose resolution is per-key across a moved file is not sweep work.*
 Budget for the merge when another session has been working the same repo: on the first

@@ -109,6 +109,11 @@ run --only e2e --exit 0 >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "6 --exit without 
 [[ -s "$P/.context/proofs/sweep-gate/gate-history.jsonl" && ! -e "$P/_tmp/sweep-gate/gate-history.jsonl" ]] \
   && ok "6 history lives under .context/proofs/, not _tmp/ (deletable without asking)" || bad "6 history location"
 
+# ── 7 · --from-log --exit is per leg, not e2e-only: a backend rerun on a quiet host (BL-264)
+printf '== 42 passed in 3.1s ==\n' > "$TMP/be-rerun.log"
+OUT="$(run --only backend --from-log "$TMP/be-rerun.log" --exit 0)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=42"* ]] && ok "7 a backend rerun log is scored the same way as e2e" || bad "7 rc=$RC $OUT"
+
 echo
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

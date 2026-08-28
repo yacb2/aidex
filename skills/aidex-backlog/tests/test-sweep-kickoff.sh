@@ -133,6 +133,8 @@ import json,sys; r=json.loads(sys.argv[1]); q=sys.argv[2]
 assert not [i for i in r['eligible'] if i['id']==q], 'eligible in the worktree'
 nd=[i for i in r['needs_decision'] if i['id']==q]; assert nd and nd[0]['reason']=='queued in p:worklist/2026-08-28-main-sweep.md', nd
 PY2
+    OUTW="$(cd "$TMP/p-wt" && python3 "$SCRIPTS/sweep-eligible.py" 2>/dev/null)"
+    grep -qE "^ +queued in p:worklist/2026-08-28-main-sweep.md$" <<<"$OUTW" && ok "a clipped NEEDS-DECISION reason is printed whole on the next line (BL-260)" || bad "clipped reason: $(grep -A1 "$WID" <<<"$OUTW")"
     [[ $? -eq 0 ]] && ok "a doing queue in the MAIN tree excludes the item from a sweep in a linked worktree" || bad "worktree blind to main: $J"
     sed -i.bak 's/^status: doing/status: done/' .context/worklists/2026-08-28-main-sweep.md && rm -f .context/worklists/*.bak
     mkdir -p "$TMP/p-wt/.context/worklists"

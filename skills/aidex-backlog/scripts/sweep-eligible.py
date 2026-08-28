@@ -229,6 +229,8 @@ def main():
     print(f'NEEDS-DECISION ({len(needs)}) — route to the user, never into the run')
     for i in needs:
         print(f"  {i['id']:8} {i['priority']:3} {i['estimate']:3}  {i['reason'][:40]:40} {i['title'][:40]}")
+        if len(i['reason']) > 40:  # the clipped part is the work-list name — the part the reader needs
+            print(f"  {'':8} {'':3} {'':3}  {i['reason']}")
 
 
 if __name__ == '__main__':
