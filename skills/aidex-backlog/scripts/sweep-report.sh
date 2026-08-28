@@ -37,7 +37,9 @@ ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
 if [[ -f "$ARG" ]]; then WL="$ARG"
 else
-  WL="$(ls "$WL_DIR/"*"$ARG"*.md "$WL_DIR/_archive/"*"$ARG"*.md 2>/dev/null | head -1 || true)"
+  # `<wl>-report.md` sorts before `<wl>.md` (`-` < `.`): on 2026-08-28 the report was
+  # rendered from its own previous output. The companion is never the work-list.
+  WL="$(ls "$WL_DIR/"*"$ARG"*.md "$WL_DIR/_archive/"*"$ARG"*.md 2>/dev/null | grep -v -- '-report\.md$' | head -1 || true)"
 fi
 [[ -n "${WL:-}" && -f "$WL" ]] || die "worklist not found: $ARG"
 
