@@ -5,7 +5,7 @@ user to name a tool; route by request shape.
 
 **A. Structured board** — the request maps to a deterministic `.context/` board
 (backlog, plans progress, audit inventory, coverage matrix): run the renderer
-`~/.aidex/skills/aidex-dash/scripts/render.sh <target>` — zero-token and idempotent —
+`~/.claude/skills/aidex-dash/scripts/render.sh <target>` — zero-token and idempotent —
 then open the output locally. Do not hand-generate what a renderer already produces.
 
 **Sketch by default, in the analysis, not only on the page.** When the subject of a
@@ -51,7 +51,7 @@ one that keeps applying for as long as the page is being discussed:
 Then read the full procedure — anchor selection, style profile, wrapping, contract
 check, placement — and follow it:
 
-**`~/.aidex/skills/aidex-dash/references/02-local-first-artifacts.md`**
+**`~/.claude/skills/aidex-dash/references/02-local-first-artifacts.md`**
 
 Content language: English (D-04), unless the project style profile says otherwise.
 `aidex-dash` is scoped `user-invocable-only` by design — this rule is the

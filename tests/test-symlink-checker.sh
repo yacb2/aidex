@@ -70,7 +70,7 @@ n="$(printf '%s\n' "$out" | grep -cE '^(OK|BROKEN): ')"
 [[ "$n" -eq 5 ]] || fail "expected 5 classified links, got $n:\n$out"
 
 # LK2 needs an ABSOLUTE resolved target to judge "unexpected location"; a raw relative
-# path would make a legitimate ~/.aidex/ link read as unexpected.
+# path would make a legitimate ~/.myskills/ link read as unexpected.
 printf '%s' "$out" | grep "^OK: .*rel-ok.md" | grep -q -- "-> /" \
   || fail "OK line for a relative link does not report an absolute resolved target"
 

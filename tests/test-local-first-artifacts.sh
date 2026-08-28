@@ -51,7 +51,7 @@ else
     fail "rule missing English-content (D-04) clause"
   fi
   # The pointer must be present AND resolve. Anchored on the basename so the rule
-  # may write it as an absolute ~/.aidex path or a repo-relative one.
+  # may write it as an absolute ~/.claude/skills path or a repo-relative one.
   if ! grep -q "02-local-first-artifacts.md" "$RULE_FILE"; then
     fail "rule does not point at the on-demand canon (02-local-first-artifacts.md)"
   fi
@@ -135,7 +135,7 @@ fi
 if ! grep -q 'rules/\*\.md' "$REPO_ROOT/install.sh"; then
   fail "install.sh does not glob rules/*.md"
 fi
-# Regression (field, 2026-07-23): rules copied to ~/.aidex/rules never load —
+# Regression (field, 2026-07-23): rules copied to ~/.claude/rules never load —
 # Claude Code only reads ~/.claude/rules/*.md, so install must symlink them.
 if grep -qE 'rules/\*\)\s*return 1' "$REPO_ROOT/install.sh"; then
   fail "install.sh still excludes rules/* from symlinking (rules would never load)"

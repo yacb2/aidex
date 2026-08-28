@@ -45,8 +45,8 @@ check_file "$REPO_ROOT/skills/aidex-worktree/references/03-case-taxonomy.md" \
 check_file "$REPO_ROOT/skills/aidex-worktree/assets/templates/worktree-overview.md.template" \
   "worktree-overview.md.template"
 
-check_file "$HOME/.aidex/rules/e2e-testing.md" \
-  "~/.aidex/rules/e2e-testing.md"
+check_file "$HOME/.claude/rules/e2e-testing.md" \
+  "~/.claude/rules/e2e-testing.md"
 
 if [ "$failures" -eq 0 ]; then
   echo "OK"

@@ -19,7 +19,7 @@ set -euo pipefail
 # to start in. Anchoring it at raw cwd planted markers in backend/, frontend/ and
 # even .context/backlog/ (6 orphans across 5 projects, 2026-07-24), which `stop`'s
 # upward search can never reach from the root. Same rule as the suite's
-# find_project_root, inlined: hooks install standalone into ~/.aidex/hooks/ and
+# find_project_root, inlined: hooks install standalone into ~/.claude/hooks/ and
 # cannot source the skills tree.
 project_root() {
   local start dir stop outermost=""
@@ -86,7 +86,7 @@ json.dump({
 }, open(path, "w"), indent=2)
 # Append-only audit log (best-effort; never fail the command on a log error).
 log_path = os.environ.get("AIDEX_DURABILITY_LOG") \
-    or os.path.expanduser("~/.aidex/durability/events.jsonl")
+    or os.path.expanduser("~/.claude/aidex/durability/events.jsonl")
 try:
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "a") as fh:
@@ -120,7 +120,7 @@ PY
     python3 - <<'PY'
 import json, datetime, os
 log_path = os.environ.get("AIDEX_DURABILITY_LOG") \
-    or os.path.expanduser("~/.aidex/durability/events.jsonl")
+    or os.path.expanduser("~/.claude/aidex/durability/events.jsonl")
 try:
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     with open(log_path, "a") as fh:

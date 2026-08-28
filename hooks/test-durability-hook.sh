@@ -19,7 +19,7 @@ export AIDEX_JUDGE_CMD="false"
 # the production log — 94.5% of its 1,206 stop-hook rows turned out to be this harness
 # (measured 2026-08-01), which invalidated every durability figure computed from it.
 export AIDEX_DURABILITY_LOG="$TMP/events.jsonl"
-PROD_LOG="$HOME/.aidex/durability/events.jsonl"
+PROD_LOG="$HOME/.claude/aidex/durability/events.jsonl"
 PROD_SUM_BEFORE="$( [ -f "$PROD_LOG" ] && shasum "$PROD_LOG" | cut -d' ' -f1 || echo none )"
 
 # helper: run hook with a payload, assert decision is "block" or "allow"
