@@ -84,6 +84,8 @@ def deduce(root, item):
     touches, cross = [], []
     for p in dict.fromkeys(_PATH.findall(item['body'])):
         p = p.rstrip('/')
+        if p == '_tmp' or p.startswith('_tmp/'):
+            continue  # scratch output is deletable without asking; never a touches token
         if os.path.exists(os.path.join(root, p)):
             touches.append(p)
         else:
@@ -194,7 +196,7 @@ def main():
                 print(f"  {tok}: {', '.join(ids)}")
         print()
     print(f"definition: {len(results) - len(under)}/{len(results)} defined, {len(under)} underdefined"
-          + (" — write the missing fields with define-item.sh" if under else ""))
+          + (" — front-matter fields: define-item.sh; Context/Acceptance: edit the body" if under else ""))
     return 1 if under else 0
 
 

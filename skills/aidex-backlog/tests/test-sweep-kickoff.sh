@@ -84,6 +84,8 @@ import json,sys; d=json.loads(sys.argv[1]); ids=[i["id"] for c in d["queue"] for
 assert sys.argv[2] in ids and sys.argv[3] not in ids and not d["review"], ids' "$J" "$RID" "$AID" \
   && ok "--include / --exclude move items across the boundary" || bad "--include/--exclude: $J"
 
+# the small-sweep-3 work-list is still `doing` and now holds every item (BL-250); close it
+sed -i.bak 's/^status: doing/status: done/' .context/worklists/*small-sweep-3*.md && rm -f .context/worklists/*.bak
 # a depends cycle cannot be ordered: exit 2, no work-list
 bash "$SCRIPTS/define-item.sh" "$DID" --depends "$BID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-kickoff.sh" --title "cycle" --slug cycle >/dev/null 2>"$TMP/err"; RC=$?
@@ -98,5 +100,22 @@ bash "$SCRIPTS/register-item.sh" --origin bogus --title x --no-index >/dev/null 
 # the two reference tables declare the enum too
 CONVREF="$SCRIPTS/../references/01-backlog-conventions.md"; GLOBAL="$CONV/../references/00-global.md"
 grep -q '`sweep`' "$CONVREF" && grep -qE '^\| `origin` .*`sweep`' "$GLOBAL" && ok "sweep is in both reference enums" || bad "reference enums lack sweep"
+
+# BL-250: an item already queued in another `doing` work-list is not eligible again —
+# two sweeps admitting the same item produced two fixes for it (2026-08-28)
+Q="$(reg --title "queued elsewhere" --estimate XS)"; QID="$(idof "$Q")"; accept "$Q"
+mkdir -p .context/worklists
+printf -- '---\ntitle: "Other sweep"\nstatus: doing\ncreated: 2026-08-28\nupdated: 2026-08-28\nmode: sweep\n---\n\n## Queue (in execution order)\n1. [ ] %s — queued elsewhere   <!-- ref: backlog -->\n' "$QID" > .context/worklists/2026-08-28-other-sweep.md
+J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+python3 - "$J" "$QID" <<'PY2'
+import json,sys; r=json.loads(sys.argv[1]); q=sys.argv[2]
+assert not [i for i in r['eligible'] if i['id']==q], 'still eligible'
+nd=[i for i in r['needs_decision'] if i['id']==q]; assert nd and nd[0]['reason']=='queued in worklist/2026-08-28-other-sweep.md', nd
+PY2
+[[ $? -eq 0 ]] && ok "an item queued in another doing work-list is NEEDS-DECISION: queued in worklist/<file>" || bad "queued elsewhere: $J"
+sed -i.bak 's/^status: doing/status: done/' .context/worklists/2026-08-28-other-sweep.md && rm -f .context/worklists/2026-08-28-other-sweep.md.bak
+J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+python3 -c 'import json,sys; r=json.loads(sys.argv[1]); assert [i for i in r["eligible"] if i["id"]==sys.argv[2]]' "$J" "$QID" \
+  && ok "a done work-list releases it" || bad "done worklist still holds it"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep kickoff: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

@@ -78,8 +78,43 @@ _SIGNALS = [
 
 
 def body_signals(text):
-    """Reasons the body gives for why a run must not take this on."""
-    return sorted({label for rx, label in _SIGNALS if rx.search(text)})
+    """Reasons the body gives for why a run must not take this on — each with the
+    sentence that fired it, because a regex over prose can only point, not judge:
+    `A decision is recorded on whether …` is an acceptance criterion, not an owner call,
+    and the word alone sent BL-576 to REVIEW on 2026-08-28."""
+    out = {}
+    for rx, label in _SIGNALS:
+        m = rx.search(text)
+        if m and label not in out:
+            s = text[max(0, text.rfind('\n', 0, m.start()) + 1):]
+            s = s.split('\n', 1)[0].strip(' -*')
+            out[label] = f'{label} — «{s[:80]}»'
+    return [out[k] for k in sorted(out)]
+
+
+_QUEUED = re.compile(r'^\d+\. \[ \] (BL-\d+)\b', re.M)
+
+
+def queued_elsewhere(root):
+    """BL-id -> worklist file, for every unticked queue line of a `doing` work-list.
+
+    2026-08-28: two sweeps admitted the same two items and produced two independent
+    fixes for each. An item is only ever in one queue; a `doing` work-list that names it
+    has already taken it."""
+    d = os.path.join(root, '.context', 'worklists')
+    out = {}
+    if not os.path.isdir(d):
+        return out
+    for f in sorted(os.listdir(d)):
+        if not f.endswith('.md') or f.startswith('00-'):
+            continue
+        t = open(os.path.join(d, f)).read()
+        m = re.match(r'---\n(.*?)\n---', t, re.S)
+        if not m or not re.search(r'^status:[ \t]*["\']?doing["\']?[ \t]*$', m.group(1), re.M):
+            continue
+        for bl in _QUEUED.findall(t[m.end():]):
+            out.setdefault(bl, f)
+    return out
 
 
 def parse(path):
@@ -128,9 +163,13 @@ def main():
     if sizes:
         items = [i for i in items if i['estimate'].upper() in sizes]
 
+    queued = queued_elsewhere(ROOT)
     eligible, review, needs = [], [], []
     for i in items:
-        if i['blocked_by']:
+        if i['id'] in queued:
+            i['reason'] = 'queued in worklist/' + queued[i['id']]
+            needs.append(i)
+        elif i['blocked_by']:
             i['reason'] = 'blocked_by ' + i['blocked_by']
             needs.append(i)
         elif i['awaiting']:

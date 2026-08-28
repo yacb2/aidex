@@ -45,7 +45,7 @@ OUT="$(run)"; RC=$?
 JS="$(run --json)"
 python3 -c 'import json,sys; r=json.loads(sys.argv[1]); assert r[0]["leg"]=="backend" and r[0]["count"]=="1284" and r[0]["secs"].isdigit(); assert r[-1]["verdict"]=="PASS"' "$JS" \
   && ok "1 --json emits the same rows" || bad "1 --json: $JS"
-[[ "$(grep -c . "$P/_tmp/sweep-gate/gate-history.jsonl")" == "2" ]] && ok "1 every run appends one line to gate-history.jsonl" || bad "1 history: $(cat "$P/_tmp/sweep-gate/gate-history.jsonl")"
+[[ "$(grep -c . "$P/.context/proofs/sweep-gate/gate-history.jsonl")" == "2" ]] && ok "1 every run appends one line to gate-history.jsonl" || bad "1 history: $(cat "$P/.context/proofs/sweep-gate/gate-history.jsonl")"
 
 # ── 2 · one leg exits non-zero → FAIL, non-zero; the raw code, not a pipeline's ──
 stub fe 3 "Tests  130 passed | 3 failed"
@@ -96,6 +96,18 @@ OUT="$(run --only e2e --from-log "$TMP/e2e.log")"; RC=$?
 printf '  7 passed (2.0m)\n' > "$TMP/e2e.log"
 OUT="$(run --only e2e --from-log "$TMP/e2e.log")"; RC=$?
 [[ $RC -eq 2 ]] && ok "5 a log with no exit marker is refused (the run has not finished)" || bad "5 unmarked log rc=$RC"
+
+# ── 6 · a log written by hand (rerun on a quiet host) is scored with --exit; the count
+#        still comes from the log, so an empty rerun cannot be passed by hand (BL-254) ──
+printf '  15 passed (2.2m)\n' > "$TMP/rerun.log"
+OUT="$(run --only e2e --from-log "$TMP/rerun.log" --exit 0)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=15"* ]] && ok "6 --exit 0 scores an unmarked rerun log from its count" || bad "6 rc=$RC $OUT"
+: > "$TMP/empty.log"
+OUT="$(run --only e2e --from-log "$TMP/empty.log" --exit 0)"; RC=$?
+[[ $RC -eq 1 && "$OUT" == *"count=?"* ]] && ok "6 --exit 0 over a log that ran nothing still FAILs (countless)" || bad "6 empty rc=$RC $OUT"
+run --only e2e --exit 0 >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "6 --exit without --from-log is a usage error" || bad "6 --exit alone accepted"
+[[ -s "$P/.context/proofs/sweep-gate/gate-history.jsonl" && ! -e "$P/_tmp/sweep-gate/gate-history.jsonl" ]] \
+  && ok "6 history lives under .context/proofs/, not _tmp/ (deletable without asking)" || bad "6 history location"
 
 echo
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }

@@ -42,9 +42,9 @@ E="$(reg --title "emergent one")"; EID="$(idof "$E")"
 bash "$CONV/worklist-advance.sh" "$WL" --append "backlog:$EID — emergent one" >/dev/null 2>&1
 bash "$CONV/worklist-advance.sh" "$WL" --append "inline:loose end, carry to the next sweep" >/dev/null 2>&1
 # a gate history with one re-run of the frontend leg
-mkdir -p _tmp/sweep-gate
-printf '[{"leg":"backend","exit":"0","count":"10","secs":"7"},{"leg":"frontend","exit":"1","count":"9","secs":"5"},{"verdict":"FAIL","legs":2,"failed":1,"pending":0,"at":"2026-08-27T10:00:00"}]\n' > _tmp/sweep-gate/gate-history.jsonl
-printf '[{"leg":"frontend","exit":"0","count":"10","secs":"6"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2026-08-27T10:05:00"}]\n' >> _tmp/sweep-gate/gate-history.jsonl
+mkdir -p .context/proofs/sweep-gate
+printf '[{"leg":"backend","exit":"0","count":"10","secs":"7"},{"leg":"frontend","exit":"1","count":"9","secs":"5"},{"verdict":"FAIL","legs":2,"failed":1,"pending":0,"at":"2026-08-27T10:00:00"}]\n' > .context/proofs/sweep-gate/gate-history.jsonl
+printf '[{"leg":"frontend","exit":"0","count":"10","secs":"6"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2026-08-27T10:05:00"}]\n' >> .context/proofs/sweep-gate/gate-history.jsonl
 
 OUT="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>/dev/null)"; RC=$?
 [[ $RC -eq 0 && -f "$OUT" && "$OUT" == "$P/.context/worklists/_archive/$(basename "$WL" .md)-report.md" ]] && ok "report is the work-list's companion: worklists/_archive/<worklist>-report.md" || bad "report: rc=$RC $OUT"
@@ -78,5 +78,20 @@ bash "$SCRIPTS/close-item.sh" "$CID" --sweep --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-report.sh" "$WL2" --print 2>/dev/null | grep -q "^human-verification: skipped — no queued item carries an owner row" \
   && ok "no owner rows → human-verification: skipped line recorded" || bad "skip line missing"
 bash "$SCRIPTS/sweep-report.sh" no-such-run >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "unknown worklist exits 2" || bad "unknown worklist"
+
+# BL-253: `commits: "backend 25e07c2 frontend 5b4e89b"` names the repo beside each hash
+# in a multi-repo workspace; the report counted the names as commits (5 for 3)
+M="$(reg --title "multi repo" --estimate XS)"; MID="$(idof "$M")"; accept "$M"; row "$M" test "tests/m.py" "2 passed"
+WL3="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Multi repo run" --slug multi-repo-run 2>/dev/null | tail -1)"
+bash "$SCRIPTS/close-item.sh" "$MID" --sweep --no-index >/dev/null 2>&1
+MF="$(ls .context/backlog/_archive/*bl-*multi-repo*.md | head -1)"
+python3 - "$MF" "backend $SHA1 frontend $SHA2" <<'PY2'
+import sys,re;p,v=sys.argv[1:3];t=open(p).read();t=re.sub(r'^commits:.*\n','',t,count=1,flags=re.M)
+t=re.sub(r'^(status:.*\n)', lambda m: m.group(1)+'commits: "'+v+'"\n', t, count=1, flags=re.M);open(p,'w').write(t)
+PY2
+grep -q "^commits: \"backend" "$MF" || bad "fixture: commits not stamped"
+R3="$(bash "$SCRIPTS/sweep-report.sh" multi-repo-run --print 2>/dev/null)"
+grep -q "| commits (from \`commits:\`) | 2 |" <<<"$R3" && ok "repo names beside hashes are not counted as commits (2, not 4)" || bad "commit count: $(grep 'commits (from' <<<"$R3")"
+grep -q "commits: \`$SHA1\`, \`$SHA2\`" <<<"$R3" && ok "only the hashes are listed per item" || bad "per-item commits: $(grep 'commits:' <<<"$R3" | head -2)"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

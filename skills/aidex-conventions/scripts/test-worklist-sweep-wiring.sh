@@ -113,4 +113,27 @@ if command -v git >/dev/null 2>&1; then
   else echo "  skip: git worktree add unavailable"; fi
 else echo "  skip: git not on PATH"; fi
 
+# BL-249 / BL-253: close-item refuses a hash that is not on the current branch, and
+# worklist-advance --commit forwards the resolving commit so `commits:` is not empty
+if command -v git >/dev/null; then
+  P4="$TMP/proj4"; mkdir -p "$P4/.context/backlog"; ( cd "$P4" && git init -q . && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m c1 )
+  ONTRUNK="$(git -C "$P4" rev-parse --short HEAD)"
+  ( cd "$P4" && git checkout -q -b side && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m side && git checkout -q - )
+  OFFTRUNK="$(git -C "$P4" rev-parse --short side)"
+  cd "$P4"
+  X="$(reg --title "trunk check" --estimate XS --verify "a test" 2>/dev/null)"; XID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$X")"
+  bash "$BL/define-item.sh" "$X" --touches "a.py" --no-index >/dev/null 2>&1
+  sed -i.bak 's/^- <!-- concrete, verifiable criterion -->$/- done/' "$X" && rm -f "$X.bak"
+  printf '| %s | %s | %s |\n' test tests/x.py "1 passed" > "$TMP/row4"
+  awk -v r="$(cat "$TMP/row4")" '{print} /^\|---\|---\|---\|$/ && !d {print r; d=1}' "$X" > "$X.tmp" && mv "$X.tmp" "$X"
+  ERR="$(bash "$BL/close-item.sh" "$XID" --sweep --commit "$OFFTRUNK" --no-index 2>&1 >/dev/null)"; RC=$?
+  [[ $RC -ne 0 && -f "$X" && "$ERR" == *"not on the current branch"* ]] && ok "close-item refuses a commit from another branch and leaves the item active" || bad "off-trunk: rc=$RC $ERR"
+  WL5="$(bash "$DIR/worklist-new.sh" --title "Trunk run" --mode sweep --publish never --ref "backlog:$XID — trunk check" 2>/dev/null | tail -1)"
+  [[ -f "$WL5" ]] || WL5="$(ls .context/worklists/*trunk-run*.md | head -1)"
+  bash "$DIR/worklist-advance.sh" "$WL5" --commit "$ONTRUNK" >/dev/null 2>&1; RC=$?
+  XA="$(ls .context/backlog/_archive/*trunk-check*.md 2>/dev/null | head -1)"
+  [[ $RC -eq 0 && -n "$XA" ]] && grep -q "^commits: \"$ONTRUNK\"" "$XA" && ok "worklist-advance --commit forwards the trunk commit into commits:" || bad "advance --commit: rc=$RC $(grep '^commits' "$XA" 2>/dev/null)"
+  cd "$TMP"
+fi
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist sweep wiring: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

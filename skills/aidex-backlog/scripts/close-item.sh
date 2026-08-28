@@ -85,6 +85,34 @@ fi
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
 
+# --- every cited commit must be ON THE TRUNK you are closing from ---
+# 2026-08-28: BL-635/636 cited a worktree branch's commits for hours while main carried
+# different fixes for the same items. A hash that resolves but is not an ancestor of HEAD
+# is a citation of work that is not here. Multi-repo workspaces (backend/.git,
+# frontend/.git beside the root) are searched one level down; the first repo that has
+# the commit on its current branch wins.
+commit_on_trunk() {  # commit_on_trunk <sha> → prints the repo that carries it; exit 1 if none, 3 if no repo at all
+  local sha="$1" repo any=0
+  for repo in "$ROOT" "$ROOT"/*/; do
+    [[ -d "$repo/.git" || -f "$repo/.git" ]] || continue
+    any=1
+    if git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null \
+       && git -C "$repo" merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
+      printf '%s' "$(basename "${repo%/}")"; return 0
+    fi
+  done
+  [[ $any -eq 1 ]] && return 1 || return 3
+}
+for sha in "${COMMITS[@]:-}"; do
+  [[ -n "$sha" ]] || continue
+  rc=0; commit_on_trunk "$sha" >/dev/null || rc=$?
+  case $rc in
+    0) ;;
+    3) warn "--commit $sha not verified: no git repository under $ROOT" ;;
+    *) die "--commit $sha is not on the current branch of $(basename "$ROOT") or any sub-repo — cite a commit that is here (a worktree branch's hash is not)" ;;
+  esac
+done
+
 # --- sweep mode: proof is a precondition, not a warning (Q15/Q16) ---
 # The warning further down is what we had, and it is the 2.2% number: measured adoption
 # of a mandate that is merely written down. In a sweep the item cannot become `done`
