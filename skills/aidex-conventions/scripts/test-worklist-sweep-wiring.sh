@@ -136,4 +136,20 @@ if command -v git >/dev/null; then
   cd "$TMP"
 fi
 
+# BL-261: a parked head is ticked as handled, and its queue line says parked, not done
+if command -v git >/dev/null; then
+  P5="$TMP/proj5"; mkdir -p "$P5/.context/backlog"; ( cd "$P5" && git init -q . && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m c1 ); cd "$P5"
+  Y="$(reg --title "parked head" --estimate XS --verify "a test" 2>/dev/null)"; YID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$Y")"
+  bash "$BL/define-item.sh" "$Y" --touches "a.py" --no-index >/dev/null 2>&1
+  sed -i.bak 's/^- <!-- concrete, verifiable criterion -->$/- done/' "$Y" && rm -f "$Y.bak"
+  for r in '| test | tests/y.py | 1 passed |' '| owner | wording | |'; do
+    awk -v r="$r" '{print} /^\|---\|---\|---\|$/ && !d {print r; d=1}' "$Y" > "$Y.tmp" && mv "$Y.tmp" "$Y"
+  done
+  WL6="$(bash "$DIR/worklist-new.sh" --title "Parked run" --mode sweep --publish never --ref "backlog:$YID — parked head" 2>/dev/null | tail -1)"
+  bash "$DIR/worklist-advance.sh" "$WL6" >/dev/null 2>&1; RC=$?
+  L="$(grep -E "^1\. \[x\] $YID" "$WL6" || true)"
+  [[ $RC -eq 0 && "$L" == *"<!-- parked: awaiting owner -->"* && -f "$Y" ]] && ok "a parked head is ticked and its queue line reads parked: awaiting owner" || bad "parked line: rc=$RC ${L:-<no ticked line>}"
+  cd "$TMP"
+fi
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist sweep wiring: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

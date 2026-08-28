@@ -16,8 +16,9 @@
 #   sweep-gate.sh                       # every leg: backend, frontend, build, e2e
 #   sweep-gate.sh --only <leg> [...]    # a subset (repeatable)
 #   sweep-gate.sh --json                # the same rows as a JSON array (for sweep-report.sh)
-#   sweep-gate.sh --only e2e --from-log <file>
-#   sweep-gate.sh --only e2e --from-log <file> --exit <rc>   # a log written by hand (a rerun
+#   sweep-gate.sh --only <leg> --from-log <file>          # any leg, not only e2e: a backend
+#                                                 # rerun on a quiet host goes in the same way
+#   sweep-gate.sh --only <leg> --from-log <file> --exit <rc>   # a log written by hand (a rerun
 #                                                 # on a quiet host): the marker is missing,
 #                                                 # the exit is yours, the count is the log's
 #                                       # score a log a DETACHED run wrote (see below)

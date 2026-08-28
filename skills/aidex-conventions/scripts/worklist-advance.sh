@@ -114,10 +114,16 @@ if [[ "$peek" -eq 0 && -z "$append" ]]; then
           # the negated test's 0 and the refusal would exit 0 (caught by the wiring test).
           # `--commit` is forwarded: without it every sweep-closed item carried
           # `commits: ""` and the report had nothing to count (BL-576/637, 2026-08-28)
-          rc=0; bash "$BACKLOG_SCRIPTS/close-item.sh" "$id" --sweep ${commits[@]+"${commits[@]}"} >/dev/null || rc=$?
+          rc=0; close_out="$(bash "$BACKLOG_SCRIPTS/close-item.sh" "$id" --sweep ${commits[@]+"${commits[@]}"})" || rc=$?
           if [[ $rc -ne 0 ]]; then
             echo "sweep: $id was not closed — the queue does not advance past an unproven item" >&2
             exit "$rc"
+          fi
+          # parked (owner row unanswered) is handled, not done: the tick alone read as
+          # done in the list (2026-08-28) — the line says what actually happened
+          if [[ "$close_out" == parked:* ]]; then
+            sed -i.bak "${head_line}s/[[:space:]]*\$/   <!-- parked: awaiting owner -->/" "$file" && rm -f "$file.bak"
+            echo "sweep: $id is parked (awaiting owner) — ticked as handled, not closed" >&2
           fi ;;
         archived) echo "sweep: $id is already closed (out of band) — ticking past it" >&2 ;;
         deferred) echo "sweep: warning — $id is deferred (blocked), not closed; ticking past it" >&2 ;;

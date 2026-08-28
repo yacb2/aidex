@@ -171,9 +171,17 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
   esac
   if [[ $owner_open -gt 0 ]]; then
     # Park, do not close: everything mechanical is proven, a judgement is still owed.
-    awk -v today="$TODAY" 'BEGIN{d=0;seen=0}
-      /^---[[:space:]]*$/ { d++; if (d==2 && !seen) print "awaiting: owner"; print; next }
+    # The resolving commits are kept too: a parked item is proven work whose sha was
+    # otherwise lost until the owner closed it by hand (BL-499, 2026-08-28).
+    awk -v today="$TODAY" -v commits="$COMMITS_STR" 'BEGIN{d=0;seen=0;seen_c=0}
+      /^---[[:space:]]*$/ { d++
+        if (d==2 && !seen) print "awaiting: owner"
+        if (d==2 && commits!="" && !seen_c) print "commits: \"" commits "\""
+        print; next }
       d==1 && /^awaiting:/ { print "awaiting: owner"; seen=1; next }
+      d==1 && commits!="" && /^commits:/ { val=$0; sub(/^commits:[[:space:]]*/,"",val); gsub(/"/,"",val)
+        if (val=="" || val=="[]") print "commits: \"" commits "\""; else print "commits: \"" val " " commits "\""
+        seen_c=1; next }
       d==1 && /^updated:/ { print "updated: " today; next }
       { print }' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
     [[ $NO_INDEX -eq 1 ]] || bash "$SCRIPT_DIR/register-item.sh" --reindex >/dev/null 2>&1 || true

@@ -92,9 +92,11 @@ if [[ "$ACTION" == "defer" ]]; then
   [[ -n "$FILE" && -f "$FILE" ]] || die "cannot resolve active backlog item: $TARGET"
   [[ "$(dirname "$FILE")" == "$BACKLOG_DIR" ]] || die "target is not an active backlog item: $FILE"
 
-  # set/append blocked_by + stamp updated (status stays open)
+  # set/append blocked_by + stamp updated; status → open (a `doing` item deferred
+  # mid-sweep is not being worked any more — it kept `doing` on 2026-08-28)
   awk -v today="$TODAY" -v reason="$REASON" '
     BEGIN { d=0; infm=0; seen_blocked=0 }
+    d==1 && /^status:[[:space:]]*"?doing"?[[:space:]]*$/ { print "status: open"; next }
     /^---[[:space:]]*$/ {
       d++
       if (d==1) { infm=1; print; next }
