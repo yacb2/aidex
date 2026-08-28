@@ -34,7 +34,7 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
 After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
 
 1. **Write audit doc.** Save the full report to `.context/audits/YYYY-MM-DD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
-2. **Backup.** Before any mutation, copy to `~/.aidex/backups/<project-name>/<timestamp>/` (user-level, outside the project tree — keeps backups out of every project and consolidated under the central aidex engine):
+2. **Backup.** Before any mutation, copy to `~/.claude/aidex/backups/<project-name>/<timestamp>/` (user-level, outside the project tree — keeps backups out of every project and consolidated under the central aidex engine):
    - `settings.local.json` (project and user, if touched)
    - the entire memory directory
    - any SKILL.md files about to be edited
@@ -56,7 +56,7 @@ After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply al
 **Guardrails for apply phase:**
 - Step 2's backup is what makes class 4 safe to apply unprompted. If the backup step failed or was skipped, nothing is class 4 — fall back to per-item confirmation.
 - Never edit `feedback_*.md` files automatically (MEM-STALE is human-review only).
-- Never delete large external trees outside the aidex-managed roots (`~/.aidex/`, `~/.claude/skills/`, `~/.claude/commands/`) — escalate to backlog instead.
+- Never delete large external trees outside `~/.claude/skills/` and `~/.claude/commands/` — escalate to backlog instead.
 - If `.context/decisions/` exists and an entry overlaps (MEM-DEC), prefer linking from MEMORY.md to the decision doc over deleting silently.
 - For third-party plugin skills, do NOT propose `disable-model-invocation` flips — get overwritten on plugin update. Use `settings.local.json` overrides instead.
 - **Before applying any MEMORY.md edit or delete, read**

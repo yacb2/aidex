@@ -436,7 +436,7 @@ An A/B that stages from the live repo (the `feedback_skill_split_test_isolation`
 mechanism — read `REPO/<name>/SKILL.md`, write `/tmp/.claude/skills/`) assumes
 the repo is stable for the duration of staging. A benign third party — the
 user's other Claude session, a scheduled job, a different agent — editing
-the repo or the installed `~/.aidex/` copies *during* the run violates that
+the repo or the installed `~/.claude/skills/` copies *during* the run violates that
 assumption silently. The 2026-05-19 attempt observed coordinated repo edits
 mid-run that were the user's own work from another session — not malicious,
 not relevant to the experiment, and still **invalidating**, because some

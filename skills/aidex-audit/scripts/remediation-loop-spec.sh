@@ -190,7 +190,7 @@ NEWLOOP=""
 for candidate in \
   "$SKILL_DIR/../aidex-loop/scripts/new-loop-spec.sh" \
   "$ROOT/skills/aidex-loop/scripts/new-loop-spec.sh" \
-  "$HOME/.aidex/skills/aidex-loop/scripts/new-loop-spec.sh" \
+  "$HOME/.claude/skills/aidex-loop/scripts/new-loop-spec.sh" \
   "$HOME/.claude/skills/aidex-loop/scripts/new-loop-spec.sh"
 do
   [[ -f "$candidate" && -x "$candidate" ]] && { NEWLOOP="$candidate"; break; }

@@ -203,7 +203,7 @@ auto-handoff without asking). It is one canon with two consumers (this skill and
 backlog sweep) and is not restated here; `test_checkpoint_lockstep.sh` fails this file if
 it grows its own copy. What is plan-specific:
 
-- **Scope.** `~/.aidex/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`,
+- **Scope.** `~/.claude/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`,
   or `--base <phase-start-sha> branch-vs-main` for a phase that spans commits — and
   `~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` owns which
   reviewer covers which scope. **Exit 3 is an empty scope, never a passing review.**

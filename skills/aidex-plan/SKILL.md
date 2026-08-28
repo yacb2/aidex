@@ -198,7 +198,7 @@ trivial plans skip this — do not add noise. A `mode: scoped` plan is one phase
 construction, so it never reaches this step.
 
 1. Detect whether `aidex-plan-exec` is installed: check `~/.claude/skills/aidex-plan-exec/`,
-   `~/.aidex/skills/aidex-plan-exec/`, and any installed plugins.
+   `~/.claude/skills/aidex-plan-exec/`, and any installed plugins.
 2. If present → offer: "Execute this plan phase-by-phase with review/commit/handoff
    via `aidex-plan-exec`?"
 3. If absent → one-line mention only: a `aidex-plan-exec` skill exists for running

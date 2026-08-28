@@ -24,7 +24,7 @@ and before the next unit starts.
 ### 1. Code-review the diff — scope first, verdict with its anchor
 
 **Resolve the scope first.** Run
-`~/.aidex/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`
+`~/.claude/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`
 so what is being reviewed is a recorded fact, not an assumption. **When the unit spans
 commits, resolve from the merge base** — `--base <merge-base> branch-vs-main` — never
 from a phrase like "since the last review": three attempts on 2026-08-23 were broken by

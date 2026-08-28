@@ -201,8 +201,8 @@ def _weak_model_warnings(agents: list[tuple[str, str, str]]) -> list[str]:
 def _owned_skills() -> list[Path]:
     """Skill directories aidex ships — never the user's own.
 
-    Installed, SKILLS_DIR is ~/.aidex/skills, which also holds whatever skills
-    the user put there; ~/.aidex/.manifest is install.sh's record of which ones
+    Installed, SKILLS_DIR is ~/.claude/skills, which also holds whatever skills
+    the user put there; ~/.claude/aidex/manifest is install.sh's record of which ones
     are ours. Without this filter the guard judged foreign skills and FAILed on
     a clean tree for every installed user, while the repo copy — where the root
     is aidex-only by construction — printed OK (BL-115).

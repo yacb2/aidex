@@ -295,7 +295,7 @@ cat <<EOF
        git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>
   4. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
   5. If you have many candidates, invoke Claude with the inventory-seeder agent:
-       Read ~/.aidex/skills/aidex-audit/agents/inventory-seeder.md
+       Read ~/.claude/skills/aidex-audit/agents/inventory-seeder.md
        Provide it the methodology and the list of moved folders; it will generate
        rows for audits/<methodology>/00-inventory.md.
   6. Add an entry to .context/audits/<methodology>/00-changelog.md recording the
@@ -305,5 +305,5 @@ cat <<EOF
        from the working directory, not from this script's argument)
   8. Run /aidex-audit validate to check coherence.
 
-  See ~/.aidex/skills/aidex-audit/references/05-migration-guide.md for full details.
+  See ~/.claude/skills/aidex-audit/references/05-migration-guide.md for full details.
 EOF

@@ -110,7 +110,7 @@ check "04-playbooks.md still points at $NO_TEMPLATE outside the table" \
 
 # --- sites 7-9: the copies outside this skill ------------------------------------
 # Only reachable from a repo checkout: install.sh ships skills/ and rules/, not README.md,
-# so in ~/.aidex/ these three are absent. Skipping is printed, never counted as a pass.
+# so in the installed ~/.claude/skills/ tree these three are absent. Skipping is printed, never counted as a pass.
 PROSE_SITES=("$PLAYBOOKS")
 if [[ -f "$README" && -f "$CONV_SKILL" && -f "$CONV_AUDIT" ]]; then
   PROSE_SITES+=("$README" "$CONV_SKILL" "$CONV_AUDIT")

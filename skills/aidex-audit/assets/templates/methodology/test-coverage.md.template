@@ -134,7 +134,7 @@ that reads as "nothing is defect-prone"). Generate it as part of this run (read-
 miner over `.context/` items and transcripts; writes only the jsonl):
 
 ```bash
-python3 ~/.aidex/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
+python3 ~/.claude/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
   --denominator all --projects-root <workspace-parent-dir> \
   --out .context/audits/test-coverage/defect-prone.jsonl
 ```

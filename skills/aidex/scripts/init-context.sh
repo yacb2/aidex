@@ -14,7 +14,7 @@
 #        $AIDEX_DIR/skills/aidex-backlog/scripts/register-item.sh --reindex
 #        $AIDEX_DIR/skills/aidex-plan/scripts/reindex-plans.sh
 #      Skipped (with a note) if the suite is not installed at $AIDEX_DIR
-#      (default ~/.aidex).
+#      (default ~/.claude, where install.sh puts the suite).
 #   3. Run $AIDEX_DIR/skills/aidex-conventions/scripts/detect-project-commands.sh
 #      when present, writing its output to .context/references/01-project-commands.md
 #      (skip-if-exists). Skipped (with a note) if not installed.
@@ -26,7 +26,7 @@
 
 set -uo pipefail
 
-AIDEX_DIR="${AIDEX_DIR:-$HOME/.aidex}"
+AIDEX_DIR="${AIDEX_DIR:-$HOME/.claude}"
 
 PROJECT_DIR="${1:-$(pwd)}"
 mkdir -p "$PROJECT_DIR"

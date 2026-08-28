@@ -16,7 +16,7 @@ four commits each, across two repos — were both in that group.
 Usage:
   sweep-eligible.py [--size XS,S] [--json] [--needs-decision]
 """
-import argparse, json, os, re, sys
+import argparse, json, os, re, subprocess, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import importlib
@@ -95,25 +95,41 @@ def body_signals(text):
 _QUEUED = re.compile(r'^\d+\. \[ \] (BL-\d+)\b', re.M)
 
 
-def queued_elsewhere(root):
-    """BL-id -> worklist file, for every unticked queue line of a `doing` work-list.
+def sibling_trees(root):
+    """Every checkout of this repo: the main tree and each linked worktree, minus `root`.
 
-    2026-08-28: two sweeps admitted the same two items and produced two independent
-    fixes for each. An item is only ever in one queue; a `doing` work-list that names it
-    has already taken it."""
-    d = os.path.join(root, '.context', 'worklists')
+    A project that tracks `.context/` gives every worktree its OWN backlog and
+    worklists — the 2026-08-28 incident was a sweep in worktree small-sweep-3 and a
+    sweep in main taking the same items, each blind to the other's `doing` queue.
+    Scanning only the local tree closes the main-vs-main case, not the one that happened."""
+    try:
+        out = subprocess.run(['git', '-C', root, 'worktree', 'list', '--porcelain'],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    trees = [ln[len('worktree '):] for ln in out.splitlines() if ln.startswith('worktree ')]
+    me = os.path.realpath(root)
+    return [d for d in trees if os.path.realpath(d) != me]
+
+
+def queued_elsewhere(root):
+    """BL-id -> `worklist/<file>` (or `<tree>:worklist/<file>` in another checkout), for
+    every unticked queue line of a `doing` work-list. An item is only ever in one queue."""
     out = {}
-    if not os.path.isdir(d):
-        return out
-    for f in sorted(os.listdir(d)):
-        if not f.endswith('.md') or f.startswith('00-'):
+    for tree in [root] + sibling_trees(root):
+        d = os.path.join(tree, '.context', 'worklists')
+        if not os.path.isdir(d):
             continue
-        t = open(os.path.join(d, f)).read()
-        m = re.match(r'---\n(.*?)\n---', t, re.S)
-        if not m or not re.search(r'^status:[ \t]*["\']?doing["\']?[ \t]*$', m.group(1), re.M):
-            continue
-        for bl in _QUEUED.findall(t[m.end():]):
-            out.setdefault(bl, f)
+        for f in sorted(os.listdir(d)):
+            if not f.endswith('.md') or f.startswith('00-'):
+                continue
+            t = open(os.path.join(d, f)).read()
+            m = re.match(r'---\n(.*?)\n---', t, re.S)
+            if not m or not re.search(r'^status:[ \t]*["\']?doing["\']?[ \t]*$', m.group(1), re.M):
+                continue
+            where = 'worklist/' + f if tree == root else os.path.basename(tree) + ':worklist/' + f
+            for bl in _QUEUED.findall(t[m.end():]):
+                out.setdefault(bl, where)
     return out
 
 
@@ -167,7 +183,7 @@ def main():
     eligible, review, needs = [], [], []
     for i in items:
         if i['id'] in queued:
-            i['reason'] = 'queued in worklist/' + queued[i['id']]
+            i['reason'] = 'queued in ' + queued[i['id']]
             needs.append(i)
         elif i['blocked_by']:
             i['reason'] = 'blocked_by ' + i['blocked_by']

@@ -42,7 +42,7 @@ REGISTER=""
 for candidate in \
   "$SKILL_DIR/../aidex-backlog/scripts/register-item.sh" \
   "$ROOT/skills/aidex-backlog/scripts/register-item.sh" \
-  "$HOME/.aidex/skills/aidex-backlog/scripts/register-item.sh" \
+  "$HOME/.claude/skills/aidex-backlog/scripts/register-item.sh" \
   "$HOME/.claude/skills/aidex-backlog/scripts/register-item.sh"
 do
   if [[ -f "$candidate" && -x "$candidate" ]]; then

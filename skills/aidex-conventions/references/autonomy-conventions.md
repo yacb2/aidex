@@ -97,7 +97,7 @@ Classify before you pause:
    the session and is not re-asked. Usage-retro 2026-08-23 found the guard being
    hand-overridden at least twice a week (2026-08-17 echo_lab, 2026-08-18
    dashboard_template).
-   Note the ownership limit: `session-handoff` is not in `~/.aidex/.manifest`, so this
+   Note the ownership limit: `session-handoff` is not in `~/.claude/aidex/manifest`, so this
    repo can state precedence but cannot edit that skill. It does have an owner, though,
    and it is not this codebase: the skill ships from `claude-session-handoff`, which
    actively maintains this exact boundary (`15b42a3`, 2026-08-06, separates asking for a
@@ -312,7 +312,7 @@ nothing points at the other four — so they are indexed here:
 |---|---|
 | Headless `claude -p` does not ship `artifact-design` (field-verified 2026-07-23) | `rules/artifacts-local-first.md` |
 | `AskUserQuestion` is interactive-only; the fallback is above | this document, § above |
-| `~/.claude/rules/` is the only surface that loads; a copy under `~/.aidex/` loads nothing | `install.sh` header + repo `CLAUDE.md` |
+| `~/.claude/rules/` is the only surface that loads; the rule must be a real file there | `install.sh` header + repo `CLAUDE.md` |
 | A spawned eval child inherits CWD, pays MCP cold-start, and loads every ambient skill | `skill-trigger-eval-methodology.md` |
 | Per-agent `model` / `effort` are assigned explicitly, not inherited by accident | `aidex-plan-exec` + `aidex-workflow` SKILL.md |
 

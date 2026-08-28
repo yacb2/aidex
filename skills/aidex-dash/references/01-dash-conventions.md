@@ -48,7 +48,7 @@ backlog/finding items never get their own HTML.
 The same GENERATED contract and sibling-path rule apply to ad-hoc reports —
 one-off HTML written for a specific `.context/` artifact rather than one of
 dash's own board renderers (see `rules/artifacts-local-first.md`, installed
-to `~/.aidex/rules/`, for the always-on session rule). `<slug>-report.html`
+to `~/.claude/rules/`, for the always-on session rule). `<slug>-report.html`
 sits next to a single-file artifact, or `<slug>/<slug>-report.html` inside a
 folder artifact. The markdown stays canon; the HTML is disposable,
 regenerable render output — never the source of truth. Publish policy is

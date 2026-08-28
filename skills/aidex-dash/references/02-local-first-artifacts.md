@@ -39,7 +39,7 @@ pointing into its section.
 The request maps to one of the deterministic `.context/` boards: backlog board,
 plans progress, audit inventory, coverage matrix.
 
-Run the renderer — `~/.aidex/skills/aidex-dash/scripts/render.sh <target>` — which is
+Run the renderer — `~/.claude/skills/aidex-dash/scripts/render.sh <target>` — which is
 zero-token and idempotent, then open the output locally. Do not hand-generate what a
 renderer already produces.
 
@@ -342,7 +342,7 @@ The Artifact tool supplies that envelope at publish time; a local file gets the 
 from:
 
 ```
-~/.aidex/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
+~/.claude/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
 ```
 
 (stdin in, file out), shared with the dash renderers so both routes produce the same kind
@@ -364,7 +364,7 @@ it. A non-zero exit means the file on disk is not deliverable.
 To re-check a file you did not just wrap:
 
 ```
-~/.aidex/skills/aidex-dash/scripts/check-artifact.sh <file>
+~/.claude/skills/aidex-dash/scripts/check-artifact.sh <file>
 ```
 
 **Why this is one command and not two.** It used to be two, and the verify is the step a
@@ -589,7 +589,7 @@ markdown the composer had already copied. It arrives by wrapping, so it is not w
 into a block and cannot be forgotten.
 
 Copy the shape from
-`~/.aidex/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
+`~/.claude/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
 re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
 the page's own tokens.
 
