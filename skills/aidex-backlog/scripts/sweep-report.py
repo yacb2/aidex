@@ -94,7 +94,9 @@ def render(root, wl_path):
             if r['kind'] == 'owner':
                 owner_rows.append({'id': bl, 'title': it['fm'].get('title', ''), **r})
         st = it['fm'].get('status', '?')
-        shas = [s for s in it['fm'].get('commits', '').split() if s]
+        # `commits:` may read `backend 25e07c2 frontend 5b4e89b` in a multi-repo project:
+        # the repo names locate the hash and are not commits (they were counted, 2026-08-28)
+        shas = [s for s in it['fm'].get('commits', '').split() if re.fullmatch(r'[0-9a-f]{7,40}', s)]
         if it['state'] == 'archived' and st == 'done':
             closed.append({'id': bl, 'title': it['fm'].get('title', ''), 'commits': shas, 'rows': rows,
                            'surface': it['fm'].get('surface', 'internal'), 'estimate': it['fm'].get('estimate', '-'),
@@ -117,7 +119,7 @@ def render(root, wl_path):
     needs = [ln.strip() for ln in section(wl_body, 'Needs decision (kickoff)').splitlines() if ln.strip().startswith('- ')]
 
     # the gate, verbatim: every run sweep-gate.sh appended
-    hist_path = os.path.join(root, '_tmp', 'sweep-gate', 'gate-history.jsonl')
+    hist_path = os.path.join(root, '.context', 'proofs', 'sweep-gate', 'gate-history.jsonl')
     runs = []
     if os.path.isfile(hist_path):
         for ln in open(hist_path, encoding='utf-8', errors='replace'):
@@ -153,7 +155,7 @@ def render(root, wl_path):
     out.append('proof_links:')
     out.append(f'  - worklist/{wl_file}')
     if runs:
-        out.append('  - _tmp/sweep-gate/gate-history.jsonl')
+        out.append('  - .context/proofs/sweep-gate/gate-history.jsonl')
     out.append('---')
     out.append('')
     out.append(f'# Sweep report — {wl_fm.get("title", wl_file)}')
@@ -234,7 +236,7 @@ def render(root, wl_path):
                 if 'leg' in r:
                     out.append(f'  - leg={r["leg"]} exit={r["exit"]} count={r["count"]} secs={r.get("secs", "-")}')
     else:
-        out.append('_no gate run recorded (`_tmp/sweep-gate/gate-history.jsonl` absent) — the boundary gate did not run, or ran elsewhere_')
+        out.append('_no gate run recorded (`.context/proofs/sweep-gate/gate-history.jsonl` absent) — the boundary gate did not run, or ran elsewhere_')
     out.append('')
     return '\n'.join(out) + '\n'
 

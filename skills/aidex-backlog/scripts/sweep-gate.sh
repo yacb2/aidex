@@ -17,6 +17,9 @@
 #   sweep-gate.sh --only <leg> [...]    # a subset (repeatable)
 #   sweep-gate.sh --json                # the same rows as a JSON array (for sweep-report.sh)
 #   sweep-gate.sh --only e2e --from-log <file>
+#   sweep-gate.sh --only e2e --from-log <file> --exit <rc>   # a log written by hand (a rerun
+#                                                 # on a quiet host): the marker is missing,
+#                                                 # the exit is yours, the count is the log's
 #                                       # score a log a DETACHED run wrote (see below)
 #
 # Reads from .context/testing-profile.md: backend_suite_cmd, frontend_suite_cmd,
@@ -42,10 +45,11 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../aidex-conventions/scripts" && pwd -P)/_lib.sh"
 
 ALL_LEGS=(backend frontend build e2e)
-ONLY=() JSON=0 FROM_LOG=""
+ONLY=() JSON=0 FROM_LOG="" EXIT_RC=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --only)     [[ $# -ge 2 ]] || die "--only needs a leg"; ONLY+=("$2"); shift 2 ;;
+    --exit)     [[ $# -ge 2 ]] || die "--exit needs a code"; EXIT_RC="$2"; shift 2 ;;
     --json)     JSON=1; shift ;;
     --from-log) [[ $# -ge 2 ]] || die "--from-log needs a file"; FROM_LOG="$2"; shift 2 ;;
     -h|--help)  sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
@@ -59,6 +63,9 @@ done
 if [[ -n "$FROM_LOG" ]]; then
   [[ ${#ONLY[@]} -eq 1 ]] || die "--from-log scores exactly one leg: pass a single --only <leg>"
   [[ -f "$FROM_LOG" ]] || die "--from-log: no such file: $FROM_LOG"
+  [[ -z "$EXIT_RC" || "$EXIT_RC" =~ ^[0-9]+$ ]] || die "--exit must be a number: $EXIT_RC"
+else
+  [[ -z "$EXIT_RC" ]] || die "--exit only accompanies --from-log"
 fi
 LEGS=("${ALL_LEGS[@]}"); [[ ${#ONLY[@]} -gt 0 ]] && LEGS=("${ONLY[@]}")
 
@@ -87,6 +94,8 @@ done
 E2E_DETACHED="$(profile_key e2e_detached)"
 
 LOG_DIR="$ROOT/_tmp/sweep-gate"; mkdir -p "$LOG_DIR"
+# The history is evidence and outlives the run; _tmp/ is deletable without asking.
+HIST_DIR="$ROOT/.context/proofs/sweep-gate"; mkdir -p "$HIST_DIR"
 
 # The count is what says the runner ran SOMETHING. Per-runner shapes, last match wins:
 #   pytest     "1284 passed"            vitest  "Tests  133 passed"
@@ -107,7 +116,11 @@ for leg in "${LEGS[@]}"; do
   log="$LOG_DIR/$leg.log"
   if [[ -n "$FROM_LOG" ]]; then
     rc="$(grep -oE '^sweep-gate-exit=[0-9]+' "$FROM_LOG" | tail -1 | cut -d= -f2 || true)"
-    [[ -n "$rc" ]] || die "$FROM_LOG carries no \`sweep-gate-exit=<rc>\` marker — the detached run has not finished, or was not launched with the printed invocation"
+    # `--exit` is the marker for a log that was not written by the printed invocation —
+    # a rerun on a quiet host after a load-poisoned leg (2026-08-28). The count still
+    # comes from the log, so a leg that ran nothing cannot be scored green by hand.
+    [[ -n "$EXIT_RC" ]] && rc="$EXIT_RC"
+    [[ -n "$rc" ]] || die "$FROM_LOG carries no \`sweep-gate-exit=<rc>\` marker — the detached run has not finished, or was not launched with the printed invocation (a log written by hand is scored with --exit <rc>)"
     count="$(count_in "$leg" "$FROM_LOG")"; secs="-"
   elif [[ "$leg" == "e2e" && "$E2E_DETACHED" == "true" ]]; then
     # Printed, not run: `sweep-execution-policy.md` §3 made mechanical. The marker line
@@ -152,7 +165,7 @@ json_rows() {
   done
   printf ',{"verdict":"%s","legs":%d,"failed":%d,"pending":%d,"at":"%s"}]\n' "$VERDICT" "${#LEGS[@]}" "$FAILED" "$PENDING" "$(date +%Y-%m-%dT%H:%M:%S)"
 }
-json_rows >> "$LOG_DIR/gate-history.jsonl"
+json_rows >> "$HIST_DIR/gate-history.jsonl"
 if [[ $JSON -eq 1 ]]; then
   json_rows
 else

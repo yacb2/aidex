@@ -7,6 +7,8 @@
 #   worklist-advance.sh <slug-or-path>                 # complete head, print next
 #   worklist-advance.sh <slug-or-path> --append "<kind:label>"   # add class-(b) emergent
 #   worklist-advance.sh <slug-or-path> --peek          # print next without completing
+#   worklist-advance.sh <slug-or-path> --commit <sha>  # resolving commit(s) for the head
+#                                                      # item being closed (repeatable)
 #   worklist-advance.sh <slug-or-path> --sweep         # sweep mode (or `mode: sweep` in
 #                                                      # the worklist's front-matter)
 #
@@ -34,10 +36,11 @@ WL_DIR="$ROOT/.context/worklists"
 arg="${1:-}"; shift || true
 [[ -n "$arg" ]] || { echo "usage: worklist-advance.sh <slug-or-path> [--append <kind:label>] [--peek]" >&2; exit 2; }
 
-append="" peek=0 sweep=0
+append="" peek=0 sweep=0; commits=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --append) append="$2"; shift 2;;
+    --commit) commits+=(--commit "$2"); shift 2;;
     --peek)   peek=1; shift;;
     --sweep)  sweep=1; shift;;
     *) echo "unknown arg: $1" >&2; exit 2;;
@@ -109,7 +112,9 @@ if [[ "$peek" -eq 0 && -z "$append" ]]; then
         active)
           # `rc=$?` on its own line after the call — never inside `if !`, where $? is
           # the negated test's 0 and the refusal would exit 0 (caught by the wiring test).
-          rc=0; bash "$BACKLOG_SCRIPTS/close-item.sh" "$id" --sweep >/dev/null || rc=$?
+          # `--commit` is forwarded: without it every sweep-closed item carried
+          # `commits: ""` and the report had nothing to count (BL-576/637, 2026-08-28)
+          rc=0; bash "$BACKLOG_SCRIPTS/close-item.sh" "$id" --sweep ${commits[@]+"${commits[@]}"} >/dev/null || rc=$?
           if [[ $rc -ne 0 ]]; then
             echo "sweep: $id was not closed — the queue does not advance past an unproven item" >&2
             exit "$rc"

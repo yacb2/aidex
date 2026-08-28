@@ -85,4 +85,31 @@ grep -q "awaiting owner" <<<"$OUT" && ! grep -A1 "^ELIGIBLE" <<<"$OUT" | grep -q
 OUT="$(bash "$SCRIPTS/triage.sh" 2>&1)"
 grep -q "definition — open items below the definition contract" <<<"$OUT" && ok "triage.sh reports the definition check" || bad "triage: $OUT"
 
+# BL-251: the hint for body sections must not name define-item.sh (it writes front-matter only)
+OUT="$(python3 "$SCRIPTS/define-check.py" 2>&1)"
+grep -q "Context/Acceptance: edit the body" <<<"$OUT" && ! grep -q "write the missing fields with define-item.sh" <<<"$OUT" \
+  && ok "the underdefined hint sends Context/Acceptance to the body, front-matter to define-item.sh" || bad "hint: $(tail -1 <<<"$OUT")"
+
+# BL-252: a backticked _tmp/ path is scratch, never a touches candidate
+mkdir -p _tmp && : > _tmp/probe.log
+T="$(reg --title "cites a scratch log")"; TID="$(idof "$T")"; context "$T"; accept "$T"
+printf '\nSee `_tmp/probe.log` and `src/gap/lane.py`.\n' >> "$T"
+OUT="$(python3 "$SCRIPTS/define-check.py" 2>&1)"
+LINE="$(grep -A3 "^!! $TID " <<<"$OUT" | grep 'touches?' || true)"
+[[ "$LINE" == *"src/gap/lane.py"* && "$LINE" != *"_tmp/"* ]] && ok "touches? proposes src/gap/lane.py and never _tmp/probe.log" || bad "touches?: $LINE"
+
+# BL-255: a REVIEW signal names the sentence that fired it
+S="$(reg --title "acceptance says decision" --verify "a test")"; SID="$(idof "$S")"; context "$S"
+python3 - "$S" <<'PY2'
+import sys,re;p=sys.argv[1];t=open(p).read()
+t=re.sub(r'(## Acceptance\n)', r'\1\n- A decision is recorded on whether AD rewriting runs at 0.2.\n', t, count=1);open(p,'w').write(t)
+PY2
+bash "$SCRIPTS/define-item.sh" "$S" --touches "src/gap/lane.py" --no-index >/dev/null 2>&1
+J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+python3 - "$J" "$SID" <<'PY2'
+import json,sys; r=json.loads(sys.argv[1]); it=[i for i in r['review'] if i['id']==sys.argv[2]]
+assert it, 'not in REVIEW'; assert 'A decision is recorded on whether' in it[0]['reason'], it[0]['reason']
+PY2
+[[ $? -eq 0 ]] && ok "REVIEW reason quotes the sentence, so the reader judges instead of guessing" || bad "signal excerpt: $J"
+
 echo; [[ $FAIL -eq 0 ]] && echo "OK — define-check: $PASS cells" || { echo "$FAIL failure(s)"; exit 1; }

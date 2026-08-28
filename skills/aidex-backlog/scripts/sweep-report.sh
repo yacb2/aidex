@@ -12,7 +12,7 @@
 # `## Verification` rows; the OWNER rows aggregated across every item — the one list the
 # owner reads; the NEEDS-DECISION list recorded at kickoff, unchanged; deferrals and
 # mid-flight skips; emergent growth (flagged past 25 % of the kickoff queue); the gate
-# rows from `_tmp/sweep-gate/gate-history.jsonl` verbatim; and the per-sweep metrics —
+# rows from `.context/proofs/sweep-gate/gate-history.jsonl` verbatim; and the per-sweep metrics —
 # items, commits, wall time, share of time in gate suites, legs re-run.
 #
 # Anchored `origin_ref: worklist/<file>` (ADR 2026-08-27, worklists are referenceable).
