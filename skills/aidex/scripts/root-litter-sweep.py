@@ -59,7 +59,7 @@ def dir_stats(path):
 
 def find_in_project_backups(root):
     """The `.aidex-backups` regression guard. Its root cause was fixed in 1627663
-    (backups moved to ~/.aidex/backups/), so the expected count is zero — which is
+    (backups moved to ~/.claude/aidex/backups/), so the expected count is zero — which is
     exactly why it is worth checking: a silent return of this is how the fix comes
     undone without anyone noticing."""
     out = []
@@ -69,7 +69,7 @@ def find_in_project_backups(root):
             n, age = dir_stats(p)
             out.append({"category": "in-project-backups", "owner": "aidex", "path": p,
                         "detail": f"{n} entries, newest {age}d old" if age is not None else f"{n} entries",
-                        "offer": "aidex writes backups to ~/.aidex/backups/ since 1627663 — "
+                        "offer": "aidex writes backups to ~/.claude/aidex/backups/ since 1627663 — "
                                  "this predates that fix, or something recreated it"})
     return out
 

@@ -56,7 +56,7 @@ FM_DELIM = re.compile(r"^---\s*$")
 # must not be able to ship its own approval for it.
 TRUST_FILE = Path(
     os.environ.get("AIDEX_CENSUS_TRUST")
-    or (Path.home() / ".aidex" / ".census-trust")
+    or (Path.home() / ".claude" / "aidex" / "census-trust")
 )
 
 

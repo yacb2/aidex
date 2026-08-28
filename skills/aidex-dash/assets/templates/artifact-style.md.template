@@ -4,7 +4,7 @@ Consumed by the local-first artifact flow (`rules/artifacts-local-first.md`,
 step B.2) for every HTML artifact/report generated in this project.
 
 **This file is a DELTA, not a design system.** The design system is the kit —
-`~/.aidex/skills/aidex-dash/assets/artifact-kit/` — which `wrap-report.sh`
+`~/.claude/skills/aidex-dash/assets/artifact-kit/` — which `wrap-report.sh`
 injects into every artifact. Of everything below, the wrapper reads exactly
 three things: the `css` fence in `## Delta`, `Favicon emoji:`, and `language:`.
 The rest is prose for whoever writes the page; filling in the palette table

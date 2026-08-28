@@ -12,7 +12,7 @@ You analyze a Claude Code session's idle context cost. Input is a `/context` bre
 
 ## Setup
 
-Read the budget heuristics: `~/.aidex/skills/aidex/references/05-context-budget.md`.
+Read the budget heuristics: `~/.claude/skills/aidex/references/05-context-budget.md`.
 
 ## Steps
 
@@ -32,7 +32,7 @@ Use the targets in `05-context-budget.md` § Budget targets. Mark each tunable c
 For each non-trivial category, identify the contributors:
 
 **memory-files** — list files actually loaded:
-- `~/.claude/CLAUDE.md`, `<project>/.claude/CLAUDE.md` or `<project>/CLAUDE.md`, `~/.claude/rules/*.md`, `~/.aidex/rules/*.md`, MEMORY.md paths.
+- `~/.claude/CLAUDE.md`, `<project>/.claude/CLAUDE.md` or `<project>/CLAUDE.md`, `~/.claude/rules/*.md`, `~/.claude/rules/*.md`, MEMORY.md paths.
 - Report each with approximate line count. Flag overlap across global/user/project.
 
 **custom-agents** — enumerate plugins with agents:

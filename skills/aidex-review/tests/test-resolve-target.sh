@@ -385,7 +385,7 @@ grep -q '01-review-angles.md' "$RESOLVER" \
 #     One direction only: IF the row claims refusal, it must also name --partition.
 #     A row that never mentions refusing is not this skill's row to police.
 #     Skipped when the README is absent — install.sh ships no README, so an
-#     unconditional read FAILs from the installed ~/.aidex/ tree (db45759's idiom).
+#     unconditional read FAILs from the installed ~/.claude/skills/ tree (db45759's idiom).
 # ── The named target is never emptied by its own name ────────────────────────
 # Field-found 2026-08-23 reviewing skills/aidex-audit/scripts/coverage: EXCLUDE_DIRS
 # carries `coverage` (the artifact dir), and the exclusion ran over the FULL path, so

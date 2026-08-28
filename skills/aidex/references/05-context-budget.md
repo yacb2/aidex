@@ -111,10 +111,10 @@ Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable conte
 
 ### 5. Global rules fragmentation
 
-`~/.claude/CLAUDE.md` + `~/.aidex/rules/*.md` + `~/.claude/rules/*.md` often overlap. Each is imported into every session.
+`~/.claude/CLAUDE.md` + `~/.claude/rules/*.md` + `~/.claude/rules/*.md` often overlap. Each is imported into every session.
 
 - Flag rules whose titles or first paragraphs overlap across the three locations.
-- Canonical home: `~/.aidex/rules/` for AIDEX-managed, `~/.claude/CLAUDE.md` for personal.
+- Canonical home: `~/.claude/rules/` for AIDEX-managed, `~/.claude/CLAUDE.md` for personal.
 
 ### 6. Stack-irrelevant global skills
 

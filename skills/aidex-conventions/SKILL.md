@@ -125,7 +125,7 @@ Skill **descriptions** stay English-only regardless (D-11). The assistant contin
 |------|----------|--------|
 | Global skills | `~/.claude/skills/<name>/` | kebab-case |
 | Project skills | `.claude/skills/<name>/` | kebab-case |
-| Shared skills (aidex) | `~/.aidex/skills/<name>/` | kebab-case |
+| Shared skills (aidex) | `~/.claude/skills/<name>/` | kebab-case |
 | Plans | `.context/plans/` | `YYYY-MM-DD-<feature>.md` or `YYYY-MM-DD-<feature>/` |
 | Issues | `.context/issues/` | `ISSUE-NNN-description.md` + `00-index.md` |
 | Roadmap | `.context/roadmap/` | `README.md` + `NN-phase-name.md` |

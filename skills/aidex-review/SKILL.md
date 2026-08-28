@@ -260,14 +260,14 @@ mix picks between them:
 Backlog, one call each, real interface (verified 2026-08-10):
 
 ```bash
-bash ~/.aidex/skills/aidex-backlog/scripts/register-item.sh \
+bash ~/.claude/skills/aidex-backlog/scripts/register-item.sh \
   --origin manual --title "<the finding>" --type bug --priority P2 --estimate S
 ```
 
 Audit run — **`aidex-audit` owns this format; do not grow a second writer here**:
 
 ```bash
-bash ~/.aidex/skills/aidex-audit/scripts/new-audit.sh custom <slug>   # methodology run,
+bash ~/.claude/skills/aidex-audit/scripts/new-audit.sh custom <slug>   # methodology run,
 #   NOT --standalone: escalate-finding.sh resolves ids only through
 #   audits/<methodology>/00-inventory.md, so a standalone run cannot be escalated by id
 ```
@@ -278,7 +278,7 @@ choose this destination.
 **Then prove the landing, with `aidex-audit`'s own validator, not by looking:**
 
 ```bash
-bash ~/.aidex/skills/aidex-audit/scripts/validate-audit.sh
+bash ~/.claude/skills/aidex-audit/scripts/validate-audit.sh
 ```
 
 An `audit-orphan-finding-ref` means the ids are in the journal and **not** in the

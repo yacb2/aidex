@@ -13,7 +13,7 @@ set -euo pipefail
 
 MARK="# >>> aidex commit-trailer harvester (D-09) >>>"
 END_MARK="# <<< aidex commit-trailer harvester <<<"
-HARVEST='"$HOME/.aidex/skills/aidex-backlog/scripts/harvest-commit.sh" >/dev/null 2>&1 || true'
+HARVEST='"$HOME/.claude/skills/aidex-backlog/scripts/harvest-commit.sh" >/dev/null 2>&1 || true'
 
 REMOVE=0
 [[ "${1:-}" == "--remove" ]] && REMOVE=1

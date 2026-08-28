@@ -103,7 +103,7 @@ Options:
 
 ### Fix Broken Symlinks
 ```
-.claude/skills/gsap-core → ~/.aidex/skills/gsap-core (BROKEN)
+.claude/skills/gsap-core → ~/.claude/skills/gsap-core (BROKEN)
 Options:
   [1] Remove symlink
   [2] Skip

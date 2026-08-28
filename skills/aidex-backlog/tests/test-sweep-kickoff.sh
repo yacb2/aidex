@@ -118,4 +118,29 @@ J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
 python3 -c 'import json,sys; r=json.loads(sys.argv[1]); assert [i for i in r["eligible"] if i["id"]==sys.argv[2]]' "$J" "$QID" \
   && ok "a done work-list releases it" || bad "done worklist still holds it"
 
+# BL-258: a project that tracks .context/ gives each worktree its own worklists; a `doing`
+# queue in the MAIN tree must still exclude the item from a sweep run in a linked worktree
+# (small-sweep-3 vs main, 2026-08-28), and the other way round
+if command -v git >/dev/null; then
+  git init -q . 2>/dev/null; git add -A >/dev/null 2>&1; git -c user.email=t@t -c user.name=t commit -q -m base 2>/dev/null
+  W="$(reg --title "wanted by both trees" --estimate XS)"; WID="$(idof "$W")"; accept "$W"
+  git add -A >/dev/null 2>&1; git -c user.email=t@t -c user.name=t commit -q -m item 2>/dev/null
+  printf -- '---\ntitle: "Main sweep"\nstatus: doing\ncreated: 2026-08-28\nupdated: 2026-08-28\nmode: sweep\n---\n\n## Queue (in execution order)\n1. [ ] %s — wanted by both trees   <!-- ref: backlog -->\n' "$WID" > .context/worklists/2026-08-28-main-sweep.md
+  if git worktree add -q "$TMP/p-wt" -b wt-sweep >/dev/null 2>&1; then
+    J="$(cd "$TMP/p-wt" && python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+    python3 - "$J" "$WID" <<'PY2'
+import json,sys; r=json.loads(sys.argv[1]); q=sys.argv[2]
+assert not [i for i in r['eligible'] if i['id']==q], 'eligible in the worktree'
+nd=[i for i in r['needs_decision'] if i['id']==q]; assert nd and nd[0]['reason']=='queued in p:worklist/2026-08-28-main-sweep.md', nd
+PY2
+    [[ $? -eq 0 ]] && ok "a doing queue in the MAIN tree excludes the item from a sweep in a linked worktree" || bad "worktree blind to main: $J"
+    sed -i.bak 's/^status: doing/status: done/' .context/worklists/2026-08-28-main-sweep.md && rm -f .context/worklists/*.bak
+    mkdir -p "$TMP/p-wt/.context/worklists"
+    printf -- '---\ntitle: "Worktree sweep"\nstatus: doing\ncreated: 2026-08-28\nupdated: 2026-08-28\nmode: sweep\n---\n\n## Queue (in execution order)\n1. [ ] %s — wanted by both trees   <!-- ref: backlog -->\n' "$WID" > "$TMP/p-wt/.context/worklists/2026-08-28-wt-sweep.md"
+    J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); nd=[i for i in r["needs_decision"] if i["id"]==sys.argv[2]]; assert nd and nd[0]["reason"]=="queued in p-wt:worklist/2026-08-28-wt-sweep.md", nd' "$J" "$WID" \
+      && ok "a doing queue in a linked WORKTREE excludes the item from a sweep in main" || bad "main blind to worktree: $J"
+  else echo "  skip: git worktree add unavailable"; fi
+fi
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep kickoff: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

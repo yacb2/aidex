@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Ownership scope of test_registry_lockstep.py (regression for BL-115).
 #
-# Installed, SKILLS_DIR resolves to ~/.aidex/skills, which holds the user's own
+# Installed, SKILLS_DIR resolves to ~/.claude/skills, which holds the user's own
 # skills alongside aidex's 17. The guard enumerated everything under that root
 # and FAILed on five `doc-standards` agents and one `workspace-architecture`
 # description — files this repo does not ship and has no standing to judge. The

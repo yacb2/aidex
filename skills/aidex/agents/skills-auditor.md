@@ -12,13 +12,13 @@ You are a skills auditor. Check skill structure across all scopes.
 
 ## Setup
 
-Read conventions: `~/.aidex/skills/aidex-conventions/references/skill-conventions.md`
+Read conventions: `~/.claude/skills/aidex-conventions/references/skill-conventions.md`
 
 ## Scopes to Scan
 
 1. `.claude/skills/` — local project skills (real files only, skip symlinks)
 2. `~/.claude/skills/` — global personal skills
-3. `~/.aidex/skills/` — shared aidex skills
+3. `~/.claude/skills/` — shared aidex skills
 
 ## Checks
 

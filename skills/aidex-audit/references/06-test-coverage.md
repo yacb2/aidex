@@ -241,7 +241,7 @@ test-coverage playbook, run per audit (BL-199: no project had ever generated it,
 so the ranking was silently inert everywhere). The exact command:
 
 ```bash
-python3 ~/.aidex/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
+python3 ~/.claude/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
   --denominator all --projects-root <workspace-parent-dir> \
   --out .context/audits/test-coverage/defect-prone.jsonl
 ```

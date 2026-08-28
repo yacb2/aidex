@@ -14,7 +14,7 @@ bifurcation as do-and-document; they never covered the plan-exec-to-backlog hand
 ## The motion
 
 ```
-bash ~/.aidex/skills/aidex-backlog/scripts/register-item.sh --origin plan \
+bash ~/.claude/skills/aidex-backlog/scripts/register-item.sh --origin plan \
   --plan <this-plan's-slug-or-folder> --title "<what is wrong>" \
   --priority <P0|P1|P2|P3> --type <bug|improvement|task|idea>
 ```

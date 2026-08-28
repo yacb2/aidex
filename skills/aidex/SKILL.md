@@ -16,14 +16,14 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | Domain | Location | What it checks |
 |--------|----------|---------------|
 | **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `worklists`, `workflows`) reported at INFO only |
-| **Skills** | `.claude/skills/`, `~/.claude/skills/`, `~/.aidex/skills/` | Frontmatter, size, structure, scope placement |
+| **Skills** | `.claude/skills/`, `~/.claude/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization. Run `python3 ~/.claude/skills/aidex/scripts/memory-sweep.py` for the mechanical half — session logs saved as memories, untyped files, throwaway or duplicated memory directories, and an always-on index over budget (read-only; `rules/memory-hygiene.md` is the canon) |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
-| **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.aidex/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
-| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups moved to `~/.aidex/backups/` in `1627663`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.aidex/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
+| **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
+| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups moved to `~/.claude/aidex/backups/` in `1627663`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
 | **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
 
 ---
@@ -53,7 +53,7 @@ Bootstrap `.context/` in a project that doesn't have one. Runs [`scripts/init-co
 Check the whole fleet for drift instead of one project at a time. Read-only — it
 never writes to a project.
 
-1. Run `bash ~/.aidex/skills/aidex/scripts/compliance-sweep.sh`. Add `--root <dir>`
+1. Run `bash ~/.claude/skills/aidex/scripts/compliance-sweep.sh`. Add `--root <dir>`
    to scan somewhere other than the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`), or name project paths to
    check only those. Add `--verbose` to also see the clean and skipped ones.
 2. Read the output. **A clean run prints nothing and exits 0** — that is the whole
@@ -64,9 +64,9 @@ never writes to a project.
 3. Fix per project by running the named instrument there — nothing is fixed for you.
 4. For rule-propagation drift specifically (a project restating a globally-owned
    rule, or `skillOverrides` that contradict one), run
-   `python3 ~/.aidex/skills/aidex/scripts/conformance-sweep.py` instead.
+   `python3 ~/.claude/skills/aidex/scripts/conformance-sweep.py` instead.
 5. For what has accumulated OUTSIDE the projects — at the workspace root itself — run
-   `python3 ~/.aidex/skills/aidex/scripts/root-litter-sweep.py`. Each finding is
+   `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py`. Each finding is
    labelled `aidex` or `foreign`: aidex leaving something behind is a bug in aidex,
    you leaving something behind is information, and the two must not read the same.
    **Report the categories and offer to act; never act on them yourself.** Several are
@@ -74,7 +74,7 @@ never writes to a project.
 
 6. Before trusting any of the auditor's own configuration advice — especially after
    updating Claude Code — run
-   `python3 ~/.aidex/skills/aidex/scripts/surface-drift-check.py`. It names which
+   `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`. It names which
    recommendations have not been checked against the installed version. Re-verify the
    named rows (ask the `claude-code-guide` agent, not memory), then bump the version
    column in `references/06-claude-code-surface.md`. Unchanged behaviour is the normal
@@ -84,7 +84,7 @@ never writes to a project.
 
 7. For done-but-not-archived across all four tiers of ONE project — plans, audits,
    requests, backlog — run
-   `python3 ~/.aidex/skills/aidex-conventions/scripts/archive-sweep.py`. `sweep.sh`
+   `python3 ~/.claude/skills/aidex-conventions/scripts/archive-sweep.py`. `sweep.sh`
    covers the backlog only, which is how D-10 came to be applied there and skipped in
    the other three. Dry run by default; `--check` exits 1 for a gate; `--apply` moves
    the terminal set and never the status-drift set.
@@ -103,7 +103,7 @@ Check for:
 - .context/ (references/, docs/, plans/, backlog/ [incl. _deferred/], issues/, roadmap/, requests/, decisions/, research/, audits/, loops/, communications/, worktrees/)
 - .context/ optional tier (data/, diagrams/, drafts/, experiments/, worklists/, workflows/) — project-local, INFO-at-most, never deletion candidates
 - .claude/ (skills/, CLAUDE.md, MEMORY.md)
-- ~/.aidex/ (shared skills storage)
+- ~/.claude/aidex/manifest (what the suite installed; anything else in ~/.claude/skills is the user's)
 - ~/.claude/skills/ (global skills)
 ```
 
@@ -117,12 +117,12 @@ Build a quick inventory of what exists and its size. This determines which agent
 
 **CRITICAL: Launch ALL applicable agents in a SINGLE message with multiple Agent tool calls.** Each agent runs with `run_in_background: true` so they execute in parallel. Do NOT launch them sequentially.
 
-Read each agent's instructions from `~/.aidex/skills/aidex/agents/` and pass them as the prompt. Include the project path in each prompt.
+Read each agent's instructions from `~/.claude/skills/aidex/agents/` and pass them as the prompt. Include the project path in each prompt.
 
 | Subagent | Launches when | Model | Effort | Tools |
 |----------|--------------|-------|--------|-------|
 | [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | medium | Read, Glob, Grep |
-| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.aidex/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
+| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.claude/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
 | [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | medium | Read, Glob, Grep |
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | low | Read, Glob, Bash |
 | [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | sonnet | medium | Read, Glob, Grep |

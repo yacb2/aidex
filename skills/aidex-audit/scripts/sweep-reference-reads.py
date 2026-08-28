@@ -19,7 +19,7 @@ Usage:
 import argparse, collections, glob, json, os, re, sys
 
 PROJECTS = os.path.expanduser("~/.claude/projects")
-DEFAULT_SKILLS = os.path.expanduser("~/.aidex/skills")
+DEFAULT_SKILLS = os.path.expanduser("~/.claude/skills")
 
 # markdown links and bare paths pointing at a .md under a references/ dir
 CITE_RX = re.compile(r"(?:\.\./|/|\b)([A-Za-z0-9_\-]+/)?references/([A-Za-z0-9._\-]+\.md)")

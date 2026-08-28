@@ -93,8 +93,8 @@ if [ -n "$named" ]; then
   [ -f "$SKILLS/aidex-conventions/scripts/$base" ] \
     || err "plan-exec names '$named' but no such script exists under aidex-conventions/scripts/"
   case "$named" in
-    '~/.aidex/skills/aidex-conventions/scripts/'*) ;;
-    *) err "plan-exec must name the INSTALLED path (~/.aidex/skills/...); '$named' does not resolve where the SKILL.md is read" ;;
+    '~/.claude/skills/aidex-conventions/scripts/'*) ;;
+    *) err "plan-exec must name the INSTALLED path (~/.claude/skills/...); '$named' does not resolve where the SKILL.md is read" ;;
   esac
 fi
 
