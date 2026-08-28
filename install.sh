@@ -2,18 +2,40 @@
 set -euo pipefail
 
 # aidex installer
-# Manages installation of skills into ~/.aidex/ and ~/.claude/
+# Installs the suite straight into ~/.claude/ — the tree Claude Code reads —
+# as real files, the same way any other skill lands there:
+#
+#   ~/.claude/skills/<skill>/     one directory per skill (copy)
+#   ~/.claude/rules/<rule>.md     always-on rules (copy)
+#   ~/.claude/hooks/<hook>.sh     shipped hooks, inert until wired in settings.json
+#   ~/.claude/aidex/              install state: manifest, version, commit, backups
+#
+# Until v0.39 the suite was copied to ~/.aidex/ and symlinked from ~/.claude/.
+# That layer was built for a per-project skill mechanism Claude Code did not
+# have; it has one now (project .claude/skills, skillOverrides, nested skills),
+# and symlinked skills/rules were the path with three separate loader bugs
+# (2.0.62, 2.1.198, 2.1.239). The installer migrates an old layout on its own:
+# links are replaced by copies, anything of the user's that lived in ~/.aidex/
+# is materialised, and the directory is moved aside — never deleted.
 #
 # Usage:
-#   install.sh              First-time install (copy + symlinks)
-#   install.sh --update     Update existing installation
-#   install.sh --uninstall  Remove installation
+#   install.sh              First-time install
+#   install.sh --update     Update from the repo (also migrates an old layout)
+#   install.sh --uninstall  Remove what aidex installed — nothing else
+#   install.sh --doctor     Health check, PASS/FAIL, exit 1 on any failure
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AIDEX_DIR="${AIDEX_DIR:-$HOME/.aidex}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
-MANIFEST="$AIDEX_DIR/.manifest"
-VERSION="0.39.0"
+STATE_DIR="$CLAUDE_DIR/aidex"
+MANIFEST="$STATE_DIR/manifest"
+# The pre-0.40 layout, read only to migrate away from it.
+LEGACY_DIR="${AIDEX_DIR:-$HOME/.aidex}"
+VERSION="0.40.0"
+
+# Hooks that install. The others in hooks/ are retired (aidex-router,
+# durability-*) and stay in the repo as history with their tests; installing
+# them put dead scripts and their eval corpus on every machine.
+SHIPPED_HOOKS="${AIDEX_SHIPPED_HOOKS:-context-depth-nudge.sh}"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then
@@ -36,10 +58,8 @@ error() { echo -e "  ${RED}[-]${NC} $1"; }
 header() { echo -e "\n${BOLD}$1${NC}"; }
 
 # The commit the installed tree came from. VERSION only moves on a release, so a
-# matching version says nothing about the fixes that landed between two of them:
-# 19 commits were installed once with no marker disagreeing with reality, and the
-# only way to detect it was diffing files. Empty when the source is not a git
-# checkout (tests build a bare fixture repo), in which case nothing is stamped.
+# matching version says nothing about the fixes that landed between two of them.
+# Empty when the source is not a git checkout (tests build a bare fixture repo).
 repo_commit() {
   git -C "$SCRIPT_DIR" rev-parse --short HEAD 2>/dev/null || true
 }
@@ -47,13 +67,14 @@ repo_commit() {
 # The only writer of the install markers — version and commit move together or
 # they can disagree, which is the failure they exist to make visible.
 stamp_install() {
-  echo "$VERSION" > "$AIDEX_DIR/.version"
+  mkdir -p "$STATE_DIR"
+  echo "$VERSION" > "$STATE_DIR/version"
   local sha
   sha="$(repo_commit)"
   if [ -n "$sha" ]; then
-    echo "$sha" > "$AIDEX_DIR/.commit"
+    echo "$sha" > "$STATE_DIR/commit"
   else
-    rm -f "$AIDEX_DIR/.commit"
+    rm -f "$STATE_DIR/commit"
   fi
 }
 
@@ -61,14 +82,8 @@ ask_choice() {
   local prompt="$1"
   local default="$2"
   # Take the default when there is nothing to read, rather than blocking on a
-  # prompt nobody can see: `./install.sh --update` from a script with its output
-  # redirected hung here indefinitely, and the command after it silently ran
-  # against a skill that had never been installed.
-  #
-  # The condition is EOF, NOT "stdin is not a tty". A pipe carrying answers is
-  # not a terminal either, and treating it as unanswerable ignores the answers —
-  # which is exactly how this broke tests/test-install.sh, whose whole method is
-  # piping choices in.
+  # prompt nobody can see. The condition is EOF, NOT "stdin is not a tty": a pipe
+  # carrying answers is not a terminal either (tests/test-install.sh pipes choices).
   if [[ -n "${AIDEX_ASSUME_DEFAULTS:-}" ]]; then
     echo "$default"
     return 0
@@ -78,167 +93,191 @@ ask_choice() {
   echo "${choice:-$default}"
 }
 
-# Detect existing non-aidex symlinks in ~/.claude/
-EXISTING_SKILLS_COUNT=0
-EXISTING_COMMANDS_COUNT=0
-EXISTING_DETECTED=false
-
-detect_existing() {
-  # Count skill symlinks NOT pointing to ~/.aidex/
-  if [ -d "$CLAUDE_DIR/skills" ]; then
-    local total_skills non_aidex_skills
-    total_skills=$(find "$CLAUDE_DIR/skills" -maxdepth 1 -type l 2>/dev/null | wc -l | tr -d ' ')
-    non_aidex_skills=$(
-      find "$CLAUDE_DIR/skills" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null \
-        | grep -c "^$AIDEX_DIR/" || true
-    )
-    EXISTING_SKILLS_COUNT=$((total_skills - non_aidex_skills))
-  fi
-
-  # Count command symlinks (aidex doesn't use commands, so all are external)
-  if [ -d "$CLAUDE_DIR/commands" ]; then
-    EXISTING_COMMANDS_COUNT=$(
-      find "$CLAUDE_DIR/commands" -maxdepth 1 -type l 2>/dev/null | wc -l | tr -d ' '
-    )
-  fi
-
-  if [ "$EXISTING_SKILLS_COUNT" -gt 0 ] || [ "$EXISTING_COMMANDS_COUNT" -gt 0 ]; then
-    EXISTING_DETECTED=true
-  fi
-}
-
-# Collect items from repo that should be installed
+# Items are repo-relative: skills/<name>, rules/<file>.md, hooks/<file>.sh.
 collect_repo_items() {
   local items=()
-
-  # Skills (directories)
   for skill_dir in "$SCRIPT_DIR"/skills/*/; do
     [ -d "$skill_dir" ] || continue
     items+=("skills/$(basename "$skill_dir")")
   done
-
-  # Rules (individual .md files copied into ~/.aidex/rules/ AND symlinked into
-  # ~/.claude/rules/ — Claude Code loads ~/.claude/rules/*.md as session context;
-  # nothing under ~/.aidex/ loads by itself. Field-verified 2026-07-23: unlinked
-  # rules were silently absent from every session).
   if [ -d "$SCRIPT_DIR/rules" ]; then
     for rule_file in "$SCRIPT_DIR"/rules/*.md; do
       [ -f "$rule_file" ] || continue
       items+=("rules/$(basename "$rule_file")")
     done
   fi
-
-  # Hooks (copied into ~/.aidex/hooks/, no symlink). These are OPT-IN: copying them
-  # installs nothing active — the user wires hooks into settings.json themselves
-  # (see hooks/README.md). Skills reference the run-marker script at a stable ~/.aidex path.
-  # Subdirectories (e.g. hooks/eval/) are items too — copy_item rsyncs directories.
-  if [ -d "$SCRIPT_DIR/hooks" ]; then
-    for hook_file in "$SCRIPT_DIR"/hooks/*; do
-      [ -e "$hook_file" ] || continue
-      items+=("hooks/$(basename "$hook_file")")
-    done
-  fi
-
+  local hook
+  for hook in $SHIPPED_HOOKS; do
+    [ -f "$SCRIPT_DIR/hooks/$hook" ] && items+=("hooks/$hook")
+  done
   printf '%s\n' "${items[@]}"
 }
 
-# Rules symlink into ~/.claude/rules/ (the actual load surface); hooks stay copy-only.
-is_symlinkable() {
-  case "$1" in
-    hooks/*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+# Where an item lives once installed. Same relative path under ~/.claude/.
+item_dst() { echo "$CLAUDE_DIR/$1"; }
 
-# Read manifest into array
 read_manifest() {
   if [ -f "$MANIFEST" ]; then
     cat "$MANIFEST"
   fi
 }
 
-# Write manifest
 write_manifest() {
   local items=("$@")
+  mkdir -p "$STATE_DIR"
   printf '%s\n' "${items[@]}" | sort -u > "$MANIFEST"
 }
 
-# Check if item is in manifest
 in_manifest() {
-  local item="$1"
-  [ -f "$MANIFEST" ] && grep -qxF "$item" "$MANIFEST"
+  [ -f "$MANIFEST" ] && grep -qxF "$1" "$MANIFEST"
 }
 
-# ─────────────────────────────────────────────
-# Copy a single item from repo to ~/.aidex/
-# ─────────────────────────────────────────────
+# Whether the path at an item's destination is aidex's to overwrite. Ours: absent,
+# listed in the manifest, or a symlink into the legacy ~/.aidex/ (migration).
+# Anything else is the user's — a skill of theirs that happens to share a name —
+# and the installer must not eat it (BL-* deep audit 2026-07-25: create_symlink
+# refused to clobber for the same reason).
+dst_is_ours() {
+  local item="$1" dst
+  dst="$(item_dst "$item")"
+  [ -e "$dst" ] || [ -L "$dst" ] || return 0
+  in_manifest "$item" && return 0
+  if [ -L "$dst" ]; then
+    case "$(readlink "$dst")" in "$LEGACY_DIR"/*) return 0 ;; esac
+    return 1
+  fi
+  # Byte-identical to what the repo ships: a by-hand copy of this very item
+  # (the depth hook was placed in ~/.claude/hooks/ by hand before it shipped).
+  # Adopting it changes no content and puts it under the manifest.
+  if [ -d "$dst" ]; then
+    diff -rq -x '__pycache__' -x '*.pyc' -x '.DS_Store' "$SCRIPT_DIR/$item" "$dst" >/dev/null 2>&1 && return 0
+  else
+    diff -q "$SCRIPT_DIR/$item" "$dst" >/dev/null 2>&1 && return 0
+  fi
+  return 1
+}
 
+# Copy one item from the repo to its place under ~/.claude/. A symlink at the
+# destination is removed first — copying THROUGH a link into ~/.aidex/ would
+# write the old tree instead of replacing it.
 copy_item() {
   local item="$1"
   local src="$SCRIPT_DIR/$item"
-  local dst="$AIDEX_DIR/$item"
-
+  local dst
+  dst="$(item_dst "$item")"
+  [ -L "$dst" ] && rm "$dst"
   if [ -d "$src" ]; then
-    # Directory: sync contents. Exclude gitignored build junk — copying
-    # __pycache__/*.pyc from a working tree causes perpetual "Modified" churn.
+    # Exclude gitignored build junk — copying __pycache__/*.pyc from a working
+    # tree causes perpetual "Modified" churn.
     mkdir -p "$dst"
     rsync -a --delete \
       --exclude='__pycache__/' --exclude='*.pyc' --exclude='.DS_Store' \
       "$src/" "$dst/"
   else
-    # File: copy
     mkdir -p "$(dirname "$dst")"
     cp -f "$src" "$dst"
   fi
 }
 
-# ─────────────────────────────────────────────
-# Create symlink from ~/.aidex/ to ~/.claude/
-# ─────────────────────────────────────────────
-
-create_symlink() {
-  local item="$1"
-  local src="$AIDEX_DIR/$item"
-  local dst="$CLAUDE_DIR/$item"
-
-  # Ensure parent directory exists
-  mkdir -p "$(dirname "$dst")"
-
+remove_item() {
+  local dst
+  dst="$(item_dst "$1")"
   if [ -L "$dst" ]; then
-    local current_target
-    current_target=$(readlink "$dst")
-    if [ "$current_target" = "$src" ]; then
-      return 0  # Already correct
-    fi
-    warn "$(basename "$dst"): symlink exists → $current_target (skipping)"
-    return 1
+    rm "$dst"
+  elif [ -e "$dst" ]; then
+    rm -rf "$dst"
   fi
+}
 
-  if [ -e "$dst" ]; then
-    warn "$(basename "$dst"): already exists (not a symlink, skipping)"
-    return 1
-  fi
-
-  ln -s "$src" "$dst"
+# Execute bits do not survive every copy path; apply them after any install/update.
+fix_exec_bits() {
+  local d
+  for d in "$CLAUDE_DIR"/skills/*/scripts; do
+    [ -d "$d" ] || continue
+    in_manifest "skills/$(basename "$(dirname "$d")")" || continue
+    chmod +x "$d"/*.sh 2>/dev/null || true
+  done
+  local hook
+  for hook in $SHIPPED_HOOKS; do
+    [ -f "$CLAUDE_DIR/hooks/$hook" ] && chmod +x "$CLAUDE_DIR/hooks/$hook"
+  done
   return 0
 }
 
-# Remove symlink from ~/.claude/ that points to ~/.aidex/
-remove_symlink() {
-  local item="$1"
-  local dst="$CLAUDE_DIR/$item"
+# ─────────────────────────────────────────────
+# Migration from the pre-0.40 layout (~/.aidex/ + symlinks)
+# ─────────────────────────────────────────────
 
-  if [ -L "$dst" ]; then
-    local target
-    target=$(readlink "$dst")
-    case "$target" in
-      "$AIDEX_DIR"*)
-        rm "$dst"
-        return 0
-        ;;
-    esac
+legacy_present() { [ -d "$LEGACY_DIR" ]; }
+
+# Runs before install/update copies anything. Three moves, all reversible:
+#   1. every ~/.claude symlink into ~/.aidex/ that is NOT a repo item is
+#      materialised — the user's own skills that lived there keep working;
+#      repo items are left as links for copy_item to replace.
+#   2. install state that has a new home moves there (census-trust, backups).
+#   3. ~/.aidex/ is renamed to ~/.aidex-to-delete-<date> with a README. Nothing
+#      is deleted; the user decides when.
+migrate_legacy() {
+  legacy_present || return 0
+  header "Migrating the pre-0.40 layout out of $LEGACY_DIR"
+
+  local repo_items
+  repo_items="$(collect_repo_items)"
+  local sub link target name
+  for sub in skills rules commands; do
+    [ -d "$CLAUDE_DIR/$sub" ] || continue
+    while IFS= read -r link; do
+      target="$(readlink "$link")"
+      case "$target" in "$LEGACY_DIR"/*) ;; *) continue ;; esac
+      name="$(basename "$link")"
+      if printf '%s\n' "$repo_items" | grep -qxF "$sub/$name"; then
+        continue  # a suite item: copy_item replaces the link
+      fi
+      rm "$link"
+      if [ -e "$target" ]; then
+        if [ -d "$target" ]; then
+          mkdir -p "$link"
+          rsync -a --exclude='__pycache__/' --exclude='*.pyc' --exclude='.DS_Store' "$target/" "$link/"
+        else
+          cp -f "$target" "$link"
+        fi
+        info "materialised your own $sub/$name (was a link into $LEGACY_DIR)"
+      else
+        warn "dropped dangling link $sub/$name → $target"
+      fi
+    done < <(find "$CLAUDE_DIR/$sub" -maxdepth 1 -type l 2>/dev/null)
+  done
+
+  mkdir -p "$STATE_DIR"
+  if [ -f "$LEGACY_DIR/.census-trust" ] && [ ! -e "$STATE_DIR/census-trust" ]; then
+    mv "$LEGACY_DIR/.census-trust" "$STATE_DIR/census-trust"
+    info "moved census-trust → $STATE_DIR/census-trust"
   fi
-  return 1
+  if [ -d "$LEGACY_DIR/backups" ] && [ ! -e "$STATE_DIR/backups" ]; then
+    mv "$LEGACY_DIR/backups" "$STATE_DIR/backups"
+    info "moved backups → $STATE_DIR/backups"
+  fi
+
+  local parked="${LEGACY_DIR}-to-delete-$(date +%Y-%m-%d)"
+  local n=1
+  while [ -e "$parked" ]; do parked="${LEGACY_DIR}-to-delete-$(date +%Y-%m-%d)-$n"; n=$((n + 1)); done
+  mv "$LEGACY_DIR" "$parked"
+  cat > "$parked/README.txt" <<EOF
+Parked by aidex install.sh v$VERSION on $(date +%Y-%m-%d).
+
+This was ~/.aidex/, the pre-0.40 install layout (copies here, symlinks in
+~/.claude/). The suite now installs straight into ~/.claude/skills, rules and
+hooks as real files, with its state in ~/.claude/aidex/.
+
+What was carried over before parking:
+  - every ~/.claude link into this tree that was NOT a suite item was replaced
+    by a real copy at the same path (your own skills keep working);
+  - .census-trust and backups/ moved to ~/.claude/aidex/.
+
+Nothing else here is referenced any more. Delete the directory when you are
+sure; the installer will never touch it again.
+EOF
+  info "parked $LEGACY_DIR → $parked (nothing deleted)"
 }
 
 # ─────────────────────────────────────────────
@@ -248,7 +287,7 @@ remove_symlink() {
 do_install() {
   echo -e "${BOLD}aidex installer${NC}"
   echo "Source: $SCRIPT_DIR"
-  echo "Target: $AIDEX_DIR → $CLAUDE_DIR"
+  echo "Target: $CLAUDE_DIR"
 
   if [ -f "$MANIFEST" ]; then
     echo ""
@@ -256,98 +295,43 @@ do_install() {
     exit 1
   fi
 
-  # Detect existing non-aidex setup
-  detect_existing
+  migrate_legacy
 
-  if [ "$EXISTING_DETECTED" = true ]; then
-    echo ""
-    echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo -e "  ${YELLOW}Existing setup detected${NC}"
-    echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    [ "$EXISTING_SKILLS_COUNT" -gt 0 ] && echo "  Skills:   $EXISTING_SKILLS_COUNT symlinks in ~/.claude/skills/"
-    [ "$EXISTING_COMMANDS_COUNT" -gt 0 ] && echo "  Commands: $EXISTING_COMMANDS_COUNT symlinks in ~/.claude/commands/"
-    echo ""
-    echo "  aidex will install alongside your existing setup."
-    echo "  Nothing will be removed."
-    echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    local proceed
-    proceed=$(ask_choice "Continue? (Y/n)" "Y")
-    if [[ ! "$proceed" =~ ^[Yy]$ ]] && [ -n "$proceed" ]; then
-      echo "  Cancelled."
-      exit 0
-    fi
-  fi
-
-  # Ensure directories exist
-  mkdir -p "$AIDEX_DIR/skills"
-  mkdir -p "$AIDEX_DIR/rules"
-  mkdir -p "$CLAUDE_DIR/skills"
+  mkdir -p "$CLAUDE_DIR/skills" "$CLAUDE_DIR/rules" "$CLAUDE_DIR/hooks" "$STATE_DIR"
 
   local items=()
   local installed=0
-  local skipped=0
+  local skipped=()
 
-  header "Copying to ~/.aidex/"
-
+  header "Installing into $CLAUDE_DIR"
   while IFS= read -r item; do
-    items+=("$item")
+    if ! dst_is_ours "$item"; then
+      skipped+=("$item")
+      warn "$item: $(item_dst "$item") exists and is not aidex's (skipped)"
+      continue
+    fi
     copy_item "$item"
+    items+=("$item")
     info "$item"
     installed=$((installed + 1))
   done < <(collect_repo_items)
 
-  header "Creating symlinks in ~/.claude/"
-
-  for item in "${items[@]}"; do
-    if ! is_symlinkable "$item"; then
-      continue
-    fi
-    if create_symlink "$item"; then
-      info "$item"
-    else
-      skipped=$((skipped + 1))
-    fi
-  done
-
-  # Ensure scripts in any skill are executable
-  for scripts_dir in "$AIDEX_DIR"/skills/*/scripts; do
-    [ -d "$scripts_dir" ] || continue
-    chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
-  done
-
-  # Ensure installed hooks are executable
-  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh "$AIDEX_DIR"/hooks/*/*.sh 2>/dev/null || true
-
-  # Write manifest and version
   write_manifest "${items[@]}"
+  fix_exec_bits
   stamp_install
 
   echo ""
   echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo -e "  ${GREEN}aidex installed successfully${NC} (v$VERSION)"
   echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  echo "  Installed: $installed skills"
-  [ "$skipped" -gt 0 ] && echo "  Skipped symlinks: $skipped (conflicts)"
+  echo "  Installed: $installed items"
+  [ "${#skipped[@]}" -gt 0 ] && echo "  Skipped (name taken by a file of yours): ${skipped[*]}"
   echo ""
-
-  if [ "$EXISTING_DETECTED" = true ]; then
-    echo "  Your existing setup continues to work alongside aidex."
-    echo ""
-    echo -e "  ${BOLD}Next steps:${NC}"
-    echo "  1. Restart Claude Code"
-    echo "  2. Ask Claude: /aidex"
-    echo "     aidex will scan your full ecosystem (skills, symlinks,"
-    echo "     scopes, .context/, CLAUDE.md, MEMORY.md) and suggest"
-    echo "     how to organize everything."
-  else
-    echo -e "  ${BOLD}Next steps:${NC}"
-    echo "  1. Restart Claude Code"
-    echo "  2. In any project, ask Claude: /aidex"
-    echo "     aidex will scan your ecosystem and help you set up"
-    echo "     the right structure (skills, .context/, CLAUDE.md)."
-  fi
-
+  echo -e "  ${BOLD}Next steps:${NC}"
+  echo "  1. Restart Claude Code"
+  echo "  2. In any project, ask Claude: /aidex"
+  echo "     aidex will scan your ecosystem and help you set up"
+  echo "     the right structure (skills, .context/, CLAUDE.md)."
   echo "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 }
 
@@ -358,33 +342,42 @@ do_install() {
 do_update() {
   echo -e "${BOLD}aidex updater${NC}"
 
+  # An old-layout install has its manifest in ~/.aidex/; that is still "installed".
+  if [ ! -f "$MANIFEST" ] && [ -f "$LEGACY_DIR/.manifest" ]; then
+    # The legacy manifest listed the same item names; adopt it so the loop below
+    # sees the (soon link-less) entries as ours to replace. Hooks are not carried:
+    # only SHIPPED_HOOKS install now, and they are picked up as new items.
+    mkdir -p "$STATE_DIR"
+    grep -E '^(skills|rules)/' "$LEGACY_DIR/.manifest" | sort -u > "$MANIFEST" || true
+  fi
+
   if [ ! -f "$MANIFEST" ]; then
     warn "aidex is not installed. Run install.sh first (without flags)."
     exit 1
   fi
+
+  migrate_legacy
 
   local modified=()
   local new_items=()
   local removed=()
   local unchanged=0
 
-  # Compare repo items against installed
   while IFS= read -r item; do
     local src="$SCRIPT_DIR/$item"
-    local dst="$AIDEX_DIR/$item"
-
-    if [ ! -e "$dst" ]; then
+    local dst
+    dst="$(item_dst "$item")"
+    if [ -L "$dst" ] || [ ! -e "$dst" ] || ! in_manifest "$item"; then
+      # Absent, still a legacy symlink, or present but unowned (a by-hand copy —
+      # dst_is_ours adopts it only if byte-identical, else it is skipped).
       new_items+=("$item")
     elif [ -d "$src" ]; then
-      # Compare directory contents (same excludes as copy_item, or excluded junk
-      # in the working tree reads as a perpetual "Modified")
       if ! diff -rq -x '__pycache__' -x '*.pyc' -x '.DS_Store' "$src" "$dst" > /dev/null 2>&1; then
         modified+=("$item")
       else
         unchanged=$((unchanged + 1))
       fi
     else
-      # Compare file
       if ! diff -q "$src" "$dst" > /dev/null 2>&1; then
         modified+=("$item")
       else
@@ -393,29 +386,20 @@ do_update() {
     fi
   done < <(collect_repo_items)
 
-  # Check for items in manifest but no longer in repo (removed upstream)
+  # Items in the manifest but no longer shipped (removed upstream, or a hook
+  # that left SHIPPED_HOOKS).
+  local shipped
+  shipped="$(collect_repo_items)"
   while IFS= read -r item; do
-    local src="$SCRIPT_DIR/$item"
-    if [ ! -e "$src" ]; then
-      removed+=("$item")
-    fi
+    [ -n "$item" ] || continue
+    printf '%s\n' "$shipped" | grep -qxF "$item" || removed+=("$item")
   done < <(read_manifest)
 
-  # Symlink reconcile — runs even when no item changed: an item whose symlink
-  # POLICY changed (e.g. rules/* became symlinkable, 2026-07-23) is neither
-  # modified nor new, so the update loops never touch it. Idempotent.
-  local reconcile_item
-  while IFS= read -r reconcile_item; do
-    [ -n "$reconcile_item" ] || continue
-    [ -e "$AIDEX_DIR/$reconcile_item" ] || continue
-    is_symlinkable "$reconcile_item" && create_symlink "$reconcile_item" 2>/dev/null || true
-  done < <(collect_repo_items)
-
-  # Report
   header "Changes detected"
 
   if [ "${#modified[@]}" -eq 0 ] && [ "${#new_items[@]}" -eq 0 ] && [ "${#removed[@]}" -eq 0 ]; then
     info "Everything is up to date ($unchanged items unchanged)"
+    fix_exec_bits
     # Still stamp the version: a release commit may bump VERSION= with no item changes.
     stamp_install
     exit 0
@@ -428,12 +412,11 @@ do_update() {
     echo -e "  ${GREEN}New:${NC}       $item"
   done
   for item in ${removed[@]+"${removed[@]}"}; do
-    echo -e "  ${RED}Removed:${NC}   $item (no longer in repo)"
+    echo -e "  ${RED}Removed:${NC}   $item (no longer shipped)"
   done
   echo "  Unchanged: $unchanged items"
   echo ""
 
-  # Ask user
   echo "  Options:"
   echo "    [1] Apply all changes (recommended)"
   echo "    [2] Show diff for each modified item, then ask"
@@ -450,36 +433,39 @@ do_update() {
   local declined_conventions=0
   local accepted_other_skill=0
 
+  install_one() {
+    local item="$1"
+    if ! dst_is_ours "$item"; then
+      warn "$item: $(item_dst "$item") exists and is not aidex's (skipped)"
+      return 1
+    fi
+    copy_item "$item"
+    return 0
+  }
+
   case "$choice" in
     1)
-      # Apply all
       for item in ${modified[@]+"${modified[@]}"} ${new_items[@]+"${new_items[@]}"}; do
-        copy_item "$item"
-        is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
-        info "Updated: $item"
+        install_one "$item" && info "Updated: $item" && accepted_new+=("$item") || true
       done
       for item in ${removed[@]+"${removed[@]}"}; do
-        remove_symlink "$item" 2>/dev/null || true
-        rm -rf "$AIDEX_DIR/$item"
+        remove_item "$item"
         info "Removed: $item"
       done
       ;;
     2)
-      # Interactive per item
       for item in ${modified[@]+"${modified[@]}"}; do
         header "Diff: $item"
         if [ -d "$SCRIPT_DIR/$item" ]; then
-          diff -rq -x '__pycache__' -x '*.pyc' -x '.DS_Store' "$SCRIPT_DIR/$item" "$AIDEX_DIR/$item" 2>/dev/null || true
+          diff -rq -x '__pycache__' -x '*.pyc' -x '.DS_Store' "$SCRIPT_DIR/$item" "$(item_dst "$item")" 2>/dev/null || true
         else
-          diff --color=auto "$AIDEX_DIR/$item" "$SCRIPT_DIR/$item" 2>/dev/null || true
+          diff --color=auto "$(item_dst "$item")" "$SCRIPT_DIR/$item" 2>/dev/null || true
         fi
         echo ""
         local apply
         apply=$(ask_choice "Apply this change? (y/n)" "y")
         if [ "$apply" = "y" ]; then
-          copy_item "$item"
-          is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
-          info "Updated: $item"
+          install_one "$item" && info "Updated: $item" || true
           case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
         else
           warn "Skipped: $item"
@@ -490,19 +476,18 @@ do_update() {
         local apply
         apply=$(ask_choice "Install new item: $item? (y/n)" "y")
         if [ "$apply" = "y" ]; then
-          copy_item "$item"
-          is_symlinkable "$item" && create_symlink "$item" 2>/dev/null || true
-          info "Installed: $item"
-          accepted_new+=("$item")
-          case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
+          if install_one "$item"; then
+            info "Installed: $item"
+            accepted_new+=("$item")
+            case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
+          fi
         fi
       done
       for item in ${removed[@]+"${removed[@]}"}; do
         local apply
-        apply=$(ask_choice "Remove $item (no longer in repo)? (y/n)" "y")
+        apply=$(ask_choice "Remove $item (no longer shipped)? (y/n)" "y")
         if [ "$apply" = "y" ]; then
-          remove_symlink "$item" 2>/dev/null || true
-          rm -rf "$AIDEX_DIR/$item"
+          remove_item "$item"
           info "Removed: $item"
           applied_removals+=("$item")
         fi
@@ -526,27 +511,11 @@ do_update() {
       ;;
   esac
 
-  # v0.4.0: registry concept removed. Clean up stale skill-registry.json from older installs.
-  local stale_registry="$AIDEX_DIR/skill-registry.json"
-  if [ -f "$stale_registry" ]; then
-    rm -f "$stale_registry"
-    warn "Removed obsolete skill-registry.json (registry concept dropped in v0.4.0)"
-  fi
-
-  # Ensure scripts in any skill are executable
-  for scripts_dir in "$AIDEX_DIR"/skills/*/scripts; do
-    [ -d "$scripts_dir" ] || continue
-    chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
-  done
-
-  # Ensure installed hooks are executable
-  [ -d "$AIDEX_DIR/hooks" ] && chmod +x "$AIDEX_DIR"/hooks/*.sh "$AIDEX_DIR"/hooks/*/*.sh 2>/dev/null || true
-
-  # Update manifest — from ACTUAL outcomes, never blindly from the repo.
+  # Manifest from ACTUAL outcomes, never blindly from the repo.
   local all_items=()
   if [ "$choice" = "2" ]; then
-    # Previous manifest − applied removals + accepted new items.
     while IFS= read -r item; do
+      [ -n "$item" ] || continue
       local drop=0 r
       for r in ${applied_removals[@]+"${applied_removals[@]}"}; do
         [ "$item" = "$r" ] && drop=1
@@ -557,14 +526,20 @@ do_update() {
       all_items+=("$item")
     done
   else
-    # Apply-all: everything in the repo was installed and removals executed.
+    # Apply-all: every shipped item whose destination is ours was installed;
+    # a skipped (user-owned) name stays out of the manifest.
     while IFS= read -r item; do
+      [ -n "$item" ] || continue
+      local keep=0 r
+      for r in ${removed[@]+"${removed[@]}"}; do [ "$item" = "$r" ] && keep=1; done
+      [ "$keep" -eq 0 ] && all_items+=("$item")
+    done < <(read_manifest)
+    for item in ${accepted_new[@]+"${accepted_new[@]}"}; do
       all_items+=("$item")
-    done < <(collect_repo_items)
+    done
   fi
   write_manifest "${all_items[@]}"
-
-  # Update version
+  fix_exec_bits
   stamp_install
 
   header "Done"
@@ -580,8 +555,7 @@ do_uninstall() {
   echo -e "${BOLD}aidex uninstaller${NC}"
 
   # The manifest is the ownership inventory: without it every branch below walks
-  # an empty list and reports success having removed nothing. Refuse loudly
-  # instead of printing removal headers over a no-op.
+  # an empty list and reports success having removed nothing. Refuse loudly.
   if [ ! -s "$MANIFEST" ]; then
     error "manifest missing — run install.sh to rebuild it before uninstalling"
     echo "  (expected at $MANIFEST; a bare re-install repairs it without touching your files)"
@@ -589,133 +563,43 @@ do_uninstall() {
   fi
 
   echo ""
-  echo "  What would you like to remove?"
+  echo "  This removes exactly what aidex installed (the manifest entries) and its"
+  echo "  state in $STATE_DIR. Your own skills, rules and hooks are not touched."
   echo ""
-  echo "    [1] Symlinks only (from ~/.claude/) — keeps ~/.aidex/ intact"
-  echo "    [2] Symlinks + aidex-managed files (keeps your personal files in ~/.aidex/)"
-  echo "    [3] Everything in ~/.aidex/ (complete removal)"
-  echo "    [4] Cancel"
+  echo "    [1] Remove aidex"
+  echo "    [2] Cancel"
   echo ""
   local choice
-  choice=$(ask_choice "Choice" "1")
-
-  local removed=0
+  choice=$(ask_choice "Choice" "2")
 
   case "$choice" in
     1)
-      # Remove symlinks only
-      header "Removing symlinks from ~/.claude/"
+      local removed=0
+      header "Removing aidex-managed items from $CLAUDE_DIR"
       while IFS= read -r item; do
-        if remove_symlink "$item"; then
+        [ -n "$item" ] || continue
+        if [ -e "$(item_dst "$item")" ] || [ -L "$(item_dst "$item")" ]; then
+          remove_item "$item"
           info "$item"
           removed=$((removed + 1))
         fi
       done < <(read_manifest)
-      # Keep the manifest: ~/.aidex/ is intact, as the menu promises, and the
-      # manifest is what still describes it. Deleting it here stranded every
-      # later option (2 and 3 removed 0 of 268 files) and broke --doctor and
-      # --update until a bare re-install rebuilt it.
-      rm -f "$AIDEX_DIR/.version" "$AIDEX_DIR/.commit"
-      ;;
-    2)
-      # Remove symlinks + aidex files
-      header "Removing symlinks from ~/.claude/"
-      while IFS= read -r item; do
-        if remove_symlink "$item"; then
-          info "symlink: $item"
-          removed=$((removed + 1))
-        fi
-      done < <(read_manifest)
-
-      header "Removing aidex-managed files from ~/.aidex/"
-      while IFS= read -r item; do
-        local dst="$AIDEX_DIR/$item"
-        if [ -e "$dst" ]; then
-          rm -rf "$dst"
-          info "$item"
-          removed=$((removed + 1))
-        fi
-      done < <(read_manifest)
-
-      # Check if anything personal remains
-      local remaining
-      remaining=$(find "$AIDEX_DIR" -mindepth 1 -not -name '.manifest' 2>/dev/null | head -5)
-      if [ -n "$remaining" ]; then
-        echo ""
-        info "Personal files remain in ~/.aidex/ (not touched)"
-      fi
-      ;;
-    3)
-      # Full removal — but personal (non-manifest) files are NEVER destroyed on a
-      # bare y/n: they get listed and require an explicit 'delete' token, and any
-      # ~/.claude symlink pointing into ~/.aidex is cleaned first (no dangling links).
-      header "Removing symlinks from ~/.claude/"
-      while IFS= read -r item; do
-        if remove_symlink "$item"; then
-          info "symlink: $item"
-          removed=$((removed + 1))
-        fi
-      done < <(read_manifest)
-
-      header "Removing aidex-managed files from ~/.aidex/"
-      while IFS= read -r item; do
-        local dst="$AIDEX_DIR/$item"
-        if [ -e "$dst" ]; then
-          rm -rf "$dst"
-          info "$item"
-          removed=$((removed + 1))
-        fi
-      done < <(read_manifest)
-      # The manifest survives every partial uninstall and dies only with the
-      # directory itself (the rm -rf below): while ~/.aidex/ still exists, it is
-      # the only record of what aidex owns, and a follow-up run needs it to
-      # finish the job it was asked to do.
-      rm -f "$AIDEX_DIR/.version" "$AIDEX_DIR/.commit"
-
-      local personal
-      # aidex's own bookkeeping is not personal content — the manifest is still
-      # here by design, and counting it would report a clean tree as personal.
-      personal=$(find "$AIDEX_DIR" -mindepth 1 -not -type d -not -name '.manifest' -not -name '.commit' 2>/dev/null | head -20 || true)
-      if [ -z "$personal" ]; then
-        rm -rf "$AIDEX_DIR"
-        info "Removed ~/.aidex/ (contained nothing personal)"
+      # backups/ is the user's data (project .context/ snapshots), not install state.
+      if [ -d "$STATE_DIR/backups" ]; then
+        rm -f "$STATE_DIR/manifest" "$STATE_DIR/version" "$STATE_DIR/commit"
+        warn "kept $STATE_DIR/backups (your .context/ snapshots) — delete it yourself if unwanted"
       else
-        echo ""
-        warn "PERSONAL (non-aidex) files live in ~/.aidex/ — e.g.:"
-        echo "$personal" | sed 's/^/      /'
-        echo ""
-        local confirm
-        confirm=$(ask_choice "Delete these personal files too? Irreversible. Type 'delete' to confirm" "n")
-        if [ "$confirm" = "delete" ]; then
-          # Clean EVERY ~/.claude symlink pointing into ~/.aidex (manifest or not)
-          # so no personal-skill symlink is left dangling.
-          local linkdir l
-          for linkdir in "$CLAUDE_DIR/skills" "$CLAUDE_DIR/commands"; do
-            [ -d "$linkdir" ] || continue
-            while IFS= read -r l; do
-              case "$(readlink "$l")" in
-                "$AIDEX_DIR"*) rm "$l"; info "symlink: $(basename "$l") (pointed into ~/.aidex)" ;;
-              esac
-            done < <(find "$linkdir" -maxdepth 1 -type l 2>/dev/null)
-          done
-          rm -rf "$AIDEX_DIR"
-          info "Removed ~/.aidex/ including personal files"
-        elif [ "$removed" -gt 0 ]; then
-          warn "Personal files kept in ~/.aidex/. aidex-managed items were removed."
-        else
-          warn "Personal files kept in ~/.aidex/. Nothing was removed."
-        fi
+        rm -rf "$STATE_DIR"
       fi
+      header "Done"
+      echo "  Removed: $removed items"
+      echo "  Restart Claude Code to apply changes."
       ;;
-    4)
+    *)
       echo "  Cancelled."
       exit 0
       ;;
   esac
-
-  header "Done"
-  echo "  Removed: $removed items"
-  echo "  Restart Claude Code to apply changes."
 }
 
 # ─────────────────────────────────────────────
@@ -728,10 +612,10 @@ run_doctor() {
 
   local fail_count=0
 
-  # 1. ~/.aidex exists and .version readable; compare with repo VERSION.
-  if [ -f "$AIDEX_DIR/.version" ]; then
+  # 1. version marker matches the repo.
+  if [ -f "$STATE_DIR/version" ]; then
     local installed_version
-    installed_version="$(cat "$AIDEX_DIR/.version")"
+    installed_version="$(cat "$STATE_DIR/version")"
     if [ "$installed_version" = "$VERSION" ]; then
       echo "PASS: version $installed_version"
     else
@@ -739,20 +623,17 @@ run_doctor() {
       fail_count=$((fail_count + 1))
     fi
   else
-    echo "FAIL: $AIDEX_DIR/.version not found"
+    echo "FAIL: $STATE_DIR/version not found"
     fail_count=$((fail_count + 1))
   fi
 
-  # 1b. Content drift. A matching version is not a matching tree: between two
-  # releases the repo moves and .version does not, so this is the only check that
-  # can tell "up to date" from "installed a while ago". Silent when either side
-  # has no commit to compare (source is not a git checkout, or the install
-  # predates the marker) — an absent marker is not evidence of drift.
+  # 1b. Content drift: same version, different commit. Silent when either side
+  # has no commit to compare — an absent marker is not evidence of drift.
   local repo_sha
   repo_sha="$(repo_commit)"
-  if [ -n "$repo_sha" ] && [ -f "$AIDEX_DIR/.commit" ]; then
+  if [ -n "$repo_sha" ] && [ -f "$STATE_DIR/commit" ]; then
     local installed_sha
-    installed_sha="$(cat "$AIDEX_DIR/.commit")"
+    installed_sha="$(cat "$STATE_DIR/commit")"
     if [ "$installed_sha" = "$repo_sha" ]; then
       echo "PASS: installed from commit $installed_sha"
     else
@@ -761,24 +642,59 @@ run_doctor() {
     fi
   fi
 
-  # 2. Skill symlinks in $CLAUDE_DIR/skills/ pointing into $AIDEX_DIR: count + broken.
+  # 2. The old layout is gone. A surviving ~/.aidex/ means links may still point
+  # into it — and it is exactly the unmanaged pile this layout was retired for.
+  if legacy_present; then
+    echo "FAIL: legacy $LEGACY_DIR still present — run ./install.sh --update to migrate it"
+    fail_count=$((fail_count + 1))
+  else
+    echo "PASS: no legacy $LEGACY_DIR"
+  fi
+
+  # 3. Manifest present; every entry exists as a REAL file or directory. A symlink
+  # is the old layout, or the user re-linking a skill by hand.
+  if [ -f "$MANIFEST" ]; then
+    local missing=() linked=()
+    local item dst
+    while IFS= read -r item; do
+      [ -z "$item" ] && continue
+      dst="$(item_dst "$item")"
+      if [ -L "$dst" ]; then
+        linked+=("$item")
+      elif [ ! -e "$dst" ]; then
+        missing+=("$item")
+      fi
+    done < "$MANIFEST"
+    if [ "${#missing[@]}" -eq 0 ] && [ "${#linked[@]}" -eq 0 ]; then
+      echo "PASS: manifest present, all $(grep -c . "$MANIFEST") entries installed as real files"
+    fi
+    if [ "${#missing[@]}" -gt 0 ]; then
+      echo "FAIL: manifest entries missing: ${missing[*]}"
+      fail_count=$((fail_count + 1))
+    fi
+    if [ "${#linked[@]}" -gt 0 ]; then
+      echo "FAIL: manifest entries that are symlinks, not copies: ${linked[*]}"
+      fail_count=$((fail_count + 1))
+    fi
+  else
+    echo "FAIL: $MANIFEST not found"
+    fail_count=$((fail_count + 1))
+  fi
+
+  # 4. Nothing named like the suite sits outside the manifest. An aidex-* skill
+  # directory that aidex did not install is a leftover of a by-hand copy or of a
+  # removed skill, and it loads in every session.
   if [ -d "$CLAUDE_DIR/skills" ]; then
-    local total=0
-    local broken=()
-    local link target
-    while IFS= read -r link; do
-      target="$(readlink "$link")"
-      case "$target" in
-        "$AIDEX_DIR"*)
-          total=$((total + 1))
-          [ -e "$link" ] || broken+=("$(basename "$link")")
-          ;;
-      esac
-    done < <(find "$CLAUDE_DIR/skills" -maxdepth 1 -type l 2>/dev/null)
-    if [ "${#broken[@]}" -eq 0 ]; then
-      echo "PASS: $total aidex skill symlink(s), all valid"
+    local stray=() d name
+    for d in "$CLAUDE_DIR"/skills/aidex*/; do
+      [ -d "$d" ] || continue
+      name="$(basename "$d")"
+      in_manifest "skills/$name" || stray+=("$name")
+    done
+    if [ "${#stray[@]}" -eq 0 ]; then
+      echo "PASS: no unmanaged aidex-* skill directories"
     else
-      echo "FAIL: broken symlink(s): ${broken[*]}"
+      echo "FAIL: unmanaged aidex-* skill directories in $CLAUDE_DIR/skills: ${stray[*]}"
       fail_count=$((fail_count + 1))
     fi
   else
@@ -786,12 +702,15 @@ run_doctor() {
     fail_count=$((fail_count + 1))
   fi
 
-  # 3. Every $AIDEX_DIR/skills/*/scripts/*.sh is executable.
+  # 5. Every installed skill script is executable.
   local non_exec=()
-  local script
-  while IFS= read -r script; do
-    [ -x "$script" ] || non_exec+=("$script")
-  done < <(find "$AIDEX_DIR"/skills/*/scripts -maxdepth 1 -name '*.sh' 2>/dev/null)
+  local script item
+  while IFS= read -r item; do
+    case "$item" in skills/*) ;; *) continue ;; esac
+    while IFS= read -r script; do
+      [ -x "$script" ] || non_exec+=("$script")
+    done < <(find "$(item_dst "$item")/scripts" -maxdepth 1 -name '*.sh' 2>/dev/null)
+  done < <(read_manifest)
   if [ "${#non_exec[@]}" -eq 0 ]; then
     echo "PASS: all skill scripts executable"
   else
@@ -799,7 +718,7 @@ run_doctor() {
     fail_count=$((fail_count + 1))
   fi
 
-  # 4. python3 on PATH.
+  # 6. python3 on PATH.
   if command -v python3 >/dev/null 2>&1; then
     echo "PASS: python3 on PATH ($(command -v python3))"
   else
@@ -807,99 +726,44 @@ run_doctor() {
     fail_count=$((fail_count + 1))
   fi
 
-  # 5. .manifest present and every listed path exists under $AIDEX_DIR.
-  if [ -f "$AIDEX_DIR/.manifest" ]; then
-    local missing=()
-    local item
-    while IFS= read -r item; do
-      [ -z "$item" ] && continue
-      [ -e "$AIDEX_DIR/$item" ] || missing+=("$item")
-    done < "$AIDEX_DIR/.manifest"
-    if [ "${#missing[@]}" -eq 0 ]; then
-      echo "PASS: manifest present, all entries exist"
-    else
-      echo "FAIL: manifest entries missing: ${missing[*]}"
-      fail_count=$((fail_count + 1))
-    fi
-  else
-    echo "FAIL: $AIDEX_DIR/.manifest not found"
-    fail_count=$((fail_count + 1))
-  fi
-
-  # 5b. Every manifest rules/ entry is LIVE in $CLAUDE_DIR/rules/, not just copied.
-  # ~/.claude/rules/ is the only surface Claude Code loads; a copy under ~/.aidex/rules/
-  # loads nothing by itself. create_symlink deliberately refuses to clobber an existing
-  # file there (it must not eat the user's own rule), warns once, and moves on — after
-  # which the rule never loads in any session while check 5 above still passes, because
-  # the COPY exists. Doctor used to be blind to this and reported "all checks passed"
-  # for an install with silently absent always-on rules (deep audit 2026-07-25).
-  if [ -f "$AIDEX_DIR/.manifest" ] && grep -q '^rules/' "$AIDEX_DIR/.manifest" 2>/dev/null; then
-    local rule_issues=()
-    local rule_total=0
-    local entry base link
+  # 7. Every manifest rule is a regular file in ~/.claude/rules/ — the only surface
+  # that loads. Reported separately from check 3 because a rule that does not load
+  # is silent in every session (deep audit 2026-07-25).
+  if [ -f "$MANIFEST" ] && grep -q '^rules/' "$MANIFEST" 2>/dev/null; then
+    local rule_issues=() rule_total=0 entry base f
     while IFS= read -r entry; do
       case "$entry" in rules/*) ;; *) continue ;; esac
       rule_total=$((rule_total + 1))
       base="$(basename "$entry")"
-      link="$CLAUDE_DIR/rules/$base"
-      if [ ! -L "$link" ]; then
-        if [ -e "$link" ]; then
-          rule_issues+=("$base (shadowed by a non-symlink — never loads)")
-        else
-          rule_issues+=("$base (not linked into $CLAUDE_DIR/rules/ — never loads)")
-        fi
-      elif [ ! -e "$link" ]; then
-        rule_issues+=("$base (dangling symlink)")
-      else
-        case "$(readlink "$link")" in
-          "$AIDEX_DIR"/*) ;;
-          *) rule_issues+=("$base (links outside $AIDEX_DIR)") ;;
-        esac
+      f="$CLAUDE_DIR/rules/$base"
+      if [ -L "$f" ]; then
+        rule_issues+=("$base (symlink — the old layout)")
+      elif [ ! -f "$f" ]; then
+        rule_issues+=("$base (missing from $CLAUDE_DIR/rules/ — never loads)")
       fi
-    done < "$AIDEX_DIR/.manifest"
+    done < "$MANIFEST"
     if [ "${#rule_issues[@]}" -eq 0 ]; then
-      echo "PASS: $rule_total aidex rule(s) linked into $CLAUDE_DIR/rules/"
+      echo "PASS: $rule_total aidex rule(s) in $CLAUDE_DIR/rules/"
     else
       echo "FAIL: aidex rule(s) not loading: ${rule_issues[*]}"
       fail_count=$((fail_count + 1))
     fi
   fi
 
-  # 5c. Non-manifest rules sitting in $AIDEX_DIR/rules that never load.
-  # Check 5b iterates the MANIFEST, so it is structurally blind to the user's own rule
-  # files placed in the aidex-owned directory: those are not ours to own, but a copy
-  # there loads nothing on its own, and the state is otherwise invisible. Measured in
-  # the field 2026-07-26: 8 non-manifest rules, 2 of them unlinked and silently dead.
-  # INFO only — never FAIL. Unlinked may well be deliberate (content superseded by
-  # CLAUDE.md, a rule for a stack this machine does not use); the installer cannot know,
-  # so it reports and does not judge.
-  if [ -d "$AIDEX_DIR/rules" ]; then
-    local unlinked=()
-    local rule_file base
-    for rule_file in "$AIDEX_DIR"/rules/*.md; do
-      [ -e "$rule_file" ] || continue
-      base="$(basename "$rule_file")"
-      grep -qxF "rules/$base" "$AIDEX_DIR/.manifest" 2>/dev/null && continue
-      [ -L "$CLAUDE_DIR/rules/$base" ] || unlinked+=("$base")
-    done
-    if [ "${#unlinked[@]}" -gt 0 ]; then
-      echo "INFO: ${#unlinked[@]} non-manifest file(s) in $AIDEX_DIR/rules/ are not linked and never load: ${unlinked[*]}"
+  # 8. Shipped hooks present and executable.
+  local hook_issues=() hook
+  for hook in $SHIPPED_HOOKS; do
+    [ -f "$SCRIPT_DIR/hooks/$hook" ] || continue
+    if ! in_manifest "hooks/$hook"; then
+      hook_issues+=("$hook (not in the manifest — run ./install.sh --update)")
+    elif [ ! -x "$CLAUDE_DIR/hooks/$hook" ]; then
+      hook_issues+=("$hook (missing or not executable)")
     fi
-  fi
-
-  # 6. Hooks dir present; aidex-router.sh and durability-run.sh executable.
-  if [ -d "$AIDEX_DIR/hooks" ]; then
-    local hook_issues=()
-    [ -x "$AIDEX_DIR/hooks/aidex-router.sh" ] || hook_issues+=("aidex-router.sh")
-    [ -x "$AIDEX_DIR/hooks/durability-run.sh" ] || hook_issues+=("durability-run.sh")
-    if [ "${#hook_issues[@]}" -eq 0 ]; then
-      echo "PASS: hooks present and executable"
-    else
-      echo "FAIL: hook(s) not executable: ${hook_issues[*]}"
-      fail_count=$((fail_count + 1))
-    fi
+  done
+  if [ "${#hook_issues[@]}" -eq 0 ]; then
+    echo "PASS: shipped hooks present and executable"
   else
-    echo "FAIL: $AIDEX_DIR/hooks not found"
+    echo "FAIL: hook(s) missing or not executable: ${hook_issues[*]}"
     fail_count=$((fail_count + 1))
   fi
 
@@ -931,9 +795,9 @@ case "${1:-}" in
   --help|-h)
     echo "Usage: install.sh [--update | --uninstall | --doctor | --help]"
     echo ""
-    echo "  (no flags)    First-time install: copy to ~/.aidex/, symlink to ~/.claude/"
-    echo "  --update      Update existing installation from repo"
-    echo "  --uninstall   Remove installation (interactive)"
+    echo "  (no flags)    First-time install into ~/.claude/ (skills, rules, hooks)"
+    echo "  --update      Update existing installation from repo (migrates a pre-0.40 ~/.aidex/ layout)"
+    echo "  --uninstall   Remove what aidex installed (interactive)"
     echo "  --doctor      Run install health checks (PASS/FAIL report)"
     echo "  --help        Show this help"
     ;;

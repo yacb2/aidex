@@ -3,7 +3,7 @@
 > Keep your Claude Code ecosystem lean and consistent — skills, docs, and project context from one source of truth.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.39.0-blue.svg)](install.sh)
+[![Version](https://img.shields.io/badge/version-0.40.0-blue.svg)](install.sh)
 [![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-8A2BE2.svg)](https://docs.anthropic.com/en/docs/claude-code)
 
 AI coding assistants reload their context every session. As your setup grows, skills get copy-pasted across projects and drift out of sync, every project organizes its `.context/` knowledge differently, and idle context quietly eats your token budget. **aidex** fixes that with a single-source skill store (symlinked, never duplicated), a standard `.context/` convention, and an auditor that flags bloat, broken symlinks, and stale docs before they cost you.
@@ -16,7 +16,7 @@ Prerequisites: macOS or Linux, `rsync`, `python3`, `git`.
 
 ```bash
 git clone https://github.com/yacb2/aidex.git
-cd aidex && ./install.sh      # copies to ~/.aidex/, symlinks into ~/.claude/
+cd aidex && ./install.sh      # installs into ~/.claude/ (skills, rules, hooks)
 # restart Claude Code
 ```
 
@@ -48,12 +48,39 @@ aidex solves this with two pillars:
 
 ## Architecture
 
-### Pillar 1: Assistant Configuration (storage + symlinks + per-project overrides)
+### Pillar 1: Assistant Configuration (install where Claude Code reads + per-project overrides)
+
+The suite installs straight into `~/.claude/` as real files — the same place and shape as
+any skill you write yourself. There is no intermediate storage layer and nothing is
+symlinked: symlinked skills and rules were the loader path with three separate bugs
+(Claude Code 2.0.62, 2.1.198, 2.1.239), and per-project scoping — the reason a separate
+layer once existed — is native now (`skillOverrides`, project `.claude/skills/`, nested
+skills).
 
 ```
-~/.aidex/                                <-- Canonical storage
-├── .manifest                            <-- Tracks what aidex installed
-├── rules/                               <-- Global session rules (symlinked into ~/.claude/rules/)
+~/.claude/                               <-- What Claude Code reads
+├── skills/
+│   ├── aidex/                           <-- The orchestrator (from aidex)
+│   ├── aidex-conventions/               <-- Canon hub, non-invocable (from aidex)
+│   ├── aidex-plan/                      <-- (from aidex)
+│   ├── aidex-decision/                  <-- (from aidex)
+│   ├── aidex-request/                   <-- (from aidex)
+│   ├── aidex-research/                  <-- (from aidex)
+│   ├── aidex-reference/                 <-- (from aidex)
+│   ├── aidex-skill/                     <-- (from aidex)
+│   ├── aidex-audit/                     <-- (from aidex)
+│   ├── aidex-backlog/                   <-- (from aidex)
+│   ├── aidex-loop/                      <-- (from aidex)
+│   ├── aidex-comm/                      <-- (from aidex)
+│   ├── aidex-plan-exec/                 <-- (from aidex)
+│   ├── aidex-bugfix/                    <-- (from aidex)
+│   ├── aidex-workflow/                  <-- (from aidex)
+│   ├── aidex-worktree/                  <-- (from aidex)
+│   ├── aidex-dash/                      <-- (from aidex)
+│   ├── aidex-review/                    <-- (from aidex)
+│   ├── aidex-coverage/                  <-- (from aidex)
+│   └── my-personal-skill/               <-- Your own — never touched by the installer
+├── rules/                               <-- Always-on session rules
 │   ├── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
 │   ├── autonomy.md                      <-- front-loaded autonomy: run start-to-finish (from aidex)
 │   ├── artifacts-local-first.md         <-- local-first artifact contract (from aidex)
@@ -62,37 +89,12 @@ aidex solves this with two pillars:
 │   ├── memory-hygiene.md                <-- one file, one live fact; index budget (from aidex)
 │   ├── verification-before-claims.md    <-- no completion claim without output (from aidex)
 │   └── root-cause-first.md              <-- investigate before fixing (from aidex)
-├── hooks/                               <-- Shipped hooks, inert until wired (see hooks/README.md)
-└── skills/
-    ├── aidex/                       <-- The orchestrator (from aidex)
-    ├── aidex-conventions/           <-- Canon hub, non-invocable (from aidex)
-    ├── aidex-plan/                  <-- (from aidex)
-    ├── aidex-decision/              <-- (from aidex)
-    ├── aidex-request/               <-- (from aidex)
-    ├── aidex-research/              <-- (from aidex)
-    ├── aidex-reference/             <-- (from aidex)
-    ├── aidex-skill/                 <-- (from aidex)
-    ├── aidex-audit/                 <-- (from aidex)
-    ├── aidex-backlog/      <-- (from aidex)
-    ├── aidex-loop/                  <-- (from aidex)
-    ├── aidex-comm/                  <-- (from aidex)
-    ├── aidex-plan-exec/              <-- (from aidex)
-    ├── aidex-bugfix/            <-- (from aidex)
-    ├── aidex-workflow/              <-- (from aidex)
-    ├── aidex-worktree/              <-- (from aidex)
-    ├── aidex-dash/                 <-- (from aidex)
-    ├── aidex-review/                <-- (from aidex)
-    ├── aidex-coverage/              <-- (from aidex)
-    └── my-personal-skill/           <-- Your own (not in manifest)
-        │
-        │  symlinks
-        ▼
-~/.claude/skills/                        <-- What Claude Code reads
-├── aidex -> ~/.aidex/skills/aidex
-├── aidex-conventions -> ~/.aidex/skills/aidex-conventions
-├── aidex-plan, aidex-decision, … -> ~/.aidex/skills/<each aidex skill>
-├── my-personal-skill -> ~/.aidex/skills/my-personal-skill
-└── ...
+├── hooks/
+│   └── context-depth-nudge.sh           <-- shipped, inert until wired (see hooks/README.md)
+└── aidex/                               <-- Install state, loads nothing
+    ├── manifest                         <-- Exactly what aidex installed (its uninstall list)
+    ├── version · commit                 <-- What --doctor compares against the repo
+    └── backups/                         <-- .context/ snapshots taken by the audit skill
 
 project/.claude/skills/                  <-- Project-specific (real files)
 └── local-only-skill/SKILL.md
@@ -103,9 +105,14 @@ project/.claude/settings.local.json      <-- Per-project skill silencing
 
 | Scope | Location | Loaded in | Use for |
 |-------|----------|-----------|---------|
-| **Global** | `~/.aidex/skills/` symlinked into `~/.claude/skills/` | All projects | Personal + reusable skills |
+| **Global** | `~/.claude/skills/` | All projects | Personal + reusable skills |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific |
 | **Per-project silencing** | `project/.claude/settings.local.json` `skillOverrides` | That project only | Hide a global skill where it's noise — values: `name-only`, `user-invocable-only`, `off`. Shipped in Claude Code 2.1.131. Skills **provided by a plugin are exempt**: user/project/local `skillOverrides` never applies to them, at any key format. The only lever is `enabledPlugins: {"<plugin>@<marketplace>": false}`, which is all-or-nothing for the whole plugin. |
+
+Upgrading from a pre-0.40 install (`~/.aidex/` + symlinks)? `./install.sh --update` migrates
+it: links become copies, anything of yours that lived in `~/.aidex/` is materialised at the
+same path, and the directory is renamed to `~/.aidex-to-delete-<date>` with a README — never
+deleted.
 
 ### Pillar 2: Structured Project Context (`.context/`)
 
@@ -137,15 +144,14 @@ at zero tokens, into a single self-contained HTML page:
 
 ### Hooks (optional)
 
-`hooks/` is copied to `~/.aidex/hooks/` at install time but stays inert: nothing in
-`~/.aidex/` loads by itself, and no hook is wired into `~/.claude/settings.json` for
-you. Only `context-depth-nudge.sh` (a UserPromptSubmit depth counter) is meant to be
-wired; the rest are retired and kept for the record. Wiring instructions and the
-status of each hook live in `hooks/README.md`.
+Only `context-depth-nudge.sh` (a UserPromptSubmit depth counter) is installed, to
+`~/.claude/hooks/`, and it stays inert: no hook is wired into `~/.claude/settings.json`
+for you. The other hooks in `hooks/` are retired and kept in the repo for the record.
+Wiring instructions and the status of each hook live in `hooks/README.md`.
 
 ### Global rules
 
-Eight always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.claude/rules/` — the sole load surface, so nothing under `~/.aidex/` loads by itself. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
+Eight always-on rules are installed to `~/.claude/rules/`, the sole surface Claude Code loads them from. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
 
 | Rule | What it governs |
 |------|-----------------|
@@ -224,7 +230,7 @@ Eight always-on rules are installed to `~/.aidex/rules/` and symlinked into `~/.
 git clone https://github.com/yacb2/aidex.git
 cd aidex
 
-# Install (copies to ~/.aidex/, creates symlinks in ~/.claude/)
+# Install (real files into ~/.claude/skills, ~/.claude/rules, ~/.claude/hooks)
 chmod +x install.sh
 ./install.sh
 
@@ -239,7 +245,7 @@ git pull
 ./install.sh --update
 ```
 
-The updater shows what changed and lets you choose: apply all, review each diff, or cancel. It only touches files it installed — your personal skills in `~/.aidex/` are never modified.
+The updater shows what changed and lets you choose: apply all, review each diff, or cancel. It only touches files it installed — the manifest in `~/.claude/aidex/` is the list — so a skill of yours that shares a name with a suite skill is skipped, never overwritten.
 
 ### Health check
 
@@ -247,21 +253,17 @@ The updater shows what changed and lets you choose: apply all, review each diff,
 ./install.sh --doctor
 ```
 
-Deterministic install diagnosis — checks the installed version against the repo, broken skill symlinks in `~/.claude/skills/`, executable bits on skill scripts, `python3` availability, `.manifest` integrity, and hook presence. Exit `0` = healthy; exit `1` lists exactly what to fix. Run it first whenever a skill "doesn't fire".
+Deterministic install diagnosis — checks the installed version and commit against the repo, that no pre-0.40 `~/.aidex/` is left, that every manifest entry is a real file (not a symlink), that no `aidex-*` directory sits outside the manifest, executable bits on skill scripts, `python3` availability, rules in place, and hook presence. Exit `0` = healthy; exit `1` lists exactly what to fix. Run it first whenever a skill "doesn't fire".
 
 ### Adding your own tools
 
 ```bash
-# Create a skill directly in ~/.aidex/ (not managed by the repo)
-mkdir ~/.aidex/skills/my-custom-skill
+# Global (loads in all projects) — next to the suite, never touched by it
+mkdir ~/.claude/skills/my-custom-skill
 # ... add SKILL.md
 
-# Make it global (loads in all projects)
-ln -s ~/.aidex/skills/my-custom-skill ~/.claude/skills/my-custom-skill
-
-# Or make it project-only
-cd ~/projects/my-app
-ln -s ~/.aidex/skills/my-custom-skill .claude/skills/my-custom-skill
+# Or project-only
+mkdir -p ~/projects/my-app/.claude/skills/my-custom-skill
 ```
 
 ## Uninstall

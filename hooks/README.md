@@ -7,8 +7,9 @@ agent **just stopping** ("the rest needs your decision"). The only surface that 
 that involuntary stop is a Claude Code **Stop hook**. This directory holds the
 implementations — the judge-gated command hook (C) is the active one.
 
-> **Why this is not shipped active by `install.sh`.** `install.sh` copies these files to
-> `~/.aidex/hooks/` but wires nothing. A Stop hook is an environment-wide behavioral change
+> **Why this is not shipped active by `install.sh`.** Since v0.40 `install.sh` installs only
+> `context-depth-nudge.sh` (to `~/.claude/hooks/`); the retired hooks below stay in the
+> repo and are not copied anywhere. Nothing is wired. A Stop hook is an environment-wide behavioral change
 > (it fires at every turn-end in every session it's configured for). **Activation is your
 > explicit call**: you add the hook to `~/.claude/settings.json` yourself.
 
@@ -44,13 +45,13 @@ never killed by the hook timeout.
    original OVERSTOP/enforce regex logic. The hook is fail-open overall.
 
 Every decision made while a run is ACTIVE is appended to
-`~/.aidex/durability/events.jsonl` with `matched` = `legit-terminal` | `judge` |
+`~/.claude/aidex/durability/events.jsonl` with `matched` = `legit-terminal` | `judge` |
 `judge-fallback-regex` — grep for `"matched": "judge"` to field-verify the judge path.
 
 Activate (in `~/.claude/settings.json` → `"hooks"`):
 ```jsonc
 "Stop": [ { "hooks": [ { "type": "command",
-                         "command": "bash \"$HOME/.aidex/hooks/durability-stop-hook.sh\"",
+                         "command": "bash \"$HOME/.claude/hooks/durability-stop-hook.sh\"",
                          "timeout": 90 } ] } ]
 ```
 
@@ -86,7 +87,7 @@ Re-inject the prompt after editing the `.md`:
 python3 - <<'PY'
 import json, os
 s = json.load(open(os.path.expanduser("~/.claude/settings.json")))
-p = open(os.path.expanduser("~/.aidex/hooks/durability-stop-prompt.md")).read().strip()
+p = open(os.path.expanduser("~/.claude/hooks/durability-stop-prompt.md")).read().strip()
 s["hooks"]["Stop"] = [{"hooks": [{"type": "agent", "model": "claude-sonnet-5", "prompt": p, "timeout": 120}]}]
 json.dump(s, open(os.path.expanduser("~/.claude/settings.json"), "w"), indent=2)
 PY
@@ -111,7 +112,7 @@ note; use C (or A) instead.
   of sibling repos has one marker, not one per repo (BL-075). Hook C resolves the same anchor.
   This is a deliberate divergence from `_lib.sh`'s nearest-ancestor `find_project_root`. Logs
   run-start/stop to
-  `~/.aidex/durability/events.jsonl`. The durable skills call this at their start/end. With hook
+  `~/.claude/aidex/durability/events.jsonl`. The durable skills call this at their start/end. With hook
   C active it is **the activation gate** (no run declared → no judge, no cost); with hook A it
   would be audit only.
 - `test-durability-hook.sh` — 35 isolated stdin tests for hook C: regex/gate tests (run with
@@ -132,7 +133,7 @@ receives `last_user_message`, the policy allows answer-to-user and gated-publica
 terminals, and the marker can no longer leak across subdirs. That is the hook's last chance.
 
 **Retirement rule — measured at the next usage-retro window:** grep
-`~/.aidex/durability/events.jsonl` for `"decision": "block"` events since this change and
+`~/.claude/aidex/durability/events.jsonl` for `"decision": "block"` events since this change and
 review each against its transcript. If the hook produced **≥1 misfire block** (blocked a turn
 that was a correct answer-to-user, a terminal gated-publication ask, or a genuinely finished
 task) **OR 0 justified blocks** (it caught nothing real), remove the `Stop` entry from
@@ -175,7 +176,7 @@ Regex-routes natural ES+EN create-intent phrases ("crea un plan para...", "parke
 - Meta-discussion/hypothetical guard: opinion/hypothesis markers ("supongo que", "me imagino", "analices", "que podemos mejorar", "consideras que", "dame tu opinion", ...) skip routing — discussing an artifact is not a create intent.
 - Proximity conjunction (`m2`): a rule's noun and verb must co-occur within the same sentence-ish segment (split on `.!?;` + whitespace and newlines), so a noun in one sentence can no longer conjoin with a verb in an unrelated one.
 
-**Registration (opt-in, not done by install.sh):** wire it as a `UserPromptSubmit` hook in settings.json pointing at `~/.aidex/hooks/aidex-router.sh`.
+**Registration (opt-in, not done by install.sh):** wire it as a `UserPromptSubmit` hook in settings.json pointing at `~/.claude/hooks/aidex-router.sh`.
 
 ### eval/ — router eval harness
 
@@ -184,8 +185,8 @@ Regex-routes natural ES+EN create-intent phrases ("crea un plan para...", "parke
 ## context-depth-nudge.sh — context-depth band notice (UserPromptSubmit)
 
 > **Opt-in, like every hook here.** `install.sh` copies this file to
-> `~/.aidex/hooks/` and wires nothing — `is_symlinkable()` excludes `hooks/*`, so
-> it never reaches `~/.claude/`, and settings.json is never touched. Installing or
+> `~/.claude/hooks/` (it is the one hook in `SHIPPED_HOOKS`) and wires nothing —
+> settings.json is never touched. Installing or
 > updating aidex therefore activates nothing. It runs only if you add it to your
 > own `~/.claude/settings.json` yourself (see Registration below). The thresholds
 > below were tuned on one person's corpus; treat them as a starting point, not a
@@ -224,7 +225,7 @@ any turn that iterated three times. Reads the last 400 lines only, so cost does 
 grow with transcript size.
 
 **Registration (opt-in, not done by install.sh):** wire it as a `UserPromptSubmit`
-hook in settings.json pointing at `~/.aidex/hooks/context-depth-nudge.sh`. Pairs
+hook in settings.json pointing at `~/.claude/hooks/context-depth-nudge.sh`. Pairs
 with a statusline that colours on absolute depth rather than percent-of-window —
 on a 1M model, 400k reads as 40% and colours green under a percentage scheme.
 

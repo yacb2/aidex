@@ -25,7 +25,7 @@
 
 set -euo pipefail
 INPUT="$(cat)"
-# The judge prompt lives next to this script (repo hooks/ or installed ~/.aidex/hooks/).
+# The judge prompt lives next to this script (repo hooks/ or installed ~/.claude/hooks/).
 export AIDEX_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 python3 - "$INPUT" <<'PY'
@@ -92,7 +92,7 @@ state_path = os.path.join(_anchor(cwd), ".context", ".durability", "active-run.j
 # AIDEX_DURABILITY_LOG redirects the sink: tests MUST set it, or their synthetic rows
 # land in production telemetry (they did — 94.5% of rows, measured 2026-08-01).
 LOG_PATH = os.environ.get("AIDEX_DURABILITY_LOG") \
-    or os.path.expanduser("~/.aidex/durability/events.jsonl")
+    or os.path.expanduser("~/.claude/aidex/durability/events.jsonl")
 msg, mode, run_type = "", "", ""
 
 def log_event(decision, matched):
@@ -165,7 +165,7 @@ REASON = (
     f"An autonomous durable run ({run_type}) is active. Per the autonomy canon, do NOT "
     f"stop on safe + additive work. Continue to the run's stop condition. For any genuinely "
     f"ambiguous fork, consult the durability-arbiter "
-    f"(~/.aidex/skills/aidex-conventions/agents/durability-arbiter.md) instead of stopping, "
+    f"(~/.claude/skills/aidex-conventions/agents/durability-arbiter.md) instead of stopping, "
     f"and batch real ASKs (unauthorized publish / deny-class / hard blocker) into ONE list at "
     f"the very end. If you are genuinely done or truly blocked, say so explicitly and you may stop."
 )
