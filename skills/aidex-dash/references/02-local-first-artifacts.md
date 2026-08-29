@@ -500,6 +500,19 @@ Five requirements. They exist because each one was violated in the field.
    in each (a row, a figure) and linked to the reference section by anchor; the
    reference section is never the only place a fact a decision needs lives.
 
+   **Inside a block, more than three facts of one shape are a table, a list or a
+   figure — never a paragraph (BL-269).** The block's context states the finding in a
+   sentence; what it rests on — N skills with their state and their proposed action, a
+   queue of steps, what is called vs not called vs proposed — goes in rows, with the
+   columns the decision needs (the thing · what it is today · the evidence · the
+   proposal). The page that produced this rule listed twelve skills, their call
+   counts and their verdicts in one ~250-word paragraph and was returned unread —
+   *"no entiendo qué es lo que se llama, qué es lo que no se llama, qué es lo que
+   tenemos, qué es lo que sobra, y qué es lo que propones… es demasiada información
+   para leer de golpe en un párrafo"* — with the note that replies in the chat do the
+   same. Every table still goes inside `.tw` (§4). This is a rule you hold, not a
+   check: the checker cannot tell a list of facts from a sentence.
+
    **An item with options states which one the session recommends, and why.** The
    recommendation is not optional and not a neutral menu — that is a separate rule the
    reader has flagged on two artifacts in one day. It is declared with
@@ -587,6 +600,21 @@ language. Radios cannot be un-selected and a textarea has to be emptied by hand,
 persistence a wrong click survived every reload and the only recovery was editing the
 markdown the composer had already copied. It arrives by wrapping, so it is not written
 into a block and cannot be forgotten.
+
+**Since kit v10 (BL-268), three more things the composer owns, none of them written by
+the author:**
+
+| | What | Why |
+|---|---|---|
+| The count | "N of M answered" counts ITEMS | it counted the `## G1 · title` block headings too and said "12 de 9" on a nine-item page |
+| A releasable radio | clicking the picked option again un-picks it (mouse) | Clear also empties the notes; a reader who changed their mind about the mark alone had to retype |
+| The "other" choice | every `.opts` group ends with an injected `Other — see my notes` option, same name and input type as the group, in the page's language | a closed list loses the answer the author did not anticipate; the reader had to leave the group unmarked and hope the notes were read as the answer |
+
+Do not write an "other" option by hand — the composer skips a group that already has one
+(`data-other` on an input), so a hand-written one only duplicates the label. The injected
+control is stripped from the question fingerprint like the badge and the Clear button:
+leaving it in would have marked every answer stored before v10 as "the question changed"
+and dropped it on the upgrade.
 
 Copy the shape from
 `~/.claude/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than

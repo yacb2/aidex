@@ -147,6 +147,11 @@ li::marker { color: var(--muted); }
 .kit-tag.no  { color: var(--muted);  border: 1px dashed var(--muted); }
 .opts label:has(input[data-recommended]) { background: var(--paper-sunk); }
 .opts label:has(input[data-recommended="no"]) { background: none; }
+/* The injected "other" choice (BL-268): last in its group, set off by a rule so
+   it reads as the exit from the list rather than one more entry in it. */
+.opts .kit-other { border-top: 1px dashed var(--rule); margin-top: 0.25rem; padding-top: 0.55rem; color: var(--muted); }
+.opts.one .kit-other { grid-column: 1; }
+.opts:not(.one) .kit-other { grid-column: 1 / -1; }
 
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;

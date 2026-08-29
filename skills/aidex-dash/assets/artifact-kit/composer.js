@@ -41,7 +41,9 @@
       rec: 'Recommended',
       notRec: 'Not recommended',
       recSuffix: ' (recommended)',
-      notRecSuffix: ' (not recommended)'
+      notRecSuffix: ' (not recommended)',
+      other: 'Other — see my notes',
+      otherHint: 'None of the above; the answer is in the notes box below.'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -66,7 +68,9 @@
       rec: 'Recomendada',
       notRec: 'No recomendada',
       recSuffix: ' (recomendada)',
-      notRecSuffix: ' (no recomendada)'
+      notRecSuffix: ' (no recomendada)',
+      other: 'Otra — lo explico en las notas',
+      otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -189,13 +193,17 @@
     return parts.join('\n\n');
   }
 
+  /* `n` counts ITEMS. The markdown array also carries one `## G1 · title` line
+   * per block, and reporting ITS length said "12 de 9" on a nine-item page —
+   * every block touched was counted as an answer (BL-268). */
   function collect() {
-    var answered = [], blank = [], lastGroup = null;
+    var answered = [], blank = [], lastGroup = null, n = 0;
     items.forEach(function (el, i) {
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);
       if (links[i]) links[i].classList.toggle('done', !!body);
       if (body) {
+        n++;
         /* The pasted reply keeps the block: `## G1 · title` before the first
          * answered item of each block, so the session that reads it sees the
          * grouping the reader answered under, not a flat list of ids. */
@@ -208,7 +216,7 @@
       }
       else blank.push(el.dataset.id);
     });
-    return { markdown: answered.join('\n\n'), answered: answered.length, blank: blank };
+    return { markdown: answered.join('\n\n'), answered: n, blank: blank };
   }
 
   function say(text) { status.forEach(function (s) { s.textContent = text; }); }
@@ -331,7 +339,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other').forEach(function (c) { c.remove(); });
     return fnv((clone.textContent || '').replace(/\s+/g, ' ').trim());
   }
 
@@ -462,6 +470,64 @@
     });
   }
 
+  /* The "other" choice, appended to every option group (BL-268). A radio set
+   * is a closed list, and a reader whose answer is none of the options had two
+   * bad moves: pick the nearest wrong one, or leave the group unmarked and hope
+   * the notes are read as the answer. This gives the third move a mark of its
+   * own — the paste then says "Other — see my notes" above the note. Injected
+   * from here, in the page's language, so no author has to remember it; an
+   * author who writes their own (`data-other` on an input) is left alone. It
+   * takes the group's own name and input type, so a radio group stays
+   * single-choice and a checkbox group stays multi. Stripped from the question
+   * fingerprint, like every other injected control. */
+  function addOtherChoices() {
+    items.forEach(function (el) {
+      el.querySelectorAll('.opts').forEach(function (g) {
+        if (g.querySelector('.kit-other, input[data-other]')) return;
+        var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
+        if (!first) return;
+        var lab = document.createElement('label');
+        lab.className = 'kit-other';
+        var input = document.createElement('input');
+        input.type = first.type;
+        input.name = first.name;
+        input.setAttribute('data-label', L.other);
+        var text = document.createElement('span');
+        text.appendChild(document.createTextNode(L.other + ' '));
+        var hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = L.otherHint;
+        text.appendChild(hint);
+        lab.appendChild(input);
+        lab.appendChild(text);
+        g.appendChild(lab);
+      });
+    });
+  }
+
+  /* A picked radio can be released by picking it again (BL-268). The browser
+   * offers no way out of a radio group once one is in, and the per-item Clear
+   * below also empties the notes — so a reader who changed their mind about
+   * the mark alone had to retype. The state is read on mousedown, before the
+   * browser flips it, and undone on the click that follows; keyboard
+   * selection is untouched. */
+  function releasableRadios() {
+    var was = null;
+    document.addEventListener('mousedown', function (ev) {
+      var lab = ev.target.closest ? ev.target.closest('.consult-item label') : null;
+      var r = lab ? lab.querySelector('input[type="radio"]') : null;
+      if (!r && ev.target.type === 'radio') r = ev.target;
+      was = (r && r.checked) ? r : null;
+    });
+    document.addEventListener('click', function (ev) {
+      var r = ev.target;
+      if (!r || r.type !== 'radio' || r !== was) return;
+      was = null;
+      r.checked = false;
+      r.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   /* Per-item clear. Radios cannot be un-selected by clicking them again and a
    * textarea has to be emptied by hand, so with persistence a wrong click
    * survived every reload and the only recovery was editing the markdown the
@@ -573,6 +639,8 @@
 
   fitTables();
   if (items.length) {
+    addOtherChoices();
+    releasableRadios();
     var recovered = restore();
     /* Shown when anything was DROPPED too, not only when something was
      * recovered: an answer the reader typed is missing from the page, and the

@@ -344,6 +344,14 @@ grep -q 'class="opts one"' "$SKILL/assets/templates/consultation-block.html.temp
 # ---------- per-item clear arrives by wrapping, not by authoring -----------
 grep -q 'consult-clear' "$KIT/composer.js" \
   || fail "composer.js does not inject a per-item clear control"
+
+# BL-268: the injected "other" choice, and it must stay OUT of the question
+# fingerprint — it is text inside the item, so hashing it would mark every
+# answer stored before the upgrade as "the question changed" and drop it.
+grep -q 'kit-other' "$KIT/composer.js" \
+  || fail "composer.js does not inject the 'other' choice into option groups"
+grep -qE "querySelectorAll\('[^']*\.kit-other[^']*'\)\.forEach\(function \(c\) \{ c\.remove\(\); \}\)" "$KIT/composer.js" \
+  || fail "composer.js hashes the injected 'other' choice into the question fingerprint — every stored answer is dropped on the upgrade"
 grep -q 'consult-clear' "$KIT/components.css" \
   || fail "components.css has no .consult-clear rule — the injected control is unstyled"
 grep -q 'consult-clear' "$SKILL/assets/templates/consultation-block.html.template" \

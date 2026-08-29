@@ -219,10 +219,56 @@ window.addEventListener('load', function () {
        * handle, and disappears once the item is blank again. */
       + '|CLEARROW=' + (btn && btn.parentElement.classList.contains('fieldrow') ? '1' : '0')
       + '|CLEARVIS=' + (btn ? getComputedStyle(btn).display : '');
+  } else if (q.indexOf('phase=count') !== -1) {
+    /* BL-268: the status counted BLOCK HEADINGS as answers. collect() pushed
+     * `## G1 · title` into the same array whose length it reported, so two
+     * answered items in one block read "3 de 3" — and a full page read "12 de 9"
+     * in the field. Two items answered here, one blank: the truth is 2 of 3. */
+    ta.value = 'count-probe';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ce.textContent = 'count-probe-2';
+    ce.dispatchEvent(new Event('input', { bubbles: true }));
+    document.title = 'COUNTED|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
+  } else if (q.indexOf('phase=toggle') !== -1) {
+    /* BL-268: a radio, once picked, could not be un-picked except by Clear —
+     * which also wipes the notes. Clicking the picked option again releases it.
+     * The label is what a reader clicks; mousedown precedes the click the
+     * browser then forwards to the input, which is the sequence the composer
+     * keys on. */
+    var lab = radio.closest('label');
+    function press() {
+      lab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      lab.click();
+    }
+    press();
+    var after1 = radio.checked ? 'A' : '-';
+    press();
+    var after2 = radio.checked ? 'A' : '-';
+    document.title = 'TOGGLED|AFTER1=' + after1 + '|AFTER2=' + after2
+      + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
+  } else if (q.indexOf('phase=other') !== -1) {
+    /* BL-268: every option group ends with an "other" choice the composer
+     * injects, so a reader whose answer is none of the options can say so with
+     * a mark and put the answer in the notes — instead of leaving the group
+     * unmarked and hoping the notes are read as the answer. */
+    var other = document.querySelector('[data-id="Q1"] .opts .kit-other input');
+    var lastLabel = document.querySelector('[data-id="Q1"] .opts label:last-child');
+    if (other) {
+      other.checked = true;
+      other.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    document.title = 'OTHERED|OTHER=' + (other ? '1' : '0')
+      + '|OTHERNAME=' + (other ? other.name : '')
+      + '|OTHERTYPE=' + (other ? other.type : '')
+      + '|OTHERLAST=' + (other && lastLabel && lastLabel.contains(other) ? '1' : '0')
+      + '|OTHERTEXT=' + (other ? other.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
+      + '|OTHERCOUNT=' + document.querySelectorAll('[data-id="Q1"] .opts .kit-other').length
+      + '|A=' + (radio.checked ? 'A' : '-');
   } else if (q.indexOf('phase=verify') !== -1) {
     var banner = document.getElementById('consult-restored');
     document.title = 'RESTORED=' + ta.value
-      + '|MARK=' + (radio.checked ? 'A' : (document.querySelector('[data-id="Q1"] input[data-label="Option B"]').checked ? 'B' : '-'))
+      + '|MARK=' + (radio.checked ? 'A' : (document.querySelector('[data-id="Q1"] input[data-label="Option B"]').checked ? 'B'
+                   : ((document.querySelector('[data-id="Q1"] .kit-other input') || {}).checked ? 'O' : '-')))
       + '|CE=' + ce.textContent
       + '|BANNER=' + (banner ? '1' : '0')
       + '|NOTE=' + (banner ? banner.textContent.replace(/[|<>]/g, ' ') : '')
@@ -433,5 +479,42 @@ t="$(run 'phase=clear')"
 [[ "$t" == *"persisted-answer-123"* ]] \
   && fail "BL-242: the cleared item is still in localStorage, so it returns on the next reload: $t"
 
+# ---- BL-268: the count is of ITEMS, never of block headings -----------------
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+t="$(run 'phase=count')"
+[[ "$t" == *COUNTED* ]] || fail "the count phase did not run: $t"
+[[ "$t" == *"STATUS=2 de 3 respondidas"* ]] \
+  || fail "BL-268: two answered items in one block are not reported as 2 of 3 — the block heading is being counted as an answer: $t"
+
+# ---- BL-268: a picked radio can be released by picking it again -------------
+rm -rf "$TMP/profile"
+t="$(run 'phase=toggle')"
+[[ "$t" == *TOGGLED* ]] || fail "the toggle phase did not run: $t"
+[[ "$t" == *"AFTER1=A"* ]] || fail "BL-268: the first click on an option did not select it: $t"
+[[ "$t" == *"AFTER2=-"* ]] \
+  || fail "BL-268: clicking the selected option again did not release it — the reader is stuck with a mark they cannot undo: $t"
+[[ "$t" == *"STATUS=Sin responder"* ]] \
+  || fail "BL-268: releasing the only mark did not return the item to blank in the status line: $t"
+
+# ---- BL-268: every option group carries an injected "other" choice ---------
+rm -rf "$TMP/profile"
+t="$(run 'phase=other')"
+[[ "$t" == *OTHERED* ]] || fail "the other phase did not run: $t"
+[[ "$t" == *"OTHER=1"* ]] || fail "BL-268: no 'other' option was injected into the option group: $t"
+[[ "$t" == *"OTHERCOUNT=1"* ]] || fail "BL-268: the 'other' option was injected more than once: $t"
+[[ "$t" == *"OTHERNAME=Q1"* ]] || fail "BL-268: the 'other' option is not in the group's radio set (name): $t"
+[[ "$t" == *"OTHERTYPE=radio"* ]] || fail "BL-268: the 'other' option does not match the group's input type: $t"
+[[ "$t" == *"OTHERLAST=1"* ]] || fail "BL-268: the 'other' option is not the last choice of its group: $t"
+[[ "$t" == *"OTHERTEXT=Otra"* ]] \
+  || fail "BL-268: the 'other' option is not labelled in the page's language: $t"
+[[ "$t" == *"|A=-"* ]] || fail "BL-268: picking 'other' left the recommended option checked too: $t"
+# It persists like any other mark, and the paste names it.
+t="$(run 'phase=verify')"
+[[ "$t" == *"MARK=O"* ]] || fail "BL-268: the 'other' mark did not survive a reload: $t"
+t="$(run 'phase=send')"
+[[ "$t" == *"- Otra"* ]] || fail "BL-268: the copied reply does not name the 'other' choice: $t"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, v4 answer sets and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other choice, v4 answer sets and the localised chrome included"
