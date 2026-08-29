@@ -15,7 +15,7 @@ screen — the analysis arrives WITH a drawing, unasked: an SVG or a 20-line moc
 page already carries its visual by contract (22 of 22 in this repo); the gap is the chat
 before it, where the reader had to ask every time (BL-248). Do not wait to be asked.
 
-**B. Ad-hoc report** — anything else. Five gates, four before anything is written and
+**B. Ad-hoc report** — anything else. Six gates, five before anything is written and
 one that keeps applying for as long as the page is being discussed:
 
 1. **Load design guidance before writing any page markup** — `artifact-design` via the
@@ -40,7 +40,12 @@ one that keeps applying for as long as the page is being discussed:
    ledger, nothing between blocks, reference material after the questions.
    `check-artifact.sh` fails the other shape (context above, questions below); the
    full rule is §8.4 of the procedure below (BL-247).
-5. **The artifact carries the discussion, not the chat.** Every time the reader answers
+5. **More than three facts of one shape are a table, a list or a figure — never a
+   paragraph.** A block context that named twelve skills with counts and verdicts in one
+   ~250-word paragraph was returned unread (BL-269); the reader said the same of chat
+   replies. The sentence above the table states the finding; the rows carry the facts.
+   Full rule in §8.4 of the procedure below.
+6. **The artifact carries the discussion, not the chat.** Every time the reader answers
    or decides something about the page, that answer goes INTO the page — summarised at
    the top, with what is still open below it — before the reply that acknowledges it.
    A thread is never concluded while its decisions live only in the conversation: that
