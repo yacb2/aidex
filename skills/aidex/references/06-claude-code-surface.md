@@ -25,10 +25,30 @@ keep it a bare `MAJOR.MINOR.PATCH`.
 | Surface | Verified against | Recommendation that depends on it |
 |---|---|---|
 | skillOverrides values | 2.1.241 | The auditor emits `name-only`, `user-invocable-only` or `off` into a project's `.claude/settings.local.json`. A fourth value, a renamed key, or a changed default would make every emitted patch either inert or wrong. |
+| skillOverrides key namespacing | 2.1.241 | A plugin's skill registers under `<plugin>:<skill>` (`document-skills:docx`), a personal skill under its bare directory name. An override key written in the wrong form matches nothing: it is valid JSON naming a real skill, so nothing reports it, and the skill loads at full cost while the settings file says it does not. Checked by `scripts/check-skill-overrides.py`. If namespacing changes, every emitted patch silently stops applying. |
 | skillOverrides cost model | 2.1.241 | The advice "prefer `off` over `name-only` when the stack excludes a skill" rests on `user-invocable-only` costing the same as `off` (134 tok/skill, measured). If loading changes, the ranking changes with it. |
 | MCP scoping | 2.1.241 | The auditor reasons about project-scope vs user-scope MCP servers when attributing idle context cost. A change in where servers are declared or when they connect moves that attribution. |
 | Plugin handling | 2.1.241 | Uninstall candidates are proposed from `~/.claude/plugins/installed_plugins.json` and always-loaded subagent cost. This is the one that has already misfired — plugins were recommended for removal that were fine. |
 | Settings file precedence | 2.1.241 | Patches are written to `.claude/settings.local.json` on the assumption it overrides `settings.json` and stays out of version control. If precedence or the recommended file changes, patches land somewhere that does not win. |
+
+## Checking the override keys themselves
+
+`scripts/check-skill-overrides.py` reads `~/.claude/settings.json` and reports every
+`skillOverrides` key that resolves to nothing, with the namespaced id it probably meant.
+Read-only; exit 1 on any unresolved key, 2 on a settings file it cannot read.
+
+Pass `--skills-dir <store>` for each personal skill store that is installed **per
+project** — a `.claude/skills/<name>` symlink pointing at something like
+`~/.myskills/skills/`. Without it those keys read as unresolved, which is the false
+positive that makes a checker like this one get discounted. On this machine:
+
+```
+python3 ~/.claude/skills/aidex/scripts/check-skill-overrides.py --skills-dir ~/.myskills/skills
+```
+
+It also reports **SHADOWED**: a bare key that does resolve to a personal skill while a
+namespaced twin of the same name exists and keeps loading unoverridden. That is not a
+failure — the key is valid — but it silences half of what the reader thinks it silences.
 
 ## Re-verifying a row
 
