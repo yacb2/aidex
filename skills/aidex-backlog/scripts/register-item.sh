@@ -27,6 +27,15 @@
 #                                  sets the minimum proof close-item.sh --sweep requires
 #   --verify "<how this will be proven>"  the registration hypothesis, one line; confirmed
 #                                  or corrected at triage, made concrete in ## Verification
+#   --touches "<path, path, …>"    files or modules the item will change (define-item.sh's
+#                                  validation, delegated); a registrar who has the paths in
+#                                  hand writes them now, not at the next kickoff (BL-273)
+#   --depends "<BL-NNN[, …]>"      ids that must close first (`merge:BL-NNN` = same change)
+#   --context "<prose>"            the ## Context body, replacing the template prompt
+#   --acceptance "<criterion>"     one ## Acceptance bullet; repeat the flag for more
+#                                  Every registration ends by printing define-check.py's
+#                                  verdict for the new id and, when underdefined, the exact
+#                                  command that completes it. None of these is mandatory.
 #   --status <open|doing|done|dropped>  default: open
 #   --slug <kebab-case>            override auto-generated slug
 #   --escalate-to <target-repo>    register a linked counterpart in another repo's backlog
@@ -339,7 +348,7 @@ stamp_escalated_to() {
 # the normal path has.
 #
 # Args: out id title status origin origin_ref priority type estimate blocked_by
-#       escalated_to context notes [surface verify]
+#       escalated_to context notes [surface verify acceptance]
 #
 # `surface` and `verify` are the 14th and 15th POSITIONAL arguments — the same hand-off
 # that once dropped --estimate/--status/--blocked-by. Both call sites pass them, and
@@ -348,7 +357,8 @@ stamp_escalated_to() {
 emit_backlog_entry() {
   local out="$1" id="$2" title="$3" status="$4" origin="$5" origin_ref="$6" \
         priority="$7" type="$8" estimate="$9" blocked_by="${10}" escalated_to="${11}" \
-        context="${12}" notes="${13}" surface="${14:-internal}" verify="${15:-}"
+        context="${12}" notes="${13}" surface="${14:-internal}" verify="${15:-}" \
+        acceptance="${16:-}"
   local date_iso esc_title esc_blocked esc_verify body_title
   date_iso="$(date +%Y-%m-%d)"
   esc_title="$(yaml_escape "$title")"
@@ -358,6 +368,9 @@ emit_backlog_entry() {
   # escaped form in both places, so `a "quoted" word` rendered as `a \"quoted\" word` in
   # the markdown body. Only newlines need flattening here; a quote is legal markdown.
   body_title="$(printf '%s' "$title" | tr '\n\r\t' '   ')"
+  # The template's empty bullet is what define-check.py reads as "no criterion"; a
+  # registrar who gives --acceptance replaces it with real bullets (BL-273).
+  [[ -n "$acceptance" ]] || acceptance="- <!-- concrete, verifiable criterion -->"
   # Deliberately NO `mkdir -p "$(dirname "$out")"`: the backlog directory is the caller's
   # to create, and creating $out's parent here would silently accept a `--slug` containing
   # a slash, filing the item in a subdirectory where the index glob and the id scanner
@@ -394,7 +407,7 @@ $context
 <!-- Optional at registration for a parked idea; required before open->doing. -->
 Done means:
 
-- <!-- concrete, verifiable criterion -->
+$acceptance
 
 ## Verification
 
@@ -442,6 +455,41 @@ emit_backlog_stub() {
   printf '%s\n' "$out"
 }
 
+# Every registration ends with define-check.py's verdict for the new id (BL-273): an
+# item registered with all its fields still read "underdefined: touches" at the NEXT
+# kickoff because nothing said so at registration. Stderr only — stdout stays the path.
+REG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+print_define_verdict() {
+  local id="$1" file="$2" json
+  json="$(cd "$(dirname "$file")" && python3 "$REG_DIR/define-check.py" --json "$id" 2>/dev/null)" || true
+  [[ -n "$json" ]] || return 0
+  printf '%s' "$json" | python3 -c '
+import json, sys
+items = json.load(sys.stdin).get("items", [])
+if not items:                      # a done/dropped registration is not checked
+    sys.exit(0)
+r, ident, path = items[0], sys.argv[1], sys.argv[2]
+err = sys.stderr
+if r["defined"]:
+    print(f"definition: {ident} is defined — sweep-eligible", file=err)
+    sys.exit(0)
+FM = ("type", "priority", "estimate", "surface", "verify", "touches")
+fields = [m.split()[0] for m in r["missing"] if m.split()[0] in FM]
+body = [m for m in r["missing"] if m.split()[0] not in FM]
+print(f"definition: {ident} is UNDERDEFINED — missing: " + ", ".join(r["missing"]), file=err)
+if fields:
+    flags = []
+    for f in fields:
+        if f == "touches" and r.get("touches_candidates"):
+            flags.append("--touches \"" + ", ".join(r["touches_candidates"][:6]) + "\"")
+        else:
+            flags.append(f"--{f} \"<{f}>\"")
+    print(f"  define-item.sh {ident} " + " ".join(flags), file=err)
+if body:
+    print("  edit " + " and ".join("## " + b for b in body) + f" in {path}", file=err)
+' "$id" "$file" || true
+}
+
 # --- dispatcher: strip leading "aidex-backlog" if present ---
 if [[ "${1:-}" == "aidex-backlog" ]]; then shift; fi
 
@@ -461,6 +509,8 @@ BLOCKED_BY=""
 ESTIMATE="M"
 SURFACE="internal"
 VERIFY=""
+TOUCHES="" DEPENDS="" CONTEXT="" ACCEPTANCE=""
+SET_TOUCHES=0 SET_DEPENDS=0
 STATUS="open"
 SLUG_OVERRIDE=""
 ESCALATE_TO=""
@@ -487,6 +537,11 @@ while [[ $# -gt 0 ]]; do
     --estimate)    ESTIMATE="$2"; shift 2 ;;
     --surface)     SURFACE="$2"; shift 2 ;;
     --verify)      VERIFY="$2"; shift 2 ;;
+    --touches)     TOUCHES="$2"; SET_TOUCHES=1; shift 2 ;;
+    --depends)     DEPENDS="$2"; SET_DEPENDS=1; shift 2 ;;
+    --context)     CONTEXT="$2"; shift 2 ;;
+    --acceptance)  ACCEPTANCE="${ACCEPTANCE:+$ACCEPTANCE
+}- $2"; shift 2 ;;
     --status)      STATUS="$2"; shift 2 ;;
     --slug)        SLUG_OVERRIDE="$2"; shift 2 ;;
     --escalate-to) ESCALATE_TO="$2"; shift 2 ;;
@@ -1008,6 +1063,8 @@ fi
 # EXTERNAL ref: validate.py accepts <repo>/BL-NNN on format and skips the existence
 # check, since the target is not on this filesystem tree (BL-070, 00-global §3.1).
 if [[ -n "$ESCALATE_TO" ]]; then
+  [[ $SET_TOUCHES -eq 0 && $SET_DEPENDS -eq 0 && -z "$CONTEXT$ACCEPTANCE" ]] \
+    || die "--touches/--depends/--context/--acceptance apply to a plain registration, not --escalate-to"
   TARGET_ROOT="$ESCALATE_TO"
   [[ -d "$TARGET_ROOT" ]]           || die "--escalate-to: target repo not found: $TARGET_ROOT"
   [[ -d "$TARGET_ROOT/.context" ]]  || die "--escalate-to: target has no .context/: $TARGET_ROOT"
@@ -1137,14 +1194,28 @@ fi
 # --- write entry (through the one template — see emit_backlog_entry) ---
 emit_backlog_entry "$OUT_FILE" "$ITEM_ID" "$TITLE" "$STATUS" "$ORIGIN" "${ORIGIN_REF:-}" \
   "$PRIORITY" "$TYPE" "$ESTIMATE" "$BLOCKED_BY" "" \
-  "<!-- Write this item in ENGLISH (D-04), even when the conversation is not.
-     Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->" \
-  "$NOTES_BLOCK" "$SURFACE" "$VERIFY"
+  "${CONTEXT:-<!-- Write this item in ENGLISH (D-04), even when the conversation is not.
+     Why is this worth doing? What problem does it solve? Keep to 2-5 sentences. -->}" \
+  "$NOTES_BLOCK" "$SURFACE" "$VERIFY" "$ACCEPTANCE"
+
+# --touches / --depends go through define-item.sh — the one writer and the one validator
+# of those fields (BL-273). It runs on the written entry, so a rejected value (a malformed
+# --depends) removes the entry again: the number stays spent, the file does not survive.
+if [[ $SET_TOUCHES -eq 1 || $SET_DEPENDS -eq 1 ]]; then
+  _def=()
+  [[ $SET_TOUCHES -eq 1 ]] && _def+=(--touches "$TOUCHES")
+  [[ $SET_DEPENDS -eq 1 ]] && _def+=(--depends "$DEPENDS")
+  if ! _err="$(bash "$REG_DIR/define-item.sh" "$OUT_FILE" "${_def[@]}" --no-index 2>&1 >/dev/null)"; then
+    rm -f "$OUT_FILE"
+    die "registration rolled back — ${_err#error: }"
+  fi
+fi
 
 # The marker STAYS: it is the repo-global record that this number is spent. The entry
 # carries the id too, but only on this checkout's branch (BL-239).
 ok "Backlog entry created"
 printf '  %s\n' "$OUT_FILE" >&2
+print_define_verdict "$ITEM_ID" "$OUT_FILE"
 
 if [[ $NO_INDEX -eq 0 ]]; then
   # A pre-existing duplicate must not fail a registration — the entry is already

@@ -20,7 +20,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | Command | Script | Purpose |
 |---|---|---|
 | `/aidex-backlog` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
-| `/aidex-backlog --origin manual --title "<title>"` | same | Non-interactive manual entry |
+| `/aidex-backlog --origin manual --title "<title>" [--type] [--priority] [--estimate] [--surface] [--verify] [--touches] [--depends] [--context] [--acceptance …]` | same | Non-interactive manual entry. Given all six contract fields plus a Context and an Acceptance it lands **defined** in one step; every registration ends with `define-check.py`'s verdict for the new id and, when underdefined, the exact `define-item.sh` command (BL-273). Nothing is mandatory: a bare stub still registers |
 | `/aidex-backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex-backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `aidex-plan-exec`'s between-phase checkpoint) |
