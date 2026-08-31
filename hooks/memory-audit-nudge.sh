@@ -31,14 +31,36 @@ SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // .sessionId // empty' 2>/d
 # 2026-08-31 guessing it wrong resolved a slug to an existing but WRONG directory, with
 # every check then reporting against it. Going forward from a path we already have, and
 # keeping only the candidate that exists on disk, has no such failure mode.
+#
+# cwd is not always the project root. In a split-repo `_ws` workspace people work in
+# `frontend/` or `backend/`, and the exact-cwd slug for those does not exist — so the
+# nudge was silent precisely where the work happens. It walks upward to find the project.
+#
+# The walk STOPS BEFORE $HOME, deliberately. `~/.claude/projects/-Users-<user>/memory` is
+# a real memory directory (sessions started in the home directory), so an unbounded walk
+# would make every session in any non-project directory — Downloads, a scratch dir —
+# nudge about the user-level memory. An exact cwd of $HOME still matches, because the
+# exact form is tried before the walk begins.
 MEMDIR=""
-for CAND in "$(printf '%s' "$CWD" | tr '/' '-')" \
-            "$(printf '%s' "$CWD" | tr '_' '-' | tr '/' '-')"; do
-  if [ -d "$HOME/.claude/projects/$CAND/memory" ]; then
-    MEMDIR="$HOME/.claude/projects/$CAND/memory"
-    SLUG="$CAND"
+DIR="$CWD"
+FIRST=1
+while [ -n "$DIR" ] && [ "$DIR" != "/" ]; do
+  # $HOME is only ever matched as an EXACT cwd, never as an ancestor. Walking through it
+  # would make every session in Downloads, or any scratch directory, nudge about the
+  # user-level memory that lives under the home directory's own slug.
+  if [ "$FIRST" -eq 0 ] && [ "$DIR" = "$HOME" ]; then
     break
   fi
+  for CAND in "$(printf '%s' "$DIR" | tr '/' '-')" \
+              "$(printf '%s' "$DIR" | tr '_' '-' | tr '/' '-')"; do
+    if [ -d "$HOME/.claude/projects/$CAND/memory" ]; then
+      MEMDIR="$HOME/.claude/projects/$CAND/memory"
+      SLUG="$CAND"
+      break 2
+    fi
+  done
+  FIRST=0
+  DIR=$(dirname "$DIR")
 done
 [ -n "$MEMDIR" ] || exit 0
 
