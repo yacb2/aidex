@@ -88,3 +88,43 @@ Then check the probe is not vacuous in the other direction: assert the delta is 
 too, or a re-render that never reached the component passes for the wrong reason.
 Counting reads beats timing — nothing in CI measures frame rate, and a timing assertion
 on a loaded machine is a flake.
+
+## 6. `toBeVisible()` does not catch a layout collapse
+
+A grid rendered **2 px tall** — invisible — while its search box and its paginator
+("showing 1 to 6 of 6") painted normally. The existing smoke passed, because it asserted
+the paginator and the empty state, both of which are OUTSIDE the collapsed element:
+`claimed` against `covered` in pure form.
+
+`toBeVisible()` does not see it either. The rows keep their bounding box and an ancestor
+with `overflow: hidden` clips them. Measure `boundingBox()` and use `toBeInViewport()` —
+with a healthy instance as a positive control **in the same run**.
+
+## 7. Confirm the fixture contains the case the check discriminates
+
+Four pages offered Edit and Delete on rows from a global catalogue that no tenant can
+write. The backend refuses them, but the user got a raw framework error message. The
+central check for that area did not fail, because **it did not exist**: the test template
+had zero global rows, so the correct UI and the broken UI looked identical.
+
+Seeding the case — one global row, one owned, one belonging to another tenant — surfaced
+the defect in the first minute. **Before calling a check covered, confirm the fixture
+contains the case that check discriminates, and seed both sides.**
+
+Two fixture rules from the same programme:
+
+- **A sandbox admin must be a plain admin**, never the platform owner, who bypasses every
+  gate and therefore proves nothing about one.
+- **Make the rows unequal.** If every row in a column is identical, the column passes on
+  its own.
+
+## 8. Every absence check needs a positive control in the same run
+
+`performance.getEntriesByType('resource')` **does not see XHR**. It reported "0 requests
+in 45 s" where there were 20 a minute. Patching `fetch` and `XMLHttpRequest` does work —
+but the general rule is that a measurement of *nothing happening* is worthless without
+something in the same run that makes it show *something* happening.
+
+Related, and the same shape: **measure a backend suite one run at a time.** Two concurrent
+runs against the same container produce hundreds of failures that mean nothing, and they
+read as a regression.
