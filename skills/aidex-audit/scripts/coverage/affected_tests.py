@@ -198,6 +198,16 @@ def affected_modules(root, repos, modules, changed_files):
         unmapped = [f for f in unmapped if f not in matched]
 
         groups = []
+        # Repo-aware module tier (BL-272): a functional module maps both repos
+        # of a two-repo workspace, and emitting every glob of every kind for a
+        # change in either printed ~240 Vitest files next to the pytest line
+        # for a Django-only edit. A non-e2e glob stays only when its repo is
+        # the repo of a changed file; e2e crosses repos by nature and stays.
+        # A glob or file no repo owns keeps the glob — wide, never wrong.
+        # What this deliberately does NOT do: widen across the API contract
+        # (a serializer rename still needs the frontend tests) — that is a
+        # blindspot expansion named in the profile, not this tier.
+        changed_repos = {r["name"] for r in (lib.repo_for(f, repos) for f in matched) if r}
         # Every kind, not ("unit", "e2e"): the keys are open-ended
         # (06-test-coverage.md), and a module mapped only through a third kind
         # read as "no tests mapped". A non-e2e kind runs through the repo's
@@ -205,6 +215,10 @@ def affected_modules(root, repos, modules, changed_files):
         for kind, kind_globs in tests.items():
             for glob in kind_globs or []:
                 display_dir, hint = render_hint(root, repos, glob)
+                if kind != "e2e" and changed_repos:
+                    owner = lib.repo_for(display_dir.rstrip("/"), repos)
+                    if owner and owner["name"] not in changed_repos:
+                        continue
                 groups.append((kind, display_dir, hint))
 
         # All-or-nothing narrowing (BL-212): the module's selection narrows to

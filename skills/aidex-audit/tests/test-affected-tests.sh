@@ -533,5 +533,49 @@ echo "$out_y" | grep -q 'before this commit' \
   && fail "(y) the commit-gate wording must be gone: $out_y"
 rm -rf "$WS"
 
+# ---------------------------------------------------------------------------
+# (z) the module tier is REPO-AWARE (BL-272). A module mapping both repos used
+#     to emit every unit glob for a change in either, so a Django-only edit
+#     printed the module's Vitest globs too (measured: ~240 *.test.ts next to
+#     the pytest line). Unit-kind globs now stay only for the repo of a changed
+#     file; e2e stays advisory across repos; a change in both repos emits both.
+# ---------------------------------------------------------------------------
+tworepo() {
+  python3 - "$1" <<'PY'
+import json, sys
+p = sys.argv[1] + "/.context/audits/test-coverage/module-map.json"
+m = json.load(open(p))
+for mod in m["modules"]:
+    if mod["id"] == "billing":
+        mod["tests"]["unit"] = ["backend/apps/billing/tests/**", "frontend/tests/unit/billing/**"]
+json.dump(m, open(p, "w"), indent=2)
+PY
+}
+WS="$(bash "$FIXTURE")"; tworepo "$WS"
+echo x >> "$WS/backend/apps/billing/views.py"
+out_z="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+[[ "$(echo "$out_z" | grep -c '^cd backend && pytest apps/billing/tests/$')" == "1" ]] \
+  || fail "(z) backend-only change must emit the pytest line: $out_z"
+echo "$out_z" | grep -q 'tests/unit/billing' \
+  && fail "(z) backend-only change must NOT emit the frontend unit globs: $out_z"
+echo "$out_z" | grep -q '# e2e specs affected.*frontend/tests/e2e/billing/' \
+  || fail "(z) e2e stays advisory across repos: $out_z"
+rm -rf "$WS"
+WS="$(bash "$FIXTURE")"; tworepo "$WS"
+echo "<!-- x -->" >> "$WS/frontend/src/billing/Form.vue"
+out_z2="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+[[ "$(echo "$out_z2" | grep -c '^\./test-e2e\.sh tests/unit/billing/$')" == "1" ]] \
+  || fail "(z) frontend-only change must emit the frontend unit line: $out_z2"
+echo "$out_z2" | grep -q 'pytest' \
+  && fail "(z) frontend-only change must NOT emit the pytest line: $out_z2"
+rm -rf "$WS"
+WS="$(bash "$FIXTURE")"; tworepo "$WS"
+echo x >> "$WS/backend/apps/billing/views.py"
+echo "<!-- x -->" >> "$WS/frontend/src/billing/Form.vue"
+out_z3="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
+[[ "$(echo "$out_z3" | grep -c '^cd backend && pytest\|^\./test-e2e\.sh tests/unit')" == "2" ]] \
+  || fail "(z) a change in both repos emits both commands: $out_z3"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3, multi-glob, no-tests module, e2e-only/no-hint advisories, --since all-missing, git error text, whitespace path, --help/unknown flag"
+echo "OK — affected-tests: module+hints, unmapped, clean tree, partial --since, test-file attribution, --command merge/INCOMPLETE/exit-3, multi-glob, no-tests module, e2e-only/no-hint advisories, --since all-missing, git error text, whitespace path, --help/unknown flag, repo-aware module tier"
