@@ -15,7 +15,16 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 SKILL="$REPO_ROOT/skills/aidex"
 SWEEP="$SKILL/scripts/memory-sweep.py"
-SURFACE=("$SKILL/SKILL.md" "$SKILL/references/03-memory-workflow.md" "$SKILL/agents/memory-auditor.md")
+# The surface is DERIVED, never hand-listed: a hand-maintained array is the same drift a
+# widened regex was meant to escape, and a first pass of this test missed two real defects
+# in `references/05-context-budget.md` and `agents/context-cost-analyzer.md` because they
+# were not in it. Any .md whose path says "memory", plus SKILL.md, is the memory surface.
+# (bash 3.2 on macOS has no mapfile.)
+SURFACE=()
+while IFS= read -r _f; do SURFACE+=("$_f"); done < <(
+  find "$SKILL" -name '*.md' -path '*memor*' -not -path '*/tests/*'
+  echo "$SKILL/SKILL.md"
+)
 
 PASS=0 FAIL=0
 ok()   { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
@@ -40,12 +49,25 @@ LINE_HITS="$(
 )"
 check "no line-unit threshold survives (found: ${LINE_HITS:-none})" '[[ -z "$LINE_HITS" ]]'
 
+echo "== and nowhere else under skills/aidex/ measures MEMORY in lines =="
+# Acceptance says "no file under skills/aidex/", not "no file in the list above". Outside
+# the memory surface a line count is often legitimate (SKILL.md size, CLAUDE.md size), so
+# here the hit only counts when the line is about MEMORY.
+WIDE_HITS="$(
+  grep -rnE '[0-9]+ *lines' "$SKILL" --include='*.md' 2>/dev/null \
+    | grep -i 'MEMORY' \
+    | grep -viE 'lines of (inline content|substantive prose)|>3 lines|\(<3 lines\)' \
+    | sed "s|^$SKILL/||"
+)"
+check "no MEMORY threshold in lines anywhere in the skill (found: ${WIDE_HITS:-none})" \
+  '[[ -z "$WIDE_HITS" ]]'
+
 echo "== MEMORY.md is never located under .claude/ or the project root =="
 # The correct path CONTAINS `.claude/`, so proximity alone cannot be the test: assert the
 # positive instead — any line that places MEMORY.md inside a `.claude` path must say
 # `projects/`, which is the segment the wrong locations lack.
 LOC_HITS="$(
-  for f in "${SURFACE[@]}"; do
+  for f in $(find "$SKILL" -name '*.md' -not -path '*/tests/*'); do
     # The front-matter `description:` is trigger prose, not a location claim: it names
     # MEMORY.md and .claude/skills in one sentence and always will.
     grep -n 'MEMORY\.md' "$f" | grep -v '^[0-9]*:description:' \
@@ -61,6 +83,17 @@ GATE="$(grep -n 'memory-auditor' "$SKILL/SKILL.md" | grep '| sonnet |')"
 check "the gate row exists" '[[ -n "$GATE" ]]'
 check "it gates on the memory directory, not a line count" \
   '[[ "$GATE" == *"memory/"* && "$GATE" != *"lines"* ]]'
+
+echo "== the /aidex memory sub-action exists and names its three forms =="
+# Nothing else fails if this block is deleted, and SKILL.md sits a handful of tokens under
+# a hard maximum — the newest, largest block is the first thing a future trim reaches for.
+SUB="$(sed -n '/^## Sub-action: `\/aidex memory`/,/^## Sub-action: `\/aidex init`/p' "$SKILL/SKILL.md")"
+check "the sub-action section is present" '[[ -n "$SUB" ]]'
+check "it dispatches on \$ARGUMENTS like init does" '[[ "$SUB" == *"\$ARGUMENTS"* ]]'
+check "it names the scoped form" '[[ "$SUB" == *"--project"* ]]'
+check "it names --apply" '[[ "$SUB" == *"--apply"* ]]'
+check "and --apply routes, so it carries the verdict vocabulary" \
+  '[[ "$SUB" == *"MOVE-BACKLOG"* && "$SUB" == *"DELETE-"* && "$SUB" == *"REWRITE"* ]]'
 
 echo "== budgets stay in lockstep with memory-sweep.py =="
 SCRIPT_MEM="$(sed -n 's/^MEMORY_WORD_BUDGET = \([0-9]*\)$/\1/p' "$SWEEP")"

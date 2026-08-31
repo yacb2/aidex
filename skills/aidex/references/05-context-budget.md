@@ -178,7 +178,7 @@ Check codes: `CB-PL` plugin cost, `CB-DU` skill duplication, `CB-MD` memory docs
 The heuristics were calibrated against a real session (`ns_backoffice_ws`, 2026-04-20) with a 22% idle footprint:
 
 - `pr-review-toolkit` plugin: 6 agents × ~600 = ~3.6k tokens, zero recent use → CB-PL CRITICAL.
-- MEMORY.md "Key Patterns & Gotchas" entry (>20 lines inline) → CB-MD CRITICAL, move to `.context/references/`.
+- MEMORY.md "Key Patterns & Gotchas" entry carrying ~450 words of content instead of a ~25-word hook → CB-MD CRITICAL, move to `.context/references/`.
 - Project `test-runner` skill shadowing global `test-runner` with near-identical description → CB-DU WARNING.
 - CLAUDE.md (4.4k tokens) with full workspace directory tree → CB-CM WARNING.
 
