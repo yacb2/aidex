@@ -675,8 +675,12 @@ def main() -> int:
                     help="unlink the DELETE-* rows in scope, backup-manifest gated")
     ap.add_argument("--dry-run", action="store_true", help="with --apply-deletes")
     ap.add_argument("--tier", default=None, help="a | b | c — scopes the run")
-    ap.add_argument("--record-move", nargs=3, metavar=("SLUG", "FILE", "DEST"),
-                    help="prove a MOVE destination exists, log it, then unlink the source")
+    # One `=`-joined value, not nargs=3: every memory slug starts with `-`, so argparse
+    # reads a positional slug as another flag and dies with "expected 3 arguments".
+    # Phase 4 hit this on --project and the same trap was walked straight back into.
+    ap.add_argument("--record-move", metavar="SLUG|FILE|DEST",
+                    help="--record-move='<slug>|<file>|<dest>' — prove the destination "
+                         "exists, log it, then unlink the source")
     ap.add_argument("--ratify", metavar="DATE", help="write the ratified: stamp")
     ap.add_argument("--project", default=None, help="--project=<slug>, scopes --verify-applied")
     args = ap.parse_args()
@@ -687,7 +691,11 @@ def main() -> int:
     appendix = repo / ".context" / "worklists" / f"{args.run}-memory-cleanup-appendix.md"
 
     if args.record_move:
-        return record_move(repo, args.run, out, *args.record_move)
+        parts = args.record_move.split("|")
+        if len(parts) != 3:
+            print("REFUSE: --record-move needs '<slug>|<file>|<dest>'")
+            return 2
+        return record_move(repo, args.run, out, *parts)
     if args.verify_applied:
         return verify_applied(out, args.project, args.tier,
                               load_ledger(ledger_path(repo, args.run)))
