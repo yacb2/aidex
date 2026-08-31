@@ -121,7 +121,7 @@ $gopen
       <label><input type="radio" name="Q1" data-label="Option B"><span>Option B</span></label>
     </div>
     <p class="fieldlabel">Notes on this one</p>
-    <textarea></textarea>
+    <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
   <section class="consult-item" data-id="Q2" data-title="The untouched question">
     <h3><span class="consult-id">Q2</span>This question never changes</h3>
@@ -275,6 +275,9 @@ window.addEventListener('load', function () {
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ')
       + '|BTN=' + document.getElementById('consult-copy').textContent
       + '|RAIL=' + document.querySelector('.railhead').textContent
+      + '|FL=' + document.querySelector('[data-id="Q1"] .fieldlabel').textContent
+      + '|PH=' + document.querySelector('[data-id="Q1"] textarea').getAttribute('placeholder')
+      + '|FLKEPT=' + document.querySelector('[data-id="Q2"] .fieldlabel').textContent
       + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
       + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
@@ -331,6 +334,17 @@ t="$(run 'phase=verify')"
   || fail "the copy button stayed in English on a lang=es page: $t"
 [[ "$t" == *"RAIL=Contenido"* ]] \
   || fail "the rail head stayed in English on a lang=es page: $t"
+# BL-280: the labels the author copies out of skeleton.html are kit chrome too.
+# Before this, a lang=es page carried Spanish buttons over English field labels
+# and English placeholders, and only a hand translation fixed it.
+[[ "$t" == *"FL=Notas sobre esta"* ]] \
+  || fail "the notes field label stayed in English on a lang=es page: $t"
+[[ "$t" == *"PH=Cualquier cosa que las opciones no cubran"* ]] \
+  || fail "the notes placeholder stayed in English on a lang=es page: $t"
+# A label the author wrote deliberately is not a skeleton default and is left
+# alone — the same guard the copy button has always had.
+[[ "$t" == *"FLKEPT=Write freely"* ]] \
+  || fail "an author's own field label was overwritten by the kit: $t"
 
 # ---- BL-190: a REPHRASED question must not restore its old answer -----------
 #
