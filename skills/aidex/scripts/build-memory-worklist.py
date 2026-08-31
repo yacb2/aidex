@@ -45,6 +45,15 @@ VERDICTS = [
 ]
 # Verdicts that leave the source memory file on disk.
 SURVIVES = {"KEEP", "REWRITE"}
+DELETES = {"DELETE-DUP", "DELETE-CLOSED", "DELETE-LOG"}
+# Q1's order: a duplicate is the cheapest thing to be sure about, a log the least.
+DELETE_ORDER = ["DELETE-DUP", "DELETE-CLOSED", "DELETE-LOG"]
+
+# Tier sizes, not tier membership. Phases 6-8 walk "the six largest directories",
+# then "the seven mid", then the tail — so the tiers are DERIVED from the work-list's
+# own row counts. Naming the directories here would hard-code a private fleet's client
+# project names into a public repo, which is the exact failure ledger d5 records.
+TIER_SIZES = {"a": 6, "b": 7}
 
 MEMORY_ROOT = Path(os.environ.get("AIDEX_MEMORY_ROOT", Path.home() / ".claude" / "projects"))
 BACKUP_ROOT = Path(
@@ -404,6 +413,68 @@ def verify_backup(run_date: str) -> int:
     return 0
 
 
+# --------------------------------------------------------------------- move ledger
+
+def ledger_path(repo: Path, run_date: str) -> Path:
+    return repo / ".context" / "worklists" / f"{run_date}-memory-cleanup-applied.tsv"
+
+
+def load_ledger(path: Path) -> dict[tuple[str, str], str]:
+    if not path.exists():
+        return {}
+    out = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 4 and parts[0] != "slug":
+            out[(parts[0], parts[1])] = parts[3]
+    return out
+
+
+def record_move(repo: Path, run_date: str, wl: Path, slug: str, filename: str,
+                dest: str) -> int:
+    """Write the ledger entry, then unlink the source. In that order, always.
+
+    Phase 6's acceptance is "no source memory is deleted before its destination
+    artifact exists". A gate that only checks the source is gone passes a MOVE whose
+    destination was never written — which is the majority of the work. So the
+    destination is proved here, at the one moment both files are on disk.
+    """
+    ratified, rows = parse_worklist(wl)
+    if not ratified:
+        print("REFUSE: work-list carries no `ratified:` stamp")
+        return 2
+    row = next((r for r in rows if r.slug == slug and r.filename == filename), None)
+    if row is None:
+        print(f"REFUSE: {slug}/{filename} is not a row in the ratified work-list")
+        return 2
+    if not row.verdict.startswith("MOVE"):
+        print(f"REFUSE: {filename} is {row.verdict}, not a MOVE — use --apply-deletes")
+        return 2
+    dest_p = Path(dest).expanduser()
+    if not dest_p.is_absolute():
+        dest_p = (repo / dest).resolve()
+    if not dest_p.is_file() or dest_p.stat().st_size == 0:
+        print(f"REFUSE: destination {dest_p} does not exist or is empty — "
+              f"the source memory stays on disk")
+        return 2
+    src = (MEMORY_ROOT / slug / "memory" / filename).resolve()
+    manifest = load_manifest(run_date)
+    if src.exists() and (slug, filename) not in manifest:
+        print(f"REFUSE: {slug}/{filename} is not in the backup manifest")
+        return 2
+    led = ledger_path(repo, run_date)
+    if not led.exists():
+        led.write_text("slug\tfile\tverdict\tdestination\tdest_sha256\n", encoding="utf-8")
+    sha = hashlib.sha256(dest_p.read_bytes()).hexdigest()
+    with led.open("a", encoding="utf-8") as fh:
+        fh.write(f"{slug}\t{filename}\t{row.verdict}\t{dest_p}\t{sha}\n")
+    if src.exists():
+        src.unlink()
+    still = "STILL ON DISK" if src.exists() else "removed"
+    print(f"moved {slug}/{filename} [{row.verdict}] -> {dest_p} (source {still})")
+    return 0 if not src.exists() else 1
+
+
 # ------------------------------------------------------------------ verify-applied
 
 def parse_worklist(path: Path) -> tuple[str, list[Row]]:
@@ -426,7 +497,116 @@ def parse_worklist(path: Path) -> tuple[str, list[Row]]:
     return ratified, rows
 
 
-def verify_applied(path: Path, only_slug: str | None) -> int:
+def tiers_of(rows: list[Row]) -> dict[str, set[str]]:
+    """Slug -> tier, by descending row count. Ties break on the slug, so the split is
+    stable across runs even though the counts come from a file that gets regenerated."""
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r.slug] = counts.get(r.slug, 0) + 1
+    ranked = sorted(counts, key=lambda s: (-counts[s], s))
+    a = TIER_SIZES["a"]
+    b = a + TIER_SIZES["b"]
+    return {"a": set(ranked[:a]), "b": set(ranked[a:b]), "c": set(ranked[b:])}
+
+
+def scope_rows(rows: list[Row], slug: str | None, tier: str | None) -> tuple[list[Row], str]:
+    if slug:
+        return [r for r in rows if r.slug == slug], f" for {slug}"
+    if tier:
+        keep = tiers_of(rows).get(tier, set())
+        return [r for r in rows if r.slug in keep], f" for tier {tier}"
+    return rows, ""
+
+
+def load_manifest(run_date: str) -> dict[tuple[str, str], str]:
+    man = BACKUP_ROOT / run_date / "MANIFEST.tsv"
+    if not man.exists():
+        return {}
+    out = {}
+    for line in man.read_text(encoding="utf-8").splitlines()[1:]:
+        parts = line.split("\t")
+        if len(parts) == 4:
+            out[(parts[0], parts[1])] = parts[3]
+    return out
+
+
+def apply_deletes(path: Path, run_date: str, slug: str | None, tier: str | None,
+                  dry: bool) -> int:
+    """Unlink the DELETE-* rows, but only ones the backup demonstrably holds.
+
+    Absolute paths only, and the end state is verified by re-enumerating the
+    directory rather than by any exit code — both from Phase 1 near-misses where
+    three signals agreed and all three were wrong.
+    """
+    if not path.exists():
+        print(f"REFUSE: no work-list at {path}")
+        return 2
+    ratified, rows = parse_worklist(path)
+    if not ratified:
+        print("REFUSE: work-list carries no `ratified:` stamp")
+        return 2
+    if not rows:
+        print("FAIL: parsed zero rows from the work-list — vacuous")
+        return 2
+    if not (slug or tier):
+        # An unscoped delete would empty the fleet in one call. Phases 6-8 are
+        # per-tier by design, and --stamp learned this lesson already.
+        print("REFUSE: --apply-deletes requires --project=<slug> or --tier=<a|b|c>")
+        return 2
+    scoped, label = scope_rows(rows, slug, tier)
+    manifest = load_manifest(run_date)
+    if not manifest:
+        print(f"REFUSE: no backup manifest for {run_date} — the backup is the only "
+              f"reversal path these deletions have")
+        return 2
+
+    targets = [r for r in scoped if r.verdict in DELETES]
+    targets.sort(key=lambda r: (DELETE_ORDER.index(r.verdict), r.slug, r.filename))
+    unlinked, skipped, refused = 0, 0, []
+    touched: set[str] = set()
+    for r in targets:
+        src = (MEMORY_ROOT / r.slug / "memory" / r.filename).resolve()
+        if not src.exists():
+            skipped += 1
+            continue
+        if (r.slug, r.filename) not in manifest:
+            refused.append((r, "not in the backup manifest"))
+            continue
+        if hashlib.sha256(src.read_bytes()).hexdigest() != manifest[(r.slug, r.filename)]:
+            refused.append((r, "changed since the backup was taken"))
+            continue
+        if not str(src).startswith(str(MEMORY_ROOT.resolve()) + os.sep):
+            refused.append((r, "resolves outside the memory root"))
+            continue
+        if dry:
+            print(f"  would unlink {src}")
+        else:
+            src.unlink()
+        unlinked += 1
+        touched.add(r.slug)
+
+    # Verify by enumeration, not by exit code.
+    still = []
+    for r in targets:
+        if (MEMORY_ROOT / r.slug / "memory" / r.filename).exists():
+            still.append(r)
+    verb = "would unlink" if dry else "unlinked"
+    print(f"{verb} {unlinked}{label} ({skipped} already gone, {len(refused)} refused) "
+          f"across {len(touched)} directories")
+    for r, why in refused:
+        print(f"  REFUSED {r.slug}/{r.filename}: {why}")
+    if not dry:
+        for slug_ in sorted(touched):
+            n = len(list((MEMORY_ROOT / slug_ / "memory").glob("*.md")))
+            print(f"  {slug_}: {n} files remain (incl. MEMORY.md)")
+        if still:
+            print(f"FAIL: {len(still)} target(s) still on disk after the unlink")
+            return 1
+    return 1 if refused else 0
+
+
+def verify_applied(path: Path, only_slug: str | None, tier: str | None = None,
+                   ledger: dict[tuple[str, str], str] | None = None) -> int:
     if not path.exists():
         print(f"REFUSE: no work-list at {path}")
         return 2
@@ -440,21 +620,31 @@ def verify_applied(path: Path, only_slug: str | None) -> int:
         # destructive phase pass green having done nothing.
         print("FAIL: parsed zero rows from the work-list — vacuous verification")
         return 2
-    if only_slug:
-        rows = [r for r in rows if r.slug == only_slug]
+    if only_slug or tier:
+        rows, _ = scope_rows(rows, only_slug, tier)
         if not rows:
-            print(f"FAIL: no rows for slug {only_slug}")
+            print(f"FAIL: no rows for {only_slug or ('tier ' + tier)}")
             return 2
+    ledger = ledger or {}
     unapplied = []
     for r in rows:
         src = MEMORY_ROOT / r.slug / "memory" / r.filename
         if r.verdict in SURVIVES:
             if not src.exists():
                 unapplied.append((r, "expected to survive, but is gone"))
-        else:
-            if src.exists():
-                unapplied.append((r, "still on disk"))
-    scope = f" for {only_slug}" if only_slug else ""
+            continue
+        if src.exists():
+            unapplied.append((r, "still on disk"))
+            continue
+        if not r.verdict.startswith("MOVE"):
+            continue
+        # A deleted source proves nothing about a MOVE: the fact had to land somewhere.
+        dest = ledger.get((r.slug, r.filename))
+        if not dest:
+            unapplied.append((r, "source gone but no destination recorded"))
+        elif not Path(dest).is_file() or Path(dest).stat().st_size == 0:
+            unapplied.append((r, f"recorded destination missing or empty: {dest}"))
+    scope = f" for {only_slug}" if only_slug else (f" for tier {tier}" if tier else "")
     if unapplied:
         print(f"FAIL: {len(unapplied)} of {len(rows)} rows unapplied{scope}")
         for r, why in unapplied[:40]:
@@ -481,6 +671,12 @@ def main() -> int:
     ap.add_argument("--verify-backup", action="store_true",
                     help="restore one sampled file and compare its sha")
     ap.add_argument("--verify-applied", action="store_true")
+    ap.add_argument("--apply-deletes", action="store_true",
+                    help="unlink the DELETE-* rows in scope, backup-manifest gated")
+    ap.add_argument("--dry-run", action="store_true", help="with --apply-deletes")
+    ap.add_argument("--tier", default=None, help="a | b | c — scopes the run")
+    ap.add_argument("--record-move", nargs=3, metavar=("SLUG", "FILE", "DEST"),
+                    help="prove a MOVE destination exists, log it, then unlink the source")
     ap.add_argument("--ratify", metavar="DATE", help="write the ratified: stamp")
     ap.add_argument("--project", default=None, help="--project=<slug>, scopes --verify-applied")
     args = ap.parse_args()
@@ -490,8 +686,13 @@ def main() -> int:
     out = repo / ".context" / "worklists" / f"{args.run}-memory-cleanup.md"
     appendix = repo / ".context" / "worklists" / f"{args.run}-memory-cleanup-appendix.md"
 
+    if args.record_move:
+        return record_move(repo, args.run, out, *args.record_move)
     if args.verify_applied:
-        return verify_applied(out, args.project)
+        return verify_applied(out, args.project, args.tier,
+                              load_ledger(ledger_path(repo, args.run)))
+    if args.apply_deletes:
+        return apply_deletes(out, args.run, args.project, args.tier, args.dry_run)
 
     if not run_dir.is_dir():
         print(f"FAIL: no audit run at {run_dir}")
