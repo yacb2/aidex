@@ -606,7 +606,8 @@ def apply_deletes(path: Path, run_date: str, slug: str | None, tier: str | None,
 
 
 def verify_applied(path: Path, only_slug: str | None, tier: str | None = None,
-                   ledger: dict[tuple[str, str], str] | None = None) -> int:
+                   ledger: dict[tuple[str, str], str] | None = None,
+                   manifest: dict[tuple[str, str], str] | None = None) -> int:
     if not path.exists():
         print(f"REFUSE: no work-list at {path}")
         return 2
@@ -626,6 +627,11 @@ def verify_applied(path: Path, only_slug: str | None, tier: str | None = None,
             print(f"FAIL: no rows for {only_slug or ('tier ' + tier)}")
             return 2
     ledger = ledger or {}
+    # The backup manifest is the record of what existed when this run started. A row
+    # whose source was already gone before the backup was taken cannot be moved by this
+    # run — demanding a destination for it would force a fabricated one.
+    manifest = manifest or {}
+    gone_before = []
     unapplied = []
     for r in rows:
         src = MEMORY_ROOT / r.slug / "memory" / r.filename
@@ -641,10 +647,16 @@ def verify_applied(path: Path, only_slug: str | None, tier: str | None = None,
         # A deleted source proves nothing about a MOVE: the fact had to land somewhere.
         dest = ledger.get((r.slug, r.filename))
         if not dest:
+            if manifest and (r.slug, r.filename) not in manifest:
+                gone_before.append(r)
+                continue
             unapplied.append((r, "source gone but no destination recorded"))
         elif not Path(dest).is_file() or Path(dest).stat().st_size == 0:
             unapplied.append((r, f"recorded destination missing or empty: {dest}"))
     scope = f" for {only_slug}" if only_slug else (f" for tier {tier}" if tier else "")
+    for r in gone_before:
+        print(f"  note: {r.slug}/{r.filename} [{r.verdict}] was already gone when the "
+              f"backup was taken — nothing for this run to move")
     if unapplied:
         print(f"FAIL: {len(unapplied)} of {len(rows)} rows unapplied{scope}")
         for r, why in unapplied[:40]:
@@ -698,7 +710,8 @@ def main() -> int:
         return record_move(repo, args.run, out, *parts)
     if args.verify_applied:
         return verify_applied(out, args.project, args.tier,
-                              load_ledger(ledger_path(repo, args.run)))
+                              load_ledger(ledger_path(repo, args.run)),
+                              load_manifest(args.run))
     if args.apply_deletes:
         return apply_deletes(out, args.run, args.project, args.tier, args.dry_run)
 

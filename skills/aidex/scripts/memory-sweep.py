@@ -651,6 +651,47 @@ def write_stamp(memdir: str) -> None:
         pass
 
 
+def verb_total(dry: bool) -> str:
+    return "would drop" if dry else "dropped"
+
+
+INDEX_TARGET_RX = re.compile(r"\]\(([^)]+\.md)\)")
+
+
+def reindex(memdir: str, apply: bool) -> tuple[int, int, list[str]]:
+    """Drop index lines whose target is gone; report files no line points at.
+
+    A cleanup deletes memory FILES; nothing else touches `MEMORY.md`, so every deleted
+    memory leaves a dead line behind — and a dead line reads exactly like a live fact,
+    at full always-on cost, forever.
+    """
+    index = os.path.join(memdir, "MEMORY.md")
+    if not os.path.isfile(index):
+        return 0, 0, []
+    kept, dropped = [], 0
+    linked = set()
+    for line in open(index, encoding="utf-8").read().splitlines():
+        m = INDEX_TARGET_RX.search(line)
+        if m is None:
+            kept.append(line)
+            continue
+        target = os.path.join(memdir, m.group(1))
+        if os.path.isfile(target):
+            linked.add(os.path.basename(target))
+            kept.append(line)
+        else:
+            dropped += 1
+    orphans = sorted(
+        os.path.basename(f) for f in glob.glob(os.path.join(memdir, "*.md"))
+        if os.path.basename(f) != "MEMORY.md" and os.path.basename(f) not in linked
+    )
+    if apply and dropped:
+        text = "\n".join(kept).strip("\n")
+        with open(index, "w", encoding="utf-8") as fh:
+            fh.write(text + "\n" if text else "")
+    return dropped, len(kept), orphans
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     # MUST be passed as `--project=<slug>`, with the equals sign. Every real slug starts
@@ -667,9 +708,27 @@ def main() -> int:
                          "`/aidex memory` should pass it: running the sweep for a look "
                          "is not an audit, and stamping on every plain run would mute "
                          "the nudge for every project nobody actually reviewed.")
+    ap.add_argument("--reindex", action="store_true",
+                    help="drop MEMORY.md lines whose target file no longer exists, and "
+                         "report memories no line points at")
+    ap.add_argument("--dry-run", action="store_true", help="with --reindex")
     args = ap.parse_args()
 
     dirs = memory_dirs(args.project)
+
+    if args.reindex:
+        total_dropped = 0
+        for d in sorted(dirs):
+            dropped, kept, orphans = reindex(d, apply=not args.dry_run)
+            if dropped or orphans:
+                verb = "would drop" if args.dry_run else "dropped"
+                print(f"{os.path.basename(os.path.dirname(d))}: {verb} {dropped} dead "
+                      f"line(s), {kept} left"
+                      + (f"; {len(orphans)} unlinked: {', '.join(orphans)}" if orphans else ""))
+            total_dropped += dropped
+        print(f"{verb_total(args.dry_run)} {total_dropped} dead index line(s) across "
+              f"{len(dirs)} director{'y' if len(dirs) == 1 else 'ies'}")
+        return 0
     findings = sweep(dirs)
 
     total_files = sum(
