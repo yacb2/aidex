@@ -621,6 +621,16 @@ the author:**
 | A releasable radio | clicking the picked option again un-picks it (mouse) | Clear also empties the notes; a reader who changed their mind about the mark alone had to retype |
 | The "other" choice | every `.opts` group ends with an injected `Other — see my notes` option, same name and input type as the group, in the page's language | a closed list loses the answer the author did not anticipate; the reader had to leave the group unmarked and hope the notes were read as the answer |
 
+**Since kit v11 (BL-280), the composer owns the fixed labels too.** Every string the
+author copies out of `skeleton.html` — `Notes on this one`, `The choice`, `The value`,
+`Anything that does not fit above`, and the textarea placeholders beside them, on top of
+`Copy my answers` and `Contents` — is replaced with the page's language when the copied
+text is still the skeleton's exact English default. A label the author wrote deliberately
+is left alone, which is what makes the swap safe. Leave the English defaults in place when
+authoring a non-English page: translating them by hand is what produced the mixed-language
+page this fixes, and a hand translation is no longer recognised as a default to swap.
+Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
+
 Do not write an "other" option by hand — the composer skips a group that already has one
 (`data-other` on an input), so a hand-written one only duplicates the label. The injected
 control is stripped from the question fingerprint like the badge and the Clear button:
