@@ -18,6 +18,10 @@ does not turn a two-minute loop into a twenty-minute one.
 - maps each file to a module in `module-map.json`
   (`.context/audits/test-coverage/`), two tiers: a changed file with a **colocated**
   test narrows to that test, all-or-nothing per module; otherwise module-level impact;
+- keeps the module tier **repo-aware**: a module that maps both repos of a two-repo
+  workspace emits only the unit-kind globs owned by the repo of a changed file (a
+  Django-only edit prints the pytest line, not the module's Vitest globs too); `e2e`
+  globs cross repos by nature and stay advisory; a change in both repos emits both;
 - prints the affected modules with their test paths and the rendered `test_hint`, plus
   an "Unmapped changes" section for files that matched nothing;
 - with `--command`, prints **one runnable unit-test command per repo** and nothing
@@ -31,6 +35,10 @@ does not turn a two-minute loop into a twenty-minute one.
   `test-e2e.sh` (`rules/e2e-testing.md`).
 - It does not expand across dependencies. The map is per module; a signal, a mixin, or
   a shared component is not followed. That expansion is the human step below.
+- It does not widen across the API contract. The repo-aware tier drops the other repo's
+  unit tests because the changed code is not what they import — a serializer field
+  rename still needs the frontend tests, and that widening is a `blindspot_expansions`
+  line in the profile ([14-testing-profile.md](14-testing-profile.md)), not this tier.
 - It does not do per-line test-impact analysis — a non-goal, stated in the header.
 - It does not read the profile's `e2e_test_cmd` yet; an E2E-only match is an advisory,
   and the E2E spec to run is named by hand from the module's row.
