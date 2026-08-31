@@ -84,6 +84,39 @@ bash "$BL/defer-item.sh" defer "$GID" --reason "vendor" >/dev/null 2>&1
 NEXT="$(bash "$DIR/worklist-advance.sh" "$WL" 2>"$TMP/err")"; RC=$?
 [[ $RC -eq 0 && "$NEXT" == "DONE" ]] && grep -q "deferred" "$TMP/err" && ok "a deferred head is ticked past with a warning" || bad "deferred head: rc=$RC next=$NEXT $(cat "$TMP/err")"
 
+# 6d · BL-263: an emergent whose item is already in _deferred/ must never be STARTED.
+# The append does not look at the item, and the start-next block at the end of an
+# advance did not either — so a deferred emergent was flipped to `doing`, and only the
+# NEXT advance's deferred check ticked past it and put it back to `open`. The item
+# recorded a spurious doing->open round-trip (the BL-262 shape).
+I="$(reg --title "deferred emergent")"; IID="$(idof "$I")"
+J="$(reg --title "the item after it")"; JID="$(idof "$J")"; prove "$J" "t"
+K="$(reg --title "head of the deferred queue")"; KID="$(idof "$K")"; prove "$K" "t"
+WL5="$(bash "$DIR/worklist-new.sh" --title "Deferred emergent" --mode sweep --ref "backlog:$KID — head")"
+bash "$BL/defer-item.sh" defer "$IID" --reason "cross-repo" >/dev/null 2>&1
+bash "$DIR/worklist-advance.sh" "$WL5" --sweep --append "backlog:$IID — deferred emergent" >/dev/null 2>"$TMP/err"
+grep -qi 'defer' "$TMP/err" \
+  && ok "6d appending a deferred item says so at append time" \
+  || bad "6d the append was silent about the item being deferred: $(cat "$TMP/err")"
+grep -qE "^2\. \[ \] $IID — deferred emergent .*<!-- deferred -->" "$WL5" \
+  && ok "6d the queue line is marked deferred" || bad "6d queue line: $(grep "$IID" "$WL5")"
+NEXT="$(bash "$DIR/worklist-advance.sh" "$WL5" 2>"$TMP/err")"; RC=$?
+IPATH="$(ls "$P/.context/backlog/_deferred/"*"$(echo "$IID" | tr 'A-Z' 'a-z')"* 2>/dev/null | head -1)"
+[[ -n "$IPATH" && "$(fm "$IPATH" status)" == "open" ]] \
+  && ok "6d a deferred emergent is never started (status stays open)" \
+  || bad "6d the deferred emergent was started: status=$(fm "${IPATH:-/dev/null}" status) rc=$RC $(cat "$TMP/err")"
+# Not started is only half of it: the walk must CONTINUE. A start that merely fails
+# stops the sweep with "could not start", which is the same blockage under a different
+# message — the item is blocked, and the queue is not.
+[[ $RC -eq 0 ]] \
+  && ok "6d the advance still succeeds — a blocked item does not block the queue" \
+  || bad "6d the advance died on a deferred emergent: rc=$RC $(cat "$TMP/err")"
+grep -qi 'deferred' "$TMP/err" \
+  && ok "6d the advance says why it did not start it" || bad "6d silent skip: $(cat "$TMP/err")"
+python3 "$DIR/validate-worklist.py" "$WL5" >/dev/null \
+  && ok "6d a queue line carrying the deferred marker still validates" \
+  || bad "6d validate rejects the marker: $(python3 "$DIR/validate-worklist.py" "$WL5")"
+
 # 6c · a next item that cannot be started is an error, not a silent success
 H="$(reg --title "h")"; HID="$(idof "$H")"; prove "$H" "t"
 WL4="$(bash "$DIR/worklist-new.sh" --title "Start fail" --mode sweep --ref "backlog:$HID — h" --ref "backlog:BL-777 — ghost")"
