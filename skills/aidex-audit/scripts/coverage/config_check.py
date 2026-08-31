@@ -21,8 +21,8 @@ Seven keys, per project:
   coverage_provider - is @vitest/coverage-v8 a real devDependency, and does
                        it agree with the declared coverage.provider?
   no_n_auto         - is `-n auto` / `--numprocesses auto` absent from project
-                       configuration (a fixed integer is compliant), and
-                       pytest-xdist absent from lockfiles?
+                       configuration? A fixed integer is compliant, and so is
+                       a declared pytest-xdist (BL-236).
   fail_under        - does the backend enforce a coverage threshold —
                        [tool.coverage.report] fail_under in pyproject.toml,
                        [report] fail_under in .coveragerc / setup.cfg, or
@@ -67,7 +67,14 @@ HIDDEN_SCAN_DIRS = {".github", ".circleci", ".gitlab"}
 VITEST_CONFIG_RE = re.compile(r"^vitest\.config\.(ts|mts|js|mjs|cjs)$")
 MD5_HASHER = "MD5PasswordHasher"
 
-# Files scanned for a lingering -n auto / --numprocesses / pytest-xdist.
+# A directory holding this relative path is a checkout of the checker itself,
+# so the `tests/` beside it is the checker's own test data, not the scanned
+# project's configuration. aidex was reported drifted by its own fixture's
+# literal `-n auto` (BL-236). Keyed on the marker rather than on __file__ so
+# it holds for the installed copy scanning the repo as well.
+CHECKER_MARKER = os.path.join("scripts", "coverage", "config_check.py")
+
+# Files scanned for a lingering -n auto / --numprocesses.
 NO_N_AUTO_GLOBS = (
     ".sh", ".toml", ".ini", ".cfg", ".yml", ".yaml", ".lock",
 )
@@ -91,6 +98,8 @@ def _walk(root):
             d for d in dirnames
             if d not in SKIP_DIRS
             and (not d.startswith(".") or d in HIDDEN_SCAN_DIRS)
+            and not (d == "tests" and os.path.isfile(
+                os.path.join(dirpath, CHECKER_MARKER)))
         ]
         yield dirpath, dirnames, filenames
 
@@ -398,28 +407,19 @@ def check_vitest_thresholds(project_dir):
 
 _N_AUTO_RE = re.compile(r"-n\s+auto|--numprocesses(?:=|\s+)auto")
 
-# pytest-xdist as an actually LOCKED/declared package — not any mention. A
-# lockfile records every transitive package's optional "extras" metadata too
-# (poetry.lock's `test = ["pytest-xdist (>=3.6.1)", ...]` on an unrelated,
-# vendored dependency), and those are not this project's own dependency.
-# Only a real package declaration counts: a poetry.lock `[[package]]` name
-# field (TOML), a Pipfile.lock package key (JSON), or a bare requirements
-# entry. (yarn.lock / package-lock.json never list a Python package, and
-# package-lock.json is .json, never a candidate file.)
-_XDIST_PKG_RE = re.compile(
-    r'^\s*name\s*=\s*"pytest-xdist"'      # poetry.lock (TOML `name = "..."`)
-    r'|"pytest-xdist"\s*:'                 # Pipfile.lock (JSON `"pytest-xdist": {`)
-    r'|^pytest-xdist\s*(?:[=><~!\[]|$)',   # requirements*.txt / requirements/<env>.txt bare entry
-    re.MULTILINE,
-)
+# A DECLARED pytest-xdist is compliant, not drift. The rule used to read a
+# locked dependency as drift because it encoded the 2026-08-23 ADR that
+# declined xdist; that ADR is superseded by
+# decision/2026-08-24-xdist-per-project-worker-counts.md, which deployed
+# per-project fixed worker counts and mandated the dependency with them. Only
+# the auto form above is drift (BL-236).
 
 
 def check_no_n_auto(project_dir):
     """('compliant'|'drift', [hits]). Scans first-party configuration only
-    (skips SKIP_DIRS), never a full-text grep of the tree. Two independent
-    sub-checks, both must be clean: `-n auto`/`--numprocesses` in any
-    candidate file, and `pytest-xdist` as an actually locked/declared
-    package in a lockfile or requirements file specifically."""
+    (skips SKIP_DIRS and the checker's own tests, see _walk), never a
+    full-text grep of the tree. Drift is `-n auto` / `--numprocesses auto`
+    in a candidate file; a declared pytest-xdist is compliant (BL-236)."""
     hits = []
     for dirpath, _dirnames, filenames in _walk(project_dir):
         # requirements*.txt, or the cookiecutter `requirements/<env>.txt` layout
@@ -427,7 +427,6 @@ def check_no_n_auto(project_dir):
         in_req_dir = os.path.basename(dirpath) == NO_N_AUTO_PREFIX
         for fn in filenames:
             is_req = fn.startswith(NO_N_AUTO_PREFIX) or (in_req_dir and fn.endswith(".txt"))
-            is_lockish = fn.endswith(".lock") or is_req
             is_candidate = (
                 fn.endswith(NO_N_AUTO_GLOBS)
                 or fn in NO_N_AUTO_NAMES
@@ -445,10 +444,6 @@ def check_no_n_auto(project_dir):
             m = _N_AUTO_RE.search(text)
             if m:
                 hits.append(f"{os.path.relpath(path, project_dir)}: {m.group(0)!r}")
-            if is_lockish:
-                xm = _XDIST_PKG_RE.search(text)
-                if xm:
-                    hits.append(f"{os.path.relpath(path, project_dir)}: pytest-xdist locked")
     return ("drift" if hits else "compliant"), hits
 
 
