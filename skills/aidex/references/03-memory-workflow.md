@@ -35,20 +35,31 @@ link, a ~25-word hook, never the content.
 file is a session narrative with no fact to extract, or another memory / `CLAUDE.md` / a
 `.context/` artifact already says it. Also: an index line whose target no longer exists.
 
-**EXTERNALIZE** (`MOVE-*`) — worth keeping, but memory is the wrong place:
+**EXTERNALIZE** (`MOVE-*`) — worth keeping, but memory is the wrong place. See below.
 
-| Content | Destination |
+## Where each verdict goes
+
+The routing table, in one place. `/aidex memory --apply` reads it; the auditor agent
+returns a verdict and nothing else. An unlisted verdict is a `KEEP`: nothing happens.
+
+| Verdict | Destination |
 |---|---|
-| Pending or deferred work | `.context/backlog/` |
-| A permanent project constraint or command (<3 lines) | the project `CLAUDE.md` |
-| How a settled part of the system works | `.context/references/<topic>/` |
-| Rationale for a choice | `.context/decisions/` (an ADR) |
-| Findings of a spike, audit or benchmark | `.context/research/` |
-| A correction about how a skill or tool behaves | that skill, or `~/.claude/rules/` |
-| A preference true in every project | the user-level memory, or a global rule |
+| `REWRITE` | the memory file, in place |
+| `DELETE-{DUP,CLOSED,LOG}` | back up, then delete the file **and** its index line |
+| `MOVE-BACKLOG` | `.context/backlog/` — `register-item.sh --origin sweep --worklist <slug>` |
+| `MOVE-CLAUDEMD` | the project `CLAUDE.md` — a permanent constraint or command (<3 lines) |
+| `MOVE-REFERENCE` | `.context/references/<topic>/` via `aidex-reference` |
+| `MOVE-DECISION` | `.context/decisions/` (an ADR) via `aidex-decision` |
+| `MOVE-RESEARCH` | `.context/research/` via `aidex-research` |
+| `MOVE-SKILL` | that skill's `SKILL.md`/`references/`, or `~/.claude/rules/` |
+| `MOVE-GLOBAL` | the user-level memory directory, or a global rule |
 
 **The destination artifact is written before the memory is deleted.** A MOVE that deletes
 first is a REMOVE that lost its content.
+
+On completion, re-run the sweep with `--stamp`. That records the directory as *audited*
+and silences the 30-day SessionStart nudge until it changes again — a plain sweep does
+not stamp, because running it for a look is not an audit.
 
 Verify every named thing before judging it: a memory pointing at a file, flag or script
 that Glob cannot find is `DELETE-CLOSED`. One that says "pending" is `DELETE-DUP` if

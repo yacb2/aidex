@@ -55,6 +55,7 @@ echo "== and nowhere else under skills/aidex/ measures MEMORY in lines =="
 # here the hit only counts when the line is about MEMORY.
 WIDE_HITS="$(
   grep -rnE '[0-9]+ *lines' "$SKILL" --include='*.md' 2>/dev/null \
+    | sed -E 's|^[^:]*:[0-9]+:||' \
     | grep -i 'MEMORY' \
     | grep -viE 'lines of (inline content|substantive prose)|>3 lines|\(<3 lines\)' \
     | sed "s|^$SKILL/||"
@@ -92,8 +93,14 @@ check "the sub-action section is present" '[[ -n "$SUB" ]]'
 check "it dispatches on \$ARGUMENTS like init does" '[[ "$SUB" == *"\$ARGUMENTS"* ]]'
 check "it names the scoped form" '[[ "$SUB" == *"--project"* ]]'
 check "it names --apply" '[[ "$SUB" == *"--apply"* ]]'
-check "and --apply routes, so it carries the verdict vocabulary" \
-  '[[ "$SUB" == *"MOVE-BACKLOG"* && "$SUB" == *"DELETE-"* && "$SUB" == *"REWRITE"* ]]'
+# The routing table must live in exactly ONE file — that is what the phase specified,
+# and duplicating it is how the agent and the sub-action drift into disagreeing.
+ROUTERS="$(grep -rl 'MOVE-BACKLOG' "$SKILL" --include='*.md' | grep -v '/agents/' \
+           | sed "s|^$SKILL/||" | sort)"
+check "exactly one file carries the routing table (has: ${ROUTERS:-none})" \
+  '[[ "$(printf "%s" "$ROUTERS" | grep -c .)" -eq 1 ]]'
+check "and --apply points the reader at it" \
+  '[[ "$SUB" == *"03-memory-workflow.md"* ]]'
 
 echo "== budgets stay in lockstep with memory-sweep.py =="
 SCRIPT_MEM="$(sed -n 's/^MEMORY_WORD_BUDGET = \([0-9]*\)$/\1/p' "$SWEEP")"

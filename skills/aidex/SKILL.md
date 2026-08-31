@@ -18,7 +18,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `worklists`, `workflows`) reported at INFO only |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
-| **Memory** | `~/.claude/projects/<slug>/memory/` — memory files + their `MEMORY.md` index | Session logs saved as memories, secrets, closed subjects, duplicates, content in the always-on index. See `/aidex memory` |
+| **Memory** | `~/.claude/projects/<slug>/memory/` + its `MEMORY.md` index | Session logs saved as memories, secrets, closed subjects, duplicates, content in the always-on index. See `/aidex memory` |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
@@ -47,29 +47,24 @@ how a class-1 patch gets applied as if it were class 4.
 Audits the memory **files** in `~/.claude/projects/<slug>/memory/`, not just the
 `~/.claude/projects/<slug>/memory/MEMORY.md` index. Three forms, on `$ARGUMENTS`:
 
-- **bare** — `python3 scripts/memory-sweep.py` for the mechanical half, then
-  [`memory-auditor`](agents/memory-auditor.md) per project with findings for the reading
-  half. Report; propose nothing.
-- **`<project>`** — the same, scoped: `--project <slug>` (substring match).
+- **bare** — `scripts/memory-sweep.py` for the mechanical half, then
+  [`memory-auditor`](agents/memory-auditor.md) per project for the reading half.
+  Report only.
+- **`<project>`** — scoped: `--project=<slug>`. The `=` is required; every slug starts
+  with `-`, which argparse reads as a flag.
 - **`--apply`** — route each verdict below. Deletions need the backup *and* the ratified
-  project x verdict-class table; without both, nothing is deleted.
+  project x verdict-class table.
 
-The routing table lives here, not in the agent, which only returns the verdict:
+Each verdict routes to exactly one destination, and that mapping lives in ONE place —
+[`references/03-memory-workflow.md`](references/03-memory-workflow.md) § Where each
+verdict goes. Read it before applying; the agent returns the verdict and nothing else.
 
-| Verdict | Destination |
-|---|---|
-| `KEEP` | nothing |
-| `REWRITE` | the memory file, in place |
-| `DELETE-{DUP,CLOSED,LOG}` | backup, then delete the file and its index line |
-| `MOVE-BACKLOG` | `register-item.sh --origin sweep --worklist <slug>` |
-| `MOVE-CLAUDEMD` | the project `CLAUDE.md` |
-| `MOVE-{REFERENCE,DECISION,RESEARCH}` | `aidex-reference` / `aidex-decision` / `aidex-research` |
-| `MOVE-SKILL` | the named skill's `SKILL.md`/`references/`, or `~/.claude/rules/` |
-| `MOVE-GLOBAL` | the user-level memory directory, or a global rule |
-
-Every MOVE writes its destination **before** the memory is deleted. Budgets are words,
-never lines: 800 per memory, 1,200 for the always-on index. Canon:
-`rules/memory-hygiene.md`; detail: [`references/03-memory-workflow.md`](references/03-memory-workflow.md).
+An unlisted verdict is a `KEEP`. Every MOVE writes its destination **before** the memory
+is deleted, and `DELETE-{DUP,CLOSED,LOG}` backs up before removing the file and its index
+line. On completion re-run the sweep with `--stamp`: that silences the 30-day
+SessionStart nudge until the directory changes again. Budgets are words, never lines —
+800 per memory, 1,200 for the index. Canon: `rules/memory-hygiene.md`; detail:
+[`references/03-memory-workflow.md`](references/03-memory-workflow.md).
 
 ## Sub-action: `/aidex init`
 
@@ -132,8 +127,8 @@ Check for:
 - .context/ (references/, docs/, plans/, backlog/ [incl. _deferred/], issues/, roadmap/, requests/, decisions/, research/, audits/, loops/, communications/, worktrees/)
 - .context/ optional tier (data/, diagrams/, drafts/, experiments/, worklists/, workflows/) — project-local, INFO-at-most, never deletion candidates
 - .claude/ (skills/, CLAUDE.md)
-- ~/.claude/projects/<slug>/memory/ (memory files + their MEMORY.md index; the slug is
-  the project path with `/` and `_` turned into `-`)
+- ~/.claude/projects/<slug>/memory/ (memory files + MEMORY.md; slug = the project path
+  with `/` and `_` turned into `-`)
 - ~/.claude/aidex/manifest (what the suite installed; anything else in ~/.claude/skills is the user's)
 - ~/.claude/skills/ (global skills)
 ```
