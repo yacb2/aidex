@@ -177,6 +177,34 @@ check("an underscored project path resolves to its dashed slug", message(out) !=
 check("and it did NOT resolve to some other project's directory",
       "1 file(s)" in message(out), message(out))
 
+print("== cwd is not always the project root ==")
+
+unstamp()
+sub = os.path.join(PROJ, "frontend", "src")
+os.makedirs(sub, exist_ok=True)
+rc, out, _ = run(cwd=sub, session=fresh_session())
+check("a session in a subdirectory nudges about its PROJECT", message(out) != "", out)
+nfiles = len([f for f in os.listdir(MEMDIR) if f.endswith(".md")])
+check("and reports the project's file count (%d), not the subdirectory's" % nfiles,
+      "%d file(s)" % nfiles in message(out), message(out))
+
+# The walk must not turn $HOME into a catch-all ancestor. ~/.claude/projects/-<home>/memory
+# is a real memory directory, so an unbounded walk would make every session in any
+# non-project directory nudge about the user-level memory.
+home_slug = HOME.replace("/", "-")
+home_mem = os.path.join(HOME, ".claude", "projects", home_slug, "memory")
+os.makedirs(home_mem, exist_ok=True)
+open(os.path.join(home_mem, "u.md"), "w").write("---\nmetadata:\n  type: user\n---\nx\n")
+
+stray = os.path.join(HOME, "Downloads", "scratch")
+os.makedirs(stray, exist_ok=True)
+rc, out, _ = run(cwd=stray, session=fresh_session())
+check("a session outside any project does NOT nudge about the home directory",
+      out is None, out)
+
+rc, out, _ = run(cwd=HOME, session=fresh_session())
+check("but an exact cwd of the home directory still resolves", message(out) != "", out)
+
 print("== --stamp is what silences it, and only when passed ==")
 
 # End-to-end: the acceptance case "changed directory under a fresh stamp is silent" is
@@ -238,6 +266,16 @@ check("the rewrite left the file count unchanged",
       before.split(":")[0] == digest().split(":")[0], (before, digest()))
 rc, out, _ = run(session=fresh_session())
 check("a rewrite at an unchanged file count is still detected", message(out) != "", out)
+
+print("== --stamp refuses to stamp what it did not audit ==")
+
+# A bare sweep touches every directory. Stamping all of them after a run that reviewed a
+# handful silences the nudge fleet-wide — and a tiered cleanup reaching some projects and
+# not others is exactly that shape.
+p = subprocess.run([sys.executable, SWEEP, "--stamp"], env=env,
+                   capture_output=True, text=True, timeout=180)
+check("--stamp without --project= is refused", p.returncode == 2, p.returncode)
+check("and says why", "nobody audited" in p.stderr, p.stderr[:200])
 
 print("== fails open and silent ==")
 

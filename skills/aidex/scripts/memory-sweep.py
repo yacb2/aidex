@@ -685,6 +685,14 @@ def main() -> int:
                        "findings": findings}, fh, indent=1)
 
     if args.stamp:
+        # --stamp requires --project=. Stamping every directory a bare sweep touched
+        # would mark all 30 as audited after a run that actually reviewed a handful,
+        # silencing the nudge fleet-wide — and a tiered cleanup that reaches some
+        # projects and not others is exactly that shape.
+        if not args.project:
+            print("--stamp needs --project=<slug>: stamping every swept directory would "
+                  "mark projects nobody audited", file=sys.stderr)
+            return 2
         for d in dirs:
             write_stamp(d)
         print(f"stamped {len(dirs)} director{'y' if len(dirs) == 1 else 'ies'} as audited")
