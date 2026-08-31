@@ -356,7 +356,10 @@ prints a NOTE saying the contract went unverified.
 
 ### 5. Read what the contract check said
 
-`--out` already ran it. It checks doctype, charset, viewport, title, dark mode, no
+`--out` already ran it. It checks doctype, charset, viewport, title, dark mode, **the body's language against
+`<html lang>`** (`lang`, BL-279: an English page under a Spanish profile got the composer's
+Spanish chrome on top of English prose — the profile's `language:` decides, and the body
+follows it, or `--lang` is passed on purpose), no
 external CSS/JS/fonts/images, no sibling assets, the kit's layout container and wrapped
 tables on any page carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
 it. A non-zero exit means the file on disk is not deliverable.
