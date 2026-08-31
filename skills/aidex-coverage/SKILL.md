@@ -75,6 +75,31 @@ records which plan phase produced each file.
 
 The full pack table is in [references/14-testing-profile.md](references/14-testing-profile.md).
 
+## The shape of the docs this skill writes
+
+This skill writes into two places in a project, and each has one shape
+(`aidex-reference/references/03-shaping.md` is the canon; this is its application):
+
+| Place | Holds | Never holds |
+|---|---|---|
+| `.context/testing-profile.md` | **facts only** — the keys in [references/14-testing-profile.md](references/14-testing-profile.md) and the template's one note | a `## ` section, a rule, an explanation of a rule |
+| `.context/references/testing/00-index.md` | the **single entry**: what each module is for, and the rule → owner table | a rule's body |
+| `.context/references/testing/NN-<slug>.md` | **one workflow per module**, under the ~2,500-word tripwire | a second workflow; a rule another module already states |
+
+- **No rule is stated in two files.** The index says which module owns it; the others
+  link. The measured failure: `02-testing-practices.md` repeating the profile and
+  `06-cross-dependencies.md`, and contradicting one of them (`exec -T` vs `run --rm`).
+- **A doc this skill extends past ~2,500 words is split into a new module, never
+  appended.** The tripwire asks "is there a second workflow in here?"; the answer for a
+  cross-dependency map that gains execution groups is yes, so the groups get their own
+  `NN-execution-groups.md` and the index a new row. Phase 11 of one adoption appended
+  them instead (2,549 → 4,282 words, four workflows in one file).
+- **`cross_deps_ref` may name a folder or several modules**, not one file — a single
+  `cross_deps_ref` is what invited the monolith.
+- `python3 scripts/profile-init.py --check <project>` is the tripwire in script form: it
+  warns on a prose section in the profile and on any `references/testing/*.md` over
+  2,500 words. Run it at the close of any phase that touched either.
+
 ## How to use the layer model
 
 1. Read [references/01-layer-model.md](references/01-layer-model.md)'s six layers and the

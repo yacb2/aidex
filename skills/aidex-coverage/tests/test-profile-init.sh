@@ -63,4 +63,23 @@ mkdir -p "$TMP/w"
 printf '{"dependencies":{"payload":"^3","svelte":"^5"},"devDependencies":{"vitest":"^4","@playwright/test":"^1"}}\n' > "$TMP/w/package.json"
 python3 "$SCRIPT" --print "$TMP/w" | grep -qx "testing_packs: testing-payload testing-svelte testing-playwright-web" \
   || fail "web fixture packs: $(python3 "$SCRIPT" --print "$TMP/w" | grep testing_packs)"
-echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only"
+# --check (BL-271): the profile stays facts-only and no testing module crosses the
+# tripwire. NS's profile grew to 553 words with prose sections, and its
+# 06-cross-dependencies.md to 4,282 words holding four workflows, because nothing
+# said either shape was wrong.
+python3 "$SCRIPT" --force "$TMP/p" >/dev/null
+mkdir -p "$TMP/p/.context/references/testing"
+printf '# Small\n\none workflow, under the tripwire.\n' > "$TMP/p/.context/references/testing/01-small.md"
+out="$(python3 "$SCRIPT" --check "$TMP/p")" || fail "--check on a clean profile + small module must exit 0: $out"
+[[ "$out" == *"profile check: ok"* ]] || fail "--check ok line: $out"
+printf '\n## Execution groups\n\nProse that belongs in a reference module.\n' >> "$TMP/p/.context/testing-profile.md"
+python3 - "$TMP/p/.context/references/testing/06-big.md" <<'PY'
+import sys; open(sys.argv[1], "w").write("# Big\n\n" + "word " * 2600)
+PY
+if out="$(python3 "$SCRIPT" --check "$TMP/p")"; then fail "--check must exit 1 with findings: $out"; fi
+[[ "$out" == *"prose section '## Execution groups'"* ]] || fail "--check must name the prose section: $out"
+[[ "$out" == *"06-big.md is 2,602 words, over the 2,500-word tripwire"* ]] || fail "--check must name the module over the tripwire: $out"
+[[ "$out" == *"01-small.md"* ]] && fail "--check must not report a module under the tripwire: $out"
+[[ -e "$TMP/p/.context/testing-profile.md.bak" ]] && fail "--check must not write"
+
+echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only, --check finds prose and tripwire"
