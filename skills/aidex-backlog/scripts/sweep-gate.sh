@@ -26,6 +26,8 @@
 # Reads from .context/testing-profile.md: backend_suite_cmd, frontend_suite_cmd,
 # build_cmd, e2e_suite_cmd, e2e_detached. A missing key for a leg that is about to run
 # is exit 2, naming the key — a gate over an unbound leg is the one we already have.
+# Optional per leg: `<leg>_pre_cmd`, run immediately before the leg and into the same
+# log. A non-zero pre-command fails the leg and the leg does not run.
 #
 # Output — one machine-readable line per leg, then the verdict:
 #   leg=backend exit=0 count=1284
@@ -92,7 +94,18 @@ for leg in "${LEGS[@]}"; do
   [[ -n "$v" ]] || die "testing-profile.md has no \`$k\` — the $leg leg is unbound (fill the key, or --only the legs that are bound)"
   printf -v "CMD_$leg" '%s' "$v"
 done
+# An OPTIONAL per-leg command run immediately before the leg, in the same working
+# directory and into the same log (BL-265). It exists because the first backend run
+# inside a fresh worktree came back `count=?`: stale __pycache__/.pytest_cache reached
+# the checkout and xdist's workers disagreed on collection. The gate must not carry
+# Python knowledge, so the project declares what to clear —
+# `backend_pre_cmd: find . -name __pycache__ -prune -exec rm -rf {} +` — and the gate
+# only runs it. Absent is the normal case and changes nothing.
 E2E_DETACHED="$(profile_key e2e_detached)"
+for leg in "${LEGS[@]}"; do
+  printf -v "PRE_$leg" '%s' "$(profile_key "${leg}_pre_cmd")"
+done
+pre_of() { local v="PRE_$1"; printf '%s' "${!v}"; }
 
 LOG_DIR="$ROOT/_tmp/sweep-gate"; mkdir -p "$LOG_DIR"
 # The history is evidence and outlives the run; _tmp/ is deletable without asking.
@@ -132,7 +145,15 @@ for leg in "${LEGS[@]}"; do
     : > "$log"
     printf 'detached: leg=e2e log=%s\n' "$log" >&2
     printf 'detached: run with run_in_background (never a foreground call, never a poll wrapper):\n' >&2
-    printf '  cd %q && (%s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$ROOT" "$(cmd_of "$leg")" "$log" "$log" >&2
+    # The pre-command is chained into the printed invocation rather than run here:
+    # a detached leg runs elsewhere, and dropping it would leave the one leg that
+    # runs in another process as the only one keeping the stale cache.
+    if [[ -n "$(pre_of "$leg")" ]]; then
+      printf '  cd %q && ((%s) && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
+        "$ROOT" "$(pre_of "$leg")" "$(cmd_of "$leg")" "$log" "$log" >&2
+    else
+      printf '  cd %q && (%s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$ROOT" "$(cmd_of "$leg")" "$log" "$log" >&2
+    fi
     printf 'detached: then score it: sweep-gate.sh --only e2e --from-log %q\n' "$log" >&2
     emit_row "$leg" pending - -; PENDING=$((PENDING+1)); continue
   else
@@ -142,7 +163,26 @@ for leg in "${LEGS[@]}"; do
     # re-implemented inside the gate meant to stop it. An `if` records the code and
     # keeps `set -e` out of it.
     t0="$(date +%s)"
-    if ( cd "$ROOT" && bash -c "$(cmd_of "$leg")" ) > "$log" 2>&1; then rc=0; else rc=$?; fi
+    rc=0
+    # The pre-command opens the log (`>`), the leg appends to it (`>>`): both are
+    # evidence, and a pre-command that truncated the leg's own output would hide the
+    # count the verdict is made of. A non-zero pre-command FAILS the leg and the leg
+    # does not run — running the suite anyway against the state the pre-command
+    # failed to clear is the flake this exists to remove, now with a green tick.
+    if [[ -n "$(pre_of "$leg")" ]]; then
+      printf '# pre_cmd: %s\n' "$(pre_of "$leg")" > "$log"
+      # `if ! (...); then rc=$?` reads the NEGATION's status, which is always 0 — the
+      # same shape the leg's own run has a comment about, re-made one block above it.
+      if ( cd "$ROOT" && bash -c "$(pre_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
+      if [[ $rc -ne 0 ]]; then
+        printf '# pre_cmd FAILED (exit %s) — the %s leg was not run\n' "$rc" "$leg" >> "$log"
+      fi
+    else
+      : > "$log"
+    fi
+    if [[ $rc -eq 0 ]]; then
+      if ( cd "$ROOT" && bash -c "$(cmd_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
+    fi
     secs=$(( $(date +%s) - t0 ))
     count="$(count_in "$leg" "$log")"
   fi
