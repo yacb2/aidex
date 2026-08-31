@@ -1066,6 +1066,22 @@ err="$(bash "$WRAP" --title "G" --out "$CEN/.context/reports/good.html" 2>&1 >/d
   && ok "sweep: waived drift stays quiet, so the note cannot become a nag" \
   || bad "the wrap nagged about drift that is already waived: $err"
 
+echo "== lang: the body's language must match <html lang> (BL-279) =="
+# The 2026-08-31 memory-audit page: English prose under a Spanish profile. The
+# wrapper set lang=es and the composer spoke Spanish over an English body.
+EN_BODY='<div class="page"><main class="main"><h1>Nine memories</h1><p>The checker sees size and the defect is content: most of the files duplicate a document that already exists or describe work that has closed, and the rest belong in a backlog item or a reference. The instrument with the right rubric has not run since May, and nothing at all looks at a memory when it is saved, which is the whole problem.</p></main></div>'
+ES_BODY='<div class="page"><main class="main"><h1>Nueve memorias</h1><p>El verificador mide el tamaño y el defecto es el contenido: la mayoría de los archivos duplica un documento que ya existe o describe trabajo que ya cerró, y el resto pertenece a un ítem del backlog o a una referencia. El instrumento con la rúbrica correcta no corre desde mayo, y nada mira una memoria cuando se guarda, que es todo el problema.</p></main></div>'
+printf '%s\n' "$EN_BODY" | bash "$WRAP" --title "t" --lang es > "$TMP/en-under-es.html" 2>/dev/null
+out="$(bash "$CHECK" "$TMP/en-under-es.html" 2>&1)"
+grep -q "FAIL \[lang\]" <<<"$out" && ok "English body under lang=es fails [lang]" || bad "English body under lang=es was accepted: $out"
+printf '%s\n' "$ES_BODY" | bash "$WRAP" --title "t" --lang es > "$TMP/es-under-es.html" 2>/dev/null
+bash "$CHECK" "$TMP/es-under-es.html" >/dev/null 2>&1 && ok "Spanish body under lang=es passes" || bad "Spanish body under lang=es was rejected"
+printf '%s\n' "$ES_BODY" | bash "$WRAP" --title "t" --lang en > "$TMP/es-under-en.html" 2>/dev/null
+grep -q "FAIL \[lang\]" <<<"$(bash "$CHECK" "$TMP/es-under-en.html" 2>&1)" && ok "Spanish body under lang=en fails [lang]" || bad "Spanish body under lang=en was accepted"
+# A short page has no dominant language to judge: never fail on thin evidence.
+printf '%s\n' '<div class="page"><main class="main"><h1>x</h1><p>ok</p></main></div>' | bash "$WRAP" --title "t" --lang es > "$TMP/thin.html" 2>/dev/null
+bash "$CHECK" "$TMP/thin.html" >/dev/null 2>&1 && ok "a page too short to judge is not flagged" || bad "thin page flagged for language"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

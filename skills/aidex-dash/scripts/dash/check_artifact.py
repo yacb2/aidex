@@ -103,6 +103,56 @@ def strip_html_comments(text):
     return re.sub(r"<!--.*?-->", " ", text, flags=re.S)
 
 
+# --- lang: the body must speak the language <html lang> declares (BL-279) -------
+# Stopword sets and thresholds mirror validate.py's body-language heuristic; a
+# page whose dominant language disagrees with its lang attribute is the shape
+# that shipped on 2026-08-31 — English prose under a Spanish profile, with the
+# composer's chrome (which keys off lang) in Spanish on top of it.
+SPANISH_STOPWORDS = {
+    "el", "la", "los", "las", "una", "uno", "unas", "unos", "de", "del", "al",
+    "que", "es", "son", "está", "están", "fue", "era", "ser", "hay", "como",
+    "pero", "más", "para", "por", "sobre", "también", "porque", "cuando",
+    "donde", "entre", "desde", "hasta", "según", "muy", "ya", "cada", "todo",
+    "toda", "todos", "todas", "esta", "este", "esto", "estas", "estos", "se",
+    "sus", "les", "nos", "tiene", "tienen", "puede", "pueden", "debe", "deben",
+    "así", "aquí", "durante", "después",
+}
+ENGLISH_STOPWORDS = {
+    "the", "and", "of", "to", "in", "is", "that", "for", "with", "on", "as",
+    "are", "this", "be", "it", "by", "from", "or", "an", "not", "at", "was",
+    "we", "if", "has", "have", "will", "which", "when", "can", "should",
+    "must", "each", "all", "into", "than", "then", "these", "those", "there",
+    "any", "only", "also", "after", "before", "over", "under", "between",
+}
+LANG_MIN_HITS = 10      # below this the page is too short to have a language
+LANG_RATIO = 3          # dominant = at least 3x the other language's stopwords
+HTML_LANG = re.compile(r'<html\b[^>]*\blang\s*=\s*["\']?([A-Za-z]{2})', re.I)
+WORD_RE_LANG = re.compile(r"[a-záéíóúñü]+", re.I)
+
+
+def visible_text(text):
+    """The page as a reader sees it: no scripts, styles, comments or tags."""
+    own = strip_html_comments(strip_script_style(text))
+    return re.sub(r'<[^>]+>', ' ', own)
+
+
+def language_mismatch(text):
+    """(declared, dominant, es_hits, en_hits) when the body's dominant language
+    contradicts <html lang>; None when they agree or the page is too short."""
+    m = HTML_LANG.search(text)
+    declared = (m.group(1).lower() if m else "en")
+    if declared not in ("es", "en"):
+        return None
+    tokens = WORD_RE_LANG.findall(visible_text(text).lower())
+    es = sum(1 for w in tokens if w in SPANISH_STOPWORDS)
+    en = sum(1 for w in tokens if w in ENGLISH_STOPWORDS)
+    if declared == "es" and en >= LANG_MIN_HITS and en >= LANG_RATIO * es:
+        return (declared, "en", es, en)
+    if declared == "en" and es >= LANG_MIN_HITS and es >= LANG_RATIO * en:
+        return (declared, "es", es, en)
+    return None
+
+
 def script_code(text):
     """<script> contents with JS comments stripped. Identifiers are English by
     house rule, so this is what a composer is judged by whatever language the
@@ -493,6 +543,16 @@ def check_file(path):
     if "prefers-color-scheme" not in text:
         report("themes", "no prefers-color-scheme — unreadable for a "
                          "dark-mode reader")
+
+    mm = language_mismatch(text)
+    if mm:
+        declared, dominant, es, en = mm
+        report("lang", f'<html lang="{declared}"> but the body reads {dominant} '
+                       f"({es} Spanish vs {en} English stopwords) — the composer "
+                       f"and the kit's chrome key off lang, so the reader gets two "
+                       f"languages on one page. Write the body in the profile's "
+                       f"language (artifact-style.md `language:`) or pass --lang "
+                       f"(BL-279)")
 
     # --- self: one file, no network -------------------------------------------
     if re.search(r'<link[^>]+rel=["\']?stylesheet', flat, re.I):
