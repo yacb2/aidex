@@ -128,8 +128,9 @@ gen --backup >/dev/null 2>&1
 
 echo "== all rows applied =="
 rm -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md" \
-      "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" \
       "$AIDEX_MEMORY_ROOT/-tmp-beta/memory/b_ok.md"
+printf 'the fact, restated where it belongs\n' > "$TMP/early-dest.md"
+gen --record-move -tmp-alpha a_move.md "$TMP/early-dest.md" >/dev/null 2>&1
 OUT="$(gen --verify-applied 2>&1)"; RC=$?
 check "all applied: exit 0" '[[ $RC -eq 0 ]]'
 # A KEEP row that vanished is as wrong as a DELETE row that stayed.
@@ -154,6 +155,90 @@ PY
 OUT="$(gen --verify-applied 2>&1)"; RC=$?
 check "zero rows: exit 2"    '[[ $RC -eq 2 ]]'
 check "zero rows: says vacuous" '[[ "$OUT" == *"vacuous"* ]]'
+
+echo "== --apply-deletes: the refusals come before the unlink =="
+# The vacuity case above gutted the work-list's Files table; regenerate it, or every
+# assertion below would pass on a table with no rows in it.
+gen --ratify 2099-01-01 >/dev/null
+# Rebuild the fixture: the applied-state tests above deleted the sources.
+mem -tmp-alpha a_dup.md "dup"
+mem -tmp-alpha a_move.md "move"
+mem -tmp-beta b_ok.md "closed"
+gen --backup >/dev/null 2>&1
+
+OUT="$(gen --apply-deletes 2>&1)"; RC=$?
+check "unscoped delete is refused"  '[[ $RC -eq 2 && "$OUT" == *"requires --project"* ]]'
+check "the unscoped refusal did not delete" '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md" ]]'
+
+MANSAVE="$TMP/man.save"; cp "$AIDEX_BACKUP_ROOT/2099-01-01/MANIFEST.tsv" "$MANSAVE"
+mv "$AIDEX_BACKUP_ROOT/2099-01-01/MANIFEST.tsv" "$TMP/hidden.tsv"
+OUT="$(gen --apply-deletes --tier a 2>&1)"; RC=$?
+check "no manifest: refused"  '[[ $RC -eq 2 && "$OUT" == *"no backup manifest"* ]]'
+check "no manifest: nothing deleted" '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md" ]]'
+mv "$TMP/hidden.tsv" "$AIDEX_BACKUP_ROOT/2099-01-01/MANIFEST.tsv"
+
+# A memory edited since the backup was taken has no valid reversal path.
+printf 'edited after the backup
+' >> "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md"
+OUT="$(gen --apply-deletes --project=-tmp-alpha 2>&1)"; RC=$?
+check "changed-since-backup is refused, not deleted"       '[[ "$OUT" == *"changed since the backup"* && -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md" ]]'
+check "a refusal is a non-zero exit" '[[ $RC -ne 0 ]]'
+gen --backup >/dev/null 2>&1
+
+echo "== --apply-deletes: what it does delete =="
+OUT="$(gen --apply-deletes --project=-tmp-alpha 2>&1)"; RC=$?
+check "deletes the DELETE row"        '[[ ! -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md" ]]'
+check "leaves the MOVE row alone"     '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
+check "leaves the KEEP row alone"     '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_keep.md" ]]'
+check "does not cross into another project" '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-beta/memory/b_ok.md" ]]'
+check "reports the surviving count by enumeration" '[[ "$OUT" == *"files remain"* ]]'
+check "clean delete exits 0"          '[[ $RC -eq 0 ]]'
+
+echo "== --dry-run touches nothing =="
+gen --backup >/dev/null 2>&1
+OUT="$(gen --apply-deletes --project=-tmp-beta --dry-run 2>&1)"
+check "dry run says would unlink"  '[[ "$OUT" == *"would unlink"* ]]'
+check "dry run deleted nothing"    '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-beta/memory/b_ok.md" ]]'
+
+echo "== MOVE rows: the destination is proved before the source is unlinked =="
+# The bug this whole section exists for: MOVE-* is not in SURVIVES, so "source is
+# gone" was the entire assertion — a MOVE whose destination was never written passed
+# green, and MOVE is the majority of the work in Phases 6-8.
+mem -tmp-alpha a_move.md "the fact"
+gen --backup >/dev/null 2>&1
+LED="$FAKE_REPO/.context/worklists/2099-01-01-memory-cleanup-applied.tsv"
+DEST="$TMP/dest.md"
+
+OUT="$(gen --record-move -tmp-alpha a_move.md "$DEST" 2>&1)"; RC=$?
+check "a missing destination is refused" '[[ $RC -eq 2 && "$OUT" == *"does not exist or is empty"* ]]'
+check "the source survives that refusal"  '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
+: > "$DEST"
+gen --record-move -tmp-alpha a_move.md "$DEST" >/dev/null 2>&1
+check "an EMPTY destination is refused too" '[[ $? -eq 2 && -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
+
+printf 'the fact, restated where it belongs
+' > "$DEST"
+OUT="$(gen --record-move -tmp-alpha a_dup.md "$DEST" 2>&1)"
+check "a DELETE row is not a MOVE"     '[[ "$OUT" == *"not a MOVE"* ]]'
+OUT="$(gen --record-move -tmp-alpha nosuch.md "$DEST" 2>&1)"
+check "a row outside the work-list is refused" '[[ "$OUT" == *"not a row in the ratified"* ]]'
+
+OUT="$(gen --record-move -tmp-alpha a_move.md "$DEST" 2>&1)"; RC=$?
+check "a real move succeeds"           '[[ $RC -eq 0 ]]'
+check "the source is unlinked after"   '[[ ! -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
+check "the ledger records the destination" 'grep -q "a_move.md.*MOVE-REFERENCE.*dest.md" "$LED"'
+
+echo "== the gate now sees a MOVE with no destination =="
+gen --verify-applied --project=-tmp-alpha >/dev/null 2>&1
+check "a complete alpha verifies" '[[ $? -eq 0 ]]'
+cp "$LED" "$TMP/led.save"
+: > "$LED"
+OUT="$(gen --verify-applied --project=-tmp-alpha 2>&1)"; RC=$?
+check "source gone + no ledger entry fails" '[[ $RC -eq 1 && "$OUT" == *"no destination recorded"* ]]'
+cp "$TMP/led.save" "$LED"
+rm -f "$DEST"
+OUT="$(gen --verify-applied --project=-tmp-alpha 2>&1)"; RC=$?
+check "a ledger pointing at a deleted destination fails"       '[[ $RC -eq 1 && "$OUT" == *"destination missing or empty"* ]]'
 
 echo
 echo "$PASS passed, $FAIL failed"
