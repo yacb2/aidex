@@ -14,6 +14,11 @@ File 05 was added by Phase 9
 (`.context/plans/2026-08-22-suite-speed-and-coverage-rollout/09-diff-cover.md`). File 06
 was added after the playbook's field test against `echo_lab_ws` on 2026-08-23.
 
+**2026-08-31:** file 15 was added by the memory audit
+(`.context/plans/2026-08-31-memory-audit-skill-and-fleet-cleanup/`), from five feedback
+memories in one workspace that all recorded the same failure — a test that passes over
+broken code. Numbered 15 because 07–12 are vacated slots, not free ones.
+
 **2026-08-27:** files 07–12, `assets/templates/test-e2e.sh.template` and `scripts/gen-test-e2e.sh`
 left this skill for the stack packs in `myskills` (`testing-django` 07 + items 2–3 of 02;
 `testing-vue` 08 + item 6 of 02; `testing-playwright-app` 09–12 + template + generator) under

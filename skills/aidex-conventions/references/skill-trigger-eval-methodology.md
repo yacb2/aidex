@@ -545,3 +545,20 @@ distinguishable states appear only when the predicate reads the artifact.
 pass with the failure it is supposed to catch. A grader only ever demonstrated
 passing is not demonstrated at all — the same rule §7 applies to descriptions,
 applied to instruments.
+
+## Executor probes name a FICTIONAL plan
+
+A negative or cannibalization probe aimed at `aidex-plan-exec` (or any executor) must
+not reference the plan you are currently executing. "Continue with phase 6 of the plan"
+makes each fresh harness session trigger plan-exec for real, read the live plan, see
+`current-phase` pointing at *the eval itself*, and re-enter that phase — spawning child
+harnesses recursively. Observed 2026-06-29: child sessions wrote into the run's own
+output directory and bled a second harness banner into the parent's log.
+
+Phrase them against a plan that does not exist — "execute the checkout-refactor plan
+phase by phase" — so the skill still fires and cannibalization is still measured, but
+there is nothing live to re-enter.
+
+The trigger *measurement* stays valid even under re-entry (each child uses its own
+`TEST_ID`, so the parent's marker predicate is uncontaminated); the harm is a token
+explosion and unreadable logs. Re-run clean anyway for a defensible panel.

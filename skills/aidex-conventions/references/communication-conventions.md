@@ -288,3 +288,24 @@ To relocate such an entry:
 Like the `drafts/` rename, this is **manual and opt-in** — auditors flag a `meeting`/`call`
 entry living under `received/`/`sent/` as an INFO-level relocation suggestion, never an
 automatic move. Existing async `received/`/`sent/` entries are unaffected.
+
+## An email is plain HTML, never an artifact page
+
+When the ask is an email "in HTML", produce **email HTML**: inline `style=` attributes on
+every element, light theme only, no `prefers-color-scheme` block, no CSS custom
+properties, no `<style>` block, no background fills. Use borders and bold for emphasis
+instead of filled panels.
+
+**Why:** the sender composes in a mail client by copy-pasting the rendered page, and the
+paste carries the computed styles across — so an artifact-styled email arrives at the
+recipient with dark-mode tokens and grey panels baked in. A `<style>` block is also
+dropped or mangled by mail clients, so the structure survives only if the styling is
+inline.
+
+The `artifacts-local-first` rule and `check-artifact.sh` do **not** govern email bodies;
+that contract is for `.context/` report pages. An email deliberately fails the `themes`
+check, and that is correct. Keep the doctype, charset and viewport so the file is still
+viewable in a browser before sending, and skip the report wrapper.
+
+Emails live as `email.html` beside their `body.md` in
+`communications/sent/<YYYY-MM-DD>-<slug>/`.

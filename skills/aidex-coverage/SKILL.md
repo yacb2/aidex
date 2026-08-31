@@ -49,6 +49,7 @@ authoring rule for anyone writing a new coverage-bearing test.
 | How do I run a full-scale layer audit of an E2E suite? (template + row format) | [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) |
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 | What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
+| This test passes — what would make it pass over broken code anyway? | [references/15-green-that-proves-nothing.md](references/15-green-that-proves-nothing.md) |
 | Which tests do I run for this change, and when does the selection widen? | [references/13-affected-tests-expansion.md](references/13-affected-tests-expansion.md) |
 | What goes in the per-project profile, which stack packs exist, and what never goes in the profile? | [references/14-testing-profile.md](references/14-testing-profile.md) |
 | How do I write a backend / component / store / E2E test, which helpers exist, how is the disposable E2E environment built and `test-e2e.sh` generated, how do seed generators work? | The stack pack named by the profile — see below |

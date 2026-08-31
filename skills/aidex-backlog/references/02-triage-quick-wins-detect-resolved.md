@@ -30,3 +30,29 @@ backlog is well-formed and answers only about order.
    code cannot show: a decision deferred, a follow-up owed, a residual the finding named
    and the commit did not. Closing on code alone is the auto-close defect one layer down.
 4. Closing is a separate, deliberate act — `close-item.sh`, with the evidence attached.
+
+## An open error-tracker issue is not open work
+
+An issue sitting in an error tracker's unresolved list only means nobody clicked
+resolve. It says nothing about whether the defect still exists. Every event carries a
+`release` tag: compare it with what is deployed **before** writing a backlog item.
+
+On one sweep, 2 of the 3 items registered were already fixed and shipped, and that only
+surfaced after reading the code. Both had been fixed by refusing at queue time — which
+is strictly better than the "make the worker fail more quietly" item that was about to
+be written. Registering it would have been speculative work on an unreachable path.
+
+The check is two commands, before any design thinking:
+
+```bash
+sha=$(git log --format=%H -S "<the raised message>" -- <file> | tail -1)
+git merge-base --is-ancestor $sha origin/main && git tag --contains $sha | head -3
+```
+
+Then: fixed **and shipped** -> resolve in the tracker, no item. Fixed but local ->
+resolve, and say plainly that it is not in production. Still live -> register it.
+
+**Corollary, and the reason a sweep beats one-at-a-time triage:** the pattern is
+invisible until the list is empty. Ten issues in one sweep turned out to share a single
+cause — a monthly unattended-upgrades database restart — visible only in the resolved
+history, after the eight open ones had been closed.

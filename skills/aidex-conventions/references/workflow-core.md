@@ -284,3 +284,36 @@ the JSON.`
    asset and still wrong. It pins both directions of `checkAction` — a REPORTED publication
    reaches its gate and batches its question (BL-202), a REPORTED destructive action stays a
    terminal STOP.
+
+## Four things a large Workflow run does not tell you
+
+Measured on a cross-project classification run over ~185 rows and 264 verified
+candidates.
+
+**Never end a workflow with one synthesis agent emitting the whole result.** A final
+agent asked for three large structures in a single structured output froze mid-generation
+— 17 minutes, zero bytes, no retry — while all ten upstream agents had completed and
+cached. Return the raw per-agent structures and merge them in a deterministic script
+afterwards. The merge is mechanical; do not pay an agent to do it, and do not give one
+the chance to hang holding every result.
+
+**`args` is not threaded into a workflow on resume.** `Workflow({resumeFromRunId, args})`
+left the script's `args` global undefined, so `(args && args.floor) || 'P1'` silently
+collapsed to the default and the re-run behaved like the original. Anything a resume
+needs must live in the script body or be re-derivable — never only in `args`.
+
+**A prompt's hardcoded instruction silently overrides a dynamic parameter.** The same
+run passed a severity floor that a task prompt contradicted in prose, so a "verify
+everything down to P3" run only ever verified P0/P1 and deferred the rest. The tell-tale
+was a deferred count that never reached zero. When a parameter exists, grep the prompts
+for a sentence that states its value.
+
+**A wider re-run can REGRESS what a narrower one verified.** Coverage of 259/259
+guarantees a finding is in *some* bucket, never which one: two findings the narrow run
+had verified into a high-value shared cluster fell into a catch-all on the wider re-run.
+After any re-run, diff the correction sets and check the high-value ids by name. Agents
+also drop three or four findings nondeterministically per run — a different set each
+time — so the assembler needs a coverage check against source, not against the last run.
+
+**Recovering a run:** the authoritative output is under `result` in the task's `.output`
+file. Parse that, rather than scraping the per-agent `.jsonl`.
