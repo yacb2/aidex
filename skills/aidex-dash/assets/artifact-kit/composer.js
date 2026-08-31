@@ -379,6 +379,19 @@
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
     clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other').forEach(function (c) { c.remove(); });
+    /* Chrome this file TRANSLATES is put back into English before hashing
+     * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
+     * fingerprint, and every answer a reader stored while the labels were still
+     * English would read as "the question changed" and be dropped the moment
+     * the kit gained the swap. Normalising rather than removing keeps a v10
+     * page's hashes byte-identical and still lets an author's own label — never
+     * equal to a translation of a default — count as part of the question. */
+    CHROME.forEach(function (row) {
+      if (row[1] !== 'text') return;
+      clone.querySelectorAll(row[0]).forEach(function (c) {
+        if (c.textContent.trim() === L[row[2]]) c.textContent = STRINGS.en[row[2]];
+      });
+    });
     return fnv((clone.textContent || '').replace(/\s+/g, ' ').trim());
   }
 
