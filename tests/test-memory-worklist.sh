@@ -130,7 +130,7 @@ echo "== all rows applied =="
 rm -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_dup.md" \
       "$AIDEX_MEMORY_ROOT/-tmp-beta/memory/b_ok.md"
 printf 'the fact, restated where it belongs\n' > "$TMP/early-dest.md"
-gen --record-move -tmp-alpha a_move.md "$TMP/early-dest.md" >/dev/null 2>&1
+gen --record-move="-tmp-alpha|a_move.md|$TMP/early-dest.md" >/dev/null 2>&1
 OUT="$(gen --verify-applied 2>&1)"; RC=$?
 check "all applied: exit 0" '[[ $RC -eq 0 ]]'
 # A KEEP row that vanished is as wrong as a DELETE row that stayed.
@@ -209,22 +209,26 @@ gen --backup >/dev/null 2>&1
 LED="$FAKE_REPO/.context/worklists/2099-01-01-memory-cleanup-applied.tsv"
 DEST="$TMP/dest.md"
 
-OUT="$(gen --record-move -tmp-alpha a_move.md "$DEST" 2>&1)"; RC=$?
+OUT="$(gen --record-move="-tmp-alpha|a_move.md|$DEST" 2>&1)"; RC=$?
 check "a missing destination is refused" '[[ $RC -eq 2 && "$OUT" == *"does not exist or is empty"* ]]'
 check "the source survives that refusal"  '[[ -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
 : > "$DEST"
-gen --record-move -tmp-alpha a_move.md "$DEST" >/dev/null 2>&1
+gen --record-move="-tmp-alpha|a_move.md|$DEST" >/dev/null 2>&1
 check "an EMPTY destination is refused too" '[[ $? -eq 2 && -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
 
 printf 'the fact, restated where it belongs
 ' > "$DEST"
-OUT="$(gen --record-move -tmp-alpha a_dup.md "$DEST" 2>&1)"
+OUT="$(gen --record-move="-tmp-alpha|a_dup.md|$DEST" 2>&1)"
 check "a DELETE row is not a MOVE"     '[[ "$OUT" == *"not a MOVE"* ]]'
-OUT="$(gen --record-move -tmp-alpha nosuch.md "$DEST" 2>&1)"
+OUT="$(gen --record-move="-tmp-alpha|nosuch.md|$DEST" 2>&1)"
 check "a row outside the work-list is refused" '[[ "$OUT" == *"not a row in the ratified"* ]]'
 
-OUT="$(gen --record-move -tmp-alpha a_move.md "$DEST" 2>&1)"; RC=$?
+OUT="$(gen --record-move="-tmp-alpha|a_move.md|$DEST" 2>&1)"; RC=$?
 check "a real move succeeds"           '[[ $RC -eq 0 ]]'
+# Every memory slug starts with `-`. A positional slug is read by argparse as a flag,
+# which is how the first draft of this interface failed on all 29 of its first calls.
+OUT2="$(gen --record-move="-tmp-alpha|a_keep.md" 2>&1)"
+check "a malformed --record-move is refused" '[[ "$OUT2" == *"REFUSE: --record-move needs"* ]]'
 check "the source is unlinked after"   '[[ ! -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move.md" ]]'
 check "the ledger records the destination" 'grep -q "a_move.md.*MOVE-REFERENCE.*dest.md" "$LED"'
 

@@ -211,6 +211,9 @@ it grows its own copy. What is plan-specific:
   `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
 - **Deferrals** use `register-item.sh --origin plan --plan <this plan>`
   ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md), BL-220).
+- **Which model runs which step** — orchestrate, implement, and do the mechanical work
+  with different models
+  ([`references/04-model-tiering.md`](references/04-model-tiering.md)).
 - **The seed's `slug:` line is the PLAN's name** plus the phase — the name existed before
   the first handoff and does not move. `CHARTER` comes from the plan's name and goal.
 
