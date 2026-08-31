@@ -36,6 +36,14 @@
       discard: 'Discard them',
       copy: 'Copy my answers',
       contents: 'Contents',
+      notes: 'Notes on this one',
+      notesPh: 'Anything the options do not cover\u2026',
+      listPh: 'Anything the list does not cover\u2026',
+      valuePh: 'Anything the value alone does not say\u2026',
+      choice: 'The choice',
+      value: 'The value',
+      general: 'Anything that does not fit above',
+      generalPh: 'Whatever it is\u2026',
       clear: 'Clear',
       clearTitle: 'Clear this answer',
       rec: 'Recommended',
@@ -63,6 +71,14 @@
       discard: 'Descartarlas',
       copy: 'Copiar mis respuestas',
       contents: 'Contenido',
+      notes: 'Notas sobre esta',
+      notesPh: 'Cualquier cosa que las opciones no cubran\u2026',
+      listPh: 'Cualquier cosa que la lista no cubra\u2026',
+      valuePh: 'Cualquier cosa que el valor por s\u00ed solo no diga\u2026',
+      choice: 'La elecci\u00f3n',
+      value: 'El valor',
+      general: 'Cualquier cosa que no encaje arriba',
+      generalPh: 'Lo que sea\u2026',
       clear: 'Limpiar',
       clearTitle: 'Limpiar esta respuesta',
       rec: 'Recomendada',
@@ -108,15 +124,38 @@
   status.forEach(function (s) { s.setAttribute('role', 'status'); });
 
   // The composer owns the chrome, so it speaks the page's language too. The
-  // skeleton ships English defaults; only those exact defaults are replaced —
+  // skeleton ships English defaults; only those EXACT defaults are replaced —
   // a label the author wrote deliberately is left alone. Without this, the
   // STRINGS table localised every status message while the buttons above them
   // stayed English, and field pages translated them by hand (or forgot to).
-  buttons.forEach(function (b) {
-    if (b.textContent.trim() === STRINGS.en.copy) b.textContent = L.copy;
-  });
-  document.querySelectorAll('.railhead').forEach(function (h) {
-    if (h.textContent.trim() === STRINGS.en.contents) h.textContent = L.contents;
+  //
+  // Table-driven rather than a loop per label (BL-280): the labels and
+  // placeholders an author copies out of skeleton.html are kit chrome as much
+  // as the buttons are, and the promise the header makes — adding a language
+  // is one STRINGS entry — only holds if no code has to be written per string.
+  var CHROME = [
+    ['#consult-copy, #consult-copy-end', 'text', 'copy'],
+    ['.railhead', 'text', 'contents'],
+    ['.fieldlabel', 'text', 'notes'],
+    ['.fieldlabel', 'text', 'choice'],
+    ['.fieldlabel', 'text', 'value'],
+    ['.fieldlabel', 'text', 'general'],
+    ['textarea', 'placeholder', 'notesPh'],
+    ['textarea', 'placeholder', 'listPh'],
+    ['textarea', 'placeholder', 'valuePh'],
+    ['textarea', 'placeholder', 'generalPh']
+  ];
+  CHROME.forEach(function (row) {
+    var sel = row[0], kind = row[1], key = row[2];
+    document.querySelectorAll(sel).forEach(function (el) {
+      if (kind === 'placeholder') {
+        if ((el.getAttribute('placeholder') || '').trim() === STRINGS.en[key]) {
+          el.setAttribute('placeholder', L[key]);
+        }
+      } else if (el.textContent.trim() === STRINGS.en[key]) {
+        el.textContent = L[key];
+      }
+    });
   });
 
   // The rail carries the sections as well as the questions: on a read with no
@@ -340,6 +379,19 @@
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
     clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other').forEach(function (c) { c.remove(); });
+    /* Chrome this file TRANSLATES is put back into English before hashing
+     * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
+     * fingerprint, and every answer a reader stored while the labels were still
+     * English would read as "the question changed" and be dropped the moment
+     * the kit gained the swap. Normalising rather than removing keeps a v10
+     * page's hashes byte-identical and still lets an author's own label — never
+     * equal to a translation of a default — count as part of the question. */
+    CHROME.forEach(function (row) {
+      if (row[1] !== 'text') return;
+      clone.querySelectorAll(row[0]).forEach(function (c) {
+        if (c.textContent.trim() === L[row[2]]) c.textContent = STRINGS.en[row[2]];
+      });
+    });
     return fnv((clone.textContent || '').replace(/\s+/g, ' ').trim());
   }
 

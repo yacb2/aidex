@@ -429,6 +429,10 @@ def check_named_thing_exists(path: str, body: str, ctx: Ctx) -> list[dict]:
             continue
         if tok.startswith("/"):
             continue          # `/code-review`, `/api/v2` — a slash-command or a route
+        if tok in PATH_EXTS:
+            continue          # `.md`, `.py` — a file TYPE under discussion, not a file.
+                              # "`.md` artifacts stay English" was read as a memory
+                              # pointing at a file literally named `.md` (BL-283).
         if "/" not in tok and not tok.endswith(PATH_EXTS):
             continue
         if any(os.path.exists(os.path.join(r, tok)) or tok in trees[r] or

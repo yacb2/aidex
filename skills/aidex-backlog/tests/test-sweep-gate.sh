@@ -114,6 +114,80 @@ printf '== 42 passed in 3.1s ==\n' > "$TMP/be-rerun.log"
 OUT="$(run --only backend --from-log "$TMP/be-rerun.log" --exit 0)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=42"* ]] && ok "7 a backend rerun log is scored the same way as e2e" || bad "7 rc=$RC $OUT"
 
+# ── 8 · <leg>_pre_cmd (BL-265): a fresh worktree carried stale __pycache__ into the
+#        first backend run and xdist workers disagreed, so run 1 came back count=?
+#        and read as a flake. The gate stays free of Python knowledge; the profile
+#        declares what to clear, and the gate runs it before the leg. ────────────
+stub be 0 '12 passed'
+printf '#!/usr/bin/env bash\ntouch %q\nexit 0\n' "$TMP/pre-ran" > "$P/bin/pre"; chmod +x "$P/bin/pre"
+printf '#!/usr/bin/env bash\necho "cache could not be cleared" >&2\nexit 3\n' > "$P/bin/prefail"; chmod +x "$P/bin/prefail"
+
+rm -f "$TMP/pre-ran"
+profile "backend_suite_cmd: bin/be" "backend_pre_cmd: bin/pre"
+OUT="$(run --only backend)"; RC=$?
+[[ -e "$TMP/pre-ran" ]] && ok "8 a declared backend_pre_cmd runs" || bad "8 backend_pre_cmd was never run: $OUT"
+[[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=12"* ]] \
+  && ok "8 the leg still runs and is scored after the pre-command" || bad "8 rc=$RC $OUT"
+grep -q 'bin/pre' "$P/_tmp/sweep-gate/backend.log" \
+  && ok "8 the pre-command is in the leg's log, like the leg itself" \
+  || bad "8 the pre-command left no trace in the log: $(cat "$P/_tmp/sweep-gate/backend.log" 2>/dev/null)"
+grep -q '12 passed' "$P/_tmp/sweep-gate/backend.log" \
+  && ok "8 the pre-command did not truncate the leg's own output" \
+  || bad "8 the leg's output is missing from the log"
+
+# absent → nothing changes. The same profile without the key must behave exactly
+# as it did before this feature existed.
+rm -f "$TMP/pre-ran"
+profile "backend_suite_cmd: bin/be"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=12"* ]] \
+  && ok "8 no pre_cmd declared: the leg runs unchanged" || bad "8 absent rc=$RC $OUT"
+[[ ! -e "$TMP/pre-ran" ]] || bad "8 a pre-command ran with no key declaring it"
+
+# a failing pre-command FAILS the leg. Skipping it silently would hide exactly the
+# flake this exists to remove — the suite would run against the stale cache anyway.
+profile "backend_suite_cmd: bin/be" "backend_pre_cmd: bin/prefail"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 1 ]] && ok "8 a failing pre-command fails the leg" || bad "8 a failing pre-command was ignored: rc=$RC $OUT"
+[[ "$OUT" == *"leg=backend exit=3"* ]] \
+  && ok "8 the leg carries the pre-command's own exit code" || bad "8 pre-command exit code lost: $OUT"
+grep -q 'cache could not be cleared' "$P/_tmp/sweep-gate/backend.log" \
+  && ok "8 the pre-command's stderr is in the log" || bad "8 the pre-command's failure left no trace"
+grep -q '12 passed' "$P/_tmp/sweep-gate/backend.log" \
+  && bad "8 the leg ran anyway after its pre-command failed" \
+  || ok "8 the leg does not run after its pre-command fails"
+
+# The observable the item is written on: a leg whose FIRST run is countless because
+# stale state reached the checkout. The stub stands in for the collection disagreement
+# — with the cache present it prints nothing and exits 0, which is exactly what a
+# pytest-xdist worker mismatch looked like. Without a pre_cmd the gate reports count=?
+# and FAILs; with one that clears the cache, run 1 reports a real count.
+printf '#!/usr/bin/env bash\nif [[ -e .stale-cache ]]; then exit 0; fi\nprintf "12 passed\\n"\nexit 0\n' > "$P/bin/be-cache"; chmod +x "$P/bin/be-cache"
+printf '#!/usr/bin/env bash\nrm -f .stale-cache\n' > "$P/bin/clearcache"; chmod +x "$P/bin/clearcache"
+
+touch "$P/.stale-cache"
+profile "backend_suite_cmd: bin/be-cache"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 1 && "$OUT" == *"count=?"* ]] \
+  && ok "8 baseline: the stale cache makes run 1 countless (the reported flake)" \
+  || bad "8 the flake was not reproduced: rc=$RC $OUT"
+
+touch "$P/.stale-cache"
+profile "backend_suite_cmd: bin/be-cache" "backend_pre_cmd: bin/clearcache"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=12"* ]] \
+  && ok "8 with the pre_cmd declared, run 1 reports a real count" \
+  || bad "8 run 1 is still countless with a pre_cmd: rc=$RC $OUT"
+
+# a detached leg must carry it too, or the one leg that runs elsewhere is the one
+# that keeps the stale cache.
+profile "e2e_suite_cmd: bin/e2" "e2e_pre_cmd: bin/pre" "e2e_detached: true"
+# `run` sends stderr to $TMP/err, and the detached invocation is printed there.
+run --only e2e >/dev/null
+grep -q 'bin/pre' "$TMP/err" \
+  && ok "8 the printed detached invocation carries the pre-command" \
+  || bad "8 a detached leg silently drops its pre-command: $(cat "$TMP/err")"
+
 echo
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

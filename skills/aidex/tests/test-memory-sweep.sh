@@ -173,6 +173,45 @@ fi
 # --- 7. BLOCKING checks do not fire on memories a human said were correct ----------
 # One positive and one negative fixture per check cannot measure OVER-firing. But the
 # rate must be measured against a KNOWN-GOOD corpus: run against the live fleet,
+# --- 6b. named-thing-exists reads PATHS, never a bare extension (BL-283) -----------
+# `.md` in "`.md` artifacts stay English" is a file TYPE being discussed, not a file
+# being pointed at — but it ends with a known extension, so the check looked for a file
+# literally named `.md` and reported the memory as pointing at something gone. The rule
+# already says paths only; a bare extension is the same class as a bare flag.
+MKTREE="$TMP/nt"; mkdir -p "$MKTREE/proj"
+printf 'x\n' > "$MKTREE/proj/real-file.md"
+python3 - "$SCRIPT" "$MKTREE" >"$TMP/named.out" 2>&1 <<'NAMED'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("ms", sys.argv[1])
+ms = importlib.util.module_from_spec(spec); spec.loader.exec_module(ms)
+ms.PROJECT_ROOT_OVERRIDE = sys.argv[2]
+ctx = ms.Ctx(proj="proj", memdir=sys.argv[2], siblings=[])
+assert ctx.project_path, "the fixture tree did not resolve — the cell would pass vacuously"
+
+def fires(body):
+    return bool(ms.check_named_thing_exists("m.md", body, ctx))
+
+must_not = {
+    "bare-extension":  "`.md` artifacts stay English, rendered `.html` pages follow the profile",
+    "bare-ext-py":     "a `.py` file is not a `.sh` file",
+    "existing-file":   "see `real-file.md` for the shape",
+}
+must_fire = {
+    "gone-file":       "the procedure lives in `docs/gone-forever.md`",
+    "gone-script":     "run `scripts/vanished.sh` first",
+}
+bad  = [f"{k}: fired on a non-path" for k, v in must_not.items() if fires(v)]
+bad += [f"{k}: did NOT fire" for k, v in must_fire.items() if not fires(v)]
+if bad:
+    print("; ".join(bad)); sys.exit(1)
+print(f"{len(must_fire)} real absences fire, {len(must_not)} non-paths stay silent")
+NAMED
+if [[ $? -eq 0 ]]; then
+  pass "named-thing-exists: $(cat "$TMP/named.out")"
+else
+  fail "named-thing-exists: $(cat "$TMP/named.out")"
+fi
+
 # "index-is-an-index fires on 13 of 25 indexes" is the audit's CONTENT-IN-INDEX finding
 # restated, not the check misbehaving. fixtures/known-good/ holds nine SYNTHETIC memories
 # shaped like the nine the readers marked KEEP out of 425 — the real ones carry client

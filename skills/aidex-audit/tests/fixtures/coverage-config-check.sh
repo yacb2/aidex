@@ -22,6 +22,8 @@
 #   ini-settings       unquoted pytest.ini form, and pytest.ini beats pyproject.toml
 #   req-dir            requirements/<env>.txt + Dockerfile -n auto -> no_n_auto = drift
 #   provider-mismatch  provider 'istanbul' with only coverage-v8 installed -> absent
+#   xdist-declared     pytest-xdist declared, no -n auto -> no_n_auto = compliant
+#   own-checker        a checkout of the checker itself -> its own tests/ is skipped
 #   clean              every key compliant
 
 set -euo pipefail
@@ -162,6 +164,7 @@ P="$WS/req-dir"
 mkpy "$P/backend/requirements/dev.txt" <<'EOF'
 pytest==8.0.0
 pytest-xdist==3.6.1
+# legacy invocation, kept as a comment: pytest -n auto
 EOF
 mkpy "$P/backend/Dockerfile" <<'EOF'
 FROM python:3.12
@@ -267,6 +270,44 @@ mkpy "$P/frontend/package.json" <<'EOF'
     "@vitest/coverage-v8": "^4.1.7"
   }
 }
+EOF
+
+# ---------------------------------------------------------------------------
+# xdist-declared: pytest-xdist declared in uv.lock AND requirements.txt, with
+# no `-n auto` anywhere. This is the fleet's compliant shape since
+# decision/2026-08-24-xdist-per-project-worker-counts.md mandated the
+# dependency with a fixed integer -> no_n_auto = compliant, never drift.
+# ---------------------------------------------------------------------------
+P="$WS/xdist-declared"
+mkpy "$P/backend/uv.lock" <<'EOF'
+[[package]]
+name = "pytest-xdist"
+version = "3.6.1"
+EOF
+mkpy "$P/backend/requirements.txt" <<'EOF'
+pytest==8.0.0
+pytest-xdist==3.6.1
+EOF
+mkpy "$P/backend/pyproject.toml" <<'EOF'
+[tool.pytest.ini_options]
+addopts = "-n 4"
+EOF
+
+# ---------------------------------------------------------------------------
+# own-checker: a checkout of this very checker inside the scanned tree. A
+# directory holding scripts/coverage/config_check.py owns the tests/ beside
+# it, and that tests tree is the checker's own test data, not project config
+# -> its literal `-n auto` must not be reported (BL-236).
+# ---------------------------------------------------------------------------
+P="$WS/own-checker"
+mkpy "$P/skills/aidex-audit/scripts/coverage/config_check.py" <<'EOF'
+# marker: this directory is a checkout of the checker itself
+EOF
+mkpy "$P/skills/aidex-audit/tests/test-coverage-config-check.sh" <<'EOF'
+# asserts the checker flags `-n auto`
+EOF
+mkpy "$P/skills/aidex-audit/tests/fixtures/coverage-config-check.sh" <<'EOF'
+ENV PYTEST_ADDOPTS="-n auto"
 EOF
 
 printf '%s\n' "$WS"

@@ -121,7 +121,7 @@ $gopen
       <label><input type="radio" name="Q1" data-label="Option B"><span>Option B</span></label>
     </div>
     <p class="fieldlabel">Notes on this one</p>
-    <textarea></textarea>
+    <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
   <section class="consult-item" data-id="Q2" data-title="The untouched question">
     <h3><span class="consult-id">Q2</span>This question never changes</h3>
@@ -275,6 +275,9 @@ window.addEventListener('load', function () {
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ')
       + '|BTN=' + document.getElementById('consult-copy').textContent
       + '|RAIL=' + document.querySelector('.railhead').textContent
+      + '|FL=' + document.querySelector('[data-id="Q1"] .fieldlabel').textContent
+      + '|PH=' + document.querySelector('[data-id="Q1"] textarea').getAttribute('placeholder')
+      + '|FLKEPT=' + document.querySelector('[data-id="Q2"] .fieldlabel').textContent
       + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
       + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
@@ -290,8 +293,8 @@ window.addEventListener('load', function () {
 HTML
 }
 
-wrap_page() {
-  bash "$WRAP" --title "probe" --lang es --out "$PAGE" < "$TMP/body.html" >/dev/null 2>&1 \
+wrap_page() {  # wrap_page [lang] — the page's language, es unless a caller says otherwise
+  bash "$WRAP" --title "probe" --lang "${1:-es}" --out "$PAGE" < "$TMP/body.html" >/dev/null 2>&1 \
     || { fail "the probe page failed to wrap"; echo "1 failure(s)"; exit 1; }
 }
 
@@ -331,6 +334,17 @@ t="$(run 'phase=verify')"
   || fail "the copy button stayed in English on a lang=es page: $t"
 [[ "$t" == *"RAIL=Contenido"* ]] \
   || fail "the rail head stayed in English on a lang=es page: $t"
+# BL-280: the labels the author copies out of skeleton.html are kit chrome too.
+# Before this, a lang=es page carried Spanish buttons over English field labels
+# and English placeholders, and only a hand translation fixed it.
+[[ "$t" == *"FL=Notas sobre esta"* ]] \
+  || fail "the notes field label stayed in English on a lang=es page: $t"
+[[ "$t" == *"PH=Cualquier cosa que las opciones no cubran"* ]] \
+  || fail "the notes placeholder stayed in English on a lang=es page: $t"
+# A label the author wrote deliberately is not a skeleton default and is left
+# alone — the same guard the copy button has always had.
+[[ "$t" == *"FLKEPT=Write freely"* ]] \
+  || fail "an author's own field label was overwritten by the kit: $t"
 
 # ---- BL-190: a REPHRASED question must not restore its old answer -----------
 #
@@ -515,6 +529,32 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"MARK=O"* ]] || fail "BL-268: the 'other' mark did not survive a reload: $t"
 t="$(run 'phase=send')"
 [[ "$t" == *"- Otra"* ]] || fail "BL-268: the copied reply does not name the 'other' choice: $t"
+
+# ---- BL-280: localising the labels must not drop a stored answer -----------
+#
+# questionHash() hashes the item's whole textContent, and `.fieldlabel` is
+# inside the item — so swapping "Notes on this one" for "Notas sobre esta" moves
+# the fingerprint, and every answer a reader stored before the kit gained the
+# swap reads as "the question changed" and is dropped on the upgrade. That is
+# the failure the badge and the Clear button are already stripped to avoid, one
+# release later.
+#
+# The upgrade, exactly: answer the page while its chrome is still English (what
+# a v10 reader saw), then re-wrap THE SAME PATH — the store is keyed by path,
+# so this is the reader reopening their page — with the localisation on.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page en
+t="$(run 'phase=fill')"
+[[ "$t" == *FILLED* ]] || fail "BL-280 upgrade: the fill phase did not run on the English page: $t"
+wrap_page es
+t="$(run 'phase=verify')"
+[[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
+  || fail "BL-280 upgrade: localising the field label dropped a stored free-text answer: $t"
+[[ "$t" == *"MARK=A"* ]] \
+  || fail "BL-280 upgrade: localising the field label dropped a stored mark: $t"
+[[ "$t" == *"FL=Notas sobre esta"* ]] \
+  || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other choice, v4 answer sets and the localised chrome included"
