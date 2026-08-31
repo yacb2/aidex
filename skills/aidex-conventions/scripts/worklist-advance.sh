@@ -84,7 +84,18 @@ if [[ -n "$append" ]]; then
     last="$(grep -nE '^[0-9]+\. \[[ x]\] ' "$file" | tail -1 || true)"
     line_no="${last%%:*}"; num="${last#*:}"; n=$(( ${num%%.*} + 1 ))
     # insert after the last numbered line so the queue stays contiguous
-    awk -v at="$line_no" -v row="$n. [ ] $label   <!-- ref: backlog --> <!-- emergent -->" 'NR==at{print; print row; next} {print}' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    # An emergent that is ALREADY deferred is appended already-deferred (BL-263). It
+    # is queued so it is not lost, but it is blocked — cross-repo, waiting on an
+    # owner — and nothing downstream should try to work it. Saying so here is what
+    # makes the queue line honest at the moment it is written, rather than at the
+    # advance that trips over it.
+    mark=""
+    aid="$(bl_id "$label")"
+    if [[ -n "$aid" && "$(item_where "$aid")" == "deferred" ]]; then
+      mark=" <!-- deferred -->"
+      echo "sweep: $aid is deferred (blocked) — appended to the queue already deferred, it will be ticked past, not worked" >&2
+    fi
+    awk -v at="$line_no" -v row="$n. [ ] $label   <!-- ref: backlog --> <!-- emergent -->$mark" 'NR==at{print; print row; next} {print}' "$file" > "$file.tmp" && mv "$file.tmp" "$file"
   else
     printf -- '- [ ] %s   <!-- ref: %s -->\n' "$label" "$kind" >> "$file"
   fi
@@ -143,6 +154,14 @@ if [[ -n "$next" ]]; then
   # worked with `status: open` and closed out of band.
   if [[ "$sweep" -eq 1 && "$peek" -eq 0 && -z "$append" && "$(ref_kind "$next")" == "backlog" ]]; then
     id="$(bl_id "$next")"
+    # A DEFERRED item is not started (BL-263). It used to be handed to start-item.sh
+    # like any other, and the walk then died on `could not start` — the same blockage
+    # under a message that reads like a broken queue line. The item is blocked; the
+    # queue is not. The next advance ticks past it with the existing warning.
+    if [[ -n "$id" && "$(item_where "$id")" == "deferred" ]]; then
+      echo "sweep: $id is deferred (blocked) — not started; the next advance ticks past it" >&2
+      id=""
+    fi
     if [[ -n "$id" ]]; then
       rc=0; bash "$BACKLOG_SCRIPTS/start-item.sh" "$id" >/dev/null || rc=$?
       # a start that failed is not a started item: say so and stop, rather than let

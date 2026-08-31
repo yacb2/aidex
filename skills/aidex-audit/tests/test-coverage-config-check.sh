@@ -10,6 +10,8 @@
 #   (c) two-entry-hasher  -> hasher_e2e present (second entry is not a violation)
 #   (d) provider-no-pkg   -> coverage_provider absent despite the declaration
 #   (e) clean             -> every key compliant, exit 0
+#   (o) xdist-declared    -> a declared pytest-xdist is compliant, not drift
+#   (p) own-checker       -> the checker's own tests/ is not project config
 #
 # Run with: bash skills/aidex-audit/tests/test-coverage-config-check.sh
 
@@ -126,8 +128,9 @@ out_j="$(run_one req-dir)"
 v_j="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['req-dir']['no_n_auto']['value'])" "$out_j")"
 [[ "$v_j" == "drift" ]] || fail "(j) requirements/dev.txt + Dockerfile -n auto must be drift, got: $v_j"
 h_j="$(python3 -c "import json,sys; print('\n'.join(json.loads(sys.argv[1])['req-dir']['no_n_auto']['hits']))" "$out_j")"
-grep -q 'requirements/dev.txt: pytest-xdist locked' <<<"$h_j" || fail "(j) hits must name requirements/dev.txt: $h_j"
+grep -q 'requirements/dev.txt' <<<"$h_j" || fail "(j) hits must name requirements/dev.txt: $h_j"
 grep -q 'Dockerfile' <<<"$h_j" || fail "(j) hits must name the Dockerfile: $h_j"
+grep -q 'pytest-xdist' <<<"$h_j" && fail "(j) a declared pytest-xdist must not be a hit: $h_j"
 
 # ---------------------------------------------------------------------------
 # (k) provider-mismatch: provider 'istanbul' declared with only
@@ -188,6 +191,29 @@ v_n2_fu="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['clean']['
 v_n2_vt="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['clean']['vitest_thresholds']['value'])" "$out_n2")"
 [[ "$v_n2_vt" == "absent" ]] || fail "(n) clean has no vitest thresholds, should be absent: $v_n2_vt"
 [[ $rc_n2 -eq 0 ]] || fail "(n) an absent coverage threshold must NOT count as drift (exit 0), got $rc_n2"
+
+# ---------------------------------------------------------------------------
+# (o) xdist-declared (BL-236): pytest-xdist declared in uv.lock and
+# requirements.txt with no `-n auto` anywhere is the shape
+# decision/2026-08-24-xdist-per-project-worker-counts.md mandates -> compliant.
+# The old rule read a locked dependency as drift and called four compliant
+# fleet backends drifted.
+# ---------------------------------------------------------------------------
+out_o="$(run_one xdist-declared)"
+v_o="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['xdist-declared']['no_n_auto']['value'])" "$out_o")"
+[[ "$v_o" == "compliant" ]] || fail "(o) a declared pytest-xdist with no -n auto must be compliant, got: $v_o"
+h_o="$(python3 -c "import json,sys; print('\n'.join(json.loads(sys.argv[1])['xdist-declared']['no_n_auto']['hits']))" "$out_o")"
+[[ -z "$h_o" ]] || fail "(o) a declared pytest-xdist must produce no hits, got: $h_o"
+
+# ---------------------------------------------------------------------------
+# (p) own-checker (BL-236): a directory holding scripts/coverage/config_check.py
+# is a checkout of this checker, so the tests/ beside it is the checker's own
+# test data -> its literal `-n auto` is not project drift. aidex was flagged by
+# its own fixture.
+# ---------------------------------------------------------------------------
+out_p="$(run_one own-checker)"
+v_p="$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['own-checker']['no_n_auto']['value'])" "$out_p")"
+[[ "$v_p" == "compliant" ]] || fail "(p) the checker's own tests/ must be skipped, got: $v_p"
 
 # ---------------------------------------------------------------------------
 # Summary
