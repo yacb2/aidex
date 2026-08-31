@@ -43,11 +43,18 @@ Even on small indexes, run these — they catch silent drift:
 - **Decisions overlap** (`MEM-DEC`): `project_*_results.md` / `*_benchmark.md` / `*_poc.md` content that should live in `.context/decisions/` or `.context/research/`. Cross-check those dirs by topic; REMOVE from memory if a decision doc exists.
 - **Stale facts** (`MEM-STALE`): `feedback_*.md` says X, a newer `project_*.md` says Y. Flag for human review; never auto-edit feedback.
 
-## Target
+## Budgets — words, never lines
 
-- Healthy: <50 lines (skip detailed audit)
-- Target: <80 lines
-- Bloated: >80 lines (trigger audit)
+Both are enforced by `~/.claude/skills/aidex/scripts/memory-sweep.py`, which is the
+source of the numbers; this file restates them for the reader, not for the checker.
+
+- **Index** (`MEMORY.md`, always-on in every session of the project): under **1,200 words**.
+  Over it, the sweep reports `MEM-INDEX`.
+- **One memory file**: under **800 words**. Over it, the sweep reports `MEM-LOG` — a signal
+  that the file is probably a session log, not a verdict on its own.
+
+Lines are the wrong unit: a 40-line index of one-line hooks is healthy, and a 12-line
+index carrying its content is not.
 
 ## Post-Cleanup Format
 

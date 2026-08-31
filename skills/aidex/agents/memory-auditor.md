@@ -23,8 +23,8 @@ MEMORY.md = pure index (~1 line per entry, links to detail elsewhere). It's load
 ## Checks
 
 ### Step 1: Measure
-- Count total lines. Target: <80 lines.
-- If <50 lines: still run integrity checks (Step 4–7) — they're cheap and catch drift even in small indexes.
+- Count words, not lines. The index budget is 1,200 words (`INDEX_WORD_BUDGET`); one memory file's is 800 words.
+- Under budget: still run the integrity checks (Step 4–7) — they're cheap and catch drift even in a small index.
 
 ### Step 2: Classify each entry
 
