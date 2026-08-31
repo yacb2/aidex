@@ -348,3 +348,26 @@ word here would make every "verify the harness" line ambiguous.
   safe+additive items to completion; before halting with "the rest needs your
   decision", **consult the durability-arbiter** per item, halting only on the ones
   it returns `ASK`/`STOP` for.
+
+## A supervisor's deadline is wall clock, never an iteration count
+
+Two rules for any unattended driver or retry loop, both learned by losing an overnight
+run to them.
+
+**Never express a stop condition in how many times the loop is entered.** A supervisor
+retried `while n < 300` with `sleep 20`. A `flock` added the same morning to prevent a
+double driver made every retry that found a live driver exit in milliseconds, so the
+300-attempt budget burned in 100 minutes without running anything. The fix for one bug
+turned a retry counter into a 100-minute timer: the cost of an iteration is not a
+constant of the system, because another part can make it cheap.
+
+**Editing the script of a running process does not change the running process.** Python
+compiles the module at import; a driver launched at 21:38 never saw phases appended to
+its file afterwards. The mechanism meant to pick them up was the supervisor, which had
+already died of the bug above. A resumable harness needs both halves, and the second is
+the one nobody tests.
+
+Together they cost a 21-minute silent stall the owner was asleep for, and the failure
+was invisible — the log's last line looked like normal progress. So also arm a watchdog
+that fires on **silence**, not only on failure: a monitor grepping for a success marker
+stays quiet through a crash.

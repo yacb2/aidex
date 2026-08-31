@@ -445,3 +445,47 @@ bash scripts/register-item.sh --escalate-to /path/to/aidex \
 - [`00-global.md`](../../aidex-conventions/references/00-global.md) — shared rules.
 - [`audit-conventions.md`](../../aidex-conventions/references/audit-conventions.md) — how findings become backlog entries.
 - [`plan-conventions.md`](../../aidex-conventions/references/plan-conventions.md) — how backlog entries promote to plans.
+
+## A `doing` item may belong to a peer session
+
+Several sessions run on one machine, sometimes more than one in the same repo. An item
+with `status: doing` — and any mid-flight state it left on disk (a `pending.json`, a
+working branch, an isolated clone) — is not evidence that *this* session should continue
+it. It is just as likely another session's live work.
+
+Observed 2026-08-18: on "continue", a session read a `doing` item plus its `pending.json`,
+concluded it was the live thread, and got as far as asking the owner to decide nine
+merge conflicts — while the run that owned them was live in a peer session the whole
+time. Two sessions resolving the same conflicts, or one asking for decisions the other
+already has, wastes the work and can corrupt single-writer state.
+
+Before picking up any item already `doing`, call `ListAgents` and look for a peer session
+in this project or in the target project. If one exists, do not take the item:
+read-only inspection is fine, and passing what you found through `SendMessage` is better
+than acting on it. A handoff brief that does not mention an item is not a claim on it
+either way — the brief covers only what its own session did. Ask which thread is yours
+rather than inferring it from disk state.
+
+## IDs drift; slugs do not — close by the file, cite by the slug
+
+`close-item.sh BL-NNN` resolves the id by scanning front-matter, and a project whose
+backlog has been renumbered (a linter or migration reassigning ids) will resolve a
+number you remember from earlier in the session to a different file. On 2026-07-22 a
+close archived an unrelated cleanup item because the intended one had been renumbered.
+
+Before closing, confirm the id maps to the intended file —
+`grep -l "id: BL-NNN" .context/backlog/*.md` — or close by the dated slug. To revert a
+wrong close: move the file out of `_archive/`, restore `status: open`, clear
+`escalated_to` / `commits`, and re-run the index.
+
+**The same drift bites in reverse, and worse.** A research doc closed with "BL-165: keep
+open"; BL-165 was a `done` UI bug in `_archive/`, and the question the doc meant to keep
+alive had no item at all — it read as tracked for a month while being tracked nowhere. A
+stale outbound reference is worse than a missing one, because it looks handled.
+
+So when writing a reference to a backlog item from **outside** `.context/backlog/` —
+research, an ADR, a reference module — write the `<type>/<filename>` cross-ref or the
+dated slug, never a bare `BL-NNN`. The validator checks the cross-ref form and would
+have caught this; prose saying "BL-165" is invisible to it. And when a doc you are
+reading cites a bare `BL-NNN`, verify its title matches the subject before believing the
+item exists.

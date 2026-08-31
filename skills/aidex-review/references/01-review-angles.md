@@ -195,3 +195,23 @@ An unnamed drop is a review that claims coverage it did not have. A **fell** rep
 drop is worse: it reads as a budget decision when it was a failure. The first live run lost
 `data-flow` to a structured-output retry cap and the `correctness` lens finished with 1 of
 2 angles — that is the case this table exists for.
+
+## Security lens: when a change alters which flag a gate READS, audit every writer
+
+A field that was inert to write becomes a privilege-escalation vector the moment it
+becomes load-bearing, and the vulnerable line is in a file the diff never touched.
+
+Measured: a backport moved a workspace bypass from one boolean to another. The user
+serializers excluded only the *old* flag, so once the new one became the gate, a staff
+user could `PATCH` it to `true` and self-grant a cross-tenant bypass. A grep for the old
+flag name is structurally blind to a serializer that never mentioned it.
+
+1. Enumerate the model's serializers **independently** (`grep "model = User"`); do not
+   reach them by grepping the old flag.
+2. For each, confirm it excludes the sensitive field, or is read-only, or uses a field
+   whitelist. Check public signup first — it is the worst vector, and a whitelist is what
+   saved it here.
+3. Add a RED-first regression test asserting the flag is `not in Serializer().fields`
+   for every write serializer.
+4. Verify every finding against primary source. In the same run one verifier
+   hallucinated a "live revocation bypass" that the actual file disproved.

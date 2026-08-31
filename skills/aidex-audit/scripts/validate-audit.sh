@@ -355,13 +355,19 @@ for entry in "$AUDITS_DIR"/*/; do
         rel="${findings_file#"$AUDITS_DIR"/}"
         add_violation audit-orphan-finding-ref "$findings_file" "$rel references $mentioned_id which is not in any inventory"
       fi
-    # `BL-<n>` (backlog) and `D-<n>` (ADR) are ids of SIBLING TIERS, reserved by the
-    # canon and living in backlog/ and decisions/. A findings narrative cites them
-    # constantly ("unmeasured (BL-166)", "stays English (D-04)"), and they can never
-    # appear in an audit inventory — so reporting them is noise with no correct fix,
-    # and the pressure it creates is to waive the rule, silencing the real orphans.
-    done < <(strip_html_comments "$findings_file" | grep -oE '\b[A-Z]+(-[A-Z0-9]+)?-[0-9]+\b' 2>/dev/null \
-             | grep -vE '^(BL|D)-[0-9]+$' | sort -u)
+    # `BL-<n>` (backlog), `D-<n>` (ADR) and `CWE-<n>` (the weakness catalogue) are ids of
+    # SIBLING VOCABULARIES. A findings narrative cites them constantly ("unmeasured
+    # (BL-166)", "stays English (D-04)", "maps to CWE-1236"), and none can ever appear in
+    # an audit inventory — so reporting them is noise with no correct fix, and the
+    # pressure it creates is to waive the rule, silencing the real orphans.
+    #
+    # The segment group is `*`, not `?`. With `?` the pattern took at most one segment
+    # before the number, so a three-segment id never matched from its own start: grep
+    # re-anchored after the first dash and reported `FE-CATALOG-01` for
+    # `SEC-FE-CATALOG-01` — an id in no inventory because it does not exist. One real
+    # security run produced ~39 such violations, all frontend, all false.
+    done < <(strip_html_comments "$findings_file" | grep -oE '\b[A-Z]+(-[A-Z0-9]+)*-[0-9]+\b' 2>/dev/null \
+             | grep -vE '^(BL|D|CWE)-[0-9]+$' | sort -u)
   done < <(find "${entry%/}" -type f -name findings.md -path '*/[0-9]*-*/findings.md' 2>/dev/null)
 done
 

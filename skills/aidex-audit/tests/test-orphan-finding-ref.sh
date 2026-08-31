@@ -20,6 +20,15 @@
 #   2. A real finding id ABSENT from the inventory still violates — the teeth stay.
 #   3. `BL-<n>` in prose raises nothing.
 #   4. `D-<n>` in prose raises nothing.
+#   5. A THREE-segment finding id on the board raises nothing. The `(-[A-Z0-9]+)?`
+#      group takes at most one segment before the number, so `SEC-FE-CATALOG-01` never
+#      matched from its own start — grep re-anchored after the first dash and reported
+#      `FE-CATALOG-01`, an id that appears in no inventory because it does not exist.
+#      Observed on a real security run: ~39 violations, every one of them a frontend
+#      finding, every one a false positive. That is the shape that teaches a reader to
+#      waive the rule.
+#   6. `CWE-<n>` in prose raises nothing — a weakness-catalogue reference is a sibling
+#      vocabulary like BL-/D-, not a finding id.
 #
 # Run: bash skills/aidex-audit/tests/test-orphan-finding-ref.sh
 set -euo pipefail
@@ -42,6 +51,7 @@ cat > "$M/00-inventory.md" <<'EOF'
 | ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
 |---|---|---|---|---|---|---|---|---|
 | PR-01 | bug | core | A real finding that is on the board | open | P2 | 2026-01-01-probe | — | — |
+| PR-FE-CATALOG-01 | bug | frontend | A three-segment finding id | open | P2 | 2026-01-01-probe | — | — |
 EOF
 printf '# probe methodology\n' > "$M/00-methodology.md"
 printf '# probe changelog\n'   > "$M/00-changelog.md"
@@ -59,10 +69,13 @@ cat > "$RUN/findings.md" <<'EOF'
 ### PR-01 — the finding that is on the board
 The recall claim is unmeasured (BL-166), and follow-up work is tracked as BL-167.
 `.context/` stays English (D-04) regardless of the chat language.
+
+### PR-FE-CATALOG-01 — a three-segment id, on the board
+Maps to CWE-1236 upstream.
 EOF
 run
 got="$(orphans)"
-[[ -z "$got" ]] || err "(1,3,4) expected no orphan for a board finding or for sibling-tier ids in prose; got: $got"
+[[ -z "$got" ]] || err "(1,3,4,5,6) expected no orphan for a board finding, a three-segment board finding, sibling-tier ids or a CWE ref; got: $got"
 
 # ---- 2: the teeth — a finding id that is on no board ----
 cat > "$RUN/findings.md" <<'EOF'
@@ -76,5 +89,16 @@ got="$(orphans)"
 [[ "$got" == *"PR-99"* ]] || err "(2) a finding id absent from every inventory must still violate; got: '$got'"
 if [[ "$got" == *"PR-01"* ]]; then err "(2) PR-01 is on the board and must not be reported; got: '$got'"; fi
 
-if [[ $fail -eq 0 ]]; then echo "OK: sibling-tier ids (BL-/D-) are not orphan findings; a real missing finding id still is"; fi
+# ---- 5, teeth: a three-segment id that is on NO board must still violate ----
+cat > "$RUN/findings.md" <<'EOF'
+# Findings
+
+### PR-FE-MEDIA-06 — a three-segment finding that reached no inventory
+EOF
+run
+got="$(orphans)"
+[[ "$got" == *"PR-FE-MEDIA-06"* ]] || err "(5) an absent three-segment id must violate as its FULL id; got: '$got'"
+[[ "$got" == *"FE-MEDIA-06"* && "$got" != *"PR-FE-MEDIA-06"* ]] && err "(5) reported a re-anchored suffix instead of the full id; got: '$got'"
+
+if [[ $fail -eq 0 ]]; then echo "OK: sibling-tier ids (BL-/D-/CWE-) and multi-segment board findings are not orphans; a real missing finding id still is"; fi
 exit $fail
