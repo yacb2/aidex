@@ -92,6 +92,25 @@ check "the rule states the memory budget ($SCRIPT_MEM)" 'grep -q "\*\*$SCRIPT_ME
 check "the rule states the index budget ($SCRIPT_IDX)" 'grep -q "under 1,200 words" "$RULE" && [[ "$SCRIPT_IDX" -eq 1200 ]]'
 check "the rule names the sweep so it is reachable" 'grep -q "memory-sweep.py" "$RULE"'
 
+echo "== --reindex: a deleted memory must not leave a live-looking index line =="
+# A cleanup deletes memory FILES and nothing touches MEMORY.md, so every deletion leaves
+# a dead line that reads exactly like a live fact, at full always-on cost, forever.
+rm -rf "${TMP:?}"/*
+mem ri-proj a.md "$(typed_body project "a durable fact")"
+mem ri-proj b.md "$(typed_body project "another durable fact")"
+printf -- '- [A](a.md) - hook\n- [B](b.md) - hook\n- [Gone](gone.md) - hook\n' > "$TMP/ri-proj/memory/MEMORY.md"
+OUT="$(python3 "$SWEEP" --reindex --dry-run --project=ri-proj 2>&1)"
+check "dry run reports the dead line" '[[ "$OUT" == *"would drop 1 dead line"* ]]'
+check "dry run changes nothing"       'grep -q "gone.md" "$TMP/ri-proj/memory/MEMORY.md"'
+OUT="$(python3 "$SWEEP" --reindex --project=ri-proj 2>&1)"
+check "the dead line is gone"         '! grep -q "gone.md" "$TMP/ri-proj/memory/MEMORY.md"'
+check "the live lines survive"        '[[ $(grep -c "^- \\[" "$TMP/ri-proj/memory/MEMORY.md") -eq 2 ]]'
+# An unlinked memory is REPORTED, never deleted: the index is the cheap thing to rebuild.
+printf -- '---\nname: c\nmetadata:\n  type: project\n---\n\nunlinked\n' > "$TMP/ri-proj/memory/c.md"
+OUT="$(python3 "$SWEEP" --reindex --project=ri-proj 2>&1)"
+check "an unlinked memory is reported" '[[ "$OUT" == *"1 unlinked: c.md"* ]]'
+check "and is not deleted"             '[[ -f "$TMP/ri-proj/memory/c.md" ]]'
+
 echo
 echo "memory-sweep: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

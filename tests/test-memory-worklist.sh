@@ -244,6 +244,31 @@ rm -f "$DEST"
 OUT="$(gen --verify-applied --project=-tmp-alpha 2>&1)"; RC=$?
 check "a ledger pointing at a deleted destination fails"       '[[ $RC -eq 1 && "$OUT" == *"destination missing or empty"* ]]'
 
+echo "== a source that was gone before the backup is a note, not a failure =="
+# The backup manifest is what this run had. A row whose file was already deleted before
+# it started cannot be moved by it, and demanding a destination forces a fabricated one.
+mem -tmp-alpha a_move2.md "the fact"
+cat >> "$RUN/alpha.md" <<'EOF'
+
+# -tmp-alpha  ·  project path: /tmp/alpha  ·  1 memory  ·  index 5w
+## Verdicts
+| file | type | words | verdict | destination / other file | reason |
+|---|---|---|---|---|---|
+| a_gone.md | project | 5 | MOVE-REFERENCE | somewhere | never on disk at backup time |
+EOF
+gen --ratify 2099-01-01 >/dev/null
+gen --backup >/dev/null 2>&1          # a_gone.md does not exist, so it is not in the manifest
+OUT="$(gen --verify-applied --project=-tmp-alpha 2>&1)"; RC=$?
+check "a row gone before the backup is reported as a note" '[[ "$OUT" == *"already gone when the backup was taken"* ]]'
+check "and does not fail the gate on its own" '[[ "$OUT" != *"a_gone.md [MOVE-REFERENCE] still on disk"* ]]'
+# The teeth stay: a row that WAS in the manifest and vanished with no destination fails.
+rm -f "$AIDEX_MEMORY_ROOT/-tmp-alpha/memory/a_move2.md"
+printf '| a_move2.md | project | 5 | MOVE-REFERENCE | somewhere | in the manifest |
+' >> "$RUN/alpha.md"
+gen --ratify 2099-01-01 >/dev/null
+OUT="$(gen --verify-applied --project=-tmp-alpha 2>&1)"; RC=$?
+check "a row that WAS backed up and vanished still fails"       '[[ $RC -eq 1 && "$OUT" == *"a_move2.md"* && "$OUT" == *"no destination recorded"* ]]'
+
 echo
 echo "$PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
