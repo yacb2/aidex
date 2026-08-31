@@ -1,0 +1,2 @@
+- [Clean fact](ok_clean.md) — MailHog on 1025, nothing leaves the machine
+- [Worktree ports](fail_twin_a.md) — every worktree environment offsets its ports by ten from the dev environment, so the frontend, the backend and the database never collide with the main checkout, which is why the compose project name has to be unique per worktree as well

@@ -1,0 +1,24 @@
+{
+ "fixture-idx/MEMORY.md": [],
+ "fixture-idx/ok_only.md": [],
+ "fixture-proj/MEMORY.md": [
+  "index-is-an-index"
+ ],
+ "fixture-proj/fail_named_thing_gone.md": [
+  "named-thing-exists"
+ ],
+ "fixture-proj/fail_pending_no_ticket.md": [
+  "pending-needs-a-ticket"
+ ],
+ "fixture-proj/fail_secret.md": [
+  "no-secrets"
+ ],
+ "fixture-proj/fail_twin_a.md": [
+  "twin-exists"
+ ],
+ "fixture-proj/fail_twin_b.md": [],
+ "fixture-proj/ok_clean.md": [],
+ "fixture-proj/pass_named_thing_sibling.md": [],
+ "fixture-proj/pass_pending_with_bl.md": [],
+ "fixture-proj/pass_secret_placeholder.md": []
+}

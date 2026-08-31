@@ -10,9 +10,35 @@ paragraph, it is a memory. If it is a narrative of what happened this session �
 completed, files touched, what was tried — it belongs in `.context/` (a plan's execution
 log, an audit run, a backlog item), not here.
 
-Concretely: a memory file over **800 words is a session log until proven otherwise** —
+## The content tests
+
+A memory is judged on what it says, not on how long it is. Six checks, run by
+`memory-sweep.py` and by the save gate, each rejecting one shape that is reliably not a
+memory:
+
+| id | rejects |
+|---|---|
+| `no-secrets` | a credential-shaped token in the body — memories are unversioned plain text, read into every session |
+| `pending-needs-a-ticket` | work that is not done, with no `BL-NNN` carrying it — memory has no way to close it |
+| `unpushed-is-not-a-fact` | a commit SHA not reachable in that project's history — amended, rebased away, or never left another machine |
+| `twin-exists` | a near-identical body another memory or the project's `CLAUDE.md` already carries. Advisory only: measured against 148 real duplicate verdicts it catches copy-paste, not *semantic* duplication — reading is the auditor agent's job, not this check's |
+| `named-thing-exists` | a path or script file that is not in the tree, nor in a sibling repo the memory names. Paths only — a bare flag like `--porcelain` is not checked |
+| `index-is-an-index` | a `MEMORY.md` line carrying content instead of `- [Title](file.md) — hook` |
+
+The first five run per memory file, the last on the index. `no-secrets` is never
+waivable; everything else can be waived in-file with a `memory-gate: waived — <reason>`
+line, which the sweep and the save gate both honour.
+
+Only `no-secrets`, `unpushed-is-not-a-fact` and `index-is-an-index` ever **block** a
+write. `named-thing-exists`, `twin-exists` and `pending-needs-a-ticket` advise: each was
+measured firing on a double-digit share of real memories, and a gate at that rate is one
+people learn to route around.
+
+Size is a **signal**, not one of these: a memory file over **800 words is a session log
+until proven otherwise** —
 that is the p90 of 416 memories measured 2026-08-06, against a median of 277w. The two
-worst offenders were 2,894w and 2,899w and both were transcripts of a single run.
+worst offenders were 2,894w and 2,899w and both were transcripts of a single run. It is
+reported and never decides on its own; the six checks above are what decide.
 
 ## NEVER
 
