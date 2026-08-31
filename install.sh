@@ -30,7 +30,7 @@ STATE_DIR="$CLAUDE_DIR/aidex"
 MANIFEST="$STATE_DIR/manifest"
 # The pre-0.40 layout, read only to migrate away from it.
 LEGACY_DIR="${AIDEX_DIR:-$HOME/.aidex}"
-VERSION="0.40.0"
+VERSION="0.41.0"
 
 # Hooks that install. The others in hooks/ are retired (aidex-router,
 # durability-*) and stay in the repo as history with their tests; installing
