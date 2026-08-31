@@ -268,7 +268,25 @@ IS_DIRTY() {  # dest -> 0 when any participant has uncommitted or untracked work
     [[ -d "$d/$(basename "$p")" ]] || continue
     [[ -n "$(git -C "$d/$(basename "$p")" status --porcelain 2>/dev/null)" ]] && return 0
   done
+  # $DEST itself, when it is a root-repo checkout rather than a plain directory
+  # (BL-267). It is not in WT_PARTICIPANTS, so without this the refusal that
+  # protects uncommitted work could not see the work it was protecting, and the
+  # message named nothing.
+  [[ -f "$d/.git" && -n "$(git -C "$d" status --porcelain 2>/dev/null)" ]] && return 0
   return 1
+}
+
+# The participants' status lines, and the root checkout's when $DEST is one.
+# Both refusal sites print this; writing the loop twice is how the root half
+# was missed at one of them.
+DIRTY_LINES() {  # dest -> "<label> <porcelain line>" per uncommitted change
+  local d="$1" pp b
+  for pp in $WT_PARTICIPANTS; do
+    b="$(basename "$pp")"; [[ -d "$d/$b" ]] || continue
+    git -C "$d/$b" status --porcelain 2>/dev/null | sed "s|^|    $b |"
+  done
+  [[ -f "$d/.git" ]] && git -C "$d" status --porcelain 2>/dev/null | sed "s|^|    (root checkout) |"
+  return 0
 }
 
 if [[ "$cmd" == "list" ]]; then
@@ -1221,10 +1239,7 @@ if [[ "$cmd" == "down" ]]; then
       err "the stack is down but $DEST could not be removed."
       if IS_DIRTY "$DEST"; then
         err "it holds uncommitted work:"
-        for pp in $WT_PARTICIPANTS; do
-          b="$(basename "$pp")"; [[ -d "$DEST/$b" ]] || continue
-          git -C "$DEST/$b" status --porcelain 2>/dev/null | sed "s|^|    $b |" >&2
-        done
+        DIRTY_LINES "$DEST" >&2
         err "commit or stash it, then re-run — or pass --force to DISCARD it."
       fi
       err "slot $SLOT stays claimed so nothing else takes it; resume with: worktree.sh up $SLUG"

@@ -223,8 +223,83 @@ awk '/rbargs=\(remove --slug/,/MULTI" "\$\{rbargs\[@\]\}"/' "$S/worktree.sh" \
   | grep -q 'for c in $WT_COPIES; do rbargs+=(--copy "$c"); done' \
   || fail "rollback: its remove call must carry the same --copy args as down's"
 
+# --- BL-267. `down` removes a $DEST that is itself a root-repo checkout ------
+# The 2026-08-28 echo_lab workaround: the project's root owns .context/, so the
+# worktree's $DEST was made a checkout of the root repo by hand. `down` builds
+# its removal list from WT_PARTICIPANTS ($DEST/<basename> per entry) and $DEST
+# itself is not in it, so the participants went and $DEST stayed a live
+# worktree — directory there, slot still claimed, only a manual
+# `git worktree remove` freeing it.
+#
+# The end state is reconstructed rather than driven through `new`, which
+# refuses a $DEST that already exists: `new` builds the markers and the claim,
+# then $DEST is re-created as a root checkout with git's own bookkeeping and
+# the contents move back into it.
+mk_rootco() {  # mk_rootco <project-dir> -> builds the worktree, $DEST is a root checkout
+  local P="$1" D="$1-wt-rootco"
+  mkdir -p "$P/.context/worktrees" "$P/backend"
+  cat > "$P/.context/worktrees/config.env" <<'ENV'
+WT_PARTICIPANTS="backend"
+WT_LINKS=""
+ENV
+  # backend/ is ignored by the root repo: it is a repo of its own, and an
+  # untracked directory would make every root checkout read as dirty.
+  printf 'backend/\n' > "$P/.gitignore"
+  ( cd "$P" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+    && /usr/bin/git config user.name t && /usr/bin/git add -A && /usr/bin/git commit -qm i )
+  ( cd "$P/backend" && /usr/bin/git init -q . && /usr/bin/git config user.email t@e.com \
+    && /usr/bin/git config user.name t && echo x > f && /usr/bin/git add -A && /usr/bin/git commit -qm i )
+  ( cd "$P" && bash "$S/worktree.sh" new rootco --branch wt/rootco --no-infra )
+  mv "$D" "$D.stage"
+  /usr/bin/git -C "$P" worktree add -q -b wt/root-rootco "$D"
+  mv "$D.stage/backend" "$D/backend"
+  mv "$D.stage/.wt-branch" "$D/.wt-branch" 2>/dev/null || true
+  rm -rf "$D.stage"
+  # `new --no-infra` leaves .wt-slot BLANK, so a fixture that just moves it has
+  # no claim to release and the "slot is free again" assertion below can never
+  # fail. A real slot and its claim file are written here instead — the claim
+  # format is `<pid> <slug>`, which is what release_claim matches on.
+  printf '3\n' > "$D/.wt-slot"
+  mkdir -p "$TMPDIR/aidex-wt-slots-$(basename "$P")"
+  printf '%s %s\n' "$$" rootco > "$TMPDIR/aidex-wt-slots-$(basename "$P")/slot-3"
+}
+
+mk_docker '#!/bin/sh
+exit 0'
+P267="$TMP/p267"; D267="$TMP/p267-wt-rootco"
+mk_rootco "$P267" >/dev/null 2>&1
+/usr/bin/git -C "$P267" worktree list | grep -q "$D267" \
+  || fail "BL-267 setup: \$DEST was not made a checkout of the root repo"
+out="$( cd "$P267" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down rootco 2>&1 )"
+[[ ! -d "$D267" ]] \
+  || fail "BL-267: down left \$DEST behind — it is a root-repo checkout and not a participant: $out"
+/usr/bin/git -C "$P267" worktree list | grep -q "$D267" \
+  && fail "BL-267: the root repo still lists \$DEST as a live worktree after down"
+[[ -e "$TMPDIR/aidex-wt-slots-p267/slot-3" ]] \
+  && fail "BL-267: the slot claim was not released, so slot 3 stays taken: $out"
+
+# The uncommitted-work refusal covers the root checkout too: without --force,
+# `down` must refuse and print the ROOT's own status, not only the
+# participants'. Before this, the root checkout was invisible to IS_DIRTY, so
+# the refusal message said nothing about the work it was protecting.
+P268="$TMP/p268"; D268="$TMP/p268-wt-rootco"
+mk_rootco "$P268" >/dev/null 2>&1
+echo 'work in progress' > "$D268/root-wip.txt"
+/usr/bin/git -C "$D268" add root-wip.txt
+out="$( cd "$P268" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down rootco 2>&1 )"; rc=$?
+[[ $rc -ne 0 ]] \
+  || fail "BL-267: down over a DIRTY root checkout must refuse without --force, got exit 0: $out"
+[[ -d "$D268" ]] \
+  || fail "BL-267: down discarded a dirty root checkout without --force"
+# Anchored on the LABEL, not just the filename: `down` already exits non-zero
+# over a $DEST it cannot remove, and git's own refusal happens to echo the
+# path — so a bare 'root-wip.txt' match passed before IS_DIRTY could see the
+# root checkout at all, which is a cell proving nothing.
+grep -q '(root checkout) .*root-wip.txt' <<<"$out" \
+  || fail "BL-267: the refusal must name the root checkout's uncommitted work as such, got: $out"
+
 if [[ "$failures" -gt 0 ]]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — teardown and scope: blank slot refused, sweep scoped to the workspace, compose failure reported, daemon-down not a clean teardown, recipe bounded to front matter"
+echo "OK — teardown and scope: blank slot refused, sweep scoped to the workspace, compose failure reported, daemon-down not a clean teardown, recipe bounded to front matter, a root-repo \$DEST removed and its slot released"
