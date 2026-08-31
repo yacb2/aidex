@@ -32,8 +32,8 @@ Use the targets in `05-context-budget.md` § Budget targets. Mark each tunable c
 For each non-trivial category, identify the contributors:
 
 **memory-files** — list files actually loaded:
-- `~/.claude/CLAUDE.md`, `<project>/.claude/CLAUDE.md` or `<project>/CLAUDE.md`, `~/.claude/rules/*.md`, `~/.claude/rules/*.md`, MEMORY.md paths.
-- Report each with approximate line count. Flag overlap across global/user/project.
+- `~/.claude/CLAUDE.md`, `<project>/.claude/CLAUDE.md` or `<project>/CLAUDE.md`, `~/.claude/rules/*.md`, and `~/.claude/projects/<slug>/memory/MEMORY.md` (the always-on memory index — it is NOT under `<project>/.claude/`).
+- Report each with approximate word count. Flag overlap across global/user/project.
 
 **custom-agents** — enumerate plugins with agents:
 - Scan `~/.claude/plugins/cache/*/*/*/agents/*.md`, group by plugin directory.
