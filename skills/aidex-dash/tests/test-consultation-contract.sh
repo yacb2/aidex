@@ -297,6 +297,41 @@ grep -q 'WARN \[consult-rec\].*Q2' "$TMP/out" \
 grep -q 'WARN \[consult-rec\].*Q1' "$TMP/out" \
   && fail "10. BL-245: an ordinary data-label was reported as carrying a recommendation: $(cat "$TMP/out")"
 
+# ---- 10b. facts written as a paragraph, inside an ITEM (BL-270) ---------
+# BL-269 scoped the rule to the block context; one day later the same shape
+# shipped inside an item body (Q15: ~20 skills across three layers, 9 <code>
+# tokens in one paragraph). Shape, not word count (BL-243): four or more
+# <code> tokens or `;`-joined clauses in one <p>. Reported once, under the
+# innermost owner; an explanatory paragraph in the same block stays silent.
+mkpage "$TMP/warn-facts.html" "$visual
+<section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"The context\"><div class=\"sec-head\"><h2>The context</h2></div>
+<p>Four things happened: the map grew; the index moved; the hint changed; the gate closed.</p>
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Dense\">
+  <h3>Dense</h3>
+  <p>The boilerplate suite takes <code>a</code>, <code>b</code>, <code>c</code> and <code>d</code>; myskills keeps <code>e</code>.</p>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Plain\">
+  <h3>Plain</h3>
+  <p>One explanatory paragraph that names <code>one</code> thing and says why it matters, at length; nothing else.</p>
+  <textarea></textarea>
+</section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/warn-facts.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10b. consult-facts changed the exit code — it is a warning: $(cat "$TMP/out")"
+grep -q "WARN \[consult-facts\].*'Q1' carries a paragraph with 5 <code> tokens" "$TMP/out" \
+  || fail "10b. BL-270: the code-dense item paragraph was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[consult-facts\].*'G1' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
+  || fail "10b. BL-270: the clause-dense block context was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[consult-facts\].*'Q2'" "$TMP/out" \
+  && fail "10b. an explanatory paragraph was reported — the proxy is too wide: $(cat "$TMP/out")"
+[[ "$(grep -c "WARN \[consult-facts\].*'G1'" "$TMP/out")" == "1" ]] \
+  || fail "10b. the item paragraph was reported again under its block: $(cat "$TMP/out")"
+
 # The declared affordance is the thing the warning points AT, so it must be
 # silent: a page that complied and still got warned teaches authors to ignore it.
 mkpage "$TMP/warn-clean.html" "$visual

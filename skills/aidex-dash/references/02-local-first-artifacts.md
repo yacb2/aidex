@@ -500,18 +500,26 @@ Five requirements. They exist because each one was violated in the field.
    in each (a row, a figure) and linked to the reference section by anchor; the
    reference section is never the only place a fact a decision needs lives.
 
-   **Inside a block, more than three facts of one shape are a table, a list or a
-   figure — never a paragraph (BL-269).** The block's context states the finding in a
-   sentence; what it rests on — N skills with their state and their proposed action, a
-   queue of steps, what is called vs not called vs proposed — goes in rows, with the
-   columns the decision needs (the thing · what it is today · the evidence · the
-   proposal). The page that produced this rule listed twelve skills, their call
+   **In a block context OR an item body, more than three facts of one shape are a
+   table, a list or a figure — never a paragraph (BL-269, BL-270).** The block's
+   context states the finding in a sentence; what it rests on — N skills with their
+   state and their proposed action, a queue of steps, what is called vs not called vs
+   proposed — goes in rows, with the columns the decision needs (the thing · what it is
+   today · the evidence · the proposal). The same holds for an item's own evidence: a
+   reorganisation, a split across layers, the things one decision moves — that is
+   exactly where the shape recurred one day after the rule was written, because the
+   rule named the block and the item body escaped it. The page that produced this rule listed twelve skills, their call
    counts and their verdicts in one ~250-word paragraph and was returned unread —
    *"no entiendo qué es lo que se llama, qué es lo que no se llama, qué es lo que
    tenemos, qué es lo que sobra, y qué es lo que propones… es demasiada información
    para leer de golpe en un párrafo"* — with the note that replies in the chat do the
-   same. Every table still goes inside `.tw` (§4). This is a rule you hold, not a
-   check: the checker cannot tell a list of facts from a sentence.
+   same. Every table still goes inside `.tw` (§4). `check-artifact.sh` warns
+   (`consult-facts`) on a paragraph inside a block or an item that carries four or
+   more `<code>` tokens or semicolon-joined clauses — the shape both incidents had, and
+   one an explanatory paragraph does not. It is a warning because it is a proxy for the
+   shape, not the shape: it is cleared by rewriting the paragraph as rows, never by a
+   waiver. Whether a paragraph under the threshold is still a list of facts is a rule
+   you hold.
 
    **An item with options states which one the session recommends, and why.** The
    recommendation is not optional and not a neutral menu — that is a separate rule the

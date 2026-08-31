@@ -40,6 +40,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                so any other wrapper renders them unstyled (BL-244)
   consult-rec  "(recommended)" typed into `data-label` — the marker then travels
                in the pasted reply and is invisible on the page (BL-245)
+  consult-facts a paragraph inside a block context or an item body carrying four
+               or more `<code>` tokens or semicolon-separated clauses — the shape
+               of "N things with their state and verdict" written as prose, which
+               the reader returns unread; rows, not a paragraph (BL-269, BL-270)
 
 Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
@@ -337,6 +341,34 @@ REC_IN_LABEL = re.compile(r'\(\s*(?:not\s+)?(?:recommended|recomendad[ao]|no\s+'
                           r'recomendad[ao])\s*\)', re.I)
 
 
+# The facts-in-a-paragraph shape (BL-270). Counted, not weighed: a word count is
+# the proxy BL-243 rejected, and both incidents — twelve skills with counts and
+# verdicts (G3), ~20 skills split across three layers (Q15) — were paragraphs
+# dense in `<code>` tokens or `;`-joined clauses, which an explanatory paragraph
+# is not. Scanned on the innermost owner only, so a paragraph in an item is
+# reported once, under the item, never again under its block.
+FACTS_MIN = 4
+P_BLOCK = re.compile(r'<p\b([^>]*)>(.*?)</p>', re.I | re.S)
+P_FIELDLABEL = re.compile(r'\bclass\s*=\s*["\x27][^"\x27]*\bfieldlabel\b', re.I)
+
+
+def facts_paragraphs(body):
+    """[(codes, clauses, excerpt)] for every paragraph of `body` that carries
+    FACTS_MIN or more <code> tokens or semicolon-separated clauses."""
+    own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
+    out = []
+    for m in P_BLOCK.finditer(own):
+        if P_FIELDLABEL.search(m.group(1)):
+            continue
+        inner = m.group(2)
+        codes = len(re.findall(r'<code\b', inner, re.I))
+        clauses = inner.count(';') + 1 if ';' in inner else 1
+        if codes >= FACTS_MIN or clauses >= FACTS_MIN:
+            excerpt = ' '.join(re.sub(r'<[^>]+>', '', inner).split())
+            out.append((codes, clauses, excerpt[:60]))
+    return out
+
+
 def warn_file(path):
     """Non-fatal findings as (check, name, message). Exit-neutral and never
     waived — see the module docstring for why they are a separate channel."""
@@ -379,6 +411,22 @@ def warn_file(path):
                               f"the input instead; the kit renders the badge "
                               f"and the composer appends the suffix"))
                 break
+
+    for ident, body in bodies:
+        try:
+            dense = facts_paragraphs(body)
+        except Exception:                           # noqa: BLE001 — advisory
+            continue
+        for codes, clauses, excerpt in dense:
+            shape = (f"{codes} <code> tokens" if codes >= FACTS_MIN
+                     else f"{clauses} semicolon-separated clauses")
+            warns.append(("consult-facts", name,
+                          f"'{ident}' carries a paragraph with {shape} "
+                          f"(\"{excerpt}…\") — more than three facts of one "
+                          f"shape are a table, a list or a figure, never a "
+                          f"paragraph (§8.4, BL-269/BL-270). Rewrite it as "
+                          f"rows; this warning is cleared by the rewrite, not "
+                          f"by a waiver"))
     return warns
 
 

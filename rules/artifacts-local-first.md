@@ -41,10 +41,13 @@ one that keeps applying for as long as the page is being discussed:
    `check-artifact.sh` fails the other shape (context above, questions below); the
    full rule is §8.4 of the procedure below (BL-247).
 5. **More than three facts of one shape are a table, a list or a figure — never a
-   paragraph.** A block context that named twelve skills with counts and verdicts in one
-   ~250-word paragraph was returned unread (BL-269); the reader said the same of chat
-   replies. The sentence above the table states the finding; the rows carry the facts.
-   Full rule in §8.4 of the procedure below.
+   paragraph — in a block context AND in an item body.** A block context that named
+   twelve skills with counts and verdicts in one ~250-word paragraph was returned unread
+   (BL-269); the next day an item body did the same with twenty skills across three
+   layers (BL-270); the reader said the same of chat replies. `check-artifact.sh` warns
+   (`consult-facts`) on the dense shape; the rewrite clears it, a waiver cannot. The
+   sentence above the table states the finding; the rows carry the facts. Full rule in
+   §8.4 of the procedure below.
 6. **The artifact carries the discussion, not the chat.** Every time the reader answers
    or decides something about the page, that answer goes INTO the page — summarised at
    the top, with what is still open below it — before the reply that acknowledges it.

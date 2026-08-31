@@ -23,9 +23,13 @@
      by clicking it again (kit v10).
 
      Evidence with more than three facts is a TABLE or a list, never a
-     paragraph — a block context that lists nine skills, their counts and their
-     verdicts in one paragraph was reported unreadable (BL-269). The paragraph
-     below a block heading states the finding; the rows carry the facts.
+     paragraph — in a block context AND in an item body alike. A block context
+     that listed twelve skills with counts and verdicts in one paragraph was
+     returned unread (BL-269); the next day an item body did the same with
+     twenty skills across three layers (BL-270). The paragraph states the
+     finding; the rows carry the facts. `check-artifact.sh` warns
+     (`consult-facts`) on a paragraph with four or more <code> tokens or
+     semicolon-joined clauses; the rewrite clears it, a waiver cannot.
 
      Every table goes inside <div class="tw">, which is checked too. A table is
      the one element the page cannot cap — max-width will not take it below its
@@ -122,6 +126,9 @@
 
   <section class="consult-item" data-id="Q1" data-title="Short name for this question">
     <h3><span class="consult-id">Q1</span>The question, asked as a question</h3>
+    <!-- The item's own evidence — what only this decision needs — is a paragraph
+         only while it is an explanation. A split, a list of things with their
+         state, a queue of steps is rows here too, not prose (BL-270). -->
     <p>What is at stake for this one, and what each answer costs. A reader who cannot see the consequence is guessing.</p>
     <div class="opts one">
       <label><input type="radio" name="Q1" data-label="First option" data-recommended><span>First option <span class="hint">What it buys, and what it costs — and why it is the recommendation.</span></span></label>
