@@ -56,6 +56,15 @@ reported and never decides on its own; the six checks above are what decide.
 - Update the existing file instead of adding a near-duplicate.
 - When a memory is superseded, edit it in place; a corrected fact beats two contradictory ones.
 
+## The save gate
+
+`~/.claude/hooks/memory-save-gate.sh` (PreToolUse) refuses a memory write carrying a
+credential, an unreachable commit SHA, or an index line that carries its content. It
+imports its checks from the sweep, and any internal error allows the write. To override
+a finding, put `memory-gate: waived — <reason>` in the file and write again; that
+downgrades every block except `no-secrets`, which is never waivable. The hook's header
+carries its sunset criterion and review date.
+
 ## How to apply
 
 Fires when writing to `memory/`, when `MEMORY.md` grows past the target, and at the end
