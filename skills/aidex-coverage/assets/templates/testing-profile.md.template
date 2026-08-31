@@ -29,7 +29,7 @@ helpers_dir:              # E2E helpers, repo-relative: frontend/tests/helpers
 ui_stack:                 # space-separated: shadcn-vue reka-ui vue-sonner ag-grid
 ui_locale:                # locale of rendered UI strings: en
 personas_ref:             # <type>/<filename> of the persona table: reference/testing/01-personas.md
-cross_deps_ref:           # <type>/<filename> of the cross-dependency map: reference/testing/06-cross-dependencies.md
+cross_deps_ref:           # folder or comma-separated modules of the cross-dependency map: reference/testing/ (one workflow per NN-<slug>.md, never one growing file)
 module_map:               # repo-relative path: .context/audits/test-coverage/module-map.json
 testing_packs:            # space-separated stack packs, resolved at ~/.claude/skills/<pack>/: testing-django testing-vue testing-playwright-app
 ---

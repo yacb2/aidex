@@ -18,7 +18,11 @@ everything in it is specific to that project, and nothing in it is a rule.
 
 The test: if the line would still be true in a different project, it is a rule and it
 lives here in `references/`; if it is true only of this project, it is a fact and it
-lives in the profile. A project that wants to **deviate** from a rule does not edit the
+lives in the profile. The profile has **no `## ` sections**: the template's note is the
+whole body, and a profile that grows past it (553 words against the template's 376, in
+one adoption) is facts and explanation mixed in the one file scripts read —
+`profile-init.py --check` reports it, together with any `references/testing/*.md` over
+the ~2,500-word tripwire. A project that wants to **deviate** from a rule does not edit the
 profile — it records the deviation as a decision in its own `.context/decisions/` and
 the profile stays a list of values.
 
@@ -35,6 +39,13 @@ the profile stays a list of values.
 
 The sweep keys are **optional**: a project with no sweep validates without them, and `sweep-gate.sh` is what refuses (exit 2, naming the key) when a sweep runs against a profile that never filled them. The shape is aidex's; the bindings — `-n 4 --dist loadscope`, which runner, which build — are project facts, which is why they live here and not in a `CLAUDE.md` nobody commits.
 | A reader orienting in the project | `personas_ref`, `cross_deps_ref`, `module_map`, `ui_stack`, `ui_locale` |
+
+`cross_deps_ref` names **a folder or several modules, comma-separated** — never one
+document by contract. A single file named here is where an adopter appends every later
+workflow (execution groups, fan-out, order-dependent tests) until it holds four of them
+and 4,282 words; the shape the skill writes is one workflow per `NN-<slug>.md` under the
+`aidex-reference` tripwire, with `references/testing/00-index.md` as the entry (SKILL.md
+§ The shape of the docs this skill writes).
 
 ## Stack packs
 
