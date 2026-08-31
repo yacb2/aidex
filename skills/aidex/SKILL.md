@@ -18,7 +18,7 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Context structure** | `.context/` | References, docs, plans, backlog (incl. `_deferred/`), issues, roadmap, requests, decisions, research, audits, loops, communications, worktrees — numbering, metadata, index coverage, reorganization suggestions. Optional tier (`data`, `diagrams`, `drafts`, `experiments`, `worklists`, `workflows`) reported at INFO only |
 | **Skills** | `.claude/skills/`, `~/.claude/skills/` | Frontmatter, size, structure, scope placement |
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
-| **MEMORY.md** | `.claude/` or project root | Bloat, stale entries, inline content, externalization. Run `python3 ~/.claude/skills/aidex/scripts/memory-sweep.py` for the mechanical half — session logs saved as memories, untyped files, throwaway or duplicated memory directories, and an always-on index over budget (read-only; `rules/memory-hygiene.md` is the canon) |
+| **MEMORY.md** | `~/.claude/projects/<slug>/memory/MEMORY.md` (the index) and its sibling memory files | Bloat, stale entries, inline content, externalization. Run `python3 ~/.claude/skills/aidex/scripts/memory-sweep.py` for the mechanical half — session logs saved as memories, untyped files, throwaway or duplicated memory directories, and an always-on index over budget (read-only; `rules/memory-hygiene.md` is the canon) |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
@@ -102,7 +102,9 @@ Before launching any subagent, scan what exists in the project:
 Check for:
 - .context/ (references/, docs/, plans/, backlog/ [incl. _deferred/], issues/, roadmap/, requests/, decisions/, research/, audits/, loops/, communications/, worktrees/)
 - .context/ optional tier (data/, diagrams/, drafts/, experiments/, worklists/, workflows/) — project-local, INFO-at-most, never deletion candidates
-- .claude/ (skills/, CLAUDE.md, MEMORY.md)
+- .claude/ (skills/, CLAUDE.md)
+- ~/.claude/projects/<slug>/memory/ (the memory files + their MEMORY.md index)
+  — the slug is the project path with `/` and `_` turned into `-`
 - ~/.claude/aidex/manifest (what the suite installed; anything else in ~/.claude/skills is the user's)
 - ~/.claude/skills/ (global skills)
 ```
@@ -125,7 +127,7 @@ Read each agent's instructions from `~/.claude/skills/aidex/agents/` and pass th
 | [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.claude/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
 | [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | medium | Read, Glob, Grep |
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | low | Read, Glob, Bash |
-| [memory-auditor](agents/memory-auditor.md) | MEMORY.md exists and >50 lines | sonnet | medium | Read, Glob, Grep |
+| [memory-auditor](agents/memory-auditor.md) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
 | [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | low | Read, Glob, Grep, Bash |
 | [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | low | Read, Glob, Grep, Bash |
 | [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | low | Read, Glob, Grep, Bash |
@@ -275,12 +277,13 @@ After execution, show before/after summary:
 Besides explicit invocation (`/aidex`), this skill also activates when:
 
 - Claude notices a broken symlink while reading `.claude/skills/`
-- MEMORY.md is loaded and exceeds 80 lines
+- `memory-sweep.py` reports a finding, or the always-on MEMORY.md index is over its word budget
 - A referenced file in a skill doesn't exist
 - User asks about "project health", "ecosystem", "organize skills", "clean up"
 
 In context-triggered mode, suggest a focused audit rather than a full one:
 ```
-"I noticed MEMORY.md is 95 lines (target: <80). Want me to run a quick cleanup?"
+"I noticed the MEMORY.md index is 1,540 words (budget: 1,200) and it is loaded in every
+session here. Want me to run a quick cleanup?"
 ```
 
