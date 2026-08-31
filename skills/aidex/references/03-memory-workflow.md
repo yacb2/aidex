@@ -1,72 +1,74 @@
 # Memory Audit & Cleanup Workflow
 
-MEMORY.md = pure index. Every line costs tokens on every interaction.
+Canon: `rules/memory-hygiene.md`. Checker: `memory-sweep.py`. Reader:
+`agents/memory-auditor.md`. This file connects them — **the checks are the evidence, the
+outcomes are what you do about it.**
 
-## Classification Rules
+## The evidence: six checks
 
-### REMOVE if:
-- Contains "COMPLETED", "DONE", "MIGRATED"
-- References files/components that no longer exist
-- One-time event that already happened
-- Static inventory readable from code
-- Already documented in CLAUDE.md or .context/references/
+Blocking checks are defects on their own; advisory ones say "go look" and the reading decides.
 
-### CONDENSE if:
-- Entry has >2 lines of inline content → reduce to 1-line link
-- Both link AND inline explanation → keep link, drop inline
+| Check | | Fires on |
+|---|---|---|
+| `no-secrets` | blocking | A credential, token, password or key in the body |
+| `unpushed-is-not-a-fact` | blocking | Stated as settled, but it only happened in one session |
+| `index-is-an-index` | blocking | An index line carrying its content instead of a hook |
+| `named-thing-exists` | advisory | Names a path, flag or script that no longer exists |
+| `twin-exists` | advisory | Lexically near another memory (it misses semantic duplication — read for that) |
+| `pending-needs-a-ticket` | advisory | Reads like deferred work (fires on ~1 in 5 real memories) |
 
-### EXTERNALIZE if:
-- Pending work → `.context/backlog/`
-- Architecture/stable details → `.context/references/`
-- Permanent constraint (<3 lines) → CLAUDE.md
-- Research/analysis → `.context/research/`
+`MEM-LOG` (over the per-memory word budget) is a **signal**, not a verdict: it says
+"probably a session log", and only reading the file settles it.
 
-### KEEP if:
-- Already a 1-line link
-- Critical gotcha not documented elsewhere
-- Active rule preventing mistakes
+## The outcomes
 
-## Verification
+Each check leads to one of four things. The verdict vocabulary the auditor returns
+(`KEEP` / `REWRITE` / `DELETE-*` / `MOVE-*`) maps onto them one-to-one.
 
-For each entry, verify references still exist:
-- Verified — all refs found
-- Partially stale — some missing
-- Stale — primary subject gone, auto REMOVE
+**KEEP** — a durable one-fact memory, still true, not recorded elsewhere.
 
-## Integrity checks (always run)
+**CONDENSE** (`REWRITE`, and the index side of `index-is-an-index`) — the fact is in
+there, wrapped in narrative. Reduce to the fact; in `MEMORY.md` that is one line — title,
+link, a ~25-word hook, never the content.
 
-Even on small indexes, run these — they catch silent drift:
+**REMOVE** (`DELETE-CLOSED` / `DELETE-LOG` / `DELETE-DUP`) — the subject is over, or the
+file is a session narrative with no fact to extract, or another memory / `CLAUDE.md` / a
+`.context/` artifact already says it. Also: an index line whose target no longer exists.
 
-- **Dead links** (`MEM-DEAD`): index line points at a memory file that no longer exists. Default: REMOVE the line.
-- **Orphan files** (`MEM-ORPHAN`): file in memory dir not referenced by MEMORY.md. Default: add index entry or delete.
-- **Duplicates** (`MEM-DUP`): two index lines for the same target, or two files on the same topic. Merge.
-- **Decisions overlap** (`MEM-DEC`): `project_*_results.md` / `*_benchmark.md` / `*_poc.md` content that should live in `.context/decisions/` or `.context/research/`. Cross-check those dirs by topic; REMOVE from memory if a decision doc exists.
-- **Stale facts** (`MEM-STALE`): `feedback_*.md` says X, a newer `project_*.md` says Y. Flag for human review; never auto-edit feedback.
+**EXTERNALIZE** (`MOVE-*`) — worth keeping, but memory is the wrong place:
+
+| Content | Destination |
+|---|---|
+| Pending or deferred work | `.context/backlog/` |
+| A permanent project constraint or command (<3 lines) | the project `CLAUDE.md` |
+| How a settled part of the system works | `.context/references/<topic>/` |
+| Rationale for a choice | `.context/decisions/` (an ADR) |
+| Findings of a spike, audit or benchmark | `.context/research/` |
+| A correction about how a skill or tool behaves | that skill, or `~/.claude/rules/` |
+| A preference true in every project | the user-level memory, or a global rule |
+
+**The destination artifact is written before the memory is deleted.** A MOVE that deletes
+first is a REMOVE that lost its content.
+
+Verify every named thing before judging it: a memory pointing at a file, flag or script
+that Glob cannot find is `DELETE-CLOSED`. One that says "pending" is `DELETE-DUP` if
+`.context/backlog/` already has the item, `MOVE-BACKLOG` if it does not.
 
 ## Budgets — words, never lines
 
-Both are enforced by `~/.claude/skills/aidex/scripts/memory-sweep.py`, which is the
-source of the numbers; this file restates them for the reader, not for the checker.
+Both come from `memory-sweep.py`; restated here for the reader, not for the checker.
 
-- **Index** (`MEMORY.md`, always-on in every session of the project): under **1,200 words**.
+- **Index** (`MEMORY.md`, loaded in every session of the project): under **1,200 words**.
   Over it, the sweep reports `MEM-INDEX`.
-- **One memory file**: under **800 words**. Over it, the sweep reports `MEM-LOG` — a signal
-  that the file is probably a session log, not a verdict on its own.
+- **One memory file**: under **800 words**. Over it, `MEM-LOG`.
 
 Lines are the wrong unit: a 40-line index of one-line hooks is healthy, and a 12-line
 index carrying its content is not.
 
-## Post-Cleanup Format
+## Post-cleanup index format
 
 ```markdown
-## Active Work
-- [Feature X](link) — brief note
-
-## Gotchas & Tech Debt
-- [Critical gotcha](link) — one line
-
-## External References
-- [Reference index](.context/references/00-index.md)
+- [Title](file.md) — the hook: what makes this worth loading, in one clause
 ```
 
-Each entry: max ~150 characters, one line.
+One line per memory. No headings carrying content, no inline text beside a link.
