@@ -281,6 +281,33 @@ for c in "${COPIES[@]:-}"; do
   [[ -n "$c" ]] && rm -f "$DEST/$c"
 done
 find "$DEST" -type d -empty -delete 2>/dev/null
+
+# $DEST may itself be a linked worktree, not just a directory holding them: a
+# project whose ROOT repo owns .context/ gets a root checkout at $DEST so the
+# worktree has one (BL-259's shape; the 2026-08-28 echo_lab workaround did it by
+# hand). It is not in WT_PARTICIPANTS, so the loop above never saw it, and
+# `down` left a live worktree behind with its slot still claimed — freeing it
+# took a manual `git worktree remove`.
+#
+# It goes LAST on purpose. The marker and symlink sweep above is what makes the
+# checkout clean, and `git worktree remove` refuses a worktree with untracked
+# files — so removing $DEST first would refuse on this tool's own leftovers.
+if [[ -f "$DEST/.git" ]]; then
+  common="$(git -C "$DEST" rev-parse --git-common-dir 2>/dev/null || true)"
+  if [[ -z "$common" ]]; then
+    warn "skipping $DEST — it looks like a worktree but its main repo cannot be resolved"
+  else
+    main_tree="$(dirname "$common")"
+    if $FORCE_RM; then
+      warn "--force: discarding any uncommitted work in $DEST"
+      git -C "$main_tree" worktree remove --force "$DEST"
+    else
+      git -C "$main_tree" worktree remove "$DEST"
+    fi
+    ok "removed root checkout: $DEST"
+  fi
+fi
+
 if [[ -d "$DEST" ]]; then
   err "$DEST still exists after removal — it holds files this tool did not create:"
   find "$DEST" -mindepth 1 -maxdepth 2 | sed 's|^|    |' >&2
