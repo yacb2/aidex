@@ -34,7 +34,20 @@ The second row is the more favourable of the two and it still overstates the cas
 **The direction is consistent** — all four runs land agnostic <= 1 and stack-named >= 2,
 and the union halves — **but a 9-positive set cannot resolve a 4/9 versus 1/9 difference.**
 Detecting it at alpha 0.05 with power 0.8 needs about **27 positive queries per
-description**; the set has 9. A k=3 or k=4 on these same nine queries buys precision on the
+description**; the set has 9. That 27 comes from a normal approximation, which is weakest
+at exactly these cell counts, so it is checked against the exact test — holding the
+observed 1/9 and 4/9 rates and growing the set:
+
+| positives per description | table | Fisher two-tailed |
+|---|---|---|
+| 9 (today) | 1/9 vs 4/9 | 0.29 |
+| 18 | 2/18 vs 8/18 | 0.060 |
+| 20 | 2/20 vs 9/20 | 0.031 |
+| 27 | 3/27 vs 12/27 | 0.014 |
+| 36 | 4/36 vs 16/36 | 0.003 |
+
+Significance arrives around 20 and 27 carries margin, so the figure stands. The load-bearing
+point does not depend on it: the limit is the query axis. A k=3 or k=4 on these same nine queries buys precision on the
 wrong axis: the limit is the size of the query set, not the number of runs.
 
 So the operational reading is unchanged from run 1, and is now better supported: the
