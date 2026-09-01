@@ -95,6 +95,44 @@ python3 -c 'import json,sys; d=json.loads(sys.argv[1]); assert d["checked"]==2; 
 python3 "$CHECK" --settings "$TMP/nope.json" >/dev/null 2>&1; [[ $? -eq 2 ]] \
   && ok "7 an unreadable settings file is exit 2, never a silent pass" || bad "7 missing settings not exit 2"
 
+# 8 · DISCOVERY (BL-293). The default store is ~/.claude/skills, and this machine's
+#     personal skills live somewhere else entirely (~/.myskills/skills), reached by a
+#     symlink from a project's .claude/skills. A bare run called 7 valid keys
+#     UNRESOLVED and offered to replace one of them with a plugin id pointing at the
+#     WRONG copy. The store has to be discovered, not declared.
+PROJ="$TMP/proj-store"
+mkdir -p "$PROJ/myproject/.claude/skills"
+mkskill "$TMP/shared-store/gcloud-billing"          # the store nobody told us about
+mkskill "$PROJ/myproject/.claude/skills/local-only" # a real project-local skill
+ln -s "$TMP/shared-store/gcloud-billing" "$PROJ/myproject/.claude/skills/gcloud-billing"
+mkdir -p "$TMP/projects/-tmp-myproject"
+printf '{"cwd": "%s/myproject"}\n' "$PROJ" > "$TMP/projects/-tmp-myproject/a.jsonl"
+disc() { python3 "$CHECK" --settings "$TMP/settings.json" --skills-root "$TMP/skills" \
+           --plugin-cache "$TMP/cache" --projects-root "$TMP/projects" "$@"; }
+
+settings "{$ENABLED, \"skillOverrides\": {\"gcloud-billing\": \"off\"}}"
+OUT="$(disc)"; RC=$?
+[[ $RC -eq 0 ]] && ok "8 a key resolving only in a symlinked store passes without --skills-dir" \
+  || bad "8 rc=$RC: $OUT"
+grep -q 'shared-store' <<<"$OUT" && ok "8 the run names the stores it scanned" \
+  || bad "8 stores not named: $OUT"
+
+# 8b · a project-local real skill is a store too — the override on it is valid
+settings "{$ENABLED, \"skillOverrides\": {\"local-only\": \"off\"}}"
+OUT="$(disc)"; RC=$?
+[[ $RC -eq 0 ]] && ok "8b a project-local skill resolves" || bad "8b rc=$RC: $OUT"
+
+# 8c · discovery ADDS stores, it never hides a key that resolves nowhere
+settings "{$ENABLED, \"skillOverrides\": {\"ghost-skill\": \"off\"}}"
+OUT="$(disc)"; RC=$?
+[[ $RC -eq 1 ]] && ok "8c discovery does not turn an absent skill green" || bad "8c rc=$RC: $OUT"
+
+# 8d · a missing projects root is not a crash and not a silent pass
+OUT="$(python3 "$CHECK" --settings "$TMP/settings.json" --skills-root "$TMP/skills" \
+        --plugin-cache "$TMP/cache" --projects-root "$TMP/nowhere" 2>&1)"; RC=$?
+[[ $RC -eq 1 ]] && ok "8d an unreadable projects root degrades to the default store" \
+  || bad "8d rc=$RC: $OUT"
+
 echo
 [[ $FAIL -eq 0 ]] && { echo "OK — skill-overrides check: $PASS cells"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1
