@@ -71,6 +71,16 @@ OUT="$(run)"; RC=$?
 grep -q 'SHADOWED    theme-factory' <<<"$OUT" \
   && ok "5 the untouched namespaced twin is reported" || bad "5 not reported: $OUT"
 
+# 5b · …and once the twin IS overridden too, the finding must CLEAR. A report that
+#      survives its own prescribed fix is a report nobody can ever act on: BL-286 was
+#      closed by adding exactly these keys and the checker still said SHADOWED.
+settings "{$ENABLED, \"skillOverrides\": {\"theme-factory\": \"name-only\", \"document-skills:theme-factory\": \"name-only\"}}"
+OUT="$(run)"; RC=$?
+[[ $RC -eq 0 ]] && ok "5b both copies overridden still exits 0" || bad "5b rc=$RC: $OUT"
+grep -q 'SHADOWED' <<<"$OUT" \
+  && bad "5b SHADOWED survived the fix it prescribes: $OUT" \
+  || ok "5b overriding the twin clears the SHADOWED finding"
+
 # 6 · no overrides at all is not a silent pass
 settings "{$ENABLED, \"skillOverrides\": {}}"
 OUT="$(run)"; RC=$?
