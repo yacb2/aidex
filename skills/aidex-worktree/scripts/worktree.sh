@@ -59,6 +59,15 @@
 #
 # Config (.context/worktrees/config.env), all optional except WT_PARTICIPANTS:
 #   WT_PARTICIPANTS   "backend frontend"     repos that can participate
+#                     ". backend frontend"   the ROOT repo participates too: $DEST is
+#                                            itself a checkout of it, the others nest
+#                                            inside, and the worktree owns its own
+#                                            .context/ so find_project_root stops there
+#                                            instead of walking back into the main tree.
+#                                            Position does not matter — the root token is
+#                                            always created first. WT_LINKS/WT_COPIES
+#                                            entries that checkout already carries are
+#                                            skipped with a notice (BL-259)
 #   WT_LINKS          "docker-compose.yml dev.sh .docker"
 #                                            unversioned wrapper paths to symlink
 #   WT_COPIES         "backend/poetry.lock"  same, but COPIED — for files a Docker
