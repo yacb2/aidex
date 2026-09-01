@@ -31,6 +31,10 @@ one that keeps applying for as long as the page is being discussed:
    (observed up to three times on one page) breaks that: verify with the checker and
    DevTools first, `open` last. And never finish a create/update without the open — a
    page that was rewritten and not opened is, to the reader, a page that did not change.
+   Prose was not enough — the count reached 5-7 tabs of one page — so this gate is now
+   enforced: `hooks/artifact-open-once.sh` refuses a second `open` of the same path when
+   the user has not spoken since the first. A re-open the reader asked for still passes,
+   which is what keeps gate 6's answer-and-re-open loop working (BL-294).
 3. **Never publish unless explicitly asked to share.** The local file, anchored next to
    the work it documents, is the durable copy. This deliberately overrides the `Artifact`
    tool's own default ("publishing proactively is fine"); when the two disagree, this
