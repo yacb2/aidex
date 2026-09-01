@@ -61,7 +61,12 @@ while [[ $# -gt 0 ]]; do
 done
 for l in "${ONLY[@]:-}"; do
   [[ -z "$l" ]] && continue
-  case "$l" in backend|frontend|build|e2e) ;; *) die "unknown leg: $l (backend|frontend|build|e2e)" ;; esac
+  # `suite` is valid but deliberately NOT in ALL_LEGS: a project whose whole test
+  # surface is one suite (a shell toolkit, a single-package library) had to map it onto
+  # `backend` to bind the gate at all — a lie that happens to pass because the count
+  # regex matches. Adding it to the DEFAULT set instead would ask every existing project
+  # for a fifth key it has no answer for, so it is opt-in via --only suite (BL-289).
+  case "$l" in backend|frontend|build|e2e|suite) ;; *) die "unknown leg: $l (backend|frontend|build|e2e|suite)" ;; esac
 done
 if [[ -n "$FROM_LOG" ]]; then
   [[ ${#ONLY[@]} -eq 1 ]] || die "--from-log scores exactly one leg: pass a single --only <leg>"
@@ -73,8 +78,15 @@ fi
 LEGS=("${ALL_LEGS[@]}"); [[ ${#ONLY[@]} -gt 0 ]] && LEGS=("${ONLY[@]}")
 
 ROOT="$(find_project_root)"
+# The profile normally lives in .context/. A project that GITIGNORES .context/ — aidex
+# does, by policy — could never let the profile travel with a checkout, so its own
+# boundary gate was unrunnable on a fresh clone and the refusal named the one path it
+# could not have. A repo-level testing-profile.md is the tracked fallback; .context/
+# still wins when both exist, so nothing changes for a project that has one (BL-289).
 PROFILE="$ROOT/.context/testing-profile.md"
-[[ -f "$PROFILE" ]] || die "no testing profile at $PROFILE — the gate reads its commands from it (aidex-coverage/references/14-testing-profile.md)"
+PROFILE_ALT="$ROOT/testing-profile.md"
+[[ -f "$PROFILE" ]] || PROFILE="$PROFILE_ALT"
+[[ -f "$PROFILE" ]] || die "no testing profile at $ROOT/.context/testing-profile.md nor $PROFILE_ALT — the gate reads its commands from it (aidex-coverage/references/14-testing-profile.md)"
 
 # Front-matter scalar. Quotes stripped, a trailing ` # comment` dropped (so a command
 # may not itself contain ` #`); a block scalar (`key: |`) is not a command.
@@ -82,7 +94,7 @@ profile_key() {
   awk -v k="$1" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
     sub(/^[^:]*:[[:space:]]*/,""); sub(/[[:space:]]+#.*$/,""); gsub(/^["\x27]|["\x27]$/,""); print; exit}' "$PROFILE"
 }
-key_for() { case "$1" in backend) echo backend_suite_cmd;; frontend) echo frontend_suite_cmd;; build) echo build_cmd;; e2e) echo e2e_suite_cmd;; esac; }
+key_for() { case "$1" in backend) echo backend_suite_cmd;; frontend) echo frontend_suite_cmd;; build) echo build_cmd;; e2e) echo e2e_suite_cmd;; suite) echo suite_cmd;; esac; }
 
 # Every leg is bound BEFORE any leg runs: a gate that ran two suites and then died on a
 # missing key would leave the caller with half a verdict and a log to reinterpret.
