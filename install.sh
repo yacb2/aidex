@@ -30,12 +30,12 @@ STATE_DIR="$CLAUDE_DIR/aidex"
 MANIFEST="$STATE_DIR/manifest"
 # The pre-0.40 layout, read only to migrate away from it.
 LEGACY_DIR="${AIDEX_DIR:-$HOME/.aidex}"
-VERSION="0.41.0"
+VERSION="0.42.0"
 
 # Hooks that install. The others in hooks/ are retired (aidex-router,
 # durability-*) and stay in the repo as history with their tests; installing
 # them put dead scripts and their eval corpus on every machine.
-SHIPPED_HOOKS="${AIDEX_SHIPPED_HOOKS:-context-depth-nudge.sh memory-save-gate.sh memory-audit-nudge.sh}"
+SHIPPED_HOOKS="${AIDEX_SHIPPED_HOOKS:-context-depth-nudge.sh memory-save-gate.sh memory-audit-nudge.sh artifact-open-once.sh}"
 
 # Colors (disabled if not a terminal)
 if [ -t 1 ]; then

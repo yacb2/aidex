@@ -11,11 +11,15 @@ the id it probably meant), 2 on a usage or parse error.
 
   check-skill-overrides.py [--settings <path>] [--skills-dir <dir>]... [--json]
 
-`--skills-dir` is repeatable and ADDS a store to the default `~/.claude/skills`. It is
-needed because a personal skill can be installed per project — a symlink in a project's
-`.claude/skills/` pointing at a store like `~/.myskills/skills/` — and a global override
-keyed on its bare name is then correct. Without the flag those read as unresolved, which
-is the false-positive shape this kind of checker dies of.
+`--skills-dir` is repeatable and ADDS a store to the default `~/.claude/skills`. Those
+stores are also DISCOVERED, which is what makes a bare run trustworthy: a personal skill
+is usually installed per project — a symlink in a project's `.claude/skills/` pointing at
+a store like `~/.myskills/skills/` — and a global override keyed on its bare name is then
+correct. Before discovery a bare run on this machine called 7 valid keys UNRESOLVED and
+offered to replace one with a plugin id naming the WRONG copy (BL-293). A checker whose
+default answer is wrong on the machine it ships to teaches people to distrust it.
+
+The run prints the stores it scanned, because "UNRESOLVED" only means "not in these".
 """
 import argparse
 import json
@@ -35,6 +39,59 @@ def personal_skills(roots=None):
         found |= {n for n in os.listdir(d)
                   if os.path.isfile(os.path.join(d, n, "SKILL.md"))}
     return found
+
+
+def discover_stores(projects_root=None):
+    """Skill stores this machine actually uses, read from Claude Code's own project list.
+
+    `~/.claude/projects/<slug>/` holds one directory per project, and the slug is lossy
+    (a dash could be a dash or a slash), so the project path is read from the `cwd` of a
+    session file instead of decoded from the name. For each project: its own
+    `.claude/skills` is a store, and anything symlinked into it resolves to a SHARED
+    store — which is the one nobody would otherwise think to pass.
+
+    Never raises: a machine with no projects, an unreadable session file or a dangling
+    symlink degrades to "no extra stores", which is the behaviour before discovery.
+    """
+    root = projects_root or os.path.join(CLAUDE, "projects")
+    stores = set()
+    if not os.path.isdir(root):
+        return stores
+    for slug in os.listdir(root):
+        cwd = None
+        try:
+            sessions = sorted(
+                (f for f in os.listdir(os.path.join(root, slug)) if f.endswith(".jsonl")),
+                key=lambda f: os.path.getmtime(os.path.join(root, slug, f)), reverse=True)
+            for f in sessions:
+                with open(os.path.join(root, slug, f)) as fh:
+                    for line in fh:
+                        try:
+                            cwd = json.loads(line).get("cwd")
+                        except ValueError:
+                            continue
+                        if cwd:
+                            break
+                if cwd:
+                    break
+        except OSError:
+            continue
+        if not cwd:
+            continue
+        skills = os.path.join(cwd, ".claude", "skills")
+        if not os.path.isdir(skills):
+            continue
+        stores.add(skills)
+        try:
+            for name in os.listdir(skills):
+                entry = os.path.join(skills, name)
+                if os.path.islink(entry):
+                    target = os.path.realpath(entry)
+                    if os.path.isfile(os.path.join(target, "SKILL.md")):
+                        stores.add(os.path.dirname(target))
+        except OSError:
+            continue
+    return stores
 
 
 def plugin_skills(settings, cache=None):
@@ -116,6 +173,8 @@ def main(argv):
                     help="an additional skill store (repeatable); adds to ~/.claude/skills")
     ap.add_argument("--skills-root", help="replace the default store entirely (tests)")
     ap.add_argument("--plugin-cache")
+    ap.add_argument("--projects-root",
+                    help="where Claude Code keeps its project list (tests)")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
     try:
@@ -126,6 +185,7 @@ def main(argv):
 
     roots = [a.skills_root] if a.skills_root else [os.path.join(CLAUDE, "skills")]
     roots += [os.path.expanduser(d) for d in a.skills_dir]
+    roots += sorted(d for d in discover_stores(a.projects_root) if d not in roots)
     personal = personal_skills(roots)
     plugin = plugin_skills(settings, a.plugin_cache)
     keys = settings.get("skillOverrides") or {}
@@ -134,6 +194,7 @@ def main(argv):
 
     if a.json:
         print(json.dumps({"checked": len(keys), "known": len(personal) + len(plugin),
+                          "stores": roots,
                           "unresolved": [{"key": k, "suggestion": s} for k, s in bad],
                           "shadowed": [{"key": k, "also": ids} for k, ids in dim]}))
     else:
@@ -142,6 +203,13 @@ def main(argv):
         # "OK" otherwise, and only one of them means anything.
         print(f"checked {len(keys)} skillOverrides key(s) against "
               f"{len(personal)} personal + {len(plugin)} plugin skill(s)")
+        # UNRESOLVED means "not in these stores", so the stores are part of the verdict.
+        # Only the ones holding a skill are named: discovery walks every project, and an
+        # empty .claude/skills contributes nothing to the verdict. On the machine this
+        # was written for, all 19 hold one — the filter is for the machine that differs.
+        live = [r for r in roots if personal_skills([r])]
+        print(f"  stores ({len(live)} of {len(roots)} hold a skill): "
+              + ", ".join(r.replace(HOME, "~") for r in live))
         for k, s in bad:
             hint = f" — did you mean `{s}`?" if s else " — no skill of that name is installed"
             print(f"  UNRESOLVED  {k}{hint}")
