@@ -622,3 +622,31 @@ a testing layer for a stack that doesn't exist" — then declined to invoke. Tha
 **equally**, so run-to-run and description-to-description comparisons still stand; what is
 never safe is quoting any of these figures as the recall a user experiences. Every
 `RESULTS.md` states this limit (BL-288).
+
+## 12. The six modular siblings: structural pass, 2026-09-01 (BL-275)
+
+The trigger-eval campaign was scoped to the monolith before decomposition, so the six
+modular sibling descriptions (`aidex-decision`, `-reference`, `-request`, `-research`,
+`-skill`, `-comm`) were authored once and never independently checked. The best-practice
+pass, run against the rules this file and `skill-conventions.md` already state:
+
+| check | result |
+|---|---|
+| a description anchoring on a **sibling's name** before its `Not for:` clause (the defect behind the `aidex-loop` collision) | **none** |
+| a `Not for:` clause present | **all six**, each naming 3-4 siblings |
+| a quoted trigger phrase **shared** by two siblings | **none** |
+
+**No change was made, and that is the finding.** The six were authored to the house shape
+and hold up against it.
+
+One asymmetry, recorded rather than repaired: the four artifact siblings disambiguate
+against each other but not against `aidex-comm` or `aidex-skill`, while those two name all
+four. The graph is one-directional. It is left alone because the two unnamed siblings cover
+visibly different intents (a real communication; this project's skill conventions), so
+adding them would lengthen four descriptions to pre-empt a collision nothing has shown.
+
+**The measurement half of BL-275 is NOT closed by this.** Its acceptance asks for a
+multi-run, session-state-controlled baseline — 6 skills at k>=2 is ~12 runs and, at the
+measured 138-151 s/query, roughly **7 hours**. §10 says a set this size cannot carry the
+conclusion such a run would be quoted for, and the item's own framing says no outcome
+reopens recall. Spending it is therefore an owner decision, not a methodology one.
