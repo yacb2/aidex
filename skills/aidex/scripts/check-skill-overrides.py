@@ -98,9 +98,15 @@ def shadowed(settings, personal, plugin):
     same silent half-application the unresolved keys cause, one layer along.
     """
     by_leaf = _by_leaf(plugin)
-    return [(k, sorted(by_leaf[k]))
-            for k in sorted((settings.get("skillOverrides") or {}))
-            if k in personal and k in by_leaf]
+    keys = settings.get("skillOverrides") or {}
+    # A twin that is ITSELF overridden is not shadowed — it is the fix. Reporting it
+    # anyway makes the finding unclearable: BL-286 was closed by adding exactly these
+    # `document-skills:<name>` keys and the report did not move, which is a check nobody
+    # can ever act on and everybody learns to ignore.
+    return [(k, sorted(t for t in by_leaf[k] if t not in keys))
+            for k in sorted(keys)
+            if k in personal and k in by_leaf
+            and any(t not in keys for t in by_leaf[k])]
 
 
 def main(argv):

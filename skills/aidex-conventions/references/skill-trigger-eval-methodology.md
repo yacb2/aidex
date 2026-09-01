@@ -562,3 +562,91 @@ there is nothing live to re-enter.
 The trigger *measurement* stays valid even under re-entry (each child uses its own
 `TEST_ID`, so the parent's marker predicate is uncontaminated); the harm is a token
 explosion and unreadable logs. Re-run clean anyway for a defensible panel.
+
+## 10. The sets are too small to carry a p-value (2026-09-01)
+
+§6 says a single run is not a point estimate. This is the stronger statement: **no number of
+runs makes these sets carry a significance claim**, because the limit is the size of the
+query set, not the run count.
+
+Measured closing BL-287. `aidex-coverage` has **9 positive queries**. Comparing the
+stack-agnostic description (union 1/9 over k=2) against the stack-named baseline (union 4/9
+over k=2):
+
+| comparison | figures | Fisher two-tailed |
+|---|---|---|
+| queries that ever fired | 1/9 vs 4/9 | **p = 0.29** |
+| per-run trials (9 queries x 2 runs) | 1/18 vs 5/18 | p = 0.18 |
+
+The second row is the friendlier framing and it overstates the case: 18 "trials" are 9
+queries run twice, not 18 independent draws.
+
+**How much would be enough.** Holding the observed rates and growing the set (exact test,
+because the normal approximation is weakest at cell counts of 1 and 4):
+
+| positives per description | table | Fisher two-tailed |
+|---|---|---|
+| 9 (today) | 1/9 vs 4/9 | 0.29 |
+| 18 | 2/18 vs 8/18 | 0.060 |
+| 20 | 2/20 vs 9/20 | 0.031 |
+| 27 | 3/27 vs 12/27 | 0.014 |
+| 36 | 4/36 vs 16/36 | 0.003 |
+
+Significance arrives near **20** and **27** carries margin. Every aidex eval set is nine-ish,
+so the "+/-20pp known variance" and the ~35% "plateau" quoted elsewhere in this file and in
+`memory/feedback_skill_description_limits.md` are both **directional observations, not
+measurements**, and must be read that way.
+
+**The rule.** A trigger-eval result is **directional only**. It may say "this description
+did not lift recall, and the measured direction is down". It may **never** carry a p-value,
+a significance claim, or a "proved better/worse". Raising k buys precision on the run axis
+while the limit sits on the query axis — a k=3 on nine queries is wasted money, and four
+runs costing ~2.4 hours ending without a conclusion is the measured price of not knowing
+this.
+
+## 11. The cwd contradicts the queries (2026-09-01)
+
+Every aidex trigger-eval spawns its sub-sessions with **cwd = the aidex repo**, whose
+`CLAUDE.md` describes a Bash/skills toolkit with no app, backend, database or browser. The
+query sets describe business apps — a supplier endpoint, an `InvoiceBadge` component,
+payment terms, a Stripe webhook.
+
+The working directory actively contradicts the prompt, and the model says so. A manual
+positive control on `aidex-coverage` query 06 answered, unprompted, that aidex "has no
+frontend, backend, dev server, or database" and that setting up E2E "would be manufacturing
+a testing layer for a stack that doesn't exist" — then declined to invoke. That is a
+**reasoned non-trigger**, not a failure to notice the skill.
+
+**Consequence, stated as a limit rather than fixed.** Absolute recall measured this way is a
+**floor**, not what a user in a matching project would see. It biases every skill's eval
+**equally**, so run-to-run and description-to-description comparisons still stand; what is
+never safe is quoting any of these figures as the recall a user experiences. Every
+`RESULTS.md` states this limit (BL-288).
+
+## 12. The six modular siblings: structural pass, 2026-09-01 (BL-275)
+
+The trigger-eval campaign was scoped to the monolith before decomposition, so the six
+modular sibling descriptions (`aidex-decision`, `-reference`, `-request`, `-research`,
+`-skill`, `-comm`) were authored once and never independently checked. The best-practice
+pass, run against the rules this file and `skill-conventions.md` already state:
+
+| check | result |
+|---|---|
+| a description anchoring on a **sibling's name** before its `Not for:` clause (the defect behind the `aidex-loop` collision) | **none** |
+| a `Not for:` clause present | **all six**, each naming 3-4 siblings |
+| a quoted trigger phrase **shared** by two siblings | **none** |
+
+**No change was made, and that is the finding.** The six were authored to the house shape
+and hold up against it.
+
+One asymmetry, recorded rather than repaired: the four artifact siblings disambiguate
+against each other but not against `aidex-comm` or `aidex-skill`, while those two name all
+four. The graph is one-directional. It is left alone because the two unnamed siblings cover
+visibly different intents (a real communication; this project's skill conventions), so
+adding them would lengthen four descriptions to pre-empt a collision nothing has shown.
+
+**The measurement half of BL-275 is NOT closed by this.** Its acceptance asks for a
+multi-run, session-state-controlled baseline — 6 skills at k>=2 is ~12 runs and, at the
+measured 138-151 s/query, roughly **7 hours**. §10 says a set this size cannot carry the
+conclusion such a run would be quoted for, and the item's own framing says no outcome
+reopens recall. Spending it is therefore an owner decision, not a methodology one.

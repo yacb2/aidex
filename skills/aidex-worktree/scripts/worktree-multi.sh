@@ -129,15 +129,60 @@ if [[ "$cmd" == "create" ]]; then
     [[ -e "$ROOT/$l" ]] || die "wrapper file to link not found: $l (relative to $ROOT)"
   done
 
-  mkdir -p "$DEST"
+  # The ROOT repo may itself be a participant, spelled `.` (BL-259): a project whose
+  # root owns `.context/` needs $DEST to BE a checkout of it, so the worktree has its
+  # own .context/ and find_project_root stops there instead of walking back into the
+  # main tree. The other participants then nest inside that checkout.
+  #
+  # It must be created FIRST, whatever order the config lists it in. `git worktree add`
+  # refuses a non-empty destination, so with `WT_PARTICIPANTS="backend ."` the
+  # participants had already populated $DEST and creation died on
+  # `fatal: '<dest>/.' already exists` — a config-order dependency nobody knew they had.
+  ROOT_FIRST=(); REST=()
   for r in "${REPOS[@]}"; do
+    if [[ "$r" == "." || "$r" == "./" ]]; then ROOT_FIRST=("$r"); else REST+=("$r"); fi
+  done
+  ORDERED=(${ROOT_FIRST[@]+"${ROOT_FIRST[@]}"} ${REST[@]+"${REST[@]}"})
+
+  # Only make the directory when no root checkout will make it: `git worktree add`
+  # wants to create $DEST itself.
+  [[ "${#ROOT_FIRST[@]}" -gt 0 ]] || mkdir -p "$DEST"
+  for r in "${ORDERED[@]}"; do
     name="$(basename "$r")"
+    # basename "." is "." and "$DEST/." is "$DEST", which is exactly where the root
+    # checkout belongs — but say so, because relying on it silently is how the
+    # order-dependence above stayed invisible.
     if git -C "$ROOT/$r" show-ref --verify --quiet "refs/heads/$BRANCH"; then
       git -C "$ROOT/$r" worktree add "$DEST/$name" "$BRANCH" >/dev/null
     else
       git -C "$ROOT/$r" worktree add -b "$BRANCH" "$DEST/$name" >/dev/null
     fi
-    ok "worktree: $name -> $DEST/$name (branch $BRANCH)"
+    if [[ "$name" == "." ]]; then
+      # worktree.sh writes its own bookkeeping (.wt-slot, .wt-branch, a generated
+      # .env) into $DEST. In a plain directory that is invisible; in a root CHECKOUT
+      # they are untracked files, so the checkout is dirty from the moment it is
+      # created — and `IS_DIRTY` reads $DEST, so a plain `down` would refuse forever,
+      # naming aidex's own bookkeeping as the user's uncommitted work. Exclude them
+      # in the worktree's OWN info/exclude: local to this checkout, and it touches
+      # nothing tracked (BL-259).
+      _ex="$(git -C "$DEST" rev-parse --git-path info/exclude 2>/dev/null)"
+      if [[ -n "$_ex" ]]; then
+        mkdir -p "$(dirname "$_ex")"
+        printf '%s\n' '' '# aidex worktree bookkeeping (worktree.sh)' \
+          '.wt-slot' '.wt-branch' '.env' >> "$_ex"
+        # The other participants are checked out INSIDE this one, so the root repo
+        # sees each as an untracked directory. Same reasoning: it is aidex's layout,
+        # not the user's work, and leaving it visible makes IS_DIRTY answer "dirty"
+        # for every root-participant worktree ever created — which is the same as
+        # answering nothing.
+        for _p in ${REST[@]+"${REST[@]}"}; do
+          printf '/%s/\n' "$(basename "$_p")" >> "$_ex"
+        done
+      fi
+      ok "worktree: (root) -> $DEST (branch $BRANCH)"
+    else
+      ok "worktree: $name -> $DEST/$name (branch $BRANCH)"
+    fi
   done
   for l in "${LINKS[@]:-}"; do
     [[ -z "$l" ]] && continue
@@ -145,6 +190,16 @@ if [[ "$cmd" == "create" ]]; then
     # used to land as <dest>/.env, so compose looked for <dest>/backend/.env,
     # found nothing, and the stack refused to start with an error that named
     # the file but not the reason.
+    # With a root participant the checkout brings its own tracked files, so a
+    # WT_LINKS entry naming one of them hits an existing path: `ln -s` fails and the
+    # whole creation rolls back. WT_LINKS is for UNVERSIONED wrapper files, so the
+    # tracked one is not a conflict to resolve — it is already correct. Skip it, and
+    # SAY so: linking over it would dirty the checkout and make `git worktree remove`
+    # refuse at teardown (BL-259).
+    if [[ -e "$DEST/$l" || -L "$DEST/$l" ]]; then
+      ok "link: $l skipped — the root checkout already carries it"
+      continue
+    fi
     mkdir -p "$(dirname "$DEST/$l")"
     ln -s "$ROOT/$l" "$DEST/$l"
     ok "link: $l -> $ROOT/$l"
@@ -159,6 +214,10 @@ if [[ "$cmd" == "create" ]]; then
   for c in "${COPIES[@]:-}"; do
     [[ -z "$c" ]] && continue
     [[ -e "$ROOT/$c" ]] || die "--copy $c: no such file in $ROOT"
+    if [[ -e "$DEST/$c" || -L "$DEST/$c" ]]; then
+      ok "copy: $c skipped — the root checkout already carries it"
+      continue
+    fi
     mkdir -p "$(dirname "$DEST/$c")"
     cp -R "$ROOT/$c" "$DEST/$c"
     ok "copy: $c"

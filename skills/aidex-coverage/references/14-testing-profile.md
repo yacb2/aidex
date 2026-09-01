@@ -5,6 +5,19 @@
 `assets/templates/testing-profile.md.template`. It is a delta over `aidex-coverage`:
 everything in it is specific to that project, and nothing in it is a rule.
 
+**Where it may live.** `.context/testing-profile.md` normally, and a repo-level
+`<project>/testing-profile.md` as a **tracked fallback** for a project that gitignores
+`.context/` — aidex does, by policy, so a profile there could never travel with a checkout
+and its own boundary gate was unrunnable on a fresh clone. `.context/` wins when both
+exist; `sweep-gate.sh`'s refusal names both paths (BL-289).
+
+**The `suite` leg.** Besides `backend`/`frontend`/`build`/`e2e`, `sweep-gate.sh` accepts
+`--only suite`, bound by `suite_cmd`, for a project whose entire test surface is one suite
+(a shell toolkit, a single-package library). It is deliberately **not** in the default leg
+set: adding it there would ask every existing project for a fifth key it has no answer for.
+Before it existed, such a project had to map its suite onto `backend` — a lie that passes
+only because the count regex happens to match.
+
 ## Facts versus rules
 
 | A fact (belongs in the profile) | A rule (never enters the profile) |
