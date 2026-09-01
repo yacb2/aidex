@@ -58,6 +58,18 @@ OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"; RC=$?
 [[ "$OUT" == *"REVIEW (1)"* && "$OUT" == *"$RID"* ]] && ok "the prod-signal item is REVIEW, not queued" || bad "review tier: $OUT"
 [[ "$OUT" != *"$MID"* ]] && ok "an M item is outside --size XS,S" || bad "M item present"
 
+# --slug is OPTIONAL, and omitting it is the path a real caller takes. Every other write
+# here passes --slug, so bash 3.2's empty-array-under-`set -u` expansion in the
+# `"${SLUG_ARGS[@]}"` call went unseen: the queue printed, then the run died before the
+# work-list existed. Assert the DEFAULT path writes a file (BL-291).
+NOSLUG_ERR="$TMP/noslug.err"
+NOSLUG="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Kickoff with no slug" 2>"$NOSLUG_ERR" | tail -1)"
+[[ -f "$NOSLUG" ]] && ok "a kickoff without --slug writes its work-list" \
+  || bad "no-slug kickoff wrote nothing: $(cat "$NOSLUG_ERR")"
+grep -q "unbound variable" "$NOSLUG_ERR" && bad "no-slug kickoff hit an unbound variable: $(cat "$NOSLUG_ERR")" \
+  || ok "a kickoff without --slug raises no unbound-variable error"
+rm -f "$NOSLUG"
+
 # the real thing
 WL="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Small sweep 3" --slug small-sweep-3 2>/dev/null | tail -1)"
 [[ -f "$WL" ]] && ok "work-list written: $(basename "$WL")" || bad "no work-list: $WL"

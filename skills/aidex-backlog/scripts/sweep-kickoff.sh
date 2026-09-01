@@ -76,8 +76,11 @@ while IFS=$'\t' read -r id title cluster merge; do
   [[ -n "$id" ]] || continue
   REFS+=(--ref "backlog:$id — $title   <!-- cluster: $cluster${merge:+ · MERGE} -->")
 done < <(printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --include "$INC" --exclude "$EXC" --format refs)
+# bash 3.2 (macOS) errors on `"${ARR[@]}"` when ARR is empty and `set -u` is on, so an
+# omitted --slug killed the run AFTER the queue had printed and BEFORE the work-list was
+# written. The `+` form expands to nothing instead of tripping the check.
 SLUG_ARGS=(); [[ -n "$SLUG" ]] && SLUG_ARGS=(--slug "$SLUG")
-WL="$(cd "$ROOT" && bash "$WL_SCRIPTS/worklist-new.sh" --title "$TITLE" --mode sweep --publish never "${SLUG_ARGS[@]}" "${REFS[@]}")"
+WL="$(cd "$ROOT" && bash "$WL_SCRIPTS/worklist-new.sh" --title "$TITLE" --mode sweep --publish never ${SLUG_ARGS[@]+"${SLUG_ARGS[@]}"} ${REFS[@]+"${REFS[@]}"})"
 # the original queue length is what the report measures emergent growth against (25 %),
 # and the NEEDS-DECISION list is recorded here so the report can carry it "unchanged and
 # unattempted" without a second partition at close-out

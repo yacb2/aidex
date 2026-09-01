@@ -189,5 +189,49 @@ grep -q 'bin/pre' "$TMP/err" \
   || bad "8 a detached leg silently drops its pre-command: $(cat "$TMP/err")"
 
 echo
+# ── 9 · a shell-only project binds the gate without misnaming its suite ──────
+# The leg vocabulary was backend|frontend|build|e2e, which has no name for a project
+# whose whole test surface is one suite. aidex mapped tests/run-all.sh onto `backend`
+# — a lie that happened to work because the count regex matched. `suite` is a valid
+# leg but NOT in the default set, so a bare run still binds exactly four legs and no
+# existing project is asked for a fifth key (BL-289).
+stub sh 0 "133/133 passed"
+profile "suite_cmd: bin/sh"
+OUT="$(run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=suite exit=0 count=133"* ]] \
+  && ok "9 --only suite binds suite_cmd and counts" || bad "9 suite leg: rc=$RC $OUT $(cat "$TMP/err")"
+[[ "$OUT" == *"verdict=PASS legs=1"* ]] && ok "9 one leg ran" || bad "9 legs: $OUT"
+
+# countless must still FAIL on the new leg — a leg added without this is a leg that
+# can report green over a runner that ran nothing, which is the whole point of the file
+stub sh 0 "done."
+OUT="$(run --only suite)"; RC=$?
+[[ $RC -ne 0 && "$OUT" == *"count=?"* ]] \
+  && ok "9 a countless suite leg FAILS like every other leg" || bad "9 countless suite: rc=$RC $OUT"
+
+# ── 10 · the profile may be tracked, so a gitignored .context/ is not a dead end ──
+# aidex gitignores .context/ by policy, so the profile it needs could never travel with
+# a checkout and its own boundary gate was unrunnable. A repo-level testing-profile.md
+# is the tracked fallback; .context/ still wins when both exist (BL-289).
+stub sh 0 "133/133 passed"
+rm -f "$P/.context/testing-profile.md"
+{ echo '---'; echo 'title: Testing profile'; echo 'status: open'
+  echo 'created: 2026-09-01'; echo 'updated: 2026-09-01'
+  echo 'suite_cmd: bin/sh'; echo '---'; } > "$P/testing-profile.md"
+OUT="$(run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=suite exit=0 count=133"* ]] \
+  && ok "10 a tracked repo-level profile binds the gate" || bad "10 tracked profile: rc=$RC $OUT $(cat "$TMP/err")"
+
+profile "suite_cmd: bin/nope"
+OUT="$(run --only suite)" || true
+[[ "$OUT" == *"count=133"* ]] || ok "10 .context/ wins when both exist"
+[[ "$OUT" == *"count=133"* ]] && bad "10 the tracked file shadowed .context/"
+
+rm -f "$P/.context/testing-profile.md" "$P/testing-profile.md"
+run --only suite >/dev/null 2>&1
+grep -q "testing-profile.md" "$TMP/err" && grep -q "$P/testing-profile.md" "$TMP/err" \
+  && ok "10 the refusal names BOTH paths it looked in" \
+  || bad "10 refusal message: $(cat "$TMP/err")"
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1
