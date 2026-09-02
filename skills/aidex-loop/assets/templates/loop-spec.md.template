@@ -83,7 +83,7 @@ updated: {{DATE}}
   loop may run unattended (pre-cleared in this interview): ____
 - **Always-ask (pause every time):** outward publication and trunk integration.
   Defaults: `git push`/publish/deploy/release, and merging this loop's branch into
-  the trunk. NOT `git commit`, dependency changes, or
+  the trunk (merging the trunk into the branch is autonomous). NOT `git commit`, dependency changes, or
   additive migrations (all autonomous — a destructive migration stays gated).
   Add/remove for this loop: ____
 - **Autonomous + log:** everything else that is safe, additive and non-breaking —

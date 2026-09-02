@@ -53,7 +53,8 @@ Classify the pending action, in order:
    a destructive migration, or conflict with a registered ADR) -> STOP; tell the executor to skip
    and document it.
 2. Stop condition met (loop/sweep target reached, or no safe work left) -> STOP.
-3. Unauthorized publication (push, publish, deploy, release NOT pre-authorized in the initial
+3. Unauthorized publication or trunk integration (push, publish, deploy, release, merge into
+   the trunk — NOT pre-authorized in the initial
    phase) -> ASK; do not authorize mid-run; finish all other safe work and surface ONE batched
    question at the end. This tier is ASK and never STOP, including when the executor reports
    MANY unpublished units across MANY repositories: it is telling you it declined to publish,
@@ -237,7 +238,7 @@ async function checkAction(action, ctx) {
 
 const cfg = parseArgs()
 const ctx = {
-  autonomySurface: cfg.autonomySurface || 'deny: destructive/data-loss. ask: push/publish/deploy/release. else: proceed+log.',
+  autonomySurface: cfg.autonomySurface || 'deny: destructive/data-loss. ask: push/publish/deploy/release/merge-into-trunk. else: proceed+log.',
   preAuthorized: cfg.preAuthorized || [],
   maxRetries: cfg.maxRetries ?? 2,
 }
@@ -253,7 +254,7 @@ function makeImplement(p) {
     agent(
       `Plan: ${cfg.planPath}\nPhase ${p.id} (attempt ${attempt}).\n\n${p.spec}\n\n` +
       `Autonomy surface (binding): ${ctx.autonomySurface}\n` +
-      `NEVER perform publication (push/publish/deploy/release) or destructive actions yourself — ` +
+      `NEVER perform publication (push/publish/deploy/release), trunk integration (merge into the trunk) or destructive actions yourself — ` +
       `list them as pending_actions in your report instead. Report proof = a reference to the\n` +
         `evidence artifact for this phase (test output path, payload capture, screenshot, \n` +
         `proof_links entry) — a phase without one does not pass, however green the gate. If genuinely blocked, return ` +

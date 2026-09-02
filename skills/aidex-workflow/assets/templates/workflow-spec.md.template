@@ -77,8 +77,10 @@ updated: {{DATE}}
   registered ADR or existing code. This-workflow additions: ____
 - **Pre-authorized (run without asking):** normally-prompting ops this workflow may
   run unattended: ____
-- **Always-ask (pause every time):** outward publication only. Defaults:
-  `git push`/publish/deploy/release. NOT `git commit`, deps, or additive migrations.
+- **Always-ask (pause every time):** outward publication and trunk integration.
+  Defaults: `git push`/publish/deploy/release, and merging this branch into the
+  trunk (merging the trunk into this branch is autonomous). NOT `git commit`,
+  deps, or additive migrations.
   Add/remove for this workflow: ____
 - **Autonomous + log:** everything else safe, additive, non-breaking — including a
   class-(b) emergent sub-unit appended to the work-list. Proceed; verify the
