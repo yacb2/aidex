@@ -19,12 +19,10 @@ non-PR change at all:
 | `/simplify` | `git diff @{upstream}...HEAD` with fallbacks; accepts a `<target>` string | yes — **and it applies fixes** |
 | `/security-review` | `git diff origin/HEAD...`, fixed at invocation | yes |
 
-> **Re-measured 2026-08-10 against CLI 2.1.226** (binary extraction + published docs +
-> one live invocation). The previous version of this table said `/code-review` computes
-> "the working diff" and that it is "**no** — user-triggered", and generalized that into
-> "the correctness engine is out of reach". Two of those three were wrong.
+> **Measured 2026-08-10 against CLI 2.1.226** (binary extraction + published docs +
+> one live invocation).
 >
-> **All three remain diff-anchored** — that part held, and it is why `aidex-review`
+> **All three are diff-anchored**, which is why `aidex-review`
 > exists. `/code-review`'s own scope agent is instructed verbatim that if the target
 > "names a PR number, branch, ref range, or file path, build the matching git diff
 > command for it".
@@ -46,24 +44,21 @@ non-PR change at all:
 > redirect to a separate command of type `local-jsx`/`local`, which the skill gate
 > rejects categorically (`reason:"not_prompt_type"`). The prompt says so itself:
 > *"Claude can't launch the cloud review directly."* The workflow-backed path is
-> `high`/`xhigh`/`max`, which is a different thing from ultra and was previously
-> conflated with it here.
+> `high`/`xhigh`/`max`, which is a different thing from ultra.
 
 **Reviewing code as it stands is out of scope for every row above**, because every row
 resolves to a diff. That case — a module, feature, path, or whole app with no base ref —
 belongs to `aidex-review`, which measures the target first (`resolve-review-target.sh`)
 and then runs Mode B angles over it.
 
-> **Correction, 2026-08-10.** This paragraph previously said `/code-review` discards
-> "pre-existing issues" and findings "on lines the user did not modify", and that a
-> module review inverts its rubric. **That attribution was wrong.** Those phrases belong
-> to the optional `code-review` *plugin* and to `/security-review` (*"Do not comment on
-> existing security concerns"* — verified firsthand by invoking it). The built-in
-> `/code-review` states the opposite in its Angle A: *"bugs in unchanged lines of a
-> touched function are in scope (the PR re-exposes or fails to fix them)"* — binary
-> 2.1.226, offsets 259126974 and 265694334, verified directly, not via an agent.
+> **Which instrument discards pre-existing issues (verified 2026-08-10).** The optional
+> `code-review` *plugin* and `/security-review` do (*"Do not comment on existing security
+> concerns"*, verified firsthand by invoking it). The built-in `/code-review` does not:
+> its Angle A reads *"bugs in unchanged lines of a touched function are in scope (the PR
+> re-exposes or fails to fix them)"*, binary 2.1.226, offsets 259126974 and 265694334,
+> verified directly, not via an agent.
 >
-> The gap is narrower and still real: a diff carries its own boundary (the hunks, plus
+> The gap that remains is real: a diff carries its own boundary (the hunks, plus
 > the functions they touch), and **a module has none** — it includes files with zero
 > hunks, which no diff-anchored instrument reaches at any effort level.
 
@@ -84,8 +79,8 @@ findings" without having read anything. Measured in the aidex repo on
 2026-07-27: `git diff --name-only origin/HEAD...` returned 0 paths with 1 dirty
 path in `git status --short`. Delegating to it would be delegating that bug.
 
-This is the "checkers lie by omission" failure the 2026-07-25 suite audit named:
-a gate that passes because it examined nothing.
+This is the "checkers lie by omission" failure: a gate that passes because it
+examined nothing.
 
 ## 2. The scope enum
 
@@ -150,7 +145,7 @@ Security costs zero on phases that do not touch a security surface.
 
 ## 5. Delegating a scope to `/simplify` — settled, and it is a mutation
 
-Established 2026-08-10 by extraction, replacing the "not established" note that stood here.
+Established 2026-08-10 by extraction.
 
 `/simplify` declares `argumentHint:"[<target>]"`. The argument is trimmed and injected
 verbatim as ``Review target: `<arg>` `` with **zero flag parsing** — there is no `--fix`

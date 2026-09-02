@@ -10,29 +10,30 @@ skill for recall, or before designing any A/B over skill descriptions.
 Companion to `skill-conventions.md` (the authoring canon). This file is the *testing
 methodology + findings + experiment discipline*; the canon is the *authoring rules*.
 Not normative — empirical. Sections §1–§5 are the runs-1–6 record; §6–§7 are the
-2026-05-18 instrument-instability + anti-motivated-design discipline (the most
-portable part — applies to any project, any skill).
+2026-05-18 instrument-instability + anti-motivated-design discipline (portable to
+any project, any skill).
 
 ---
 
-## 1. Which levers move recall (the most important section)
+## 1. Which levers move recall
 
 | Lever | Status | Evidence |
 |---|---|---|
-| Description **wording / style** micro-tuning | **DEAD — do not iterate** | Runs 1–4: 4 iterations, 3 structurally distinct hypotheses (bilingual mega-enum; canonical `description`+`when_to_use`; Superpowers trigger-first) → flat ~35% aggregate. Conclusive. |
+| Description **wording / style** micro-tuning | **DEAD — do not iterate** | Runs 1–4: 4 iterations, 3 structurally distinct hypotheses (bilingual mega-enum; canonical `description`+`when_to_use`; Superpowers trigger-first) → flat ~35% aggregate across all four. Directional, at the strength §10 allows. |
 | Inventory **mislabel cleanup** | **EXHAUSTED — small** | Run-4: exhaustive audit of all 40 `should_trigger=true` queries found **exactly one** genuine mislabel (aidex-backlog #7, read/list in a create-skill). One in forty ⇒ the ~35% is *not* inventory pollution. |
 | **Structural split of mega-skills** | **REFUTED (two fair isolated pilots, 2026-05-16, B-β + B-γ)** | **B-β** `aidex-plan` (colliding intent, whole aidex family neutralized): adj recall **20%**. **B-γ** `aidex-decision` (no-affordance-twin intent, family **incl. aidex-plan** neutralized): adj recall **40%** — vs same-session same-env control `aidex-backlog` 78%. Both far below the usable single-purpose floor; structure perfected precision (→100% both) but never recall. Mechanism, **directional only** (n=20/pilot — one matcher coin-flip ≈ ±10pp; do **not** cite the pp figures as measured point estimates): the no-twin intent out-recalling the colliding one (40 vs 20) is consistent with **two components** — a *partial* plan-create affordance collision (the twin-specific part) plus a larger *twin-independent* residual suppressor that survives split + full isolation even with no native twin. Not the aidex siblings, not structure. See `.context/audits/2026-05-15-skill-trigger-eval/stage-a-b-assessment.md` "ISOLATED RE-TEST (B-β)" + "CONFOUND-CONTROL PILOT (B-γ)". **Do not re-run or extend (no aidex-request/aidex-research pilots)** — settled across a colliding and a non-colliding intent. |
 
 **Bottom line (updated 2026-05-16, B-β + B-γ):** all three recall levers are
 exhausted — wording **DEAD**, inventory **EXHAUSTED**, structure **REFUTED**
 (two fair isolated pilots: a colliding intent at 20%, a no-twin intent at 40%,
-both well below the 78% single-purpose floor). "Recall can't be improved by
-skill-side changes (text, inventory, or structure)" is conclusive. The
-residual gap is **consistent with two components** (directional, n=20/pilot —
-not precise estimates): a *partial* plan-create affordance collision
-(twin-specific) and a larger *twin-independent* matcher suppressor that
-survives splitting + full sibling isolation. Do not re-open any of the three
-levers; do not extend the split experiment.
+both well below the 78% single-purpose floor). No lever showed detectable
+movement. "Recall can't be improved by skill-side changes (text, inventory,
+or structure)" is where the evidence points, at §10's strength rather than
+as a significance claim. The residual gap is **consistent with two
+components** (directional, n=20/pilot — not precise estimates): a *partial*
+plan-create affordance collision (twin-specific) and a larger
+*twin-independent* matcher suppressor that survives splitting + full sibling
+isolation. Do not re-open any of the three levers; do not extend the split experiment.
 
 ### 1a. Catalog size is a FOURTH lever, and it is also closed for recall (2026-08-01)
 
@@ -274,7 +275,7 @@ config splitting does **not** even perfect precision (FP 4–6/10; the pilots'
 
 ---
 
-## 6. The instrument is not a stable point estimate (2026-05-18 — the biggest measurement finding)
+## 6. The instrument is not a stable point estimate (2026-05-18)
 
 §2 established parallelism corrupts the number. The 2026-05-18 thread established
 something deeper and more dangerous, because it bites even a "clean" sequential run:
@@ -323,7 +324,7 @@ Consequences (mandatory, portable to any project):
   and clear a same-session faithfulness gate first (§7). Provenance:
   `03-pilot-precommit.md` Thread-1 redesign, `04-thread1-verdict.md`.
 
-## 7. Anti-motivated-design discipline (the most portable lesson — applies to every project)
+## 7. Anti-motivated-design discipline (applies to every project)
 
 A trigger-eval over a hypothesis you have a stake in (a description rewrite, a
 multilingual-padding removal, "I bet structure helps") is, by default, a motivated
@@ -402,7 +403,7 @@ prevent the most expensive failure mode: an uninterpretable or self-confirming r
 > memory `feedback_skill_recall_ceiling_native_affordance` flags (other
 > siblings, regime-portability) **remains OPEN**.
 
-## 8. Concurrent-execution invalidation (2026-05-19 — the most expensive lesson)
+## 8. Concurrent-execution invalidation (2026-05-19)
 
 §2 forbade parallel `eval-pty.sh` runs ("recall corrupted via MCP cold-start
 contention"). The 2026-05-19 5-sibling extension attempt established two
@@ -546,7 +547,7 @@ pass with the failure it is supposed to catch. A grader only ever demonstrated
 passing is not demonstrated at all — the same rule §7 applies to descriptions,
 applied to instruments.
 
-## Executor probes name a FICTIONAL plan
+## 9a. Executor probes name a plan that does not exist
 
 A negative or cannibalization probe aimed at `aidex-plan-exec` (or any executor) must
 not reference the plan you are currently executing. "Continue with phase 6 of the plan"

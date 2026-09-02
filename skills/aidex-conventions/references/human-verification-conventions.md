@@ -2,17 +2,13 @@
 
 Shared canon. Consumers: `aidex-plan-exec` (close-out step 7), `aidex-bugfix`
 (step 8) and `aidex-backlog`'s sweep run mode (`sweep-execution-policy.md`, close-out).
-None restates it — a restated protocol is a second place to drift, and
-this one was already re-dictated by hand ~8 times across three projects in a single
-3-day window (usage-retro run 6, R6-04).
+None restates it — a restated protocol is a second place to drift.
 
 ## Why this is a step and not guidance
 
 Verification that only a human can do — a flow clicked through, a screen actually
-looked at — had no place to happen and no way to leave a trace. Measured adoption of
-the mandates that *are* written down is **2.2%** for `aidex-bugfix`'s RED→GREEN and
-**7.6%** for `proof_links` (verification study, `research/`). More guidance does not
-move a number like that. A step at a gate does, because the gate is already being run.
+looked at — had no place to happen and no way to leave a trace. Guidance written down
+does not get adopted; a step sited at a gate does, because the gate is already being run.
 
 ## Where it fires
 
@@ -52,16 +48,15 @@ leaves the review window.
 
 The checklist is **a durable written record linked from `proof_links`** (`00-global.md`
 §7.1). Without this the verification happens and then vanishes with the session, which is
-the failure mode the whole step exists to close — 5 of 6 verification actions leave no
-artifact today. The record takes one of two shapes, by consumer:
+the failure mode the whole step exists to close. The record takes one of two shapes,
+by consumer:
 
 - **A plan or a bug fix** writes `.context/proofs/<slug>/human-verification.md`.
 - **A sweep** does not write that file per item. Its owner rows live in each item's
   `## Verification` table (`kind: owner`, proof empty until the owner answers) and
   `sweep-report.sh` aggregates every owner row across the run into one list — one artifact
   per run, not one per item, so the owner answers in one place instead of across N stray
-  files. `worklist-close.sh` refuses to end the run while an owner row is unanswered
-  (amended 2026-08-27, plan `2026-08-27-backlog-sweep-run-mode`).
+  files. `worklist-close.sh` refuses to end the run while an owner row is unanswered.
 
 The file carries three parts:
 

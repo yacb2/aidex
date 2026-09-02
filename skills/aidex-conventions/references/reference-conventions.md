@@ -19,7 +19,7 @@ references/<topic>/
 
 ### No archive folder (D-05)
 
-References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: [`2026-05-14-archive-folder-convention.md`](../../../.context/decisions/2026-05-14-archive-folder-convention.md).
+References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: `decision/2026-05-14-archive-folder-convention` (named, not linked: these ADRs live in the aidex repo's own gitignored `.context/decisions/`, per `00-global.md` §11).
 
 ### Research shapes (ADR `decision/2026-07-02-research-artifact-shape`)
 
@@ -271,10 +271,7 @@ a checklist of boxes. Every check carries three things:
 
 **Do not use `- [ ]` checkboxes here.** A box reads as verification while proving nothing,
 and an unticked box asserting something false is indistinguishable from one asserting
-something true. This is not hypothetical: unticked boxes claiming *"a weak password is
-rejected"* and *"the blacklist rejects a replayed token"* shipped across several projects
-on this machine, and one project found a box asserting that two cleanup tasks were
-scheduled when neither was.
+something true.
 
 Two corollaries:
 

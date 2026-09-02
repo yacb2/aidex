@@ -51,15 +51,8 @@ blocked_by: ""
 
 ### Legacy status mapping
 
-The previous request vocabulary maps to the base lifecycle as follows:
-
-| Legacy | Maps to |
-|---|---|
-| `Open` | `status: open` |
-| `In Progress` | `status: doing` |
-| `Escalated to Plan` | `status: done` + `escalated_to: plan/<filename>` |
-| `Deferred` | `status: open` + `blocked_by: <reason>` |
-| `Rejected` | `status: dropped` (reason in body) |
+Owned by [`00-global.md` §6](00-global.md#6-status-vocabulary), under *Type-specific
+mappings*, which carries the request rows alongside every other type's.
 
 ### Body template
 
@@ -98,18 +91,8 @@ open ──▶ doing ──▶ done
 - **Open + `blocked_by: <…>`:** valid but deferred.
 - **Dropped:** won't do; document why in Outcome.
 
-Per D-05, completed requests (`done`, `dropped`) move to `_archive/`.
-
-### Interception behavior
-
-When `aidex-conventions` detects the user describing a new requirement, it should offer:
-
-> "This sounds like a new requirement. Would you like to:"
-> 1. **Create a formal request** — quick capture in `.context/requests/`.
-> 2. **Create a plan directly** — if scope is known and you want phases.
-> 3. **Launch research/investigation** — if this needs exploration before committing.
-
-The user controls the depth of formalization.
+Per D-05 as amended by D-10, completed requests (`done`, `dropped`) move to `_archive/`
+on close, not after a delay.
 
 ---
 
@@ -208,7 +191,8 @@ accepted ──▶ superseded   (newer decision replaces it)
    └───────▶ dropped       (reversed without replacement)
 ```
 
-Per D-05, decisions in `superseded` or `dropped` status move to `_archive/`.
+Per D-05 as amended by D-10, decisions in `superseded` or `dropped` status move to
+`_archive/` on close.
 
 ### When to create a decision
 

@@ -2,8 +2,8 @@
 
 One-time procedures: bringing a pre-canon `.context/` up to the conventions, and
 backfilling the plans/audits roll-up indexes for projects that pre-date them. They live
-here rather than in `SKILL.md` because they are **conditional content** — a project is
-migrated once and then never again, so inlining them charged every session for a
+here rather than in `SKILL.md` because they are **conditional content**: a project is
+migrated once and then never again, so inlining them would charge every session for a
 procedure almost none of them run.
 
 ## Migration
@@ -31,7 +31,7 @@ What it does (idempotent — re-running on a clean tree is a no-op):
 Recommended workflow:
 
 1. Back up the project's `.context/` before applying (a `cp -r` or commit if tracked).
-2. Run `--dry-run` and read the plan — pay attention to the front-matter changes and the cross-ref rewrites.
+2. Run it without `--apply` (dry-run is the default) and read the plan; pay attention to the front-matter changes and the cross-ref rewrites.
 3. Apply with `--apply`.
 4. Re-run the validator: `~/.claude/skills/aidex-conventions/scripts/validate.sh /path/to/project/.context`. Expect 0 violations **except** for anything the migration listed under `manual_review` — those are the cases it declined on purpose, and they are yours to resolve. Exit code 1 after `--apply` means exactly that: applied, with warnings.
 

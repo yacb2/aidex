@@ -22,7 +22,7 @@ block against this canonical one and fails on any mismatch.
   closure MUST pass `spec` but **never** `gateCmd` to the implementer agent, so it cannot read
   the grading test and optimize to it (it satisfies the contract, not a visible test). The
   verifier's proof evidence is the only gate signal the implementer sees, and only as retry
-  feedback. (Evolution Phase 1 keystone — closes the "test-visible implementer" leak.)
+  feedback. This is what closes the "test-visible implementer" leak.
 - **Reviewer is blind to the implementation** — the `review-with-gate` form spawns a **fresh**
   reviewer whose only inputs are the cumulative diff + the plan's success criteria + an optional
   **pushed** `standards_ref`; it is never handed the implementation transcript (it reviews from a
@@ -30,7 +30,7 @@ block against this canonical one and fails on any mismatch.
   side of push/pull and reaches only the reviewer — an implementer that needs a standard **pulls** a
   targeted one via its phase spec, so the reviewer can enforce a rule the implementer was never shown.
   The review verdict's machine-checkable `passed` boolean (not its prose findings) is the gate
-  trigger, mirroring the Bash verifier's `proof.passed`. (Evolution Phase 3 — clean-context review.)
+  trigger, mirroring the Bash verifier's `proof.passed`.
 - **`verify_first` carried by the JS loop** in batch — `if (!proof.passed) retry`. The arbiter
   is the carrier only in the interactive (Stop-hook) host.
 - **Conditional arbiter** — invoked **only** on machine-checkable triggers (retry budget
@@ -42,8 +42,7 @@ block against this canonical one and fails on any mismatch.
 - **Publication/deny actually gated in batch** — implementers are told to *report*
   pub/deny actions in `pending_actions` (never perform them); `runPhase` routes each
   through `checkAction`: pre-authorized → proceed, `ASK` → batched question collected
-  while the phase continues, `STOP` → escalate. This is the carrier `checkAction` was
-  designed for (it was previously defined but never called).
+  while the phase continues, `STOP` → escalate.
 - **No proof artifact, no phase pass** — a passed result additionally requires the
   implementer's `WORK_SCHEMA.proof`: a reference to the evidence artifact (test output,
   payload capture, screenshot, `proof_links` entry) produced before the phase commit. A green
@@ -214,7 +213,7 @@ async function checkAction(action, ctx) {
 
 The batch arbiter prompt (`ARBITER_PROMPT`, used by CORE's `arbiter()`) is **single-sourced
 here and re-embedded verbatim** in every asset, exactly like the CORE block — the same drift-lock
-covers both. This replaces the per-asset abbreviated stubs that could silently diverge.
+covers both.
 
 **Why it is a backtick-free rendering, not `durability-arbiter.md` byte-for-byte.** The
 interactive (Stop-hook) host reads
@@ -298,9 +297,6 @@ rather than weakening the guard from memory.
    terminal STOP.
 
 ## Four things a large Workflow run does not tell you
-
-Measured on a cross-project classification run over ~185 rows and 264 verified
-candidates.
 
 **Never end a workflow with one synthesis agent emitting the whole result.** A final
 agent asked for three large structures in a single structured output froze mid-generation

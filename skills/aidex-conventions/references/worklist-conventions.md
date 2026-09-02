@@ -122,9 +122,9 @@ stay the last section because `--append` writes to the end of the file.
 
 ## Sweep mode drives the item lifecycle
 
-A plain work-list only *names* the next item — the queue and the item lifecycle ran
-beside each other, which is how items were worked with `status: open` and closed out of
-band. With `mode: sweep` (written by `worklist-new.sh --mode sweep`, the shape
+A plain work-list only *names* the next item, so the queue and the item lifecycle run
+beside each other and an item can be worked at `status: open` and closed out of band.
+With `mode: sweep` (written by `worklist-new.sh --mode sweep`, the shape
 `/aidex-backlog sweep` creates), a plain `worklist-advance.sh`:
 
 1. **closes the head** through `close-item.sh --sweep <BL-id>` when its ref is `backlog`.
