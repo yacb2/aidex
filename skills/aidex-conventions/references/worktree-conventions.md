@@ -80,13 +80,12 @@ user did not approve — surface the recommendation, then act on the answer.
 
 ## Repo topology changes the unit of isolation
 
-> **Correction (2026-07-01):** earlier drafts of this canon implied monorepo was the
-> default shape for this kind of project. A session investigation found 6/6 sampled
-> projects were actually split-git services glued by an unversioned orchestration
-> wrapper. There is no default — every project's topology is detected fresh. See
+> **There is no default topology.** Do not assume monorepo: a sampled set of six such
+> projects were all split-git services glued by an unversioned orchestration wrapper.
+> Every project's topology is detected fresh — see
 > `aidex-worktree/references/01-topology-detection.md`.
 
-The table below is illustrative of the categories that exist, not a claim about which
+The list below is illustrative of the categories that exist, not a claim about which
 one is typical:
 
 - **Monorepo** (one repo holding backend + frontend + mobile, one compose file): a
@@ -184,10 +183,8 @@ remember is the step that gets skipped.
 
 A dev DB volume whose containers were removed by `compose down` (without `-v`)
 **dangles while still holding real data** — "dangling" describes reachability from a
-running container, not whether the data matters. Observed live across loom_lab,
-work_hours, ph, ns-web, and potential_clients (2026-07-23): each had accumulated
-untracked `-wt-` volumes/images from skipped teardowns, several holding data nobody
-had verified was disposable.
+running container, not whether the data matters. Skipped teardowns accumulate untracked
+`-wt-` volumes and images, and some of them hold data nobody has verified is disposable.
 
 - **Banned outright:** `docker volume prune -a` / `--all` — it removes every unused
   volume system-wide with no per-item review, including named volumes that happen not

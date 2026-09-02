@@ -274,24 +274,9 @@ Files in `.claude/rules/` are auto-loaded by Claude Code.
 Contains:
 - Personal preferences
 - Cross-project conventions
-- Skill usage tracking
 - Global tool configurations
 
-Example:
-```markdown
-# Global Rules & Preferences
-
-## Git & Commits
-- Do not add co-authorship in commits
-
-## Workflow
-- Always create plans before major changes
-
-## Skill Usage Tracking
-- Mention skills used at end of responses
-```
-
-### Project (.claude/CLAUDE.md)
+### Project (`./CLAUDE.md`, or `.claude/CLAUDE.md`)
 
 Contains:
 - Project-specific tech stack
@@ -299,56 +284,7 @@ Contains:
 - Links to project documentation
 - Project-specific commands
 
-## Writing Guidelines
-
-### Be Concise
-
-```markdown
-# Good
-- Use TypeScript strict mode
-- Run `npm test` before commits
-
-# Bad
-- We use TypeScript with strict mode enabled because it helps catch errors at compile time and improves code quality
-- Before committing any changes, please run the test suite using npm test to ensure nothing is broken
-```
-
-### Use Lists Over Paragraphs
-
-```markdown
-# Good
-## Conventions
-- Prefix components with `App`
-- Use `kebab-case` for files
-- Export from index files
-
-# Bad
-## Conventions
-Our project follows specific naming conventions. Components should be prefixed with App. File names use kebab-case format. We export all modules from index files.
-```
-
-### Structure for Scanning
-
-Use clear headings that Claude can quickly parse:
-- `## Tech Stack`
-- `## Key Commands`
-- `## Critical Conventions`
-- `## Documentation`
-
 ## Validation Rules
-
-### Size Checks
-
-- [ ] Under 300 lines
-- [ ] No verbose explanations
-- [ ] No duplicated information
-
-### Security Checks
-
-- [ ] No API keys
-- [ ] No passwords
-- [ ] No tokens
-- [ ] No credentials
 
 ### Structure Checks
 
@@ -362,9 +298,3 @@ Use clear headings that Claude can quickly parse:
 - [ ] Links to detailed docs (not inline)
 - [ ] All referenced files exist
 - [ ] No orphaned sections
-
-### Quality Checks
-
-- [ ] Concise language
-- [ ] Actionable content
-- [ ] No outdated information
