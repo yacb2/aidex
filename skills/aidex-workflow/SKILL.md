@@ -91,8 +91,9 @@ parameters were defaulted. Full rule:
    unattended. Use Claude Code's native `allow`/`ask`/`deny` — do NOT enumerate an
    allowlist. Pin: (a) any workflow-specific **deny**; (b) the **pre-authorized** ops;
    (c) the **always-ask** set (defaults: publication — push/publish/deploy/release and
-   integrating a branch into the trunk — NOT commit, deps, or additive migrations; the
-   canon linked below owns the full list). Everything else safe + additive is autonomous:
+   integrating a branch into the trunk; merging the trunk INTO the branch stays
+   autonomous — NOT commit, deps, or additive migrations; the canon linked below owns
+   the full list). Everything else safe + additive is autonomous:
    proceed, verify the assumption, log it. (See
    [`../aidex-conventions/references/autonomy-conventions.md`](../aidex-conventions/references/autonomy-conventions.md).)
 7. **Isolation surface.** If the workflow's agents **mutate files in parallel**, they
@@ -143,7 +144,8 @@ condition without interrupting the user:
   work proceeds — including an unforeseen non-breaking micro-decision under your
   authorship (class b: append to the work-list, continue silently).
 - **Pause only** for the **deny** set and the **ask** set (push/publish/deploy/release,
-  plus any the spec declared). Commit, deps, and additive migrations are **not** gated.
+  merging the branch into the trunk — not the trunk into the branch — plus any the
+  spec declared). Commit, deps, and additive migrations are **not** gated.
 - **Proceed + log, don't halt:** on a safe additive decision, verify the assumption
   (investigate, don't guess) and log it — do not stop.
 - **A genuine emergent decision the work itself revealed (class c)** is the one

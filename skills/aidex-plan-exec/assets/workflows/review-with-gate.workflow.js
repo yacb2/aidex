@@ -57,7 +57,8 @@ Classify the pending action, in order:
    a destructive migration, or conflict with a registered ADR) -> STOP; tell the executor to skip
    and document it.
 2. Stop condition met (loop/sweep target reached, or no safe work left) -> STOP.
-3. Unauthorized publication (push, publish, deploy, release NOT pre-authorized in the initial
+3. Unauthorized publication or trunk integration (push, publish, deploy, release, merge into
+   the trunk — NOT pre-authorized in the initial
    phase) -> ASK; do not authorize mid-run; finish all other safe work and surface ONE batched
    question at the end. This tier is ASK and never STOP, including when the executor reports
    MANY unpublished units across MANY repositories: it is telling you it declined to publish,
@@ -286,7 +287,7 @@ function review(cfg) {
 
 const cfg = parseArgs()
 const ctx = {
-  autonomySurface: cfg.autonomySurface || 'deny: destructive/data-loss. ask: push/publish/deploy/release. else: proceed+log.',
+  autonomySurface: cfg.autonomySurface || 'deny: destructive/data-loss. ask: push/publish/deploy/release/merge-into-trunk. else: proceed+log.',
   preAuthorized: cfg.preAuthorized || [],
   maxRetries: cfg.maxRetries ?? 2,
 }

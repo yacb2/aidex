@@ -96,8 +96,9 @@ spec and stop rather than guess one.
    allowlist. Pin three things: (a) any loop-specific **deny** beyond the base
    destructive config; (b) the **pre-authorized** ops that may run without asking;
    (c) the **always-ask** set (defaults: push/publish/deploy/release, plus
-   integrating a branch into the trunk — NOT commit, deps, or additive migrations,
-   which are autonomous; a destructive migration stays gated). Everything else safe + additive is autonomous: proceed, verify the
+   integrating a branch into the trunk — merging the trunk INTO the loop's branch
+   stays autonomous; NOT commit, deps, or additive migrations, which are autonomous;
+   a destructive migration stays gated). Everything else safe + additive is autonomous: proceed, verify the
    assumption, log it. This is the lever that stops the loop from interrupting the
    user. (ADR `decision/2026-06-19-loop-autonomy-surface-native-permissions.md`.)
 6. **Isolation surface.** Decide whether the loop needs its own git worktree so it does
@@ -136,8 +137,8 @@ condition or turn cap **without interrupting the user**:
   additive work proceeds — including an unforeseen, non-breaking architectural
   micro-decision that falls under your authorship.
 - **Pause only** for the **deny** set (blocked outright) and the **ask** set
-  (push/publish/deploy/release, merging the loop's branch into the trunk, plus any
-  the spec declared). Commit, deps, and additive migrations are **not** in the
+  (push/publish/deploy/release, merging the loop's branch into the trunk — not the
+  trunk into the branch — plus any the spec declared). Commit, deps, and additive migrations are **not** in the
   ask-set — outward publication and trunk integration are.
 - **Proceed + log, don't halt:** on a safe additive decision, the burden is to
   **verify the assumption is correct (investigate, don't guess)** and **surface or
