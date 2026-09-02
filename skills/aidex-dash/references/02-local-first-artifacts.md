@@ -129,7 +129,7 @@ SAME path. Concretely:
   from the question set and summarised in the ledger. Leaving it in is asking a
   settled question again; deleting it without recording the answer loses the decision. `check-artifact.sh` flags an id that sits in the ledger AND in the question set;
   it cannot see one decided and never written to the ledger, because the ledger is
-  the only declaration of decidedness the page carries (BL-198).
+  the only declaration of decidedness the page carries.
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
 - **Typed answers survive the regeneration** — the composer keeps them in
@@ -333,7 +333,7 @@ prints a NOTE saying the contract went unverified.
 ### 5. Read what the contract check said
 
 `--out` already ran it. It checks doctype, charset, viewport, title, dark mode, **the body's language against
-`<html lang>`** (`lang`, BL-279: an English page under a Spanish profile got the composer's
+`<html lang>`** (`lang`: an English page under a Spanish profile got the composer's
 Spanish chrome on top of English prose — the profile's `language:` decides, and the body
 follows it, or `--lang` is passed on purpose), no
 external CSS/JS/fonts/images, no sibling assets, the kit's layout container and wrapped
@@ -352,7 +352,7 @@ and a check that is skipped is indistinguishable from a check that passed.
 **The contract is also re-judged after the fact.** It used to be evaluated exactly once,
 at the wrap, and never again — so a page that passed at 10:31 failed by 20:15 the same day
 when two rules landed that evening, invisibly, and a page that bypassed the wrapper
-entirely (BL-168) was never seen at all. Two mechanisms close that:
+entirely was never seen at all. Two mechanisms close that:
 
 - **Every `--out` wrap re-judges the `.html` neighbours of the file it just wrote** and
   prints a NOTE per drifted page — non-blocking (this wrap's own file passed), but audible
@@ -393,7 +393,7 @@ anchor (§3.2 of `00-global.md`).
 
 `open <file>`.
 
-### 7b. Width, measure and tables (kit v9, BL-248)
+### 7b. Width, measure and tables (kit v9)
 
 The page takes the screen it is given, capped at `min(78rem, 100vw - 6rem)`; running
 text keeps a reading measure of 46rem (~80 characters) through the kit's `.measure`
@@ -466,7 +466,7 @@ messages and the tests; § 8.4 is the block shape.
    (items of 350-700 words) under a 1,553-word preamble two questions depended on —
    *"tengo que seguir viendo arriba… termino respondiendo sobre la poca información
    que me agregas en la pregunta"*. That page is why the unit moved from the item to
-   the block (BL-247): the item rule was being satisfied by growing the items while
+   the block: the item rule was being satisfied by growing the items while
    the context above them never moved.
 
    **The page around the blocks is fixed.** Before the first block: the header
@@ -479,7 +479,7 @@ messages and the tests; § 8.4 is the block shape.
    reference section is never the only place a fact a decision needs lives.
 
    **In a block context OR an item body, more than three facts of one shape are a
-   table, a list or a figure — never a paragraph (BL-269, BL-270).** The block's
+   table, a list or a figure — never a paragraph.** The block's
    context states the finding in a sentence; what it rests on — N skills with their
    state and their proposed action, a queue of steps, what is called vs not called vs
    proposed — goes in rows, with the columns the decision needs (the thing · what it is
@@ -575,7 +575,7 @@ persistence a wrong click survived every reload and the only recovery was editin
 markdown the composer had already copied. It arrives by wrapping, so it is not written
 into a block and cannot be forgotten.
 
-**Since kit v10 (BL-268), three more things the composer owns, none of them written by
+**Since kit v10, three more things the composer owns, none of them written by
 the author:**
 
 | | What | Why |
@@ -584,7 +584,7 @@ the author:**
 | A releasable radio | clicking the picked option again un-picks it (mouse) | Clear also empties the notes; a reader who changed their mind about the mark alone had to retype |
 | The "other" choice | every `.opts` group ends with an injected `Other — see my notes` option, same name and input type as the group, in the page's language | a closed list loses the answer the author did not anticipate; the reader had to leave the group unmarked and hope the notes were read as the answer |
 
-**Since kit v11 (BL-280), the composer owns the fixed labels too.** Every string the
+**Since kit v11, the composer owns the fixed labels too.** Every string the
 author copies out of `skeleton.html` — `Notes on this one`, `The choice`, `The value`,
 `Anything that does not fit above`, and the textarea placeholders beside them, on top of
 `Copy my answers` and `Contents` — is replaced with the page's language when the copied
@@ -679,7 +679,7 @@ from review:
 The exemption is **bounded**, in both directions that matter. It covers only closed
 controls (select, radio, checkbox, short text): a `<textarea>` or `contenteditable`
 element can never be declared away, because free text is what a consultation *is* and
-BL-168's page was exactly hand-rolled textareas. And a page carrying real consultation
+the page that bypassed the wrapper was exactly hand-rolled textareas. And a page carrying real consultation
 structure — a `data-id` item, the composer button, the item class — keeps the full
 battery whatever the meta says. A placeholder reason (`none: replace this…`, `tbd`)
 exempts nothing, same rule as the visual declaration.

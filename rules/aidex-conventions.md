@@ -47,7 +47,7 @@ Applies to any artifact created under `<project>/.context/` and any skill output
 
 ## Overrides
 
-A project's `CLAUDE.md` may override `Language` (e.g., direct `.context/` artifacts to Spanish). Editing a local skill copy is the second supported override path. A user asking in the moment for *this* artifact in another language also wins — scoped to that artifact, never standing, recorded as a waiver. A **global** `CLAUDE.md` must not claim language scope: that belongs to D-04, and a second always-on file asserting it is the contradiction closed as BL-076. No other rule here may be overridden silently — record the deviation as a project decision.
+A project's `CLAUDE.md` may override `Language` (e.g., direct `.context/` artifacts to Spanish). Editing a local skill copy is the second supported override path. A user asking in the moment for *this* artifact in another language also wins — scoped to that artifact, never standing, recorded as a waiver. A **global** `CLAUDE.md` must not claim language scope: that belongs to D-04, and a second always-on file asserting it produced a live contradiction (resolved 2026-08-03). No other rule here may be overridden silently — record the deviation as a project decision.
 
 ## ADR canon
 

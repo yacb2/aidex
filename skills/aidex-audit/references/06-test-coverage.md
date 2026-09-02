@@ -75,7 +75,7 @@ workspace-root-relative).
 - `modules[].id` — short slug, unique within the map.
 - `modules[].title` — human-readable label.
 - `modules[].src` — glob list of source paths this module owns.
-- `modules[].src_exclude` — optional glob list subtracted from `src` (BL-229).
+- `modules[].src_exclude` — optional glob list subtracted from `src`.
   For co-located test scaffolding that lives inside the module's own source
   tree — `__fixtures__/`, `__mocks__/`, a `testUtils.ts` next to the component —
   and would otherwise count as product source and inflate `src_files`, which is
@@ -98,7 +98,7 @@ workspace-root-relative).
   They are reported as a `scoped out: N` count (and `unmapped_scoped_out` in
   the JSON), never listed — so the unmapped list shows only new drift, not
   the ~90% intentional rows that buried echo_lab's real signal.
-- `modules[].has_surfaces` (JSON output) — emitted, read by nothing (BL-210).
+- `modules[].has_surfaces` (JSON output) — emitted, read by nothing.
   Kept deliberately: the schema rule is "bump on key-set change", a bump makes
   every already-generated matrix unrenderable until regenerated, and spending
   that fleet-wide cost on deleting an unread boolean buys nothing. It leaves
@@ -237,7 +237,7 @@ flags is unverifiable, and the consumer says so.
 ### Producing it
 
 The file regenerates from nothing on its own — it is Preparation step 4 of the
-test-coverage playbook, run per audit (BL-199: no project had ever generated it,
+test-coverage playbook, run per audit (no project had ever generated it,
 so the ranking was silently inert everywhere). The exact command:
 
 ```bash
@@ -296,7 +296,7 @@ workspace root is not itself a repo.
 If the workspace root *is* the git repo (single-repo project), declare one
 entry with `"path": "."`.
 
-## Coverage thresholds — flag enforcement, not just the number (BL-200)
+## Coverage thresholds — flag enforcement, not just the number
 
 A coverage number nobody gates on can regress silently forever. The audit
 therefore reports, per project, whether a threshold is **enforced**, not only

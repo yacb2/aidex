@@ -56,7 +56,7 @@ superseded_by: decision/pending
 
 For audits, `<type>` is `audit` and the filename includes the methodology and run path: `audit/<methodology>/<run>/<finding-id>`.
 
-### 3.1 External refs (BL-070)
+### 3.1 External refs
 
 Some targets do not live in this `.context/` at all. They are **stable identifiers**, so the format is checked and the existence check is skipped — there is nothing on this filesystem tree to resolve them against.
 
@@ -69,7 +69,7 @@ A `<type>/…` ref is **never** external: the eleven local types stay fully reso
 
 Path leaks are a different problem and are **not** accepted here: an `origin_ref` carrying a filesystem path (`request/../../requests/x.md`) is malformed and gets normalised to its `<type>/<filename>` marker at the source, not swallowed by the schema.
 
-### 3.2 The anchor of a rendered companion (BL-234)
+### 3.2 The anchor of a rendered companion
 
 A rendered `.html` companion has no front-matter, so it declares the artifact it belongs to **in the page**:
 
@@ -103,8 +103,8 @@ Language is **scoped by artifact kind** — there is no longer a blanket "all ge
 The assistant continues to *reply* in the user's spoken language; only the written knowledge artifacts above are constrained.
 
 - **Override:** the project's `CLAUDE.md` may explicitly direct another language for knowledge artifacts (e.g., "Generate `.context/` artifacts in Spanish"). A local skill edit is the second supported override path. The communications exemption needs no override — it is the default.
-- **Per-artifact override:** the user asking, in the moment, for *this* artifact in another language also wins — their explicit instruction outranks a default. It is scoped to that artifact, never standing, and the deviation is recorded as a waiver (§10) so the next validate run reports it as accepted rather than new. A **global** `CLAUDE.md` must not claim this scope: language scope belongs to this ADR, and a second always-on file asserting it is what produced the live contradiction closed as BL-076 (2026-08-03).
-- **Enforcement:** `validate.py` flags Spanish-dominant body text in knowledge artifacts as a WARNING (`body-language-not-english`). The heuristic is a conservative stopword-density test — it flags clearly-Spanish bodies only, never borderline bilingual quotes. Front-matter values, fenced code blocks, and `communications/` are exempt — and so is a **rendered** artifact (`.html`) in a project whose `.context/artifact-style.md` declares that language, since the profile is what authorises it (BL-231). That exemption is scoped to rendered artifacts: `.context/` markdown stays English whatever the profile says, so a style profile can never become a way to opt out of D-04. Accepted exceptions (e.g., a project running the CLAUDE.md language override) are recorded as waivers — see §10.
+- **Per-artifact override:** the user asking, in the moment, for *this* artifact in another language also wins — their explicit instruction outranks a default. It is scoped to that artifact, never standing, and the deviation is recorded as a waiver (§10) so the next validate run reports it as accepted rather than new. A **global** `CLAUDE.md` must not claim this scope: language scope belongs to this ADR, and a second always-on file asserting it is what produced the live contradiction resolved on 2026-08-03.
+- **Enforcement:** `validate.py` flags Spanish-dominant body text in knowledge artifacts as a WARNING (`body-language-not-english`). The heuristic is a conservative stopword-density test — it flags clearly-Spanish bodies only, never borderline bilingual quotes. Front-matter values, fenced code blocks, and `communications/` are exempt — and so is a **rendered** artifact (`.html`) in a project whose `.context/artifact-style.md` declares that language, since the profile is what authorises it. That exemption is scoped to rendered artifacts: `.context/` markdown stays English whatever the profile says, so a style profile can never become a way to opt out of D-04. Accepted exceptions (e.g., a project running the CLAUDE.md language override) are recorded as waivers — see §10.
 
 ---
 
@@ -309,7 +309,7 @@ noise. Line-oriented format (`#` comments and blank lines ignored):
 - `path` — the finding's file path exactly as printed (project-root-relative, e.g. `.context/plans/README.md`).
 - `anchor` — `sha256:<hex-prefix>` of the file's content (`shasum -a 256 <file> | cut -c1-12`), or `-` for no anchor. An anchored waiver stops matching — and the finding **resurfaces** — as soon as the file changes.
 
-A waiver is therefore in one of three states, and the validator reports all three (BL-232):
+A waiver is therefore in one of three states, and the validator reports all three:
 
 | State | What it means | What happens |
 |---|---|---|
@@ -338,7 +338,7 @@ baseline, so waivers are its only escape hatch.
 
 `validate.py --baseline` freezes the current violations into `.context/.validate-baseline.json`; later runs then report and exit only on violations **not** in that frozen set. It is the adoption path for a legacy project: stop the bleeding now, clean up over time.
 
-- **Key granularity (v2):** a key is `file|rule|message`. The earlier `file|rule` key meant a file already dirty for a rule masked every *new* violation of that same rule in that same file (BL-043). Baselines written before v2 have no `version` field; they keep matching on the coarse key and the report says so — refresh with `--baseline` to tighten them.
+- **Key granularity (v2):** a key is `file|rule|message`. The earlier `file|rule` key meant a file already dirty for a rule masked every *new* violation of that same rule in that same file. Baselines written before v2 have no `version` field; they keep matching on the coarse key and the report says so — refresh with `--baseline` to tighten them.
 - **Refresh policy:** accepted keys that no longer occur are reported (`N accepted violation(s) no longer present — refresh with --baseline`). A validation run **never** rewrites the baseline; tightening it is always an explicit `--baseline`. There is no age-based expiry.
 - The baseline is written **pre-waiver**: a waived finding still enters it. Waivers
   are reversible, so the frozen set has to remember what the tree actually contains

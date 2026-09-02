@@ -137,8 +137,8 @@ internals, pinned to a CLI version, and would rot silently into a dead letter.
 | **cleanup / altitude / conventions** | end of plan, plus size-gated mid-plan | **A** — `/simplify` | defined by the instrument; aidex supplies only the resolved scope |
 | **security** | conditional: only when the resolved diff touches a security surface (auth, input parsing, subprocess, secrets, path handling) | **B** | 2 Sonnet finders (injection and input validation · authz, secrets, crypto), >80% exploitability threshold, excluding DoS and rate-limiting; 1 verifier |
 
-Running all three angle sets on every phase is what the BL-073 acceptance rules
-out as doubling review cost. The split above is the cheap default: correctness
+Running all three angle sets on every phase is ruled out: it doubles review
+cost. The split above is the cheap default: correctness
 is per-phase because a bug compounds across phases; cleanup is once because
 cleanup debt does not; security is conditional because most phases have no
 security surface at all.

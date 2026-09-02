@@ -569,7 +569,7 @@ explosion and unreadable logs. Re-run clean anyway for a defensible panel.
 runs makes these sets carry a significance claim**, because the limit is the size of the
 query set, not the run count.
 
-Measured closing BL-287. `aidex-coverage` has **9 positive queries**. Comparing the
+`aidex-coverage` has **9 positive queries**. Comparing the
 stack-agnostic description (union 1/9 over k=2) against the stack-named baseline (union 4/9
 over k=2):
 
@@ -621,9 +621,9 @@ a testing layer for a stack that doesn't exist" — then declined to invoke. Tha
 **floor**, not what a user in a matching project would see. It biases every skill's eval
 **equally**, so run-to-run and description-to-description comparisons still stand; what is
 never safe is quoting any of these figures as the recall a user experiences. Every
-`RESULTS.md` states this limit (BL-288).
+`RESULTS.md` states this limit.
 
-## 12. The six modular siblings: structural pass, 2026-09-01 (BL-275)
+## 12. The six modular siblings: structural pass, 2026-09-01
 
 The trigger-eval campaign was scoped to the monolith before decomposition, so the six
 modular sibling descriptions (`aidex-decision`, `-reference`, `-request`, `-research`,
@@ -645,8 +645,7 @@ four. The graph is one-directional. It is left alone because the two unnamed sib
 visibly different intents (a real communication; this project's skill conventions), so
 adding them would lengthen four descriptions to pre-empt a collision nothing has shown.
 
-**The measurement half of BL-275 is NOT closed by this.** Its acceptance asks for a
-multi-run, session-state-controlled baseline — 6 skills at k>=2 is ~12 runs and, at the
+**The measurement half is NOT closed by this.** It would take a multi-run,
+session-state-controlled baseline — 6 skills at k>=2 is ~12 runs and, at the
 measured 138-151 s/query, roughly **7 hours**. §10 says a set this size cannot carry the
-conclusion such a run would be quoted for, and the item's own framing says no outcome
-reopens recall. Spending it is therefore an owner decision, not a methodology one.
+conclusion such a run would be quoted for, and no outcome of it reopens recall. Spending it is therefore an owner decision, not a methodology one.
