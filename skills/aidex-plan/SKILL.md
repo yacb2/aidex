@@ -1,6 +1,6 @@
 ---
 name: aidex-plan
-description: 'Use when implementation work should become a written `.context/` plan before coding starts — either multi-phase work (a feature build, a migration, a refactor spanning backend/frontend/infra) or a single scoped change where only the file list and acceptance criteria need pinning down; a triage step picks which. Fires on "create a plan for X", "let''s plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let''s build a multi-phase plan", "implement X minimally", "a small scoped change to X", "just the minimum to ship X". Not for: fixing a bug or regression, which needs a failing test first (aidex-bugfix); deferring or parking an idea for later (aidex-backlog); decisions/ADRs, stakeholder requests, research notes, or references (aidex-conventions); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.'
+description: 'Use when implementation work should become a written `.context/` plan before coding starts — either multi-phase work (a feature build, a migration, a refactor spanning backend/frontend/infra) or a single scoped change where only the file list and acceptance criteria need pinning down; a triage step picks which. Fires on "create a plan for X", "let''s plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let''s build a multi-phase plan", "implement X minimally", "a small scoped change to X", "just the minimum to ship X". Not for: fixing a bug or regression, which needs a failing test first (aidex-bugfix); deferring or parking an idea for later (aidex-backlog); decisions/ADRs (aidex-decision), stakeholder requests (aidex-request), research notes (aidex-research), or references (aidex-reference); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Agent
 model-policy: inherit-session
@@ -62,7 +62,7 @@ enumerated, `**Out of scope:**` non-empty (one line), and ≥1 machine-checkable
 criterion. `validate.py` enforces all four as violations — skip Step 3's decomposition
 rules below, and go straight to the Self-check.
 
-## Step 0 (full) — Align before planning (HITL — do not skip, do not automate)
+## Step 0 (full) — Align before planning (human-in-the-loop)
 
 Before writing any phases, establish a **shared design concept** with the user. This is the one
 step that must stay human-in-the-loop: defining scope and success criteria is the judgment an
@@ -182,8 +182,8 @@ bash "${CLAUDE_SKILL_DIR}/scripts/close-plan.sh" <slug> [--commit <sha>] [--stat
 
 It refuses to archive a plan that still carries an **unreconciled in-text deferral** —
 a line reading "carry this to Phase 7", "follow-up", "should note" with no `BL-NNN` and
-no explicit `CLOSE: <reason>` on it. Prose is not a mechanism: four deferrals written
-that way vanished with their plan and two were still live. Register what is outstanding
+no explicit `CLOSE: <reason>` on it. Prose is not a mechanism: a deferral written that
+way would vanish with the plan when it archives. Register what is outstanding
 (`register-item.sh --origin plan`) or write the `CLOSE` line; `--force` is for a line
 that is prose *about* deferring.
 
@@ -197,8 +197,8 @@ After writing a plan with **≥ 2 phases**, offer phase-by-phase execution via
 trivial plans skip this — do not add noise. A `mode: scoped` plan is one phase by
 construction, so it never reaches this step.
 
-1. Detect whether `aidex-plan-exec` is installed: check `~/.claude/skills/aidex-plan-exec/`,
-   `~/.claude/skills/aidex-plan-exec/`, and any installed plugins.
+1. Detect whether `aidex-plan-exec` is installed: check `~/.claude/skills/aidex-plan-exec/`
+   and any installed plugins.
 2. If present → offer: "Execute this plan phase-by-phase with review/commit/handoff
    via `aidex-plan-exec`?"
 3. If absent → one-line mention only: a `aidex-plan-exec` skill exists for running
