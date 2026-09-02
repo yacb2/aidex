@@ -5,8 +5,6 @@ disable-model-invocation: true
 user-invocable: false
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-conventions"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
-
 # Documentation Standards
 
 > **Canon hub — NOT model-invoked (`disable-model-invocation: true`).** This
@@ -33,7 +31,7 @@ This skill defines conventions for thirteen documentation types:
 | **Plans** | Multi-session implementation tracking | Phases with checkboxes |
 | **Requests** | Incoming tasks and product requirements | Single dated file |
 | **Decisions** | Architecture/product decision records | Single dated file with context, options, outcome |
-| **Backlog** | Deferred/parked ideas queued for later | Single dated file (`YYYY-MM-DD-<slug>.md`) |
+| **Backlog** | Deferred/parked ideas queued for later | Single dated file (`YYYY-MM-DD-bl-nnn-<slug>.md`) |
 | **Research** | Investigation/spike notes captured before planning | Numbered files in a dated topic folder |
 | **Audits** | State-of-project catalogs with inventory + dated runs | `<methodology>/` with `00-inventory.md` + `00-methodology.md` + `00-changelog.md` + `YYYY-MM-DD-<slug>/` runs |
 | **Communications** | Log of emails/messages/calls/meetings received, sent, or held | `{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md` (native language) |
@@ -91,14 +89,17 @@ clobbered.
 2. **Detailed modules** - Loaded as needed
 3. **Cross-references** - Enable discovery without bloating context
 
-### Metadata Headers
+### Front-matter
 
-All documents include consistent metadata:
+Every file-based artifact carries the D-07 minimum ([`00-global.md` §7](references/00-global.md#7-front-matter-minimum-d-07)) — the four fields `validate.py` requires:
 
-```markdown
-**Version:** X.Y.Z
-**Last Updated:** YYYY-MM-DD
-**Context:** Brief description
+```yaml
+---
+title: "Human-readable, quoted"
+status: <per-type vocabulary>
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+---
 ```
 
 ### Cross-References
@@ -131,7 +132,7 @@ Skill **descriptions** stay English-only regardless (D-11). The assistant contin
 | Roadmap | `.context/roadmap/` | `README.md` + `NN-phase-name.md` |
 | Requests | `.context/requests/` | `YYYY-MM-DD-description.md` + `_archive/` |
 | Decisions | `.context/decisions/` | `YYYY-MM-DD-description.md` + `_archive/` |
-| Backlog | `.context/backlog/` | `YYYY-MM-DD-<slug>.md` + `_archive/` |
+| Backlog | `.context/backlog/` | `YYYY-MM-DD-bl-nnn-<slug>.md` + `_archive/` |
 | Research | `.context/research/` | `<topic>/` with numbered files (`00-index.md`, `01-*.md`) |
 | Audits | `.context/audits/` | `<methodology>/` with `00-inventory.md` + `00-methodology.md` + `00-changelog.md` + `YYYY-MM-DD-<slug>/` |
 | Communications | `.context/communications/` | `{received,sent,meetings}/<YYYY-MM-DD>-<slug>/body.md` |
@@ -139,7 +140,7 @@ Skill **descriptions** stay English-only regardless (D-11). The assistant contin
 | Project references | `.context/references/<topic>/` | Numbered |
 | Library docs | `.context/docs/<library>/` | Numbered |
 | Global CLAUDE.md | `~/.claude/CLAUDE.md` | - |
-| Project CLAUDE.md | `.claude/CLAUDE.md` | - |
+| Project CLAUDE.md | `./CLAUDE.md` or `.claude/CLAUDE.md` | - |
 
 > **Resolution:** Project-level skills override global skills of the same name. When updating a skill, verify its location first.
 
@@ -181,11 +182,6 @@ Incoming tasks, product requirements, or change requests from stakeholders. A re
 
 **Characteristics:** Dated file, origin (who asked), description, priority/urgency, outcome (became plan, dropped).
 
-**Interception behavior:** When the user describes a new task, feature request, or product requirement during a conversation, suggest:
-1. "Create a formal request?" → `.context/requests/YYYY-MM-DD-description.md`
-2. "Or create a plan directly?" → `.context/plans/YYYY-MM-DD-description/`
-3. "Or launch a research/investigation?" → `.context/research/`
-
 ### Decisions
 
 Architecture or product decision records. Documents **what** was decided, **why**, what alternatives were considered, and the outcome. Prevents revisiting the same debates.
@@ -198,7 +194,7 @@ State-of-project catalogs. An audit describes what **is** (findings, gaps, risks
 
 **Characteristics:** per-methodology `00-inventory.md` as source of truth, `00-methodology.md` as living playbook with `00-changelog.md`, dated per-run folders (`YYYY-MM-DD-<slug>/`), ready-made playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage, docs-coverage, rule-ablation).
 
-**Interception behavior:** When the user wants to "review the state of X", "list bugs", "catalog gaps", or "audit UX/security/perf/accessibility", suggest creating an audit via the `aidex-audit` skill (`/aidex-audit new <type> <slug>`). Audits differ from issues (which are already-triaged and scoped to fix) and plans (which are active work).
+Audits differ from issues (already-triaged and scoped to fix) and from plans (active work). Scaffolding and validation belong to the `aidex-audit` skill.
 
 ### Backlog
 

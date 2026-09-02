@@ -94,16 +94,7 @@ Classify before you pause:
    Outside a run, `session-handoff`'s propose-first behaviour is unchanged — unless
    the user grants a **standing in-session authorization** ("haz handoff cada vez que
    necesites, no me lo consultes"): that grant switches the guard off for the rest of
-   the session and is not re-asked. Usage-retro 2026-08-23 found the guard being
-   hand-overridden at least twice a week (2026-08-17 echo_lab, 2026-08-18
-   dashboard_template).
-   Note the ownership limit: `session-handoff` is not in `~/.claude/aidex/manifest`, so this
-   repo can state precedence but cannot edit that skill. It does have an owner, though,
-   and it is not this codebase: the skill ships from `claude-session-handoff`, which
-   actively maintains this exact boundary (`15b42a3`, 2026-08-06, separates asking for a
-   handoff *prompt* from asking for the *move*). So if precedence alone proves
-   insufficient in the field, file it there rather than stacking a third precedence
-   clause here — two files already state it and a third would not be read either.
+   the session and is not re-asked.
 4. **Autonomous — proceed, and log any bifurcation.** Everything safe + additive,
    including dependency changes (install / update / downgrade), **additive
    migrations**, and an unforeseen non-breaking decision under your authorship. A
@@ -121,19 +112,16 @@ still stops. Everything resolvable does not.
 The classes above widen autonomy inside a sanctioned run. They do not transfer to a
 conversational session: there, an "analiza / explora / investiga" ask requests
 findings and the decision points, and presenting them **is** the deliverable —
-mutating anything is a separate ask. The inverse failure was observed twice in the
-week of 2026-08-18 (dashboard_template 08-18, echo_lab 08-19): an analysis request
-turned into unrequested propagation the user had to walk back, which spends exactly
+mutating anything is a separate ask. The failure this prevents is an analysis request
+turning into unrequested propagation the user has to walk back, which spends exactly
 the trust the unattended classes depend on.
 
 ### A deferral must outlive its run
 
 Classes 1 and 2 both end in "surface it at the end", and the end of a run is not where
 anyone is standing when the run spans sessions: a handoff re-drafts the brief from
-scratch, so the final summary is exactly what does not survive. Three phase decisions
-deferred this way were absent one link later with no record they had ever been owed
-(`research/2026-08-22-chain-context-decay.md` in `claude-session-handoff`, Result 2;
-user-owed obligations survived a hop 17% of the time, the worst class measured).
+scratch, so the final summary is exactly what does not survive: a deferral recorded only
+there is absent one link later, with no record it had ever been owed.
 
 So where a chain ledger exists, a deferral is an **`OPEN OWED` delta as well** — not
 instead of the final summary, in addition to it. An item there leaves only when a
@@ -161,20 +149,12 @@ good standing instruction at planning time, so the pre-authorization path must e
 Making it class 1 would break legitimate unattended flows and get the rule quietly
 ignored, which is the failure mode that produces rules nobody reads.
 
-**Why this is written down.** On 2026-08-15 a plan-exec run merged its worktree branch
-into `main` in both participant repos, with no merge request anywhere in the chain —
-the last user instruction was a `/handoff` to continue Phase 6 in the worktree. It was
-**not a violation of this canon; it was a hole in it.** Class 4 read as "safe +
-additive", `git commit` was listed as ungated, and nothing distinguished a local merge
-from one. `aidex-plan-exec`'s close-out contains zero occurrences of merge/branch/main —
-close-out meant tearing the worktree down, not integrating it. The only anti-merge
-sentence in the entire suite lived in a comment inside `worktree.sh`'s teardown path,
-invisible from a plan-exec session. Two other merges the same fortnight were explicitly
-requested (2026-08-13 *"luego podemos mezclar"*; 2026-08-19 *"after owner review"*),
-which is what makes the third legible as a gap rather than a habit.
-
-**Tearing down a worktree is close-out; integrating its branch is not.** The two are
-routinely confused because they happen at the same moment.
+**Why this is spelled out.** "Safe + additive" plus an ungated `git commit` reads as
+covering a local merge, and a close-out step that means *tear the worktree down* is not
+the same step as *integrate its branch* — so an unattended run can land work on the trunk
+with no merge request anywhere in the chain. **Tearing down a worktree is close-out;
+integrating its branch is not.** The two are routinely confused because they happen at
+the same moment.
 
 ## The durability-arbiter (active enforcement)
 
@@ -351,23 +331,19 @@ word here would make every "verify the harness" line ambiguous.
 
 ## A supervisor's deadline is wall clock, never an iteration count
 
-Two rules for any unattended driver or retry loop, both learned by losing an overnight
-run to them.
+Three rules for any unattended driver or retry loop.
 
-**Never express a stop condition in how many times the loop is entered.** A supervisor
-retried `while n < 300` with `sleep 20`. A `flock` added the same morning to prevent a
-double driver made every retry that found a live driver exit in milliseconds, so the
-300-attempt budget burned in 100 minutes without running anything. The fix for one bug
-turned a retry counter into a 100-minute timer: the cost of an iteration is not a
-constant of the system, because another part can make it cheap.
+**Never express a stop condition in how many times the loop is entered.** A retry counter
+(`while n < 300` with `sleep 20`) becomes a timer the moment something else makes an
+iteration cheap — a `flock` that makes every retry finding a live driver exit in
+milliseconds burns the whole budget without running anything. The cost of an iteration is
+not a constant of the system.
 
 **Editing the script of a running process does not change the running process.** Python
-compiles the module at import; a driver launched at 21:38 never saw phases appended to
-its file afterwards. The mechanism meant to pick them up was the supervisor, which had
-already died of the bug above. A resumable harness needs both halves, and the second is
-the one nobody tests.
+compiles the module at import, so a running driver never sees phases appended to its file
+afterwards. Picking them up needs a live supervisor; a resumable harness needs both halves,
+and the second is the one nobody tests.
 
-Together they cost a 21-minute silent stall the owner was asleep for, and the failure
-was invisible — the log's last line looked like normal progress. So also arm a watchdog
-that fires on **silence**, not only on failure: a monitor grepping for a success marker
-stays quiet through a crash.
+**Arm a watchdog that fires on silence, not only on failure.** A stalled run's last log
+line looks like normal progress, and a monitor grepping for a success marker stays quiet
+through a crash.

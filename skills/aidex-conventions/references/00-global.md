@@ -85,7 +85,7 @@ That value is a cross-reference in the form above and is checked as one — same
 | `artifact-anchor-format-invalid` | the value is neither an external id nor `<type>/<filename>` |
 | `artifact-anchor-target-missing` | the value resolves to no file in active or `_archive/` |
 
-**A page with no `artifact-anchor` at all is not a violation** and never becomes one here. Most rendered pages carry none (55 of aidex's own 74 on 2026-08-25), and requiring one would be a convention change rather than an integrity check — this rule only holds a page to what it already claims about itself. Whether companions should live beside their anchor or centrally in `reports/` is likewise not settled here; both are in use, and the check is correct under either.
+**A page with no `artifact-anchor` at all is not a violation** and never becomes one here. Most rendered pages carry none, and requiring one would be a convention change rather than an integrity check — this rule only holds a page to what it already claims about itself. Whether companions should live beside their anchor or centrally in `reports/` is likewise not settled here; both are in use, and the check is correct under either.
 
 ---
 
@@ -317,7 +317,7 @@ A waiver is therefore in one of three states, and the validator reports all thre
 | stale anchor | path resolves, content changed | the finding **resurfaces** — this is what the anchor is for |
 | moved path | path does not resolve, but the anchor still matches a file elsewhere | **still suppressed**, and reported as `waiver paths moved: <old> -> <new>` so the path gets fixed |
 
-The third state exists because archive-on-close (D-10) is mandatory and *moves files*: the content is unchanged, so the anchor still describes it perfectly, while the path silently stops resolving. Measured 2026-08-24: 2 of this repo's 43 lines were already dead from exactly that, within days of being written, one of them producing a live unwaived warning nobody had noticed. Relocation is keyed on the **anchor**, never on the rule alone — a file that also changed content is not followed. A line that resolves to nothing and cannot be relocated (an anchorless one, or an anchored one whose content is nowhere) is reported as **orphaned**, never silently ignored.
+The third state exists because archive-on-close (D-10) is mandatory and *moves files*: the content is unchanged, so the anchor still describes it perfectly, while the path silently stops resolving — which quietly resurrects a finding the project had already accepted. Relocation is keyed on the **anchor**, never on the rule alone — a file that also changed content is not followed. A line that resolves to nothing and cannot be relocated (an anchorless one, or an anchored one whose content is nowhere) is reported as **orphaned**, never silently ignored.
 - `reason` — why the finding is accepted (free text; may contain `|`).
 - `date` — `YYYY-MM-DD` the waiver was granted (optional).
 
@@ -386,14 +386,8 @@ Each row is the ADR's own `decision_id`, verified against the file's front-matte
 | D-11 | Skill descriptions English-only | `2026-06-17-skill-descriptions-english-only.md` |
 | D-12 | Keep current four-skill topology (supersedes D-06; renumbered from D-07 on 2026-07-27) | `2026-05-14-skills-topology-keep-current-four.md` |
 
-**Resolved collision (2026-07-27):** the topology ADR above used to declare `decision_id:
+**Resolved collision:** the topology ADR above used to declare `decision_id:
 D-07`, colliding with `2026-05-14-front-matter-minimum-fields.md`. It had taken the next
 free number without checking, and the rest of the suite cites D-07 meaning *minimum
 front-matter*, so the front-matter ADR kept the number and the topology ADR moved to D-12.
-Anything predating that date citing "D-07" for the *topology* decision means D-12.
-
-**Why filenames and not links:** D-06's row used to be a relative link, and it broke the
-moment that ADR was archived — which is precisely what §3 forbids physical relative paths
-for. Physical paths do not survive `_archive/`; the `<type>/<filename>` marker does, via the
-two-folder lookup. The links were also dead for every *installed* user regardless of
-archiving, since `.context/` is gitignored and never ships (deep audit 2026-07-25).
+Anything written before 2026-07-27 citing "D-07" for the *topology* decision means D-12.

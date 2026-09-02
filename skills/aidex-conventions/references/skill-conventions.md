@@ -56,19 +56,18 @@ description: Complete description including WHEN to use this skill.
 | `agent` | No | Subagent type when `context: fork`. |
 | `disable-model-invocation` | No | `true` to prevent auto-loading. Default: `false`. |
 | `user-invocable` | No | `false` to hide from `/` menu. Default: `true`. |
-
-**A skill that carries both `disable-model-invocation: true` and `user-invocable: false`
-gets no `evals/` directory.** It cannot fire by either route, so a trigger eval on it
-measures a constant: its positives can never pass and its negatives can never fail.
-`aidex-conventions` carried 20 such probes for months (removed 2026-08-06) — and their
-10 positives all described intents its *siblings* own, so the set was a routing test
-wearing a trigger test's shape. If you want to measure that routing, measure it on the
-sibling that is supposed to win, where a failure is actionable.
 | `hooks` | No | Lifecycle hooks (PreToolUse, PostToolUse, Stop) scoped to this skill. Exit code 2 blocks the operation. |
 | `paths` | No | Glob patterns for selective activation (e.g., `**/*.rs`). Skill loads only for matching files. |
 | `effort` | No | Override reasoning effort: `low`, `medium`, `high`, `xhigh`, `max`. |
 | `memory` | No | Persistent memory scope: `user`, `project`, or `local`. |
 | `shell` | No | Shell for `!command` injection: `bash` (default) or `powershell`. |
+
+**A skill that carries both `disable-model-invocation: true` and `user-invocable: false`
+gets no `evals/` directory, and carries no trigger-eval probe in its body.** It cannot
+fire by either route, so a trigger eval on it measures a constant: its positives can
+never pass and its negatives can never fail. If you want to measure the routing such a
+skill's siblings perform, measure it on the sibling that is supposed to win, where a
+failure is actionable.
 
 **Convention:** Prefer only `name` + `description` for simplicity. Use additional fields when the skill genuinely needs them (e.g., `allowed-tools` for read-only auditors, `context: fork` for multi-agent orchestration, `paths` for language-specific skills).
 
@@ -103,7 +102,7 @@ Use when the user <triggering condition / symptom / context>, <another>, or <ano
 description: Use when the user asks what changed, wants a commit message, or asks to review their diff.
 ```
 
-Anthropic's *actual* shipped git example leads with capability — `Generate descriptive commit messages by analyzing git diffs. Use when the user asks for help writing commit messages or reviewing staged changes.` The form above is the trigger-first rewrite this canon recommends; it is **not** an Anthropic artifact (verified 2026-05-16: the string appears in no Anthropic or Superpowers source).
+Anthropic's *actual* shipped git example leads with capability — `Generate descriptive commit messages by analyzing git diffs. Use when the user asks for help writing commit messages or reviewing staged changes.` The form above is the trigger-first rewrite this canon recommends; it is **not** an Anthropic artifact.
 
 **Example (aidex skill, iteration-4 final form):**
 
@@ -156,24 +155,14 @@ Implications when authoring or reviewing a skill:
 | `description` + `when_to_use` combined (only if split) | ~700 chars | 1,536 chars | Hard cap in skill listing per Claude Code spec |
 | References | Unlimited | Unlimited | Loaded as needed |
 
-**Why the ideal is 4k and not 3k (2026-08-06).** The body ideal was ~3k tokens for a year
-and no hub-shaped skill ever met it — five sat between 3.7k and 4.6k, permanently "over
-ideal", which is how a target stops being one. Raising a number to match reality is normally
-the ratchet-destroying move, so the reduction was done first and the number set second:
-
-- **What was moved out, and why only that.** Three skills lost a block of genuinely
-  *conditional* content — the `/aidex context` procedure, the `.context/` migration + index
-  backfill, and worktree `bootstrap`. Each runs on its own trigger or once per project, so
-  charging every session for it was pure waste. `aidex` went 5,079 → 3,904 tokens,
-  `aidex-conventions` 4,543 → 3,680, `aidex-worktree` 4,023 → under the ideal entirely.
-- **Why the rest stays inline.** Relocation only reduces cost if the pointer is followed,
-  and on 2026-08-05 **32 of 58 cited references had never been read once** (§ Level 3). What
-  remains in these bodies is the always-needed core — dispatch tables, the workflow itself,
-  the autonomy doctrine. Moving that behind a pointer trades a visible token cost for an
-  invisible correctness risk, which is a worse trade at any size.
-- **Why 4k specifically.** It is above what a hub body costs once its conditional content is
-  gone, and 1k below the 5k maximum, so the warning band still warns. The maximum did not
-  move: 5k is enforced, and `aidex` breaching it on 2026-08-06 is what surfaced all of this.
+**How to get under the ideal — reduce first, then measure.** What comes out of a body is
+genuinely *conditional* content: a procedure with its own trigger, or one that runs once per
+project. Charging every session for it is pure waste. What stays inline is the always-needed
+core — dispatch tables, the workflow itself, the autonomy doctrine — because **relocation
+only reduces cost if the pointer is followed** (§ Level 3: 32 of 58 cited references were
+never read once). Moving always-needed content behind an unfollowed pointer trades a visible
+token cost for an invisible correctness risk, which is a worse trade at any size. The 4k
+ideal sits 1k below the 5k maximum so the warning band still warns; 5k is enforced.
 
 ## Inline Content Rules (Book Index Pattern)
 
