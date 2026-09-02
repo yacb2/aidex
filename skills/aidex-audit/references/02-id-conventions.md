@@ -4,8 +4,7 @@
 patterns and their scope.** Read it there. Ids are scoped to a **methodology** — the
 methodology folder is the namespace, so `BUG-01-3` in `ux/` and `BUG-01-3` in `security/`
 are different findings — and the pattern is chosen once inside each methodology, not once
-for the whole repository. An earlier version of this file scoped both to the repository,
-which forbids what canon permits: `ux/` structured while `security/` is global is legal.
+for the whole repository: `ux/` structured while `security/` is global is legal.
 
 This file holds only the decision aid: the trade-offs, the questions that settle it, the
 default, and what changing your mind later costs.

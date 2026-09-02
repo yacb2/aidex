@@ -2,9 +2,9 @@
 
 **`aidex-conventions/references/audit-conventions.md` § Core principles states the six
 principles.** This file does not restate them — it holds the *why* and the *practical*
-under each, which is what a principle without its failure mode cannot carry. An earlier
-version restated the whole convention and drifted from it in five checkable ways, on the
-path an auditor reads before writing the first finding.
+under each, which is what a principle without its failure mode cannot carry. A second
+copy of the convention here drifts from it, on the path an auditor reads before writing
+the first finding.
 
 Two other owners, for the same reason:
 

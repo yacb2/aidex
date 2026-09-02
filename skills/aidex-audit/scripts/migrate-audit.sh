@@ -2,8 +2,8 @@
 # migrate-audit.sh — two migration surfaces:
 #
 #   (default)  detect audit-like folders in .context/plans/ and propose moving
-#              them (heuristic detection; the move + INVENTORY seeding is done
-#              by the audit-migrator / inventory-seeder subagents via Claude).
+#              them (heuristic detection; the move is manual and INVENTORY
+#              seeding is done by the inventory-seeder subagent via Claude).
 #
 #   --layout   convert a LEGACY audits tree to the canon model (rebuild
 #              2026-07-02): YYYYMMDD run folders -> YYYY-MM-DD, legacy status
