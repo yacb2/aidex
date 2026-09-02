@@ -26,7 +26,8 @@ restating it.
   `testing-playwright-app/scripts/gen-test-e2e.sh`) or stand up an
   equivalent throwaway database and point the runner at it. Running E2E is allowed the
   moment the target is disposable; it is the target that gates, not the filename.
-- Unit tests (Vitest) are safe — they run in happy-dom with no database connection
+- Unit and component tests are outside this rule: they use no database, or one the test
+  framework creates and destroys itself
 
 ## Port Convention
 
