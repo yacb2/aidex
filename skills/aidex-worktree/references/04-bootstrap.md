@@ -20,9 +20,9 @@ recipe. Prose is what let 15 projects each implement isolation differently.
 3. **Verify the stack can be isolated AT ALL.** Run
    [scripts/check-worktree-isolation.sh](scripts/check-worktree-isolation.sh) —
    the umbrella, which runs the compose check plus the host-port and
-   test-runner checks. Citing the compose check alone here is what let four
-   surfaces ship unverified: it is a good check of the surface it covers, and
-   every defect the 2026-08-21 audit found lived outside it.
+   test-runner checks. Run the umbrella, not the compose check alone: it is a
+   good check of the surface it covers, and the other surfaces ship unverified
+   when it stands in for all three.
    Every finding is a blocker, not a warning — each one is a name that will not
    vary between two stacks:
    - an image pinned to the main project, or one that resolves identically in
@@ -55,9 +55,8 @@ recipe. Prose is what let 15 projects each implement isolation differently.
    [assets/profiles/django-vue-compose.project.env](assets/profiles/django-vue-compose.project.env)
    and fill its `PROJECT` lines. Leave the `WT_PROFILE` line intact and do **not**
    inline the defaults: a project that copies them stops receiving improvements
-   to them. Before the split, `worktree.sh` read only `config.env`, so a fix to
-   the profile reached zero existing projects — the same drift the shipped
-   mechanism was built to end, one level up.
+   to them, which is the same drift the shipped mechanism exists to end, one
+   level up.
 
    A value you DO set in `config.env` wins. That is the override path: state the
    value plus the reason it differs. Unfilled `CHANGEME` placeholders are

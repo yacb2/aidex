@@ -63,11 +63,9 @@ explicit opt-out for the rare code-only case.
 
 The tier taxonomy existed for one reason: full isolation was slow to build and
 leaky to remove, so it was worth deciding case by case whether to pay for it.
-That reason is gone. Measured end-to-end on a real project's stack (2 git repos,
-image, network, volume, db + backend, ~190 migrations): **24.8s to create, 3.0s
-to tear down, zero residue verified against a global Docker snapshot, five
-created concurrently on five distinct slots.** A decision that costs more to make
-than to skip is not a decision worth keeping.
+That reason is gone — the shipped mechanism creates a full stack in seconds and
+tears it down leaving no residue. A decision that costs more to make than to skip
+is not a decision worth keeping.
 
 The mechanism lives in this skill ([scripts/worktree.sh](scripts/worktree.sh)),
 not in each project. When the skill only *described* a recipe, every project
@@ -87,16 +85,15 @@ Dispatch by first argument:
 | `/aidex-worktree new <slug> --branch <b>` | Create a fully isolated worktree (`scripts/worktree.sh new`) |
 | `/aidex-worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
 | `/aidex-worktree list` | Every worktree of this project: slot, branch, stack state |
-| `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback (BL-136) |
+| `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback |
 
 **Tearing a worktree down is not integrating its branch.** `down` never merges, and
 that is deliberate — but the rule belongs where a session that is not running this
 skill can see it, which is `rules/autonomy.md` § *Integrating a branch is not a
 commit* (class 2: pre-authorizable up front, never assumed mid-run; rationale in
-`../aidex-conventions/references/autonomy-conventions.md`). A worktree branch merged
-into `main` unasked on 2026-08-15 precisely because the only statement of this rule
-was a comment inside `worktree.sh`, invisible from the plan-exec session doing the
-merging. Leave the branch ready to merge; say so; do not merge it.
+`../aidex-conventions/references/autonomy-conventions.md`) — a rule stated only inside
+`worktree.sh` is invisible to the session that would do the merging. Leave the branch
+ready to merge; say so; do not merge it.
 
 `new` / `down` / `list` are thin wrappers over
 [scripts/worktree.sh](scripts/worktree.sh) — run it directly, do not reimplement
@@ -157,9 +154,8 @@ substitute an eyeball.
   together; `--census` does it across every project with a `config.env`. Run this
   BEFORE enabling worktrees on a project, and again whenever the compose file or
   a linked script changes. Every finding is a blocker, not a warning.
-  It exists because the checks below were individually correct and nobody ran
-  them: the 2026-08-21 audit found seven defects, and every one lived outside the
-  only check that was ever invoked.
+  Run the umbrella, not one of the checks below: each is correct about the surface
+  it covers, and a defect lives outside whichever one you pick.
   - [scripts/check-compose-isolation.sh](scripts/check-compose-isolation.sh) —
     compose addressing. A stack whose names do not vary with
     `COMPOSE_PROJECT_NAME` cannot run twice, and no teardown can fix that later.

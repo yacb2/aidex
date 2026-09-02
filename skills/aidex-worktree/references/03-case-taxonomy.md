@@ -1,8 +1,14 @@
 # Case Taxonomy — the Four-Axis Model
 
-The generic, stack-agnostic taxonomy that `bootstrap`'s interview walks and `suggest`
-reads against. It is **four independent axes**, not a flat enum of cases — a real
-task's answer is always a tuple across all four, never a single letter grade.
+> **The tier decision this taxonomy models is retired.** A worktree is born with its
+> full isolated stack, always (`SKILL.md` § *One path, not tiers*); `bootstrap` does
+> not walk these axes. The file stays for projects whose recorded `00-index.md` still
+> speaks in tiers, and for **Axis 4's naming and teardown contract, which is current**
+> and is also stated in `aidex-conventions/references/worktree-conventions.md`.
+
+The generic, stack-agnostic taxonomy. It is **four independent axes**, not a flat enum
+of cases — a task's answer was always a tuple across all four, never a single letter
+grade.
 
 ---
 
