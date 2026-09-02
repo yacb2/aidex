@@ -57,10 +57,9 @@ section is written. On close:
 - Research is versioned in place — there is **no `_archive/`** step for
   `research/` (unlike decisions/requests, which archive on close per D-10).
 
-## Self-check (mandatory close step)
+## Self-check
 
-Before finishing, validate the artifact you just wrote and fix any violation on
-the spot — compliance is enforced at creation time, not left to a later sweep:
+Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
 python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type research

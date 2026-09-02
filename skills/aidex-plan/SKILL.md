@@ -158,10 +158,9 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    creation. Re-run it any time with `reindex-plans.sh`; `reindex-plans.sh --check`
    reports drift read-only (no write) and is what the shared `reconcile.sh` calls.
 
-## Self-check (mandatory close step)
+## Self-check
 
-Before finishing, validate the artifact you just wrote and fix any violation on
-the spot — compliance is enforced at creation time, not left to a later sweep:
+Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
 python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type plans
