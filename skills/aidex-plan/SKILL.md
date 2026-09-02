@@ -212,7 +212,7 @@ construction, so it never reaches this step.
 | Record a decision / ADR | `aidex-decision` |
 | Capture a stakeholder/client request | `aidex-request` |
 | Investigate / research how something works | `aidex-research` |
-| Document a system reference | `aidex-reference` |
+| Document a settled system reference | `aidex-reference` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 | Make one phase iterate-until-green against a machine gate (tests/typecheck/build) | `aidex-loop` (spec it, hand off execution) |
