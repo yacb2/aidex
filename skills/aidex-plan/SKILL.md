@@ -137,10 +137,9 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
 5. **Capture the isolation surface** if the plan could run parallel to other work.
    Check whether `.context/worktrees/00-index.md` exists in the target project: if it
    does not, invoke `aidex-worktree bootstrap` once, up front, as part of this same
-   planning session (the initial-phase front-loading moment); if it exists, invoke
-   `aidex-worktree suggest` with the plan's content (does it run migrations? which
-   participants does it touch?) and record its recommendation verbatim as the plan's
-   **Isolation** note. It is a recommendation the **user / project CLAUDE.md
+   planning session (the initial-phase front-loading moment); if it exists, record
+   the worktree command (`worktree.sh new <slug> --branch <branch>`, `--no-infra` only
+   when the plan runs no services and touches no DB) as the plan's **Isolation** note. It is a recommendation the **user / project CLAUDE.md
    authorizes** (native worktree entry is opt-in). If the plan is not parallel to
    anything, omit this — just a branch.
 6. Save under `.context/plans/` with the dated naming the canon specifies.

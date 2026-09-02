@@ -14,9 +14,9 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
-   work unless `discard_changes`), and run the project's `worktree-down` for Tier 2 to
+   work unless `discard_changes`), and run the project's `worktree-down` to
    drop the isolated DB + compose project. **Then append one usage line to the
-   project's `.context/worktrees/00-index.md` Usage log** (date · tier used ·
+   project's `.context/worktrees/00-index.md` Usage log** (date · profile used ·
    participants · collisions/problems observed) — this ratchet is what lets the
    worktree procedure harden its case-by-case rules into codified ones over time.
    **Symmetrically prune the overview's Open questions**: delete any entry this run

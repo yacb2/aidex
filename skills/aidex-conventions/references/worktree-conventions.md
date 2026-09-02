@@ -12,7 +12,7 @@ skill keeps a short inline summary and points here for the full rule.
 
 > Detection and the per-project bootstrap interview are owned by the `aidex-worktree`
 > skill, not by this canon or by the consuming skills directly — this file documents
-> the shared reasoning (the two tiers, the opt-in gate); `aidex-worktree` is where the
+> the shared reasoning (what a worktree isolates, the opt-in gate); `aidex-worktree` is where the
 > per-project `.context/worktrees/00-index.md` gets read or created.
 
 ---
@@ -29,47 +29,31 @@ checked-out branch), so you stop work A to keep it from contaminating work B —
 the files never overlap. Worktrees let both proceed; environment isolation lets both
 *run* without trampling shared state.
 
-## The two tiers
+## One path, not tiers
 
-Pick the tier from the work, not from habit. **Choosing the tier is the whole decision.**
+A worktree is born with its full isolated stack, always: its own database, compose
+project, ports and `.env`, with isolated E2E capability included. The mechanism is
+`aidex-worktree`'s `worktree.sh new <slug> --branch <branch>`; the project supplies only
+parameters (`.context/worktrees/config.env`, a `WT_PROFILE`). Creating the stack costs
+seconds and tearing it down costs less, so there is no tier to weigh per task.
 
-### Tier 1 — code-only worktree (cheap)
-
-- **What:** a second working directory on its own branch. Nothing else isolated.
-- **Mechanism:** native `EnterWorktree` (or `git worktree add`); `isolation: "worktree"`
-  on a subagent/Workflow stage for parallel batched edits.
-- **Use when:** pure code work — refactor, new module, docs, a self-contained feature —
-  that does **not** run services and does **not** touch the DB/migrations; or work you're
-  content to **verify centrally in the main worktree** (start the stack only there).
-- **Cost:** disk (a full tree copy) + review/merge burden. Negligible setup.
-
-### Tier 2 — full environment isolation (expensive)
-
-- **What:** a worktree **plus** an isolated DB, isolated Docker compose project, isolated
-  ports, isolated `.env`.
-- **Mechanism:** worktree + a project-provided `worktree-up` recipe (see below).
-- **Use when:** the work **runs migrations**, needs the **stack live** to iterate, or
-  otherwise risks **DB-state collision** with parallel work. This is the only case that
-  justifies the expensive path.
-- **Cost:** a second DB (cheap if template-cloned), a second compose project, port
-  arithmetic, teardown discipline.
-- **Contract:** Tier 2 = full isolation including isolated E2E capability by default: the
-  `worktree_up` command must leave a runnable per-worktree `test-e2e.sh` (template DB
-  clone + namespaced E2E ports) with no additional ask. Isolated E2E is included by
-  default whenever Tier 2 applies — never "decide per task."
+- **`--no-infra`** is the explicit code-only opt-out — a second working directory on its
+  own branch and nothing else — for work that runs no services and touches no
+  database or migration, or that you are content to verify centrally in the main tree.
+- A repository with **no services at all** has nothing to isolate beyond the checkout:
+  native `EnterWorktree` (or `git worktree add`) is the whole mechanism there.
+- **Contract:** the isolated stack includes a runnable per-worktree `test-e2e.sh`
+  (template DB clone + namespaced E2E ports) with no additional ask — never "decide per
+  task."
 
 ### The decision heuristic
 
 ```
 Is this work parallel to other in-flight work?
   no  → no worktree. Just a branch (or just do it).
-  yes → Does it run services or mutate the database in parallel?
-          no  → Tier 1 (code-only worktree).
-          yes → Tier 2 (full environment isolation).
+  yes → worktree.sh new <slug> --branch <branch>
+        (--no-infra only when it runs no services and touches no DB)
 ```
-
-Keep parallelism to **3–5 worktrees**; beyond that, disk/IO (file watchers + test
-runners + builds per tree) and the review burden offset the gains.
 
 ## The opt-in gate (who decides vs who authorizes)
 
@@ -100,7 +84,7 @@ one is typical:
 Detect topology (`git rev-parse --show-toplevel` per service dir; one root = monorepo)
 before recommending a unit — never assume from habit.
 
-## The environment-isolation recipe (Tier 2)
+## The environment-isolation recipe (what `worktree.sh new` sets up)
 
 Four resources isolate per worktree. The canon is **stack-agnostic**: the project supplies
 the concrete recipe, recorded machine-readably in the `worktree_up`/`worktree_down`
@@ -108,8 +92,8 @@ front-matter fields of `.context/worktrees/00-index.md` (written by `aidex-workt
 bootstrap`) and surfaced by `detect-project-commands.sh` as
 `worktree_up_command`/`worktree_down_command` — the same way `aidex-plan-exec` detects the
 project's review/commit commands. If neither the front-matter nor a root/`scripts/`
-`worktree-up*.sh` exists, **Tier 2 is not available** — fall back to Tier 1 and note that
-a `worktree-up` recipe would unlock it.
+`worktree-up*.sh` exists, **the isolated stack is not available** — use `--no-infra` and
+note that a `worktree-up` recipe would unlock it.
 
 | Resource | Strategy |
 |---|---|
@@ -122,7 +106,7 @@ a `worktree-up` recipe would unlock it.
 
 - A **hardcoded `container_name`** in `docker-compose.yml` overrides
   `COMPOSE_PROJECT_NAME` prefixing — two worktrees collide. Drop it (or parametrize) and
-  env-drive host ports (`${DB_PORT:-5900}:5432`) before Tier 2 can work.
+  env-drive host ports (`${DB_PORT:-5900}:5432`) before the isolated stack can come up.
 - **Never share Docker volumes** between worktrees to "save disk" — it corrupts state.
 - An **ephemeral** test recipe (clone → run → tear down, e.g. a `test-e2e.sh`) is the
   right *seed* but the wrong *lifecycle*: a dev worktree is **persistent** (iterate for
@@ -130,7 +114,7 @@ a `worktree-up` recipe would unlock it.
 
 ## Naming/teardown contract (Docker hygiene)
 
-Every Tier-2 project adopts the same compose-project naming and the same teardown
+Every project with an isolated stack adopts the same compose-project naming and the same teardown
 command — no project-specific variant:
 
 ```
@@ -204,7 +188,7 @@ running container, not whether the data matters. Skipped teardowns accumulate un
 Enter at the process's **initial phase** (plan Orient / loop design), iterate, then on
 completion `ExitWorktree` (`keep` to resume later, `remove` for a clean exit — it refuses
 to drop uncommitted work unless `discard_changes`) and run the project's `worktree_down`
-command (the naming/teardown contract above) for Tier 2 to drop the DB, the compose
+command (the naming/teardown contract above) to drop the DB, the compose
 project, its containers/network, and its `--rmi local` images. This is consistent with
 front-loaded autonomy: the isolation decision is made up front, not mid-run. A skipped
 teardown is not a silent no-op: it is exactly what the Docker safety doctrine above and
@@ -221,17 +205,18 @@ the orphan sweep exist to surface.
 
 ## Per-skill application
 
-Each consuming skill calls `aidex-worktree suggest` (or `bootstrap` if the project has
-no `.context/worktrees/00-index.md` yet) at its own initial phase, instead of reasoning
-about tiers inline:
+Each consuming skill records the worktree command at its own initial phase (running
+`aidex-worktree bootstrap` first if the project has no `.context/worktrees/00-index.md`
+yet), instead of reasoning about isolation inline:
 
-- **aidex-plan** — at plan Orient, call `aidex-worktree suggest` and capture its
-  recommendation as the plan's **Isolation surface** so execution needs no questions.
-- **aidex-plan-exec** — at **Orient (phase 0)** read the Isolation surface; for Tier 1
-  `EnterWorktree`, for Tier 2 run the project's `worktree-up`. Tear down at completion.
-- **aidex-loop** — the design interview calls `aidex-worktree suggest` and pre-declares
-  the Isolation tier next to the autonomy surface. Unattended loops that run migrations
-  or mutate the DB are the **strongest** Tier-2 case (they trample shared state while
-  you work elsewhere).
-- **aidex-audit** — usually Tier 0/1 (read-mostly). Exception: a security audit doing
-  destructive verification needs Tier 2. Low priority.
+- **aidex-plan** — at plan Orient, record `worktree.sh new <slug> --branch <branch>`
+  (`--no-infra` only when the plan runs no services and touches no DB) as the plan's
+  **Isolation surface** so execution needs no questions.
+- **aidex-plan-exec** — at **Orient (phase 0)** run the recorded command; with no
+  worktree setup in the project, `EnterWorktree` and note it. Tear down at completion.
+- **aidex-loop** — the design interview pre-declares the isolation next to the autonomy
+  surface. Unattended loops that run migrations or mutate the DB are the **strongest**
+  case for the full stack, never `--no-infra` (they trample shared state while you work
+  elsewhere).
+- **aidex-audit** — usually no worktree (read-mostly). Exception: a security audit doing
+  destructive verification needs the isolated stack. Low priority.

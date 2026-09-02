@@ -137,7 +137,7 @@ band. With `mode: sweep` (written by `worklist-new.sh --mode sweep`, the shape
 
 `--peek` and `--append` stay read-only / purely additive in both modes, and a queue that
 orders plans and audits is unaffected. All three scripts resolve the project root through
-`_lib.sh`'s `find_project_root`, so from inside a Tier-2 worktree the queue and the item it
+`_lib.sh`'s `find_project_root`, so from inside an isolated worktree the queue and the item it
 closes live in the same tree.
 
 ## Related

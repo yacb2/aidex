@@ -102,9 +102,9 @@ spec and stop rather than guess one.
 6. **Isolation surface.** Decide whether the loop needs its own git worktree so it does
    not trample your other work or shared state. Check whether
    `.context/worktrees/00-index.md` exists in the target project: if not, invoke
-   `aidex-worktree bootstrap` first. Then invoke `aidex-worktree suggest` with the
-   loop's content (does it run migrations / mutate the DB while unattended — the
-   strongest Tier-2 trigger, unchanged) and record the result in the spec's
+   `aidex-worktree bootstrap` first. Then record the worktree command
+   (`worktree.sh new <slug> --branch <branch>`; a loop that runs migrations or mutates
+   the DB unattended is the strongest case for the full stack, never `--no-infra`) in the spec's
    **Guardrails → isolation** line exactly as today. Entry stays opt-in (user / project
    CLAUDE.md authorizes).
 7. **Scaffold.** Run `new-loop-spec.sh new <slug>`, then fill every section of the

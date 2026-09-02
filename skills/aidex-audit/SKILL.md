@@ -195,9 +195,9 @@ the defaulting in the audit brief —
 > (Agent tool, `model: sonnet`, `effort: high`, read-only) per finding and batch any `ASK` to the
 > end — never stall the whole sweep on one finding.
 >
-> **Isolation.** An audit is read-mostly — usually no worktree (Tier 0/1). The
+> **Isolation.** An audit is read-mostly — usually no worktree. The
 > exception is a security audit that needs **destructive verification**: run it in an
-> isolated worktree + DB (Tier 2) so it never mutates real state. In that case read
+> isolated worktree with its own DB (`worktree.sh new`) so it never mutates real state. In that case read
 > `~/.claude/skills/aidex-conventions/references/worktree-conventions.md` for the
 > isolation contract before touching anything.
 
