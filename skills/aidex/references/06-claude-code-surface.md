@@ -3,9 +3,8 @@
 The ecosystem auditor tells people to change their configuration. Every one of those
 recommendations rests on a fact about Claude Code that can stop being true in a release,
 and when it does the recommendation does not become an error — it becomes *confidently
-wrong advice*, which is worse. That happened once already: aidex caught up with
-`skillOverrides` and MCP scoping by hand on 2026-05-06/07 (`fa1f2c6`), **after** the auditor
-had recommended removing plugins that were fine.
+wrong advice*, which is worse. It has happened: the auditor recommended removing plugins
+that were fine, because its `skillOverrides` and MCP-scoping assumptions had gone stale.
 
 Nothing made that drift visible, because nowhere recorded which Claude Code the advice was
 checked against. This file is that record. `scripts/surface-drift-check.py` reads the table

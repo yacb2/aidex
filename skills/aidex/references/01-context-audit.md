@@ -1,10 +1,6 @@
 # `/aidex context` — the idle-token footprint audit
 
-The full procedure for `/aidex context`. It lives here, not in `SKILL.md`, because it is
-**conditional content**: it applies only when this one sub-action runs, and inlining it cost
-the orchestrator body ~1.3k tokens in every session that never invokes it. `SKILL.md` cites
-this file as a step at the dispatch point, which is the only citation shape measured to
-actually get read (`skill-conventions.md` § Level 3).
+The full procedure for `/aidex context`.
 
 Focused audit of the session's **idle token footprint** (everything loaded before the user types anything). Use when the user:
 
@@ -22,10 +18,13 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
 1. **Read the budget heuristics first:** `~/.claude/skills/aidex/references/05-context-budget.md`. It holds the idle-token budget thresholds, the cost drivers ranked by typical savings, and the `CB-*` codes the agents below emit — without it you cannot tell an expensive footprint from a normal one, and the synthesis in step 4 has nothing to rank against.
 2. **Parse** the breakdown inline (or defer to `context-cost-analyzer`). Surface idle total and per-category token counts immediately.
 3. **Launch in parallel** (single message, `run_in_background: true`):
-   - `context-cost-analyzer` — cross-references all drivers, produces priority-ordered savings list.
-   - `plugin-auditor` — enumerates plugin agent cost vs. recent usage.
-   - `memory-auditor` — focused on `CB-MD` (docs disguised as memory).
-   - `skills-auditor` — focused on `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
+   - `context-cost-analyzer` — parses the breakdown, owns `CB-CM`, `CB-MD` and
+     `CB-SKILL-DESC-RESIDENT`, and ranks every driver into one savings list. It consumes the
+     three below rather than re-deriving them.
+   - `plugin-auditor` — owns `CB-PL`: plugin agent cost vs. recent usage.
+   - `skills-auditor` — owns `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
+   - `memory-auditor` — reads the memory *files* and returns one verdict each; the index
+     (`MEMORY.md`) is `context-cost-analyzer`'s `CB-MD`.
 4. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
 5. **Never auto-execute during the audit itself.** The audit reports; it does not mutate. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) as proposals. Execution belongs to the apply phase below, and only once the user has picked from its menu.
 
@@ -55,9 +54,9 @@ After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply al
 
 **Guardrails for apply phase:**
 - Step 2's backup is what makes class 4 safe to apply unprompted. If the backup step failed or was skipped, nothing is class 4 — fall back to per-item confirmation.
-- Never edit `feedback_*.md` files automatically (MEM-STALE is human-review only).
+- Never edit `feedback_*.md` files automatically — they are human-review only.
 - Never delete large external trees outside `~/.claude/skills/` and `~/.claude/commands/` — escalate to backlog instead.
-- If `.context/decisions/` exists and an entry overlaps (MEM-DEC), prefer linking from MEMORY.md to the decision doc over deleting silently.
+- If `.context/decisions/` exists and an entry overlaps it, prefer linking from MEMORY.md to the decision doc over deleting silently.
 - For third-party plugin skills, do NOT propose `disable-model-invocation` flips — get overwritten on plugin update. Use `settings.local.json` overrides instead.
 - **Before applying any MEMORY.md edit or delete, read**
   `~/.claude/skills/aidex/references/03-memory-workflow.md`. It holds the memory

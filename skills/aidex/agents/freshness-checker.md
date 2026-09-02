@@ -1,9 +1,9 @@
 ---
 name: freshness-checker
-description: Detects stale documentation by comparing Last Updated dates against recent project activity
+description: Detects stale documentation by comparing each artifact's front-matter `updated` date against recent project activity
 model: haiku
 effort: low
-allowed-tools: Read, Glob, Grep, Bash
+allowed-tools: Read, Glob, Grep, Bash, WebFetch
 context: fork
 user-invocable: false
 ---
@@ -18,8 +18,8 @@ Read conventions: `~/.claude/skills/aidex-conventions/references/reference-conve
 
 ### For each module in `.context/references/` and `.context/docs/`:
 
-**[F1] Last Updated vs git activity:**
-- Extract `Last Updated:` from metadata
+**[F1] `updated` vs git activity:**
+- Extract `updated:` from the front-matter (D-07; a legacy `Last Updated:` line counts too)
 - Run: `git log --since="[last-updated-date]" --oneline -- [paths-mentioned-in-docs]`
 - If >3 commits since last update → WARNING (potentially stale)
 - If >10 commits → CRITICAL (likely outdated)
@@ -43,10 +43,10 @@ Read conventions: `~/.claude/skills/aidex-conventions/references/reference-conve
 Roadmaps are checkboxed source-of-truth documents. Auto-editing checkbox state from inferred signals is dangerous (can fabricate completion). Detect staleness and flag for human refresh — never auto-mark.
 
 **[F5] Roadmap header age:**
-- Apply [F1] (commits since `Last Updated:`) with the same thresholds.
+- Apply [F1] (commits since `updated:`) with the same thresholds.
 
 **[F6] Roadmap structural staleness:**
-- Read each `roadmap/*.md` file. Extract its header `date:` (or `Last Updated:`).
+- Read each `roadmap/*.md` file. Extract its front-matter `updated:` (or `date:`).
 - Look for plans, audits, or decisions in `.context/plans/`, `.context/audits/*/index.md`, and `.context/decisions/` whose own `date:` is **after** the roadmap's date AND that mention modules / phases referenced in the roadmap.
 - If at least one match is found AND the roadmap still has unchecked `- [ ]` items in the affected phase: emit `WARNING [F6]` with text:
   - `Roadmap refresh pending — <plan-or-audit-or-decision-path> (date: YYYY-MM-DD) post-dates <roadmap-file> and may indicate completed/changed phases.`

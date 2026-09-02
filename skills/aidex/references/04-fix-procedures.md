@@ -10,8 +10,9 @@ For each `.md` file directly in `.context/references/` or `.context/docs/`:
 4. Update all links to old path
 
 ### Metadata Fixes
-- Add missing Version/Last Updated/Context headers
-- Use file modification date for Last Updated, default version 1.0.0
+- Add the four required front-matter fields where one is missing: `title`, `status`,
+  `created`, `updated` (`aidex-conventions` § front-matter)
+- Use the file modification date for `updated`, and the earliest known date for `created`
 
 ### Index Fixes
 - Add missing file links to `00-index.md` Documents table
@@ -94,7 +95,7 @@ Options:
 ### Archive Completed Plans
 ```
 .context/plans/20250115-auth-migration.md
-Status: completed | All tasks done
+Status: done | All tasks checked
 Options:
   [1] Archive to .context/plans/_archive/
   [2] Delete permanently

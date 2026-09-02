@@ -1,6 +1,6 @@
 ---
 name: aidex
-description: 'Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "check my project''s health", "I think I have broken symlinks", "my .context/ is a mess", "my new project has no .context / help me start with aidex", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).'
+description: 'Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context, or "my project opens heavy / wastes context". Also fires on "audit my project", "organize my ecosystem", "what skills do I have", "check my project''s health", "I think I have broken symlinks", "my .context/ is a mess", "my new project has no .context / help me start with aidex", and the /aidex command. Not for: creating .context/ docs (aidex-plan, aidex-decision, aidex-reference, aidex-research, aidex-request); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).'
 argument-hint: "[context]"
 disable-model-invocation: false
 ---
@@ -20,10 +20,10 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Symlinks** | `.claude/skills/*`, `.claude/commands/*` | Targets exist, no broken/orphan links |
 | **Memory** | `~/.claude/projects/<slug>/memory/` + its `MEMORY.md` index | Session logs saved as memories, secrets, closed subjects, duplicates, content in the always-on index. See `/aidex memory` |
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
-| **Freshness** | `.context/references/`, `.context/docs/` | Last Updated vs recent commits, stale content |
+| **Freshness** | `.context/references/`, `.context/docs/` | `updated` vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
 | **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
-| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups moved to `~/.claude/aidex/backups/` in `1627663`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
+| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups belong in `~/.claude/aidex/backups/`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
 | **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
 
 ---
@@ -141,18 +141,18 @@ Build a quick inventory of what exists and its size. This determines which agent
 
 ## Phase 1: Parallel Audit
 
-**CRITICAL: Launch ALL applicable agents in a SINGLE message with multiple Agent tool calls.** Each agent runs with `run_in_background: true` so they execute in parallel. Do NOT launch them sequentially.
+Launch every applicable agent in a single message with multiple Agent tool calls, each with `run_in_background: true`, so they execute in parallel.
 
 Read each agent's instructions from `~/.claude/skills/aidex/agents/` and pass them as the prompt. Include the project path in each prompt.
 
 | Subagent | Launches when | Model | Effort | Tools |
 |----------|--------------|-------|--------|-------|
-| [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | medium | Read, Glob, Grep |
+| [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | medium | Read, Glob, Grep, Bash |
 | [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `~/.claude/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
 | [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | medium | Read, Glob, Grep |
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | low | Read, Glob, Bash |
 | [memory-auditor](agents/memory-auditor.md) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
-| [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | low | Read, Glob, Grep, Bash |
+| [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | low | Read, Glob, Grep, Bash, WebFetch |
 | [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | low | Read, Glob, Grep, Bash |
 | [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | low | Read, Glob, Grep, Bash |
 
@@ -165,13 +165,6 @@ Effort follows the suite heuristic
 ([workflow-spec conventions](../aidex-workflow/references/01-workflow-spec-conventions.md)):
 mechanical existence/parse checks → `low`; judgment over content quality or compliance →
 `medium`.
-
-Example launch pattern (all in one message):
-```
-Agent(description="Audit .context/ structure", model=haiku, effort=medium, run_in_background=true, prompt="[context-auditor instructions + project path]")
-Agent(description="Audit skills", model=haiku, effort=medium, run_in_background=true, prompt="[skills-auditor instructions + project path]")
-Agent(description="Check symlinks", model=haiku, effort=low, run_in_background=true, prompt="[symlink-checker instructions + project path]")
-```
 
 **Wait for ALL launched agents to complete before proceeding to Phase 2.**
 
@@ -280,8 +273,8 @@ For each approved action, execute directly or launch a specialized subagent:
 - Delete orphaned files
 - Remove skills
 
-Trimming duplicated content is **not** in this list: it is a class-4 edit covered by the
-apply phase's backup, and listing it here is what made the two sections disagree.
+Trimming duplicated content is **not** in this list: it is a class-4 edit, covered by the
+apply phase's backup.
 
 After execution, show before/after summary:
 
