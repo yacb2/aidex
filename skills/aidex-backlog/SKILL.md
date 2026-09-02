@@ -20,7 +20,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | Command | Script | Purpose |
 |---|---|---|
 | `/aidex-backlog` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
-| `/aidex-backlog --origin manual --title "<title>" [--type] [--priority] [--estimate] [--surface] [--verify] [--touches] [--depends] [--context] [--acceptance …]` | same | Non-interactive manual entry. Given all six contract fields plus a Context and an Acceptance it lands **defined** in one step; every registration ends with `define-check.py`'s verdict for the new id and, when underdefined, the exact `define-item.sh` command (BL-273). Nothing is mandatory: a bare stub still registers |
+| `/aidex-backlog --origin manual --title "<title>" [--type] [--priority] [--estimate] [--surface] [--verify] [--touches] [--depends] [--context] [--acceptance …]` | same | Non-interactive manual entry. Given all six contract fields plus a Context and an Acceptance it lands **defined** in one step; every registration ends with `define-check.py`'s verdict for the new id and, when underdefined, the exact `define-item.sh` command. Nothing is mandatory: a bare stub still registers |
 | `/aidex-backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
 | `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
 | `/aidex-backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `aidex-plan-exec`'s between-phase checkpoint) |
@@ -32,7 +32,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/define-item.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/define-item.sh](scripts/define-item.sh) | The writer: a definition verdict INTO the item (`triage.sh` stays read-only) |
 | `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
 | `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
-| `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure (BL-134) |
+| `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure |
 | `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>] [--sweep]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10). **`--sweep` makes proof a precondition**: `done` needs `## Verification` rows with proof that meet the item's `surface` minimum, else exit 2 and nothing changes; an unanswered `owner` row PARKS the item (`awaiting: owner`, never archived) |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
@@ -49,7 +49,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `bash scripts/install-commit-hook.sh` | [scripts/install-commit-hook.sh](scripts/install-commit-hook.sh) | Wire a repo-local post-commit hook that harvests commit SHAs from trailers into `commits:` (D-09). Idempotent; never global |
 | `bash scripts/harvest-commit.sh [--sha <s>] [--message <m>]` | [scripts/harvest-commit.sh](scripts/harvest-commit.sh) | The harvester the hook calls; parses `Backlog:`/`Plan:` trailers and records the SHA. Cross-artifact |
 | `bash scripts/migrate-priorities.sh [--apply]` | [scripts/migrate-priorities.sh](scripts/migrate-priorities.sh) | Idempotent: normalize legacy `**Priority**: High/Low/...` to P0–P3 codes. Dry-run by default |
-| `python3 scripts/estimate-calibration.py [--from <dir>] [--project <p>]` | [scripts/estimate-calibration.py](scripts/estimate-calibration.py) | **A read, never a gate** (BL-131): scores closed items' `estimate:` against realized effort from the usage-retro miner, per bucket, with median **and** p90/max plus tail concentration. Prints no single accuracy number — one would average the flat middle with the spreading tail. Not wired into any lifecycle script and never blocks a run; it is measurement feedback, not a prompt for a better estimate. A full run mines the corpus (~4 min); `--from` reuses a previous run |
+| `python3 scripts/estimate-calibration.py [--from <dir>] [--project <p>]` | [scripts/estimate-calibration.py](scripts/estimate-calibration.py) | **A read, never a gate**: scores closed items' `estimate:` against realized effort from the usage-retro miner, per bucket, with median **and** p90/max plus tail concentration. Prints no single accuracy number — one would average the flat middle with the spreading tail. Not wired into any lifecycle script and never blocks a run; it is measurement feedback, not a prompt for a better estimate. A full run mines the corpus (~4 min); `--from` reuses a previous run |
 
 ---
 
@@ -117,8 +117,8 @@ proof rows → `close-item --sweep`, which refuses without them; the **checkpoin
 not restated here — its handoff seed additionally carries the work-list path, the item
 just closed, what ran with which exit codes, and what is ungated; `sweep-gate.sh` once at
 the boundary; `sweep-report.sh` + `worklist-close.sh` at close-out, branch left ready,
-merge **asked**. Size was the wrong gate: measured on a 34-item sweep, the two worst items
-took four commits each and both had no Acceptance.
+merge **asked**. Size is the wrong gate: the entry gate is Acceptance — an item with no
+acceptance criteria is not small, it is undefined.
 
 ---
 
@@ -135,8 +135,8 @@ Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-bl-nnn-<slug>.md
 > **Never choose the `BL-NNN` yourself — always register through the script.** Reading the
 > index for the highest id and adding one is the same race the script exists to prevent,
 > with a much wider window: the script's scan-to-write gap is microseconds, a human or an
-> agent doing it by hand leaves minutes. It is how BL-166, BL-233 and BL-235 were each
-> minted twice. `register-item.sh` claims the number atomically against a repo-global
+> agent doing it by hand leaves minutes, and ids have been minted twice that way.
+> `register-item.sh` claims the number atomically against a repo-global
 > ledger; nothing outside it can. `--check-ids` remains the detector for ids that got in
 > some other way, but detection after both files exist is not the same as prevention.
 
@@ -169,7 +169,7 @@ open ⇄ _deferred (blocked) → doing → done / dropped
    `status` by hand. That script is also the **bug route**: an item with
    `type: bug` prints the RED→GREEN procedure on start, so bug work enters the
    regression-test-first cycle from the backlog lifecycle instead of depending on
-   a bug-report phrasing that tracked work never uses (BL-134). A plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `aidex-loop` loop-spec in `.context/loops/`. Default stays a plan.
+   a bug-report phrasing that tracked work never uses. A plan may exist in `.context/plans/` (link in Notes). If the item's acceptance criterion is machine-checkable (a gate the work should iterate against), it may instead link an `aidex-loop` loop-spec in `.context/loops/`. Default stays a plan.
 4. **done** — shipped; archived to `_archive/` **on close** (D-10), not after a delay
 5. **dropped** — won't do; reason in Notes; archived on close
 

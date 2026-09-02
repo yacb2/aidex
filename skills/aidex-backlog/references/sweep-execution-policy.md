@@ -6,18 +6,11 @@ cross-source queue (`worklist-conventions.md`, which this policy sits on top of)
 a run mode of `aidex-backlog`, not a skill
 (ADR `decision/2026-08-06-worklist-entry-point-is-aidex-backlog`).
 
-**This document is the shape, not the rulebook.** Twelve runs across four months kept
-re-breaking the same rules while every one of them was already written here; the
-2026-08-24 policy shipped and the 08-26 sweep still piped exit codes and mis-attributed a
-red. A rule that broke twice is now a script that refuses, and this file **points at the
-script** instead of restating it — a restated rule is a second copy, and the copy is what
-drifts (guarded by `tests/test-sweep-policy-shape.sh`). What stays in prose is what no
-script can hold, marked *prose* below.
-
-The measurement behind every clause:
-`echo_lab_ws/.context/research/2026-08-24-small-sweep-throughput-analysis.md` — 34 items,
-52 commits, 7.8 h active, **48 % of it test execution**, **55 of 66 E2E invocations with no
-verdict at all**.
+**This document is the shape, not the rulebook.** A rule that keeps breaking becomes a
+script that refuses, and this file **points at the script** instead of restating it — a
+restated rule is a second copy, and the copy is what drifts (guarded by
+`tests/test-sweep-policy-shape.sh`). What stays in prose is what no script can hold,
+marked *prose* below.
 
 ## Stage 1 — Kickoff: interactive, once
 
@@ -26,8 +19,8 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
 
 1. `sweep-eligible.py --size XS,S` partitions the open set into ELIGIBLE / REVIEW /
    NEEDS-DECISION.
-2. Above **20 eligible items**, fan out readers to triage (five was the measured shape on
-   08-26). Each reader writes its verdict **into the item** with `define-item.sh` —
+2. Above **20 eligible items**, fan out readers to triage (about five). Each reader
+   writes its verdict **into the item** with `define-item.sh` —
    `estimate` confirmed or corrected (a corrected item is re-laned then and there),
    `surface` / `verify` confirmed against the registration hypothesis, `touches`,
    `depends` — then the kickoff is re-run so the queue is ordered from corrected items.
@@ -39,7 +32,7 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
    `artifacts-local-first`, explain-before-ask, each option carrying its consequence and a
    recommendation. `AskUserQuestion` is for parameters only (gate policy, scope toggles);
    a decision list belongs in the artifact where the answers stay. A consultation that
-   lands mid-sweep stalls the chain for as long as the answer takes (~68 min, measured).
+   lands mid-sweep stalls the chain for as long as the answer takes.
 5. Gate policy fixed once: `publish: never`, `destructive: deny`, and **merge is never
    pre-authorized in a sweep** — many small items whose combined blast radius nobody
    reviewed as a unit; the branch is left ready and the merge is asked for.
@@ -68,10 +61,10 @@ Enforced by `aidex-worktree` (`worktree.sh`); the baseline is a run, not a rule.
 - A Tier-2 worktree **always**, one branch per repo. Every backlog and worklist script
   resolves the project root through `_lib.sh`'s `find_project_root`, so the queue and the
   item it closes live in the same tree (pinned by `test-find-project-root.sh`).
-- **The baseline suite is run and recorded before item 1.** On 08-12 pre-existing reds
-  were attributed to the batch that did not cause them. Attribution of a red spec happens
+- **The baseline suite is run and recorded before item 1**, or pre-existing reds get
+  attributed to the batch that did not cause them. Attribution of a red spec happens
   on detached `main`, same spec — a "no diff" over a hand-picked file list is only as wide
-  as the list (BL-632).
+  as the list.
 - Concurrency guard: one implementer per repo; `pgrep` for a running suite before
   launching a heavy one — two suites on one test database produce phantom failures.
 
@@ -82,13 +75,13 @@ Enforced by `start-item.sh`, `affected-tests.sh`, `close-item.sh --sweep`, and
 
 1. `start-item.sh` (the `doing` transition; the RED→GREEN route for `type: bug`).
 2. **Premise check against the current code, written down** as KEEP / RE-SCOPE / DROP in
-   the item's Notes before any edit. On 07-27 three of four items had stale premises.
+   the item's Notes before any edit — premises go stale between filing and the sweep.
 3. The targeted test — RED→GREEN for a bug, **plus the mutation** (below) — is the item's
    verification. Selection via `affected-tests.sh --command`, **widened by the profile's
    `blindspot_expansions`** (`testing-profile.md`): a migration ⇒ every app referencing
    the model; a touched `*.test.ts` ⇒ `vue-tsc -b`; a removed UI surface ⇒ grep
-   `tests/e2e/` for its endpoints and testids. Six of the nine problems the 08-26 gate
-   found were one of these three.
+   `tests/e2e/` for its endpoints and testids. Most of what the boundary gate catches is
+   one of these three.
 4. Commit with the `Backlog: BL-NNN` trailer (a MERGE pair: one commit, both trailers).
 5. `close-item.sh --sweep` — refuses `done` without `## Verification` rows with proof that
    meet the item's `surface` minimum (`01-backlog-conventions.md` § Verification).
@@ -98,8 +91,8 @@ Enforced by `start-item.sh`, `affected-tests.sh`, `close-item.sh --sweep`, and
 RED→GREEN proves the call site is load-bearing; it does **not** prove the assertion can
 see the thing it denies. Where the test asserts an absence — no dialog, no error toast,
 no second request, no leaked row — add the mutation that makes the denied thing
-**appear** and require the test to go red. Two failure modes, both observed closing
-BL-600: a negative assertion samples, it does not wait (`toHaveCount(0)` polled once and
+**appear** and require the test to go red. Two failure modes, both observed: a negative
+assertion samples, it does not wait (`toHaveCount(0)` polled once and
 passed while the suppressed modal opened 4 s later); and a positive assertion in front of
 it only covers the denial if it settles *later* than the denied thing appears. Prefer an
 anchor to a settle; run the appearance-mutation in the configuration the spec will live
@@ -129,11 +122,11 @@ Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver).
 Merge the trunk **into** the branch first (routine class-4 work, ungated), then run the
 gate: every leg from `testing-profile.md`'s full-suite commands, raw exit code and spec
 count per leg, a countless leg is FAIL, a detached E2E leg is printed and scored from its
-log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl` (durable; the leg logs stay in `_tmp/sweep-gate/`). In a worktree of a project that tracks `.context/`, the work-list, its report, the proofs and this history live in the worktree's copy and vanish at teardown. The copy-before-teardown step this used to prescribe is **retired** (BL-259): put the root repo in `WT_PARTICIPANTS` as `.` and `$DEST` is a checkout of it, so the worktree owns the `.context/` it writes to and `find_project_root` stops there. A project that does NOT track `.context/` still has nothing to carry — see BL-289.
+log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl` (durable; the leg logs stay in `_tmp/sweep-gate/`). In a worktree of a project that tracks `.context/`, the work-list, its report, the proofs and this history live in the worktree's copy and vanish at teardown. Do not prescribe a copy-before-teardown step: put the root repo in `WT_PARTICIPANTS` as `.` and `$DEST` is a checkout of it, so the worktree owns the `.context/` it writes to and `find_project_root` stops there. A project that does NOT track `.context/` has nothing to carry.
 
 *Prose — a conflict whose resolution is per-key across a moved file is not sweep work.*
-Budget for the merge when another session has been working the same repo: on the first
-trial the frontend did not merge clean — the other session had split the i18n catalogue
+Budget for the merge when another session has been working the same repo. Observed: the
+frontend did not merge clean — the other session had split the i18n catalogue
 into modules while this branch grew its copy, a 1,666-line conflict whose trunk side was
 empty, where taking either side loses strings silently. Abort it, register it with what
 was measured, and gate on the un-merged branch saying so. Resolving it badly at the end
@@ -184,9 +177,9 @@ base (`checkpoint-conventions.md` § 1), never from a phrase.
 
 Three alternatives were refuted, each reasonable in isolation:
 
-- **Per-item always** — refuted 08-12: findings appeared only on discretionary calls, so
+- **Per-item always** — refuted: findings appeared only on discretionary calls, so
   the other reviews bought nothing.
-- **Whole-branch only** — refuted 08-23: 29 commits reached the gate unreviewed and a
+- **Whole-branch only** — refuted: 29 commits reached the gate unreviewed and a
   real regression was found post-merge.
 - **Large fan-out per item** — refuted by cost: 240 k tokens spent on one mis-scoped
   review.
