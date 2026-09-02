@@ -1,9 +1,7 @@
 # Unattended / batch execution (opt-in, gated)
 
-> Split out of `SKILL.md` (BL-078): the body was ~7.4k tokens, over the 5k hard ceiling in
-> `aidex-conventions/references/skill-conventions.md` § Size Constraints. This is the
-> progressive-disclosure half — read it when a run is actually going unattended. The
-> interactive path in `SKILL.md` does not need any of it.
+> The progressive-disclosure half of `SKILL.md` — read it when a run is actually going
+> unattended. The interactive path in `SKILL.md` does not need any of it.
 >
 > Paths in this file are relative to the skill root (`../`), not to this directory.
 
@@ -12,10 +10,8 @@ The default path above is **interactive** (you run the plan turn-by-turn). For
 the plan as a **durable `Workflow`** instead — each phase a fresh bounded agent, a two-stage
 gate (Bash verifier → conditional arbiter) per phase, crash-resumable via the journal. Use
 this only when the work is **decomposable + machine-verifiable + unattended** and the user
-opted in (the `Workflow` tool is gated and token-heavy). **The mandatory Orient evaluation
-above handles the opt-in for you when the plan qualifies** — the user does not have to request
-the Workflow by name: a run-to-completion kickoff already **is** the opt-in (promote directly,
-stating the decision in one line), and only without it does the one-word "yes" at Orient apply.
+opted in (the `Workflow` tool is gated and token-heavy). § Promotion at Orient below owns how
+that opt-in is resolved.
 
 ### Promotion threshold (when batching actually pays off)
 
@@ -26,17 +22,13 @@ Promote a plan (or a phase) to a `Workflow` only when **all** hold:
 - **Unattended** — the user opted into an away-from-keyboard run.
 - **Value > overhead** — each phase's real work is large enough to amortize the per-agent fixed cost.
 
-**The cost model (measured, not guessed).** Every fresh phase agent re-pays its own system prompt +
-full tool schemas — a fixed floor of **~22k tokens/agent**, reconfirmed across this build: ~21k/agent
-(fan-out, 6 agents) and ~23.5k/agent (review, 2 agents). The often-quoted ~1.4–2× premium is about
-re-paying *shared plan context*; for **small** phases the fixed per-agent floor dominates instead, so
-the ratio is worse and a workflow only pays off when each phase's work dwarfs that ~22k floor.
-**Toy fixtures cannot measure the promotion ratio** — `tokmap`/`fanout`/`review` only ever exercise the
-floor, which is already the structural finding. **Open measurement (a trigger, not a vague defer):**
-capture per-phase token spend on the **first genuine (non-toy) plan** run through the pipeline and
-compare it to a single-agent baseline of that same plan — the only setting where the ratio is real.
-Until that data exists the threshold is the structural rule above. (This converts the A/B that was
-carried P1→P3→P4 into a triggered measurement rather than a fourth silent carry-forward.)
+**The cost model (measured).** Every fresh phase agent re-pays its own system prompt + full tool
+schemas — a fixed floor of **~22k tokens/agent** (measured range ~21k–23.5k). The often-quoted
+~1.4–2× premium is about re-paying *shared plan context*; for **small** phases the fixed per-agent
+floor dominates instead, so the ratio is worse and a workflow only pays off when each phase's work
+dwarfs that ~22k floor. Toy fixtures only ever exercise the floor, so they cannot measure the
+promotion ratio; until per-phase spend is captured on a genuine plan and compared against a
+single-agent baseline of that same plan, the threshold is the structural rule above.
 
 - The forms ship as versioned assets, all embedding the single-sourced durability CORE
   (see [`../aidex-conventions/references/workflow-core.md`](../../aidex-conventions/references/workflow-core.md)):
@@ -82,20 +74,6 @@ carried P1→P3→P4 into a triggered measurement rather than a fourth silent ca
   `ASK` collects a batched question while the phase continues; `STOP` escalates). In the
   fan-out form a failed phase blocks only its **descendants** — independent branches keep
   running and questions batch at the end.
-- **Status:** validated in the real `Workflow` runtime end-to-end — a 3-phase chained plan
-  (derived plan→`args`) where fresh agents implement each phase from scratch, threading prior
-  outputs off disk (B imports A, C imports A+B), each phase gated, per-phase model/effort
-  honored; and the conditional arbiter fires on retry-exhaustion (not a per-gate rubber-stamp).
-  An isolator fixture (opaque labels withheld from the dependent phase's spec **and** its test)
-  then confirmed the disk read is load-bearing — "filesystem IS the context" — not spec-redundant.
-  Kill-and-resume is validated too: a run killed mid-phase, resumed via `resumeFromRunId`, replayed
-  its completed prefix from the journal and re-ran only the interrupted agent. Escalate-to-backlog is
-  validated end-to-end: a phase that exhausts retries → arbiter ASK → a real backlog entry via
-  `aidex-backlog`. Multi-file (`00-index.md` + per-phase files) plans flatten to the same `phases[]`
-  via the derivation below. The second catalog entry (`fan-out-with-gate`) is seeded and
-  validated: a synthetic plan with two edge-free phases + one dependent ran as a gated DAG —
-  the two independent phases executed concurrently, the dependent phase after, and the
-  two-stage gate fired on every branch with the implementer blind to `gateCmd`.
 
 ### Deriving `args` from the plan
 
@@ -195,7 +173,7 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
   form requires multi-agent orchestration (any `Workflow` form), **do NOT launch
   silently**: state the guard in one line, recommend a handoff to Opus, and fall
   back to the interactive-with-arbiter path until the handoff happens — Sonnet
-  demonstrably fails multi-agent Workflow orchestration (observed field failure
-  2026-07-03). A blocked launch is not an over-stop: the run continues
+  demonstrably fails multi-agent Workflow orchestration. A blocked launch is not an
+  over-stop: the run continues
   interactively; only the batch promotion waits for the Opus session. Surface this
   at Orient, never as a mid-run interruption.
