@@ -119,8 +119,8 @@ updated: YYYY-MM-DD
 ## After a meeting: action items become tracked work
 
 Logging the meeting is half the job. A meeting record whose action items stay inside
-`body.md` is a note, not a commitment — the hop to a tracker was manual and unnamed, so it
-did not happen. **Once the body is written, walk its action items and derive each one**:
+`body.md` is a note, not a commitment. **Once the body is written, walk its action items
+and derive each one**:
 
 | The action item is… | Register it as | Command |
 |---|---|---|
@@ -198,10 +198,9 @@ with `status: sent` too.
 
 ---
 
-## Self-check (mandatory close step)
+## Self-check
 
-Before finishing, validate the artifact you just wrote and fix any violation on
-the spot — compliance is enforced at creation time, not left to a later sweep:
+Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
 python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type communications
