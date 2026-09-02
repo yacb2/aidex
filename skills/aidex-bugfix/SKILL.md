@@ -16,16 +16,9 @@ description: >
 
 Test-driven bug fixing methodology that ensures every fix includes a regression test.
 
-## When to Use
-
-- User reports a bug or broken behavior
-- User references a bug report or issue tracker
-- You discover a bug while working on something else
-- User says `/aidex-bugfix`
-
 ## Core Principle
 
-**Every bug fix MUST include a regression test.** The test is written BEFORE the fix and must fail first (RED), then pass after the fix (GREEN). This is non-negotiable.
+**Every bug fix MUST include a regression test.** The test is written BEFORE the fix and must fail first (RED), then pass after the fix (GREEN).
 
 ## Workflow
 
@@ -46,14 +39,13 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
    available (no `module-map.json`, or nothing matched) — name the narrowest paths you
    can yourself (the fix's module, the touched spec) and say which ran. **The full suite gates the INTEGRATION boundary — merge to trunk,
    push, deploy, or the end of an unattended run — not this commit**
-   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`, partially
-   reversing BL-135). Committing on a selected run is legitimate and must never be
+   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`). Committing on a selected run is legitimate and must never be
    silent: state which subset ran and that the full suite has not. A selection marked
    `# INCOMPLETE` is the one exception that still forces the full suite before the
    commit — an unmapped change is unknown scope, so the selection proves nothing.
    That same command also names, on stderr, any file in your diff that **measurably
    breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
-   against a disposable database, never dev (`rules/e2e-testing.md`) (BL-133).
+   against a disposable database, never dev (`rules/e2e-testing.md`).
 7. Commit test + fix together
 8. **Guided human verification, at the integration boundary** — before the fix merges,
    pushes or the run ends, not before the commit. A bug the user reported by *looking at
@@ -64,7 +56,7 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
    and its `proof_links` entry, and the **recorded** skip. Most bugs are not
    human-visible and skipping is right; it is recorded as
    `human-verification: skipped — <reason>` and never left absent, because absent reads
-   the same as forgotten (BL-228). For a visual/CSS-only bug this step is not optional —
+   the same as forgotten. For a visual/CSS-only bug this step is not optional —
    it is the only verification there is (see the exception below).
 
 ## Agent Configuration
@@ -92,7 +84,6 @@ detects the project's actual runners from its config files:
 
 ## Integration with Other Skills
 
-- Apply root-cause-first investigation in Step 1 (don't patch the symptom)
 - Defer to the project's own testing helpers/patterns for how to write the test
 - Follow the project's commit conventions for Step 7 (detect them; `git-commit` if present)
 - If Step 7 needs a new branch (e.g. you were on the default branch), resolve and state its
@@ -117,8 +108,7 @@ detects the project's actual runners from its config files:
   loop runner. **Guardrail:** a single green test rewards overfitting, not a real fix — the gate
   must be the test **plus** the Step-1 root-cause hypothesis **plus** the suite covering the
   diff (the full one at the integration boundary), ideally with
-  a maker≠checker split, and only once the RED test failed **for the right reason** (the failure
-  message named the buggy behavior, not an import/syntax/setup error). Green-one-test ≠ bug fixed.
+  a maker≠checker split, and only once the RED test failed **for the right reason** (Step 3). Green-one-test ≠ bug fixed.
 
 ## Exception: Visual/CSS-only Bugs
 

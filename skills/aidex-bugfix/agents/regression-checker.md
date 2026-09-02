@@ -24,8 +24,8 @@ You are a regression testing specialist. After a bug fix has been applied, your 
   prints one runnable command per repo; if it exits 3, name the narrowest paths you can yourself
 - For E2E, run only the related spec files (`./test-e2e.sh e2e/<spec>.spec.ts`)
 - Do NOT run the full suite here. The full suite is a boundary gate — plan close-out or
-  pre-merge — not a per-fix gate (decision 2026-08-26, D4: 32% of unattended runs were full
-  suites, 48% of them "the gate", ~5 min each for E2E). Say in the report which selection ran
+  pre-merge — not a per-fix gate; an E2E suite costs ~5 min a run. Say in the report which
+  selection ran
 
 ### 4. Static Analysis
 - Run TypeScript compiler check (`npx tsc --noEmit` or equivalent)
