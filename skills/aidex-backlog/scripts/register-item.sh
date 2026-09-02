@@ -364,6 +364,12 @@ emit_backlog_entry() {
   esc_title="$(yaml_escape "$title")"
   esc_blocked="$(yaml_escape "$blocked_by")"
   esc_verify="$(yaml_escape "$verify")"
+  # origin, origin_ref and escalated_to are built from flags and basenames, so they are
+  # input like title: a newline followed by --- would end the front-matter early.
+  local esc_origin esc_origin_ref esc_escalated
+  esc_origin="$(printf '%s' "$origin" | tr '\n\r' '  ')"
+  esc_origin_ref="$(printf '%s' "${origin_ref:-}" | tr '\n\r' '  ')"
+  esc_escalated="$(yaml_escape "$escalated_to")"
   # The H1 takes the flattened title, never the YAML-escaped one. Both copies used the
   # escaped form in both places, so `a "quoted" word` rendered as `a \"quoted\" word` in
   # the markdown body. Only newlines need flattening here; a quote is legal markdown.
@@ -384,15 +390,15 @@ id: $id
 status: $status
 created: $date_iso
 updated: $date_iso
-origin: $origin
-origin_ref: ${origin_ref:-}
+origin: $esc_origin
+origin_ref: $esc_origin_ref
 priority: $priority
 type: $type
 estimate: $estimate
 surface: $surface
 verify: "$esc_verify"
 blocked_by: "$esc_blocked"
-escalated_to: "$escalated_to"
+escalated_to: "$esc_escalated"
 commits: ""
 ---
 
@@ -1158,6 +1164,7 @@ fi
 
 # --- compute slug ---
 if [[ -n "$SLUG_OVERRIDE" ]]; then
+  [[ "$SLUG_OVERRIDE" =~ ^[a-z0-9-]+$ ]] || die "--slug must match [a-z0-9-]+ (got: $SLUG_OVERRIDE)"
   SLUG="$SLUG_OVERRIDE"
 else
   SLUG="$(title_to_slug "$TITLE")"

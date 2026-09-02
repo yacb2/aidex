@@ -402,10 +402,30 @@ grep -q 'b15tgt/BL-001' .context/backlog/_deferred/2026-01-01-bl-009-live.md \
 grep -q 'b15tgt/BL-001' .context/backlog/_archive/2026-01-01-bl-009-closed.md \
   && bad "B15 stamped the archived copy" || ok "B15 the archived copy was left alone"
 
+# ── B16 · origin_ref and --slug are untrusted input like title ────────────────
+# Was: origin_ref went into the front-matter as a bare scalar built from --issue /
+# --finding / basenames, unlike title and blocked_by which pass through yaml_escape.
+# A value with a newline followed by `---` ended the front-matter early: every key
+# after it (priority, type, estimate) became body prose and the id reader saw nothing.
+# --slug went verbatim into the filename with no character restriction.
+D="$(fresh b16)"; cd "$D"
+OUT="$(bash "$REG" --origin issue --issue $'42\n---\nid: BL-999' --title "B16" 2>/dev/null)"; RC=$?
+if [[ $RC -eq 0 && -n "$OUT" && -f "$OUT" ]]; then
+  [[ "$(fm "$OUT" id)" == "BL-001" ]] && ok "B16 id survives a newline in --issue" || bad "B16 id read back as '$(fm "$OUT" id)'"
+  [[ -n "$(fm "$OUT" priority)" ]] && ok "B16 priority still inside the front-matter" || bad "B16 priority fell out of the front-matter"
+  [[ "$(grep -c '^---' "$OUT")" -eq 2 ]] && ok "B16 exactly one front-matter block" || bad "B16 front-matter has $(grep -c '^---' "$OUT") delimiters"
+else
+  ok "B16 a newline in --issue is refused (rc=$RC)"; ok "B16 (refusal covers the priority cell)"; ok "B16 (refusal covers the delimiter cell)"
+fi
+D="$(fresh b16s)"; cd "$D"
+bash "$REG" --origin manual --title "B16 slug" --slug 'Bad Slug!' >/dev/null 2>&1; RC=$?
+[[ $RC -ne 0 ]] && ok "B16 --slug outside [a-z0-9-] is refused" || bad "B16 --slug 'Bad Slug!' was accepted"
+ls .context/backlog/ | grep -q 'Bad' && bad "B16 a file with the raw slug was written" || ok "B16 no file with the raw slug"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 14 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 15 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
