@@ -149,7 +149,7 @@ if [[ -f "$CLAUDE_MD" ]]; then
   fi
 fi
 
-# Worktree Tier-2 commands: front-matter of the aidex-worktree doc (primary),
+# Worktree up/down commands: front-matter of the aidex-worktree doc (primary),
 # executable worktree-up*.sh / worktree-down*.sh at root or scripts/ (secondary).
 WT_DOC="$ROOT/.context/worktrees/00-index.md"
 fm_field() {

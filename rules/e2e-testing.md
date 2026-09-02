@@ -39,5 +39,5 @@ restating it.
 
 ## Worktrees
 
-- In an isolated (Tier 2) worktree, E2E runs via that worktree's own generated `test-e2e.sh` — never fall back to the root/dev environment.
-- A Tier-2 isolated worktree includes isolated E2E capability by default — do not ask whether to include it.
+- In an isolated worktree, E2E runs via that worktree's own generated `test-e2e.sh` — never fall back to the root/dev environment.
+- An isolated worktree includes isolated E2E capability by default — do not ask whether to include it.

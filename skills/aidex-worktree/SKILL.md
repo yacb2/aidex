@@ -173,7 +173,7 @@ substitute an eyeball.
    human summary, and print a one-line status — e.g. "Worktree procedure recorded
    (updated 2026-06-30): split-git services (backend, frontend) glued by
    `dev.sh`." — then run the doc-shape check and **amend any gaps in-session** (see
-   "Doc-shape check" below), and point the user to `/aidex-worktree suggest`.
+   "Doc-shape check" below), and point the user to `worktree.sh new`.
 3. If it does not exist: tell the user no worktree procedure is recorded yet, and offer
    to run `/aidex-worktree bootstrap`.
 4. **Orphan sweep.** Run

@@ -54,11 +54,11 @@ outside this repo, dependent on a third party, or a decision rather than a task.
 ELIGIBLE row is the absence of a known warning, not a promise — an Acceptance block does
 not authorize anything; only the user does.
 
-## Stage 2 — Isolation: a Tier-2 worktree, always
+## Stage 2 — Isolation: an isolated worktree, always
 
 Enforced by `aidex-worktree` (`worktree.sh`); the baseline is a run, not a rule.
 
-- A Tier-2 worktree **always**, one branch per repo. Every backlog and worklist script
+- An isolated worktree **always** (`worktree.sh new`, full stack), one branch per repo. Every backlog and worklist script
   resolves the project root through `_lib.sh`'s `find_project_root`, so the queue and the
   item it closes live in the same tree (pinned by `test-find-project-root.sh`).
 - **The baseline suite is run and recorded before item 1**, or pre-existing reds get

@@ -104,12 +104,11 @@ the phase tier map, and what happens when a phase fails its gate.
    silently on an unreviewed phase.
 5. **Honor the plan's Isolation surface** if it declares one. If the plan already
    recorded an Isolation note (from `aidex-plan`'s Step 5, at plan-creation time), act
-   on it directly: for **Tier 1**, `EnterWorktree` before phase 1; for **Tier 2**, run
-   the project's detected `worktree-up` recipe (isolated DB + `COMPOSE_PROJECT_NAME` +
-   port offset); if no recipe exists, fall back to Tier 1 and note it. If the plan
-   predates this and has no Isolation note, fall back to invoking `aidex-worktree
-   suggest` (or `bootstrap` if `.context/worktrees/00-index.md` does not exist yet) here
-   at Orient, before phase 1, and act on its recommendation the same way. Enter the
+   on it directly: run the recorded `worktree.sh new` command before phase 1
+   (`--no-infra` only when the plan says code-only); if the project has no worktree
+   setup, `EnterWorktree` and note it. If the plan predates this and has no Isolation
+   note, run `aidex-worktree bootstrap` if `.context/worktrees/00-index.md` does not
+   exist yet, then `worktree.sh new` here at Orient, before phase 1. Enter the
    worktree **only if the plan/user authorized it** — do not auto-enter one that was
    not approved. **Before creating any worktree/branch, resolve and state its base branch
    and require explicit confirmation if it is not the repo's default** (aidex-worktree's
