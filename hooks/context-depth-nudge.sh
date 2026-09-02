@@ -49,24 +49,31 @@ SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // .sessionId // empty' 2>/d
 #
 # Bounded to the last 400 lines so the cost does not grow with transcript size —
 # these files reach hundreds of MB, and this runs on every prompt.
-DEPTH=$(tail -n 400 "$TRANSCRIPT" 2>/dev/null | jq -s -r '
-  [ .[]
+# Last REAL response, not last assistant entry. Claude Code appends an assistant
+# entry on every API error (isApiErrorMessage true, model "<synthetic>", usage all
+# zeros); while the user is throttled that is the last entry, and taking it read the
+# depth as 0 during the minutes a handoff nudge matters most (BL-295). Lines are
+# parsed one by one (fromjson?) so a last line still being written cannot discard
+# the window. claude-statusline applies the same two filters; its CLAUDE.md requires
+# both readers to agree on the depth.
+DEPTH=$(tail -n 400 "$TRANSCRIPT" 2>/dev/null | jq -Rs -r '
+  [ split("\n")[] | fromjson?
     | select(.type == "assistant")
     | .message.usage
     | select(. != null)
-  ] | last
-  | if . == null then 0
-    elif ((.iterations // []) | length) > 0 then
-      [ .iterations[]
-        | (.cache_read_input_tokens // 0)
+    | if ((.iterations // []) | length) > 0 then
+        [ .iterations[]
+          | (.cache_read_input_tokens // 0)
+            + (.cache_creation_input_tokens // 0)
+            + (.input_tokens // 0)
+        ] | max
+      else
+        (.cache_read_input_tokens // 0)
           + (.cache_creation_input_tokens // 0)
           + (.input_tokens // 0)
-      ] | max
-    else
-      (.cache_read_input_tokens // 0)
-        + (.cache_creation_input_tokens // 0)
-        + (.input_tokens // 0)
-    end
+      end
+    | select(. > 0)
+  ] | last // 0
 ' 2>/dev/null)
 
 case "$DEPTH" in ''|*[!0-9]*) exit 0 ;; esac

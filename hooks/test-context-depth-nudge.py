@@ -8,7 +8,7 @@ so it runs anywhere and does not rot when transcripts are cleaned up.
 """
 import json, os, subprocess, sys, tempfile
 
-HOOK = os.path.expanduser("~/.claude/hooks/context-depth-nudge.sh")
+HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "context-depth-nudge.sh")
 ENV = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin", "HOME": os.path.expanduser("~")}
 STATE = os.path.expanduser("~/.claude/tmp")
 TMP = tempfile.mkdtemp(prefix="ctxdepth-test-")
@@ -179,6 +179,33 @@ for band_name, depth in [("band 2 (250k)", 260_000), ("band 3 (300k)", 320_000)]
     check(f"{band_name} prescribes no handoff decision", not found, found)
     check(f"{band_name} still reports the number", "k tokens" in txt, txt[:70])
     clean(sid)
+
+print("\n=== 8. API-error entries and a torn last line do not void the depth (BL-295) ===")
+# Claude Code appends an assistant entry on every API error: isApiErrorMessage true,
+# model "<synthetic>", usage all zeros. While the user is throttled that is the LAST
+# entry, so "last assistant usage" read 0 and no band fired -- during the minutes a
+# handoff nudge matters most. Mirrors claude-statusline's select(.d > 0), which
+# CLAUDE.md there requires both readers to agree on.
+ZERO = {"input_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 0}
+sid = "TEST-apierr"
+clean(sid)
+path = transcript("apierr", 320_000)
+with open(path, "a") as f:
+    f.write(json.dumps({"type": "assistant", "isApiErrorMessage": True, "message": {
+        "role": "assistant", "model": "<synthetic>", "usage": ZERO,
+        "content": [{"type": "text", "text": "API Error: 429"}]}}) + "\n")
+got = fire(path, sid)
+check("API-error entry after a 320k turn still fires band 3", "Over half of all input spend" in got, got)
+clean(sid)
+
+sid = "TEST-torn"
+clean(sid)
+path = transcript("torn", 320_000)
+with open(path, "a") as f:
+    f.write('{"type":"assistant","message":{"usage":{"input_tok')   # no newline: mid-write
+got = fire(path, sid)
+check("partially written last line is skipped, not fatal", "Over half of all input spend" in got, got)
+clean(sid)
 
 for f in os.listdir(TMP):
     os.remove(os.path.join(TMP, f))
