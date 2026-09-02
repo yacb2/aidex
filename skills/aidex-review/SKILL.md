@@ -56,13 +56,11 @@ Read the exit code before the output:
 - **0** — proceed with the measurement.
 
 **Depth is the caller's; admissibility is not.** `--finders N` overrides the count the
-size class implies, clamped to the catalog's 4 angles. It exists because the class was
-meant as a ceiling on cost and had become the floor on depth — to get 4 finders you had
-to point at something *big*, which is the opposite of what "review this small file
-thoroughly" wants. (`/code-review` scales angles by **effort** and treats diff size as a
-precondition; we had the two swapped.) `--finders` can never override `oversize`: that
-refusal answers whether the target can be covered at all, and one flag able to switch it
-off would make it decorative.
+size class implies, clamped to the catalog's 4 angles: the class is a ceiling on cost,
+not a floor on depth, and "review this small file thoroughly" needs 4 finders on
+something small. `--finders` can never override `oversize`: that refusal answers whether
+the target can be covered at all, and a flag able to switch it off would make it
+decorative.
 
 `size_class=oversize` is a **refusal, not a warning**: `finders_per_lens=0`. Do not run
 it anyway. Running the small-target finder count over a whole app produces a sample, and
@@ -180,10 +178,9 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
    candidates with `file`, `line`, a one-line summary, a concrete `failure_scenario`,
    and a `severity` plus a `confidence` in its own claim.
 
-   **A finder reports; it does not filter.** Ranking and refutation happen downstream —
-   the merge in 3.2 and the verifier in 3.3 — so a finder that withholds a candidate it
-   is unsure of has removed it from a phase built to settle exactly that. `confidence`
-   is how an unsure candidate is expressed; silence is not.
+   **A finder reports; it does not filter.** Ranking and refutation happen downstream
+   (the merge in 3.2, the verifier in 3.3); a withheld candidate never reaches the phase
+   built to settle it. `confidence` is how an unsure candidate is expressed.
 
 2. **Merge — before verifying, and the barrier is the point.** The same defect
    legitimately surfaces from more than one angle, so a duplicate carried into the verify
