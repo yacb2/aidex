@@ -77,8 +77,10 @@ cost only if **all four** hold — miss one and a single good prompt is cheaper:
 4. **The agent has senior-engineer tools** — logs, a reproduction env, the ability
    to run the code it writes. Without them the loop iterates blind.
 
-Plus a 5th tactical gate: **a human approves anything irreversible** (merge,
-deploy, dependency bump) before it happens.
+Plus a 5th tactical gate: **a human approves anything irreversible** (merge into
+the trunk, deploy, release) before it happens. Dependency bumps are in the source
+framework's version of this gate but not in this house's — see Step 1.5, where
+they are autonomous.
 
 ### Step 1 — Write the gate BEFORE the prompt
 
@@ -121,7 +123,7 @@ Map the loop's Autonomy surface to these three tiers:
 | Tier | Native primitive | Holds it |
 |---|---|---|
 | Destructive + ADR/code conflicts → never run | `deny` rules (+ base config) | survives every mode |
-| Outward publication (push·publish·deploy·release; NOT commit·deps·additive-migrations) → always pause | `ask` rules, pre-declared | survives every mode |
+| Outward publication + trunk integration (push·publish·deploy·release·merge-into-trunk; NOT commit·deps·additive-migrations) → always pause | `ask` rules, pre-declared | survives every mode |
 | Safe + additive (incl. unforeseen non-breaking decisions) → proceed | broad `allow` / permissive mode | the default |
 
 **The doctrine for the third tier:** proceed without stopping; the burden is to
@@ -160,7 +162,8 @@ signposts (why a test exists) — future iterations won't have that reasoning.
 
 ### Step 4 — Cost / context hygiene
 
-- **One task per iteration** (usable context ~147–152k burns re-reading the spec).
+- **One task per iteration** — re-reading the spec each iteration is what consumes
+  the usable context window.
 - **`/clear` between unrelated tasks**; after 2 failed corrections, `/clear` and
   rewrite rather than push on contaminated context.
 - **Asymmetric fan-out:** parallelize read/search; keep build/test to a **single**

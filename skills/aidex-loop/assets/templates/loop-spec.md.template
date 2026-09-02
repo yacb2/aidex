@@ -81,8 +81,9 @@ updated: {{DATE}}
   registered ADR or existing code. This-loop additions: ____
 - **Pre-authorized (run without asking):** normally-prompting operations this
   loop may run unattended (pre-cleared in this interview): ____
-- **Always-ask (pause every time):** outward publication only. Defaults:
-  `git push`/publish/deploy/release. NOT `git commit`, dependency changes, or
+- **Always-ask (pause every time):** outward publication and trunk integration.
+  Defaults: `git push`/publish/deploy/release, and merging this loop's branch into
+  the trunk. NOT `git commit`, dependency changes, or
   additive migrations (all autonomous — a destructive migration stays gated).
   Add/remove for this loop: ____
 - **Autonomous + log:** everything else that is safe, additive and non-breaking —
@@ -99,7 +100,8 @@ updated: {{DATE}}
       COMPOSE_PROJECT_NAME + port offset / none): ____
 - [ ] scoped credentials / budget cap: ____
 - [ ] deterministic completion marker (e.g. `<promise>DONE</promise>`): ____
-- [ ] human approval gate before anything irreversible (merge/deploy/dep bump): ____
+- [ ] human approval gate before anything irreversible (trunk merge/deploy/release —
+      dependency bumps are autonomous here): ____
 - [ ] security: gate includes SAST/secret-scan if it ships code; re-audit permissions every 30 days: ____
 - [ ] human checkpoint cadence (read the diffs — comprehension debt compounds): ____
 
