@@ -410,6 +410,22 @@ Focus on information that pushes Claude out of its default behavior. Don't dupli
 
 Challenge every paragraph: "Does Claude really need this?" Default assumption: Claude is already very smart.
 
+### What a shipped rule may cite from `.context/`
+
+A skill ships to every machine; the aidex repo's `.context/` does not. Two kinds of
+marker point into it, and they are treated differently:
+
+- **Backlog ids (`BL-NNN`) never appear in shipped skill text.** They resolve on one
+  machine, say nothing to a reader without that backlog, and date the rule to the week
+  it was learned. The rule and one clause of reason survive; the id goes.
+- **Decision markers (`decision/<slug>`) may appear, as navigation only.** An ADR slug
+  tells a reader where the reasoning is written up, and the slug reads as a sentence
+  even when the file is out of reach. It is never the reason itself: a rule that says
+  "because `decision/…`" and nothing else has no reason in the text a reader has.
+
+The same holds for run counts, incident dates and "an earlier version of this file":
+they belong in the ADR or the audit run that measured them, not in the rule.
+
 ### Degrees of Freedom
 
 | Freedom | When | Example |
