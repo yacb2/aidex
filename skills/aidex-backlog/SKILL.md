@@ -196,10 +196,9 @@ Details: [references/04-commit-provenance-and-audit-escalation.md](references/04
 
 ---
 
-## Self-check (mandatory close step)
+## Self-check
 
-Before finishing, validate the artifact you just wrote and fix any violation on
-the spot — compliance is enforced at creation time, not left to a later sweep:
+Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
 python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type backlog

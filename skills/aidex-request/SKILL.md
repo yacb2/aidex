@@ -42,10 +42,9 @@ bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh requests
 A request escalated to a plan sets `escalated_to: plan/<slug>` first, then closes
 with `--status done`.
 
-## Self-check (mandatory close step)
+## Self-check
 
-Before finishing, validate the artifact you just wrote and fix any violation on
-the spot — compliance is enforced at creation time, not left to a later sweep:
+Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
 python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type requests

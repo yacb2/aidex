@@ -163,16 +163,18 @@ Fix what it refutes, then re-run it if the fixes were substantive. When it refut
 **verify it yourself before fixing** — a harness that dismisses a finding can itself be the broken
 thing, and the reverse is equally possible.
 
-## 6 · Self-check (mandatory close step)
+## 6 · Self-check
+
+Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
 python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type references
 ~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory
 ```
 
-Fix violations on the spot — compliance is enforced at creation time, not left to a later sweep.
-With a ratchet baseline (`.context/.validate-baseline.json`), a non-zero exit means you
-introduced a **new** violation. The census should show your item moved out of `gap`.
+If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
+a non-zero exit means you introduced a NEW violation — fix it before closing.
+The census should show your item moved out of `gap`.
 
 ## Boundaries
 
