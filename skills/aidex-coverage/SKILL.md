@@ -142,8 +142,8 @@ not only when reviewing them later.
 [references/04-e2e-layer-audit.md](references/04-e2e-layer-audit.md) is the template:
 scope discipline, row format, and how a verdict is argued against the rubric above —
 `E2E` (stays) or `candidate` (a lower layer could observe the same failure). A completed
-table is project data and lives in that project's own `.context/`, never in this skill
-(BL-211). It is an audit, not a queue — a `candidate` verdict names the reason and the
+table is project data and lives in that project's own `.context/`, never in this skill.
+It is an audit, not a queue — a `candidate` verdict names the reason and the
 likely lower layer; deciding to move a spec, and moving it, is separate work.
 
 ## How to use diff-cover

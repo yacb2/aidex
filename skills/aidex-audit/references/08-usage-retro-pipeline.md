@@ -9,7 +9,7 @@ untracked `tools/` on the reasoning that mining our own history is not a shipped
 rest of the pipeline — `prompt_kinds.py` and the four miners — had meanwhile landed in
 `scripts/usage-retro/`, so the split was arbitrary, and it had a cost: a script outside the
 tracked tree has no test the suite runs. That is exactly how `extract.py` kept a fork of the
-prompt classifier for three published runs (BL-165). Shipping the code ships no data — these
+prompt classifier for three published runs. Shipping the code ships no data — these
 scripts are read-only over whatever transcript root they are pointed at.
 
 ## Run

@@ -417,7 +417,10 @@ marker point into it, and they are treated differently:
 
 - **Backlog ids (`BL-NNN`) never appear in shipped skill text.** They resolve on one
   machine, say nothing to a reader without that backlog, and date the rule to the week
-  it was learned. The rule and one clause of reason survive; the id goes.
+  it was learned. The rule and one clause of reason survive; the id goes. Two
+  exceptions: a worked example that illustrates the id format or a command's argument
+  keeps its fictional id, and a cross-repo ref in the documented `<repo>/BL-NNN` form
+  keeps it too, since it points at another repo's backlog rather than at this one's.
 - **Decision markers (`decision/<slug>`) may appear, as navigation only.** An ADR slug
   tells a reader where the reasoning is written up, and the slug reads as a sentence
   even when the file is out of reach. It is never the reason itself: a rule that says

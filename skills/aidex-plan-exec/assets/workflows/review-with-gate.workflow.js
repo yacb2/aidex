@@ -186,7 +186,7 @@ async function runPhase(phase, ctx) {
     let proof = await verify(phase.id, phase.gateCmd)
     if (!proof) proof = await verify(phase.id, phase.gateCmd) // null = transient verifier failure, not a gate verdict: one retry
     if (proof && proof.passed) {
-      // BL-208: a green machine gate is not enough — the phase result must carry
+      // A green machine gate is not enough — the phase result must carry
       // the implementer's own proof artifact (test output, request/response
       // payload, screenshot path, proof_links entry) BEFORE the phase commit.
       // 10 user-caught defects in one measured week arrived after the first
@@ -222,7 +222,7 @@ async function checkAction(action, ctx) {
   // halt. Nothing was published — declining and reporting is the behaviour CORE asks for —
   // and in a run whose surface is "local commits only" an unpushed commit is the DESIRED
   // END STATE. A STOP here kills the phase before its gate and blocks every descendant,
-  // which is BL-202: observed 2026-08-23, the arbiter returned STOP while its own reason
+  // the arbiter once returned STOP while its own reason
   // named tier 3 (ASK). Downgrade it to the batched question the tier actually calls for.
   // The deny-set keeps its terminal STOP: an action that is destructive stays a halt.
   if (pub && !deny && v && v.verdict === 'STOP') {

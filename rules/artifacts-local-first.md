@@ -23,7 +23,7 @@ one that keeps applying for as long as the page is being discussed:
    an unstyled page, and never hand-roll the document envelope. **Start the page from
    `aidex-dash/assets/artifact-kit/skeleton.html`**, not from a bare `<h1>`: the wrapper
    injects the kit's styles and the skeleton is what carries its structure. A page
-   without `.page` / `.main` renders full-bleed with no reading measure (BL-177), and it
+   without `.page` / `.main` renders full-bleed with no reading measure, and it
    is checked.
 2. **Open the file ONCE, when it is final — and every create or update ends with that
    one open.** The reader closes the tab after copying their answers, so a new tab means
@@ -42,7 +42,7 @@ one that keeps applying for as long as the page is being discussed:
    fall out of it, nothing before the first block but the header, a figure and the
    ledger, nothing between blocks, reference material after the questions.
    `check-artifact.sh` fails the other shape (context above, questions below); the
-   full rule is §8.4 of the procedure below (BL-247).
+   full rule is §8.4 of the procedure below.
 5. **More than three facts of one shape are a table, a list or a figure — never a
    paragraph — in a block context AND in an item body.** A dense paragraph of
    facts is returned unread, on the page and in chat alike. `check-artifact.sh` warns

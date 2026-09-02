@@ -122,7 +122,7 @@ what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
 
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
-| `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · `sweep` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping (BL-220). `sweep` is the same motion inside a backlog sweep: judged against the kickoff criteria already fixed and appended to the work-list as autonomy class (b) — continued, never asked; growth past 25 % of the original queue is **reported** by `sweep-report.sh`, not surfaced as a question. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
+| `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · `sweep` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping. `sweep` is the same motion inside a backlog sweep: judged against the kickoff criteria already fixed and appended to the work-list as autonomy class (b) — continued, never asked; growth past 25 % of the original queue is **reported** by `sweep-report.sh`, not surfaced as a question. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing).) |
 | `origin_ref` | `<type>/<filename>` (D-03) or empty | *Human-optional:* provenance archaeology — no script reads it. Format depends on origin — see below. |
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
 | `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
@@ -133,7 +133,7 @@ what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
 | `verify` | one free line | *Human-optional:* the **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
 | `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake. |
-| `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake). |
+| `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing). |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
 
 ### How an id is claimed
@@ -389,7 +389,7 @@ Don't delete the backlog entry — it's the origin trail.
 
 ---
 
-## Cross-project routing (the BL-035 handshake)
+## Cross-project routing
 
 An item discovered in project A whose work belongs in project B (a shared boilerplate,
 a global skill, `aidex` itself) must not sit stranded where nobody who can act on it

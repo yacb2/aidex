@@ -44,7 +44,7 @@ block against this canonical one and fails on any mismatch.
   through `checkAction`: pre-authorized → proceed, `ASK` → batched question collected
   while the phase continues, `STOP` → escalate. This is the carrier `checkAction` was
   designed for (it was previously defined but never called).
-- **No proof artifact, no phase pass (BL-208)** — a passed result additionally requires the
+- **No proof artifact, no phase pass** — a passed result additionally requires the
   implementer's `WORK_SCHEMA.proof`: a reference to the evidence artifact (test output,
   payload capture, screenshot, `proof_links` entry) produced before the phase commit. A green
   gate with no artifact is retried for the artifact, never passed — this is the mechanical
@@ -162,7 +162,7 @@ async function runPhase(phase, ctx) {
     let proof = await verify(phase.id, phase.gateCmd)
     if (!proof) proof = await verify(phase.id, phase.gateCmd) // null = transient verifier failure, not a gate verdict: one retry
     if (proof && proof.passed) {
-      // BL-208: a green machine gate is not enough — the phase result must carry
+      // A green machine gate is not enough — the phase result must carry
       // the implementer's own proof artifact (test output, request/response
       // payload, screenshot path, proof_links entry) BEFORE the phase commit.
       // 10 user-caught defects in one measured week arrived after the first
@@ -198,7 +198,7 @@ async function checkAction(action, ctx) {
   // halt. Nothing was published — declining and reporting is the behaviour CORE asks for —
   // and in a run whose surface is "local commits only" an unpushed commit is the DESIRED
   // END STATE. A STOP here kills the phase before its gate and blocks every descendant,
-  // which is BL-202: observed 2026-08-23, the arbiter returned STOP while its own reason
+  // the arbiter once returned STOP while its own reason
   // named tier 3 (ASK). Downgrade it to the batched question the tier actually calls for.
   // The deny-set keeps its terminal STOP: an action that is destructive stays a halt.
   if (pub && !deny && v && v.verdict === 'STOP') {
@@ -294,7 +294,7 @@ rather than weakening the guard from memory.
    It extracts CORE from this file and executes it against a mocked `agent()`, so it catches
    what the drift-lock structurally cannot: a CORE that is internally consistent across every
    asset and still wrong. It pins both directions of `checkAction` — a REPORTED publication
-   reaches its gate and batches its question (BL-202), a REPORTED destructive action stays a
+   reaches its gate and batches its question, a REPORTED destructive action stays a
    terminal STOP.
 
 ## Four things a large Workflow run does not tell you
