@@ -90,7 +90,7 @@ to: "Equipo Ventas"
 subject: "Cotización catálogo primavera"
 date: 2026-06-17
 status: sent            # draft | sent
-related: []             # D-03 cross-refs (e.g. requests/2026-06-17-spring-pricing.md)
+related: []             # D-03 cross-refs (e.g. request/2026-06-17-spring-pricing.md)
 created: 2026-06-17
 updated: 2026-06-17
 ---
@@ -186,7 +186,7 @@ messages** — a `meetings/` entry already happened, so it is created with `stat
 
 ## Language — English-only EXEMPTION
 
-Communications are **exempt** from the D-11 English-only rule that governs knowledge
+Communications are **exempt** from the D-04 English-only rule that governs knowledge
 artifacts (plans, decisions, requests, research, references, docs, audits, backlog, loops,
 CLAUDE.md, skill prose). A communication is a faithful record of what was actually said, so
 the body is kept in the **native language of the communication** — a Spanish client email
@@ -274,12 +274,8 @@ a WARNING, and never an automatic move.
 
 ## Relocating a meeting filed under `received/` or `sent/`
 
-Before `meetings/` existed, a meeting or call could only be filed under `received/`/`sent/`
-as a workaround — with `from`/`to` standing in for attendees, implying a direction the
-conversation never had. The canonical "before" example is the 2026-06-10 DubApp ↔ Access
-Core meeting in `echo_lab_ws`, filed under `received/` with `from` = the other company.
-
-To relocate such an entry:
+A meeting or call filed under `received/`/`sent/` has `from`/`to` standing in for
+attendees, implying a direction the conversation never had. To relocate such an entry:
 
 1. Move the folder to `meetings/` (keep the `<date>-<slug>` name and attachments).
 2. Rewrite the front-matter to the synchronous schema: drop `direction`, replace `from`/`to`

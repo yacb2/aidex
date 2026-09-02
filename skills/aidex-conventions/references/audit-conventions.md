@@ -31,7 +31,7 @@ A finding escalated to work becomes a backlog entry or a plan via `escalated_to:
 
 ## Canonical structure (D-02)
 
-ADR: [`2026-05-14-audit-grouped-by-methodology.md`](../../../.context/decisions/2026-05-14-audit-grouped-by-methodology.md)
+ADR: `decision/2026-05-14-audit-grouped-by-methodology` (named, not linked: these ADRs live in the aidex repo's own gitignored `.context/decisions/`, per `00-global.md` §11).
 
 Audits are grouped **by methodology**. There is no global `INVENTORY.md`, `METHODOLOGY.md`, or `CHANGELOG.md` at `.context/audits/`.
 
@@ -184,13 +184,13 @@ Audit findings are **exempt** from per-file front-matter (D-07). They live in th
 ```markdown
 | ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes |
 |---|---|---|---|---|---|---|---|---|
-| BUG-01-3 | bug | auth | Session token stored in URL | open | P1 | 2026-04-10 | 2026-04-15 | 2026-04-10-pre-release | — | — |
-| BUG-02-1 | bug | search | SQL injection in q param | done | P0 | 2026-04-10 | 2026-04-20 | 2026-04-10-pre-release, 2026-04-20-retest | backlog/2026-04-10-fix-sqli-search | Closed: abc123 — sqli patched |
+| BUG-01-3 | bug | auth | Session token stored in URL | open | P1 | 2026-04-10-pre-release | — | — |
+| BUG-02-1 | bug | search | SQL injection in q param | done | P0 | 2026-04-10-pre-release, 2026-04-20-retest | backlog/2026-04-10-fix-sqli-search | Closed: abc123 — sqli patched |
 ```
 
 Dates are `YYYY-MM-DD` (D-01). The `Escalated To` column uses the cross-reference format from [`00-global.md` §3](00-global.md#3-cross-references-d-03). `Audit Runs` is comma-separated run-folder slugs (`YYYY-MM-DD-<slug>`), oldest first — **its first element is when the finding was first seen**, which is why there is no separate date column.
 
-**Nine columns since 2026-08-06.** Boards written before that carry two more, `First Seen` and `Last Updated`, between `Severity` and `Audit Runs`. They were dropped because nothing read them: they were per-touch manual bookkeeping that git already does, and the first-seen date was always recoverable from `Audit Runs`. **Eleven-column boards remain valid** — `validate-audit.sh` and `close-audit.sh` detect the width per row and parse either. There is no forced migration; a project's board is its own.
+**Two board widths are valid.** The nine columns above are canon. Some boards carry two more, `First Seen` and `Last Updated`, between `Severity` and `Audit Runs`; they are not required, because that bookkeeping is per-touch manual work git already does and the first-seen date is the first element of `Audit Runs`. `validate-audit.sh` and `close-audit.sh` detect the width per row and parse either, so there is no forced migration; a project's board is its own.
 
 **Notes discipline.** `Notes` is a bounded **state note**, not a journal: one line carrying the verification marker (closing commit SHA, re-test run ref, or drop reason) plus an optional **proof pointer**. The resolution narrative — root cause, test counts, review verdicts, transcripts — lives in the run's `findings.md` (its role as the per-run journal) or `.context/proofs/<id>/`, never inside the table cell.
 

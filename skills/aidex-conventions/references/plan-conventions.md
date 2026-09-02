@@ -13,12 +13,10 @@ while scoping it** — not the implementation itself. The executor (a frontier
 model reading the live repo) derives the *how* at execution time; the plan's job
 is to make that derivation unambiguous and verifiable.
 
-Decided by ADR `decision/2026-07-19-plan-spec-first` (adversarial analysis,
-26 confirmed findings): pre-written implementation code in plans was measured to
-be (a) ignored by the best-executed plans in the corpus, (b) transcribed
-verbatim *with latent bugs* where it was followed, (c) unread by the execution
-machinery below phase level, and (d) a ~4× lifecycle token multiplier — every
-KB of plan is re-read 3–6× (Orient, handoffs, batch agents).
+ADR `decision/2026-07-19-plan-spec-first` carries the reasoning. In short:
+pre-written implementation code is transcribed verbatim with its latent bugs
+wherever it is followed, and every KB of plan is re-read several times over the
+plan's life (Orient, handoffs, batch agents).
 
 The operative rules:
 
@@ -107,8 +105,7 @@ what it read, the correct outcome is already `research`. The unbounded read stay
 the subagent; the planning session receives five booleans.
 
 The user ratifies the **evidence**, not the label. A recommendation presented as a bare
-verdict becomes a rubber stamp — which is the failure mode of the silent
-auto-classification this deliberately replaces.
+verdict becomes a rubber stamp.
 
 ### Scoped plans
 
@@ -116,9 +113,8 @@ auto-classification this deliberately replaces.
 section). A scoped plan delivers the **complete** solution to what was asked; it is not
 a stopgap, and the necessity recheck is what proves it.
 
-Structural rules, enforced by `validate.py` as **violations, not warnings** — the soft
-proportionality budget above was already canon and was measured to be dead letter, so
-this mode's guarantee is mechanical or it is nothing:
+Structural rules, enforced by `validate.py` as **violations, not warnings** — a soft
+budget is advisory, and this mode's guarantee is mechanical or it is nothing:
 
 - Exactly **one phase**. A scoped plan is therefore never batch-eligible, and
   `aidex-plan` does not offer `aidex-plan-exec` for it — the existing ≥2-phase rule
@@ -209,7 +205,7 @@ Folder/filename date: `YYYY-MM-DD` (D-01). Slug: kebab-case, describes the featu
 
 ### Archive
 
-Per D-05, completed plans move to `.context/plans/_archive/` on `status: done`. Inbound references resolve via the two-folder lookup in [`00-global.md` §3](00-global.md#3-cross-references-d-03), so no inbound edits are required.
+Per D-05 as amended by D-10, completed plans move to `.context/plans/_archive/` on `status: done`. Inbound references resolve via the two-folder lookup in [`00-global.md` §3](00-global.md#3-cross-references-d-03), so no inbound edits are required.
 
 ### Plans roll-up index (`plans/00-index.md`)
 
@@ -381,7 +377,7 @@ A phase may declare the optional fields below that the executor (`aidex-plan-exe
   ---
   ```
 
-Use one carrier per plan consistently; the derivation reads whichever the plan uses (this is the unified carrier shape — there is no third place to look). The fields:
+Use one carrier per plan consistently; the derivation reads whichever the plan uses, and there is no third place to look. The fields:
 
 - **`depends_on: []`** — earlier phases this one needs (it reads their output). Omitted/`[]` = **independently grabbable**, eligible to run concurrently with any other edge-free phase. List only real data dependencies — a spurious edge is a serialization you didn't need, and it kills parallelism. Drives sequential (`pipeline-with-gate`) vs parallel (`fan-out-with-gate`) execution. **At batch time these entries become scheduler ids** — `aidex-plan-exec` rewrites each entry to the exact phase `id` it assigns, so keep them unambiguous (phase numbers or slugs, used consistently). A phase other phases depend on should expose what they may rely on in a **Contract** block — dependents read shapes from the contract (or off disk), never from prose.
 - **`tier: mechanical | standard | hard`** — the per-phase model/effort hint (`mechanical → sonnet/low`, `standard → sonnet/medium`, `hard → opus/high`). Omitted = `standard`. Tier also sets detail depth (see Philosophy): mechanical phases may carry prescriptive steps/code; hard phases get contracts + gates only.
@@ -408,7 +404,7 @@ section at the bottom of the plan (single-file) or of `00-index.md` (modular):
 ```
 
 Do **not** scatter execution notes into header blockquotes, front-matter prose,
-or per-task appendices — three carriers was the measured bloat driver, not code.
+or per-task appendices: one carrier, because three drift apart.
 Larger captures go to `.context/proofs/<slug>/` with a link. **Orient-time reads
 may skip Execution log entries for completed phases**; the log is excluded from
 the size budgets above.

@@ -13,9 +13,9 @@ not in `rules/` — paying an always-on cost in every session of every project t
 occasional benchmarking or unattended-run task is the wrong trade; this file is read on
 demand by whatever is doing the measuring or running the harness.
 
-Both rules were learned the same night, during the 2026-08-21/22 suite-speed measurement
-campaign (`.context/research/2026-08-22-suite-speed-and-coverage-findings/04-rules.md`,
-`m5` and `m9`), but neither claim is specific to test suites.
+Provenance: the 2026-08-21/22 suite-speed measurement campaign
+(`.context/research/2026-08-22-suite-speed-and-coverage-findings/04-rules.md`, `m5` and
+`m9`).
 
 ---
 
@@ -69,7 +69,7 @@ a fixed per-iteration cost. An iteration-count bound is only safe when every ite
 cost is independently guaranteed constant — and that guarantee is exactly what an unrelated
 fix elsewhere in the same system can silently break.
 
-**Corollary, learned the same night.** Editing a running process's script on disk does not
+**Corollary.** Editing a running process's script on disk does not
 change the running process — a driver that was mid-run when the file was edited to add new
 phases continued executing the old, in-memory version and never reached the new phases,
 even though the file on disk was correct. A resumable harness needs two pieces working

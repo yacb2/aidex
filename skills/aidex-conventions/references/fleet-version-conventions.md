@@ -12,21 +12,18 @@ user, and aidex is public. A fleet-length release procedure there is paid for by
 do not have this fleet. What each project keeps always-on is a short norm —
 `assets/templates/versioning-rule.md` — that states the invariants and points here.
 
-**Why it lives here and not in a per-project command.** Measured 2026-08-19/20 and again
-2026-08-25: four command families across nine workspaces, 36 files, seven distinct
-`release.md` bodies diverging by up to 223 lines, with identical section structure. The
-prose grew exactly where the data was missing. A project-level `commands/version/*` or
-`commands/deps/*` is a **thin invocation** carrying no procedure text.
+**Why it lives here and not in a per-project command.** Copied procedure prose diverges
+per workspace, and it grows exactly where the data is missing. A project-level
+`commands/version/*` or `commands/deps/*` is a **thin invocation** carrying no procedure
+text.
 
 ## The standing rule
 
 > When a genuinely per-project fact has nowhere to live, **extend this schema**. Never
 > re-grow prose in `commands/`.
 
-That rule is what makes the single owner safe, and it has already been exercised: the
-2026-08-25 reconciliation of the seven distinct bodies found three facts the schema could not
-express (`release.preChecks`, `release.migrationLog`, `release.boilerplateVersion`) and they
-are fields below, not paragraphs in nine files.
+That rule is what makes the single owner safe: a per-project fact becomes a field below,
+never a paragraph repeated once per project.
 
 ## `.claude/git-repos.json` — the schema
 
@@ -112,13 +109,10 @@ know about and neither may be tagged.
 | `policy` | `locked` · `independent` | `locked` = every participant carries the same number and the files must always match |
 | `tagging` | `together` · `per-repo` | Whether one `vX.Y.Z` is applied to every participant in the same operation |
 
-This is the fact the longest prose blocks were carrying. Where it is absent, treat it as
-`locked` + `together` only if there is exactly one participant; otherwise it is unanswered and
-must be written down before a release runs.
+Where `versionSync` is absent, treat it as `locked` + `together` only if there is exactly
+one participant; otherwise it is unanswered and must be written down before a release runs.
 
 ### `changelog`
-
-Unchanged from the 2026-08-20 contract, restated here because this file is now its owner.
 
 | Field | Meaning |
 |---|---|
@@ -141,10 +135,8 @@ migrated, and it must never be "improved" into auto-detection. `split-by-minor` 
 spelling is never invented at write time; a missing category is added to the schema.
 
 **When no `schemaPath` is declared**, the changelog has no schema of its own and this
-mapping is the fallback. It was carried in the prose of every reduced copy and would
-otherwise have been lost with them — `anamnesis_poc_ws` and `loom_lab_ws` have a single-file
-changelog and no `schema.json`, so this table is the only thing that answers the question
-for them.
+mapping is the fallback. A single-file changelog with no `schema.json` has nothing else to
+answer the question.
 
 | Commit prefix | Section | User-facing? |
 |---|---|---|
@@ -181,7 +173,7 @@ instead of locally.
 1. **Run `release.preChecks`.** Any non-zero exit stops here.
 2. **Analyse commits since the last tag**, per participating repo. In a split-repo workspace
    never run `git` at the workspace root — `cd` into each repo. Use relative paths: an
-   absolute `/Users/...` path in a procedure is drift, and it is already present in one copy.
+   absolute `/Users/...` path in a procedure is drift.
 3. **Determine the bump**, unless one was given: `BREAKING CHANGE:`/`feat!:` → MAJOR,
    `feat:` → MINOR, otherwise → PATCH.
 4. **Show the proposal and confirm.**
@@ -201,10 +193,9 @@ instead of locally.
 
 ## The dependency procedure
 
-`deps/update-frontend` and `deps/update-backend` were the least-drifted of the four families —
-two distinct bodies across nine workspaces for the backend, three for the frontend — which is
-what a procedure with no per-project facts in it looks like. They take their targets from
-`repos[]` (`versionFormat` selects the manifest) and need no fields of their own.
+`deps/update-frontend` and `deps/update-backend` carry no per-project facts, which is why
+they barely drift. They take their targets from `repos[]` (`versionFormat` selects the
+manifest) and need no fields of their own.
 
 ## What a project-level command may contain
 
@@ -217,5 +208,4 @@ template is `assets/templates/version-command.md`.
 
 Invariants only — what a session must hold in mind at all times, because a rule is always-on
 and pays its cost in every session whether or not a release is happening. The template is
-`assets/templates/versioning-rule.md`. Measured before this canon existed: eight copies of
-`rules/versioning.md`, 42 to 155 lines, four of them byte-identical.
+`assets/templates/versioning-rule.md`.
