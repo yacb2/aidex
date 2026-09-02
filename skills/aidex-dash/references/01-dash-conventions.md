@@ -81,7 +81,7 @@ who want the native auto-Artifact behavior off entirely).
 ### Why this overrides the Artifact tool's own default
 
 The `Artifact` tool states that "publishing proactively is fine for your own
-work-product — artifacts start private". `rules/artifacts-local-first.md` step 7
+work-product — artifacts start private". `rules/artifacts-local-first.md` gate 3
 deliberately overrides that, and this is the reasoning it points at.
 
 Both readings are defensible. The tool optimizes for the page being reachable;
