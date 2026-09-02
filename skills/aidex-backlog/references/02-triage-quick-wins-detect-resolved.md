@@ -37,10 +37,8 @@ An issue sitting in an error tracker's unresolved list only means nobody clicked
 resolve. It says nothing about whether the defect still exists. Every event carries a
 `release` tag: compare it with what is deployed **before** writing a backlog item.
 
-On one sweep, 2 of the 3 items registered were already fixed and shipped, and that only
-surfaced after reading the code. Both had been fixed by refusing at queue time — which
-is strictly better than the "make the worker fail more quietly" item that was about to
-be written. Registering it would have been speculative work on an unreachable path.
+Items registered from an unresolved tracker list are routinely already fixed and
+shipped, and registering one is speculative work on an unreachable path.
 
 The check is two commands, before any design thinking:
 
@@ -52,7 +50,6 @@ git merge-base --is-ancestor $sha origin/main && git tag --contains $sha | head 
 Then: fixed **and shipped** -> resolve in the tracker, no item. Fixed but local ->
 resolve, and say plainly that it is not in production. Still live -> register it.
 
-**Corollary, and the reason a sweep beats one-at-a-time triage:** the pattern is
-invisible until the list is empty. Ten issues in one sweep turned out to share a single
-cause — a monthly unattended-upgrades database restart — visible only in the resolved
-history, after the eight open ones had been closed.
+**Corollary, and the reason a sweep beats one-at-a-time triage:** a shared cause across
+many issues is invisible until the whole list — resolved history included — is read
+together, not one issue at a time.

@@ -120,21 +120,6 @@ what `close-item.sh --sweep` switches its proof minimum on, while `origin_ref`,
 | `title` | quoted string | Global (§7). |
 | `id` | `BL-NNN` | **Machine-required (D-09):** `close-item.sh` resolves the target by `id` (dies with "no active backlog item with id" otherwise); `harvest-commit.sh` matches on it. `register-item.sh` assigns it, and the filename carries it. Must match `^BL-[0-9]{3}$` — `--reindex` fails on a duplicate **or** a nonconforming id. `next_backlog_id` counts only conforming ids toward the max, so a hand-authored `BL-20260610` no longer inflates the sequence; it is still reported until fixed. |
 
-### How an id is claimed (BL-235)
-
-`register-item.sh` does not read the next id — it **claims** it. Before the run body starts it creates an empty marker named for the id under `_claims/`, with `set -o noclobber`; losing that create means another session took the number, so the mint recomputes the max — which counts markers as well as written entries — and takes the next one instead.
-
-It has to be keyed on the **id**, not on the entry filename: two sessions registering different titles produce different filenames, so a no-clobber on the entry file would let both through with the same id.
-
-**The ledger is anchored in the main working tree; the entry is not.** The sequence belongs to the *repository*, not to the checkout. A project that TRACKS `.context/` gives every linked worktree its own committed copy, `find_project_root` resolves to the worktree, and two trees scan two different backlogs and legitimately mint the same N+1 — a collision that only surfaces when the branches merge, and that no per-tree lock can prevent (13 of 17 projects here track `.context/`, measured 2026-08-25; with it gitignored the worktree has no copy and the resolver already hops to the main tree). So `_claims/` lives at `<main-worktree>/.context/backlog/_claims/` while the item file stays where the session is: only the number is shared, and the entry still belongs to its branch and merges normally.
-
-That is also why a marker is **kept** on success. The entry it names may sit on a branch the main tree cannot read, so the marker is the only shared record that the number is spent — releasing it would hand the same id to a sibling worktree. A marker is released only when *no* entry was written, which is the `--escalate-to` rollback, so a failed handshake never costs the other repo a number.
-
-`_claims/` is invisible to every reader of this tree: the markers carry no `.md` extension, and `validate.py`'s backlog walker globs `*.md` over the folder plus `_archive/` and `_deferred/`. It carries a `.gitignore` of its own (`*`) so it never reaches a diff — it is machine-local coordination state, not repo content.
-
-**Never mint an id by hand.** Reading the index for the highest number and adding one is the same race with a far wider window — minutes instead of microseconds — and it is how BL-166, BL-233 and BL-235 were each minted twice. Only `register-item.sh` can take the claim, so an id that arrives any other way is unprotected by construction. `report_duplicate_ids` (`--check-ids`, `--reindex`) stays as the backstop: prevention and detection are both wanted, and the first does not replace the second.
-
-**One transitional gap, deliberately not migrated.** An item created *before* this change and still unmerged on a branch has no ledger marker, so a tree that cannot see that branch could mint its number once. `--check-ids` reports it; building a migration for a one-off would cost more than the fix.
 | `status` | `open` · `doing` · `done` · `dropped` | Base lifecycle from [`00-global.md` §6](../../aidex-conventions/references/00-global.md#6-status-vocabulary). |
 | `created` · `updated` | ISO `YYYY-MM-DD` | Global (§7). |
 | `origin` | `manual` · `audit` · `issue` · `request` · `communication` · `plan` · `sweep` | Where it came from. `plan` is the mid-run deferral: `aidex-plan-exec` found work a phase did not own and registered it instead of stopping (BL-220). `sweep` is the same motion inside a backlog sweep: judged against the kickoff criteria already fixed and appended to the work-list as autonomy class (b) — continued, never asked; growth past 25 % of the original queue is **reported** by `sweep-report.sh`, not surfaced as a question. (A cross-repo counterpart from `--escalate-to` carries `origin: <source-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake).) |
@@ -142,14 +127,32 @@ That is also why a marker is **kept** on success. The entry it names may sit on 
 | `priority` | `P0` · `P1` · `P2` · `P3` | Code, never free text. See [Priority taxonomy](#priority-taxonomy). |
 | `type` | `bug` · `improvement` · `task` · `idea` | **Work-kind facet, one queue** (ADR 2026-07-23). Closed and small by design; the index groups by priority, not type — type renders as a chip. Default `task`. Absent is a warn-then-ratchet nudge (existing items are not retro-fixed); a value outside the enum is a violation. `_deferred` is a **state**, not a type. |
 | `estimate` | `XS` · `S` · `M` · `L` · `XL` | *Human-optional:* T-shirt sizing, display-only (index one-liner + dash cell); no logic branches on it. Independent of priority. **Confirmed or corrected at sweep triage** — an XS that is not XS distorts every downstream decision, so a corrected item is re-laned then, not carried at its filed size. |
-| `surface` | `internal` · `behaviour` · `ui` · `ops` | What the change is visible as. Default `internal`; `ops` = no test surface — config, infrastructure, canon prose, another repo's state — where a test would be a lie (3 of aidex's 5 open items, 2026-08-27). Sets the **minimum proof** `close-item.sh --sweep` requires (see [Verification](#verification)): `internal` → a targeted test; `behaviour` → a test **and** an E2E spec or seeded smoke; `ui` → a browser smoke with a screenshot. Written at registration as a hypothesis, confirmed at triage. |
+| `surface` | `internal` · `behaviour` · `ui` · `ops` | What the change is visible as. Default `internal`; `ops` = no test surface — config, infrastructure, canon prose, another repo's state — where a test would be a lie. Sets the **minimum proof** `close-item.sh --sweep` requires (see [Verification](#verification)): `internal` → a targeted test; `behaviour` → a test **and** an E2E spec or seeded smoke; `ui` → a browser smoke with a screenshot. Written at registration as a hypothesis, confirmed at triage. |
 | `touches` | comma-separated paths or modules, or absent | What the item will change. Written at registration when the registrar has the paths in hand (`register-item.sh --touches`, which delegates to `define-item.sh`'s validation), otherwise as a *sweep triage verdict* (`define-item.sh`). Items sharing a token are **clustered** adjacently in the queue — one review per cluster, one context build per file. |
 | `depends` | `BL-NNN[, …]`, `merge:BL-NNN`, or absent | Ids that must close before this one (`A→B` written on B), written at registration (`--depends`) or as a *sweep triage verdict*. `merge:BL-NNN` marks the same change seen twice — a **MERGE** pair that closes in one commit carrying both `Backlog:` trailers. |
 | `verify` | one free line | *Human-optional:* the **hypothesis** of how this will be proven, by whoever registers it — corrected at triage, made concrete as rows in `## Verification` before close. An item nobody could say how to prove is an item nobody can close in a sweep. |
 | `blocked_by` | Free text or `<type>/<filename>` | Non-empty means parked waiting on third party; priority stays. |
-| `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake (owner, 2026-08-27). |
+| `awaiting` | `owner` or absent | **Written by `close-item.sh --sweep`, never by hand.** Every mechanical row is proven and an `owner` row still has an empty proof: the item is parked — not `done`, not archived, listed under `## Awaiting owner` in the index, out of every queue — until the owner fills the cell and it is closed again. Exists because a closed-looking item gets archived by mistake. |
 | `escalated_to` | `<type>/<filename>` (D-03) or empty | Set when work moves to a plan (typically combined with `status: doing`). A cross-repo escalation carries `<target-repo>/<id>` — see [Cross-project routing](#cross-project-routing-the-bl-035-handshake). |
 | `commits` | space-separated SHAs, or empty | **Machine-required (D-09):** `harvest-commit.sh` appends resolved SHAs here so closure is verifiable, not just asserted. |
+
+### How an id is claimed
+
+`register-item.sh` does not read the next id — it **claims** it. Before the run body starts it creates an empty marker named for the id under `_claims/`, with `set -o noclobber`; losing that create means another session took the number, so the mint recomputes the max — which counts markers as well as written entries — and takes the next one instead.
+
+It has to be keyed on the **id**, not on the entry filename: two sessions registering different titles produce different filenames, so a no-clobber on the entry file would let both through with the same id.
+
+**The ledger is anchored in the main working tree; the entry is not.** The sequence belongs to the *repository*, not to the checkout. A project that TRACKS `.context/` gives every linked worktree its own committed copy, `find_project_root` resolves to the worktree, and two trees scan two different backlogs and legitimately mint the same N+1 — a collision that only surfaces when the branches merge, and that no per-tree lock can prevent (with `.context/` gitignored the worktree has no copy and the resolver already hops to the main tree). So `_claims/` lives at `<main-worktree>/.context/backlog/_claims/` while the item file stays where the session is: only the number is shared, and the entry still belongs to its branch and merges normally.
+
+That is also why a marker is **kept** on success. The entry it names may sit on a branch the main tree cannot read, so the marker is the only shared record that the number is spent — releasing it would hand the same id to a sibling worktree. A marker is released only when *no* entry was written, which is the `--escalate-to` rollback, so a failed handshake never costs the other repo a number.
+
+`_claims/` is invisible to every reader of this tree: the markers carry no `.md` extension, and `validate.py`'s backlog walker globs `*.md` over the folder plus `_archive/` and `_deferred/`. It carries a `.gitignore` of its own (`*`) so it never reaches a diff — it is machine-local coordination state, not repo content.
+
+**Never mint an id by hand.** Reading the index for the highest number and adding one is the same race with a far wider window — minutes instead of microseconds — and ids have been minted twice that way. Only `register-item.sh` can take the claim, so an id that arrives any other way is unprotected by construction. `report_duplicate_ids` (`--check-ids`, `--reindex`) stays as the backstop: prevention and detection are both wanted, and the first does not replace the second.
+
+**One transitional gap, deliberately not migrated.** An item created *before* this change and still unmerged on a branch has no ledger marker, so a tree that cannot see that branch could mint its number once. `--check-ids` reports it; building a migration for a one-off would cost more than the fix.
+
+---
 
 ### `origin_ref` formats
 
@@ -222,9 +225,8 @@ Done means:
 
 **Acceptance** is optional at registration (a parked idea can defer it) and required at
 `open → doing` promotion — an entry you are about to start must state what done means.
-Write criteria as plain `Done means:` bullets, **not** `- [ ]` checkboxes: measured across
-250 entries, 88% of closed items were archived with zero boxes ever checked, so the checkbox
-implied a tracking contract nothing honored.
+Write criteria as plain `Done means:` bullets, **not** `- [ ]` checkboxes: the boxes were
+never checked in practice, so they implied a tracking contract nothing honored.
 
 ### Verification
 
@@ -235,8 +237,8 @@ spec, page or judgement; `proof` is the evidence — a count, a path under
 **In a sweep the rows are a precondition, not a warning.** `close-item.sh --sweep` refuses
 to set `done` — exit 2, nothing mutated, nothing archived — while the section is empty,
 while any non-owner row has an empty proof cell, or while the surface minimum is unmet.
-The plain close path keeps its `type: bug` warning and nothing more: the warning is what
-we had, and measured adoption of a mandate that is merely written down is 2.2%.
+The plain close path keeps its `type: bug` warning and nothing more: a mandate that is
+only written down is not a mandate; a precondition is.
 
 An **owner row** is the one thing the run cannot prove: a judgement only a person can
 make — taste, priority, a cost decision. It is *not* "is the button where it should be":
@@ -263,7 +265,7 @@ Keep entries short. If it needs more than one screen of content, it belongs in a
 
 An item is **defined** when a session that has never seen it can start it, prove it and
 close it without a question — and a sweep only ever *chooses* among defined items, it
-does not define them (owner, 2026-08-27). The contract, checked by
+does not define them. The contract, checked by
 `scripts/define-check.py` and enforced by `sweep-eligible.py` (an underdefined item is
 NEEDS-DECISION, never queued):
 
@@ -281,9 +283,9 @@ NEEDS-DECISION, never queued):
 field: UI → `surface: ui` and a `verify` naming the route; backend-only → `internal` and a
 test; changed behaviour → `behaviour`, test + E2E; XS → the minimum and nothing more;
 L/XL → not an item, a plan; another repo → `touches` says so. `estimate` and `##
-Acceptance` are written by the defining agent **without asking** — the owner's call
-(2026-08-27): an owner without the code in front of them cannot size faster than a
-reader of the code, and a wrong size only defers the item at the sweep.
+Acceptance` are written by the defining agent **without asking**: an owner without the
+code in front of them cannot size faster than a reader of the code, and a wrong size only
+defers the item at the sweep.
 
 Bringing the backlog up to the contract is `/aidex-backlog define` (`triage.sh` reports
 the gap; `define-check.py` lists what each item lacks and what the body already tells a
@@ -313,11 +315,10 @@ When someone starts work. Use `start-item.sh <BL-id>` rather than editing the fi
 it sets `status: doing`, bumps `updated`, and rebuilds the index in one pass. If a plan
 exists, set `escalated_to: plan/<filename>` and add a link in Notes.
 
-**`type: bug` routes into RED→GREEN here** (BL-134). Starting a bug item prints the
+**`type: bug` routes into RED→GREEN here.** Starting a bug item prints the
 regression-test-first procedure (`aidex-bugfix`), because the front-matter field is a
-deterministic condition and the bug-report phrasings that skill triggers on are not:
-across 103 eligible bug items it fired on 3, losing the race to this skill on 23. The
-matching gate is at the other end — `close-item.sh` warns when a `type: bug` item closes
+deterministic condition and the bug-report phrasings that skill triggers on are not —
+tracked work rarely arrives phrased as a bug report. The matching gate is at the other end — `close-item.sh` warns when a `type: bug` item closes
 `done` with neither `proof_links` nor a RED/GREEN line in its body.
 
 ### doing → done
@@ -453,11 +454,10 @@ with `status: doing` — and any mid-flight state it left on disk (a `pending.js
 working branch, an isolated clone) — is not evidence that *this* session should continue
 it. It is just as likely another session's live work.
 
-Observed 2026-08-18: on "continue", a session read a `doing` item plus its `pending.json`,
-concluded it was the live thread, and got as far as asking the owner to decide nine
-merge conflicts — while the run that owned them was live in a peer session the whole
-time. Two sessions resolving the same conflicts, or one asking for decisions the other
-already has, wastes the work and can corrupt single-writer state.
+A session that reads a `doing` item plus its on-disk state and concludes it is the live
+thread can get as far as asking the owner to decide merge conflicts a peer session
+already owns. Two sessions resolving the same conflicts, or one asking for decisions the
+other already has, wastes the work and can corrupt single-writer state.
 
 Before picking up any item already `doing`, call `ListAgents` and look for a peer session
 in this project or in the target project. If one exists, do not take the item:
@@ -470,18 +470,18 @@ rather than inferring it from disk state.
 
 `close-item.sh BL-NNN` resolves the id by scanning front-matter, and a project whose
 backlog has been renumbered (a linter or migration reassigning ids) will resolve a
-number you remember from earlier in the session to a different file. On 2026-07-22 a
-close archived an unrelated cleanup item because the intended one had been renumbered.
+number you remember from earlier in the session to a different file — which has archived
+an unrelated item whose number the intended one used to carry.
 
 Before closing, confirm the id maps to the intended file —
 `grep -l "id: BL-NNN" .context/backlog/*.md` — or close by the dated slug. To revert a
 wrong close: move the file out of `_archive/`, restore `status: open`, clear
 `escalated_to` / `commits`, and re-run the index.
 
-**The same drift bites in reverse, and worse.** A research doc closed with "BL-165: keep
-open"; BL-165 was a `done` UI bug in `_archive/`, and the question the doc meant to keep
-alive had no item at all — it read as tracked for a month while being tracked nowhere. A
-stale outbound reference is worse than a missing one, because it looks handled.
+**The same drift bites in reverse, and worse.** A doc that cites a bare `BL-NNN` the
+renumbering later moved reads as tracked while the question it meant to keep alive has no
+item at all. A stale outbound reference is worse than a missing one, because it looks
+handled.
 
 So when writing a reference to a backlog item from **outside** `.context/backlog/` —
 research, an ADR, a reference module — write the `<type>/<filename>` cross-ref or the
