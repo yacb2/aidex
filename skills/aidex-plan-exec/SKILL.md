@@ -35,8 +35,7 @@ The operative rule here:
   did not pre-authorize a publish step, surface it at the **end** — not mid-run.
 - **Evaluate batch-promotion at Orient (mandatory, one line).** Before phase 1, decide
   whether the plan's `afk-impl` phases should run as a durable `Workflow`, and say so in
-  one line. The full rule — including the model guard that blocks a Sonnet-class session
-  from launching any multi-agent form — is in
+  one line. The full rule is in
   [`references/01-unattended-batch-execution.md`](references/01-unattended-batch-execution.md)
   § Promotion at Orient. It is a kickoff decision, **never a mid-run interruption**.
 - **Do not re-ask for steps this skill mandates.** Invoking plan-exec authorizes you
