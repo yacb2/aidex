@@ -64,7 +64,7 @@ a non-zero exit means you introduced a NEW violation — fix it before closing.
 | Defer / park / shelve an idea for later | `aidex-backlog` |
 | Capture a stakeholder/client request | `aidex-request` |
 | Investigate / research how something works | `aidex-research` |
-| Document a system reference | `aidex-reference` |
+| Document a settled system reference | `aidex-reference` |
 | Audit the Claude Code ecosystem | `aidex` |
 | Audit project state (UX/security/perf/a11y) | `aidex-audit` |
 
