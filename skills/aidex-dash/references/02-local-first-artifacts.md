@@ -421,6 +421,9 @@ answers were lost on the next regeneration.
 
 Five requirements. They exist because each one was violated in the field.
 
+The numbered items below are cited as § 8.1 to § 8.5 across the rule, the checker's
+messages and the tests; § 8.4 is the block shape.
+
 1. **Every claim is a numbered item with a STABLE id.** `c1`, `c2`, `q1`… assigned once
    and never renumbered. A regeneration that inserts a claim in the middle appends a new
    id; it does not shift the others. Without this the reply "sobre el 3, no estoy de
