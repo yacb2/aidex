@@ -169,11 +169,8 @@ failing proof, and surface the batched question at the end — never mid-run. Bo
   interactive with the arbiter and **do not ask**. This is a kickoff decision,
   **never a mid-run interruption**.
 - **Model guard (before launching any multi-agent form) — takes precedence over
-  promote-by-default.** If the session model is a Sonnet-class model and the chosen
-  form requires multi-agent orchestration (any `Workflow` form), **do NOT launch
-  silently**: state the guard in one line, recommend a handoff to Opus, and fall
-  back to the interactive-with-arbiter path until the handoff happens — Sonnet
-  demonstrably fails multi-agent Workflow orchestration. A blocked launch is not an
-  over-stop: the run continues
-  interactively; only the batch promotion waits for the Opus session. Surface this
-  at Orient, never as a mid-run interruption.
+  promote-by-default.** If the session model is Sonnet-class, recommend a handoff to
+  Opus before launching, stated with the launch plan, never mid-run
+  (`workflow-core.md` § Orchestrator model guard). Until the handoff happens, fall back
+  to the interactive-with-arbiter path: a blocked launch is not an over-stop, the run
+  continues interactively and only the batch promotion waits for the Opus session.

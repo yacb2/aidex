@@ -271,6 +271,17 @@ the JSON.`
 // === ARBITER:END ===
 ```
 
+## Orchestrator model guard
+
+The session model is the orchestrator of a `Workflow` run. A Sonnet-class session does
+not orchestrate multi-agent Workflow runs reliably; Opus does. Before launching any
+Workflow form, if the session model is Sonnet-class, recommend a handoff to Opus and say
+so with the launch plan, never mid-run; a skill with an in-process fallback keeps using
+it until the handoff happens. This is the one statement of the guard — the skills that
+launch Workflows point here. The tier pin was verified on the Claude 4 generation and
+has not been re-verified on Sonnet 5 against Opus 5; re-verify it when the tier changes
+rather than weakening the guard from memory.
+
 ## Adding a catalog entry
 
 1. Copy the CORE block and the ARBITER block above verbatim (markers included) into the new asset.
