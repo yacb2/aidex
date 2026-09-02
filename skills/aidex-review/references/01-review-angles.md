@@ -13,18 +13,10 @@ The skill body picks a subset from the measured target; this file is what it pic
 
 ## The one thing that changes on a module scope
 
-> **Corrected 2026-08-10.** An earlier version of this section claimed the built-in
-> `/code-review` discards *"pre-existing issues"* and findings *"on lines the user did
-> not modify"*, and built the whole argument on that inversion. **That was wrong**, and
-> the mistake was one of attribution: those phrases come from the optional `code-review`
-> **plugin** (a `gh`-based PR reviewer, `plugins/code-review/commands/code-review.md`)
-> and from `/security-review` (*"focus ONLY on security implications newly added by this
-> PR. Do not comment on existing security concerns."*). The built-in `/code-review` says
-> the **opposite**, verbatim in its Angle A: *"Read every hunk in the diff, line by line.
-> Then Read the enclosing function for each hunk — bugs in unchanged lines of a touched
-> function are in scope (the PR re-exposes or fails to fix them)."*
-
-The real difference is narrower, and it is about **what the boundary is**, not about age.
+The difference is about **what the boundary is**, not about age. The built-in
+`/code-review` already treats pre-existing defects as in scope (*"bugs in unchanged lines
+of a touched function are in scope"*); it is the optional `code-review` **plugin** and
+`/security-review` that restrict to newly added lines.
 
 A diff carries its own boundary: the hunks, plus — for the built-in — the enclosing
 functions those hunks touch. A finder can be told "review the diff" and know when to
@@ -89,11 +81,14 @@ scan output. Different instrument, different question — see the Boundaries tab
 | Angle | Finder's job |
 |---|---|
 | `injection-and-input` | SQL/command/template injection, unsafe deserialization, path traversal, XSS sinks |
-| `authz-and-secrets` | Missing or wrong permission checks, IDOR, hardcoded credentials, secrets in logs, weak crypto usage |
+| `authz-and-secrets` | Missing or wrong permission checks, IDOR, hardcoded credentials, secrets in logs, weak crypto usage. When a flag or field gates privilege, enumerate that model's write/serialization layer **independently** — every class or schema bound to the model — rather than by grepping the flag name — a serializer that never mentions the flag is exactly the one that exposes it. Check public signup first |
 
-Threshold: report only what the finder can argue is **exploitable**, with the path from
-input to sink. Exclude DoS and rate-limiting — they are real, but they flood the output
-and drown the findings someone would act on.
+Every finding carries the path from input to sink and a `severity` — that path is the
+evidence, and it is what the verify phase refutes against. Report what you find and let
+the merge and verify phases rank it; do not suppress a candidate at the find stage for
+being hard to argue. DoS and rate-limiting findings are reported like any other, with
+the severity they warrant; the report's ranking is what keeps them below the
+input-to-sink defects.
 
 ### `perf` — work the code does that it does not need to do
 
@@ -105,9 +100,9 @@ RUM, APM, budgets against a running system). This one cannot measure; it can onl
 | `query-patterns` | N+1 access, queries inside loops, missing `select_related`/`prefetch_related`/joins, unbounded result sets |
 | `hot-path-waste` | Repeated work that could be hoisted, re-render churn, allocation in loops, sync work on an async path |
 
-**Every finding must name why it matters at this module's scale.** A perf finding with
-no argument about magnitude is a style opinion, and this lens produces them by the dozen
-if it is not held to that.
+**Every finding carries a magnitude estimate at this module's scale** — the loop bound,
+the row count, the call frequency. That estimate is the evidence, and a finding that
+cannot supply one ranks lowest rather than going unreported.
 
 ---
 
@@ -116,9 +111,8 @@ if it is not held to that.
 **SKILL.md Step 3.3 owns the verifier's return shape** — the full field list, including
 the severity that overrides the finder's and the reason a `PLAUSIBLE` must carry. Read it
 there and author the prompt from it; this section holds only what the verdicts *mean* and
-why the verifier is biased the way it is. An earlier version of this section stated the
-contract as if complete, missing both of those fields, and a prompt authored from here
-omitted them.
+why the verifier is biased the way it is. Do not author a verifier prompt from this
+section alone — the field list is not here.
 
 One verifier per **merged** candidate — the merge runs first, in a barrier, because a
 duplicate verified twice is paid for twice in the phase that dominates the run's cost.
@@ -177,10 +171,9 @@ and the uncapped candidate surface is what moves the total.
 
 Where the finder count comes from is `resolve-review-target.sh`'s, and SKILL.md Step 1
 narrates it — thresholds, the override and its clamp, and what an oversize target gets
-instead of a wall. This section restated all of that and went stale: it said the count
-came from the target's LOC after the resolver had moved to `source_loc`, and stood wrong
-through four commits. What the catalog owns is its own maximum of 4 angles, which is what
-the override clamps against.
+instead of a wall. Do not restate any of that here; a second copy goes stale silently.
+What the catalog owns is its own maximum of 4 angles, which is what the override clamps
+against.
 
 Angles beyond the finder count are cut in the order listed above. Report every angle
 that produced no findings in exactly one of these:
@@ -195,23 +188,3 @@ An unnamed drop is a review that claims coverage it did not have. A **fell** rep
 drop is worse: it reads as a budget decision when it was a failure. The first live run lost
 `data-flow` to a structured-output retry cap and the `correctness` lens finished with 1 of
 2 angles — that is the case this table exists for.
-
-## Security lens: when a change alters which flag a gate READS, audit every writer
-
-A field that was inert to write becomes a privilege-escalation vector the moment it
-becomes load-bearing, and the vulnerable line is in a file the diff never touched.
-
-Measured: a backport moved a workspace bypass from one boolean to another. The user
-serializers excluded only the *old* flag, so once the new one became the gate, a staff
-user could `PATCH` it to `true` and self-grant a cross-tenant bypass. A grep for the old
-flag name is structurally blind to a serializer that never mentioned it.
-
-1. Enumerate the model's serializers **independently** (`grep "model = User"`); do not
-   reach them by grepping the old flag.
-2. For each, confirm it excludes the sensitive field, or is read-only, or uses a field
-   whitelist. Check public signup first — it is the worst vector, and a whitelist is what
-   saved it here.
-3. Add a RED-first regression test asserting the flag is `not in Serializer().fields`
-   for every write serializer.
-4. Verify every finding against primary source. In the same run one verifier
-   hallucinated a "live revocation bypass" that the actual file disproved.
