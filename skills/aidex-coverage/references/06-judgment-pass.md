@@ -1,11 +1,9 @@
 # The judgment pass — a mechanical checklist
 
 The matrix counts files and the route board counts reach; neither sees depth. The
-judged layer is where missing, duplicate and low-quality tests actually surface —
-and until now it had criteria (the rubric, rule-of-three, best-practices item 4)
-but no procedure, so two auditors would sample differently and their findings
-would not be comparable. Field-tested against echo_lab_ws 2026-08-23: every
-real finding in that run came from one of the five steps below.
+judged layer is where missing, duplicate and low-quality tests actually surface, and
+this checklist is its procedure — without one, two auditors sample differently and
+their findings are not comparable.
 
 Run per module under audit, in order. Steps i, iv and half of v are grep-shaped;
 ii is generated; iii and the rest of v are reading work.

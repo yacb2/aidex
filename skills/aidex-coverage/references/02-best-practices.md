@@ -1,17 +1,13 @@
 # Best-practice corpus
 
-**Authoring constraint, non-negotiable (carried forward from the plan that created this
-file).** Each item below is written from its own primary source, with that source's date
-and the tool version it describes. Nothing here is transcribed from the 2026-08-21/22
-consultation artifact or from session transcripts — those are not verifiable sources, and
-copying them into this corpus would reproduce the exact failure this topic exists to
-correct. Where a fetch could not confirm a specific claim (most often a version number),
-the item says so explicitly with **unverified** rather than stating it as settled.
+**Authoring constraint.** Each item below is written from its own primary source, with
+that source's date and the tool version it describes. Nothing here is transcribed from a
+consultation artifact or a session transcript — those are not verifiable sources. Where a
+fetch could not confirm a specific claim (most often a version number), the item says so
+explicitly with **unverified** rather than stating it as settled.
 
-Stack versions this sweep targeted, per the plan: Django 5.2, pytest-django 4.14, DRF 3.18,
-Vitest 4.1, Playwright 1.62. Not every one of those version numbers could be independently
-confirmed against a fetched page in this pass — each item states what was and was not
-confirmed.
+Item numbering is stable and is referenced from `SKILL.md` and `06-judgment-pass.md`;
+an item whose content moved to a stack pack keeps its number as a pointer.
 
 ---
 

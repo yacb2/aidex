@@ -8,7 +8,7 @@ allowed-tools: Bash Read Grep Glob Write Edit
 
 # Coverage
 
-> **Scope.** Model-invocable since 2026-08-26 (`decision/2026-08-26-coverage-canon-consolidation-and-targeted-runs.md`, D1). Stack-agnostic since 2026-08-27 (`decision/2026-08-27-aidex-is-stack-agnostic-stack-packs.md`): this skill carries the doctrine — layers, selection, fixtures, the boundary gate, the profile — and no framework content; the concrete test shapes live in the stack packs the project's profile names. Precision against `aidex-audit` is the `Not for` clause; the eval set in `evals/` is owed a run against this description.
+> **Scope.** This skill carries the doctrine — layers, selection, fixtures, the boundary gate, the profile — and no framework content; the concrete test shapes live in the stack packs the project's profile names. Precision against `aidex-audit` is the `Not for` clause.
 
 The testing canon, independent of stack: which layer a piece of behaviour belongs in,
 which tests to run for a change, when shared setup becomes a fixture, what an isolated
@@ -22,8 +22,8 @@ facts (ports, database names, commands, personas) live in that profile, never he
 **The full suite is a boundary gate, not a phase gate.** Per change, run the narrowest
 selection that can observe it (`/aidex-audit affected-tests --command`, or the profile's
 single-test command, or one spec via `./test-e2e.sh e2e/<spec>.spec.ts`); the whole suite
-runs once, at plan close-out or pre-merge (D4). Measured before this rule: 32% of test
-runs inside unattended sessions were full suites, E2E at ~5 min each.
+runs once, at plan close-out or pre-merge. A full E2E suite costs ~5 minutes; spending
+that per change is what this rule exists to stop.
 
 **What this skill is not.** It does not run an audit, does not build or read
 `module-map.json` or `coverage-matrix.json`, does not track a finding through its
@@ -88,15 +88,14 @@ This skill writes into two places in a project, and each has one shape
 | `.context/references/testing/NN-<slug>.md` | **one workflow per module**, under the ~2,500-word tripwire | a second workflow; a rule another module already states |
 
 - **No rule is stated in two files.** The index says which module owns it; the others
-  link. The measured failure: `02-testing-practices.md` repeating the profile and
-  `06-cross-dependencies.md`, and contradicting one of them (`exec -T` vs `run --rm`).
+  link. Two modules restating the same rule drift apart and end up contradicting each
+  other, and the reader has no way to tell which copy is current.
 - **A doc this skill extends past ~2,500 words is split into a new module, never
   appended.** The tripwire asks "is there a second workflow in here?"; the answer for a
   cross-dependency map that gains execution groups is yes, so the groups get their own
-  `NN-execution-groups.md` and the index a new row. Phase 11 of one adoption appended
-  them instead (2,549 → 4,282 words, four workflows in one file).
+  `NN-execution-groups.md` and the index a new row.
 - **`cross_deps_ref` may name a folder or several modules**, not one file — a single
-  `cross_deps_ref` is what invited the monolith.
+  named file is where every later workflow gets appended until it is a monolith.
 - `python3 scripts/profile-init.py --check <project>` is the tripwire in script form: it
   warns on a prose section in the profile and on any `references/testing/*.md` over
   2,500 words. Run it at the close of any phase that touched either.

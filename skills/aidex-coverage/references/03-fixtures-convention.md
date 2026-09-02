@@ -38,8 +38,8 @@ its bottom half. Declaring the denominator is what makes the number mean what it
 and it should be treated as a prerequisite of writing coverage-bearing tests in a new
 package, not an afterthought applied once a percentage already looks wrong.
 
-**Second clause, from residue found while declaring it once (`ns_backoffice_ws`,
-2026-08-22):** a denominator that does not square with the project's file tree is not yet
+**Second clause, from residue found while declaring a denominator for the first time in a
+real package:** a denominator that does not square with the project's file tree is not yet
 the true number either. When `coverage.include` is first declared, reconcile the included
 count against the file tree rather than accepting whatever Vitest reports: a gap is
 expected (barrels, type-only files correctly absent) but an unexplained gap of the same
@@ -61,19 +61,17 @@ made at the moment code is touched, never a scheduled bulk pass.
 1. **A frontend test file moves to `__tests__/` when the surrounding code it covers is
    touched.** Touching a component, composable, or module is what earns its co-located
    spec the move — not a separate pass over files nobody is editing.
-2. **There is no mass migration.** `echo_lab_ws`'s frontend carries 442 test files still
+2. **There is no mass migration.** A frontend can carry hundreds of test files still
    outside `__tests__/`; none of them are moved by this rule at once, and no future task
    should propose moving them at once either.
 3. **The layout decision itself is not reopened.** `__tests__/` for test files,
    `__fixtures__/` as its sibling for shared fixtures, both type-checked via
-   `tsconfig.vitest.json` — settled in
-   `dashboard_template_ws/.context/decisions/2026-08-06-frontend-test-location-and-type-checking.md`.
-   This ratchet is how the settled layout is *reached*, not a re-litigation of *what* the
-   layout is.
+   `tsconfig.vitest.json`. This ratchet is how that layout is *reached*, not a
+   re-litigation of *what* the layout is.
 
-**Why the rejection is worth stating, not just the rule.** A single commit moving 442
-files would hide every other change in that review — the diff a reviewer actually needs to
-read (a real behavior change) drowns in mechanical renames. The ratchet gets the same
+**Why the rejection is worth stating, not just the rule.** A single commit moving hundreds
+of files would hide every other change in that review — the diff a reviewer actually needs
+to read (a real behavior change) drowns in mechanical renames. The ratchet gets the same
 end state without ever producing that commit: every file eventually moves, each move rides
 inside a diff a reviewer was already going to read for its actual change.
 
