@@ -53,7 +53,7 @@ relative link that legitimately points into `~/.myskills/` or another tool's ins
 - **[LK2] Symlink to unexpected location**: Target is not under `$HOME` (a dotfiles or tool install dir such as `~/.myskills/`, or `~/.claude/`) → WARNING (may be intentional). Since aidex 0.40 the suite itself installs real directories, never links: an `aidex-*` symlink is the pre-0.40 layout and `install.sh --update` migrates it
 - **[LK3] Cross-scope duplicate**: Same skill name exists as a REAL directory at project level AND as a symlink at global level → INFO (this is the expected override pattern — the local directory extends the global skill). Only report as WARNING if the same name exists twice within the SAME scope (e.g., two entries in project .claude/skills/ with the same name).
 
-**IMPORTANT:** A symlink that points to a directory IS a directory when resolved. Do NOT flag a symlink as "both symlink and directory" — that is the normal behavior. LK3 only applies when the SAME skill name appears in both project-level AND global-level as separate entries.
+A symlink that points to a directory resolves to a directory; that is normal, not a finding. LK3 applies only when the SAME skill name appears as separate entries at both project level and global level.
 
 ## Output Format
 
@@ -64,7 +64,7 @@ INVENTORY: [N symlinks found]
 ISSUES:
 CRITICAL [LK1] .claude/skills/name -> target (BROKEN)
 WARNING  [LK2] .claude/skills/name -> unexpected/path
-WARNING  [LK3] .claude/skills/name exists as both symlink and directory
+INFO     [LK3] name exists at project level and global level (expected override)
 
 COUNTS: critical=N warning=N info=N
 ```

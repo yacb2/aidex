@@ -17,14 +17,14 @@ Read conventions: `~/.claude/skills/aidex-conventions/references/skill-conventio
 ## Scopes to Scan
 
 1. `.claude/skills/` — local project skills (real files only, skip symlinks)
-2. `~/.claude/skills/` — global personal skills
-3. `~/.claude/skills/` — shared aidex skills
+2. `~/.claude/skills/` — global skills. Both the user's own and the aidex-installed ones
+   live here; `~/.claude/aidex/manifest` says which are aidex's.
 
 ## Checks
 
 - **[SA] SKILL.md exists**: Each skill directory has SKILL.md. Flag README.md or CHANGELOG.md presence.
 - **[SB] Frontmatter**: Prefer `name` + `description`. Additional supported fields: `model`, `allowed-tools`, `context`, `agent`, `disable-model-invocation`, `user-invocable`, `hooks`, `paths`, `effort`, `memory`, `shell`, `argument-hint`. Flag any field NOT in this list.
-- **[SC] Size**: measure the SKILL.md **body** (everything after the closing `---` of the front-matter) on **both** axes, and report both — a line count alone passes files that are far over the token ceiling, which is how a 413-line/~7.4k-token SKILL.md read as compliant (BL-078).
+- **[SC] Size**: measure the SKILL.md **body** (everything after the closing `---` of the front-matter) on **both** axes, and report both — a line count alone passes files that are far over the token ceiling.
   - Lines: `~250` ideal, `500` maximum.
   - Tokens: `~3k` ideal, `5k` maximum. Estimate as **bytes ÷ 4** — crude but stable, and enough to separate ideal from maximum. Dense markdown (tables, backticks, links) runs richer than prose, so treat a body near 5k as over.
   - Over maximum on **either** axis → finding. Over ideal on either → INFO with the remedy: progressive disclosure, i.e. move the self-contained advanced sections to `references/` and leave a pointer, not a summary.

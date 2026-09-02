@@ -22,8 +22,7 @@ to confirm; measuring under the wrong slug reads zero and looks clean.
 - `MEMORY.md` is the **index**: one line per memory, title + link + hook, never content.
   It is loaded in every session of that project, so every word in it is paid forever.
 
-The index was audited for years and the files were not. On 2026-08-31 that inverted:
-425 files carried the problem, the index carried almost none of it. Grade the files.
+The files, not the index, are where the problem concentrates. Grade the files.
 
 ## The default hypothesis is that a memory should NOT exist
 
@@ -79,8 +78,6 @@ Assign exactly one, with a one-line reason carrying evidence (a commit, a file, 
 - `MOVE-RESEARCH` — findings of an investigation, spike, audit or benchmark → `.context/research/`.
 - `MOVE-SKILL` — a correction about how a skill or tool should behave, generic beyond this project → that skill's `SKILL.md`/`references/`, or `~/.claude/rules/`. Name the skill.
 - `MOVE-GLOBAL` — a preference true in every project but saved in one → the user-level memory directory or a global rule.
-
-This vocabulary is proven: it produced 425 usable verdicts in one pass on 2026-08-31.
 
 ## The index, separately
 
