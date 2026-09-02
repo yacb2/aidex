@@ -90,8 +90,9 @@ parameters were defaulted. Full rule:
 6. **Autonomy surface (step 1.5).** Resolve the permission borders so the run is
    unattended. Use Claude Code's native `allow`/`ask`/`deny` — do NOT enumerate an
    allowlist. Pin: (a) any workflow-specific **deny**; (b) the **pre-authorized** ops;
-   (c) the **always-ask** set (defaults: push/publish/deploy/release only — NOT commit,
-   deps, or additive migrations). Everything else safe + additive is autonomous:
+   (c) the **always-ask** set (defaults: publication — push/publish/deploy/release and
+   integrating a branch into the trunk — NOT commit, deps, or additive migrations; the
+   canon linked below owns the full list). Everything else safe + additive is autonomous:
    proceed, verify the assumption, log it. (See
    [`../aidex-conventions/references/autonomy-conventions.md`](../aidex-conventions/references/autonomy-conventions.md).)
 7. **Isolation surface.** If the workflow's agents **mutate files in parallel**, they
@@ -117,7 +118,7 @@ parameters were defaulted. Full rule:
    Translate the spec's per-stage **model/effort** directly into the `agent(prompt,
    {model, effort})` options, and the work-list into the items array. The two-stage gate
    (Bash verifier → conditional durability-arbiter) and kill-resume come from the
-   plan-exec CORE — cite it, do not re-author it.
+   plan-exec CORE.
    - **The spec is the binding carrier; the `.workflow.js` is generated here, at
      launch, and is disposable.** Write it into the session scratchpad (or an equivalent
      transient location), never `.context/workflows/`; do not commit it and do not keep
@@ -127,9 +128,9 @@ parameters were defaulted. Full rule:
      at launch** via the two-folder lookup, never a frozen active path — the active path
      dies when the plan archives.
 4. **Model guard.** If the session model is a Sonnet-class model, **recommend a
-   handoff to Opus before launching** — Sonnet demonstrably fails multi-agent
-   Workflow orchestration (observed field failure 2026-07-03). State it with the
-   launch plan, never mid-run.
+   handoff to Opus before launching** — Sonnet-class models fail multi-agent
+   Workflow orchestration in the field. State it with the launch plan, never
+   mid-run.
 5. Only execute the `Workflow` call if the user explicitly asks you to start it now;
    otherwise print the launch plan (form + args shape) for them to confirm.
 
