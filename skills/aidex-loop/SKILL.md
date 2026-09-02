@@ -89,15 +89,15 @@ spec and stop rather than guess one.
    Recommend one, name the runner-up, say why. Model guard: if the pick is
    `Workflow` (multi-agent orchestration) and the session model is Sonnet-class,
    recommend a handoff to Opus before running the loop — Sonnet demonstrably
-   fails multi-agent Workflow orchestration (observed field failure 2026-07-03).
+   fails multi-agent Workflow orchestration.
 5. **Autonomy surface (step 1.5).** Resolve the permission borders so the loop runs
    unattended. Walk [references/01-loop-engines.md](references/01-loop-engines.md)
    §"Step 1.5". Use Claude Code's native `allow`/`ask`/`deny` — do NOT enumerate an
    allowlist. Pin three things: (a) any loop-specific **deny** beyond the base
    destructive config; (b) the **pre-authorized** ops that may run without asking;
-   (c) the **always-ask** set (defaults: push/publish/deploy/release only — NOT
-   commit, deps, or additive migrations, which are autonomous; a destructive
-   migration stays gated). Everything else safe + additive is autonomous: proceed, verify the
+   (c) the **always-ask** set (defaults: push/publish/deploy/release, plus
+   integrating a branch into the trunk — NOT commit, deps, or additive migrations,
+   which are autonomous; a destructive migration stays gated). Everything else safe + additive is autonomous: proceed, verify the
    assumption, log it. This is the lever that stops the loop from interrupting the
    user. (ADR `decision/2026-06-19-loop-autonomy-surface-native-permissions.md`.)
 6. **Isolation surface.** Decide whether the loop needs its own git worktree so it does
@@ -136,17 +136,15 @@ condition or turn cap **without interrupting the user**:
   additive work proceeds — including an unforeseen, non-breaking architectural
   micro-decision that falls under your authorship.
 - **Pause only** for the **deny** set (blocked outright) and the **ask** set
-  (push/publish/deploy/release, plus any the spec declared). Commit, deps, and
-  additive migrations are **not** in the ask-set — only outward publication is.
+  (push/publish/deploy/release, merging the loop's branch into the trunk, plus any
+  the spec declared). Commit, deps, and additive migrations are **not** in the
+  ask-set — outward publication and trunk integration are.
 - **Proceed + log, don't halt:** on a safe additive decision, the burden is to
   **verify the assumption is correct (investigate, don't guess)** and **surface or
   log** what you decided — not to stop. You may investigate, read the DB, and take
   a backup without asking when it gives confidence to continue.
-- The failure mode being eliminated is the "architectural doubt that breaks
-  nothing yet stops the loop." Don't stop for things that don't need stopping.
 - **Ambiguous consent point not in the declared ask-set → consult the
-  durability-arbiter, do not deadlock.** This is the failure that once stalled a
-  loop for turns waiting on an OK. Read
+  durability-arbiter, do not deadlock.** Read
   [`../aidex-conventions/agents/durability-arbiter.md`](../aidex-conventions/agents/durability-arbiter.md),
   pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the
   spec's autonomy surface + proof, and follow its verdict; batch any `ASK` to the
