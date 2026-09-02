@@ -1,8 +1,6 @@
 # Close-out steps (final phase)
 
-> Split out of `SKILL.md` (BL-078) under the progressive-disclosure budget in
-> `aidex-conventions/references/skill-conventions.md` § Size Constraints. These run once, at
-> the end of a plan. Paths are relative to the skill root (`../`).
+> These run once, at the end of a plan. Paths are relative to the skill root (`../`).
 
 Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 
@@ -12,9 +10,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 > never assumed mid-run — because it ends the review window this plan's work still
 > needs. Finish, leave the branch **ready to merge**, and say so in the final summary.
 > Rule: `rules/autonomy.md` § Integrating a branch is not a commit; rationale:
-> `../../aidex-conventions/references/autonomy-conventions.md`. (A run that merged
-> unasked on 2026-08-15 is why this note exists — these steps had no occurrence of the
-> word at all.)
+> `../../aidex-conventions/references/autonomy-conventions.md`.
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
@@ -40,20 +36,18 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
    done from memory:
    - **It writes `.context/proofs/<slug>/human-verification.md`** and links it from the
      plan's `proof_links`. A verification that lives only in the chat vanishes with the
-     session — which is what 5 of 6 verification actions do today.
+     session.
    - **A plan with nothing human-visible skips it by RECORDING one line**
      (`human-verification: skipped — <reason>`), never by the step being absent. "Pure
      backend/tooling, nothing a person operates" is a fine reason and a bad silence:
-     absent, it is indistinguishable from nobody having thought about it (BL-228).
+     absent, it is indistinguishable from nobody having thought about it.
 
 8. **Reconcile every deferral before the plan archives.** A deferral written as
    *prose* — "carry this to Phase 6-7", "Phase 8 should note it", "follow-up" — is not
-   carried by anything. The mechanism that makes one outlive the run already exists
-   (final-phase step 3 / `references/03-deferring-emergent-work.md`:
-   `register-item.sh --origin plan`, whose `origin_ref: plan/<slug>` still resolves after
-   the archive), and the two were never connected: close-out reconciled nothing, so four
-   deferrals written that way vanished the moment their plan archived and two of them
-   were still live (found by comparing a plan, its chain ledger and its handoff briefs).
+   carried by anything, and it vanishes the moment the plan archives. The mechanism that
+   makes one outlive the run is `register-item.sh --origin plan` (final-phase step 3 /
+   `references/03-deferring-emergent-work.md`), whose `origin_ref: plan/<slug>` still
+   resolves after the archive; this step is what connects the two.
 
    Grep the plan **and its execution log** for the phrasing — `defer`, `carry to`,
    `later phase`, `follow-up`, `should note` — and for each hit either a `BL-NNN` already

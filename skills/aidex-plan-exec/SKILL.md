@@ -94,7 +94,7 @@ the phase tier map, and what happens when a phase fails its gate.
    `grep -rl "escalated_to: plan/<slug>" .context/backlog/`. If the originating item
    carries `type: bug`, every behavior-changing phase is bound by RED→GREEN
    (`aidex-bugfix`): the test is written and fails for the right reason **before** the
-   fix, and the GREEN output is that phase's proof (BL-134). No matching item → carry
+   fix, and the GREEN output is that phase's proof. No matching item → carry
    on normally.
 4. **Check the prior phase's review evidence.** If a previous phase completed
    this session or an earlier one, confirm its Execution-log entry in
@@ -120,10 +120,8 @@ the phase tier map, and what happens when a phase fails its gate.
    (a gitignored/uncommitted `.context/` plan is absent from the worktree) — see the
    canon's Lifecycle note.
 6. **Probe for concurrent work before touching anything.** The user runs
-   parallel sessions and worktrees on the same project, and sessions blind to
-   each other have triaged items a parallel session owned, asked the user about
-   work running elsewhere, and left the user asking why a second worktree
-   exists (usage-retro run 6, R6-06). Two commands, seconds:
+   parallel sessions and worktrees on the same project, and a session blind to
+   them will take decisions another session owns. Two commands, seconds:
    `git worktree list` and `git log --all --since="24 hours ago" --oneline`.
    If another live line of work shows — a worktree you did not create, fresh
    commits this session did not make — name it in your first status message,
@@ -163,10 +161,10 @@ For each phase in order:
    checkpoint commits on the **selection**, stated rather than silent — say which
    subset ran and that the full suite has not. **The full suite gates the INTEGRATION
    boundary**: the merge, the push, or the end of the run
-   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`, partially
-   reversing BL-135). An `# INCOMPLETE` selection is the exception — unmapped scope
-   forces the full suite in-phase. It also names changed files that **measurably break** and have no
-   E2E — write that spec in-phase (BL-133).
+   (`decision/2026-08-24-full-suite-gate-moves-from-commit-to-integration`). An
+   `# INCOMPLETE` selection is the exception — unmapped scope forces the full suite
+   in-phase. It also names changed files that **measurably break** and have no E2E —
+   write that spec in-phase.
 3. If verification fails: fix root cause. After 3 failed attempts on the same
    approach, stop and ask the user.
 4. Mark the phase's checkboxes as done in the plan file. **Record the phase's
@@ -210,7 +208,7 @@ it grows its own copy. What is plan-specific:
 - **Where the evidence goes.** The Execution log in the plan's `00-index.md` takes the
   `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
 - **Deferrals** use `register-item.sh --origin plan --plan <this plan>`
-  ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md), BL-220).
+  ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md)).
 - **Which model runs which step** — orchestrate, implement, and do the mechanical work
   with different models
   ([`references/04-model-tiering.md`](references/04-model-tiering.md)).
