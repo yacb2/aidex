@@ -68,11 +68,10 @@ early: it is the one that catches a typo, a stale path, or an item you inferred 
 After declaring `covers:`, the check that means something is **gaps down by exactly the items you
 claimed, phantoms still zero.**
 
-**The census reads the working tree, so it is only as stable as the tree.** In the first production
-run of this skill an axis moved 12 → 13 items between two runs minutes apart, because a concurrent
-session had added an untracked service. That is not a census defect, but a figure quoted without the
-tree state behind it is not reproducible — record `git status --short` alongside any number you
-paste into a `## Verification` block.
+**The census reads the working tree, so it is only as stable as the tree.** A concurrent session
+adding an untracked file moves an axis count between two runs minutes apart, so a figure quoted
+without the tree state behind it is not reproducible — record `git status --short` alongside any
+number you paste into a `## Verification` block.
 
 **The census checks that ownership EXISTS, never that the content is still true.** A module
 declaring an item it describes wrongly still reports 100% covered. Rot needs the other pass:
@@ -147,25 +146,22 @@ project root. `model-policy: per-stage` — the refuter's `sonnet` / `high` abov
 not the session's inherited depth. Skill `agents/` definitions are **not** auto-registered as agent types, so naming
 the file is what makes this step happen rather than get skipped.
 
-**Do not skip this and do not self-assess instead.** You assigned the ledger labels; the sweep
-that reasons a correction into falseness is the same one that re-reads it and finds it sound. And
-never close on link integrity — 388 links once resolved cleanly across a document containing
-three false statements.
+**Spawn it rather than self-assessing.** You assigned the ledger labels; the sweep that reasons a
+correction into falseness is the same one that re-reads it and finds it sound. And never close on
+link integrity — 388 links once resolved cleanly across a document containing three false
+statements.
 
 **Point it at the text you wrote today, by name.** Its cheapest kills are in the freshest prose —
-a correction written in one sitting is where a right sentence gets turned into a wrong one. On the
-first production run, three refuters returned six refutations across three modules and **every one
-survived independent re-verification**; five of the six landed on sentences written that same day,
-including two corrections that were worse than the claims they replaced. Tell it which edits are
-new and that they get attacked hardest.
+a correction written in one sitting is where a right sentence gets turned into a wrong one. Tell
+it which edits are new and that they get attacked hardest.
 
 **Give it an explicit read-only fence.** It runs against a real project: no edits, no writes to a
 database or a bucket, never production. A refutation that needs a write to settle is a *finding*
 (name the contradiction, file it) — not a licence to run the write.
 
 Fix what it refutes, then re-run it if the fixes were substantive. When it refutes something,
-**verify it yourself before fixing** — three of this build's own harnesses were broken rather than
-the findings they dismissed, and the reverse is equally possible.
+**verify it yourself before fixing** — a harness that dismisses a finding can itself be the broken
+thing, and the reverse is equally possible.
 
 ## 6 · Self-check (mandatory close step)
 

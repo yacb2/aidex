@@ -274,26 +274,13 @@ This file sets a size trigger, so the check is that it and its siblings respect 
 wc -w ~/.claude/skills/aidex-reference/references/*.md ~/.claude/skills/aidex-reference/SKILL.md
 ```
 
-**Real output, 2026-07-29:** every reference module comes back **under the ~2,500-word trigger**,
-and `SKILL.md` well under the skill-conventions budget (~4k tokens ideal, 5k max). `01-discovery`
-sits closest to the trigger — the next substantial edit to it fires this rule, which is the
-tripwire working rather than a problem.
+**Real output, 2026-09-02 — stated as the invariant, not the numbers:** every reference module is
+**either under the ~2,500-word trigger or carries the note that answers it** (see the block inside
+`01-discovery.md`'s Rule 3′ for the shape), and `SKILL.md` is under the skill-conventions budget
+(~4k tokens ideal, 5k max).
 
-> **The individual counts are deliberately not pinned.** An earlier version pinned four of them
-> and every one was stale within two commits on the same branch. Read the command's output; a
-> number here about files that change on every edit is rot with a date on it.
-
-**`03-shaping`'s own count is deliberately not pinned here.** It is self-referential — editing
-this block changes the number the block reports, so a pinned value is stale the moment it is
-written. Run the command; do not read a number about the file you are reading. Where a figure
-moves with the thing being measured, **pin the command, not the number** — the same rule this
-file states two sections up, met here for real.
-
-> **This block first shipped with four numbers written from memory before the command was run**,
-> and all four were wrong (2469 / 1877 / 2071). Caught within the same session by running it.
-> That is the failure this rule exists to prevent, committed by the person writing the rule —
-> which is the honest measure of how easy it is.
-
-**A module over 2,500 here is not a violation** — it is the trigger firing, and it asks two
-questions: is there re-derivable content, and is there a second workflow in here? Answer them
-before splitting.
+**No count is pinned here.** Every number this command returns is about a file that changes on
+every edit, and this block is itself one of the files it measures — a pinned value is stale the
+moment it is written. A module the command reports over the trigger is **the tripwire firing, not
+a violation**: answer its two questions — is there re-derivable content, is there a second
+workflow — in a note beside the rule, and leave the count to the command.
