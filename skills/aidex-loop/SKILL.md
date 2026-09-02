@@ -86,8 +86,7 @@ spec and stop rather than guess one.
    `/loop` · `ralph-loop` · `claude -p` while-loop · Routines (`/schedule`) ·
    Channels · Workflow — or, for proactive loops, a composed stack
    (`/schedule` + `/goal` + Workflow) recorded as `engine: routine+goal+workflow`.
-   Recommend one, name the runner-up, say why. Model guard, when the pick is
-   `Workflow`: If the session model is Sonnet-class, recommend a handoff to Opus before launching, stated with the launch plan, never mid-run (`workflow-core.md` § Orchestrator model guard).
+   Recommend one, name the runner-up, say why.
 5. **Autonomy surface (step 1.5).** Resolve the permission borders so the loop runs
    unattended. Walk [references/01-loop-engines.md](references/01-loop-engines.md)
    §"Step 1.5". Use Claude Code's native `allow`/`ask`/`deny` — do NOT enumerate an

@@ -270,16 +270,13 @@ the JSON.`
 // === ARBITER:END ===
 ```
 
-## Orchestrator model guard
+## Orchestrator model
 
-The session model is the orchestrator of a `Workflow` run. A Sonnet-class session does
-not orchestrate multi-agent Workflow runs reliably; Opus does. Before launching any
-Workflow form, if the session model is Sonnet-class, recommend a handoff to Opus and say
-so with the launch plan, never mid-run; a skill with an in-process fallback keeps using
-it until the handoff happens. This is the one statement of the guard — the skills that
-launch Workflows point here. The tier pin was verified on the Claude 4 generation and
-has not been re-verified on Sonnet 5 against Opus 5; re-verify it when the tier changes
-rather than weakening the guard from memory.
+The session model is the orchestrator of a `Workflow` run. Any current session model
+orchestrates one: authoring the script, launching it and reading its result back were
+verified on Sonnet 5 and Opus 5 headless, three runs each, all complete. No handoff to
+a larger model is recommended before a launch. If a future tier fails to orchestrate,
+re-verify it the same way before adding a guard.
 
 ## Adding a catalog entry
 
