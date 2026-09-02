@@ -10,11 +10,9 @@ the decision, not the pixels — except when the browser is what decides."
 A completed audit table is **project data, not skill canon**: it names real spec
 files and what they assert, so it lives in that project's own `.context/` (an
 audit run, or a reference next to the plan that ordered it) — never inside this
-installed-everywhere skill. The original worked example (EchoLab's timeline
-suite, 20 rows) was relocated out of the public repo for exactly that reason
-(BL-211); a completeness ratchet
+installed-everywhere skill. A completeness ratchet
 ([tests/test-spec-audit-complete.sh](../tests/test-spec-audit-complete.sh))
-keeps gating it where it now lives.
+gates the table where it lives.
 
 ## Scope and provenance — pin these before the first row
 

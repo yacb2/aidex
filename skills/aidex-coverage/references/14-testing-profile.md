@@ -7,15 +7,15 @@ everything in it is specific to that project, and nothing in it is a rule.
 
 **Where it may live.** `.context/testing-profile.md` normally, and a repo-level
 `<project>/testing-profile.md` as a **tracked fallback** for a project that gitignores
-`.context/` — aidex does, by policy, so a profile there could never travel with a checkout
-and its own boundary gate was unrunnable on a fresh clone. `.context/` wins when both
-exist; `sweep-gate.sh`'s refusal names both paths (BL-289).
+`.context/`, where a profile could never travel with a checkout and the boundary gate
+would be unrunnable on a fresh clone. `.context/` wins when both exist; `sweep-gate.sh`'s
+refusal names both paths.
 
 **The `suite` leg.** Besides `backend`/`frontend`/`build`/`e2e`, `sweep-gate.sh` accepts
 `--only suite`, bound by `suite_cmd`, for a project whose entire test surface is one suite
 (a shell toolkit, a single-package library). It is deliberately **not** in the default leg
 set: adding it there would ask every existing project for a fifth key it has no answer for.
-Before it existed, such a project had to map its suite onto `backend` — a lie that passes
+Without it, such a project has to map its single suite onto `backend` — a lie that passes
 only because the count regex happens to match.
 
 ## Facts versus rules
@@ -32,9 +32,8 @@ only because the count regex happens to match.
 The test: if the line would still be true in a different project, it is a rule and it
 lives here in `references/`; if it is true only of this project, it is a fact and it
 lives in the profile. The profile has **no `## ` sections**: the template's note is the
-whole body, and a profile that grows past it (553 words against the template's 376, in
-one adoption) is facts and explanation mixed in the one file scripts read —
-`profile-init.py --check` reports it, together with any `references/testing/*.md` over
+whole body, and a profile that grows past it is facts and explanation mixed in the one
+file scripts read — `profile-init.py --check` reports it, together with any `references/testing/*.md` over
 the ~2,500-word tripwire. A project that wants to **deviate** from a rule does not edit the
 profile — it records the deviation as a decision in its own `.context/decisions/` and
 the profile stays a list of values.
@@ -48,15 +47,15 @@ the profile stays a list of values.
 | `testing-playwright-app/scripts/gen-test-e2e.sh` | `project_slug`, `project_kebab`, `db_port`, `db_user`, `db_password_env`, `dev_*_port`, `e2e_*_port`, `e2e_service`, `seed_bootstrap_cmd`, `seed_e2e_bootstrap_cmd` |
 | `aidex-audit`'s `affected-tests`, once wired | `backend_test_cmd`, `frontend_test_cmd`, `e2e_test_cmd` — to render the CMD line without bare runners |
 | `aidex-backlog`'s `sweep-gate.sh` (the end-of-sweep boundary gate) | `backend_suite_cmd`, `frontend_suite_cmd`, `e2e_suite_cmd`, `build_cmd` — the **full**-suite forms, worker flags included; `e2e_detached` — whether the E2E leg outlives the foreground ceiling and is printed as a detached invocation instead of run inline; optionally `<leg>_pre_cmd` (`backend_pre_cmd`, …) — a command run immediately before that leg and into the same log, for state a fresh checkout should not have inherited (`find . -name __pycache__ -prune -exec rm -rf {} +`). Absent is the normal case; a non-zero pre-command FAILS the leg and the leg does not run |
-| A sweep's per-item selection (`sweep-execution-policy.md`, stage 3) | `blindspot_expansions` — the mandatory widenings of `affected-tests.sh`'s selection, one `- ` line each: a migration ⇒ every app referencing the changed model; a touched `*.test.ts` ⇒ `vue-tsc -b` (not `-p`, which excludes test files); a removed UI surface ⇒ grep `tests/e2e/` for the endpoints and testids it owned. Six of the nine problems the 2026-08-26 gate found were one of these three |
+| A sweep's per-item selection (`sweep-execution-policy.md`, stage 3) | `blindspot_expansions` — the mandatory widenings of `affected-tests.sh`'s selection, one `- ` line each: a migration ⇒ every app referencing the changed model; a touched `*.test.ts` ⇒ `vue-tsc -b` (not `-p`, which excludes test files); a removed UI surface ⇒ grep `tests/e2e/` for the endpoints and testids it owned. These three account for most of what a sweep's boundary gate catches |
 
 The sweep keys are **optional**: a project with no sweep validates without them, and `sweep-gate.sh` is what refuses (exit 2, naming the key) when a sweep runs against a profile that never filled them. The shape is aidex's; the bindings — `-n 4 --dist loadscope`, which runner, which build — are project facts, which is why they live here and not in a `CLAUDE.md` nobody commits.
 | A reader orienting in the project | `personas_ref`, `cross_deps_ref`, `module_map`, `ui_stack`, `ui_locale` |
 
 `cross_deps_ref` names **a folder or several modules, comma-separated** — never one
 document by contract. A single file named here is where an adopter appends every later
-workflow (execution groups, fan-out, order-dependent tests) until it holds four of them
-and 4,282 words; the shape the skill writes is one workflow per `NN-<slug>.md` under the
+workflow (execution groups, fan-out, order-dependent tests) until it is a monolith; the
+shape the skill writes is one workflow per `NN-<slug>.md` under the
 `aidex-reference` tripwire, with `references/testing/00-index.md` as the entry (SKILL.md
 § The shape of the docs this skill writes).
 

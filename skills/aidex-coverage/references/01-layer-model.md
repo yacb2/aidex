@@ -23,7 +23,7 @@ at a given layer looks like in a given framework is the stack pack named by the 
 
 - **Layer 1.** Django documentation, *Testing tools* — `django.test.TestCase` rolls its
   transaction back, `TransactionTestCase` truncates. The quote, URL and check date live in
-  [02-best-practices.md](02-best-practices.md) item 2; not duplicated here.
+  the `testing-django` pack (`references/02-pytest-django-traps.md`); not duplicated here.
 - **Layer 2.** Django REST Framework documentation, *Testing* and *Schemas* — DRF ships
   `APIClient`/`APITestCase` for making authenticated requests against views in tests, and
   deprecates its built-in OpenAPI schema generation in favour of `drf-spectacular`. The
@@ -36,7 +36,7 @@ at a given layer looks like in a given framework is the stack pack named by the 
   "Vitest 4.1". `vitest.dev/guide/`, checked 2026-08-23.
 - **Layer 5.** MSW (Mock Service Worker) documentation, `setupServer().listen()` —
   `onUnhandledRequest` accepts `"warn"` (default), `"bypass"` and `"error"`. The quote, URL
-  and check date live in [02-best-practices.md](02-best-practices.md) item 6; not
+  and check date live in the Vue stack pack named by `testing-profile.md` `testing_packs` (its `02-msw-traps.md`); not
   duplicated here. Version not printed on the fetched page; carried as **unverified**
   against a specific MSW release.
 - **Layer 6.** Playwright documentation, *Getting started* — "Playwright Test is an
@@ -78,25 +78,13 @@ cannot see the failure.
 
 ## Vocabulary: "pyramid" versus "trophy"
 
-Recorded as a vocabulary problem, not a debate this document resolves. Both terms describe
-the same underlying claim — most tests should sit below the browser layer, with E2E as a
-thin top layer — using different shapes to make a different point about where the *bulk*
-of tests should sit within the non-E2E layers:
+Recorded as a vocabulary problem, not a debate this document resolves. Both shapes make
+the same underlying claim — most tests sit below the browser layer, E2E a thin top layer
+— and differ only on where the bulk sits among the non-E2E layers (pyramid: mostly unit;
+trophy: mostly integration).
 
-- The **testing pyramid** (attributed to Mike Cohn, *Succeeding with Agile*, 2009) puts unit
-  tests as the widest base, with integration and E2E narrowing above it — the claim is
-  "mostly unit tests."
-- The **testing trophy** (associated with Kent C. Dodds, popularized via the
-  `testing-library` ecosystem) widens the *integration* layer relative to unit, on the
-  claim that integration tests give more confidence per test written for a typical
-  component-heavy frontend — the claim is "mostly integration, some unit, a little E2E, and
-  a little static analysis at the base."
-
-For this stack, the six-layer model above is the operative artifact regardless of which
-shape a given author prefers to reach for: it names six layers, not a ratio, and the
-rubric decides layer by test rather than by target percentage. Neither shape is cited here
-as settled research — both are industry framing, offered so a reader who has heard one term
-and not the other is not confused by which one this corpus uses. This item was authored
-2026-08-23 from general knowledge of both terms' common attribution rather than from a
-single fetched primary source; treat the attributions as **unverified** if precision on
-authorship matters.
+For this stack the six-layer model above is the operative artifact whichever term an
+author reaches for: it names six layers, not a ratio, and the rubric decides layer by
+test rather than by target percentage. Neither shape is cited here as settled research;
+the usual Cohn/pyramid and Dodds/trophy attributions are **unverified** against a primary
+source and should be treated as such if precision on authorship matters.

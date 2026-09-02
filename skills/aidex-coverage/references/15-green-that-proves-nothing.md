@@ -1,6 +1,6 @@
 # A green test that proves nothing
 
-Five measured shapes. All produce a passing test over broken code, and none is visible
+Eight measured shapes. All produce a passing test over broken code, and none is visible
 from inside the test — reviewing the assertion harder does not find any of them. What
 finds them is comparing the test against what production actually does.
 
