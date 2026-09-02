@@ -29,7 +29,6 @@ the `aidex-conventions` canon, but research's own body shape is defined here.
    `00-index.md` (`00-overview.md` is the accepted alias in `research/` only)
    plus sequential `NN-<slug>.md` files. When a spike gains a second document,
    promote it: create the dated folder and move the spike in as `00-index.md`.
-   Research is versioned in place — there is **no `_archive/`** in `research/`.
 3. Front-matter = the global minimum only: `title`, `status`, `created`,
    `updated`. No `version` — a dated spike is a point-in-time investigation, not
    an evergreen doc that gets revised.
@@ -85,5 +84,4 @@ a non-zero exit means you introduced a NEW violation — fix it before closing.
 ## Related
 
 - **aidex-conventions** — owns the shared documentation canon (`00-global.md`:
-  language, IDs, statuses, archive rules). Research's body shape is defined here
-  in the skill, not delegated to the reference MODULE template.
+  language, IDs, statuses, archive rules).
