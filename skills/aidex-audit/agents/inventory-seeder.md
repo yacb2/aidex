@@ -73,8 +73,8 @@ Write only the base vocabulary — `open` · `doing` · `done` · `dropped`. Leg
 
 Append new rows to `audits/<methodology>/00-inventory.md`, one cell per column **in the
 order the board's own "How to read this file" header table declares** — read it there and
-match it. Do not carry a row shape into this file: the board's schema has changed twice,
-and every copy of it that lived somewhere else was left behind by the change.
+match it. Do not carry a row shape into this file from anywhere else — the board's
+schema changes, and copies of it are left behind when it does.
 
 Populate every column. If Escalated To can be derived (e.g. the audit folder mentioned a
 backlog file), include the `<type>/<filename>` link. Otherwise `—`.

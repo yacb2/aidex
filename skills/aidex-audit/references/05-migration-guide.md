@@ -15,21 +15,27 @@ You have the problem if:
 
 ---
 
-## Automated migration
+## Assisted migration — the script detects, you move
 
 ```
 /aidex-audit migrate
 ```
 
-This launches the full flow:
+`migrate-audit.sh` **detects only.** It scores each direct child of `.context/plans/` on
+file presence (`findings.md`, `methodology.md`, `issues.md`, `metrics.md` raise the score;
+`tasks.md` and numbered implementation files lower it), groups the folders into strong
+candidates / ambiguous / plans, and prints the steps below for you to carry out:
 
-1. **Detection** — the `audit-migrator` subagent scans `.context/plans/*/` and scores each folder on heuristics (presence of `findings.md`, `methodology.md`, `issues.md`, `metrics.md`; absence of `tasks.md` or implementation steps). Outputs a list of candidates.
-2. **Confirmation** — each candidate is shown to you. Accept, reject, or mark as "keep in plans" (audits that morphed into plans).
-3. **Move** — accepted candidates are renamed and moved to `.context/audits/<methodology>/YYYY-MM-DD-<slug>/` (D-02 groups runs by methodology; D-01 dates them ISO).
-4. **Seed the inventory** — the `inventory-seeder` subagent reads the moved folders and generates rows in `.context/audits/<methodology>/00-inventory.md`.
-5. **Methodology bootstrap** — if any audit had its own methodology notes, they're extracted into that methodology's `00-methodology.md`.
-6. **Changelog entry** — records the migration in `<methodology>/00-changelog.md`, with date and list of migrated folders.
-7. **Validation** — runs `/aidex-audit validate` automatically. Any issues are reported but not blocking.
+1. **Review** the candidates it printed. Accept, reject, or mark as "keep in plans" (audits that morphed into plans).
+2. **Scaffold the methodology** if it does not exist yet — `/aidex-audit new <type> <slug>`, so the target exists with its three boards (delete the scaffolded run if you only wanted the boards). Never create the directory by hand: an empty methodology is three missing-board violations.
+3. **Move** each accepted candidate — `git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>` (D-02 groups runs by methodology; D-01 dates them ISO).
+4. **Rename** `issues.md` or similar to `findings.md` inside the moved folder.
+5. **Seed the inventory** — with many candidates, invoke the `inventory-seeder` agent with the methodology and the list of moved folders; it generates the rows for `00-inventory.md`.
+6. **Changelog entry** — record the migration in `<methodology>/00-changelog.md`, with date and list of migrated folders.
+7. **Reindex** — `/aidex-audit reindex`, from the migrated project; a manual move does not touch the roll-up.
+8. **Validate** — `/aidex-audit validate`. Issues are reported, not blocking.
+
+If a legacy folder carried its own methodology notes, extract them into that methodology's `00-methodology.md` while you are at step 3 — the script does not print this because it cannot see inside the notes.
 
 ---
 
@@ -94,7 +100,7 @@ Some "audits" in `.context/plans/` really are plans — they audited, then plann
 
 1. Split the folder content:
    - Extract findings to `.context/audits/<methodology>/YYYY-MM-DD-<slug>/findings.md` + `00-inventory.md` rows
-   - Keep the implementation phases in `.context/plans/YYYYMMDD-<slug>-implementation/`
+   - Keep the implementation phases in `.context/plans/YYYY-MM-DD-<slug>-implementation/`
 2. Cross-link: the audit's `findings.md` references the plan; the plan's `00-index.md` references the audit.
 
 ---

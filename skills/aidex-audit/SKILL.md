@@ -1,6 +1,6 @@
 ---
 name: aidex-audit
-description: 'Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans or decisions (aidex-conventions); generic backlog items not from a finding (aidex-backlog).'
+description: 'Use when the user wants to assess the state of a feature, flow, or module — a UX, security, performance, or accessibility audit; cataloging bugs, gaps, and opportunities; retesting open findings; escalating a finding to the backlog; or updating audit methodology. Fires on "I want to do a UX / security / performance / accessibility audit", "before we ship I want to audit X", "audit the X flow or module", "catalog the state of X", "list bugs and gaps in X", "retest open findings", "register a finding under audit X", "escalate finding <id> to backlog", and /aidex-audit commands. Not for: auditing the Claude Code setup itself like skills or MEMORY.md (aidex); creating plans (aidex-plan) or decisions (aidex-decision); generic backlog items not from a finding (aidex-backlog).'
 argument-hint: "[new <type|--standalone> <slug> | validate [path] | escalate <finding-id> [--loop] | remediate <run> [--check] | close <run> | reindex | migrate [project-dir] | coverage-matrix | coverage-sweep [--since ISO] | affected-tests [--since <ref>] [--command] | config-check [project ...] [--root <dir>] [--verbose] [--json]]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Workflow Agent
@@ -72,8 +72,8 @@ methodology actually checks, when it is the wrong fit, and which one a vague req
 
 When invoked with arguments, run the script the **sub-actions table above** names for
 that command, passing the remaining arguments through. The table is the only
-command→script mapping; it is deliberately not restated here, because a second copy is
-how six of these routes came to name scripts that never existed.
+command→script mapping; it is deliberately not restated here, because a second copy
+drifts and ends up naming scripts that do not exist.
 
 One command is not 1:1 — `escalate` has two scripts, chosen by the flag:
 
@@ -154,9 +154,9 @@ the defaulting in the audit brief —
 > mid-sweep interruption**.
 >
 > **Model guard (before launching the fan-out Workflow).** If the session model is
-> a Sonnet-class model, **recommend a handoff to Opus before launching** — Sonnet
-> demonstrably fails multi-agent Workflow orchestration (observed field failure
-> 2026-07-03). Surface this with the kickoff proposal, never as a mid-sweep
+> a Sonnet-class model, **recommend a handoff to Opus before launching** — Sonnet-class
+> models are unreliable at multi-agent Workflow orchestration. Surface this with the
+> kickoff proposal, never as a mid-sweep
 > interruption; the in-process sweep is unaffected.
 >
 > **`model-policy: per-stage`.** Every agent this skill spawns carries its own model
@@ -229,7 +229,7 @@ If audits have accumulated inside `.context/plans/`:
 /aidex-audit migrate
 ```
 
-Launches the `audit-migrator` subagent to detect candidates, proposes moves, then runs `inventory-seeder` to generate initial INVENTORY from existing findings.
+`migrate-audit.sh` scores each `.context/plans/` folder on file-presence heuristics and prints the candidate list plus the manual move steps. Once folders are moved, `inventory-seeder` generates the initial INVENTORY rows from their findings.
 
 **Read `~/.claude/skills/aidex-audit/references/05-migration-guide.md` before accepting any move.**
 It holds what the legacy `plans/`-era layouts look like, which folders are audits and
@@ -256,10 +256,9 @@ suggestion to run it (Phase 6).
 
 | Agent | Model | Purpose |
 |---|---|---|
-| [audit-migrator](agents/audit-migrator.md) | haiku | Detects audit-like folders in `.context/plans/` using file-presence heuristics. Read-only. |
 | [inventory-seeder](agents/inventory-seeder.md) | sonnet | Reads scattered findings from legacy folders and generates INVENTORY rows in canonical format. |
 
-Scripts delegate to these agents when needed. Direct use is also fine during manual migration work.
+Scripts delegate to this agent when needed. Direct use is also fine during manual migration work. Candidate detection is not an agent — `migrate-audit.sh` scores folders deterministically.
 
 ---
 
