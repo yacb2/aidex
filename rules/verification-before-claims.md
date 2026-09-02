@@ -1,10 +1,10 @@
 # Verification Before Completion Claims
 
-## NEVER
+## A claim is backed by a fresh run, shown
 
-- Claim "tests pass", "build succeeds", or "bug is fixed" without running the verification command and showing output
-- Trust cached or remembered results — always run fresh
-- Say "should work", "looks correct", or express satisfaction without evidence
+"Tests pass", "build succeeds", "the bug is fixed" mean the command was run in this
+session and its output is in the reply. A remembered or cached result is not evidence;
+neither is "should work" or "looks correct".
 
 ## NEVER (destructive verification)
 
@@ -16,23 +16,18 @@
   before deleting, not just at analysis time, and build enumerate-then-remove into any
   generated script.
 
-## ALWAYS
+## What counts as evidence
 
-- Before claiming tests pass: execute the test command, show output
-- Before claiming a fix works: demonstrate the fix with evidence
-- Before committing: verify build/lint/type-check pass
-- Provide the actual command output as proof, not just assertions
 - Before citing a green gate, show it saw **non-empty input**: print the count it
-  processed, or make it fail once on purpose. Measured six times in one repo — a lint
-  whose config ignored the whole report directory, an E2E suite green against a stale
-  image, a planner that delivered 0 of 44 steps while its own linter said `OK`. Every
-  gate was green and nobody was suspicious. When adding a gate, make it say how much it
-  saw; and assert the tricky case at the **consumer's** seam, not only where it is known.
+  processed, or make it fail once on purpose. A gate that silently processed nothing
+  (a lint whose config ignored the whole directory, an E2E suite run against a stale
+  image) is green and indistinguishable from a real pass. When adding a gate, make it
+  say how much it saw, and assert the tricky case at the **consumer's** seam, not only
+  where it is known.
 - Run a silent-on-failure check **bare**, never through a pipe. `manage.py migrate
   --check` prints nothing when migrations are pending — its whole verdict is the exit
-  code, and a pipeline reports the last stage's status instead. Verified 2026-08-19: the
-  same command gave `exit=0` piped and 1 bare, with a migration genuinely unapplied.
-  Capture to a file and check `$?` before filtering.
+  code, and a pipeline reports the last stage's status instead. Capture to a file and
+  check `$?` before filtering.
 - Prove a RED is genuine before you believe it: `git stash push -- <only the fix files>`,
   run the test, confirm it fails **for the right reason**, then pop. A security test can
   pass without the fix because the framework already rejected the case one layer down.

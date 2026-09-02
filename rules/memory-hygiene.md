@@ -36,9 +36,9 @@ people learn to route around.
 
 Size is a **signal**, not one of these: a memory file over **800 words is a session log
 until proven otherwise** —
-that is the p90 of 416 memories measured 2026-08-06, against a median of 277w. The two
-worst offenders were 2,894w and 2,899w and both were transcripts of a single run. It is
-reported and never decides on its own; the six checks above are what decide.
+that is the p90 of the memories measured on 2026-08-06, against a median of 277w, and
+the largest ones were transcripts of a single run. It is reported and never decides on
+its own; the six checks above are what decide.
 
 ## NEVER
 

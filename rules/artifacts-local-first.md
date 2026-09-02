@@ -12,8 +12,8 @@ then open the output locally. Do not hand-generate what a renderer already produ
 discussion has a SHAPE — a layout, a flow, a before/after, two alternatives, widths on a
 screen — the analysis arrives WITH a drawing, unasked: an SVG or a 20-line mockup in
 `_tmp/`, opened in the browser, or the real page re-rendered both ways. The consultation
-page already carries its visual by contract (22 of 22 in this repo); the gap is the chat
-before it, where the reader had to ask every time (BL-248). Do not wait to be asked.
+page already carries its visual by contract; the gap is the chat before it. Do not wait
+to be asked.
 
 **B. Ad-hoc report** — anything else. Six gates, five before anything is written and
 one that keeps applying for as long as the page is being discussed:
@@ -28,13 +28,12 @@ one that keeps applying for as long as the page is being discussed:
 2. **Open the file ONCE, when it is final — and every create or update ends with that
    one open.** The reader closes the tab after copying their answers, so a new tab means
    "this is the version to read". Opening it early and then re-opening after each fix
-   (observed up to three times on one page) breaks that: verify with the checker and
-   DevTools first, `open` last. And never finish a create/update without the open — a
-   page that was rewritten and not opened is, to the reader, a page that did not change.
-   Prose was not enough — the count reached 5-7 tabs of one page — so this gate is now
-   enforced: `hooks/artifact-open-once.sh` refuses a second `open` of the same path when
-   the user has not spoken since the first. A re-open the reader asked for still passes,
-   which is what keeps gate 6's answer-and-re-open loop working (BL-294).
+   breaks that: verify with the checker and DevTools first, `open` last. And never
+   finish a create/update without the open — a page that was rewritten and not opened
+   is, to the reader, a page that did not change. `hooks/artifact-open-once.sh` enforces
+   the first half: it refuses a second `open` of the same path when the user has not
+   spoken since the first. A re-open the reader asked for still passes, which is what
+   keeps gate 6's answer-and-re-open loop working.
 3. **Never publish unless explicitly asked to share.** The local file, anchored next to
    the work it documents, is the durable copy. This deliberately overrides the `Artifact`
    tool's own default ("publishing proactively is fine"); when the two disagree, this
@@ -45,10 +44,8 @@ one that keeps applying for as long as the page is being discussed:
    `check-artifact.sh` fails the other shape (context above, questions below); the
    full rule is §8.4 of the procedure below (BL-247).
 5. **More than three facts of one shape are a table, a list or a figure — never a
-   paragraph — in a block context AND in an item body.** A block context that named
-   twelve skills with counts and verdicts in one ~250-word paragraph was returned unread
-   (BL-269); the next day an item body did the same with twenty skills across three
-   layers (BL-270); the reader said the same of chat replies. `check-artifact.sh` warns
+   paragraph — in a block context AND in an item body.** A dense paragraph of
+   facts is returned unread, on the page and in chat alike. `check-artifact.sh` warns
    (`consult-facts`) on the dense shape; the rewrite clears it, a waiver cannot. The
    sentence above the table states the finding; the rows carry the facts. Full rule in
    §8.4 of the procedure below.

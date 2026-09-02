@@ -1,14 +1,8 @@
 # Root Cause Investigation First
 
-## NEVER
+Understand why something fails before changing it: read the code, trace the execution
+path, and state the cause before proposing the fix. A fix without a hypothesis is a
+guess, and a guess that happens to pass hides the real defect for the next reader.
 
-- Apply fixes without understanding the root cause first
-- "Just try X" without a hypothesis for why it would work
-- Continue with the same approach after 3+ failed attempts — stop and question the architecture
-
-## ALWAYS
-
-- Investigate before fixing: read the code, trace the execution path, understand why it fails
-- Form a hypothesis before implementing a fix
-- After 3 failed attempts: step back, reconsider assumptions, and explore alternative approaches
-- Explain the root cause before proposing a solution
+After three failed attempts on one approach, stop and question the assumption behind
+it, including the architecture, instead of trying a fourth variant.
