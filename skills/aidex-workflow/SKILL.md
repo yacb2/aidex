@@ -128,10 +128,7 @@ parameters were defaulted. Full rule:
    - **Any plan a generated prompt references must be by `plan/<slug>` type-ref resolved
      at launch** via the two-folder lookup, never a frozen active path — the active path
      dies when the plan archives.
-4. **Model guard.** If the session model is a Sonnet-class model, **recommend a
-   handoff to Opus before launching** — Sonnet-class models fail multi-agent
-   Workflow orchestration in the field. State it with the launch plan, never
-   mid-run.
+4. **Model guard.** If the session model is Sonnet-class, recommend a handoff to Opus before launching, stated with the launch plan, never mid-run (`workflow-core.md` § Orchestrator model guard).
 5. Only execute the `Workflow` call if the user explicitly asks you to start it now;
    otherwise print the launch plan (form + args shape) for them to confirm.
 

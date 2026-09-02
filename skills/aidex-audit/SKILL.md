@@ -153,11 +153,8 @@ the defaulting in the audit brief —
 > normal in-process sweep and **do not ask**. This is a kickoff question, **never a
 > mid-sweep interruption**.
 >
-> **Model guard (before launching the fan-out Workflow).** If the session model is
-> a Sonnet-class model, **recommend a handoff to Opus before launching** — Sonnet-class
-> models are unreliable at multi-agent Workflow orchestration. Surface this with the
-> kickoff proposal, never as a mid-sweep
-> interruption; the in-process sweep is unaffected.
+> **Model guard (before launching the fan-out Workflow).** If the session model is Sonnet-class, recommend a handoff to Opus before launching, stated with the launch plan, never mid-run (`workflow-core.md` § Orchestrator model guard).
+> The in-process sweep is unaffected.
 >
 > **`model-policy: per-stage`.** Every agent this skill spawns carries its own model
 > and effort — the `agents/*.md` definitions declare theirs, the arbiter consult pins
