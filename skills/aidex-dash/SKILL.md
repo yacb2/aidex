@@ -50,8 +50,7 @@ is an ad-hoc analysis, do not just decline: route to that rule's flow — load
 the `artifact-design` skill, then write the sibling HTML and open it locally.**
 Never hand-roll an unstyled page after declining a board render.
 
-**Scope (single-artifact-interface doctrine, ADR 2026-07-23):** this skill is
-deployed `user-invocable-only` — the natural-language entry point for every
+**Scope:** this skill is deployed `user-invocable-only` — the natural-language entry point for every
 artifact ask is `rules/artifacts-local-first.md`, which invokes dash's
 `render.sh` for board-shaped requests. `/aidex-dash` stays for explicit calls.
 Per-project design tokens live in `.context/artifact-style.md` (template:
@@ -85,7 +84,6 @@ render (a sub-action or an explicit "show this as a page" request).
 | The user wants to… | Route to |
 |---|---|
 | Author/edit the underlying content | the owning skill (aidex-backlog, aidex-plan, aidex-audit) |
-| Publish a render as an Artifact **without asking** | never — publishing is always an explicit ask |
 | Register a backlog item | `aidex-backlog` |
 | Run a project-state audit | `aidex-audit` |
 

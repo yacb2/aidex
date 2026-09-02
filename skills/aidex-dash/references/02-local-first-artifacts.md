@@ -2,8 +2,7 @@
 
 Canon for route B of `rules/artifacts-local-first.md`. That rule is always-on and
 carries only the routing and the two gates; everything below is loaded when an
-artifact is actually being built, which a `rule-ablation` audit measured at 3.3% of
-field sessions.
+artifact is actually being built.
 
 Read this file **before writing any page markup**, not after.
 
@@ -91,12 +90,10 @@ are settled BEFORE writing, because every one of them is expensive to change aft
 6. **What is the strongest claim, and is it in the standfirst?** Nothing else on
    this list orders by importance, so without it a page comes out in the order it was
    built. If the reader sees only the first screen, do they get the essential thing?
-   The best finding of one session was a repetition measurement that sat in the fourth
-   section. On a consultation the answer is bounded: the claim goes in the header
+   On a consultation the answer is bounded: the claim goes in the header
    (title + standfirst) and nowhere else, because there is no introduction section to
-   put it in — see § 8.4. The old wording ("on the first screen") is what produced a
-   four-section, 1,553-word preamble on a page whose items were already long: the
-   claim had a whole narrative built around it *above* the questions (BL-247).
+   put it in — see § 8.4. Anything looser produces a multi-section preamble above the
+   questions, which is what the block shape exists to prevent.
 7. **What does NOT go in?** Asked as an exclusion, because a page otherwise grows to
    the size of the available material rather than to the size of the question. If the
    decision needs three questions, six sections is five too many.
@@ -120,13 +117,6 @@ are settled BEFORE writing, because every one of them is expensive to change aft
 13. **Is it being published?** Default no. Publishing happens only when explicitly
     asked, and the local file stays the durable copy either way.
 
-**One question was considered and rejected: "does this artifact expire?"** It sounds
-responsible and changes no behaviour. Every figure on the page is already dated in the
-footer, so the answer is always derivable from what is already there; adding it would
-be one more box to tick that no reader and no check would ever consult. A question
-that cannot change what gets written does not belong on a list whose whole cost is
-being asked every time.
-
 ### Update in place
 
 When question 1 says a page for this thread exists, the regeneration overwrites the
@@ -142,20 +132,12 @@ SAME path. Concretely:
   the only declaration of decidedness the page carries (BL-198).
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
-- **Typed answers survive a reload since kit v4** — the composer keeps them in
-  `localStorage`, keyed by the file's path, restores them on load behind a visible
-  "answers recovered" banner with a discard link, and drops ids that left the page
-  so a decided item's stale answer never lands on a different claim. **Since kit
-  v6 it also fingerprints each question's body**: an item whose question was
-  rephrased is left blank rather than restored onto, and the banner says how many
-  were dropped and why. That is per item, not per page — regenerating a page does
-  not discard answers to the questions that did not change. **Since kit v7 an
-  answer already SENT (the copy button was pressed) does not cross into a new
-  round either**, so a note the session has already consumed stops being handed
-  back; one typed and never sent still survives the regeneration. What none of it
-  covers: another browser or machine, private windows, and engines that refuse
-  storage on `file://` — there the old rule stands, so `wrap-report.sh` still
-  prints a (narrower) note when replacing a page with reply surfaces.
+- **Typed answers survive the regeneration** — the composer keeps them in
+  `localStorage` and restores them behind a visible banner, minus any item whose
+  question changed and any answer already sent. Mechanics and the residual risk
+  (another browser or machine, private windows, engines that refuse storage on
+  `file://`) are in § 8; `wrap-report.sh` prints a note when replacing a page with
+  reply surfaces.
 
 ### Depth is set by the cost of undoing
 
@@ -197,11 +179,9 @@ a log. It costs tokens, and that cost is the point — the artifact gets reviewe
 the plan is implemented or the backlog item resolved, which is a pass that had to happen
 anyway.
 
-**A thread is not concluded until this is done.** The failure it prevents is on record:
-a 13-question intake set where the four items the reader had approved survived into a
-file and the other nine, discussed in the same conversation, had to be reconstructed
-from the decisions they implied. Nothing had gone wrong — the answers were simply never
-written down anywhere but the chat.
+**A thread is not concluded until this is done.** Answers that live only in the chat are
+lost: on one intake set the four items written into a file survived and the other nine
+had to be reconstructed from the decisions they implied.
 
 ### 1. Find the anchor before writing
 
@@ -214,8 +194,8 @@ run, or request the content belongs to.
   (autonomy class 4), so it is not a reason to stop.
 - None: use the `.context/reports/` fallback in step 6.
 
-Never default to the fallback without looking. In the field, 4 reports landed there
-while their obvious backlog and audit anchors sat one directory away.
+Never default to the fallback without looking: reports land in `.context/reports/`
+while their obvious backlog and audit anchors sit one directory away.
 
 ### 2. Load design guidance first
 
@@ -223,8 +203,8 @@ Via the Skill tool, **before** writing any page markup: `artifact-design` when t
 session has it; otherwise the available equivalents — `theme-factory` for the theme,
 `dataviz` if the page carries charts.
 
-Not every surface ships `artifact-design`: headless `claude -p` does not
-(field-verified 2026-07-23). Do not hand-roll an unstyled page.
+Not every surface ships `artifact-design`: headless `claude -p` does not. Do not
+hand-roll an unstyled page.
 
 ### 3. Apply the project style profile
 
@@ -249,14 +229,13 @@ values — and it writes both blocks, `:root` and `:root[data-theme="dark"]`, be
 kit ships a dark palette too and a delta that only redefines the light one leaves the
 page half-restyled.
 
-**The scoping to a section is load-bearing.** The first version read the first `css`
-fence anywhere in the file, and the first profile written against it carried an example,
-which was injected as the project's real palette and turned the next artifact's accents
-magenta. Marking the fence instead only moved the collision, since an example has to
-show the marker. So: examples live outside `## Delta`, and whatever sits in the first
-fence inside it is the project's palette. A delta that closes the style element is
-refused whole and out loud — the profile is a file a clone can carry, and the kit runs
-in every project, which is also the blast radius.
+**The scoping to a section is load-bearing.** A fence read from anywhere in the file
+picks up the profile's own examples and injects them as the project's real palette;
+marking the fence only moves the collision, since an example has to show the marker.
+So: examples live outside `## Delta`, and whatever sits in the first fence inside it is
+the project's palette. A delta that closes the style element is refused whole and out
+loud — the profile is a file a clone can carry, and the kit runs in every project,
+which is also the blast radius.
 
 **If absent, never create it silently — but do offer it once.** One line, exactly once
 per project: on the FIRST artifact (no profile and no earlier report), or whenever the
@@ -270,10 +249,8 @@ with the choices just made. Never repeat the offer, never nag.
 **"Exactly once" is kept by a marker, not by memory.** `wrap-report.sh --out` prints the
 offer when the project has a `.context/` and no profile, and records it in
 `.context/.aidex-artifact-style-offered` so it never fires again. The profile itself is
-still never auto-created (`e87bbd3`) — only the record of the offer is. Both halves of
-the rule were broken without it: it never fired on the artifact that prompted BL-168,
-while a usage-retro measured 14 offers across 7 projects, 6 of them ignored. A rule that
-is simultaneously missed and nagging is a rule with no memory.
+never auto-created — only the record of the offer is. Without the marker the rule fails
+in both directions at once: missed where it mattered, and repeated where it did not.
 
 The profile also carries the artifact's **language** as a field:
 
@@ -291,10 +268,10 @@ project instead of restated per request.
 ### 4. Write page content, then wrap it — do not hand-roll the document
 
 **Start from `assets/artifact-kit/skeleton.html`.** Copy it and replace its text; do not
-start from a bare `<h1>`. The wording here used to enumerate only what to leave out —
-no `<!doctype>` / `<html>` / `<head>` / `<body>` of your own — and never said what to put
-in, which is what produced BL-177: `wrap-report.sh` injects the kit's STYLES, and the
-skeleton is what supplies its STRUCTURE. The entire width system lives on two classes:
+start from a bare `<h1>`. `wrap-report.sh` injects the kit's STYLES; the skeleton is what
+supplies its STRUCTURE, so a page that only avoids writing its own
+`<!doctype>` / `<html>` / `<head>` / `<body>` still has no layout. The entire width
+system lives on two classes:
 
 ```html
 <div class="page">          <!-- caps the measure, lays the two-column grid -->
@@ -310,9 +287,8 @@ that page and names the skeleton.
 **Every table goes inside `<div class="tw">`**, and that is checked too. A table is the
 one element a page cannot cap: `max-width` will not take it below its min-content width,
 and `display: block` collapses a narrow table's cells — so there is no CSS net, only the
-wrapper. Measured: a 12-column table in the 728px column renders 1055px wide with its
-right edge at x=1299, while the rail starts at x=1028. It is drawn straight over the
-rail, and while the viewport is wider than the page there is no scrollbar to show it. Any
+wrapper. Unwrapped, a wide table overflows its column and is drawn straight over the
+rail, with no scrollbar to show it while the viewport is wider than the page. Any
 wrapper the page declares with `overflow-x: auto` satisfies the check — the class set is
 read from the document's own CSS, not from a list of blessed names. A page that genuinely wants to be full-bleed overrides
 `.page { max-width: none }` in its own `<style>` and keeps the grid, the rail and the
@@ -370,10 +346,8 @@ To re-check a file you did not just wrap:
 ~/.claude/skills/aidex-dash/scripts/check-artifact.sh <file>
 ```
 
-**Why this is one command and not two.** It used to be two, and the verify is the step a
-real run drops first: across two headless probes of this procedure, five steps landed 2 of
-2 and the contract check landed 1 of 2. A check that is skipped is indistinguishable from
-a check that passed (BL-126).
+**Why this is one command and not two.** The verify is the step a real run drops first,
+and a check that is skipped is indistinguishable from a check that passed.
 
 **The contract is also re-judged after the fact.** It used to be evaluated exactly once,
 at the wrap, and never again — so a page that passed at 10:31 failed by 20:15 the same day
@@ -431,13 +405,11 @@ Inside `.tw`, the composer marks short cells (≤24 characters: numbers, dates, 
 ids) `nowrap`, so a 12-column table scrolls instead of breaking `2026-08-21` in two,
 and prose cells still wrap. A table that overflows gets a right-edge fade until the
 reader scrolls to its end — the scrollbar alone sits at the bottom of a tall table,
-out of view. Measured on a 12-column probe before the change: every date and every
-skill name wrapped, the ninth column was cut to "COLI" with no cue, and the scrollbar
-was 400px below the header.
+out of view.
 
 The per-item **Clear** control sits in the label row of the box it clears (label left,
-Clear right) and appears only once the item has an answer. It used to sit 11px under
-the textarea's resize handle, the same size, the same corner, with no confirmation.
+Clear right) and appears only once the item has an answer — never beside the textarea's
+resize handle, where it is a mis-click away from wiping an answer.
 
 ### 8. When the report is a CONSULTATION, not a read
 
@@ -542,12 +514,6 @@ Five requirements. They exist because each one was violated in the field.
    need stays the rule you hold, now bounded to one block instead of a whole page.
    Block ids (`G1`, `G2`…) are as stable as item ids and `--prev` holds them too.
 
-   **The word-count heuristic proposed for this was rejected, and stays rejected**
-   (BL-243 asked for a "thin item" warning at ~60 words; BL-247 re-examined it). It
-   is a proxy: it would fire on the reversible question that is legitimately short,
-   and it is silenced by padding. The shape checks above are not proxies, which is
-   why they ship as failures rather than warnings (BL-247, Q6).
-
 5. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
    Not a new dated file. The user has the page open in a browser and cannot otherwise
    tell whether what he is looking at is what was just written — he has asked which file
@@ -590,14 +556,8 @@ increment across a round the reader never saw. The composer then applies one rul
 | A later round (a regeneration) | only what was never sent |
 
 "Sent" means the copy button was pressed while that answer was in the box; editing the
-item afterwards un-sends it. **Round equality alone was considered and rejected**: it is
-what the report proposed, and it blanks every half-typed answer on every regeneration —
-R6-02 again, the loss the persistence was built to prevent, and the case
-`test-composer-functional.sh` asserts against by name. What separates a reload from a new
-round is not enough; what separates a consumed note from an unfinished one is whether it
-was ever sent. A page with no round marker (written before v7) keeps the v6 behaviour
-exactly, and so does a stored answer saved without one — upgrading the kit never blanks
-what a reader already typed.
+item afterwards un-sends it. A page or a stored answer with no round marker keeps the
+earlier behaviour, so upgrading the kit never blanks what a reader already typed.
 
 **Option groups live in `.opts`, and only there.** `class="opts one"` for a radio group,
 `class="opts"` for checkboxes. `components.css` styles options under no other class, so a
@@ -644,12 +604,10 @@ the page's own tokens.
 
 ### A consultation carries a VISUAL by default
 
-Over 90 days the reader asked for one about nine times across three projects, and
-got it every time — *"hazme un mockup de cada alternativa"*, *"usa graficos o lo que
-necesites para poder mostrarme mejor el problema, porque sigo sin entenderlo"*,
-*"con los graficos, mockups o vectores que creas necesario"*. Being granted every
-time is exactly why it never registered as a defect: obeying it once changed no
-default, so the ask came back (`audit/2026-06-21-usage-retro` USAGE-19).
+The reader asks for one over and over — *"usa graficos o lo que necesites para poder
+mostrarme mejor el problema, porque sigo sin entenderlo"*. Being granted every time is
+exactly why it never registered as a defect: obeying it once changed no default, so the
+ask came back.
 
 So the default inverts. When the thing under discussion has a **shape** — a flow, a
 layout, a state machine, two alternatives to compare, a before/after — the page opens
@@ -780,6 +738,3 @@ Reasoning: `01-dash-conventions.md` § Publish is never automatic.
 ## Language
 
 English (D-04), unless the project style profile says otherwise.
-
-`aidex-dash` is scoped `user-invocable-only` by design — the always-on rule is the
-natural-language entry point, and `/aidex-dash` remains for explicit calls.
