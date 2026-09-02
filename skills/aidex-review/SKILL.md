@@ -177,7 +177,13 @@ Fan out with the `Workflow` tool (this skill body is the opt-in that makes it av
 1. **Find** — one agent per chosen angle, in parallel, over the resolved file list
    (`--files`). Give every finder the inversion rule from the catalog verbatim:
    pre-existing defects are in scope; age is not evidence of correctness. Each returns
-   candidates with `file`, `line`, a one-line summary, and a concrete `failure_scenario`.
+   candidates with `file`, `line`, a one-line summary, a concrete `failure_scenario`,
+   and a `severity` plus a `confidence` in its own claim.
+
+   **A finder reports; it does not filter.** Ranking and refutation happen downstream —
+   the merge in 3.2 and the verifier in 3.3 — so a finder that withholds a candidate it
+   is unsure of has removed it from a phase built to settle exactly that. `confidence`
+   is how an unsure candidate is expressed; silence is not.
 
 2. **Merge — before verifying, and the barrier is the point.** The same defect
    legitimately surfaces from more than one angle, so a duplicate carried into the verify
