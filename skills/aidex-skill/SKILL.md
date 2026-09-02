@@ -11,17 +11,13 @@ allowed-tools: Bash Read Write
 
 Surface and apply this project's house skill conventions to an existing or
 in-progress skill. This skill COMPLEMENTS `skill-creator` (it does **not**
-create skills from scratch); it reads the `skill-conventions.md` canon
-READ-ONLY and never modifies it.
-
-> **Critical** This skill reads skill-conventions.md and any references/*-conventions.md as READ-ONLY canon. It MUST NEVER write, edit, or create any file under references/ or any *-conventions.md. Writes are limited to the target skill's own files (its SKILL.md / evals).
+create skills from scratch).
 
 ## Workflow
 
 1. Read the skill conventions canon:
    `~/.claude/skills/aidex-conventions/references/skill-conventions.md`
-   (READ-ONLY — never write this file or any `references/*-conventions.md`;
-   or the `.claude/skills/...` project-level copy if one exists).
+   (or the `.claude/skills/...` project-level copy if one exists).
 2. Identify the target skill the user is reviewing or structuring.
 3. Produce a gap report against the canon: front-matter (trigger-first
    `description`, char budget, **English-only `description`**,
@@ -31,15 +27,12 @@ READ-ONLY and never modifies it.
      `description` must contain no Spanish/other-language phrasings or accented
      tokens. The matcher bridges cross-lingually, so an English description still
      fires on non-English queries; native-language queries belong in the
-     `evals/` query set, not the description. Detect with:
-     ```bash
-     desc=$(awk 'f&&/^[a-zA-Z_-]+:/{exit} /^description:/{f=1} f' <target>/SKILL.md)
-     printf '%s' "$desc" | grep -nE '[áéíóúñ¿¡]' && echo "GAP: non-English tokens in description"
-     ```
-     Flag any hit as a gap and rewrite the description English-only, preserving
-     semantic coverage (drop the foreign phrasings; keep their English equivalents).
-4. Apply non-canon fixes to the target skill's **own files only** (its
-   `SKILL.md` / `evals`) — never to `references/*-conventions.md`.
+     `evals/` query set, not the description.
+     Flag any non-English phrasing as a gap and rewrite the description
+     English-only, preserving semantic coverage (drop the foreign phrasings;
+     keep their English equivalents).
+4. Writes go only to the target skill's own files (`SKILL.md`, `evals/`) —
+   never to the canon under `references/`, which this skill reads read-only.
 
 ## Boundaries
 
@@ -58,4 +51,4 @@ READ-ONLY and never modifies it.
 - **skill-creator** — owns skill creation, description optimization, and
   eval running; this skill only checks/applies house conventions.
 - **aidex-conventions** — owns the shared documentation canon (this skill
-  reads its `references/skill-conventions.md` READ-ONLY).
+  reads its `references/skill-conventions.md`).
