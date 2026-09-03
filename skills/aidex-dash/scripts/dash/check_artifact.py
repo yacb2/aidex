@@ -44,10 +44,20 @@ a census warning on a page nobody is editing is noise no one can clear.
                or more `<code>` tokens or semicolon-separated clauses — the shape
                of "N things with their state and verdict" written as prose, which
                the reader returns unread; rows, not a paragraph (BL-269, BL-270)
+  svg-text     two inline-SVG labels whose estimated boxes intersect, a label
+               that leaves its viewBox, or a label wider than the rect it sits
+               in — a consultation shipped two unreadable figures past every
+               check above because the contract reads DOM shape, never
+               geometry. No renderer at wrap time, so this is a static estimate
+               (font-size x per-character width from a Chrome calibration,
+               ±5 %); labels under a rotate/scale/matrix transform are skipped
+               rather than guessed. Runs on every page, not only consultations
+               (BL-310)
 
 Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
 """
+import html as _html
 import os
 import re
 import sys
@@ -419,6 +429,184 @@ def facts_paragraphs(body):
     return out
 
 
+# --- svg-text: label geometry estimated from viewBox coordinates (BL-310) ------
+# Per-character advance as a fraction of font-size, calibrated on 2026-09-03
+# against getBBox() of 52 labels in system-ui: digits and capitals ~0.6, the
+# narrow glyphs ~0.3, everything else ~0.52. A single 0.55 constant reported a
+# 26 px gap as a 13 px collision; the table lands within ±5 % of the rendering.
+SVG_TAG = re.compile(r'<(/?)([a-zA-Z][\w:-]*)([^>]*?)(/?)>', re.S)
+SVG_ATTR = re.compile(r'([\w:-]+)\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))')
+SVG_BLOCK = re.compile(r'<svg\b([^>]*)>(.*?)</svg>', re.S | re.I)
+SVG_NARROW = set("iljtfIr.,:;'|!()[] ")
+SVG_WIDE = set("mwMW@")
+SVG_CONTAINERS = ('g', 'defs', 'a', 'switch', 'symbol')
+SVG_UNPLACEABLE = re.compile(r'rotate|matrix|scale|skew', re.I)
+SVG_CSS_RULE = re.compile(r'([^{}]+)\{([^{}]*)\}', re.S)
+SVG_CSS_SIZE = re.compile(r'font(?:-size)?\s*:\s*(?:[\w-]+\s+)*?(\d*\.?\d+)px', re.I)
+SVG_CSS_MONO = re.compile(r'font(?:-family)?\s*:[^;]*mono', re.I)
+SVG_CSS_BOLD = re.compile(r'font(?:-weight)?\s*:\s*(?:bold|[6-9]00)\b', re.I)
+SVG_SLACK = 4.0            # absolute floor, plus a share of the label width:
+SVG_ERR = 0.06             # the estimate is ±5 %, so a 250 px label carries
+                           # ~15 px of noise and a smaller finding is not one
+
+
+def _svg_attrs(s):
+    return {m.group(1).lower(): next(g for g in m.groups()[1:] if g is not None)
+            for m in SVG_ATTR.finditer(s)}
+
+
+def _svg_num(v, default):
+    m = re.match(r'\s*(-?\d*\.?\d+)', v or '')
+    return float(m.group(1)) if m else default
+
+
+def _svg_translate(transform):
+    m = re.search(r'translate\(\s*(-?[\d.]+)[\s,]*(-?[\d.]+)?', transform or '')
+    return (float(m.group(1)), float(m.group(2) or 0)) if m else (0.0, 0.0)
+
+
+def svg_css_fonts(text):
+    """{'.cls': (size|None, bold, mono), 'text': ...} from every <style>
+    block. Pages set label sizes in CSS classes at least as often as in
+    attributes, and a class read as 16 px reported 10 px labels colliding."""
+    fonts = {}
+    for style in re.findall(r'<style\b[^>]*>(.*?)</style>', text, re.S | re.I):
+        style = re.sub(r'/\*.*?\*/', '', style, flags=re.S)
+        for sel, body in SVG_CSS_RULE.findall(style):
+            m = SVG_CSS_SIZE.search(body)
+            size = float(m.group(1)) if m else None
+            bold, mono = bool(SVG_CSS_BOLD.search(body)), bool(SVG_CSS_MONO.search(body))
+            if size is None and not bold and not mono:
+                continue
+            for s in sel.split(','):
+                s = s.strip()
+                key = None
+                cm = re.search(r'\.([\w-]+)\s*$', s)
+                if cm:
+                    key = '.' + cm.group(1)
+                elif re.search(r'(^|\s)(svg\s+)?text\s*$', s):
+                    key = 'text'
+                if key is None:
+                    continue
+                old = fonts.get(key, (None, False, False))
+                fonts[key] = (size if size is not None else old[0],
+                              bold or old[1], mono or old[2])
+    return fonts
+
+
+def svg_text_width(label, size, bold=False, mono=False):
+    if mono:
+        return 0.6 * size * len(label)
+    w = 0.0
+    for ch in label:
+        if ch in SVG_NARROW:
+            w += 0.3
+        elif ch in SVG_WIDE:
+            w += 0.85
+        elif ch.isdigit() or ch.isupper():
+            w += 0.6
+        else:
+            w += 0.52
+    return w * size * (1.04 if bold else 1.0)
+
+
+def svg_geometry(svg, fonts=None):
+    """(texts, rects) for one <svg> body. texts: [(label, x0, y0, x1, y1)]
+    for every placeable <text>; rects: [(x0, y0, x1, y1)]. Inherits
+    font-size, text-anchor, font-weight and translate() through the
+    container stack; a class rule from `fonts` fills what attributes leave
+    unset. A label whose size no attribute or rule states is skipped, not
+    guessed at 16 px — that guess was the false-positive source."""
+    fonts = fonts or {}
+    fs, anchor, tx, ty, skip, bold = None, 'start', 0.0, 0.0, False, False
+    mono = False
+    stack, texts, rects, cur = [], [], [], None
+    for m in SVG_TAG.finditer(svg):
+        closing, tag, raw, selfclosed = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
+        if cur is not None:
+            if closing and tag == 'text':
+                start, f, an, x, y, sk, b, mo = cur
+                label = ' '.join(_html.unescape(
+                    re.sub(r'<[^>]+>', ' ', svg[start:m.start()])).split())
+                cur = None
+                if label and not sk and f is not None:
+                    w = svg_text_width(label, f, b, mo)
+                    x0 = {'middle': x - w / 2, 'end': x - w}.get(an, x)
+                    texts.append((label, x0, y - 0.8 * f, x0 + w, y + 0.25 * f))
+            continue
+        if closing:
+            if tag in SVG_CONTAINERS and stack:
+                fs, anchor, tx, ty, skip, bold, mono = stack.pop()
+            continue
+        d = _svg_attrs(raw)
+        # attribute beats class rule beats inherited; `text` element rule
+        # is the page-wide floor for a bare <text>
+        nfs, nb, nmo = fs, bold, mono
+        for cls in d.get('class', '').split():
+            csize, cbold, cmono = fonts.get('.' + cls, (None, False, False))
+            nfs = csize if csize is not None else nfs
+            nb, nmo = nb or cbold, nmo or cmono
+        if tag == 'text' and nfs is None:
+            nfs = fonts.get('text', (None, False, False))[0]
+        nfs = _svg_num(d.get('font-size'), nfs)
+        nan = d.get('text-anchor', anchor)
+        dx, dy = _svg_translate(d.get('transform'))
+        nsk = skip or tag == 'defs' or bool(SVG_UNPLACEABLE.search(d.get('transform', '')))
+        nb = nb or d.get('font-weight', '') in ('bold', 'bolder', '600', '700', '800', '900')
+        nmo = nmo or 'mono' in d.get('font-family', '').lower()
+        if tag == 'text' and not selfclosed:
+            cur = (m.end(), nfs, nan,
+                   _svg_num(d.get('x'), 0.0) + tx + dx,
+                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo)
+        elif tag == 'rect' and not nsk:
+            rx, ry = _svg_num(d.get('x'), 0.0) + tx + dx, _svg_num(d.get('y'), 0.0) + ty + dy
+            rects.append((rx, ry, rx + _svg_num(d.get('width'), 0.0),
+                          ry + _svg_num(d.get('height'), 0.0)))
+        elif tag in SVG_CONTAINERS and not selfclosed:
+            stack.append((fs, anchor, tx, ty, skip, bold, mono))
+            fs, anchor, tx, ty, skip, bold, mono = nfs, nan, tx + dx, ty + dy, nsk, nb, nmo
+    return texts, rects
+
+
+def svg_text_findings(text):
+    """Messages for every inline <svg> whose labels collide, leave the
+    viewBox, or outgrow the rect they are centred in."""
+    out = []
+    fonts = svg_css_fonts(text)
+    body = strip_html_comments(strip_script_style(text))
+    for n, m in enumerate(SVG_BLOCK.finditer(body), 1):
+        vb = _svg_attrs(m.group(1)).get('viewbox')
+        try:
+            vx, vy, vw, vh = (float(v) for v in re.split(r'[\s,]+', vb.strip()))
+        except (AttributeError, ValueError):
+            continue                                # no viewBox: no frame to judge against
+        texts, rects = svg_geometry(m.group(2), fonts)
+        for label, x0, y0, x1, y1 in texts:
+            slack = max(SVG_SLACK, SVG_ERR * (x1 - x0))
+            if (x0 < vx - slack or x1 > vx + vw + slack
+                    or y0 < vy - SVG_SLACK or y1 > vy + vh + SVG_SLACK):
+                out.append(f"svg #{n}: '{label}' leaves the viewBox "
+                           f"(estimated x {x0:.0f}..{x1:.0f}, y {y0:.0f}..{y1:.0f} "
+                           f"against {vb.strip()}) — the browser clips it")
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            for rx0, ry0, rx1, ry1 in rects:
+                if rx0 <= cx <= rx1 and ry0 <= cy <= ry1 and (x1 - x0) > (rx1 - rx0) + slack:
+                    out.append(f"svg #{n}: '{label}' is wider than the box it sits in "
+                               f"(estimated {x1 - x0:.0f} px in a {rx1 - rx0:.0f} px rect)")
+                    break
+        for i in range(len(texts)):
+            for j in range(i + 1, len(texts)):
+                la, ax0, ay0, ax1, ay1 = texts[i]
+                lb, bx0, by0, bx1, by1 = texts[j]
+                ow = min(ax1, bx1) - max(ax0, bx0)
+                oh = min(ay1, by1) - max(ay0, by0)
+                slack = max(SVG_SLACK, SVG_ERR * min(ax1 - ax0, bx1 - bx0))
+                if ow > slack and oh > SVG_SLACK:
+                    out.append(f"svg #{n}: '{la}' and '{lb}' overlap by an estimated "
+                               f"{ow:.0f}x{oh:.0f} px")
+    return out
+
+
 def warn_file(path):
     """Non-fatal findings as (check, name, message). Exit-neutral and never
     waived — see the module docstring for why they are a separate channel."""
@@ -427,6 +615,16 @@ def warn_file(path):
     if not os.path.isfile(path):
         return warns
     text = open(path, encoding="utf-8", errors="replace").read()
+    try:
+        for msg in svg_text_findings(text):
+            warns.append(("svg-text", name,
+                          msg + " — a static estimate (±5 %), so verify in the "
+                          "browser with the DevTools script in "
+                          "02-local-first-artifacts.md § Figures, then move "
+                          "the label; this warning is cleared by the layout, "
+                          "not by a waiver"))
+    except Exception:                               # noqa: BLE001 — advisory
+        pass
     flat = flatten(text)
     if not CONSULT_GATE.search(flat):
         return warns

@@ -362,6 +362,65 @@ rc="$(run "$TMP/warn-read.html")"
 [[ "$rc" == "0" ]] || fail "10. a read page failed: $(cat "$TMP/out")"
 grep -q 'WARN' "$TMP/out" && fail "10. a read page collected warnings: $(cat "$TMP/out")"
 
+# ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
+# its box. A consultation shipped with two hand-authored figures whose labels
+# collided and two labels wider than their boxes, and passed 'artifact
+# contract OK': the contract read the DOM shape and never the geometry. No
+# renderer at wrap time, so the check is a static estimate on viewBox
+# coordinates (font-size x per-character width); a WARN, because an estimate
+# that failed the wrap would block a page that renders fine.
+mkpage "$TMP/warn-svg.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg viewBox=\"0 0 960 200\" role=\"img\" aria-label=\"probe\">
+  <g font-size=\"12\">
+    <text x=\"100\" y=\"40\">alpha label here</text>
+    <text x=\"130\" y=\"42\">beta label here</text>
+    <text x=\"900\" y=\"100\">runs off the right edge</text>
+    <rect x=\"300\" y=\"60\" width=\"60\" height=\"30\" fill=\"none\" stroke=\"currentColor\"/>
+    <text x=\"330\" y=\"80\" text-anchor=\"middle\">much too long for this box</text>
+    <text x=\"100\" y=\"150\">left</text>
+    <text x=\"400\" y=\"150\">right</text>
+    <g transform=\"rotate(-90)\"><text x=\"-100\" y=\"20\">rotated axis label that the estimate cannot place</text></g>
+  </g>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10c. svg-text changed the exit code — it is a warning: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'alpha label here'.*'beta label here'" "$TMP/out" \
+  || fail "10c. BL-310: two intersecting labels were not reported as a pair: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'runs off the right edge'.*viewBox" "$TMP/out" \
+  || fail "10c. BL-310: a label leaving the viewBox was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'much too long for this box'.*wider than" "$TMP/out" \
+  || fail "10c. BL-310: a label wider than its enclosing rect was not reported: $(cat "$TMP/out")"
+grep -qE "WARN \[svg-text\].*'(left|right|rotated axis)" "$TMP/out" \
+  && fail "10c. a well-placed or rotated label was reported — the estimate is too wide: $(cat "$TMP/out")"
+
+# The first cut read every label without a font-size attribute as 16 px and
+# reported collisions on 13 of 60 field pages; measured in Chrome, the pages
+# set the size in a CSS class and the labels never touched. A class rule is
+# the size; a label with no attribute and no rule is skipped, not guessed.
+mkpage "$TMP/warn-svg-css.html" "<style>.lbl{font:400 10px system-ui} .mono{font-family:ui-monospace,monospace}</style>
+<div class=\"page\"><main class=\"main\">
+<figure><svg viewBox=\"0 0 960 200\" role=\"img\" aria-label=\"probe\">
+  <text class=\"lbl\" x=\"100\" y=\"40\">ten pixel label</text>
+  <text class=\"lbl\" x=\"185\" y=\"40\">its neighbour</text>
+  <text x=\"100\" y=\"80\">unsized label one</text>
+  <text x=\"150\" y=\"80\">unsized label two</text>
+  <text class=\"lbl mono\" x=\"100\" y=\"120\">MONO_LABEL_WIDE</text>
+  <text class=\"lbl\" x=\"185\" y=\"120\">after the mono</text>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-css.html")"
+[[ "$rc" == "0" ]] || fail "10c. css fixture failed the contract: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'ten pixel label'" "$TMP/out" \
+  && fail "10c. a 10 px class-sized label was measured at the 16 px default: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'unsized label" "$TMP/out" \
+  && fail "10c. a label with no size anywhere was guessed instead of skipped: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'MONO_LABEL_WIDE'.*'after the mono'" "$TMP/out" \
+  || fail "10c. a monospace label was measured proportionally and its collision missed: $(cat "$TMP/out")"
+
 # ...and warnings stay out of --census, where nobody can clear them.
 mkdir -p "$TMP/census/.context/reports"
 cp "$TMP/warn-opts.html" "$TMP/census/.context/reports/w.html"
