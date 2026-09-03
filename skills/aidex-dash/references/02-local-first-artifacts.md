@@ -689,7 +689,7 @@ exempts nothing, same rule as the visual declaration.
 | `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
 | `consult-ids` | an id kept between two versions now names a different claim |
 
-**Two findings are WARNINGS, not violations.** They print as `WARN [check]`, never change
+**Four findings are WARNINGS, not violations.** They print as `WARN [check]`, never change
 the exit code, and are not waivable — a waiver keys on (`artifact-<check>`, path), and
 sharing that namespace would let one waiver silence a real failure on the same file. They
 run at authoring time only (a direct check of named files), never in `--census`: a warning
@@ -699,8 +699,66 @@ on a page nobody is editing is noise no one can clear.
 |---|---|
 | `consult-opts` | an item's radio/checkbox sits outside any `.opts` wrapper — the kit styles options nowhere else, so they render unstyled and the contract passes anyway |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
+| `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
+| `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
 
-Both shipped on the same page in one round, and both passed everything above.
+The first two shipped on the same page in one round, and both passed everything above.
+
+### Figures: the checker estimates, the browser measures
+
+On 2026-09-03 a consultation passed `artifact contract OK` with two hand-authored
+figures the reader could not read: axis labels under event labels, two dates colliding,
+an arrow crossing three labels, two labels wider than their boxes. The contract reads DOM
+shape and never geometry, and `artifact-diagramming` says "align to a grid" with no way
+to verify it. Two layers now exist, and they are not interchangeable:
+
+- **`svg-text` at wrap time** is a static estimate on `viewBox` coordinates: font-size
+  times a per-character width table calibrated against `getBBox()` in system-ui. The size
+  comes from the attribute chain or from a `<style>` class rule on the label; a label
+  with neither is skipped, not guessed (the 16 px default produced collisions on 13 of 60
+  field pages that the browser did not show). It sees text-vs-text, text-vs-viewBox and
+  text-vs-enclosing-rect. It cannot see a path crossing a label or a label under a
+  `rotate()`, and it is ±5 % on width, so it warns and never fails. On the 2026-09-03
+  census every warning it kept was confirmed in the browser; the browser found more.
+- **The DevTools script at authoring time** measures the rendering and is the check that
+  settles a figure. Run it through the Chrome DevTools MCP on the opened page, once per
+  figure, before the wrap; a page whose figures were never measured is the one that ships
+  unreadable.
+
+```js
+// Every <text> box, pairwise intersections, clipping against its <svg>, and
+// every path/line sampled against the text boxes. Returns the defects only.
+() => {
+  const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const out = [];
+  document.querySelectorAll('svg').forEach((svg, n) => {
+    const frame = svg.getBoundingClientRect();
+    const texts = [...svg.querySelectorAll('text')].map(t => ({ t, r: t.getBoundingClientRect() }));
+    texts.forEach(({ t, r }) => {
+      if (r.left < frame.left - 1 || r.right > frame.right + 1 || r.top < frame.top - 1 || r.bottom > frame.bottom + 1)
+        out.push(`svg #${n + 1}: '${t.textContent.trim()}' is clipped by its svg`);
+    });
+    for (let i = 0; i < texts.length; i++)
+      for (let j = i + 1; j < texts.length; j++)
+        if (hit(texts[i].r, texts[j].r))
+          out.push(`svg #${n + 1}: '${texts[i].t.textContent.trim()}' overlaps '${texts[j].t.textContent.trim()}'`);
+    svg.querySelectorAll('path, line, polyline').forEach(p => {
+      if (typeof p.getTotalLength !== 'function') return;
+      const len = p.getTotalLength(); if (!len) return;
+      const m = svg.getScreenCTM();
+      for (let d = 0; d <= len; d += 4) {
+        const q = p.getPointAtLength(d).matrixTransform(m);
+        const t = texts.find(({ r }) => q.x > r.left && q.x < r.right && q.y > r.top && q.y < r.bottom);
+        if (t) { out.push(`svg #${n + 1}: a path crosses '${t.t.textContent.trim()}'`); break; }
+      }
+    });
+  });
+  return out;
+}
+```
+
+An empty array is the pass. Anything else is moved before the wrap, not waived: a
+label the reader cannot read is the figure not existing.
 
 `consult-ids` needs both versions, so `--out` compares against the last version that
 **passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A file
