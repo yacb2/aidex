@@ -416,6 +416,33 @@ rm -rf "$ALT"
   && ok "another user's home: the project is named, and their .claude scaffolding is excluded" \
   || bad "the project name kept the encoded home path: got '"'"'$projects'"'"'"
 
+# --- a synthetic placeholder turn is not the adjacency -----------------------
+# prompt_kinds gates the PROMPT channel. Nothing gated the ADJACENCY channel, and
+# Claude Code writes placeholder assistant turns carrying model "<synthetic>" —
+# "No response requested." is the common one. They were landing in
+# `prior_assistant` as though the assistant had spoken, which is INSTR-01's defect
+# one field over. Cost, measured 2026-09-07: 10 of 66 prompts this run classified
+# as "the user overriding a stop" had a synthetic placeholder as their prior turn,
+# and the run's headline autonomy number was 4.7x too large because of it.
+SYNTH="$(mktemp -d)/-Users-yoelacevedo-Documents-projects-demo-ws"
+mkdir -p "$SYNTH"
+{
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T09:00:00Z","message":{"model":"claude-opus-5","content":[{"type":"text","text":"REAL ASSISTANT TURN"}]}}))'
+  python3 -c 'import json; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T09:01:00Z","message":{"model":"<synthetic>","stop_reason":"stop_sequence","content":[{"type":"text","text":"No response requested."}]}}))'
+  python3 -c 'import json; print(json.dumps({"type":"user","timestamp":"2026-01-01T09:02:00Z","origin":{"kind":"human"},"message":{"content":"continua"}}))'
+} > "$SYNTH/s.jsonl"
+python3 "$EXTRACT" --out "$OUT/synth.jsonl" --cursor "$OUT/synth-cursor.json" \
+        --all --transcripts-root "$(dirname "$SYNTH")" >/dev/null 2>&1
+prior="$(python3 -c '
+import json, sys
+rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
+print(rows[0]["prior_assistant"] if rows else "NO-RECORD")
+' "$OUT/synth.jsonl" 2>/dev/null)"
+rm -rf "$(dirname "$SYNTH")"
+[[ "$prior" == "REAL ASSISTANT TURN" ]] \
+  && ok "a <synthetic> placeholder is skipped; the last REAL turn is the adjacency" \
+  || bad "the synthetic placeholder became prior_assistant: '"'"'$prior'"'"'"
+
 # --- scratch/tmp project dirs are excluded, in the form they actually take ---
 # EXCLUDE_PROJECT is matched against `os.path.basename` of a transcript dir, and
 # Claude Code encodes those by replacing every "/" with "-". Its first two

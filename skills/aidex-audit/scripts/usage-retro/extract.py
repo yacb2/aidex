@@ -246,6 +246,16 @@ def main():
             prior, prior_sk, n = "", [], len(objs)
             for i, o in enumerate(objs):
                 if o.get("type") == "assistant":
+                    # `prompt_kinds` cleans the PROMPT channel; nothing cleaned the
+                    # ADJACENCY channel, which is INSTR-01 one field over. Claude Code
+                    # writes placeholder assistant turns with model "<synthetic>" —
+                    # "No response requested." is the common one — and they were
+                    # landing in `prior_assistant` as if the assistant had spoken.
+                    # Measured 2026-09-07: 10 of the 66 continuation nudges this run
+                    # called an autonomy leak had a synthetic placeholder as their
+                    # prior turn, and the headline was overstated because of it.
+                    if (o.get("message") or {}).get("model") == "<synthetic>":
+                        continue
                     t = text_of(o)
                     if t.strip(): prior = t
                     prior_sk += skills_in_assistant(o)
