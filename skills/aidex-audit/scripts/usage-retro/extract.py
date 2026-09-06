@@ -49,8 +49,17 @@ PROMPT_HEAD, PROMPT_TAIL = 1200, 800
 
 # ---- exclusions -------------------------------------------------------------
 # project dirs that are scaffolding, not real work
+# Matched against `os.path.basename` of a transcript directory, and NOTHING else
+# (see the single call site below). Claude Code encodes a project directory by
+# replacing every "/" with "-", so a name here can never contain a slash — which
+# is why the first two alternatives used to be `/private/tmp` and `/tmp/` and
+# matched 0 of 151 real directories. Both were dead from the day they were
+# written, and the scratch sessions the methodology puts out of scope were mined
+# as real work: 10 project dirs, 53 session files, 859 records (measured
+# 2026-09-07). A filter that reports success while filtering nothing is the
+# failure this suite keeps finding; the encoded forms below are pinned by test.
 EXCLUDE_PROJECT = re.compile(
-    r"(/private/tmp|/tmp/|-claude-tmp|aidex-ml-ab|-cwd-[AB]\b|Claude-Projects-tests"
+    r"(^-private-tmp|--tmp$|-claude-tmp|aidex-ml-ab|-cwd-[AB]\b|Claude-Projects-tests"
     r"|^-+$|^-Users-[^-]+--?claude$|^-Users-[^-]+-\.claude$)"
 )
 # Encoded transcript-dir prefixes, both machine-agnostic on purpose.
