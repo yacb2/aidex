@@ -103,5 +103,11 @@
     "query": "Summarize what we did this session and suggest what to add to CLAUDE.md.",
     "should_trigger": false,
     "expected_behavior": "Published built-in phrasing: the harness memory layer / #-memory shortcut. Not an ecosystem health audit."
+  },
+  {
+    "query": "Este proyecto lo arranque hace poco copiando la estructura de otro y tengo la sensacion de que arrastro cosas que no me sirven. Al abrir la sesion tarda mas que los demas, y hay skills que aparecen y que aqui no tienen ningun sentido porque el stack no es ese. Ademas el CLAUDE.md creo que apunta a ficheros que ya no existen, de cuando esto era otra cosa. Revisalo entero y dime que sobra, que esta roto y que me esta costando contexto en cada sesion sin darme nada a cambio.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex (ecosystem/context audit): stale CLAUDE.md links, irrelevant skills to silence, idle context cost",
+    "tier": "long-form"
   }
 ]
