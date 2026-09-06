@@ -27,6 +27,15 @@ build() {
   # backlog: one terminal, one active
   fm done    > "$ctx/backlog/2026-01-01-bl-001-finished.md"
   fm open    > "$ctx/backlog/2026-01-02-bl-002-live.md"
+  # A rendered companion, anchored the way wrap_report.py stamps one. `shutil.move`
+  # takes the .md alone and both walkers match *.md, so this page was never a
+  # candidate and stayed in the active folder after its item left. validate.py
+  # could not see it either: crossref_target_exists searches _archive/ too, so the
+  # stranded page's anchor still resolves.
+  printf '<meta name="artifact-anchor" content="backlog/2026-01-01-bl-001-finished.md">\n' \
+    > "$ctx/backlog/2026-01-01-bl-001-finished-report.html"
+  printf '<meta name="artifact-anchor" content="backlog/2026-01-02-bl-002-live.md">\n' \
+    > "$ctx/backlog/2026-01-02-bl-002-live-report.html"
   # requests: one dropped
   fm dropped > "$ctx/requests/2026-01-03-abandoned.md"
   # plans: a single-file terminal one AND a modular folder whose status is in 00-index.md
@@ -95,6 +104,15 @@ grep -q 'indexes are NOT regenerated' <<<"$OUT_A" \
   || fail "--apply does not say the indexes still need their own reindexers"
 pass "--apply archives exactly the terminal set and says indexes are not regenerated"
 
+# --- the rendered companion travels with its artifact (D-10 / BL-234) --------------
+[[ -e "$WS/.context/backlog/_archive/2026-01-01-bl-001-finished-report.html" ]] \
+  || fail "--apply left the terminal item's rendered companion behind"
+[[ ! -e "$WS/.context/backlog/2026-01-01-bl-001-finished-report.html" ]] \
+  || fail "the companion is still sitting in the active backlog folder"
+[[ -e "$WS/.context/backlog/2026-01-02-bl-002-live-report.html" ]] \
+  || fail "--apply moved a LIVE item's companion"
+pass "--apply takes the rendered companion with the artifact, and leaves a live one alone"
+
 # A second run is a no-op: the pass has to be idempotent to be schedulable.
 OUT_2="$(python3 "$SCRIPT" "$WS/.context" 2>&1)"
 grep -q 'every tier is clean' <<<"$OUT_2" || fail "a second run is not a no-op: $OUT_2"
@@ -141,4 +159,4 @@ if [[ $FAILURES -gt 0 ]]; then
   printf '\n%d check(s) failed\n' "$FAILURES"
   exit 1
 fi
-printf '\nOK — archive-sweep: 4 tiers, boards spared, --check, --apply, idempotence, drift, no-git\n'
+printf '\nOK — archive-sweep: 4 tiers, boards spared, --check, --apply, companions, idempotence, drift, no-git\n'

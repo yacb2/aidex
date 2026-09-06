@@ -135,6 +135,46 @@ def scan(ctx, repo):
     return unarchived, drift
 
 
+# The `<type>/` marker a cross-reference uses is not the folder name (§3 of
+# 00-global). Mirrors validate.py's TYPE_FOLDER_TO_PREFIX for the tiers this
+# script walks; anything else yields no companion lookup rather than a wrong one.
+TIER_PREFIX = {"plans": "plan", "audits": "audit", "requests": "request",
+               "backlog": "backlog"}
+
+
+def _archive_companions(ctx, rel_path, archive_to):
+    """Move an artifact's rendered .html companions in after it.
+
+    Delegates to `_lib.sh`'s archive_companions rather than re-deriving which page
+    belongs to which entry. That mapping is the artifact-anchor `<meta>` contract,
+    already implemented twice — validate.py owns the regexes and _lib.sh carries a
+    deliberate second copy bound to it by comment. A third copy here is how the
+    prompt-classifier and parse_ts forks happened, so this shells out instead.
+
+    Why it is needed at all: `shutil.move` above takes the .md and nothing else,
+    and both walkers match `*.md` exclusively, so a companion page was never even a
+    candidate. Detection did not cover it either — crossref_target_exists searches
+    _archive/ as well, so the stranded page's anchor still resolves and
+    artifact-anchor-target-missing stays quiet. Never fails the sweep: a companion
+    that cannot move is reported, not a reason to undo an archive that happened.
+    """
+    tier = rel_path.split("/", 1)[0]
+    prefix = TIER_PREFIX.get(tier)
+    if not prefix:
+        return ""
+    ref = f"{prefix}/{os.path.basename(rel_path)}"
+    dest = os.path.join(ctx, os.path.dirname(archive_to))
+    lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_lib.sh")
+    try:
+        r = subprocess.run(["bash", "-c",
+                            f'. "$1"; archive_companions "$2" "$3" "$4"',
+                            "_", lib, ctx, ref, dest],
+                           capture_output=True, text=True, timeout=60)
+        return (r.stdout or "") + (r.stderr or "")
+    except (OSError, subprocess.SubprocessError) as e:
+        return f"companion sweep skipped for {ref}: {e}\n"
+
+
 def apply_moves(ctx, unarchived):
     moved, refused = [], []
     for row in unarchived:
@@ -149,6 +189,12 @@ def apply_moves(ctx, unarchived):
             moved.append(row["path"])
         except OSError as e:
             refused.append((row["path"], str(e)))
+            continue
+        # AFTER the move: archive_companions reads current paths, so a page that
+        # travelled inside a moved folder is recognised and left alone.
+        out = _archive_companions(ctx, row["path"], row["archive_to"])
+        if out.strip():
+            sys.stderr.write(out)
     return moved, refused
 
 

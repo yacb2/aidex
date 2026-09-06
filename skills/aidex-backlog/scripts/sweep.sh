@@ -54,6 +54,15 @@ for f in "$BACKLOG_DIR"/*.md; do
   if [[ $APPLY -eq 1 ]]; then
     mv "$f" "$dest"
     echo "archived ($st): $base"
+    # The bare `mv` above moves the .md and nothing else, so every rendered .html
+    # companion stayed in the active folder while its item left — and validate.py
+    # cannot see the orphan, because crossref_target_exists searches _archive/ too,
+    # so the stranded page's anchor still resolves. The user was the detector,
+    # counting leftover pages by hand on three separate days. close-item.sh:268
+    # already did this correctly for the single-item path; the batch path did not,
+    # even though its own dry-run branch below prints the close-item.sh command
+    # that would have. Same helper, same argument shape.
+    archive_companions "$ROOT/.context" "backlog/$base" "$BACKLOG_DIR/_archive"
   else
     # Surface the item AND a copy-pasteable, status-preserving archive command
     # (the "archive re-dictated 4x" friction: a done item lingers because the
