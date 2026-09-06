@@ -30,7 +30,7 @@ import subprocess
 import sys
 
 TOKEN_RX = re.compile(r"^\s*(~|<)?\s*([\d.,]+)\s*([km])?\s*$", re.I)
-CLAUDE = os.environ.get("AIDEX_CLAUDE_BIN", "claude")
+CLAUDE = "claude"  # resolved on PATH; the -p run receives a fixed local command, never user input
 
 
 def parse_tokens(cell):
