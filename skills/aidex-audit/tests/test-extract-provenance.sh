@@ -416,6 +416,43 @@ rm -rf "$ALT"
   && ok "another user's home: the project is named, and their .claude scaffolding is excluded" \
   || bad "the project name kept the encoded home path: got '"'"'$projects'"'"'"
 
+# --- scratch/tmp project dirs are excluded, in the form they actually take ---
+# EXCLUDE_PROJECT is matched against `os.path.basename` of a transcript dir, and
+# Claude Code encodes those by replacing every "/" with "-". Its first two
+# alternatives were written as POSIX paths — `/private/tmp` and `/tmp/` — so they
+# matched 0 of 151 real directories and had been dead since they were written.
+# 10 dirs / 53 session files / 859 records of scratchpad probes, deny-tests and
+# the project's own `_tmp` were mined as real work (measured 2026-09-07), while
+# the methodology text said scratch dirs were out of scope.
+#
+# No cell could catch it: every fixture dir in this suite is a plain project
+# name, so the dead alternatives were never asked to match anything.
+SCRATCH="$(mktemp -d)"
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws \
+      "$SCRATCH/-Users-yoelacevedo-Documents-projects-demo-ws"
+# a session scratchpad, as Claude Code encodes it
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws \
+      "$SCRATCH/-private-tmp-claude-501--Users-yoelacevedo-Documents-projects-demo-ws-abc123-scratchpad"
+# the project's own _tmp, per the scratch-output convention
+cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws \
+      "$SCRATCH/-Users-yoelacevedo-Documents-projects-demo-ws--tmp"
+python3 "$EXTRACT" --out "$OUT/scratch.jsonl" --cursor "$OUT/scratch-cursor.json" \
+        --all --transcripts-root "$SCRATCH" >/dev/null 2>&1
+sprojects="$(python3 -c '
+import json, sys, collections
+seen = collections.Counter()
+for line in open(sys.argv[1]):
+    if line.strip():
+        seen[json.loads(line).get("project", "")] += 1
+print(" ".join(f"{k}={v}" for k, v in sorted(seen.items())))
+' "$OUT/scratch.jsonl" 2>/dev/null)"
+rm -rf "$SCRATCH"
+# The corpus is tripled on disk; only the real project may reach the dataset, and
+# with its ORIGINAL --all count of 11 -- a scratch dir leaking in would multiply it.
+[[ "$sprojects" == "demo-ws=11" ]] \
+  && ok "encoded scratchpad and _tmp dirs are excluded (only demo-ws=11 survives)" \
+  || bad "scratch dirs leaked into the dataset: got '"'"'$sprojects'"'"'"
+
 # --- a bare-filename cursor does not crash the run --------------------------
 # The documented catch-up invocation runs from inside the audit folder with
 # `--cursor cursor.json`. os.path.dirname of a bare filename is "", and
