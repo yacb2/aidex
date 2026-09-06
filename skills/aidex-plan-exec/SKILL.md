@@ -194,7 +194,7 @@ For each phase in order:
 After each phase passes verification, before starting the next phase, run the shared
 checkpoint — **read**
 `~/.claude/skills/aidex-conventions/references/checkpoint-conventions.md` **and follow its
-four moves** (scoped review with its recorded anchor · commit · register-don't-discuss ·
+four moves** (scoped review with its recorded anchor and findings addressed by remedy · commit · register-don't-discuss ·
 auto-handoff without asking). It is one canon with two consumers (this skill and the
 backlog sweep) and is not restated here; `test_checkpoint_lockstep.sh` fails this file if
 it grows its own copy. What is plan-specific:
