@@ -170,6 +170,14 @@ For each phase in order:
    or a screenshot of the flow — in the plan front-matter `proof_links` (or under
    `.context/proofs/<slug>/` for larger captures) per `aidex-conventions`
    (`00-global.md` §7.1). Don't mark a phase done you can't show works.
+5. **When execution departs from the plan, the plan edit ships in the commit that
+   departs** — not in the close-out commit. Otherwise the phase diff is reviewed
+   against a stale plan, and the reviewer cannot tell a deliberate change of course
+   from an omission. Same coupling `plan-conventions.md` already applies to tests.
+   Where the plan is not committable this collapses to editing it before the commit,
+   in the same turn: aidex's own repo gitignores `.context/`, and it is the exception
+   — 1,135 plan files are tracked across the six fleet repos, 0 here (census
+   2026-09-07).
 
 > **Scoped plans carry a file contract.** When the plan's front-matter says
 > `mode: scoped`, its `**Files:**` list is the declared blast radius, written on

@@ -385,6 +385,7 @@ Each row is the ADR's own `decision_id`, verified against the file's front-matte
 | D-10 | Archive on close (amends D-05) | `2026-05-22-lifecycle-archive-on-close.md` |
 | D-11 | Skill descriptions English-only | `2026-06-17-skill-descriptions-english-only.md` |
 | D-12 | Keep current four-skill topology (supersedes D-06; renumbered from D-07 on 2026-07-27) | `2026-05-14-skills-topology-keep-current-four.md` |
+| D-13 | Retire RTK (Rust Token Killer) from the environment | `2026-09-06-retire-rtk-token-proxy.md` |
 
 **Resolved collision:** the topology ADR above used to declare `decision_id:
 D-07`, colliding with `2026-05-14-front-matter-minimum-fields.md`. It had taken the next

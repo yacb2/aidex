@@ -10,6 +10,14 @@
 #      artifact is the items' owner rows aggregated by the report, NOT a per-item
 #      human-verification.md; amended in as a consumer, never carved out
 #
+# Plus one POINTER, not a gate: rules/verification-before-claims.md. All three consumers
+# above are run-shaped, so an interactive session reaches none of them — measured
+# 2026-09-07, 0 of the 28 sessions where the user re-dictated this canon had fired
+# plan-exec, aidex-bugfix or a sweep. The always-on rule is the only surface that
+# reaches those sessions, and it points at the canon rather than restating it. The cell
+# below exists so that pointer cannot rot silently, which is the whole failure this
+# guard was built for.
+#
 # What is guarded is NOT the four moves. Those were already written down, twice, and
 # still went missing. What is guarded is the property that makes the step survive
 # contact with a real run:
@@ -35,12 +43,13 @@ CANON="${CANON_OVERRIDE:-$SKILLS/aidex-conventions/references/human-verification
 EXEC="${EXEC_OVERRIDE:-$SKILLS/aidex-plan-exec/references/02-close-out.md}"
 FIX="${FIX_OVERRIDE:-$SKILLS/aidex-bugfix/SKILL.md}"
 SWEEP="${SWEEP_OVERRIDE:-$SKILLS/aidex-backlog/references/sweep-execution-policy.md}"
+RULE="${RULE_OVERRIDE:-$SKILLS/../rules/verification-before-claims.md}"
 
 fail=0
 err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
 die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
-for f in "$CANON" "$EXEC" "$FIX" "$SWEEP"; do
+for f in "$CANON" "$EXEC" "$FIX" "$SWEEP" "$RULE"; do
   [ -f "$f" ] || die "missing file: $f"
 done
 
@@ -137,5 +146,18 @@ case "$FIX_FLAT" in
   *) err "aidex-bugfix's stated step count does not include the human-verification step" ;;
 esac
 
-[ "$fail" -eq 0 ] && echo "OK — human-verification canon and its three consumers are in lockstep"
+# ---------- the always-on pointer reaches interactive sessions ----------
+# A pointer, not a fourth gate: the rule must NAME the canon and must not restate the
+# four moves, or the one-owner-per-surface rule is broken by the fix for its carriage.
+RULE_FLAT="$(flat "$RULE")"
+case "$RULE_FLAT" in
+  *"human-verification-conventions.md"*) ;;
+  *) err "rules/verification-before-claims.md no longer names the canon — interactive sessions reach no verification gate at all" ;;
+esac
+case "$RULE_FLAT" in
+  *"must never"*"first to find a broken click"*) ;;
+  *) err "the always-on pointer dropped the one line it carries verbatim" ;;
+esac
+
+[ "$fail" -eq 0 ] && echo "OK — human-verification canon, its three consumers and the always-on pointer are in lockstep"
 exit "$fail"

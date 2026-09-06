@@ -1,21 +1,23 @@
 ---
-title: "Measurement conventions: machine load and unattended stop conditions"
+title: "Measurement conventions: machine load, unattended stop conditions, and exogenous controls"
 status: open
 created: 2026-08-23
-updated: 2026-08-23
+updated: 2026-09-07
 ---
 
 # Measurement conventions
 
-Two rules, neither about tests specifically. They hold for any performance measurement
-taken on a development laptop, and for any unattended harness, in any project. They are
+Three rules, none about tests specifically. They hold for any performance measurement
+taken on a development laptop, for any unattended harness, and for any before/after
+readout, in any project. They are
 not in `rules/` — paying an always-on cost in every session of every project to serve an
 occasional benchmarking or unattended-run task is the wrong trade; this file is read on
 demand by whatever is doing the measuring or running the harness.
 
 Provenance: the 2026-08-21/22 suite-speed measurement campaign
 (`.context/research/2026-08-22-suite-speed-and-coverage-findings/04-rules.md`, `m5` and
-`m9`).
+`m9`); `m11` from the context-depth handoff readout
+(`.context/research/2026-08-13-session-token-threshold-handoff.md` §12.1 and §15).
 
 ---
 
@@ -77,3 +79,45 @@ together to recover from this: the file on disk being current, **and** whatever 
 the process detecting that the running process is stale and needs restarting from it.
 Nobody tests the second piece by default; test it explicitly, or a "fixed" harness can keep
 running the old bug indefinitely.
+
+---
+
+## m11 — A control the intervention can move is not a control
+
+Falsifiability is usually written as a threshold question: state the number that would
+refute you, before you look. That is necessary and it is not sufficient. The comparison
+also has to **survive the intervention** — and whether it does is invisible until the
+intervention has run.
+
+The context-depth handoff readout failed this twice, in two different ways, which is
+what makes it worth a rule rather than a note.
+
+**First failure, caught 2026-08-13 — the wrong distribution.** Both clauses compared a
+handoff population against an all-session median. The model's session-peak distribution
+is bimodal (43% of sessions peak under 50k), so its cohort median describes the shallow
+mode while the handoff population is drawn entirely from the deep tail. The keep clause
+could never be satisfied and neither could the retire clause: the criterion always read
+"retire", whatever the mechanism did.
+
+**Second failure, caught 2026-09-07 — the endogenous denominator.** The replacement
+control was "deep sessions that were *not* handed off". The intervention's purpose is to
+hand off deep sessions, so it drains its own control pool and the survivors are the
+shallowest of the deep. Measured: the handed-off share of deep sessions went 71% → 88%,
+the control pool halved from 44 to 22, its median fell 338k → 250k, and the ratio
+therefore **rose** whether or not the cue worked. Extending the window would have bought
+a tighter estimate of a biased quantity.
+
+A third clause in the same criterion ("fires more than 3× in a median session") was
+impossible by construction: the hook latches on the highest band already reached, and its
+own comment says "at most three times per session".
+
+**The rule.** When you write the criterion, alongside the power calculation ask: *can the
+thing I am measuring change my control?* If yes, that control is part of the treatment.
+Pick one the intervention cannot reach — for the readout above, the unconditioned
+all-session depth distribution, which the cue does not select on — and freeze its baseline
+in the same document, at the same time, from the same script.
+
+**Corollary, and it is the cheaper half.** A criterion written before the mechanism ships
+is written against an imagined mechanism. Re-read it once the mechanism exists and before
+the window opens: two of this one's three clauses were already dead on arrival, and both
+were readable from the shipped code.
