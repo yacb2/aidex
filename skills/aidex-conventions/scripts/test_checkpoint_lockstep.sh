@@ -42,7 +42,6 @@ case "$CANON_FLAT" in *"never a question"*|*"never asked"*|*"do not ask"*) ;; *)
 # BL-314: findings are addressed by remedy — the three rules must be present as text
 case "$CANON_FLAT" in *"by their remedy"*) ;; *) err "canon does not classify findings by remedy (BL-314)" ;; esac
 case "$CANON_FLAT" in *"never deferred"*) ;; *) err "canon does not exempt confirmed security/data-loss defects from remedy-class deferral (BL-314)" ;; esac
-case "$CANON_FLAT" in *"Removal first"*) ;; *) err "canon does not carry the removal-first rule for components the unit added (BL-314)" ;; esac
 case "$CANON_FLAT" in *"recorded \`anchor=\`"*) ;; *) err "canon does not define the fix-round revert against the recorded anchor (BL-314)" ;; esac
 # the resolver path the canon tells an installed user to run must exist
 named=$(printf '%s' "$CANON_FLAT" | tr ' `' '\n\n' | grep 'resolve-review-scope\.sh' | head -1)

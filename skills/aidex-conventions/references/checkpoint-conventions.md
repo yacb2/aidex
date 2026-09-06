@@ -40,34 +40,22 @@ ambiguous unit, route the diff through more than one reviewer (the project's rev
 command plus an independent second model) and treat any disagreement between them as a
 high-priority finding to resolve before committing.
 
-**Address findings by their remedy, not by their topic.** A review→fix→re-review loop in
-which every round may add is how a fix becomes a subsystem; three rules keep it from
-doing so, with the moves that already exist (fix now · register · revert to the anchor).
+**Address findings by their remedy.** A remedy that corrects what the unit already does
+is fixed now — by the smallest edit, which for an unrequired branch is deleting it. A remedy that
+extends the unit — a migration, a new runtime artifact (table, queue, job) — is
+registered (move 3) with the text naming the **remedy** as what needs authorization, and
+goes to the chain ledger as `OPEN OWED` where one exists. In a sweep the absorb-once rule
+gates first. Two things are never deferred: a confirmed security or data-loss defect is
+fixed or the unit stays uncommitted as a hard blocker; and a unit whose acceptance cannot
+be met without the extension is a hard blocker — consult the durability-arbiter before
+stopping. When a re-review finds its defects in what a prior fix round added beyond its
+finding, do not repair on top: reset the fix-round diff to the review line's recorded
+`anchor=` and re-apply only the smallest corrections, at most once per finding.
 
-1. **Correct now, extend later.** A remedy that corrects what the unit already does is
-   fixed now, even when it re-adds a few lines of deleted logic. A remedy that extends
-   the unit — a migration, a new runtime artifact (table, queue, job, flag consumer), or
-   a file outside a scoped plan's `**Files:**` list — is not fixed at the checkpoint: it
-   is registered (move 3) with the text naming the **remedy**, not the defect, as what
-   needs authorization, and goes to the chain ledger as `OPEN OWED` where one exists.
-   Two exceptions: a confirmed security or data-loss defect is never deferred — fix it, or
-   leave the unit uncommitted as a hard blocker; and in a sweep the absorb-once rule
-   gates first, this rule decides only among what it admits. When the unit's own
-   acceptance cannot be met without the extension, that is a hard blocker: consult the
-   durability-arbiter before stopping.
-2. **Removal first, for what this unit added.** Before fixing a defect, ask whether the
-   component holding it — a branch, fallback, alias, flag, mode, a second definition of
-   something defined once — is required by the unit's acceptance or by a later unit of
-   the same run. If this unit's diff introduced it and nothing requires it, the fix is
-   removing it, never validating, hardening or documenting it. A component the plan
-   names is required by definition, so this never shrinks the unit; a pre-existing
-   component is registered, never removed here. In doubt, leave it and register.
-3. **One exit from the ratchet.** When a re-review finds its defects in code the previous
-   fix round added beyond what its finding required, do not repair on top of it: discard
-   that surplus back to the review line's recorded `anchor=`, re-apply the smallest
-   correction, register the rest. Only the surplus is reverted, and at most once per
-   finding — after that, repair in place or register. `root-cause-first` still holds:
-   name the cause; the fix for it is the smallest one.
+Measured 2026-09-06 (`scripts/eval-checkpoint-remedy.sh`, Sonnet 5, 4 fixtures × 3):
+the model already takes each of these moves without the text (12/12), and a longer draft
+coaching "remove, never guard" made it hedge (10/12, twice). What this paragraph adds is the process — where a deferred remedy is owed,
+the security exemption, the anchor the revert is defined against — not the judgment.
 
 **Record the review evidence before the commit step**, one Execution-log line in the
 consumer's log home:
