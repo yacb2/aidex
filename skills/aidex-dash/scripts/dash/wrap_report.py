@@ -27,6 +27,15 @@ LEADING_STYLE = re.compile(r"\A\s*((?:<style\b[^>]*>.*?</style>\s*)+)", re.S | r
 # `- language: es` in the project style profile. A FIELD, not prose: the prose
 # form sat in the template for weeks and nothing could read it.
 LANG_FIELD = re.compile(r"^\s*[-*]?\s*language\s*:\s*([A-Za-z][A-Za-z0-9-]*)", re.M)
+# A profile that NAMES a language in prose but declares no `language:` field is
+# the one failure mode the BL-279 page check cannot see: the wrapper falls to
+# "en", the body is written in English to match, and page and <html lang> agree,
+# so the check passes on a consistently-wrong artifact. Measured 2026-09-07:
+# work_hours_ws said "Default for this project's artifacts: **Spanish** (neutral
+# LATAM)" in prose and had shipped English artifacts silently. A default nobody
+# chose must announce itself.
+PROSE_LANG = re.compile(r"(?i)\b(espa[nñ]ol|spanish|neutral\s+latam|fran[cç]ais|french|"
+                        r"portugu[eê]s|portuguese|deutsch|german|italiano|italian)\b")
 # `- Favicon emoji: `X`` in the style profile, backticks optional. Same shape as
 # LANG_FIELD and for the same reason: a value the wrapper can act on, not prose.
 FAVICON_FIELD = re.compile(r"^\s*[-*]?\s*favicon(?:\s+emoji)?\s*:\s*`?([^`\n]{1,8}?)`?\s*$",
@@ -306,6 +315,24 @@ def style_profile_offer(ctx):
             f"{marker} and will not fire again.")
 
 
+def _warn_prose_only_language(ctx):
+    """Say so when a profile declares its language in prose and not as a field.
+
+    Silent is the defect. `lang` resolves to "en", the author writes English to
+    match, and every downstream check agrees with itself -- so nothing reports
+    that the project asked for another language and did not get it.
+    """
+    text = _profile_text(ctx)
+    if not text:
+        return          # no profile at all -- offer_style_profile() owns that case
+    m = PROSE_LANG.search(text)
+    if not m:
+        return          # profile present and silent on language: "en" is the real answer
+    print(f"NOTE: {ctx}/artifact-style.md mentions {m.group(1)!r} in prose but declares no "
+          f"`language:` field, so this artifact is being wrapped as lang=\"en\". Add a "
+          f"`- language: <code>` line to the profile, or pass --lang.", file=sys.stderr)
+
+
 def main():
     p = argparse.ArgumentParser(description="Wrap report content in the document envelope")
     p.add_argument("--title", required=True, help="document title (browser tab)")
@@ -335,7 +362,10 @@ def main():
     # the run is not standing in.
     ctx = find_context_dir(os.path.dirname(os.path.abspath(args.outfile))
                            if args.outfile else os.getcwd())
-    lang = args.lang or profile_language(ctx) or "en"
+    profile_lang = profile_language(ctx)
+    lang = args.lang or profile_lang or "en"
+    if args.lang is None and profile_lang is None:
+        _warn_prose_only_language(ctx)
 
     head_extra, body = split_head_style(content)
     # Reset -> kit tokens -> kit components -> project delta -> the page's own

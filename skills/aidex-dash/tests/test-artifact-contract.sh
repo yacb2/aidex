@@ -808,6 +808,33 @@ printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang fr --out "$LANGP/.conte
 grep -q '<html lang="fr"' "$LANGP/.context/reports/d.html" \
   && ok "an explicit --lang wins over the profile" || bad "--lang was overridden by the profile"
 
+# A profile that names its language in PROSE and declares no `language:` field is
+# the one case the BL-279 page check cannot see: the wrapper falls to "en", the
+# author writes English to match, and page and <html lang> agree — a consistently
+# wrong artifact that every check passes. Field-observed 2026-09-07: work_hours_ws
+# carried "Default for this project's artifacts: **Spanish** (neutral LATAM)" as
+# prose and had been shipping English artifacts silently. The wrap still resolves
+# to "en" — that is the honest answer to an undeclared field — but it must SAY so.
+printf '## Language\n\n- Default for this project: **Spanish** (neutral LATAM).\n' \
+  > "$LANGP/.context/artifact-style.md"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
+        --out "$LANGP/.context/reports/e.html" 2>&1 >/dev/null)"
+[[ "$err" == *"declares no \`language:\` field"* ]] \
+  && ok "a prose-only language is reported, not silently defaulted" \
+  || bad "prose-only language defaulted to en with no warning: $err"
+grep -q '<html lang="en"' "$LANGP/.context/reports/e.html" \
+  && ok "a prose-only language still resolves to en (the field is the contract)" \
+  || bad "prose was parsed as a language field"
+
+# and the complement, so the warning cannot become a nag: a profile that simply
+# has nothing to say about language is not a misconfiguration.
+printf '## Palette\n\n- accent: teal\n' > "$LANGP/.context/artifact-style.md"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" \
+        --out "$LANGP/.context/reports/f.html" 2>&1 >/dev/null)"
+[[ "$err" != *"declares no \`language:\` field"* ]] \
+  && ok "a profile silent on language is not warned about" \
+  || bad "the prose-language warning fires on a profile that never mentions one: $err"
+
 # The upward walk stops at $HOME, like _lib.sh's find_project_root. Without the
 # boundary a stray ~/.context/ captures every uninitialised project (field-observed
 # 2026-07-25): the artifact would take a neighbour's language and drop this
