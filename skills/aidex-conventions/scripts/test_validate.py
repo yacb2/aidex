@@ -13,6 +13,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -1014,6 +1015,49 @@ def check_archive_status_terminal_unit(failures: list[str]) -> None:
         failures.append("archive-status-terminal unit: a non-archive-bearing type warned")
 
 
+def check_crossref_topic_folders_unit(failures: list[str]) -> None:
+    """A `reference/` or `research/` marker resolves into its TOPIC folder.
+
+    The canon puts references at `references/<topic>/NN-<slug>.md` and topic research at
+    `research/<slug>/NN-<slug>.md`, while the cross-ref marker is `<type>/<filename>` with
+    no topic segment — that is the documented shape, not a shorthand. `crossref_target_exists`
+    only ever looked flat (plus a hand-written descent for `audits/`), so every marker
+    pointing at a filed reference resolved to nothing.
+
+    Caught 2026-09-07 on aidex's own tree: `.context/reports/2026-09-06-harness-lessons-audit.html`
+    declares `reference/03-harness-lessons-audit.md`, the file exists at
+    `references/claude-code-runtime/03-harness-lessons-audit.md`, and the page was reported as
+    orphaned from an artifact sitting right there. A checker that fails a correct ref teaches
+    the reader to ignore it.
+    """
+    v = _load_validator()
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        (ctx / "references" / "claude-code-runtime").mkdir(parents=True)
+        (ctx / "references" / "claude-code-runtime" / "03-harness-lessons-audit.md").write_text("x")
+        (ctx / "research" / "2026-05-20-tool-call-evolution").mkdir(parents=True)
+        (ctx / "research" / "2026-05-20-tool-call-evolution" / "00-report.md").write_text("x")
+        (ctx / "research" / "_archive" / "2026-01-01-old-topic").mkdir(parents=True)
+        (ctx / "research" / "_archive" / "2026-01-01-old-topic" / "00-report.md").write_text("x")
+        (ctx / "plans").mkdir(parents=True)
+
+        # resolves: the marker carries no topic segment, by design
+        for ref in ("reference/03-harness-lessons-audit.md",
+                    "reference/03-harness-lessons-audit",
+                    "research/00-report.md",
+                    "research/_archive/2026-01-01-old-topic/00-report.md"):
+            if not v.crossref_target_exists(ctx, ref):
+                failures.append(f"crossref topic folders: {ref!r} did not resolve, but the file is on disk")
+        # and the explicit path still resolves, as it always did
+        if not v.crossref_target_exists(ctx, "reference/claude-code-runtime/03-harness-lessons-audit.md"):
+            failures.append("crossref topic folders: an explicit <topic>/<file> path stopped resolving")
+
+        # stays false: a name that is nowhere, and a descent deeper than one topic level
+        for ref in ("reference/99-not-here.md", "research/99-not-here.md", "plan/2099-12-31-nope"):
+            if v.crossref_target_exists(ctx, ref):
+                failures.append(f"crossref topic folders: {ref!r} resolved, but nothing on disk matches it")
+
+
 def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
     """Direct cells for check_backlog_placeholder_body (Phase 4): an active entry
     still carrying a register-template placeholder comment warns; a filled-in entry
@@ -1359,6 +1403,7 @@ def main() -> int:
     check_body_language_unit(failures)
     check_archive_status_open_unit(failures)
     check_archive_status_terminal_unit(failures)
+    check_crossref_topic_folders_unit(failures)
     check_backlog_placeholder_body_unit(failures)
     check_backlog_type_unit(failures)
     check_backlog_priority_unit(failures)
