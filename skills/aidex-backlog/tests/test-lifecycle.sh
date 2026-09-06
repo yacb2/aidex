@@ -112,6 +112,22 @@ check "sweep archived it" '[[ -f ".context/backlog/_archive/$(basename "$LEGACY"
 SWEEP_AGAIN="$(bash "$SCRIPTS/sweep.sh" 2>&1 || true)"
 check "sweep idempotent" '[[ "$SWEEP_AGAIN" == *"clean"* ]]'
 
+# BL-234's companion rule applied to the BATCH path. close-item.sh has called
+# archive_companions since it was written; sweep.sh --apply did a bare `mv` and
+# left every rendered .html behind in the active folder. Nothing caught it:
+# validate.py's crossref_target_exists searches _archive/ too, so the stranded
+# page's anchor still resolves and artifact-anchor-target-missing never fires.
+# The user counted leftover pages by hand on 2026-08-24, -25 and -29.
+COMP="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "has a page" --priority P3 --status done 2>/dev/null)"
+printf '<meta name="artifact-anchor" content="backlog/%s">\n' "$(basename "$COMP")" \
+  > ".context/backlog/$(basename "$COMP" .md)-report.html"
+bash "$SCRIPTS/sweep.sh" --apply >/dev/null 2>&1
+check "sweep --apply archives the item" '[[ -f ".context/backlog/_archive/$(basename "$COMP")" ]]'
+check "sweep --apply takes the rendered companion with it" \
+  '[[ -f ".context/backlog/_archive/$(basename "$COMP" .md)-report.html" ]]'
+check "no companion is left stranded in the active folder" \
+  '[[ ! -f ".context/backlog/$(basename "$COMP" .md)-report.html" ]]'
+
 echo "== defer: id stability + provenance =="
 # Regression (suite analysis 2026-07-02): next_backlog_id scanned active + _archive
 # but never _deferred/, so deferring an item and registering a new one reused its id,
