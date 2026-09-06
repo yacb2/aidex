@@ -73,7 +73,8 @@ def parse_ts(s):
 def test_outcome(txt):
     """'fail' | 'pass' | 'unknown' from a runner's own output.
 
-    Calibrated against real payloads: rtk summarizes vitest/jest as `PASS (n) FAIL (m)`;
+    Calibrated against real payloads: the retired rtk hook (D-11, 2026-09-06) summarized
+    vitest/jest as `PASS (n) FAIL (m)` and older transcripts still carry that shape;
     pytest emits `N failed, M passed` or a bare `N passed`. Anything else is 'unknown'
     rather than silently counted — a truncated tail must not read as a failure.
     """
@@ -93,7 +94,7 @@ def test_outcome(txt):
         return 'fail'
     if re.search(r'^ok\s+\S', txt, re.M):
         return 'pass'
-    # a bare `ok` as the whole result (rtk's tersest summary)
+    # a bare `ok` as the whole result (the retired rtk hook's tersest summary)
     if re.fullmatch(r'ok\.?', txt.strip(), re.I):
         return 'pass'
     # this repo's own bash suites: `OK — <summary>` on success, `N failure(s)`
