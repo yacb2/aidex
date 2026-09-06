@@ -35,10 +35,39 @@ Then run the **correctness** angles over that scope, and the cleanup and securit
 only where the scope routing sends them — **read
 `~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` before picking
 the reviewer**; it owns which instrument covers which scope, and why `/security-review`
-must not be delegated to for a non-PR scope. Address findings. For a high-risk or
+must not be delegated to for a non-PR scope. For a high-risk or
 ambiguous unit, route the diff through more than one reviewer (the project's review
 command plus an independent second model) and treat any disagreement between them as a
 high-priority finding to resolve before committing.
+
+**Address findings by their remedy, not by their topic.** A review→fix→re-review loop in
+which every round may add is how a fix becomes a subsystem; three rules keep it from
+doing so, with the moves that already exist (fix now · register · revert to the anchor).
+
+1. **Correct now, extend later.** A remedy that corrects what the unit already does is
+   fixed now, even when it re-adds a few lines of deleted logic. A remedy that extends
+   the unit — a migration, a new runtime artifact (table, queue, job, flag consumer), or
+   a file outside a scoped plan's `**Files:**` list — is not fixed at the checkpoint: it
+   is registered (move 3) with the text naming the **remedy**, not the defect, as what
+   needs authorization, and goes to the chain ledger as `OPEN OWED` where one exists.
+   Two exceptions: a confirmed security or data-loss defect is never deferred — fix it, or
+   leave the unit uncommitted as a hard blocker; and in a sweep the absorb-once rule
+   gates first, this rule decides only among what it admits. When the unit's own
+   acceptance cannot be met without the extension, that is a hard blocker: consult the
+   durability-arbiter before stopping.
+2. **Removal first, for what this unit added.** Before fixing a defect, ask whether the
+   component holding it — a branch, fallback, alias, flag, mode, a second definition of
+   something defined once — is required by the unit's acceptance or by a later unit of
+   the same run. If this unit's diff introduced it and nothing requires it, the fix is
+   removing it, never validating, hardening or documenting it. A component the plan
+   names is required by definition, so this never shrinks the unit; a pre-existing
+   component is registered, never removed here. In doubt, leave it and register.
+3. **One exit from the ratchet.** When a re-review finds its defects in code the previous
+   fix round added beyond what its finding required, do not repair on top of it: discard
+   that surplus back to the review line's recorded `anchor=`, re-apply the smallest
+   correction, register the rest. Only the surplus is reverted, and at most once per
+   finding — after that, repair in place or register. `root-cause-first` still holds:
+   name the cause; the fix for it is the smallest one.
 
 **Record the review evidence before the commit step**, one Execution-log line in the
 consumer's log home:

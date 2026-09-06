@@ -39,6 +39,11 @@ case "$CANON_FLAT" in *"review: <verdict>"*"anchor=<anchor>"*) ;; *) err "canon 
 case "$CANON_FLAT" in *"merge base"*|*"merge-base"*) ;; *) err "canon does not say the scope is resolved from the merge base when the unit spans commits" ;; esac
 case "$CANON_FLAT" in *"--origin"*) ;; *) err "canon does not name register-item.sh --origin for emergent work" ;; esac
 case "$CANON_FLAT" in *"never a question"*|*"never asked"*|*"do not ask"*) ;; *) err "canon does not make the handoff a mandated step rather than a question" ;; esac
+# BL-314: findings are addressed by remedy — the three rules must be present as text
+case "$CANON_FLAT" in *"by their remedy"*) ;; *) err "canon does not classify findings by remedy (BL-314)" ;; esac
+case "$CANON_FLAT" in *"never deferred"*) ;; *) err "canon does not exempt confirmed security/data-loss defects from remedy-class deferral (BL-314)" ;; esac
+case "$CANON_FLAT" in *"Removal first"*) ;; *) err "canon does not carry the removal-first rule for components the unit added (BL-314)" ;; esac
+case "$CANON_FLAT" in *"recorded \`anchor=\`"*) ;; *) err "canon does not define the fix-round revert against the recorded anchor (BL-314)" ;; esac
 # the resolver path the canon tells an installed user to run must exist
 named=$(printf '%s' "$CANON_FLAT" | tr ' `' '\n\n' | grep 'resolve-review-scope\.sh' | head -1)
 if [ -n "$named" ]; then
