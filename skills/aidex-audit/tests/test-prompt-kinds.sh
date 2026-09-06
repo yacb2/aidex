@@ -52,6 +52,13 @@ run_case "(b) typed slash command" slash "$(human '"/compact"')"
 run_case "(c) command-name envelope" slash \
   '{"type":"user","message":{"role":"user","content":"<command-name>aidex-backlog</command-name>"}}'
 
+# The snapshot's own `claude -p "/context"` runs (BL-312): a 2-record transcript
+# with no assistant turn. Counting it as a slash prompt would make every
+# /aidex context run read as usage in the next retro.
+run_case "(c2) snapshot command envelope is not a prompt" skip \
+  '{"type":"user","message":{"role":"user","content":"<command-name>/context</command-name>\n            <command-message>context</command-message>\n            <command-args></command-args>"}}'
+run_case "(c3) typed /skill-doctor is not a prompt either" skip "$(human '"/skill-doctor"')"
+
 # A prompt with NO provenance fields at all (transcripts predating `origin`)
 # must still count as human when nothing marks it otherwise — the fallback is
 # a denylist, so the default has to be "human", not "machine".

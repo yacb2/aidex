@@ -92,6 +92,12 @@ _COMMAND_BODY_RX = re.compile(r"^#\s+(/|[a-z][\w-]*:)", re.I)
 # A bare slash command the user typed.
 _SLASH_RX = re.compile(r"^/[a-z][\w:-]*\s*$", re.I)
 
+# Local report commands `aidex/scripts/context-snapshot.py` runs through `claude -p`
+# (BL-312). Each run leaves a 2-record transcript with no assistant turn: a
+# measurement, not a prompt anyone typed. Bare `/context` typed in a session is
+# excluded with it — it never fires a skill and never reads as usage.
+_SNAPSHOT_COMMANDS = ("/context", "/skill-doctor")
+
 # The kickoff positional `claude-session-handoff` passes to the session it
 # launches (scripts/claude-wrapper.sh: `run_claude "continue"`). It exists
 # because SessionStart's `initialUserMessage` is accepted and silently ignored
@@ -129,8 +135,12 @@ def classify(o):
 
     if text.startswith("<command-name>"):
         inner = text.split("<command-name>", 1)[1].split("</command-name>", 1)[0].strip()
+        if inner in _SNAPSHOT_COMMANDS:
+            return SKIP, ""
         return SLASH, inner
 
+    if text.strip() in _SNAPSHOT_COMMANDS:
+        return SKIP, ""
     kind = SLASH if _SLASH_RX.match(text) else REAL
 
     origin = (o.get("origin") or {}).get("kind")

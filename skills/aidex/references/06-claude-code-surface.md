@@ -24,9 +24,11 @@ keep it a bare `MAJOR.MINOR.PATCH`.
 | Surface | Verified against | Recommendation that depends on it |
 |---|---|---|
 | skillOverrides values | 2.1.241 | The auditor emits `name-only`, `user-invocable-only` or `off` into a project's `.claude/settings.local.json`. A fourth value, a renamed key, or a changed default would make every emitted patch either inert or wrong. |
+| `/context` and `/skill-doctor` via `claude -p` | 2.1.263 | `scripts/context-snapshot.py` runs both as local commands (no model call, `num_turns 0`, exit 0) and parses `/context`'s markdown tables (category, Memory Files, Skills, MCP Tools) and `/skill-doctor`'s fixed-width table. Both honour the cwd's `settings.local.json`. A changed table layout breaks the parser loudly (`tests/test-context-snapshot.sh`); a `-p` that starts calling the model would make the snapshot cost tokens. `--output-format json` returns the same text blob, so text is the contract. |
 | skillOverrides key namespacing | 2.1.241 | A plugin's skill registers under `<plugin>:<skill>` (`document-skills:docx`), a personal skill under its bare directory name. An override key written in the wrong form matches nothing: it is valid JSON naming a real skill, so nothing reports it, and the skill loads at full cost while the settings file says it does not. Checked by `scripts/check-skill-overrides.py`. If namespacing changes, every emitted patch silently stops applying. |
 | skillOverrides cost model | 2.1.241 | The advice "prefer `off` over `name-only` when the stack excludes a skill" rests on `user-invocable-only` costing the same as `off` (134 tok/skill, measured). If loading changes, the ranking changes with it. |
 | MCP scoping | 2.1.241 | The auditor reasons about project-scope vs user-scope MCP servers when attributing idle context cost. A change in where servers are declared or when they connect moves that attribution. |
+| skillOverrides on plugin skills is inert | 2.1.263 | `05` § Two remedies says the only per-project lever for a plugin skill is `enabledPlugins: false`. Re-verified by every snapshot: with `document-skills:docx: name-only` in global settings, both `/context` and `/skill-doctor` still list docx at ~290 with its description, and skill-doctor's own footer says "Plugin skills can't be turned off individually". If a snapshot ever shows a plugin skill dashed under a `skillOverrides` key, this row is stale. |
 | Plugin handling | 2.1.241 | Uninstall candidates are proposed from `~/.claude/plugins/installed_plugins.json` and always-loaded subagent cost. This is the one that has already misfired — plugins were recommended for removal that were fine. |
 | Settings file precedence | 2.1.241 | Patches are written to `.claude/settings.local.json` on the assumption it overrides `settings.json` and stays out of version control. If precedence or the recommended file changes, patches land somewhere that does not win. |
 
@@ -61,6 +63,18 @@ failure — the key is valid — but it silences half of what the reader thinks 
    agent prompt, a script — then bump the row.
 4. Note anything surprising in the row's third column. A row that keeps changing is telling
    you the recommendation is built on something unstable.
+
+## Unverified — outside the parsed table on purpose
+
+Claims the auditor still makes that no probe has confirmed. They are not in `## Surfaces`
+because `surface-drift-check.py` needs a version per row, and a claim nobody has checked
+has none. Ask `claude-code-guide` once; then either move the row up with a version or
+delete the claim at its source.
+
+- **Post-compaction skill budget** — `context-cost-analyzer` said recent skill invocations
+  survive auto-compaction under a ~5k-per-skill / ~25k combined cap. A fresh `-p`
+  session cannot measure it, and nothing else has. The analyzer no longer reasons from
+  it; the claim is parked here until verified.
 
 ## What does NOT belong here
 

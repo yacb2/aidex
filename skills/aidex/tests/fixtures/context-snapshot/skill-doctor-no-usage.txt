@@ -1,0 +1,45 @@
+Skills loaded this session
+
+  skill                        source           context
+  testing-django               userSettings           -
+  testing-playwright-app       userSettings           -
+  ralph-loop:cancel-ralph      ralph-loop          < 20
+  document-skills:xlsx         document-skills     ~320
+  document-skills:docx         document-skills     ~290
+  document-skills:pptx         document-skills     ~250
+  document-skills:pdf          document-skills     ~150
+  restart                      userSettings         ~20
+  aidex-conventions            userSettings           -
+  fix-chrome-devtools          userSettings           -
+  skill-trigger-eval           projectSettings     < 20
+  ralph-loop:help              ralph-loop           ~20
+  ralph-loop:ralph-loop        ralph-loop           ~20
+  aidex-dash                   userSettings           -
+  aidex-workflow               userSettings           -
+  aidex-loop                   userSettings           -
+  aidex-reference              userSettings        ~240
+  aidex-request                userSettings           -
+  aidex-comm                   userSettings        ~290
+  aidex-worktree               userSettings        ~270
+  aidex-decision               userSettings        ~240
+  aidex                        userSettings        ~260
+  aidex-bugfix                 userSettings        ~210
+  aidex-skill                  userSettings           -
+  skill-creator:skill-creator  skill-creator       ~120
+  aidex-audit                  userSettings           -
+  git-commit                   userSettings         ~80
+  aidex-backlog                userSettings           -
+  aidex-coverage               userSettings        ~270
+  aidex-plan                   userSettings        ~300
+  aidex-research               userSettings        ~220
+  aidex-review                 userSettings        ~300
+  dependency-updater           userSettings        ~210
+  handoff                      userSettings         ~30
+  aidex-plan-exec              userSettings        ~190
+  session-handoff              userSettings        ~420
+
+  context = this skill's one-line listing in the system prompt, included every turn
+  (dash = not in the current listing, costs nothing; full SKILL.md loads only when it runs)
+  Usage patterns: not shown for HIPAA-regulated organizations: this breakdown is built by scanning the session transcripts saved on this machine.
+
+4 plugin skills loaded but never invoked, from document-skills. Each one adds to the system prompt every turn. Plugin skills can't be turned off individually — disable the plugin in /plugin.

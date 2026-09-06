@@ -54,6 +54,13 @@ Read conventions: `~/.claude/skills/aidex-conventions/references/skill-conventio
   - **Override patch** (project-scoped, reversible): JSON snippet for `<project>/.claude/settings.local.json` `skillOverrides` field. Best when the skill is irrelevant for THIS project but valuable elsewhere.
   - **Disable-flag patch** (skill-scoped, global): `disable-model-invocation: true` in the skill's frontmatter. Best when the skill should never auto-trigger anywhere — only via explicit `/skill-name`. Do NOT propose this for skills installed from third-party plugins; it gets overwritten on plugin update.
 
+  **Savings and usage come from the snapshot** (`context-snapshot.py`, path in the prompt
+  when launched from `/aidex context`): a skill's savings are its measured listing tokens
+  in `skills{}`, and `uses` / `last_used` are evidence that may only *downgrade* a demote
+  (a used skill drops from WARNING to INFO). Zero uses never generates a proposal —
+  non-invocable and low-frequency skills read as unused by design. `7d tokens` is not an
+  input. Rules in `05-context-budget.md` § Usage.
+
   Severity: WARNING when proposing `off`, INFO when proposing `name-only`. Never auto-apply.
 
 ### Security (scan SKILL.md AND all files in references/)

@@ -1,0 +1,45 @@
+Skills loaded this session
+
+  skill                        source           context  7d tokens   uses  last used
+  testing-django               userSettings           -          -     0×  never
+  testing-playwright-app       userSettings           -          -     0×  never
+  ralph-loop:cancel-ralph      ralph-loop          < 20          -     0×  never
+  document-skills:xlsx         document-skills     ~320          -     0×  never
+  document-skills:docx         document-skills     ~290          -     0×  never
+  document-skills:pptx         document-skills     ~250          -     0×  never
+  document-skills:pdf          document-skills     ~150          -     0×  never
+  restart                      userSettings         ~20          -    39×  158 days
+  aidex-conventions            userSettings           -          -   125×  112 days
+  fix-chrome-devtools          userSettings           -          -     7×  110 days
+  skill-trigger-eval           projectSettings     < 20          -     2×  80 days
+  ralph-loop:help              ralph-loop           ~20          -     1×  80 days
+  ralph-loop:ralph-loop        ralph-loop           ~20          -    11×  80 days
+  aidex-dash                   userSettings           -          -     1×  62 days
+  aidex-workflow               userSettings           -          -    22×  61 days
+  aidex-loop                   userSettings           -          -   127×  55 days
+  aidex-reference              userSettings        ~240          -   132×  35 days
+  aidex-request                userSettings           -          -   180×  31 days
+  aidex-comm                   userSettings        ~290          -    88×  22 days
+  aidex-worktree               userSettings        ~270          -    50×  10 days
+  aidex-decision               userSettings        ~240          -   298×  5 days
+  aidex                        userSettings        ~260     663.3k   186×  4 days
+  aidex-bugfix                 userSettings        ~210       699k    40×  4 days
+  aidex-skill                  userSettings           -       1.7m    37×  4 days
+  skill-creator:skill-creator  skill-creator       ~120          -     7×  4 days
+  aidex-audit                  userSettings           -       1.1m    80×  3 days
+  git-commit                   userSettings         ~80      26.3m   171×  3 days
+  aidex-backlog                userSettings           -     105.8m   149×  2 days
+  aidex-coverage               userSettings        ~270      49.4m    17×  1 day
+  aidex-plan                   userSettings        ~300      80.2m   439×  1 day
+  aidex-research               userSettings        ~220       7.2m   206×  1 day
+  aidex-review                 userSettings        ~300       6.6m    14×  1 day
+  dependency-updater           userSettings        ~210        18m     1×  1 day
+  handoff                      userSettings         ~30       2.1m   468×  1 day
+  aidex-plan-exec              userSettings        ~190     399.1m   141×  today
+  session-handoff              userSettings        ~420      39.3m   781×  today
+
+  context = this skill's one-line listing in the system prompt, included every turn
+  (dash = not in the current listing, costs nothing; full SKILL.md loads only when it runs)
+  7d tokens = tokens attributed to the skill over the last 7 days of sessions on this machine
+
+4 plugin skills loaded but never invoked, from document-skills. Each one adds to the system prompt every turn. Plugin skills can't be turned off individually — disable the plugin in /plugin.
