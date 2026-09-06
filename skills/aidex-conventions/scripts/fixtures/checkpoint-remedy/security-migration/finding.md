@@ -1,0 +1,1 @@
+Confirmed: tokens are stored in plaintext, so a database read exposes every live session. The fix is to store a SHA-256 hash and compare on lookup, which needs a migration to rename/re-fill the column.
