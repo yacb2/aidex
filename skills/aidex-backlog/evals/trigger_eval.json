@@ -113,5 +113,23 @@
     "query": "apunta esto en el backlog para no perderlo y seguimos con lo nuestro",
     "should_trigger": true,
     "expected_behavior": "Defer-and-continue in informal Spanish: register the item via the backlog register, do not derail the current task."
+  },
+  {
+    "query": "Ya hemos desplegado bastantes cambios estas dos semanas y hemos resuelto bastantes cosas. Me gustaria ver, a grosso modo, como esta el tablero: que queda abierto de verdad, que ya esta hecho pero nadie cerro, y si hay planes y work-lists que podamos archivar, que creo que hay unas cuantas. Si quieres empezamos por los planes y las work-lists, asi dejamos archivado todo lo que ya termino, y luego retomamos el backlog para hacerle un barrido completo y ver que requiere mas urgencia y que podemos cerrar rapido. Lo que necesite una decision mia dejalo marcado aparte, no lo resuelvas tu.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-backlog in its board mode: sweep/triage the open items, detect already-resolved ones, and separate what needs an owner decision",
+    "tier": "long-form"
+  },
+  {
+    "query": "Vale, entonces aclaramos una duda antes de seguir. Ahora mismo tenemos triage, define y sweep, no? Son tres scripts distintos o es el mismo con modos? Te lo pregunto porque lo que quiero es que le pases define a todo lo que tengo abierto, corrijas el formato de los que esten mal, y me dejes facilmente identificable el subconjunto que necesita aclaracion mia porque es decision de producto. Son bastantes items, asi que no me los preguntes de uno en uno: hazlo entero y al final me das la lista de los que tendria que decidir yo.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-backlog: the define run mode over the open set, formatting fixes, and a parked subset awaiting an owner decision",
+    "tier": "long-form"
+  },
+  {
+    "query": "Sobre lo que estuvimos discutiendo del rendimiento de la home: no quiero que lo toquemos ahora porque estamos a mitad de otra cosa y prefiero no abrir dos frentes. Pero tampoco quiero perderlo, porque cada vez que lo dejamos pasar se nos olvida hasta que vuelve a doler. Dejalo apuntado con el contexto suficiente para que en dos semanas se entienda por que lo abrimos, incluyendo lo que ya medimos hoy y lo que quedo sin medir. Y cuando termines seguimos con lo que estabamos.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-backlog to capture the deferred item with its context, then return to the interrupted work",
+    "tier": "long-form"
   }
 ]

@@ -98,5 +98,11 @@
     "query": "hazme un aidex review de lo que tocamos en la sesion de hoy",
     "should_trigger": true,
     "expected_behavior": "Same shape, informal Spanish. Resolve today's touched files to their owning modules and review those as they stand."
+  },
+  {
+    "query": "El modulo de facturacion lleva un ano creciendo a base de parches y nadie lo ha mirado entero desde entonces. No es que tenga un bug concreto que quiera arreglar, es que quiero saber en que estado esta: si hay codigo que ya no se llama, si hay sitios donde estamos haciendo la misma consulta tres veces, y sobre todo si hay algo que se pueda explotar desde fuera, porque expone endpoints publicos. Miratelo tal como esta hoy, no los cambios de esta semana, y dime que te preocupa por orden de gravedad.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-review over the module as it stands, across the correctness / simplify / security / perf lenses",
+    "tier": "long-form"
   }
 ]

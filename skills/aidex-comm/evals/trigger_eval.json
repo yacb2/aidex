@@ -133,5 +133,17 @@
     "query": "Summarize this meeting transcript for me, I don't need it saved anywhere.",
     "should_trigger": false,
     "expected_behavior": "A summary read aloud, explicitly not an artifact. aidex-comm writes .context/communications/ entries; nothing to write here."
+  },
+  {
+    "query": "Acabo de salir de la llamada con el cliente y quiero que quede constancia antes de que se me olvide, porque han salido tres cosas que nos cambian el mes. Estuvimos cuarenta minutos, estaban ellos dos y su responsable de operaciones. Lo importante: aceptan mover la fecha de la primera entrega, pero a cambio quieren el modulo de informes dentro del alcance, y han dicho por primera vez que el presupuesto tiene tope. Registra la reunion con lo que se acordo y lo que quedo pendiente de confirmar por su parte.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-comm to log the meeting under communications/meetings in the language it happened in",
+    "tier": "long-form"
+  },
+  {
+    "query": "Me ha llegado un correo del cliente que hay que contestar hoy y prefiero que lo prepares tu porque yo lo voy a escribir demasiado corto. Basicamente preguntan por que el informe de agosto sale con datos distintos a los que ellos tienen, y tienen razon, cambiamos el criterio de agregacion a mitad de mes. Redactame la respuesta explicando el cambio sin ponernos a la defensiva, di claramente desde que fecha aplica, y ofrece regenerar el informe anterior con el criterio nuevo si lo quieren comparar. Que se pueda pegar en Outlook.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-comm to draft the outbound reply, paste-ready, in the thread's own language",
+    "tier": "long-form"
   }
 ]

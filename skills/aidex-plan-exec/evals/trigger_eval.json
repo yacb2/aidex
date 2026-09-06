@@ -98,5 +98,11 @@
     "query": "Fan out one agent per service to review them in parallel.",
     "should_trigger": false,
     "expected_behavior": "Multi-agent orchestration — aidex-workflow, not phase-by-phase plan execution."
+  },
+  {
+    "query": "Ya tenemos el plan escrito y revisado, asi que no volvamos a discutirlo. Lo que quiero ahora es que lo ejecutes de principio a fin sin pararte a preguntarme en cada fase si sigues, porque eso es justo lo que quiero evitar. Haz la revision del diff y el commit en cada fase como toca, y si en algun punto el plan se queda corto o descubres algo que no estaba previsto, decidelo tu y dejalo escrito, que ya lo miro yo despues. Solo parame si te encuentras algo destructivo o si de verdad no puedes seguir sin una decision mia.",
+    "should_trigger": true,
+    "expected_behavior": "Should fire aidex-plan-exec and run phase by phase under Mode A autonomy without re-asking at phase boundaries",
+    "tier": "long-form"
   }
 ]
