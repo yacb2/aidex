@@ -26,13 +26,21 @@ python3 $R/mine_slow_tests.py [--since YYYY-MM-DD]
 # Who catches the defect (test / me / user), over items mine_items.py already
 # wrote to <dir>. --since windows it the same way, for the same reason.
 python3 $R/mine_verification.py --data-dir <dir> [--min-edits 10] [--since YYYY-MM-DD]
+
+# Which tool calls errored, grouped by signature and flagged when aidex-implicated.
+python3 $R/mine_errors.py [--since YYYY-MM-DD | --days N] [--top N] [--json OUT]
+
+# Which instructions the user has to keep repeating — lexical near-duplicates plus
+# a topical intent lexicon, both reported per week so a remediated one is visible.
+python3 $R/mine_repetition.py --dataset <run>/dataset.jsonl [--sim 0.5] [--min 3]
 ```
 
-All four accept `--transcripts-root`; the three that read tracked items also accept
-`--projects-root`. Env fallbacks are `CLAUDE_PROJECTS_ROOT` / `AIDEX_PROJECTS_ROOT`.
-`mine_verification.py` additionally requires `mine_items.py --out <dir>` to have run
-first — it reads that directory's `items.jsonl` + `spans.jsonl` rather than walking
-transcripts on its own.
+Every entry point that walks transcripts accepts `--transcripts-root`; the three that
+read tracked items also accept `--projects-root`. Env fallbacks are
+`CLAUDE_PROJECTS_ROOT` / `AIDEX_PROJECTS_ROOT`. Two do not walk transcripts and so take
+neither: `mine_verification.py` requires `mine_items.py --out <dir>` to have run first,
+reading that directory's `items.jsonl` + `spans.jsonl`; `mine_repetition.py` requires
+`--dataset`, the `dataset.jsonl` `extract.py` wrote.
 
 **The transcripts root defaults to `~/.claude/projects`; the projects root has no
 default and is required.** Claude Code puts transcripts in the same place for
@@ -146,8 +154,18 @@ first attempt did not finish in 20 minutes; the rewrite takes ~4.
 directly and is re-runnable (see its module docstring); this paragraph used to say
 otherwise and was stale relative to the rebuilt script.
 
-`mine_askuserquestion.py`, `mine_autonomy.py`, `mine_stops.py`, `extract.py`,
-`prefilter.py` and `mine_repetition.py` also stay: closed-study artifacts, not
-instruments. They now **import** `prompt_kinds` rather than restating the predicate —
-they live under `.context/`, which is gitignored in this repo, so a copy kept there
-can never be pinned by a test. That is precisely how the predicate drifted.
+`mine_askuserquestion.py`, `mine_autonomy.py` and `mine_stops.py` stay:
+closed-study artifacts, not instruments. They **import** `prompt_kinds` rather than
+restating the predicate — they live under `.context/`, which is gitignored in this
+repo, so a copy kept there can never be pinned by a test. That is precisely how the
+predicate drifted.
+
+**`mine_errors.py` and `mine_repetition.py` left this list on 2026-09-07**, and the
+reason is worth keeping: they were classified as closed-study artifacts after run 5,
+and then run 7 used both as instruments. A script the next run reaches for is an
+instrument, whatever the previous run called it. The classification cost exactly what
+this paragraph predicts — `mine_errors.py` still carried the naive-`parse_ts` fork that
+`extract.py` had already fixed and documented, so its own reference's invocation
+(`--since <plain date>`) raised `TypeError` while `--days` worked. Second time a parser
+fork has been paid for outside the tracked tree; both now live in
+`scripts/usage-retro/` and are pinned (`test-usage-retro.sh` case (o)).
