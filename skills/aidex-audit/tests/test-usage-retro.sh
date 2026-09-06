@@ -22,6 +22,7 @@
 #   (k) one malformed line skips the LINE, never the whole session
 #   (l) a transcript root under a DIFFERENT user's home still resolves
 #   (m) mine_items and mine_slow_tests share one runner vocabulary
+#   (o) mine_errors accepts the plain-date --since its own reference prints
 #
 # Run with: bash skills/aidex-audit/tests/test-usage-retro.sh
 
@@ -483,5 +484,32 @@ echo "$out_r2" | grep -qi 'no comparison group' \
   || fail "(r) an empty tests-ran group must say 'no comparison group', not vanish: $out_r2"
 rm -rf "$PROJ" "$TX" "$OUTR"
 
+# ---------------------------------------------------------------------------
+# (o) mine_errors ACCEPTS THE INVOCATION ITS OWN REFERENCE PRINTS. `parse_ts`
+#     returned whatever `fromisoformat` gave it, and a plain date carries no
+#     offset — so `--since 2026-08-19` produced a NAIVE cutoff and the first file
+#     mtime comparison raised `TypeError: can't compare offset-naive and
+#     offset-aware datetimes`. `--days` builds its cutoff from an aware `now`, so
+#     it worked; the crash lived only in the documented form.
+#
+#     extract.py had already fixed this exact bug and carries the docstring
+#     describing it. The two copies diverged because mine_errors.py sat in an
+#     audit run folder, outside the tracked tree, where no suite could run it —
+#     the second time BL-165's cost has been paid by a parser fork.
+out_err="$(python3 "$RETRO/mine_errors.py" --since 2026-01-01 --top 1 \
+         --transcripts-root "$TX" 2>&1)"
+grep -q 'offset-naive' <<<"$out_err" \
+  && fail "(o) plain-date --since still raises the naive/aware TypeError: $out_err"
+grep -q 'errored tool_results' <<<"$out_err" \
+  || fail "(o) mine_errors produced no summary for a plain-date --since: $out_err"
+
+# and the aware form must keep working, so the fix is not one-directional
+out_err2="$(python3 "$RETRO/mine_errors.py" --since 2026-01-01T00:00:00Z --top 1 \
+          --transcripts-root "$TX" 2>&1)"
+grep -q 'errored tool_results' <<<"$out_err2" \
+  || fail "(o) an explicit-offset --since regressed: $out_err2"
+
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary"
+
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since"
