@@ -821,6 +821,53 @@ def check_archive_status_open(type_name: str, path: Path, fm: dict | None) -> Fi
                        f"back to the active queue")
     return None
 
+TERMINAL_STATUSES = {"done", "dropped", "superseded"}
+
+def check_archive_status_terminal(type_name: str, path: Path, fm: dict | None) -> Finding | None:
+    """The OUTBOUND half of D-10, which had no detector outside `backlog/`.
+
+    `check_archive_status_open` above catches archived-but-active. Nothing caught the
+    direction that actually costs: **terminal but never archived**. `triage.sh` ran
+    exactly this predicate via `sweep.sh --check` — for `backlog/` only — so plans,
+    requests, decisions and loops had no check at all. Measured across the fleet on
+    2026-09-07: 36 violations, 20 of them in the four unwatched types, and the human was
+    the detector on three separate days.
+
+    Warning, not violation: this is retroactive over existing boards, and D-10's own
+    remedy (move it to `_archive/`) is one command.
+
+    The exemptions are what keep it from becoming the third retired notifier. A naive
+    "status is terminal and `_archive` is not in the path" rule scored 45% false
+    positives fleet-wide, almost all of them modular-plan PHASE files — a finished phase
+    inside a plan that is still running is correct, not drift. `is_subdocument` already
+    encodes that distinction for the front-matter rules; reusing it here rather than
+    re-deriving it is the point.
+    """
+    if type_name not in TYPES_WITH_ARCHIVE:
+        return None
+    if "_archive" in path.parts or "_deferred" in path.parts:
+        return None
+    if is_loop_state_sidecar(type_name, path):
+        return None
+    # An auto-generated aggregator index is a board, not an artifact with a lifecycle.
+    if path.name in ("00-index.md", "00-overview.md") and path.parent.name == type_name:
+        return None
+    # Inside a modular folder, ONLY its 00-index.md carries the archiving decision: the
+    # folder moves as a unit. Every other file there — a finished phase, a handoff note,
+    # a companion — has a status about itself, not about the plan, and firing on it is
+    # the false positive that would retire this check. `is_subdocument` covers the
+    # `NN-*.md` phase files; it does NOT cover a dated companion, which is how
+    # `plans/<open plan>/2026-05-14-session-handoff.md` (status done, parent doing) was
+    # reported on the first fleet measurement. Scope by folder, not by filename shape.
+    if path.parent.name != type_name and path.name not in ("00-index.md", "00-overview.md"):
+        return None
+    if fm and fm.get("status") in TERMINAL_STATUSES:
+        return Finding(type_name, str(path), "archive-status-terminal", "warning",
+                       f"status={fm['status']!r} but still in the active folder — D-10 "
+                       f"archives on close, with no delay; move it to _archive/ so inbound "
+                       f"<type>/<filename> references keep resolving")
+    return None
+
 BACKLOG_PLACEHOLDER_RE = re.compile(r"<!--\s*(?:Why is this worth doing|concrete, verifiable criterion)")
 
 def check_backlog_placeholder_body(path: Path, text: str) -> Finding | None:
@@ -1431,6 +1478,9 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             af = check_archive_status_open(type_name, path, fm)
             if af:
                 file_findings.append(af)
+            tf = check_archive_status_terminal(type_name, path, fm)
+            if tf:
+                file_findings.append(tf)
             if type_name == "backlog":
                 bf = check_backlog_priority(path, fm)
                 if bf:

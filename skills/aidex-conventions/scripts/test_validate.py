@@ -962,6 +962,58 @@ def check_archive_status_open_unit(failures: list[str]) -> None:
         failures.append("archive-status-open unit: non-archive-bearing type warned")
 
 
+def check_archive_status_terminal_unit(failures: list[str]) -> None:
+    """Direct cells for check_archive_status_terminal — the OUTBOUND half of D-10.
+
+    `check_archive_status_open` catches archived-but-active. Nothing caught the
+    direction that actually costs: terminal but never archived. `triage.sh` ran this
+    predicate for `backlog/` only, so plans, requests, decisions and loops had no
+    detector at all and the human was the one who noticed, on three separate days.
+
+    The false-positive cells are the load-bearing ones. A naive predicate scored 45% FP
+    fleet-wide, which would have made this the third retired notifier. With the
+    exemptions below it scored 30/30 real on the same corpus (measured 2026-09-07).
+    """
+    v = _load_validator()
+    def result(type_name: str, p: str, fm: dict | None):
+        return v.check_archive_status_terminal(type_name, Path(p), fm)
+
+    # fires: terminal artifact still in the active folder, in each archive-bearing type
+    for tn, path, st in (("backlog", ".context/backlog/2026-01-01-bl-001-x.md", "done"),
+                         ("plans", ".context/plans/2026-01-01-x.md", "done"),
+                         ("requests", ".context/requests/2026-01-01-x.md", "dropped"),
+                         ("decisions", ".context/decisions/2026-01-01-x.md", "superseded"),
+                         ("loops", ".context/loops/2026-01-01-x.md", "done")):
+        if result(tn, path, {"status": st}) is None:
+            failures.append(f"archive-status-terminal unit: {tn} status={st} in the active folder did not warn")
+    # a finished modular plan folder DOES fire, through its index — the folder moves as a unit
+    if result("plans", ".context/plans/2026-01-01-modular/00-index.md", {"status": "done"}) is None:
+        failures.append("archive-status-terminal unit: a done modular plan's 00-index.md did not warn")
+
+    # --- silent: the exemptions that keep the check shippable ---
+    if result("backlog", ".context/backlog/_archive/2026-01-01-x.md", {"status": "done"}) is not None:
+        failures.append("archive-status-terminal unit: an already-archived item warned")
+    if result("backlog", ".context/backlog/_deferred/2026-01-01-x.md", {"status": "dropped"}) is not None:
+        failures.append("archive-status-terminal unit: a deferred item warned")
+    if result("backlog", ".context/backlog/2026-01-01-x.md", {"status": "open"}) is not None:
+        failures.append("archive-status-terminal unit: an open item warned")
+    # a finished PHASE inside a running plan is correct, not drift — the biggest FP source
+    if result("plans", ".context/plans/2026-01-01-modular/03-phase.md", {"status": "done"}) is not None:
+        failures.append("archive-status-terminal unit: a done phase file inside a plan folder warned")
+    # and neither is a dated COMPANION inside one, which is_subdocument does not cover:
+    # plans/<open plan>/2026-05-14-session-handoff.md, status done, parent doing — a real
+    # false positive caught on the first fleet measurement, before the scope was folder-based
+    if result("plans", ".context/plans/2026-01-01-modular/2026-05-14-session-handoff.md",
+              {"status": "done"}) is not None:
+        failures.append("archive-status-terminal unit: a dated companion inside a plan folder warned")
+    if result("backlog", ".context/backlog/00-index.md", {"status": "done"}) is not None:
+        failures.append("archive-status-terminal unit: the auto-generated aggregator index warned")
+    if result("loops", ".context/loops/x-STATE.md", {"status": "done"}) is not None:
+        failures.append("archive-status-terminal unit: a loop STATE sidecar warned")
+    if result("references", ".context/references/x/01-x.md", {"status": "done"}) is not None:
+        failures.append("archive-status-terminal unit: a non-archive-bearing type warned")
+
+
 def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
     """Direct cells for check_backlog_placeholder_body (Phase 4): an active entry
     still carrying a register-template placeholder comment warns; a filled-in entry
@@ -1306,6 +1358,7 @@ def main() -> int:
     check_ignored_visible_in_plain(failures)
     check_body_language_unit(failures)
     check_archive_status_open_unit(failures)
+    check_archive_status_terminal_unit(failures)
     check_backlog_placeholder_body_unit(failures)
     check_backlog_type_unit(failures)
     check_backlog_priority_unit(failures)
