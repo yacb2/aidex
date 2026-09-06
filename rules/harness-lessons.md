@@ -16,19 +16,15 @@ here — the mechanism is the memory.
 - `/code-review` agents have full tool access and **do write to the working tree**, then
   report their own edit as your defect — commit before launching one, and pass an explicit
   `<base>..<tip>` sha range, never `..HEAD` (from a worktree it inverts).
-- One failing call **cancels the entire parallel tool batch** — Writes, Edits and commits
-  in it silently do not apply. After any `Cancelled:` result, re-verify with `git status`.
-- The harness replaces any `local@domain` literal in **your tool inputs** (Bash and file
-  content alike) with a redaction string; stdout is untouched. Derive addresses from data
-  at runtime instead of typing them.
+- A rejection by the user (Esc, or denying the permission prompt) **cancels the entire
+  parallel tool batch** — Writes, Edits and commits in it silently do not apply. A deny
+  rule or a non-zero exit does not. After any `Cancelled:` result, re-verify with `git status`.
 - `total_cost_usd` is computed locally at API list rates — not a charge, and subscription
   work is not metered. Report probe runs in tokens against quota.
-- Never put `model:` in command front-matter — it inherits the parent's 1M variant and
-  throttles. Pass `model:` to the Agent tool instead.
-- A repo that ships an installer is installed **by running it**. Symlinking its working
-  tree into `~/.claude/skills` makes branch state live and has no doctor watching it.
 - Two sessions on one workspace share the same git working tree: `checkout`, `stash` and
   `branch` are global per repo and move the other session's view. Warn, restore the
   original branch, and never touch or commit changes that are not yours.
 - Two `chrome-devtools` traps — a suppressed native file picker, and a profile lock held
   by the previous session's stack — are in `fix-chrome-devtools/references/session-and-picker.md`.
+- `~/.claude/projects/` dirs start with `-`, so a shell glob like `*/*.jsonl` hands `grep`
+  arguments it parses as options: empty result, exit 0. Use `grep -- <glob>` or the Grep tool.
