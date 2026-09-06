@@ -726,30 +726,61 @@ to verify it. Two layers now exist, and they are not interchangeable:
   unreadable.
 
 ```js
-// Every <text> box, pairwise intersections, clipping against its <svg>, and
-// every path/line sampled against the text boxes. Returns the defects only.
+// Every <text> box, pairwise intersections, clipping against its <svg>, every path
+// sampled against the text boxes, and every path sampled against the NODE boxes it
+// does not connect. A label sitting on its own edge over a mask rect is legible and
+// is not reported (BL-315); the same label over a different edge is. Returns the
+// defects only; an empty array is the pass.
 () => {
   const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const within = (q, r, pad = 0) => q.x > r.left + pad && q.x < r.right - pad && q.y > r.top + pad && q.y < r.bottom - pad;
   const out = [];
   document.querySelectorAll('svg').forEach((svg, n) => {
-    const frame = svg.getBoundingClientRect();
-    const texts = [...svg.querySelectorAll('text')].map(t => ({ t, r: t.getBoundingClientRect() }));
+    if (svg.closest('defs') || svg.getBoundingClientRect().width < 200) return;
+    const frame = svg.getBoundingClientRect(), m = svg.getScreenCTM();
+    const label = (t) => `'${t.textContent.trim()}'`;
+    const texts = [...svg.querySelectorAll('text')].filter(t => t.textContent.trim()).map(t => ({ t, r: t.getBoundingClientRect() }));
+    const paths = [...svg.querySelectorAll('path, line, polyline')]
+      .filter(p => typeof p.getTotalLength === 'function' && !p.closest('defs, marker, pattern, clipPath') && p.getTotalLength() >= 20);
+    const pts = (p, step) => { const out = [], len = p.getTotalLength(); for (let d = 0; d <= len; d += step) out.push(p.getPointAtLength(d).matrixTransform(m)); return out; };
+    const order = new Map(); { let i = 0; const w = document.createTreeWalker(svg, 1); while (w.nextNode()) order.set(w.currentNode, i++); }
+    // 1. clipped labels
     texts.forEach(({ t, r }) => {
       if (r.left < frame.left - 1 || r.right > frame.right + 1 || r.top < frame.top - 1 || r.bottom > frame.bottom + 1)
-        out.push(`svg #${n + 1}: '${t.textContent.trim()}' is clipped by its svg`);
+        out.push(`svg #${n + 1}: ${label(t)} is clipped by its svg`);
     });
+    // 2. label vs label
     for (let i = 0; i < texts.length; i++)
       for (let j = i + 1; j < texts.length; j++)
-        if (hit(texts[i].r, texts[j].r))
-          out.push(`svg #${n + 1}: '${texts[i].t.textContent.trim()}' overlaps '${texts[j].t.textContent.trim()}'`);
-    svg.querySelectorAll('path, line, polyline').forEach(p => {
-      if (typeof p.getTotalLength !== 'function') return;
-      const len = p.getTotalLength(); if (!len) return;
-      const m = svg.getScreenCTM();
-      for (let d = 0; d <= len; d += 4) {
-        const q = p.getPointAtLength(d).matrixTransform(m);
-        const t = texts.find(({ r }) => q.x > r.left && q.x < r.right && q.y > r.top && q.y < r.bottom);
-        if (t) { out.push(`svg #${n + 1}: a path crosses '${t.t.textContent.trim()}'`); break; }
+        if (hit(texts[i].r, texts[j].r)) out.push(`svg #${n + 1}: ${label(texts[i].t)} overlaps ${label(texts[j].t)}`);
+    // 3. path vs label — a mask rect painted between the path and the label hides the
+    //    line, and that is fine when the path is the label's own edge (the nearest one)
+    const rects = [...svg.querySelectorAll('rect')].map(r => ({ b: r.getBoundingClientRect(), o: order.get(r) }));
+    const own = new Map(texts.map(t => {
+      const cx = (t.r.left + t.r.right) / 2, cy = (t.r.top + t.r.bottom) / 2; let best = null, bd = Infinity;
+      paths.forEach(p => pts(p, 6).forEach(q => { const d = Math.hypot(q.x - cx, q.y - cy); if (d < bd) { bd = d; best = p; } }));
+      return [t, best];
+    }));
+    paths.forEach(p => {
+      const masked = (t) => rects.some(({ b, o }) => o > order.get(p) && b.left <= t.r.left + 1 && b.right >= t.r.right - 1 && b.top <= t.r.top + 1 && b.bottom >= t.r.bottom - 1 && b.width < t.r.width + 40 && b.height < t.r.height + 24);
+      for (const q of pts(p, 4)) {
+        const t = texts.find(({ r }) => within(q, r));
+        if (!t) continue;
+        if (masked(t) && own.get(t) === p) break;
+        out.push(masked(t) ? `svg #${n + 1}: label ${label(t.t)} masks another route` : `svg #${n + 1}: a path crosses ${label(t.t)}`);
+        break;
+      }
+    });
+    // 4. path through a node box it does not connect (a node box holds a text and is
+    //    clearly larger than it; a label mask is not a node)
+    const boxes = [...svg.querySelectorAll('rect, ellipse, polygon')].map(b => ({ b, r: b.getBoundingClientRect() }))
+      .filter(({ r }) => r.width >= 40 && r.height >= 18 && r.width < frame.width * 0.9)
+      .filter(({ r }) => texts.some(t => t.r.left >= r.left - 1 && t.r.right <= r.right + 1 && t.r.top >= r.top - 1 && t.r.bottom <= r.bottom + 1 && (r.height > t.r.height * 1.8 || r.width > t.r.width + 40)));
+    paths.forEach(p => {
+      const s = pts(p, 4), a = s[0], z = s[s.length - 1];
+      for (const { b, r } of boxes) {
+        if (b.contains(p) || p.contains(b) || within(a, r, -6) || within(z, r, -6)) continue;
+        if (s.filter(q => within(q, r, 3)).length >= 3) { out.push(`svg #${n + 1}: a path runs through a box it does not connect`); break; }
       }
     });
   });
@@ -759,6 +790,28 @@ to verify it. Two layers now exist, and they are not interchangeable:
 
 An empty array is the pass. Anything else is moved before the wrap, not waived: a
 label the reader cannot read is the figure not existing.
+
+Two of its checks come from measuring other compilers' output on 2026-09-06
+(`.context/proofs/archify-probe/` in the aidex workspace), and each names the case that
+made it necessary:
+
+- **A label on its own edge over a mask is not a crossing.** Archify and Mermaid both
+  place edge labels on the edge with a background rect; the first version of this script
+  reported every one of them as "a path crosses", 2 false positives on a figure with 0
+  real ones (BL-315). The exemption is narrow on purpose: the mask must sit between the
+  path and the label in paint order, and the path must be the label's nearest edge. The
+  same label over a *different* route is still reported, because a mask there hides a
+  line the reader needed to follow (Mermaid did exactly that on the lifecycle spec).
+- **An edge through a node it does not connect.** Archify's `clean-flow/edge-through-node`
+  rule, re-implemented on rendered geometry: a path with three or more samples inside a
+  node box that holds neither of its ends. A node box is a rect that contains a text and
+  is clearly larger than it, so label masks and lane frames do not count. Without this,
+  Archify's own lifecycle output passed the script with a transition drawn straight
+  through a state box.
+
+The same function runs headless in
+`.context/proofs/archify-probe/bench/measure.mjs` (Playwright) for benches and CI-shaped
+checks; the DevTools MCP remains the authoring-time instrument.
 
 `consult-ids` needs both versions, so `--out` compares against the last version that
 **passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A file
