@@ -48,7 +48,20 @@ ROOT="$(find_project_root)"
 DIR="$ROOT/.context/$TYPE"
 [[ -d "$DIR" ]] || die "no $TYPE/ directory at $DIR"
 
-if [[ -f "$ARG" ]]; then file="$ARG"; else file="$(ls "$DIR/"*"$ARG"*.md 2>/dev/null | head -1 || true)"; fi
+# Accept a path, a full filename, or a fragment. The glob was `*"$ARG"*.md`, so the
+# ONE form a caller naturally reaches for — the exact filename, which is what every
+# error message and every listing prints — expanded to `*<name>.md*.md` and matched
+# nothing, while a fragment worked. Same shape as the documented-invocation failures
+# this suite keeps finding (extract.py's bare `--cursor`, mine_errors' plain `--since`):
+# the path a reader is most likely to type is the one nobody tested.
+if [[ -f "$ARG" ]]; then
+  file="$ARG"
+elif [[ -f "$DIR/$ARG" ]]; then
+  file="$DIR/$ARG"
+else
+  base="${ARG%.md}"
+  file="$(ls "$DIR/"*"$base"*.md 2>/dev/null | head -1 || true)"
+fi
 [[ -n "${file:-}" && -f "$file" ]] || die "$TYPE artifact not found: $ARG"
 case "$file" in */_archive/*) die "already archived: $file" ;; esac
 
