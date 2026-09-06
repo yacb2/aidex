@@ -45,4 +45,24 @@ bash "$SCRIPT" requests no-such-slug >/dev/null 2>&1 && fail "not-found should e
 bash "$SCRIPT" requests export-feature >/dev/null 2>&1 && fail "double close should fail (already archived / not found in active)"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
+
+# --- the EXACT filename resolves, not only a fragment -----------------------
+# The lookup was `ls "$DIR/"*"$ARG"*.md`, so passing the full filename — the form every
+# error message and every directory listing prints — expanded to `*<name>.md*.md` and
+# matched nothing. Field-hit 2026-09-07 while closing a superseded ADR by the name the
+# validator had just printed.
+mk ".context/decisions/2026-02-02-exact-name.md" accepted
+bash "$SCRIPT" decisions 2026-02-02-exact-name.md --status superseded \
+  --superseded-by decision/2026-02-03-other.md >/dev/null 2>&1
+[[ -f ".context/decisions/_archive/2026-02-02-exact-name.md" ]] \
+  || fail "the exact filename did not resolve — the glob was *\$ARG*.md, so <name>.md matched nothing"
+
+# The gate. Without it this file ended on an unconditional `echo`, so it printed OK and
+# exited 0 with failures on screen — a suite that cannot fail, which is worse than no
+# suite because the sweep that runs it reports green. Found 2026-09-07 while adding the
+# exact-filename cell above: the FAIL line printed and the run still passed.
+if [[ "$failures" -gt 0 ]]; then
+  printf '\n%d check(s) failed\n' "$failures"
+  exit 1
+fi
 echo "OK — request/decision close, superseded back-ref, refusals"
