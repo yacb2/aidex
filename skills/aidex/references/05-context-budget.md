@@ -1,26 +1,47 @@
 # Context Budget Audit
 
-Heuristics for diagnosing a bloated initial `/context` footprint in Claude Code sessions. Complements the per-domain checks (skills, MEMORY.md, CLAUDE.md) with a **cross-domain cost analysis** that treats the 200k context window as a budget.
+Heuristics for diagnosing a bloated idle footprint in Claude Code sessions. Complements the per-domain checks (skills, MEMORY.md, CLAUDE.md) with a **cross-domain cost analysis** over the measured snapshot.
 
 ## When to run
 
-- Project opens at >20% context used (>40k tokens) before any user message.
-- User pastes `/context` output asking "why is this so heavy?".
-- User mentions "bloated context", "initial tokens", "wasted budget".
+- Project opens above the idle ceiling below before any user message.
+- User asks "why is this so heavy?", mentions "bloated context", "initial tokens", "wasted budget".
+
+The numbers come from the snapshot (`scripts/context-snapshot.py`, see
+`01-context-audit.md` § Inputs): Claude Code's own `/context` and `/skill-doctor`, run
+in the project cwd. Nothing below is estimated from file sizes.
 
 ## Budget targets (reference)
+
+Absolute tokens. The window is what `/context` reports (1M on 2.1.263); a percentage of
+it says nothing about cost, since the idle footprint is paid on every turn regardless.
 
 | Category | Soft target | Hard ceiling | Notes |
 |---|---:|---:|---|
 | System prompt | ~10k | — | Not tunable |
 | System tools | ~10k | — | Not tunable |
-| Memory files | <8k | 12k | CLAUDE.md (global + project) + MEMORY.md + rules |
-| Skills | <6k | 10k | Metadata only; bodies load on demand |
-| Custom agents | <1k | 4k | Plugin subagents always loaded |
-| MCP tools | 0 at idle | 4k | Deferred servers cost ~0 until a tool is searched for; a resident server pays its whole schema every session |
+| Memory files | <8k | 12k | CLAUDE.md (global + project) + MEMORY.md + rules — per-file tokens in `memory_files[]` |
+| Skills | <6k | 10k | Listing lines only; bodies load on demand — per-skill tokens in `skills{}` |
+| Custom agents | <1k | 4k | Plugin subagents always loaded — measured row, not N × constant |
+| MCP tools | 0 at idle | 4k | Deferred servers cost ~0 until a tool is searched for; a resident server pays its whole schema every session — per-tool tokens in `mcp_tools[]` |
 | **Total idle** | **<30k** | **45k** | Everything before first user message |
 
 Breaching a hard ceiling → CRITICAL. Between soft and hard → WARNING.
+
+## Usage is evidence, never a driver
+
+`/skill-doctor` adds `uses`, `last used` and `7d tokens` per skill. Two rules:
+
+- **Usage may only downgrade a proposal, never generate one.** A skill with zero uses is
+  not a demote candidate by itself: `aidex-conventions` is non-invocable by design and
+  will always read as never used; `aidex-decision` fires a few times a month and is
+  correct every time. Demoting needs a stack exclusion (`CB-SR`) or a duplication
+  (`CB-DU`) *and* no use — the usage column is what turns a WARNING into an INFO when
+  the skill is in fact used. The suite's measured degradation mechanism on Claude 5 is
+  conflict between skills, not the length of the listing.
+- **`7d tokens` never ranks anything.** It is the token volume of the turns run under a
+  skill, not the skill's overhead: `aidex-plan-exec` at 399M reflects long sessions, not
+  a heavy skill. Report it if asked; leave it out of every savings list.
 
 ## Two remedies, not one: remove and defer
 
@@ -68,11 +89,10 @@ it if its tools were not wanted at all.
 
 ### 1. Plugins with always-loaded subagents
 
-Each `agents/*.md` inside an installed plugin costs ~500–700 tokens of metadata loaded on every session, regardless of whether the plugin's commands are invoked.
+Each `agents/*.md` inside an installed plugin is loaded on every session, regardless of whether the plugin's commands are invoked. The cost is the snapshot's `custom-agents` row — measured, not modelled: on 2.1.263 the vercel plugin's 3 agents cost 320 tokens together, where the old N × 600 heuristic would have said 1,800.
 
-- Count files matching `~/.claude/plugins/cache/*/*/*/agents/*.md` grouped by plugin.
-- Plugin with N agents ≈ N × 600 tokens fixed cost.
-- Candidate for uninstall if: N ≥ 3 **AND** no invocation of the plugin's commands in the last 30 days of transcripts (`~/.claude/projects/*/*.jsonl`).
+- Attribute the row to plugins by counting `~/.claude/plugins/cache/*/*/*/agents/*.md` per plugin; the count decides the share, the snapshot decides the total.
+- Candidate for per-project disable if: it carries the row **AND** its skills show no use in `/skill-doctor` (`uses` 0 / `last used` never) **AND** the project's stack does not want them.
 - Built-in skills like `/simplify` are harness-level (0 tokens extra) — do not confuse with homonymous plugin subagents (e.g., `pr-review-toolkit`'s `code-simplifier`).
 
 ### 2. User↔project skill duplication
@@ -123,21 +143,6 @@ A skill loaded globally but unused for the current project stack still pays meta
 - Detect project stack from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `docker-compose.yml`, and the project's `CLAUDE.md` Tech Stack section as a tiebreaker.
 - For each global skill in `~/.claude/skills/` whose domain doesn't match the stack, propose a per-project `skillOverrides` patch in `<project>/.claude/settings.local.json` (`name-only` for cross-cutting plausible skills; `off` when categorically excluded). The skill stays installed, just silenced for this project. See `skills-auditor` for the full decision matrix.
 
-## Parsing `/context` output
-
-The user typically pastes the breakdown table from the `/context` command. Expected lines look like:
-
-```
-⎿ System prompt: 9,567 tokens (4.8%)
-⎿ System tools: 9,612 tokens (4.8%)
-⎿ Memory files: 12,134 tokens (6.1%)
-⎿ Custom agents: 3,923 tokens (2.0%)
-⎿ MCP tools: 0 tokens
-⎿ Messages: ...
-```
-
-Extract per-category token counts with a tolerant regex (tokens may appear with or without commas; label text varies between Claude Code versions). If a file path is given instead of pasted text, read the file.
-
 ## Output shape
 
 The analyzer should produce:
@@ -171,11 +176,11 @@ same driver, propose the deferral and name the removal as the fallback — never
 A suggestion list that only ever says "remove" is the failure this section exists to
 prevent.
 
-Check codes: `CB-PL` plugin cost, `CB-DU` skill duplication, `CB-MD` memory docs, `CB-CM` CLAUDE.md verbosity, `CB-RF` rules fragmentation, `CB-SR` stack relevance.
+Check codes: `CB-PL` plugin cost, `CB-DU` skill duplication, `CB-MD` memory docs, `CB-CM` CLAUDE.md verbosity, `CB-RF` rules fragmentation, `CB-SR` stack relevance. `CB-SKILL-DESC-RESIDENT` was retired on 2026-09-06 (BL-312): it estimated a listing cost `/context` now measures per skill.
 
 ## Validation case
 
-The heuristics were calibrated against a real session (`ns_backoffice_ws`, 2026-04-20) with a 22% idle footprint:
+The heuristics were calibrated against a real session (`ns_backoffice_ws`, 2026-04-20) with a ~44k idle footprint, when every number below was still an estimate — the snapshot now measures them:
 
 - `pr-review-toolkit` plugin: 6 agents × ~600 = ~3.6k tokens, zero recent use → CB-PL CRITICAL.
 - MEMORY.md "Key Patterns & Gotchas" entry carrying ~450 words of content instead of a ~25-word hook → CB-MD CRITICAL, move to `.context/references/`.

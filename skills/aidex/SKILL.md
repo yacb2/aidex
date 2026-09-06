@@ -24,16 +24,17 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
 | **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
 | **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups belong in `~/.claude/aidex/backups/`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
-| **Context budget** | Session `/context` output | Idle token cost attribution across skills, MEMORY, CLAUDE.md, plugins, rules |
+| **Context budget** | `scripts/context-snapshot.py` — Claude Code's own `/context` + `/skill-doctor` via `claude -p`, zero tokens | Measured idle cost per category, memory file, skill and MCP tool, plus per-skill usage |
 
 ---
 
 ## Sub-action: `/aidex context`
 
-Focused audit of the session's **idle token footprint** (everything loaded before the user
-types anything). Fires when the user pastes `/context` output and asks why it is heavy,
-reports a project opening at >20% context used, or asks to reduce initial tokens or audit
-plugins.
+Focused audit of the project's **idle token footprint** (everything loaded before the user
+types anything), measured by `scripts/context-snapshot.py` — Claude Code's own `/context`
+and `/skill-doctor` run through `claude -p` in the project cwd, no model call. Fires when
+the user asks why a project opens heavy, wants to reduce initial tokens, or asks to audit
+plugins; a pasted `/context` from a live session is the fallback input.
 
 **Read `~/.claude/skills/aidex/references/01-context-audit.md` and follow it.** It is the
 whole procedure: the inputs, the 5-step flow (including which four agents launch in
@@ -154,7 +155,7 @@ Read each agent's instructions from `~/.claude/skills/aidex/agents/` and pass th
 | [memory-auditor](agents/memory-auditor.md) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
 | [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | low | Read, Glob, Grep, Bash, WebFetch |
 | [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | low | Read, Glob, Grep, Bash |
-| [context-cost-analyzer](agents/context-cost-analyzer.md) | User ran `/aidex context` or pasted `/context` output | haiku | low | Read, Glob, Grep, Bash |
+| [context-cost-analyzer](agents/context-cost-analyzer.md) | `/aidex context` — after `scripts/context-snapshot.py` has written the snapshot | haiku | low | Read, Glob, Grep, Bash |
 
 **Model, effort and tools are set here, not in the agent files.** These agents are launched
 by reading their `.md` as a *prompt* (above) — they are not registered agent definitions, so
@@ -181,7 +182,7 @@ Also check inline (no subagent needed):
 Collect all subagent reports. Produce unified report split into two top-level findings sections — **structural cleanup** (safe, mechanical fixes) vs **token savings** (toggle-preferred, reversible config). Each finding goes into one or the other based on its check code:
 
 - **Structural cleanup** — codes WITHOUT `CB-` / `PL-SCHEMA` prefix: `[A]–[F]`, `[PA]–[PD]`, `[IA]–[ID]`, `[RA]–[RC]`, `[QA]–[QB]`, `[DA]–[DD]`, `[UA]–[UH]`, `[CV-*]` (from `conventions-auditor`), `[AG]`, `[AH]`, `[AI]`, `[F1]–[F6]`, `[V1]`, freshness, broken symlinks, missing indexes, pluralized names, anti-patterns. These are mechanical and reversible by editing one file at a time. `[CV-*]` findings are deterministic (produced by `validate.py`) — prefer them over heuristic codes when they overlap on the same file.
-- **Token savings** — codes WITH `CB-` prefix (`CB-PL`, `CB-SR`, `CB-DU`, `CB-MD`, `CB-CM`, `CB-SKILL-DESC-RESIDENT`) and `PL-SCHEMA`. These suggest config toggles (`enabledPlugins: false`, `skillOverrides: name-only/off`, MEMORY trims, plugin manifest cleanup). Always **prefer toggle over uninstall/delete**.
+- **Token savings** — codes WITH `CB-` prefix (`CB-PL`, `CB-SR`, `CB-DU`, `CB-MD`, `CB-CM`, `CB-RF`) and `PL-SCHEMA`. These suggest config toggles (`enabledPlugins: false`, `skillOverrides: name-only/off`, MEMORY trims, plugin manifest cleanup). Always **prefer toggle over uninstall/delete**.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

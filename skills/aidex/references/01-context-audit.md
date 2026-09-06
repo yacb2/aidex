@@ -4,28 +4,47 @@ The full procedure for `/aidex context`.
 
 Focused audit of the session's **idle token footprint** (everything loaded before the user types anything). Use when the user:
 
-- Pastes `/context` output and asks why it's heavy.
+- Asks why a project opens heavy, or pastes `/context` output from a live session.
 - Reports a project opening at >20% context used.
 - Asks to "reduce initial tokens", "audit plugins", or "why does this waste so much context".
 
 ## Inputs
 
-- Pasted `/context` breakdown (text) OR path to a file containing it.
+- **The snapshot** — `python3 ~/.claude/skills/aidex/scripts/context-snapshot.py`, run in
+  the project cwd. It runs Claude Code's own `/context` and `/skill-doctor` through
+  `claude -p` (local commands: no model call, zero tokens, seconds) and writes
+  `_tmp/context-snapshot/<date>/snapshot.json` next to the raw reports. The cwd matters:
+  both commands honour `.claude/settings.local.json`, so the snapshot is *this project's*
+  idle footprint as Claude Code measures it.
+- **Fallback** — a pasted `/context` from a live session (`--from-context <file>`), for the
+  one thing a fresh `-p` session cannot show: what a long conversation is carrying now.
 - Current project path (to locate project CLAUDE.md, local skills, MEMORY.md).
+
+What the snapshot carries, and which agent reads it:
+
+| Field | Source | Read by |
+|---|---|---|
+| `categories`, `idle_tokens`, `window_tokens` | `/context` | `context-cost-analyzer` — budget classification |
+| `memory_files[]` tokens per CLAUDE.md, rule and MEMORY.md | `/context` | `context-cost-analyzer` — `CB-CM`, `CB-MD`, `CB-RF`, measured |
+| `skills{}` listing tokens, built-ins included | `/context` | `context-cost-analyzer` ranking; `skills-auditor` `CB-SR` |
+| `mcp_tools[]` tokens per tool | `/context` | `context-cost-analyzer` — resident vs deferred |
+| `categories['custom-agents']` | `/context` | `plugin-auditor` — `CB-PL`, measured |
+| `skills{}.uses / last_used / tokens_7d`, `usage_available` | `/skill-doctor` | `plugin-auditor`, `skills-auditor` — evidence only, see `05` § Usage |
+| `skill_doctor_notes` | `/skill-doctor` | the plugin-skill footer re-verifies `06`'s exemption row |
 
 ## Flow
 
 1. **Read the budget heuristics first:** `~/.claude/skills/aidex/references/05-context-budget.md`. It holds the idle-token budget thresholds, the cost drivers ranked by typical savings, and the `CB-*` codes the agents below emit — without it you cannot tell an expensive footprint from a normal one, and the synthesis in step 4 has nothing to rank against.
-2. **Parse** the breakdown inline (or defer to `context-cost-analyzer`). Surface idle total and per-category token counts immediately.
-3. **Launch in parallel** (single message, `run_in_background: true`):
-   - `context-cost-analyzer` — parses the breakdown, owns `CB-CM`, `CB-MD` and
-     `CB-SKILL-DESC-RESIDENT`, and ranks every driver into one savings list. It consumes the
-     three below rather than re-deriving them.
-   - `plugin-auditor` — owns `CB-PL`: plugin agent cost vs. recent usage.
+2. **Take the snapshot.** Run `context-snapshot.py` (or `--from-context` on the pasted report). Surface idle total and per-category token counts immediately, from the JSON — nothing is estimated from file sizes any more. If `usage_available` is false (HIPAA or telemetry off), say so once and continue: cost is complete, usage is absent.
+3. **Launch in parallel** (single message, `run_in_background: true`), each with the snapshot path:
+   - `context-cost-analyzer` — classifies the categories, owns `CB-CM`, `CB-MD` and
+     `CB-RF` from the measured per-file tokens, and ranks every driver into one savings
+     list. It consumes the three below rather than re-deriving them.
+   - `plugin-auditor` — owns `CB-PL`: the measured custom-agents cost attributed to its plugin, against usage.
    - `skills-auditor` — owns `CB-DU` (user↔project duplication) and `CB-SR` (stack relevance).
    - `memory-auditor` — reads the memory *files* and returns one verdict each; the index
      (`MEMORY.md`) is `context-cost-analyzer`'s `CB-MD`.
-4. **Synthesize** a single report ordered by **estimated token savings descending**, annotating each with risk (low/medium/high).
+4. **Synthesize** a single report ordered by **measured token savings descending**, annotating each with risk (low/medium/high).
 5. **Never auto-execute during the audit itself.** The audit reports; it does not mutate. Present runnable commands (`claude plugin uninstall ...`, `rm ...`, edit proposals) as proposals. Execution belongs to the apply phase below, and only once the user has picked from its menu.
 
 ## Apply phase (optional)
