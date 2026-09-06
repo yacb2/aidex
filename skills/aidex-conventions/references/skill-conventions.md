@@ -410,6 +410,21 @@ Focus on information that pushes Claude out of its default behavior. Don't dupli
 
 Challenge every paragraph: "Does Claude really need this?" Default assumption: Claude is already very smart.
 
+### Prompt audit on every model change
+
+Instructions accumulate for the model that was current when they were written: emphasis
+added because it under-triggered, a step script because it planned poorly, a guard for a
+failure the next generation no longer has. Current models follow such text literally, so
+dated lines cost tokens and steer behaviour. Whenever the model in daily use changes
+generation, or the per-model `effortLevel` in `~/.claude/settings.json` is retuned, run
+Anthropic's `/claude-api prompt-audit` over `skills/` and `rules/`, naming the new model
+as the target. Do not copy its checklist here: Anthropic revises it per generation, and a
+local copy drifts. The question that produced the real findings last time is its Step 2,
+asked per line: which failure, on which model, did this prevent, and does it still
+reproduce? The report lands in `.context/research/`, the accepted hunks in one backlog
+sweep. Cost is sub-agent tokens, roughly 100k to 200k per skill, so the cadence is per
+model generation, never per release.
+
 ### What a shipped rule may cite from `.context/`
 
 A skill ships to every machine; the aidex repo's `.context/` does not. Two kinds of
