@@ -26,5 +26,9 @@ here — the mechanism is the memory.
   original branch, and never touch or commit changes that are not yours.
 - Two `chrome-devtools` traps — a suppressed native file picker, and a profile lock held
   by the previous session's stack — are in `fix-chrome-devtools/references/session-and-picker.md`.
+- In **auto mode** an allow rule broad enough to grant arbitrary code execution (`python:*`,
+  `Bash(python3 -)`) is **set aside, not honoured** — the classifier decides instead. Settings
+  are unmodified and the rule returns in any other mode, so a denial there cannot be fixed by
+  widening the rule.
 - `~/.claude/projects/` dirs start with `-`, so a shell glob like `*/*.jsonl` hands `grep`
   arguments it parses as options: empty result, exit 0. Use `grep -- <glob>` or the Grep tool.

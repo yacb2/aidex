@@ -6,6 +6,21 @@
 session and its output is in the reply. A remembered or cached result is not evidence;
 neither is "should work" or "looks correct".
 
+## Verification you could run is not the human's to do
+
+Before handing work over, smoke-test everything a machine can check — browser automation,
+emulated viewport, a seeded request — and hand over only what genuinely needs eyes, with
+the machine-checked part listed as done and its evidence attached. **The human must never
+be the first to find a broken click.** A hand-back item written for something you could
+have proven is a defect, not a checklist.
+
+This rule governs claims you *make*; that one governs work you *delegate*, and the two
+fail separately. The full canon — the four moves, and what a human-only check looks
+like — is `aidex-conventions/references/human-verification-conventions.md`. It is carried
+today only by plan-exec close-out, aidex-bugfix step 8 and the backlog sweep, so an
+interactive session reaches no gate at all: measured 2026-09-07, none of the 28 sessions
+where this was re-dictated had fired any of the three.
+
 ## NEVER (destructive verification)
 
 - **Never run a delete to test it.** A `prune --filter` whose filter silently fails to
