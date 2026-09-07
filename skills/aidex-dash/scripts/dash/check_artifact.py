@@ -422,9 +422,18 @@ def facts_paragraphs(body):
             continue
         inner = m.group(2)
         codes = len(re.findall(r'<code\b', inner, re.I))
-        clauses = inner.count(';') + 1 if ';' in inner else 1
+        # BL-324: on the DECODED text. `;` is the clause separator and it is
+        # also the last character of every character entity, so a Spanish page
+        # written with `&iacute;` read as prose it never contained: one
+        # paragraph with a single real semicolon and five accents was reported
+        # as seven clauses, and twelve warnings fired on a page whose English
+        # original fired none. Rewriting the accents as literal UTF-8 cleared
+        # all twelve without touching a sentence — the check was measuring the
+        # encoding. Tags are stripped first, or an attribute's own `;` counts.
+        prose = _html.unescape(re.sub(r'<[^>]+>', ' ', inner))
+        clauses = prose.count(';') + 1 if ';' in prose else 1
         if codes >= FACTS_MIN or clauses >= FACTS_MIN:
-            excerpt = ' '.join(re.sub(r'<[^>]+>', '', inner).split())
+            excerpt = ' '.join(prose.split())
             out.append((codes, clauses, excerpt[:60]))
     return out
 
@@ -1009,9 +1018,17 @@ ID_ATTR = re.compile(r'\bdata-(id|title)\s*=\s*'
 
 
 def _norm_title(s):
-    """A retyped title must not read as a moved claim: collapse whitespace,
-    drop accents and case. Only a genuinely different claim behind a kept id
-    fails."""
+    """A retyped title must not read as a moved claim: decode entities, collapse
+    whitespace, drop accents and case. Only a genuinely different claim behind a
+    kept id fails.
+
+    BL-324: the decode is first and it is load-bearing. `data-title` is read out
+    of raw source, so the same Spanish title written `para qui&eacute;n` in one
+    version and `para quién` in the next compared unequal — seven ids on one
+    page reported as "reused for a different claim", same language, same words.
+    Accent-folding alone does not fix it: `&eacute;` is five ASCII characters,
+    and there is no combining mark to strip."""
+    s = _html.unescape(s)
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     return " ".join(s.split()).casefold()
