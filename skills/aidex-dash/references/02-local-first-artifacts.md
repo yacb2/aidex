@@ -753,6 +753,52 @@ on a page nobody is editing is noise no one can clear.
 
 The first two shipped on the same page in one round, and both passed everything above.
 
+### An embedded `<style>` is a stylesheet in the PAGE, not in the figure
+
+This is the one SVG fact that costs a whole page rather than a figure. An `<svg>`'s
+`<style>` element is **not scoped to that SVG**. It is a stylesheet in the document, so a
+bare `text { fill: #1F2937 }` written inside one figure matches every `<text>` on the
+page, and the last such block in source order wins.
+
+Reported on 2026-09-07 on a bench page carrying 26 figures: ten of them shipped that
+exact rule, and one piece of *evidence* was painting the page's own lead figure. Its
+computed fill was a slate blue that appears nowhere in the kit, at 1.15:1 against the dark
+ground. **Every gate was green** — `check-artifact.sh` looked at overlap, clipping and
+edges; the DevTools script looked at geometry; the author eyeballed the bars and not the
+small text. Twenty-six of twenty-six figures were below 4.5:1 and nothing said so.
+
+**The rule.** Every selector inside an embedded `<style>` is scoped to the figure's own
+id: `#fig-census text { … }`, never `text { … }`. `svg-scope` warns on a bare element
+selector, and the warning is cleared by scoping it, not by a waiver.
+
+**And the colour itself.** `svg-contrast` measures every `<text>` whose fill it can read
+against what it is painted on, in **both themes**, against 4.5:1. Three things about it
+are deliberate:
+
+| | |
+|---|---|
+| It refuses to guess | `currentColor`, a gradient, a `var()` — the half of the pair it cannot read is counted as *unmeasurable* and reported as a count, never assumed to pass |
+| It carries its own denominator | every finding says how many text nodes it measured. A gate that silently measured nothing is green and indistinguishable from one that passed, which is how this defect survived three of them |
+| It judges against the box, when there is one | text over a `<rect>` the figure draws itself — or an HTML wrapper the page paints, `figure.cell.litebox .figbox` on the bench page — is measured against that, and is theme-independent |
+
+**No literal fill clears both themes.** Against the light ground a colour must be dark;
+against the dark ground it must be light, and the two bands do not overlap. So a
+hard-coded fill on the bare page ground always fails one theme — that is a finding, not a
+limitation of the check. Two answers, both used on the bench page's own fix: inherit with
+`fill: currentColor` (or a kit token), or draw the box the text sits on and let it carry
+the ground.
+
+**Calibrated against the browser, not asserted.** On the 26-figure bench page the
+checker reports 6 figures / 65 text nodes below the floor; DevTools, measuring the same
+page in dark, reports 9 figures / 61 nodes of 837. It is close because it reads the
+wrapper: before it did, the same page read 12 figures / 107. The 168 nodes it calls
+unmeasurable are the ones that resolve `currentColor` correctly — the answer, not a gap.
+
+The browser is still what settles it. The checker reads source; opacity, a filter, a
+gradient stop and anything painted by a rule outside the figure are all invisible to it.
+Measure in DevTools before calling a figure fine — the ratio, not the screenshot: the
+1.15 above looked merely dim in a capture.
+
 ### Figures: the checker estimates, the browser measures
 
 On 2026-09-03 a consultation passed `artifact contract OK` with two hand-authored
@@ -769,6 +815,8 @@ to verify it. Two layers now exist, and they are not interchangeable:
   text-vs-enclosing-rect. It cannot see a path crossing a label or a label under a
   `rotate()`, and it is ±5 % on width, so it warns and never fails. On the 2026-09-03
   census every warning it kept was confirmed in the browser; the browser found more.
+- **`svg-scope` and `svg-contrast` at wrap time** read what the geometry checks never
+  looked at: colour. Both warn, and both are explained below.
 - **The DevTools script at authoring time** measures the rendering and is the check that
   settles a figure. Run it through the Chrome DevTools MCP on the opened page, once per
   figure, before the wrap; a page whose figures were never measured is the one that ships

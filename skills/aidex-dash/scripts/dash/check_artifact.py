@@ -510,33 +510,39 @@ def svg_text_width(label, size, bold=False, mono=False):
     return w * size * (1.04 if bold else 1.0)
 
 
-def svg_geometry(svg, fonts=None):
-    """(texts, rects) for one <svg> body. texts: [(label, x0, y0, x1, y1)]
-    for every placeable <text>; rects: [(x0, y0, x1, y1)]. Inherits
-    font-size, text-anchor, font-weight and translate() through the
+def svg_geometry(svg, fonts=None, fills=None):
+    """(texts, rects) for one <svg> body. texts: [(label, x0, y0, x1, y1, fill)]
+    for every placeable <text>; rects: [(x0, y0, x1, y1, fill)]. Inherits
+    font-size, text-anchor, font-weight, fill and translate() through the
     container stack; a class rule from `fonts` fills what attributes leave
     unset. A label whose size no attribute or rule states is skipped, not
-    guessed at 16 px — that guess was the false-positive source."""
+    guessed at 16 px — that guess was the false-positive source.
+
+    `fill` is a literal colour or None (unset, `currentColor`, a gradient url,
+    a var()) — never a guess. BL-330: the contrast check refuses to invent the
+    half of a pair it cannot read, and counts those separately."""
     fonts = fonts or {}
+    fills = fills or {}
     fs, anchor, tx, ty, skip, bold = None, 'start', 0.0, 0.0, False, False
     mono = False
+    fill = None
     stack, texts, rects, cur = [], [], [], None
     for m in SVG_TAG.finditer(svg):
         closing, tag, raw, selfclosed = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
         if cur is not None:
             if closing and tag == 'text':
-                start, f, an, x, y, sk, b, mo = cur
+                start, f, an, x, y, sk, b, mo, fl = cur
                 label = ' '.join(_html.unescape(
                     re.sub(r'<[^>]+>', ' ', svg[start:m.start()])).split())
                 cur = None
                 if label and not sk and f is not None:
                     w = svg_text_width(label, f, b, mo)
                     x0 = {'middle': x - w / 2, 'end': x - w}.get(an, x)
-                    texts.append((label, x0, y - 0.8 * f, x0 + w, y + 0.25 * f))
+                    texts.append((label, x0, y - 0.8 * f, x0 + w, y + 0.25 * f, fl))
             continue
         if closing:
             if tag in SVG_CONTAINERS and stack:
-                fs, anchor, tx, ty, skip, bold, mono = stack.pop()
+                fs, anchor, tx, ty, skip, bold, mono, fill = stack.pop()
             continue
         d = _svg_attrs(raw)
         # attribute beats class rule beats inherited; `text` element rule
@@ -548,6 +554,22 @@ def svg_geometry(svg, fonts=None):
             nb, nmo = nb or cbold, nmo or cmono
         if tag == 'text' and nfs is None:
             nfs = fonts.get('text', (None, False, False))[0]
+        # Cascade, weakest first: an element rule, then a class rule, then the
+        # element's own attribute. SVG_UNREADABLE is a DECLARATION we cannot
+        # read (currentColor, a var(), a gradient) and it overrides an inherited
+        # colour rather than falling through to it. The bench page's lead figure
+        # declares `fill:currentColor` on its label classes; treating that as
+        # "unset" let it inherit a leaked literal and read as measured, which
+        # reported 31 findings on the one figure that was already correct.
+        nfl = fill
+        if tag in ('text', 'rect') and tag in fills:
+            nfl = fills[tag]
+        for cls in d.get('class', '').split():
+            if '.' + cls in fills:
+                nfl = fills['.' + cls]
+        raw_fill = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
+        if raw_fill:
+            nfl = svg_literal_colour(raw_fill) or SVG_UNREADABLE
         nfs = _svg_num(d.get('font-size'), nfs)
         nan = d.get('text-anchor', anchor)
         dx, dy = _svg_translate(d.get('transform'))
@@ -557,15 +579,293 @@ def svg_geometry(svg, fonts=None):
         if tag == 'text' and not selfclosed:
             cur = (m.end(), nfs, nan,
                    _svg_num(d.get('x'), 0.0) + tx + dx,
-                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo)
+                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo, nfl)
         elif tag == 'rect' and not nsk:
             rx, ry = _svg_num(d.get('x'), 0.0) + tx + dx, _svg_num(d.get('y'), 0.0) + ty + dy
             rects.append((rx, ry, rx + _svg_num(d.get('width'), 0.0),
-                          ry + _svg_num(d.get('height'), 0.0)))
+                          ry + _svg_num(d.get('height'), 0.0), nfl))
         elif tag in SVG_CONTAINERS and not selfclosed:
-            stack.append((fs, anchor, tx, ty, skip, bold, mono))
-            fs, anchor, tx, ty, skip, bold, mono = nfs, nan, tx + dx, ty + dy, nsk, nb, nmo
+            stack.append((fs, anchor, tx, ty, skip, bold, mono, fill))
+            fs, anchor, tx, ty, skip, bold, mono, fill = nfs, nan, tx + dx, ty + dy, nsk, nb, nmo, nfl
     return texts, rects
+
+
+# --- svg-scope / svg-contrast: the <style> that leaks, and the colour nobody
+# --- measured (BL-330) --------------------------------------------------------
+#
+# An `<svg>`'s `<style>` is NOT scoped to that SVG. It is a stylesheet in the
+# document, so a bare `text { fill: #1F2937 }` inside one figure paints every
+# `<text>` on the page, last one in the cascade winning. Reported by the owner
+# on a bench page carrying 26 figures: the lead figure measured 1.15:1 in dark
+# and every gate was green, because the contract read geometry and never colour.
+#
+# Both checks are WARNINGS and both are static. Contrast is computed only for
+# pairs where BOTH sides are literal colours; anything resolved through
+# `currentColor`, a gradient, a `var()` or a CSS file the figure does not carry
+# is counted as unmeasured and SAID SO. A checker that quietly measured nothing
+# is green and indistinguishable from one that passed — the whole reason this
+# defect survived three gates.
+SVG_STYLE_BLOCK = re.compile(r'<style\b[^>]*>(.*?)</style>', re.S | re.I)
+SVG_PAINTED = ('text', 'tspan', 'rect', 'circle', 'ellipse', 'line', 'path',
+               'polygon', 'polyline', 'g', 'svg', 'marker', 'image', 'use')
+SVG_HEX = re.compile(r'^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$')
+SVG_RGB = re.compile(r'^rgba?\(\s*(\d+)\s*[, ]\s*(\d+)\s*[, ]\s*(\d+)', re.I)
+SVG_NAMED = {'white': '#ffffff', 'black': '#000000', 'red': '#ff0000',
+             'green': '#008000', 'blue': '#0000ff', 'grey': '#808080',
+             'gray': '#808080'}
+# The kit's own ground, per theme, and the fallback when a page carries no
+# token: a figure is judged against what it is actually painted on.
+SVG_GROUND_FALLBACK = {'light': '#F3F5F1', 'dark': '#131614'}
+SVG_CONTRAST_FLOOR = 4.5
+# A fill that IS declared and cannot be read: currentColor, a var(), a gradient
+# url. Distinct from None (never declared) because it overrides inheritance.
+SVG_UNREADABLE = '?'
+
+
+def _svg_style_prop(style, prop):
+    """One declaration out of a `style="…"` attribute."""
+    for decl in (style or '').split(';'):
+        k, _, v = decl.partition(':')
+        if k.strip().lower() == prop:
+            return v.strip()
+    return None
+
+
+def svg_literal_colour(v):
+    """An sRGB triple for a colour we can actually read, else None. `none`,
+    `currentColor`, `url(#grad)` and `var(--x)` are all None ON PURPOSE: the
+    contrast check must not invent the half of a pair it cannot see."""
+    if not v:
+        return None
+    v = v.strip().strip('"\'')
+    low = v.lower()
+    if low in SVG_NAMED:
+        v = SVG_NAMED[low]
+    m = SVG_HEX.match(v)
+    if m:
+        h = m.group(1)
+        if len(h) == 3:
+            h = ''.join(c * 2 for c in h)
+        return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+    m = SVG_RGB.match(v)
+    if m:
+        return tuple(min(255, int(g)) for g in m.groups())
+    return None
+
+
+def _relative_luminance(rgb):
+    def chan(c):
+        c /= 255.0
+        return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    r, g, b = (chan(c) for c in rgb)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def contrast_ratio(fg, bg):
+    a, b = _relative_luminance(fg), _relative_luminance(bg)
+    hi, lo = max(a, b), min(a, b)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def svg_css_fills(css, own_id=None):
+    """{'.cls': rgb | SVG_UNREADABLE, 'text': …} for one CSS source.
+
+    Two rules, and the second is what keeps the leak honest in both directions.
+    A selector carrying an `#id` applies ONLY to that figure, so it is kept when
+    `own_id` matches and dropped otherwise — modelling every id-scoped rule as
+    page-wide is what made a correctly scoped page look broken. And a fill we
+    cannot read is recorded as SVG_UNREADABLE rather than omitted, so it
+    overrides an inherited literal instead of falling through to it."""
+    out = {}
+    for rule in SVG_CSS_RULE.finditer(css):
+        decl = _svg_style_prop(rule.group(2), 'fill')
+        if decl is None:
+            continue
+        colour = svg_literal_colour(decl) or SVG_UNREADABLE
+        for sel in rule.group(1).split(','):
+            sel = sel.strip()
+            if not sel:
+                continue
+            ids = re.findall(r'#([\w-]+)', sel)
+            if ids and (own_id is None or own_id not in ids):
+                continue                            # another figure's rule
+            leaf = sel.split()[-1]                  # what the declaration lands on
+            if re.fullmatch(r'\.[\w-]+', leaf) or leaf in SVG_PAINTED:
+                out[leaf] = colour
+    return out
+
+
+# The wrapper a figure is actually painted on. Measured on the 2026-09-07 bench
+# page: 25 of its 26 figures sit in a `<div class="figbox">` with a fixed light
+# background — the fix that made tool output legible in dark mode. Judging those
+# against the page ground reported 12 figures where the browser found 9, and the
+# three extra were entirely this. The wrapper is in the source, so the checker
+# can read it instead of guessing.
+SVG_WRAPPER = re.compile(r'<(?:div|figure|section|span|td|li)\b([^>]*)>\s*$', re.I | re.S)
+CSS_BG = re.compile(r'background(?:-color)?\s*:\s*([^;}]+)', re.I)
+CSS_COMPOUND = re.compile(r'[a-zA-Z][\w-]*(?:\.[\w-]+)+|(?:\.[\w-]+)+')
+
+
+def page_backgrounds(text):
+    """[(required_classes, leaf_class, rgb)] for every class-only rule that
+    paints a literal background. `.litebox .figbox` is the real shape on the
+    page this was measured against, so a single-class match is not enough —
+    the rule lands on `.figbox`, but only inside a `.litebox`."""
+    out = []
+    # Inside <style> only. Run over the raw document, SVG_CSS_RULE's selector
+    # group swallows every character since the previous `}` — prose included —
+    # so a real rule reads as a paragraph and matches nothing.
+    for block in SVG_STYLE_BLOCK.finditer(strip_html_comments(text)):
+        for rule in SVG_CSS_RULE.finditer(block.group(1)):
+            m = CSS_BG.search(rule.group(2))
+            colour = svg_literal_colour(m.group(1).split()[0]) if m else None
+            if colour is None:
+                continue
+            for sel in rule.group(1).split(','):
+                parts = sel.strip().split()
+                # A compound may carry an element qualifier: the real rule on the
+                # page this was measured against is `figure.cell.litebox .figbox`,
+                # and a classes-only pattern matched none of it. The tag name is
+                # dropped; the classes are what the ancestor chain is matched on.
+                if not parts or not all(CSS_COMPOUND.fullmatch(q) for q in parts):
+                    continue
+                need = {c for q in parts for c in re.findall(r'\.([\w-]+)', q)}
+                leaf = re.findall(r'\.([\w-]+)', parts[-1])
+                if not need or not leaf:
+                    continue
+                out.append((need, leaf[-1], colour))
+    return out
+
+
+def svg_ancestor_classes(before):
+    """The classes on the chain of elements enclosing an <svg>, read backwards
+    from the source immediately before it. Exact for generated markup, where
+    the wrapper chain is written as consecutive opening tags; it stops at the
+    first thing that is not one, which is the conservative direction."""
+    window, classes, chain = before[-1200:], set(), []
+    while True:
+        m = SVG_WRAPPER.search(window)
+        if not m:
+            break
+        cls = (_svg_attrs(m.group(1)).get('class') or '').split()
+        chain.append(set(cls))
+        classes.update(cls)
+        window = window[:m.start()]
+    return classes, chain
+
+
+def wrapper_ground(before, backgrounds):
+    """The literal background painted behind an <svg> by its own wrappers, or
+    None when the figure sits on the page's own ground. The innermost wrapper
+    that any rule paints wins, which is what the browser does."""
+    classes, chain = svg_ancestor_classes(before)
+    for own in chain:                                # innermost first
+        for required, leaf, colour in backgrounds:
+            if leaf in own and required <= classes:
+                return colour
+    return None
+
+
+def page_ground(text):
+    """The page's own `--paper`, light and dark, read from its CSS. The dark
+    value is whichever of the two dark declarations the page carries; both say
+    the same thing by contract (tokens.css defines the palette three times so
+    the toggle wins in both directions)."""
+    ground = dict(SVG_GROUND_FALLBACK)
+    decls = re.findall(r'--paper\s*:\s*(#[0-9a-fA-F]{3,8})', text)
+    if decls:
+        lit = [svg_literal_colour(d) for d in decls]
+        lit = [c for c in lit if c]
+        if lit:
+            # Lightest is the light ground, darkest is the dark one. Reading
+            # them positionally would depend on the order three blocks happen
+            # to appear in; reading them by luminance cannot.
+            ground['light'] = max(lit, key=_relative_luminance)
+            ground['dark'] = min(lit, key=_relative_luminance)
+    for k, v in list(ground.items()):
+        ground[k] = svg_literal_colour(v) if isinstance(v, str) else v
+    return ground
+
+
+def svg_scope_findings(text):
+    """Every bare element selector inside an embedded <svg>'s own <style>."""
+    out = []
+    for n, m in enumerate(SVG_BLOCK.finditer(strip_html_comments(text)), 1):
+        for block in SVG_STYLE_BLOCK.finditer(m.group(2)):
+            for rule in SVG_CSS_RULE.finditer(block.group(1)):
+                for sel in rule.group(1).split(','):
+                    sel = sel.strip()
+                    if not sel or '#' in sel:
+                        continue
+                    head = sel.split()[0]
+                    if head in SVG_PAINTED:
+                        out.append(
+                            f"svg #{n}: '{sel}' — an embedded <style> is a "
+                            f"stylesheet in the PAGE, not in the figure, so "
+                            f"this paints every <{head}> in the document and "
+                            f"the last figure loaded wins. Scope it to the "
+                            f"figure's own id (#<svg-id> {sel})")
+    return out
+
+
+def svg_contrast_findings(text):
+    """(findings, measured, unmeasured) for figure text against what it is
+    painted on, in BOTH themes. A pair with a literal background on both sides
+    is theme-independent; one that falls back to the page ground is not, and
+    the theme it fails in is named."""
+    out = []
+    fonts = svg_css_fonts(text)
+    ground = page_ground(text)
+    body = strip_html_comments(text)
+    # What every figure inherits from every other: the UNSCOPED rules, which is
+    # precisely the leak svg-scope reports. Rules carrying an id stay home.
+    leaked = {}
+    for block in SVG_STYLE_BLOCK.finditer(body):
+        leaked.update(svg_css_fills(block.group(1)))
+    backgrounds = page_backgrounds(text)
+    measured = unmeasured = 0
+    for n, m in enumerate(SVG_BLOCK.finditer(body), 1):
+        own_id = _svg_attrs(m.group(1)).get('id')
+        wrap = wrapper_ground(body[:m.start()], backgrounds)
+        fills = dict(leaked)
+        for block in SVG_STYLE_BLOCK.finditer(m.group(2)):
+            fills.update(svg_css_fills(block.group(1), own_id))
+        texts, rects = svg_geometry(m.group(2), fonts, fills)
+        for label, x0, y0, x1, y1, fg in texts:
+            if not isinstance(fg, tuple):
+                unmeasured += 1
+                continue
+            cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+            box = wrap
+            for rx0, ry0, rx1, ry1, rf in rects:     # last painted rect wins
+                if isinstance(rf, tuple) and rx0 <= cx <= rx1 and ry0 <= cy <= ry1:
+                    box = rf
+            measured += 1
+            if box is not None:
+                # Its own painted box is the escape hatch, and the one the
+                # bench page's fix used: a figure that hard-codes light-mode
+                # colours is legal on a light rect it draws itself, because
+                # then the pair no longer depends on the theme at all.
+                r = contrast_ratio(fg, box)
+                if r < SVG_CONTRAST_FLOOR:
+                    where = "rect it sits on" if box is not wrap else "box it is wrapped in"
+                    out.append(f"svg #{n}: '{label}' is {r:.2f}:1 against the "
+                               f"{where}, in both themes")
+                continue
+            # No literal colour clears 4.5:1 against BOTH grounds — the two
+            # requirements pull opposite ways — so a hard-coded fill on the
+            # bare page ground always fails a theme. That is the finding, not
+            # a limitation of the check: the answer is `currentColor` (or a
+            # token), or a box of the figure's own drawn behind it.
+            fails = [(t, contrast_ratio(fg, ground[t])) for t in ('light', 'dark')
+                     if contrast_ratio(fg, ground[t]) < SVG_CONTRAST_FLOOR]
+            if fails:
+                where = ', '.join(f"{t} {r:.2f}:1" for t, r in fails)
+                out.append(f"svg #{n}: '{label}' is {where} against the page "
+                           f"ground — below {SVG_CONTRAST_FLOOR}:1. A literal "
+                           f"fill cannot clear both themes; use currentColor, "
+                           f"or draw the box it sits on")
+    return out, measured, unmeasured
 
 
 def svg_text_findings(text):
@@ -581,7 +881,7 @@ def svg_text_findings(text):
         except (AttributeError, ValueError):
             continue                                # no viewBox: no frame to judge against
         texts, rects = svg_geometry(m.group(2), fonts)
-        for label, x0, y0, x1, y1 in texts:
+        for label, x0, y0, x1, y1, _fill in texts:
             slack = max(SVG_SLACK, SVG_ERR * (x1 - x0))
             if (x0 < vx - slack or x1 > vx + vw + slack
                     or y0 < vy - SVG_SLACK or y1 > vy + vh + SVG_SLACK):
@@ -589,15 +889,15 @@ def svg_text_findings(text):
                            f"(estimated x {x0:.0f}..{x1:.0f}, y {y0:.0f}..{y1:.0f} "
                            f"against {vb.strip()}) — the browser clips it")
             cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-            for rx0, ry0, rx1, ry1 in rects:
+            for rx0, ry0, rx1, ry1, _rf in rects:
                 if rx0 <= cx <= rx1 and ry0 <= cy <= ry1 and (x1 - x0) > (rx1 - rx0) + slack:
                     out.append(f"svg #{n}: '{label}' is wider than the box it sits in "
                                f"(estimated {x1 - x0:.0f} px in a {rx1 - rx0:.0f} px rect)")
                     break
         for i in range(len(texts)):
             for j in range(i + 1, len(texts)):
-                la, ax0, ay0, ax1, ay1 = texts[i]
-                lb, bx0, by0, bx1, by1 = texts[j]
+                la, ax0, ay0, ax1, ay1, _fa = texts[i]
+                lb, bx0, by0, bx1, by1, _fb = texts[j]
                 ow = min(ax1, bx1) - max(ax0, bx0)
                 oh = min(ay1, by1) - max(ay0, by0)
                 slack = max(SVG_SLACK, SVG_ERR * min(ax1 - ax0, bx1 - bx0))
@@ -623,6 +923,29 @@ def warn_file(path):
                           "02-local-first-artifacts.md § Figures, then move "
                           "the label; this warning is cleared by the layout, "
                           "not by a waiver"))
+    except Exception:                               # noqa: BLE001 — advisory
+        pass
+    try:
+        for msg in svg_scope_findings(text):
+            warns.append(("svg-scope", name, msg))
+    except Exception:                               # noqa: BLE001 — advisory
+        pass
+    try:
+        found, measured, unmeasured = svg_contrast_findings(text)
+        # The denominator travels with every finding, and the clean case says
+        # nothing at all — a page with no figures must not grow a line. What it
+        # cannot say is "nothing to report" when it measured nothing: that is
+        # the shape this whole check exists because of.
+        tail = (f" — measured {measured} text node(s) in this page's "
+                f"figures, {unmeasured} unmeasurable (currentColor, a "
+                f"gradient or a var() the file does not resolve); verify "
+                f"those in the browser")
+        for msg in found:
+            warns.append(("svg-contrast", name, msg + tail))
+        if measured == 0 and unmeasured:
+            warns.append(("svg-contrast", name,
+                          f"no figure text could be measured for contrast"
+                          + tail))
     except Exception:                               # noqa: BLE001 — advisory
         pass
     flat = flatten(text)
