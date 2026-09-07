@@ -11,7 +11,7 @@ worse than no hook.
 
   python3 hooks/test-memory-save-gate.py
 """
-import json, os, subprocess, sys, tempfile
+import json, os, re, subprocess, sys, tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOOK = os.path.join(REPO, "hooks", "memory-save-gate.sh")
@@ -132,6 +132,14 @@ def git_ev(name, content):
 
 UNREACHABLE = TYPED % "I just fixed it in commit `deadbee` on a local branch."
 REACHABLE = TYPED % ("The fix landed in commit `%s`." % FIX_HEAD)
+
+# The fixture's own precondition. A `git commit` that fails here (a global core.hooksPath,
+# a signing config) leaves FIX_HEAD empty, the reachable body becomes "commit ``", the SHA
+# pattern matches nothing, and the mirror passes over no input at all — the same green-on-
+# empty-input the gating below exists to refuse.
+check("the fixture repo has a commit for the mirror to cite",
+      re.fullmatch(r"[0-9a-f]{8}", FIX_HEAD or "") is not None,
+      _git("log", "--oneline").stderr or FIX_HEAD)
 
 rc, out, _ = run(fix_ev("u.md", UNREACHABLE), project_root=TREES)
 live = decision(out) == "deny"
