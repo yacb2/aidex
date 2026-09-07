@@ -788,8 +788,39 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/
   && ok "the profile itself is never auto-created (e87bbd3)" \
   || bad "the offer created the profile unasked"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/b.html" 2>&1 >/dev/null)"
-[[ "$err" != *"artifact-style.md"* ]] && ok "the offer does not repeat on the next artifact" \
-                                      || bad "the offer nagged a second time: $err"
+# The offer is identified by ITS OWN words, not by the filename. Every note about
+# the profile names that file, so a bare `artifact-style.md` substring cannot tell
+# the one-time offer apart from the language NOTE asserted below — it only ever
+# discriminated because nothing else spoke here. BL-322 makes something else speak.
+[[ "$err" != *"Offer the profile to the reader ONCE"* ]] \
+  && ok "the offer does not repeat on the next artifact" \
+  || bad "the offer nagged a second time: $err"
+
+# --- BL-322: marker present + no profile + no --lang is not silent ------------
+# Two functions handed this case to each other and neither spoke:
+# style_profile_offer() returns None because the marker exists, and
+# _warn_prose_only_language() returned early because there is no profile. So from
+# the second artifact onward a project with no declared language got lang="en"
+# with nothing on stderr, and check-artifact's lang gate agreed with itself
+# because an English body under lang="en" is self-consistent. Absence was
+# invisible at every layer. This is the state of `b.html` above.
+[[ -n "$err" ]] \
+  && ok "the second artifact of a project with no profile still speaks" \
+  || bad "BL-322: marker present, no profile, no --lang — stderr was completely silent"
+[[ "$err" == *"NOTE:"* && "$err" == *'lang="en"'* ]] \
+  && ok "and it states the language it fell back to, as a fact" \
+  || bad "BL-322: nothing named lang=\"en\" as the language actually used: $err"
+# A fact, not a re-offer: BL-168 removed the nag and it must not return by this door.
+[[ "$err" != *"Offer the profile"* ]] \
+  && ok "and it is a statement, not the offer coming back" \
+  || bad "BL-322: the language note re-opened the offer BL-168 closed: $err"
+
+# --lang silences it: the language IS declared, just not through a profile.
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
+        --out "$LANGP/.context/reports/c.html" 2>&1 >/dev/null)"
+[[ "$err" != *'lang="en"'* ]] \
+  && ok "an explicit --lang silences the undeclared-language note" \
+  || bad "BL-322: the note fired even though --lang was given: $err"
 
 grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact-style.md.template" \
   && ok "the style template carries a parseable language: field" \
