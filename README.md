@@ -3,10 +3,10 @@
 > Keep your Claude Code ecosystem lean and consistent — skills, docs, and project context from one source of truth.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.42.0-blue.svg)](install.sh)
+[![Version](https://img.shields.io/badge/version-0.45.0-blue.svg)](install.sh)
 [![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-8A2BE2.svg)](https://docs.anthropic.com/en/docs/claude-code)
 
-AI coding assistants reload their context every session. As your setup grows, skills get copy-pasted across projects and drift out of sync, every project organizes its `.context/` knowledge differently, and idle context quietly eats your token budget. **aidex** fixes that with a single-source skill store (symlinked, never duplicated), a standard `.context/` convention, and an auditor that flags bloat, broken symlinks, and stale docs before they cost you.
+AI coding assistants reload their context every session. As your setup grows, skills get copy-pasted across projects and drift out of sync, every project organizes its `.context/` knowledge differently, and idle context quietly eats your token budget. **aidex** fixes that with a single-source skill store installed as real files into `~/.claude/`, a standard `.context/` convention, and an auditor that flags bloat, broken symlinks, and stale docs before they cost you.
 
 Built for [Claude Code](https://docs.anthropic.com/en/docs/claude-code), but the architecture is tool-agnostic.
 
@@ -43,7 +43,7 @@ AI coding assistants load context into every session. As your tooling grows, you
 
 aidex solves this with two pillars:
 
-1. **Centralized assistant configuration** — Skills managed from a single source with symlinks
+1. **Centralized assistant configuration** — Skills managed from a single source, installed as real files into `~/.claude/`
 2. **Structured project context** — A `.context/` convention for organizing project knowledge
 
 ## Architecture
@@ -274,7 +274,7 @@ mkdir -p ~/projects/my-app/.claude/skills/my-custom-skill
 ./install.sh --uninstall
 ```
 
-Interactive: choose to remove only symlinks, aidex-managed files, or everything.
+Interactive: confirms once, then removes exactly the manifest entries and aidex's state directory. Your own skills, rules and hooks are untouched.
 
 ## License
 
