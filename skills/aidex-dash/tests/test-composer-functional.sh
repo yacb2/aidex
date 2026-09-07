@@ -105,7 +105,11 @@ PAGE="$TMP/reports/consult.html"
 # real case looks like -- check_prev enforces id stability AND fails when a kept
 # id's data-title changes, so a session cannot signal "same claim, new question"
 # through either.
-write_body() {  # write_body <q1-question-sentence>
+write_body() {  # write_body <q1-question-sentence> [decided-attr]
+# $2, when given, is `data-decided` and it is stamped on Q1 AND Q2 — the page
+# BL-331 taught the checker to accept and BL-341 found the composer had never
+# been taught: every question settled, so collect()'s denominator is 0.
+local dec="${2:-}"
 cat > "$TMP/body.html" <<HTML
 <meta name="consult-visual" content="none: a persistence probe, nothing to draw">
 <div class="page">
@@ -123,7 +127,7 @@ $gopen
     <p class="fieldlabel">Notas sobre esta</p>
     <textarea></textarea>
   </section>
-  <section class="consult-item" data-id="Q1" data-title="The probed question">
+  <section class="consult-item" data-id="Q1" data-title="The probed question" $dec>
     <h3><span class="consult-id">Q1</span>$1</h3>
     <div class="opts one">
       <label><input type="radio" name="Q1" data-label="Option A" data-recommended><span>Option A <span class="hint">why</span></span></label>
@@ -132,7 +136,7 @@ $gopen
     <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
-  <section class="consult-item" data-id="Q2" data-title="The untouched question">
+  <section class="consult-item" data-id="Q2" data-title="The untouched question" $dec>
     <h3><span class="consult-id">Q2</span>This question never changes</h3>
     <p class="fieldlabel">Write freely</p>
     <div contenteditable="true"></div>
@@ -262,7 +266,7 @@ window.addEventListener('load', function () {
       + '|CLEARVIS=' + (btn ? getComputedStyle(btn).display : '');
   } else if (q.indexOf('phase=count') !== -1) {
     /* BL-268: the status counted BLOCK HEADINGS as answers. collect() pushed
-     * `## G1 · title` into the same array whose length it reported, so two
+     * "## G1 · title" into the same array whose length it reported, so two
      * answered items in one block read "3 de 3" — and a full page read "12 de 9"
      * in the field. Two items answered here, one blank: the truth is 2 of 3. */
     ta.value = 'count-probe';
@@ -338,6 +342,44 @@ window.addEventListener('load', function () {
       + '|FULL=' + full.replace(/[|<>]/g, ' ')
       + '|ONLYNOTES=' + ncap.replace(/[|<>\n]/g, ' ')
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
+  } else if (q.indexOf('phase=alldecided') !== -1) {
+    /* BL-341: every question on the page is decided, so collect() counts a
+     * denominator of ZERO — and refresh() fell through to the same string a
+     * blank page shows, telling a reader who had just settled the last question
+     * that nothing was answered yet. What must be true: the status names the
+     * closed state, and the copy bar STAYS — the general-notes box is not one
+     * of the questions, so it is still fillable and still sendable here.
+     *
+     * DECIDED is the non-empty-input guard: if the decided attribute stopped
+     * being stamped, this phase would be probing an ordinary page and every
+     * assertion below it would pass for the wrong reason. */
+    var stEl = document.getElementById('consult-status');
+    var st0 = stEl.textContent;
+    var bar = document.querySelector('.consult-bar');
+    var eb = document.querySelector('.endbar');
+    var barH = bar ? bar.getBoundingClientRect().height : 0;
+    var ebH = eb ? eb.getBoundingClientRect().height : 0;
+    var nt3 = document.querySelector('.consult-notes textarea');
+    var acap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { acap = s; return Promise.resolve(); } }
+    });
+    if (nt3) {
+      nt3.value = 'the notes box still takes an answer';
+      nt3.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    var st1 = stEl.textContent;
+    document.getElementById('consult-copy').click();
+    document.title = 'ALLDECIDED|STATUS=' + st0.replace(/[|<>]/g, ' ')
+      + '|AFTERNOTES=' + st1.replace(/[|<>]/g, ' ')
+      + '|DECIDED=' + document.querySelectorAll('.consult-item[data-decided]').length
+      + '|OPEN=' + document.querySelectorAll('.consult-item:not([data-decided])').length
+      + '|BARH=' + (barH > 0 ? '1' : '0')
+      + '|BARDISP=' + (bar ? getComputedStyle(bar).display : 'none')
+      + '|ENDH=' + (ebH > 0 ? '1' : '0')
+      + '|NOTESDIS=' + (nt3 ? (nt3.disabled ? '1' : '0') : 'x')
+      + '|NOTESEND=' + acap.replace(/[|<>\n]/g, ' ');
   } else if (q.indexOf('phase=explain') !== -1) {
     /* BL-325: the reader who cannot answer because the QUESTION is unreadable.
      * Of 26 items in one real round, 12 came back as free text saying some form
@@ -356,7 +398,7 @@ window.addEventListener('load', function () {
      * whatever was picked — the answer (the point of v15 making it a radio) and
      * each other (the point of v16 making them two). Wanting both gaps closed in
      * one round is not a third answer; it is the mis-shaped item the ceiling
-     * covers, so the group's shared `name` has to refuse it. */
+     * covers, so the group's shared "name" has to refuse it. */
     var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     if (ex2) {
@@ -591,7 +633,7 @@ t="$(run 'phase=send')"
 [[ "$t" == *SENT* ]] || fail "the send phase did not run: $t"
 [[ "$t" == *"Option A (recomendada)"* ]] \
   || fail "BL-245: the copied label lost the recommendation — the reply no longer records which option was backed: $t"
-# BL-247: the pasted reply keeps the block — `## G1 · title` precedes the first
+# BL-247: the pasted reply keeps the block — "## G1 · title" precedes the first
 # answered item of the block, once, and never precedes the loose general notes.
 # (newlines read as spaces inside <title>, hence the double space)
 [[ "$t" == *"## G1 · The context  ### Q1"* ]] \
@@ -871,5 +913,56 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"FL=Notas sobre esta"* ]] \
   || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
 
+# ---- BL-341: a page whose every question is DECIDED --------------------------
+#
+# BL-331 taught the checker to accept such a page; the composer was never taught
+# the same state. collect() drops decided items from both the numerator and the
+# denominator, so an all-decided page reaches refresh() with total === 0 — and
+# the old `r.answered ? progress : none` had exactly one reachable branch there.
+# The reader who had just settled the last question was told "Sin responder
+# todavía." over an empty question set.
+#
+# It is NOT a change to the copy bar. The general-notes box is not one of the
+# questions (C, above): it is still fillable and still sendable on such a page,
+# so a fix that hid the bar would trade one wrong page for another. Both halves
+# are asserted, in both of the kit's languages.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1" 'data-decided'
+wrap_page es
+td="$(run 'phase=alldecided')"
+[[ "$td" == *ALLDECIDED* ]] || fail "the all-decided phase did not run: $td"
+# The probe is worthless unless the page really is the shape it claims: three
+# settled items, and the general-notes box as the only one left open.
+[[ "$td" == *"DECIDED=3"* && "$td" == *"OPEN=1"* ]] \
+  || fail "BL-341: the probe page is not all-decided, so every assertion below it would pass for the wrong reason: $td"
+[[ "$td" == *"STATUS=Todas las preguntas están decididas"* ]] \
+  || fail "BL-341: a page with every question decided does not name that state in its status line (es): $td"
+[[ "$td" == *"STATUS=Sin responder"* ]] \
+  && fail "BL-341: a page with every question decided still reads 'nothing answered yet' (es): $td"
+# The bar stays. Measured as a real box, not as an attribute: at the harness
+# width the rail collapses to a bottom bar, and a display-only assertion would
+# pass on a bar of zero height.
+[[ "$td" == *"BARH=1"* ]] \
+  || fail "BL-341: the copy bar was hidden on an all-decided page — the notes box is no longer sendable: $td"
+[[ "$td" == *"ENDH=1"* ]] \
+  || fail "BL-341: the end-of-page copy bar was hidden on an all-decided page: $td"
+[[ "$td" == *"NOTESDIS=0"* ]] \
+  || fail "BL-341: the general-notes box was sealed along with the decided questions: $td"
+[[ "$td" == *"NOTESEND=### notes · General notes  the notes box still takes an answer"* ]] \
+  || fail "BL-341: the notes typed on an all-decided page did not reach the paste: $td"
+
+# The other language, because the string is chrome and the kit ships to projects
+# that carry either one — the es run above cannot see an English regression.
+rm -rf "$TMP/profile"
+wrap_page en
+td="$(run 'phase=alldecided')"
+[[ "$td" == *ALLDECIDED* ]] || fail "the all-decided phase did not run on the English page: $td"
+[[ "$td" == *"STATUS=Every question here is decided"* ]] \
+  || fail "BL-341: a page with every question decided does not name that state in its status line (en): $td"
+[[ "$td" == *"STATUS=Nothing answered yet"* ]] \
+  && fail "BL-341: a page with every question decided still reads 'nothing answered yet' (en): $td"
+[[ "$td" == *"BARH=1"* ]] \
+  || fail "BL-341: the copy bar was hidden on an all-decided English page: $td"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and the two explain choices, the explicit theme, v4 answer sets and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and the two explain choices, the explicit theme, v4 answer sets, the all-decided page and the localised chrome included"

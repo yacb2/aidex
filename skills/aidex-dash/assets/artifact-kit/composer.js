@@ -22,6 +22,7 @@
   var STRINGS = {
     en: {
       none: 'Nothing answered yet.',
+      allDecided: 'Every question here is decided — nothing left to answer.',
       progress: function (n, total) { return n + ' of ' + total + ' answered'; },
       missing: function (ids) { return ' · missing ' + ids.join(', '); },
       nothingToCopy: 'Nothing answered yet — there is nothing to copy.',
@@ -62,6 +63,7 @@
     },
     es: {
       none: 'Sin responder todavía.',
+      allDecided: 'Todas las preguntas están decididas — no queda nada por responder.',
       progress: function (n, total) { return n + ' de ' + total + ' respondidas'; },
       missing: function (ids) {
         return ' · ' + (ids.length === 1 ? 'falta ' : 'faltan ') + ids.join(', ');
@@ -836,6 +838,15 @@
 
   function refresh() {
     var r = collect();
+    /* Three states, not two. A page whose every question is DECIDED leaves
+     * collect() with a denominator of zero — decided items are in neither the
+     * numerator nor the total — and `r.answered ? … : L.none` had exactly one
+     * reachable branch there, so a reader who had just settled the last
+     * question was told "nothing answered yet" over an empty question set
+     * (BL-341; BL-331 had already taught the checker to accept the page).
+     * Only the status changes: the general-notes box is not one of the
+     * questions, so it is still fillable and the copy bar still has work. */
+    if (!r.total) { say(L.allDecided); return; }
     say(r.answered
       ? L.progress(r.answered, r.total) + (r.blank.length ? L.missing(r.blank) : '')
       : L.none);
