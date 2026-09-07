@@ -388,7 +388,7 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   | tier | model | effort | status |
   |---|---|---|---|
   | `mechanical` | `sonnet` | `low` | default |
-  | `standard` | `sonnet` | `medium` | default |
+  | `standard` | `fable` | `low` | measured 2026-09-07 |
   | `hard` | `opus` | `high` | default |
   | `gate` — the verifier and arbiter of every batch shape | `sonnet` | `low` | default |
 
@@ -402,11 +402,20 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   the tier exists for: the plan states how hard the work is, the run decides what to spend on
   it. Overriding is not a plan edit.
 
-  **Unmeasured candidate, deliberately not adopted.** The Fable 5.1 guide reports that at `low`
-  effort the model is often competitive with Opus and Sonnet on cost per task while scoring
-  higher, "wherever you'd otherwise run a smaller model at a higher effort level" — which
-  describes the `standard` and `mechanical` rows exactly. No measurement exists on this suite's
-  phases, so no row changes until a sweep runs.
+  **`standard` was measured on this suite's own phases (BL-321, 2026-09-07).** An archived
+  `tier: standard` phase was replayed nine times from its base commit — three runs each at
+  `sonnet/medium` (the prior cell), `fable/low` and `opus/medium` — and graded with the gate
+  script as it actually shipped, never with the test the run wrote for itself. `fable/low`
+  held the gate 3/3 for 20% fewer tokens; the prior `sonnet/medium` cell held it 1/3, both
+  failures being the same defect (a `YYYYMMDD` run folder where D-01 requires ISO). Model and
+  effort were read back out of each run's transcript rather than trusted from the agent
+  definition. Two caveats travel with the row: N=3 is p≈0.4 on the count alone, and the
+  winning cells each consulted the advisor twice where the control consulted it zero times —
+  a behavioural difference between the models under identical tooling, not an asymmetry in
+  the setup. Evidence: `.context/proofs/bl-321/` in the aidex workspace.
+
+  **`mechanical` is still unmeasured.** The same Fable 5.1 guidance describes it, but no sweep
+  has run on it, so it keeps its prior cell until one does.
 - **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is the first fenced command of the phase's **Verify** block if not declared inline.
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.
