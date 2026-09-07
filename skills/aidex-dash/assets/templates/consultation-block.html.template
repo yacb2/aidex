@@ -23,14 +23,17 @@
   The page-level general-notes item is the same rule one level up, and it is
   additional: per-item notes do not replace it.
 
-  Every item also gets a per-item "Clear" control, injected by the composer in
-  the page's own language. Do not write one into a block: it arrives by wrapping,
-  so a page cannot ship without it and an author cannot get it wrong.
+  Every item also gets a per-item "Clear" control and an "Explain this one
+  better" checkbox, injected by the composer in the page's own language. Do not
+  write either into a block: they arrive by wrapping, so a page cannot ship
+  without them and an author cannot get them wrong.
 
   Depth is set by the cost of undoing the decision: a reversible one-minute
   choice gets the question alone; something touching code or a shared contract
   gets a concrete example; something that rewrites what exists gets the example,
-  the consequence of each option, and the file it touches.
+  the consequence of each option, and the file it touches. A returned
+  `[explain-more]` moves the item one row down that scale; the second one on the
+  same item means it is mis-shaped, not under-explained.
 
   THE UNIT IS THE BLOCK, NOT THE ITEM (BL-247). A block is one context with the
   decisions that fall out of it — one decision or several — and it is the ONLY
