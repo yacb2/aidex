@@ -115,6 +115,9 @@ PASS=0
 SKIPPED=0
 SKIP_REASONS=()
 FAILED=()
+# Parity findings are tracked apart from FAILED: they are not members of $TESTS (or are
+# already counted in PASS), so folding them in breaks the tally's arithmetic.
+PARITY_ISSUES=()
 LOG="$(mktemp)"
 VERDICTS="$(mktemp)"          # "<rc> <path>" per test, for the parity pass
 PARITY_HOME="$(mktemp -d)"
@@ -200,7 +203,7 @@ else
     filtered="$(grep -v -E '\.\./\.\./aidex-[a-z]' "$t" 2>/dev/null)"
     if [[ $? -gt 1 ]]; then
       printf 'parity: FAIL — could not read %s while selecting\n' "$t"
-      FAILED+=("parity:unreadable:$t")
+      PARITY_ISSUES+=("parity:unreadable:$t")
       continue
     fi
     if printf '%s\n' "$filtered" | grep -qE "$ROOT_REACHING"; then
@@ -215,7 +218,7 @@ fi
 # empty set — the exact "checker lies by omission" shape this runner keeps meeting.
 if [[ ${#PARITY[@]} -eq 0 ]]; then
   printf 'parity: FAIL — the root-reaching selector matched 0 of %d shipped tests\n' "${#PARITY_POOL[@]}"
-  FAILED+=("parity:selector-matched-nothing")
+  PARITY_ISSUES+=("parity:selector-matched-nothing")
 fi
 
 DIVERGED=()
@@ -226,7 +229,7 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
   if ! HOME="$PARITY_HOME" bash "$REPO_ROOT/install.sh" </dev/null >"$LOG" 2>&1; then
     printf 'parity: FAIL — could not build the install root\n'
     cat "$LOG"
-    FAILED+=("parity:install-failed")
+    PARITY_ISSUES+=("parity:install-failed")
   else
     FAKE="$PARITY_HOME/.claude"
     # An install root is never aidex-only. This skill plus the manifest install.sh
@@ -278,7 +281,7 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
 fi
 if [[ ${#DIVERGED[@]} -gt 0 ]]; then
   printf 'diverged between roots: %s\n' "${DIVERGED[*]}"
-  FAILED+=("${DIVERGED[@]}")
+  PARITY_ISSUES+=("${DIVERGED[@]}")
 fi
 
 # The tally, in three named categories rather than one ratio. "137/139 passed" reads as
@@ -286,6 +289,13 @@ fi
 # precondition that checkout cannot have, not a regression (BL-338). A run is citable as
 # green on `0 failed` plus exit 0; the skipped ones are listed with the reason each
 # printed, so "skipped" can never quietly mean "did not look".
+#
+# The three categories PARTITION $TESTS, which is why parity findings are not in them: a
+# test that passes here and diverges in the install root is already counted in `passed`,
+# and `parity:install-failed` is not a member of $TESTS at all. Folding either into
+# `failed` made the line report 142 outcomes over 141 tests — self-contradictory in
+# exactly the red runs a reader reads it in. They get their own line, and they still
+# decide the exit code.
 printf '\n%d tests: %d passed, %d skipped, %d failed\n' \
   "${#TESTS[@]}" "$PASS" "$SKIPPED" "${#FAILED[@]}"
 if [[ $SKIPPED -gt 0 ]]; then
@@ -295,5 +305,11 @@ fi
 
 if [[ ${#FAILED[@]} -gt 0 ]]; then
   printf 'failed: %s\n' "${FAILED[*]}"
+fi
+if [[ ${#PARITY_ISSUES[@]} -gt 0 ]]; then
+  printf 'parity findings (outside the tally above — the tally counts the checkout run): %s\n' \
+    "${PARITY_ISSUES[*]}"
+fi
+if [[ ${#FAILED[@]} -gt 0 || ${#PARITY_ISSUES[@]} -gt 0 ]]; then
   exit 1
 fi
