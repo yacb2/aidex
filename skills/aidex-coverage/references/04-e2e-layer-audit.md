@@ -10,9 +10,11 @@ the decision, not the pixels — except when the browser is what decides."
 A completed audit table is **project data, not skill canon**: it names real spec
 files and what they assert, so it lives in that project's own `.context/` (an
 audit run, or a reference next to the plan that ordered it) — never inside this
-installed-everywhere skill. A completeness ratchet
-([tests/test-spec-audit-complete.sh](../tests/test-spec-audit-complete.sh))
-gates the table where it lives.
+installed-everywhere skill. A completeness ratchet gates the table where it
+lives, and it belongs outside the skill for the same reason the table does: it
+names a real project and a real path. The aidex repo's own is
+`tests/test-spec-audit-complete.sh` at its repo root — a shipped copy resolved
+its `.context/` against `~/.claude/` and failed there on every install.
 
 ## Scope and provenance — pin these before the first row
 
