@@ -387,7 +387,7 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
 
   | tier | model | effort | status |
   |---|---|---|---|
-  | `mechanical` | `sonnet` | `low` | default |
+  | `mechanical` | `fable` | `low` | measured 2026-09-07 |
   | `standard` | `fable` | `low` | measured 2026-09-07 |
   | `hard` | `opus` | `high` | default |
   | `gate` — the verifier and arbiter of every batch shape | `sonnet` | `low` | default |
@@ -414,8 +414,26 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   a behavioural difference between the models under identical tooling, not an asymmetry in
   the setup. Evidence: `.context/proofs/bl-321/` in the aidex workspace.
 
-  **`mechanical` is still unmeasured.** The same Fable 5.1 guidance describes it, but no sweep
-  has run on it, so it keeps its prior cell until one does.
+  **`mechanical` was measured the same way (BL-335, 2026-09-07).** An archived
+  `tier: mechanical` phase was replayed nine times from its base commit — three runs each at
+  `sonnet/low` (the prior cell), `fable/low` and `haiku` — and graded with the gate script as
+  it actually shipped. `fable/low` held the gate 3/3 for the fewest tokens; `sonnet/low` held
+  it 2/3 and `haiku` 0/3, every failure being the same defect (a `test_hint` rendered relative
+  to the workspace where the phase's own sample output shows it relative to its repo). Three
+  caveats travel with this row and it is weaker than `standard`'s: 2/3 vs 3/3 is Fisher
+  p = 1.0, so the gate count carries nothing; the 7.7% token gap is mostly each model's own
+  system-prompt floor, worth ~3% on the work itself; what is clean is that all three
+  `fable/low` runs cost less than all three `sonnet/low` runs, complete separation at n=3,3
+  (p = 0.05). **`haiku` carries no effort dimension at all** — the loader accepts `effort:` on
+  it and drops it — so no row may be written as `haiku/<effort>`. Evidence:
+  `.context/proofs/bl-335/` in the aidex workspace.
+
+  **The `gate` row is half-measured and stays put.** Its verifier half was measured over the
+  same nine graded worktrees used as a labelled set (BL-335): all three cells returned every
+  verdict correctly and the work costs the same in each net of its floor, but `sonnet/low` was
+  the only cell to emit a proof carrying a false exit code. Its arbiter half has no ground
+  truth — it fires only on `K+1` gate exhaustion and its output is a STOP-vs-ASK judgment — so
+  the row is not moved on evidence that reaches only one of its two roles.
 - **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is the first fenced command of the phase's **Verify** block if not declared inline.
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.
