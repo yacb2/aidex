@@ -473,14 +473,21 @@ mkpage "$TMP/warn-svgscope.html" "<div class=\"page\"><main class=\"main\">
   <text x=\"10\" y=\"40\">painted by a document selector</text>
 </svg></figure>
 <figure><svg id=\"fig-b\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"b\">
-  <style>#fig-b text { fill: #191D1A; font-size: 12px }</style>
+  <style>#fig-b text { fill: currentColor; font-size: 12px }</style>
   <text x=\"10\" y=\"40\">scoped and legible</text>
 </svg></figure>
 </main></div>
 $composer"
 rc="$(run "$TMP/warn-svgscope.html")"
-[[ "$rc" == "0" ]] \
-  || fail "10d. svg-scope changed the exit code — it is a warning: $(cat "$TMP/out")"
+# The leaking rule paints #1F2937 on every <text> in the document, which is
+# 1.29:1 in dark — so since v15 this page FAILS, on `svg-contrast`. That is the
+# defect caught end to end: before, the leak was advisory and the colour it
+# produced was measured by nothing. What stays pinned here is that `svg-scope`
+# ITSELF is still advisory — it reports the selector, it never fails the file.
+[[ "$rc" == "1" ]] \
+  || fail "10d. the leaking fill did not fail the page — v15 catches the colour the leak produces: $(cat "$TMP/out")"
+grep -q "FAIL \[svg-scope\]" "$TMP/out" \
+  && fail "10d. svg-scope became a violation — it reports the selector and stays a warning: $(cat "$TMP/out")"
 grep -q "WARN \[svg-scope\].*text" "$TMP/out" \
   || fail "10d. BL-330: a bare element selector inside an SVG <style> was not reported: $(cat "$TMP/out")"
 grep -q "WARN \[svg-scope\].*#fig-b" "$TMP/out" \
@@ -503,23 +510,25 @@ mkpage "$TMP/warn-contrast.html" "<div class=\"page\"><main class=\"main\">
 </main></div>
 $composer"
 rc="$(run "$TMP/warn-contrast.html")"
-[[ "$rc" == "0" ]] \
-  || fail "10e. svg-contrast changed the exit code — it is a warning: $(cat "$TMP/out")"
+# v15 (Q3): a named file FAILS on figure text below the floor. The census keeps
+# the old severity, and the pair is pinned in 10g below.
+[[ "$rc" == "1" ]] \
+  || fail "10e. svg-contrast did not fail the wrap — since v15 a below-floor finding is a violation, not a warning: $(cat "$TMP/out")"
 # #1F2937 is the reported case: fine on the light ground, 1.15 on the dark one.
-grep -q "WARN \[svg-contrast\].*'dark slate on the page ground'.*dark" "$TMP/out" \
+grep -q "FAIL \[svg-contrast\].*'dark slate on the page ground'.*dark" "$TMP/out" \
   || fail "10e. BL-330: text that only fails in the dark theme was not reported: $(cat "$TMP/out")"
 # A hard-coded box makes the pair theme-independent, so it fails in both.
-grep -q "WARN \[svg-contrast\].*'pale grey on its own white box'" "$TMP/out" \
+grep -q "FAIL \[svg-contrast\].*'pale grey on its own white box'" "$TMP/out" \
   || fail "10e. BL-330: pale text on its own painted rect was not reported: $(cat "$TMP/out")"
 # The escape hatch, and the one the bench page's fix actually used: a figure
 # that draws the box its text sits on no longer depends on the theme.
-grep -q "WARN \[svg-contrast\].*'ink on its own light box'" "$TMP/out" \
+grep -q "\[svg-contrast\].*'ink on its own light box'" "$TMP/out" \
   && fail "10e. BL-330: dark text on the light box the figure draws itself was reported: $(cat "$TMP/out")"
 # currentColor is the OTHER right answer, and it is unmeasurable by design —
 # reported as a count, never invented as a pass.
-grep -q "WARN \[svg-contrast\].*'inherits the page ink'" "$TMP/out" \
+grep -q "\[svg-contrast\].*'inherits the page ink'" "$TMP/out" \
   && fail "10e. BL-330: a currentColor label was judged — the check must not invent the colour it cannot read: $(cat "$TMP/out")"
-grep -qE "WARN \[svg-contrast\].*measured 3 text node\(s\).*1 unmeasurable" "$TMP/out" \
+grep -qE "FAIL \[svg-contrast\].*measured 3 text node\(s\).*1 unmeasurable" "$TMP/out" \
   || fail "10e. BL-330: the finding does not carry its own denominator — a gate that saw nothing reads the same as one that passed: $(cat "$TMP/out")"
 
 # ---- 10f. BL-330: the figure is judged against what it is PAINTED on, and on
@@ -541,11 +550,30 @@ mkpage "$TMP/warn-figbox.html" "<style>figure.cell.litebox .figbox { background:
 </main></div>
 $composer"
 rc="$(run "$TMP/warn-figbox.html")"
-[[ "$rc" == "0" ]] || fail "10f. svg-contrast changed the exit code: $(cat "$TMP/out")"
-grep -q "WARN \[svg-contrast\].*'dark slate on the light box'" "$TMP/out" \
+[[ "$rc" == "1" ]] || fail "10f. the bare-ground fill did not fail the wrap: $(cat "$TMP/out")"
+grep -q "\[svg-contrast\].*'dark slate on the light box'" "$TMP/out" \
   && fail "10f. BL-330: text on the light box its wrapper paints was reported — the checker is not reading the wrapper: $(cat "$TMP/out")"
-grep -q "WARN \[svg-contrast\].*'the same slate on the page ground'" "$TMP/out" \
+grep -q "FAIL \[svg-contrast\].*'the same slate on the page ground'" "$TMP/out" \
   || fail "10f. BL-330: the identical fill on the bare page ground was NOT reported — the wrapper lookup is over-applying: $(cat "$TMP/out")"
+
+# ---- 10g. Q3: svg-contrast is the one check with TWO severities. It FAILS a
+# named file (the wrap, where the author can still fix it) and only WARNS in
+# `--census` (a page nobody is editing, where the finding is noise no one can
+# clear). Before v15 it warned in both, and a warning that fired on 26 of 26
+# figures on one page is a warning the reader learns to discount.
+census_dir="$TMP/census-ctx/.context/reports"
+mkdir -p "$census_dir"
+cp "$TMP/warn-figbox.html" "$census_dir/drift.html"
+cout="$TMP/census-out"
+python3 "$SKILL/scripts/dash/check_artifact.py" --census "$TMP/census-ctx" > "$cout" 2>&1
+crc=$?
+[[ "$crc" == "0" ]] \
+  || fail "10g. Q3: the census failed on a contrast finding — it must warn there, not fail: $(cat "$cout")"
+grep -q "WARN \[svg-contrast\].*'the same slate on the page ground'" "$cout" \
+  || fail "10g. Q3: the census dropped the contrast finding instead of warning it: $(cat "$cout")"
+grep -q "FAIL \[svg-contrast\]" "$cout" \
+  && fail "10g. Q3: the census reported the contrast finding as a violation: $(cat "$cout")"
+
 
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
