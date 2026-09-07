@@ -362,6 +362,45 @@ rc="$(run "$TMP/warn-read.html")"
 [[ "$rc" == "0" ]] || fail "10. a read page failed: $(cat "$TMP/out")"
 grep -q 'WARN' "$TMP/out" && fail "10. a read page collected warnings: $(cat "$TMP/out")"
 
+# ---- 9b. BL-331: a consultation that RAN OUT of questions could not stop
+# being one. By §8's own model a decided item leaves the question set, so a page
+# whose last item was answered has zero items — and then the gate fires on the
+# copy bar still sitting in its body, while the `consult-surfaces` escape is
+# skipped for the same reason (CONSULT_STRUCTURE matched `id="consult-copy"`).
+# The failure message even pointed at the declaration the page was already
+# carrying. Hit closing the figure-route bench page on 2026-09-07.
+surfaces='<meta name="consult-surfaces" content="none: every question was answered; the decisions are in the ledger">'
+mkpage "$TMP/decided-out.html" "$visual
+$surfaces
+<div class=\"page\"><main class=\"main\"><h1>Closed</h1>
+<p>The thread is closed and the decisions are below.</p>
+<div class=\"ledger\"><div><span class=\"k\">d1</span><span class=\"v\">Decided.</span></div></div>
+$bars
+</main></div>
+$composer"
+rc="$(run "$TMP/decided-out.html")"
+[[ "$rc" == "0" ]] \
+  || fail "BL-331: a page with no items and consult-surfaces: none still fails — the declared escape is unreachable behind the copy bar: $(cat "$TMP/out")"
+
+# The half that must not be traded away: a page with REAL items gets the whole
+# battery, declaration or not. Otherwise the escape becomes a way to opt out of
+# §8 by writing one meta tag.
+mkpage "$TMP/decided-out-items.html" "$visual
+$surfaces
+<div class=\"page\"><main class=\"main\">
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Still open\">
+  <h3>Still open</h3>
+  <div class=\"opts one\"><label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label></div>
+</section>
+$gclose
+$bars
+</main></div>
+$composer"
+rc="$(run "$TMP/decided-out-items.html")"
+[[ "$rc" == "0" ]] \
+  && fail "BL-331: consult-surfaces waved a page with real items past the whole §8 battery: $(cat "$TMP/out")"
+
 # ---- 10b2. BL-324: consult-facts counted `;` in the RAW SOURCE, so every
 # `&iacute;` was a clause separator. Measured on a Spanish translation: a
 # paragraph with ONE real semicolon and five accent entities was reported as

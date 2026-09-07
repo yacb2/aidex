@@ -92,6 +92,15 @@ KIT_STAMP = re.compile(r'<meta[^>]+name=["\']?artifact-kit', re.I)
 FREE_TEXT = re.compile(r'<textarea|contenteditable=', re.I)
 CONSULT_STRUCTURE = re.compile(
     r'data-id=|id=["\']?consult-copy|class=["\'][^"\']*consult-item', re.I)
+# The same thing minus the copy BUTTON (BL-331). A button is chrome; what makes
+# a page a consultation is that it carries questions. A page whose last item was
+# answered has none — §8's own model says a decided item leaves the question set
+# — and it was then stuck: the gate fired on the bar still sitting in its body,
+# and the `consult-surfaces` escape was skipped because CONSULT_STRUCTURE
+# matched that same bar. The failure message pointed at the declaration the page
+# was already carrying. Hit closing the figure-route bench page, 2026-09-07.
+CONSULT_ITEMS = re.compile(
+    r'data-id=|class=["\'][^"\']*consult-item', re.I)
 
 
 def flatten(text):
@@ -1175,7 +1184,11 @@ def check_file(path):
     # page collected the whole §8 battery with no way to comply.
     if CONSULT_GATE.search(flat):
         declared = ""
-        if not FREE_TEXT.search(flat) and not CONSULT_STRUCTURE.search(flat):
+        # CONSULT_ITEMS, not CONSULT_STRUCTURE: a copy bar with nothing to copy
+        # must not veto the declaration (BL-331). A page carrying a single real
+        # item still cannot declare its way out — that is the half of this the
+        # test pins in the other direction.
+        if not FREE_TEXT.search(flat) and not CONSULT_ITEMS.search(flat):
             try:
                 declared = surfaces_declaration(text)
             except Exception:                       # noqa: BLE001 — fail closed
