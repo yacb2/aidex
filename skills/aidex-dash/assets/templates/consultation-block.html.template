@@ -40,8 +40,10 @@
   choice gets the question alone; something touching code or a shared contract
   gets a concrete example; something that rewrites what exists gets the example,
   the consequence of each option, and the file it touches. A returned
-  `[explain-more]` moves the item one row down that scale; the second one on the
-  same item means it is mis-shaped, not under-explained.
+  `[explain-state]` says the gap is what exists today and a returned
+  `[explain-options]` says it is the alternatives and their cost; two marks on
+  the same item, in any mix and across any rounds, mean it is mis-shaped rather
+  than under-explained.
 
   THE UNIT IS THE BLOCK, NOT THE ITEM (BL-247). A block is one context with the
   decisions that fall out of it — one decision or several — and it is the ONLY

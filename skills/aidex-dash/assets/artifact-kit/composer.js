@@ -52,8 +52,10 @@
       notRecSuffix: ' (not recommended)',
       other: 'Other — see my notes',
       otherHint: 'None of the above; the answer is in the notes box below.',
-      explain: 'Explain this one better',
-      explainHint: 'I cannot answer this as written — say what it touches and what state it is in now.',
+      explainState: 'Explain the state first',
+      explainStateHint: 'I cannot answer this as written — say what exists, what is in the tree, and what was actually measured.',
+      explainOptions: 'Explain the alternatives first',
+      explainOptionsHint: 'I can see the state — say what the alternatives are and what each one costs.',
       toLight: 'Light',
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark'
@@ -92,8 +94,10 @@
       notRecSuffix: ' (no recomendada)',
       other: 'Otra — lo explico en las notas',
       otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.',
-      explain: 'Expl\u00edcame esta mejor',
-      explainHint: 'As\u00ed no puedo responderla — dime qu\u00e9 toca y en qu\u00e9 estado est\u00e1 hoy.',
+      explainState: 'Expl\u00edcame primero el estado',
+      explainStateHint: 'As\u00ed no puedo responderla — dime qu\u00e9 existe, qu\u00e9 hay en el \u00e1rbol y qu\u00e9 se midi\u00f3 de verdad.',
+      explainOptions: 'Expl\u00edcame primero las alternativas',
+      explainOptionsHint: 'El estado lo veo — dime cu\u00e1les son las opciones y qu\u00e9 cuesta cada una.',
       toLight: 'Claro',
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro'
@@ -101,12 +105,23 @@
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
 
-  /* The one string here that is NEVER translated. `explain` above is what the
-   * reader sees; this is what the paste carries, and what the session on the
-   * other side greps to know which items to rewrite. Same split `recSuffix`
-   * makes between the badge and the copied label, and the same rule the header
-   * gives `blank`: do not rename it, in any language. */
-  var EXPLAIN = '[explain-more]';
+  /* The two strings here that are NEVER translated. `explainState` and
+   * `explainOptions` above are what the reader sees; these are what the paste
+   * carries, and what the session on the other side greps to know which items
+   * to rewrite and WHICH WAY. Same split `recSuffix` makes between the badge
+   * and the copied label, and the same rule the header gives `blank`: do not
+   * rename either, in any language.
+   *
+   * Two marks and not one, and by kind of gap rather than by amount: a mark
+   * that only said "more" left what to write to the writer, which is how an
+   * item reached 700 words about the alternatives when what was missing was a
+   * table of which files exist. The cost is stated rather than hidden — two
+   * extra rows in every option group of every item, for as long as the page
+   * lives. The ceiling does not double with the second kind: two marks on one
+   * item, in any mix and across any number of rounds, mean the question is
+   * mis-shaped, and it changes instrument or splits. */
+  var EXPLAIN_STATE = '[explain-state]';
+  var EXPLAIN_OPTIONS = '[explain-options]';
 
   // Built with DOM nodes rather than innerHTML: the id and the title are author
   // text, and a title carrying an angle bracket would otherwise be parsed as
@@ -688,7 +703,14 @@
    * handles it: `readItem` pastes it, `snapshotItem` stores it, `restore`
    * re-checks it, `clearItem` clears it, and `copy` folds it into the sent
    * fingerprint — which is what stops an answered request from coming back a
-   * round later. The label is localised; the pasted value is EXPLAIN. */
+   * round later. The labels are localised; the pasted values are the markers.
+   *
+   * Two of them since kit v16 (Q4), one per kind of gap, and they share the
+   * group's `name` with each other and with the real options: in a radio group
+   * that makes all of them mutually exclusive, which is the point. Wanting the
+   * state AND the alternatives in one round is not a third answer — it is the
+   * shape d11 already caps, and it comes back as a different instrument or as
+   * two questions. */
   function addExplainControls() {
     items.forEach(function (el) {
       if (isDecided(el)) return;
@@ -696,21 +718,24 @@
         if (g.querySelector('.kit-explain')) return;
         var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
         if (!first) return;
-        var lab = document.createElement('label');
-        lab.className = 'kit-explain';
-        var input = document.createElement('input');
-        input.type = first.type;
-        input.name = first.name;
-        input.setAttribute('data-label', EXPLAIN);
-        var text = document.createElement('span');
-        text.appendChild(document.createTextNode(L.explain + ' '));
-        var hint = document.createElement('span');
-        hint.className = 'hint';
-        hint.textContent = L.explainHint;
-        text.appendChild(hint);
-        lab.appendChild(input);
-        lab.appendChild(text);
-        g.appendChild(lab);
+        [[EXPLAIN_STATE, L.explainState, L.explainStateHint],
+         [EXPLAIN_OPTIONS, L.explainOptions, L.explainOptionsHint]].forEach(function (spec) {
+          var lab = document.createElement('label');
+          lab.className = 'kit-explain';
+          var input = document.createElement('input');
+          input.type = first.type;
+          input.name = first.name;
+          input.setAttribute('data-label', spec[0]);
+          var text = document.createElement('span');
+          text.appendChild(document.createTextNode(spec[1] + ' '));
+          var hint = document.createElement('span');
+          hint.className = 'hint';
+          hint.textContent = spec[2];
+          text.appendChild(hint);
+          lab.appendChild(input);
+          lab.appendChild(text);
+          g.appendChild(lab);
+        });
       });
     });
   }
