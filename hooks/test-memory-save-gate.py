@@ -36,17 +36,52 @@ os.makedirs(MEMDIR, exist_ok=True)
 
 # unpushed-is-not-a-fact can only speak when the memory's slug resolves to a real git
 # repo — with no repo it returns nothing, deliberately ("cannot verify: never accuse").
-# So that one case lives under a slug that decodes to THIS repo. Read-only: the check
-# runs `git cat-file` and `git for-each-ref`, nothing that writes.
+#
+# That used to be arranged by naming the memory's project after THIS checkout's path and
+# trusting the slug to decode back to it. Inside a linked worktree it does not (and a
+# worktree's `.git` is a FILE, which `_git_repos` does not accept as a repo either), so
+# the check went silent, the deny assertion failed, and its mirror kept passing —
+# because a check that never runs denies nothing (BL-338).
+#
+# So the pair below is graded against a git repo this test builds itself, reached through
+# the documented AIDEX_MEMORY_PROJECT_ROOT fixture door. It resolves the same anywhere.
+# The real filesystem round-trip is still exercised further down, where it can be.
+TREES = tempfile.mkdtemp(prefix="memgate-trees-")
+EMPTY_TREES = tempfile.mkdtemp(prefix="memgate-notrees-")
+FIX_SLUG = "-memgate-fixture"
+FIXTREE = os.path.join(TREES, FIX_SLUG)
+os.makedirs(FIXTREE, exist_ok=True)
+
+
+def _git(*args, cwd=FIXTREE):
+    return subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                           "-c", "commit.gpgsign=false", *args],
+                          cwd=cwd, capture_output=True, text=True)
+
+
+_git("init", "-q", ".")
+with open(os.path.join(FIXTREE, "seed.txt"), "w") as fh:
+    fh.write("seed\n")
+_git("add", "-A")
+_git("commit", "-qm", "init")
+FIX_HEAD = _git("rev-parse", "--short=8", "HEAD").stdout.strip()
+FIXMEMDIR = os.path.join(HOME, ".claude", "projects", FIX_SLUG, "memory")
+os.makedirs(FIXMEMDIR, exist_ok=True)
+
+# The legacy slug, still used for the round-trip case that only a main checkout can run.
 REPO_SLUG = REPO.replace("_", "-").replace("/", "-")
 GITMEMDIR = os.path.join(HOME, ".claude", "projects", REPO_SLUG, "memory")
 os.makedirs(GITMEMDIR, exist_ok=True)
 
 
-def run(payload, sweep=SWEEP, raw=None):
+def run(payload, sweep=SWEEP, raw=None, project_root=None):
     """Returns (returncode, parsed-json-or-None, stdout)."""
     env = dict(os.environ)
     env["HOME"] = HOME
+    # Never inherited: an ambient override would silently re-point every check.
+    env.pop("AIDEX_MEMORY_PROJECT_ROOT", None)
+    if project_root:
+        env["AIDEX_MEMORY_PROJECT_ROOT"] = project_root
     if sweep is None:
         env.pop("AIDEX_MEMORY_SWEEP", None)
         env["AIDEX_MEMORY_SWEEP"] = os.path.join(HOME, "does-not-exist.py")
@@ -86,20 +121,67 @@ check("the message names the check id", "no-secrets" in reason(out), reason(out)
 check("and carries the waiver syntax", "memory-gate: waived" in reason(out), reason(out))
 check("a block still exits 0 — the DECISION is the JSON, not the status", rc == 0, rc)
 
+def fix_ev(name, content):
+    return {"tool_name": "Write",
+            "tool_input": {"file_path": os.path.join(FIXMEMDIR, name), "content": content}}
+
+
 def git_ev(name, content):
     return {"tool_name": "Write",
             "tool_input": {"file_path": os.path.join(GITMEMDIR, name), "content": content}}
 
-rc, out, _ = run(git_ev("u.md", TYPED % "I just fixed it in commit `deadbee` on a local branch."))
-check("an unreachable commit SHA is denied", decision(out) == "deny", out)
+UNREACHABLE = TYPED % "I just fixed it in commit `deadbee` on a local branch."
+REACHABLE = TYPED % ("The fix landed in commit `%s`." % FIX_HEAD)
+
+rc, out, _ = run(fix_ev("u.md", UNREACHABLE), project_root=TREES)
+live = decision(out) == "deny"
+check("an unreachable commit SHA is denied", live, out)
 check("named as unpushed-is-not-a-fact", "unpushed-is-not-a-fact" in reason(out), reason(out))
 
 # The other half of that check: a SHA that IS reachable must pass, or the check is just
 # "mentions a hex string" and every honest commit citation becomes a block.
-head = subprocess.run(["git", "-C", REPO, "rev-parse", "--short=8", "HEAD"],
-                      capture_output=True, text=True).stdout.strip()
-rc, out, _ = run(git_ev("uok.md", TYPED % ("The fix landed in commit `%s`." % head)))
-check("a reachable commit SHA is not denied (%s)" % head, decision(out) != "deny", reason(out))
+#
+# It is GATED on the deny above, and that is the whole point. On its own it says only
+# "nothing was denied", which is equally true when the check is dead — so an inert check
+# used to show up as one FAIL beside one PASS, reading like a half-broken check instead
+# of a silent one. A mirror that cannot run reports itself; it never passes quietly.
+rc, out, _ = run(fix_ev("uok.md", REACHABLE), project_root=TREES)
+if live:
+    check("a reachable commit SHA is not denied (%s)" % FIX_HEAD, decision(out) != "deny", reason(out))
+else:
+    check("a reachable commit SHA is not denied — NOT ASSERTED", False,
+          "the deny above was silent, so this case proves nothing and is reported as unasserted")
+
+# The mutation that makes the gating above necessary rather than decorative: point the
+# resolver at a directory holding no project and BOTH cases go quiet, the reachable one
+# included. That is the exact state in which the mirror used to report a pass.
+rc, out_dead_bad, _ = run(fix_ev("u2.md", UNREACHABLE), project_root=EMPTY_TREES)
+rc, out_dead_ok, _ = run(fix_ev("uok2.md", REACHABLE), project_root=EMPTY_TREES)
+check("with the project tree unresolvable both SHA cases go silent, so the mirror alone proves nothing",
+      decision(out_dead_bad) != "deny" and decision(out_dead_ok) != "deny",
+      (out_dead_bad, out_dead_ok))
+
+# And the resolver's own filesystem walk — the greedy slug decode that resolved
+# `-Users-yoelacevedo--claude` to the wrong directory on 2026-08-31 — is still exercised
+# for real wherever it can be. It cannot be from a linked worktree: that path does not
+# decode back to a repo, and `.git` there is a file rather than a directory. Announced,
+# not silently dropped.
+if os.path.isdir(os.path.join(REPO, ".git")):
+    head = subprocess.run(["git", "-C", REPO, "rev-parse", "--short=8", "HEAD"],
+                          capture_output=True, text=True).stdout.strip()
+    rc, out, _ = run(git_ev("u.md", UNREACHABLE))
+    walk_live = decision(out) == "deny"
+    check("the real slug round-trip reaches this checkout, so the check speaks", walk_live, out)
+    rc, out, _ = run(git_ev("uok.md", TYPED % ("The fix landed in commit `%s`." % head)))
+    if walk_live:
+        check("and a reachable SHA of this checkout is not denied (%s)" % head,
+              decision(out) != "deny", reason(out))
+    else:
+        check("a reachable SHA of this checkout is not denied — NOT ASSERTED", False,
+              "the round-trip did not resolve, so this case proves nothing")
+else:
+    print("  SKIP  the real slug round-trip: %s is a linked worktree, whose path does not "
+          "decode back to a git repo — the fixture pair above carries the contract" % REPO)
 
 # With no resolvable project the check must stay silent rather than accuse.
 rc, out, _ = run(write_ev("u2.md", TYPED % "I just fixed it in commit `deadbee`."))

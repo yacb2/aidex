@@ -113,6 +113,7 @@ fi
 
 PASS=0
 SKIPPED=0
+SKIP_REASONS=()
 FAILED=()
 LOG="$(mktemp)"
 VERDICTS="$(mktemp)"          # "<rc> <path>" per test, for the parity pass
@@ -133,6 +134,7 @@ for t in "${TESTS[@]}"; do
   if [[ $rc -eq 2 ]] && grep -q '^SKIP' "$LOG"; then
     printf 'SKIP  %s\n' "$t"
     SKIPPED=$((SKIPPED + 1))
+    SKIP_REASONS+=("$t — $(grep -m1 '^SKIP' "$LOG")")
     [[ $VERBOSE -eq 1 ]] && cat "$LOG"
     continue
   fi
@@ -147,12 +149,12 @@ for t in "${TESTS[@]}"; do
   fi
 done
 
-printf '\n%d/%d passed' "$PASS" "${#TESTS[@]}"
-[[ $SKIPPED -gt 0 ]] && printf ' (%d skipped: precondition absent)' "$SKIPPED"
-printf '\n' 
+printf '\n'
 # A skipped test is announced, never silent: "65/65 passed" over a set that
 # quietly excluded a whole family is exactly the claim this runner exists to
-# stop making.
+# stop making. The tally is printed at the very END instead of here, because
+# the parity pass below can still add failures and a "0 failed" line standing
+# above a `failed:` line is worse than no line at all.
 if [[ ${#DOCKER_SKIPPED[@]} -gt 0 ]]; then
   printf 'skipped %d docker-dependent test(s) — run with RUN_DOCKER_TESTS=1 to include them\n' \
     "${#DOCKER_SKIPPED[@]}"
@@ -277,6 +279,18 @@ fi
 if [[ ${#DIVERGED[@]} -gt 0 ]]; then
   printf 'diverged between roots: %s\n' "${DIVERGED[*]}"
   FAILED+=("${DIVERGED[@]}")
+fi
+
+# The tally, in three named categories rather than one ratio. "137/139 passed" reads as
+# red whatever the two were, and inside a worktree the two were STRUCTURAL — a
+# precondition that checkout cannot have, not a regression (BL-338). A run is citable as
+# green on `0 failed` plus exit 0; the skipped ones are listed with the reason each
+# printed, so "skipped" can never quietly mean "did not look".
+printf '\n%d tests: %d passed, %d skipped, %d failed\n' \
+  "${#TESTS[@]}" "$PASS" "$SKIPPED" "${#FAILED[@]}"
+if [[ $SKIPPED -gt 0 ]]; then
+  printf 'the %d skip(s) are structural — a precondition this environment lacks, not a failure:\n' "$SKIPPED"
+  printf '  %s\n' "${SKIP_REASONS[@]}"
 fi
 
 if [[ ${#FAILED[@]} -gt 0 ]]; then
