@@ -207,8 +207,16 @@ def _owned_skills() -> list[Path]:
     a clean tree for every installed user, while the repo copy — where the root
     is aidex-only by construction — printed OK (BL-115).
     """
-    manifest = SKILLS_DIR.parent / ".manifest"
-    if manifest.is_file():
+    # install.sh writes STATE_DIR/manifest, i.e. <root>/aidex/manifest. Reading
+    # only <root>/.manifest meant the filter never engaged on a real install and
+    # the fallback below judged the user's own skills — BL-115 all over again,
+    # invisible because the test wrote the manifest where the code looked.
+    candidates = [
+        SKILLS_DIR.parent / "aidex" / "manifest",   # what install.sh writes
+        SKILLS_DIR.parent / ".manifest",            # legacy layout
+    ]
+    manifest = next((m for m in candidates if m.is_file()), None)
+    if manifest is not None:
         owned = [
             SKILLS_DIR / line.split("/", 1)[1]
             for line in manifest.read_text(encoding="utf-8").split()

@@ -26,9 +26,14 @@ cp -R "$REPO/skills" "$TMP/skills"
 cp -R "$REPO/rules" "$TMP/rules"
 cp -R "$REPO/hooks" "$TMP/hooks"
 
-# What install.sh writes — the authoritative aidex-owned inventory.
-: > "$TMP/.manifest"
-for d in "$TMP"/skills/*/; do echo "skills/$(basename "$d")" >> "$TMP/.manifest"; done
+# What install.sh writes — the authoritative aidex-owned inventory, at the path
+# install.sh actually writes it to (`$STATE_DIR/manifest`, i.e. <root>/aidex/manifest).
+# Writing it at <root>/.manifest instead is what let the guard fall back to
+# scanning every skill on a real install while this test stayed green: the test
+# was pinning the path the code read, not the path the installer wrote.
+mkdir -p "$TMP/aidex"
+: > "$TMP/aidex/manifest"
+for d in "$TMP"/skills/*/; do echo "skills/$(basename "$d")" >> "$TMP/aidex/manifest"; done
 
 long_desc="$(printf 'x%.0s' $(seq 950))"
 
