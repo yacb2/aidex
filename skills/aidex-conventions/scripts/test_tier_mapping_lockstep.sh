@@ -111,6 +111,24 @@ for wf in "$WORKFLOWS"/*.workflow.js; do
   done < <(grep -nE "label: .(verify|arbiter)" "$wf" | grep "effort: '")
 done
 
+# ---- 3b. the exec default is the `standard` cell, in code -----------------
+# `model: p.model || 'x', effort: p.effort || 'y'` IS the standard row, written in
+# JavaScript. Section 3 only ever guarded the gate cell, so this copy drifted freely
+# until BL-321 moved the row and found it (2026-09-07).
+STD_CELL="$(canon_cell standard)"
+STD_MODEL="${STD_CELL%%/*}"; STD_EFFORT="${STD_CELL##*/}"
+for wf in "$WORKFLOWS"/*.workflow.js; do
+  [ -e "$wf" ] || continue
+  while IFS= read -r line; do
+    m="$(echo "$line" | sed -nE "s/.*model: p\.model \|\| '([a-z0-9.-]+)'.*/\1/p")"
+    e="$(echo "$line" | sed -nE "s/.*effort: p\.effort \|\| '([a-z]+)'.*/\1/p")"
+    [ -z "$m" ] && [ -z "$e" ] && continue
+    if [ "$m" != "$STD_MODEL" ] || [ "$e" != "$STD_EFFORT" ]; then
+      err "${wf##*/}: exec default is $m/$e, canon says standard is $STD_MODEL/$STD_EFFORT"
+    fi
+  done < <(grep -E "p\.model \|\||p\.effort \|\|" "$wf")
+done
+
 # ---- 4. both consumers defer to the canon ---------------------------------
 for f in "$BATCH" "$TIERING"; do
   grep -q 'plan-conventions.md' "$f" \
