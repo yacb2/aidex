@@ -396,6 +396,92 @@ grep -q "WARN \[svg-text\].*'much too long for this box'.*wider than" "$TMP/out"
 grep -qE "WARN \[svg-text\].*'(left|right|rotated axis)" "$TMP/out" \
   && fail "10c. a well-placed or rotated label was reported — the estimate is too wide: $(cat "$TMP/out")"
 
+# ---- 10d. BL-330: an embedded <style> is a stylesheet in the PAGE, and the
+# text nobody measured. Reported by the owner on a bench page: "los textos que
+# están en un azul no se leen prácticamente". One figure's own
+# `text { fill: #1F2937 }` was painting every <text> on the page, last-one-wins,
+# and 26 of 26 figures measured below 4.5:1 in dark with every gate green — the
+# contract read geometry and never colour.
+mkpage "$TMP/warn-svgscope.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg id=\"fig-a\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"a\">
+  <style>text { fill: #1F2937; font-size: 12px } .lbl { font-weight: 600 } #fig-a rect { fill: none }</style>
+  <text x=\"10\" y=\"40\">painted by a document selector</text>
+</svg></figure>
+<figure><svg id=\"fig-b\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"b\">
+  <style>#fig-b text { fill: #191D1A; font-size: 12px }</style>
+  <text x=\"10\" y=\"40\">scoped and legible</text>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svgscope.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10d. svg-scope changed the exit code — it is a warning: $(cat "$TMP/out")"
+grep -q "WARN \[svg-scope\].*text" "$TMP/out" \
+  || fail "10d. BL-330: a bare element selector inside an SVG <style> was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[svg-scope\].*#fig-b" "$TMP/out" \
+  && fail "10d. BL-330: an already-scoped selector was reported: $(cat "$TMP/out")"
+grep -q "WARN \[svg-scope\].*\.lbl" "$TMP/out" \
+  && fail "10d. BL-330: a class selector was reported — the rule is about ELEMENT selectors: $(cat "$TMP/out")"
+
+# ---- 10e. BL-330: figure text below 4.5:1, in EITHER theme, and the count it
+# measured. A gate that silently measured nothing is green and indistinguishable
+# from a gate that passed, so the finding line has to carry its own denominator.
+mkpage "$TMP/warn-contrast.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg id=\"fig-c\" viewBox=\"0 0 400 200\" role=\"img\" aria-label=\"c\">
+  <style>#fig-c text { font-size: 12px }</style>
+  <text x=\"10\" y=\"40\" fill=\"#1F2937\">dark slate on the page ground</text>
+  <rect x=\"0\" y=\"60\" width=\"400\" height=\"60\" fill=\"#FFFFFF\"/>
+  <text x=\"10\" y=\"100\" fill=\"#E8E8E8\">pale grey on its own white box</text>
+  <text x=\"10\" y=\"100\" fill=\"#191D1A\">ink on its own light box</text>
+  <text x=\"10\" y=\"170\" fill=\"currentColor\">inherits the page ink</text>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-contrast.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10e. svg-contrast changed the exit code — it is a warning: $(cat "$TMP/out")"
+# #1F2937 is the reported case: fine on the light ground, 1.15 on the dark one.
+grep -q "WARN \[svg-contrast\].*'dark slate on the page ground'.*dark" "$TMP/out" \
+  || fail "10e. BL-330: text that only fails in the dark theme was not reported: $(cat "$TMP/out")"
+# A hard-coded box makes the pair theme-independent, so it fails in both.
+grep -q "WARN \[svg-contrast\].*'pale grey on its own white box'" "$TMP/out" \
+  || fail "10e. BL-330: pale text on its own painted rect was not reported: $(cat "$TMP/out")"
+# The escape hatch, and the one the bench page's fix actually used: a figure
+# that draws the box its text sits on no longer depends on the theme.
+grep -q "WARN \[svg-contrast\].*'ink on its own light box'" "$TMP/out" \
+  && fail "10e. BL-330: dark text on the light box the figure draws itself was reported: $(cat "$TMP/out")"
+# currentColor is the OTHER right answer, and it is unmeasurable by design —
+# reported as a count, never invented as a pass.
+grep -q "WARN \[svg-contrast\].*'inherits the page ink'" "$TMP/out" \
+  && fail "10e. BL-330: a currentColor label was judged — the check must not invent the colour it cannot read: $(cat "$TMP/out")"
+grep -qE "WARN \[svg-contrast\].*measured 3 text node\(s\).*1 unmeasurable" "$TMP/out" \
+  || fail "10e. BL-330: the finding does not carry its own denominator — a gate that saw nothing reads the same as one that passed: $(cat "$TMP/out")"
+
+# ---- 10f. BL-330: the figure is judged against what it is PAINTED on, and on
+# a real page that is an HTML wrapper, not an SVG rect. Measured on the bench
+# page: 25 of 26 figures sit in `figure.cell.litebox .figbox { background:
+# #F6F7F5 }`, and judging them against the page ground reported 12 figures where
+# the browser found 9. Reading the wrapper brought it to 6 figures / 65 nodes
+# against the browser's 61.
+mkpage "$TMP/warn-figbox.html" "<style>figure.cell.litebox .figbox { background: #F6F7F5 }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-d\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"d\">
+  <style>#fig-d text { font-size: 12px }</style>
+  <text x=\"10\" y=\"40\" fill=\"#1F2937\">dark slate on the light box</text>
+</svg></div></figure>
+<figure><svg id=\"fig-e\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"e\">
+  <style>#fig-e text { font-size: 12px }</style>
+  <text x=\"10\" y=\"40\" fill=\"#1F2937\">the same slate on the page ground</text>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-figbox.html")"
+[[ "$rc" == "0" ]] || fail "10f. svg-contrast changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[svg-contrast\].*'dark slate on the light box'" "$TMP/out" \
+  && fail "10f. BL-330: text on the light box its wrapper paints was reported — the checker is not reading the wrapper: $(cat "$TMP/out")"
+grep -q "WARN \[svg-contrast\].*'the same slate on the page ground'" "$TMP/out" \
+  || fail "10f. BL-330: the identical fill on the bare page ground was NOT reported — the wrapper lookup is over-applying: $(cat "$TMP/out")"
+
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
 # set the size in a CSS class and the labels never touched. A class rule is
