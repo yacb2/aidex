@@ -422,10 +422,34 @@ bash "$REG" --origin manual --title "B16 slug" --slug 'Bad Slug!' >/dev/null 2>&
 [[ $RC -ne 0 ]] && ok "B16 --slug outside [a-z0-9-] is refused" || bad "B16 --slug 'Bad Slug!' was accepted"
 ls .context/backlog/ | grep -q 'Bad' && bad "B16 a file with the raw slug was written" || ok "B16 no file with the raw slug"
 
+# ── B17 · a plain registration must not bootstrap a backlog tree (BL-336) ─────
+# Was: `mkdir -p "$BACKLOG_DIR"` ran unguarded on the plain path, so running the
+# script from the wrong cwd created .context/backlog/, _claims/ and 00-index.md and
+# minted BL-001 there, reporting success. The --escalate-to path in the SAME script
+# already refused exactly this ("target has no .context/"). Now symmetric: a project
+# with no backlog/ is refused and pointed at /aidex init.
+D="$TMP/b17"; rm -rf "$D"; mkdir -p "$D/.context"; cd "$D"
+B17_ROOT="$(pwd -P)"
+ERRF="$TMP/b17.err"
+bash "$REG" --origin manual --title "B17 wrong cwd" >/dev/null 2>"$ERRF"; RC=$?
+[[ $RC -ne 0 ]] && ok "B17 no backlog/ is refused (rc=$RC)" || bad "B17 registration in a project with no backlog/ exited 0"
+[[ ! -d "$D/.context/backlog" ]] && ok "B17 no backlog tree was bootstrapped" || bad "B17 created $D/.context/backlog"
+grep -q '/aidex init' "$ERRF" && ok "B17 the refusal points at /aidex init" || bad "B17 refusal does not mention /aidex init: $(cat "$ERRF")"
+grep -qF "$B17_ROOT" "$ERRF" && ok "B17 the refusal names the resolved root" || bad "B17 refusal does not name $B17_ROOT: $(cat "$ERRF")"
+
+# Mutation: the same call in a project that DOES have backlog/ must still succeed,
+# or the guard above passes vacuously by refusing everything.
+D="$(fresh b17ok)"; cd "$D"
+OUT="$(bash "$REG" --origin manual --title "B17 right cwd" 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 && -n "$OUT" && -f "$OUT" ]] \
+  && ok "B17 registration in a project with backlog/ is unchanged" \
+  || bad "B17 registration with backlog/ present broke (rc=$RC out='$OUT')"
+
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 15 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 16 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"

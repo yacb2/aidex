@@ -1172,7 +1172,18 @@ fi
 [[ -n "$SLUG" ]] || die "could not derive slug from title"
 
 DATE_ISO="$(date +%Y-%m-%d)"
-mkdir -p "$BACKLOG_DIR"
+
+# The backlog directory is the caller's, never this script's to create (BL-336).
+# `mkdir -p` stood here instead, and cwd is this path's only selector: run from the
+# wrong project it built .context/backlog/, _claims/ and 00-index.md, minted BL-001
+# and reported success — four files and three directories to undo by hand. The
+# --escalate-to path in this same file already refuses exactly that shape ("target
+# has no .context/", above); this makes the plain path symmetric. A project that has
+# never had a backlog is far likelier to be the wrong cwd than a deliberate first
+# item, and a deliberate one has `/aidex init`, which is what that sub-action is for.
+[[ -d "$BACKLOG_DIR" ]] || die "no backlog directory at $BACKLOG_DIR
+  resolved project root: $ROOT
+  if that is the right project, run \`/aidex init\` there first; otherwise cd to the project the item belongs to"
 
 # --- claim a stable short id (BL-NNN) for commit-trailer references (D-09) ---
 # Minted before the filename because the name carries it, and CLAIMED rather than
