@@ -24,7 +24,9 @@
 #   4. Both consumers point at the canon by name instead of restating it.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+. "$SCRIPT_DIR/_owned-skills.sh"
 CANON="$REPO/skills/aidex-conventions/references/plan-conventions.md"
 BATCH="$REPO/skills/aidex-plan-exec/references/01-unattended-batch-execution.md"
 TIERING="$REPO/skills/aidex-plan-exec/references/04-model-tiering.md"
@@ -35,20 +37,13 @@ err() { echo "FAIL: $*" >&2; fail=1; }
 
 # Installed, $REPO is ~/.claude, whose skills/ also holds the user's own skills.
 # Judging those is BL-115: a FAIL on a clean tree for something this repo does
-# not ship. install.sh's manifest is the ownership record; without it (the repo
-# copy, where the tree is aidex-only by construction) scan everything.
+# not ship. Ownership comes from _owned-skills.sh, shared with the other guards
+# that walk this root.
 aidex_owned_md() {
-  local manifest="$REPO/aidex/manifest"
-  [ -f "$manifest" ] || manifest="$REPO/.manifest"
-  if [ -f "$manifest" ]; then
-    while IFS= read -r entry; do
-      case "$entry" in skills/*/) continue ;; skills/*) ;; *) continue ;; esac
-      [ -d "$REPO/$entry" ] || continue
-      find "$REPO/$entry" -name '*.md' -not -path '*/evals/*' -not -path '*/tests/*'
-    done < "$manifest"
-  else
-    find "$REPO/skills" -name '*.md' -not -path '*/evals/*' -not -path '*/tests/*'
-  fi
+  local d
+  while IFS= read -r d; do
+    find "$d" -name '*.md' -not -path '*/evals/*' -not -path '*/tests/*'
+  done < <(aidex_owned_skill_dirs "$REPO")
 }
 
 # ---- 1. the canon table is parseable and complete -------------------------
