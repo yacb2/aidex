@@ -13,6 +13,11 @@
 # private `find_project_root`. That guard was unwired the day it was written, and
 # the runner still reported green. Naming style is not a reason to skip a test.
 #
+# The pattern is now guarded rather than re-patched: tests/test-discovery-census.sh
+# enumerates test files by NAME across the tree and asserts each is either in
+# `--list` or excluded by name with a reason. A test in a new location fails it
+# once, and the fix is a glob here, not a line in that exclusion list.
+#
 # And a third time, 2026-08-17: `hooks/` was never a discovery root, so both hook
 # tests were invisible. `test-context-depth-nudge.py` had been asserting that the
 # depth hook TELLS the assistant not to hand off on its own — pinning a rule the
@@ -62,13 +67,29 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$REPO_ROOT"
 
 VERBOSE=0
-[[ "${1:-}" == "--verbose" || "${1:-}" == "-v" ]] && VERBOSE=1
+LIST_ONLY=0
+case "${1:-}" in
+  --verbose|-v) VERBOSE=1 ;;
+  # `--list` prints the discovered set and exits. It exists so the discovery
+  # census (tests/test-discovery-census.sh) can ask this file what it found
+  # instead of re-implementing the globs — a second copy of them would drift,
+  # which is the defect the census is there to catch.
+  --list)       LIST_ONLY=1 ;;
+esac
 
 shopt -s nullglob
 TESTS=(tests/test-*.sh skills/*/tests/test-*.sh
        skills/*/scripts/test_*.sh skills/*/scripts/test_*.py
-       skills/aidex-conventions/scripts/test-*.sh
+       skills/*/scripts/test-*.sh skills/*/scripts/test-*.py
        hooks/test-*.sh hooks/test-*.py)
+# aidex-worktree's scripts/test-*.sh are the docker set; the branch below owns
+# them and names the one liar among them. Drop them from the general glob rather
+# than letting both paths claim them.
+_KEPT=()
+for _t in "${TESTS[@]}"; do
+  [[ "$_t" == skills/aidex-worktree/scripts/test-* ]] || _KEPT+=("$_t")
+done
+TESTS=("${_KEPT[@]}")
 if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
   # `test-db-preflight.sh` is a PRODUCTION script, not a test: it preflights the
   # TEST database, which is why its name starts that way. Discovery by filename
@@ -84,6 +105,11 @@ fi
 DOCKER_SKIPPED=("${DOCKER_SKIPPED[@]:-}")
 [[ -z "${DOCKER_SKIPPED[0]:-}" ]] && DOCKER_SKIPPED=()
 shopt -u nullglob
+
+if [[ $LIST_ONLY -eq 1 ]]; then
+  printf '%s\n' "${TESTS[@]}"
+  exit 0
+fi
 
 PASS=0
 SKIPPED=0
@@ -159,12 +185,29 @@ PARITY=()
 if [[ "${RUN_INSTALL_PARITY:-}" == "full" ]]; then
   PARITY=("${PARITY_POOL[@]}")
 else
+  # NOT `grep -v ... | grep -q ...`. Under `set -o pipefail` that pipeline is a
+  # race: `grep -q` exits at the FIRST match and closes the pipe, `grep -v` takes
+  # SIGPIPE if it is still writing, and pipefail then reports 141 for a file that
+  # DID match. It only bites when the file exceeds the pipe buffer, so it looked
+  # like a stable 21 and was intermittently 20 — measured 2026-09-07 at 1 miss in
+  # 840 evaluations under load, always on the largest file in the pool
+  # (test_registry_lockstep.py, 38 KB). Silent, load-dependent under-selection is
+  # the worst failure this pass could have: it drops a test from the check and
+  # still prints a green line.
   for t in "${PARITY_POOL[@]}"; do
-    if grep -v -E '\.\./\.\./aidex-[a-z]' "$t" | grep -qE "$ROOT_REACHING"; then
+    filtered="$(grep -v -E '\.\./\.\./aidex-[a-z]' "$t" 2>/dev/null)"
+    if [[ $? -gt 1 ]]; then
+      printf 'parity: FAIL — could not read %s while selecting\n' "$t"
+      FAILED+=("parity:unreadable:$t")
+      continue
+    fi
+    if printf '%s\n' "$filtered" | grep -qE "$ROOT_REACHING"; then
       PARITY+=("$t")
     fi
   done
 fi
+
+[[ $VERBOSE -eq 1 ]] && printf 'parity selected: %s\n' "${PARITY[@]}"
 
 # A selector that silently selected nothing would print a green parity line over an
 # empty set — the exact "checker lies by omission" shape this runner keeps meeting.
