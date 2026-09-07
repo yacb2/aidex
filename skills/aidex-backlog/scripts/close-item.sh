@@ -85,15 +85,39 @@ fi
 TODAY="$(date +%Y-%m-%d)"
 COMMITS_STR="${COMMITS[*]:-}"
 
-# --- every cited commit must be ON THE TRUNK you are closing from ---
+# --- every cited commit must be ON A TREE THIS RUN IS ACTUALLY IN ---
 # 2026-08-28: BL-635/636 cited a worktree branch's commits for hours while main carried
-# different fixes for the same items. A hash that resolves but is not an ancestor of HEAD
-# is a citation of work that is not here. Multi-repo workspaces (backend/.git,
+# different fixes for the same items. A hash that resolves but is not an ancestor of any
+# HEAD here is a citation of work that is not here. Multi-repo workspaces (backend/.git,
 # frontend/.git beside the root) are searched one level down; the first repo that has
 # the commit on its current branch wins.
-commit_on_trunk() {  # commit_on_trunk <sha> → prints the repo that carries it; exit 1 if none, 3 if no repo at all
+#
+# BL-333: the caller's OWN tree is searched first, and it is usually not $ROOT. A sweep
+# is mandated to run in a linked worktree (sweep-execution-policy.md stage 2) whose
+# branch stays unmerged until close-out, while find_project_root deliberately hops OUT of
+# that worktree so the queue and the item live in the main tree. Both hops are right;
+# together they refused every hash a sweep produced, for a whole run, item 1 to item 10.
+#
+# The discriminant is "the tree this run is EXECUTING in", never "reachable from some
+# ref": a branch in a worktree the caller is not in stays refused, which is BL-635/636
+# unweakened, and so does a hash on no branch at all.
+caller_tree() {  # prints the caller's worktree root when it is another checkout of $ROOT's repo
+  local top common root_common
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [[ -n "$top" && "$top" != "$ROOT" ]] || return 1
+  # The same REPOSITORY, not merely some git checkout: run from an unrelated repo that
+  # happens to contain the object, this would otherwise wave the hash through. The common
+  # dir is what a linked worktree shares with its main tree, so it is the identity.
+  common="$(cd "$top" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd -P)" || return 1
+  root_common="$(cd "$ROOT" && cd "$(git rev-parse --git-common-dir 2>/dev/null)" && pwd -P)" || return 1
+  [[ "$common" == "$root_common" ]] || return 1
+  printf '%s' "$top"
+}
+CALLER_TREE="$(caller_tree || true)"
+
+commit_on_trunk() {  # commit_on_trunk <sha> → prints the tree that carries it; exit 1 if none, 3 if no repo at all
   local sha="$1" repo any=0
-  for repo in "$ROOT" "$ROOT"/*/; do
+  for repo in ${CALLER_TREE:+"$CALLER_TREE"} "$ROOT" "$ROOT"/*/; do
     [[ -d "$repo/.git" || -f "$repo/.git" ]] || continue
     any=1
     if git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null \
@@ -103,13 +127,18 @@ commit_on_trunk() {  # commit_on_trunk <sha> → prints the repo that carries it
   done
   [[ $any -eq 1 ]] && return 1 || return 3
 }
+# Named in the refusal, because "not here" is unactionable without "here is where I
+# looked" — the two cases a caller has to tell apart are a hash from the wrong tree and
+# a hash that exists nowhere.
+SEARCHED="$(basename "$ROOT") (and any sub-repo)"
+[[ -n "$CALLER_TREE" ]] && SEARCHED="the worktree $(basename "$CALLER_TREE"), then $SEARCHED"
 for sha in "${COMMITS[@]:-}"; do
   [[ -n "$sha" ]] || continue
   rc=0; commit_on_trunk "$sha" >/dev/null || rc=$?
   case $rc in
     0) ;;
     3) warn "--commit $sha not verified: no git repository under $ROOT" ;;
-    *) die "--commit $sha is not on the current branch of $(basename "$ROOT") or any sub-repo — cite a commit that is here (a worktree branch's hash is not)" ;;
+    *) die "--commit $sha is not on the current branch of $SEARCHED — cite a commit that is here. Running from inside the worktree that carries it is what makes a sweep's own hash citable." ;;
   esac
 done
 
