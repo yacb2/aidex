@@ -215,6 +215,11 @@ def _owned_skills() -> list[Path]:
         SKILLS_DIR.parent / "aidex" / "manifest",   # what install.sh writes
         SKILLS_DIR.parent / ".manifest",            # legacy layout
     ]
+    # A PRESENT manifest is authoritative even when it yields nothing. Falling
+    # back to "scan everything" on an empty or corrupt one is BL-115 reopened by
+    # a broken install, silently — main() FAILs loudly on an empty set instead,
+    # which is the right verdict there. Same rule as the bash resolver in
+    # scripts/_owned-skills.sh; two languages, one behaviour.
     manifest = next((m for m in candidates if m.is_file()), None)
     if manifest is not None:
         owned = [
@@ -222,9 +227,7 @@ def _owned_skills() -> list[Path]:
             for line in manifest.read_text(encoding="utf-8").split()
             if line.startswith("skills/") and line.count("/") == 1
         ]
-        owned = [p for p in owned if (p / "SKILL.md").is_file()]
-        if owned:
-            return sorted(owned)
+        return sorted(p for p in owned if (p / "SKILL.md").is_file())
     return sorted(p for p in SKILLS_DIR.iterdir()
                   if p.is_dir() and (p / "SKILL.md").is_file())
 
@@ -248,6 +251,9 @@ def _section_code_block(text: str, heading: str) -> set[str]:
 def main() -> int:
     failures: list[str] = []
     owned = _owned_skills()
+    if not owned:
+        print(f"FAIL: no aidex-owned skills under {SKILLS_DIR} — broken manifest or install")
+        return 1
     owned_skill_mds = [d / "SKILL.md" for d in owned]
     v = _load_validator()
     canon = GLOBAL_CANON.read_text(encoding="utf-8")
