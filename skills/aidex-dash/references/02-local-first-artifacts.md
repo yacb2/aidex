@@ -634,11 +634,20 @@ authoring a non-English page: translating them by hand is what produced the mixe
 page this fixes, and a hand translation is no longer recognised as a default to swap.
 Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
 
+**Since kit v12, every ITEM ends with an injected `Explain this one better` checkbox.**
+Not per option group, which is where the "other" choice stops: an item with no closed list
+— a bare value box, the general notes — is exactly the one that most often cannot be
+answered as written. Picking it pastes the fixed marker `[explain-more]` under that item's
+id, and asking for an explanation counts as a response rather than a blank. Do not write
+one by hand either. What the next round owes in return, and where it stops, is
+*Depth is set by the cost of undoing* → *When the reader says the question is unreadable*
+above.
+
 Do not write an "other" option by hand — the composer skips a group that already has one
 (`data-other` on an input), so a hand-written one only duplicates the label. The injected
-control is stripped from the question fingerprint like the badge and the Clear button:
-leaving it in would have marked every answer stored before v10 as "the question changed"
-and dropped it on the upgrade.
+control is stripped from the question fingerprint like the badge, the Clear button and the
+explain checkbox: leaving any of them in would mark every answer stored before that
+release as "the question changed" and drop it on the upgrade.
 
 Copy the shape from
 `~/.claude/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
