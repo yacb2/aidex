@@ -159,6 +159,18 @@ li::marker { color: var(--muted); }
 .opts.one .kit-other { grid-column: 1; }
 .opts:not(.one) .kit-other { grid-column: 1 / -1; }
 
+/* The injected "explain this one better" escape (BL-325). It sits on the ITEM,
+   not in an option group, so it gets its own rule rather than reusing `.opts`
+   — an item whose only surface is a textarea carries it too. Last row of the
+   item, set off by the same dashed edge as the "other" choice and drawn just as
+   quietly: it is the way OUT of the question, never one of its answers. */
+.kit-explain { display: flex; gap: 0.6rem; align-items: flex-start;
+               border-top: 1px dashed var(--rule); padding-top: 0.55rem;
+               font-family: var(--sans); font-size: 0.85rem; line-height: 1.45;
+               color: var(--muted); cursor: pointer; }
+.kit-explain input { accent-color: var(--accent); margin-top: 0.28rem; flex: none; }
+.kit-explain .hint { display: block; font-size: 0.8rem; }
+
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;
   color: inherit; background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; }
