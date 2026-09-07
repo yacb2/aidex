@@ -29,11 +29,23 @@
  *     ships visible direct labels or a table view.
  *   dark (#131614) — all five checks pass, contrast included.
  * Changing a value means re-running dataviz's validate_palette.js for both
- * modes with those surfaces. */
+ * modes with those surfaces.
+ *
+ * That claim was unbacked until 2026-09-07 (BL-334). Measured in DevTools on a
+ * wrapped page, `--muted` was 3.11:1 in light and 4.34:1 in dark against
+ * `--paper`, and worse on `--paper-sunk` — so every option hint, every
+ * `.fieldlabel`, the Clear control and both injected choices, 18 rules in all,
+ * sat below the 4.5:1 floor on every artifact this kit has ever produced. The
+ * comment above said contrast passed and nothing checked it, which is this
+ * repo's own systemic failure written into a header.
+ * `tests/test-artifact-kit.sh` now derives the numbers from THIS FILE and fails
+ * on the next token that drops below the floor. Hue and saturation are
+ * unchanged; only lightness moved, and to the nearest value that clears both
+ * surfaces (light #868D83 -> #656B63, dark #767E74 -> #7F887D). */
 
 :root {
   --paper:#F3F5F1; --paper-sunk:#E8EBE5; --rule:#D2D8CD;
-  --ink:#191D1A; --ink-soft:#4A5249; --muted:#868D83;
+  --ink:#191D1A; --ink-soft:#4A5249; --muted:#656B63;
   --accent:#1E5F4B; --accent-dim:#2F7A62; --flag:#A6412C;
   --s0:#C9D2C6; --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
   --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;
@@ -45,7 +57,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --paper:#131614; --paper-sunk:#1B201C; --rule:#2E352F;
-    --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#767E74;
+    --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#7F887D;
     --accent:#6FBFA1; --accent-dim:#4E9C80; --flag:#D9765C;
     --s0:#39413A; --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
     --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
@@ -54,7 +66,7 @@
 
 :root[data-theme="dark"] {
   --paper:#131614; --paper-sunk:#1B201C; --rule:#2E352F;
-  --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#767E74;
+  --ink:#E4E8E1; --ink-soft:#AEB6AC; --muted:#7F887D;
   --accent:#6FBFA1; --accent-dim:#4E9C80; --flag:#D9765C;
   --s0:#39413A; --s1:#3987E5; --s2:#D95926; --s3:#199E70; --s4:#C98500;
   --s5:#D55181; --s6:#008300; --s7:#9085E9; --s8:#E66767;
@@ -62,7 +74,7 @@
 
 :root[data-theme="light"] {
   --paper:#F3F5F1; --paper-sunk:#E8EBE5; --rule:#D2D8CD;
-  --ink:#191D1A; --ink-soft:#4A5249; --muted:#868D83;
+  --ink:#191D1A; --ink-soft:#4A5249; --muted:#656B63;
   --accent:#1E5F4B; --accent-dim:#2F7A62; --flag:#A6412C;
   --s0:#C9D2C6; --s1:#2A78D6; --s2:#EB6834; --s3:#1BAF7A; --s4:#EDA100;
   --s5:#E87BA4; --s6:#008300; --s7:#4A3AA7; --s8:#E34948;

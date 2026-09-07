@@ -71,6 +71,49 @@ PYTOK
 )"
 [[ -z "$missing" ]] \
   || fail "tokens.css declares these in a number of blocks other than 4 (:root, the media query, [data-theme=dark], [data-theme=light]): $missing — a page would have to re-declare them per theme"
+# Every token the kit paints TEXT with clears 4.5:1 against both surfaces it is
+# drawn on, in both themes (BL-334). Measured in DevTools on a wrapped page:
+# `--muted` was 3.11:1 in light and 4.34:1 in dark, so every option hint, every
+# `.fieldlabel`, the Clear control and both injected choices were below the floor
+# — 18 `color: var(--muted)` rules, on every artifact the kit has ever produced.
+# tokens.css's own header claimed "all five checks pass, contrast included"; no
+# check existed, which is this repo's own systemic failure written into a comment.
+#
+# The set is spelled, unlike the block-count check above, and that is the honest
+# trade: which tokens are TEXT is not derivable from tokens.css. Borders and
+# chart series are excluded by name and by reason — `--accent-dim` is only ever a
+# border (grep it in components.css) and `--s0..s8` are fills a legend labels.
+contrast="$(python3 - "$KIT/tokens.css" <<'PYCON'
+import re, sys
+css = re.sub(r"/\*.*?\*/", " ", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+blocks = re.findall(r"\{([^}]*)\}", css)
+def parse(b): return dict(re.findall(r"--([\w-]+)\s*:\s*(#[0-9A-Fa-f]{6})", b))
+def lum(h):
+    h = h.lstrip("#"); r, g, b = (int(h[i:i+2], 16) / 255 for i in (0, 2, 4))
+    f = lambda c: c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+def ratio(a, b):
+    A, B = lum(a), lum(b); hi, lo = max(A, B), min(A, B)
+    return (hi + 0.05) / (lo + 0.05)
+TEXT = ("ink", "ink-soft", "muted", "accent", "flag")
+bad = []
+for i, b in enumerate(blocks):
+    t = parse(b)
+    if "paper" not in t or "paper-sunk" not in t:
+        continue
+    for k in TEXT:
+        if k not in t:
+            continue
+        for surface in ("paper", "paper-sunk"):
+            r = ratio(t[k], t[surface])
+            if r < 4.5:
+                bad.append(f"block{i}:--{k} on --{surface} = {r:.2f}")
+print(" ".join(bad))
+PYCON
+)"
+[[ -z "$contrast" ]] \
+  || fail "a kit token used for TEXT is below 4.5:1 against a surface it is drawn on: $contrast — every page the kit produces carries it"
+
 n_root="$(grep -cE -- '^[[:space:]]*--s[0-9]:' "$KIT/tokens.css")"
 [[ "$n_root" -ge 4 ]] \
   || fail "the chart series slots are gone from tokens.css — a charted page would invent its own palette again"
