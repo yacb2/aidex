@@ -11,8 +11,10 @@
 # failure this campaign keeps naming. Deleting one row must turn this red
 # again.
 #
-# Skips cleanly (exit 0) if EchoLab is not on disk, rather than passing
-# vacuously against zero specs.
+# Skips with exit 2 — the runner's SKIP code — if EchoLab is not on disk,
+# rather than passing vacuously against zero specs. NOT exit 0: run-all.sh counts
+# exit 0 as a PASS, so a skip announced only in prose would report a test that
+# never ran as one that passed.
 #
 # Lives at the repo root, NOT in skills/aidex-coverage/tests/, and that is the
 # point: it names a real project (echo_lab_ws) and a real table in this

@@ -137,8 +137,8 @@ REACHABLE = TYPED % ("The fix landed in commit `%s`." % FIX_HEAD)
 # a signing config) leaves FIX_HEAD empty, the reachable body becomes "commit ``", the SHA
 # pattern matches nothing, and the mirror passes over no input at all — the same green-on-
 # empty-input the gating below exists to refuse.
-check("the fixture repo has a commit for the mirror to cite",
-      re.fullmatch(r"[0-9a-f]{8}", FIX_HEAD or "") is not None,
+FIXTURE_OK = re.fullmatch(r"[0-9a-f]{8}", FIX_HEAD or "") is not None
+check("the fixture repo has a commit for the mirror to cite", FIXTURE_OK,
       _git("log", "--oneline").stderr or FIX_HEAD)
 
 rc, out, _ = run(fix_ev("u.md", UNREACHABLE), project_root=TREES)
@@ -154,11 +154,12 @@ check("named as unpushed-is-not-a-fact", "unpushed-is-not-a-fact" in reason(out)
 # used to show up as one FAIL beside one PASS, reading like a half-broken check instead
 # of a silent one. A mirror that cannot run reports itself; it never passes quietly.
 rc, out, _ = run(fix_ev("uok.md", REACHABLE), project_root=TREES)
-if live:
+if live and FIXTURE_OK:
     check("a reachable commit SHA is not denied (%s)" % FIX_HEAD, decision(out) != "deny", reason(out))
 else:
     check("a reachable commit SHA is not denied — NOT ASSERTED", False,
-          "the deny above was silent, so this case proves nothing and is reported as unasserted")
+          "the deny above was silent, or the fixture carries no SHA to cite, so this case "
+          "proves nothing and is reported as unasserted")
 
 # The mutation that makes the gating above necessary rather than decorative: point the
 # resolver at a directory holding no project and BOTH cases go quiet, the reachable one
@@ -188,8 +189,9 @@ if os.path.isdir(os.path.join(REPO, ".git")):
         check("a reachable SHA of this checkout is not denied — NOT ASSERTED", False,
               "the round-trip did not resolve, so this case proves nothing")
 else:
-    print("  SKIP  the real slug round-trip: %s is a linked worktree, whose path does not "
-          "decode back to a git repo — the fixture pair above carries the contract" % REPO)
+    print("  SKIP  the real slug round-trip: %s has no .git DIRECTORY — a linked worktree "
+          "(.git is a file) or an exported copy (no .git at all) — so its path does not "
+          "decode back to a git repo; the fixture pair above carries the contract" % REPO)
 
 # With no resolvable project the check must stay silent rather than accuse.
 rc, out, _ = run(write_ev("u2.md", TYPED % "I just fixed it in commit `deadbee`."))
