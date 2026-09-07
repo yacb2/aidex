@@ -159,17 +159,32 @@ li::marker { color: var(--muted); }
 .opts.one .kit-other { grid-column: 1; }
 .opts:not(.one) .kit-other { grid-column: 1 / -1; }
 
-/* The injected "explain this one better" escape (BL-325). It sits on the ITEM,
-   not in an option group, so it gets its own rule rather than reusing `.opts`
-   — an item whose only surface is a textarea carries it too. Last row of the
-   item, set off by the same dashed edge as the "other" choice and drawn just as
-   quietly: it is the way OUT of the question, never one of its answers. */
-.kit-explain { display: flex; gap: 0.6rem; align-items: flex-start;
-               border-top: 1px dashed var(--rule); padding-top: 0.55rem;
-               font-family: var(--sans); font-size: 0.85rem; line-height: 1.45;
-               color: var(--muted); cursor: pointer; }
-.kit-explain input { accent-color: var(--accent); margin-top: 0.28rem; flex: none; }
-.kit-explain .hint { display: block; font-size: 0.8rem; }
+/* A DECIDED item: the question is settled, so it is shown and not asked. It
+   keeps the option it chose and the ones it beat — that is the record — drawn
+   back so it reads as history rather than as a live control. It carries no
+   injected control at all, and its inputs are disabled by the composer, which
+   is what stops a settled answer from re-composing into every later round. */
+.consult-item[data-decided] { border-style: dashed; }
+.consult-item[data-decided] .opts label { cursor: default; }
+.consult-item[data-decided] .opts label:hover { background: none; }
+.consult-item[data-decided] .opts label:not(:has(input:checked)) { opacity: 0.55; }
+.consult-item[data-decided] input:disabled { accent-color: var(--accent-dim); }
+/* An empty reply box on a settled item carries no record and cannot be typed
+   into, so it is a dead control, not history. It is hidden with its label; one
+   that HAS text stays, because then it is part of what was answered. */
+.consult-item[data-decided]:has(textarea:placeholder-shown) .fieldlabel,
+.consult-item[data-decided] textarea:placeholder-shown { display: none; }
+
+/* The injected "explain this one better" escape (BL-325), a CHOICE in the group
+   since v15 rather than a control on the item — so it is drawn as one, and
+   inherits `.opts label` for everything but colour. It follows the "other"
+   choice and shares the dashed edge that separates both exits from the answers;
+   the second of the two does not draw the rule again. */
+.opts .kit-explain { border-top: 1px dashed var(--rule); margin-top: 0.25rem;
+                     padding-top: 0.55rem; color: var(--muted); }
+.opts .kit-other + .kit-explain { border-top: none; margin-top: 0; padding-top: 0.1rem; }
+.opts.one .kit-explain { grid-column: 1; }
+.opts:not(.one) .kit-explain { grid-column: 1 / -1; }
 
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;

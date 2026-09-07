@@ -281,6 +281,31 @@
     return String(r).toLowerCase() === 'no' ? L.notRecSuffix : L.recSuffix;
   }
 
+  /* A DECIDED item (v15). The canon told an author recording a verdict to "keep
+   * the items, mark the chosen option `checked`" — and that advice manufactures
+   * a defect the round mechanism cannot see. `restore()` only ever marks an
+   * answer as spent when it RESTORED it (`s.x` + `s.r`); an option the page
+   * ships already checked was never restored, so nothing knows it was sent, and
+   * it re-composes into the paste every round, forever. Reported from use, on
+   * the page that carried this very decision: "me volviste a enviar las
+   * primeras respuestas seleccionadas".
+   *
+   * So a settled decision is marked on the ITEM, not by pre-checking an input.
+   * It stays visible with the option it chose and the alternatives it beat —
+   * inert, because a question that is answered is not being asked — and it
+   * leaves the question set entirely: no paste, no count, no injected controls.
+   * Re-opening it means removing the attribute, which is a deliberate act. */
+  function isDecided(el) { return el.hasAttribute('data-decided'); }
+
+  function sealDecided() {
+    items.forEach(function (el) {
+      if (!isDecided(el)) return;
+      el.querySelectorAll('input, select, textarea').forEach(function (i) {
+        i.disabled = true;
+      });
+    });
+  }
+
   function readItem(el) {
     var parts = [], marked = [];
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
@@ -305,13 +330,27 @@
    * per block, and reporting ITS length said "12 de 9" on a nine-item page —
    * every block touched was counted as an answer (BL-268). */
   function collect() {
-    var answered = [], blank = [], lastGroup = null, n = 0;
+    var answered = [], blank = [], lastGroup = null, n = 0, total = 0;
     items.forEach(function (el, i) {
+      /* The general-notes item is NOT one of the questions, and counting it as
+       * one made the page ask for something it never asked for: a reader who
+       * answered every question still read "3 de 4 · en blanco: notes", and the
+       * box that exists for what does not fit anywhere was reported as an
+       * omission. It leaves the numerator, the denominator and the blank list;
+       * its text still travels in the paste when it is filled. */
+      if (isDecided(el)) {
+        /* Shown as settled in the rail, counted nowhere, pasted never. */
+        el.classList.add('has-answer');
+        if (links[i]) links[i].classList.add('done');
+        return;
+      }
+      var notes = el.classList.contains('consult-notes');
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);
       if (links[i]) links[i].classList.toggle('done', !!body);
+      if (!notes) total++;
       if (body) {
-        n++;
+        if (!notes) n++;
         /* The pasted reply keeps the block: `## G1 · title` before the first
          * answered item of each block, so the session that reads it sees the
          * grouping the reader answered under, not a flat list of ids. */
@@ -322,9 +361,10 @@
         }
         answered.push('### ' + el.dataset.id + ' · ' + (el.dataset.title || '') + '\n\n' + body);
       }
-      else blank.push(el.dataset.id);
+      else if (!notes) blank.push(el.dataset.id);
     });
-    return { markdown: answered.join('\n\n'), answered: n, blank: blank };
+    return { markdown: answered.join('\n\n'), answered: n, blank: blank,
+             total: total };
   }
 
   function say(text) { status.forEach(function (s) { s.textContent = text; }); }
@@ -466,6 +506,7 @@
 
   function snapshotItem(el) {
     var s = { m: [] }, any = false;
+    if (isDecided(el)) return null;
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
       .forEach(function (i) { s.m.push(i.dataset.label || i.value || ''); });
     if (s.m.length) any = true;
@@ -603,6 +644,7 @@
    * fingerprint, like every other injected control. */
   function addOtherChoices() {
     items.forEach(function (el) {
+      if (isDecided(el)) return;
       el.querySelectorAll('.opts').forEach(function (g) {
         if (g.querySelector('.kit-other, input[data-other]')) return;
         var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
@@ -626,38 +668,50 @@
     });
   }
 
-  /* "Explain this one better" (BL-325), injected on every ITEM — not on every
-   * option group, which is where `addOtherChoices` stops. The two cover
-   * different failures: "Other" is the way out of a closed LIST, this is the
-   * way out of a QUESTION the reader cannot answer as written. Of 26 items in
-   * one round, 12 came back as free text saying some form of "no entiendo bien
-   * esta tarea" — 46% — and an item with no `.opts` at all (the general notes,
-   * a bare value box) had no affordance for it whatever.
+  /* "Explain this one better" (BL-325), injected as the LAST CHOICE of every
+   * option group, immediately after the "other" one — not as a control on the
+   * item. The two still cover different failures: "Other" is the way out of a
+   * closed LIST, this is the way out of a QUESTION the reader cannot answer as
+   * written. Of 26 items in one round, 12 came back as free text saying some
+   * form of "no entiendo bien esta tarea" — 46%.
    *
-   * A checkbox with a `data-label`, so it is a MARK like any other and every
-   * path that already handles marks handles it: `readItem` pastes it,
-   * `snapshotItem` stores it, `restore` re-checks it, `clearItem` clears it,
-   * and `copy` folds it into the sent fingerprint — which is what stops an
-   * answered request from coming back a round later, the exact regression the
-   * round mechanism was built for and the one an out-of-band flag would
-   * reintroduce. The label is localised; the pasted value is EXPLAIN. */
+   * v15 moved it into the group, and two things follow from that, both asked
+   * for: it takes the group's own input TYPE, so in a radio group it is a radio
+   * and picking it releases whatever was picked — asking for the question to be
+   * rewritten is not compatible with having answered it; and an item with no
+   * option group no longer carries one, which is what takes it off the general
+   * notes item, where there is no question to explain. The cost is stated
+   * rather than hidden: an item whose only surface is a value box loses the
+   * escape it had in v12-v14, and the reader falls back to its notes box.
+   *
+   * A mark with a `data-label`, so every path that already handles marks
+   * handles it: `readItem` pastes it, `snapshotItem` stores it, `restore`
+   * re-checks it, `clearItem` clears it, and `copy` folds it into the sent
+   * fingerprint — which is what stops an answered request from coming back a
+   * round later. The label is localised; the pasted value is EXPLAIN. */
   function addExplainControls() {
     items.forEach(function (el) {
-      if (el.querySelector('.kit-explain')) return;
-      var lab = document.createElement('label');
-      lab.className = 'kit-explain';
-      var input = document.createElement('input');
-      input.type = 'checkbox';
-      input.setAttribute('data-label', EXPLAIN);
-      var text = document.createElement('span');
-      text.appendChild(document.createTextNode(L.explain + ' '));
-      var hint = document.createElement('span');
-      hint.className = 'hint';
-      hint.textContent = L.explainHint;
-      text.appendChild(hint);
-      lab.appendChild(input);
-      lab.appendChild(text);
-      el.appendChild(lab);
+      if (isDecided(el)) return;
+      el.querySelectorAll('.opts').forEach(function (g) {
+        if (g.querySelector('.kit-explain')) return;
+        var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
+        if (!first) return;
+        var lab = document.createElement('label');
+        lab.className = 'kit-explain';
+        var input = document.createElement('input');
+        input.type = first.type;
+        input.name = first.name;
+        input.setAttribute('data-label', EXPLAIN);
+        var text = document.createElement('span');
+        text.appendChild(document.createTextNode(L.explain + ' '));
+        var hint = document.createElement('span');
+        hint.className = 'hint';
+        hint.textContent = L.explainHint;
+        text.appendChild(hint);
+        lab.appendChild(input);
+        lab.appendChild(text);
+        g.appendChild(lab);
+      });
     });
   }
 
@@ -706,6 +760,7 @@
 
   function addClearControls() {
     items.forEach(function (el) {
+      if (isDecided(el)) return;
       if (el.querySelector('.consult-clear')) return;
       var b = document.createElement('button');
       b.type = 'button';
@@ -727,10 +782,10 @@
         row.appendChild(label);
         row.appendChild(b);
       } else {
-        // No field label to share a row with. Still before the explain escape,
-        // which is the item's last row by contract (a null second argument is
-        // an append, so an item without one is unaffected).
-        el.insertBefore(b, el.querySelector('.kit-explain'));
+        /* No field label to share a row with. A plain append since v15: the
+         * explain escape moved INSIDE the option group, so it is no longer a
+         * child of the item and `insertBefore` against it would throw. */
+        el.appendChild(b);
       }
     });
   }
@@ -757,13 +812,16 @@
   function refresh() {
     var r = collect();
     say(r.answered
-      ? L.progress(r.answered, items.length) + (r.blank.length ? L.missing(r.blank) : '')
+      ? L.progress(r.answered, r.total) + (r.blank.length ? L.missing(r.blank) : '')
       : L.none);
   }
 
   function copy() {
     var r = collect();
-    if (!r.answered) {
+    /* `markdown`, not `answered`: a page whose only filled box is the general
+     * notes has something to send, and `answered` deliberately no longer counts
+     * that box. Refusing on the counter would make the notes unsendable. */
+    if (!r.markdown) {
       say(L.nothingToCopy);
       return;
     }
@@ -857,6 +915,7 @@
   if (items.length) {
     addOtherChoices();
     addExplainControls();
+    sealDecided();
     releasableRadios();
     var recovered = restore();
     /* Shown when anything was DROPPED too, not only when something was

@@ -233,11 +233,26 @@ Two ways to land it, and they are not equivalent:
 
 | | When to use it |
 |---|---|
-| **Keep the items, mark the chosen option `checked`, state the verdict in each item body** | The default. The reader can still see what they picked and correct it, and the page stays a record of the reasoning rather than only of the outcome. |
+| **Keep the items, add `data-decided` to each settled one, state the verdict in its body** | The default. The page stays a record of the reasoning rather than only of the outcome: a decided item is still drawn, with the option that won and the ones it beat greyed beside it. |
 | **Remove the items and declare `<meta name="consult-surfaces" content="none: <reason>">`** | When the questions themselves have stopped being worth re-reading. The declaration is honoured now; removing the copy bar as well is equivalent and needs no declaration. |
 
 What is NOT allowed is declaring your way out while questions remain: a page carrying one
 real item gets the whole §8 battery, meta tag or not.
+
+**`data-decided`, and why it is an attribute rather than a checked input.** Until v15 this
+row read "mark the chosen option `checked`" — and that advice manufactured a defect. The
+round mechanism only knows an answer was sent when `restore()` is what put it back
+(`s.x` + `s.r`); an option the page ships pre-checked was never restored, so nothing
+records it as spent and it **re-composes into the pasted reply every round, forever**.
+Reported from use — *"me volviste a enviar las primeras respuestas seleccionadas"* — and
+reproduced with the answer store wiped to zero, which is what proves the markup and not
+the storage was the source.
+
+So the settled state lives on the ITEM. `data-decided` takes it out of the numerator, the
+denominator, the blank list, the paste and the answer store, disables its inputs, and
+suppresses every injected control on it — a question that is answered is not being asked.
+The chosen option keeps its `checked`: with the item decided that attribute is inert, and
+it is the only thing on the page that still says which option won.
 
 ### 1. Find the anchor before writing
 
@@ -650,14 +665,27 @@ authoring a non-English page: translating them by hand is what produced the mixe
 page this fixes, and a hand translation is no longer recognised as a default to swap.
 Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
 
-**Since kit v12, every ITEM ends with an injected `Explain this one better` checkbox.**
-Not per option group, which is where the "other" choice stops: an item with no closed list
-— a bare value box, the general notes — is exactly the one that most often cannot be
-answered as written. Picking it pastes the fixed marker `[explain-more]` under that item's
-id, and asking for an explanation counts as a response rather than a blank. Do not write
-one by hand either. What the next round owes in return, and where it stops, is
-*Depth is set by the cost of undoing* → *When the reader says the question is unreadable*
-above.
+**Since kit v15, every OPTION GROUP ends with an injected `Explain this one better`
+choice**, immediately after the "other" one. It was a per-ITEM checkbox in v12-v14; the
+owner asked for it to be "un radio al igual que el resto de opciones", and for the
+general-notes box not to carry one. Both follow from a single rule — inject it into every
+`.opts` group, with the group's own input type, and nowhere else:
+
+| | |
+|---|---|
+| In a radio group it is a **radio** | Picking it releases whatever was picked. Asking for the question to be rewritten is not compatible with having answered it, and the group's `name` is what enforces that. |
+| An item with **no option group carries none** | Which is what keeps it off the general-notes item, where there is no question to explain. The cost, stated rather than hidden: an item whose only surface is a value box loses the escape it had in v12-v14 and falls back to its notes box. |
+
+Picking it pastes the fixed marker `[explain-more]` under that item's id, and asking for an
+explanation counts as a response rather than a blank. Do not write one by hand either. What
+the next round owes in return, and where it stops, is *Depth is set by the cost of undoing*
+→ *When the reader says the question is unreadable* above.
+
+**The general-notes item is not one of the questions.** It leaves the numerator, the
+denominator and the blank list: a reader who answered every question reads `2 de 2
+respondidas`, never `2 de 3 · en blanco: notes`. Its text still travels in the paste when
+it is filled, and a page whose only filled box is the notes is still sendable — the copy
+button keys on whether there is anything to send, not on the question counter.
 
 Do not write an "other" option by hand — the composer skips a group that already has one
 (`data-other` on an input), so a hand-written one only duplicates the label. The injected
@@ -769,6 +797,18 @@ on a page nobody is editing is noise no one can clear.
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
 | `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
+| `svg-scope` | a bare element selector inside an embedded `<style>` — it is a stylesheet in the page, so it paints every matching node in the document (BL-330). Cleared by scoping it to the figure's id, never by a waiver |
+
+**`svg-contrast` left this table in v15.** It is the one check with two severities: it
+**fails** a named file — the wrap, where the author can still fix it — and only **warns**
+in `--census`, where the same finding lands on a page nobody is editing. The owner's
+reason for inverting it: a warning that fired on 26 of 26 figures of one page is a warning
+the reader learns to discount, which is exactly how the defect BL-330 found survived three
+green gates. One thing stays a warning even at the wrap — *nothing could be measured*.
+That is not a softening: the kit's own skeleton paints every label with `currentColor`,
+which is the pattern this canon prescribes, so failing on it would fail every page built
+the recommended way. It still has to be said out loud, because a gate that silently
+measured nothing is green and indistinguishable from one that passed.
 
 The first two shipped on the same page in one round, and both passed everything above.
 
@@ -819,8 +859,10 @@ id: `#fig-census text { … }`, never `text { … }`. `svg-scope` warns on a bar
 selector, and the warning is cleared by scoping it, not by a waiver.
 
 **And the colour itself.** `svg-contrast` measures every `<text>` whose fill it can read
-against what it is painted on, in **both themes**, against 4.5:1. Three things about it
-are deliberate:
+against what it is painted on, in **both themes**, against 4.5:1 — and since v15 a finding
+**fails** the page at the wrap. There is no authoring-time waiver: a figure that wants to
+show a colour nobody can read shows it as a SWATCH with a legible label, not as text set
+in it. Three more things about the check are deliberate:
 
 | | |
 |---|---|
