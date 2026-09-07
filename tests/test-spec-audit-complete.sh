@@ -14,15 +14,22 @@
 # Skips cleanly (exit 0) if EchoLab is not on disk, rather than passing
 # vacuously against zero specs.
 #
-# Run with: bash skills/aidex-coverage/tests/test-spec-audit-complete.sh
+# Lives at the repo root, NOT in skills/aidex-coverage/tests/, and that is the
+# point: it names a real project (echo_lab_ws) and a real table in this
+# workspace's private .context/, so it is repo data by the same rule
+# 04-e2e-layer-audit.md states for the table itself. Shipped inside the skill it
+# was copied to ~/.claude/skills/, where $REPO_ROOT resolved to ~/.claude and it
+# FAILed on a .context/ that has no reason to exist there. Only skills/, rules/
+# and hooks/ are installed, so this directory is repo-only by construction.
+#
+# Run with: bash tests/test-spec-audit-complete.sh
 
 set -uo pipefail
 
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 # The completed table is project data, relocated out of the public skill
-# (BL-211): it lives in this workspace's private .context/, and the skill
-# keeps only the template. The gate follows the table.
-REPO_ROOT="$(cd "$DIR/../.." && pwd -P)"
+# (BL-211): it lives in this workspace's private .context/, and the skill keeps
+# only the template. The gate has now followed the table out of the skill too.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 AUDIT="$REPO_ROOT/.context/references/aidex-coverage/01-echolab-e2e-layer-audit.md"
 
 ECHOLAB="${ECHOLAB_PATH:-$HOME/Documents/projects/echo_lab_ws}"
