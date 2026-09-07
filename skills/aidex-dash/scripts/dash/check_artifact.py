@@ -1034,6 +1034,13 @@ def _norm_title(s):
     return " ".join(s.split()).casefold()
 
 
+def _page_lang(path):
+    """The two-letter `<html lang>` of a page, `en` when it declares none —
+    the same default `language_mismatch` uses."""
+    m = HTML_LANG.search(open(path, encoding="utf-8", errors="replace").read())
+    return (m.group(1).lower().split("-")[0] if m else "en")
+
+
 def id_title_map(path):
     """{data-id: normalised title}. Reads the TAG, then its attributes, rather
     than one spelling of an id/title pair — a single-quoted page, or a title
@@ -1473,29 +1480,51 @@ def check_prev(new_path, prev_path):
     Fails CLOSED: a diff that did not run is indistinguishable from a diff
     that passed, which is BL-126 reproduced inside the checker written to
     close it."""
-    fails = []
+    fails, notes = [], []
     if not os.path.isfile(prev_path) or not os.access(prev_path, os.R_OK):
         fails.append(("consult-ids", os.path.basename(prev_path),
                       "--prev is not a readable file (missing, a directory, "
                       "or unreadable) — nothing to compare against"))
-        return fails
+        return fails, notes
     try:
         old, new = id_title_map(prev_path), id_title_map(new_path)
+        translated = _page_lang(prev_path) != _page_lang(new_path)
     except Exception as e:                          # noqa: BLE001 — fail closed
         fails.append(("consult-ids", os.path.basename(new_path),
                       f"the id-stability diff did not run ({e}) — a check "
                       f"that is skipped is indistinguishable from a check "
                       f"that passed, so this fails rather than reporting no "
                       f"change"))
-        return fails
-    for i in sorted(set(old) & set(new)):
-        if old[i] != new[i]:
+        return fails, notes
+    moved = [i for i in sorted(set(old) & set(new)) if old[i] != new[i]]
+    # BL-323: a TRANSLATION changes every title by definition, and that is not
+    # the failure this check exists for. On a real 12-item page it produced 12
+    # FAILs at once, and the remedy the message proposes — append a new id — is
+    # wrong precisely here: the claim behind each id is unchanged, and the
+    # page's own ledger and the brief beside it anchor on those ids by name.
+    # Waivers were no help either: split_waived() runs only in the census, never
+    # on the authoring-time check wrap_report.py invokes, so the FAIL could not
+    # be waived at the moment it fired; unblocking it meant moving
+    # .aidex-artifact-prev/ out of the tree by hand and resetting the round meta.
+    #
+    # Downgraded, never silenced. The reader still has to see which ids moved,
+    # because a translation is also the easiest place to change a claim without
+    # noticing. And the discriminant is the LANGUAGE PAIR: within one language
+    # this is a failure exactly as before.
+    for i in moved:
+        if translated:
+            notes.append(("consult-ids", os.path.basename(new_path),
+                          f'{i}: the title changed with the page\'s language '
+                          f'({_page_lang(prev_path)} → {_page_lang(new_path)}) '
+                          f'— was "{old[i]}", now "{new[i]}". Read as a '
+                          f'translation, not a moved claim; check it is one'))
+        else:
             fails.append(("consult-ids", os.path.basename(new_path),
                           f'id reused for a different claim — {i}: was '
                           f'"{old[i]}", now "{new[i]}". Append a new id '
                           f'instead; a reply about that id now points '
                           f'somewhere else'))
-    return fails
+    return fails, notes
 
 
 # --- census: the contract, re-judged after the fact ---------------------------
@@ -1733,11 +1762,15 @@ def main(argv):
         except Exception as e:                      # noqa: BLE001 — advisory
             print(f"  NOTE [warnings] the advisory scan did not run ({e})")
 
+    prev_notes = []
     if prev is not None:
-        failures.extend(check_prev(files[0], prev))
+        prev_fails, prev_notes = check_prev(files[0], prev)
+        failures.extend(prev_fails)
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")
+    for check, name, msg in prev_notes:
+        print(f"  NOTE [{check}] {name}: {msg}")
     # Printed on a passing file too, and that is the whole point: a warning
     # about a page that failed is drowned by the failure the author is fixing,
     # while the two shapes these catch ship on pages that pass everything.
