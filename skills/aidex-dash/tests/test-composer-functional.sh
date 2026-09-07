@@ -114,6 +114,15 @@ cat > "$TMP/body.html" <<HTML
 <section id="sec-ask">
   <div class="sec-head"><h2>Questions</h2></div>
 $gopen
+  <section class="consult-item" data-id="Q0" data-title="La decision ya tomada" data-decided>
+    <h3><span class="consult-id">Q0</span>Esta ya se decidi&oacute; en una ronda anterior</h3>
+    <div class="opts one">
+      <label><input type="radio" name="Q0" data-label="La opcion elegida" checked><span>La opci&oacute;n elegida</span></label>
+      <label><input type="radio" name="Q0" data-label="La opcion descartada"><span>La opci&oacute;n descartada</span></label>
+    </div>
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
   <section class="consult-item" data-id="Q1" data-title="The probed question">
     <h3><span class="consult-id">Q1</span>$1</h3>
     <div class="opts one">
@@ -292,10 +301,43 @@ window.addEventListener('load', function () {
     document.title = 'OTHERED|OTHER=' + (other ? '1' : '0')
       + '|OTHERNAME=' + (other ? other.name : '')
       + '|OTHERTYPE=' + (other ? other.type : '')
+      /* Since v15 the group ends with the explain escape, so "other" is the
+       * last ANSWER choice — the row immediately before it — not the last node. */
       + '|OTHERLAST=' + (other && lastLabel && lastLabel.contains(other) ? '1' : '0')
+      + '|OTHERBEFOREEX=' + (other && other.closest('label').nextElementSibling
+          && other.closest('label').nextElementSibling.classList.contains('kit-explain') ? '1' : '0')
       + '|OTHERTEXT=' + (other ? other.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
       + '|OTHERCOUNT=' + document.querySelectorAll('[data-id="Q1"] .opts .kit-other').length
       + '|A=' + (radio.checked ? 'A' : '-');
+  } else if (q.indexOf('phase=notes') !== -1) {
+    /* C: the general-notes box is not one of the questions. Two readings of the
+     * same rule, both from the owner: a page whose every QUESTION is answered
+     * must not report the notes box as an omission, and a page whose ONLY
+     * filled box is the notes must still be sendable. */
+    var qa = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
+    if (qa) { qa.checked = true; qa.dispatchEvent(new Event('change', { bubbles: true })); }
+    var ce = document.querySelector('[data-id="Q2"] [contenteditable]');
+    if (ce) { ce.textContent = 'answered in free text'; ce.dispatchEvent(new Event('input', { bubbles: true })); }
+    var full = document.getElementById('consult-status').textContent;
+
+    /* Now the other direction: clear the questions, fill only the notes. */
+    if (qa) { qa.checked = false; qa.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (ce) { ce.textContent = ''; ce.dispatchEvent(new Event('input', { bubbles: true })); }
+    var nt = document.querySelector('.consult-notes textarea');
+    if (nt) { nt.value = 'something that fits no question'; nt.dispatchEvent(new Event('input', { bubbles: true })); }
+    var ncap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (str) { ncap = str; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    var dec = document.querySelector('[data-id="Q0"]');
+    document.title = 'NOTED|DECIN=' + (dec ? dec.querySelectorAll('input:not(:disabled), textarea:not(:disabled)').length : -1)
+      + '|DECCTL=' + (dec ? dec.querySelectorAll('.kit-explain, .kit-other, .consult-clear').length : -1)
+      + '|DECDONE=' + (dec && dec.classList.contains('has-answer') ? '1' : '0')
+      + '|FULL=' + full.replace(/[|<>]/g, ' ')
+      + '|ONLYNOTES=' + ncap.replace(/[|<>\n]/g, ' ')
+      + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=explain') !== -1) {
     /* BL-325: the reader who cannot answer because the QUESTION is unreadable.
      * Of 26 items in one real round, 12 came back as free text saying some form
@@ -307,7 +349,11 @@ window.addEventListener('load', function () {
      * The paste is captured the same way phase=send does it, because the marker
      * travelling back is the whole point — a control the session never sees is
      * a checkbox that does nothing. */
-    var ex = document.querySelector('[data-id="Q2"] .kit-explain input');
+    var ex = document.querySelector('[data-id="Q1"] .opts .kit-explain input');
+    /* Pick an ANSWER first, then the escape: in a radio group the second must
+     * release the first, which is the point of v15 making it a radio. */
+    var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
+    if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     if (ex) {
       ex.checked = true;
       ex.dispatchEvent(new Event('change', { bubbles: true }));
@@ -319,6 +365,12 @@ window.addEventListener('load', function () {
     });
     document.getElementById('consult-copy').click();
     document.title = 'EXPLAINED|EX=' + (ex ? '1' : '0')
+      + '|EXTYPE=' + (ex ? ex.type : '')
+      + '|EXNAME=' + (ex ? ex.name : '')
+      + '|EXRELEASED=' + (pre && !pre.checked ? '1' : '0')
+      + '|EXLAST=' + (ex && ex.closest('.opts').lastElementChild === ex.closest('label') ? '1' : '0')
+      + '|EXNOGROUP=' + document.querySelectorAll('[data-id="Q2"] .kit-explain').length
+      + '|EXNOTES=' + document.querySelectorAll('.consult-notes .kit-explain').length
       + '|EXCOUNT=' + document.querySelectorAll('.consult-item .kit-explain').length
       + '|EXITEMS=' + document.querySelectorAll('.consult-item').length
       + '|EXTEXT=' + (ex ? ex.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
@@ -369,7 +421,7 @@ window.addEventListener('load', function () {
       + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
       /* BL-325: the explain request is a mark like any other, so it inherits
        * the round rule for free — restored on a reload, gone once sent. */
-      + '|EXKEPT=' + ((document.querySelector('[data-id="Q2"] .kit-explain input') || {}).checked ? '1' : '0')
+      + '|EXKEPT=' + ((document.querySelector('[data-id="Q1"] .opts .kit-explain input') || {}).checked ? '1' : '0')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
       + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
       /* BL-247: the rail nests a block's items under the block — one entry
@@ -385,8 +437,8 @@ HTML
 }
 
 wrap_page() {  # wrap_page [lang] — the page's language, es unless a caller says otherwise
-  bash "$WRAP" --title "probe" --lang "${1:-es}" --out "$PAGE" < "$TMP/body.html" >/dev/null 2>&1 \
-    || { fail "the probe page failed to wrap"; echo "1 failure(s)"; exit 1; }
+  bash "$WRAP" --title "probe" --lang "${1:-es}" --out "$PAGE" < "$TMP/body.html" > "$TMP/wrap.log" 2>&1 \
+    || { fail "the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | head -4)"; echo "1 failure(s)"; exit 1; }
 }
 
 Q1_V1='Pick and qualify'
@@ -413,7 +465,9 @@ t="$(run 'phase=verify')"
   || fail "a checked mark did not survive the reload: $t"
 [[ "$t" == *"BANNER=1"* ]] \
   || fail "restored answers arrived without the visible banner: $t"
-[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,item:#notes"* ]] \
+# Q0 is a DECIDED item: it leaves the question set but stays in the rail, which
+# is the index of the page and not a list of what is still owed.
+[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q0,sub:#Q1,sub:#Q2,item:#notes"* ]] \
   || fail "BL-247: the rail does not nest the block's items under the block (context once, decisions indented, loose notes after): $t"
 # The trap: a fingerprint over the item's RAW textContent would include this
 # text, so a plain reload with no regeneration would already fail to match.
@@ -607,7 +661,10 @@ write_body "$Q1_V1"
 wrap_page
 t="$(run 'phase=count')"
 [[ "$t" == *COUNTED* ]] || fail "the count phase did not run: $t"
-[[ "$t" == *"STATUS=2 de 3 respondidas"* ]] \
+# "2 de 2", not "2 de 3": the numerator is what BL-268 is about (a block heading
+# was being counted as an answer), and the denominator dropped the general-notes
+# box in v15 — it is not one of the questions.
+[[ "$t" == *"STATUS=2 de 2 respondidas"* ]] \
   || fail "BL-268: two answered items in one block are not reported as 2 of 3 — the block heading is being counted as an answer: $t"
 
 # ---- BL-268: a picked radio can be released by picking it again -------------
@@ -628,7 +685,8 @@ t="$(run 'phase=other')"
 [[ "$t" == *"OTHERCOUNT=1"* ]] || fail "BL-268: the 'other' option was injected more than once: $t"
 [[ "$t" == *"OTHERNAME=Q1"* ]] || fail "BL-268: the 'other' option is not in the group's radio set (name): $t"
 [[ "$t" == *"OTHERTYPE=radio"* ]] || fail "BL-268: the 'other' option does not match the group's input type: $t"
-[[ "$t" == *"OTHERLAST=1"* ]] || fail "BL-268: the 'other' option is not the last choice of its group: $t"
+[[ "$t" == *"OTHERBEFOREEX=1"* ]] \
+  || fail "BL-268: the 'other' option is not the last ANSWER choice of its group — since v15 the explain escape follows it, and nothing else may: $t"
 [[ "$t" == *"OTHERTEXT=Otra"* ]] \
   || fail "BL-268: the 'other' option is not labelled in the page's language: $t"
 [[ "$t" == *"|A=-"* ]] || fail "BL-268: picking 'other' left the recommended option checked too: $t"
@@ -638,36 +696,53 @@ t="$(run 'phase=verify')"
 t="$(run 'phase=send')"
 [[ "$t" == *"- Otra"* ]] || fail "BL-268: the copied reply does not name the 'other' choice: $t"
 
-# ---- BL-325: "explain this one better", on every item and in the paste -----
+# ---- BL-325 (v15): "explain this one better" is a CHOICE in the option group -
 #
 # The escape the closed list already has, for the other failure: not "none of
-# these options" but "I cannot answer this as written". It is injected per ITEM
-# rather than per option group — Q2 has no `.opts` at all and is the one probed
-# here — and it travels back as a fixed ASCII marker, never a translated label,
-# because the session on the other side greps it.
+# these options" but "I cannot answer this as written". v12 put it on the ITEM,
+# as a checkbox; the owner asked for it to be "un radio al igual que el resto de
+# opciones", and for the general-notes box — which asks nothing — not to carry
+# one. Both fall out of ONE change: inject it into every `.opts` group, with the
+# group's own input type, and nowhere else. It still travels back as a fixed
+# ASCII marker, never a translated label, because the session greps it.
+#
+# The cost is real and is pinned here too: an item with no option group (Q2)
+# loses the escape it had in v12-v14.
 rm -rf "$TMP/profile"
 write_body "$Q1_V1"
 wrap_page
 t="$(run 'phase=explain')"
 [[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
 [[ "$t" == *"EX=1"* ]] \
-  || fail "BL-325: no 'explain this one better' control was injected into an item without an option group: $t"
+  || fail "BL-325: no 'explain this one better' choice was injected into the option group: $t"
+[[ "$t" == *"EXTYPE=radio"* ]] \
+  || fail "BL-325 v15: the explain choice is not a radio in a radio group: $t"
+[[ "$t" == *"EXNAME=Q1"* ]] \
+  || fail "BL-325 v15: the explain choice is not in the group's own radio name, so it cannot be exclusive with the answers: $t"
+[[ "$t" == *"EXRELEASED=1"* ]] \
+  || fail "BL-325 v15: picking the explain choice left the previous answer selected — asking for a rewrite is not compatible with having answered: $t"
+[[ "$t" == *"EXLAST=1"* ]] \
+  || fail "BL-325: the explain choice is not the last row of its group, after the 'other' one: $t"
+[[ "$t" == *"EXNOGROUP=0"* ]] \
+  || fail "BL-325 v15: an item with no option group still got an explain control: $t"
+[[ "$t" == *"EXNOTES=0"* ]] \
+  || fail "BL-325 v15: the general-notes item got an explain control — it asks no question to explain: $t"
 excount="$(printf '%s' "$t" | sed -nE 's/.*EXCOUNT=([0-9]+).*/\1/p')"
-exitems="$(printf '%s' "$t" | sed -nE 's/.*EXITEMS=([0-9]+).*/\1/p')"
-[[ -n "$excount" && "$excount" == "$exitems" ]] \
-  || fail "BL-325: the explain control is not on every item exactly once ($excount of $exitems): $t"
+[[ "$excount" == "1" ]] \
+  || fail "BL-325 v15: the explain choice is not on exactly the one item with options ($excount): $t"
 [[ "$t" == *"EXTEXT=Explícame esta mejor"* ]] \
   || fail "BL-325: the explain control stayed in English on a lang=es page: $t"
 # The marker, under the id it belongs to. Machine-readable is the requirement:
 # the reply names WHICH items to rewrite, so the next round can rewrite exactly
 # those instead of the whole set.
-[[ "$t" == *"### Q2 · The untouched question  - [explain-more]"* ]] \
+[[ "$t" == *"### Q1 · The probed question  - [explain-more]"* ]] \
   || fail "BL-325: the copied reply does not carry the explain marker under its item's id: $t"
 # Asking for an explanation IS a response — an item left in the blank list would
 # tell the reader they still owe an answer to a question they just said they
-# cannot read.
-[[ "$t" == *"STATUS=1 de 3 respondidas"* ]] \
-  || fail "BL-325: an item whose only mark is the explain request is still counted blank: $t"
+# cannot read. The denominator is 2, not 3: the general-notes box is not a
+# question (C, below).
+[[ "$t" == *"STATUS=1 de 2 respondidas"* ]] \
+  || fail "BL-325: an item whose only mark is the explain request is still counted blank, or the notes box is still in the denominator: $t"
 
 t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* ]] \
@@ -676,6 +751,42 @@ wrap_page                                   # same content, new round
 t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* ]] \
   && fail "BL-325: an explain request already sent came back in the next round — the reader would re-send a request the session has already answered: $t"
+
+# ---- C: the general-notes box is not one of the questions -------------------
+#
+# Reported by the owner on the page that carried these very decisions: "las
+# notas no cuentan por si solas como respuesta... las notas generales no deben
+# contar como vacias si no las utilizo". Before this, a reader who answered
+# every question still read "3 de 4 · en blanco: notes", and the box that exists
+# for what fits nowhere was reported as an omission.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+t="$(run 'phase=notes')"
+[[ "$t" == *NOTED* ]] || fail "the notes phase did not run: $t"
+[[ "$t" == *"FULL=2 de 2 respondidas"* ]] \
+  || fail "C: with every question answered and the notes box empty, the page does not read 'all answered' — the notes box is still in the count: $t"
+[[ "$t" == *"en blanco: notes"* ]] \
+  && fail "C: the general-notes box was listed as a blank answer: $t"
+# The other direction: notes-only is still something to send.
+[[ "$t" == *"ONLYNOTES=### notes · General notes  something that fits no question"* ]] \
+  || fail "C: a page whose only filled box is the general notes had nothing to copy: $t"
+
+# ---- A settled decision is SHOWN, never re-asked ---------------------------
+#
+# Reported from use on the page that carried these very decisions: "me volviste
+# a enviar las primeras respuestas seleccionadas". The canon said to record a
+# verdict by marking the chosen option `checked` in the markup — and `restore()`
+# can only mark an answer spent when it RESTORED it, so an option the page ships
+# pre-checked is invisible to the round mechanism and re-composes forever.
+[[ "$t" == *"DECIN=0"* ]] \
+  || fail "decided: a settled item still has live inputs — a reader can change an answer that will never be sent: $t"
+[[ "$t" == *"DECCTL=0"* ]] \
+  || fail "decided: a settled item got injected controls (explain / other / clear) — it is not being asked: $t"
+[[ "$t" == *"DECDONE=1"* ]] \
+  || fail "decided: a settled item does not read as answered: $t"
+[[ "$t" == *"### Q0"* ]] \
+  && fail "decided: the settled decision re-composed into the paste — this is the reported defect: $t"
 
 # ---- BL-327: the explicit theme, which nothing had ever set ----------------
 #

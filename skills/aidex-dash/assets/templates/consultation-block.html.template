@@ -23,10 +23,18 @@
   The page-level general-notes item is the same rule one level up, and it is
   additional: per-item notes do not replace it.
 
-  Every item also gets a per-item "Clear" control and an "Explain this one
-  better" checkbox, injected by the composer in the page's own language. Do not
-  write either into a block: they arrive by wrapping, so a page cannot ship
-  without them and an author cannot get them wrong.
+  Every item also gets a per-item "Clear" control, and every OPTION GROUP gets
+  two injected choices in the page's own language: "Other" and, since kit v15,
+  "Explain this one better" as the last row of the group. Do not write either
+  into a block: they arrive by wrapping, so a page cannot ship without them and
+  an author cannot get them wrong.
+
+  Two consequences of the explain choice living in the group rather than on the
+  item. In a radio group it is a radio, so picking it RELEASES whatever was
+  picked — asking for the question to be rewritten is not compatible with
+  having answered it. And an item with no option group carries none: that is
+  what keeps it off the general-notes box, which asks nothing, and it is also
+  why an item whose only surface is a value box has no escape but its notes.
 
   Depth is set by the cost of undoing the decision: a reversible one-minute
   choice gets the question alone; something touching code or a shared contract
