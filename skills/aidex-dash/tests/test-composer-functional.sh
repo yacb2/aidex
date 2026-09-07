@@ -129,6 +129,10 @@ $gopen
     <div contenteditable="true"></div>
   </section>
 $gclose
+  <!-- Headless defaults to 800x600 and the spy needs a page that actually
+       scrolls. Inert, aria-hidden, and after the block, so no other phase's
+       assertion can see it. -->
+  <div aria-hidden="true" style="height:1600px"></div>
   <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
     <h3><span class="consult-id">notes</span>General notes</h3>
     <textarea></textarea>
@@ -168,6 +172,34 @@ window.addEventListener('load', function () {
     ce.textContent = 'typed-into-contenteditable-789';
     ce.dispatchEvent(new Event('input', { bubbles: true }));
     document.title = 'FILLED';
+  } else if (q.indexOf('phase=spy') !== -1) {
+    /* BL-326. Capping the rail to the viewport is only half the fix: a rail
+     * that now scrolls internally hides the reader's position instead of
+     * hiding its own bottom. This asserts the other half — the entry marked
+     * aria-current follows the page, and is inside the list's visible box when
+     * it does, which is what a scrollable index has to guarantee.
+     *
+     * No backticks anywhere in this branch: write_body's heredoc is unquoted,
+     * so a backtick in a comment is a command substitution run by bash. */
+    var rl = document.getElementById('raillist');
+    var cur = function () {
+      var c = rl.querySelector('[aria-current]');
+      return c ? c.getAttribute('href') : 'none';
+    };
+    var vis = function () {
+      var c = rl.querySelector('[aria-current]');
+      if (!c) return '0';
+      var lr = rl.getBoundingClientRect(), cr = c.getBoundingClientRect();
+      return (cr.top >= lr.top - 1 && cr.bottom <= lr.bottom + 1) ? '1' : '0';
+    };
+    var atTop = cur();
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    window.dispatchEvent(new Event('scroll'));
+    var atBottom = cur(), visAtBottom = vis();
+    window.scrollTo(0, 0);
+    window.dispatchEvent(new Event('scroll'));
+    document.title = 'SPY|TOP=' + atTop + '|BOTTOM=' + atBottom
+                   + '|VIS=' + visAtBottom + '|BACK=' + cur();
   } else if (q.indexOf('phase=seed-legacy') !== -1) {
     /* The v4 schema: marks plus ONE flat free-text list in fixed query order
      * (select, text, contenteditable, textarea). A reader's browser may still
@@ -328,6 +360,23 @@ t="$(run 'phase=verify')"
 # text, so a plain reload with no regeneration would already fail to match.
 [[ "$t" == *"CE=typed-into-contenteditable-789"* ]] \
   || fail "text typed into a contenteditable did not survive the reload: $t"
+
+# ---- BL-326: the rail says where the reader is, and keeps it in view --------
+# Its own variable, not $t: the assertions below this block read the title of
+# the `phase=verify` run above, so reusing $t here silently retargets five
+# localisation checks at this page instead.
+ts="$(run 'phase=spy')"
+[[ "$ts" == *SPY* ]] || fail "the spy phase did not run: $ts"
+[[ "$ts" == *"TOP=#sec-ask"* ]] \
+  || fail "BL-326: nothing was marked current at the top of the page: $ts"
+[[ "$ts" == *"BOTTOM=#notes"* ]] \
+  || fail "BL-326: the current entry did not follow the page to its last section: $ts"
+# The half that makes the cap survivable: a marked entry the reader cannot see
+# inside a now-scrollable rail is the original complaint moved indoors.
+[[ "$ts" == *"VIS=1"* ]] \
+  || fail "BL-326: the current entry was outside the rail's visible box: $ts"
+[[ "$ts" == *"BACK=#sec-ask"* ]] \
+  || fail "BL-326: scrolling back up did not move the current entry back: $ts"
 
 # ---- the chrome speaks the page's language ----------------------------------
 [[ "$t" == *"BTN=Copiar mis respuestas"* ]] \
