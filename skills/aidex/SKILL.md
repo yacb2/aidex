@@ -71,6 +71,13 @@ SessionStart nudge until the directory changes again. Budgets are words, never l
 
 Bootstrap `.context/` in a project that doesn't have one. Runs [`scripts/init-context.sh`](scripts/init-context.sh) `[project-dir]` — idempotent, creates only the directories/files that are missing, seeds the backlog/plans indexes via the installed reindexers when present, writes `.context/references/01-project-commands.md` (skip-if-exists), then prints (never writes) a suggested CLAUDE.md block for the user to add themselves.
 
+**It has one question, and you ask it** — in the Bash tool stdin is never a terminal, so
+the script prints `no TTY — skipped the artifact-style.md question` instead of prompting.
+On that line ask the user whether this project wants a `.context/artifact-style.md`, and
+in which language its HTML artifacts are written; re-run (idempotent) with
+`--artifact-style <lang>` or `--no-artifact-style`. Never created unasked; either answer
+is recorded in the marker aidex-dash's mid-artifact offer reads, so neither asks twice.
+
 ---
 
 ## Sub-action: `/aidex sweep`
