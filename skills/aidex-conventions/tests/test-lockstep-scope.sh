@@ -31,9 +31,17 @@ cp -R "$REPO/hooks" "$TMP/hooks"
 # Writing it at <root>/.manifest instead is what let the guard fall back to
 # scanning every skill on a real install while this test stayed green: the test
 # was pinning the path the code read, not the path the installer wrote.
+# Only the aidex namespace, which is what install.sh records. Listing every
+# directory the copy produced is the same thing in the repo (the tree is
+# aidex-only) and wrong from an installed root, where $REPO is ~/.claude and the
+# copy also carries the user's own skills: the fixture would declare them
+# aidex-owned and the guard would report them, correctly, as out-of-namespace.
 mkdir -p "$TMP/aidex"
 : > "$TMP/aidex/manifest"
-for d in "$TMP"/skills/*/; do echo "skills/$(basename "$d")" >> "$TMP/aidex/manifest"; done
+for d in "$TMP"/skills/aidex*/; do
+  [ -d "$d" ] || continue
+  echo "skills/$(basename "$d")" >> "$TMP/aidex/manifest"
+done
 
 long_desc="$(printf 'x%.0s' $(seq 950))"
 
