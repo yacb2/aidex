@@ -125,8 +125,17 @@ the phase tier map, and what happens when a phase fails its gate.
    commits this session did not make — name it in your first status message,
    keep hands off its files and branches, and route any decision that belongs
    to it back to the user instead of taking it here.
-7. Create a TaskList mirroring the plan's phases so progress is visible.
-8. **Front-load the work-list for chained multi-item runs.** A single plan's phases
+7. **Set the run's spend before phase 1.** Each phase's `tier` says how hard its work
+   is; the canon's table
+   ([plan-conventions.md](../aidex-conventions/references/plan-conventions.md) §"Optional
+   phase metadata") maps that to a default model and effort level. Those cells are
+   defaults, and this is the one moment to override them — remaining quota, model
+   availability, or a cheaper cell the user prefers. State the override and its reason in
+   one line and log it to the Execution log; a phase whose cell you changed is not a phase
+   whose plan you edited. Ask nothing: an unstated tier is `standard`, and no override is
+   the default.
+8. Create a TaskList mirroring the plan's phases so progress is visible.
+9. **Front-load the work-list for chained multi-item runs.** A single plan's phases
    are already an ordered queue (walk them). But when this session chains **multiple
    plans/items** (close several plans, then clear backlog), fix the cross-item order
    **once** here — via the `AskUserQuestion` survey → a durable

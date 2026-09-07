@@ -380,7 +380,33 @@ A phase may declare the optional fields below that the executor (`aidex-plan-exe
 Use one carrier per plan consistently; the derivation reads whichever the plan uses, and there is no third place to look. The fields:
 
 - **`depends_on: []`** — earlier phases this one needs (it reads their output). Omitted/`[]` = **independently grabbable**, eligible to run concurrently with any other edge-free phase. List only real data dependencies — a spurious edge is a serialization you didn't need, and it kills parallelism. Drives sequential (`pipeline-with-gate`) vs parallel (`fan-out-with-gate`) execution. **At batch time these entries become scheduler ids** — `aidex-plan-exec` rewrites each entry to the exact phase `id` it assigns, so keep them unambiguous (phase numbers or slugs, used consistently). A phase other phases depend on should expose what they may rely on in a **Contract** block — dependents read shapes from the contract (or off disk), never from prose.
-- **`tier: mechanical | standard | hard`** — the per-phase model/effort hint (`mechanical → sonnet/low`, `standard → sonnet/medium`, `hard → opus/high`). Omitted = `standard`. Tier also sets detail depth (see Philosophy): mechanical phases may carry prescriptive steps/code; hard phases get contracts + gates only.
+- **`tier: mechanical | standard | hard`** — how hard the phase's work is. The executor maps it to a model and an effort level. Omitted = `standard`. Tier also sets detail depth (see Philosophy): mechanical phases may carry prescriptive steps/code; hard phases get contracts + gates only.
+
+  **This table is the mapping's only home.** `aidex-plan-exec`, its references and its
+  workflow scripts read it; `test_tier_mapping_lockstep.sh` fails any file that restates it.
+
+  | tier | model | effort | status |
+  |---|---|---|---|
+  | `mechanical` | `sonnet` | `low` | default |
+  | `standard` | `sonnet` | `medium` | default |
+  | `hard` | `opus` | `high` | default |
+  | `gate` — the verifier and arbiter of every batch shape | `sonnet` | `low` | default |
+
+  **These are defaults, and they do not transfer across model generations.** Effort level
+  names do not correspond to the same amount of thinking from one model to the next, so both
+  current model guides say to re-run an effort sweep on your own evals rather than carry a
+  prior model's levels over. Treat a row as measured only for the generation it was measured on.
+
+  A run may **override a phase's cell at Orient** — for cost, remaining quota, or model
+  availability — and records the reason in the Execution log. That is the division of labour
+  the tier exists for: the plan states how hard the work is, the run decides what to spend on
+  it. Overriding is not a plan edit.
+
+  **Unmeasured candidate, deliberately not adopted.** The Fable 5.1 guide reports that at `low`
+  effort the model is often competitive with Opus and Sonnet on cost per task while scoring
+  higher, "wherever you'd otherwise run a smaller model at a higher effort level" — which
+  describes the `standard` and `mechanical` rows exactly. No measurement exists on this suite's
+  phases, so no row changes until a sweep runs.
 - **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is the first fenced command of the phase's **Verify** block if not declared inline.
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.

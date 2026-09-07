@@ -4,11 +4,17 @@ Standing preference for multi-phase execution: the heavy model only where design
 judgment matters, cheap models for the mechanical steps, and the orchestration itself
 deterministic.
 
-| Step | Model |
-|---|---|
-| Orchestration in the main loop — between-phase review, commit per plan-exec discipline | the orchestrator model |
-| Implementation agents — code that requires design judgment | `opus` |
-| Mechanical work — running suites, updating plan checkboxes, number swaps, adding mocks, `beforeEach` setup | `sonnet`, or `haiku` for the purely mechanical |
+**This table tiers a STEP inside a phase; the canon's table tiers the PHASE itself.** Two axes,
+deliberately not merged — a `hard` phase still runs its suite on a mechanical step. The canon
+(`aidex-conventions/references/plan-conventions.md` §"Optional phase metadata") owns the
+`tier → model/effort` mapping and the rule that its cells are defaults a run may override for
+cost or quota; the effort column below is filled from it and moves when it moves.
+
+| Step | Model | Effort |
+|---|---|---|
+| Orchestration in the main loop — between-phase review, commit per plan-exec discipline | the orchestrator model | the session's own |
+| Implementation agents — code that requires design judgment | `opus` | `high` |
+| Mechanical work — running suites, updating plan checkboxes, number swaps, adding mocks, `beforeEach` setup | `sonnet`, or `haiku` for the purely mechanical | `low` |
 
 Default to one workflow per phase with this tiering.
 

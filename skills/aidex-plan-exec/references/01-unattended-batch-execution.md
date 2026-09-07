@@ -135,10 +135,15 @@ plan pre-authorized), and `maxRetries` (default 2). To **resume** a crashed/stop
 
 ### Phase tier hint (model/effort)
 
-A phase declares its tier via the unified phase-metadata carrier (`tier: mechanical|standard|hard`).
-Map it: `mechanical → sonnet/low`, `standard → sonnet/medium`, `hard → opus/high`. No hint →
-`standard`. The gate/verifier always runs `sonnet/low` (it only runs a command and reports). This
-hint is now part of the plan template (plan canon §"Optional phase metadata").
+A phase declares its tier via the unified phase-metadata carrier (`tier: mechanical|standard|hard`),
+part of the plan template. **The tier → model/effort table lives in
+`aidex-conventions/references/plan-conventions.md` §"Optional phase metadata" and is not
+restated here** — it is one table with several readers, and a copy is what drifts when the
+effort levels are re-swept for a new model generation. No hint → `standard`; the gate/verifier
+takes the table's `gate` row, since it only runs a command and reports.
+
+A run may override a phase's cell here for cost, remaining quota, or model availability, and
+logs the reason in the Execution log — the canon's table is a default, not a constant.
 
 ### When a phase fails the gate
 
