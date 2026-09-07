@@ -83,7 +83,15 @@ are settled BEFORE writing, because every one of them is expensive to change aft
    Nothing else on this list survives getting this one wrong.
 5. **What language?** The project style profile's `language:` field decides it; an
    explicit request for this one page overrides it. Both, before writing — not as a
-   translation pass afterwards.
+   translation pass afterwards. **A project with no profile has not answered this
+   question — it has not chosen English.** `en` is only the fallback the wrapper has
+   to emit to produce a document at all, and it is indistinguishable from a real
+   choice at every later gate: `check-artifact.sh`'s `lang` check compares the body
+   against the declaration, so an English body under `lang="en"` agrees with itself
+   whether or not anyone meant it. So when there is no profile, ask the reader — or
+   pass `--lang` for what you already know — instead of letting the default answer.
+   From the second artifact of such a project onward `wrap_report.py` says so on
+   stderr; the one-time offer covers only the first (BL-322).
 
 **What goes in it**
 

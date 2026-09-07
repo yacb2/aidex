@@ -324,7 +324,24 @@ def _warn_prose_only_language(ctx):
     """
     text = _profile_text(ctx)
     if not text:
-        return          # no profile at all -- offer_style_profile() owns that case
+        # No readable profile. style_profile_offer() owns the FIRST artifact of a
+        # project: it fires once, names language among what is being invented, and
+        # writes the marker so it cannot become the nag BL-168 removed. What it
+        # does NOT own is every artifact after that one -- and BL-322 measured what
+        # was left there: nothing, at any layer, while each artifact went out
+        # lang="en". check-artifact's lang gate cannot see it either, because an
+        # English body under lang="en" is self-consistent; absence is only visible
+        # from here. The offer is not repeated; the FACT is stated instead.
+        #
+        # The marker is what tells the two apart, and reading it here is sound
+        # because this runs BEFORE style_profile_offer() creates it: present means
+        # the offer was made on an earlier run, not that it is about to fire now.
+        if ctx and os.path.exists(os.path.join(ctx, OFFER_MARKER)):
+            print(f'NOTE: no language is declared for {ctx} -- no artifact-style.md '
+                  f'`language:` field and no --lang -- so this artifact is being '
+                  f'wrapped as lang="en". Add a `- language: <code>` line to '
+                  f'{ctx}/artifact-style.md, or pass --lang.', file=sys.stderr)
+        return
     m = PROSE_LANG.search(text)
     if not m:
         return          # profile present and silent on language: "en" is the real answer
