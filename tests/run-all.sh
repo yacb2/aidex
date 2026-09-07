@@ -25,11 +25,36 @@
 # turn a seconds-long daemon-free suite into one that cannot run on a laptop with
 # Docker closed. `RUN_DOCKER_TESTS=1 tests/run-all.sh` includes them.
 #
+# ONE ROOT IS NOT ENOUGH. Every test above runs from the checkout, where skills/
+# holds aidex and nothing else. Installed, the same file runs from ~/.claude/skills,
+# which also holds the user's own skills and carries a manifest. Three tests were
+# green here and red there at the same moment — test_skill_budget.sh FAILing on a
+# user skill, test_workflow_core_drift.sh latently the same, and a coverage gate
+# resolving .context/ against ~/.claude. That is BL-115's shape, and a runner with
+# one root cannot see it: the second root is where users live.
+#
+# The invariant is SAME VERDICT IN BOTH, not green in both. A test red in both
+# roots is one repo failure, already reported above; only a divergence is a parity
+# failure.
+#
+# Cost decides the default. The full shipped subset is 114 tests / ~406s against a
+# ~431s suite — 94% more for a property most tests cannot violate. A test under
+# skills/<x>/{tests,scripts}/ can only observe the root by climbing to it, and the
+# climb is syntactic: `../..`, $HOME/.claude, aidex/manifest, or pathlib's
+# parents[2+]. A `../../aidex-<name>` hop reaches a SIBLING SKILL, which every
+# install has, so it is root-independent and does not count. That selector picks
+# 21 tests / ~16s (+3.8%), and picks all three of the defects above — 3/3,
+# measured 2026-09-07, not asserted. `RUN_INSTALL_PARITY=full` re-runs the whole
+# shipped subset instead.
+#
+# There is no CI in this repo, so the parity pass runs when someone runs the
+# suite. `full` is intent, not a gate.
+#
 # Usage:
 #   tests/run-all.sh            # quiet: one line per test, failures reprinted in full
 #   tests/run-all.sh --verbose  # stream every test's output as it runs
 #
-# Exit 0 only when every test passes.
+# Exit 0 only when every test passes and no test changes verdict between roots.
 
 set -uo pipefail
 
@@ -64,7 +89,9 @@ PASS=0
 SKIPPED=0
 FAILED=()
 LOG="$(mktemp)"
-trap 'rm -f "$LOG"' EXIT
+VERDICTS="$(mktemp)"          # "<rc> <path>" per test, for the parity pass
+PARITY_HOME="$(mktemp -d)"
+trap 'rm -f "$LOG" "$VERDICTS"; rm -rf "$PARITY_HOME"' EXIT
 
 for t in "${TESTS[@]}"; do
   # Python tests import sibling modules by relative name, so run them from their own dir.
@@ -73,6 +100,7 @@ for t in "${TESTS[@]}"; do
     *)    bash "$t" >"$LOG" 2>&1 ;;
   esac
   rc=$?
+  printf '%d %s\n' "$rc" "$t" >> "$VERDICTS"
   # Exit 2 is this repo's SKIP (docker absent, a singleton lock already held).
   # A skipped test is not a failed one, and it must not be silently counted as a
   # pass either — it is printed as what it is.
@@ -103,6 +131,111 @@ if [[ ${#DOCKER_SKIPPED[@]} -gt 0 ]]; then
   printf 'skipped %d docker-dependent test(s) — run with RUN_DOCKER_TESTS=1 to include them\n' \
     "${#DOCKER_SKIPPED[@]}"
 fi
+
+# ---------------------------------------------------------------------------
+# Second root — the same shipped tests, from an install-shaped tree.
+# Same verdict in both is the invariant; see the header for why and what it costs.
+# ---------------------------------------------------------------------------
+
+# Shipped = what install.sh copies. tests/ and hooks/test-* never reach a user, so
+# they have no second root to differ in. Docker tests are excluded even under
+# RUN_DOCKER_TESTS=1: they create containers, and doing that twice per suite to
+# re-check a path-resolution property is not a trade worth making.
+PARITY_POOL=()
+for t in "${TESTS[@]}"; do
+  case "$t" in
+    tests/*|hooks/*|skills/aidex-worktree/scripts/test-*) continue ;;
+  esac
+  PARITY_POOL+=("$t")
+done
+
+# A test under skills/<x>/{tests,scripts}/ can only observe the root by climbing to
+# it, and every climb is one of these four syntactic forms. `../../aidex-<name>`
+# is a hop to a SIBLING SKILL — present in every install — so it is root-independent
+# and deliberately not a match; without that exclusion the set is 32 tests / ~91s
+# instead of 21 / ~16s, for no added coverage.
+ROOT_REACHING='\.\./\.\.|\$HOME/\.claude|aidex/manifest|parents\[[2-9]\]|\.parent\.parent\.parent'
+PARITY=()
+if [[ "${RUN_INSTALL_PARITY:-}" == "full" ]]; then
+  PARITY=("${PARITY_POOL[@]}")
+else
+  for t in "${PARITY_POOL[@]}"; do
+    if grep -v -E '\.\./\.\./aidex-[a-z]' "$t" | grep -qE "$ROOT_REACHING"; then
+      PARITY+=("$t")
+    fi
+  done
+fi
+
+# A selector that silently selected nothing would print a green parity line over an
+# empty set — the exact "checker lies by omission" shape this runner keeps meeting.
+if [[ ${#PARITY[@]} -eq 0 ]]; then
+  printf 'parity: FAIL — the root-reaching selector matched 0 of %d shipped tests\n' "${#PARITY_POOL[@]}"
+  FAILED+=("parity:selector-matched-nothing")
+fi
+
+DIVERGED=()
+if [[ ${#PARITY[@]} -gt 0 ]]; then
+  # Built by the real installer, not imitated: CLAUDE_DIR defaults to $HOME/.claude,
+  # so an overridden HOME gives an install root by definition. It copies the WORKING
+  # TREE, so an uncommitted regression shows up here too.
+  if ! HOME="$PARITY_HOME" bash "$REPO_ROOT/install.sh" </dev/null >"$LOG" 2>&1; then
+    printf 'parity: FAIL — could not build the install root\n'
+    cat "$LOG"
+    FAILED+=("parity:install-failed")
+  else
+    FAKE="$PARITY_HOME/.claude"
+    # An install root is never aidex-only. This skill plus the manifest install.sh
+    # just wrote are the whole difference between the two roots.
+    #
+    # It VIOLATES aidex's own rules on purpose, and a benign one would make this
+    # whole pass vacuous: an unscoped guard only diverges when the foreign skill
+    # gives it something to report. These three are the real shapes — a body over
+    # the size budget (session-handoff ships at ~6.4k tokens against a 5k maximum),
+    # a workflow asset whose blocks are not aidex's, and an agent with no `effort`.
+    # None of them is aidex's to judge, which is the entire point.
+    mkdir -p "$FAKE/skills/foreign-skill/assets/workflows" "$FAKE/skills/foreign-skill/agents"
+    {
+      printf -- '---\nname: foreign-skill\ndescription: A user skill living beside aidex.\n---\n\n'
+      i=0; while [[ $i -lt 600 ]]; do
+        echo "Body line long enough that this skill blows the token axis as well as the line axis."
+        i=$((i + 1))
+      done
+    } > "$FAKE/skills/foreign-skill/SKILL.md"
+    printf -- '// === CORE:START ===\nconst notOurs = true\n// === CORE:END ===\n// === ARBITER:START ===\nconst alsoNotOurs = true\n// === ARBITER:END ===\n' \
+      > "$FAKE/skills/foreign-skill/assets/workflows/foreign.workflow.js"
+    printf -- '---\nname: foreign-agent\nmodel: sonnet\n---\n\nBody.\n' \
+      > "$FAKE/skills/foreign-skill/agents/foreign-agent.md"
+
+    for t in "${PARITY[@]}"; do
+      here="$(awk -v p="$t" '$2 == p {print $1; exit}' "$VERDICTS")"
+      [[ -n "$here" ]] || continue
+      [[ -f "$FAKE/$t" ]] || { DIVERGED+=("$t (not installed)"); continue; }
+      case "$t" in
+        *.py) ( cd "$FAKE/$(dirname "$t")" && python3 "$(basename "$t")" ) >"$LOG" 2>&1 ;;
+        *)    ( cd "$FAKE" && bash "$t" ) >"$LOG" 2>&1 ;;
+      esac
+      there=$?
+      if [[ "$there" -ne "$here" ]]; then
+        DIVERGED+=("$t")
+        printf 'PARITY  %s — exit %d from the checkout, exit %d from an install root\n' "$t" "$here" "$there"
+        cat "$LOG"
+      fi
+    done
+  fi
+fi
+
+if [[ ${#PARITY[@]} -gt 0 ]]; then
+  printf 'parity: %d of %d shipped tests re-run in an install-shaped root, %d diverged' \
+    "${#PARITY[@]}" "${#PARITY_POOL[@]}" "${#DIVERGED[@]}"
+  [[ "${RUN_INSTALL_PARITY:-}" == "full" ]] \
+    && printf ' (full)\n' \
+    || printf ' (root-reaching only — RUN_INSTALL_PARITY=full for all %d)\n' "${#PARITY_POOL[@]}"
+fi
+if [[ ${#DIVERGED[@]} -gt 0 ]]; then
+  printf 'diverged between roots: %s\n' "${DIVERGED[*]}"
+  FAILED+=("${DIVERGED[@]}")
+fi
+
 if [[ ${#FAILED[@]} -gt 0 ]]; then
   printf 'failed: %s\n' "${FAILED[*]}"
   exit 1
