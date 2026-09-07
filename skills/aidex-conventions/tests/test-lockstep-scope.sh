@@ -148,6 +148,26 @@ elif ! echo "$out" | grep -q 'aidex-decision'; then
   echo "$out" | sed 's/^/       /' >&2
 fi
 
+# ---- 7. an empty manifest FAILs loudly, it does not fall back --------------
+# A present manifest is authoritative in both languages. Falling back to
+# "scan everything" when it yields nothing is BL-115 reopened by a broken
+# install, silently — and silence is the half that makes it expensive. Every
+# guard must say the install is broken instead of judging the user's tree.
+: > "$TMP/aidex/manifest"
+
+for guard in "$GUARD_REL" "$BUDGET_REL" "$DRIFT_REL"; do
+  case "$guard" in
+    *.py) out="$(python3 "$TMP/$guard" 2>&1)" && rc=0 || rc=$? ;;
+    *)    out="$(bash "$TMP/$guard" 2>&1)" && rc=0 || rc=$? ;;
+  esac
+  if [ "$rc" -eq 0 ]; then
+    err "${guard##*/}: an empty manifest passed — it fell back to scanning the whole root"
+  elif ! echo "$out" | grep -qi 'manifest\|no aidex-owned'; then
+    err "${guard##*/}: FAILed on an empty manifest, but not by saying the install is broken:"
+    echo "$out" | sed 's/^/       /' >&2
+  fi
+done
+
 if [ "$fail" -eq 0 ]; then
   echo "OK: the three skills-root guards judge only aidex-owned skills (foreign skill ignored, own violation still caught in each)"
 fi
