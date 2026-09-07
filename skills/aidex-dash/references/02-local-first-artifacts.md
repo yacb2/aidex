@@ -893,10 +893,23 @@ to verify it. Two layers now exist, and they are not interchangeable:
       if (r.left < frame.left - 1 || r.right > frame.right + 1 || r.top < frame.top - 1 || r.bottom > frame.bottom + 1)
         out.push(`svg #${n + 1}: ${label(t)} is clipped by its svg`);
     });
-    // 2. label vs label
+    // 2. label vs label. Two LINES of one label are not an overlap (BL-329): a
+    //    wrapped node label emits two <text> under the node's own <g>, their boxes
+    //    touch by a pixel, and nothing is unreadable. That artifact alone made
+    //    Graphviz DOT read as "8 defects" against hand-SVG's 0 in a seven-route
+    //    comparison where the true reading was 0 and 0. A false positive at that
+    //    rate teaches the reader to discount the number, which is how a checker
+    //    stops being evidence. Stacked lines only: two texts fully on top of each
+    //    other inside one <g> are still reported, which is the half that matters.
+    const sameLabel = (a, b) => {
+      if (a.t.parentNode !== b.t.parentNode) return false;
+      const ov = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      return ov < Math.min(a.r.height, b.r.height) / 2;
+    };
     for (let i = 0; i < texts.length; i++)
       for (let j = i + 1; j < texts.length; j++)
-        if (hit(texts[i].r, texts[j].r)) out.push(`svg #${n + 1}: ${label(texts[i].t)} overlaps ${label(texts[j].t)}`);
+        if (hit(texts[i].r, texts[j].r) && !sameLabel(texts[i], texts[j]))
+          out.push(`svg #${n + 1}: ${label(texts[i].t)} overlaps ${label(texts[j].t)}`);
     // 3. path vs label — a mask rect painted between the path and the label hides the
     //    line, and that is fine when the path is the label's own edge (the nearest one)
     const rects = [...svg.querySelectorAll('rect')].map(r => ({ b: r.getBoundingClientRect(), o: order.get(r) }));
