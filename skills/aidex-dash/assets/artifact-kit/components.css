@@ -278,3 +278,25 @@ footer { margin-top: 2rem; padding-top: 1.4rem; border-top: 1px solid var(--rule
 a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The theme control (BL-327), injected by the composer onto every wrapped page.
+   Bottom LEFT and fixed: the rail and the copy bar both live at the top right,
+   and at the narrow width where the rail stops being a column there is still
+   nothing in that corner. Sized as a quiet pill rather than a button, because
+   it is chrome the reader uses once and then forgets. */
+.kit-theme { position: fixed; left: 1rem; bottom: 1rem; z-index: 20;
+             font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
+             letter-spacing: 0.09em; color: var(--muted); cursor: pointer;
+             background: var(--paper); border: 1px solid var(--rule);
+             border-radius: 999px; padding: 0.3rem 0.7rem; }
+.kit-theme:hover { color: var(--ink); border-color: var(--muted); }
+.kit-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Below the kit's own breakpoint the rail stops being a column and spans the
+   full width, so a FIXED pill sits on top of it and on the copy button inside
+   it — measured at 500px: overlapsRail and overlapsBar both true. It leaves the
+   viewport and joins the flow instead, at the end of the document, where
+   nothing can be under it at any scroll position. */
+@media (max-width: 62rem) {
+  .kit-theme { position: static; display: block; margin: 0.5rem auto 2rem; }
+}
+@media print { .kit-theme { display: none; } }

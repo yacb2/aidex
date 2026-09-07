@@ -370,6 +370,16 @@ grep -q 'kit-explain' "$KIT/components.css" \
   || fail "components.css has no .kit-explain rule — the injected control is unstyled"
 grep -q 'kit-explain' "$SKILL/assets/templates/consultation-block.html.template" \
   && fail "the consultation template hand-writes an explain control — it is injected, so a copied block would end up with two"
+# BL-327: tokens.css declares :root[data-theme=…] and nothing had ever set it.
+grep -q 'kit-theme' "$KIT/composer.js" \
+  || fail "composer.js does not inject the theme control — the explicit data-theme palette is dead code again"
+grep -qF "'aidex-kit-theme:' + location.pathname" "$KIT/composer.js" \
+  || fail "composer.js lost the path-scoped theme store — the choice stops surviving a reload"
+grep -q 'kit-theme' "$KIT/components.css" \
+  || fail "components.css has no .kit-theme rule — the injected control is unstyled"
+grep -q 'data-theme' "$KIT/tokens.css" \
+  || fail "tokens.css no longer declares the explicit-theme palette the control switches to"
+
 grep -q 'explain-more' "$SKILL/references/02-local-first-artifacts.md" \
   || fail "the canon never documents the explain-more marker — a session reading a paste has nothing that says what it means"
 

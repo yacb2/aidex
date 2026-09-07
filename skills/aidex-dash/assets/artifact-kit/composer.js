@@ -53,7 +53,10 @@
       other: 'Other — see my notes',
       otherHint: 'None of the above; the answer is in the notes box below.',
       explain: 'Explain this one better',
-      explainHint: 'I cannot answer this as written — say what it touches and what state it is in now.'
+      explainHint: 'I cannot answer this as written — say what it touches and what state it is in now.',
+      toLight: 'Light',
+      toDark: 'Dark',
+      themeTitle: 'Switch this page between light and dark'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -90,7 +93,10 @@
       other: 'Otra — lo explico en las notas',
       otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.',
       explain: 'Expl\u00edcame esta mejor',
-      explainHint: 'As\u00ed no puedo responderla — dime qu\u00e9 toca y en qu\u00e9 estado est\u00e1 hoy.'
+      explainHint: 'As\u00ed no puedo responderla — dime qu\u00e9 toca y en qu\u00e9 estado est\u00e1 hoy.',
+      toLight: 'Claro',
+      toDark: 'Oscuro',
+      themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -789,6 +795,63 @@
       fallback();
     }
   }
+
+  /* The theme control (BL-327). `tokens.css` has defined the palette three
+   * times since it was written — bare `:root`, the system-dark media query, and
+   * `:root[data-theme="dark"|"light"]` for an explicit choice — and NOTHING has
+   * ever set that attribute. Measured on a real page: `data-theme` was null and
+   * `skeleton.html` never mentioned it, so a third of the palette, maintained
+   * and kept in sync on every token change, had never once applied.
+   *
+   * The cost that makes this worth building rather than deleting the dead
+   * branch: pinned to the OS setting, neither the author nor the reader ever
+   * sees the other rendering, so a figure whose colours come out wrong in the
+   * mode nobody looks at is invisible until someone else opens it.
+   *
+   * Injected here rather than written into the skeleton body, for the reason
+   * every other kit affordance is: a page gets it by being wrapped.
+   *
+   * NO STORED CHOICE MEANS NO ATTRIBUTE. The default path is untouched — the
+   * page follows `prefers-color-scheme` exactly as before, which is what the
+   * `:not([data-theme="light"])` guard in the media query is written for. Only
+   * a deliberate click pins it. */
+  var THEME_KEY = 'aidex-kit-theme:' + location.pathname;
+
+  function currentTheme() {
+    var set = document.documentElement.getAttribute('data-theme');
+    if (set) return set;
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      ? 'dark' : 'light';
+  }
+
+  function themeControl() {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'kit-theme';
+    b.id = 'kit-theme';
+    b.title = L.themeTitle;
+    function label() {
+      // Names the DESTINATION, not the state: "Verdict names the action".
+      b.textContent = currentTheme() === 'dark' ? L.toLight : L.toDark;
+      b.setAttribute('aria-pressed', document.documentElement.getAttribute('data-theme') ? 'true' : 'false');
+    }
+    b.addEventListener('click', function () {
+      var next = currentTheme() === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* unavailable */ }
+      label();
+    });
+    label();
+    document.body.appendChild(b);
+  }
+
+  try {
+    var stored = localStorage.getItem(THEME_KEY);
+    if (stored === 'dark' || stored === 'light') {
+      document.documentElement.setAttribute('data-theme', stored);
+    }
+  } catch (e) { /* storage refused: the page still renders, on the OS setting */ }
+  themeControl();
 
   fitTables();
   if (items.length) {

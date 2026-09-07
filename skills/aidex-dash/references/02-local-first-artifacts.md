@@ -753,6 +753,34 @@ on a page nobody is editing is noise no one can clear.
 
 The first two shipped on the same page in one round, and both passed everything above.
 
+### The reader can switch the page's theme
+
+`tokens.css` declares the palette three times — bare `:root`, the system-dark media query
+guarded by `:not([data-theme="light"])`, and `:root[data-theme="dark"|"light"]` for an
+explicit choice. Until 2026-09-07 **nothing ever set that attribute**: measured on a real
+page, `data-theme` was `null` and the skeleton never mentioned it, so a third of the
+palette — maintained and kept in sync on every token change — had never once applied.
+
+The composer now injects a control on every wrapped page, so an author adds nothing. Four
+things about it are load-bearing:
+
+- **No stored choice means no attribute.** The default path is unchanged: with nothing
+  pinned the page follows `prefers-color-scheme`, which is what the `:not([data-theme=
+  "light"])` guard exists for. Only a click pins it.
+- **The choice is per artifact and per browser**, keyed on the file's own path like the
+  answer store, and every touch is wrapped — a browser that refuses storage still renders
+  the page correctly.
+- **The label names the destination, not the state.** It reads `Dark` when clicking it
+  makes the page dark.
+- **It leaves the viewport below the kit's breakpoint.** There the rail is a bottom bar
+  carrying the copy button, and a fixed pill sits on top of both; it joins the flow at the
+  end of the document instead.
+
+Why it is worth building rather than deleting the dead branch: pinned to the OS setting,
+neither the author nor the reader ever sees the other rendering, so a figure whose colours
+come out wrong in the mode nobody looks at stays invisible until someone else opens it.
+That is the same defect the section below is about, seen from the other end.
+
 ### An embedded `<style>` is a stylesheet in the PAGE, not in the figure
 
 This is the one SVG fact that costs a whole page rather than a figure. An `<svg>`'s
