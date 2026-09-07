@@ -349,11 +349,21 @@ window.addEventListener('load', function () {
      * The paste is captured the same way phase=send does it, because the marker
      * travelling back is the whole point — a control the session never sees is
      * a checkbox that does nothing. */
-    var ex = document.querySelector('[data-id="Q1"] .opts .kit-explain input');
-    /* Pick an ANSWER first, then the escape: in a radio group the second must
-     * release the first, which is the point of v15 making it a radio. */
+    var exs = document.querySelectorAll('[data-id="Q1"] .opts .kit-explain input');
+    var ex = exs[0];            /* [explain-state]   */
+    var ex2 = exs[1];           /* [explain-options] */
+    /* Pick an ANSWER first, then the escapes: in a radio group each must release
+     * whatever was picked — the answer (the point of v15 making it a radio) and
+     * each other (the point of v16 making them two). Wanting both gaps closed in
+     * one round is not a third answer; it is the mis-shaped item the ceiling
+     * covers, so the group's shared `name` has to refuse it. */
     var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
+    if (ex2) {
+      ex2.checked = true;
+      ex2.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    var preReleased = pre && !pre.checked;
     if (ex) {
       ex.checked = true;
       ex.dispatchEvent(new Event('change', { bubbles: true }));
@@ -365,15 +375,19 @@ window.addEventListener('load', function () {
     });
     document.getElementById('consult-copy').click();
     document.title = 'EXPLAINED|EX=' + (ex ? '1' : '0')
+      + '|EX2=' + (ex2 ? '1' : '0')
       + '|EXTYPE=' + (ex ? ex.type : '')
       + '|EXNAME=' + (ex ? ex.name : '')
-      + '|EXRELEASED=' + (pre && !pre.checked ? '1' : '0')
-      + '|EXLAST=' + (ex && ex.closest('.opts').lastElementChild === ex.closest('label') ? '1' : '0')
+      + '|EX2NAME=' + (ex2 ? ex2.name : '')
+      + '|EXRELEASED=' + (preReleased ? '1' : '0')
+      + '|EX2RELEASED=' + (ex2 && !ex2.checked ? '1' : '0')
+      + '|EXLAST=' + (ex2 && ex2.closest('.opts').lastElementChild === ex2.closest('label') ? '1' : '0')
       + '|EXNOGROUP=' + document.querySelectorAll('[data-id="Q2"] .kit-explain').length
       + '|EXNOTES=' + document.querySelectorAll('.consult-notes .kit-explain').length
       + '|EXCOUNT=' + document.querySelectorAll('.consult-item .kit-explain').length
       + '|EXITEMS=' + document.querySelectorAll('.consult-item').length
       + '|EXTEXT=' + (ex ? ex.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
+      + '|EX2TEXT=' + (ex2 ? ex2.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
       + '|PASTE=' + xcap.replace(/[|<>\n]/g, ' ')
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=theme') !== -1) {
@@ -713,30 +727,40 @@ write_body "$Q1_V1"
 wrap_page
 t="$(run 'phase=explain')"
 [[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
-[[ "$t" == *"EX=1"* ]] \
-  || fail "BL-325: no 'explain this one better' choice was injected into the option group: $t"
+[[ "$t" == *"EX=1"* && "$t" == *"EX2=1"* ]] \
+  || fail "BL-325: the two explain choices were not both injected into the option group: $t"
 [[ "$t" == *"EXTYPE=radio"* ]] \
   || fail "BL-325 v15: the explain choice is not a radio in a radio group: $t"
-[[ "$t" == *"EXNAME=Q1"* ]] \
-  || fail "BL-325 v15: the explain choice is not in the group's own radio name, so it cannot be exclusive with the answers: $t"
+[[ "$t" == *"EXNAME=Q1"* && "$t" == *"EX2NAME=Q1"* ]] \
+  || fail "BL-325 v15: an explain choice is not in the group's own radio name, so it cannot be exclusive with the answers: $t"
 [[ "$t" == *"EXRELEASED=1"* ]] \
-  || fail "BL-325 v15: picking the explain choice left the previous answer selected — asking for a rewrite is not compatible with having answered: $t"
+  || fail "BL-325 v15: picking an explain choice left the previous answer selected — asking for a rewrite is not compatible with having answered: $t"
+# Q4 (v16): the two marks are exclusive with EACH OTHER too. Asking for the state
+# and the alternatives in the same round is not a third answer — it is the
+# mis-shaped item d11 caps, and it comes back as a different instrument or as two
+# questions. Sharing the group's `name` is the whole enforcement.
+[[ "$t" == *"EX2RELEASED=1"* ]] \
+  || fail "v16: picking one explain mark left the other one selected — two gaps in one round is the shape the ceiling refuses: $t"
 [[ "$t" == *"EXLAST=1"* ]] \
-  || fail "BL-325: the explain choice is not the last row of its group, after the 'other' one: $t"
+  || fail "BL-325: the explain choices are not the last rows of their group, after the 'other' one: $t"
 [[ "$t" == *"EXNOGROUP=0"* ]] \
   || fail "BL-325 v15: an item with no option group still got an explain control: $t"
 [[ "$t" == *"EXNOTES=0"* ]] \
   || fail "BL-325 v15: the general-notes item got an explain control — it asks no question to explain: $t"
 excount="$(printf '%s' "$t" | sed -nE 's/.*EXCOUNT=([0-9]+).*/\1/p')"
-[[ "$excount" == "1" ]] \
-  || fail "BL-325 v15: the explain choice is not on exactly the one item with options ($excount): $t"
-[[ "$t" == *"EXTEXT=Explícame esta mejor"* ]] \
+[[ "$excount" == "2" ]] \
+  || fail "v16: the option item does not carry exactly the two explain choices ($excount): $t"
+[[ "$t" == *"EXTEXT=Explícame primero el estado"* ]] \
   || fail "BL-325: the explain control stayed in English on a lang=es page: $t"
+[[ "$t" == *"EX2TEXT=Explícame primero las alternativas"* ]] \
+  || fail "v16: the second explain control stayed in English on a lang=es page: $t"
 # The marker, under the id it belongs to. Machine-readable is the requirement:
-# the reply names WHICH items to rewrite, so the next round can rewrite exactly
-# those instead of the whole set.
-[[ "$t" == *"### Q1 · The probed question  - [explain-more]"* ]] \
-  || fail "BL-325: the copied reply does not carry the explain marker under its item's id: $t"
+# the reply names WHICH items to rewrite — and since v16 WHICH WAY — so the next
+# round rewrites exactly those, in that direction, instead of the whole set.
+[[ "$t" == *"### Q1 · The probed question  - [explain-state]"* ]] \
+  || fail "BL-325: the copied reply does not carry the picked explain marker under its item's id: $t"
+[[ "$t" == *"[explain-options]"* ]] \
+  && fail "v16: the paste carries the marker that was NOT picked — the next round would answer the wrong gap: $t"
 # Asking for an explanation IS a response — an item left in the blank list would
 # tell the reader they still owe an answer to a question they just said they
 # cannot read. The denominator is 2, not 3: the general-notes box is not a
@@ -848,4 +872,4 @@ t="$(run 'phase=verify')"
   || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and explain-more choices, the explicit theme, v4 answer sets and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and the two explain choices, the explicit theme, v4 answer sets and the localised chrome included"

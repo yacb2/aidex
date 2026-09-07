@@ -178,11 +178,13 @@ li::marker { color: var(--muted); }
 /* The injected "explain this one better" escape (BL-325), a CHOICE in the group
    since v15 rather than a control on the item — so it is drawn as one, and
    inherits `.opts label` for everything but colour. It follows the "other"
-   choice and shares the dashed edge that separates both exits from the answers;
-   the second of the two does not draw the rule again. */
+   choice and shares the dashed edge that separates the exits from the answers.
+   Since v16 there are two of them, by kind of gap; only the first one after the
+   answers draws the rule, so the exits read as one band and not as three. */
 .opts .kit-explain { border-top: 1px dashed var(--rule); margin-top: 0.25rem;
                      padding-top: 0.55rem; color: var(--muted); }
-.opts .kit-other + .kit-explain { border-top: none; margin-top: 0; padding-top: 0.1rem; }
+.opts .kit-other + .kit-explain,
+.opts .kit-explain + .kit-explain { border-top: none; margin-top: 0; padding-top: 0.1rem; }
 .opts.one .kit-explain { grid-column: 1; }
 .opts:not(.one) .kit-explain { grid-column: 1 / -1; }
 

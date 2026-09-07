@@ -407,8 +407,10 @@ grep -q 'consult-clear' "$SKILL/assets/templates/consultation-block.html.templat
 # composer's header makes for `blank`.
 grep -q 'kit-explain' "$KIT/composer.js" \
   || fail "composer.js does not inject the 'explain this one better' control"
-grep -qF "'[explain-more]'" "$KIT/composer.js" \
-  || fail "composer.js lost the fixed explain marker — the request stops being machine-readable in the paste"
+for m in '[explain-state]' '[explain-options]'; do
+  grep -qF "'$m'" "$KIT/composer.js" \
+    || fail "composer.js lost the fixed $m marker — the request stops being machine-readable in the paste"
+done
 grep -q 'kit-explain' "$KIT/components.css" \
   || fail "components.css has no .kit-explain rule — the injected control is unstyled"
 grep -q 'kit-explain' "$SKILL/assets/templates/consultation-block.html.template" \
@@ -423,8 +425,10 @@ grep -q 'kit-theme' "$KIT/components.css" \
 grep -q 'data-theme' "$KIT/tokens.css" \
   || fail "tokens.css no longer declares the explicit-theme palette the control switches to"
 
-grep -q 'explain-more' "$SKILL/references/02-local-first-artifacts.md" \
-  || fail "the canon never documents the explain-more marker — a session reading a paste has nothing that says what it means"
+for m in 'explain-state' 'explain-options'; do
+  grep -q "$m" "$SKILL/references/02-local-first-artifacts.md" \
+    || fail "the canon never documents the $m marker — a session reading a paste has nothing that says what it means"
+done
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the kit builds a page that passes the artifact contract, and stays in lockstep with it"
