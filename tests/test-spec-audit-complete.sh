@@ -30,20 +30,45 @@ set -uo pipefail
 # (BL-211): it lives in this workspace's private .context/, and the skill keeps
 # only the template. The gate has now followed the table out of the skill too.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-AUDIT="$REPO_ROOT/.context/references/aidex-coverage/01-echolab-e2e-layer-audit.md"
+
+# ...and `.context/` is gitignored, so a LINKED WORKTREE never has one. Resolving
+# the table under whichever checkout this file happens to sit in made the
+# assertion unsatisfiable there, and a sweep — which is mandated to run in a
+# worktree — could never cite a green suite (BL-338). The table is workspace
+# data with exactly one copy, so a worktree grades the main checkout's copy
+# instead of pretending it has its own.
+CANON_ROOT="$REPO_ROOT"
+IN_WORKTREE=""
+_gitdir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
+_common="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [ -n "$_common" ] && [ "$_common" != "$_gitdir" ]; then
+  IN_WORKTREE="$REPO_ROOT"
+  CANON_ROOT="$(dirname "$_common")"
+fi
+AUDIT="$CANON_ROOT/.context/references/aidex-coverage/01-echolab-e2e-layer-audit.md"
 
 ECHOLAB="${ECHOLAB_PATH:-$HOME/Documents/projects/echo_lab_ws}"
 TIMELINE_DIR="$ECHOLAB/frontend/tests/e2e/timeline"
 
+# Exit 2, not 0: the runner counts exit 0 as a PASS, so a skip announced only in
+# prose would report a test that never ran as one that passed — the "checkers lie
+# by omission" shape this repo keeps meeting.
 if [ ! -d "$TIMELINE_DIR" ]; then
   echo "SKIP: EchoLab not on disk at $TIMELINE_DIR"
-  exit 0
+  exit 2
 fi
 
 fail=0
 err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
 
 if [ ! -f "$AUDIT" ]; then
+  # A worktree whose main checkout has no table has nothing to grade — say so and
+  # name the worktree, rather than failing for a file that was never going to be
+  # in reach from here.
+  if [ -n "$IN_WORKTREE" ]; then
+    echo "SKIP: running from the worktree $IN_WORKTREE and its main checkout ($CANON_ROOT) has no $AUDIT"
+    exit 2
+  fi
   # EchoLab IS on disk here, so on this workspace a missing table is a real
   # failure; on a machine with EchoLab but no aidex .context/ it cannot be —
   # there is nothing to ratchet. Absence of the private table with the private
