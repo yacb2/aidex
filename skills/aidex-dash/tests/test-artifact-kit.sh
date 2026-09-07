@@ -350,12 +350,28 @@ grep -q 'consult-clear' "$KIT/composer.js" \
 # answer stored before the upgrade as "the question changed" and drop it.
 grep -q 'kit-other' "$KIT/composer.js" \
   || fail "composer.js does not inject the 'other' choice into option groups"
-grep -qE "querySelectorAll\('[^']*\.kit-other[^']*'\)\.forEach\(function \(c\) \{ c\.remove\(\); \}\)" "$KIT/composer.js" \
-  || fail "composer.js hashes the injected 'other' choice into the question fingerprint — every stored answer is dropped on the upgrade"
+grep -qE "querySelectorAll\('[^']*\.kit-other[^']*\.kit-explain[^']*'\)\.forEach\(function \(c\) \{ c\.remove\(\); \}\)" "$KIT/composer.js" \
+  || fail "composer.js hashes an injected choice ('other' or 'explain') into the question fingerprint — every stored answer is dropped on the upgrade"
 grep -q 'consult-clear' "$KIT/components.css" \
   || fail "components.css has no .consult-clear rule — the injected control is unstyled"
 grep -q 'consult-clear' "$SKILL/assets/templates/consultation-block.html.template" \
   && fail "the consultation template hand-writes a clear control — it is injected, so a copied block would end up with two"
+
+# BL-325: "explain this one better", injected per ITEM — an item with no option
+# group needs the escape as much as one with a closed list, so it cannot ride
+# along with .kit-other. The marker it pastes is the one string here that is
+# never translated: the session on the other side greps it, the same split the
+# composer's header makes for `blank`.
+grep -q 'kit-explain' "$KIT/composer.js" \
+  || fail "composer.js does not inject the 'explain this one better' control"
+grep -qF "'[explain-more]'" "$KIT/composer.js" \
+  || fail "composer.js lost the fixed explain marker — the request stops being machine-readable in the paste"
+grep -q 'kit-explain' "$KIT/components.css" \
+  || fail "components.css has no .kit-explain rule — the injected control is unstyled"
+grep -q 'kit-explain' "$SKILL/assets/templates/consultation-block.html.template" \
+  && fail "the consultation template hand-writes an explain control — it is injected, so a copied block would end up with two"
+grep -q 'explain-more' "$SKILL/references/02-local-first-artifacts.md" \
+  || fail "the canon never documents the explain-more marker — a session reading a paste has nothing that says what it means"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the kit builds a page that passes the artifact contract, and stays in lockstep with it"

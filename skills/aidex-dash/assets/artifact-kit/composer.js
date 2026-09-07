@@ -51,7 +51,9 @@
       recSuffix: ' (recommended)',
       notRecSuffix: ' (not recommended)',
       other: 'Other — see my notes',
-      otherHint: 'None of the above; the answer is in the notes box below.'
+      otherHint: 'None of the above; the answer is in the notes box below.',
+      explain: 'Explain this one better',
+      explainHint: 'I cannot answer this as written — say what it touches and what state it is in now.'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -86,10 +88,19 @@
       recSuffix: ' (recomendada)',
       notRecSuffix: ' (no recomendada)',
       other: 'Otra — lo explico en las notas',
-      otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.'
+      otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.',
+      explain: 'Expl\u00edcame esta mejor',
+      explainHint: 'As\u00ed no puedo responderla — dime qu\u00e9 toca y en qu\u00e9 estado est\u00e1 hoy.'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
+
+  /* The one string here that is NEVER translated. `explain` above is what the
+   * reader sees; this is what the paste carries, and what the session on the
+   * other side greps to know which items to rewrite. Same split `recSuffix`
+   * makes between the badge and the copied label, and the same rule the header
+   * gives `blank`: do not rename it, in any language. */
+  var EXPLAIN = '[explain-more]';
 
   // Built with DOM nodes rather than innerHTML: the id and the title are author
   // text, and a title carrying an angle bracket would otherwise be parsed as
@@ -430,7 +441,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-explain').forEach(function (c) { c.remove(); });
     /* Chrome this file TRANSLATES is put back into English before hashing
      * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
      * fingerprint, and every answer a reader stored while the labels were still
@@ -609,6 +620,41 @@
     });
   }
 
+  /* "Explain this one better" (BL-325), injected on every ITEM — not on every
+   * option group, which is where `addOtherChoices` stops. The two cover
+   * different failures: "Other" is the way out of a closed LIST, this is the
+   * way out of a QUESTION the reader cannot answer as written. Of 26 items in
+   * one round, 12 came back as free text saying some form of "no entiendo bien
+   * esta tarea" — 46% — and an item with no `.opts` at all (the general notes,
+   * a bare value box) had no affordance for it whatever.
+   *
+   * A checkbox with a `data-label`, so it is a MARK like any other and every
+   * path that already handles marks handles it: `readItem` pastes it,
+   * `snapshotItem` stores it, `restore` re-checks it, `clearItem` clears it,
+   * and `copy` folds it into the sent fingerprint — which is what stops an
+   * answered request from coming back a round later, the exact regression the
+   * round mechanism was built for and the one an out-of-band flag would
+   * reintroduce. The label is localised; the pasted value is EXPLAIN. */
+  function addExplainControls() {
+    items.forEach(function (el) {
+      if (el.querySelector('.kit-explain')) return;
+      var lab = document.createElement('label');
+      lab.className = 'kit-explain';
+      var input = document.createElement('input');
+      input.type = 'checkbox';
+      input.setAttribute('data-label', EXPLAIN);
+      var text = document.createElement('span');
+      text.appendChild(document.createTextNode(L.explain + ' '));
+      var hint = document.createElement('span');
+      hint.className = 'hint';
+      hint.textContent = L.explainHint;
+      text.appendChild(hint);
+      lab.appendChild(input);
+      lab.appendChild(text);
+      el.appendChild(lab);
+    });
+  }
+
   /* A picked radio can be released by picking it again (BL-268). The browser
    * offers no way out of a radio group once one is in, and the per-item Clear
    * below also empties the notes — so a reader who changed their mind about
@@ -675,7 +721,10 @@
         row.appendChild(label);
         row.appendChild(b);
       } else {
-        el.appendChild(b);
+        // No field label to share a row with. Still before the explain escape,
+        // which is the item's last row by contract (a null second argument is
+        // an append, so an item without one is unaffected).
+        el.insertBefore(b, el.querySelector('.kit-explain'));
       }
     });
   }
@@ -744,6 +793,7 @@
   fitTables();
   if (items.length) {
     addOtherChoices();
+    addExplainControls();
     releasableRadios();
     var recovered = restore();
     /* Shown when anything was DROPPED too, not only when something was

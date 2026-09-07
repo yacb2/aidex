@@ -162,6 +162,38 @@ The bound is the point. The deepest level lengthens a consultation by roughly a 
 and spending it on a question that can be undone in a minute is how a page becomes too
 long to answer.
 
+### When the reader says the question is unreadable
+
+The table above sets depth from **reversibility**. The other half is **familiarity**, and
+the page cannot know it: an item written straight out of a backlog `Context` field assumes
+the reader knows the file tree. On one real round 12 of 26 items came back as free text
+saying some form of "I do not understand this task" — the owner's words were *"me estás
+dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
+
+So every item carries an injected escape, `.kit-explain`, alongside the `.kit-other`
+choice in its option groups. Picking it pastes the fixed marker **`[explain-more]`** as a
+mark under that item's id. The marker is never translated — the label the reader sees is,
+the token is not — and it is what says WHICH items to rewrite, so the next round rewrites
+exactly those and leaves the rest alone.
+
+**What an expansion must add, and where it stops.** An `[explain-more]` moves the item one
+row DOWN the table above — it does not open unbounded prose:
+
+| The item was at | The rewrite carries |
+|---|---|
+| The question alone | The question plus a concrete example: the actual file, value or screen it is about. |
+| The question plus an example | A worked example, the consequence of each option, and the files it touches. |
+| Already the deepest row | A different INSTRUMENT, not more words: a mockup, a diagram, a before/after, the current state printed from the tree. |
+
+Two bounds, because "explain it better" otherwise means "write more":
+
+- **Answer the question the marker actually asks.** It is nearly always *what exists today*,
+  not *what the options mean*. Name the files, print the current state, say what is already
+  there and what is not — that is the assumption the reader is objecting to.
+- **A second `[explain-more]` on the same item is the ceiling.** The item is not
+  under-explained, it is mis-shaped: split it into the two questions it is really asking,
+  or answer it yourself and move it to the ledger as a decision the reader can correct.
+
 ### The ledger
 
 A page opens with a **ledger of decisions already taken** only when the thread has

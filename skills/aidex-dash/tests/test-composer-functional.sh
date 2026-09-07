@@ -296,6 +296,34 @@ window.addEventListener('load', function () {
       + '|OTHERTEXT=' + (other ? other.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
       + '|OTHERCOUNT=' + document.querySelectorAll('[data-id="Q1"] .opts .kit-other').length
       + '|A=' + (radio.checked ? 'A' : '-');
+  } else if (q.indexOf('phase=explain') !== -1) {
+    /* BL-325: the reader who cannot answer because the QUESTION is unreadable.
+     * Of 26 items in one real round, 12 came back as free text saying some form
+     * of "no entiendo bien esta tarea" — the closed-list escape ("Other") only
+     * covers "none of these options", never "I cannot tell what is being asked".
+     * Probed on Q2, which has NO option group on purpose: an item with no closed
+     * list is exactly the one the per-group injection cannot reach.
+     *
+     * The paste is captured the same way phase=send does it, because the marker
+     * travelling back is the whole point — a control the session never sees is
+     * a checkbox that does nothing. */
+    var ex = document.querySelector('[data-id="Q2"] .kit-explain input');
+    if (ex) {
+      ex.checked = true;
+      ex.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    var xcap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { xcap = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    document.title = 'EXPLAINED|EX=' + (ex ? '1' : '0')
+      + '|EXCOUNT=' + document.querySelectorAll('.consult-item .kit-explain').length
+      + '|EXITEMS=' + document.querySelectorAll('.consult-item').length
+      + '|EXTEXT=' + (ex ? ex.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
+      + '|PASTE=' + xcap.replace(/[|<>\n]/g, ' ')
+      + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=verify') !== -1) {
     var banner = document.getElementById('consult-restored');
     document.title = 'RESTORED=' + ta.value
@@ -311,6 +339,9 @@ window.addEventListener('load', function () {
       + '|PH=' + document.querySelector('[data-id="Q1"] textarea').getAttribute('placeholder')
       + '|FLKEPT=' + document.querySelector('[data-id="Q2"] .fieldlabel').textContent
       + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
+      /* BL-325: the explain request is a mark like any other, so it inherits
+       * the round rule for free — restored on a reload, gone once sent. */
+      + '|EXKEPT=' + ((document.querySelector('[data-id="Q2"] .kit-explain input') || {}).checked ? '1' : '0')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
       + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
       /* BL-247: the rail nests a block's items under the block — one entry
@@ -579,6 +610,45 @@ t="$(run 'phase=verify')"
 t="$(run 'phase=send')"
 [[ "$t" == *"- Otra"* ]] || fail "BL-268: the copied reply does not name the 'other' choice: $t"
 
+# ---- BL-325: "explain this one better", on every item and in the paste -----
+#
+# The escape the closed list already has, for the other failure: not "none of
+# these options" but "I cannot answer this as written". It is injected per ITEM
+# rather than per option group — Q2 has no `.opts` at all and is the one probed
+# here — and it travels back as a fixed ASCII marker, never a translated label,
+# because the session on the other side greps it.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+t="$(run 'phase=explain')"
+[[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
+[[ "$t" == *"EX=1"* ]] \
+  || fail "BL-325: no 'explain this one better' control was injected into an item without an option group: $t"
+excount="$(printf '%s' "$t" | sed -nE 's/.*EXCOUNT=([0-9]+).*/\1/p')"
+exitems="$(printf '%s' "$t" | sed -nE 's/.*EXITEMS=([0-9]+).*/\1/p')"
+[[ -n "$excount" && "$excount" == "$exitems" ]] \
+  || fail "BL-325: the explain control is not on every item exactly once ($excount of $exitems): $t"
+[[ "$t" == *"EXTEXT=Explícame esta mejor"* ]] \
+  || fail "BL-325: the explain control stayed in English on a lang=es page: $t"
+# The marker, under the id it belongs to. Machine-readable is the requirement:
+# the reply names WHICH items to rewrite, so the next round can rewrite exactly
+# those instead of the whole set.
+[[ "$t" == *"### Q2 · The untouched question  - [explain-more]"* ]] \
+  || fail "BL-325: the copied reply does not carry the explain marker under its item's id: $t"
+# Asking for an explanation IS a response — an item left in the blank list would
+# tell the reader they still owe an answer to a question they just said they
+# cannot read.
+[[ "$t" == *"STATUS=1 de 3 respondidas"* ]] \
+  || fail "BL-325: an item whose only mark is the explain request is still counted blank: $t"
+
+t="$(run 'phase=verify')"
+[[ "$t" == *"EXKEPT=1"* ]] \
+  || fail "BL-325: the explain request did not survive a reload in its own round: $t"
+wrap_page                                   # same content, new round
+t="$(run 'phase=verify')"
+[[ "$t" == *"EXKEPT=1"* ]] \
+  && fail "BL-325: an explain request already sent came back in the next round — the reader would re-send a request the session has already answered: $t"
+
 # ---- BL-280: localising the labels must not drop a stored answer -----------
 #
 # questionHash() hashes the item's whole textContent, and `.fieldlabel` is
@@ -606,4 +676,4 @@ t="$(run 'phase=verify')"
   || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other choice, v4 answer sets and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and explain-more choices, v4 answer sets and the localised chrome included"
