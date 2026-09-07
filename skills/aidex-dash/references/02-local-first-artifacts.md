@@ -223,6 +223,22 @@ anyway.
 lost: on one intake set the four items written into a file survived and the other nine
 had to be reconstructed from the decisions they implied.
 
+**And when the ledger has everything, the page stops being a consultation.** The model
+implies it — a decided item leaves the question set — but §8 never stated the end state,
+and a page that reached it was stuck: with zero items the gate still fired on the copy bar
+in its body, and the `consult-surfaces` escape was skipped for the same reason, so the
+failure message pointed at a declaration the page was already carrying (BL-331).
+
+Two ways to land it, and they are not equivalent:
+
+| | When to use it |
+|---|---|
+| **Keep the items, mark the chosen option `checked`, state the verdict in each item body** | The default. The reader can still see what they picked and correct it, and the page stays a record of the reasoning rather than only of the outcome. |
+| **Remove the items and declare `<meta name="consult-surfaces" content="none: <reason>">`** | When the questions themselves have stopped being worth re-reading. The declaration is honoured now; removing the copy bar as well is equivalent and needs no declaration. |
+
+What is NOT allowed is declaring your way out while questions remain: a page carrying one
+real item gets the whole §8 battery, meta tag or not.
+
 ### 1. Find the anchor before writing
 
 An artifact is *about* something. Search `.context/` for the plan, backlog item, audit
