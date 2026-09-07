@@ -324,6 +324,34 @@ window.addEventListener('load', function () {
       + '|EXTEXT=' + (ex ? ex.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
       + '|PASTE=' + xcap.replace(/[|<>\n]/g, ' ')
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
+  } else if (q.indexOf('phase=theme') !== -1) {
+    /* BL-327. tokens.css has defined the palette three times since it was
+     * written and nothing ever set data-theme, so a third of it had never
+     * applied. What has to be true: no stored choice means NO attribute (the
+     * default path is prefers-color-scheme and must not change), a click sets
+     * it and the page actually repaints, and a second click comes back. The
+     * background is read from the computed style, not from the attribute — an
+     * attribute that no rule matches would pass an attribute-only assertion. */
+    var tb = document.getElementById('kit-theme');
+    var bg = function () { return getComputedStyle(document.body).backgroundColor; };
+    var before = document.documentElement.getAttribute('data-theme');
+    var bg0 = bg();
+    if (tb) tb.click();
+    var t1 = document.documentElement.getAttribute('data-theme'), bg1 = bg(), lab1 = tb ? tb.textContent : '';
+    if (tb) tb.click();
+    var t2 = document.documentElement.getAttribute('data-theme'), bg2 = bg();
+    if (tb) tb.click();
+    document.title = 'THEMED|BTN=' + (tb ? '1' : '0')
+      + '|BEFORE=' + (before === null ? 'null' : before)
+      + '|T1=' + t1 + '|T2=' + t2
+      + '|REPAINT1=' + (bg1 !== bg0 ? '1' : '0')
+      + '|REPAINT2=' + (bg2 !== bg1 ? '1' : '0')
+      + '|LABEL1=' + lab1
+      + '|TAB=' + (tb ? (tb.tabIndex >= 0 ? '1' : '0') : '0');
+  } else if (q.indexOf('phase=recall') !== -1) {
+    var tk = document.getElementById('kit-theme');
+    document.title = 'THEMEKEPT=' + document.documentElement.getAttribute('data-theme')
+      + '|LABEL=' + (tk ? tk.textContent : '');
   } else if (q.indexOf('phase=verify') !== -1) {
     var banner = document.getElementById('consult-restored');
     document.title = 'RESTORED=' + ta.value
@@ -649,6 +677,39 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* ]] \
   && fail "BL-325: an explain request already sent came back in the next round — the reader would re-send a request the session has already answered: $t"
 
+# ---- BL-327: the explicit theme, which nothing had ever set ----------------
+#
+# The palette is declared three times in tokens.css and the third block —
+# :root[data-theme="dark"|"light"] — had never applied to any artifact the kit
+# produced: measured on a real page, data-theme was null and skeleton.html never
+# mentioned it. So the reader was pinned to the OS setting, and a figure whose
+# colours come out wrong in the mode nobody looks at stayed invisible.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+tt="$(run 'phase=theme')"
+[[ "$tt" == *THEMED* ]] || fail "the theme phase did not run: $tt"
+[[ "$tt" == *"BTN=1"* ]] || fail "BL-327: no theme control was injected into a wrapped page: $tt"
+# The default path is the one that must NOT change.
+[[ "$tt" == *"BEFORE=null"* ]] \
+  || fail "BL-327: a page with no stored choice already carries data-theme — it no longer follows prefers-color-scheme: $tt"
+[[ "$tt" == *"T1=dark"* || "$tt" == *"T1=light"* ]] \
+  || fail "BL-327: the control did not set data-theme: $tt"
+[[ "$tt" == *"T1=dark|T2=light"* || "$tt" == *"T1=light|T2=dark"* ]] \
+  || fail "BL-327: the control does not go back the other way: $tt"
+# Read off the computed background, so an attribute no rule matches cannot pass.
+[[ "$tt" == *"REPAINT1=1"* && "$tt" == *"REPAINT2=1"* ]] \
+  || fail "BL-327: data-theme changed but the page did not repaint in both directions: $tt"
+[[ "$tt" == *"LABEL1=Claro"* || "$tt" == *"LABEL1=Oscuro"* ]] \
+  || fail "BL-327: the control stayed in English on a lang=es page: $tt"
+[[ "$tt" == *"TAB=1"* ]] || fail "BL-327: the control is not reachable by keyboard: $tt"
+# It survives the reload, per artifact, and the label comes back with it.
+tt="$(run 'phase=recall')"
+[[ "$tt" == *"THEMEKEPT=dark"* || "$tt" == *"THEMEKEPT=light"* ]] \
+  || fail "BL-327: the chosen theme did not survive a reload: $tt"
+[[ "$tt" == *"LABEL=Claro"* || "$tt" == *"LABEL=Oscuro"* ]] \
+  || fail "BL-327: the restored theme left the control mislabelled: $tt"
+
 # ---- BL-280: localising the labels must not drop a stored answer -----------
 #
 # questionHash() hashes the item's whole textContent, and `.fieldlabel` is
@@ -676,4 +737,4 @@ t="$(run 'phase=verify')"
   || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and explain-more choices, v4 answer sets and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and explain-more choices, the explicit theme, v4 answer sets and the localised chrome included"
