@@ -28,7 +28,13 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SKILLS_DIR="$SCRIPT_DIR/../.."
+ROOT="$(cd "$SKILLS_DIR/.." && pwd -P)"
 CANON="$SCRIPT_DIR/../references/skill-conventions.md"
+
+# Judge only what aidex ships. Installed, SKILLS_DIR is ~/.claude/skills and this
+# loop FAILed on `session-handoff` — a user skill at ~6.4k tokens that this repo
+# has no standing to budget (BL-115).
+. "$SCRIPT_DIR/_owned-skills.sh"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -60,9 +66,10 @@ printf 'budget from canon: lines %s ideal / %s max · tokens %s ideal / %s max\n
 # ---------- measure every shipped skill ----------
 over_ideal=0
 checked=0
-for skill in "$SKILLS_DIR"/*/SKILL.md; do
+while IFS= read -r skill_dir; do
+  skill="$skill_dir/SKILL.md"
   [[ -f "$skill" ]] || continue
-  name="$(basename "$(dirname "$skill")")"
+  name="$(basename "$skill_dir")"
   body="$(awk 'NR>1 && /^---$/{f=1;next} f' "$skill")"
   lines="$(grep -c '' <<<"$body")"
   tokens=$(( $(printf '%s' "$body" | wc -c) / 4 ))
@@ -82,9 +89,9 @@ for skill in "$SKILLS_DIR"/*/SKILL.md; do
     over_ideal=$((over_ideal + 1))
   fi
   [[ "$status" == "ok" ]] || printf '  %-22s %4s lines  ~%5s tokens  [%s]\n' "$name" "$lines" "$tokens" "$status"
-done
+done < <(aidex_owned_skill_dirs "$ROOT")
 
-(( checked > 0 )) || { echo "FAIL: no SKILL.md files found under $SKILLS_DIR"; exit 1; }
+(( checked > 0 )) || { echo "FAIL: no aidex-owned SKILL.md found under $SKILLS_DIR — broken manifest or install"; exit 1; }
 
 echo
 if [[ "$failures" -eq 0 ]]; then

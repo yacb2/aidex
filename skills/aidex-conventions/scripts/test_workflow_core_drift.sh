@@ -14,8 +14,15 @@
 
 set -uo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 CANON="$REPO_ROOT/skills/aidex-conventions/references/workflow-core.md"
+
+# Only aidex's own assets. Installed, REPO_ROOT is ~/.claude and the find below
+# would judge a user skill's workflow asset against aidex's canonical blocks
+# (BL-115). No installed skill ships one today, which is the only reason this
+# guard was not already red for every user.
+. "$SCRIPT_DIR/_owned-skills.sh"
 
 # Extract the lines strictly between `// === <NAME>:START ===` and `// === <NAME>:END ===`
 # (first occurrence). $1 = file, $2 = block name.
@@ -30,10 +37,16 @@ extract_block() {
 [ -f "$CANON" ] || { echo "FAIL: canonical doc not found: $CANON" >&2; exit 1; }
 
 # Find every workflow asset across all skills (portable: macOS ships bash 3.2, no mapfile).
+OWNED=()
+while IFS= read -r d; do
+  OWNED+=("$d")
+done < <(aidex_owned_skill_dirs "$REPO_ROOT")
+[ "${#OWNED[@]}" -gt 0 ] || { echo "FAIL: no aidex-owned skills found under $REPO_ROOT/skills — broken manifest or install" >&2; exit 1; }
+
 ASSETS=()
 while IFS= read -r f; do
   ASSETS+=("$f")
-done < <(find "$REPO_ROOT/skills" -type f -path '*/assets/workflows/*.workflow.js' | sort)
+done < <(find "${OWNED[@]}" -type f -path '*/assets/workflows/*.workflow.js' | sort)
 [ "${#ASSETS[@]}" -gt 0 ] || { echo "FAIL: no workflow assets found under skills/*/assets/workflows/" >&2; exit 1; }
 
 BLOCKS=("CORE" "ARBITER")
