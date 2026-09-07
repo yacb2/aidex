@@ -25,7 +25,13 @@ body { background: var(--paper); color: var(--ink); font-family: var(--serif);
 .note, .ex, .adv { max-width: 46rem; }
 .main p.eyebrow { max-width: none; }
 .main { min-width: 0; display: flex; flex-direction: column; }
-.rail { position: sticky; top: 2rem; display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
+/* The cap is derived from `top`, not guessed: a sticky box pins at its top
+   offset and never scrolls internally, so one taller than the viewport hides
+   its own lower half until the page bottom drags the container up. Measured on
+   a 37-entry page: 1284px of rail in a 900px viewport, 384px unreachable.
+   Symmetric breathing room top and bottom is why it is 2 x `top`. */
+.rail { position: sticky; top: 2rem; max-height: calc(100vh - 2 * 2rem);
+        display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
 
 h1, h2, h3 { font-family: var(--serif); text-wrap: balance; margin: 0; font-weight: 600; }
 h1 { font-size: 2.6rem; line-height: 1.1; letter-spacing: -0.015em; }
@@ -179,10 +185,23 @@ textarea { resize: vertical; }
 /* The rail carries the section index as well as the questions: on a page with
    no questions it is still the table of contents, which is why it stays. */
 .railhead { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
-.raillist { display: flex; flex-direction: column; gap: 0.1rem; }
+/* The LIST scrolls, not the whole rail: the copy bar below it is the reason the
+   rail exists on a consultation, and giving `.rail` the overflow would scroll
+   that button out of a box the reader cannot scroll past. `min-height: 0` is
+   what lets a flex child shrink below its content at all. */
+/* The scrollbar is tokenised because this change is what introduced one: the
+   platform default renders as a bright bar that dominates the rail in dark. */
+.raillist { display: flex; flex-direction: column; gap: 0.1rem;
+            min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+            scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
 .railitem { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.32rem 0.5rem;
             border-radius: 4px; text-decoration: none; color: var(--ink-soft); font-size: 0.82rem; line-height: 1.4; }
 .railitem:hover { background: var(--paper-sunk); }
+/* Where the reader IS. `aria-current` rather than a class: it is the semantic
+   the assistive layer already reads, so one declaration serves both, and a
+   scrollable rail without it only moves the hunt inside the box. */
+.railitem[aria-current] { background: var(--paper-sunk); color: var(--ink);
+                          box-shadow: inset 2px 0 0 var(--accent); }
 .railitem .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; border: 1px solid var(--muted); flex: none; transform: translateY(0.05rem); }
 .railitem.done .dot { background: var(--accent); border-color: var(--accent); }
 .railitem.done { color: var(--ink); }
@@ -231,7 +250,11 @@ textarea { resize: vertical; }
 
 @media (max-width: 62rem) {
   .page { grid-template-columns: 1fr; gap: 0; }
+  /* Here the rail is a bottom bar carrying the copy button, not an index. The
+     viewport cap above would clip that bar, so it is reset explicitly rather
+     than left to inherit a value written for the other layout. */
   .rail { position: sticky; top: auto; bottom: 0; order: 2; padding: 0.6rem 0;
+          max-height: none;
           background: var(--paper); border-top: 1px solid var(--rule); gap: 0.5rem; }
   .rail .railhead, .rail .raillist, .rail .railsep { display: none; }
   .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }

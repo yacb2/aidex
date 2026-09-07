@@ -200,6 +200,58 @@
     items.forEach(function (el) { el.id = el.dataset.id; });
   }
 
+  /* Where the reader IS. The rail had a `.done` state driven by answers and
+   * nothing driven by position, which is only affordable while the rail fits:
+   * capping it to the viewport (BL-326) turns "the bottom half is unreachable"
+   * into "the bottom half is somewhere in a box you must now also search".
+   * The cap and this are one fix, not two.
+   *
+   * Deliberately not IntersectionObserver: the question is not "which entries
+   * are visible" but "which one is the reader at", and that is the last target
+   * whose top has passed the reading line — one comparison per rail entry, on
+   * a list of tens. Synchronous rather than rAF-coalesced for the same reason,
+   * and because a deferred frame is not guaranteed to have run when a headless
+   * dump reads the DOM. */
+  if (list) {
+    var spy = [].slice.call(list.querySelectorAll('.railitem[href^="#"]'))
+      .map(function (a) {
+        return { link: a, target: document.getElementById(a.getAttribute('href').slice(1)) };
+      })
+      .filter(function (p) { return p.target; });
+    var current = null;
+
+    function markCurrent() {
+      if (!spy.length) return;
+      /* A third of the way down, not the top edge: a section whose heading has
+       * just scrolled off is still the one being read. */
+      var line = window.innerHeight / 3;
+      var found = spy[0];
+      for (var i = 0; i < spy.length; i++) {
+        if (spy[i].target.getBoundingClientRect().top > line) break;
+        found = spy[i];
+      }
+      if (found.link === current) return;
+      if (current) current.removeAttribute('aria-current');
+      current = found.link;
+      current.setAttribute('aria-current', 'true');
+
+      /* NOT scrollIntoView: it scrolls every scrollable ancestor, the document
+       * included, so calling it from a scroll handler feeds itself. Moving the
+       * list's own scrollTop touches nothing else — `scroll` does not bubble,
+       * so this cannot re-enter the listener below. Rects rather than
+       * offsetTop, which is relative to an offsetParent this code does not own. */
+      var lr = list.getBoundingClientRect(), cr = current.getBoundingClientRect();
+      var top = cr.top - lr.top + list.scrollTop;
+      if (top < list.scrollTop) list.scrollTop = top;
+      else if (top + cr.height > list.scrollTop + list.clientHeight) {
+        list.scrollTop = top + cr.height - list.clientHeight;
+      }
+    }
+
+    window.addEventListener('scroll', markCurrent, { passive: true });
+    markCurrent();
+  }
+
   /* The suffix the copied label carries, read from `data-recommended` — the
    * SAME attribute the badge is drawn from. Before this, a session with a
    * recommendation to make had no affordance and typed "(recomendada)" into
