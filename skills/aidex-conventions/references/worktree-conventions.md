@@ -32,7 +32,7 @@ the files never overlap. Worktrees let both proceed; environment isolation lets 
 ## One path, not tiers
 
 A worktree is born with its full isolated stack, always: its own database, compose
-project, ports and `.env`, with isolated E2E capability included. The mechanism is
+project, ports and `.env`, with isolated E2E capability included by default. The mechanism is
 `aidex-worktree`'s `worktree.sh new <slug> --branch <branch>`; the project supplies only
 parameters (`.context/worktrees/config.env`, a `WT_PROFILE`). Creating the stack costs
 seconds and tearing it down costs less, so there is no tier to weigh per task.
