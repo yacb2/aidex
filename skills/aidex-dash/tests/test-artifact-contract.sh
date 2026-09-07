@@ -747,6 +747,51 @@ out="$(bash "$CHECK" "$TMP/ent-diff.html" --prev "$TMP/ent-old.html" 2>&1)"
   && ok "a genuinely different accented claim still fails the id diff" \
   || bad "BL-324: decoding entities laundered a real claim change: $out"
 
+# (4c) BL-323: a TRANSLATION changes every data-title by definition, so
+#      check_prev failed on all 12 ids of a real page at once. The remedy the
+#      message proposes — "append a new id instead" — is wrong here: the claim
+#      behind c7 is unchanged, and BRIEF.md plus the page's own ledger anchor on
+#      those ids by name. Waivers could not help either: split_waived() runs
+#      only in the census, never on the authoring-time check wrap_report.py
+#      invokes, so the FAIL was unwaivable at the moment it fired. Unblocking it
+#      took moving .aidex-artifact-prev/ out of the tree by hand and resetting
+#      the consult-round meta twice.
+# Wrapped from two real bodies rather than string-substituted out of the English
+# fixture: the `lang` check reads the body's own prose, so a page that merely
+# relabels <html lang> is a different defect and would mask this one.
+TR_ITEM='<section class="consult-item" data-id="c2" data-title="%s"><h3>%s</h3>
+<div class="opts one"><label><input type="radio" name="c2" data-label="A"><span>A</span></label></div>
+<p class="fieldlabel">Notes on this one</p><textarea></textarea></section>'
+tr_page() {  # tr_page <lang> <title> <prose> <out>
+  printf '<meta name="consult-visual" content="none: %s">\n<div class="page"><main class="main">
+<section id="s"><div class="sec-head"><h2>%s</h2></div><p>%s</p>
+<section class="consult-group" id="G1" data-id="G1" data-title="%s"><div class="sec-head"><h2>%s</h2></div><p>%s</p>
+'"$TR_ITEM"'</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="%s"><h3>%s</h3><textarea></textarea></section>
+<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>
+</section></main></div>\n' "$3" "$2" "$3" "$2" "$2" "$3" "$4" "$4" "$5" "$5" \
+    | bash "$WRAP" --title "$2" --lang "$1" --out "$6" >/dev/null 2>&1
+}
+EN_PROSE='This is the question we are asking about the site and about the people who will use it; there is nothing else in it.'
+ES_PROSE='Esta es la pregunta que estamos haciendo sobre el sitio y sobre las personas que lo van a usar; no hay nada más en ella.'
+tr_page en "The context" "$EN_PROSE" "who the site is for" "General notes" "$TMP/tr-en.html"
+tr_page es "El contexto" "$ES_PROSE" "para quién es el sitio" "Notas generales" "$TMP/tr-es.html"
+out="$(bash "$CHECK" "$TMP/tr-es.html" --prev "$TMP/tr-en.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] \
+  && ok "BL-323: a translation of the same page passes instead of failing every kept id" \
+  || bad "BL-323: translating a page still fails consult-ids (rc=$rc): $out"
+# Silence would be the wrong fix: the reader still has to see that the titles
+# moved, and on which ids.
+[[ "$out" == *"NOTE [consult-ids]"* && "$out" == *"c2"* ]] \
+  && ok "the moved titles are still reported, as a note naming the ids" \
+  || bad "BL-323: the translation passed silently — nothing said the titles moved: $out"
+# And within ONE language it is still a failure: the lang pair is the whole
+# discriminant, so a same-language shift must not ride out on it.
+out="$(bash "$CHECK" "$TMP/mix-new.html" --prev "$TMP/mix-old.html" 2>&1)"
+[[ "$out" == *"FAIL [consult-ids]"* ]] \
+  && ok "a shift between two pages of the SAME language is still a failure" \
+  || bad "BL-323: the note downgraded a same-language claim shift: $out"
+
 # (5) Duplicate-id detection had the same double-quote requirement, one file at a
 #     time and with no --prev involved.
 python3 - "$TMP/sq-old.html" "$TMP/sq-dupe.html" <<'PY'
