@@ -76,6 +76,12 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    - **Constraints** — stack, deadlines, compatibility, anything that can't change.
    Give each question a **recommended answer** to confirm or correct, so a well-scoped request
    resolves in one or two confirmations rather than an interrogation.
+   **Spend the four on leverage, not on coverage.** The four bullets are slots the plan
+   must fill, not a questionnaire to walk: ask about whatever is genuinely ambiguous,
+   prioritizing the answers that would change the design, and fill the settled slots
+   yourself with a recommended answer the user only has to correct. A round that asks a
+   constraints question whose answer is already in the repo, and misses the one ambiguity
+   that forks the architecture, has spent its budget on coverage.
 2. Synthesize the answers into a **one-paragraph shared design concept** and have the user
    **ratify it** before you write phases. If the request is already unambiguous and the
    recommended answers all stand, a single "confirm this concept?" round is enough.
