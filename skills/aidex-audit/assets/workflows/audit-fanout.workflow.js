@@ -128,6 +128,8 @@ const WORK_SCHEMA = {
 function verify(phaseId, gateCmd) {
   return agent(
     `Run exactly this command in the repo and report the result:\n\n    ${gateCmd}\n\n` +
+    `Run it bare — never through a pipe: report the exit status of that command itself, ` +
+    `not a pipeline's last stage.\n` +
     `Return passed=true ONLY if it exits 0. Put the last ~20 lines of output in evidence.`,
     { label: `verify:${phaseId}`, phase: 'Gate', schema: PROOF_SCHEMA, model: 'sonnet', effort: 'low' }
   )
