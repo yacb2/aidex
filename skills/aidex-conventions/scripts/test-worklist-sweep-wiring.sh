@@ -169,6 +169,63 @@ if command -v git >/dev/null; then
   cd "$TMP"
 fi
 
+# BL-333: a sweep is MANDATED to run in a linked worktree whose branch stays unmerged
+# until close-out, so every hash it produces is on no branch of the main tree — while
+# find_project_root deliberately hops OUT of that worktree so the queue and the item live
+# together. Both hops are right; together they made --commit refuse the whole run. The
+# discriminant is the tree the caller is EXECUTING in, so the same hash is refused from
+# the main tree (BL-635/636 unweakened) and accepted from inside the worktree.
+if command -v git >/dev/null; then
+  P6="$TMP/proj6"; mkdir -p "$P6/.context/backlog"
+  ( cd "$P6" && git init -q . && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m c1 )
+  ( cd "$P6" && git worktree add -q "$TMP/p6-wt" -b sweep/x ) >/dev/null 2>&1
+  if [[ -d "$TMP/p6-wt" ]]; then
+    ( cd "$TMP/p6-wt" && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m "the sweep's own commit" )
+    WTSHA="$(git -C "$TMP/p6-wt" rev-parse --short HEAD)"
+    cd "$P6"
+    mkitem() {  # mkitem <title> → prints the item's id, defined and proven
+      local f id
+      f="$(reg --title "$1" --estimate XS --verify "a test" 2>/dev/null)"; id="$(idof "$f")"
+      bash "$BL/define-item.sh" "$f" --touches "a.py" --no-index >/dev/null 2>&1
+      sed -i.bak 's/^- <!-- concrete, verifiable criterion -->$/- done/' "$f" && rm -f "$f.bak"
+      prove "$f" "tests/x.py"
+      printf '%s' "$id"
+    }
+    Z1="$(mkitem "worktree commit")"
+    ERR="$(cd "$P6" && bash "$BL/close-item.sh" "$Z1" --sweep --commit "$WTSHA" --no-index 2>&1 >/dev/null)"; RC=$?
+    [[ $RC -ne 0 && -n "$(ls "$P6"/.context/backlog/*worktree-commit*.md 2>/dev/null)" ]] \
+      && ok "close-item still refuses a worktree hash from the MAIN tree (BL-635/636 case)" \
+      || bad "BL-333: a worktree hash was accepted from the main tree: rc=$RC $ERR"
+    # The message must say which trees were searched, or the caller cannot tell the
+    # "wrong tree" case from the "no such commit" one.
+    [[ "$ERR" == *"$(basename "$P6")"* ]] \
+      && ok "the refusal names the tree it searched" || bad "BL-333: refusal names no tree: $ERR"
+
+    ( cd "$TMP/p6-wt" && bash "$BL/close-item.sh" "$Z1" --sweep --commit "$WTSHA" --no-index ) >/dev/null 2>&1; RC=$?
+    ZA="$(ls "$P6"/.context/backlog/_archive/*worktree-commit*.md 2>/dev/null | head -1)"
+    [[ $RC -eq 0 && -n "$ZA" ]] && grep -q "^commits: \"$WTSHA\"" "$ZA" \
+      && ok "close-item accepts the worktree HEAD's hash when run from inside that worktree" \
+      || bad "BL-333: the sweep's own commit was refused from its own worktree: rc=$RC $(grep '^commits' "$ZA" 2>/dev/null)"
+
+    # A hash on no branch anywhere is still a citation of work that does not exist.
+    Z2="$(mkitem "ghost commit")"
+    ERR="$(cd "$TMP/p6-wt" && bash "$BL/close-item.sh" "$Z2" --sweep --commit 0000000 --no-index 2>&1 >/dev/null)"; RC=$?
+    [[ $RC -ne 0 && -n "$(ls "$P6"/.context/backlog/*ghost-commit*.md 2>/dev/null)" ]] \
+      && ok "a hash on no branch at all is still refused from inside the worktree" \
+      || bad "BL-333: a fabricated hash was accepted: rc=$RC $ERR"
+
+    # An UNRELATED worktree the run is not executing in stays out of reach.
+    ( cd "$P6" && git worktree add -q "$TMP/p6-other" -b other ) >/dev/null 2>&1
+    ( cd "$TMP/p6-other" && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m elsewhere )
+    OTHERSHA="$(git -C "$TMP/p6-other" rev-parse --short HEAD)"
+    ERR="$(cd "$TMP/p6-wt" && bash "$BL/close-item.sh" "$Z2" --sweep --commit "$OTHERSHA" --no-index 2>&1 >/dev/null)"; RC=$?
+    [[ $RC -ne 0 ]] \
+      && ok "another worktree's branch is still refused — only the tree the run is in counts" \
+      || bad "BL-333: an unrelated worktree's hash was accepted: rc=$RC $ERR"
+    cd "$TMP"
+  else echo "  skip: git worktree add unavailable"; fi
+fi
+
 # BL-261: a parked head is ticked as handled, and its queue line says parked, not done
 if command -v git >/dev/null; then
   P5="$TMP/proj5"; mkdir -p "$P5/.context/backlog"; ( cd "$P5" && git init -q . && git -c user.email=t@t -c user.name=t commit -q --allow-empty -m c1 ); cd "$P5"
