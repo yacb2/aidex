@@ -27,6 +27,11 @@ Checks (per file):
                the general notes, only header/figure/ledger before them (BL-247)
   consult-ids  with --prev: an id kept between two regenerations still names
                the same claim
+  svg-contrast figure text below 4.5:1 against what it is painted on, in either
+               theme (BL-330). The one check with two severities: it FAILS a
+               named file — the wrap — and only WARNS in `--census`, because a
+               page being written must not ship unreadable text while the same
+               finding on a page nobody is editing is noise no one can clear.
 
 Warnings (`WARN [check]`) are a SECOND channel and deliberately not a third
 severity of the first. They report a shape that renders badly or reads wrong
@@ -619,7 +624,8 @@ def svg_geometry(svg, fonts=None, fills=None):
 # on a bench page carrying 26 figures: the lead figure measured 1.15:1 in dark
 # and every gate was green, because the contract read geometry and never colour.
 #
-# Both checks are WARNINGS and both are static. Contrast is computed only for
+# `svg-scope` is a warning; `svg-contrast` is a failure at the wrap and a warning
+# in the census (v15, and see CENSUS_ADVISORY). Both are static. Contrast is computed only for
 # pairs where BOTH sides are literal colours; anything resolved through
 # `currentColor`, a gradient, a `var()` or a CSS file the figure does not carry
 # is counted as unmeasured and SAID SO. A checker that quietly measured nothing
@@ -950,24 +956,9 @@ def warn_file(path):
             warns.append(("svg-scope", name, msg))
     except Exception:                               # noqa: BLE001 — advisory
         pass
-    try:
-        found, measured, unmeasured = svg_contrast_findings(text)
-        # The denominator travels with every finding, and the clean case says
-        # nothing at all — a page with no figures must not grow a line. What it
-        # cannot say is "nothing to report" when it measured nothing: that is
-        # the shape this whole check exists because of.
-        tail = (f" — measured {measured} text node(s) in this page's "
-                f"figures, {unmeasured} unmeasurable (currentColor, a "
-                f"gradient or a var() the file does not resolve); verify "
-                f"those in the browser")
-        for msg in found:
-            warns.append(("svg-contrast", name, msg + tail))
-        if measured == 0 and unmeasured:
-            warns.append(("svg-contrast", name,
-                          f"no figure text could be measured for contrast"
-                          + tail))
-    except Exception:                               # noqa: BLE001 — advisory
-        pass
+    # The below-floor findings are FAILURES and live in check_file (v15); what
+    # comes back here is only "nothing could be measured".
+    warns.extend(svg_contrast_reports(text, name)[1])
     flat = flatten(text)
     if not CONSULT_GATE.search(flat):
         return warns
@@ -1072,6 +1063,48 @@ def id_title_map(path):
 
 
 # --- the per-file contract -----------------------------------------------------
+
+
+def svg_contrast_reports(text, name):
+    """(fails, warns) — figure text below the 4.5:1 floor, and the no-measurement note.
+
+    One producer, two severities. Since v15 these are FAILURES when a named
+    file is checked — the wrap — and WARNINGS in `--census`. The asymmetry is
+    the whole point and it was the owner's call: a page being written must not
+    ship text nobody can read, while the same finding on a page nobody is
+    editing is noise no one can clear. `CENSUS_ADVISORY` is what carries it.
+    """
+    fails, warns = [], []
+    try:
+        found, measured, unmeasured = svg_contrast_findings(text)
+    except Exception:                               # noqa: BLE001 — advisory
+        return fails, warns
+    # The denominator travels with every finding, and the clean case says
+    # nothing at all — a page with no figures must not grow a line. What it
+    # cannot say is "nothing to report" when it measured nothing: that is
+    # the shape this whole check exists because of.
+    tail = (f" — measured {measured} text node(s) in this page's "
+            f"figures, {unmeasured} unmeasurable (currentColor, a "
+            f"gradient or a var() the file does not resolve); verify "
+            f"those in the browser")
+    for msg in found:
+        fails.append(("svg-contrast", name, msg + tail))
+    # "Nothing was measurable" stays a WARNING even at the wrap, and that is not
+    # a softening — it is the difference between a measurement and its absence.
+    # The kit's own skeleton paints every label with `currentColor`, which is
+    # the pattern the canon prescribes precisely because it follows the theme;
+    # failing on it would fail every page built the recommended way. It still
+    # has to be said out loud, because a gate that silently measured nothing is
+    # green and indistinguishable from one that passed.
+    if measured == 0 and unmeasured:
+        warns.append(("svg-contrast", name,
+                      "no figure text could be measured for contrast" + tail))
+    return fails, warns
+
+
+# Checks that FAIL a named file but only WARN in the census. One entry today.
+CENSUS_ADVISORY = ("svg-contrast",)
+
 
 def check_file(path):
     """Every violation in one file, as (check, name, message) tuples."""
@@ -1197,6 +1230,14 @@ def check_file(path):
                 declared = ""
         if not declared:
             fails.extend(check_consultation(path, text, flat))
+
+    # Colour, last, and on EVERY page — a read's figures are read too. A page
+    # whose figure text nobody can see does not ship. Failing here rather than
+    # warning is v15 and was the owner's call (Q3): a warning that fired on 26
+    # of 26 figures is one the reader learns to discount, which is how the
+    # defect BL-330 found survived three green gates. `--census` keeps the old
+    # severity — see CENSUS_ADVISORY.
+    fails.extend(svg_contrast_reports(text, os.path.basename(path))[0])
 
     return fails
 
@@ -1708,7 +1749,7 @@ def run_census(arg):
         print("ERROR: --census found no directory to walk (pass one, or run "
               "inside a project with a .context/)", file=sys.stderr)
         return 2
-    failures, n_files = [], 0
+    failures, advisory, n_files = [], [], 0
     for dirpath, dirnames, filenames in os.walk(walk_root):
         dirnames[:] = [d for d in dirnames
                        if d not in (".aidex-artifact-prev", "_archive")]
@@ -1718,10 +1759,17 @@ def run_census(arg):
             p = os.path.join(dirpath, e)
             n_files += 1
             rel = os.path.relpath(p, project_root)
-            failures.extend((c, rel, m) for c, _, m in check_file(p))
+            for c, _, m in check_file(p):
+                (advisory if c in CENSUS_ADVISORY else failures).append((c, rel, m))
     active, waived = split_waived(failures, ctx, project_root)
+    # Waived here too, and counted into the same total: a page that answered a
+    # finding once should not keep saying it, whichever channel it comes out of.
+    adv_active, adv_waived = split_waived(advisory, ctx, project_root)
+    waived += adv_waived
     for check, name, msg in active:
         print(f"  FAIL [{check}] {name}: {msg}")
+    for check, name, msg in adv_active:
+        print(f"  WARN [{check}] {name}: {msg}")
     for note in baseline_hygiene(walk_root):
         print(f"  NOTE [baselines] {note}")
     if waived:
