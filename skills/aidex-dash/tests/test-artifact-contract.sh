@@ -214,7 +214,7 @@ PY
 # definition, an author's decision about a specific subject.
 #
 # It used to satisfy that one too, with `content="none: replace this with the
-# reason, or with svg/mermaid/img"` — a "reason" that is the instruction to write a
+# reason, or with svg/img"` — a "reason" that is the instruction to write a
 # reason. references/02 §8 tells authors to copy this template rather than
 # re-derive it, so every derived consultation shipped the visual gate already
 # satisfied by a page with no visual and no reason: exactly the state §8 says must
@@ -232,6 +232,41 @@ tpl_out="$(bash "$WRAP" --title "C" --out "$TMP/consult-tpl.html" < "$TMP/consul
 [[ "$(grep -c 'FAIL \[' <<<"$tpl_out")" -eq 1 ]] \
   && ok "and it fails NOTHING else — the checks demand only what the suite ships" \
   || bad "the template fails a check other than the visual declaration: $tpl_out"
+
+# BL-328: `class="mermaid"` counted as a visual and NOTHING renders it. A local
+# artifact is a file:// document with no external host allowed, and the kit ships
+# no renderer — verified by grep over artifact-kit/ and wrap_report.py — so the
+# block IS its own source. The page passed the check and showed the reader a wall
+# of `graph TD`: a gate that passes input it should reject. A fleet census on
+# 2026-09-07 over every .context/**/*.html found zero pages declaring it, so
+# removing the value costs nothing and makes Mermaid's retirement real in code.
+# The output is NOT named after the diagram language: the assertion below greps
+# the message for it, and a filename would answer the grep.
+printf '<div class="page"><main class="main"><h1>x</h1>
+<pre class="mermaid">graph TD; A--&gt;B;</pre>
+<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions share.</p>
+<section class="consult-item" data-id="m1" data-title="One"><h3>One</h3>
+<div class="opts one"><label><input type="radio" name="m1" data-label="A"><span>A</span></label></div>
+<p class="fieldlabel">Notes on this one</p><textarea></textarea></section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notes"><h3>Notes</h3><textarea></textarea></section>
+<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>
+</main></div>\n' > "$TMP/mm-body.html"
+mm_out="$(bash "$WRAP" --title "M" --out "$TMP/mm.html" < "$TMP/mm-body.html" 2>&1)"
+[[ "$mm_out" == *"consult-visual"* ]] \
+  && ok "BL-328: a page whose only visual is class=\"mermaid\" fails the visual check" \
+  || bad "BL-328: mermaid still counts as a visual, and nothing renders it: $mm_out"
+# The message must stop advertising it, or the author is sent to the same dead end.
+[[ "$mm_out" == *"mermaid"* ]] \
+  && bad "BL-328: the failure message still offers mermaid as a value: $mm_out" \
+  || ok "the visual-declaration message names only the values that render"
+grep -q 'svg` / `img`' "$TPL" \
+  && ! grep -q 'svg` / `mermaid` / `img`' "$TPL" \
+  && ok "the template offers svg / img and no longer mermaid" \
+  || bad "BL-328: the template still tells the author to write mermaid"
+grep -q 'svg/mermaid/img' "$TPL" \
+  && bad "BL-328: the template's own placeholder still advertises mermaid" \
+  || ok "the placeholder the author copies names only the values that render"
 
 # Replacing the placeholder is what makes it pass, so the template is one edit
 # from compliant rather than broken.
