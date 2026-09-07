@@ -292,8 +292,10 @@ def consult_items(text):
 
 def visual_declaration(text):
     """The consult-visual meta's `none:` reason, or "" when there is none.
-    Only a `none:` declaration carries a reason — anything else (svg / mermaid /
-    img) is a claim to have a visual, which the tag check adjudicates."""
+    Only a `none:` declaration carries a reason — anything else (svg / img) is a
+    claim to have a visual, which the tag check adjudicates. `mermaid` was a third
+    value until BL-328 and never rendered anywhere: no shipped code draws it and a
+    local page may not fetch a renderer, so it showed the reader `graph TD`."""
     m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-visual["\x27]?'
                   r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
                   text, re.I | re.S)
@@ -1440,7 +1442,13 @@ def check_consultation(path, text, flat):
     # judge whether a topic has a shape worth drawing, so the check is on the
     # DECLARATION: carry a visual, or say in one line why there is none.
     # Silence is the only thing that fails.
-    if not re.search(r'<svg|<img|class="mermaid"|<canvas', text, re.I):
+    # No `class="mermaid"` (BL-328). It counted as a visual and nothing in the
+    # kit or the wrapper renders it — a local artifact is a file:// document with
+    # no external host allowed, so a mermaid block IS its own source text. The
+    # page passed the check and showed the reader a wall of `graph TD`. A fleet
+    # census on 2026-09-07 found zero pages using it, so removing the value costs
+    # nothing and makes the route's retirement real in the code.
+    if not re.search(r'<svg|<img|<canvas', text, re.I):
         try:
             reason = visual_declaration(text)
         except Exception as e:                      # noqa: BLE001 — fail closed
@@ -1455,7 +1463,7 @@ def check_consultation(path, text, flat):
             report("consult", f'the consult-visual declaration is still the '
                    f'template placeholder ("{reason}") — that is the '
                    f'instruction to write a reason, not a reason. Replace it '
-                   f'with why this page has no drawing, or with svg/mermaid/img')
+                   f'with why this page has no drawing, or with svg/img')
 
     # The template's own recorded regression: with only the media query, an
     # explicitly-toggled dark page keeps the light sticky bar and the

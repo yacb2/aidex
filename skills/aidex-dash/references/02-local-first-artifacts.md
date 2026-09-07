@@ -664,7 +664,10 @@ ask came back.
 So the default inverts. When the thing under discussion has a **shape** — a flow, a
 layout, a state machine, two alternatives to compare, a before/after — the page opens
 with the drawing and the prose explains it. Load `artifact-diagramming` for the
-mechanics; inline SVG and mermaid both satisfy the contract (no external host).
+mechanics; inline SVG satisfies the contract (no external host). Mermaid does not
+and is not a value: nothing in the kit or the wrapper renders it, and a local page
+cannot fetch a renderer, so a `<pre class="mermaid">` block shows the reader its own
+`graph TD` source on a page that passed the check (BL-328).
 
 **The default is bounded, and the bound is the point.** Plenty of consultations are
 claims about which nothing can be drawn — a naming decision, a yes/no on a policy.
@@ -676,7 +679,7 @@ No checker can judge whether a topic has a shape, and a rule that cannot be chec
 the exact failure § 8 was written after. So the page states which it is:
 
 ```html
-<meta name="consult-visual" content="svg">              <!-- or: mermaid, img -->
+<meta name="consult-visual" content="svg">              <!-- or: img -->
 <meta name="consult-visual" content="none: a naming decision, nothing to draw">
 ```
 
@@ -684,7 +687,7 @@ A consultation page with no visual and no stated reason fails. A page that decla
 `none:` with a reason passes — and the reason is one grep away from review, which
 silence never is.
 
-The template's placeholder (`none: replace this with the reason, or with svg/mermaid/img`)
+The template's placeholder (`none: replace this with the reason, or with svg/img`)
 does **not** satisfy it, and neither do `tbd` / `todo` / `fixme`. That is the one thing
 this check cannot afford to accept: the instruction to write a reason standing in for a
 reason, on every page copied from the template, which is what the grep returned before.
