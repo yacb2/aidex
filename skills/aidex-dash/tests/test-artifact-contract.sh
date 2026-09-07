@@ -717,6 +717,36 @@ out="$(bash "$CHECK" "$TMP/mix-new.html" --prev "$TMP/mix-old.html" 2>&1)"
   && ok "a title containing a double quote does not drop its item from the map" \
   || bad "a mixed-quote page laundered a total claim replacement: $out"
 
+# (4b) BL-324: both readers compare RAW SOURCE, so an entity-encoded accent is
+#      content they count as prose. Measured on the Spanish translation of
+#      home-concepts-report.html: re-wrapping the identical page with literal
+#      accents against an entity-encoded baseline reported 7 ids as "reused for
+#      a different claim" — same language, same words, same claim.
+python3 - "$TMP/consult-ok.html" "$TMP/ent-old.html" "$TMP/ent-new.html" "$C2_TITLE" <<'ENT'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+target = f'data-title="{sys.argv[4]}"'
+assert target in t, "fixture drift: item c2's title is not in the wrapped page"
+open(sys.argv[2], "w").write(t.replace(target, 'data-title="para qui&eacute;n es el sitio"'))
+open(sys.argv[3], "w").write(t.replace(target, 'data-title="para quién es el sitio"'))
+ENT
+out="$(bash "$CHECK" "$TMP/ent-new.html" --prev "$TMP/ent-old.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* ]] \
+  && bad "BL-324: the same title, entity-encoded in one version and literal in the next, read as a changed claim: $out" \
+  || ok "an entity-encoded accent is decoded before the id diff compares titles"
+# The complement, or the fix is just "stop comparing": a genuinely different
+# claim written with accents must still fail.
+python3 - "$TMP/consult-ok.html" "$TMP/ent-diff.html" "$C2_TITLE" <<'ENT'
+import sys
+t = open(sys.argv[1], encoding="utf-8").read()
+open(sys.argv[2], "w").write(t.replace(f'data-title="{sys.argv[3]}"',
+                                       'data-title="otra afirmaci&oacute;n distinta"'))
+ENT
+out="$(bash "$CHECK" "$TMP/ent-diff.html" --prev "$TMP/ent-old.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* && "$out" == *"c2"* ]] \
+  && ok "a genuinely different accented claim still fails the id diff" \
+  || bad "BL-324: decoding entities laundered a real claim change: $out"
+
 # (5) Duplicate-id detection had the same double-quote requirement, one file at a
 #     time and with no --prev involved.
 python3 - "$TMP/sq-old.html" "$TMP/sq-dupe.html" <<'PY'

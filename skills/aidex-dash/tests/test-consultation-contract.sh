@@ -362,6 +362,32 @@ rc="$(run "$TMP/warn-read.html")"
 [[ "$rc" == "0" ]] || fail "10. a read page failed: $(cat "$TMP/out")"
 grep -q 'WARN' "$TMP/out" && fail "10. a read page collected warnings: $(cat "$TMP/out")"
 
+# ---- 10b2. BL-324: consult-facts counted `;` in the RAW SOURCE, so every
+# `&iacute;` was a clause separator. Measured on a Spanish translation: a
+# paragraph with ONE real semicolon and five accent entities was reported as
+# "7 semicolon-separated clauses", and twelve warnings fired on a page whose
+# English original fired none. Rewriting the accents as literal UTF-8 cleared
+# all twelve without touching a sentence — the warnings were measuring the
+# encoding, not the prose.
+mkpage "$TMP/warn-entities.html" "$visual
+<div class=\"page\"><main class=\"main\">
+<section class=\"consult-group\" id=\"G9\" data-id=\"G9\" data-title=\"Acentos\">
+<div class=\"sec-head\"><h2>Acentos</h2></div>
+<section class=\"consult-item\" data-id=\"e1\" data-title=\"Una sola clausula\">
+  <h3><span class=\"consult-id\">e1</span>Una sola clausula</h3>
+  <p>La p&aacute;gina se public&oacute; en espa&ntilde;ol con acentos codificados; eso es todo.</p>
+  <p class=\"fieldlabel\">Notas sobre esta</p><textarea></textarea>
+</section>
+</section>
+$notesitem
+$bars
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-entities.html")"
+[[ "$rc" == "0" ]] || fail "10b2. the entity page failed the contract: $(cat "$TMP/out")"
+grep -q "WARN \[consult-facts\]" "$TMP/out" \
+  && fail "10b2. BL-324: entity-encoded accents were counted as clause separators: $(cat "$TMP/out")"
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact
