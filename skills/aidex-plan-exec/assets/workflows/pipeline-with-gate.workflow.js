@@ -257,7 +257,7 @@ for (const p of cfg.phases || []) {
         `Implement the spec's contract fully and correctly. A separate verifier will check your work; ` +
         `you are NOT shown that check, so satisfy the spec itself — do not target a test.\n` +
         (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),
-        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'sonnet', effort: p.effort || 'medium' }
+        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'fable', effort: p.effort || 'low' }
       ),
   }
   const r = await runPhase(phaseSpec, ctx)

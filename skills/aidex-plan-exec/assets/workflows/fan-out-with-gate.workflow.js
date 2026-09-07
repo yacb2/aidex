@@ -265,7 +265,7 @@ function makeImplement(p) {
       (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),
       // No global phase('Execute') call: concurrent branches would race it. The per-agent
       // `phase: 'Execute'` opt groups the display safely (CORE's verify() does the same for 'Gate').
-      { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'sonnet', effort: p.effort || 'medium' }
+      { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'fable', effort: p.effort || 'low' }
     )
 }
 
