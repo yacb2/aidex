@@ -334,6 +334,15 @@ offer when the project has a `.context/` and no profile, and records it in
 never auto-created — only the record of the offer is. Without the marker the rule fails
 in both directions at once: missed where it mattered, and repeated where it did not.
 
+**Two surfaces write that marker, and one of them asks first.** `aidex/scripts/init-context.sh`
+puts the same question at `/aidex init` — the moment the user is present and expecting
+setup questions, rather than mid-artifact — and records the answer in the SAME file, so a
+decline there stops the wrap-time offer and vice versa (BL-337). It creates the profile
+only on an explicit yes, which leaves the rule above untouched: what moved is the
+question, not the never-create-it-silently. Without a TTY and without
+`--artifact-style <lang>` it writes NO marker, only a note that it skipped the question —
+a headless bootstrap must not silence this offer as well.
+
 The profile also carries the artifact's **language** as a field:
 
 ```

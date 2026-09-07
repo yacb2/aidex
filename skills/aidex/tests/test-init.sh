@@ -10,6 +10,14 @@
 #      scaffolds the directories, notes the skipped seeding, exits 0.
 #   5. The suggested CLAUDE.md block is printed to stdout but no CLAUDE.md
 #      file is ever created.
+#   8. The artifact-style.md question (BL-337): skipped and SAID to be skipped
+#      without a TTY, answered by flag, answered at a real pty, and never asked
+#      twice once the shared marker exists.
+#
+# Every invocation below redirects stdin from /dev/null on purpose: scenario 8
+# gives init a `read` at a TTY, and run-all.sh does not redirect a test's stdin
+# (run-all.sh:126), so a suite run from a terminal would otherwise hang inside
+# a command substitution. Scenario 8 opens its own pty where it wants one.
 #
 # Run with: bash skills/aidex/tests/test-init.sh
 
@@ -25,7 +33,7 @@ pass() { printf 'ok: %s\n' "$*"; }
 # --- Scenario 1: fresh dir -> full skeleton created ---
 
 d1="$(mktemp -d)"
-out1="$(bash "$INIT" "$d1")"
+out1="$(bash "$INIT" "$d1" </dev/null)"
 
 for sub in backlog plans decisions research references requests \
            backlog/_archive plans/_archive requests/_archive decisions/_archive; do
@@ -44,7 +52,7 @@ created_count="$(printf '%s\n' "$out1" | grep -c '^created: \.context/')"
 canary="$d1/.context/backlog/canary.md"
 printf 'do not touch\n' > "$canary"
 
-out2="$(bash "$INIT" "$d1")"
+out2="$(bash "$INIT" "$d1" </dev/null)"
 exists_count="$(printf '%s\n' "$out2" | grep -c '^exists: \.context/')"
 [[ "$exists_count" -ge 9 ]] || fail "scenario2: expected >=9 exists: lines on re-run, got $exists_count"
 
@@ -68,7 +76,7 @@ d3="$(mktemp -d)"
 mkdir -p "$d3/.context/plans"
 printf 'pre-existing\n' > "$d3/.context/plans/canary.md"
 
-out3="$(bash "$INIT" "$d3")"
+out3="$(bash "$INIT" "$d3" </dev/null)"
 
 if printf '%s\n' "$out3" | grep -q '^exists: \.context/plans$'; then
   pass "scenario3: pre-existing plans/ reported exists"
@@ -98,7 +106,7 @@ rm -rf "$d3"
 d4="$(mktemp -d)"
 empty_aidex="$(mktemp -d)"
 
-out4="$(AIDEX_DIR="$empty_aidex" bash "$INIT" "$d4")"
+out4="$(AIDEX_DIR="$empty_aidex" bash "$INIT" "$d4" </dev/null)"
 rc4=$?
 
 [[ $rc4 -eq 0 ]] || fail "scenario4: exit code expected 0, got $rc4"
@@ -119,7 +127,7 @@ rm -rf "$d4" "$empty_aidex"
 # --- Scenario 5: CLAUDE.md block printed, no file created ---
 
 d5="$(mktemp -d)"
-out5="$(bash "$INIT" "$d5")"
+out5="$(bash "$INIT" "$d5" </dev/null)"
 
 if printf '%s\n' "$out5" | grep -qi 'Suggested CLAUDE.md addition'; then
   pass "scenario5: CLAUDE.md suggestion block printed"
@@ -138,7 +146,7 @@ rm -rf "$d5"
 # --- Scenario 6: _tmp/ scratch bucket seeded, README never overwritten (BL-028) ---
 
 d6="$(mktemp -d)"
-bash "$INIT" "$d6" >/dev/null
+bash "$INIT" "$d6" </dev/null >/dev/null
 
 if [[ -f "$d6/_tmp/README.md" ]]; then
   pass "scenario6: _tmp/README.md seeded"
@@ -153,7 +161,7 @@ else
 fi
 
 printf 'project-specific contract\n' > "$d6/_tmp/README.md"
-out6="$(bash "$INIT" "$d6")"
+out6="$(bash "$INIT" "$d6" </dev/null)"
 
 if [[ "$(cat "$d6/_tmp/README.md")" == "project-specific contract" ]]; then
   pass "scenario6: existing _tmp/README.md left untouched"
@@ -177,7 +185,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 VALIDATE="$REPO_ROOT/skills/aidex-conventions/scripts/validate.py"
 
 d7="$(mktemp -d)"
-AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7" >/dev/null
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7" </dev/null >/dev/null
 
 if [[ -f "$d7/.context/references/01-project-commands.md" ]]; then
   pass "scenario7: project commands written as a reference (NN-<slug>.md)"
@@ -202,7 +210,7 @@ fi
 d7b="$(mktemp -d)"
 mkdir -p "$d7b/.context/references"
 printf 'legacy\n' > "$d7b/.context/references/project-commands.md"
-AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7b" >/dev/null
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7b" </dev/null >/dev/null
 if [[ -f "$d7b/.context/references/01-project-commands.md" ]]; then
   fail "scenario7: init duplicated a pre-existing project-commands.md"
 else
@@ -212,6 +220,228 @@ fi
   || fail "scenario7: pre-existing project-commands.md was overwritten"
 
 rm -rf "$d7" "$d7b"
+
+# --- Scenario 8: the artifact-style.md question (BL-337) ---
+#
+# Three criteria, and the third is an ABSENCE: without a TTY no profile must
+# appear. An absence assertion that samples nothing passes vacuously, so each
+# one below is paired with the mutation that makes the denied thing appear —
+# the flag, and a real pty answering the prompt.
+#
+# AIDEX_DIR points at the repo throughout: the template the profile is seeded
+# from ships in aidex-dash, and without it the step correctly skips itself.
+
+PTY_DRIVER="$(mktemp -d)/pty-answer.py"
+cat > "$PTY_DRIVER" <<'PYEOF'
+"""Run a command on a real pty, answer its prompt, print everything it wrote.
+
+The `read` branch of init-context.sh only exists when stdin is a terminal, so
+a test that pipes into it exercises the no-TTY branch instead and proves
+nothing. python3 is already a dependency of this file (scenario 7 runs
+validate.py); `script` is not, and its BSD and GNU spellings differ.
+"""
+import os, pty, sys, time
+
+reply, cmd = sys.argv[1], sys.argv[2:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(cmd[0], cmd)
+
+out = b""
+answered = False
+deadline = time.time() + 20
+while time.time() < deadline:
+    try:
+        chunk = os.read(fd, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    out += chunk
+    if not answered and b"empty declines" in out:
+        os.write(fd, (reply + "\n").encode())
+        answered = True
+if not answered:
+    # No prompt appeared. That is a real outcome (marker present, profile
+    # present, template missing) — report it rather than hanging.
+    try:
+        os.write(fd, b"\n")
+    except OSError:
+        pass
+_, status = os.waitpid(pid, 0)
+sys.stdout.write(out.decode("utf-8", "replace"))
+sys.exit(0 if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0 else 1)
+PYEOF
+
+# 8a — ABSENCE: no flag, no TTY -> question skipped, said to be skipped,
+#      and NOTHING written. Not even the marker: skipped is not asked, and a
+#      marker here would silence aidex-dash's wrap-time offer too, losing the
+#      question at both surfaces instead of moving it.
+d8a="$(mktemp -d)"
+out8a="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" </dev/null)"
+
+if printf '%s\n' "$out8a" | grep -q 'no TTY — skipped the artifact-style.md question'; then
+  pass "scenario8a: no TTY -> the skipped question is reported"
+else
+  fail "scenario8a: no TTY -> nothing reported the skipped question"
+fi
+
+[[ ! -f "$d8a/.context/artifact-style.md" ]] \
+  && pass "scenario8a: no TTY -> no profile created" \
+  || fail "scenario8a: a profile was created without an explicit yes"
+
+[[ ! -f "$d8a/.context/.aidex-artifact-style-offered" ]] \
+  && pass "scenario8a: no TTY -> no marker, so the wrap-time offer still fires" \
+  || fail "scenario8a: a skipped question recorded itself as offered"
+
+# 8b — MUTATION of 8a, via the flag: the denied file must now appear.
+out8b="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" --artifact-style es </dev/null)"
+
+if [[ -f "$d8a/.context/artifact-style.md" ]]; then
+  pass "scenario8b: --artifact-style es creates the profile"
+else
+  fail "scenario8b: --artifact-style es did not create the profile"
+fi
+
+if grep -qx -- '- language: es' "$d8a/.context/artifact-style.md"; then
+  pass "scenario8b: the language answer is written as the field wrap-report.sh reads"
+else
+  fail "scenario8b: the profile does not carry '- language: es'"
+fi
+
+if grep -q '{{PROJECT_NAME}}' "$d8a/.context/artifact-style.md"; then
+  fail "scenario8b: {{PROJECT_NAME}} left unsubstituted"
+else
+  pass "scenario8b: {{PROJECT_NAME}} substituted"
+fi
+
+[[ -f "$d8a/.context/.aidex-artifact-style-offered" ]] \
+  && pass "scenario8b: an answered question records itself in the shared marker" \
+  || fail "scenario8b: the answered question left no record"
+
+printf '%s\n' "$out8b" | grep -q '^created: \.context/artifact-style\.md$' \
+  && pass "scenario8b: the creation is reported" \
+  || fail "scenario8b: the creation was not reported"
+
+# Re-running must not overwrite an answered profile.
+printf 'hand-edited\n' >> "$d8a/.context/artifact-style.md"
+out8b2="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" --artifact-style fr </dev/null)"
+if grep -q 'hand-edited' "$d8a/.context/artifact-style.md"; then
+  pass "scenario8b: an existing profile is never overwritten"
+else
+  fail "scenario8b: a re-run overwrote the existing profile"
+fi
+printf '%s\n' "$out8b2" | grep -q '^exists: \.context/artifact-style\.md$' \
+  && pass "scenario8b: the existing profile is reported as existing" \
+  || fail "scenario8b: the existing profile was not reported"
+
+rm -rf "$d8a"
+
+# 8c — MUTATION of 8a at a REAL pty: the interactive branch is the one a human
+#      hits, and piping into it exercises the no-TTY branch instead.
+d8c="$(mktemp -d)"
+out8c="$(AIDEX_DIR="$REPO_ROOT" python3 "$PTY_DRIVER" "es" bash "$INIT" "$d8c")"
+rc8c=$?
+
+[[ $rc8c -eq 0 ]] || fail "scenario8c: init at a pty exited non-zero ($rc8c)"
+
+if printf '%s\n' "$out8c" | grep -q 'empty declines'; then
+  pass "scenario8c: at a TTY the question is actually asked"
+else
+  fail "scenario8c: no question was asked at a TTY: $out8c"
+fi
+
+if [[ -f "$d8c/.context/artifact-style.md" ]] && grep -qx -- '- language: es' "$d8c/.context/artifact-style.md"; then
+  pass "scenario8c: a typed answer creates the profile in that language"
+else
+  fail "scenario8c: the typed answer did not produce the profile"
+fi
+
+rm -rf "$d8c"
+
+# 8d — an EMPTY answer at the pty is a decline: recorded, nothing created.
+d8d="$(mktemp -d)"
+out8d="$(AIDEX_DIR="$REPO_ROOT" python3 "$PTY_DRIVER" "" bash "$INIT" "$d8d")"
+
+[[ ! -f "$d8d/.context/artifact-style.md" ]] \
+  && pass "scenario8d: an empty answer creates nothing" \
+  || fail "scenario8d: an empty answer created the profile anyway"
+
+[[ -f "$d8d/.context/.aidex-artifact-style-offered" ]] \
+  && pass "scenario8d: the decline is recorded in the shared marker" \
+  || fail "scenario8d: the decline left no record, so both surfaces will ask again"
+
+# The decline must stop the question, at a pty, without a flag.
+out8d2="$(AIDEX_DIR="$REPO_ROOT" python3 "$PTY_DRIVER" "es" bash "$INIT" "$d8d")"
+if printf '%s\n' "$out8d2" | grep -q 'empty declines'; then
+  fail "scenario8d: the question was asked a second time after a decline"
+else
+  pass "scenario8d: a declined question is not asked again"
+fi
+[[ ! -f "$d8d/.context/artifact-style.md" ]] \
+  && pass "scenario8d: the re-run still created nothing" \
+  || fail "scenario8d: the re-run created a profile nobody asked for"
+
+# ...and the marker it wrote is the one aidex-dash's wrap-time offer reads, so
+# that surface does not ask either. This is criterion 2 asserted at the
+# CONSUMER's seam, not only where the file is written.
+WRAP="$REPO_ROOT/skills/aidex-dash/scripts/wrap-report.sh"
+if [[ -x "$WRAP" ]]; then
+  mkdir -p "$d8d/.context/reports"
+  wrapbody='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
+  wraperr="$(printf '%s\n' "$wrapbody" | bash "$WRAP" --title "T" \
+             --out "$d8d/.context/reports/a.html" 2>&1 >/dev/null)"
+  if printf '%s\n' "$wraperr" | grep -q 'Offer the profile to the reader ONCE'; then
+    fail "scenario8d: the wrap-time offer still fired after init recorded the decline"
+  else
+    pass "scenario8d: init's decline silences the wrap-time offer (one marker, two surfaces)"
+  fi
+else
+  fail "scenario8d: wrap-report.sh not found at $WRAP"
+fi
+
+rm -rf "$d8d"
+
+# 8e — --no-artifact-style is the flag form of that decline.
+d8e="$(mktemp -d)"
+out8e="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8e" --no-artifact-style </dev/null)"
+
+[[ ! -f "$d8e/.context/artifact-style.md" ]] \
+  && pass "scenario8e: --no-artifact-style creates nothing" \
+  || fail "scenario8e: --no-artifact-style created a profile"
+
+[[ -f "$d8e/.context/.aidex-artifact-style-offered" ]] \
+  && pass "scenario8e: --no-artifact-style records the decline" \
+  || fail "scenario8e: --no-artifact-style left no record"
+
+printf '%s\n' "$out8e" | grep -q 'declined' \
+  && pass "scenario8e: the decline is reported" \
+  || fail "scenario8e: the decline was not reported"
+
+# An explicit flag is an explicit yes even after a decline: the marker gates the
+# QUESTION, never an answer the caller just gave.
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8e" --artifact-style es </dev/null >/dev/null
+[[ -f "$d8e/.context/artifact-style.md" ]] \
+  && pass "scenario8e: an explicit flag still creates the profile after a decline" \
+  || fail "scenario8e: the marker blocked an explicit yes"
+
+rm -rf "$d8e"
+
+# 8f — no aidex-dash installed: no template, so the step skips itself and says so
+#      instead of writing an empty profile.
+d8f="$(mktemp -d)"
+empty8f="$(mktemp -d)"
+out8f="$(AIDEX_DIR="$empty8f" bash "$INIT" "$d8f" --artifact-style es </dev/null)"
+
+[[ ! -f "$d8f/.context/artifact-style.md" ]] \
+  && pass "scenario8f: no template -> no profile" \
+  || fail "scenario8f: a profile was written without a template"
+
+printf '%s\n' "$out8f" | grep -q 'aidex-dash not installed' \
+  && pass "scenario8f: the missing template is noted" \
+  || fail "scenario8f: the missing template was silent"
+
+rm -rf "$d8f" "$empty8f" "$(dirname "$PTY_DRIVER")"
 
 # --- Summary ---
 
