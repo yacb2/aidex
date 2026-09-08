@@ -551,10 +551,61 @@ list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked only' \
   && bad "B19 --list: a blocked-only item was printed under Awaiting owner" \
   || ok "B19 --list: a blocked-only item stays out of Awaiting owner"
 
+# ── B20 · --list must reach a sweep-PARKED item, whose status is `doing` ──────
+# Was: --list filtered to `status == open`, but close-item.sh --sweep parks an item by
+# writing `awaiting: owner` and LEAVING the status as it was (close-item.sh:153) — inside
+# a sweep that status is `doing`. So the Awaiting owner section was unreachable for
+# exactly the items it was built for. Live proof on aidex's own board: BL-318 and BL-340
+# both carry awaiting:owner with status doing; 00-index.md (which accepts open|doing)
+# listed both, --list printed no Awaiting owner section at all.
+# A plain `doing` item still stays out of the priority sections — widening the filter
+# must not turn --list into a different report.
+D="$(fresh b20)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-001-parked.md <<'EOF'
+---
+title: "parked mid-sweep"
+id: BL-001
+status: doing
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+awaiting: owner
+---
+EOF
+cat > .context/backlog/2026-01-01-bl-002-plain-doing.md <<'EOF'
+---
+title: "plain doing item"
+id: BL-002
+status: doing
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+EOF
+cat > .context/backlog/2026-01-01-bl-003-plain-open.md <<'EOF'
+---
+title: "plain open item"
+id: BL-003
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+EOF
+LISTF="$TMP/b20.list"
+NO_COLOR=1 bash "$REG" --list >"$LISTF" 2>/dev/null
+# Non-vacuous: --list must have produced a report at all before any section assertion.
+grep -q 'plain open item' "$LISTF"   && ok "B20 --list: the ordinary open item is listed (the section checks are not vacuous)"   || bad "B20 --list: produced no report — every assertion below would be vacuous"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'parked mid-sweep'   && ok "B20 --list: a sweep-parked doing item reaches Awaiting owner"   || bad "B20 --list: a parked item with status doing never reached Awaiting owner"
+# Mutation on the other axis — widening the status filter must not promote a plain
+# `doing` item into the priority queue, or --list stops meaning "what is open".
+list_section "$LISTF" "P2 —" | grep -q 'plain doing item'   && bad "B20 --list: a plain doing item was promoted into the P2 section"   || ok "B20 --list: a plain doing item stays out of the priority sections"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'plain doing item'   && bad "B20 --list: a plain doing item was printed under Awaiting owner"   || ok "B20 --list: only a parked item reaches Awaiting owner"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 18 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 19 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"

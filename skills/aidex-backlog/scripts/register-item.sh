@@ -864,7 +864,13 @@ if [[ $LIST_ONLY -eq 1 ]]; then
   for f in "$BACKLOG_DIR"/*.md; do
     [[ -f "$f" ]] || continue
     status="$(read_field status "$f")"
-    [[ "$status" == "open" ]] || continue
+    # `doing` is read too, but ONLY to reach the Blocked / Awaiting owner sections
+    # below. close-item.sh --sweep parks an item by writing `awaiting:` and leaving the
+    # status alone (close-item.sh:153), which inside a sweep is `doing` — so filtering
+    # to `open` made "Awaiting owner" unreachable for exactly the items it was built
+    # for (BL-356). A plain `doing` item is still not queue work and is dropped after
+    # the two special branches, so this widening does not change what --list means.
+    [[ "$status" == "open" || "$status" == "doing" ]] || continue
     title="$(read_field title "$f")"
     priority="$(read_field priority "$f")"
     origin="$(read_field origin "$f")"
@@ -887,6 +893,7 @@ if [[ $LIST_ONLY -eq 1 ]]; then
       special=1
     fi
     if [[ $special -eq 1 ]]; then continue; fi
+    [[ "$status" == "open" ]] || continue
     case "$priority" in
       P0) P0+=("$line") ;;
       P1) P1+=("$line") ;;
