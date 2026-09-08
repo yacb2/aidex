@@ -416,6 +416,14 @@ from:
 of document. Skipping the wrap yields a headless fragment that browsers render in quirks
 mode — measured at 2 of 4 field reports before this existed.
 
+**A report that already exists as markdown is wrapped, not rewritten.** `--in <file>.md`
+renders the markdown into the kit's page structure first (`dash/md_body.py`), which is
+the close-out case: a run's durable record — `worklists/_archive/<worklist>-report.md`,
+`.context/proofs/<slug>/human-verification.md` — is already written and only the page is
+missing. Pass `--lang` explicitly there: a `.context/` report's body is English by D-04
+whatever the project's artifact language is, and the profile would otherwise stamp the
+other one over it. Content on stdin is always page markup; only a named `.md` converts.
+
 **Use `--out`, not a shell redirect.** With `--out` the command writes the file *and*
 verifies the artifact contract on it, exiting non-zero if it fails — so wrapping and
 verifying are one step that cannot be half-done. Redirecting to stdout still works, and

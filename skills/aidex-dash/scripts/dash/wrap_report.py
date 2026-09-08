@@ -21,6 +21,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
+import md_body  # noqa: E402
 from _shell import document, esc  # noqa: E402
 
 LEADING_STYLE = re.compile(r"\A\s*((?:<style\b[^>]*>.*?</style>\s*)+)", re.S | re.I)
@@ -369,6 +370,14 @@ def main():
     if not content.strip():
         print("ERROR: no content on stdin (nothing to wrap)", file=sys.stderr)
         return 2
+    # A `.md` input is the close-out case (BL-345): the run already wrote a
+    # durable markdown report and what is missing is the page. Keyed on the
+    # EXTENSION rather than a flag because both producers pass a file on disk and
+    # neither has anything to say about the conversion — an option here would be
+    # a second way to spell the only sensible behaviour. Content on stdin is
+    # still page markup: a pipe has no name to read the intent from.
+    if args.infile and args.infile.lower().endswith(".md"):
+        content = md_body.render(content)
     if re.search(r"<!doctype\s+html", content, re.I):
         print("ERROR: content already has a doctype — pass page content only, "
               "not a full document", file=sys.stderr)

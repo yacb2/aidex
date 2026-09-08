@@ -142,9 +142,18 @@ Enforced by `scripts/sweep-report.sh` and `worklist-close.sh`.
    owner, 2026-08-27): closed items with commits and rows, the parked items, the owner
    rows aggregated, NEEDS-DECISION unchanged and unattempted, deferrals and mid-flight
    skips, emergent growth, the gate rows verbatim, and the per-sweep metrics.
+
+   It writes the page too — `<report>.html` beside the markdown, through the artifact
+   kit, named on stderr as `page: <path>`. The markdown stays the canon; the page is
+   what a person reads. Handing over the `.md` alone is what made the owner ask for the
+   artifact after a run that had already written one (BL-345).
 2. `worklist-close.sh` — refuses while an owner row is unanswered or a deferral is
    unreconciled; `--force` records the override. The closed list archives.
-3. The branch is left **ready to merge** and the merge is **asked** — never done.
+3. **Open the page — once, here, and nowhere earlier.** `rules/artifacts-local-first.md`
+   gate 2 opens an artifact exactly once, when it is final, and the report is not final
+   until step 2 has archived the closed list. `open <report>.html`, and cite that path
+   in the run's summary rather than the `.md`. Never publish it (gate 3).
+4. The branch is left **ready to merge** and the merge is **asked** — never done.
 
 ### Human verification in a sweep
 

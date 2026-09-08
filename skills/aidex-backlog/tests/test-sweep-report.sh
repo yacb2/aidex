@@ -107,4 +107,32 @@ K="$(reg --title "parked with commit" --estimate XS)"; KID="$(idof "$K")"; accep
 bash "$SCRIPTS/close-item.sh" "$KID" --sweep --commit "$SHA1" --no-index >/dev/null 2>&1
 grep -q "^awaiting: owner$" "$K" && grep -q "^commits: \"$SHA1\"$" "$K" && ok "parked item carries awaiting: owner AND commits: <sha>" || bad "parked commits: $(grep -E '^(awaiting|commits)' "$K")"
 
+# BL-345: the report is also a PAGE. Close-out used to hand over an .md and the
+# reader asked for the artifact every time; the wrap is now part of writing it.
+MD="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>"$TMP/rep.err")"
+ERR="$(cat "$TMP/rep.err")"
+[[ "$MD" == *.md && -s "$MD" ]] && ok "stdout is still exactly one path, the markdown canon" || bad "stdout: $MD"
+PAGE="$(sed -n 's/^page: //p' <<<"$ERR" | head -1)"
+if [[ -s "$PAGE" && "$PAGE" == "${MD%.md}.html" ]]; then
+  ok "a .html page is written beside the report and named on stderr"
+else
+  bad "no .html companion beside the report: [$ERR]"
+fi
+# Non-empty input, at the page: a queued item's id must be IN the page, so a wrap
+# of an empty or half-rendered report cannot pass this as green.
+if [[ -s "$PAGE" ]] && grep -q "$AID" "$PAGE"; then
+  ok "the page carries a queued item's id ($AID) — it saw real input"
+else
+  bad "the page does not carry $AID"
+fi
+CHK="$SCRIPTS/../../aidex-dash/scripts/check-artifact.sh"
+if [[ -s "$PAGE" ]]; then
+  bash "$CHK" "$PAGE" > "$TMP/chk.out" 2>&1
+  [[ $? -eq 0 ]] && ok "the page passes check-artifact.sh" || bad "check-artifact.sh on the page: $(cat "$TMP/chk.out")"
+fi
+# --print stays a preview: it writes nothing at all, page included.
+rm -f "$PAGE"
+bash "$SCRIPTS/sweep-report.sh" report-run --print >/dev/null 2>&1
+[[ ! -e "$PAGE" ]] && ok "--print writes no page" || bad "--print wrote $PAGE"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
