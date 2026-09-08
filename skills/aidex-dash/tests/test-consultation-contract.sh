@@ -543,6 +543,54 @@ grep -q "WARN \[svg-scope\].*#fig-b" "$TMP/out" \
 grep -q "WARN \[svg-scope\].*\.lbl" "$TMP/out" \
   && fail "10d. BL-330: a class selector was reported — the rule is about ELEMENT selectors: $(cat "$TMP/out")"
 
+# ---- 10a2. BL-375: a checkbox group whose options are each a distinct tracked
+# id is several decisions drawn as one item. Reported by the owner on a live
+# page: 'discard BL-010, BL-013 and BL-067?' as one checkbox group; every box was
+# its own question with its own evidence, and the round was re-shaped into three
+# radios. A checkbox group is for FACETS of one decision; a group of ids is a
+# proxy for the wrong shape, and the rewrite (one radio item per id) clears it.
+mkpage "$TMP/warn-independent.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Discard these?\">
+  <h3>Discard these?</h3>
+  <div class=\"opts\">
+    <label><input type=\"checkbox\" name=\"Q1\" data-label=\"BL-010 stale premise\"><span>BL-010</span></label>
+    <label><input data-label=\"BL-013 superseded\" name=\"Q1\" type=\"checkbox\"><span>BL-013</span></label>
+    <label><input type=\"checkbox\" name=\"Q1\" data-label=\"BL-067 no owner\"><span>BL-067</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Which parts of the export?\">
+  <h3>Which parts of the export?</h3>
+  <div class=\"opts\">
+    <label><input type=\"checkbox\" name=\"Q2\" data-label=\"Front-matter\"><span>Front-matter</span></label>
+    <label><input type=\"checkbox\" name=\"Q2\" data-label=\"Body\"><span>Body</span></label>
+    <label><input type=\"checkbox\" name=\"Q2\" data-label=\"Figures\"><span>Figures</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"Q3\" data-title=\"Discard BL-010?\">
+  <h3>Discard BL-010?</h3>
+  <div class=\"opts one\">
+    <label><input type=\"radio\" name=\"Q3\" data-label=\"Discard BL-010\" data-recommended><span>Discard</span></label>
+    <label><input type=\"radio\" name=\"Q3\" data-label=\"Keep BL-010\"><span>Keep</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/warn-independent.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10a2. a warning changed the exit code: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-independent\].*Q1' "$TMP/out" \
+  || fail "10a2. BL-375: a checkbox group of distinct tracked ids was not reported: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-independent\].*Q2' "$TMP/out" \
+  && fail "10a2. BL-375: a checkbox group of facets was reported — the proxy is distinct ids, not checkboxes: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-independent\].*Q3' "$TMP/out" \
+  && fail "10a2. BL-375: the rewrite (one radio per id) was reported — it is what clears the warning: $(cat "$TMP/out")"
+
 # ---- 10d2. BL-367: a leaked CLASS-headed descendant rule leaks exactly like a
 # bare element one — `.note text { fill }` is a document stylesheet too — but the
 # head test only looked at SVG_PAINTED, so it was never reported. Two exemptions

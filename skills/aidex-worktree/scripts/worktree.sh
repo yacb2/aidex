@@ -49,7 +49,9 @@
 #          worktree existed to create.
 #   list : every worktree with slot, branch, stack state, and whether it holds
 #          uncommitted work. --porcelain emits one tab-separated record per
-#          worktree for a supervising agent to parse.
+#          worktree for a supervising agent to parse. Also flags an unclaimed
+#          slot whose port is still held (PORT-HELD): a host process outlived
+#          its worktree, and that is why the next `new` skips or collides there.
 #
 # SUPERVISION. These worktrees are created and destroyed by an agent, not by a
 # person reading errors at a prompt. So every state must be both recoverable and
@@ -184,6 +186,15 @@ done
 
 DEST_FOR() { printf '%s/../%s-wt-%s\n' "$ROOT" "$PROJECT" "$1"; }
 PROJ_FOR() { printf '%s-wt-%s\n' "$PROJECT" "$1"; }
+
+# Defined above `list`, which reads it for the PORT-HELD row (BL-376).
+port_env() {
+  local slot="$1" pair var base
+  for pair in $WT_PORT_VARS; do
+    var="${pair%%=*}"; base="${pair##*=}"
+    printf '%s=%s\n' "$var" "$(( base + slot * WT_PORT_STRIDE ))"
+  done
+}
 
 # ---------------------------------------------------------------- list
 #
@@ -358,6 +369,24 @@ if [[ "$cmd" == "list" ]]; then
     if $PORCELAIN; then printf '%s\t%s\t-\t-\tno\tMISSING-DIR\n' "$cs" "$(basename "$f" | sed 's/slot-//')"
     else warn "claim for '$cs' (slot $(basename "$f" | sed 's/slot-//')) has no directory — run: worktree.sh down $cs"; fi
   done
+  # A slot nobody claims whose port is still held (BL-376): the tree is gone and a
+  # host process — a Vite dev server, in this family — survived the teardown. It is
+  # the row that explains why the next `new` will skip or collide on that slot,
+  # and without it nothing on screen names the holder. By listener, never by name.
+  if [[ -n "$WT_PORT_VARS" ]] && command -v lsof >/dev/null 2>&1; then
+    for cand in $(seq 1 "$WT_MAX_SLOTS"); do
+      slot_taken "$(SLOTDIR_FOR)" "$cand" && continue
+      while IFS= read -r line; do
+        hp="${line##*=}"
+        hpid="$(lsof -nP -ti :"$hp" -sTCP:LISTEN 2>/dev/null | head -1)"
+        [[ -n "$hpid" ]] || continue
+        found=1
+        hcmd="$(ps -o comm= -p "$hpid" 2>/dev/null)"
+        if $PORCELAIN; then printf -- '-\t%s\t-\t-\tno\tPORT-HELD:%s:%s:%s\n' "$cand" "$hp" "$hpid" "${hcmd##*/}"
+        else warn "slot $cand is unclaimed but its port $hp is held by pid $hpid (${hcmd##*/}) — a host process outlived its worktree; kill it by PID"; fi
+      done < <(port_env "$cand")
+    done
+  fi
   [[ "$found" -eq 1 ]] || { $PORCELAIN || echo "no worktrees for $PROJECT"; }
   exit 0
 fi
@@ -379,15 +408,6 @@ fi
 
 DEST="$(cd "$(dirname "$(DEST_FOR "$SLUG")")" && pwd -P)/$(basename "$(DEST_FOR "$SLUG")")"
 CPROJ="$(PROJ_FOR "$SLUG")"
-
-# port_env SLOT -> prints "VAR=value" per line for that slot
-port_env() {
-  local slot="$1" pair var base
-  for pair in $WT_PORT_VARS; do
-    var="${pair%%=*}"; base="${pair##*=}"
-    printf '%s=%s\n' "$var" "$(( base + slot * WT_PORT_STRIDE ))"
-  done
-}
 
 # The offset scheme is only sound when one slot's whole port block clears the
 # next one's. With bases spanning 4400..4610 and a stride of 100, slot 1's
