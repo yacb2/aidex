@@ -633,11 +633,13 @@ grep -qE "FAIL \[svg-contrast\].*measured 6 text node\(s\)" "$TMP/out" \
 # the element name would paint every label white and fail this fixture instead.
 mkpage "$TMP/warn-svg-tspan.html" "<style>figure.cell.litebox .figbox { background: #F6F7F5 }</style>
 <div class=\"page\"><main class=\"main\">
-<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-i\" viewBox=\"0 0 400 400\" role=\"img\" aria-label=\"i\">
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-i\" viewBox=\"0 0 400 500\" role=\"img\" aria-label=\"i\">
   <style>#fig-i text { font-size: 12px }
          #fig-i .actor { fill: #eee }
+         #fig-i .dark { fill: #333 }
          #fig-i text.actor>tspan { fill: #333 }
-         #fig-i .noteText,#fig-i .noteText>tspan { fill: #fff }</style>
+         #fig-i .noteText,#fig-i .noteText>tspan { fill: #fff }
+         #fig-i tspan.legend { fill: #ffffff }</style>
   <rect x=\"0\" y=\"20\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
   <text class=\"actor\" x=\"10\" y=\"45\"><tspan x=\"10\" dy=\"0\">rule paints the tspan</tspan></text>
   <rect x=\"0\" y=\"120\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
@@ -646,6 +648,8 @@ mkpage "$TMP/warn-svg-tspan.html" "<style>figure.cell.litebox .figbox { backgrou
   <text class=\"actor\" x=\"10\" y=\"245\"><tspan x=\"10\" fill=\"#eeeeee\">tspan repeats the pale fill</tspan></text>
   <rect x=\"0\" y=\"320\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
   <text class=\"actor\" x=\"10\" y=\"345\">no tspan at all</text>
+  <rect x=\"0\" y=\"420\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
+  <text class=\"dark\" x=\"10\" y=\"445\"><tspan x=\"10\">plain tspan inherits its text</tspan></text>
 </svg></div></figure>
 </main></div>
 $composer"
@@ -665,13 +669,21 @@ grep -q "FAIL \[svg-contrast\].*'tspan repeats the pale fill'.*against the rect 
 # And a <text> with no tspan still reads its own class rule.
 grep -q "FAIL \[svg-contrast\].*'no tspan at all'.*against the rect it sits on" "$TMP/out" \
   || fail "10i. BL-347: the tspan-less label lost its own <text> fill: $(cat "$TMP/out")"
+# The FLAT-KEY trap, from the other side. `#fig-i tspan.legend{fill:#fff}` is a
+# rule the browser gives only to a tspan carrying that class; a fix that keys it
+# on the bare element name hands it to EVERY tspan in the figure as the base
+# fill, so this dark label — whose tspan declares nothing and simply inherits
+# its <text> — comes out white on #eaeaea and is reported. The first cut of
+# BL-347 did exactly that, matching `tspan.cls` and then discarding the class.
+grep -q "\[svg-contrast\].*'plain tspan inherits its text'" "$TMP/out" \
+  && fail "10i. BL-347: 'plain tspan inherits its text' was reported — a class-qualified tspan rule leaked onto a tspan that does not carry the class: $(cat "$TMP/out")"
 [[ "$rc" == "1" ]] \
   || fail "10i. BL-347: the two control pairs did not fail the wrap: $(cat "$TMP/out")"
-# All four labels are still MEASURED — a fix that resolved the tspan to
-# something unreadable would clear the two findings above and be
+# All five labels are still MEASURED — a fix that resolved the tspan to
+# something unreadable would clear the findings above and be
 # indistinguishable from one that resolved it correctly.
-grep -qE "FAIL \[svg-contrast\].*measured 4 text node\(s\).* 0 unmeasurable" "$TMP/out" \
-  || fail "10i. BL-347: the four labels were not all measured as literal colours: $(cat "$TMP/out")"
+grep -qE "FAIL \[svg-contrast\].*measured 5 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10i. BL-347: the five labels were not all measured as literal colours: $(cat "$TMP/out")"
 
 
 

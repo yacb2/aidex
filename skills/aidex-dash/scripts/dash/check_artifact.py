@@ -763,18 +763,22 @@ def svg_css_fills(css, own_id=None):
             # full ancestor chain, source order and specificity are BL-348.
             # Descendant and child combinators are split together so
             # `text.actor > tspan` cannot read `>` as its own scope.
+            # The leaf must be a BARE `tspan`. A class-qualified `tspan.legend`
+            # is the same flat-key trap seen from the other side: the class
+            # would be discarded and the rule handed to every tspan in the
+            # figure. It falls through to the leaf path below and is dropped,
+            # exactly as it was before this scoping existed — matching a
+            # tspan by its own class is BL-348's job, with the rest of the
+            # cascade.
             toks = [t for t in re.split(r'\s*>\s*|\s+', sel)
                     if t and not t.startswith('#')]
-            if toks and SVG_TSPAN_COMPOUND.fullmatch(toks[-1]):
+            if toks and toks[-1] == 'tspan':
                 out[svg_tspan_key(toks[-2] if len(toks) > 1 else None)] = colour
                 continue
             leaf = sel.split()[-1]                  # what the declaration lands on
             if re.fullmatch(r'\.[\w-]+', leaf) or leaf in SVG_PAINTED:
                 out[leaf] = colour
     return out
-
-
-SVG_TSPAN_COMPOUND = re.compile(r'tspan(?:\.[\w-]+)*')
 
 
 def svg_tspan_key(scope):
