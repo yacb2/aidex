@@ -37,6 +37,13 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
    - **It writes `.context/proofs/<slug>/human-verification.md`** and links it from the
      plan's `proof_links`. A verification that lives only in the chat vanishes with the
      session.
+   - **Wrap it and open it once.** `human-verification.md` is markdown, and a checklist
+     handed over as an `.md` is one the reader asks to be rebuilt as a page (BL-345).
+     `~/.claude/skills/aidex-dash/scripts/wrap-report.sh --title "<plan> — human
+     verification" --lang en --in .context/proofs/<slug>/human-verification.md --out
+     .context/proofs/<slug>/human-verification.html`, then `open` that file — once, last,
+     after the rest of close-out, per `rules/artifacts-local-first.md` gate 2. Never
+     publish it (gate 3). The `.md` stays the canon and the linked `proof_links` target.
    - **A plan with nothing human-visible skips it by RECORDING one line**
      (`human-verification: skipped — <reason>`), never by the step being absent. "Pure
      backend/tooling, nothing a person operates" is a fine reason and a bad silence:

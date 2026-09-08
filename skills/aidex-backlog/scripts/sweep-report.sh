@@ -4,6 +4,12 @@
 # Usage:
 #   sweep-report.sh <worklist slug|path> [--out <file>] [--print]
 #
+# Writes TWO files: the markdown report (the canon, and the only path on stdout)
+# and a `.html` page beside it — `<report>.html` — wrapped through aidex-dash's
+# artifact kit and named on stderr as `page: <path>`. It opens neither: the one
+# open belongs to stage 6 of the sweep policy, after `worklist-close.sh`, per
+# `rules/artifacts-local-first.md` gate 2.
+#
 # Resolves the work-list (active or worklists/_archive/), then renders
 # `.context/worklists/_archive/<worklist-basename>-report.md` — the run's COMPANION: it is
 # born from the work-list and archived with it (owner's call 2026-08-27, Q12: research/
@@ -52,3 +58,38 @@ if [[ -z "$OUT" ]]; then
   OUT="$ROOT/.context/worklists/_archive/$(basename "$WL" .md)-report.md"
 fi
 python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"
+
+# ...and the page beside it (BL-345). The markdown stayed the canon and nothing
+# wrapped it, so close-out handed over an .md and the reader asked for the
+# artifact every time — measured corpus-wide as the "summarise the run you just
+# finished" class (audit finding real-4-02). The .md is written FIRST and this is
+# a projection of it: a wrap that fails leaves the run's one mandatory artifact
+# intact and says so, rather than taking the report down with the page.
+#
+# `--lang en` is not a default being restated. A project whose artifact-style.md
+# says `language: es` would stamp lang="es" over a body that is `.context/`
+# English by D-04, and check-artifact.sh fails exactly that mismatch (BL-279).
+#
+# It does NOT open the page. `rules/artifacts-local-first.md` gate 2 opens a page
+# once, when it is final, and that call belongs to the close-out step (stage 6),
+# after `worklist-close.sh` — not to a script that a run may re-run while items
+# are still moving. An `open` in here would also be invisible to
+# `hooks/artifact-open-once.sh`, which sees the Bash call and not what it spawns.
+WRAP="$(cd "$SCRIPT_DIR/../../aidex-dash/scripts" 2>/dev/null && pwd -P || true)/wrap-report.sh"
+HTML="${OUT%.md}.html"
+TITLE="$(sed -n 's/^title: *"\{0,1\}\(.*[^"]\)"\{0,1\} *$/\1/p' "$OUT" | head -1)"
+if [[ -x "$WRAP" ]]; then
+  if bash "$WRAP" --title "${TITLE:-Sweep report}" --lang en --in "$OUT" --out "$HTML" >/dev/null; then
+    # stdout stays ONE path — the markdown, the canon. Callers consume this
+    # script's stdout as a filename (`OUT="$(sweep-report.sh …)"`), so a second
+    # line there is not an extra path, it is a broken one: adding it turned 24
+    # green cells red in one run. The page is named on stderr and its location is
+    # derivable anyway (`<report>.html` beside `<report>.md`).
+    echo "page: $HTML" >&2
+  else
+    echo "NOTE: the report was written but the page beside it FAILED the artifact contract above." >&2
+    echo "NOTE: hand over $OUT and fix the page before opening it." >&2
+  fi
+else
+  echo "NOTE: aidex-dash is not installed next to this skill, so no page was written beside $OUT." >&2
+fi

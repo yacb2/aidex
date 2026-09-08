@@ -11,6 +11,13 @@
 # Usage:
 #   wrap-report.sh --title "<title>" [--lang es] [--favicon "📊"] --out out.html < body.html
 #   wrap-report.sh --title "<title>" --in body.html --out out.html
+#   wrap-report.sh --title "<title>" --lang en --in report.md --out report.html
+#
+# An `--in` file ending in `.md` is rendered from markdown first (dash/md_body.py):
+# the close-out case, where a run already wrote a durable report and only the page
+# is missing. Content on stdin is always page markup — a pipe has no name to read
+# the intent from. Pass `--lang` explicitly for a `.context/` report: its body is
+# English by D-04 whatever the project's artifact language is.
 #
 # Prefer --out over a shell redirect: it writes the file AND runs check-artifact.sh on it,
 # exiting non-zero if the contract fails. The verify is the step a real run drops first
