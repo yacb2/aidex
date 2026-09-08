@@ -813,6 +813,49 @@ grep -qE "FAIL \[svg-contrast\].*measured 3 text node\(s\).* 0 unmeasurable" "$T
   || fail "10k. BL-357: the three labels were not all measured as literal colours: $(cat "$TMP/out")"
 
 
+# ---- 10l. BL-358: a selector compound naming the <svg> ROOT must match.
+# svg_geometry is handed the svg BODY and started its ancestor chain empty, so
+# the <svg> element itself was never in it. svg_parse_selector strips only a
+# bare `#id` compound; a root compound spelled as a TAG (`svg text`) or as a
+# CLASS (`.d2-77 .fill-N1` — the shape d2 and mermaid actually emit) survived
+# parsing and was then matched against a chain that could not contain it, so
+# the rule never applied. Suppressing direction again: the label keeps what it
+# inherits and a real contrast failure goes unreported.
+mkpage "$TMP/warn-svg-root.html" "<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"figbox\"><svg id=\"fig-d\" class=\"d2-77\" viewBox=\"0 0 400 300\" role=\"img\" aria-label=\"d\">
+  <style>#fig-d text { font-size: 12px }
+         svg .viatag { fill: #dddddd }
+         .d2-77 .fill-N1 { fill: #dddddd }
+         #fig-d .ctrl { fill: #111111 }</style>
+  <rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text class=\"viatag\" x=\"10\" y=\"45\">root named as a tag</text>
+  <rect x=\"0\" y=\"120\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text class=\"fill-N1\" x=\"10\" y=\"145\">root named as a class</text>
+  <rect x=\"0\" y=\"220\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text class=\"ctrl\" x=\"10\" y=\"245\">no root compound at all</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-root.html")"
+# THE DEFECT, spelling 1: `svg .viatag`. #dddddd on #f0f0f0 is 1.13:1.
+grep -q "FAIL \[svg-contrast\].*'root named as a tag'.*against the rect it sits on" "$TMP/out" \
+  || fail "10l. BL-358: the label whose rule names the root as a TAG was NOT reported — the root is missing from the ancestor chain: $(cat "$TMP/out")"
+# Spelling 2: the root as a CLASS, which is what d2 and mermaid emit.
+grep -q "FAIL \[svg-contrast\].*'root named as a class'.*against the rect it sits on" "$TMP/out" \
+  || fail "10l. BL-358: the label whose rule names the root as a CLASS was NOT reported: $(cat "$TMP/out")"
+# The control in the other axis: a selector with no root compound still matches,
+# so seeding the chain with the root did not shift what an ordinary rule hits.
+grep -q "\[svg-contrast\].*'no root compound at all'" "$TMP/out" \
+  && fail "10l. BL-358: the dark control label was reported — seeding the root broke ordinary matching: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10l. BL-358: the two root-compound pairs did not fail the wrap: $(cat "$TMP/out")"
+# The MUTATION that keeps the absence honest: all three labels resolve to a
+# literal colour, so a fix that answered the finding by marking them unreadable
+# fails here instead of passing.
+grep -qE "FAIL \[svg-contrast\].*measured 3 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10l. BL-358: the three labels were not all measured as literal colours: $(cat "$TMP/out")"
+
+
 
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
