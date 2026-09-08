@@ -378,8 +378,8 @@ MARK_INPUT = re.compile(r'<input\b[^>]*\btype\s*=\s*["\x27]?(?:radio|checkbox)\b
                         re.I | re.S)
 
 
-CHECKBOX_LABEL = re.compile(
-    r'<input\b[^>]*type=["\']checkbox["\'][^>]*data-label=(?:"([^"]*)"|\'([^\']*)\')', re.I | re.S)
+INPUT_TAG = re.compile(r'<input\b[^>]*>', re.I | re.S)
+CHECKBOX_TYPE = re.compile(r'type=["\']checkbox["\']', re.I)
 TRACKED_ID = re.compile(r'\bBL-\d{3}\b|\b\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)+\b')
 
 
@@ -388,7 +388,12 @@ def independent_checkbox_ids(body):
     at least two and every checkbox names one. A proxy for the shape BL-375 names:
     boxes that are each a separate decision, drawn as facets of one."""
     ids = []
-    for m in CHECKBOX_LABEL.finditer(body):
+    for tag in INPUT_TAG.finditer(body):            # attribute order is not fixed
+        if not CHECKBOX_TYPE.search(tag.group(0)):
+            continue
+        m = DATA_LABEL.search(tag.group(0))
+        if not m:
+            return []
         val = next(g for g in m.groups() if g is not None)
         found = TRACKED_ID.search(val)
         if not found:

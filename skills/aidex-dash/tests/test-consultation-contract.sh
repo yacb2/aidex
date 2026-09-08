@@ -555,7 +555,7 @@ $gopen
   <h3>Discard these?</h3>
   <div class=\"opts\">
     <label><input type=\"checkbox\" name=\"Q1\" data-label=\"BL-010 stale premise\"><span>BL-010</span></label>
-    <label><input type=\"checkbox\" name=\"Q1\" data-label=\"BL-013 superseded\"><span>BL-013</span></label>
+    <label><input data-label=\"BL-013 superseded\" name=\"Q1\" type=\"checkbox\"><span>BL-013</span></label>
     <label><input type=\"checkbox\" name=\"Q1\" data-label=\"BL-067 no owner\"><span>BL-067</span></label>
   </div>
   <textarea></textarea>

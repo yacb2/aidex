@@ -49,9 +49,10 @@ KEYS = ["project_slug", "project_kebab", "dev_frontend_port", "dev_backend_port"
 
 def keys_for(packs):
     """The keys a project with these packs answers, in template order."""
-    wanted = set(CORE_KEYS) | (set(SUITE_ONLY_KEYS) if not packs else set())
-    for pk in packs:
-        wanted |= set(PACK_KEYS.get(pk, ()))
+    known = [pk for pk in packs if pk in PACK_KEYS]
+    wanted = set(CORE_KEYS) | (set(SUITE_ONLY_KEYS) if not known else set())
+    for pk in known:
+        wanted |= set(PACK_KEYS[pk])
     return [k for k in KEYS if k in wanted]
 
 
