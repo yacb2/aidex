@@ -67,8 +67,20 @@ The file carries three parts:
 ```
 
 Either shape is **wrapped into a page at close-out and opened once** — `wrap-report.sh
---in <the .md> --out <the .html>`, then `open`, last, per `rules/artifacts-local-first.md`
-gate 2 (never published, gate 3). The markdown stays the canon and the `proof_links`
+--title "<the page title>" --lang en --in <the .md> --out <the .html>`, then `open`,
+last, per `rules/artifacts-local-first.md` gate 2 (never published, gate 3).
+
+Both flags are load-bearing and the command fails without them, in different ways.
+`--title` is `required=True`, so omitting it aborts on an argparse usage error before
+anything is written — and it doubles as the fallback `<h1>`, since a
+`human-verification.md` carries no `# ` line and the page would otherwise have no heading
+and an empty rail. `--lang en` is needed because this artifact is a `.context/` document
+and those are English by D-04, while `--lang` defaults to the project's
+`artifact-style.md`: in a project whose profile declares another language the wrap writes
+`<html lang="es">` over an English body and `check-artifact.sh` fails it (`lang`, BL-279).
+Measured in aidex on 2026-09-08 — the same command minus `--lang` failed with
+`<html lang="es"> but the body reads en (17 Spanish vs 1329 English stopwords)`.
+`sweep-report.sh` passes `--lang en` for exactly this reason. The markdown stays the canon and the `proof_links`
 target; the page is the medium the reader actually reads. This is not a nicety: a session
 that handed over `human-verification.md` was asked for "the artifact" on the very next
 turn, and that class — summarise the run you just finished — was the second most common
