@@ -78,7 +78,14 @@ python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"
 WRAP="$(cd "$SCRIPT_DIR/../../aidex-dash/scripts" 2>/dev/null && pwd -P || true)/wrap-report.sh"
 HTML="${OUT%.md}.html"
 TITLE="$(sed -n 's/^title: *"\{0,1\}\(.*[^"]\)"\{0,1\} *$/\1/p' "$OUT" | head -1)"
-if [[ -x "$WRAP" ]]; then
+if [[ "$OUT" != *.md ]]; then
+  # `wrap-report.sh` keys the markdown conversion on the `--in` EXTENSION, so a report
+  # written to a non-`.md` path would be wrapped VERBATIM — `${OUT%.md}.html` resolves to
+  # `<out>.html`, carrying the raw markdown as page content, which check-artifact.sh then
+  # fails. The report itself is correct; it is only the page that has no way to exist.
+  # Say so, rather than writing a broken one and reporting a contract failure for it.
+  echo "NOTE: --out $OUT is not a .md path, so no page was written beside it — the wrap converts a .md input only." >&2
+elif [[ -x "$WRAP" ]]; then
   if bash "$WRAP" --title "${TITLE:-Sweep report}" --lang en --in "$OUT" --out "$HTML" >/dev/null; then
     # stdout stays ONE path — the markdown, the canon. Callers consume this
     # script's stdout as a filename (`OUT="$(sweep-report.sh …)"`), so a second

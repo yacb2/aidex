@@ -19,6 +19,10 @@
 # the intent from. Pass `--lang` explicitly for a `.context/` report: its body is
 # English by D-04 whatever the project's artifact language is.
 #
+# For a `.md` input `--title` is also the fallback `<h1>`, used when the markdown
+# carries no `# ` line of its own — `human-verification.md` is that shape, and
+# without it the page opens with no heading at all and an empty rail.
+#
 # Prefer --out over a shell redirect: it writes the file AND runs check-artifact.sh on it,
 # exiting non-zero if the contract fails. The verify is the step a real run drops first
 # (skipped in 1 of 2 field probes), so it stops being a separate step you can forget.

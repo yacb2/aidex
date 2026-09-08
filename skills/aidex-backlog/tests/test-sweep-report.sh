@@ -131,8 +131,28 @@ if [[ -s "$PAGE" ]]; then
   [[ $? -eq 0 ]] && ok "the page passes check-artifact.sh" || bad "check-artifact.sh on the page: $(cat "$TMP/chk.out")"
 fi
 # --print stays a preview: it writes nothing at all, page included.
+# Guarded on a NON-EMPTY path first. With the wrap regressed, PAGE is the empty
+# string, `rm -f ""` succeeds and `[[ ! -e "" ]]` is true — so this cell used to
+# report ok in exactly the regime it exists to catch.
 rm -f "$PAGE"
 bash "$SCRIPTS/sweep-report.sh" report-run --print >/dev/null 2>&1
-[[ ! -e "$PAGE" ]] && ok "--print writes no page" || bad "--print wrote $PAGE"
+if [[ -z "$PAGE" ]]; then
+  bad "--print: no page path to assert against (the wrap never named one), so this cell would pass vacuously"
+elif [[ ! -e "$PAGE" ]]; then
+  ok "--print writes no page"
+else
+  bad "--print wrote $PAGE"
+fi
+
+# A non-.md --out has no page: the wrap converts a .md INPUT only, so wrapping the
+# report at `<out>.html` would carry the raw markdown as page content and fail the
+# contract. The report still gets written; the page is declined out loud.
+TXT="$TMP/report-run.txt"
+bash "$SCRIPTS/sweep-report.sh" report-run --out "$TXT" 2>"$TMP/txt.err" >/dev/null
+if [[ -s "$TXT" && ! -e "$TXT.html" && ! -e "${TXT%.md}.html" ]] && grep -q "not a .md path" "$TMP/txt.err"; then
+  ok "a non-.md --out writes the report and declines the page, with a note"
+else
+  bad "non-.md --out: report=$(wc -c <"$TXT" 2>/dev/null) page=$(ls "$TXT.html" 2>/dev/null) err=$(cat "$TMP/txt.err")"
+fi
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
