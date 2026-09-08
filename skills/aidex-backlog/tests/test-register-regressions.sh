@@ -445,11 +445,44 @@ OUT="$(bash "$REG" --origin manual --title "B17 right cwd" 2>/dev/null)"; RC=$?
   && ok "B17 registration in a project with backlog/ is unchanged" \
   || bad "B17 registration with backlog/ present broke (rc=$RC out='$OUT')"
 
+# ── B18 · --escalate-to must not bootstrap the SOURCE backlog either (BL-342) ──
+# BL-336 guarded the plain path; the escalate path in the same script kept the same
+# defect one branch over. `mkdir -p "$TARGET_BACKLOG"` and then
+# `claim_backlog_id "$BACKLOG_DIR"` both ran before anything asked whether the SOURCE
+# had a backlog/ at all, so escalating from the wrong cwd built .context/backlog/,
+# _claims/ and 00-index.md in the source, minted BL-001 there and exited 0.
+# The guard must sit BEFORE the target mkdir: one line later and a call that then
+# refuses has already created backlog/ in the OTHER repo and spent a number there,
+# which the ledger never gives back.
+D="$TMP/b18"; rm -rf "$D"; mkdir -p "$D/.context"; cd "$D"
+B18_ROOT="$(pwd -P)"
+B18_TGT="$TMP/b18tgt"; rm -rf "$B18_TGT"; mkdir -p "$B18_TGT/.context/backlog"
+ERRF="$TMP/b18.err"
+bash "$REG" --origin manual --title "B18 wrong cwd" --escalate-to "$B18_TGT" >/dev/null 2>"$ERRF"; RC=$?
+[[ $RC -ne 0 ]] && ok "B18 escalate from a source with no backlog/ is refused (rc=$RC)" || bad "B18 --escalate-to exited 0 from a source with no backlog/"
+[[ ! -d "$D/.context/backlog" ]] && ok "B18 no backlog tree bootstrapped in the source" || bad "B18 created $D/.context/backlog"
+ls "$B18_TGT/.context/backlog"/2026-*-bl-*.md >/dev/null 2>&1 \
+  && bad "B18 wrote a counterpart in the target for a call that was refused" \
+  || ok "B18 no counterpart written in the target"
+[[ ! -e "$B18_TGT/.context/backlog/_claims/BL-001" ]] \
+  && ok "B18 no id was spent in the target" \
+  || bad "B18 left a claim marker in the target — that repo loses BL-001 permanently"
+grep -q '/aidex init' "$ERRF" && ok "B18 the refusal points at /aidex init" || bad "B18 refusal does not mention /aidex init: $(cat "$ERRF")"
+grep -qF "$B18_ROOT" "$ERRF" && ok "B18 the refusal names the resolved source root" || bad "B18 refusal does not name $B18_ROOT: $(cat "$ERRF")"
 
+# Mutation: the same escalation from a source that DOES have backlog/ must still
+# complete both sides, or the guard above passes vacuously by refusing everything.
+D="$(fresh b18ok)"; cd "$D"
+B18_TGT2="$TMP/b18oktgt"; rm -rf "$B18_TGT2"; mkdir -p "$B18_TGT2/.context/backlog"
+OUT="$(bash "$REG" --origin manual --title "B18 right cwd" --escalate-to "$B18_TGT2" 2>/dev/null)"; RC=$?
+B18_SRC="$(printf '%s\n' "$OUT" | sed -n 1p)"; B18_CNT="$(printf '%s\n' "$OUT" | sed -n 2p)"
+[[ $RC -eq 0 && -f "$B18_SRC" && -f "$B18_CNT" ]] \
+  && ok "B18 escalation from a source with backlog/ is unchanged" \
+  || bad "B18 escalation with backlog/ present broke (rc=$RC src='$B18_SRC' counterpart='$B18_CNT')"
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 16 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 17 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
