@@ -107,7 +107,9 @@ def find_stray_repos(root):
     out = []
     for name in sorted(os.listdir(root)):
         p = os.path.join(root, name)
-        if not os.path.isdir(p) or not os.path.isdir(os.path.join(p, ".git")):
+        # `.git` with exists(), not isdir(): a linked worktree writes it as a FILE, so a
+        # stray repo sited in one was skipped outright and never reported (BL-351).
+        if not os.path.isdir(p) or not os.path.exists(os.path.join(p, ".git")):
             continue
         if any(os.path.exists(os.path.join(p, m)) for m in PROJECT_MARKERS):
             continue
