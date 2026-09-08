@@ -76,6 +76,23 @@ records which plan phase produced each file.
 
 The full pack table is in [references/14-testing-profile.md](references/14-testing-profile.md).
 
+## What the generated `test-e2e.sh` guarantees
+
+The Playwright packs generate the script; this is the contract their template is tested
+against (`testing-playwright-app/tests/test-gen-test-e2e.sh` asserts each line):
+
+- It targets a disposable database cloned from a template, never dev's, and never ships
+  a dev-port Playwright config (`rules/e2e-testing.md`).
+- It sources the checkout's `.env` **before** its port defaults apply and exports
+  `E2E_DB_PORT`, so an `aidex-worktree` checkout drives its own stack; it never sets
+  `COMPOSE_PROJECT_NAME` (the worktree owns it).
+- It reclaims the image layer its run orphans: every rebuild inside the run leaves the
+  previous image untagged but still labelled with the compose project, so the ids tagged
+  before the run that are dangling after it are removed **by exact id** (never `prune`,
+  never volumes); a failed build moves no tag and removes nothing. Proven against a real
+  daemon by `tests/test-layer-reclaim.sh`. Background: aidex BL-372/BL-377, the 289 layers
+  that filled Docker's virtual disk on 2026-09-08.
+
 ## The shape of the docs this skill writes
 
 This skill writes into two places in a project, and each has one shape
