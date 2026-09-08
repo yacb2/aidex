@@ -326,7 +326,7 @@ resolve_source_by_id() {
 # body by hand (BL-360). It stays a comma-separated SCALAR, not a YAML list, because
 # every reader of this field — read_field's awk here, validate.py's deliberately minimal
 # front-matter parser — reads one line as one string; validate.py splits on the comma and
-# judges each element. An existing target is not appended twice, or a re-run inflates it.
+# judges each element.
 stamp_escalated_to() {
   local f="$1" ref="$2" today prev merged
   today="$(date +%Y-%m-%d)"

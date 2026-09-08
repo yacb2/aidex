@@ -58,7 +58,13 @@ HEADING = re.compile(r"^#{1,6}\s")
 # ```bash run fell into the paragraph branch, so the fence LINES were joined with the
 # code into one <p> and CODE paired the first backtick of the opening fence with the
 # last of the closing one, wrapping the whole run in a bogus <code> span (BL-352).
-FENCE = re.compile(r"^\s*(?:```|~~~)\s*([A-Za-z0-9_+-]*)\s*$")
+# Group 1 is the MARKER, group 2 the language. A block closes only on its own marker:
+# toggling on either one let a bare `~~~` line inside a ```-block close it, which
+# emitted an EMPTY <pre>, leaked the code out as a paragraph, and left the section
+# splitter's flag stuck on so every later `## ` heading vanished (branch review,
+# 2026-09-08). The marker must be bare and alone on its line — a line with prose
+# after it, or text before it, is content.
+FENCE = re.compile(r"^\s*(```|~~~)\s*([A-Za-z0-9_+-]*)\s*$")
 
 
 def _inline(text):
@@ -112,10 +118,14 @@ def _blocks(lines):
             # Verbatim: escaped, but NOT run through _inline, or a `**` in a command
             # becomes markup. An unclosed fence takes the rest of the run rather than
             # falling back to paragraphs — degrade, never drop.
-            lang = FENCE.match(ln).group(1)
+            opener = FENCE.match(ln)
+            marker, lang = opener.group(1), opener.group(2)
             i += 1
             code = []
-            while i < len(lines) and not FENCE.match(lines[i]):
+            while i < len(lines):
+                closer = FENCE.match(lines[i])
+                if closer and closer.group(1) == marker:
+                    break
                 code.append(lines[i])
                 i += 1
             i += 1  # the closing fence, or past the end
@@ -196,14 +206,16 @@ def render(md_text, title=""):
     lines = FM.sub("", md_text).split("\n")
 
     md_title, pre, sections, cur = "", [], [], None
-    # `in_fence` is not an optimisation: a command that echoes markdown ("grep '## '")
-    # would otherwise open a section from inside a code block and split it in half.
-    in_fence = False
+    # Tracking the open fence is not an optimisation: a command that echoes markdown
+    # ("grep '## '") would otherwise open a section from inside a code block and split it
+    # in half. The MARKER is remembered, not a boolean — see FENCE above.
+    fence_marker = None
     for ln in lines:
-        if FENCE.match(ln):
-            in_fence = not in_fence
+        m = FENCE.match(ln)
+        if m and (fence_marker is None or m.group(1) == fence_marker):
+            fence_marker = m.group(1) if fence_marker is None else None
             (cur["body"] if cur is not None else pre).append(ln)
-        elif in_fence:
+        elif fence_marker is not None:
             (cur["body"] if cur is not None else pre).append(ln)
         elif ln.startswith("# ") and not md_title and cur is None:
             md_title = ln[2:].strip()
