@@ -256,6 +256,11 @@ ITEM_SURFACE = re.compile(r'<textarea\b|contenteditable\s*=|<select\b'
 # A radio group, a checkbox set and a select are closed lists: they carry the
 # answer the author anticipated and lose the one they did not.
 ITEM_NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
+# BL-359: the item's own declaration that it is settled. `02-local-first-
+# artifacts.md` § Update in place makes keeping the item and marking it the
+# DEFAULT for a decided one, and both the kit's CSS and composer.js already
+# honour the attribute; the checker was the only reader that did not.
+ITEM_DECIDED = re.compile(r'\bdata-decided\b', re.I)
 
 
 def _subtree(text, tag, start):
@@ -280,10 +285,10 @@ def _subtree(text, tag, start):
 
 
 def consult_items(text):
-    """Every data-id item: (id, has_title, has_surface, has_notes). The unit is
-    the ITEM, never the box count: v1 counted `<textarea` occurrences against
-    data-id, which told a radio-only page it had ids for boxes that did not
-    exist."""
+    """Every data-id item: (id, has_title, has_surface, has_notes, decided).
+    The unit is the ITEM, never the box count: v1 counted `<textarea`
+    occurrences against data-id, which told a radio-only page it had ids for
+    boxes that did not exist."""
     items = []
     for m in ITEM_OPEN.finditer(text):
         # A block (`.consult-group`) carries data-id/data-title so --prev can
@@ -300,6 +305,7 @@ def consult_items(text):
             bool(ITEM_TITLE.search(m.group(0))),
             bool(ITEM_SURFACE.search(body) or ITEM_SURFACE.search(m.group(0))),
             bool(ITEM_NOTES.search(body) or ITEM_NOTES.search(m.group(0))),
+            bool(ITEM_DECIDED.search(m.group(0))),
         ))
     return items
 
@@ -1581,7 +1587,7 @@ def check_consultation(path, text, flat):
                f"assets/templates/consultation-block.html.template)"
                f"{escape}")
     else:
-        for ident, has_title, has_surface, has_notes in items:
+        for ident, has_title, has_surface, has_notes, _decided in items:
             if not ident:
                 continue
             # data-title is what the composed reply is headed with; without it
@@ -1615,15 +1621,20 @@ def check_consultation(path, text, flat):
             report("consult", f"duplicate ids ({' '.join(dupes)}) — two claims "
                    f"answering to one id")
 
-        # A decided item LEAVES the question set and is summarised into the
-        # ledger (02-local-first-artifacts.md § Update in place). An id sitting
-        # in both is that obligation half-done: the answer was recorded and the
-        # question is still being asked. What this can see is bounded, and the
-        # bound is worth stating — "decided" is not a property of the markup,
-        # so the ledger IS the declaration, and an item decided and never
-        # written to the ledger at all stays invisible here. That half is the
-        # one BL-190 actually observed and it is not mechanically reachable
-        # from the page alone.
+        # A decided item is summarised into the ledger, and the page then has
+        # two ways to land it (02-local-first-artifacts.md § Update in place):
+        # KEEP the item with `data-decided` — the default, so the page stays a
+        # record of the reasoning — or remove it. What is not allowed is the
+        # third shape: the answer recorded in the ledger while the item goes on
+        # ASKING, live and undeclared. That is the obligation half-done, and it
+        # is the only one this reports.
+        # BL-359: "decided" IS a property of the markup after all, and the kit
+        # had honoured it in CSS and in composer.js since v15 — this check was
+        # the last reader that had not been told, and it failed the shape its
+        # own reference calls the default. What stays out of reach is the other
+        # half: an item decided and never written to the ledger at all, which
+        # is what BL-190 observed and is not mechanically reachable from the
+        # page alone.
         try:
             settled = ledger_ids(text)
         except Exception as e:                      # noqa: BLE001 — fail closed
@@ -1634,15 +1645,17 @@ def check_consultation(path, text, flat):
         # ledger key whose trailing word happens to be it (keys carry bare
         # words in the field: `c11 · auth`, `AWS · blocker`) would raise a
         # failure no author could clear by complying.
-        still_asked = sorted({i for i, *_ in items if i and i != "notes"}
-                             & settled)
+        still_asked = sorted(
+            {i for i, _t, _s, _n, decided in items
+             if i and i != "notes" and not decided} & settled)
         if still_asked:
             report("consult", f"decided but still asked ({' '.join(still_asked)}"
                    f") — the ledger records these as settled while the question "
-                   f"set still carries them. A decided item leaves the "
-                   f"questions and lives in the ledger only. (This sees only "
-                   f"items the ledger names; one decided and never written "
-                   f"there is invisible to any check.)")
+                   f"set still asks them live. Either mark the item "
+                   f"`data-decided` and state the verdict in its body (the "
+                   f"default: the page keeps the reasoning), or remove it. "
+                   f"(This sees only items the ledger names; one decided and "
+                   f"never written there is invisible to any check.)")
 
     # ...and the page carries the general-notes item, always last, always
     # present. Matched inside a class ATTRIBUTE, never as the bare word:
