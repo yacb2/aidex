@@ -376,8 +376,11 @@ def main():
     # neither has anything to say about the conversion — an option here would be
     # a second way to spell the only sensible behaviour. Content on stdin is
     # still page markup: a pipe has no name to read the intent from.
+    # `--title` doubles as the fallback h1: `human-verification.md` carries no `# `
+    # line, so the page had no on-page heading at all and an empty rail while the
+    # caller was already passing the exact title it needed.
     if args.infile and args.infile.lower().endswith(".md"):
-        content = md_body.render(content)
+        content = md_body.render(content, args.title)
     if re.search(r"<!doctype\s+html", content, re.I):
         print("ERROR: content already has a doctype — pass page content only, "
               "not a full document", file=sys.stderr)

@@ -7,12 +7,21 @@ page, so the reader asked for the artifact every time. `wrap-report.sh` supplies
 the envelope but consumes page CONTENT (styles and markup), and dash carried no
 markdown renderer at all: "wrap the report" had no mechanism.
 
-This is that mechanism and nothing more. The subset is exactly what those two
-producers emit — front matter, `#`/`##`/`###`, paragraphs, `-` lists, pipe tables,
-`` `code` ``, `**bold**`, `_italic_` — because the input is script-generated, not
-arbitrary prose. Anything richer belongs in the page's own author, not here: a
-general markdown implementation is a dependency this repo does not have and a
-surface this one caller does not need.
+This is that mechanism and nothing more. The subset is what those two producers
+emit — front matter, `#`/`##`/`###` and deeper, paragraphs, `-` and `1.` lists with
+their indented continuation lines, pipe tables, `` `code` ``, `**bold**`,
+`_italic_`. Anything richer belongs in the page's own author, not here: a general
+markdown implementation is a dependency this repo does not have and a surface this
+one caller does not need.
+
+Only ONE of the two producers is script-generated. `human-verification.md` is
+written by the session, in prose, and it is the input that found every gap this
+renderer had: a numbered checklist joined into one run-on paragraph, a heading
+level the subset did not name dropped without trace, a file with no `# ` title
+rendering headless. So the rule is **degrade, never drop** — a construct outside
+the subset comes out as readable text, because a renderer that silently deletes
+its input is worse than one that renders it plainly, and the whole point of the
+wrap is a page the reader finds MORE readable than the markdown, not less.
 
 Two decisions that are load-bearing:
 
@@ -36,6 +45,15 @@ CODE = re.compile(r"`([^`]+)`")
 BOLD = re.compile(r"\*\*(.+?)\*\*")
 ITAL = re.compile(r"(?<![\w*])[_*]([^_*\n]+)[_*](?![\w*])")
 SEP_ROW = re.compile(r"^\|[\s:|-]+\|$")
+# `-`/`*`/`+` and `1.`/`1)` both open a list item. ONE marker for both kinds, because
+# the paragraph branch's guard has to exclude exactly what the list branch consumes:
+# when the two drifted apart, `1.` fell through to the paragraph branch and a
+# three-item human-verification checklist came out as one run-on <p>.
+MARKER = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+ORDERED = re.compile(r"^\s*\d+[.)]\s+")
+# An ATX heading of any level. `render()` peels `# `/`## `/`### ` itself; anything
+# deeper reaches `_blocks`, which used to advance past it and emit nothing at all.
+HEADING = re.compile(r"^#{1,6}\s")
 
 
 def _inline(text):
@@ -91,40 +109,78 @@ def _blocks(lines):
                 rows.append(lines[i])
                 i += 1
             out.append(_table(rows))
-        elif re.match(r"^\s*[-*+]\s+", ln):
+        elif MARKER.match(ln):
+            # An INDENTED non-blank line after an item is that item's continuation and
+            # is folded into it. Without this, adding `1.` to the marker alone would
+            # move the defect rather than fix it: the wrapped second line of every
+            # numbered item would fall out between the <li>s as an orphan <p>.
+            # Indentation is required — an unindented line after a list is a new
+            # paragraph far more often than it is a lazy continuation.
+            tag = "ol" if ORDERED.match(ln) else "ul"
             items = []
-            while i < len(lines) and re.match(r"^\s*[-*+]\s+", lines[i]):
-                items.append(_inline(re.sub(r"^\s*[-*+]\s+", "", lines[i])))
+            while i < len(lines):
+                cur = lines[i]
+                if MARKER.match(cur):
+                    items.append(MARKER.sub("", cur, count=1).strip())
+                elif (items and cur.strip() and cur[:1].isspace()
+                      and not cur.lstrip().startswith("|")
+                      and not HEADING.match(cur.lstrip())):
+                    items[-1] += " " + cur.strip()
+                else:
+                    break
                 i += 1
-            out.append("<ul>" + "".join(f"<li>{t}</li>" for t in items) + "</ul>")
+            out.append(f"<{tag}>"
+                       + "".join(f"<li>{_inline(x)}</li>" for x in items)
+                       + f"</{tag}>")
+        elif HEADING.match(ln):
+            # `####` and deeper, or a second `# `. Demoted to an h3 rather than
+            # dropped: the rail indexes h2 only, so a deeper level has nowhere else to
+            # go, and losing the line entirely is the one outcome the reader cannot
+            # recover from — the page would be missing text the markdown had.
+            out.append(f"<h3>{_inline(ln.lstrip('#').strip())}</h3>")
+            i += 1
         else:
             para = []
             while i < len(lines) and lines[i].strip() \
                     and not lines[i].lstrip().startswith("|") \
-                    and not re.match(r"^\s*[-*+]\s+", lines[i]) \
-                    and not lines[i].startswith("#"):
+                    and not MARKER.match(lines[i]) \
+                    and not HEADING.match(lines[i]):
                 para.append(lines[i].strip())
                 i += 1
-            if para:
-                out.append(f"<p>{_inline(' '.join(para))}</p>")
-            else:                       # a heading inside a run: handled by the caller
-                i += 1
+            # Reached only on a non-blank line no branch above claimed, so the loop
+            # always consumes at least one: there is no empty-paragraph case left to
+            # skip past, and the arm that used to do it is what swallowed the headings.
+            out.append(f"<p>{_inline(' '.join(para))}</p>")
     return out
 
 
-def _slug(text, n):
+def _slug(text, n, seen):
+    """A section id, unique within the page.
+
+    Two `## ` headings with the same text are ordinary in a report (`## Notes` under
+    two items) and used to emit the same id twice, so the rail's second entry linked
+    back to the first section.
+    """
     s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return f"sec-{s[:40]}" if s else f"sec-{n}"
+    base = f"sec-{s[:40]}" if s else f"sec-{n}"
+    seen[base] = seen.get(base, 0) + 1
+    return base if seen[base] == 1 else f"{base}-{seen[base]}"
 
 
-def render(md_text):
-    """The markdown as an artifact-kit page body (no doctype, no head)."""
+def render(md_text, title=""):
+    """The markdown as an artifact-kit page body (no doctype, no head).
+
+    `title` is the fallback h1, for a report whose markdown carries no `# ` line.
+    `human-verification.md` is exactly that shape and rendered headless — no on-page
+    heading at all, and an empty rail — while the caller had the document title in
+    hand the whole time. A `# ` in the markdown still wins over it.
+    """
     lines = FM.sub("", md_text).split("\n")
 
-    title, pre, sections, cur = "", [], [], None
+    md_title, pre, sections, cur = "", [], [], None
     for ln in lines:
-        if ln.startswith("# ") and not title and cur is None:
-            title = ln[2:].strip()
+        if ln.startswith("# ") and not md_title and cur is None:
+            md_title = ln[2:].strip()
         elif ln.startswith("## "):
             cur = {"h2": ln[3:].strip(), "body": []}
             sections.append(cur)
@@ -132,6 +188,8 @@ def render(md_text):
             pre.append(ln)
         else:
             cur["body"].append(ln)
+
+    title = md_title or title.strip()
 
     out = ['<div class="page">', '<main class="main">']
 
@@ -148,8 +206,9 @@ def render(md_text):
             out += intro[1:]
         out.append("</header>")
 
+    seen = {}
     for n, sec in enumerate(sections, 1):
-        out.append(f'<section id="{esc(_slug(sec["h2"], n))}">')
+        out.append(f'<section id="{esc(_slug(sec["h2"], n, seen))}">')
         out.append(f'<div class="sec-head"><h2>{_inline(sec["h2"])}</h2></div>')
         run = []
         for ln in sec["body"]:

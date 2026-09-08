@@ -15,6 +15,11 @@
 #      author-written text that reaches this renderer verbatim; a title carrying
 #      `<script>` must land as text. The mutation below is what keeps assertion 2
 #      from passing vacuously: it injects the tag and requires the escaped form.
+#   3. degrade, never drop. The second producer — plan-exec's human-verification.md —
+#      is PROSE, not script output, and it is where the renderer lost content: a
+#      numbered checklist joined into one paragraph, a `####` heading dropped without
+#      trace, no `# ` title so no heading at all. Each is pinned by the shape it
+#      produced, not only by the shape it should produce.
 set -uo pipefail
 
 SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -112,6 +117,85 @@ bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \
 grep -q '<html lang="en"' "$TMP/proj/.context/report.html" \
   && ok "--lang en overrides an artifact-style.md that says es" \
   || fail "--lang did not override the profile language: $(grep -o '<html lang="[a-z]*"' "$TMP/proj/.context/report.html" | head -1)"
+
+# ---------- the OTHER producer: prose, not a script -------------------------
+# `human-verification.md` is written by the session, and it is the shape that found
+# every gap the renderer had. This fixture is the real one on disk reduced to its
+# constructs: no `# ` title, a numbered checklist whose items wrap onto an indented
+# second line, a heading level the subset never named, a bullet that also wraps.
+cat > "$TMP/checklist.md" <<'MD'
+---
+title: "web-craft: human verification"
+status: done
+---
+
+human-verification: skipped — the owner was absent. What a person must still judge:
+
+1. Open `/` at desktop width and scroll the hero once: do the clouds and
+   the puppets separate visibly.
+2. Reduced motion: the composition stays complete.
+3. The foreground cloud plane is nearly invisible; decide whether Phase 5 replaces it.
+
+#### A fourth-level heading that must not vanish
+
+- estimate `S` · surface `ops`, and a bullet that also
+  wraps onto a second line.
+
+Mechanical evidence already recorded.
+MD
+
+bash "$WRAP" --title "Checklist page" --lang en --in "$TMP/checklist.md" \
+     --out "$TMP/checklist.html" >/dev/null 2>&1 \
+  || fail "the prose checklist did not wrap"
+
+bash "$CHECK" "$TMP/checklist.html" >"$TMP/chk2.out" 2>&1 \
+  && ok "a prose human-verification.md passes check-artifact.sh" \
+  || fail "check-artifact.sh on the checklist page: $(cat "$TMP/chk2.out")"
+
+# Non-vacuous first: every assertion below is about WHERE this sentence landed, so
+# it has to be on the page at all before any of them mean anything.
+grep -q 'puppets separate visibly' "$TMP/checklist.html" \
+  || fail "the continuation line is not on the page at all — the assertions below would be vacuous"
+
+grep -q '<ol>' "$TMP/checklist.html" || fail "the '1.' checklist did not become an <ol>"
+# Exactly 4 — 3 numbered items and 1 bullet. A count, not a presence check: the
+# continuation lines must be folded INTO those items, not become items of their own.
+[[ "$(grep -o '<li>' "$TMP/checklist.html" | wc -l | tr -d ' ')" == "4" ]] \
+  || fail "expected 4 <li> (3 numbered + 1 bullet), got $(grep -o '<li>' "$TMP/checklist.html" | wc -l | tr -d ' ')"
+# The whole item, marker stripped and continuation folded in — the two halves of the
+# defect in one assertion. A marker-only fix passes the <ol> check and fails this.
+grep -q '<li>Open <code>/</code> at desktop width and scroll the hero once: do the clouds and the puppets separate visibly.</li>' \
+  "$TMP/checklist.html" || fail "the numbered item lost its continuation line (or kept its marker)"
+grep -q '<li>estimate <code>S</code> · surface <code>ops</code>, and a bullet that also wraps onto a second line.</li>' \
+  "$TMP/checklist.html" || fail "the bullet's continuation line was not folded into its <li>"
+# The two wrong shapes, named. Before the fix the numbered run was one prose <p>;
+# a marker-only fix drops each continuation out as an orphan <p> between the items.
+grep -q '<p>1\.' "$TMP/checklist.html" && fail "the numbered checklist stayed a run-on paragraph"
+grep -qE '<p>[^<]*puppets separate visibly' "$TMP/checklist.html" \
+  && fail "the continuation line fell out of the list as an orphan <p>"
+
+# Degrade, never drop: a heading level the subset does not name is still readable.
+grep -q 'A fourth-level heading that must not vanish' "$TMP/checklist.html" \
+  || fail "the '####' heading was dropped from the page with no trace"
+
+# No `# ` in the markdown, so --title is the h1. Without it the reader opens a
+# headless wall of paragraphs with an empty rail.
+grep -q '<h1>Checklist page</h1>' "$TMP/checklist.html" \
+  || fail "a report with no '# ' title rendered with no <h1>: $(grep -o '<h1[^<]*' "$TMP/checklist.html" | head -1)"
+# …and a `# ` in the markdown still beats the flag.
+grep -q '<h1>Sweep report — probe</h1>' "$TMP/report.html" \
+  || fail "the markdown's own '# ' title did not win over --title"
+
+# ---------- repeated section titles get distinct ids ------------------------
+# `## Notes` under two items is ordinary in a report; one id for both makes the
+# rail's second entry link back to the first section.
+printf '# Dup\n\n## Notes\n\nfirst\n\n## Notes\n\nsecond\n' > "$TMP/dup.md"
+bash "$WRAP" --title "Dup" --lang en --in "$TMP/dup.md" --out "$TMP/dup.html" >/dev/null 2>&1
+[[ "$(grep -o 'id="sec-notes[^"]*"' "$TMP/dup.html" | sort -u | wc -l | tr -d ' ')" == "2" ]] \
+  && ok "two '## Notes' sections get distinct ids" \
+  || fail "repeated section titles share an id: $(grep -o 'id="sec-notes[^"]*"' "$TMP/dup.html" | tr '\n' ' ')"
+
+[[ $failures -eq 0 ]] && ok "a prose checklist renders as a list, keeps every heading, and gets an h1"
 
 [[ $failures -eq 0 ]] && echo "OK — markdown wraps into a contract-passing page ($(wc -c < "$TMP/report.html" | tr -d ' ') bytes)"
 exit $(( failures > 0 ))
