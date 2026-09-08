@@ -558,7 +558,7 @@ def svg_text_width(label, size, bold=False, mono=False):
     return w * size * (1.04 if bold else 1.0)
 
 
-def svg_geometry(svg, fonts=None, rules=None):
+def svg_geometry(svg, fonts=None, rules=None, root=None):
     """(texts, rects) for one <svg> body. texts: [(label, x0, y0, x1, y1, fill)]
     for every placeable <text>; rects: [(x0, y0, x1, y1, fill)]. Inherits
     font-size, text-anchor, font-weight, fill and translate() through the
@@ -589,7 +589,13 @@ def svg_geometry(svg, fonts=None, rules=None):
     # BL-348: a fill rule is matched against the node's ANCESTOR CHAIN, so the
     # chain has to exist. `anc` is [(tag, classes)] for every open container,
     # pushed and popped exactly where the inherited-style stack is.
-    anc = []
+    # BL-358: the chain starts at the <svg> ROOT, which is not in the body this
+    # function walks. Without it a compound naming the root — `svg text`, or
+    # the `.d2-<hash> .fill-N1` that d2 and mermaid actually emit — parses fine
+    # and then matches nothing. `root` is the caller's (tag, classes) for that
+    # element; `anc_base` is the floor a close tag may never pop past.
+    anc = [root] if root else []
+    anc_base = len(anc)
     for m in SVG_TAG.finditer(svg):
         closing, tag, raw, selfclosed = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
         if cur is not None:
@@ -622,7 +628,7 @@ def svg_geometry(svg, fonts=None, rules=None):
         if closing:
             if tag in SVG_CONTAINERS and stack:
                 fs, anchor, tx, ty, skip, bold, mono, fill = stack.pop()
-                if anc:
+                if len(anc) > anc_base:
                     anc.pop()
             continue
         d = _svg_attrs(raw)
@@ -803,9 +809,10 @@ def svg_parse_selector(sel):
     `combinators` the len-1 shorter list of `' '` (descendant) or `'>'` (child)
     between them.
 
-    The `#id` compounds are stripped after the caller's own_id gate: they name
-    the <svg> root, which is not part of the chain `svg_geometry` walks, so
-    `#fig text` becomes `text` scoped to that figure. Specificity is counted
+    The `#id` compounds are stripped after the caller's own_id gate, which has
+    already decided the rule belongs to this figure: `#fig text` becomes `text`,
+    scoped by that gate rather than by the chain. The root itself IS in the
+    chain since BL-358 — under its tag and its classes, not its id. Specificity is counted
     BEFORE the strip and keeps the id, because a figure's own `#fig text` must
     outrank an unscoped `.cls` leaked in from another figure's <style>."""
     toks = re.sub(r'\s*>\s*', ' > ', sel.strip()).split()
@@ -1030,7 +1037,10 @@ def svg_contrast_findings(text):
         rules = list(leaked)
         for block in SVG_STYLE_BLOCK.finditer(m.group(2)):
             rules += svg_css_fills(block.group(1), own_id)
-        texts, rects = svg_geometry(m.group(2), fonts, rules)
+        root_attrs = _svg_attrs(m.group(1))
+        texts, rects = svg_geometry(
+            m.group(2), fonts, rules,
+            root=('svg', tuple(root_attrs.get('class', '').split())))
         for label, x0, y0, x1, y1, fg in texts:
             if not isinstance(fg, tuple):
                 unmeasured += 1
