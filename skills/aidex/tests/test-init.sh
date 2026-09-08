@@ -443,6 +443,58 @@ printf '%s\n' "$out8f" | grep -q 'aidex-dash not installed' \
 
 rm -rf "$d8f" "$empty8f" "$(dirname "$PTY_DRIVER")"
 
+# 8g — a language code, and nothing else. The value is interpolated into a `sed`
+#      s-expression delimited by `|`, so a `|` in it closes the substitution and
+#      everything after is parsed as sed script — `w <path>` then writes an
+#      arbitrary file. Reproduced 2026-09-08 before the guard existed.
+d8g="$(mktemp -d)"
+loot8g="$(mktemp -d)/PWNED"
+out8g="$(bash "$INIT" "$d8g" --artifact-style "en|w ${loot8g}
+s|x|x" </dev/null 2>&1)"; rc8g=$?
+
+[[ ! -e "$loot8g" ]] \
+  && pass "scenario8g: a '|' in the language code writes no arbitrary file" \
+  || fail "scenario8g: sed injection wrote $loot8g"
+
+[[ $rc8g -ne 0 ]] \
+  && pass "scenario8g: a malformed language code is refused" \
+  || fail "scenario8g: a malformed language code was accepted (rc=$rc8g)"
+
+[[ ! -f "$d8g/.context/artifact-style.md" ]] \
+  && pass "scenario8g: no profile is written from a malformed code" \
+  || fail "scenario8g: a profile was written from a malformed code"
+
+# the mutation: a well-formed code on the same path must still be accepted, or
+# 8g would pass by refusing everything.
+d8g2="$(mktemp -d)"
+bash "$INIT" "$d8g2" --artifact-style pt-BR </dev/null >/dev/null 2>&1
+grep -q '^- language: pt-BR$' "$d8g2/.context/artifact-style.md" 2>/dev/null \
+  && pass "scenario8g: a well-formed code is still accepted (mutation)" \
+  || fail "scenario8g: the guard also rejects a valid code"
+
+rm -rf "$d8g" "$d8g2" "$(dirname "$loot8g")"
+
+# 8h — never write through a symlink. The `-f` guard above returns true for a
+#      symlink to an EXISTING file, so that case is covered; a symlink whose
+#      target does not exist is not `-f`, and the write goes through it to a
+#      path the caller never named.
+d8h="$(mktemp -d)"
+bash "$INIT" "$d8h" --no-artifact-style </dev/null >/dev/null 2>&1
+target8h="$(mktemp -d)/planted.md"
+rm -f "$d8h/.context/.aidex-artifact-style-offered"
+ln -s "$target8h" "$d8h/.context/artifact-style.md"
+out8h="$(bash "$INIT" "$d8h" --artifact-style es </dev/null 2>&1)"
+
+[[ ! -e "$target8h" ]] \
+  && pass "scenario8h: a dangling symlink is not written through" \
+  || fail "scenario8h: the write followed the symlink to $target8h"
+
+printf '%s\n' "$out8h" | grep -q 'symlink' \
+  && pass "scenario8h: the refusal names the symlink" \
+  || fail "scenario8h: the symlink was skipped silently"
+
+rm -rf "$d8h" "$(dirname "$target8h")"
+
 # --- Summary ---
 
 if [[ $failures -eq 0 ]]; then
