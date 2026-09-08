@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# test-archive-sweep.sh — BL-215: one archive pass across plans, audits, requests, backlog.
+# test-archive-sweep.sh — BL-215: one archive pass across plans, audits, requests, backlog,
+# decisions and loops (the last two added by BL-378).
 #
 # A fixture per tier, because the archivable UNIT is a different shape in each one: a flat
 # .md in backlog/ and requests/, either a file or a whole modular folder in plans/, and a
@@ -23,7 +24,7 @@ fm() { printf -- '---\ntitle: "x"\nstatus: %s\ncreated: 2026-01-01\nupdated: 202
 
 build() {
   local root="$1" ctx="$1/.context"
-  mkdir -p "$ctx"/{plans/_archive,audits/_archive,requests/_archive,backlog/_archive}
+  mkdir -p "$ctx"/{plans/_archive,audits/_archive,requests/_archive,backlog/_archive,decisions/_archive,loops/_archive}
   # backlog: one terminal, one active
   fm done    > "$ctx/backlog/2026-01-01-bl-001-finished.md"
   fm open    > "$ctx/backlog/2026-01-02-bl-002-live.md"
@@ -38,6 +39,12 @@ build() {
     > "$ctx/backlog/2026-01-02-bl-002-live-report.html"
   # requests: one dropped
   fm dropped > "$ctx/requests/2026-01-03-abandoned.md"
+  # decisions and loops (BL-378): flat tiers with an _archive/, the same shape as requests.
+  # An ADR closes as superseded, a loop as done; one live each must stay.
+  fm superseded > "$ctx/decisions/2026-01-11-old-adr.md"
+  fm accepted   > "$ctx/decisions/2026-01-12-live-adr.md"
+  fm done       > "$ctx/loops/2026-01-13-finished-loop.md"
+  fm open       > "$ctx/loops/2026-01-14-live-loop.md"
   # plans: a single-file terminal one AND a modular folder whose status is in 00-index.md
   fm superseded > "$ctx/plans/2026-01-04-old-plan.md"
   mkdir -p "$ctx/plans/2026-01-05-modular-plan"
@@ -60,12 +67,14 @@ OUT="$(python3 "$SCRIPT" "$WS/.context" 2>&1)"; RC=$?
 
 for expect in "backlog/2026-01-01-bl-001-finished.md" "requests/2026-01-03-abandoned.md" \
               "plans/2026-01-04-old-plan.md" "plans/2026-01-05-modular-plan" \
-              "audits/ux/2026-01-07-closed-run"; do
+              "audits/ux/2026-01-07-closed-run" \
+              "decisions/2026-01-11-old-adr.md" "loops/2026-01-13-finished-loop.md"; do
   grep -q "$expect" <<<"$OUT" || fail "terminal artifact not reported: $expect"
 done
-pass "one instance from each of the four tiers is reported, including a modular plan folder"
+pass "one instance from each of the six tiers is reported, including a modular plan folder"
 
-for never in "bl-002-live" "2026-01-06-live-plan" "2026-01-08-open-run" "00-inventory"; do
+for never in "bl-002-live" "2026-01-06-live-plan" "2026-01-08-open-run" "00-inventory" \
+             "2026-01-12-live-adr" "2026-01-14-live-loop"; do
   grep -q "$never" <<<"$OUT" && fail "an active artifact or a board was reported: $never"
 done
 pass "active artifacts and the audit BOARD files are left alone"
@@ -94,9 +103,13 @@ for moved in "backlog/_archive/2026-01-01-bl-001-finished.md" \
              "requests/_archive/2026-01-03-abandoned.md" \
              "plans/_archive/2026-01-04-old-plan.md" \
              "plans/_archive/2026-01-05-modular-plan/00-index.md" \
-             "audits/_archive/2026-01-07-closed-run/index.md"; do
+             "audits/_archive/2026-01-07-closed-run/index.md" \
+             "decisions/_archive/2026-01-11-old-adr.md" \
+             "loops/_archive/2026-01-13-finished-loop.md"; do
   [[ -e "$WS/.context/$moved" ]] || fail "--apply did not archive: $moved"
 done
+[[ -e "$WS/.context/decisions/2026-01-12-live-adr.md" ]] || fail "--apply moved an accepted ADR"
+[[ -e "$WS/.context/loops/2026-01-14-live-loop.md" ]] || fail "--apply moved a live loop"
 [[ -e "$WS/.context/backlog/2026-01-02-bl-002-live.md" ]] || fail "--apply moved a live item"
 [[ -e "$WS/.context/audits/ux/2026-01-08-open-run/index.md" ]] || fail "--apply moved a live audit run"
 [[ -e "$WS/.context/audits/ux/00-inventory.md" ]] || fail "--apply moved an audit board"
@@ -159,4 +172,4 @@ if [[ $FAILURES -gt 0 ]]; then
   printf '\n%d check(s) failed\n' "$FAILURES"
   exit 1
 fi
-printf '\nOK — archive-sweep: 4 tiers, boards spared, --check, --apply, companions, idempotence, drift, no-git\n'
+printf '\nOK — archive-sweep: 6 tiers, boards spared, --check, --apply, companions, idempotence, drift, no-git\n'
