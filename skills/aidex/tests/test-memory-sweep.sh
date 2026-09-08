@@ -127,6 +127,38 @@ grep -q "notasha.md" <<<"$OUT" \
   && fail "an 11-hex token was read as a commit — the SHA shape is too loose" \
   || pass "a hex token of unconventional length is not read as a commit"
 
+# --- 5b. …and against a project sited in a LINKED WORKTREE (BL-344) ----------------
+# A linked worktree's `.git` is a FILE holding a gitdir pointer, not a directory. While
+# _git_repos() required a directory, every worktree-sited project yielded no repos at
+# all, so check_unpushed_is_not_a_fact returned [] and accused nothing — silently. The
+# sweep printed "clean" on a memory citing `deadbeef12`. Section 5 could not catch it:
+# its fixture is a normal checkout, and this repo itself is one.
+WTROOT="$TMP/wt"; mkdir -p "$WTROOT/trees/wtmain" "$WTROOT/projects/wtproj/memory"
+git -C "$WTROOT/trees/wtmain" init -q 2>/dev/null
+git -C "$WTROOT/trees/wtmain" -c user.email=t@t -c user.name=t commit -q --allow-empty -m seed
+WT_SHA="$(git -C "$WTROOT/trees/wtmain" rev-parse HEAD)"
+git -C "$WTROOT/trees/wtmain" worktree add -q -b wt "$WTROOT/trees/wtproj" >/dev/null 2>&1
+# Without this the whole cell goes vacuous the day git changes the layout: if `.git` is
+# a directory here, the worktree case is simply not being exercised and every assertion
+# below would pass for the wrong reason.
+[[ -f "$WTROOT/trees/wtproj/.git" ]] \
+  && pass "the fixture really is a linked worktree (.git is a file, not a directory)" \
+  || fail "the worktree fixture has a .git DIRECTORY — the BL-344 case is not exercised"
+# Neither body may name `wtmain`: _search_roots would add it as a sibling root and the
+# worktree would stop being the only thing under test.
+printf -- '---\nname: t\nmetadata:\n  type: project\n---\n\nShipped in `deadbeef12`.\n' \
+  > "$WTROOT/projects/wtproj/memory/bogus.md"
+printf -- '---\nname: t\nmetadata:\n  type: project\n---\n\nShipped in `%s`.\n' \
+  "$WT_SHA" > "$WTROOT/projects/wtproj/memory/real.md"
+WTOUT="$(AIDEX_MEMORY_ROOT="$WTROOT/projects" AIDEX_MEMORY_PROJECT_ROOT="$WTROOT/trees" \
+         python3 "$SCRIPT" 2>&1)"
+grep -q "bogus.md" <<<"$WTOUT" \
+  && pass "a worktree-sited project still gets its unreachable SHA accused" \
+  || fail "unpushed-is-not-a-fact is silent in a linked worktree: $WTOUT"
+grep -q "real.md" <<<"$WTOUT" \
+  && fail "a SHA reachable through the worktree's shared refs was flagged" \
+  || pass "the worktree's shared object db and refs still clear a reachable SHA"
+
 # --- 6. no-secrets fires on every vendor shape it claims to cover -------------------
 # It returned 0 on the real fleet, which is correct (the two secret-carrying memories
 # were removed on 2026-08-31) but leaves a BLOCK check never exercised on real input.

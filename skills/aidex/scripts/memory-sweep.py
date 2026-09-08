@@ -342,16 +342,23 @@ def _git_repos(root: str) -> list[str]:
     A `*_ws` project is a split-repo workspace: a `.git` at the root AND one in
     `frontend/`, `backend/`, `frontend_mobile/`. Checking only the root made every
     commit made in a sub-repo look unreachable — 338 of the 373 first-run findings.
+
+    `.git` is tested with `exists`, not `isdir`: in a linked worktree — and in a
+    submodule — it is a FILE holding a gitdir pointer. Requiring a directory returned []
+    for every worktree-sited project, so `unpushed-is-not-a-fact` accused nothing there
+    and said so silently (BL-344). `git rev-parse --git-dir` would answer more precisely
+    but the second site below runs once per entry of a `listdir`, and a subprocess there
+    is the wrong price for the same answer.
     """
     if root in _REPO_CACHE:
         return _REPO_CACHE[root]
     out = []
-    if os.path.isdir(os.path.join(root, ".git")):
+    if os.path.exists(os.path.join(root, ".git")):
         out.append(root)
     try:
         for name in sorted(os.listdir(root)):
             sub = os.path.join(root, name)
-            if not name.startswith(".") and os.path.isdir(os.path.join(sub, ".git")):
+            if not name.startswith(".") and os.path.exists(os.path.join(sub, ".git")):
                 out.append(sub)
     except OSError:
         pass
