@@ -42,10 +42,29 @@ TRIPWIRE = 2500        # words; aidex-reference/references/03-shaping.md
 PROFILE_BODY_MAX = 250  # words after the front-matter; the template's note is ~90
 
 
+def resolve_profile(root):
+    """The profile path, resolved the way sweep-gate.sh does.
+
+    A project that GITIGNORES .context/ — aidex does, by policy — cannot let the
+    profile travel with a checkout, so a tracked repo-root testing-profile.md is the
+    fallback (BL-289). .context/ still wins when both exist. This reader and the gate
+    share one contract; they disagreed about where the file lives until BL-365.
+    """
+    prof = os.path.join(root, ".context", "testing-profile.md")
+    if os.path.isfile(prof):
+        return prof, None
+    alt = os.path.join(root, "testing-profile.md")
+    if os.path.isfile(alt):
+        return alt, None
+    return None, f"no profile at {prof} nor {alt}"
+
+
 def check(root):
     """Findings for --check: the profile carrying prose, a testing module over the tripwire."""
     out = []
-    prof = os.path.join(root, ".context", "testing-profile.md")
+    prof, missing = resolve_profile(root)
+    if missing:
+        return [missing]
     text = read(prof)
     if not text:
         return [f"no profile at {prof}"]

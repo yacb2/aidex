@@ -82,4 +82,24 @@ if out="$(python3 "$SCRIPT" --check "$TMP/p")"; then fail "--check must exit 1 w
 [[ "$out" == *"01-small.md"* ]] && fail "--check must not report a module under the tripwire: $out"
 [[ -e "$TMP/p/.context/testing-profile.md.bak" ]] && fail "--check must not write"
 
+# --check resolves the profile the way sweep-gate.sh does (BL-365): .context/ normally,
+# a tracked repo-root testing-profile.md as the fallback for a project that gitignores
+# .context/ — aidex does, by policy, so its own --check reported the profile missing
+# while the gate it shares the contract with read it fine.
+mkdir -p "$TMP/r"
+printf -- '---\nproject_slug: rooted\n---\n\n## Execution groups\n\nprose at the root.\n' > "$TMP/r/testing-profile.md"
+if out="$(python3 "$SCRIPT" --check "$TMP/r")"; then fail "--check must read the root fallback and find its prose: $out"; fi
+[[ "$out" == *"prose section '## Execution groups'"* ]] || fail "--check must report on the root profile, not call it missing: $out"
+[[ "$out" == *"no profile at"* ]] && fail "--check must not call a root profile missing: $out"
+# .context/ still wins when both exist: the root copy's prose must NOT be reported.
+mkdir -p "$TMP/r/.context"
+printf -- '---\nproject_slug: rooted\n---\n\nfacts only.\n' > "$TMP/r/.context/testing-profile.md"
+out="$(python3 "$SCRIPT" --check "$TMP/r")" || fail "--check must prefer the clean .context/ profile: $out"
+[[ "$out" == *"profile check: ok"* ]] || fail ".context/ must win over the root fallback: $out"
+# Neither present: the refusal names both paths, like the gate's die.
+mkdir -p "$TMP/n"
+if out="$(python3 "$SCRIPT" --check "$TMP/n")"; then fail "--check with no profile must exit 1: $out"; fi
+[[ "$out" == *"$TMP/n/.context/testing-profile.md"* && "$out" == *"$TMP/n/testing-profile.md"* ]] \
+  || fail "the no-profile refusal must name both paths: $out"
+
 echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only, --check finds prose and tripwire"
