@@ -602,6 +602,10 @@ def svg_geometry(svg, fonts=None, rules=None, root=None):
     # element; `anc_base` is the floor a close tag may never pop past.
     anc = [root] if root else []
     anc_base = len(anc)
+    # BL-355: what the ROOT is painted with is inherited by everything under it,
+    # so it is the figure's starting fill — not something matched on the label.
+    if root:
+        fill = svg_fill_for(rules, [root])
     for m in SVG_TAG.finditer(svg):
         closing, tag, raw, selfclosed = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
         if cur is not None:
@@ -832,6 +836,7 @@ def svg_parse_selector(sel):
     toks = re.sub(r'\s*>\s*', ' > ', sel.strip()).split()
     compounds, combs, pending = [], [], ' '
     nid = ncls = ntag = 0
+    root_only = False
     for t in toks:
         if t == '>':
             pending = '>'
@@ -845,13 +850,20 @@ def svg_parse_selector(sel):
         ncls += len(cls)
         ntag += 1 if tag else 0
         if not tag and not cls:
+            root_only = True
             continue                    # a bare #id compound: the figure root
         if compounds:
             combs.append(pending)
         compounds.append((tag, cls))
         pending = ' '
     if not compounds:
-        return None
+        # BL-355: a selector that was NOTHING but ids named the <svg> root and
+        # nothing else — `#<figure-id>{fill:#000}`, which is the first rule in
+        # every mermaid <style> and the only fill many of its labels ever get.
+        # Dropping it left them with no colour at all. The caller's own_id gate
+        # has already confined the rule to this figure, so the root is the one
+        # `svg` node it can reach.
+        return ([('svg', ())], [], (nid, ncls, ntag)) if root_only else None
     return compounds, combs, (nid, ncls, ntag)
 
 
