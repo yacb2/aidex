@@ -608,7 +608,15 @@ def svg_geometry(svg, fonts=None, rules=None, root=None):
             if tag == 'tspan' and not closing and not selfclosed:
                 if not tsp:
                     bare.append(svg[last:m.start()])
-                tsp.append((m.end(), _svg_tspan_fill(_svg_attrs(raw), cur[9], rules)))
+                # BL-353: what an inner run INHERITS is the nearest enclosing
+                # run that declares a fill, not the <text> two levels up. The
+                # effective fill is resolved at push time, so the fallback is
+                # already in place for whatever nests inside it. Declaring
+                # nothing anywhere still lands on the <text> (`cur[8]`).
+                _tfl = _svg_tspan_fill(_svg_attrs(raw), cur[9], rules)
+                if _tfl is None and tsp:
+                    _tfl = tsp[-1][1]
+                tsp.append((m.end(), _tfl))
             elif tag == 'tspan' and closing and tsp:
                 st, tfl = tsp.pop()
                 if re.sub(r'<[^>]+>', ' ', svg[st:m.start()]).strip():
@@ -897,8 +905,11 @@ def _svg_tspan_fill(d, text_chain, rules):
     the tspan simply inherits its <text>. Same cascade as the <text> one level
     up, run against the tspan's own chain — its <text>'s ancestors, the <text>,
     and the tspan itself — and then its own attribute. A NESTED tspan is
-    resolved against `text_chain` too, as if it hung directly off the <text>;
-    the deeper chain is BL-353, and this keeps that seam where it was."""
+    resolved against `text_chain` too, as if it hung directly off the <text>:
+    the deeper CHAIN is still a seam, and a selector reaching for `tspan tspan`
+    does not exist in the field. What BL-353 fixed is the other half — the
+    INHERITANCE fallback, which the caller applies: a run declaring nothing
+    takes the nearest enclosing run's fill before it takes the <text>'s."""
     fl = svg_fill_for(rules, text_chain + [('tspan', tuple(d.get('class', '').split()))])
     raw = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
     if raw:
