@@ -730,7 +730,7 @@ SVG_GENERATOR_CLASSES = frozenset((
     'sequenceNumber', 'labelBox', 'labelText', 'label', 'edgeLabel', 'edgePath',
     'flowchart-link', 'nodeLabel', 'cluster-label', 'marker', 'arrowheadPath',
     'statediagram-state', 'statediagram-cluster', 'stateGroup', 'transition',
-    'edgeLabel', 'legend', 'section', 'task', 'grid', 'tick', 'today',
+    'legend', 'section', 'task', 'grid', 'tick', 'today',
 ))
 SVG_HEX = re.compile(r'^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$')
 SVG_RGB = re.compile(r'^rgba?\(\s*(\d+)\s*[, ]\s*(\d+)\s*[, ]\s*(\d+)', re.I)
