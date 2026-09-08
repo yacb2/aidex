@@ -449,7 +449,7 @@ rm -rf "$d8f" "$empty8f" "$(dirname "$PTY_DRIVER")"
 #      arbitrary file. Reproduced 2026-09-08 before the guard existed.
 d8g="$(mktemp -d)"
 loot8g="$(mktemp -d)/PWNED"
-out8g="$(bash "$INIT" "$d8g" --artifact-style "en|w ${loot8g}
+out8g="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8g" --artifact-style "en|w ${loot8g}
 s|x|x" </dev/null 2>&1)"; rc8g=$?
 
 [[ ! -e "$loot8g" ]] \
@@ -467,7 +467,7 @@ s|x|x" </dev/null 2>&1)"; rc8g=$?
 # the mutation: a well-formed code on the same path must still be accepted, or
 # 8g would pass by refusing everything.
 d8g2="$(mktemp -d)"
-bash "$INIT" "$d8g2" --artifact-style pt-BR </dev/null >/dev/null 2>&1
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8g2" --artifact-style pt-BR </dev/null >/dev/null 2>&1
 grep -q '^- language: pt-BR$' "$d8g2/.context/artifact-style.md" 2>/dev/null \
   && pass "scenario8g: a well-formed code is still accepted (mutation)" \
   || fail "scenario8g: the guard also rejects a valid code"
@@ -479,11 +479,11 @@ rm -rf "$d8g" "$d8g2" "$(dirname "$loot8g")"
 #      target does not exist is not `-f`, and the write goes through it to a
 #      path the caller never named.
 d8h="$(mktemp -d)"
-bash "$INIT" "$d8h" --no-artifact-style </dev/null >/dev/null 2>&1
+AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8h" --no-artifact-style </dev/null >/dev/null 2>&1
 target8h="$(mktemp -d)/planted.md"
 rm -f "$d8h/.context/.aidex-artifact-style-offered"
 ln -s "$target8h" "$d8h/.context/artifact-style.md"
-out8h="$(bash "$INIT" "$d8h" --artifact-style es </dev/null 2>&1)"
+out8h="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8h" --artifact-style es </dev/null 2>&1)"
 
 [[ ! -e "$target8h" ]] \
   && pass "scenario8h: a dangling symlink is not written through" \
