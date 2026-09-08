@@ -22,8 +22,8 @@ Single entry point for auditing, diagnosing, and fixing the AI assistant ecosyst
 | **CLAUDE.md** | `.claude/CLAUDE.md` or `./CLAUDE.md` | Size, security, structure, stale references |
 | **Freshness** | `.context/references/`, `.context/docs/` | `updated` vs recent commits, stale content |
 | **Plugins** | `~/.claude/plugins/` | Always-loaded subagent cost vs. recent usage, uninstall candidates |
-| **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against — `skillOverrides` values and cost model, MCP scoping, plugin handling, settings precedence. Run `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`. Exit 1 means "go look", never "something broke": a newer Claude Code makes a recommendation UNVERIFIED, not wrong |
-| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/`: holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose files dropped at the root, a repo cloned among the projects with no `CLAUDE.md`, an in-project `.aidex-backups` (a regression — backups belong in `~/.claude/aidex/backups/`), and `Bash(x:*)` permissions naming a command no longer on PATH. Run `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py` — read-only, reports and offers, never deletes |
+| **Auditor freshness** | `references/06-claude-code-surface.md` | Which Claude Code version each of the auditor's own recommendations was last verified against. See `/aidex sweep` step 6 |
+| **Workspace root** | the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`) | What has accumulated OUTSIDE any project's `.claude/` and `.context/` — holding folders, loose files, an unmarked cloned repo, stale `Bash(x:*)` permissions. See `/aidex sweep` step 5 |
 | **Context budget** | `scripts/context-snapshot.py` — Claude Code's own `/context` + `/skill-doctor` via `claude -p`, zero tokens | Measured idle cost per category, memory file, skill and MCP tool, plus per-skill usage |
 
 ---
@@ -82,47 +82,15 @@ is recorded in the marker aidex-dash's mid-artifact offer reads, so neither asks
 
 ## Sub-action: `/aidex sweep`
 
-Check the whole fleet for drift instead of one project at a time. Read-only — it
-never writes to a project.
+Check the whole fleet for drift instead of one project at a time. Read-only — it never
+writes to a project. Entry point:
+`bash ~/.claude/skills/aidex/scripts/compliance-sweep.sh`.
 
-1. Run `bash ~/.claude/skills/aidex/scripts/compliance-sweep.sh`. Add `--root <dir>`
-   to scan somewhere other than the workspace root (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`), or name project paths to
-   check only those. Add `--verbose` to also see the clean and skipped ones.
-2. Read the output. **A clean run prints nothing and exits 0** — that is the whole
-   point, so it is safe to schedule. Each drifting project prints its name and which
-   of the three instruments fired: `validate` (`.context/` conformance, ratchet-checked),
-   `reconcile` (closure that did not propagate, stale roll-up indexes), `sweep`
-   (done/dropped items never archived, D-10).
-3. Fix per project by running the named instrument there — nothing is fixed for you.
-4. For rule-propagation drift specifically (a project restating a globally-owned
-   rule, or `skillOverrides` that contradict one), run
-   `python3 ~/.claude/skills/aidex/scripts/conformance-sweep.py` instead.
-5. For what has accumulated OUTSIDE the projects — at the workspace root itself — run
-   `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py`. Each finding is
-   labelled `aidex` or `foreign`: aidex leaving something behind is a bug in aidex,
-   you leaving something behind is information, and the two must not read the same.
-   **Report the categories and offer to act; never act on them yourself.** Several are
-   things a person keeps on purpose — an `_archive/` is a decision, not a mistake.
-
-6. Before trusting any of the auditor's own configuration advice — especially after
-   updating Claude Code — run
-   `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`. It names which
-   recommendations have not been checked against the installed version. Re-verify the
-   named rows (ask the `claude-code-guide` agent, not memory), then bump the version
-   column in `references/06-claude-code-surface.md`. Unchanged behaviour is the normal
-   outcome and bumping the column IS the work: it converts "nobody has looked" into
-   "checked on this version". This exists because the auditor once recommended removing
-   plugins that were fine, and nothing made that visible.
-
-7. For done-but-not-archived across all four tiers of ONE project — plans, audits,
-   requests, backlog — run
-   `python3 ~/.claude/skills/aidex-conventions/scripts/archive-sweep.py`. `sweep.sh`
-   covers the backlog only, which is how D-10 came to be applied there and skipped in
-   the other three. Dry run by default; `--check` exits 1 for a gate; `--apply` moves
-   the terminal set and never the status-drift set.
-
-Cadence and engine are yours to pick: it is a plain command, so schedule it with a
-routine, cron, or `/loop`. Nothing about the schedule is baked into the script.
+**Read `~/.claude/skills/aidex/references/07-sweep-procedure.md` and follow it.** It is
+the whole procedure: all seven instruments and what each one attributes, the read-only
+rule for workspace-root litter (`aidex` vs `foreign` findings — reported and offered,
+never acted on), the auditor-freshness re-verification loop behind
+`06-claude-code-surface.md`, and the cadence note.
 
 ---
 
@@ -191,27 +159,8 @@ Collect all subagent reports. Produce unified report split into two top-level fi
 - **Structural cleanup** — codes WITHOUT `CB-` / `PL-SCHEMA` prefix: `[A]–[F]`, `[PA]–[PD]`, `[IA]–[ID]`, `[RA]–[RC]`, `[QA]–[QB]`, `[DA]–[DD]`, `[UA]–[UH]`, `[CV-*]` (from `conventions-auditor`), `[AG]`, `[AH]`, `[AI]`, `[F1]–[F6]`, `[V1]`, freshness, broken symlinks, missing indexes, pluralized names, anti-patterns. These are mechanical and reversible by editing one file at a time. `[CV-*]` findings are deterministic (produced by `validate.py`) — prefer them over heuristic codes when they overlap on the same file.
 - **Token savings** — codes WITH `CB-` prefix (`CB-PL`, `CB-SR`, `CB-DU`, `CB-MD`, `CB-CM`, `CB-RF`) and `PL-SCHEMA`. These suggest config toggles (`enabledPlugins: false`, `skillOverrides: name-only/off`, MEMORY trims, plugin manifest cleanup). Always **prefer toggle over uninstall/delete**.
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ECOSYSTEM AUDIT — [Project Name]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## Summary
-| Domain | Items | FAIL | WARN | INFO |
-|--------|-------|------|------|------|
-[one row per domain audited]
-
-## Structural cleanup (safe)
-[findings without CB- / PL-SCHEMA prefix, grouped by domain, severity-ordered]
-
-## Token savings (prefer toggle)
-[findings with CB- / PL-SCHEMA prefix, ordered by estimated savings descending; each annotated with risk: low | medium | high]
-
-## Health Score
-[X]% (100% = no issues, -10 per critical, -3 per warning)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+The report's literal shape — summary table, the two findings sections, health score —
+is `references/08-report-shapes.md` § Phase 2.
 
 ### Destructive-action checklist
 
@@ -227,26 +176,14 @@ Before emitting any finding that proposes deleting a file/directory, uninstallin
 
 ## Phase 3: Suggest Actions
 
-After the report, present actionable suggestions grouped by priority. **Be prescriptive, not just descriptive** — suggest the aidex way of organizing things, explain why, and let the user decide.
+After the report, present actionable suggestions grouped by priority. **Be prescriptive,
+not just descriptive** — suggest the aidex way of organizing things, explain why, and let
+the user decide. The list's shape is `references/08-report-shapes.md` § Phase 3.
+
+Terminate it with this menu, which IS the front-loaded gate the apply phase must not
+re-ask per item:
 
 ```
-[FAIL] Critical (fix now):
-  1. [description] → [what aidex will do]
-
-[WARN] Recommended:
-  2. [description] → [what aidex will do]
-  3. Deep-sync [stale reference] → launches sync subagent
-  4. Silence [N] irrelevant skills → emits skillOverrides patch for settings.local.json
-
-[TIP] Reorganize:
-  5. Consolidate bugs/ + fixes/ → issues/ with ISSUE-NNN format
-  6. Remove references/README.md — modules have 00-index.md, CLAUDE.md is entry point
-  7. Create .context/roadmap/ — project has active phases but no roadmap
-  8. Restructure issues/ files to ISSUE-NNN with status+root cause+fix
-
-[INFO] Optional:
-  9. [description]
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   [A] Run all critical
   [B] Run all critical + recommended
@@ -284,14 +221,8 @@ For each approved action, execute directly or launch a specialized subagent:
 Trimming duplicated content is **not** in this list: it is a class-4 edit, covered by the
 apply phase's backup.
 
-After execution, show before/after summary:
-
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Audit complete. Health: [before]% → [after]%
-  Next suggested audit: in ~20 conversations
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+After execution, show the before/after summary — its shape, including the health delta
+and the next-audit line, is `references/08-report-shapes.md` § Phase 4.
 
 ---
 
