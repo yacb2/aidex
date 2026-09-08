@@ -20,6 +20,7 @@ e2e_test_cmd:             # single-spec form: ./test-e2e.sh {spec}
 backend_suite_cmd:        # FULL suite, worker flags included (sweep-gate.sh leg `backend`): docker compose exec -T backend pytest -n 4 --dist loadscope
 frontend_suite_cmd:       # FULL suite (leg `frontend`): cd frontend && pnpm vitest run
 e2e_suite_cmd:            # FULL isolated E2E runner (leg `e2e`): ./test-e2e.sh
+suite_cmd:                # FULL suite for a project whose ENTIRE test surface is one suite — a shell toolkit, a single-package library (leg `suite`, not in the default leg set): bash tests/run-all.sh
 build_cmd:                # the production build, not a type-check (leg `build`): cd frontend && pnpm build
 e2e_detached:             # true|false — the E2E suite outlives the foreground tool ceiling, so the gate prints the detached invocation instead of running it
 blindspot_expansions:     # mandatory selection widenings, one `- ` line each: migration => every app referencing the model; touched *.test.ts => vue-tsc -b; removed UI surface => grep tests/e2e/ for its endpoints and testids
@@ -32,6 +33,11 @@ personas_ref:             # <type>/<filename> of the persona table: reference/te
 cross_deps_ref:           # folder or comma-separated modules of the cross-dependency map: reference/testing/ (one workflow per NN-<slug>.md, never one growing file)
 module_map:               # repo-relative path: .context/audits/test-coverage/module-map.json
 testing_packs:            # space-separated stack packs, resolved at ~/.claude/skills/<pack>/: testing-django testing-vue testing-playwright-app
+
+# A key that does not apply to this stack is answered `n/a`, never left blank: a blank
+# key is an unanswered question and `profile-init.py` names it, while `n/a` records that
+# the question was asked and has no value here. A Bash toolkit answers `n/a` to every
+# port, database, build and E2E key and fills `suite_cmd`.
 ---
 
 # Testing profile
