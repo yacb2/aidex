@@ -260,6 +260,41 @@ grep -q '<code>inline code</code>' "$TMP/fence.html"   || fail "inline code afte
 # The block scrolls rather than widening the page — the kit's `pre` rule owns this.
 grep -q "overflow-x: auto" "$SKILL/assets/artifact-kit/components.css"   || fail "the kit has no overflow rule for <pre>, so a long command widens the page"
 
+# A fence closes on its OWN marker, not on either one. FENCE matches the two markers
+# alike, so toggling on any match let a BARE tilde line inside a backtick-fenced block
+# close it early. It has to be BARE and alone on its line: the regex already rejects a
+# marker with prose after it or text before it, so the first two fixtures drafted for
+# this cell both passed over the live defect. The observed damage with the right one:
+# an EMPTY code block, the content leaking out as a paragraph, and the section after it
+# gone entirely - the splitter's flag stuck on.
+# No backticks in the fail strings below — they are double-quoted, and a backtick there
+# is command substitution, which silently ate part of this cell's own message once.
+# Found by the branch review, 2026-09-08.
+cat > "$TMP/mixed.md" <<'MD'
+# Mixed fences
+
+```markdown
+~~~
+still inside the block
+```
+
+## A heading that must survive
+
+after.
+MD
+
+bash "$WRAP" --title "Mixed" --lang en --in "$TMP/mixed.md" --out "$TMP/mixed.html" >/dev/null 2>&1 \
+  || fail 'the mixed-fence report did not wrap'
+python3 - "$TMP/mixed.html" <<'PY' || fail 'a bare tilde line inside a backtick-fenced block closed it, or the heading after was swallowed'
+import re, sys
+html = open(sys.argv[1]).read()
+blocks = re.findall(r"<pre><code[^>]*>(.*?)</code></pre>", html, re.S)
+assert len(blocks) == 1, f"expected ONE code block, got {len(blocks)}"
+assert "still inside the block" in blocks[0], "the block was cut at the tilde line"
+assert 'id="sec-a-heading-that-must-survive"' in html, "the heading after the block was swallowed"
+PY
+ok 'a bare tilde line inside a backtick-fenced block is data, and the heading after survives'
+
 [[ $failures -eq 0 ]] && ok "a prose checklist renders as a list, keeps every heading, and gets an h1"
 
 [[ $failures -eq 0 ]] && echo "OK — markdown wraps into a contract-passing page ($(wc -c < "$TMP/report.html" | tr -d ' ') bytes)"
