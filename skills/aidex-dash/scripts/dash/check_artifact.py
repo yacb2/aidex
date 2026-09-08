@@ -716,6 +716,22 @@ def svg_geometry(svg, fonts=None, rules=None, root=None):
 SVG_STYLE_BLOCK = re.compile(r'<style\b[^>]*>(.*?)</style>', re.S | re.I)
 SVG_PAINTED = ('text', 'tspan', 'rect', 'circle', 'ellipse', 'line', 'path',
                'polygon', 'polyline', 'g', 'svg', 'marker', 'image', 'use')
+# BL-367: a class-headed descendant rule (`.note text`) is a document stylesheet
+# exactly like `text` is, but two shapes of it are not the author's to scope. A root
+# class carrying a generator hash (d2's `.d2-<digits>`, mermaid's `.mermaid-<n>`) is
+# de-facto scoping; generator class vocabulary (graphviz `.node`/`.edge`/`.cluster`,
+# mermaid's actor/message/label family) is pasted output. Measured 2026-09-08 over
+# every page in .context/: widening naively adds 648 warnings, these two leave 8.
+SVG_HASH_CLASS = re.compile(r'^\.(?:d2-\d+|mermaid-\d+|[A-Za-z][\w-]*-\d{6,})$')
+SVG_GENERATOR_CLASSES = frozenset((
+    'node', 'edge', 'cluster', 'graph',                                   # graphviz
+    'actor', 'actor-line', 'messageText', 'messageLine0', 'messageLine1',  # mermaid
+    'loopText', 'loopLine', 'noteText', 'note', 'activation0', 'activation1',
+    'sequenceNumber', 'labelBox', 'labelText', 'label', 'edgeLabel', 'edgePath',
+    'flowchart-link', 'nodeLabel', 'cluster-label', 'marker', 'arrowheadPath',
+    'statediagram-state', 'statediagram-cluster', 'stateGroup', 'transition',
+    'edgeLabel', 'legend', 'section', 'task', 'grid', 'tick', 'today',
+))
 SVG_HEX = re.compile(r'^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$')
 SVG_RGB = re.compile(r'^rgba?\(\s*(\d+)\s*[, ]\s*(\d+)\s*[, ]\s*(\d+)', re.I)
 SVG_NAMED = {'white': '#ffffff', 'black': '#000000', 'red': '#ff0000',
@@ -1031,14 +1047,22 @@ def svg_scope_findings(text):
                     sel = sel.strip()
                     if not sel or '#' in sel:
                         continue
-                    head = sel.split()[0]
+                    toks = sel.split()
+                    head = toks[0]
                     if head in SVG_PAINTED:
-                        out.append(
-                            f"svg #{n}: '{sel}' — an embedded <style> is a "
-                            f"stylesheet in the PAGE, not in the figure, so "
-                            f"this paints every <{head}> in the document and "
-                            f"the last figure loaded wins. Scope it to the "
-                            f"figure's own id (#<svg-id> {sel})")
+                        what = f"every <{head}>"
+                    elif (head.startswith('.') and len(toks) > 1
+                          and not SVG_HASH_CLASS.match(head)
+                          and head[1:].split(':')[0] not in SVG_GENERATOR_CLASSES):
+                        what = f"every {head} descendant"
+                    else:
+                        continue
+                    out.append(
+                        f"svg #{n}: '{sel}' — an embedded <style> is a "
+                        f"stylesheet in the PAGE, not in the figure, so "
+                        f"this paints {what} in the document and "
+                        f"the last figure loaded wins. Scope it to the "
+                        f"figure's own id (#<svg-id> {sel})")
     return out
 
 
