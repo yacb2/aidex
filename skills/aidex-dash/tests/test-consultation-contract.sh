@@ -949,6 +949,43 @@ rc="$(run "$TMP/warn-svg-tspan-own.html")"
 grep -qE "\[svg-contrast\].*measured 0 text node\(s\).* 1 unmeasurable" "$TMP/out" \
   || fail "10m. BL-353: two runs declaring different fills were not left unmeasurable — the inner run's own declaration was overridden by the one above it: $(cat "$TMP/out")"
 
+# ---- 10n. BL-355: a mermaid figure's root `#id{fill:...}` is the only fill many
+# of its labels ever get. Every mermaid <style> opens with one. The compound is
+# nothing but an id, so svg_parse_selector dropped it entirely and the rule
+# matched nothing; the labels that only inherit it were counted unmeasurable —
+# 5 of them in one figure of the route bench, and the same shape in all four.
+# Same family as BL-358 (the root missing from the chain) but the other half:
+# there the compound could not match, here the rule never survived parsing, and
+# what it paints is INHERITED down rather than matched on the label.
+mkpage "$TMP/warn-svg-rootid.html" "<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"figbox\"><svg id=\"fig-m\" viewBox=\"0 0 400 300\" role=\"img\" aria-label=\"m\">
+  <style>#fig-m{font-family:sans-serif;fill:#dddddd;}
+         #fig-m text { font-size: 12px }
+         #fig-m .own { fill: #111111 }</style>
+  <rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <g><text x=\"10\" y=\"45\">inherits the root rule</text></g>
+  <rect x=\"0\" y=\"120\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <g><text class=\"own\" x=\"10\" y=\"145\">has its own rule</text></g>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-rootid.html")"
+# THE DEFECT: #dddddd on #f0f0f0 is 1.13:1, and the label gets that colour from
+# the root rule alone — through a <g> that declares nothing.
+grep -q "FAIL \[svg-contrast\].*'inherits the root rule'.*against the rect it sits on" "$TMP/out" \
+  || fail "10n. BL-355: the label inheriting the figure's root #id fill was NOT reported — the root-only compound never survived parsing: $(cat "$TMP/out")"
+# The control in the other axis: a label with its OWN rule keeps it, so seeding
+# the figure's inherited fill did not overwrite what the cascade already said.
+grep -q "\[svg-contrast\].*'has its own rule'" "$TMP/out" \
+  && fail "10n. BL-355: the label carrying its own fill rule was reported — the root seed overrode the cascade: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10n. BL-355: the root-inherited pair did not fail the wrap: $(cat "$TMP/out")"
+# The MUTATION that keeps the absence honest: BOTH labels resolve to a literal
+# colour. Before the fix the first was unmeasurable, which is what a fix that
+# merely silenced the pair would restore.
+grep -qE "FAIL \[svg-contrast\].*measured 2 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10n. BL-355: the two labels were not both measured as literal colours: $(cat "$TMP/out")"
+
 
 
 # The first cut read every label without a font-size attribute as 16 px and
