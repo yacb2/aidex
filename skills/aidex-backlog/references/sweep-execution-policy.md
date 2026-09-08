@@ -33,9 +33,19 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
    recommendation. `AskUserQuestion` is for parameters only (gate policy, scope toggles);
    a decision list belongs in the artifact where the answers stay. A consultation that
    lands mid-sweep stalls the chain for as long as the answer takes.
-5. Gate policy fixed once: `publish: never`, `destructive: deny`, and **merge is never
-   pre-authorized in a sweep** — many small items whose combined blast radius nobody
-   reviewed as a unit; the branch is left ready and the merge is asked for.
+5. Gate policy fixed once: `publish: never`, `destructive: deny`, and **merge is class 2
+   per `rules/autonomy.md`** — asked by default, grantable at the kickoff, never assumed
+   mid-run. `sweep-kickoff.sh --merge preauthorized` records the grant into
+   `gate-policy.merge`; without it the branch is left ready and the merge is asked for.
+   A grant is conditional on the boundary gate passing AND the whole-branch review below.
+
+*Prose — why this stopped being a flat prohibition.* It read "never pre-authorized in a
+sweep", on the ground that a sweep lands many small items whose combined blast radius
+nobody reviewed as a unit. The review-tier table already answers that: the boundary gate
+runs a whole-branch review scoped `merge-base..HEAD`. A prohibition whose justification
+its own document refutes is one the owner overrides at first contact, which is what
+happened on 2026-09-08 — and the run then carried a policy line contradicting its own
+work-list (BL-361).
 
 *Prose — the entry gate is Acceptance, not size.* An XS with no acceptance criteria is
 not small, it is undefined: the two worst items in the measured sweep took four commits
@@ -158,7 +168,10 @@ spelled out in Stage 3 (BL-363).
    gate 2 opens an artifact exactly once, when it is final, and the report is not final
    until step 2 has archived the closed list. `open <report>.html`, and cite that path
    in the run's summary rather than the `.md`. Never publish it (gate 3).
-4. The branch is left **ready to merge** and the merge is **asked** — never done.
+4. The branch is left **ready to merge**. Whether the merge happens here is
+   `gate-policy.merge` in the work-list, not a rule of this document: `ask` (the default,
+   and what an absent key means) leaves it for the owner; `preauthorized` merges once the
+   boundary gate has passed and the whole-branch review is clean, and says so in the report.
 
 ### Human verification in a sweep
 

@@ -23,7 +23,9 @@
 #      across clusters; `merge:BL-NNN` marks a MERGE pair (one commit, two trailers)
 #   4. the NEEDS-DECISION list is printed for ONE consultation artifact (the skill builds
 #      the page — artifacts-local-first); AskUserQuestion is for parameters only
-#   5. gate policy fixed once: publish never, destructive deny, merge asked (Q5)
+#   5. gate policy fixed once: publish never, destructive deny, and the merge answer
+#      the owner gave at Q5 — `--merge preauthorized` records a grant, the default
+#      `ask` leaves the branch ready and asks (autonomy.md class 2)
 #
 # Exit 2 on a queue that cannot be ordered (a `depends:` cycle) or an empty queue.
 set -euo pipefail
@@ -31,7 +33,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 WL_SCRIPTS="$(cd "$SCRIPT_DIR/../../aidex-conventions/scripts" && pwd -P)"
 
-TITLE="" SIZE="XS,S" SLUG="" DRY=0 JSON=0
+TITLE="" SIZE="XS,S" SLUG="" DRY=0 JSON=0 MERGE="ask"
 INCLUDE=() EXCLUDE=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -40,12 +42,14 @@ while [[ $# -gt 0 ]]; do
     --include) INCLUDE+=("$2"); shift 2 ;;
     --exclude) EXCLUDE+=("$2"); shift 2 ;;
     --slug)    SLUG="$2"; shift 2 ;;
+    --merge)   MERGE="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     --json)    JSON=1; shift ;;
     -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *)         die "unknown option: $1" ;;
   esac
 done
+[[ "$MERGE" == "ask" || "$MERGE" == "preauthorized" ]] || die "--merge must be ask|preauthorized"
 [[ -n "$TITLE" || $DRY -eq 1 || $JSON -eq 1 ]] || die "--title required (or --dry-run / --json)"
 
 ROOT="$(find_project_root)"
@@ -70,7 +74,7 @@ printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backl
 [[ $DRY -eq 1 ]] && { echo; echo "dry-run: no work-list written"; exit 0; }
 [[ -n "$TITLE" ]] || die "--title required to write the work-list"
 
-# --- the work-list: mode sweep, publish never, destructive deny; merge is asked ------
+# --- the work-list: mode sweep, publish never, destructive deny; merge per Q5 -------
 REFS=()
 while IFS=$'\t' read -r id title cluster merge; do
   [[ -n "$id" ]] || continue
@@ -80,7 +84,7 @@ done < <(printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.cont
 # omitted --slug killed the run AFTER the queue had printed and BEFORE the work-list was
 # written. The `+` form expands to nothing instead of tripping the check.
 SLUG_ARGS=(); [[ -n "$SLUG" ]] && SLUG_ARGS=(--slug "$SLUG")
-WL="$(cd "$ROOT" && bash "$WL_SCRIPTS/worklist-new.sh" --title "$TITLE" --mode sweep --publish never ${SLUG_ARGS[@]+"${SLUG_ARGS[@]}"} ${REFS[@]+"${REFS[@]}"})"
+WL="$(cd "$ROOT" && bash "$WL_SCRIPTS/worklist-new.sh" --title "$TITLE" --mode sweep --publish never --merge "$MERGE" ${SLUG_ARGS[@]+"${SLUG_ARGS[@]}"} ${REFS[@]+"${REFS[@]}"})"
 # the original queue length is what the report measures emergent growth against (25 %),
 # and the NEEDS-DECISION list is recorded here so the report can carry it "unchanged and
 # unattempted" without a second partition at close-out
@@ -102,5 +106,14 @@ open(path, "w").write(t)
 PY2
 echo
 echo "work-list: $WL"
-echo "gate policy: publish never · destructive deny · merge ASKED at close-out (never pre-authorized in a sweep)"
+# BL-361: this line used to be a fixed refusal. autonomy.md makes integrating the
+# branch class 2 — pre-authorizable at the initial phase — and the sweep's own reason
+# for being stricter ("blast radius nobody reviewed as a unit") is answered by the
+# whole-branch review the boundary gate already runs. The line now reports the answer
+# Q5 actually got instead of contradicting it.
+if [[ "$MERGE" == "preauthorized" ]]; then
+  echo "gate policy: publish never · destructive deny · merge PRE-AUTHORIZED at kickoff (conditional on the boundary gate passing and the whole-branch review)"
+else
+  echo "gate policy: publish never · destructive deny · merge ASKED at close-out (no grant taken at kickoff)"
+fi
 printf '%s\n' "$WL"

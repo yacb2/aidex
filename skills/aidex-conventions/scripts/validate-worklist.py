@@ -5,7 +5,7 @@ Work-lists are runtime execution-state, not knowledge artifacts, so they have th
 own lightweight validator (kept out of the conventions validate.py, whose minimal
 YAML parser does not model the nested gate-policy map).
 
-Checks: required front-matter (title/status/created/updated + gate-policy.publish/
+Checks: required front-matter (title/status/created/updated + gate-policy.publish/merge/
 destructive), status vocab, ISO dates, a numbered `## Queue` whose items carry a
 `<!-- ref: backlog|plan|audit|inline -->` comment.
 
@@ -18,6 +18,10 @@ from pathlib import Path
 
 STATUS = {"open", "doing", "done", "dropped"}
 PUBLISH = {"ask", "preauthorized", "never"}
+# Integrating the branch is class 2 in rules/autonomy.md — pre-authorizable at the
+# initial phase. An ABSENT key means "ask": that is exactly what every work-list
+# written before BL-361 meant, so their validity does not depend on a rewrite.
+MERGE = {"ask", "preauthorized"}
 MODES = {"sweep"}
 REF_KINDS = {"backlog", "plan", "audit", "inline"}
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -89,6 +93,9 @@ def validate(path: Path) -> list[dict]:
         if gp.get("publish") not in PUBLISH:
             err("gate-policy-publish-invalid",
                 f"gate-policy.publish={gp.get('publish')!r} not in {sorted(PUBLISH)}")
+        if gp.get("merge", "ask") not in MERGE:
+            err("gate-policy-merge-invalid",
+                f"gate-policy.merge={gp.get('merge')!r} not in {sorted(MERGE)}")
         if gp.get("destructive") != "deny":
             err("gate-policy-destructive-invalid",
                 "gate-policy.destructive must be 'deny' (global destructive rule)")
