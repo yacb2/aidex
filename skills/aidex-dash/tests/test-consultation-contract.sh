@@ -574,6 +574,55 @@ grep -q "WARN \[svg-contrast\].*'the same slate on the page ground'" "$cout" \
 grep -q "FAIL \[svg-contrast\]" "$cout" \
   && fail "10g. Q3: the census reported the contrast finding as a violation: $(cat "$cout")"
 
+# ---- 10h. BL-346: a rect inside a TEMPLATE container is never painted, so it is
+# not a label's background. D2 and Graphviz put a knockout rect inside <mask>
+# under every edge label so the edge line does not run through the glyphs; the
+# checker read those as fill=black and reported 36 labels at 4.02:1 on the route
+# bench page, 11 of which the browser measures as legible. <defs> was already
+# skipped; its siblings mask, clipPath, pattern, symbol and marker were not.
+# The figure sits in a litebox wrapper (10f) so the ground is light in BOTH
+# themes and the ink below clears the floor on it. Every label is then the same
+# ink on the same ground, and the only thing that varies is the wrapper of the
+# rect beneath it — so a verdict that differs can only come from that wrapper.
+mkpage "$TMP/warn-svg-template.html" "<style>figure.cell.litebox .figbox { background: #F6F7F5 }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-h\" viewBox=\"0 0 400 700\" role=\"img\" aria-label=\"h\">
+  <style>#fig-h text { font-size: 12px }</style>
+  <mask id=\"m-h\"><rect x=\"0\" y=\"20\" width=\"400\" height=\"40\" fill=\"#000000\"/></mask>
+  <text x=\"10\" y=\"45\" fill=\"#191D1A\">knocked out by a mask</text>
+  <clipPath id=\"c-h\"><rect x=\"0\" y=\"120\" width=\"400\" height=\"40\" fill=\"#000000\"/></clipPath>
+  <text x=\"10\" y=\"145\" fill=\"#191D1A\">clipped not painted</text>
+  <pattern id=\"p-h\" width=\"400\" height=\"40\"><rect x=\"0\" y=\"220\" width=\"400\" height=\"40\" fill=\"#000000\"/></pattern>
+  <text x=\"10\" y=\"245\" fill=\"#191D1A\">a pattern tile is a template</text>
+  <symbol id=\"s-h\"><rect x=\"0\" y=\"320\" width=\"400\" height=\"40\" fill=\"#000000\"/></symbol>
+  <text x=\"10\" y=\"345\" fill=\"#191D1A\">a symbol is drawn by use</text>
+  <marker id=\"a-h\"><rect x=\"0\" y=\"420\" width=\"400\" height=\"40\" fill=\"#000000\"/></marker>
+  <text x=\"10\" y=\"445\" fill=\"#191D1A\">an arrowhead is not a backdrop</text>
+  <g><rect x=\"0\" y=\"520\" width=\"400\" height=\"40\" fill=\"#000000\"/></g>
+  <text x=\"10\" y=\"545\" fill=\"#191D1A\">really on a black rect</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-template.html")"
+# The MUTATION that keeps the five absences honest: the identical rect in a
+# plain <g> under the sixth label. Same ink, same geometry, same page — if the
+# skip over-applies, or the rect/label pairing stopped running at all, this one
+# goes quiet too and the whole block would pass having proved nothing.
+grep -q "FAIL \[svg-contrast\].*'really on a black rect'.*against the rect it sits on" "$TMP/out" \
+  || fail "10h. BL-346: the control label on a rect in a plain <g> was NOT reported — the five absences below prove nothing: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10h. BL-346: the control pair did not fail the wrap: $(cat "$TMP/out")"
+for lbl in "knocked out by a mask" "clipped not painted" "a pattern tile is a template" \
+           "a symbol is drawn by use" "an arrowhead is not a backdrop"; do
+  grep -q "\[svg-contrast\].*'$lbl'" "$TMP/out" \
+    && fail "10h. BL-346: '$lbl' was reported — the rect under it lives in a template container and is never painted: $(cat "$TMP/out")"
+done
+# And the labels are still SEEN. A fix that skipped the <text> as well, or one
+# that stopped reading this figure at all, would clear every finding above and
+# be indistinguishable from a correct one.
+grep -qE "FAIL \[svg-contrast\].*measured 6 text node\(s\)" "$TMP/out" \
+  || fail "10h. BL-346: the six labels were not all measured — the skip is dropping text, not just unpainted rects: $(cat "$TMP/out")"
+
 
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
