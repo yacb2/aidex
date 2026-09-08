@@ -29,21 +29,20 @@
   into a block: they arrive by wrapping, so a page cannot ship without them and
   an author cannot get them wrong.
 
-  Two consequences of the explain choice living in the group rather than on the
-  item. In a radio group it is a radio, so picking it RELEASES whatever was
-  picked — asking for the question to be rewritten is not compatible with
-  having answered it. And an item with no option group carries none: that is
-  what keeps it off the general-notes box, which asks nothing, and it is also
-  why an item whose only surface is a value box has no escape but its notes.
+  The explain asks are a ROW on the item since kit v18 (BL-381), injected
+  under the last option group: five checkboxes with a tagged vocabulary that
+  combine with each other and with an answer. Every option group also ends
+  with an injected "not now" choice. Neither is written here.
 
   Depth is set by the cost of undoing the decision: a reversible one-minute
   choice gets the question alone; something touching code or a shared contract
   gets a concrete example; something that rewrites what exists gets the example,
   the consequence of each option, and the file it touches. A returned
-  `[explain-state]` says the gap is what exists today and a returned
-  `[explain-options]` says it is the alternatives and their cost; two marks on
-  the same item, in any mix and across any rounds, mean it is mis-shaped rather
-  than under-explained.
+  `[explain-state]` says the gap is what exists today, `[explain-options]` the
+  alternatives and their cost, `[explain-why]` the risk claimed,
+  `[explain-term: X]` what X is, `[show-me]` a different instrument; asks that
+  come back on the same item in a SECOND round mean it is mis-shaped rather
+  than under-explained. A returned `[not-now]` is carried as open, not redrawn.
 
   THE UNIT IS THE BLOCK, NOT THE ITEM (BL-247). A block is one context with the
   decisions that fall out of it — one decision or several — and it is the ONLY

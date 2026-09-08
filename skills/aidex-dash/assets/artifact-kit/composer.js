@@ -53,10 +53,20 @@
       notRecSuffix: ' (not recommended)',
       other: 'Other — see my notes',
       otherHint: 'None of the above; the answer is in the notes box below.',
-      explainState: 'Explain the state first',
-      explainStateHint: 'I cannot answer this as written — say what exists, what is in the tree, and what was actually measured.',
-      explainOptions: 'Explain the alternatives first',
-      explainOptionsHint: 'I can see the state — say what the alternatives are and what each one costs.',
+      notNow: 'Not now \u2014 leave it for another round',
+      notNowHint: 'Not a blank: the question is deferred on purpose and comes back when asked for.',
+      askLabel: 'Before answering I need\u2026',
+      askState: 'the state',
+      askStateTitle: 'What exists today: the files by name, the value printed from the tree, what is there and what is not.',
+      askOptions: 'the alternatives',
+      askOptionsTitle: 'What the options are and what each one costs, the recommended one included.',
+      askWhy: 'the why',
+      askWhyTitle: 'The reason or the risk the item claims, with the evidence for it.',
+      askTerm: 'what X is',
+      askTermTitle: 'A definition of a named thing: an id, a term, a command.',
+      askTermPh: 'which one',
+      askShow: 'show me',
+      askShowTitle: 'A mockup, a diagram, a before/after, an example \u2014 not more prose.',
       toLight: 'Light',
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark',
@@ -99,10 +109,20 @@
       notRecSuffix: ' (no recomendada)',
       other: 'Otra — lo explico en las notas',
       otherHint: 'Ninguna de las anteriores; la respuesta va en la caja de notas de abajo.',
-      explainState: 'Expl\u00edcame primero el estado',
-      explainStateHint: 'As\u00ed no puedo responderla — dime qu\u00e9 existe, qu\u00e9 hay en el \u00e1rbol y qu\u00e9 se midi\u00f3 de verdad.',
-      explainOptions: 'Expl\u00edcame primero las alternativas',
-      explainOptionsHint: 'El estado lo veo — dime cu\u00e1les son las opciones y qu\u00e9 cuesta cada una.',
+      notNow: 'Todav\u00eda no \u2014 lo dejo para otra ronda',
+      notNowHint: 'No es un blanco: la pregunta queda aplazada a prop\u00f3sito y vuelve cuando la pidas.',
+      askLabel: 'Antes de responder necesito\u2026',
+      askState: 'el estado',
+      askStateTitle: 'Qu\u00e9 existe hoy: los archivos por nombre, el valor impreso del \u00e1rbol, qu\u00e9 hay y qu\u00e9 no.',
+      askOptions: 'las alternativas',
+      askOptionsTitle: 'Cu\u00e1les son las opciones y qu\u00e9 cuesta cada una, la recomendada incluida.',
+      askWhy: 'el porqu\u00e9',
+      askWhyTitle: 'La raz\u00f3n o el riesgo que el item afirma, con su evidencia.',
+      askTerm: 'qu\u00e9 es X',
+      askTermTitle: 'La definici\u00f3n de algo con nombre: un id, un t\u00e9rmino, un comando.',
+      askTermPh: 'cu\u00e1l',
+      askShow: 'mu\u00e9stramelo',
+      askShowTitle: 'Un mockup, un diagrama, un antes/despu\u00e9s, un ejemplo \u2014 no m\u00e1s prosa.',
       toLight: 'Claro',
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
@@ -113,23 +133,31 @@
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
 
-  /* The two strings here that are NEVER translated. `explainState` and
-   * `explainOptions` above are what the reader sees; these are what the paste
-   * carries, and what the session on the other side greps to know which items
-   * to rewrite and WHICH WAY. Same split `recSuffix` makes between the badge
-   * and the copied label, and the same rule the header gives `blank`: do not
-   * rename either, in any language.
+  /* The strings here are NEVER translated. The `ask*` and `notNow` labels
+   * above are what the reader sees; these are what the paste carries, and what
+   * the session on the other side greps to know which items to rewrite and
+   * WHICH WAY. Same split `recSuffix` makes between the badge and the copied
+   * label, and the same rule the header gives `blank`: do not rename any of
+   * them, in any language.
    *
-   * Two marks and not one, and by kind of gap rather than by amount: a mark
-   * that only said "more" left what to write to the writer, which is how an
-   * item reached 700 words about the alternatives when what was missing was a
-   * table of which files exist. The cost is stated rather than hidden — two
-   * extra rows in every option group of every item, for as long as the page
-   * lives. The ceiling does not double with the second kind: two marks on one
-   * item, in any mix and across any number of rounds, mean the question is
-   * mis-shaped, and it changes instrument or splits. */
+   * By kind of gap rather than by amount (v16): a mark that only said "more"
+   * left what to write to the writer, which is how an item reached 700 words
+   * about the alternatives when what was missing was a table of which files
+   * exist. Since v18 (BL-381) the marks combine within a round; the ceiling is
+   * the ROUND — an item whose asks come back a second round is mis-shaped and
+   * changes instrument or splits. */
   var EXPLAIN_STATE = '[explain-state]';
   var EXPLAIN_OPTIONS = '[explain-options]';
+  /* Three more since v18 (BL-381), from 348 owner messages mined out of every
+   * project transcript: the asks the reader actually typed when an item could
+   * not be answered were "why is this a risk", "what IS the thing named here"
+   * and "show me", none of which the two above name. `[explain-term]` carries
+   * the term the reader typed: `[explain-term: BL-499]`. And one answer-side
+   * marker, `[not-now]`: a question deferred on purpose, which is not a blank. */
+  var EXPLAIN_WHY = '[explain-why]';
+  var EXPLAIN_TERM = '[explain-term]';
+  var SHOW_ME = '[show-me]';
+  var NOT_NOW = '[not-now]';
 
   // Built with DOM nodes rather than innerHTML: the id and the title are author
   // text, and a title carrying an angle bracket would otherwise be parsed as
@@ -484,15 +512,30 @@
     });
   }
 
+  /* The mark a checked input pastes. `[explain-term]` folds the term typed
+   * next to it INTO the marker — `[explain-term: BL-499]` — so the session
+   * greps one token and reads the term from it, instead of pairing a bare
+   * marker with a free-text line that could be anything. */
+  function markLabel(i) {
+    var label = i.dataset.label || i.value || '';
+    if (label === EXPLAIN_TERM) {
+      var box = i.closest('label') ? i.closest('label').querySelector('.kit-term') : null;
+      var term = box ? box.value.trim() : '';
+      return term ? '[explain-term: ' + term + ']' : label;
+    }
+    return label + recSuffix(i);
+  }
+
   function readItem(el) {
     var parts = [], marked = [];
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
-      .forEach(function (i) { marked.push((i.dataset.label || i.value || '') + recSuffix(i)); });
+      .forEach(function (i) { marked.push(markLabel(i)); });
     if (marked.length) parts.push(marked.map(function (m) { return '- ' + m; }).join('\n'));
     el.querySelectorAll('select').forEach(function (s) {
       if (s.value) parts.push(s.options[s.selectedIndex].text.trim());
     });
     el.querySelectorAll('input[type="text"]').forEach(function (i) {
+      if (i.classList.contains('kit-term')) return;   /* pasted inside its marker */
       if (i.value.trim()) parts.push(i.value.trim());
     });
     el.querySelectorAll('[contenteditable]').forEach(function (c) {
@@ -604,11 +647,15 @@
    * silently WAS the contenteditable array — every such answer read as already
    * sent and vanished on the next round, which `test-composer-functional.sh`
    * caught. Adding a key means checking it against both lists. */
+  /* `k` is the ask row's term box (v18). Its own kind, AFTER the author's
+   * surfaces, so a v4 flat list — which fills the kinds in this order — keeps
+   * landing where it did before the box existed. */
   var FREE = [
     { k: 's', q: 'select' },
-    { k: 't', q: 'input[type="text"]' },
+    { k: 't', q: 'input[type="text"]:not(.kit-term)' },
     { k: 'c', q: '[contenteditable]' },
-    { k: 'a', q: 'textarea' }
+    { k: 'a', q: 'textarea' },
+    { k: 'k', q: '.kit-term' }
   ];
 
   function freeValue(el) {
@@ -665,7 +712,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-explain').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask').forEach(function (c) { c.remove(); });
     /* Chrome this file TRANSLATES is put back into English before hashing
      * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
      * fingerprint, and every answer a reader stored while the labels were still
@@ -842,64 +889,100 @@
         lab.appendChild(input);
         lab.appendChild(text);
         g.appendChild(lab);
+        /* "Not now" (BL-381), the last choice of the group. Answer-side, so it
+         * is one of the answers and exclusive with them: deferring a question
+         * is not compatible with answering it, and a deferred question is not
+         * a blank — "todavía, tengo muchos pendientes" three times on one page
+         * left three items nagging in the count. Pastes `[not-now]`. */
+        var nn = document.createElement('label');
+        nn.className = 'kit-notnow';
+        var nni = document.createElement('input');
+        nni.type = first.type;
+        nni.name = first.name;
+        nni.setAttribute('data-label', NOT_NOW);
+        var nnt = document.createElement('span');
+        nnt.appendChild(document.createTextNode(L.notNow + ' '));
+        var nnh = document.createElement('span');
+        nnh.className = 'hint';
+        nnh.textContent = L.notNowHint;
+        nnt.appendChild(nnh);
+        nn.appendChild(nni);
+        nn.appendChild(nnt);
+        g.appendChild(nn);
       });
     });
   }
 
-  /* "Explain this one better" (BL-325), injected as the LAST CHOICE of every
-   * option group, immediately after the "other" one — not as a control on the
-   * item. The two still cover different failures: "Other" is the way out of a
-   * closed LIST, this is the way out of a QUESTION the reader cannot answer as
-   * written. Of 26 items in one round, 12 came back as free text saying some
-   * form of "no entiendo bien esta tarea" — 46%.
+  /* The ask row (BL-325 -> BL-381). "Explain this one better" began as a
+   * checkbox on the item (v12), became a radio in the option group (v15, at the
+   * owner's request: exclusive with answering) and split in two by kind of gap
+   * (v16). Then 348 owner messages mined from every transcript showed what the
+   * reader actually types when an item cannot be answered: the asks arrive
+   * COMBINED ("explícamelo mejor y vuelve a darme las opciones") and ALONGSIDE
+   * an answer ("Sí, pero…"), and three kinds the two markers never named. The
+   * exclusivity v15 asked for is the property that failed — "en algunos casos
+   * se necesitan ambas" (2026-09-09).
    *
-   * v15 moved it into the group, and two things follow from that, both asked
-   * for: it takes the group's own input TYPE, so in a radio group it is a radio
-   * and picking it releases whatever was picked — asking for the question to be
-   * rewritten is not compatible with having answered it; and an item with no
-   * option group no longer carries one, which is what takes it off the general
-   * notes item, where there is no question to explain. The cost is stated
-   * rather than hidden: an item whose only surface is a value box loses the
-   * escape it had in v12-v14, and the reader falls back to its notes box.
+   * So since v18 the asks are a separate SURFACE: one row on the item, after
+   * its option groups, of five checkboxes with a tagged vocabulary. Ticking one
+   * releases nothing. The row lives on the item rather than in a group, which
+   * is also what gives it back to an item whose only surface is a value box —
+   * the cost v15 stated. The general-notes item asks nothing and gets none.
    *
-   * A mark with a `data-label`, so every path that already handles marks
-   * handles it: `readItem` pastes it, `snapshotItem` stores it, `restore`
-   * re-checks it, `clearItem` clears it, and `copy` folds it into the sent
-   * fingerprint — which is what stops an answered request from coming back a
-   * round later. The labels are localised; the pasted values are the markers.
+   * One line, not five: chips with a title each and no hint lines, because
+   * the two v16 radios cost four lines per group and the whole complaint about
+   * these pages is their length. `[explain-term]` carries a small text box that
+   * appears when ticked; readItem folds its value into the marker.
    *
-   * Two of them since kit v16 (Q4), one per kind of gap, and they share the
-   * group's `name` with each other and with the real options: in a radio group
-   * that makes all of them mutually exclusive, which is the point. Wanting the
-   * state AND the alternatives in one round is not a third answer — it is the
-   * shape d11 already caps, and it comes back as a different instrument or as
-   * two questions. */
-  function addExplainControls() {
+   * Every chip is a mark with a `data-label`, so every path that handles marks
+   * handles it: readItem pastes it, snapshotItem stores it, restore re-checks
+   * it, clearItem clears it, copy folds it into the sent fingerprint. The term
+   * box is an ordinary text input to the store (restored by order) and is kept
+   * out of the free-text paste. The labels are localised; the markers are not. */
+  var ASKS = [
+    [EXPLAIN_STATE, 'askState', 'askStateTitle'],
+    [EXPLAIN_OPTIONS, 'askOptions', 'askOptionsTitle'],
+    [EXPLAIN_WHY, 'askWhy', 'askWhyTitle'],
+    [EXPLAIN_TERM, 'askTerm', 'askTermTitle'],
+    [SHOW_ME, 'askShow', 'askShowTitle']
+  ];
+  function addAskRows() {
     items.forEach(function (el) {
-      if (isDecided(el)) return;
-      el.querySelectorAll('.opts').forEach(function (g) {
-        if (g.querySelector('.kit-explain')) return;
-        var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
-        if (!first) return;
-        [[EXPLAIN_STATE, L.explainState, L.explainStateHint],
-         [EXPLAIN_OPTIONS, L.explainOptions, L.explainOptionsHint]].forEach(function (spec) {
-          var lab = document.createElement('label');
-          lab.className = 'kit-explain';
-          var input = document.createElement('input');
-          input.type = first.type;
-          input.name = first.name;
-          input.setAttribute('data-label', spec[0]);
-          var text = document.createElement('span');
-          text.appendChild(document.createTextNode(spec[1] + ' '));
-          var hint = document.createElement('span');
-          hint.className = 'hint';
-          hint.textContent = spec[2];
-          text.appendChild(hint);
-          lab.appendChild(input);
-          lab.appendChild(text);
-          g.appendChild(lab);
-        });
+      if (isDecided(el) || el.classList.contains('consult-notes')) return;
+      if (el.querySelector('.kit-ask')) return;
+      var row = document.createElement('div');
+      row.className = 'kit-ask';
+      var lead = document.createElement('span');
+      lead.className = 'kit-ask-lead';
+      lead.textContent = L.askLabel;
+      row.appendChild(lead);
+      ASKS.forEach(function (spec) {
+        var lab = document.createElement('label');
+        lab.title = L[spec[2]];
+        var input = document.createElement('input');
+        input.type = 'checkbox';
+        input.setAttribute('data-label', spec[0]);
+        lab.appendChild(input);
+        lab.appendChild(document.createTextNode(' ' + L[spec[1]]));
+        if (spec[0] === EXPLAIN_TERM) {
+          var box = document.createElement('input');
+          box.type = 'text';
+          box.className = 'kit-term';
+          box.placeholder = L.askTermPh;
+          lab.appendChild(box);
+        }
+        row.appendChild(lab);
       });
+      /* After the LAST option group when there is one — below the answer, as
+       * a second surface — else before the first field label, else at the end. */
+      var groups = el.querySelectorAll('.opts');
+      var anchor = groups.length ? groups[groups.length - 1] : null;
+      if (anchor) anchor.parentNode.insertBefore(row, anchor.nextSibling);
+      else {
+        var label = el.querySelector('.fieldlabel');
+        if (label) label.parentNode.insertBefore(row, label);
+        else el.appendChild(row);
+      }
     });
   }
 
@@ -1111,7 +1194,7 @@
   fitTables();
   if (items.length) {
     addOtherChoices();
-    addExplainControls();
+    addAskRows();
     sealDecided();
     releasableRadios();
     var recovered = restore();

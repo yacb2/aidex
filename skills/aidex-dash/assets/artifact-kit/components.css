@@ -155,9 +155,9 @@ li::marker { color: var(--muted); }
 .opts label:has(input[data-recommended="no"]) { background: none; }
 /* The injected "other" choice (BL-268): last in its group, set off by a rule so
    it reads as the exit from the list rather than one more entry in it. */
-.opts .kit-other { border-top: 1px dashed var(--rule); margin-top: 0.25rem; padding-top: 0.55rem; color: var(--muted); }
-.opts.one .kit-other { grid-column: 1; }
-.opts:not(.one) .kit-other { grid-column: 1 / -1; }
+.opts .kit-other, .opts .kit-notnow { border-top: 1px dashed var(--rule); margin-top: 0.25rem; padding-top: 0.55rem; color: var(--muted); }
+.opts.one .kit-other, .opts.one .kit-notnow { grid-column: 1; }
+.opts:not(.one) .kit-other, .opts:not(.one) .kit-notnow { grid-column: 1 / -1; }
 
 /* A DECIDED item: the question is settled, so it is shown and not asked. It
    keeps the option it chose and the ones it beat — that is the record — drawn
@@ -175,18 +175,27 @@ li::marker { color: var(--muted); }
 .consult-item[data-decided]:has(textarea:placeholder-shown) .fieldlabel,
 .consult-item[data-decided] textarea:placeholder-shown { display: none; }
 
-/* The injected "explain this one better" escape (BL-325), a CHOICE in the group
-   since v15 rather than a control on the item — so it is drawn as one, and
-   inherits `.opts label` for everything but colour. It follows the "other"
-   choice and shares the dashed edge that separates the exits from the answers.
-   Since v16 there are two of them, by kind of gap; only the first one after the
-   answers draws the rule, so the exits read as one band and not as three. */
-.opts .kit-explain { border-top: 1px dashed var(--rule); margin-top: 0.25rem;
-                     padding-top: 0.55rem; color: var(--muted); }
-.opts .kit-other + .kit-explain,
-.opts .kit-explain + .kit-explain { border-top: none; margin-top: 0; padding-top: 0.1rem; }
-.opts.one .kit-explain { grid-column: 1; }
-.opts:not(.one) .kit-explain { grid-column: 1 / -1; }
+/* The "not now" choice (BL-381) closes the option group after "other" and
+   shares its dashed band: the two exits read as one band, not two. */
+.opts .kit-other + .kit-notnow { border-top: none; margin-top: 0; padding-top: 0.1rem; }
+
+/* The ask row (kit v18, BL-381): a second surface under the answer, one line
+   of chips with a lead-in. Deliberately lighter than the two v16 radios it
+   replaces — no hint lines; each chip carries a title. The term box is hidden
+   until its chip is ticked, and sized as a word, not as the item's own text
+   inputs (which are full-width). */
+.kit-ask { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; align-items: baseline;
+           margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px dashed var(--rule);
+           font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
+.kit-ask-lead { color: var(--ink-soft); }
+.kit-ask label { display: inline-flex; align-items: baseline; gap: 0.3rem; cursor: pointer;
+                 padding: 0.1rem 0.3rem; border-radius: 3px; white-space: nowrap; }
+.kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
+.kit-ask label:has(input:checked) { color: var(--ink); }
+.kit-ask input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
+.consult-item .kit-ask .kit-term { display: none; width: 9rem; padding: 0.1rem 0.4rem;
+                                   font-size: 0.8rem; margin-left: 0.2rem; }
+.consult-item .kit-ask label:has(input:checked) .kit-term { display: inline-block; }
 
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;

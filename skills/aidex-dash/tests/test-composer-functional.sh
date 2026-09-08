@@ -305,11 +305,11 @@ window.addEventListener('load', function () {
     document.title = 'OTHERED|OTHER=' + (other ? '1' : '0')
       + '|OTHERNAME=' + (other ? other.name : '')
       + '|OTHERTYPE=' + (other ? other.type : '')
-      /* Since v15 the group ends with the explain escape, so "other" is the
-       * last ANSWER choice — the row immediately before it — not the last node. */
+      /* Since v18 the group ends with the "not now" radio (BL-381), so "other"
+       * is the last ANSWER choice — the row immediately before it. */
       + '|OTHERLAST=' + (other && lastLabel && lastLabel.contains(other) ? '1' : '0')
       + '|OTHERBEFOREEX=' + (other && other.closest('label').nextElementSibling
-          && other.closest('label').nextElementSibling.classList.contains('kit-explain') ? '1' : '0')
+          && other.closest('label').nextElementSibling.classList.contains('kit-notnow') ? '1' : '0')
       + '|OTHERTEXT=' + (other ? other.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
       + '|OTHERCOUNT=' + document.querySelectorAll('[data-id="Q1"] .opts .kit-other').length
       + '|A=' + (radio.checked ? 'A' : '-');
@@ -420,57 +420,67 @@ window.addEventListener('load', function () {
       + '|RAILOPEN=' + document.querySelectorAll('#raillist a[href="#Q1"], #raillist a[href="#Q2"]').length
       + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=explain') !== -1) {
-    /* BL-325: the reader who cannot answer because the QUESTION is unreadable.
-     * Of 26 items in one real round, 12 came back as free text saying some form
-     * of "no entiendo bien esta tarea" — the closed-list escape ("Other") only
-     * covers "none of these options", never "I cannot tell what is being asked".
-     * Probed on Q2, which has NO option group on purpose: an item with no closed
-     * list is exactly the one the per-group injection cannot reach.
+    /* BL-325 / BL-381: the reader who cannot answer because the QUESTION is
+     * unreadable — or who can answer and still needs something explained.
+     * v15/v16 made the escapes radios in the answer group, exclusive with the
+     * answer and with each other; 348 mined owner messages showed the asks
+     * arriving combined ("explícamelo mejor y vuelve a darme las opciones")
+     * and alongside answers ("Sí, pero…"). Since v18 the asks are a CHECKBOX
+     * ROW on the item, separate from the answer radio, with a tagged
+     * vocabulary; the answer group gains a "not now" radio.
      *
-     * The paste is captured the same way phase=send does it, because the marker
-     * travelling back is the whole point — a control the session never sees is
-     * a checkbox that does nothing. */
-    var exs = document.querySelectorAll('[data-id="Q1"] .opts .kit-explain input');
-    var ex = exs[0];            /* [explain-state]   */
-    var ex2 = exs[1];           /* [explain-options] */
-    /* Pick an ANSWER first, then the escapes: in a radio group each must release
-     * whatever was picked — the answer (the point of v15 making it a radio) and
-     * each other (the point of v16 making them two). Wanting both gaps closed in
-     * one round is not a third answer; it is the mis-shaped item the ceiling
-     * covers, so the group's shared "name" has to refuse it. */
+     * The paste is captured the same way phase=send does it, because the
+     * markers travelling back is the whole point. */
+    var row = document.querySelector('[data-id="Q1"] .kit-ask');
+    var ask = function (m) { return row ? row.querySelector('input[data-label="' + m + '"]') : null; };
+    var exState = ask('[explain-state]'), exOpts = ask('[explain-options]'),
+        exWhy = ask('[explain-why]'), exTerm = ask('[explain-term]'), exShow = ask('[show-me]');
+    var term = row ? row.querySelector('.kit-term') : null;
     var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
-    if (ex2) {
-      ex2.checked = true;
-      ex2.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    var preReleased = pre && !pre.checked;
-    if (ex) {
-      ex.checked = true;
-      ex.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    [exState, exWhy, exTerm].forEach(function (c) {
+      if (c) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    if (term) { term.value = 'BL-499'; term.dispatchEvent(new Event('input', { bubbles: true })); }
     var xcap = '';
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: function (s) { xcap = s; return Promise.resolve(); } }
     });
     document.getElementById('consult-copy').click();
-    document.title = 'EXPLAINED|EX=' + (ex ? '1' : '0')
-      + '|EX2=' + (ex2 ? '1' : '0')
-      + '|EXTYPE=' + (ex ? ex.type : '')
-      + '|EXNAME=' + (ex ? ex.name : '')
-      + '|EX2NAME=' + (ex2 ? ex2.name : '')
-      + '|EXRELEASED=' + (preReleased ? '1' : '0')
-      + '|EX2RELEASED=' + (ex2 && !ex2.checked ? '1' : '0')
-      + '|EXLAST=' + (ex2 && ex2.closest('.opts').lastElementChild === ex2.closest('label') ? '1' : '0')
-      + '|EXNOGROUP=' + document.querySelectorAll('[data-id="Q2"] .kit-explain').length
-      + '|EXNOTES=' + document.querySelectorAll('.consult-notes .kit-explain').length
-      + '|EXCOUNT=' + document.querySelectorAll('.consult-item .kit-explain').length
-      + '|EXITEMS=' + document.querySelectorAll('.consult-item').length
-      + '|EXTEXT=' + (ex ? ex.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
-      + '|EX2TEXT=' + (ex2 ? ex2.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
+    var st1 = document.getElementById('consult-status').textContent;
+    var answerKept = pre && pre.checked;
+    /* Now the answer side: "not now" is a radio in the group, so it releases
+     * the answer, counts as a response and pastes its own marker. */
+    var notNow = document.querySelector('[data-id="Q1"] .opts input[data-label="[not-now]"]');
+    if (notNow) { notNow.checked = true; notNow.dispatchEvent(new Event('change', { bubbles: true })); }
+    var ncap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { ncap = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    var rowEl = row;
+    document.title = 'EXPLAINED|ROW=' + (row ? '1' : '0')
+      + '|CHIPS=' + [exState, exOpts, exWhy, exTerm, exShow].filter(Boolean).length
+      + '|CHIPTYPE=' + (exState ? exState.type : '')
+      + '|CHIPINGROUP=' + (exState && exState.closest('.opts') ? '1' : '0')
+      + '|ANSWERKEPT=' + (answerKept ? '1' : '0')
+      + '|BOTHKEPT=' + (exState && exState.checked && exWhy && exWhy.checked ? '1' : '0')
+      + '|ROWAFTEROPTS=' + (rowEl && rowEl.previousElementSibling && rowEl.previousElementSibling.classList.contains('opts') ? '1' : '0')
+      + '|TERMSHOWN=' + (term ? (getComputedStyle(term).display !== 'none' ? '1' : '0') : 'x')
+      + '|EXNOGROUP=' + document.querySelectorAll('[data-id="Q2"] .kit-ask').length
+      + '|EXNOTES=' + document.querySelectorAll('.consult-notes .kit-ask').length
+      + '|EXDECIDED=' + document.querySelectorAll('[data-id="Q0"] .kit-ask, [data-id="Q0"] input[data-label="[not-now]"]').length
+      + '|EXCOUNT=' + document.querySelectorAll('.consult-item .kit-ask').length
+      + '|ROWTEXT=' + (row ? row.textContent.replace(/[|<>]/g, ' ').replace(/\s+/g, ' ').trim() : '')
+      + '|NOTNOW=' + (notNow ? notNow.type + ':' + notNow.name : '')
+      + '|NOTNOWRELEASED=' + (pre && !pre.checked ? '1' : '0')
+      + '|NOTNOWTEXT=' + (notNow ? notNow.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
       + '|PASTE=' + xcap.replace(/[|<>\n]/g, ' ')
-      + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
+      + '|PASTE2=' + ncap.replace(/[|<>\n]/g, ' ')
+      + '|STATUS=' + st1.replace(/[|<>]/g, ' ')
+      + '|STATUS2=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=theme') !== -1) {
     /* BL-327. tokens.css has defined the palette three times since it was
      * written and nothing ever set data-theme, so a third of it had never
@@ -516,7 +526,8 @@ window.addEventListener('load', function () {
       + '|ROUND=' + ((document.querySelector('meta[name="consult-round"]') || {}).content || '')
       /* BL-325: the explain request is a mark like any other, so it inherits
        * the round rule for free — restored on a reload, gone once sent. */
-      + '|EXKEPT=' + ((document.querySelector('[data-id="Q1"] .opts .kit-explain input') || {}).checked ? '1' : '0')
+      + '|EXKEPT=' + ((document.querySelector('[data-id="Q1"] .kit-ask input[type="checkbox"]') || {}).checked ? '1' : '0')
+      + '|TERMKEPT=' + ((document.querySelector('[data-id="Q1"] .kit-term') || {}).value || '')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
       + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
       /* BL-247: the rail nests a block's items under the block — one entry
@@ -782,7 +793,7 @@ t="$(run 'phase=other')"
 [[ "$t" == *"OTHERNAME=Q1"* ]] || fail "BL-268: the 'other' option is not in the group's radio set (name): $t"
 [[ "$t" == *"OTHERTYPE=radio"* ]] || fail "BL-268: the 'other' option does not match the group's input type: $t"
 [[ "$t" == *"OTHERBEFOREEX=1"* ]] \
-  || fail "BL-268: the 'other' option is not the last ANSWER choice of its group — since v15 the explain escape follows it, and nothing else may: $t"
+  || fail "BL-268: the 'other' option is not the last ANSWER choice of its group — since v18 the not-now choice follows it, and nothing else may: $t"
 [[ "$t" == *"OTHERTEXT=Otra"* ]] \
   || fail "BL-268: the 'other' option is not labelled in the page's language: $t"
 [[ "$t" == *"|A=-"* ]] || fail "BL-268: picking 'other' left the recommended option checked too: $t"
@@ -792,67 +803,68 @@ t="$(run 'phase=verify')"
 t="$(run 'phase=send')"
 [[ "$t" == *"- Otra"* ]] || fail "BL-268: the copied reply does not name the 'other' choice: $t"
 
-# ---- BL-325 (v15): "explain this one better" is a CHOICE in the option group -
+# ---- BL-325 / BL-381 (v18): the explain asks are a CHECKBOX ROW on the item -
 #
-# The escape the closed list already has, for the other failure: not "none of
-# these options" but "I cannot answer this as written". v12 put it on the ITEM,
-# as a checkbox; the owner asked for it to be "un radio al igual que el resto de
-# opciones", and for the general-notes box — which asks nothing — not to carry
-# one. Both fall out of ONE change: inject it into every `.opts` group, with the
-# group's own input type, and nowhere else. It still travels back as a fixed
-# ASCII marker, never a translated label, because the session greps it.
-#
-# The cost is real and is pinned here too: an item with no option group (Q2)
-# loses the escape it had in v12-v14.
+# v15 put the escape in the option group as a radio, v16 split it in two by
+# kind of gap, both exclusive with the answer and with each other. 348 owner
+# messages mined from every transcript (BL-381) show the asks arriving
+# COMBINED and ALONGSIDE an answer, plus three kinds the two markers never
+# named (why, what is X, show me) and one answer-side state (not now). Since
+# v18: the answer group stays a radio and gains "not now"; a separate checkbox
+# row on the item carries five tagged asks. Marks still travel as fixed ASCII
+# markers, never translated, because the session greps them.
 rm -rf "$TMP/profile"
 write_body "$Q1_V1"
 wrap_page
 t="$(run 'phase=explain')"
 [[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
-[[ "$t" == *"EX=1"* && "$t" == *"EX2=1"* ]] \
-  || fail "BL-325: the two explain choices were not both injected into the option group: $t"
-[[ "$t" == *"EXTYPE=radio"* ]] \
-  || fail "BL-325 v15: the explain choice is not a radio in a radio group: $t"
-[[ "$t" == *"EXNAME=Q1"* && "$t" == *"EX2NAME=Q1"* ]] \
-  || fail "BL-325 v15: an explain choice is not in the group's own radio name, so it cannot be exclusive with the answers: $t"
-[[ "$t" == *"EXRELEASED=1"* ]] \
-  || fail "BL-325 v15: picking an explain choice left the previous answer selected — asking for a rewrite is not compatible with having answered: $t"
-# Q4 (v16): the two marks are exclusive with EACH OTHER too. Asking for the state
-# and the alternatives in the same round is not a third answer — it is the
-# mis-shaped item d11 caps, and it comes back as a different instrument or as two
-# questions. Sharing the group's `name` is the whole enforcement.
-[[ "$t" == *"EX2RELEASED=1"* ]] \
-  || fail "v16: picking one explain mark left the other one selected — two gaps in one round is the shape the ceiling refuses: $t"
-[[ "$t" == *"EXLAST=1"* ]] \
-  || fail "BL-325: the explain choices are not the last rows of their group, after the 'other' one: $t"
-[[ "$t" == *"EXNOGROUP=0"* ]] \
-  || fail "BL-325 v15: an item with no option group still got an explain control: $t"
+[[ "$t" == *"ROW=1"* ]] \
+  || fail "BL-381: no ask row was injected on the option item: $t"
+[[ "$t" == *"CHIPS=5"* ]] \
+  || fail "BL-381: the ask row does not carry the five tagged asks (state, options, why, term, show-me): $t"
+[[ "$t" == *"CHIPTYPE=checkbox"* && "$t" == *"CHIPINGROUP=0"* ]] \
+  || fail "BL-381: an ask is still a radio in the answer group — it must be a checkbox outside it, or it cannot combine with an answer: $t"
+[[ "$t" == *"ANSWERKEPT=1"* ]] \
+  || fail "BL-381: ticking an ask released the answer — 'Sí, pero explícame por qué' is the reported shape: $t"
+[[ "$t" == *"BOTHKEPT=1"* ]] \
+  || fail "BL-381: two asks in one round did not both stay ticked — 'explícamelo mejor y vuelve a darme las opciones' is the reported shape: $t"
+[[ "$t" == *"ROWAFTEROPTS=1"* ]] \
+  || fail "BL-381: the ask row is not immediately after the option group — it must read as a separate surface, below the answer: $t"
+[[ "$t" == *"TERMSHOWN=1"* ]] \
+  || fail "BL-381: the term box did not appear once 'what is X' was ticked: $t"
+[[ "$t" == *"EXNOGROUP=1"* ]] \
+  || fail "BL-381: an item with no option group got no ask row — the row lives on the ITEM now, so the v15 cost is gone: $t"
 [[ "$t" == *"EXNOTES=0"* ]] \
-  || fail "BL-325 v15: the general-notes item got an explain control — it asks no question to explain: $t"
+  || fail "BL-325 v15: the general-notes item got an ask row — it asks no question to explain: $t"
+[[ "$t" == *"EXDECIDED=0"* ]] \
+  || fail "BL-381: a decided item got an ask row or a not-now choice — it is not being asked: $t"
 excount="$(printf '%s' "$t" | sed -nE 's/.*EXCOUNT=([0-9]+).*/\1/p')"
 [[ "$excount" == "2" ]] \
-  || fail "v16: the option item does not carry exactly the two explain choices ($excount): $t"
-[[ "$t" == *"EXTEXT=Explícame primero el estado"* ]] \
-  || fail "BL-325: the explain control stayed in English on a lang=es page: $t"
-[[ "$t" == *"EX2TEXT=Explícame primero las alternativas"* ]] \
-  || fail "v16: the second explain control stayed in English on a lang=es page: $t"
-# The marker, under the id it belongs to. Machine-readable is the requirement:
-# the reply names WHICH items to rewrite — and since v16 WHICH WAY — so the next
-# round rewrites exactly those, in that direction, instead of the whole set.
-[[ "$t" == *"### Q1 · The probed question  - [explain-state]"* ]] \
-  || fail "BL-325: the copied reply does not carry the picked explain marker under its item's id: $t"
-[[ "$t" == *"[explain-options]"* ]] \
-  && fail "v16: the paste carries the marker that was NOT picked — the next round would answer the wrong gap: $t"
-# Asking for an explanation IS a response — an item left in the blank list would
-# tell the reader they still owe an answer to a question they just said they
-# cannot read. The denominator is 2, not 3: the general-notes box is not a
-# question (C, below).
-[[ "$t" == *"STATUS=1 de 2 respondidas"* ]] \
-  || fail "BL-325: an item whose only mark is the explain request is still counted blank, or the notes box is still in the denominator: $t"
+  || fail "BL-381: the two open items do not carry exactly one ask row each ($excount): $t"
+[[ "$t" == *"ROWTEXT=Antes de responder necesito"* ]] \
+  || fail "BL-381: the ask row stayed in English on a lang=es page: $t"
+[[ "$t" == *"NOTNOW=radio:Q1"* ]] \
+  || fail "BL-381: 'not now' is not a radio in the group's own name — it is an answer-side state and must be exclusive with answering: $t"
+[[ "$t" == *"NOTNOWRELEASED=1"* ]] \
+  || fail "BL-381: picking 'not now' left the answer selected: $t"
+[[ "$t" == *"NOTNOWTEXT=Todavía no"* ]] \
+  || fail "BL-381: the not-now choice stayed in English on a lang=es page: $t"
+# The paste: the answer AND every ask, each under the item's id, markers verbatim.
+[[ "$t" == *"### Q1 · The probed question  - Option A (recomendada) - [explain-state] - [explain-why] - [explain-term: BL-499]"* ]] \
+  || fail "BL-381: the paste does not carry the answer plus the three asks in order, with the term inside its marker: $t"
+[[ "$t" == *"PASTE="*"[explain-options]"* ]] \
+  && fail "BL-381: the paste carries a marker that was NOT ticked: $t"
+[[ "$t" == *"### Q1 · The probed question  - [not-now] - [explain-state]"* ]] \
+  || fail "BL-381: the not-now choice did not paste its marker in the answer's place, with the asks still following: $t"
+[[ "$t" == *"PASTE2="*"Option A"* ]] \
+  && fail "BL-381: 'not now' pasted alongside the answer it was meant to release: $t"
+# An ask IS a response; so is deferring. Neither leaves the item in the blank list.
+[[ "$t" == *"STATUS=1 de 2 respondidas"* && "$t" == *"STATUS2=1 de 2 respondidas"* ]] \
+  || fail "BL-381: an item carrying only asks, or only 'not now', is still counted blank: $t"
 
 t="$(run 'phase=verify')"
-[[ "$t" == *"EXKEPT=1"* ]] \
-  || fail "BL-325: the explain request did not survive a reload in its own round: $t"
+[[ "$t" == *"EXKEPT=1"* && "$t" == *"TERMKEPT=BL-499"* ]] \
+  || fail "BL-381: the asks (or the typed term) did not survive a reload in their own round: $t"
 wrap_page                                   # same content, new round
 t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* ]] \
@@ -1076,4 +1088,4 @@ tp="$(run 'phase=partial')"
   || fail "BL-380: folding in place changed the count — the decided item must stay out of numerator and denominator: $tp"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and the two explain choices, the explicit theme, v4 answer sets, the all-decided page, the half-answered block and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice and the ask row, the explicit theme, v4 answer sets, the all-decided page, the half-answered block and the localised chrome included"
