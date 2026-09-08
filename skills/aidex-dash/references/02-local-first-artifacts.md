@@ -170,14 +170,23 @@ the reader knows the file tree. On one real round 12 of 26 items came back as fr
 saying some form of "I do not understand this task" — the owner's words were *"me estás
 dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
 
-So every item carries two injected escapes, both `.kit-explain`, alongside the `.kit-other`
-choice in its option groups. Picking one pastes a fixed marker as a mark under that item's
-id, and **which** marker is the whole point:
+So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381) under its
+answer: one line, "Antes de responder necesito…", with five checkboxes. Ticking any of
+them pastes a fixed marker as a mark under that item's id, and **which** markers is the
+whole point:
 
 | Marker | What it asks for | What the rewrite owes |
 |---|---|---|
 | **`[explain-state]`** | What exists today | The files by name, the current value printed from the tree, what is already there and what is not. This is the gap almost every time — it is the assumption the reader is objecting to. |
 | **`[explain-options]`** | What the alternatives are | Each option's consequence and its cost, including the cost of the one being recommended. Never a defence of the recommendation. |
+| **`[explain-why]`** | The reason or the risk the item claims | The evidence for the claim, stated as a claim: "no entiendo cuál es el peligro de borrar facturas" is answered with what breaks and how it was measured, not with the recommendation again. |
+| **`[explain-term: X]`** | What the thing named X is | A definition — of a BL id, a term, a command — before anything else. "No me explicas qué es el BL 499… no sé qué responderte". The reader types X next to the tick and the marker carries it. |
+| **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, an example. Not more prose: the reader has said prose is not the shape that will land. |
+
+And the answer group itself ends, after "Otra", with one more choice: **"Todavía no — lo
+dejo para otra ronda"**, which pastes **`[not-now]`**. It is answer-side, a radio, exclusive
+with answering. A deferred question is not a blank: the count stops nagging, the item is
+carried as open in the next page's ledger and is not redrawn until asked for.
 
 The markers are never translated — the labels the reader sees are, the tokens are not — and
 they are what says WHICH items to rewrite and WHICH WAY, so the next round rewrites exactly
@@ -188,22 +197,41 @@ designs after they were attacked (Q4, 2026-09-07). One marker with a written cap
 rejected because the cap is prose, and a prose ladder is the mechanism that had just
 failed; two markers by amount (`a bit more` / `deeper`) were rejected because they fix how
 much gets written and leave what to write to the writer — which is how an item reached 700
-words about the alternatives when what was missing was a table of which files exist. The
-cost is real and was accepted in writing: two extra rows in every option group of every
-item, for as long as the page lives.
+words about the alternatives when what was missing was a table of which files exist.
 
-**Where it stops.** Not with the marker's own depth — with the count:
+**The asks COMBINE, with each other and with an answer (v18, BL-381).** Until v17 they
+were two radios inside the answer group, exclusive with the answer and with each other —
+the owner had asked for exactly that in v15. Then 348 owner messages mined from every
+project transcript showed what the reader actually types when an item cannot be answered:
+*"explícamelo mejor y vuelve a darme las opciones"* (two asks at once), *"Sí (recomendada),
+pero…"* (an answer with a question beside it), *"¿Por qué necesitamos este sellado?"*,
+*"qué es el BL 499"*, *"lo más visual posible"*, *"todavía, tengo muchos pendientes"* —
+seven shapes, of which the two radios fitted one. Exclusivity was the property that failed.
+So the asks moved out of the group into a row of their own, as checkboxes, on the ITEM:
+which also gives them back to an item whose only surface is a value box, the cost v15
+stated. The general-notes item asks nothing and carries none. The row is one line of chips
+with no hint lines, lighter than the four lines the two v16 radios cost per group; the
+attack on "one checkbox that reveals the vocabulary" is written in BL-381 — disclosure only
+pays when what it hides is heavier than a line, and it costs the one thing the mining
+shows the reader lacks: seeing that the ask exists.
 
-- **Two marks on one item is the ceiling, in any mix and across any number of rounds.**
-  `[explain-state]` in round one and `[explain-options]` in round two is still two. The
-  item is not under-explained, it is mis-shaped: return a different INSTRUMENT — a mockup,
-  a diagram, a before/after, the current state printed from the tree — or split it into the
-  two questions it is really asking, or answer it yourself and move it to the ledger as a
-  decision the reader can correct. Two kinds of gap must not become two rounds of licence:
-  that is exactly the unbounded growth the ceiling exists to stop.
-- **Answer the marker that was picked, not the one you would rather answer.** An
+**Where it stops.** Not with the marker's own depth — with the ROUND:
+
+- **Any combination of asks in one round is one round. An item whose asks come back in a
+  second round is the ceiling.** Until v17 the bound was "two marks on one item, across
+  any rounds", which was written for exclusive marks and would now forbid the first shape
+  above. The axis that actually grows is rounds, so the bound sits there: an item asked
+  about twice is not under-explained, it is mis-shaped. Return a different INSTRUMENT — a
+  mockup, a diagram, a before/after, the current state printed from the tree — or split it
+  into the two questions it is really asking, or answer it yourself and move it to the
+  ledger as a decision the reader can correct. Two rounds of asks must not become two
+  rounds of licence: that is exactly the unbounded growth the ceiling exists to stop.
+- **Answer the markers that were picked, not the one you would rather answer.** An
   `[explain-state]` answered with a richer argument for the recommendation is the failure
-  this design replaced, not an expansion of it.
+  this design replaced, not an expansion of it. An `[explain-term: X]` is answered with
+  what X is, first.
+- **A `[not-now]` is not a nudge to re-ask.** The item leaves the next page and sits in
+  its ledger as open until the reader brings it back.
 
 ### The ledger
 
@@ -760,23 +788,26 @@ authoring a non-English page: translating them by hand is what produced the mixe
 page this fixes, and a hand translation is no longer recognised as a default to swap.
 Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
 
-**Since kit v16, every OPTION GROUP ends with TWO injected escapes**, immediately after
-the "other" one: `Explain the state first` and `Explain the alternatives first`. There was
-one of them in v15 and a per-ITEM checkbox in v12-v14; the owner asked for a choice "un
-radio al igual que el resto de opciones", for the general-notes box not to carry one, and
-then (Q4) for the mark to name WHICH gap rather than how much prose to add. All three
-follow from a single rule — inject both into every `.opts` group, with the group's own
-input type, and nowhere else:
+**Since kit v18, every open item carries an ASK ROW under its answer, and every option
+group ends with a "not now" choice** (BL-381). The row is the successor of the v12 per-item
+checkbox, the v15 in-group radio and the v16 pair; what survives from each: it is injected
+(v12), the general-notes item carries none (v15), the marks name WHICH gap (v16). What v18
+retires is exclusivity — see *When the reader says the question is unreadable* above for
+the evidence. The rule is one line: the composer appends the row after the item's last
+`.opts` group (or before its first field label when it has none), five checkboxes with a
+tagged vocabulary, and appends `Todavía no` as the last choice of every option group:
 
 | | |
 |---|---|
-| In a radio group they are **radios** | Picking either releases whatever was picked, and they release each other. Asking for the question to be rewritten is not compatible with having answered it, and wanting both gaps closed at once is not a third answer — it is the mis-shaped item the ceiling already covers. The group's `name`, shared by both, is what enforces all of that. |
-| An item with **no option group carries neither** | Which is what keeps them off the general-notes item, where there is no question to explain. The cost, stated rather than hidden: an item whose only surface is a value box loses the escape it had in v12-v14 and falls back to its notes box. |
+| The asks are **checkboxes on the item** | Ticking one releases nothing: the reader can answer AND ask, or ask twice. The `[explain-term]` chip shows a small box for the term when ticked, and the paste folds it into the marker. |
+| "Not now" is a **radio in the group** | Answer-side, exclusive with the answers and with "Otra". It counts as a response, pastes `[not-now]`, and the item is carried as open, not redrawn. |
+| An item with **no option group** still gets the row | The v15 cost is gone; such an item has no "not now" though, because that choice lives in a group. |
 
-Picking one pastes its fixed marker — `[explain-state]` or `[explain-options]` — under that
-item's id, and asking for an explanation counts as a response rather than a blank. Do not
-write one by hand either. What the next round owes in return, and where it stops, is *Depth
-is set by the cost of undoing* → *When the reader says the question is unreadable* above.
+Ticking pastes the fixed markers — `[explain-state]`, `[explain-options]`, `[explain-why]`,
+`[explain-term: X]`, `[show-me]`, and `[not-now]` — under that item's id, and asking counts
+as a response rather than a blank. Do not write any of them by hand. What the next round
+owes in return, and where it stops, is *Depth is set by the cost of undoing* → *When the
+reader says the question is unreadable* above.
 
 **The general-notes item is not one of the questions.** It leaves the numerator, the
 denominator and the blank list: a reader who answered every question reads `2 de 2
@@ -787,7 +818,7 @@ button keys on whether there is anything to send, not on the question counter.
 Do not write an "other" option by hand — the composer skips a group that already has one
 (`data-other` on an input), so a hand-written one only duplicates the label. The injected
 control is stripped from the question fingerprint like the badge, the Clear button and the
-explain choices: leaving any of them in would mark every answer stored before that
+ask row: leaving any of them in would mark every answer stored before that
 release as "the question changed" and drop it on the upgrade.
 
 Copy the shape from
