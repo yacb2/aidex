@@ -142,7 +142,9 @@ Each entry is a single dated file: `.context/backlog/YYYY-MM-DD-bl-nnn-<slug>.md
 
 **Write the entry in English (canon §Language, D-04)** — even when the conversation
 is in another language. The `description`/title and body are both English; only
-`communications/` bodies keep their native language. `register-item.sh`'s Context
+`communications/` bodies keep their native language. This governs the ENTRY, not the
+kickoff consultation, which is addressed to the reader and follows the profile's
+`language:` (BL-371). `register-item.sh`'s Context
 placeholder repeats this at the point of writing, and
 `bash scripts/normalize-language.sh` reports items that drifted.
 

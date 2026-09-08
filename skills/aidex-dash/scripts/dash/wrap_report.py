@@ -395,6 +395,17 @@ def main():
     lang = args.lang or profile_lang or "en"
     if args.lang is None and profile_lang is None:
         _warn_prose_only_language(ctx)
+    elif args.lang and profile_lang and args.lang != profile_lang:
+        # BL-371: the symmetric blind spot. An explicit --lang wins, but a silent
+        # override is how a consultation reached its reader in the wrong language:
+        # check-artifact's lang gate cannot see it (an English body under lang="en"
+        # agrees with itself). Name the contradiction; do not refuse it -- a
+        # `.context/` record of work done is English by D-04 whatever the profile says.
+        print(f'NOTE: --lang {args.lang} contradicts {ctx}/artifact-style.md, which '
+              f'declares `language: {profile_lang}`. A page addressed to the reader '
+              f'(a consultation) follows the profile; only a record of work already '
+              f'done takes --lang en by D-04. Wrapping as lang="{args.lang}".',
+              file=sys.stderr)
 
     head_extra, body = split_head_style(content)
     # Reset -> kit tokens -> kit components -> project delta -> the page's own
