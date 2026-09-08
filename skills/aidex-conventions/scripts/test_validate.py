@@ -694,6 +694,20 @@ def check_external_crossrefs(failures: list[str]) -> None:
     if "cross-ref-target-missing" not in rules({"escalated_to": "plan/2099-12-31-nope"}):
         failures.append("external cross-ref: a local ref to a missing target must still fail")
 
+    # BL-360: escalated_to fans out. Ten --escalate-to runs against one source used to
+    # leave it pointing only at the tenth, so the field now holds a comma-separated
+    # list and every element is validated independently.
+    fan = "echo_lab_ws/BL-206, lexis_ws/BL-12, work_hours_ws/BL-3"
+    if rules({"escalated_to": fan}):
+        failures.append(f"fan-out cross-ref: a comma-separated list produced {rules({'escalated_to': fan})}")
+    # Each element is judged on its own — a bad one in the middle is still caught, or
+    # the split would be a way to smuggle a broken ref past the check.
+    mixed = "echo_lab_ws/BL-206, plan/2099-12-31-nope, lexis_ws/BL-12"
+    if "cross-ref-target-missing" not in rules({"escalated_to": mixed}):
+        failures.append("fan-out cross-ref: a missing target inside a list must still fail")
+    if "cross-ref-format-invalid" not in rules({"escalated_to": "echo_lab_ws/BL-206, not a ref"}):
+        failures.append("fan-out cross-ref: a malformed element inside a list must still fail")
+
 
 def check_artifact_anchor_unit(failures: list[str]) -> None:
     """BL-234: a rendered companion is held to the anchor it declares, and to nothing

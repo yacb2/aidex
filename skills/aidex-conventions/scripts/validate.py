@@ -688,32 +688,50 @@ def check_crossrefs(type_name: str, path: Path, fm: dict | None,
     if fm is None:
         return findings
     for field_name in CROSSREF_FIELDS:
-        ref = fm.get(field_name, "")
-        if not ref:
+        raw = fm.get(field_name, "")
+        if not raw:
             continue
-        # External refs (issue/<id>, <repo>/BL-NNN) are accepted on format alone —
-        # this branch must precede the format check, whose <type>/ enum rejects them.
-        if is_external_ref(ref):
-            continue
-        # blocked_by may be free text (canon §7) — validate only when it is a typed
-        # ref or clearly ATTEMPTS one via a path form. Free text containing a slash
-        # ("FCM/APNs credentials") must not be flagged (field regression 2026-07-02).
-        if field_name == "blocked_by" and not CROSSREF_FORMAT.match(ref):
-            path_attempt = ref.startswith(".context/") or any(
-                ref.startswith(folder + "/") for folder in TYPE_FOLDER_TO_PREFIX)
-            if not path_attempt:
-                continue
-        if not CROSSREF_FORMAT.match(ref):
-            findings.append(Finding(type_name, str(path), "cross-ref-format-invalid", "violation",
-                                    f"{field_name}={ref!r} does not match <type>/<filename>"))
-            continue
-        if ref.endswith("/pending"):
-            findings.append(Finding(type_name, str(path), "cross-ref-pending", "warning",
-                                    f"{field_name}={ref!r} is a placeholder sentinel"))
-            continue
-        if not crossref_target_exists(context_dir, ref):
-            findings.append(Finding(type_name, str(path), "cross-ref-target-missing", "violation",
-                                    f"{field_name}={ref!r} resolves to no file in active or _archive/"))
+        # escalated_to fans out: one item escalated to ten fleet repos carries ten
+        # pointers, comma-separated. It stays a SCALAR string — the front-matter parser
+        # above is deliberately minimal and every other reader (awk-based `read_field`
+        # in the shell scripts) reads it as one — so the list is split here and each
+        # element judged on its own. A bad element in the middle must still fail, or
+        # the split becomes a way to smuggle a broken ref past the check (BL-360).
+        # Only escalated_to: blocked_by is free text, where a comma is prose.
+        refs = ([r.strip() for r in raw.split(",") if r.strip()]
+                if field_name == "escalated_to" else [raw])
+        for ref in refs:
+            findings += _check_one_crossref(type_name, path, context_dir, field_name, ref)
+    return findings
+
+
+def _check_one_crossref(type_name, path, context_dir, field_name, ref) -> list[Finding]:
+    """One cross-reference, judged on its own. Split out of check_crossrefs so a
+    fan-out list can reuse it element by element (BL-360)."""
+    findings: list[Finding] = []
+    # External refs (issue/<id>, <repo>/BL-NNN) are accepted on format alone —
+    # this branch must precede the format check, whose <type>/ enum rejects them.
+    if is_external_ref(ref):
+        return findings
+    # blocked_by may be free text (canon §7) — validate only when it is a typed
+    # ref or clearly ATTEMPTS one via a path form. Free text containing a slash
+    # ("FCM/APNs credentials") must not be flagged (field regression 2026-07-02).
+    if field_name == "blocked_by" and not CROSSREF_FORMAT.match(ref):
+        path_attempt = ref.startswith(".context/") or any(
+            ref.startswith(folder + "/") for folder in TYPE_FOLDER_TO_PREFIX)
+        if not path_attempt:
+            return findings
+    if not CROSSREF_FORMAT.match(ref):
+        findings.append(Finding(type_name, str(path), "cross-ref-format-invalid", "violation",
+                                f"{field_name}={ref!r} does not match <type>/<filename>"))
+        return findings
+    if ref.endswith("/pending"):
+        findings.append(Finding(type_name, str(path), "cross-ref-pending", "warning",
+                                f"{field_name}={ref!r} is a placeholder sentinel"))
+        return findings
+    if not crossref_target_exists(context_dir, ref):
+        findings.append(Finding(type_name, str(path), "cross-ref-target-missing", "violation",
+                                f"{field_name}={ref!r} resolves to no file in active or _archive/"))
     return findings
 
 # ---------- Rendered-artifact anchors (BL-234) ----------
