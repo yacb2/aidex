@@ -543,6 +543,31 @@ grep -q "WARN \[svg-scope\].*#fig-b" "$TMP/out" \
 grep -q "WARN \[svg-scope\].*\.lbl" "$TMP/out" \
   && fail "10d. BL-330: a class selector was reported — the rule is about ELEMENT selectors: $(cat "$TMP/out")"
 
+# ---- 10d2. BL-367: a leaked CLASS-headed descendant rule leaks exactly like a
+# bare element one — `.note text { fill }` is a document stylesheet too — but the
+# head test only looked at SVG_PAINTED, so it was never reported. Two exemptions
+# keep the widening from flooding: a root class carrying a generator hash
+# (d2's `.d2-<digits>`) is de-facto scoping, and generator class vocabulary
+# (graphviz/mermaid `.node`, `.edge`, `.cluster`, `.actor`...) is pasted output,
+# not a rule the author wrote. Measured 2026-09-08 over every page in .context/:
+# the naive widening adds 648 warnings, the exemptions leave 8, all hand-written.
+mkpage "$TMP/warn-svgscope-class.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg id=\"fig-c\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"c\">
+  <style>.caption text { fill: currentColor } #fig-c .callout text { fill: currentColor } .d2-3785483509 text { fill: currentColor } .node polygon { stroke: currentColor }</style>
+  <g class=\"caption\"><text x=\"10\" y=\"40\">class-headed leak</text></g>
+</svg></figure>
+</main></div>
+$composer"
+run "$TMP/warn-svgscope-class.html" >/dev/null
+grep -q "WARN \[svg-scope\].*'\.caption text'" "$TMP/out" \
+  || fail "10d2. BL-367: a leaked class-headed descendant rule was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[svg-scope\].*#fig-c" "$TMP/out" \
+  && fail "10d2. BL-367: the control — the same rule scoped to the figure id — was reported: $(cat "$TMP/out")"
+grep -q "WARN \[svg-scope\].*\.d2-" "$TMP/out" \
+  && fail "10d2. BL-367: a generator hash-class root was reported — it is de-facto scoping: $(cat "$TMP/out")"
+grep -q "WARN \[svg-scope\].*\.node" "$TMP/out" \
+  && fail "10d2. BL-367: generator class vocabulary was reported — pasted output is not a rule the author wrote: $(cat "$TMP/out")"
+
 # ---- 10e. BL-330: figure text below 4.5:1, in EITHER theme, and the count it
 # measured. A gate that silently measured nothing is green and indistinguishable
 # from a gate that passed, so the finding line has to carry its own denominator.
