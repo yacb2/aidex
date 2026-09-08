@@ -54,6 +54,11 @@ ORDERED = re.compile(r"^\s*\d+[.)]\s+")
 # An ATX heading of any level. `render()` peels `# `/`## `/`### ` itself; anything
 # deeper reaches `_blocks`, which used to advance past it and emit nothing at all.
 HEADING = re.compile(r"^#{1,6}\s")
+# A fenced block. It is the one construct that must NOT be read line by line: a
+# ```bash run fell into the paragraph branch, so the fence LINES were joined with the
+# code into one <p> and CODE paired the first backtick of the opening fence with the
+# last of the closing one, wrapping the whole run in a bogus <code> span (BL-352).
+FENCE = re.compile(r"^\s*(?:```|~~~)\s*([A-Za-z0-9_+-]*)\s*$")
 
 
 def _inline(text):
@@ -103,6 +108,19 @@ def _blocks(lines):
         ln = lines[i]
         if not ln.strip():
             i += 1
+        elif FENCE.match(ln):
+            # Verbatim: escaped, but NOT run through _inline, or a `**` in a command
+            # becomes markup. An unclosed fence takes the rest of the run rather than
+            # falling back to paragraphs — degrade, never drop.
+            lang = FENCE.match(ln).group(1)
+            i += 1
+            code = []
+            while i < len(lines) and not FENCE.match(lines[i]):
+                code.append(lines[i])
+                i += 1
+            i += 1  # the closing fence, or past the end
+            cls = f' class="lang-{esc(lang)}"' if lang else ""
+            out.append(f"<pre><code{cls}>" + esc("\n".join(code)) + "</code></pre>")
         elif ln.lstrip().startswith("|"):
             rows = []
             while i < len(lines) and lines[i].lstrip().startswith("|"):
@@ -178,8 +196,16 @@ def render(md_text, title=""):
     lines = FM.sub("", md_text).split("\n")
 
     md_title, pre, sections, cur = "", [], [], None
+    # `in_fence` is not an optimisation: a command that echoes markdown ("grep '## '")
+    # would otherwise open a section from inside a code block and split it in half.
+    in_fence = False
     for ln in lines:
-        if ln.startswith("# ") and not md_title and cur is None:
+        if FENCE.match(ln):
+            in_fence = not in_fence
+            (cur["body"] if cur is not None else pre).append(ln)
+        elif in_fence:
+            (cur["body"] if cur is not None else pre).append(ln)
+        elif ln.startswith("# ") and not md_title and cur is None:
             md_title = ln[2:].strip()
         elif ln.startswith("## "):
             cur = {"h2": ln[3:].strip(), "body": []}
