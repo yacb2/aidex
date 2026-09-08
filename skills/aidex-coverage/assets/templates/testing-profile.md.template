@@ -25,7 +25,7 @@ seed_bootstrap_cmd:       # base seed management command: bootstrap_data
 personas_ref:             # <type>/<filename> of the persona table: reference/testing/01-personas.md
 cross_deps_ref:           # folder or comma-separated modules of the cross-dependency map: reference/testing/ (one workflow per NN-<slug>.md, never one growing file)
 
-# packs testing-vue · testing-svelte · testing-payload
+# packs testing-vue, testing-svelte, testing-payload
 dev_frontend_port:        # Vite dev port: 3000
 frontend_test_cmd:        # single-file form: cd frontend && pnpm vitest run {path}
 frontend_suite_cmd:       # FULL suite (leg `frontend`): cd frontend && pnpm vitest run
@@ -33,7 +33,7 @@ build_cmd:                # the production build, not a type-check (leg `build`)
 ui_stack:                 # space-separated: shadcn-vue reka-ui vue-sonner ag-grid
 ui_locale:                # locale of rendered UI strings: en
 
-# packs testing-playwright-app · testing-playwright-web
+# packs testing-playwright-app, testing-playwright-web
 e2e_frontend_port:        # dev + 10: 3010
 e2e_backend_port:         # dev + 10: 8010
 e2e_service:              # compose service with profiles [e2e]: backend-test
