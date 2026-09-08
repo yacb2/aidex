@@ -161,7 +161,7 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    `## Doing` / `## Open`, closed plans rolled up from `_archive/`. `close-plan.sh`
    regenerates it automatically on close; this create-time call keeps it fresh on
    creation. Re-run it any time with `reindex-plans.sh`; `reindex-plans.sh --check`
-   reports drift read-only (no write) and is what the shared `reconcile.sh` calls.
+   reports drift read-only (no write) and is what the shared `aidex-backlog/scripts/reconcile.sh` calls.
 
 ## Self-check
 
@@ -191,7 +191,7 @@ way would vanish with the plan when it archives. Register what is outstanding
 (`register-item.sh --origin plan`) or write the `CLOSE` line; `--force` is for a line
 that is prose *about* deferring.
 
-After closing, run the shared `reconcile.sh` to surface upstream backlog items /
+After closing, run the shared `aidex-backlog/scripts/reconcile.sh` to surface upstream backlog items /
 audit findings this plan resolved that may now be closeable (closure propagation).
 
 ## Offer to execute (multi-phase plans only)

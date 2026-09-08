@@ -14,7 +14,7 @@
 #   --reason "<text>"           appended under a closing note
 #   --force                     close as done even with unchecked checkboxes
 #
-# After closing, run `reconcile.sh` (Phase 6) to surface upstream backlog/findings
+# After closing, run `aidex-backlog/scripts/reconcile.sh` (Phase 6) to surface upstream backlog/findings
 # that this plan resolved and may now be closeable.
 
 set -euo pipefail

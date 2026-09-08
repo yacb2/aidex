@@ -103,7 +103,7 @@ sed -i.bak -E "s/^updated: .*/updated: $today/" "$file" && rm -f "$file.bak"
 # `|| true`: grep exits 1 when a queue has only inline refs — without it,
 # pipefail+errexit killed the script here, AFTER the status mutation above.
 open_refs="$( (grep -oE '<!-- ref: (backlog|plan|audit) -->' "$file" || true) | wc -l | tr -d ' ')"
-[[ "$open_refs" -gt 0 ]] && echo "note: $open_refs tracked upstream ref(s) — run reconcile.sh for closure propagation" >&2
+[[ "$open_refs" -gt 0 ]] && echo "note: $open_refs tracked upstream ref(s) — run aidex-backlog/scripts/reconcile.sh for closure propagation" >&2
 
 # archive on close (D-10): the `worklist/<file>` cross-ref keeps resolving via _archive/
 mkdir -p "$WL_DIR/_archive"
