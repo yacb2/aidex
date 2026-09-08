@@ -55,6 +55,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# A language code, and nothing else. The value is interpolated into the `sed`
+# s-expression that writes the profile, delimited by `|` — so a `|` in it closes
+# the substitution and everything after is parsed as sed script, where `w <path>`
+# writes a file the caller never named. Reproduced 2026-09-08. Validating the
+# shape is the right contract for a language code, not a workaround for sed.
+valid_lang() { [[ "$1" =~ ^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$ ]]; }
+
+# `\`, `&` and the `|` delimiter are all special on the replacement side of
+# `s|...|...|`. PROJECT_NAME is a directory basename, so it is not ours to constrain.
+sed_escape() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+
+if [[ -n "$STYLE_LANG" ]] && ! valid_lang "$STYLE_LANG"; then
+  printf 'error: --artifact-style expects a language code (en, es, pt-BR), got: %s\n' "$STYLE_LANG" >&2
+  exit 2
+fi
+
 PROJECT_DIR="${PROJECT_DIR:-$(pwd)}"
 mkdir -p "$PROJECT_DIR"
 PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd -P)"
@@ -196,12 +212,17 @@ write_style_profile() {
   # substituting it is the whole point of asking. Every other {{...}} placeholder
   # is left for the human — inventing a palette here is what the profile exists
   # to stop.
-  sed -e "s|{{PROJECT_NAME}}|$(basename "$PROJECT_DIR")|g" \
+  sed -e "s|{{PROJECT_NAME}}|$(sed_escape "$(basename "$PROJECT_DIR")")|g" \
       -e "s|^- language: en$|- language: ${lang}|" \
       "$STYLE_TEMPLATE" > "$STYLE_PROFILE"
 }
 
-if [[ -f "$STYLE_PROFILE" ]]; then
+if [[ -L "$STYLE_PROFILE" || -L "$STYLE_MARKER" ]]; then
+  # `-f` above would accept a symlink to an existing file; a symlink whose target
+  # does NOT exist is not `-f`, and the write would go through it to a path the
+  # caller never named. Neither is ours to follow.
+  note "refusing to write through a symlink under ${CONTEXT_DIR#"$PROJECT_DIR"/} — remove it and re-run"
+elif [[ -f "$STYLE_PROFILE" ]]; then
   printf 'exists: %s\n' "${STYLE_PROFILE#"$PROJECT_DIR"/}"
 elif [[ ! -f "$STYLE_TEMPLATE" ]]; then
   note "aidex-dash not installed at $AIDEX_DIR — skipped the artifact-style.md question"
@@ -221,7 +242,14 @@ elif [[ -t 0 ]]; then
   printf '\nArtifacts (HTML reports, dashboards) render from .context/artifact-style.md.\n' >&2
   printf 'Create it? Enter the artifact language code (e.g. en, es) — empty declines: ' >&2
   read -r STYLE_REPLY
-  record_style_offer
+  if [[ -n "$STYLE_REPLY" ]] && ! valid_lang "$STYLE_REPLY"; then
+    # Not a decline and not an answer — a typo. Writing the marker here would
+    # spend the one question on it, so the offer is left standing.
+    note "'$STYLE_REPLY' is not a language code — no profile written, and the question stands"
+    STYLE_REPLY=""
+  else
+    record_style_offer
+  fi
   if [[ -n "$STYLE_REPLY" ]]; then
     write_style_profile "$STYLE_REPLY"
     printf 'created: %s\n' "${STYLE_PROFILE#"$PROJECT_DIR"/}"
