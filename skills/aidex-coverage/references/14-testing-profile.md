@@ -89,3 +89,15 @@ from an existing `test-e2e.sh`, `docker-compose.yml`, `pyproject.toml` and
 `package.json`, and leaves the reference keys (`personas_ref`, `cross_deps_ref`, the
 locale) blank for the author to fill. Blank keys are unanswered, not zero; the script
 names them. It refuses to overwrite without `--force`, and `--print` never writes.
+
+**The profile is composed, not copied whole (BL-364).** A stack-neutral core
+(`project_slug`, `project_kebab`, `blindspot_expansions`, `module_map`, `testing_packs`)
+plus the key group each pack declares — `PACK_KEYS` in `profile-init.py`, grouped the
+same way in the template: Django owns the backend and database keys, the frontend packs
+(vue, svelte, payload) the Vite/build/UI keys, the Playwright packs the E2E keys. A
+project with no recognised pack gets the core plus `suite_cmd`. `--print` emits exactly
+the groups the detected packs need, so a Rails, Go or CLI project never meets a Postgres
+port or a Vite key. **A key that does not apply is omitted, never answered `n/a`** — the
+`n/a` convention was retired on 2026-09-08: `sweep-gate.sh` runs a key's value as a shell
+command, so `n/a` ran as one, while an absent key dies with a message naming the leg.
+The template's front-matter and `KEYS` are kept in lockstep by `tests/test-profile-init.sh`.

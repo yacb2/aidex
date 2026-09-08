@@ -102,4 +102,25 @@ if out="$(python3 "$SCRIPT" --check "$TMP/n")"; then fail "--check with no profi
 [[ "$out" == *"$TMP/n/.context/testing-profile.md"* && "$out" == *"$TMP/n/testing-profile.md"* ]] \
   || fail "the no-profile refusal must name both paths: $out"
 
+# BL-364: the profile is composed from a stack-neutral core plus the keys each detected
+# pack declares. A web project never sees a Postgres or Django key; a project with no
+# recognised pack gets the core plus suite_cmd and nothing about ports, Vite or E2E.
+python3 "$SCRIPT" --print "$TMP/w" | grep -qE "^(db_port|backend_test_cmd|seed_bootstrap_cmd|dev_backend_port):" \
+  && fail "web fixture must carry no Django/Postgres key: $(python3 "$SCRIPT" --print "$TMP/w")"
+python3 "$SCRIPT" --print "$TMP/w" | grep -qx "frontend_test_cmd: " || fail "web fixture must still carry the frontend keys"
+mkdir -p "$TMP/bare"; printf 'echo tests\n' > "$TMP/bare/run-all.sh"
+bare="$(python3 "$SCRIPT" --print "$TMP/bare")"
+grep -qx "suite_cmd: " <<<"$bare" || fail "a project with no pack must carry suite_cmd: $bare"
+grep -qx "testing_packs: " <<<"$bare" || fail "a project with no pack must still carry testing_packs: $bare"
+grep -qE "^(db_port|dev_frontend_port|e2e_service|helpers_dir|ui_stack|backend_suite_cmd|e2e_detached):" <<<"$bare" \
+  && fail "a project with no pack must carry no port, database, Vite or E2E key: $bare"
+sed -n '/^---$/,/^---$/p' <<<"$bare" | grep -q "n/a" && fail "n/a is retired — an inapplicable key is omitted, never answered"
+# The template and the script name the same keys, or one of them is lying.
+TEMPLATE="$HERE/../assets/templates/testing-profile.md.template"
+tkeys="$(sed -n '/^---$/,/^---$/p' "$TEMPLATE" | grep -oE '^[a-z_]+:' | tr -d ':' | grep -vE '^(title|status|created|updated)$' | sort)"
+skeys="$(python3 -c "import sys; sys.path.insert(0,'$HERE/../scripts'); import importlib; m=importlib.import_module('profile-init'); print('\n'.join(sorted(m.KEYS)))")"
+[[ "$tkeys" == "$skeys" ]] || fail "template keys and profile-init KEYS differ:
+$(diff <(echo "$tkeys") <(echo "$skeys"))"
+grep -qE 'answered `n/a`, never left blank|answers `n/a` to every' "$TEMPLATE" && fail "the template still documents the n/a convention"
+
 echo "OK — profile-init: facts read, blanks stay blank, overwrite refused, --print is read-only, --check finds prose and tripwire"
