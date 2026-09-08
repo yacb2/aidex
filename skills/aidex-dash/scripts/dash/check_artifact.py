@@ -545,7 +545,7 @@ def svg_text_width(label, size, bold=False, mono=False):
     return w * size * (1.04 if bold else 1.0)
 
 
-def svg_geometry(svg, fonts=None, fills=None):
+def svg_geometry(svg, fonts=None, rules=None):
     """(texts, rects) for one <svg> body. texts: [(label, x0, y0, x1, y1, fill)]
     for every placeable <text>; rects: [(x0, y0, x1, y1, fill)]. Inherits
     font-size, text-anchor, font-weight, fill and translate() through the
@@ -557,7 +557,7 @@ def svg_geometry(svg, fonts=None, fills=None):
     a var()) — never a guess. BL-330: the contrast check refuses to invent the
     half of a pair it cannot read, and counts those separately."""
     fonts = fonts or {}
-    fills = fills or {}
+    rules = rules or []
     fs, anchor, tx, ty, skip, bold = None, 'start', 0.0, 0.0, False, False
     mono = False
     fill = None
@@ -573,13 +573,17 @@ def svg_geometry(svg, fonts=None, fills=None):
     # disagree resolves to SVG_UNREADABLE: it has no single colour to measure,
     # and inventing one is what this whole check refuses to do.
     tsp, glyph_fills, bare, last = [], set(), [], 0
+    # BL-348: a fill rule is matched against the node's ANCESTOR CHAIN, so the
+    # chain has to exist. `anc` is [(tag, classes)] for every open container,
+    # pushed and popped exactly where the inherited-style stack is.
+    anc = []
     for m in SVG_TAG.finditer(svg):
         closing, tag, raw, selfclosed = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
         if cur is not None:
             if tag == 'tspan' and not closing and not selfclosed:
                 if not tsp:
                     bare.append(svg[last:m.start()])
-                tsp.append((m.end(), _svg_tspan_fill(_svg_attrs(raw), cur[9], fills)))
+                tsp.append((m.end(), _svg_tspan_fill(_svg_attrs(raw), cur[9], rules)))
             elif tag == 'tspan' and closing and tsp:
                 st, tfl = tsp.pop()
                 if re.sub(r'<[^>]+>', ' ', svg[st:m.start()]).strip():
@@ -587,7 +591,7 @@ def svg_geometry(svg, fonts=None, fills=None):
                 if not tsp:
                     last = m.end()
             elif closing and tag == 'text':
-                start, f, an, x, y, sk, b, mo, fl, _cls = cur
+                start, f, an, x, y, sk, b, mo, fl, _chain = cur
                 label = ' '.join(_html.unescape(
                     re.sub(r'<[^>]+>', ' ', svg[start:m.start()])).split())
                 bare.append(svg[last:m.start()])
@@ -605,6 +609,8 @@ def svg_geometry(svg, fonts=None, fills=None):
         if closing:
             if tag in SVG_CONTAINERS and stack:
                 fs, anchor, tx, ty, skip, bold, mono, fill = stack.pop()
+                if anc:
+                    anc.pop()
             continue
         d = _svg_attrs(raw)
         # attribute beats class rule beats inherited; `text` element rule
@@ -623,12 +629,11 @@ def svg_geometry(svg, fonts=None, fills=None):
         # declares `fill:currentColor` on its label classes; treating that as
         # "unset" let it inherit a leaked literal and read as measured, which
         # reported 31 findings on the one figure that was already correct.
+        chain = anc + [(tag, tuple(d.get('class', '').split()))]
         nfl = fill
-        if tag in ('text', 'rect') and tag in fills:
-            nfl = fills[tag]
-        for cls in d.get('class', '').split():
-            if '.' + cls in fills:
-                nfl = fills['.' + cls]
+        rule_fill = svg_fill_for(rules, chain)
+        if rule_fill is not None:
+            nfl = rule_fill
         raw_fill = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
         if raw_fill:
             nfl = svg_literal_colour(raw_fill) or SVG_UNREADABLE
@@ -642,7 +647,7 @@ def svg_geometry(svg, fonts=None, fills=None):
             cur = (m.end(), nfs, nan,
                    _svg_num(d.get('x'), 0.0) + tx + dx,
                    _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo, nfl,
-                   d.get('class', '').split())
+                   chain)
             tsp, glyph_fills, bare, last = [], set(), [], m.end()
         elif tag == 'rect' and not nsk:
             rx, ry = _svg_num(d.get('x'), 0.0) + tx + dx, _svg_num(d.get('y'), 0.0) + ty + dy
@@ -650,6 +655,7 @@ def svg_geometry(svg, fonts=None, fills=None):
                           ry + _svg_num(d.get('height'), 0.0), nfl))
         elif tag in SVG_CONTAINERS and not selfclosed:
             stack.append((fs, anchor, tx, ty, skip, bold, mono, fill))
+            anc.append(chain[-1])
             fs, anchor, tx, ty, skip, bold, mono, fill = nfs, nan, tx + dx, ty + dy, nsk, nb, nmo, nfl
     return texts, rects
 
@@ -733,15 +739,28 @@ def contrast_ratio(fg, bg):
 
 
 def svg_css_fills(css, own_id=None):
-    """{'.cls': rgb | SVG_UNREADABLE, 'text': …} for one CSS source.
+    """[(compounds, combinators, specificity, colour)] for one CSS source, in
+    SOURCE ORDER — a rule keyed on its WHOLE selector, not on its leaf.
 
-    Two rules, and the second is what keeps the leak honest in both directions.
-    A selector carrying an `#id` applies ONLY to that figure, so it is kept when
-    `own_id` matches and dropped otherwise — modelling every id-scoped rule as
-    page-wide is what made a correctly scoped page look broken. And a fill we
-    cannot read is recorded as SVG_UNREADABLE rather than omitted, so it
-    overrides an inherited literal instead of falling through to it."""
-    out = {}
+    BL-348: the first cut stored `#id .statediagram-note text{fill:#fff}` under
+    the bare key `text`, so a rule the browser gives to one subtree was modelled
+    as the base fill of every <text> in the figure, and a second rule with the
+    same leaf silently replaced the first with no source-order or specificity
+    model. That is wrong in BOTH directions — it invents a finding on a node
+    outside the subtree, and it HIDES a real one when a later rule with the same
+    leaf overwrites a pale fill with a dark one. A checker that is wrong in both
+    directions is worse than one that is merely noisy.
+
+    A compound the parser cannot read exactly — an attribute selector
+    (`[id$="-barbEnd"]`), a pseudo-class, `*` — drops the whole rule rather than
+    being widened into a match: the same refusal to invent that keeps
+    SVG_UNREADABLE out of the contrast pairs.
+
+    Two rules survive from before. A selector carrying an `#id` applies ONLY to
+    that figure, so it is kept when `own_id` matches and dropped otherwise. And
+    a fill we cannot read is recorded as SVG_UNREADABLE rather than omitted, so
+    it overrides an inherited literal instead of falling through to it."""
+    out = []
     for rule in SVG_CSS_RULE.finditer(css):
         decl = _svg_style_prop(rule.group(2), 'fill')
         if decl is None:
@@ -754,61 +773,107 @@ def svg_css_fills(css, own_id=None):
             ids = re.findall(r'#([\w-]+)', sel)
             if ids and (own_id is None or own_id not in ids):
                 continue                            # another figure's rule
-            # BL-347: a `…>tspan` (or `… tspan`) selector lands on the GLYPHS,
-            # one level below the <text> a plain leaf key models. It is keyed
-            # with the compound it hangs off — `.actor>tspan` — and never flat
-            # on `tspan`: mermaid's stylesheet ends with
-            # `.noteText>tspan{fill:#fff}`, and a flat key would let that last
-            # rule paint every label in the figure white. ONE level only; the
-            # full ancestor chain, source order and specificity are BL-348.
-            # Descendant and child combinators are split together so
-            # `text.actor > tspan` cannot read `>` as its own scope.
-            # The leaf must be a BARE `tspan`. A class-qualified `tspan.legend`
-            # is the same flat-key trap seen from the other side: the class
-            # would be discarded and the rule handed to every tspan in the
-            # figure. It falls through to the leaf path below and is dropped,
-            # exactly as it was before this scoping existed — matching a
-            # tspan by its own class is BL-348's job, with the rest of the
-            # cascade.
-            toks = [t for t in re.split(r'\s*>\s*|\s+', sel)
-                    if t and not t.startswith('#')]
-            if toks and toks[-1] == 'tspan':
-                out[svg_tspan_key(toks[-2] if len(toks) > 1 else None)] = colour
+            parsed = svg_parse_selector(sel)
+            if parsed is None:
                 continue
-            leaf = sel.split()[-1]                  # what the declaration lands on
-            if re.fullmatch(r'\.[\w-]+', leaf) or leaf in SVG_PAINTED:
-                out[leaf] = colour
+            compounds, combs, spec = parsed
+            out.append((compounds, combs, spec, colour))
     return out
 
 
-def svg_tspan_key(scope):
-    """The `fills` key for a tspan rule hanging off `scope` (the compound
-    immediately before it, or None). A class in the scope wins over its element
-    name, because that is what the figures in the field are written with."""
-    if not scope:
-        return 'tspan'
-    classes = re.findall(r'\.[\w-]+', scope)
-    if classes:
-        return classes[-1] + '>tspan'
-    m = re.match(r'^[\w-]+', scope)
-    return (m.group(0) + '>tspan') if m else 'tspan'
+SVG_COMPOUND = re.compile(r'^([a-zA-Z][\w-]*)?((?:[.#][\w-]+)*)$')
 
 
-def _svg_tspan_fill(d, parent_classes, fills):
+def svg_parse_selector(sel):
+    """(compounds, combinators, specificity) for a selector we can match
+    exactly, else None. `compounds` is [(tag, classes)] outermost first and
+    `combinators` the len-1 shorter list of `' '` (descendant) or `'>'` (child)
+    between them.
+
+    The `#id` compounds are stripped after the caller's own_id gate: they name
+    the <svg> root, which is not part of the chain `svg_geometry` walks, so
+    `#fig text` becomes `text` scoped to that figure. Specificity is counted
+    BEFORE the strip and keeps the id, because a figure's own `#fig text` must
+    outrank an unscoped `.cls` leaked in from another figure's <style>."""
+    toks = re.sub(r'\s*>\s*', ' > ', sel.strip()).split()
+    compounds, combs, pending = [], [], ' '
+    nid = ncls = ntag = 0
+    for t in toks:
+        if t == '>':
+            pending = '>'
+            continue
+        m = SVG_COMPOUND.match(t)
+        if not m:
+            return None                 # an attribute selector or a pseudo
+        tag = (m.group(1) or '').lower()
+        cls = tuple(re.findall(r'\.([\w-]+)', m.group(2)))
+        nid += len(re.findall(r'#[\w-]+', m.group(2)))
+        ncls += len(cls)
+        ntag += 1 if tag else 0
+        if not tag and not cls:
+            continue                    # a bare #id compound: the figure root
+        if compounds:
+            combs.append(pending)
+        compounds.append((tag, cls))
+        pending = ' '
+    if not compounds:
+        return None
+    return compounds, combs, (nid, ncls, ntag)
+
+
+def _svg_compound_match(comp, node):
+    tag, cls = comp
+    ntag, ncls = node
+    return (not tag or tag == ntag) and all(c in ncls for c in cls)
+
+
+def svg_chain_match(compounds, combs, chain):
+    """Does this selector match the node at the end of `chain`? Right to left,
+    the way a browser matches: the leaf must match the node itself, a `>` must
+    match the immediate parent, and a descendant walks up until it does. The
+    descendant walk is greedy and does not backtrack, so a selector that repeats
+    a compound at two depths (`.a .a .b`) can miss; no figure in the field
+    writes one, and missing is the safe direction — the label is then counted
+    unmeasurable and said so, never painted with a colour nobody gave it."""
+    if not chain or not _svg_compound_match(compounds[-1], chain[-1]):
+        return False
+    j = len(chain) - 2
+    for i in range(len(compounds) - 2, -1, -1):
+        if combs[i] == '>':
+            if j < 0 or not _svg_compound_match(compounds[i], chain[j]):
+                return False
+            j -= 1
+            continue
+        while j >= 0 and not _svg_compound_match(compounds[i], chain[j]):
+            j -= 1
+        if j < 0:
+            return False
+        j -= 1
+    return True
+
+
+def svg_fill_for(rules, chain):
+    """The fill the cascade lands on this node, or None when nothing matches.
+    Highest specificity wins; SOURCE ORDER — the rule's position in the list,
+    which is why `svg_contrast_findings` concatenates leaked rules before the
+    figure's own — breaks a tie."""
+    best, out = None, None
+    for order, (compounds, combs, spec, colour) in enumerate(rules):
+        if svg_chain_match(compounds, combs, chain):
+            key = (spec, order)
+            if best is None or key > best:
+                best, out = key, colour
+    return out
+
+
+def _svg_tspan_fill(d, text_chain, rules):
     """The fill DECLARED on one <tspan>, or None when nothing declares one and
     the tspan simply inherits its <text>. Same cascade as the <text> one level
-    up, weakest first: a bare `tspan` rule, a rule scoped to the parent's
-    element then to one of its classes, the tspan's own class rule, then its
-    own attribute."""
-    fl = fills.get('tspan')
-    if 'text>tspan' in fills:
-        fl = fills['text>tspan']
-    for cls in parent_classes:
-        if '.' + cls + '>tspan' in fills:
-            fl = fills['.' + cls + '>tspan']
-    for cls in d.get('class', '').split():
-        if '.' + cls in fills:
-            fl = fills['.' + cls]
+    up, run against the tspan's own chain — its <text>'s ancestors, the <text>,
+    and the tspan itself — and then its own attribute. A NESTED tspan is
+    resolved against `text_chain` too, as if it hung directly off the <text>;
+    the deeper chain is BL-353, and this keeps that seam where it was."""
+    fl = svg_fill_for(rules, text_chain + [('tspan', tuple(d.get('class', '').split()))])
     raw = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
     if raw:
         fl = svg_literal_colour(raw) or SVG_UNREADABLE
@@ -939,18 +1004,20 @@ def svg_contrast_findings(text):
     body = strip_html_comments(text)
     # What every figure inherits from every other: the UNSCOPED rules, which is
     # precisely the leak svg-scope reports. Rules carrying an id stay home.
-    leaked = {}
+    leaked = []
     for block in SVG_STYLE_BLOCK.finditer(body):
-        leaked.update(svg_css_fills(block.group(1)))
+        leaked += svg_css_fills(block.group(1))
     backgrounds = page_backgrounds(text)
     measured = unmeasured = 0
     for n, m in enumerate(SVG_BLOCK.finditer(body), 1):
         own_id = _svg_attrs(m.group(1)).get('id')
         wrap = wrapper_ground(body[:m.start()], backgrounds)
-        fills = dict(leaked)
+        # The figure's own rules come AFTER the leaked ones, so that at equal
+        # specificity the figure's own <style> wins the source-order tie.
+        rules = list(leaked)
         for block in SVG_STYLE_BLOCK.finditer(m.group(2)):
-            fills.update(svg_css_fills(block.group(1), own_id))
-        texts, rects = svg_geometry(m.group(2), fonts, fills)
+            rules += svg_css_fills(block.group(1), own_id)
+        texts, rects = svg_geometry(m.group(2), fonts, rules)
         for label, x0, y0, x1, y1, fg in texts:
             if not isinstance(fg, tuple):
                 unmeasured += 1

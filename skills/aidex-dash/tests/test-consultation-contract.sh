@@ -685,6 +685,83 @@ grep -q "\[svg-contrast\].*'plain tspan inherits its text'" "$TMP/out" \
 grep -qE "FAIL \[svg-contrast\].*measured 5 text node\(s\).* 0 unmeasurable" "$TMP/out" \
   || fail "10i. BL-347: the five labels were not all measured as literal colours: $(cat "$TMP/out")"
 
+# ---- 10j. BL-348: a fill rule is keyed on its WHOLE selector, and resolved by
+# walking the node's ancestor chain. `svg_css_fills` used to keep only the leaf,
+# so `#id .statediagram-note text{fill:#fff}` was stored under the bare key
+# `text` and handed to every <text> in the figure, and a second rule with the
+# same leaf silently replaced the first with no source-order or specificity
+# model. That is wrong in BOTH directions, which is why it is worth fixing
+# rather than tolerating: on the route bench page's `s4mermaid-fig-s4`, six
+# rules end in `text`, only the last survived, and the checker reported 14
+# labels while the browser census also reported 14 — a DIFFERENT 14.
+mkpage "$TMP/warn-svg-chain.html" "<style>figure.cell.litebox .figbox { background: #F6F7F5 }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-j\" viewBox=\"0 0 400 500\" role=\"img\" aria-label=\"j\">
+  <style>#fig-j text { font-size: 12px }
+         #fig-j .box text { fill: #dddddd }
+         #fig-j .tie text { fill: #111111 }
+         #fig-j .tie text { fill: #dddddd }
+         #fig-j .hdr text { fill: #111111 }</style>
+  <g class=\"box\"><rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+    <text x=\"10\" y=\"45\">pale on pale reads its own subtree</text></g>
+  <g class=\"hdr\"><rect x=\"0\" y=\"120\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+    <text x=\"10\" y=\"145\">dark heading stays legible</text></g>
+  <g fill=\"#eeeeee\"><rect x=\"0\" y=\"220\" width=\"300\" height=\"40\" fill=\"#111111\"/>
+    <text x=\"10\" y=\"245\">outside every scoped subtree</text></g>
+  <g class=\"tie\"><rect x=\"0\" y=\"320\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+    <text x=\"10\" y=\"345\">the later rule of equal weight wins</text></g>
+</svg></div></figure>
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-k\" viewBox=\"0 0 400 200\" role=\"img\" aria-label=\"k\">
+  <style>#fig-k text { font-size: 12px }
+         #fig-k .pale { fill: #dddddd }
+         #fig-k text { fill: #111111 }</style>
+  <rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text class=\"pale\" x=\"10\" y=\"45\">a class rule outweighs a later element rule</text>
+  <rect x=\"0\" y=\"120\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text x=\"10\" y=\"145\">and does not reach the label beside it</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-chain.html")"
+# DIRECTION 1 — the flat map INVENTS. `.box text`, `.tie text` and `.hdr text`
+# all key on `text`; the last one wins and paints this label #111111, which on
+# the #111111 rect under it reads 1.00:1. The browser matches none of the three
+# — the label is in no such subtree — so it keeps the #eeeeee it inherits from
+# its <g> and clears 16:1.
+grep -q "\[svg-contrast\].*'outside every scoped subtree'" "$TMP/out" \
+  && fail "10j. BL-348: 'outside every scoped subtree' was reported — a descendant rule was handed to a node outside its subtree: $(cat "$TMP/out")"
+# DIRECTION 2 — the flat map SUPPRESSES, and this is the one that matters. The
+# label's own rule is `#fig-j .box text{fill:#dddddd}`: #dddddd on #f0f0f0 is
+# 1.13:1 and genuinely illegible. Under the flat map the later `.hdr text`
+# overwrites the `text` key with #111111, so the checker measures 17:1 and says
+# nothing. A checker that hides a real finding is worse than one that is noisy.
+grep -q "FAIL \[svg-contrast\].*'pale on pale reads its own subtree'.*against the rect it sits on" "$TMP/out" \
+  || fail "10j. BL-348: the pale label inside .box was NOT reported — a later rule with the same leaf overwrote its own: $(cat "$TMP/out")"
+# SOURCE ORDER breaks a tie between two rules of equal weight: `.tie text` is
+# declared #111111 and then #dddddd, and the browser paints the second.
+grep -q "FAIL \[svg-contrast\].*'the later rule of equal weight wins'.*against the rect it sits on" "$TMP/out" \
+  || fail "10j. BL-348: the .tie label did not take the LATER of two equal-weight rules: $(cat "$TMP/out")"
+# The control that keeps direction 1's absence honest in the other axis: a label
+# that IS inside `.hdr` still takes that rule, so the scoping did not simply
+# stop applying descendant rules altogether.
+grep -q "\[svg-contrast\].*'dark heading stays legible'" "$TMP/out" \
+  && fail "10j. BL-348: the .hdr label was reported — its own descendant rule stopped resolving: $(cat "$TMP/out")"
+# PINNED, and green before this change: specificity outranks source order, so a
+# class rule beats an element rule declared after it…
+grep -q "FAIL \[svg-contrast\].*'a class rule outweighs a later element rule'.*against the rect it sits on" "$TMP/out" \
+  || fail "10j. BL-348: the .pale label lost its class rule to a later element rule: $(cat "$TMP/out")"
+# …and does not reach the label beside it, which keeps the element rule.
+grep -q "\[svg-contrast\].*'and does not reach the label beside it'" "$TMP/out" \
+  && fail "10j. BL-348: the unclassed label took the .pale class rule: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10j. BL-348: the three control pairs did not fail the wrap: $(cat "$TMP/out")"
+# The MUTATION that keeps the three absences honest. Every label in both figures
+# resolves to a literal colour: a fix that answered the two absences by dropping
+# those labels, or by marking them unreadable, would clear them and be
+# indistinguishable from one that resolved the chain correctly.
+grep -qE "FAIL \[svg-contrast\].*measured 6 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10j. BL-348: the six labels were not all measured as literal colours: $(cat "$TMP/out")"
+
 
 
 # The first cut read every label without a font-size attribute as 16 px and
