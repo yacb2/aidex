@@ -235,10 +235,19 @@ lost: on one intake set the four items written into a file survived and the othe
 had to be reconstructed from the decisions they implied.
 
 **And when the ledger has everything, the page stops being a consultation.** The model
-implies it — a decided item leaves the question set — but §8 never stated the end state,
+implies it — a decided item leaves the ASKING set — but §8 never stated the end state,
 and a page that reached it was stuck: with zero items the gate still fired on the copy bar
 in its body, and the `consult-surfaces` escape was skipped for the same reason, so the
 failure message pointed at a declaration the page was already carrying (BL-331).
+
+**"Leaves the question set" means it stops being ASKED, not that it leaves the page.**
+The phrase is worth pinning because the ambiguity cost a round: `data-decided` takes the
+item out of the numerator, the denominator, the blank list, the paste and the answer
+store — everything the word "set" names — while the item itself stays drawn. Read the
+other way it says a settled item must be deleted, which is the second row below and the
+exception, not the default. `check_artifact.py` read it the wrong way until BL-359 and
+FAILED the default shape as "decided but still asked", which forced a page to hand-roll
+a section the kit does not define.
 
 Two ways to land it, and they are not equivalent:
 
@@ -635,7 +644,7 @@ whose fingerprint no longer matches; the skipped item reads blank and the banner
 how many were dropped and why. This closes the case where the reader answered, asked for
 some questions to be explained better, and found them marked answered with the old text
 still in them. Two things it deliberately is not. It is not keyed on whether the session
-considered the item decided — a decided item leaves the question set (above), which is a
+considered the item decided — a decided item stops being asked (above), which is a
 separate obligation this does not discharge. And it is not per page: clearing the store on
 regeneration would blank every half-typed answer in the set, which is the loss the
 persistence exists to prevent.

@@ -54,7 +54,7 @@ one that keeps applying for as long as the page is being discussed:
    the top, with what is still open below it — before the reply that acknowledges it.
    A thread is never concluded while its decisions live only in the conversation: that
    is how a questionnaire's four approved items survived and the other nine were lost.
-   Mechanics (stable ids, decided items leaving the question set, the ledger) are in
+   Mechanics (stable ids, a decided item marked `data-decided` and kept, the ledger) are in
    the procedure below.
 
 Then read the full procedure — anchor selection, style profile, wrapping, contract

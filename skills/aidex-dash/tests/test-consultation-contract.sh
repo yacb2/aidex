@@ -178,10 +178,11 @@ rc="$(run "$TMP/no-general.html")"
 grep -qi 'consult-notes' "$TMP/out" || fail "9. the failure does not name the missing general-notes item"
 
 # ---- 7. the template ships the full component set ------------------------
-# ---- 8. BL-198: an id in the ledger AND still in the question set fails ----
-# The contract's "decided items leave the interface". The ledger is the only
-# declaration of decidedness a page carries, so the intersection is what a
-# checker can reach.
+# ---- 8. BL-198: an id in the ledger AND still LIVE in the question set fails --
+# The ledger is the only declaration of decidedness the page carries as prose,
+# so the intersection is what a checker can reach. BL-359 narrowed it: the item
+# itself may say so too, with `data-decided`, and then keeping it is not the
+# obligation half-done — it is the reference's DEFAULT shape.
 ledger_ok='<div class="ledger"><div><span class="k">c1</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
 ledger_bad='<div class="ledger"><div><span class="k">c1 &middot; BL-265</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
 item() { printf '<section class="consult-item" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
@@ -237,6 +238,53 @@ $gclose
 $composer"
 rc="$(run "$TMP/ledger-numbered.html")"
 [[ "$rc" == "0" ]] || fail "8. a numbered or keyless ledger was read as item ids: $(cat "$TMP/out")"
+
+# ---- 8b. BL-359: a `data-decided` item named in the ledger is the DEFAULT ----
+# `02-local-first-artifacts.md` § Update in place calls it out in a two-row
+# table: keep the item, add `data-decided`, state the verdict in its body — "the
+# page stays a record of the reasoning rather than only of the outcome". The kit
+# already implements it (components.css greys the losing options and disables
+# the inputs; composer.js `isDecided()` takes the item out of the paste, the
+# counters and the answer store). The checker was the only one of the three that
+# had not been told, and it FAILED the shape its own reference names the default
+# — which forced a real page to hand-roll a `.settled` section the kit does not
+# define, in breach of gate 1.
+decided() { printf '<section class="consult-item" data-decided data-id="%s" data-title="A question"><h3>A question</h3><p><b>Decided:</b> the first option won.</p><textarea></textarea></section>' "$1"; }
+
+mkpage "$TMP/ledger-decided.html" "$visual
+$ledger_bad
+$gopen
+$(decided c1)
+$notesitem
+$bars
+$gclose
+$composer"
+rc="$(run "$TMP/ledger-decided.html")"
+grep -qi 'decided but still asked' "$TMP/out" \
+  && fail "8b. BL-359: a data-decided item named in the ledger was reported as 'decided but still asked' — the checker fails the shape the reference calls the default: $(cat "$TMP/out")"
+[[ "$rc" == "0" ]] \
+  || fail "8b. BL-359: the default settled shape did not pass the contract: $(cat "$TMP/out")"
+# The block keeping its decided item still carries a decision, so demoting the
+# whole block to reference material — the second effect BL-359 recorded — is no
+# longer forced either.
+grep -qi 'carries no decision' "$TMP/out" \
+  && fail "8b. BL-359: the block holding only a decided item was reported as carrying no decision: $(cat "$TMP/out")"
+# The MUTATION that keeps the rule load-bearing: the SAME page with the same
+# ledger and the attribute removed must still fail. A fix that simply dropped
+# the still-asked rule would clear 8b and look identical from the outside.
+mkpage "$TMP/ledger-decided-mut.html" "$visual
+$ledger_bad
+$gopen
+$(item c1)
+$notesitem
+$bars
+$gclose
+$composer"
+rc="$(run "$TMP/ledger-decided-mut.html")"
+grep -qi 'decided but still asked' "$TMP/out" \
+  || fail "8b. BL-359: with data-decided removed the page stopped failing — the still-asked rule was dropped, not narrowed: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "8b. BL-359: the live item named in the ledger did not fail the wrap: $(cat "$TMP/out")"
 
 
 TPL="$SKILL/assets/templates/consultation-block.html.template"
