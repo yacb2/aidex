@@ -70,14 +70,17 @@ Enforced by `aidex-worktree` (`worktree.sh`); the baseline is a run, not a rule.
 
 ## Stage 3 — Per item
 
-Enforced by `start-item.sh`, `affected-tests.sh`, `close-item.sh --sweep`, and
-`worklist-advance.sh` in sweep mode, which chains them.
+Enforced by `start-item.sh`, `close-item.sh --sweep` and `worklist-advance.sh` in
+sweep mode, which chains them, plus `affected-tests.sh` — which lives in
+**`aidex-audit/scripts/`**, not here. The path is spelled out because a sweep that
+looked for it in this skill's `scripts/` did not find it and fell back to the full
+suite, paying the boundary gate once per item (BL-363).
 
 1. `start-item.sh` (the `doing` transition; the RED→GREEN route for `type: bug`).
 2. **Premise check against the current code, written down** as KEEP / RE-SCOPE / DROP in
    the item's Notes before any edit — premises go stale between filing and the sweep.
 3. The targeted test — RED→GREEN for a bug, **plus the mutation** (below) — is the item's
-   verification. Selection via `affected-tests.sh --command`, **widened by the profile's
+   verification. Selection via `aidex-audit/scripts/affected-tests.sh --command`, **widened by the profile's
    `blindspot_expansions`** (`testing-profile.md`): a migration ⇒ every app referencing
    the model; a touched `*.test.ts` ⇒ `vue-tsc -b`; a removed UI surface ⇒ grep
    `tests/e2e/` for its endpoints and testids. Most of what the boundary gate catches is
@@ -134,7 +137,9 @@ of a long run is how a sweep that closed nine items costs more than it saved.
 
 ## Stage 6 — Close-out
 
-Enforced by `scripts/sweep-report.sh` and `worklist-close.sh`.
+Enforced by `scripts/sweep-report.sh` and `worklist-close.sh` — the latter ships in
+**`aidex-conventions/scripts`**, not here, for the same reason `affected-tests.sh` is
+spelled out in Stage 3 (BL-363).
 
 1. `sweep-report.sh <worklist>` — the run's one artifact, generated from disk as the
    work-list's **companion** (`worklists/_archive/<worklist>-report.md`, anchored
