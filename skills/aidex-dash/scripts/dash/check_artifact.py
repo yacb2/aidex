@@ -500,13 +500,26 @@ def _svg_translate(transform):
     return (float(m.group(1)), float(m.group(2) or 0)) if m else (0.0, 0.0)
 
 
+def strip_css_comments(css):
+    """CSS source with `/* ... */` removed.
+
+    BL-357: SVG_CSS_RULE's selector group swallows everything since the previous
+    `}`, so a comment sitting in front of a selector travels WITH it. `/*` fails
+    SVG_COMPOUND, the selector does not parse, and the WHOLE rule is discarded —
+    the suppressing direction: the label keeps what it inherits and a genuine
+    contrast failure goes unreported. A comment is not a selector, so removing it
+    is not widening the parser. `svg_css_fonts` already did this inline; every
+    reader of SVG_CSS_RULE needs it."""
+    return re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+
+
 def svg_css_fonts(text):
     """{'.cls': (size|None, bold, mono), 'text': ...} from every <style>
     block. Pages set label sizes in CSS classes at least as often as in
     attributes, and a class read as 16 px reported 10 px labels colliding."""
     fonts = {}
     for style in re.findall(r'<style\b[^>]*>(.*?)</style>', text, re.S | re.I):
-        style = re.sub(r'/\*.*?\*/', '', style, flags=re.S)
+        style = strip_css_comments(style)
         for sel, body in SVG_CSS_RULE.findall(style):
             m = SVG_CSS_SIZE.search(body)
             size = float(m.group(1)) if m else None
@@ -761,7 +774,7 @@ def svg_css_fills(css, own_id=None):
     a fill we cannot read is recorded as SVG_UNREADABLE rather than omitted, so
     it overrides an inherited literal instead of falling through to it."""
     out = []
-    for rule in SVG_CSS_RULE.finditer(css):
+    for rule in SVG_CSS_RULE.finditer(strip_css_comments(css)):
         decl = _svg_style_prop(rule.group(2), 'fill')
         if decl is None:
             continue
@@ -901,7 +914,7 @@ def page_backgrounds(text):
     # group swallows every character since the previous `}` — prose included —
     # so a real rule reads as a paragraph and matches nothing.
     for block in SVG_STYLE_BLOCK.finditer(strip_html_comments(text)):
-        for rule in SVG_CSS_RULE.finditer(block.group(1)):
+        for rule in SVG_CSS_RULE.finditer(strip_css_comments(block.group(1))):
             m = CSS_BG.search(rule.group(2))
             colour = svg_literal_colour(m.group(1).split()[0]) if m else None
             if colour is None:
@@ -977,7 +990,7 @@ def svg_scope_findings(text):
     out = []
     for n, m in enumerate(SVG_BLOCK.finditer(strip_html_comments(text)), 1):
         for block in SVG_STYLE_BLOCK.finditer(m.group(2)):
-            for rule in SVG_CSS_RULE.finditer(block.group(1)):
+            for rule in SVG_CSS_RULE.finditer(strip_css_comments(block.group(1))):
                 for sel in rule.group(1).split(','):
                     sel = sel.strip()
                     if not sel or '#' in sel:

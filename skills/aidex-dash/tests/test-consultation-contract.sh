@@ -763,6 +763,56 @@ grep -qE "FAIL \[svg-contrast\].*measured 6 text node\(s\).* 0 unmeasurable" "$T
   || fail "10j. BL-348: the six labels were not all measured as literal colours: $(cat "$TMP/out")"
 
 
+# ---- 10k. BL-357: a CSS comment before a rule must not swallow the rule.
+# SVG_CSS_RULE hands group(1) everything between the previous `}` and this `{`,
+# so a `/* ... */` sitting in front of a selector travels WITH it. `/*` fails
+# SVG_COMPOUND, svg_parse_selector returns None, and the whole rule is
+# discarded — the suppressing direction again: the label keeps whatever it
+# inherits and a genuine contrast failure goes unreported. A comment is not a
+# selector, and stripping it is not widening the parser.
+# The page-level style block carries a leading comment too: svg_page_backgrounds
+# reads SVG_CSS_RULE the same way, and losing this rule would silently move the
+# ground every label below is judged against.
+mkpage "$TMP/warn-svg-comment.html" "<style>/* the light figure ground */ figure.cell.litebox .figbox { background: #F6F7F5 }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-l\" viewBox=\"0 0 400 300\" role=\"img\" aria-label=\"l\">
+  <style>#fig-l text { font-size: 12px }
+         /* the note labels, kept pale on purpose */
+         #fig-l .note text { fill: #dddddd }
+         #fig-l .hdr text { fill: #111111 } /* trailing comment, same line */
+         #fig-l .tail text { fill: #dddddd }</style>
+  <g class=\"note\"><rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+    <text x=\"10\" y=\"45\">pale rule behind a comment</text></g>
+  <g class=\"hdr\"><rect x=\"0\" y=\"120\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+    <text x=\"10\" y=\"145\">dark rule before a trailing comment</text></g>
+  <g class=\"tail\"><rect x=\"0\" y=\"220\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+    <text x=\"10\" y=\"245\">pale rule after a trailing comment</text></g>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-comment.html")"
+# THE DEFECT, direction 1: the rule sitting behind a leading comment is the
+# label's own, #dddddd on #f0f0f0 is 1.13:1, and dropping the rule hides it.
+grep -q "FAIL \[svg-contrast\].*'pale rule behind a comment'.*against the rect it sits on" "$TMP/out" \
+  || fail "10k. BL-357: the label whose fill rule sits behind a leading CSS comment was NOT reported — the comment swallowed the rule: $(cat "$TMP/out")"
+# Direction 2: a comment CLOSING on the previous line leaks into the NEXT
+# selector the same way. `.tail text` follows `... } /* ... */` and is the rule
+# most likely to be lost by a naive `^\s*/\*` strip.
+grep -q "FAIL \[svg-contrast\].*'pale rule after a trailing comment'.*against the rect it sits on" "$TMP/out" \
+  || fail "10k. BL-357: the label whose rule follows a trailing comment was NOT reported: $(cat "$TMP/out")"
+# The control in the other axis: a rule that is FOLLOWED by a comment on its own
+# line still applies, so the strip did not eat the rule it was meant to save.
+grep -q "\[svg-contrast\].*'dark rule before a trailing comment'" "$TMP/out" \
+  && fail "10k. BL-357: the dark heading was reported — stripping the comment lost its own rule: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10k. BL-357: the two control pairs did not fail the wrap: $(cat "$TMP/out")"
+# The MUTATION that keeps the absence honest: all three labels resolve to a
+# literal colour. A fix that dropped them, or marked them unreadable, would
+# clear the finding above and look identical from the outside.
+grep -qE "FAIL \[svg-contrast\].*measured 3 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10k. BL-357: the three labels were not all measured as literal colours: $(cat "$TMP/out")"
+
+
 
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
