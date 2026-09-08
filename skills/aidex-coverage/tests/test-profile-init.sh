@@ -124,7 +124,7 @@ tkeys="$(python3 - "$TEMPLATE" <<'PYX'
 import re, sys
 t = open(sys.argv[1], encoding="utf-8").read()
 fm = t.split("---", 2)[1]
-print("\n".join(sorted(k for k in re.findall(r"^([a-z_]+):", fm, re.M) if k not in ("title", "status", "created", "updated"))))
+print("\n".join(sorted(k for k in re.findall(r"^([a-z0-9_]+):", fm, re.M) if k not in ("title", "status", "created", "updated"))))
 PYX
 )"
 skeys="$(python3 -c "import sys; sys.path.insert(0,'$HERE/../scripts'); import importlib; m=importlib.import_module('profile-init'); print('\n'.join(sorted(m.KEYS)))")"
