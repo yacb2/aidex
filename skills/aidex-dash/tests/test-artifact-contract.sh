@@ -956,6 +956,15 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
   && ok "BL-371: --lang agreeing with the profile stays silent" \
   || bad "BL-371: the note fired on an agreeing --lang: $err"
 
+# A close-out report under worklists/_archive/ is English by D-04 whatever the
+# profile says (sweep-report.sh passes --lang en on purpose) — no note there.
+mkdir -p "$CONTRAP/.context/worklists/_archive"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
+        --out "$CONTRAP/.context/worklists/_archive/x-report.html" 2>&1 >/dev/null)"
+[[ "$err" != *"contradicts"* ]] \
+  && ok "BL-371: a record under worklists/_archive/ takes --lang en without a note" \
+  || bad "BL-371: the contradiction note fired on a close-out report: $err"
+
 grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact-style.md.template" \
   && ok "the style template carries a parseable language: field" \
   || bad "artifact-style.md.template has no language: field"

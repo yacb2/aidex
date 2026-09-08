@@ -273,6 +273,18 @@ def _profile_text(ctx):
         return None
 
 
+def _is_record(outfile):
+    """The two page classes that are English by D-04 whatever the profile says:
+    a run's close-out report under worklists/_archive/ and human-verification.md.
+    The contradiction NOTE (BL-371) is for a page addressed to the reader; firing
+    it on the one call that is right by construction is noise at every close-out."""
+    if not outfile:
+        return False
+    path = os.path.abspath(outfile).replace(os.sep, "/")
+    return ("/worklists/_archive/" in path
+            or os.path.basename(path).startswith("human-verification."))
+
+
 def profile_language(ctx):
     """The project's configured artifact language, or None.
 
@@ -395,7 +407,8 @@ def main():
     lang = args.lang or profile_lang or "en"
     if args.lang is None and profile_lang is None:
         _warn_prose_only_language(ctx)
-    elif args.lang and profile_lang and args.lang != profile_lang:
+    elif (args.lang and profile_lang and args.lang != profile_lang
+          and not _is_record(args.outfile)):
         # BL-371: the symmetric blind spot. An explicit --lang wins, but a silent
         # override is how a consultation reached its reader in the wrong language:
         # check-artifact's lang gate cannot see it (an English body under lang="en"
