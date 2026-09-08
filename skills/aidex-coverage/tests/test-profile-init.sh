@@ -117,7 +117,16 @@ grep -qE "^(db_port|dev_frontend_port|e2e_service|helpers_dir|ui_stack|backend_s
 sed -n '/^---$/,/^---$/p' <<<"$bare" | grep -q "n/a" && fail "n/a is retired — an inapplicable key is omitted, never answered"
 # The template and the script name the same keys, or one of them is lying.
 TEMPLATE="$HERE/../assets/templates/testing-profile.md.template"
-tkeys="$(sed -n '/^---$/,/^---$/p' "$TEMPLATE" | grep -oE '^[a-z_]+:' | tr -d ':' | grep -vE '^(title|status|created|updated)$' | sort)"
+# Python, not sed|grep: under LC_ALL=C (the suite's locale) grep treated the template's
+# non-ASCII group header as binary and stopped listing keys, so this passed in a shell
+# and failed in the gate.
+tkeys="$(python3 - "$TEMPLATE" <<'PYX'
+import re, sys
+t = open(sys.argv[1], encoding="utf-8").read()
+fm = t.split("---", 2)[1]
+print("\n".join(sorted(k for k in re.findall(r"^([a-z_]+):", fm, re.M) if k not in ("title", "status", "created", "updated"))))
+PYX
+)"
 skeys="$(python3 -c "import sys; sys.path.insert(0,'$HERE/../scripts'); import importlib; m=importlib.import_module('profile-init'); print('\n'.join(sorted(m.KEYS)))")"
 [[ "$tkeys" == "$skeys" ]] || fail "template keys and profile-init KEYS differ:
 $(diff <(echo "$tkeys") <(echo "$skeys"))"
