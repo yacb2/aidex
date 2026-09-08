@@ -1084,6 +1084,10 @@ if [[ "$cmd" == "down" ]]; then
 
   # `--rmi local` cannot reach untagged layers this project built; nothing else
   # ever revisits them. Label-scoped, so only this project can be touched.
+  # This is the backstop, not the reclaim: neither `up -d` above rebuilds, so the
+  # layers found here were orphaned by rebuilds *during* the worktree's life
+  # (Playwright's global-setup `up -d --build`), and the generated test-e2e.sh
+  # reclaims each one at the end of the run that orphaned it (BL-372/BL-377).
   dangling="$(docker images -f dangling=true -f "label=com.docker.compose.project=$CPROJ" -q | tr '\n' ' ')"
   if [[ -n "${dangling// /}" ]]; then
     info "reclaiming untagged layers built by $CPROJ: $dangling"

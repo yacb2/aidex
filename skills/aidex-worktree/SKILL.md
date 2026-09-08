@@ -188,6 +188,12 @@ substitute an eyeball.
    above — "dangling is not disposable"). Degrades silently to a one-line note when
    Docker isn't installed/running.
 
+   An untagged layer under a **live** worktree's project is not this skill's to fix:
+   `worktree.sh` never rebuilds, so it was orphaned by a rebuild inside a
+   `test-e2e.sh` run, and the generated script reclaims it at the end of that run
+   (`aidex-coverage` contract, BL-372/BL-377). A trail of them behind a live worktree
+   means the project's `test-e2e.sh` predates the contract.
+
    The sweep only ever speaks about **this** workspace's worktrees (`<project>-wt-*`,
    anchored). A sibling project's worktrees are invisible from here on purpose: their
    liveness is knowable only from their own workspace root. Reporting them from the
