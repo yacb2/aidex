@@ -218,6 +218,59 @@ print('OK')
 ")"
 [[ "$out" == "OK" ]] || fail "list_files() non-ASCII path: $out"
 
+# --- load_map: the profile's module_map key is honoured (BL-366) --------------
+# 14-testing-profile.md listed module_map as a profile key, but load_map built the path
+# from <root>/.context/audits/test-coverage and never read the profile. For a repo that
+# gitignores .context/ — aidex does — the profile can ship at the repo root but the map
+# could not ship at all, so a fresh clone had no per-item selection and fell back to the
+# full suite: the exact cost BL-362 was filed for.
+MOVED="$WS/tracked-coverage"
+mkdir -p "$MOVED"
+cp "$WS/.context/audits/test-coverage/module-map.json" "$MOVED/module-map.json"
+mv "$WS/.context/audits/test-coverage/module-map.json" "$WS/.context/audits/test-coverage/module-map.json.hidden"
+# Non-vacuous: with the map moved and no profile, load_map must FAIL — otherwise the
+# assertions below would pass over the canonical path still being read.
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+lib.load_map('$WS')
+" 2>&1)"
+[[ "$out" == *"no module-map at"* ]] || fail "with the map moved and no profile, load_map must fail: $out"
+
+printf -- '---\ntitle: p\nmodule_map: tracked-coverage/module-map.json\n---\n' > "$WS/testing-profile.md"
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+m = lib.load_map('$WS')
+assert {mod['id'] for mod in m['modules']} == {'billing', 'people'}
+print('OK')
+" 2>&1)"
+[[ "$out" == "OK" ]] || fail "load_map did not read the profile's module_map (root profile): $out"
+
+# .context/ wins over the repo root, the same precedence sweep-gate.sh and
+# profile-init.py --check use.
+printf -- '---\ntitle: p\nmodule_map: nowhere/module-map.json\n---\n' > "$WS/.context/testing-profile.md"
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+lib.load_map('$WS')
+" 2>&1)"
+[[ "$out" == *"nowhere/module-map.json"* ]] || fail ".context/ profile must win over the root one: $out"
+rm -f "$WS/.context/testing-profile.md"
+
+# An explicit coverage_dir still wins over the profile — the read-only mode (BL-204)
+# points the tooling outside the workspace on purpose.
+mv "$WS/.context/audits/test-coverage/module-map.json.hidden" "$WS/.context/audits/test-coverage/module-map.json"
+out="$(python3 -c "
+import sys; sys.path.insert(0, '$LIB_DIR')
+import _coverage_lib as lib
+m = lib.load_map('$WS', '$WS/.context/audits/test-coverage')
+assert {mod['id'] for mod in m['modules']} == {'billing', 'people'}
+print('OK')
+" 2>&1)"
+[[ "$out" == "OK" ]] || fail "an explicit coverage_dir must still win over the profile: $out"
+rm -f "$WS/testing-profile.md"
+
 rm -rf "$WS"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi

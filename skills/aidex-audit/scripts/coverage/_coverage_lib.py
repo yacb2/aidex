@@ -5,11 +5,48 @@ import functools
 import json, os, re, subprocess, sys
 
 
+def profile_module_map(root):
+    """The profile's `module_map`, resolved against root, or None.
+
+    14-testing-profile.md listed the key as one a reader uses, but nothing read it:
+    the map path was built from <root>/.context/audits/test-coverage unconditionally.
+    For a repo that gitignores .context/ the profile can ship at the repo root while
+    the map cannot ship at all, so a fresh clone had no per-item selection and fell
+    back to the full suite (BL-366). The profile is resolved the way sweep-gate.sh and
+    profile-init.py --check resolve it: .context/ first, the repo root as the tracked
+    fallback (BL-289).
+    """
+    for prof in (os.path.join(root, ".context", "testing-profile.md"),
+                 os.path.join(root, "testing-profile.md")):
+        if not os.path.isfile(prof):
+            continue
+        with open(prof) as f:
+            in_fm, delims = False, 0
+            for line in f:
+                if line.strip() == "---":
+                    delims += 1
+                    in_fm = delims == 1
+                    if delims == 2:
+                        break
+                    continue
+                if in_fm and line.startswith("module_map:"):
+                    val = line.split(":", 1)[1].strip().strip('"\'')
+                    if val:
+                        return os.path.join(root, val)
+        return None
+    return None
+
+
 def load_map(root, coverage_dir=None):
     """coverage_dir overrides <root>/.context/audits/test-coverage — the
     read-only mode (BL-204): map read from, and outputs written to, a
-    directory outside the target workspace."""
-    path = os.path.join(coverage_dir or os.path.join(
+    directory outside the target workspace.
+
+    Precedence: an explicit coverage_dir (BL-204 points the tooling outside the
+    workspace on purpose), then the profile's module_map (BL-366), then the
+    canonical location."""
+    from_profile = None if coverage_dir else profile_module_map(root)
+    path = from_profile or os.path.join(coverage_dir or os.path.join(
         root, ".context", "audits", "test-coverage"), "module-map.json")
     if not os.path.isfile(path):
         sys.exit(f"ERROR: no module-map at {path} — run the test-coverage playbook first")
