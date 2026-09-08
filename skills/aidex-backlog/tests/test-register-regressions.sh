@@ -479,10 +479,82 @@ B18_SRC="$(printf '%s\n' "$OUT" | sed -n 1p)"; B18_CNT="$(printf '%s\n' "$OUT" |
 [[ $RC -eq 0 && -f "$B18_SRC" && -f "$B18_CNT" ]] \
   && ok "B18 escalation from a source with backlog/ is unchanged" \
   || bad "B18 escalation with backlog/ present broke (rc=$RC src='$B18_SRC' counterpart='$B18_CNT')"
+
+# ── B19 · blocked_by must not evict an item from the Awaiting owner list ──────
+# Was: both the index emitter and --list tested `blocked_by` first and `continue`d,
+# so the `awaiting` branch below was unreachable for an item carrying BOTH. A parked
+# item that later acquired a blocker silently left "## Awaiting owner" — the one list
+# a sweep close-out reads — and the "Awaiting owner: N" tally decremented with it.
+# BL-340 hit this for real and was worked around by writing "ALSO awaiting owner"
+# into the blocked_by prose: a string, not a fix. The two states are independent
+# (a third party blocks the work; the owner still owes a judgement), so an item in
+# both is emitted in both.
+D="$(fresh b19)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-001-both.md <<'EOF'
+---
+title: "blocked and parked at once"
+id: BL-001
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+blocked_by: "BL-002 — a third party"
+awaiting: owner
+---
+EOF
+cat > .context/backlog/2026-01-01-bl-002-blocked-only.md <<'EOF'
+---
+title: "blocked only"
+id: BL-002
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+blocked_by: "a vendor"
+---
+EOF
+idx_section() {                # idx_section <file> <heading> -> the rows under it
+  awk -v h="## $2" '$0==h { inb=1; next } /^## / { inb=0 } inb' "$1"
+}
+list_section() {               # list_section <file> <heading prefix> -> the rows under it
+  awk -v h="$2" '
+    /^(P[0-3] —|Blocked \(|Awaiting owner \(|Unclassified \()/ { sec = (index($0,h)==1); next }
+    sec
+  ' "$1"
+}
+bash "$REG" --reindex >/dev/null 2>&1
+IDX="$D/.context/backlog/00-index.md"
+idx_section "$IDX" "Blocked" | grep -q 'BL-001' \
+  && ok "B19 index: a both-item is still listed under Blocked" \
+  || bad "B19 index: BL-001 is missing from ## Blocked"
+idx_section "$IDX" "Awaiting owner" | grep -q 'BL-001' \
+  && ok "B19 index: a both-item is also listed under Awaiting owner" \
+  || bad "B19 index: BL-001 left ## Awaiting owner the moment blocked_by was set"
+grep -q '\*\*Awaiting owner:\*\* 1' "$IDX" \
+  && ok "B19 index: the Awaiting owner tally counts the both-item" \
+  || bad "B19 index: tally is '$(grep -o 'Awaiting owner:\*\* [0-9]*' "$IDX")', expected 1"
+# Mutation — the both-branch must be driven by `awaiting`, not by being in Blocked:
+# BL-002 is blocked and NOT parked, so it may never appear under Awaiting owner.
+idx_section "$IDX" "Awaiting owner" | grep -q 'BL-002' \
+  && bad "B19 index: a blocked-only item was emitted under Awaiting owner" \
+  || ok "B19 index: a blocked-only item stays out of Awaiting owner"
+
+LISTF="$TMP/b19.list"
+NO_COLOR=1 bash "$REG" --list >"$LISTF" 2>/dev/null
+list_section "$LISTF" "Blocked (" | grep -q 'blocked and parked at once' \
+  && ok "B19 --list: a both-item is still listed under Blocked" \
+  || bad "B19 --list: the both-item is missing from Blocked"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked and parked at once' \
+  && ok "B19 --list: a both-item is also listed under Awaiting owner" \
+  || bad "B19 --list: the both-item left the Awaiting owner section"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked only' \
+  && bad "B19 --list: a blocked-only item was printed under Awaiting owner" \
+  || ok "B19 --list: a blocked-only item stays out of Awaiting owner"
+
 cd /
 echo
 if [[ $FAIL -eq 0 ]]; then
-  echo "OK — register-item regressions: $PASS cells, 17 defects covered"
+  echo "OK — register-item regressions: $PASS cells, 18 defects covered"
   exit 0
 fi
 echo "FAIL — $FAIL of $((PASS+FAIL)) cells"

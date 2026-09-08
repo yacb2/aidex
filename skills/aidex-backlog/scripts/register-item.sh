@@ -663,7 +663,7 @@ regen_index() {
   local -a SEC_P0=() SEC_P1=() SEC_P2=() SEC_P3=() SEC_BLOCKED=() SEC_AWAITING=()
   local active_count=0 doing_count=0
 
-  local f base title status priority estimate blocked_by id awaiting idp line fields
+  local f base title status priority estimate blocked_by id awaiting idp line fields special
   for f in "$dir"/*.md; do
     [[ -f "$f" ]] || continue
     base="$(basename "$f")"
@@ -682,10 +682,18 @@ regen_index() {
       *) continue ;;
     esac
 
+    # Blocked and awaiting are INDEPENDENT states, so an item in both is emitted in
+    # both — no `continue` between them. A third party blocks the work; the owner
+    # still owes a judgement, and "## Awaiting owner" is the one list a sweep
+    # close-out reads. Blocked-first-then-continue made the awaiting branch below
+    # unreachable for such an item: setting blocked_by silently evicted it from the
+    # parked list and decremented the tally with it (BL-340 hit this and was worked
+    # around by writing "ALSO awaiting owner" into the blocked_by prose, 2026-09-08).
+    special=0
     if [[ -n "$blocked_by" ]]; then
       line="- ${idp}**[${title}](${base})** — ${status} · ${priority:-P?} · blocked_by: \"${blocked_by}\"$(companion_lines "backlog/$base")"
       SEC_BLOCKED+=("$line")
-      continue
+      special=1
     fi
 
     # Parked by close-item.sh --sweep: mechanically proven, a judgement still owed.
@@ -693,8 +701,10 @@ regen_index() {
     if [[ -n "$awaiting" ]]; then
       line="- ${idp}**[${title}](${base})** — awaiting ${awaiting} · ${priority:-P?}$(companion_lines "backlog/$base")"
       SEC_AWAITING+=("$line")
-      continue
+      special=1
     fi
+
+    if [[ $special -eq 1 ]]; then continue; fi
 
     [[ "$status" == "doing" ]] && doing_count=$((doing_count+1))
     [[ "$status" == "open" ]]  && active_count=$((active_count+1))
@@ -863,16 +873,20 @@ if [[ $LIST_ONLY -eq 1 ]]; then
     line="$(printf '  - %s %s(%s)%s\n      %s%s%s' \
       "${title:-(untitled)}" "$C_DIM" "${origin:-?}" "$C_RESET" \
       "$C_DIM" "$f" "$C_RESET")"
+    # Same independence as the index emitter above: an item both blocked and parked
+    # is printed under both headings, never evicted from Awaiting owner by its blocker.
+    special=0
     if [[ -n "$blocked" ]]; then
       BLOCKED+=("$(printf '  - [%s] %s — blocked by: %s\n      %s%s%s' \
         "${priority:-??}" "${title:-(untitled)}" "$blocked" "$C_DIM" "$f" "$C_RESET")")
-      continue
+      special=1
     fi
     if [[ -n "$awaiting" ]]; then
       AWAITING+=("$(printf '  - [%s] %s — awaiting %s\n      %s%s%s' \
         "${priority:-??}" "${title:-(untitled)}" "$awaiting" "$C_DIM" "$f" "$C_RESET")")
-      continue
+      special=1
     fi
+    if [[ $special -eq 1 ]]; then continue; fi
     case "$priority" in
       P0) P0+=("$line") ;;
       P1) P1+=("$line") ;;
