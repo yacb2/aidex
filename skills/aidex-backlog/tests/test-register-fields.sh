@@ -52,4 +52,26 @@ T="$(ls "$TMP/q/.context/backlog/"*-bl-*.md | head -1)"
 [[ "$(fm "$T" surface)" == "ui" && "$(fm "$T" verify)" == "screenshot of /settings" ]] \
   && ok "the cross-repo TARGET stub carries surface/verify too (the work happens there)" || bad "target stub: $(fm "$T" surface) / $(fm "$T" verify)"
 
+# The four-value type vocabulary is refused at the WRITER, not only judged by
+# validate.py. BL-354: one archived item carried `type: feature`, which is not in the
+# vocabulary, so validate.py exited 1 on every run of a clean tree and masked any real
+# finding a later run would want to see. The writer already refuses it — this pins that,
+# because the guard was untested and its absence is what made the stale value plausible.
+# An EMPTY --type is not in this list on purpose: `${TYPE:-task}` defaults it, which is
+# the documented default and not the defect BL-354 is about.
+for bad_type in feature chore; do
+  out="$(bash "$REG" --origin manual --title "bad type" --type "$bad_type" 2>&1)" \
+    && bad "register-item accepted --type '$bad_type'" \
+    || case "$out" in
+         *"invalid type"*|*"must be bug, improvement, task, or idea"*)
+           ok "--type '$bad_type' refused by the writer" ;;
+         *) bad "--type '$bad_type' failed for the wrong reason: $out" ;;
+       esac
+done
+for good_type in bug improvement task idea; do
+  G="$(bash "$REG" --origin manual --title "good type" --type "$good_type" 2>/dev/null | head -1)"
+  [[ "$(fm "$G" type)" == "$good_type" ]] && ok "--type '$good_type' round-trips" \
+    || bad "--type '$good_type' did not survive: $(fm "$G" type)"
+done
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — register fields: $PASS cells round-trip"; exit 0; }; echo "$FAIL failure(s)"; exit 1
