@@ -108,7 +108,7 @@ cannot supply one ranks lowest rather than going unreported.
 
 ## The verify phase
 
-**SKILL.md Step 3.3 owns the verifier's return shape** — the full field list, including
+**`02-find-merge-verify.md` §3 (SKILL.md Step 3.3) owns the verifier's return shape** — the full field list, including
 the severity that overrides the finder's and the reason a `PLAUSIBLE` must carry. Read it
 there and author the prompt from it; this section holds only what the verdicts *mean* and
 why the verifier is biased the way it is. Do not author a verifier prompt from this
@@ -120,7 +120,7 @@ duplicate verified twice is paid for twice in the phase that dominates the run's
 What the three verdicts claim:
 
 - `CONFIRMED` — it verified the failure path.
-- `PLAUSIBLE` — real-looking, not verified. Step 3.3 requires it to say which kind.
+- `PLAUSIBLE` — real-looking, not verified. `02-find-merge-verify.md` §3 requires it to say which kind.
 - `REFUTED` — it found the reason the code is actually fine. Dropped from the report.
 
 Bias the verifier toward refuting: a module review has a far larger candidate surface

@@ -315,20 +315,25 @@ ANGLES="$SCRIPT_DIR/../references/01-review-angles.md"
 # The catalog's verify section only — a token elsewhere in the file is not the copy.
 verify_section() { awk '/^## The verify phase/{f=1;next} f && /^## /{exit} f' "$ANGLES"; }
 
-# 26. The verifier's return shape has ONE owner. SKILL.md Step 3.3 is it — the
-#     always-loaded execution surface — so if SKILL.md defines a return field, the
+# 26. The verifier's return shape has ONE owner. references/02-find-merge-verify.md §3
+#     is it (SKILL.md Step 3.3 routed there by BL-350) — so if the owner defines a return field, the
 #     catalog must either carry it too or say where it lives. What it must not do is
 #     state the contract as if complete while missing fields, which is what it did:
 #     three verdicts and no severity override, no PLAUSIBLE reason, and no marker
 #     saying it was partial. A prompt authored from the catalog then omits them.
+OWNER="$SCRIPT_DIR/../references/02-find-merge-verify.md"
 VERIFY="$(verify_section)"
-case "$VERIFY" in *"Step 3.3"*) DEFERS=1 ;; *) DEFERS=0 ;; esac
+case "$VERIFY" in *"02-find-merge-verify.md"*) DEFERS=1 ;; *) DEFERS=0 ;; esac
+# The owner must actually define the fields — a deferral to an empty owner is vacuous.
 for tok in 'unreachable-trigger' 'undetermined' 'severity'; do
-  if grep -q -- "$tok" "$SKILL_MD"; then
+  grep -q -- "$tok" "$OWNER" || fail "the verifier-shape owner $OWNER does not define '$tok'"
+done
+for tok in 'unreachable-trigger' 'undetermined' 'severity'; do
+  if grep -q -- "$tok" "$OWNER"; then
     case "$VERIFY" in
       *"$tok"*) : ;;
       *) [ "$DEFERS" -eq 1 ] \
-           || fail "SKILL.md defines the verifier field '$tok'; the catalog's verify section neither carries it nor defers to Step 3.3" ;;
+           || fail "SKILL.md defines the verifier field '$tok'; the catalog's verify section neither carries it nor defers to 02-find-merge-verify.md" ;;
     esac
   fi
 done
