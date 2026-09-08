@@ -198,7 +198,8 @@
     });
   });
 
-  /* ---- Decided items collapse out of the flow (kit v17, BL-373) ----------
+  /* ---- Decided items collapse out of the flow (kit v17, BL-373; in place
+   * inside a half-answered block since v18, BL-380) ----------------------
    *
    * Until v16 a settled item stayed drawn where it was written. The reference
    * called that the default because the page then records the REASONING and
@@ -248,8 +249,17 @@
     /* A block collapses as ONE unit only when every question in it is settled.
      * A half-answered block stays where it is, with its context intact: the
      * block is self-sufficient by contract, and hiding the context of a
-     * question still being asked would break exactly that. */
-    var units = [], seen = [];
+     * question still being asked would break exactly that.
+     *
+     * Its decided SIBLINGS do not stay drawn, though (BL-380). v17 left the
+     * whole block alone, and a page eleven blocks deep in its iteration looked
+     * exactly like round one — "solo se ocultaban los grupos completamente
+     * cerrados y no las opciones parciales". What the open question needs is
+     * the block's context paragraph, not the evidence and options of a sibling
+     * already settled; so each of those folds IN PLACE, behind the same
+     * summary the section gives a unit, and stays where the block's order put
+     * it. */
+    var units = [], seen = [], inPlace = [];
     decided.forEach(function (el) {
       var g = el.closest('.consult-group');
       if (g) {
@@ -258,10 +268,43 @@
           if (seen.indexOf(g) === -1) { seen.push(g); units.push({ node: g, group: true }); }
           return;
         }
-        return;                       /* block still open — leave the item in place */
+        inPlace.push(el);             /* block still open — fold the item where it is */
+        return;
       }
       units.push({ node: el, group: false });
     });
+
+    function fold(u) {
+      var d = document.createElement('details');
+      d.className = 'decided-unit';
+      var sum = document.createElement('summary');
+      var k = document.createElement('span');
+      k.className = 'consult-id';
+      var v = document.createElement('span');
+      v.className = 'decided-verdict';
+      if (u.group) {
+        var inner = [].slice.call(u.node.querySelectorAll('.consult-item'));
+        k.textContent = u.node.dataset.id || u.node.id || '';
+        v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
+          inner.map(function (el) { return el.dataset.id; }).join(', ');
+      } else {
+        k.textContent = u.node.dataset.id || '';
+        var line = decidedSummary(u.node);
+        v.textContent = (u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
+      }
+      sum.appendChild(k);
+      sum.appendChild(v);
+      d.appendChild(sum);
+      return d;
+    }
+
+    inPlace.forEach(function (el) {
+      var d = fold({ node: el, group: false });
+      d.classList.add('inplace');
+      el.parentNode.insertBefore(d, el);
+      d.appendChild(el);              /* MOVED into the fold, at the same position */
+    });
+
     if (!units.length) return;
 
     var sec = document.createElement('section');
@@ -283,26 +326,7 @@
     sec.appendChild(hint);
 
     units.forEach(function (u) {
-      var d = document.createElement('details');
-      d.className = 'decided-unit';
-      var sum = document.createElement('summary');
-      var k = document.createElement('span');
-      k.className = 'consult-id';
-      var v = document.createElement('span');
-      v.className = 'decided-verdict';
-      if (u.group) {
-        var inner = [].slice.call(u.node.querySelectorAll('.consult-item'));
-        k.textContent = u.node.dataset.id || u.node.id || '';
-        v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
-          inner.map(function (el) { return el.dataset.id; }).join(', ');
-      } else {
-        k.textContent = u.node.dataset.id || '';
-        var line = decidedSummary(u.node);
-        v.textContent = (u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
-      }
-      sum.appendChild(k);
-      sum.appendChild(v);
-      d.appendChild(sum);
+      var d = fold(u);
       d.appendChild(u.node);          /* MOVED, not copied and not deleted */
       sec.appendChild(d);
     });
@@ -329,6 +353,11 @@
     el.id = el.dataset.id;
     var i = items.indexOf(el);
     if (!list) return;
+    /* A decided item folded in place gets no entry (BL-380): its block is the
+     * way in, and listing it would put the answered question back in the
+     * index the reader asked to stop navigating. links[i] stays undefined,
+     * which collect() already tolerates. */
+    if (isDecided(el) && el.closest('.consult-group')) return;
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
     var a = railLink(cls, '#' + el.dataset.id, el.dataset.id, el.dataset.title || '');
     list.appendChild(a);

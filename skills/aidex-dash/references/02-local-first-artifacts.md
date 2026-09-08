@@ -288,10 +288,10 @@ What the composer does, and none of it is written by an author:
 
 | | |
 |---|---|
-| The unit | A decided item, or a whole block once **every** item in it is decided. A half-answered block stays where it is: its context is what its open questions need, and §8.4 makes the block self-sufficient by contract |
+| The unit | A decided item, or a whole block once **every** item in it is decided. A half-answered block stays where it is — its context paragraph and its open items keep their place, because the context is what the open questions need and §8.4 makes the block self-sufficient by contract — but since kit v18 (BL-380) its decided SIBLINGS fold in place: each becomes a `<details>` at the same position, with the same summary line a section unit gets, and loses its rail entry. v17 left the whole block untouched, and a page eleven blocks into its iteration looked like round one |
 | Where it goes | One `section#sec-decided`, inserted after the ledger (or after the header when there is none), each unit inside a `<details>` whose summary carries the id, the title and the option that won |
 | The verdict line | Derived from the checked options. `data-decided="<one line>"` overrides it, for an outcome that is not any single option |
-| The rail | One entry for the section, never one per settled question — the index is the other half of "navegar sobre cosas ya respondidas" |
+| The rail | One entry for the section, never one per settled question — the index is the other half of "navegar sobre cosas ya respondidas". A block still open keeps its entry and lists only its OPEN items under it; a decided item folded in place has none, the block is the way in |
 
 The node is **moved**, never copied or deleted, so the static file is unchanged: the same
 markup parses the same way, `check_artifact.py` needs no rule of its own, and BL-359's fix
