@@ -60,7 +60,12 @@ if [[ -z "$slug" ]]; then
 fi
 today="$(date +%F)"
 mkdir -p "$WL_DIR"
-file="$WL_DIR/${today}-${slug}.md"
+# BL-370: a slug shaped like every other .context/ filename already carries its date.
+if [[ "$slug" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}- ]]; then
+  file="$WL_DIR/${slug}.md"
+else
+  file="$WL_DIR/${today}-${slug}.md"
+fi
 
 {
   echo "---"

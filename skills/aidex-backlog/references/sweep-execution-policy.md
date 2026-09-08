@@ -32,7 +32,11 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
    `artifacts-local-first`, explain-before-ask, each option carrying its consequence and a
    recommendation. `AskUserQuestion` is for parameters only (gate policy, scope toggles);
    a decision list belongs in the artifact where the answers stay. A consultation that
-   lands mid-sweep stalls the chain for as long as the answer takes.
+   lands mid-sweep stalls the chain for as long as the answer takes. **Its language is
+   the profile's** (`artifact-style.md` `language:`, no `--lang`): it is addressed to the
+   reader, not a record of work done. Only the close-out report and
+   `human-verification.md` take `--lang en` by D-04 (BL-371); the English rule for
+   backlog ENTRIES in `aidex-backlog/SKILL.md` does not reach this page.
 5. Gate policy fixed once: `publish: never`, `destructive: deny`, and **merge is class 2
    per `rules/autonomy.md`** — asked by default, grantable at the kickoff, never assumed
    mid-run. `sweep-kickoff.sh --merge preauthorized` records the grant into

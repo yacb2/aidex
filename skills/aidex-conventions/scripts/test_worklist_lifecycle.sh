@@ -59,4 +59,17 @@ assert "advance: bad slug prints not-found" "[[ '$err' == *'worklist not found'*
 rc=0; err="$(bash "$DIR/worklist-close.sh" "no-such-slug-$$" 2>&1 >/dev/null)" || rc=$?
 assert "close: bad slug exits 2"            "[[ $rc -eq 2 ]]"
 
+# BL-370: a --slug that already carries a date (the shape every other .context/
+# filename has) was prefixed a second time: 2026-09-08-2026-09-08-<slug>.
+slug3="2031-01-01-dated-$$"
+file3="$(bash "$DIR/worklist-new.sh" --title "Dated slug $$" --slug "$slug3" \
+  --ref "inline:x" --publish ask)"
+assert "new: a dated --slug is not date-prefixed twice" "[[ '$(basename "$file3")' == '$slug3.md' ]]"
+rm -f "$file3"
+slug4="undated-$$"
+file4="$(bash "$DIR/worklist-new.sh" --title "Undated slug $$" --slug "$slug4" \
+  --ref "inline:x" --publish ask)"
+assert "new: an undated --slug still gets today's date" "[[ '$(basename "$file4")' == '$(date +%F)-$slug4.md' ]]"
+rm -f "$file4"
+
 if [[ "$fail" -eq 0 ]]; then echo "all worklist lifecycle assertions passed"; else echo "lifecycle FAILED"; exit 1; fi

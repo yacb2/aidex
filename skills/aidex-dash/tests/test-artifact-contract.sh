@@ -932,6 +932,39 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
   && ok "an explicit --lang silences the undeclared-language note" \
   || bad "BL-322: the note fired even though --lang was given: $err"
 
+# --- BL-371: an explicit --lang that CONTRADICTS a declared profile is not silent --
+# The note above covers "both absent". The symmetric blind spot: a profile that
+# declares `language: es` and a call that passes `--lang en` emitted lang="en" with
+# nothing on stderr, and check-artifact's lang gate agreed with itself because an
+# English body under lang="en" is self-consistent. That is how a kickoff
+# consultation arrived in English in a project that asked for Spanish.
+CONTRAP="$TMP/contraproj"; mkdir -p "$CONTRAP/.context/reports"
+printf -- '- language: es\n' > "$CONTRAP/.context/artifact-style.md"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
+        --out "$CONTRAP/.context/reports/a.html" 2>&1 >/dev/null)"
+[[ "$err" == *"NOTE:"* && "$err" == *"language: es"* && "$err" == *"--lang en"* ]] \
+  && ok "BL-371: --lang en against a profile declaring es prints a NOTE naming both" \
+  || bad "BL-371: --lang contradicting the profile was accepted in silence: $err"
+grep -q '<html lang="en">' "$CONTRAP/.context/reports/a.html" \
+  && ok "and the explicit --lang still wins (a note, not a refusal)" \
+  || bad "BL-371: the note changed the outcome instead of naming it"
+# The negative: agreeing with the profile must stay silent, or the note is noise on
+# every correct call.
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
+        --out "$CONTRAP/.context/reports/b.html" 2>&1 >/dev/null)"
+[[ "$err" != *"NOTE:"* ]] \
+  && ok "BL-371: --lang agreeing with the profile stays silent" \
+  || bad "BL-371: the note fired on an agreeing --lang: $err"
+
+# A close-out report under worklists/_archive/ is English by D-04 whatever the
+# profile says (sweep-report.sh passes --lang en on purpose) — no note there.
+mkdir -p "$CONTRAP/.context/worklists/_archive"
+err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
+        --out "$CONTRAP/.context/worklists/_archive/x-report.html" 2>&1 >/dev/null)"
+[[ "$err" != *"contradicts"* ]] \
+  && ok "BL-371: a record under worklists/_archive/ takes --lang en without a note" \
+  || bad "BL-371: the contradiction note fired on a close-out report: $err"
+
 grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact-style.md.template" \
   && ok "the style template carries a parseable language: field" \
   || bad "artifact-style.md.template has no language: field"

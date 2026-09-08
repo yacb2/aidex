@@ -472,6 +472,15 @@ missing. Pass `--lang` explicitly there: a `.context/` report's body is English 
 whatever the project's artifact language is, and the profile would otherwise stamp the
 other one over it. Content on stdin is always page markup; only a named `.md` converts.
 
+**The exception is for records, not for every page under `.context/`.** A consultation
+— a kickoff page, any page addressed TO the reader asking them to decide — follows the
+profile like any other artifact, even when it lands in `.context/reports/`. D-04 governs
+what is written *about* work done; a message to the reader is written in the reader's
+language. Only `<worklist>-report.md` and `human-verification.md` take `--lang en`.
+`wrap_report.py` prints a NOTE when an explicit `--lang` contradicts a declared profile
+(BL-371) — a wrong choice is otherwise invisible, because the `lang` gate compares the
+body with the declaration and an English body under `lang="en"` agrees with itself.
+
 **Use `--out`, not a shell redirect.** With `--out` the command writes the file *and*
 verifies the artifact contract on it, exiting non-zero if it fails — so wrapping and
 verifying are one step that cannot be half-done. Redirecting to stdout still works, and
