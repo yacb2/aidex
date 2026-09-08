@@ -203,6 +203,63 @@ bash "$WRAP" --title "Dup" --lang en --in "$TMP/dup.md" --out "$TMP/dup.html" >/
   && ok "two '## Notes' sections get distinct ids" \
   || fail "repeated section titles share an id: $(grep -o 'id="sec-notes[^"]*"' "$TMP/dup.html" | tr '\n' ' ')"
 
+# ---------- fenced code blocks (BL-352) --------------------------------------
+# The subset had no fence branch, so a ```bash run fell into the paragraph arm: the
+# fence LINES were joined with the code into one <p>, and CODE (the single-backtick
+# regex) paired the first backtick of the opening fence with the last of the closing
+# one, wrapping the whole run in a bogus <code> span. Content survived, unreadable.
+# It goes live the first time a human-verification.md pastes a command, which the
+# plan-exec canon invites.
+cat > "$TMP/fence.md" <<'MD'
+# Fenced
+
+Run this:
+
+```bash
+./test-e2e.sh e2e/login.spec.ts
+grep -c "**not bold**" out.txt
+```
+
+And `inline code` after it still works.
+MD
+
+bash "$WRAP" --title "Fenced" --lang en --in "$TMP/fence.md" --out "$TMP/fence.html" >/dev/null 2>&1   || fail "the fenced report did not wrap"
+bash "$CHECK" "$TMP/fence.html" >"$TMP/chk3.out" 2>&1   && ok "a page with a fenced block passes check-artifact.sh"   || fail "check-artifact.sh on the fenced page: $(cat "$TMP/chk3.out")"
+
+# Non-vacuous first: the command has to be on the page before anything else means
+# anything.
+grep -q 'test-e2e.sh' "$TMP/fence.html"   || fail "the fenced command is not on the page at all — the assertions below would be vacuous"
+
+grep -q '<pre><code class="lang-bash">' "$TMP/fence.html"   || fail "no <pre><code class=\"lang-bash\"> block: $(grep -o '<pre[^>]*>[^<]*<[^>]*>' "$TMP/fence.html" | head -1)"
+# Line breaks are preserved: two lines, so one newline inside the block.
+python3 - "$TMP/fence.html" <<'PY' || fail "fence markers leaked into <main>, or the block is not a <pre> with its line breaks"
+import re, sys
+html = open(sys.argv[1]).read()
+# The fence markers never reach the page. Scoped to <main>, because the wrapper injects
+# the kit's CSS — whose own comments are full of backticks — around the body: a grep
+# over the whole file, or even from `<div class="page">` down, counts 57 of them in a
+# CORRECT page and can never fail. Inside <main> the fixture's only backticks are the
+# fence and one inline span, and both must have become tags: 4 before the fix, 0 after.
+# Checked FIRST so it produces its own RED instead of being shadowed by the assert below.
+main = re.search(r"<main[^>]*>(.*?)</main>", html, re.S)
+assert main, "no <main> in the page"
+assert main.group(1).count("`") == 0, f"{main.group(1).count('`')} backtick(s) leaked into <main>"
+m = re.search(r"<pre><code[^>]*>(.*?)</code></pre>", html, re.S)
+assert m, "no pre/code block"
+assert m.group(1).count("\n") == 1, f"expected one newline inside the block, got {m.group(1)!r}"
+# The command appears ONCE, inside that block — never also in a paragraph. Before the
+# fix it was in a <p> with a bogus <code> span, which a <p>[^<]* grep cannot see
+# because the span puts a `<` in the way.
+assert html.count("test-e2e.sh") == 1, "the command appears outside the code block too"
+PY
+# Inline spans are NOT processed inside the block: the `**not bold**` in the command
+# must survive as literal text, not become a <strong>.
+grep -q '\*\*not bold\*\*' "$TMP/fence.html"   || fail "inline markup was processed inside the code block"
+# …while inline code OUTSIDE the block still works, so the fix did not disable _inline.
+grep -q '<code>inline code</code>' "$TMP/fence.html"   || fail "inline code after the block stopped rendering"
+# The block scrolls rather than widening the page — the kit's `pre` rule owns this.
+grep -q "overflow-x: auto" "$SKILL/assets/artifact-kit/components.css"   || fail "the kit has no overflow rule for <pre>, so a long command widens the page"
+
 [[ $failures -eq 0 ]] && ok "a prose checklist renders as a list, keeps every heading, and gets an h1"
 
 [[ $failures -eq 0 ]] && echo "OK — markdown wraps into a contract-passing page ($(wc -c < "$TMP/report.html" | tr -d ' ') bytes)"
