@@ -343,3 +343,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .decided-unit > .consult-item,
 .decided-unit > .consult-group { background: var(--paper); border-top: 1px solid var(--rule);
                                  margin: 0; padding: 0.9rem; opacity: 0.85; }
+/* Folded IN PLACE inside a block that still has open items (kit v18, BL-380):
+   the same unit, sitting where the block's order put the item, so it takes an
+   item's slot and the open siblings keep their spacing around it. */
+.consult-group > .decided-unit.inplace { margin-top: 0.25rem; margin-bottom: 0; }

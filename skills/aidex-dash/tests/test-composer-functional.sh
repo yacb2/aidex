@@ -395,6 +395,30 @@ window.addEventListener('load', function () {
       + '|RAILDEC=' + document.querySelectorAll('#raillist a[href="#sec-decided"]').length
       + '|RAILQ=' + document.querySelectorAll('#raillist a[href="#Q0"], #raillist a[href="#Q1"], #raillist a[href="#Q2"], #raillist a[href="#G1"]').length
       + '|RAILN=' + document.querySelectorAll('#raillist a[href="#notes"]').length;
+  } else if (q.indexOf('phase=partial') !== -1) {
+    /* BL-380: a block that is only PARTLY decided. v17 left such a block
+     * entirely alone — every decided item stayed fully drawn and kept its rail
+     * entry — so a page eleven blocks deep in its iteration looked exactly like
+     * round one. The fixture's G1 is that shape: Q0 decided, Q1 and Q2 open.
+     * What must be true: Q0 folds IN PLACE (inside G1, behind a summary that
+     * carries its id, title and the option that won), the block's context and
+     * open items stay drawn, no composer section is built, and the rail lists
+     * the block plus its OPEN items only. */
+    var g1 = document.getElementById('G1');
+    var unit = g1 ? g1.querySelector('details.decided-unit') : null;
+    var q0 = document.querySelector('[data-id="Q0"]');
+    document.title = 'PARTIAL|DECSEC=' + (document.getElementById('sec-decided') ? '1' : '0')
+      + '|INPLACE=' + (unit && unit.contains(q0) ? '1' : '0')
+      + '|UNITS=' + (g1 ? g1.querySelectorAll('details.decided-unit').length : -1)
+      + '|FOLDED=' + (unit && !unit.open ? '1' : '0')
+      + '|SUMMARY=' + (unit ? unit.querySelector('summary').textContent.replace(/[|<>]/g, ' ').replace(/\s+/g, ' ').trim() : '')
+      + '|CONTEXT=' + (g1 && g1.querySelector(':scope > p') ? '1' : '0')
+      + '|OPENINFLOW=' + (g1 ? g1.querySelectorAll(':scope > .consult-item:not([data-decided])').length : -1)
+      + '|SEALED=' + (q0 ? q0.querySelectorAll('input:not(:disabled), textarea:not(:disabled)').length : -1)
+      + '|RAILG=' + document.querySelectorAll('#raillist a[href="#G1"]').length
+      + '|RAILDEC=' + document.querySelectorAll('#raillist a[href="#Q0"]').length
+      + '|RAILOPEN=' + document.querySelectorAll('#raillist a[href="#Q1"], #raillist a[href="#Q2"]').length
+      + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
   } else if (q.indexOf('phase=explain') !== -1) {
     /* BL-325: the reader who cannot answer because the QUESTION is unreadable.
      * Of 26 items in one real round, 12 came back as free text saying some form
@@ -537,8 +561,9 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"BANNER=1"* ]] \
   || fail "restored answers arrived without the visible banner: $t"
 # Q0 is a DECIDED item: it leaves the question set but stays in the rail, which
-# is the index of the page and not a list of what is still owed.
-[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q0,sub:#Q1,sub:#Q2,item:#notes"* ]] \
+# is the index of the page and not a list of what is still owed. Q0 is decided,
+# so since v18 (BL-380) it has no entry of its own: the block is the way in.
+[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,item:#notes"* ]] \
   || fail "BL-247: the rail does not nest the block's items under the block (context once, decisions indented, loose notes after): $t"
 # The trap: a fingerprint over the item's RAW textContent would include this
 # text, so a plain reload with no regeneration would already fail to match.
@@ -1016,5 +1041,39 @@ td="$(run 'phase=alldecided')"
 [[ "$td" == *"BARH=1"* ]] \
   || fail "BL-341: the copy bar was hidden on an all-decided English page: $td"
 
+# ---- BL-380: a decided item inside a HALF-answered block folds in place ----
+#
+# v17 collapsed a block only once every item in it was decided, and left a
+# partly decided block untouched: every settled item fully drawn, every one of
+# them still in the rail. Reported on a page with 11 blocks partly decided and
+# 26 items: "solo se ocultaban los grupos completamente cerrados y no las
+# opciones parciales ni la navegación parcial". The context the open questions
+# need is the block's paragraph, not its decided siblings' evidence and options.
+rm -rf "$TMP/profile"
+write_body "$Q1_V1"
+wrap_page
+tp="$(run 'phase=partial')"
+[[ "$tp" == *PARTIAL* ]] || fail "the partial phase did not run: $tp"
+[[ "$tp" == *"DECSEC=0"* ]] \
+  || fail "BL-380: a page with no fully decided block still built the Decided section — the half-answered block must keep its item: $tp"
+[[ "$tp" == *"INPLACE=1"* ]] \
+  || fail "BL-380: the decided item of a half-answered block is not folded inside its own block — this is the reported defect: $tp"
+[[ "$tp" == *"UNITS=1"* ]] \
+  || fail "BL-380: the half-answered block does not carry exactly one folded unit for its one decided item: $tp"
+[[ "$tp" == *"FOLDED=1"* ]] \
+  || fail "BL-380: the in-place unit is expanded on load — folded is the point; open is one click: $tp"
+[[ "$tp" == *"SUMMARY=Q0"*"La decision ya tomada"*"La opcion elegida"* ]] \
+  || fail "BL-380: the summary line does not carry the id, the title and the option that won: $tp"
+[[ "$tp" == *"CONTEXT=1"* && "$tp" == *"OPENINFLOW=2"* ]] \
+  || fail "BL-380: the block's context paragraph or its open items left the block — only the decided sibling folds: $tp"
+[[ "$tp" == *"SEALED=0"* ]] \
+  || fail "BL-380: the folded item has live inputs again: $tp"
+[[ "$tp" == *"RAILG=1"* && "$tp" == *"RAILOPEN=2"* ]] \
+  || fail "BL-380: the rail lost the block entry or its open items — the RAILDEC assertion below would pass on an empty rail: $tp"
+[[ "$tp" == *"RAILDEC=0"* ]] \
+  || fail "BL-380: the rail still lists the decided item of a half-answered block — the index is where the reader navigates past it: $tp"
+[[ "$tp" == *"STATUS=Sin responder"* ]] \
+  || fail "BL-380: folding in place changed the count — the decided item must stay out of numerator and denominator: $tp"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and the two explain choices, the explicit theme, v4 answer sets, the all-decided page and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other and the two explain choices, the explicit theme, v4 answer sets, the all-decided page, the half-answered block and the localised chrome included"
