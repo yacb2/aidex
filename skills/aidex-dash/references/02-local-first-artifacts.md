@@ -718,6 +718,16 @@ increment across a round the reader never saw. The composer then applies one rul
 item afterwards un-sends it. A page or a stored answer with no round marker keeps the
 earlier behaviour, so upgrading the kit never blanks what a reader already typed.
 
+**Independent decisions are separate items, never one checkbox group.** The test:
+if an option can be answered without looking at the others, it is its own item — a
+two-option radio with its own `data-recommended` and its own evidence. A checkbox group
+is for the FACETS of one decision (which parts of X to include). The shape that shipped
+(BL-375): "discard BL-010, BL-013 and BL-067?" as one checkbox group, where every box had
+its own reason to keep or drop, and the reader had to say so before the round was
+re-shaped into three radios. `check-artifact.sh` warns (`consult-independent`) on a
+checkbox group whose labels each name a distinct tracked id — a proxy for the shape,
+cleared by the rewrite.
+
 **Option groups live in `.opts`, and only there.** `class="opts one"` for a radio group,
 `class="opts"` for checkboxes. `components.css` styles options under no other class, so a
 group in a hand-invented wrapper renders with no grid, no hover and its hints inline —
@@ -881,6 +891,7 @@ on a page nobody is editing is noise no one can clear.
 | Warning | Fires when |
 |---|---|
 | `consult-opts` | an item's radio/checkbox sits outside any `.opts` wrapper — the kit styles options nowhere else, so they render unstyled and the contract passes anyway |
+| `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
 | `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
