@@ -24,6 +24,19 @@ for pair in "1:sweep-kickoff.sh" "1:sweep-eligible.py" "1:sweep-order.py" "1:def
   case "$sec" in *"$s"*) ;; *) err "stage $n does not name $s" ;; esac
   found="$(find "$HERE/scripts" "$HERE/../aidex-conventions/scripts" "$HERE/../aidex-audit/scripts" -name "$s" 2>/dev/null | head -1)"
   [ -n "$found" ] || err "policy names $s but no such script ships"
+  # BL-363: existing SOMEWHERE is not the same as the reader being able to find
+  # it. This loop searched three skills, so a script the policy names as if it
+  # were local while it ships in a sibling passed unremarked — and a sweep that
+  # looked for affected-tests.sh in this skill's scripts/ did not find it and
+  # fell back to the full suite, once per item. A script from a sibling must be
+  # named WITH its skill somewhere in the document.
+  case "$found" in
+    "$HERE/scripts/"*) ;;
+    *) owner="$(basename "$(dirname "$(dirname "$found")")")"
+       case "$flat" in *"$owner/scripts"*) ;;
+         *) err "policy names $s as if it lived here, but it ships in $owner — say so, or the reader looks in the wrong skill" ;;
+       esac ;;
+  esac
 done
 # stage 4 delegates the checkpoint and restates nothing
 sec4="$(awk '/^## Stage 4 /{f=1;next} /^## /{f=0} f' "$POLICY")"
