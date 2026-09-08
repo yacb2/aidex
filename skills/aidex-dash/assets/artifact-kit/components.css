@@ -317,3 +317,29 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .kit-theme { position: static; display: block; margin: 0.5rem auto 2rem; }
 }
 @media print { .kit-theme { display: none; } }
+
+/* Decided questions, collapsed out of the flow (kit v17, BL-373). The section
+   and every <details> in it are built by composer.js, never by an author: a
+   page that hand-rolls this shape is the gate-1 violation the feature exists
+   to remove. Hidden, not deleted — the summary carries the verdict and one
+   click reopens the reasoning. */
+.decided > .sec-head .eyebrow { color: var(--muted); }
+.decided-hint { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55;
+                color: var(--muted); margin: 0 0 0.9rem; }
+.decided-unit { border: 1px solid var(--rule); background: var(--paper-sunk);
+                margin-bottom: -1px; }
+.decided-unit > summary { list-style: none; cursor: pointer; display: flex;
+                          gap: 0.7rem; align-items: baseline; padding: 0.6rem 0.9rem;
+                          font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
+.decided-unit > summary::-webkit-details-marker { display: none; }
+.decided-unit > summary::before { content: '+'; font-family: var(--mono); font-size: 0.8rem;
+                                  color: var(--accent); }
+.decided-unit[open] > summary::before { content: '\2212'; }
+.decided-unit > summary:hover { background: var(--paper); }
+.decided-unit > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.decided-verdict { color: var(--ink-soft); }
+/* The moved node keeps its own markup; only the box around it changes, so the
+   item reads as a record rather than as a question still on the page. */
+.decided-unit > .consult-item,
+.decided-unit > .consult-group { background: var(--paper); border-top: 1px solid var(--rule);
+                                 margin: 0; padding: 0.9rem; opacity: 0.85; }

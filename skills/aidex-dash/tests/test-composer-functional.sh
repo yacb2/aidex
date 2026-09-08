@@ -379,7 +379,22 @@ window.addEventListener('load', function () {
       + '|BARDISP=' + (bar ? getComputedStyle(bar).display : 'none')
       + '|ENDH=' + (ebH > 0 ? '1' : '0')
       + '|NOTESDIS=' + (nt3 ? (nt3.disabled ? '1' : '0') : 'x')
-      + '|NOTESEND=' + acap.replace(/[|<>\n]/g, ' ');
+      + '|NOTESEND=' + acap.replace(/[|<>\n]/g, ' ')
+      /* BL-373: the settled block is COLLAPSED out of the flow, not deleted and
+       * not left in place. Every field here separates one of those three from
+       * the other two, which a single "is it visible" check cannot. */
+      + '|DECSEC=' + (document.getElementById('sec-decided') ? '1' : '0')
+      + '|UNITS=' + document.querySelectorAll('#sec-decided .decided-unit').length
+      + '|MOVED=' + (document.querySelector('#sec-decided [data-id="Q1"]') ? '1' : '0')
+      + '|INFLOW=' + document.querySelectorAll('#sec-ask > .consult-group').length
+      /* Anchored on the section EXISTING: without it the open-details query is
+       * null and FOLDED would read 1 on a page that collapsed nothing. */
+      + '|FOLDED=' + (document.getElementById('sec-decided')
+          && !document.querySelector('#sec-decided details[open]') ? '1' : '0')
+      + '|DECHEAD=' + ((document.querySelector('#sec-decided h2') || {}).textContent || '')
+      + '|RAILDEC=' + document.querySelectorAll('#raillist a[href="#sec-decided"]').length
+      + '|RAILQ=' + document.querySelectorAll('#raillist a[href="#Q0"], #raillist a[href="#Q1"], #raillist a[href="#Q2"], #raillist a[href="#G1"]').length
+      + '|RAILN=' + document.querySelectorAll('#raillist a[href="#notes"]').length;
   } else if (q.indexOf('phase=explain') !== -1) {
     /* BL-325: the reader who cannot answer because the QUESTION is unreadable.
      * Of 26 items in one real round, 12 came back as free text saying some form
@@ -946,6 +961,43 @@ td="$(run 'phase=alldecided')"
   || fail "BL-341: the copy bar was hidden on an all-decided page — the notes box is no longer sendable: $td"
 [[ "$td" == *"ENDH=1"* ]] \
   || fail "BL-341: the end-of-page copy bar was hidden on an all-decided page: $td"
+
+# BL-373 — a settled question is HIDDEN, never removed, and stops being navigated.
+#
+# The v16 shape left it drawn where it was written, on the argument that the page
+# should record the reasoning. One live use rejected the consequence: by round
+# three the reader was scrolling past seven answered questions to reach the open
+# ones — "es demasiado distractor iterar sobre un artefacto manteniendo las mismas
+# respuestas previas".
+#
+# Three states have to be told apart, and each assertion below separates exactly
+# one pair: MOVED distinguishes hidden from DELETED (the failure that would lose
+# the reasoning), INFLOW distinguishes it from LEFT IN PLACE (the reported
+# defect), and FOLDED from merely restyled. The fixture's G1 has all three of its
+# items decided, so it must collapse as ONE unit rather than three.
+[[ "$td" == *"DECSEC=1"* ]] \
+  || fail "BL-373: no composer-built section on a page with settled questions — the author would have to hand-roll one, which is the gate-1 violation this replaces: $td"
+[[ "$td" == *"UNITS=1"* ]] \
+  || fail "BL-373: a block whose every item is decided did not collapse as ONE unit — the reader navigates the block, not the items in it: $td"
+[[ "$td" == *"MOVED=1"* ]] \
+  || fail "BL-373: a settled item is not inside the section — it was DELETED rather than hidden, and the reasoning is gone: $td"
+[[ "$td" == *"INFLOW=0"* ]] \
+  || fail "BL-373: the settled block is still in the run of the page — this is the reported defect, not a fix for it: $td"
+[[ "$td" == *"FOLDED=1"* ]] \
+  || fail "BL-373: the settled units are expanded on load — folded is the point; open is one click: $td"
+# The heading is kit chrome, so it speaks the page's language like every other
+# string. Asserted on the es page because en would pass on an untranslated table.
+[[ "$td" == *"DECHEAD=Decidido"* ]] \
+  || fail "BL-373: the section heading is not localised — it is kit chrome and belongs in STRINGS, not in the page: $td"
+# The rail is the other half of "navegar sobre cosas ya respondidas": one entry
+# for the section, and none for what it holds. RAILN is the non-empty-input
+# guard — if the rail were empty altogether, RAILQ=0 would pass for free.
+[[ "$td" == *"RAILDEC=1"* ]] \
+  || fail "BL-373: the rail has no entry for the settled section, so there is no way into it from the index: $td"
+[[ "$td" == *"RAILQ=0"* ]] \
+  || fail "BL-373: the rail still lists settled questions — the index is where the reader navigates past them: $td"
+[[ "$td" == *"RAILN=1"* ]] \
+  || fail "BL-373: the rail lists nothing at all, so the RAILQ assertion above proves nothing: $td"
 [[ "$td" == *"NOTESDIS=0"* ]] \
   || fail "BL-341: the general-notes box was sealed along with the decided questions: $td"
 [[ "$td" == *"NOTESEND=### notes · General notes  the notes box still takes an answer"* ]] \

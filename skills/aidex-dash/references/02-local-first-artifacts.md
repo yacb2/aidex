@@ -253,11 +253,33 @@ Two ways to land it, and they are not equivalent:
 
 | | When to use it |
 |---|---|
-| **Keep the items, add `data-decided` to each settled one, state the verdict in its body** | The default. The page stays a record of the reasoning rather than only of the outcome: a decided item is still drawn, with the option that won and the ones it beat greyed beside it. |
+| **Add `data-decided` to each settled item; the composer collapses them out of the flow** | The default. Since kit v17 the item is MOVED into one composer-built `Decided` section, folded behind a summary carrying its id, its title and the option that won; a block whose every item is decided collapses as one unit, and the rail lists the section instead of what is in it. The page still records the reasoning — one click reopens it — without making the reader navigate past it every round. |
 | **Remove the items and declare `<meta name="consult-surfaces" content="none: <reason>">`** | When the questions themselves have stopped being worth re-reading. The declaration is honoured now; removing the copy bar as well is equivalent and needs no declaration. |
 
 What is NOT allowed is declaring your way out while questions remain: a page carrying one
 real item gets the whole §8 battery, meta tag or not.
+
+**Since kit v17 a decided item is COLLAPSED, not left in place.** Until v16 it stayed
+drawn where it was written, and the reference argued that this keeps the page a record of
+the reasoning. The first page to use it was rejected after one round — *"es demasiado
+distractor iterar sobre un artefacto manteniendo las mismas respuestas previas&hellip; es
+mucho más limpio ir iterando y tener la sensación de que va quedando menos"* — because by
+round three the reader was scrolling past seven answered questions to reach the open ones,
+on a page whose whole point was that less remained each round.
+
+What the composer does, and none of it is written by an author:
+
+| | |
+|---|---|
+| The unit | A decided item, or a whole block once **every** item in it is decided. A half-answered block stays where it is: its context is what its open questions need, and §8.4 makes the block self-sufficient by contract |
+| Where it goes | One `section#sec-decided`, inserted after the ledger (or after the header when there is none), each unit inside a `<details>` whose summary carries the id, the title and the option that won |
+| The verdict line | Derived from the checked options. `data-decided="<one line>"` overrides it, for an outcome that is not any single option |
+| The rail | One entry for the section, never one per settled question — the index is the other half of "navegar sobre cosas ya respondidas" |
+
+The node is **moved**, never copied or deleted, so the static file is unchanged: the same
+markup parses the same way, `check_artifact.py` needs no rule of its own, and BL-359's fix
+keeps holding. Hand-rolling this section on a page is the gate-1 violation the feature
+exists to remove — that is precisely what BL-359 was worked around with.
 
 **`data-decided`, and why it is an attribute rather than a checked input.** Until v15 this
 row read "mark the chosen option `checked`" — and that advice manufactured a defect. The
