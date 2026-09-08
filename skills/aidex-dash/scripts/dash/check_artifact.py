@@ -464,7 +464,17 @@ SVG_ATTR = re.compile(r'([\w:-]+)\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+
 SVG_BLOCK = re.compile(r'<svg\b([^>]*)>(.*?)</svg>', re.S | re.I)
 SVG_NARROW = set("iljtfIr.,:;'|!()[] ")
 SVG_WIDE = set("mwMW@")
-SVG_CONTAINERS = ('g', 'defs', 'a', 'switch', 'symbol')
+# A container whose children ARE placed on the canvas: geometry and inherited
+# presentation flow through it. SVG_TEMPLATES is the other kind — its children
+# are a stencil the renderer instantiates somewhere else (or not at all), so a
+# rect inside one is never a label's background. BL-346: D2 and Graphviz put a
+# knockout rect inside <mask> under every edge label so the edge line does not
+# run through the glyphs; reading those as painted reported 36 labels at 4.02:1
+# against black on the route bench page, 11 of them legible in the browser.
+# `defs` was the only one skipped. Names are lowercase: `tag` is lowered when
+# it is parsed, so `clipPath` never matches as written in the markup.
+SVG_TEMPLATES = ('defs', 'mask', 'clippath', 'pattern', 'symbol', 'marker')
+SVG_CONTAINERS = ('g', 'a', 'switch') + SVG_TEMPLATES
 SVG_UNPLACEABLE = re.compile(r'rotate|matrix|scale|skew', re.I)
 SVG_CSS_RULE = re.compile(r'([^{}]+)\{([^{}]*)\}', re.S)
 SVG_CSS_SIZE = re.compile(r'font(?:-size)?\s*:\s*(?:[\w-]+\s+)*?(\d*\.?\d+)px', re.I)
@@ -598,7 +608,7 @@ def svg_geometry(svg, fonts=None, fills=None):
         nfs = _svg_num(d.get('font-size'), nfs)
         nan = d.get('text-anchor', anchor)
         dx, dy = _svg_translate(d.get('transform'))
-        nsk = skip or tag == 'defs' or bool(SVG_UNPLACEABLE.search(d.get('transform', '')))
+        nsk = skip or tag in SVG_TEMPLATES or bool(SVG_UNPLACEABLE.search(d.get('transform', '')))
         nb = nb or d.get('font-weight', '') in ('bold', 'bolder', '600', '700', '800', '900')
         nmo = nmo or 'mono' in d.get('font-family', '').lower()
         if tag == 'text' and not selfclosed:
