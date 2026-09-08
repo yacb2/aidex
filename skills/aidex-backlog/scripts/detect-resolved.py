@@ -92,7 +92,10 @@ def main():
         print(f"error: no backlog/ under {ctx}", file=sys.stderr)
         return 2
     repo = os.path.dirname(ctx)
-    if not os.path.isdir(os.path.join(repo, ".git")):
+    # `.git` is tested with `exists`, not `isdir`: in a linked worktree it is a FILE
+    # holding a gitdir pointer, and isdir() there disabled this half silently (BL-351,
+    # the same predicate BL-344 fixed in memory-sweep.py).
+    if not os.path.exists(os.path.join(repo, ".git")):
         repo = None
 
     rows = []
