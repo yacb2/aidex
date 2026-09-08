@@ -86,7 +86,15 @@ grep -q '<strong>' "$TMP/report.html" || fail "**bold** did not become <strong>"
 grep -q 'class="tw"' "$TMP/report.html" || fail "the table is not inside the kit's .tw scroll wrapper"
 grep -qE 'class="[^"]*\bmain\b' "$TMP/report.html" || fail "no .main — the page renders full-bleed"
 grep -q '^| metric | value |' "$TMP/report.html" && fail "the markdown was emitted verbatim, not rendered"
+# The leak this guards does NOT produce a line starting with `---`: the four
+# front-matter lines carry no blank line between them, so `_blocks` folds them
+# into ONE paragraph and `^---$` can never match. Grep for the KEYS instead —
+# they are what actually lands, as the standfirst directly under the h1.
+# Found by the branch review of the sweep that shipped this file: reverting
+# md_body.py's `FM.sub` left this file green at exit 0, seven ok lines.
 grep -q '^---$' "$TMP/report.html" && fail "the YAML front matter leaked into the page"
+grep -q 'status: done' "$TMP/report.html" && fail "the front-matter key 'status: done' leaked into the page"
+grep -q 'created: 2026-09-08' "$TMP/report.html" && fail "the front-matter key 'created:' leaked into the page"
 [[ $failures -eq 0 ]] && ok "headings, tables, lists and inline spans render as markup"
 
 # ---------- the mutation: markdown is data, never markup --------------------
