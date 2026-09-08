@@ -213,11 +213,28 @@ block is noise.
 
 It is one line per decision — id, state, the decision itself — using the `.ledger`
 component. Its job is that opening a new page in an ongoing thread does not mean
-re-reading the previous ones to find out what is already settled, and that an item
-that has been decided has somewhere to go when it leaves the question set.
+re-reading the previous ones to find out what is already settled.
 
-**The ledger is written every iteration, not at the end.** Each time the reader answers
-something, the answer is summarised into the ledger and the page is re-wrapped BEFORE
+**What the ledger carries, and what it does not (kit v17, BL-374).** The ledger holds
+what came in from BEFORE this page — decisions from earlier pages or links of the
+thread, and the open items carried in with them. **This page's own answers do not go
+there.** Since kit v17 a decided item has its own destination: the composer collapses
+it into the `Decided` section with the option that won (BL-373, § 8 below), and
+restating it in the ledger produced two adjacent sections saying the same thing — the
+shape one reader asked to have merged the day it first appeared. Until v16 the ledger
+had that second job; the composer took it, and the rule that put an answer in both
+places is what this paragraph retires.
+
+The per-round obligation that survives the narrowing: **a carried-in line that this
+page's decisions CLOSE is updated or dropped in the same round.** The failure it names
+was a ledger reading "BL-364 sigue sin decidir — es Q3 y Q4 aquí abajo" two sections
+above a Q3 and a Q4 that were already decided: the ledger contradicting the page it
+opens. The name should say the scope too — "what this thread brought in", never
+"what is decided", which is the composer's heading.
+
+**The ledger is re-read every iteration, not at the end.** Each time the reader answers
+something, the item takes `data-decided` (the composer records the answer), any carried-in
+ledger line that answer closes is updated, and the page is re-wrapped BEFORE
 the reply that acknowledges it. Settled at the top, still-open below: that ordering is
 the whole shape, and it means the page always reads as "here is where we are", never as
 a transcript.
