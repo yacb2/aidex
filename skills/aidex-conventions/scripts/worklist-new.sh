@@ -4,11 +4,18 @@
 # Usage (non-interactive; the owning skill runs the AskUserQuestion survey and
 # passes the answers here):
 #   worklist-new.sh --title "<run name>" --ref "<kind:label>" [--ref ...] \
-#                   [--publish ask|preauthorized|never] [--slug <kebab>] [--mode sweep]
+#                   [--publish ask|preauthorized|never] [--merge ask|preauthorized]
+#                   [--slug <kebab>] [--mode sweep]
 #
 #   --ref "<kind:label>"   queue item; kind ∈ backlog|plan|audit|inline. Repeatable;
 #                          order on the command line == execution order.
 #   --publish              gate-policy.publish (default: ask; `never` for a sweep)
+#   --merge                gate-policy.merge (default: ask). Integrating the branch is
+#                          class 2 in rules/autonomy.md: pre-authorizable at the initial
+#                          phase, never assumed mid-run. This is where that grant is
+#                          recorded, so the run stops printing a fixed refusal over an
+#                          answer the owner already gave (BL-361). An ABSENT key means
+#                          `ask` — what every work-list written before BL-361 meant.
 #   --mode sweep           a backlog sweep: worklist-advance.sh then DRIVES the item
 #                          lifecycle (close-item.sh --sweep the head, start-item.sh the
 #                          next) instead of only ticking the box
@@ -27,13 +34,14 @@ set -euo pipefail
 ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
 
-title="" publish="ask" slug="" mode=""
+title="" publish="ask" merge="ask" slug="" mode=""
 refs=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --title)   title="$2"; shift 2;;
     --ref)     refs+=("$2"); shift 2;;
     --publish) publish="$2"; shift 2;;
+    --merge) merge="$2"; shift 2;;
     --slug)    slug="$2"; shift 2;;
     --mode)    mode="$2"; shift 2;;
     *) echo "unknown arg: $1" >&2; exit 2;;
@@ -42,6 +50,7 @@ done
 
 [[ -n "$title" ]] || { echo "--title required" >&2; exit 2; }
 [[ "$publish" == "ask" || "$publish" == "preauthorized" || "$publish" == "never" ]] || { echo "--publish must be ask|preauthorized|never" >&2; exit 2; }
+[[ "$merge" == "ask" || "$merge" == "preauthorized" ]] || { echo "--merge must be ask|preauthorized" >&2; exit 2; }
 [[ -z "$mode" || "$mode" == "sweep" ]] || { echo "--mode must be sweep" >&2; exit 2; }
 [[ ${#refs[@]} -gt 0 ]] || { echo "at least one --ref required" >&2; exit 2; }
 
@@ -62,6 +71,7 @@ file="$WL_DIR/${today}-${slug}.md"
   [[ -n "$mode" ]] && echo "mode: $mode"
   echo "gate-policy:"
   echo "  publish: $publish"
+  echo "  merge: $merge"
   echo "  destructive: deny"
   echo "---"
   echo
