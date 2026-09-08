@@ -1074,6 +1074,25 @@ if [[ -n "$ESCALATE_TO" ]]; then
   TARGET_ROOT="$ESCALATE_TO"
   [[ -d "$TARGET_ROOT" ]]           || die "--escalate-to: target repo not found: $TARGET_ROOT"
   [[ -d "$TARGET_ROOT/.context" ]]  || die "--escalate-to: target has no .context/: $TARGET_ROOT"
+  # The SOURCE backlog is the caller's too (BL-342). BL-336 closed this on the plain
+  # path and left the escalate branch carrying the same defect one branch over: nothing
+  # below asks whether the source HAS a backlog/, so `claim_backlog_id "$BACKLOG_DIR"`
+  # mkdir'd `_claims/` and `emit_backlog_stub` mkdir'd the rest. Escalating from the
+  # wrong cwd built .context/backlog/, _claims/ and 00-index.md in the source, minted
+  # BL-001 there and exited 0.
+  #
+  # It has to run BEFORE the target `mkdir -p` below: one line later and a call that
+  # then refuses has already created backlog/ in the OTHER repo — and once a number is
+  # claimed there the ledger never gives it back, which is a cost this run has no
+  # business imposing on a repo it only meant to read.
+  #
+  # The target's own `mkdir -p` deliberately stays: `--escalate-to` is an explicit
+  # argument, not a cwd accident, and cwd being the only selector is the whole reason
+  # BL-336 refused. (B5 in test-register-regressions.sh also depends on the target
+  # reaching a later failure, not this one.)
+  [[ -d "$BACKLOG_DIR" ]] || die "--escalate-to: no backlog directory at $BACKLOG_DIR
+  resolved source root: $ROOT
+  if that is the right project, run \`/aidex init\` there first; otherwise cd to the project the item belongs to"
   TARGET_BACKLOG="$TARGET_ROOT/.context/backlog"
   mkdir -p "$TARGET_BACKLOG"
   SRC_NAME="$(basename "$ROOT")"
