@@ -562,14 +562,41 @@ def svg_geometry(svg, fonts=None, fills=None):
     mono = False
     fill = None
     stack, texts, rects, cur = [], [], [], None
+    # BL-347: what a label is painted with is declared on the node carrying the
+    # GLYPHS. Mermaid's sequenceDiagram puts the actor name in a <tspan> and
+    # paints it `text.actor>tspan{fill:#333}`, while `.actor{fill:#eee}` on the
+    # enclosing <text> is there for the actor RECT — reading the <text> reported
+    # all 10 actor labels on the route bench page at 1.04:1 where the browser
+    # measures 0 of 20 failing. `tsp` is the open-tspan stack, `glyph_fills` the
+    # distinct effective fills of the runs that actually carry glyphs, and
+    # `bare` the text sitting directly in the <text>. A merged label whose runs
+    # disagree resolves to SVG_UNREADABLE: it has no single colour to measure,
+    # and inventing one is what this whole check refuses to do.
+    tsp, glyph_fills, bare, last = [], set(), [], 0
     for m in SVG_TAG.finditer(svg):
         closing, tag, raw, selfclosed = m.group(1), m.group(2).lower(), m.group(3), m.group(4)
         if cur is not None:
-            if closing and tag == 'text':
-                start, f, an, x, y, sk, b, mo, fl = cur
+            if tag == 'tspan' and not closing and not selfclosed:
+                if not tsp:
+                    bare.append(svg[last:m.start()])
+                tsp.append((m.end(), _svg_tspan_fill(_svg_attrs(raw), cur[9], fills)))
+            elif tag == 'tspan' and closing and tsp:
+                st, tfl = tsp.pop()
+                if re.sub(r'<[^>]+>', ' ', svg[st:m.start()]).strip():
+                    glyph_fills.add(cur[8] if tfl is None else tfl)
+                if not tsp:
+                    last = m.end()
+            elif closing and tag == 'text':
+                start, f, an, x, y, sk, b, mo, fl, _cls = cur
                 label = ' '.join(_html.unescape(
                     re.sub(r'<[^>]+>', ' ', svg[start:m.start()])).split())
-                cur = None
+                bare.append(svg[last:m.start()])
+                if re.sub(r'<[^>]+>', ' ', ''.join(bare)).strip():
+                    glyph_fills.add(fl)
+                if glyph_fills:
+                    fl = (next(iter(glyph_fills)) if len(glyph_fills) == 1
+                          else SVG_UNREADABLE)
+                cur, tsp, glyph_fills, bare = None, [], set(), []
                 if label and not sk and f is not None:
                     w = svg_text_width(label, f, b, mo)
                     x0 = {'middle': x - w / 2, 'end': x - w}.get(an, x)
@@ -614,7 +641,9 @@ def svg_geometry(svg, fonts=None, fills=None):
         if tag == 'text' and not selfclosed:
             cur = (m.end(), nfs, nan,
                    _svg_num(d.get('x'), 0.0) + tx + dx,
-                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo, nfl)
+                   _svg_num(d.get('y'), 0.0) + ty + dy, nsk, nb, nmo, nfl,
+                   d.get('class', '').split())
+            tsp, glyph_fills, bare, last = [], set(), [], m.end()
         elif tag == 'rect' and not nsk:
             rx, ry = _svg_num(d.get('x'), 0.0) + tx + dx, _svg_num(d.get('y'), 0.0) + ty + dy
             rects.append((rx, ry, rx + _svg_num(d.get('width'), 0.0),
@@ -725,10 +754,61 @@ def svg_css_fills(css, own_id=None):
             ids = re.findall(r'#([\w-]+)', sel)
             if ids and (own_id is None or own_id not in ids):
                 continue                            # another figure's rule
+            # BL-347: a `…>tspan` (or `… tspan`) selector lands on the GLYPHS,
+            # one level below the <text> a plain leaf key models. It is keyed
+            # with the compound it hangs off — `.actor>tspan` — and never flat
+            # on `tspan`: mermaid's stylesheet ends with
+            # `.noteText>tspan{fill:#fff}`, and a flat key would let that last
+            # rule paint every label in the figure white. ONE level only; the
+            # full ancestor chain, source order and specificity are BL-348.
+            # Descendant and child combinators are split together so
+            # `text.actor > tspan` cannot read `>` as its own scope.
+            toks = [t for t in re.split(r'\s*>\s*|\s+', sel)
+                    if t and not t.startswith('#')]
+            if toks and SVG_TSPAN_COMPOUND.fullmatch(toks[-1]):
+                out[svg_tspan_key(toks[-2] if len(toks) > 1 else None)] = colour
+                continue
             leaf = sel.split()[-1]                  # what the declaration lands on
             if re.fullmatch(r'\.[\w-]+', leaf) or leaf in SVG_PAINTED:
                 out[leaf] = colour
     return out
+
+
+SVG_TSPAN_COMPOUND = re.compile(r'tspan(?:\.[\w-]+)*')
+
+
+def svg_tspan_key(scope):
+    """The `fills` key for a tspan rule hanging off `scope` (the compound
+    immediately before it, or None). A class in the scope wins over its element
+    name, because that is what the figures in the field are written with."""
+    if not scope:
+        return 'tspan'
+    classes = re.findall(r'\.[\w-]+', scope)
+    if classes:
+        return classes[-1] + '>tspan'
+    m = re.match(r'^[\w-]+', scope)
+    return (m.group(0) + '>tspan') if m else 'tspan'
+
+
+def _svg_tspan_fill(d, parent_classes, fills):
+    """The fill DECLARED on one <tspan>, or None when nothing declares one and
+    the tspan simply inherits its <text>. Same cascade as the <text> one level
+    up, weakest first: a bare `tspan` rule, a rule scoped to the parent's
+    element then to one of its classes, the tspan's own class rule, then its
+    own attribute."""
+    fl = fills.get('tspan')
+    if 'text>tspan' in fills:
+        fl = fills['text>tspan']
+    for cls in parent_classes:
+        if '.' + cls + '>tspan' in fills:
+            fl = fills['.' + cls + '>tspan']
+    for cls in d.get('class', '').split():
+        if '.' + cls in fills:
+            fl = fills['.' + cls]
+    raw = _svg_style_prop(d.get('style'), 'fill') or d.get('fill')
+    if raw:
+        fl = svg_literal_colour(raw) or SVG_UNREADABLE
+    return fl
 
 
 # The wrapper a figure is actually painted on. Measured on the 2026-09-07 bench

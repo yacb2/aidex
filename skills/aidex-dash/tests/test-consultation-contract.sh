@@ -623,6 +623,57 @@ done
 grep -qE "FAIL \[svg-contrast\].*measured 6 text node\(s\)" "$TMP/out" \
   || fail "10h. BL-346: the six labels were not all measured — the skip is dropping text, not just unpainted rects: $(cat "$TMP/out")"
 
+# ---- 10i. BL-347: the glyphs live in the <tspan>, so that is where the fill is
+# read. Mermaid's sequenceDiagram paints the actor RECT with `.actor{fill:#eee}`
+# and the label inside it with `text.actor>tspan{fill:#333}`; the checker read
+# the `.actor` rule off the enclosing <text> and reported all 10 actor labels on
+# the route bench page at 1.04:1, where the browser measures 0 of 20 failing.
+# The `.noteText>tspan{fill:#fff}` rule below is not decoration: it is the LAST
+# tspan rule in mermaid's own stylesheet, so a fix that keys tspan fills flat on
+# the element name would paint every label white and fail this fixture instead.
+mkpage "$TMP/warn-svg-tspan.html" "<style>figure.cell.litebox .figbox { background: #F6F7F5 }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell litebox\"><div class=\"figbox\"><svg id=\"fig-i\" viewBox=\"0 0 400 400\" role=\"img\" aria-label=\"i\">
+  <style>#fig-i text { font-size: 12px }
+         #fig-i .actor { fill: #eee }
+         #fig-i text.actor>tspan { fill: #333 }
+         #fig-i .noteText,#fig-i .noteText>tspan { fill: #fff }</style>
+  <rect x=\"0\" y=\"20\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
+  <text class=\"actor\" x=\"10\" y=\"45\"><tspan x=\"10\" dy=\"0\">rule paints the tspan</tspan></text>
+  <rect x=\"0\" y=\"120\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
+  <text class=\"actor\" x=\"10\" y=\"145\"><tspan x=\"10\" fill=\"#333333\">attribute paints the tspan</tspan></text>
+  <rect x=\"0\" y=\"220\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
+  <text class=\"actor\" x=\"10\" y=\"245\"><tspan x=\"10\" fill=\"#eeeeee\">tspan repeats the pale fill</tspan></text>
+  <rect x=\"0\" y=\"320\" width=\"200\" height=\"40\" fill=\"#eaeaea\"/>
+  <text class=\"actor\" x=\"10\" y=\"345\">no tspan at all</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-tspan.html")"
+# The fix itself: a rule and an attribute on the tspan both override the <text>.
+for lbl in "rule paints the tspan" "attribute paints the tspan"; do
+  grep -q "\[svg-contrast\].*'$lbl'" "$TMP/out" \
+    && fail "10i. BL-347: '$lbl' was reported — its glyphs are #333 on #eaeaea, the pale fill is on the <text> the browser never paints: $(cat "$TMP/out")"
+done
+# The MUTATION that keeps those two absences honest. Same figure, same rect,
+# same classes; the only difference is that the tspan RE-DECLARES the pale fill,
+# which the browser does paint. If the fix silences tspan labels — by skipping
+# them, by marking them unreadable, or by dropping the pair — this goes quiet
+# too and the block above would pass having proved nothing.
+grep -q "FAIL \[svg-contrast\].*'tspan repeats the pale fill'.*against the rect it sits on" "$TMP/out" \
+  || fail "10i. BL-347: the control label whose tspan re-declares #eee was NOT reported — the two absences above prove nothing: $(cat "$TMP/out")"
+# And a <text> with no tspan still reads its own class rule.
+grep -q "FAIL \[svg-contrast\].*'no tspan at all'.*against the rect it sits on" "$TMP/out" \
+  || fail "10i. BL-347: the tspan-less label lost its own <text> fill: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10i. BL-347: the two control pairs did not fail the wrap: $(cat "$TMP/out")"
+# All four labels are still MEASURED — a fix that resolved the tspan to
+# something unreadable would clear the two findings above and be
+# indistinguishable from one that resolved it correctly.
+grep -qE "FAIL \[svg-contrast\].*measured 4 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10i. BL-347: the four labels were not all measured as literal colours: $(cat "$TMP/out")"
+
+
 
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
