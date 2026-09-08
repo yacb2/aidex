@@ -59,7 +59,10 @@
       explainOptionsHint: 'I can see the state — say what the alternatives are and what each one costs.',
       toLight: 'Light',
       toDark: 'Dark',
-      themeTitle: 'Switch this page between light and dark'
+      themeTitle: 'Switch this page between light and dark',
+      decided: 'Decided',
+      decidedCount: function (n) { return n + (n === 1 ? ' question already settled' : ' questions already settled'); },
+      decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -102,7 +105,10 @@
       explainOptionsHint: 'El estado lo veo — dime cu\u00e1les son las opciones y qu\u00e9 cuesta cada una.',
       toLight: 'Claro',
       toDark: 'Oscuro',
-      themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro'
+      themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
+      decided: 'Decidido',
+      decidedCount: function (n) { return n + (n === 1 ? ' pregunta ya resuelta' : ' preguntas ya resueltas'); },
+      decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -192,6 +198,126 @@
     });
   });
 
+  /* ---- Decided items collapse out of the flow (kit v17, BL-373) ----------
+   *
+   * Until v16 a settled item stayed drawn where it was written. The reference
+   * called that the default because the page then records the REASONING and
+   * not only the outcome, and that part is right — but one live use of it
+   * rejected the consequence: by round three the reader was scrolling past
+   * seven answered questions to reach the open ones, on a page whose whole
+   * point was that less remained each round. Reported verbatim — "es demasiado
+   * distractor iterar sobre un artefacto manteniendo las mismas respuestas
+   * previas... es mucho mas limpio ir iterando y tener la sensacion de que va
+   * quedando menos".
+   *
+   * So: HIDDEN, never removed. Each decided item — or a whole block once every
+   * item in it is decided, which is the unit the reader actually navigates —
+   * is MOVED into one composer-built section, collapsed behind a summary that
+   * carries its id, its title and the option that won. One click reopens the
+   * full reasoning. The static file is untouched: the same markup an author
+   * wrote still parses the same way, so `check_artifact.py` needs no change
+   * and BL-359's fix keeps holding.
+   *
+   * It is built by the composer rather than written per page for the same
+   * reason every other control is: a section hand-rolled once per round is a
+   * component the kit does not define, which is the gate-1 violation BL-359
+   * was itself worked around with. */
+  function decidedLine(el) {
+    var marked = [];
+    el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
+      .forEach(function (i) { marked.push((i.dataset.label || i.value || '').trim()); });
+    el.querySelectorAll('select').forEach(function (sel) {
+      if (sel.value) marked.push(sel.options[sel.selectedIndex].text.trim());
+    });
+    return marked.filter(Boolean).join(' \u00b7 ');
+  }
+
+  /* A verdict written on the attribute wins over the options it chose: an item
+   * whose outcome is not any single option ("both, in this order") has nowhere
+   * else to say so. Bare `data-decided` keeps the derived line. */
+  function decidedSummary(el) {
+    var v = (el.getAttribute('data-decided') || '').trim();
+    return v || decidedLine(el);
+  }
+
+  var decidedSection = null;
+  function collapseDecided() {
+    var decided = items.filter(isDecided);
+    if (!decided.length) return;
+
+    /* A block collapses as ONE unit only when every question in it is settled.
+     * A half-answered block stays where it is, with its context intact: the
+     * block is self-sufficient by contract, and hiding the context of a
+     * question still being asked would break exactly that. */
+    var units = [], seen = [];
+    decided.forEach(function (el) {
+      var g = el.closest('.consult-group');
+      if (g) {
+        var all = [].slice.call(g.querySelectorAll('.consult-item')).every(isDecided);
+        if (all) {
+          if (seen.indexOf(g) === -1) { seen.push(g); units.push({ node: g, group: true }); }
+          return;
+        }
+        return;                       /* block still open — leave the item in place */
+      }
+      units.push({ node: el, group: false });
+    });
+    if (!units.length) return;
+
+    var sec = document.createElement('section');
+    sec.id = 'sec-decided';
+    sec.className = 'decided';
+    var head = document.createElement('div');
+    head.className = 'sec-head';
+    var eyebrow = document.createElement('p');
+    eyebrow.className = 'eyebrow';
+    eyebrow.textContent = L.decidedCount(decided.length);
+    var h2 = document.createElement('h2');
+    h2.textContent = L.decided;
+    head.appendChild(eyebrow);
+    head.appendChild(h2);
+    sec.appendChild(head);
+    var hint = document.createElement('p');
+    hint.className = 'decided-hint';
+    hint.textContent = L.decidedHint;
+    sec.appendChild(hint);
+
+    units.forEach(function (u) {
+      var d = document.createElement('details');
+      d.className = 'decided-unit';
+      var sum = document.createElement('summary');
+      var k = document.createElement('span');
+      k.className = 'consult-id';
+      var v = document.createElement('span');
+      v.className = 'decided-verdict';
+      if (u.group) {
+        var inner = [].slice.call(u.node.querySelectorAll('.consult-item'));
+        k.textContent = u.node.dataset.id || u.node.id || '';
+        v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
+          inner.map(function (el) { return el.dataset.id; }).join(', ');
+      } else {
+        k.textContent = u.node.dataset.id || '';
+        var line = decidedSummary(u.node);
+        v.textContent = (u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
+      }
+      sum.appendChild(k);
+      sum.appendChild(v);
+      d.appendChild(sum);
+      d.appendChild(u.node);          /* MOVED, not copied and not deleted */
+      sec.appendChild(d);
+    });
+
+    /* After the ledger when there is one, else after the header: the reader
+     * meets what is settled before what is still being asked, and the open
+     * blocks keep the run of the page to themselves. */
+    var after = document.getElementById('sec-ledger') ||
+                document.querySelector('.main > header');
+    if (after && after.parentNode) after.parentNode.insertBefore(sec, after.nextSibling);
+    else (document.querySelector('.main') || document.body).appendChild(sec);
+    decidedSection = sec;
+  }
+  collapseDecided();
+
   // The rail carries the sections as well as the questions: on a read with no
   // questions it is still the index, which is why it stays on every page.
   // A BLOCK (`section.consult-group`, BL-247) is a section whose decisions are
@@ -220,10 +346,16 @@
       var h = sec.querySelector('h2');
       if (!h) return;
       list.appendChild(railLink('railitem sec', '#' + sec.id, '', h.textContent));
+      /* The collapsed section gets ONE entry and stops there. Listing what it
+       * holds would put every answered question back in the index the reader
+       * asked to stop navigating (BL-373); the section itself is the way in. */
+      if (sec === decidedSection) return;
       // Blocks wrapped in a container section still list under it.
       sec.querySelectorAll('.consult-group').forEach(groupEntry);
     });
-    var loose = items.filter(function (el) { return !el.closest('.consult-group'); });
+    var loose = items.filter(function (el) {
+      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el));
+    });
     if (loose.length) {
       var sep = document.createElement('div');
       sep.className = 'railsep';
