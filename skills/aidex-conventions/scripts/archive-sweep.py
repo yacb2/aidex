@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""archive-sweep.py — one pass over every tier that has an `_archive/`, not four by hand.
+"""archive-sweep.py — one pass over every tier that has an `_archive/`, not six by hand.
 
 D-10 says a `done` / `dropped` / `superseded` artifact moves to its tier's `_archive/`
 immediately on close. Enforcement existed for exactly one tier: `aidex-backlog/sweep.sh`
@@ -69,7 +69,7 @@ def tier_units(ctx, tier):
             and its status lives in 00-index.md.
     audits/ the unit is a dated run folder under audits/<methodology>/, and D-10 archives
             it to audits/_archive/, not into the methodology folder.
-    backlog/, requests/  flat .md files.
+    backlog/, requests/, decisions/, loops/  flat .md files (decisions and loops: BL-378).
 
     Yields (unit_path, status_file, archive_dir).
     """
@@ -78,7 +78,7 @@ def tier_units(ctx, tier):
         return
     archive = os.path.join(base, "_archive")
 
-    if tier in ("backlog", "requests"):
+    if tier in ("backlog", "requests", "decisions", "loops"):
         for name in sorted(os.listdir(base)):
             p = os.path.join(base, name)
             if os.path.isfile(p) and name.endswith(".md") and not name.startswith("00-"):
@@ -112,7 +112,7 @@ def tier_units(ctx, tier):
                     yield rp, idx, archive
 
 
-TIERS = ("plans", "audits", "requests", "backlog")
+TIERS = ("plans", "audits", "requests", "backlog", "decisions", "loops")
 
 
 def scan(ctx, repo):
@@ -139,7 +139,7 @@ def scan(ctx, repo):
 # 00-global). Mirrors validate.py's TYPE_FOLDER_TO_PREFIX for the tiers this
 # script walks; anything else yields no companion lookup rather than a wrong one.
 TIER_PREFIX = {"plans": "plan", "audits": "audit", "requests": "request",
-               "backlog": "backlog"}
+               "backlog": "backlog", "decisions": "decision", "loops": "loop"}
 
 
 def _archive_companions(ctx, rel_path, archive_to):
