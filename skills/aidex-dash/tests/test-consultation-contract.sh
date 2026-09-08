@@ -904,6 +904,52 @@ grep -qE "FAIL \[svg-contrast\].*measured 3 text node\(s\).* 0 unmeasurable" "$T
   || fail "10l. BL-358: the three labels were not all measured as literal colours: $(cat "$TMP/out")"
 
 
+# ---- 10m. BL-353: a nested <tspan> inherits from the RUN above it, not the <text>.
+# svg_geometry pushes each open <tspan> with the fill DECLARED on it, and a run
+# that declares nothing fell back to the enclosing <text>'s fill — skipping the
+# nearest enclosing tspan that does declare one. So a label whose outer run is
+# pale and whose inner run merely inherits it resolved to two different colours,
+# collapsed to SVG_UNREADABLE, and went UNMEASURED: the browser paints both runs
+# the same colour and the contrast failure was never reported. Conservative, so
+# BL-347 shipped without it, but it still costs a real measurement.
+mkpage "$TMP/warn-svg-tspan.html" "<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"figbox\"><svg id=\"fig-t\" viewBox=\"0 0 400 300\" role=\"img\" aria-label=\"t\">
+  <style>#fig-t text { font-size: 12px }
+         #fig-t .actor { fill: #111111 }</style>
+  <rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text class=\"actor\" x=\"10\" y=\"45\"><tspan fill=\"#dddddd\">outer run<tspan> inner run</tspan></tspan></text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-tspan.html")"
+# THE DEFECT: both runs are painted #dddddd on #f0f0f0 (1.13:1). The inner run
+# inheriting #111111 from the <text> instead split the label in two.
+grep -q "FAIL \[svg-contrast\].*'outer run inner run'.*against the rect it sits on" "$TMP/out" \
+  || fail "10m. BL-353: the label whose inner <tspan> inherits from the outer run was NOT reported: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "10m. BL-353: the nested-tspan pair did not fail the wrap: $(cat "$TMP/out")"
+# The MUTATION that makes the fix load-bearing rather than merely quiet: the
+# label must be MEASURED, not silently dropped. Before the fix it was counted
+# unmeasurable, which is the shape a lazy fix would restore.
+grep -qE "FAIL \[svg-contrast\].*measured 1 text node\(s\).* 0 unmeasurable" "$TMP/out" \
+  || fail "10m. BL-353: the nested label was not measured as ONE literal colour: $(cat "$TMP/out")"
+
+# The control in the other axis: an inner run that declares its OWN fill keeps
+# it, and two runs that genuinely disagree still collapse to unmeasurable —
+# inheriting from the run above must not become "the outer run always wins".
+mkpage "$TMP/warn-svg-tspan-own.html" "<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"figbox\"><svg id=\"fig-t2\" viewBox=\"0 0 400 300\" role=\"img\" aria-label=\"t2\">
+  <style>#fig-t2 text { font-size: 12px }</style>
+  <rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"#f0f0f0\"/>
+  <text x=\"10\" y=\"45\"><tspan fill=\"#dddddd\">pale run<tspan fill=\"#111111\"> dark run</tspan></tspan></text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-tspan-own.html")"
+grep -qE "\[svg-contrast\].*measured 0 text node\(s\).* 1 unmeasurable" "$TMP/out" \
+  || fail "10m. BL-353: two runs declaring different fills were not left unmeasurable — the inner run's own declaration was overridden by the one above it: $(cat "$TMP/out")"
+
+
 
 # The first cut read every label without a font-size attribute as 16 px and
 # reported collisions on 13 of 60 field pages; measured in Chrome, the pages
