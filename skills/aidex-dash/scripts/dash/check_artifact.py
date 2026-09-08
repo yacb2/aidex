@@ -45,6 +45,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                so any other wrapper renders them unstyled (BL-244)
   consult-rec  "(recommended)" typed into `data-label` — the marker then travels
                in the pasted reply and is invisible on the page (BL-245)
+  consult-independent a checkbox group whose option labels each name a distinct
+               tracked id (BL-NNN, a dated plan slug) — several decisions drawn as
+               one item; a checkbox group is for facets of ONE decision, and each id
+               is its own two-option radio item (BL-375)
   consult-facts a paragraph inside a block context or an item body carrying four
                or more `<code>` tokens or semicolon-separated clauses — the shape
                of "N things with their state and verdict" written as prose, which
@@ -372,6 +376,30 @@ ATTR_CLASS = re.compile(r'\bclass\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27'
                         r'|([^\s>]+))', re.I)
 MARK_INPUT = re.compile(r'<input\b[^>]*\btype\s*=\s*["\x27]?(?:radio|checkbox)\b',
                         re.I | re.S)
+
+
+INPUT_TAG = re.compile(r'<input\b[^>]*>', re.I | re.S)
+CHECKBOX_TYPE = re.compile(r'type=["\']checkbox["\']', re.I)
+TRACKED_ID = re.compile(r'\bBL-\d{3}\b|\b\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)+\b')
+
+
+def independent_checkbox_ids(body):
+    """The distinct tracked ids named by an item's checkbox labels, when there are
+    at least two and every checkbox names one. A proxy for the shape BL-375 names:
+    boxes that are each a separate decision, drawn as facets of one."""
+    ids = []
+    for tag in INPUT_TAG.finditer(body):            # attribute order is not fixed
+        if not CHECKBOX_TYPE.search(tag.group(0)):
+            continue
+        m = DATA_LABEL.search(tag.group(0))
+        if not m:
+            return []
+        val = next(g for g in m.groups() if g is not None)
+        found = TRACKED_ID.search(val)
+        if not found:
+            return []
+        ids.append(found.group(0))
+    return ids if len(set(ids)) == len(ids) and len(ids) >= 2 else []
 
 
 def consult_item_bodies(text):
@@ -1216,6 +1244,20 @@ def warn_file(path):
                           f'only under .opts (radio groups: class="opts one", '
                           f'checkbox groups: class="opts"), so these render '
                           f"with no grid, no hover and the hints inline"))
+
+    for ident, body in bodies:
+        try:
+            ids = independent_checkbox_ids(body)
+        except Exception:                           # noqa: BLE001 — advisory
+            continue
+        if ids:
+            warns.append(("consult-independent", name,
+                          f"item '{ident}' is a checkbox group whose options are "
+                          f"each a distinct tracked id ({', '.join(ids)}) — that is "
+                          f"{len(ids)} decisions drawn as one item. A checkbox group "
+                          f"is for facets of ONE decision; each of these is its own "
+                          f"item with a two-option radio and its own "
+                          f"data-recommended (§8, BL-375). Cleared by the rewrite"))
 
     for ident, body in bodies:
         for m in DATA_LABEL.finditer(body):

@@ -17,13 +17,43 @@ split into a new module, never appended. Exit 1 on any finding.
 """
 import json, os, re, sys
 
+# BL-364: the profile is COMPOSED — a stack-neutral core plus the keys each pack
+# declares. A key belongs to exactly one group; a project sees the core and the groups
+# of the packs detected on disk, and a project with no recognised pack sees the core
+# plus `suite_cmd`. An inapplicable key is omitted, never answered `n/a`: sweep-gate.sh
+# runs a key's value as a command, and an absent key dies with a message naming the
+# leg, while `n/a` used to run as one.
+CORE_KEYS = ["project_slug", "project_kebab", "blindspot_expansions", "module_map", "testing_packs"]
+SUITE_ONLY_KEYS = ["suite_cmd"]                      # a project whose whole surface is one suite
+PACK_KEYS = {
+    "testing-django": ["dev_backend_port", "db_port", "db_name", "db_user", "db_password_env",
+                       "backend_test_cmd", "backend_suite_cmd", "seed_bootstrap_cmd",
+                       "personas_ref", "cross_deps_ref"],
+    "testing-vue": ["dev_frontend_port", "frontend_test_cmd", "frontend_suite_cmd", "build_cmd",
+                    "ui_stack", "ui_locale"],
+    "testing-playwright-app": ["e2e_frontend_port", "e2e_backend_port", "e2e_service", "e2e_test_cmd",
+                               "e2e_suite_cmd", "e2e_detached", "seed_e2e_bootstrap_cmd", "helpers_dir"],
+}
+PACK_KEYS["testing-svelte"] = PACK_KEYS["testing-payload"] = PACK_KEYS["testing-vue"]
+PACK_KEYS["testing-playwright-web"] = PACK_KEYS["testing-playwright-app"]
+# Every key, in template order — the template and this list are kept in lockstep by
+# tests/test-profile-init.sh.
 KEYS = ["project_slug", "project_kebab", "dev_frontend_port", "dev_backend_port", "db_port",
         "e2e_frontend_port", "e2e_backend_port", "db_name", "db_user", "db_password_env",
         "e2e_service", "backend_test_cmd", "frontend_test_cmd", "e2e_test_cmd",
-        "backend_suite_cmd", "frontend_suite_cmd", "e2e_suite_cmd", "build_cmd", "e2e_detached",
+        "backend_suite_cmd", "frontend_suite_cmd", "e2e_suite_cmd", "suite_cmd", "build_cmd", "e2e_detached",
         "blindspot_expansions",
         "seed_bootstrap_cmd", "seed_e2e_bootstrap_cmd", "helpers_dir", "ui_stack", "ui_locale",
         "personas_ref", "cross_deps_ref", "module_map", "testing_packs"]
+
+
+def keys_for(packs):
+    """The keys a project with these packs answers, in template order."""
+    known = [pk for pk in packs if pk in PACK_KEYS]
+    wanted = set(CORE_KEYS) | (set(SUITE_ONLY_KEYS) if not known else set())
+    for pk in known:
+        wanted |= set(PACK_KEYS[pk])
+    return [k for k in KEYS if k in wanted]
 
 
 def read(path):
@@ -157,19 +187,21 @@ def main():
     v["testing_packs"] = " ".join(packs)
     mm = ".context/audits/test-coverage/module-map.json"
     v["module_map"] = mm if os.path.exists(os.path.join(root, mm)) else ""
-    lines = ["---"] + [f"{k}: {v[k]}" for k in KEYS] + ["---", "",
+    keys = keys_for(packs)
+    lines = ["---"] + [f"{k}: {v[k]}" for k in keys] + ["---", "",
              "This file is a DELTA over `aidex-coverage`: facts about this project only.",
              "Never a layer rule, never a copy of the canon; a deviation from the rubric is a",
              "decision in `.context/decisions/`. Seeded by `profile-init.py` from test-e2e.sh,",
              "docker-compose.yml, pyproject.toml and package.json — blank keys are unanswered,",
-             "not zero. Schema: `aidex-coverage/references/14-testing-profile.md`.", ""]
+             "not zero; a key of a pack this project does not name is omitted, never `n/a`.",
+             "Schema: `aidex-coverage/references/14-testing-profile.md`.", ""]
     text = "\n".join(lines)
     if show:
         print(text, end="")
         return
     os.makedirs(os.path.dirname(out), exist_ok=True)
     open(out, "w").write(text)
-    blank = [k for k in KEYS if not v[k]]
+    blank = [k for k in keys if not v[k]]
     print(f"wrote {out}" + (f" — blank: {', '.join(blank)}" if blank else ""))
 
 
