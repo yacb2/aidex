@@ -74,4 +74,34 @@ for good_type in bug improvement task idea; do
     || bad "--type '$good_type' did not survive: $(fm "$G" type)"
 done
 
+# BL-360: a source escalated to N repos keeps N pointers. stamp_escalated_to() rewrote
+# the line, so ten --escalate-to runs against one --source-id left it pointing only at
+# the tenth — nine forward links silently lost when BL-319 was fanned to the fleet. The
+# reverse links survived (each counterpart carries origin: aidex/BL-NNN), so nothing was
+# orphaned; the source just could not show its own fan-out, and the ten ids had to be
+# written into the body by hand.
+mkdir -p "$TMP/fan/.context/backlog" "$TMP/r1" "$TMP/r2" "$TMP/r3"
+SRC="$(bash "$REG" --origin manual --title "fan me out" 2>/dev/null | head -1)"
+SRCID="$(fm "$SRC" id)"
+for r in r1 r2 r3; do
+  mkdir -p "$TMP/$r/.context/backlog"
+  bash "$REG" --origin manual --title "fan me out" --escalate-to "$TMP/$r" --source-id "$SRCID" >/dev/null 2>&1
+done
+ESC="$(fm "$SRC" escalated_to)"
+n_ptr="$(printf '%s' "$ESC" | tr ',' '\n' | grep -c 'BL-')"
+[[ "$n_ptr" -eq 3 ]] && ok "three --escalate-to runs leave three pointers ($ESC)" \
+  || bad "escalated_to kept $n_ptr of 3 pointers: '$ESC'"
+# Escalating to a repo already in the list is not a duplicate: it mints a NEW
+# counterpart there, so the source gains a fourth genuine pointer. Asserted so the
+# accumulation is not mistaken for de-duplication, which this flow cannot need.
+bash "$REG" --origin manual --title "fan me out" --escalate-to "$TMP/r1" --source-id "$SRCID" >/dev/null 2>&1
+n2="$(fm "$SRC" escalated_to | tr ',' '\n' | grep -c 'BL-')"
+[[ "$n2" -eq 4 ]] && ok "a second counterpart in an already-listed repo is a fourth pointer, not a duplicate" \
+  || bad "a repeat escalation left $n2 pointers: '$(fm "$SRC" escalated_to)'"
+# Every element is a well-formed <repo>/BL-NNN, so validate.py can judge them one by one.
+printf '%s' "$(fm "$SRC" escalated_to)" | tr ',' '\n' | sed 's/^ *//' \
+  | grep -qvE '^[A-Za-z0-9_.-]+/BL-[0-9]+$' \
+  && bad "a fan-out element is not a <repo>/BL-NNN ref: '$(fm "$SRC" escalated_to)'" \
+  || ok "every fan-out element keeps the cross-repo ref format"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — register fields: $PASS cells round-trip"; exit 0; }; echo "$FAIL failure(s)"; exit 1

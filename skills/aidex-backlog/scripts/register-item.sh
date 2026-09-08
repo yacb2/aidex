@@ -320,10 +320,24 @@ resolve_source_by_id() {
 # caller still printed "Stamped source ... -> escalated_to: ...". The result was a one-way
 # handshake — the counterpart pointed back, the source had no forward link. The sibling
 # close-item.sh already used the insert-if-missing idiom. Found 2026-08-10 by aidex-review.
+# escalated_to ACCUMULATES. It used to be rewritten, so ten --escalate-to runs against
+# one --source-id left the source pointing only at the tenth: fanning BL-319 to the ten
+# fleet repos silently lost nine forward links, and the ids had to be written into the
+# body by hand (BL-360). It stays a comma-separated SCALAR, not a YAML list, because
+# every reader of this field — read_field's awk here, validate.py's deliberately minimal
+# front-matter parser — reads one line as one string; validate.py splits on the comma and
+# judges each element. An existing target is not appended twice, or a re-run inflates it.
 stamp_escalated_to() {
-  local f="$1" ref="$2" today
+  local f="$1" ref="$2" today prev merged
   today="$(date +%Y-%m-%d)"
-  awk -v ref="$ref" -v today="$today" '
+  # Inline, not read_field: that helper is defined INSIDE the --list block (line ~859)
+  # and does not exist here.
+  prev="$(awk 'BEGIN{d=0} /^---[[:space:]]*$/{d++; if(d==2) exit; next} d==1 && index($0,"escalated_to:")==1 {sub(/^[^:]*:[[:space:]]*/,""); gsub(/^\"|\"$/,""); print; exit}' "$f")"
+  # No de-duplication: every escalation mints a NEW counterpart id, so the same
+  # <repo>/<id> pair cannot be produced twice by this flow. A guard for it would be
+  # untestable code standing in for a case that cannot happen.
+  merged="${prev:+$prev, }$ref"
+  awk -v ref="$merged" -v today="$today" '
     BEGIN { d=0; seen=0 }
     /^---[[:space:]]*$/ {
       d++
