@@ -409,7 +409,6 @@ fi
 DEST="$(cd "$(dirname "$(DEST_FOR "$SLUG")")" && pwd -P)/$(basename "$(DEST_FOR "$SLUG")")"
 CPROJ="$(PROJ_FOR "$SLUG")"
 
-# port_env SLOT -> prints "VAR=value" per line for that slot
 # The offset scheme is only sound when one slot's whole port block clears the
 # next one's. With bases spanning 4400..4610 and a stride of 100, slot 1's
 # DB_PORT lands on 4500 — dev's BACKEND_PORT. The probe caught it and skipped to
