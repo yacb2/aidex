@@ -144,6 +144,40 @@ else
   bad "--print wrote $PAGE"
 fi
 
+# BL-382: the page is what the owner reads and it carries the owner rows and the
+# needs-decision list, so it belongs in the profile's `language:` — but ~95 % of
+# its body is `.context/` quotation, so no script can write it there. With a
+# non-en profile the script keeps the English page as the fallback, writes the
+# translation SOURCE (generator prose already localized) under _tmp/, never
+# .context/ (D-04), and names the stage-6 step on stderr. Wrapping that source
+# over the page is the step, and it passes the lang gate.
+printf -- '- language: es\n' > .context/artifact-style.md
+MD2="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>"$TMP/rep2.err")"
+PAGE2="$(sed -n 's/^page: //p' "$TMP/rep2.err" | head -1)"
+SRC2="$P/_tmp/sweep-report/$(basename "${MD2%.md}").es.md"
+grep -q '^## Owner rows — what only the owner can judge' "$MD2" && ok "language: es — the .md keeps its English headings (D-04)" || bad "the .md drifted from English: $(grep '^## ' "$MD2" | head -3)"
+[[ -s "$PAGE2" ]] && grep -q '<html[^>]*lang="en"' "$PAGE2" && ok "language: es — the English page is still written as the fallback" || bad "fallback page: $(grep -o '<html[^>]*>' "$PAGE2" 2>/dev/null) [$(cat "$TMP/rep2.err")]"
+if [[ -s "$SRC2" ]] && grep -q '^## Filas del owner' "$SRC2" && grep -q "$AID" "$SRC2" && ! grep -rq 'Filas del owner' .context/; then
+  ok "language: es — the translation source is under _tmp/ with the generator's prose in es, and nothing es lands in .context/"
+else
+  bad "translation source: $(ls "$SRC2" 2>&1) $(grep -c 'Filas del owner' "$SRC2" 2>/dev/null)"
+fi
+grep -q "^translate: .*$SRC2 .*--lang es .*--out $PAGE2" "$TMP/rep2.err" && ok "language: es — stderr names the stage-6 step: source, --lang es, the same page" || bad "no translate line: $(cat "$TMP/rep2.err")"
+T2="$(sed -n 's/^title: *"\{0,1\}\(.*[^"]\)"\{0,1\} *$/\1/p' "$SRC2" | head -1)"
+if bash "$SCRIPTS/../../aidex-dash/scripts/wrap-report.sh" --title "$T2" --lang es --in "$SRC2" --out "$PAGE2" >"$TMP/wrap2.out" 2>&1 && grep -q '<html[^>]*lang="es"' "$PAGE2" && grep -q 'Filas del owner' "$PAGE2"; then
+  ok "language: es — wrapping the source over the page yields lang=\"es\" and passes the contract (lang gate included)"
+else
+  bad "wrap of the es source: $(cat "$TMP/wrap2.out")"
+fi
+rm -f .context/artifact-style.md
+bash "$SCRIPTS/sweep-report.sh" report-run >/dev/null 2>"$TMP/rep4.err"
+if ! grep -q '^translate:' "$TMP/rep4.err" && grep -q '<html[^>]*lang="en"' "$PAGE2"; then
+  ok "no profile — no translate line, the page is the English record as before"
+else
+  bad "no profile: $(grep -c '^translate:' "$TMP/rep4.err") translate line(s), $(grep -o '<html[^>]*>' "$PAGE2")"
+fi
+rm -f "$PAGE2"
+
 # A non-.md --out has no page: the wrap converts a .md INPUT only, so wrapping the
 # report at `<out>.html` would carry the raw markdown as page content and fail the
 # contract. The report still gets written; the page is declined out loud.

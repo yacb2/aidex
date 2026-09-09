@@ -166,6 +166,25 @@ spelled out in Stage 3 (BL-363).
    kit, named on stderr as `page: <path>`. The markdown stays the canon; the page is
    what a person reads. Handing over the `.md` alone is what made the owner ask for the
    artifact after a run that had already written one (BL-345).
+
+   **The page follows the profile's `language:`; the `.md` does not** (BL-382). The
+   page carries the owner rows and the needs-decision list — addressed to the reader,
+   so BL-371's distinction puts it in the profile's language — while the markdown is a
+   `.context/` record and stays English (D-04). No script can bridge that: ~95 % of
+   the body is quotation, and localizing every generator string still measured 22
+   Spanish vs 553 English stopwords on a real report, a `lang` FAIL. So when the
+   profile is not `en`, `sweep-report.sh` writes the English page as the fallback
+   AND prints a `translate:` line naming the source it left under
+   `_tmp/sweep-report/<report>.<lang>.md` — the same report with headings and prose
+   already in that language. **This step is the model's:** translate the quoted rows
+   of that source (titles, verification and owner rows, needs-decision lines; ids,
+   commits and gate rows stay verbatim), then wrap it over the same page with the
+   command the line gives (`wrap-report.sh --lang <lang> --in <translated> --out
+   <page>`). It costs a few thousand tokens per close-out against a sweep's hundreds
+   of thousands, and it is the one way a page in the profile's language exists
+   without a non-English `.md` in `.context/`. Never write the translation into
+   `.context/`. A `translate:` line that goes unanswered leaves the English page
+   standing, which is the fallback, not the contract.
 2. `worklist-close.sh` — refuses while an owner row is unanswered or a deferral is
    unreconciled; `--force` records the override. The closed list archives.
 3. **Open the page — once, here, and nowhere earlier.** `rules/artifacts-local-first.md`

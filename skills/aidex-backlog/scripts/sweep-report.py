@@ -5,10 +5,69 @@ Never hand-narrated: every section is derived from the work-list, the backlog it
 queued (active or archived), the gate history sweep-gate.sh appends, and git. Called by
 sweep-report.sh, which resolves the project root and the output path.
 
-usage: sweep-report.py <project-root> <worklist-path> [--out <file>] [--print]
+usage: sweep-report.py <project-root> <worklist-path> [--out <file>] [--print] [--lang <code>]
+
+`--lang` (default en) localizes the generator's own prose only — for the PAGE render;
+the `.md` record is always rendered en (BL-382).
 """
 import json, os, re, subprocess, sys
 from datetime import datetime
+
+# BL-382: the generator's OWN prose, per language. The .md is a `.context/` record
+# and is always rendered `en` (D-04); the page beside it is what the owner reads —
+# it carries the owner rows and the needs-decision list — so it is rendered a
+# second time in the profile's `language:`. Quoted material (item titles, owner
+# rows, gate rows, work-list lines) is never translated: it is what is on disk.
+STRINGS = {
+    'en': {},
+    'es': {
+        'Sweep report': 'Informe del sweep',
+        'Generated from disk by `sweep-report.sh` on {today}; anchored to `worklist/{wl}` (status `{status}`, gate policy publish `{publish}`).':
+            'Generado desde disco por `sweep-report.sh` el {today}; anclado a `worklist/{wl}` (estado `{status}`, política de gate publish `{publish}`).',
+        'see worklist': 'ver work-list',
+        '## Metrics': '## Métricas',
+        '| metric | value |': '| métrica | valor |',
+        'items queued at kickoff': 'items en cola al kickoff',
+        '? (no queue-size-at-kickoff line)': '? (sin línea queue-size-at-kickoff)',
+        'items closed': 'items cerrados',
+        'commits (from `commits:`)': 'commits (desde `commits:`)',
+        'emergent items appended': 'items emergentes añadidos',
+        '  **> 25 % of the original queue**': '  **> 25 % de la cola original**',
+        'wall time (first → last resolving commit)': 'tiempo total (primer → último commit resolutivo)',
+        '? (fewer than two dated commits)': '? (menos de dos commits con fecha)',
+        'time in boundary-gate suites': 'tiempo en suites del boundary gate',
+        '? (no gate-history.jsonl)': '? (sin gate-history.jsonl)',
+        'share of wall time in gate suites': 'proporción del tiempo total en suites del gate',
+        ' — per-item targeted runs are not measured': ' — las corridas dirigidas por item no se miden',
+        'gate runs / legs re-run': 'corridas del gate / legs repetidos',
+        '## Closed items': '## Items cerrados',
+        '_none_': '_ninguno_',
+        ' (emergent)': ' (emergente)',
+        '- estimate `{estimate}` · surface `{surface}` · commits: {commits}': '- estimación `{estimate}` · superficie `{surface}` · commits: {commits}',
+        '_none recorded_': '_ninguno registrado_',
+        '| kind | what | proof |': '| tipo | qué | prueba |',
+        '| — | no verification rows | |': '| — | sin filas de verificación | |',
+        '## Awaiting owner — proven, parked, not closed': '## Esperando al owner — probados, aparcados, sin cerrar',
+        '_Mechanically proven; each still owes a judgement. Fill the proof cell, then `close-item.sh --sweep` again. Never archive by hand._':
+            '_Probados mecánicamente; cada uno debe todavía un juicio. Rellena la celda de prueba y vuelve a ejecutar `close-item.sh --sweep`. Nunca archives a mano._',
+        '## Owner rows — what only the owner can judge': '## Filas del owner — lo que solo el owner puede juzgar',
+        '| item | what | answer |': '| item | qué | respuesta |',
+        '**unanswered**': '**sin responder**',
+        'human-verification: skipped — no queued item carries an owner row (nothing only a person can judge)':
+            'human-verification: omitida — ningún item en cola lleva una fila owner (nada que solo una persona pueda juzgar)',
+        '## Needs decision — unchanged and unattempted': '## Necesita decisión — sin cambios y sin intentar',
+        '_none recorded at kickoff_': '_ninguna registrada al kickoff_',
+        '## Deferrals and mid-flight skips': '## Aplazamientos y saltos a mitad de corrida',
+        '## Boundary gate — verbatim': '## Boundary gate — literal',
+        '- run {i} ({at}): verdict **{verdict}**': '- corrida {i} ({at}): veredicto **{verdict}**',
+        '_no gate run recorded (`.context/proofs/sweep-gate/gate-history.jsonl` absent) — the boundary gate did not run, or ran elsewhere_':
+            '_sin corrida del gate registrada (falta `.context/proofs/sweep-gate/gate-history.jsonl`) — el boundary gate no corrió, o corrió en otro sitio_',
+    },
+}
+
+
+def tr(lang, s):
+    return STRINGS.get(lang, {}).get(s, s)
 
 
 def fm_and_body(text):
@@ -67,7 +126,8 @@ def git_times(root, shas):
     return times
 
 
-def render(root, wl_path):
+def render(root, wl_path, lang='en'):
+    T = lambda s: tr(lang, s)
     wl_text = open(wl_path, encoding='utf-8', errors='replace').read()
     wl_fm, wl_body = fm_and_body(wl_text)
     wl_file = os.path.basename(wl_path)
@@ -146,7 +206,7 @@ def render(root, wl_path):
     today = datetime.now().strftime('%Y-%m-%d')
     out = []
     out.append('---')
-    out.append(f'title: "Sweep report — {wl_fm.get("title", wl_file)}"')
+    out.append(f'title: "{T("Sweep report")} — {wl_fm.get("title", wl_file)}"')
     out.append('status: done')
     out.append(f'created: {today}')
     out.append(f'updated: {today}')
@@ -158,96 +218,101 @@ def render(root, wl_path):
         out.append('  - .context/proofs/sweep-gate/gate-history.jsonl')
     out.append('---')
     out.append('')
-    out.append(f'# Sweep report — {wl_fm.get("title", wl_file)}')
+    out.append(f'# {T("Sweep report")} — {wl_fm.get("title", wl_file)}')
     out.append('')
-    out.append(f'Generated from disk by `sweep-report.sh` on {today}; anchored to `worklist/{wl_file}` '
-               f'(status `{wl_fm.get("status", "?")}`, gate policy publish `{wl_fm.get("publish", "?") if "publish" in wl_fm else "see worklist"}`).')
+    out.append(T('Generated from disk by `sweep-report.sh` on {today}; anchored to `worklist/{wl}` (status `{status}`, gate policy publish `{publish}`).')
+               .format(today=today, wl=wl_file, status=wl_fm.get('status', '?'),
+                       publish=wl_fm.get('publish', '?') if 'publish' in wl_fm else T('see worklist')))
     out.append('')
-    out.append('## Metrics')
+    out.append(T('## Metrics'))
     out.append('')
-    out.append('| metric | value |')
+    out.append(T('| metric | value |'))
     out.append('|---|---|')
-    out.append(f'| items queued at kickoff | {kickoff_n if kickoff_n is not None else "? (no queue-size-at-kickoff line)"} |')
-    out.append(f'| items closed | {len(closed)} |')
-    out.append(f'| commits (from `commits:`) | {len(all_shas)} |')
-    out.append(f'| emergent items appended | {emergent_n}{"  **> 25 % of the original queue**" if kickoff_n and emergent_n > 0.25 * kickoff_n else ""} |')
-    out.append(f'| wall time (first → last resolving commit) | {("%.1f h" % (wall / 3600)) if wall is not None else "? (fewer than two dated commits)"} |')
-    out.append(f'| time in boundary-gate suites | {"%d s" % gate_secs if runs else "? (no gate-history.jsonl)"} |')
-    out.append(f'| share of wall time in gate suites | {("%.0f %%" % share) if share is not None else "?"} — per-item targeted runs are not measured |')
-    out.append(f'| gate runs / legs re-run | {len(runs)} / {leg_reruns} |')
+    out.append(f'| {T("items queued at kickoff")} | {kickoff_n if kickoff_n is not None else T("? (no queue-size-at-kickoff line)")} |')
+    out.append(f'| {T("items closed")} | {len(closed)} |')
+    out.append(f'| {T("commits (from `commits:`)")} | {len(all_shas)} |')
+    out.append(f'| {T("emergent items appended")} | {emergent_n}{T("  **> 25 % of the original queue**") if kickoff_n and emergent_n > 0.25 * kickoff_n else ""} |')
+    out.append(f'| {T("wall time (first → last resolving commit)")} | {("%.1f h" % (wall / 3600)) if wall is not None else T("? (fewer than two dated commits)")} |')
+    out.append(f'| {T("time in boundary-gate suites")} | {"%d s" % gate_secs if runs else T("? (no gate-history.jsonl)")} |')
+    out.append(f'| {T("share of wall time in gate suites")} | {("%.0f %%" % share) if share is not None else "?"}{T(" — per-item targeted runs are not measured")} |')
+    out.append(f'| {T("gate runs / legs re-run")} | {len(runs)} / {leg_reruns} |')
     out.append('')
-    out.append('## Closed items')
+    out.append(T('## Closed items'))
     out.append('')
     if not closed:
-        out.append('_none_')
+        out.append(T('_none_'))
     for c in closed:
-        tag = ' (emergent)' if c['emergent'] else ''
+        tag = T(' (emergent)') if c['emergent'] else ''
         out.append(f'### {c["id"]} — {c["title"]}{tag}')
         out.append('')
-        out.append(f'- estimate `{c["estimate"]}` · surface `{c["surface"]}` · commits: {", ".join("`" + s + "`" for s in c["commits"]) or "_none recorded_"}')
+        out.append(T('- estimate `{estimate}` · surface `{surface}` · commits: {commits}').format(
+            estimate=c['estimate'], surface=c['surface'],
+            commits=', '.join('`' + s + '`' for s in c['commits']) or T('_none recorded_')))
         out.append('')
-        out.append('| kind | what | proof |')
+        out.append(T('| kind | what | proof |'))
         out.append('|---|---|---|')
         for r in c['rows']:
             out.append(f'| {r["kind"]} | {r["what"]} | {r["proof"]} |')
         if not c['rows']:
-            out.append('| — | no verification rows | |')
+            out.append(T('| — | no verification rows | |'))
         out.append('')
-    out.append('## Awaiting owner — proven, parked, not closed')
+    out.append(T('## Awaiting owner — proven, parked, not closed'))
     out.append('')
     if parked:
-        out.append('_Mechanically proven; each still owes a judgement. Fill the proof cell, then `close-item.sh --sweep` again. Never archive by hand._')
+        out.append(T('_Mechanically proven; each still owes a judgement. Fill the proof cell, then `close-item.sh --sweep` again. Never archive by hand._'))
         out.append('')
         for c in parked:
             out.append(f'- {c["id"]} — {c["title"]}: ' + '; '.join(r['what'] for r in c['open']))
     else:
-        out.append('_none_')
+        out.append(T('_none_'))
     out.append('')
-    out.append('## Owner rows — what only the owner can judge')
+    out.append(T('## Owner rows — what only the owner can judge'))
     out.append('')
     if owner_rows:
-        out.append('| item | what | answer |')
+        out.append(T('| item | what | answer |'))
         out.append('|---|---|---|')
         for r in owner_rows:
-            out.append(f'| {r["id"]} — {r["title"]} | {r["what"]} | {r["proof"] or "**unanswered**"} |')
+            out.append(f'| {r["id"]} — {r["title"]} | {r["what"]} | {r["proof"] or T("**unanswered**")} |')
     else:
-        out.append('human-verification: skipped — no queued item carries an owner row (nothing only a person can judge)')
+        out.append(T('human-verification: skipped — no queued item carries an owner row (nothing only a person can judge)'))
     out.append('')
-    out.append('## Needs decision — unchanged and unattempted')
+    out.append(T('## Needs decision — unchanged and unattempted'))
     out.append('')
-    out.extend(needs or ['_none recorded at kickoff_'])
+    out.extend(needs or [T('_none recorded at kickoff_')])
     out.append('')
-    out.append('## Deferrals and mid-flight skips')
+    out.append(T('## Deferrals and mid-flight skips'))
     out.append('')
     for bl, why in skipped:
         out.append(f'- {bl}: {why}')
     out.extend(deferred_lines)
     out.extend(forced)
     if not skipped and not deferred_lines and not forced:
-        out.append('_none_')
+        out.append(T('_none_'))
     out.append('')
-    out.append('## Boundary gate — verbatim')
+    out.append(T('## Boundary gate — verbatim'))
     out.append('')
     if runs:
         for i, run in enumerate(runs, 1):
             verdict = next((r for r in run if 'verdict' in r), {})
-            out.append(f'- run {i} ({verdict.get("at", "?")}): verdict **{verdict.get("verdict", "?")}**')
+            out.append(T('- run {i} ({at}): verdict **{verdict}**').format(i=i, at=verdict.get('at', '?'), verdict=verdict.get('verdict', '?')))
             for r in run:
                 if 'leg' in r:
                     out.append(f'  - leg={r["leg"]} exit={r["exit"]} count={r["count"]} secs={r.get("secs", "-")}')
     else:
-        out.append('_no gate run recorded (`.context/proofs/sweep-gate/gate-history.jsonl` absent) — the boundary gate did not run, or ran elsewhere_')
+        out.append(T('_no gate run recorded (`.context/proofs/sweep-gate/gate-history.jsonl` absent) — the boundary gate did not run, or ran elsewhere_'))
     out.append('')
     return '\n'.join(out) + '\n'
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    argv = sys.argv[1:]
+    args = [a for i, a in enumerate(argv) if not a.startswith('--') and (i == 0 or argv[i-1] not in ('--out', '--lang'))]
     root, wl = args[0], args[1]
     out = None
     if '--out' in sys.argv:
         out = sys.argv[sys.argv.index('--out') + 1]
-    text = render(root, wl)
+    lang = sys.argv[sys.argv.index('--lang') + 1] if '--lang' in sys.argv else 'en'
+    text = render(root, wl, lang)
     if '--print' in sys.argv or not out:
         sys.stdout.write(text)
         return
