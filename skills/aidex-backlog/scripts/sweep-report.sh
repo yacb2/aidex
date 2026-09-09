@@ -66,10 +66,19 @@ python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"
 # a projection of it: a wrap that fails leaves the run's one mandatory artifact
 # intact and says so, rather than taking the report down with the page.
 #
-# `--lang en` is not a default being restated. A project whose artifact-style.md
-# says `language: es` would stamp lang="es" over a body that is `.context/`
-# English by D-04, and check-artifact.sh fails exactly that mismatch (BL-279).
-#
+# `--lang en` on the page is the RECORD wrap: the body is `.context/` English by
+# D-04, and lang="es" over it fails check-artifact.sh (BL-279). But the page is
+# what the owner opens at close-out and it carries the owner rows and the
+# needs-decision list, sections addressed to the reader — by BL-371's own
+# distinction those follow the profile's `language:`. A script cannot get there:
+# ~95 % of the body is quotation (measured 2026-09-09, BL-382: 22 Spanish vs 553
+# English stopwords with every generator string localized). So when the profile
+# says another language this writes, beside the English page, the SOURCE for a
+# translated one — the same report rendered with the generator's own prose in
+# that language, under `_tmp/` (never `.context/`, D-04) — and names the step on
+# stderr: stage 6 translates the quoted rows and wraps it over the same page.
+# The English page stays the fallback, so a run that skips the step still hands
+# over a page that exists and passes.
 # It does NOT open the page. `rules/artifacts-local-first.md` gate 2 opens a page
 # once, when it is final, and that call belongs to the close-out step (stage 6),
 # after `worklist-close.sh` — not to a script that a run may re-run while items
@@ -86,7 +95,18 @@ if [[ "$OUT" != *.md ]]; then
   # Say so, rather than writing a broken one and reporting a contract failure for it.
   echo "NOTE: --out $OUT is not a .md path, so no page was written beside it — the wrap converts a .md input only." >&2
 elif [[ -x "$WRAP" ]]; then
+  DASH_PY="$(dirname "$WRAP")/dash"
+  PAGE_LANG="$(python3 -c '
+import sys; sys.path.insert(0, sys.argv[1])
+from wrap_report import find_context_dir, profile_language
+print(profile_language(find_context_dir(sys.argv[2])) or "en")' "$DASH_PY" "$(dirname "$HTML")" 2>/dev/null || echo en)"
   if bash "$WRAP" --title "${TITLE:-Sweep report}" --lang en --in "$OUT" --out "$HTML" >/dev/null; then
+    if [[ "$PAGE_LANG" != en ]]; then
+      SRC="$ROOT/_tmp/sweep-report/$(basename "${OUT%.md}").$PAGE_LANG.md"
+      mkdir -p "$(dirname "$SRC")"
+      python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$SRC" --lang "$PAGE_LANG" >/dev/null
+      echo "translate: the page is lang=\"en\" over the English record, but artifact-style.md says language: $PAGE_LANG — translate the quoted rows of $SRC (its headings and prose are already $PAGE_LANG) and wrap it over the page: wrap-report.sh --title \"<its title:>\" --lang $PAGE_LANG --in <translated .md> --out $HTML" >&2
+    fi
     # stdout stays ONE path — the markdown, the canon. Callers consume this
     # script's stdout as a filename (`OUT="$(sweep-report.sh …)"`), so a second
     # line there is not an extra path, it is a broken one: adding it turned 24
