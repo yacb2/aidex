@@ -19,10 +19,17 @@ re-typed after a fix is remediated; one that keeps coming back is not.
 
 Usage:  mine_repetition.py [--sim 0.5] [--min 3] [--dataset PATH]
 """
-import json, os, re, argparse, datetime
+import json, os, re, sys, argparse, datetime
 from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+try:
+    import facets
+except ImportError as exc:
+    sys.exit(f"ERROR: cannot import the facet loader from the sibling usage-retro "
+             f"scripts ({exc}).\nRefusing to run: the topical pass would silently "
+             f"lose every facet-owned intent (BL-164 pattern).")
 
 STOP = set("""
 the a an de la el los las y o u en con por para que se lo un una del al es son
@@ -32,7 +39,10 @@ to of and for in on it is be do can we you i this that with have has not
 
 # intent lexicon: label -> regex. Deliberately narrow; a broad pattern would
 # make every prompt match everything and the counts would mean nothing.
-INTENTS = [
+# The facet files (references/facets/*.md) own every label a facet claims;
+# RESIDUAL keeps only the labels no facet has claimed yet, and the lockstep test
+# (tests/test-facet-lexicon-lockstep.sh) fails on a label present in both.
+RESIDUAL = [
     ("autonomy:dont-stop", r"no te deteng|sin deteners|hasta (que )?termin|no pares|"
                            r"continu[ae] hasta|don'?t stop|keep going"),
     ("autonomy:full-run",  r"ejecuta (todo )?el plan completo|todas las fases|"
@@ -58,7 +68,7 @@ INTENTS = [
     ("frustration",        r"otra vez|de nuevo|ya te (lo )?dije|te lo he dicho|"
                            r"sigues? (sin|haciendo)|por qu[ée] no (lo )?hiciste|no hiciste"),
 ]
-INTENTS = [(k, re.compile(v, re.I)) for k, v in INTENTS]
+INTENTS = [(k, re.compile(v, re.I)) for k, v in list(facets.lexicon().items()) + RESIDUAL]
 
 
 HUMAN_KINDS = ("real", "slash")

@@ -17,6 +17,7 @@ from collections import Counter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from mine_preferences import detect as detect_preferences, head_tail
+    import facets
 except ImportError as exc:
     sys.exit(f"ERROR: cannot import the preference detector from the sibling "
              f"usage-retro scripts ({exc}).\nRefusing to run: a pass without it "
@@ -40,7 +41,10 @@ FRICTION = [
 ]
 FRICTION_RE = re.compile("|".join(FRICTION), re.I)
 
-INTENT = {
+# The facet files (references/facets/*.md) own every lexicon entry a facet claims;
+# RESIDUAL keeps only the skills no facet has claimed yet. The lockstep test
+# (tests/test-facet-lexicon-lockstep.sh) fails on any key present in both.
+RESIDUAL = {
     "aidex-plan":     [r"\bplan(ea|ifica)?\b", r"\bvamos a planear\b", r"\bmulti-?fase\b"],
     "aidex-decision": [r"\bdecidim", r"\bdecisi[oó]n\b", r"\badr\b", r"\boptamos por\b", r"\bnos quedamos con\b"],
     "aidex-request":  [r"\bel cliente (pidi|quier)", r"\bstakeholder\b", r"\brequerimiento\b", r"\bnos pidieron\b"],
@@ -52,7 +56,9 @@ INTENT = {
     "aidex-audit":    [r"\bauditor[ií]a\b", r"\bhacer un audit\b", r"\bux audit\b"],
     "aidex-backlog":  [r"\bbacklog\b", r"\bpara m[aá]s adelante\b", r"\banota para luego\b"],
 }
+INTENT = facets.skill_lexicon() | RESIDUAL
 INTENT_RE = {k: re.compile("|".join(v), re.I) for k, v in INTENT.items()}
+FACETS = facets.compiled()
 
 IMPROVE = [
     r"\bse pod[ií]a mejorar\b", r"\bse puede mejorar\b", r"\bmejorem", r"\bmejorar(lo|la|emos)?\b",
@@ -68,7 +74,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="inp", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--facet", default=None,
+                    help="keep only rows tagged facet:NAME (the facet run's view)")
     args = ap.parse_args()
+    if args.facet and args.facet not in {f[0] for f in FACETS}:
+        sys.exit(f"ERROR: no facet named {args.facet!r} under {facets.facets_dir()}")
     recs = [json.loads(l) for l in open(args.inp) if l.strip()]
     cands = []
     for r in recs:
@@ -89,6 +99,15 @@ def main():
         # date. Admission here is repetition, not dissatisfaction.
         for label in detect_preferences(p):
             signals.append(f"pref:{label}")
+        # The fifth gate: facet membership. The four above are all signal-shaped,
+        # so a facet that is working well never reaches a shard through them —
+        # the same blindness that hid STANDING-PREFERENCE for three runs. A row
+        # that belongs to a facet is admitted on membership alone.
+        hit = facets.facets_for(r, FACETS)
+        for name in hit:
+            signals.append(f"facet:{name}")
+        if args.facet and args.facet not in hit:
+            continue
         if signals:
             r2 = dict(r); r2["signals"] = signals
             r2["prompt"] = head_tail(p, ANALYST_HEAD, ANALYST_TAIL)
@@ -110,6 +129,14 @@ def main():
     if pf:
         pl = Counter(s for r in cands for s in r["signals"] if s.startswith("pref:"))
         print("  " + " | ".join(f"{k.split(':',1)[1]}={v}" for k, v in pl.most_common()))
+    for name, *_ in FACETS:
+        tag = f"facet:{name}"
+        adm = sum(tag in r["signals"] for r in cands)
+        fonly = sum(tag in r["signals"] and all(s.startswith("facet:") for s in r["signals"])
+                    for r in cands)
+        print(f"facet {name}: {adm} admitted ({fonly} facet-only, reachable by NO other gate)")
+    if args.facet:
+        print(f"view: --facet {args.facet}")
     print(f"wrote {args.out}")
 
 if __name__ == "__main__":
