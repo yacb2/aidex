@@ -88,11 +88,12 @@ out="$(cd "$WS" && bash "$RETRO/facet-run.sh" artifacts --since 2025-12-01 --tra
 [[ $rc -ne 0 ]] && grep -q 'already exists' <<<"$out" && ok "a second run the same day is refused" || bad "second run: rc=$rc $out"
 out="$(cd "$WS" && env -u AIDEX_PROJECTS_ROOT bash "$RETRO/facet-run.sh" backlog --since 2025-12-01 --transcripts-root "$TX" 2>&1)"; rc=$?
 [[ $rc -ne 0 ]] && grep -q 'projects-root' <<<"$out" && ok "a facet with a reader refuses to run rootless" || bad "rootless backlog: rc=$rc $out"
-[[ -e "$AUD/usage-retro/$TODAY-usage-retro-backlog" ]] && rm -rf "$AUD/usage-retro/$TODAY-usage-retro-backlog"
+[[ ! -e "$AUD/usage-retro/$TODAY-usage-retro-backlog" ]] && ok "a refused run leaves no run folder" || bad "rootless backlog left $TODAY-usage-retro-backlog behind"
 # an empty window: the corpus is dated 2026-01-01, so [2020, 2021) holds nothing
 out="$(cd "$WS" && bash "$RETRO/facet-run.sh" session --since 2020-01-01T00:00:00+00:00 --until 2021-01-01T00:00:00+00:00 --transcripts-root "$TX" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && grep -q 'coverage NOT recorded' <<<"$out" && ! grep -q '"session"' "$AUD/.usage-retro/coverage.json" \
   && ok "a zero-record window stops before recording coverage" || bad "empty window: rc=$rc $out"
+[[ ! -e "$AUD/usage-retro/$TODAY-usage-retro-session" ]] && ok "a zero-record run leaves no run folder" || bad "empty window left $TODAY-usage-retro-session behind"
 
 echo "facet run: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

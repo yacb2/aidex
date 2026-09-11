@@ -42,6 +42,8 @@ import sys, facets
 s = facets.load(sys.argv[1])
 print(s["reader"] or "-", s["primary_source"])' "$FACET")
 
+[[ "$READER" == "-" || -n "$PROJ_ROOT" ]] || die "facet $FACET declares reader $READER, which needs --projects-root (or AIDEX_PROJECTS_ROOT)"
+
 ROOT="$(find_project_root)"
 AUDITS="$ROOT/.context/audits"
 LEDGER="$AUDITS/.usage-retro/coverage.json"
@@ -70,7 +72,7 @@ if [[ -e "$PLAIN" ]]; then
 else
   bash "$AUDIT_SCRIPTS/new-audit.sh" custom usage-retro >/dev/null 2>&1
   mv "$PLAIN" "$RUN"
-  sed -i '' "s/— usage-retro\([ \"]\)/— usage-retro-$FACET\1/" "$RUN/index.md" "$RUN/findings.md"
+  perl -pi -e "s/— usage-retro([ \"])/— usage-retro-$FACET\$1/" "$RUN/index.md" "$RUN/findings.md"
 fi
 echo "run: $RUN"
 
@@ -81,13 +83,14 @@ python3 "$RETRO/extract.py" "${X_ARGS[@]}" > "$RUN/extract.txt"
 N_REC="$(grep -c . "$RUN/dataset.jsonl" || true)"
 echo "extract: $N_REC records"
 if [[ "$N_REC" -eq 0 ]]; then
-  echo "no records in the window; coverage NOT recorded (nothing was read)"
+  echo "no records in the window; coverage NOT recorded (nothing was read); run folder removed"
+  rm -rf "$RUN"
   exit 0
 fi
 
 # 4. prefilter — the facet's view
 python3 "$RETRO/prefilter.py" --in "$RUN/dataset.jsonl" --out "$RUN/candidates.jsonl" --facet "$FACET" > "$RUN/prefilter.txt"
-ROW="$(grep "^facet $FACET:" "$RUN/prefilter.txt")"
+ROW="$(grep "^facet $FACET:" "$RUN/prefilter.txt")" || die "prefilter printed no line for facet $FACET (see $RUN/prefilter.txt)"
 ADMITTED="$(sed -E 's/^facet [a-z0-9-]+: ([0-9]+) admitted.*/\1/' <<<"$ROW")"
 F_ONLY="$(sed -E 's/.*\(([0-9]+) facet-only.*/\1/' <<<"$ROW")"
 echo "prefilter: $ADMITTED admitted, $F_ONLY facet-only ($(grep -c . "$RUN/candidates.jsonl" || true) candidates)"
@@ -95,7 +98,6 @@ echo "prefilter: $ADMITTED admitted, $F_ONLY facet-only ($(grep -c . "$RUN/candi
 # 5. reader — optional, declared by the facet; prints its own count last
 READER_COUNT="—"
 if [[ "$READER" != "-" ]]; then
-  [[ -n "$PROJ_ROOT" ]] || die "facet $FACET declares reader $READER, which needs --projects-root (or AIDEX_PROJECTS_ROOT)"
   python3 "$RETRO/facets/$READER" --projects-root "$PROJ_ROOT" > "$RUN/reader.txt"
   READER_COUNT="$(tail -1 "$RUN/reader.txt")"
   echo "reader: $READER_COUNT"
