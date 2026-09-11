@@ -20,6 +20,10 @@
 #   BL-904 / 2026-01-04-delta  session s5  no user prompt, 2 edits -> NOT working, on a
 #                                          CLOSED item, so downstream consumers that
 #                                          ignore `working` are observably wrong
+#   2026-01-07-eta.html        session s7  a PAGE (kind: page), wrapped by a Bash
+#                                          wrap-report.sh --out and named by the user
+#   2026-01-04-delta.html                  a page sharing delta's slug -> attached as
+#                                          `pages` on the item, never a second key
 
 set -euo pipefail
 
@@ -150,5 +154,24 @@ mkdir -p "$D/s6/subagents"
   py_bash b4 "python3 skills/aidex-conventions/scripts/validate.py --type plans"
   py_bash_ok b4 "OK"
 } > "$D/s6/subagents/agent-x.jsonl"
+
+# --- pages: a dated page in reports/, one in an _archive/, a rendered board and a
+#     wrap's prior copy (both skipped), and a page whose slug is BL-904's ---
+mkdir -p "$P/.context/reports/_archive" "$P/.context/reports/.aidex-artifact-prev"
+page() {  # path title
+  printf '<title>%s</title>\n<main class="main"><section data-id="q1" data-decided>x</section></main>\n' "$2" > "$1"
+}
+page "$P/.context/reports/2026-01-07-eta.html" "Eta"
+page "$P/.context/reports/_archive/2026-01-08-theta.html" "Theta"
+page "$P/.context/reports/00-index.html" "Board"
+page "$P/.context/reports/.aidex-artifact-prev/2026-01-07-eta.html" "Eta prev"
+page "$P/.context/reports/2026-01-04-delta.html" "Delta page"
+
+# --- s7: the user names the eta page and the session wraps it ---
+{
+  py_user_prompt "wrap the 2026-01-07-eta consultation"
+  py_bash b5 "bash ~/.claude/skills/aidex-dash/scripts/wrap-report.sh --in _tmp/eta.md --out .context/reports/2026-01-07-eta.html"
+  py_bash_ok b5 "wrote .context/reports/2026-01-07-eta.html"
+} > "$D/s7.jsonl"
 
 printf '%s %s\n' "$PROJ" "$TX"

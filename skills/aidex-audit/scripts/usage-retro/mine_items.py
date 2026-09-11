@@ -146,7 +146,42 @@ def build_registry():
                 "spec_codeblocks": body.count("```") // 2,
                 "spec_filerefs": len(set(re.findall(r'[\w/\.-]+\.(?:py|ts|tsx|vue|js|md|sh|json)\b', body))),
             })
+        # Artifact pages, keyed by BASENAME: 675 of 888 `wrap-report.sh --out` paths
+        # are cwd-relative and archiving moves the page, so the dated slug is the
+        # only stable key — and TOKEN already matches it. A page whose slug is a
+        # plan's or an item's (a plan's report page) rides on that entry as
+        # `pages`, never a second key for the same slug.
+        by_slug = {it["slug"]: it for it in items if it["project"] == proj}
+        for f in page_files(ctx):
+            slug = os.path.basename(f)[:-5]
+            if slug in by_slug:
+                by_slug[slug].setdefault("pages", []).append(f)
+                continue
+            m = re.search(r'<title>(.*?)</title>', open(f, errors="replace").read(),
+                          re.S | re.I)
+            it = {"project": proj, "kind": "page", "slug": slug, "path": f,
+                  "id": "", "title": (m.group(1).strip() if m else ""),
+                  "status": "", "priority": "", "estimate": "", "created": slug[:10],
+                  "updated": "", "date_added": "", "date_shipped": "",
+                  "spec_words": 0, "spec_headings": 0, "spec_checkboxes": 0,
+                  "spec_codeblocks": 0, "spec_filerefs": 0}
+            items.append(it)
+            by_slug[slug] = it
     return items
+
+
+PAGE = re.compile(r'^20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]*\.html$')
+
+
+def page_files(ctx):
+    """Every dated artifact page under one `.context/`, active and `_archive/`
+    alike; `00-index.html` (rendered boards) and `.aidex-artifact-prev/` (the
+    wrap's own prior copies) are not pages. Shared with facets/read_artifacts.py."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(ctx):
+        dirnames[:] = [d for d in dirnames if d != ".aidex-artifact-prev"]
+        out.extend(os.path.join(dirpath, f) for f in filenames if PAGE.match(f))
+    return sorted(out)
 
 
 # `-Users-anyone-Documents-projects-foo-ws` -> `foo-ws`. Greedy on purpose, so it
