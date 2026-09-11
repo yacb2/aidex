@@ -3,27 +3,28 @@
  * Reads the tokens from tokens.css; never hard-codes a colour or a font stack,
  * so a project's delta can restyle the whole system by overriding tokens alone.
  *
- * Layout B, with ONE width. The content column is sized to land in reading
- * measure (~77 characters), so prose needs no cap of its own: prose, tables,
- * figures and questions share an edge. The earlier shape capped prose at 68ch
- * inside a wider column, and what a reader saw was text hanging on the left
- * next to tables that did fill. */
+ * Layout B, with ONE width. `.page` is the only width on the page: the content
+ * column it leaves next to the rail (59.5rem at the 78rem cap, ~95 characters
+ * of the body face) is the measure, and nothing inside `.main` carries a
+ * max-width of its own — prose, headings, tables, figures, item boxes and
+ * questions share an edge. Twice the file capped prose separately inside a
+ * wider column (68ch, then 46rem under BL-248), and both times what a reader
+ * saw was text stopping at two thirds of the column next to tables and item
+ * boxes that filled it (BL-383: 42 of 55 text elements on a real consultation).
+ * A consultation is short context paragraphs over tables, not long-form
+ * running text, so the wider line is the lesser cost; if it ever reads long,
+ * raise the body size, never re-add a second width. `test-artifact-kit.sh`
+ * fails on any max-width inside the column. */
 
 body { background: var(--paper); color: var(--ink); font-family: var(--serif);
        font-size: 17px; line-height: 1.62; margin: 0; padding: 0 1.5rem 4rem; }
 
 /* The page takes the screen it is given, capped (BL-248): on a 1440px viewport
    the old 64rem cap left 200px unused on each side while tables, option grids
-   and reply boxes were squeezed into the prose column. Prose keeps its
-   reading measure through `.measure` below; everything else may run wide. */
+   and reply boxes were squeezed into the prose column. This cap is the one
+   width (see the header comment); everything inside `.main` runs to it. */
 .page { max-width: min(78rem, 100vw - 6rem); margin-inline: auto; padding-top: 3.5rem;
         display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3.5rem; align-items: start; }
-/* The reading measure: ~46rem (about 80 characters of the body face). Applied
-   to running text only — tables, figures, option groups, ledger and reply
-   surfaces are not capped, so they get the width the page gained. */
-.main > header > *, .main p, .main ul, .main ol, .main blockquote, .main h1, .main h2, .main h3,
-.note, .ex, .adv { max-width: 46rem; }
-.main p.eyebrow { max-width: none; }
 .main { min-width: 0; display: flex; flex-direction: column; }
 /* The cap is derived from `top`, not guessed: a sticky box pins at its top
    offset and never scrolls internally, so one taller than the viewport hides
