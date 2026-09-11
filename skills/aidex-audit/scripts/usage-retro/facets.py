@@ -89,10 +89,12 @@ def _block_map(fm_text, path, key):
         raise FacetError(f"ERROR: {path}: `{key}` must be a block map (a bare `{key}:` line "
                          f"followed by indented `label: \"regex\"` lines)")
     for l in lines[i + 1:]:
+        if not l.strip():
+            continue  # a blank separator inside the block does not end it
         if not l.startswith((" ", "\t")):
             break
         l = l.strip()
-        if not l or l.startswith("#"):
+        if l.startswith("#"):
             continue
         if ":" not in l:
             raise FacetError(f"ERROR: {path}: `{key}` line {l!r} is not `label: regex`")
@@ -150,7 +152,12 @@ def load_path(path):
     return spec
 
 
+NAME = re.compile(r"[a-z][a-z0-9-]*")
+
+
 def load(name, root=None):
+    if not NAME.fullmatch(name or ""):
+        raise FacetError(f"ERROR: facet name {name!r} is not an identifier ({NAME.pattern})")
     path = os.path.join(root or facets_dir(), f"{name}.md")
     if not os.path.isfile(path):
         raise FacetError(f"ERROR: no facet named {name!r} under {root or facets_dir()}")
