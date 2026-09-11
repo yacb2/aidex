@@ -18,21 +18,17 @@ visible as one.
 Usage:
   census_scripts.py [--transcripts-root DIR] [--since 60d|ISO] [--until 7d|ISO] [--top N]
 """
-import os, re, sys, glob, argparse, datetime, collections
+import os, sys, glob, argparse, collections
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mine_items
-from extract import parse_ts
+import extract
 
 
 def parse_bound(s):
     if not s:
         return None
-    m = re.fullmatch(r"(\d+)d", s.strip())
-    if m:
-        return (datetime.datetime.now(datetime.timezone.utc)
-                - datetime.timedelta(days=int(m.group(1))))
-    t = parse_ts(s)
+    t = extract.parse_bound(s)
     if t is None:
         sys.exit(f"ERROR: window bound must be <N>d or an ISO timestamp, got {s!r}")
     return t

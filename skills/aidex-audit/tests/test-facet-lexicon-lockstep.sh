@@ -85,6 +85,8 @@ title: "alpha"
 label: { en: "Alpha", es: "Alfa" }
 lexicon:
   alpha:page: "\\bzorbal\\b|\\bp[aá]gina zorbal\\b"
+
+  alpha:wrap: "\\bwrap-zorbal\\b"
 skills: [zorbal-design, zorbal-dash]
 slash: ["/zorbal-dash"]
 scripts: [wrap-zorbal.sh]
@@ -122,6 +124,7 @@ check_dir "$FD" temp
 n="$(facet_names "$FD" | grep -c .)"
 [ "$n" -eq 2 ] || fail "(temp) expected 2 facets loaded, got $n"
 facet_labels "$FD" | grep -q 'alpha:page' || fail "(temp) lexicon() lacks alpha:page"
+facet_labels "$FD" | grep -q 'alpha:wrap' || fail "(temp) a blank line inside the lexicon block ended it early"
 AIDEX_FACETS_DIR="$FD" py 'import facets; s=facets.load("alpha"); assert s["label"]["es"]=="Alfa", s["label"]; assert s["reader"]=="read_zorbal.py"; assert s["sub_objectives"]==["wrap","consult"]; assert s["lens"].startswith("Lens for alpha"); b=facets.load("beta"); assert b["reader"] is None and b["sub_objectives"]==[]' \
   || fail "(temp) parsed shapes differ from the contract"
 
