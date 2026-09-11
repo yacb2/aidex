@@ -59,12 +59,9 @@ RESIDUAL = [
     ("e2e:isolated",       r"e2e|test-e2e|playwright|entorno aislado|base de datos de test"),
     ("worktree",           r"worktree|árbol de trabajo|arbol de trabajo"),
     ("git:commit",         r"haz commit|hacer commit|commitea|commit y push|\bpush\b"),
-    ("backlog",            r"backlog|BL-\d|reg[íi]stralo|regist[rr]a (esto|eso)|para despu[ée]s"),
-    ("plan:context",       r"\.context|plan formal|documenta (esto|el plan)|seg[uú]n (el )?est[áa]ndar"),
     ("lang:spanish",       r"en espa[ñn]ol|castellano|no en ingl[ée]s"),
     ("style:no-emoji",     r"emoji|sin iconos"),
     ("db:protect",         r"no borres|no elimines|no resetees|no toques la base"),
-    ("context:handoff",    r"handoff|nueva sesi[óo]n|sesi[óo]n limpia|compact"),
     ("frustration",        r"otra vez|de nuevo|ya te (lo )?dije|te lo he dicho|"
                            r"sigues? (sin|haciendo)|por qu[ée] no (lo )?hiciste|no hiciste"),
 ]

@@ -45,7 +45,6 @@ FRICTION_RE = re.compile("|".join(FRICTION), re.I)
 # RESIDUAL keeps only the skills no facet has claimed yet. The lockstep test
 # (tests/test-facet-lexicon-lockstep.sh) fails on any key present in both.
 RESIDUAL = {
-    "aidex-plan":     [r"\bplan(ea|ifica)?\b", r"\bvamos a planear\b", r"\bmulti-?fase\b"],
     "aidex-decision": [r"\bdecidim", r"\bdecisi[oó]n\b", r"\badr\b", r"\boptamos por\b", r"\bnos quedamos con\b"],
     "aidex-request":  [r"\bel cliente (pidi|quier)", r"\bstakeholder\b", r"\brequerimiento\b", r"\bnos pidieron\b"],
     "aidex-research": [r"\binvestiga", r"\bspike\b", r"\bexplora c[oó]mo\b", r"\bcómo funciona\b"],
@@ -54,7 +53,6 @@ RESIDUAL = {
     "aidex-loop":     [r"\bloop\b", r"\bbucle\b", r"\bhasta que pasen?\b", r"\bitera hasta\b"],
     "aidex-comm":     [r"\blog(uea)? (el|este) (email|correo|whatsapp)\b", r"\bredacta un (correo|email)\b", r"\bla reuni[oó]n con\b"],
     "aidex-audit":    [r"\bauditor[ií]a\b", r"\bhacer un audit\b", r"\bux audit\b"],
-    "aidex-backlog":  [r"\bbacklog\b", r"\bpara m[aá]s adelante\b", r"\banota para luego\b"],
 }
 INTENT = facets.skill_lexicon() | RESIDUAL
 INTENT_RE = {k: re.compile("|".join(v), re.I) for k, v in INTENT.items()}
