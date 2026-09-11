@@ -54,9 +54,16 @@ tagged.
 
 ## Facets
 
-| Facet | Primary source | Reader |
-|---|---|---|
-| _none yet: the first batch (backlog, artifacts, session, planning) lands with plan phase 5_ | | |
+| Facet | Primary source | Reader | Sub-objectives |
+|---|---|---|---|
+| `backlog.md` | items | `read_sweep.py` | intake, definition, triage, sweep, close |
+| `artifacts.md` | pages | `read_artifacts.py` | wrap, consult, re-judge |
+| `session.md` | transcript | — | kickoff, re-dictation, continuation |
+| `planning.md` | transcript | — | plan, execute, close |
+
+Second batch, not yet defined: `worktree` and `validation` enter once tool events
+measure them on real usage (consultation Q16). Run one facet with
+`scripts/usage-retro/facet-run.sh <name> [--since X] [--until Y]`.
 
 Point the loader elsewhere with `AIDEX_FACETS_DIR` (the lockstep test builds a temporary
 facet directory; the repo ships no placeholder facet).
