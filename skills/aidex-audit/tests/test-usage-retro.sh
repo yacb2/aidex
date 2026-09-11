@@ -23,6 +23,8 @@
 #   (l) a transcript root under a DIFFERENT user's home still resolves
 #   (m) mine_items and mine_slow_tests share one runner vocabulary
 #   (o) mine_errors accepts the plain-date --since its own reference prints
+#   (s) iter_tool_events: subagent tagged, cat is a read, exit 2 parsed, retry_of
+#   (t) census_scripts prints its walked file count, reads in their own column
 #
 # Run with: bash skills/aidex-audit/tests/test-usage-retro.sh
 
@@ -509,7 +511,47 @@ out_err2="$(python3 "$RETRO/mine_errors.py" --since 2026-01-01T00:00:00Z --top 1
 grep -q 'errored tool_results' <<<"$out_err2" \
   || fail "(o) an explicit-offset --since regressed: $out_err2"
 
+# ---------------------------------------------------------------------------
+# (s) TOOL EVENTS (usage-retro-facets, phase 1). One walker, exported from
+#     mine_items, that the census, the facets and the readers all import — never
+#     a fourth transcript walker. The fixture's s6 carries the real result shape:
+#     no exit-code field, a string starting "Exit code N" with is_error set.
+#     Subagent transcripts are walked and tagged; the prompt extractor never
+#     sees them (the extract-provenance suite pins that side).
+# ---------------------------------------------------------------------------
+read -r PROJ TX <<< "$(bash "$FIXTURE")"
+out_s="$(python3 - "$RETRO" "$TX" <<'PYS'
+import sys, json
+sys.path.insert(0, sys.argv[1]); import mine_items as M
+ev = list(M.iter_tool_events(sys.argv[2]))
+by = {e["command"]: e for e in ev}
+subs = [e for e in ev if e["agent"] == "sub"]
+assert len(subs) == 1 and subs[0]["parent_session"] == "s6" \
+    and subs[0]["script"].endswith("validate.py"), "subagent event tagged sub, parent s6"
+cat = by["cat skills/aidex-backlog/scripts/close-item.sh"]
+assert cat["read_only"] and cat["exit_code"] == 0, "cat of a path is a read"
+runs = [e for e in ev if e["command"].startswith("bash skills/aidex-backlog")]
+assert [e["exit_code"] for e in runs] == [2, 2], "exit 2 parsed from the result text"
+assert all(e["is_error"] for e in runs) and not runs[0]["read_only"]
+assert runs[0]["retry_of"] is None and runs[1]["retry_of"] == runs[0]["id"], "retry_of links the repeat"
+assert all(e["bucket"] == "real-usage" and e["project"] == "demo-ws" for e in ev)
+print("PYOK", len(ev))
+PYS
+)"
+[[ "$out_s" == *"PYOK 4"* ]] || fail "(s) iter_tool_events over the fixture: $out_s"
+
+# (t) the promoted census prints how many files it walked (an empty walk must be
+#     visible as one), and the `cat` lands in the reads column, not in calls.
+out_t="$(python3 "$RETRO/census_scripts.py" --transcripts-root "$TX" 2>&1)"
+grep -q 'transcript files walked: 7' <<<"$out_t" \
+  || fail "(t) census must print the walked file count (6 sessions + 1 subagent): $out_t"
+grep -E 'close-item\.sh +0/0 +0/0 +2/1 +0/0 +1$' <<<"$out_t" >/dev/null \
+  || fail "(t) close-item.sh: 2 calls/1 session under real-usage/main and 1 read apart: $out_t"
+grep -E 'validate\.py +0/0 +0/0 +0/0 +1/1 +0$' <<<"$out_t" >/dev/null \
+  || fail "(t) validate.py: the subagent run lands in real-usage/sub: $out_t"
+rm -rf "$PROJ" "$TX"
+
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, census promoted"
