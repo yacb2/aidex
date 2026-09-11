@@ -135,6 +135,32 @@ grep -qF 'consult-restored' "$KIT/composer.js" \
 grep -qE 'textarea[^}]*resize:[[:space:]]*vertical' "$KIT/components.css" \
   || fail "components.css does not pin the notes boxes to resize: vertical — the default lets the reader drag one over the content"
 
+# ONE width (BL-383). The column IS the measure: `.page` is sized so the content
+# lands in reading measure, and nothing inside `.main` carries a max-width of its
+# own. BL-248 widened `.page` to 78rem and capped prose separately at 46rem, and
+# what every artifact then showed was text stopping at two thirds of the column
+# next to tables, item boxes and rules that filled it — measured on a real
+# consultation at 1440px: 42 of 55 text elements capped, 13.5rem (23%) empty.
+# The kit's own header comment had already rejected that shape; this pins it.
+# `.page` (the column) and `figure svg` / media queries are the only max-widths
+# that belong in the file.
+two_widths="$(python3 - "$KIT/components.css" <<'PYWID'
+import re, sys
+css = re.sub(r"/\*.*?\*/", " ", open(sys.argv[1], encoding="utf-8").read(), flags=re.S)
+bad = []
+for sel, decl in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+    sel = " ".join(sel.split())
+    if sel.startswith("@") or sel in (".page",) or re.search(r"\bsvg\b|\bimg\b", sel):
+        continue
+    m = re.search(r"max-width\s*:\s*([^;]+)", decl)
+    if m and m.group(1).strip() not in ("none", "100%"):
+        bad.append(f"{sel} {{ max-width: {m.group(1).strip()} }}")
+print(" | ".join(bad))
+PYWID
+)"
+[[ -z "$two_widths" ]] \
+  || fail "components.css caps text inside the column — two widths on one page, text hangs left of the tables that fill it: $two_widths"
+
 grep -q 'id="consult-copy"' "$KIT/skeleton.html" \
   || fail "skeleton.html has no id=\"consult-copy\" (the -end variant does not satisfy the contract)"
 grep -q 'id="consult-status"' "$KIT/skeleton.html" \

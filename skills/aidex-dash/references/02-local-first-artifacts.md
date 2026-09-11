@@ -577,13 +577,20 @@ anchor (§3.2 of `00-global.md`).
 
 `open <file>`.
 
-### 7b. Width, measure and tables (kit v9)
+### 7b. Width, measure and tables (kit v9, one width since v19)
 
-The page takes the screen it is given, capped at `min(78rem, 100vw - 6rem)`; running
-text keeps a reading measure of 46rem (~80 characters) through the kit's `.measure`
-rules, and everything that benefits from width — tables in `.tw`, option groups, the
-ledger, figures, reply boxes — runs to the full column. Do not cap those by hand, and do
-not widen prose by hand: the measure is what keeps a 1440px screen readable.
+The page takes the screen it is given, capped at `min(78rem, 100vw - 6rem)`, and that
+is the **only** width on the page: the column next to the rail (59.5rem at the cap) is
+the measure, and everything inside `.main` — headings, prose, tables in `.tw`, option
+groups, the ledger, figures, item boxes, reply boxes — shares its right edge. Do not cap
+anything by hand and do not add a second measure for prose: v9 to v18 capped running
+text at 46rem inside that column, and every artifact showed the header, the block
+titles, the block context and the item bodies stopping at two thirds of the width next
+to tables and item boxes that filled it (BL-383: 42 of 55 text elements on a real
+consultation, 13.5rem empty). The line runs ~95 characters; a consultation is short
+context paragraphs over tables, not long-form reading, so that is the lesser cost. If a
+page ever reads long, the fix is the body size, never a cap — `test-artifact-kit.sh`
+fails on any `max-width` inside the column.
 
 Inside `.tw`, the composer marks short cells (≤24 characters: numbers, dates, paths,
 ids) `nowrap`, so a 12-column table scrolls instead of breaking `2026-08-21` in two,
