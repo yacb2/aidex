@@ -6,7 +6,7 @@
  "note": "the later T11-55-08 run (0.50) used a character-class file_exists glob that fails on existing files; reverted. The llm criteria were reworded after this run (no front-matter recital); a re-verdict under the current graders is owed (BL-397).",
  "case": {
   "name": "aidex-request-capture",
-  "dir": "plugin-evals/aidex-request--capture",
+  "dir": "plugin-evals/request--capture",
   "source": "mixed",
   "promptMarkdown": "El cliente nos escribi\u00f3 pidiendo que los informes mensuales se puedan exportar a\nExcel adem\u00e1s del PDF actual, porque su equipo de finanzas los reconcilia a mano.\nLo mencion\u00f3 en la reuni\u00f3n de ayer y dijo que lo necesitan antes del cierre de\ntrimestre. Capt\u00faralo.",
   "runsPerCase": 3,
@@ -38,7 +38,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-request",
+     "input_match": "request",
      "min": 1
     }
    }
@@ -69,7 +69,7 @@
         false,
         false
        ],
-       "evidence": "No hay herramienta de shell disponible en esta sesi\u00f3n para correr el self-check de `validate.py`, as\u00ed que no pude ejecutarlo autom\u00e1ticamente.\n\nCaptur\u00e9 el pedido en `.context/requests/2026-09-12-excel-export-monthly-reports.md`:\n\n- **Qu\u00e9**: exportar informes mensuales a Excel, adem\u00e1s del PDF actual.\n- **Por qu\u00e9**: el equipo de finanzas del cliente los reconcilia a mano.\n- **Origen**: reuni\u00f3n del 2026-09-11 (ayer), prioridad alta.\n- **Deadline**: antes del cierre de trimestre.\n- **Estado**: `open`, sin escalar a\u00fan.\n\nSi quieren avanzar con la implementaci\u00f3n, puedo escalarlo a un plan (`aidex-plan`) cuando est\u00e9n listos."
+       "evidence": "No hay herramienta de shell disponible en esta sesi\u00f3n para correr el self-check de `validate.py`, as\u00ed que no pude ejecutarlo autom\u00e1ticamente.\n\nCaptur\u00e9 el pedido en `.context/requests/2026-09-12-excel-export-monthly-reports.md`:\n\n- **Qu\u00e9**: exportar informes mensuales a Excel, adem\u00e1s del PDF actual.\n- **Por qu\u00e9**: el equipo de finanzas del cliente los reconcilia a mano.\n- **Origen**: reuni\u00f3n del 2026-09-11 (ayer), prioridad alta.\n- **Deadline**: antes del cierre de trimestre.\n- **Estado**: `open`, sin escalar a\u00fan.\n\nSi quieren avanzar con la implementaci\u00f3n, puedo escalarlo a un plan (`plan`) cuando est\u00e9n listos."
       },
       {
        "name": "request-file-created",

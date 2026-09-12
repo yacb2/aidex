@@ -10,3 +10,6 @@ __pycache__/
 # Ephemeral session output (aidex conventions: deletable without asking)
 _tmp/
 .claude/.aidex-detected-commands.json
+
+# Native eval cases, collected from skills/*/evals/native/ on every run
+plugin-evals/

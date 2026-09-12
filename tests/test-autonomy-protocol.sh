@@ -15,19 +15,18 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-PLAN_EXEC="$REPO_ROOT/skills/aidex-plan-exec/SKILL.md"
+PLAN_EXEC="$REPO_ROOT/skills/plan-exec/SKILL.md"
 # Checks (e) and (f) assert the skill CARRIES an instruction, not that SKILL.md's body
 # literally contains it. Progressive disclosure moved the durable-run marker and the
 # completion notifier into references/ (BL-078) — still shipped, still read at the point of
 # use, just not in the body. Grepping the body alone would report a split as a deletion.
 PLAN_EXEC_ALL="$(mktemp)"
 trap 'rm -f "$PLAN_EXEC_ALL"' EXIT
-cat "$PLAN_EXEC" "$REPO_ROOT"/skills/aidex-plan-exec/references/*.md > "$PLAN_EXEC_ALL" 2>/dev/null
-LOOP="$REPO_ROOT/skills/aidex-loop/SKILL.md"
-AUDIT="$REPO_ROOT/skills/aidex-audit/SKILL.md"
-RULE="$REPO_ROOT/rules/autonomy.md"
-CANON="$REPO_ROOT/skills/aidex-conventions/references/autonomy-conventions.md"
-WORKTREE="$REPO_ROOT/skills/aidex-worktree/SKILL.md"
+cat "$PLAN_EXEC" "$REPO_ROOT"/skills/plan-exec/references/*.md > "$PLAN_EXEC_ALL" 2>/dev/null
+LOOP="$REPO_ROOT/skills/loop/SKILL.md"
+AUDIT="$REPO_ROOT/skills/audit/SKILL.md"
+CANON="$REPO_ROOT/skills/conventions/references/autonomy-conventions.md"
+WORKTREE="$REPO_ROOT/skills/worktree/SKILL.md"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -43,7 +42,7 @@ done
 
 # ---------- (b) each block single-sources the autonomy canon (cites, doesn't fork) ----------
 for f in "$PLAN_EXEC" "$LOOP" "$AUDIT"; do
-  grep -q 'aidex-conventions/references/autonomy-conventions.md' "$f" \
+  grep -q 'conventions/references/autonomy-conventions.md' "$f" \
     || fail "(b) $f: does not point to autonomy-conventions.md"
 done
 
@@ -74,7 +73,7 @@ done
 #
 # Durability now rests on skill-side autonomy plus the voluntary durability-arbiter,
 # which is what BL-067 designates as the substitute. hooks/durability-run.sh still
-# ships and is referenced by a design comment in aidex-conventions/scripts/_lib.sh.
+# ships and is referenced by a design comment in conventions/scripts/_lib.sh.
 
 # ---------- (f) plan-exec fires the completion notifier, guarded on existence+executable ----------
 grep -q 'notify.sh' "$PLAN_EXEC_ALL" || fail "(f) plan-exec: no notify.sh reference"
@@ -109,7 +108,9 @@ grep -q 'missing' "$PLAN_EXEC" \
 # fail on a reflow, and the usual repair for that is to weaken the assertion.
 flat() { tr '\n' ' ' < "$1" | tr -d '*`' | tr -s ' '; }
 
-for _f in "$RULE" "$CANON"; do
+# Plugin migration 2026-09-12: the always-on `autonomy` rule summary retired, so the
+# rule-vs-canon mirror half of this loop is vacuous. The canon assertions are unchanged.
+for _f in "$CANON"; do
   _n="$(basename "$(dirname "$_f")")/$(basename "$_f")"
   _t="$(flat "$_f")"
   grep -qi 'Integrating a branch is not a commit' <<<"$_t" \
@@ -123,13 +124,15 @@ for _f in "$RULE" "$CANON"; do
     || fail "(i) $_n: merge clause does not state the ungated direction (trunk -> branch)"
 done
 
-# ---------- (k) the deferral clause exists on BOTH surfaces ----------
+# ---------- (k) the deferral clause exists on the canon ----------
 # Same hazard as (i), in the mirror direction. Classes 1 and 2 both end in "surface
 # it at the end", and the end of a run is not where anyone is standing once the run
 # spans sessions: three phase decisions deferred that way were absent one link later.
 # The fix landed first on the always-on rule file only, which is the half a session
 # that reads the canon would never see.
-for _f in "$RULE" "$CANON"; do
+# Plugin migration 2026-09-12: the always-on `autonomy` rule summary retired, so the
+# rule-vs-canon mirror half of this loop is vacuous. The canon assertions are unchanged.
+for _f in "$CANON"; do
   _n="$(basename "$(dirname "$_f")")/$(basename "$_f")"
   _t="$(flat "$_f")"
   grep -qi 'deferral must outlive' <<<"$_t" \
@@ -148,10 +151,10 @@ done
 grep -qi 'Integrating a branch is not a commit' <<<"$(flat "$PLAN_EXEC_ALL")" \
   || fail "(j) plan-exec: close-out does not point at the merge clause"
 _wt="$(flat "$WORKTREE")"
-grep -qi 'autonomy.md' <<<"$_wt" \
-  || fail "(j) aidex-worktree: SKILL.md does not point at the autonomy rule"
+grep -qi 'autonomy-conventions.md' <<<"$_wt" \
+  || fail "(j) worktree: SKILL.md does not point at the autonomy canon"
 grep -qi 'Integrating a branch is not a commit' <<<"$_wt" \
-  || fail "(j) aidex-worktree: SKILL.md does not name the merge clause"
+  || fail "(j) worktree: SKILL.md does not name the merge clause"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate; the merge and deferral clauses are on both surfaces, and both skills point at the merge clause"
+echo "OK — Default autonomy block is single-sourced across plan-exec/loop/audit; plan-exec carries the completion notify and review gate; the merge and deferral clauses are on the canon, and both skills point at the merge clause"

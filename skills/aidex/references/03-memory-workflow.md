@@ -1,6 +1,6 @@
 # Memory Audit & Cleanup Workflow
 
-Canon: `rules/memory-hygiene.md`. Checker: `memory-sweep.py`. Reader:
+Canon: [`memory-hygiene.md`](memory-hygiene.md). Checker: `memory-sweep.py`. Reader:
 `agents/memory-auditor.md`. This file connects them — **the checks are the evidence, the
 outcomes are what you do about it.**
 
@@ -39,7 +39,7 @@ file is a session narrative with no fact to extract, or another memory / `CLAUDE
 
 ## Where each verdict goes
 
-The routing table, in one place. `/aidex memory --apply` reads it; the auditor agent
+The routing table, in one place. `/aidex:aidex memory --apply` reads it; the auditor agent
 returns a verdict and nothing else. An unlisted verdict is a `KEEP`: nothing happens.
 
 | Verdict | Destination |
@@ -48,9 +48,9 @@ returns a verdict and nothing else. An unlisted verdict is a `KEEP`: nothing hap
 | `DELETE-{DUP,CLOSED,LOG}` | back up, then delete the file **and** its index line |
 | `MOVE-BACKLOG` | `.context/backlog/` — `register-item.sh --origin sweep --worklist <slug>` |
 | `MOVE-CLAUDEMD` | the project `CLAUDE.md` — a permanent constraint or command (<3 lines) |
-| `MOVE-REFERENCE` | `.context/references/<topic>/` via `aidex-reference` |
-| `MOVE-DECISION` | `.context/decisions/` (an ADR) via `aidex-decision` |
-| `MOVE-RESEARCH` | `.context/research/` via `aidex-research` |
+| `MOVE-REFERENCE` | `.context/references/<topic>/` via `reference` |
+| `MOVE-DECISION` | `.context/decisions/` (an ADR) via `decision` |
+| `MOVE-RESEARCH` | `.context/research/` via `research` |
 | `MOVE-SKILL` | that skill's `SKILL.md`/`references/`, or `~/.claude/rules/` |
 | `MOVE-GLOBAL` | the user-level memory directory, or a global rule |
 

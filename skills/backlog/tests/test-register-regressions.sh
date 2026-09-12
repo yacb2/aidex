@@ -1,0 +1,612 @@
+#!/usr/bin/env bash
+# test-register-regressions.sh — regression cells for the defects review found
+# in register-item.sh on 2026-08-10 (first end-to-end run of that skill).
+#
+# Every cell here was RED before its fix and reproduces a defect that shipped silently,
+# which is the common thread: five of the six reported SUCCESS while doing nothing, or
+# the wrong thing. `set -euo pipefail` does not catch any of them.
+#
+# Isolated temp project. No network, no real .context/ touched.
+
+set -uo pipefail
+
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)"
+REG="$SCRIPTS/register-item.sh"
+PASS=0 FAIL=0
+ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS+1)); }
+bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL+1)); }
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+fresh() {                      # fresh <name> -> a clean project dir, echoed
+  local d="$TMP/$1"
+  rm -rf "$d"; mkdir -p "$d/.context/backlog"
+  printf '%s' "$d"
+}
+fm() {                         # fm <file> <key> -> front-matter value
+  awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":" {sub(/^[^:]*:[[:space:]]*/,""); print; exit}' "$1"
+}
+
+echo "register-item.sh regression cells:"
+
+# ── B1 · a failed write must not report success ───────────────────────────────
+# Was: the redirect fails, "Backlog entry created" still prints, the nonexistent
+# path goes to stdout and the script exits 0 — so a caller records a path that
+# was never written. `set -e` does not abort on a compound-command redirect.
+D="$(fresh b1)"; cd "$D"
+OUT="$(bash "$REG" --origin manual --title "T" --slug 'sub/dir' 2>/dev/null)"; RC=$?
+[[ $RC -ne 0 ]] && ok "B1 unwritable path exits non-zero" || bad "B1 unwritable path exited 0"
+[[ -z "$OUT" || -e "$OUT" ]] && ok "B1 no phantom path on stdout" || bad "B1 printed a path that does not exist: $OUT"
+
+D="$(fresh b1b)"; cd "$D"; chmod 555 .context/backlog
+OUT="$(bash "$REG" --origin manual --title "T" 2>/dev/null)"; RC=$?
+chmod 755 .context/backlog
+[[ $RC -ne 0 ]] && ok "B1 read-only dir exits non-zero" || bad "B1 read-only dir exited 0"
+[[ -z "$OUT" || -e "$OUT" ]] && ok "B1 read-only dir prints no phantom path" || bad "B1 phantom path: $OUT"
+
+# ── B2 · the id sequence must survive BL-999 ──────────────────────────────────
+# Was: printf 'BL-%03d' mints BL-1000, which the 3-digit-only max filter then
+# rejects, so max stays 999 and BL-1000 is re-minted forever.
+D="$(fresh b2)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-999-seed.md <<'EOF'
+---
+title: "seed"
+id: BL-999
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+---
+EOF
+A="$(bash "$REG" --origin manual --title "after nine ninety nine" 2>/dev/null)"
+[[ "$(fm "$A" id)" == "BL-1000" ]] && ok "B2 BL-999 -> BL-1000" || bad "B2 got $(fm "$A" id) after BL-999"
+B="$(bash "$REG" --origin manual --title "and one more" 2>/dev/null)"
+[[ "$(fm "$B" id)" == "BL-1001" ]] && ok "B2 BL-1000 -> BL-1001 (no re-mint)" || bad "B2 re-minted: $(fm "$B" id)"
+
+# The legacy-id guard must still hold: a date-shaped id may not drive the sequence.
+D="$(fresh b2b)"; cd "$D"
+cat > .context/backlog/2026-01-01-legacy.md <<'EOF'
+---
+title: "legacy"
+id: BL-20260610
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+---
+EOF
+C="$(bash "$REG" --origin manual --title "next after legacy" 2>/dev/null)"
+[[ "$(fm "$C" id)" == "BL-001" ]] && ok "B2 date-shaped legacy id still skipped" || bad "B2 legacy id drove the sequence: $(fm "$C" id)"
+
+# ── B3 · front-matter injection through --title / --blocked-by ────────────────
+# Was: both interpolated raw into a double-quoted YAML scalar. A newline + `---`
+# terminates the front-matter early (hiding the id, so the id gets reused); a
+# double quote injects a second key that wins last-write.
+D="$(fresh b3)"; cd "$D"
+EVIL="$(printf 'pwn\n---\nid: BL-666')"
+E1="$(bash "$REG" --origin manual --title "$EVIL" 2>/dev/null)"
+[[ -n "$E1" && -f "$E1" ]] && ok "B3 newline title still writes an entry" || bad "B3 newline title produced no file"
+[[ "$(fm "$E1" id)" == "BL-001" ]] && ok "B3 newline title cannot forge/hide the id" || bad "B3 id is '$(fm "$E1" id)' — front-matter was terminated early"
+[[ "$E1" != *$'\n'* ]] && ok "B3 filename carries no newline" || bad "B3 newline survived into the filename"
+
+D="$(fresh b3b)"; cd "$D"
+E2="$(bash "$REG" --origin manual --title 'has "quotes" inside' --blocked-by 'x"
+status: done' 2>/dev/null)"
+[[ "$(fm "$E2" status)" == "open" ]] && ok "B3 blocked-by cannot inject a second status" || bad "B3 status is '$(fm "$E2" status)'"
+[[ "$(fm "$E2" id)" == "BL-001" ]] && ok "B3 quoted title keeps front-matter intact" || bad "B3 quoted title broke front-matter"
+
+# ── B4 · stamp_escalated_to must insert when the key is absent ────────────────
+# Was: only a rewrite branch, so stamping a legacy item wrote nothing and still
+# printed "Stamped source ... -> escalated_to: ...". One-way handshake.
+D="$(fresh b4)"; cd "$D"
+mkdir -p "$TMP/b4tgt/.context/backlog"
+cat > .context/backlog/2026-01-01-bl-007-legacy.md <<'EOF'
+---
+title: "legacy source"
+id: BL-007
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+
+# legacy source
+EOF
+bash "$REG" --origin manual --title "route it over" --escalate-to "$TMP/b4tgt" --source-id BL-007 >/dev/null 2>&1
+SRC=".context/backlog/2026-01-01-bl-007-legacy.md"
+grep -q '^escalated_to:' "$SRC" && ok "B4 escalated_to inserted when absent" || bad "B4 stamp reported success and wrote nothing"
+
+# ── B5 · no dangling cross-repo link ─────────────────────────────────────────
+# Was: the source was stamped to point at a counterpart written afterwards; if
+# that write failed the source pointed at nothing and the run still exited 0.
+D="$(fresh b5)"; cd "$D"
+mkdir -p "$TMP/b5tgt/.context"
+: > "$TMP/b5tgt/.context/backlog"      # a FILE where the backlog dir must be
+bash "$REG" --origin manual --title "will not land" --escalate-to "$TMP/b5tgt" >/dev/null 2>&1
+RC=$?
+[[ $RC -ne 0 ]] && ok "B5 failed counterpart exits non-zero" || bad "B5 exited 0 with no counterpart"
+if ls .context/backlog/*.md >/dev/null 2>&1; then
+  bad "B5 wrote a source item pointing at a counterpart that does not exist"
+else
+  ok "B5 no dangling source item left behind"
+fi
+
+# ── B6 · the escalate path must not discard validated flags ──────────────────
+# Was: --estimate/--status/--blocked-by passed their validation gates and were
+# then overwritten by emit_backlog_stub's hardcoded values, with no warning.
+D="$(fresh b6)"; cd "$D"
+mkdir -p "$TMP/b6tgt/.context/backlog"
+bash "$REG" --origin manual --title "blocked big job" --escalate-to "$TMP/b6tgt" \
+  --priority P0 --estimate XL --blocked-by "vendor API" >/dev/null 2>&1
+# Not `*.md` — the auto-generated 00-index.md sorts first and would be read instead.
+S6="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+if [[ -n "$S6" ]]; then
+  [[ "$(fm "$S6" estimate)" == "XL" ]] && ok "B6 --estimate reaches the stub" || bad "B6 estimate is '$(fm "$S6" estimate)', expected XL"
+  [[ "$(fm "$S6" blocked_by)" == '"vendor API"' ]] && ok "B6 --blocked-by reaches the stub" || bad "B6 blocked_by is '$(fm "$S6" blocked_by)'"
+else
+  bad "B6 no source item written"
+fi
+
+# ── B7 · --list must not print a heading for an empty priority ────────────────
+# Was: print_section's `[[ ${#items[@]} -eq 0 ]] && return` guard was dead code.
+# The call site passes "${P0[@]:-}", which on an empty array expands to ONE empty
+# string, not zero args — so items had length 1 and every heading printed. A list
+# with a single P2 item showed five headings, four of them over nothing.
+D="$(fresh b7)"; cd "$D"
+bash "$REG" --origin manual --title "only a medium one" --priority P2 >/dev/null 2>&1
+LIST="$(NO_COLOR=1 bash "$REG" --list 2>/dev/null)"
+HEADS="$(printf '%s\n' "$LIST" | grep -c '^P[0-3] —\|^Blocked\|^Unclassified' || true)"
+[[ "$HEADS" -eq 1 ]] && ok "B7 one populated priority prints exactly one heading" \
+  || bad "B7 printed $HEADS headings for a single P2 item (expected 1)"
+printf '%s\n' "$LIST" | grep -q 'P2 — Medium' && ok "B7 the populated heading is still printed" \
+  || bad "B7 the P2 heading went missing"
+
+# ── B8 · --list's read_field must stop at the front-matter boundary ───────────
+# Was: read_field had no front-matter tracking (the three other readers in this
+# script all have it), so `$1 == key` matched anywhere in the file. `exit`-on-first
+# -match hides this for generated items, which always carry every key — so the cell
+# has to be HAND-AUTHORED, with the key absent from front-matter and present in the
+# body. Body prose then decided which section --list filed the item under.
+D="$(fresh b8)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-001-prose.md <<'EOF'
+---
+title: "prose must not set fields"
+id: BL-001
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+
+# prose must not set fields
+
+## Context
+
+This item used to be blocked. The field we deleted from the header read:
+
+blocked_by: "a vendor that no longer matters"
+
+It is not blocked any more, which is why the key is gone from the front-matter.
+EOF
+LIST="$(NO_COLOR=1 bash "$REG" --list 2>/dev/null)"
+printf '%s\n' "$LIST" | grep -q 'Blocked' \
+  && bad "B8 body prose routed an unblocked item into Blocked" \
+  || ok "B8 body prose cannot supply blocked_by"
+printf '%s\n' "$LIST" | grep -q 'P2 — Medium' \
+  && ok "B8 the item stays in its real priority section" \
+  || bad "B8 the item vanished from the active queue"
+
+# ── B9 · the audit Notes line must use the resolved path, not the raw run ─────
+# Was: origin_ref correctly resolved the D-02 methodology off disk into AUDIT_REL,
+# and then the Notes line re-derived the path from the raw $AUDIT_RUN — emitting
+# `.context/audits/<run>/`, which under the grouped layout does not exist. The ref
+# was right and the human-readable path beside it pointed nowhere.
+D="$(fresh b9)"; cd "$D"
+mkdir -p .context/audits/security/2026-01-01-first-pass
+A9="$(bash "$REG" --origin audit --title "grouped run" --finding F-01 --audit-run 2026-01-01-first-pass 2>/dev/null)"
+grep -q 'audits/security/2026-01-01-first-pass/' "$A9" \
+  && ok "B9 Notes path carries the D-02 methodology segment" \
+  || bad "B9 Notes path is $(grep -o '\.context/audits/[^`]*' "$A9" | head -1) — the methodology is missing"
+[[ "$(fm "$A9" origin_ref)" == "audit/security/2026-01-01-first-pass/F-01" ]] \
+  && ok "B9 origin_ref still resolves the methodology" \
+  || bad "B9 origin_ref is '$(fm "$A9" origin_ref)'"
+
+# The pre-D-02 ungrouped fallback must keep working: no audits/ tree at all.
+D="$(fresh b9b)"; cd "$D"
+A9B="$(bash "$REG" --origin audit --title "flat run" --finding F-02 --audit-run 2026-01-01-flat 2>/dev/null)"
+grep -q 'audits/2026-01-01-flat/' "$A9B" \
+  && ok "B9 ungrouped legacy run still emits the flat path" \
+  || bad "B9 the flat fallback broke"
+
+# ── B10 · one entry template, and the two call sites keep their differences ───
+# Was: emit_backlog_stub was a hand-maintained second copy of the main write block,
+# already drifted in three flags and in empty-slug handling. Unifying them is only
+# correct if the two DELIBERATE differences survive — the escalate stub carries a
+# real Context note where the normal path carries the unfilled template comment,
+# and only the normal path appends the audit Notes lines. A merge that flattens
+# either one passes a cell that just checks "both have front-matter".
+D="$(fresh b10)"; cd "$D"
+M10="$(bash "$REG" --origin manual --title "normal path" 2>/dev/null)"
+grep -q 'Why is this worth doing' "$M10" \
+  && ok "B10 normal path keeps the unfilled Context prompt" \
+  || bad "B10 the normal path lost its Context template comment"
+
+mkdir -p "$TMP/b10tgt/.context/backlog"
+bash "$REG" --origin manual --title "routed job" --escalate-to "$TMP/b10tgt" >/dev/null 2>&1
+# by title, not `head -1`: the normal-path item registered above sorts first
+S10="$(grep -l 'routed job' .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+T10="$(grep -l 'routed job' "$TMP/b10tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+grep -q 'Escalated to' "$S10" \
+  && ok "B10 escalate source keeps its real Context note" \
+  || bad "B10 the escalate stub lost its Context note"
+grep -q 'routed here for execution' "$T10" \
+  && ok "B10 counterpart keeps its own Context note" \
+  || bad "B10 the counterpart lost its Context note"
+grep -q 'Why is this worth doing' "$S10" \
+  && bad "B10 the template comment leaked into an escalate stub that has a real note" \
+  || ok "B10 the two Context blocks stay distinct"
+
+D="$(fresh b10b)"; cd "$D"
+mkdir -p .context/audits/perf/2026-01-01-run
+A10="$(bash "$REG" --origin audit --title "from an audit" --finding F-09 --audit-run 2026-01-01-run 2>/dev/null)"
+grep -q 'Origin: audit finding \[F-09\]' "$A10" \
+  && ok "B10 the audit Notes lines survive the unification" \
+  || bad "B10 the audit Notes lines were lost"
+
+# The escaped title belongs in the YAML scalar, NOT in the markdown H1. Both copies
+# put ESC_TITLE in both places, so a title with a quote rendered as \" in the body.
+D="$(fresh b10c)"; cd "$D"
+Q10="$(bash "$REG" --origin manual --title 'a "quoted" word' 2>/dev/null)"
+[[ "$(fm "$Q10" title)" == '"a \"quoted\" word"' ]] \
+  && ok "B10 front-matter title stays escaped" \
+  || bad "B10 front-matter title is $(fm "$Q10" title)"
+grep -q '^# a "quoted" word$' "$Q10" \
+  && ok "B10 the body heading is not YAML-escaped" \
+  || bad "B10 body heading is '$(grep '^# ' "$Q10" | head -1)' — YAML escaping leaked into markdown"
+
+# ── B11 · an audit item with no --audit-run must not report a failed write ────
+# The inverse of every other cell here: the file is written CORRECTLY and the
+# script reports failure. `[[ -n "$AUDIT_RUN" ]] && echo ...` was the last command
+# of the `if` block, so with no --audit-run it returned 1, the enclosing { } group
+# inherited that status, and `|| die` fired "could not write" — on a file that is
+# right there on disk. The caller gets exit 2 and no path, the item exists, and its
+# id is spent. Found 2026-08-10 while unifying the templates for BL-137.
+D="$(fresh b11)"; cd "$D"
+B11OUT="$(bash "$REG" --origin audit --title "no run given" --finding F-77 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 ]] && ok "B11 audit item without --audit-run exits 0" \
+  || bad "B11 exited $RC on a write that succeeded"
+[[ -n "$B11OUT" && -f "$B11OUT" ]] && ok "B11 the path is returned to the caller" \
+  || bad "B11 wrote the file but returned no path — an orphan with a spent id"
+[[ -n "$B11OUT" ]] && grep -q 'Origin: audit finding \[F-77\]' "$B11OUT" \
+  && ok "B11 the finding is still recorded" || bad "B11 lost the finding line"
+
+# ── B12 · the dangling link, reached at last ──────────────────────────────────
+# B5 above asserts the same property but never reaches the vulnerable window: its
+# fixture puts a FILE where the target backlog dir belongs, so `mkdir -p` fails
+# BEFORE the source is written. That is why this defect went unreproduced when it
+# was first reported. The window needs the target directory to EXIST and the write
+# to fail later — a read-only directory does exactly that.
+D="$(fresh b12)"; cd "$D"
+mkdir -p "$TMP/b12tgt/.context/backlog"; chmod 555 "$TMP/b12tgt/.context/backlog"
+bash "$REG" --origin manual --title "cannot land" --escalate-to "$TMP/b12tgt" >/dev/null 2>&1; RC=$?
+chmod 755 "$TMP/b12tgt/.context/backlog"
+[[ $RC -ne 0 ]] && ok "B12 unwritable target exits non-zero" || bad "B12 exited 0"
+S12="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+[[ -z "$S12" ]] && ok "B12 no source item points at a counterpart that was never written" \
+  || bad "B12 left a source item with escalated_to: $(fm "$S12" escalated_to)"
+
+# Same window on the --source-id branch: an existing item must not be stamped with
+# a forward link to a counterpart whose write failed.
+D="$(fresh b12b)"; cd "$D"
+mkdir -p "$TMP/b12btgt/.context/backlog"; chmod 555 "$TMP/b12btgt/.context/backlog"
+cat > .context/backlog/2026-01-01-bl-005-existing.md <<'EOF'
+---
+title: "existing source"
+id: BL-005
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+escalated_to: ""
+---
+
+# existing source
+EOF
+bash "$REG" --origin manual --title "route it" --escalate-to "$TMP/b12btgt" --source-id BL-005 >/dev/null 2>&1
+chmod 755 "$TMP/b12btgt/.context/backlog"
+[[ "$(fm .context/backlog/2026-01-01-bl-005-existing.md escalated_to)" == '""' ]] \
+  && ok "B12 existing item not stamped toward a counterpart that failed" \
+  || bad "B12 stamped escalated_to: $(fm .context/backlog/2026-01-01-bl-005-existing.md escalated_to)"
+
+# ── B13 · the counterpart must roll back when the source side fails ───────────
+# Writing the target first closes the dangling-link direction, and opens the other
+# one: a counterpart whose origin points at a source that was never written. The
+# rollback has to run through `if ! VAR=$(...)` — `die` inside $( ) exits the
+# subshell, `set -e` aborts the parent AT the assignment, and a rollback written on
+# the following line would never execute.
+D="$(fresh b13)"; cd "$D"
+mkdir -p "$TMP/b13tgt/.context/backlog"
+chmod 555 .context/backlog
+bash "$REG" --origin manual --title "source cannot be written" --escalate-to "$TMP/b13tgt" >/dev/null 2>&1; RC=$?
+chmod 755 .context/backlog
+[[ $RC -ne 0 ]] && ok "B13 unwritable source exits non-zero" || bad "B13 exited 0"
+T13="$(ls "$TMP/b13tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+[[ -z "$T13" ]] && ok "B13 counterpart rolled back when the source could not be written" \
+  || bad "B13 left an orphan counterpart: $T13"
+
+# ── B14 · origin gates must not run on a branch that never reads ORIGIN ───────
+# Was: --origin's ref derivation ran unconditionally, but the --source-id branch
+# stamps an existing item and takes the counterpart's origin from the source id —
+# ORIGIN_REF is computed and thrown away. So escalating an audit-born item died on
+# "--finding is required" for a value nothing would have used.
+D="$(fresh b14)"; cd "$D"
+mkdir -p "$TMP/b14tgt/.context/backlog"
+cat > .context/backlog/2026-01-01-bl-005-from-audit.md <<'EOF'
+---
+title: "found in an audit"
+id: BL-005
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+escalated_to: ""
+---
+
+# found in an audit
+EOF
+bash "$REG" --origin audit --title "route the audit item" --escalate-to "$TMP/b14tgt" \
+  --source-id BL-005 >/dev/null 2>&1; RC=$?
+[[ $RC -eq 0 ]] && ok "B14 --source-id does not demand --finding" \
+  || bad "B14 exited $RC — an unused origin_ref still gated the run"
+[[ "$(fm .context/backlog/2026-01-01-bl-005-from-audit.md escalated_to)" == '"b14tgt/BL-001"' ]] \
+  && ok "B14 the source was stamped" || bad "B14 source not stamped"
+
+# The gates still apply on the branch that DOES use origin_ref (a fresh stub).
+D="$(fresh b14b)"; cd "$D"
+mkdir -p "$TMP/b14btgt/.context/backlog"
+bash "$REG" --origin audit --title "no finding given" --escalate-to "$TMP/b14btgt" >/dev/null 2>&1; RC=$?
+[[ $RC -ne 0 ]] && ok "B14 the fresh-stub branch still requires --finding" \
+  || bad "B14 the origin gate was dropped where it is load-bearing"
+
+# ── B15 · one enumeration of the backlog's three directories ──────────────────
+# Was: three hand-rolled copies of the same glob + awk-extract-id loop, which had
+# already drifted — the scanners walked _archive before _deferred and the resolver
+# the other way. That order is not cosmetic: it decides which file wins when an id
+# exists in both, and a DEFERRED item is live where an archived one is closed.
+# Stamping the archived copy would be the wrong item.
+D="$(fresh b15)"; cd "$D"
+mkdir -p .context/backlog/_deferred .context/backlog/_archive "$TMP/b15tgt/.context/backlog"
+cat > .context/backlog/_deferred/2026-01-01-bl-009-live.md <<'EOF'
+---
+title: "the live deferred one"
+id: BL-009
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+escalated_to: ""
+---
+EOF
+cat > .context/backlog/_archive/2026-01-01-bl-009-closed.md <<'EOF'
+---
+title: "the closed archived one"
+id: BL-009
+status: done
+created: 2026-01-01
+updated: 2026-01-01
+escalated_to: ""
+---
+EOF
+bash "$REG" --origin manual --title "resolve me" --escalate-to "$TMP/b15tgt" --source-id BL-009 >/dev/null 2>&1
+grep -q 'b15tgt/BL-001' .context/backlog/_deferred/2026-01-01-bl-009-live.md \
+  && ok "B15 an id in both _deferred and _archive resolves to the live one" \
+  || bad "B15 resolved to the archived copy"
+grep -q 'b15tgt/BL-001' .context/backlog/_archive/2026-01-01-bl-009-closed.md \
+  && bad "B15 stamped the archived copy" || ok "B15 the archived copy was left alone"
+
+# ── B16 · origin_ref and --slug are untrusted input like title ────────────────
+# Was: origin_ref went into the front-matter as a bare scalar built from --issue /
+# --finding / basenames, unlike title and blocked_by which pass through yaml_escape.
+# A value with a newline followed by `---` ended the front-matter early: every key
+# after it (priority, type, estimate) became body prose and the id reader saw nothing.
+# --slug went verbatim into the filename with no character restriction.
+D="$(fresh b16)"; cd "$D"
+OUT="$(bash "$REG" --origin issue --issue $'42\n---\nid: BL-999' --title "B16" 2>/dev/null)"; RC=$?
+if [[ $RC -eq 0 && -n "$OUT" && -f "$OUT" ]]; then
+  [[ "$(fm "$OUT" id)" == "BL-001" ]] && ok "B16 id survives a newline in --issue" || bad "B16 id read back as '$(fm "$OUT" id)'"
+  [[ -n "$(fm "$OUT" priority)" ]] && ok "B16 priority still inside the front-matter" || bad "B16 priority fell out of the front-matter"
+  [[ "$(grep -c '^---' "$OUT")" -eq 2 ]] && ok "B16 exactly one front-matter block" || bad "B16 front-matter has $(grep -c '^---' "$OUT") delimiters"
+else
+  ok "B16 a newline in --issue is refused (rc=$RC)"; ok "B16 (refusal covers the priority cell)"; ok "B16 (refusal covers the delimiter cell)"
+fi
+D="$(fresh b16s)"; cd "$D"
+bash "$REG" --origin manual --title "B16 slug" --slug 'Bad Slug!' >/dev/null 2>&1; RC=$?
+[[ $RC -ne 0 ]] && ok "B16 --slug outside [a-z0-9-] is refused" || bad "B16 --slug 'Bad Slug!' was accepted"
+ls .context/backlog/ | grep -q 'Bad' && bad "B16 a file with the raw slug was written" || ok "B16 no file with the raw slug"
+
+# ── B17 · a plain registration must not bootstrap a backlog tree (BL-336) ─────
+# Was: `mkdir -p "$BACKLOG_DIR"` ran unguarded on the plain path, so running the
+# script from the wrong cwd created .context/backlog/, _claims/ and 00-index.md and
+# minted BL-001 there, reporting success. The --escalate-to path in the SAME script
+# already refused exactly this ("target has no .context/"). Now symmetric: a project
+# with no backlog/ is refused and pointed at /aidex init.
+D="$TMP/b17"; rm -rf "$D"; mkdir -p "$D/.context"; cd "$D"
+B17_ROOT="$(pwd -P)"
+ERRF="$TMP/b17.err"
+bash "$REG" --origin manual --title "B17 wrong cwd" >/dev/null 2>"$ERRF"; RC=$?
+[[ $RC -ne 0 ]] && ok "B17 no backlog/ is refused (rc=$RC)" || bad "B17 registration in a project with no backlog/ exited 0"
+[[ ! -d "$D/.context/backlog" ]] && ok "B17 no backlog tree was bootstrapped" || bad "B17 created $D/.context/backlog"
+grep -q '/aidex init' "$ERRF" && ok "B17 the refusal points at /aidex init" || bad "B17 refusal does not mention /aidex init: $(cat "$ERRF")"
+grep -qF "$B17_ROOT" "$ERRF" && ok "B17 the refusal names the resolved root" || bad "B17 refusal does not name $B17_ROOT: $(cat "$ERRF")"
+
+# Mutation: the same call in a project that DOES have backlog/ must still succeed,
+# or the guard above passes vacuously by refusing everything.
+D="$(fresh b17ok)"; cd "$D"
+OUT="$(bash "$REG" --origin manual --title "B17 right cwd" 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 && -n "$OUT" && -f "$OUT" ]] \
+  && ok "B17 registration in a project with backlog/ is unchanged" \
+  || bad "B17 registration with backlog/ present broke (rc=$RC out='$OUT')"
+
+# ── B18 · --escalate-to must not bootstrap the SOURCE backlog either (BL-342) ──
+# BL-336 guarded the plain path; the escalate path in the same script kept the same
+# defect one branch over. `mkdir -p "$TARGET_BACKLOG"` and then
+# `claim_backlog_id "$BACKLOG_DIR"` both ran before anything asked whether the SOURCE
+# had a backlog/ at all, so escalating from the wrong cwd built .context/backlog/,
+# _claims/ and 00-index.md in the source, minted BL-001 there and exited 0.
+# The guard must sit BEFORE the target mkdir: one line later and a call that then
+# refuses has already created backlog/ in the OTHER repo and spent a number there,
+# which the ledger never gives back.
+D="$TMP/b18"; rm -rf "$D"; mkdir -p "$D/.context"; cd "$D"
+B18_ROOT="$(pwd -P)"
+B18_TGT="$TMP/b18tgt"; rm -rf "$B18_TGT"; mkdir -p "$B18_TGT/.context/backlog"
+ERRF="$TMP/b18.err"
+bash "$REG" --origin manual --title "B18 wrong cwd" --escalate-to "$B18_TGT" >/dev/null 2>"$ERRF"; RC=$?
+[[ $RC -ne 0 ]] && ok "B18 escalate from a source with no backlog/ is refused (rc=$RC)" || bad "B18 --escalate-to exited 0 from a source with no backlog/"
+[[ ! -d "$D/.context/backlog" ]] && ok "B18 no backlog tree bootstrapped in the source" || bad "B18 created $D/.context/backlog"
+ls "$B18_TGT/.context/backlog"/2026-*-bl-*.md >/dev/null 2>&1 \
+  && bad "B18 wrote a counterpart in the target for a call that was refused" \
+  || ok "B18 no counterpart written in the target"
+[[ ! -e "$B18_TGT/.context/backlog/_claims/BL-001" ]] \
+  && ok "B18 no id was spent in the target" \
+  || bad "B18 left a claim marker in the target — that repo loses BL-001 permanently"
+grep -q '/aidex init' "$ERRF" && ok "B18 the refusal points at /aidex init" || bad "B18 refusal does not mention /aidex init: $(cat "$ERRF")"
+grep -qF "$B18_ROOT" "$ERRF" && ok "B18 the refusal names the resolved source root" || bad "B18 refusal does not name $B18_ROOT: $(cat "$ERRF")"
+
+# Mutation: the same escalation from a source that DOES have backlog/ must still
+# complete both sides, or the guard above passes vacuously by refusing everything.
+D="$(fresh b18ok)"; cd "$D"
+B18_TGT2="$TMP/b18oktgt"; rm -rf "$B18_TGT2"; mkdir -p "$B18_TGT2/.context/backlog"
+OUT="$(bash "$REG" --origin manual --title "B18 right cwd" --escalate-to "$B18_TGT2" 2>/dev/null)"; RC=$?
+B18_SRC="$(printf '%s\n' "$OUT" | sed -n 1p)"; B18_CNT="$(printf '%s\n' "$OUT" | sed -n 2p)"
+[[ $RC -eq 0 && -f "$B18_SRC" && -f "$B18_CNT" ]] \
+  && ok "B18 escalation from a source with backlog/ is unchanged" \
+  || bad "B18 escalation with backlog/ present broke (rc=$RC src='$B18_SRC' counterpart='$B18_CNT')"
+
+# ── B19 · blocked_by must not evict an item from the Awaiting owner list ──────
+# Was: both the index emitter and --list tested `blocked_by` first and `continue`d,
+# so the `awaiting` branch below was unreachable for an item carrying BOTH. A parked
+# item that later acquired a blocker silently left "## Awaiting owner" — the one list
+# a sweep close-out reads — and the "Awaiting owner: N" tally decremented with it.
+# BL-340 hit this for real and was worked around by writing "ALSO awaiting owner"
+# into the blocked_by prose: a string, not a fix. The two states are independent
+# (a third party blocks the work; the owner still owes a judgement), so an item in
+# both is emitted in both.
+D="$(fresh b19)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-001-both.md <<'EOF'
+---
+title: "blocked and parked at once"
+id: BL-001
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+blocked_by: "BL-002 — a third party"
+awaiting: owner
+---
+EOF
+cat > .context/backlog/2026-01-01-bl-002-blocked-only.md <<'EOF'
+---
+title: "blocked only"
+id: BL-002
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+blocked_by: "a vendor"
+---
+EOF
+idx_section() {                # idx_section <file> <heading> -> the rows under it
+  awk -v h="## $2" '$0==h { inb=1; next } /^## / { inb=0 } inb' "$1"
+}
+list_section() {               # list_section <file> <heading prefix> -> the rows under it
+  awk -v h="$2" '
+    /^(P[0-3] —|Blocked \(|Awaiting owner \(|Unclassified \()/ { sec = (index($0,h)==1); next }
+    sec
+  ' "$1"
+}
+bash "$REG" --reindex >/dev/null 2>&1
+IDX="$D/.context/backlog/00-index.md"
+idx_section "$IDX" "Blocked" | grep -q 'BL-001' \
+  && ok "B19 index: a both-item is still listed under Blocked" \
+  || bad "B19 index: BL-001 is missing from ## Blocked"
+idx_section "$IDX" "Awaiting owner" | grep -q 'BL-001' \
+  && ok "B19 index: a both-item is also listed under Awaiting owner" \
+  || bad "B19 index: BL-001 left ## Awaiting owner the moment blocked_by was set"
+grep -q '\*\*Awaiting owner:\*\* 1' "$IDX" \
+  && ok "B19 index: the Awaiting owner tally counts the both-item" \
+  || bad "B19 index: tally is '$(grep -o 'Awaiting owner:\*\* [0-9]*' "$IDX")', expected 1"
+# Mutation — the both-branch must be driven by `awaiting`, not by being in Blocked:
+# BL-002 is blocked and NOT parked, so it may never appear under Awaiting owner.
+idx_section "$IDX" "Awaiting owner" | grep -q 'BL-002' \
+  && bad "B19 index: a blocked-only item was emitted under Awaiting owner" \
+  || ok "B19 index: a blocked-only item stays out of Awaiting owner"
+
+LISTF="$TMP/b19.list"
+NO_COLOR=1 bash "$REG" --list >"$LISTF" 2>/dev/null
+list_section "$LISTF" "Blocked (" | grep -q 'blocked and parked at once' \
+  && ok "B19 --list: a both-item is still listed under Blocked" \
+  || bad "B19 --list: the both-item is missing from Blocked"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked and parked at once' \
+  && ok "B19 --list: a both-item is also listed under Awaiting owner" \
+  || bad "B19 --list: the both-item left the Awaiting owner section"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked only' \
+  && bad "B19 --list: a blocked-only item was printed under Awaiting owner" \
+  || ok "B19 --list: a blocked-only item stays out of Awaiting owner"
+
+# ── B20 · --list must reach a sweep-PARKED item, whose status is `doing` ──────
+# Was: --list filtered to `status == open`, but close-item.sh --sweep parks an item by
+# writing `awaiting: owner` and LEAVING the status as it was (close-item.sh:153) — inside
+# a sweep that status is `doing`. So the Awaiting owner section was unreachable for
+# exactly the items it was built for. Live proof on aidex's own board: BL-318 and BL-340
+# both carry awaiting:owner with status doing; 00-index.md (which accepts open|doing)
+# listed both, --list printed no Awaiting owner section at all.
+# A plain `doing` item still stays out of the priority sections — widening the filter
+# must not turn --list into a different report.
+D="$(fresh b20)"; cd "$D"
+cat > .context/backlog/2026-01-01-bl-001-parked.md <<'EOF'
+---
+title: "parked mid-sweep"
+id: BL-001
+status: doing
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+awaiting: owner
+---
+EOF
+cat > .context/backlog/2026-01-01-bl-002-plain-doing.md <<'EOF'
+---
+title: "plain doing item"
+id: BL-002
+status: doing
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+EOF
+cat > .context/backlog/2026-01-01-bl-003-plain-open.md <<'EOF'
+---
+title: "plain open item"
+id: BL-003
+status: open
+created: 2026-01-01
+updated: 2026-01-01
+priority: P2
+---
+EOF
+LISTF="$TMP/b20.list"
+NO_COLOR=1 bash "$REG" --list >"$LISTF" 2>/dev/null
+# Non-vacuous: --list must have produced a report at all before any section assertion.
+grep -q 'plain open item' "$LISTF"   && ok "B20 --list: the ordinary open item is listed (the section checks are not vacuous)"   || bad "B20 --list: produced no report — every assertion below would be vacuous"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'parked mid-sweep'   && ok "B20 --list: a sweep-parked doing item reaches Awaiting owner"   || bad "B20 --list: a parked item with status doing never reached Awaiting owner"
+# Mutation on the other axis — widening the status filter must not promote a plain
+# `doing` item into the priority queue, or --list stops meaning "what is open".
+list_section "$LISTF" "P2 —" | grep -q 'plain doing item'   && bad "B20 --list: a plain doing item was promoted into the P2 section"   || ok "B20 --list: a plain doing item stays out of the priority sections"
+list_section "$LISTF" "Awaiting owner (" | grep -q 'plain doing item'   && bad "B20 --list: a plain doing item was printed under Awaiting owner"   || ok "B20 --list: only a parked item reaches Awaiting owner"
+
+cd /
+echo
+if [[ $FAIL -eq 0 ]]; then
+  echo "OK — register-item regressions: $PASS cells, 19 defects covered"
+  exit 0
+fi
+echo "FAIL — $FAIL of $((PASS+FAIL)) cells"
+exit 1

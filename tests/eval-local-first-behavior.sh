@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# eval-local-first-behavior.sh — BEHAVIORAL eval of rules/artifacts-local-first.md.
+# eval-local-first-behavior.sh — BEHAVIORAL eval of the local-first artifact contract
+# (skills/artifact/references/02-local-first-artifacts.md).
 #
 # NOT a unit gate: each scenario is a real headless `claude -p` session (API cost,
 # minutes of wall clock). Instrument: stream-json event detection (the LOOP-004
@@ -18,7 +19,7 @@
 #   contract        — every produced file passes check-artifact.sh (doctype,
 #                    charset, viewport, themes, self-contained, no siblings).
 #                    Assertion logic is unit-tested API-free in
-#                    skills/aidex-dash/tests/test-artifact-contract.sh.
+#                    skills/artifact/tests/test-artifact-contract.sh.
 #
 # Run with: bash tests/eval-local-first-behavior.sh   (requires `claude` on PATH)
 
@@ -166,12 +167,12 @@ case "$S3_HTML" in
 esac
 
 echo "== artifact file contract (all produced files) =="
-# Same checker the cheap unit test proves out (aidex-dash/tests/test-artifact-contract.sh);
+# Same checker the cheap unit test proves out (artifact/tests/test-artifact-contract.sh);
 # here it runs against whatever the real sessions actually wrote.
 PRODUCED="$(cd "$FIX" && find .context -name '*.html' | sed "s|^|$FIX/|")"
 if [ -n "$PRODUCED" ]; then
   # shellcheck disable=SC2086
-  if CONTRACT_OUT="$(bash "$(dirname "$0")/../skills/aidex-dash/scripts/check-artifact.sh" $PRODUCED 2>&1)"; then
+  if CONTRACT_OUT="$(bash "$(dirname "$0")/../skills/artifact/scripts/check-artifact.sh" $PRODUCED 2>&1)"; then
     pass "every produced artifact honours the file contract"
   else
     fail "artifact contract violations:\n$CONTRACT_OUT"

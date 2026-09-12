@@ -30,8 +30,10 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
 # Not tests, despite the name. Each line is `<path> | <why>`.
 EXCLUDED="\
+docs/retired/tests/test-install.sh | RETIRED with the pre-plugin installer (docs/retired/README.md)
+docs/retired/tests/test-doctor.sh | RETIRED with install.sh --doctor; returns as a skill sub-action (BL-404)
 hooks/eval/test-router-fallback.sh | the RETIRED aidex-router's eval harness — the hook is unwired and its replay came out p=0.72
-skills/aidex-worktree/scripts/test-db-preflight.sh | a PRODUCTION script that preflights the TEST database, which is why its name starts that way; its own test is test-test-db-preflight.sh"
+skills/worktree/scripts/test-db-preflight.sh | a PRODUCTION script that preflights the TEST database, which is why its name starts that way; its own test is test-test-db-preflight.sh"
 
 # The widest set the runner can discover.
 discovered="$(RUN_DOCKER_TESTS=1 bash tests/run-all.sh --list | sort)"

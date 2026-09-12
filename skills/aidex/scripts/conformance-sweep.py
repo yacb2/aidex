@@ -23,27 +23,27 @@ import argparse, collections, glob, json, os, re, sys
 
 DEFAULT_ROOT = os.path.expanduser("~/Documents/projects")
 
-# topic -> (owning global rule, patterns that indicate a NORMATIVE restatement)
+# topic -> (owning canon reference, patterns that indicate a NORMATIVE restatement)
 TOPICS = {
     "e2e-absolute-mandate": (
-        "rules/e2e-testing.md",
+        "skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees",
         [re.compile(r"ALWAYS use ['\"`]?test-e2e\.sh", re.I),
          re.compile(r"NEVER run playwright directly", re.I),
          re.compile(r"siempre.{0,20}test-e2e\.sh", re.I)],
     ),
     "db-ask-first": (
-        "rules/database-protection.md",
+        "skills/conventions/references/database-protection.md",
         [re.compile(r"(always|siempre).{0,40}(ask|pregunt).{0,60}(destructive|drop|reset|borr)", re.I),
          re.compile(r"(ask|pregunt).{0,30}before.{0,30}(destructive|dropping|resetting)", re.I),
          re.compile(r"confirm.{0,30}before.{0,30}(drop|reset|truncat)", re.I)],
     ),
     "language-scope": (
-        "rules/aidex-conventions.md (D-04)",
+        "skills/conventions/references/00-global.md (D-04)",
         [re.compile(r"\.context/.{0,40}(in|en)\s+(spanish|espa[nñ]ol)", re.I),
          re.compile(r"(write|escribe).{0,30}artifacts?.{0,30}(spanish|espa[nñ]ol)", re.I)],
     ),
     "artifact-publish": (
-        "rules/artifacts-local-first.md",
+        "skills/artifact/references/02-local-first-artifacts.md",
         [re.compile(r"(always|siempre).{0,30}publish.{0,30}artifact", re.I)],
     ),
 }
@@ -55,10 +55,10 @@ TOPICS = {
 # aidex among them — `theme-factory` is the artifact flow's design-guidance fallback
 # for surfaces without `artifact-design` (headless `claude -p` has none), so disabling
 # it leaves an artifact request with no design path at all, which is the field
-# regression rules/artifacts-local-first.md exists to prevent.
+# regression skills/artifact/references/02-local-first-artifacts.md exists to prevent.
 REQUIRED_LOADABLE = {
-    "theme-factory": "rules/artifacts-local-first.md (design-guidance fallback)",
-    "dataviz": "rules/artifacts-local-first.md (charts fallback)",
+    "theme-factory": "skills/artifact/references/02-local-first-artifacts.md (design-guidance fallback)",
+    "dataviz": "skills/artifact/references/02-local-first-artifacts.md (charts fallback)",
 }
 BLOCKS_MODEL_LOAD = {"off", "user-invocable-only"}
 

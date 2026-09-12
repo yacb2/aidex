@@ -11,7 +11,7 @@
 #
 # It did not, until 2026-08-17. Bands 2 and 3 shipped telling the assistant who
 # decides a handoff ("the decision is theirs", "do not hand off on your own").
-# That is `rules/autonomy.md`'s question, and inside an unattended run the canon
+# That is `skills/conventions/references/autonomy-conventions.md`'s question, and inside an unattended run the canon
 # answers it the other way: the handoff is a mandated step, not the user's call.
 # Measured over the armed population, band 3's wording came back as a near-verbatim
 # translation in six real sessions; one of them declined to launch a remaining
@@ -102,8 +102,8 @@ DEPTH_K=$((DEPTH / 1000))
 
 case "$BAND" in
   1) MSG="Context depth is now ~${DEPTH_K}k tokens. Turns here run about 1.4x slower than this session did below 100k. Nothing to do yet — but if the current thread is close to a natural boundary, that is the cheap moment to hand off." ;;
-  2) MSG="Context depth is now ~${DEPTH_K}k tokens — past the point where staying in-session stops paying for itself. The next natural boundary (end of a phase, after a commit) is the cheap place to hand off. Who makes that call is already governed by rules/autonomy.md and the session-handoff skill; this hook reports the number and nothing else." ;;
-  3) MSG="Context depth is now ~${DEPTH_K}k tokens. Over half of all input spend sits above this line and the speed loss has plateaued, so continuing here buys nothing a fresh session would not give back. Who makes that call is already governed by rules/autonomy.md and the session-handoff skill; this hook reports the number and nothing else." ;;
+  2) MSG="Context depth is now ~${DEPTH_K}k tokens — past the point where staying in-session stops paying for itself. The next natural boundary (end of a phase, after a commit) is the cheap place to hand off. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
+  3) MSG="Context depth is now ~${DEPTH_K}k tokens. Over half of all input spend sits above this line and the speed loss has plateaued, so continuing here buys nothing a fresh session would not give back. Who makes that call is already governed by skills/conventions/references/autonomy-conventions.md and the session-handoff skill; this hook reports the number and nothing else." ;;
 esac
 
 jq -n --arg m "$MSG" '{

@@ -1,0 +1,78 @@
+# Artifact style profile — {{PROJECT_NAME}}
+
+Consumed by the local-first artifact flow (`skills/artifact/references/02-local-first-artifacts.md`,
+step B.2) for every HTML artifact/report generated in this project.
+
+**This file is a DELTA, not a design system.** The design system is the kit —
+`${CLAUDE_PLUGIN_ROOT}/skills/artifact/assets/artifact-kit/` — which `wrap-report.sh`
+injects into every artifact. Of everything below, the wrapper reads exactly
+three things: the `css` fence in `## Delta`, `Favicon emoji:`, and `language:`.
+The rest is prose for whoever writes the page; filling in the palette table
+below changes nothing on its own. Delete any section you don't want to
+constrain.
+
+## Palette
+
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| ground | #FFFFFF | #14181C | page background |
+| ink | #1F2A31 | #DAE2E4 | body text |
+| accent | #116B5F | #52B0A0 | one accent, used sparingly |
+| good / warn / critical | — | — | semantic states, distinct from accent |
+
+The table is documentation. To actually restyle the pages, put the same values
+in `## Delta` below as CSS, in BOTH blocks — the kit ships a dark palette of its
+own, and a delta that only redefines the light one leaves the page half-restyled:
+
+```css
+:root { --accent: #116B5F; }
+:root[data-theme="dark"] { --accent: #52B0A0; }
+```
+
+That fence is an EXAMPLE and is not injected, because it sits here rather than
+under `## Delta`. That is the whole reason the rule is scoped to a section.
+
+## Type
+
+- Display / headings: {{e.g. "Avenir Next", system-ui}}
+- Body: {{...}}
+- Data / mono: ui-monospace, "SF Mono"
+
+## Identity
+
+- Favicon emoji: {{one emoji, stable across the project's artifacts}}
+- Footer / attribution line: {{optional}}
+
+## Layout & tone
+
+- {{e.g. "summary stats band on top", "no horizontal-scroll tables", "terse copy"}}
+
+## Delta
+
+The one section `wrap-report.sh` reads as CSS. It injects the FIRST `css` fence
+inside this section, after the kit and before the page's own styles, so anything
+here overrides the kit and nothing here has to restate it. A project whose
+identity IS the kit's leaves the fence as it stands.
+
+```css
+/* No delta yet: this project uses the kit's own identity. */
+```
+
+Only override tokens here — the kit's components read every colour and font
+stack from them, so changing values restyles the whole system without touching
+a single rule. And keep worked examples OUT of this section: whatever sits in
+the first fence here becomes the project's real palette.
+
+## Language
+
+- language: en
+
+Read as a field, not as prose: `wrap-report.sh` parses the first `language:`
+line in this file and uses it as the document's `<html lang>` when no explicit
+`--lang` is passed. Precedence is `--lang` > this field > `en`.
+
+Scope is ARTIFACTS only. `.context/` stays English (D-04) whatever this says —
+it is a historical record and is cheaper to search in one language — and
+`communications/` bodies stay in the language they arrived in. This field
+exists so a project whose reader wants Spanish reports configures it once here
+instead of restating it per request.

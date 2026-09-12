@@ -1,0 +1,10 @@
+{
+  "name": "aidex",
+  "version": "1.0.0",
+  "description": "Skills, hooks and .context/ conventions for organizing a Claude Code ecosystem — a layer on top of the official skills, not a replacement.",
+  "author": {
+    "name": "Yoel Acevedo"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/yacb2/aidex"
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""memory-sweep.py — audit every Claude Code memory directory against rules/memory-hygiene.md.
+"""memory-sweep.py — audit every Claude Code memory directory against skills/aidex/references/memory-hygiene.md.
 
 READ-ONLY BY CONSTRUCTION. It prints findings and the exact command that would fix each
 one; it never deletes, moves or rewrites anything. That is deliberate: memory files are
@@ -43,7 +43,7 @@ import time
 # read the project.
 PROJECTS = os.environ.get("AIDEX_MEMORY_ROOT") or os.path.expanduser("~/.claude/projects")
 
-# Budgets. Both come from rules/memory-hygiene.md — keep them in lockstep with it.
+# Budgets. Both come from skills/aidex/references/memory-hygiene.md — keep them in lockstep with it.
 # 800 is the p90 of the 416 memories measured 2026-08-06 (median 277w): it flags the
 # tail where session logs actually live without burying it in 113 dense-but-legitimate
 # facts, which is what a 400w budget did on the first run.
@@ -79,7 +79,7 @@ def project_of(path: str) -> str:
 
 # ---------------------------------------------------------------- content tests
 # The five checks above test a memory's SHAPE. These six test what it IS — the rule
-# `rules/memory-hygiene.md` states in prose and nothing enforced until 2026-08-31, when
+# `skills/aidex/references/memory-hygiene.md` states in prose and nothing enforced until 2026-08-31, when
 # an adversarial read of 425 memories found nine were memories. Keep the ids in lockstep
 # with the rule text; `tests/test-memory-sweep.sh` fails if they drift apart.
 #

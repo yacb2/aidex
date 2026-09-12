@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "aidex",
+  "owner": {
+    "name": "Yoel Acevedo"
+  },
+  "plugins": [
+    {
+      "name": "aidex",
+      "source": "./"
+    }
+  ]
+}

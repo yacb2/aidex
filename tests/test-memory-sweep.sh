@@ -85,7 +85,8 @@ AFTER="$(find "$TMP" -type f -exec shasum {} \; | shasum)"
 check "reporting findings changed nothing on disk" '[[ "$BEFORE" == "$AFTER" ]]'
 
 echo "== budgets stay in lockstep with the rule =="
-RULE="$REPO_ROOT/rules/memory-hygiene.md"
+# Plugin migration 2026-09-12: the always-on rule retired; the canon is now the skill reference.
+RULE="$REPO_ROOT/skills/aidex/references/memory-hygiene.md"
 SCRIPT_MEM="$(sed -n 's/^MEMORY_WORD_BUDGET = \([0-9]*\)$/\1/p' "$SWEEP")"
 SCRIPT_IDX="$(sed -n 's/^INDEX_WORD_BUDGET = \([0-9]*\)$/\1/p' "$SWEEP")"
 check "the rule states the memory budget ($SCRIPT_MEM)" 'grep -q "\*\*$SCRIPT_MEM words" "$RULE"'

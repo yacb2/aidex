@@ -12,12 +12,12 @@ You are a skills auditor. Check skill structure across all scopes.
 
 ## Setup
 
-Read conventions: `~/.claude/skills/aidex-conventions/references/skill-conventions.md`
+Read conventions: `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/skill-conventions.md`
 
 ## Scopes to Scan
 
 1. `.claude/skills/` — local project skills (real files only, skip symlinks)
-2. `~/.claude/skills/` — global skills. Both the user's own and the aidex-installed ones
+2. `${CLAUDE_PLUGIN_ROOT}/skills/` — global skills. Both the user's own and the aidex-installed ones
    live here; `~/.claude/aidex/manifest` says which are aidex's.
 
 ## Checks
@@ -31,7 +31,7 @@ Read conventions: `~/.claude/skills/aidex-conventions/references/skill-conventio
   - Code blocks under 5 lines (move to references/).
 - **[SD] Orphaned references**: Files in `references/` not linked from SKILL.md.
 - **[SE] Description quality**: Description >50 chars, includes trigger phrases, has negative triggers.
-- **[SG] User↔project overlap** (check code `CB-DU`): For each skill present in BOTH `~/.claude/skills/` and `<project>/.claude/skills/`, read both frontmatters. If `name` matches AND `description` Jaccard similarity on word sets exceeds 0.7, report WARNING. Propose either deleting the local copy (accept global) or unlinking the global (keep the override). Keeping both pays metadata cost twice.
+- **[SG] User↔project overlap** (check code `CB-DU`): For each skill present in BOTH `${CLAUDE_PLUGIN_ROOT}/skills/` and `<project>/.claude/skills/`, read both frontmatters. If `name` matches AND `description` Jaccard similarity on word sets exceeds 0.7, report WARNING. Propose either deleting the local copy (accept global) or unlinking the global (keep the override). Keeping both pays metadata cost twice.
 - **[SH] Stack relevance** (CB-SR): Detect project stack from disk, then rank global/aidex skills by relevance.
 
   **Stack detection signals** (in order of authority):
@@ -55,7 +55,7 @@ Read conventions: `~/.claude/skills/aidex-conventions/references/skill-conventio
   - **Disable-flag patch** (skill-scoped, global): `disable-model-invocation: true` in the skill's frontmatter. Best when the skill should never auto-trigger anywhere — only via explicit `/skill-name`. Do NOT propose this for skills installed from third-party plugins; it gets overwritten on plugin update.
 
   **Savings and usage come from the snapshot** (`context-snapshot.py`, path in the prompt
-  when launched from `/aidex context`): a skill's savings are its measured listing tokens
+  when launched from `/aidex:aidex context`): a skill's savings are its measured listing tokens
   in `skills{}`, and `uses` / `last_used` are evidence that may only *downgrade* a demote
   (a used skill drops from WARNING to INFO). Zero uses never generates a proposal —
   non-invocable and low-frequency skills read as unused by design. `7d tokens` is not an

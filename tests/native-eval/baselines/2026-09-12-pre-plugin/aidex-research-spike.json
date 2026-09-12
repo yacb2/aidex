@@ -5,7 +5,7 @@
  "runs": 3,
  "case": {
   "name": "aidex-research-spike",
-  "dir": "plugin-evals/aidex-research--spike",
+  "dir": "plugin-evals/research--spike",
   "source": "mixed",
   "promptMarkdown": "Antes de que planifiquemos el redise\u00f1o de precios, investiga c\u00f3mo se calcula el\ndescuento en los pedidos y d\u00f3nde se pierde el redondeo. Contabilidad reporta\ndiferencias de un centavo entre el total del pedido y la suma de sus l\u00edneas.\n\nTodo lo que necesitas est\u00e1 en el c\u00f3digo de `src/orders/`; no hace falta que me\npreguntes nada ni que arregles nada todav\u00eda. Lo \u00fanico que quiero es que los\nhallazgos queden escritos, no sueltos en el chat.",
   "runsPerCase": 3,
@@ -37,7 +37,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-research",
+     "input_match": "research",
      "min": 1
     }
    }

@@ -20,11 +20,12 @@ that a since-reverted glob had produced; the note field is where that goes.
 
 Measured against the `skills/` tree at commit `4496a80`. The two owed
 re-verdicts (reference at 900 s, request under the reworded criteria) are
-pre-migration numbers: take them from a checkout of that SHA, since
-`build-wrapper.sh` builds from whatever tree it runs in.
+pre-migration numbers: take them from a checkout of that SHA, where the runner
+still built a wrapper copy of whatever tree it ran in.
 
-The suite as installed skills, measured through the wrapper plugin that
-`build-wrapper.sh` assembles. `claude-sonnet-5`, judge `haiku`, 3 runs per arm.
+The suite as installed skills, measured through the `_tmp/evalkit/` wrapper
+plugin the runner assembled at that SHA (`build-wrapper.sh`, since replaced by
+`collect-cases.sh` + a run against the repo root). `claude-sonnet-5`, judge `haiku`, 3 runs per arm.
 Every without-arm scored 0.00 in every run.
 
 | case | with | delta | fired | note |
@@ -37,5 +38,5 @@ Every without-arm scored 0.00 in every run.
 | aidex-reference-how-it-works | 0.67 | +0.67 | 3/3 | 2 runs cut at 600 s with the artefact written; re-verdict at 900 s owed |
 | aidex-plan-scoped | 0.00 | 0.00 | 2/3 | fires, then stalls asking to confirm scope |
 
-Not measurable under this harness (Bash on every path): aidex-backlog,
-aidex-worktree. Not yet ported: the other 10 skills. Both owed under BL-397.
+Not measurable under this harness (Bash on every path): backlog,
+worktree. Not yet ported: the other 10 skills. Both owed under BL-397.

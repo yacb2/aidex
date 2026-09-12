@@ -1,7 +1,7 @@
 #!/bin/sh
 # PreToolUse (Bash) hook — a file gets opened once per user turn, not once per fix.
 #
-# THE BEHAVIOUR IT EXISTS FOR. Gate 2 of rules/artifacts-local-first.md already says
+# THE BEHAVIOUR IT EXISTS FOR. Gate 2 of skills/artifact/references/02-local-first-artifacts.md already says
 # "open the file ONCE, when it is final — verify with the checker and DevTools first,
 # `open` last". Nothing observed it, and the field behaviour was the opposite: the page
 # was opened, then checked, then edited, then opened again, five to seven times for one
@@ -13,7 +13,7 @@
 # simpler and would be wrong: gate 6 of the same rule makes a consultation page
 # *contractually* re-wrapped and re-opened every time the reader answers something, over
 # and over inside one session. Blocking that loop would train the override into a habit,
-# which is the rubber-stamp failure rules/autonomy.md describes and the reason three of
+# which is the rubber-stamp failure skills/conventions/references/autonomy-conventions.md describes and the reason three of
 # this repo's four hooks are unwired. So the discriminator is arithmetic, not judgement:
 # has the user said anything since the last time this exact path was opened? If yes the
 # re-open is the reader's, and it goes through. If no it is the same turn opening the
@@ -142,7 +142,7 @@ try:
         lines = ["This file was already opened since the last thing the user said:", ""]
         lines += ["  " + p for p in repeats]
         lines += ["",
-                  "rules/artifacts-local-first.md, gate 2: open the page ONCE, when it "
+                  "skills/artifact/references/02-local-first-artifacts.md, gate 2: open the page ONCE, when it "
                   "is final. Finish verifying it — check-artifact.sh, DevTools, whatever "
                   "is left — and let the open you already did stand. A second tab of the "
                   "same page is how the reader ends up reading a stale one.",
