@@ -283,7 +283,7 @@ by the skill's BODY, because the declaration is not the use:
   to call the `Workflow` tool, consult an agent via the `Agent` tool, or launch a
   subagent, then `allowed-tools` must name that tool. Omitting it does not make the path
   unreachable — it makes it stop for permission mid-run, which is the interruption
-  `rules/autonomy.md` exists to prevent. A skill with **no** `allowed-tools` line at all
+  `skills/conventions/references/autonomy-conventions.md` exists to prevent. A skill with **no** `allowed-tools` line at all
   is out of scope: it restricts nothing, so there is no whitelist to be missing from.
 - **A skill that fans out declares `model-policy:` and states it in the body.** Values:
   `per-stage` (every spawn pins its own `model`/`effort` — an `agents/*.md` definition,

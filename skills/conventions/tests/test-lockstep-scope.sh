@@ -33,7 +33,6 @@ err() { echo "FAIL: $*" >&2; fail=1; }
 # A fake install root. Copies, not symlinks: the guard resolves __file__, so a
 # symlinked skill would walk straight back into the repo and prove nothing.
 cp -R "$REPO/skills" "$TMP/skills"
-cp -R "$REPO/rules" "$TMP/rules"
 cp -R "$REPO/hooks" "$TMP/hooks"
 
 # What install.sh writes — the authoritative aidex-owned inventory, at the path

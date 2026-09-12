@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-artifact.sh — verify a local-first artifact honours the file contract
 # the Artifact tool enforces for published pages. Run it before opening the
-# file; it is the deterministic half of rules/artifacts-local-first.md.
+# file; it is the deterministic half of skills/artifact/references/02-local-first-artifacts.md.
 #
 # Thin wrapper; the contract lives in dash/check_artifact.py. It was 486 lines
 # of bash wrapping five python3 heredocs, and the dominant defect class in its

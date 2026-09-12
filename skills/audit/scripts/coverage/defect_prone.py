@@ -181,7 +181,7 @@ def section(root, repos, modules, changed_files):
         lines.append(f"        NO E2E: {why}")
     if gaps:
         lines.append("  Write the E2E spec BEFORE this change lands. It runs against a "
-                     "disposable database, never dev (rules/e2e-testing.md).")
+                     "disposable database, never dev (skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees).")
     if covered:
         lines.append(f"  covered: {covered} flagged file"
                      f"{'s' if covered != 1 else ''} already reached by e2e specs")

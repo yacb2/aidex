@@ -1,6 +1,6 @@
 # Database Protection — no destructive op on real data, ever unattended
 
-Canon for database lifecycle. `rules/autonomy.md` class 1 defers to this file;
+Canon for database lifecycle. `autonomy-conventions.md` class 1 defers to this file;
 a project's `CLAUDE.md` may name its own databases but may not loosen it.
 
 ## The one distinction that decides everything
@@ -35,7 +35,7 @@ work" are not authorization).
 
 ## Unattended runs — no pre-authorization exists
 
-Inside an unattended run (`aidex-plan-exec`, `aidex-audit`, `aidex-loop`), a
+Inside an unattended run (`/aidex:plan-exec`, `/aidex:audit`, `/aidex:loop`), a
 destructive op on a real database is **class 1: never, and never pre-authorizable**.
 It is deliberately unlike publication (class 2), which *can* be granted up front.
 

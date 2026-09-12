@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-artifact-contract.sh — unit tests for wrap-report.sh + check-artifact.sh,
-# the deterministic half of rules/artifacts-local-first.md.
+# the deterministic half of the local-first artifact contract
+# (skills/artifact/references/02-local-first-artifacts.md).
 #
 # No API cost and no `claude -p`: the expensive behavioral eval
 # (tests/eval-local-first-behavior.sh) calls the same checker, so the assertion

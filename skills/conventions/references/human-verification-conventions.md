@@ -18,7 +18,7 @@ merge to trunk, push, deploy, release, **or the end of a run**
 
 The last of those is the one that fires in the normal path, and it is worth being
 explicit about why: close-out **does not merge**. A run finishes by leaving the branch
-ready to merge (`rules/autonomy.md` § Integrating a branch is not a commit), so a step
+ready to merge (`skills/conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit), so a step
 sited "at the merge" would never run inside the run that produced the work. It fires at
 the end of the run, before the branch is handed over.
 
@@ -68,7 +68,7 @@ The file carries three parts:
 
 Either shape is **wrapped into a page at close-out and opened once** — `wrap-report.sh
 --title "<the page title>" --lang en --in <the .md> --out <the .html>`, then `open`,
-last, per `rules/artifacts-local-first.md` gate 2 (never published, gate 3).
+last, per `skills/artifact/references/02-local-first-artifacts.md` gate 2 (never published, gate 3).
 
 Both flags are load-bearing and the command fails without them, in different ways.
 `--title` is `required=True`, so omitting it aborts on an argparse usage error before

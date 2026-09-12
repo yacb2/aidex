@@ -13,11 +13,11 @@ actually mentions it:
   1. 00-global.md §9 canonical block  ⊇ TYPES
   2. 00-global.md §9 optional block   ⊇ OPTIONAL_TYPES
   3. 00-global.md §5 archive list     ⊇ TYPES_WITH_ARCHIVE
-  4. 00-global.md §3 + rules/aidex-conventions.md cross-ref prefixes ⊇ CROSSREF prefixes
+  4. 00-global.md §3 cross-ref prefixes ⊇ CROSSREF prefixes
   5. aidex orchestrator (SKILL.md + agents/context-auditor.md) mentions every
      TYPES + OPTIONAL_TYPES name
-  6. rules/aidex-conventions.md NEVER section ⊇ every do-not-hand-edit index the
-     per-type canons declare (backlog / plans / audits auto-generated indexes)
+  6. every per-type canon still declares its auto-generated index do-not-hand-edit
+     (backlog / plans / audits)
 
 SCOPE — this file guards the PROSE copies of the registry, not every executable one.
 That distinction cost 2.5 months once (BL-097): migrate-conventions.py kept its own
@@ -74,7 +74,6 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 SKILLS_DIR = SCRIPT_DIR.parent.parent
 GLOBAL_CANON = SCRIPT_DIR.parent / "references" / "00-global.md"
-RULES_SUMMARY = SKILLS_DIR.parent / "rules" / "aidex-conventions.md"
 AIDEX_FILES = [
     SKILLS_DIR / "aidex" / "SKILL.md",
     SKILLS_DIR / "aidex" / "agents" / "context-auditor.md",
@@ -273,21 +272,18 @@ def main() -> int:
         if f"`{t}/`" not in archive_text:
             failures.append(f"00-global §5 archive-required list is missing '{t}/' (in TYPES_WITH_ARCHIVE)")
 
-    # 4 — cross-ref prefixes in §3 and the always-on rules summary
+    # 4 — cross-ref prefixes in §3. The second half of this guard read the always-on
+    # `aidex-conventions` summary; that file retired with the plugin migration
+    # (2026-09-12), and a summary that no longer exists cannot drift from the canon.
     prefixes = re.match(r"\^\(([a-z|]+)\)", v.CROSSREF_FORMAT.pattern)
     prefix_set = set(prefixes.group(1).split("|")) if prefixes else set()
     if not prefix_set:
         failures.append("could not parse prefixes out of validate.py CROSSREF_FORMAT")
     sec3 = re.search(r"## 3\. Cross-references.*?## 4\.", canon, re.S)
     sec3_text = sec3.group(0) if sec3 else ""
-    rules_text = RULES_SUMMARY.read_text(encoding="utf-8") if RULES_SUMMARY.exists() else ""
-    if not rules_text:
-        failures.append(f"rules summary not found at {RULES_SUMMARY}")
     for p in prefix_set:
         if p not in sec3_text:
             failures.append(f"00-global §3 prefix set is missing '{p}' (in CROSSREF_FORMAT)")
-        if not re.search(rf"\b{p}\b", rules_text):
-            failures.append(f"rules/aidex-conventions.md is missing cross-ref prefix '{p}'")
 
     # 4b — external ref forms (BL-070) are a second cross-ref namespace; both the
     # canon and the always-on rules summary must teach them, or the registry-lag
@@ -299,8 +295,6 @@ def main() -> int:
             failures.append(f"validate.py no longer accepts the external ref form '{token}'")
         if token not in canon:
             failures.append(f"00-global.md never documents the external ref form '{token}'")
-        if token not in rules_text:
-            failures.append(f"rules/aidex-conventions.md never documents the external ref form '{token}'")
 
     # 5 — the aidex orchestrator must know every type (its tier lists drive
     # deletion-candidate decisions; a missing type is a destructive-drift risk)
@@ -313,16 +307,12 @@ def main() -> int:
             if not re.search(rf"\b{t}\b", text):
                 failures.append(f"{f.relative_to(SKILLS_DIR)} never mentions type '{t}'")
 
-    # 6 — auto-generated indexes: every index a per-type canon marks "do not
-    # hand-edit" must be named in the always-on rules summary's NEVER section. A
-    # canon that starts regenerating a new index without teaching the summary is
-    # the registry-lag drift, at the index level (Phase 4, 2026-07-19 remediation).
+    # 6 — auto-generated indexes: every per-type canon must still declare its index
+    # "do not hand-edit". The mirror half of this guard (the same index named in the
+    # always-on rules summary's NEVER section) retired with rules/ on 2026-09-12 — with
+    # no summary, that lockstep is vacuous. The canon-side assertion is untouched.
     references_dir = SCRIPT_DIR.parent / "references"
-    never_m = re.search(r"##\s+NEVER\n(.*?)\n##\s+", rules_text, re.S)
-    rules_never = never_m.group(1) if never_m else ""
-    if not rules_never:
-        failures.append("could not isolate the NEVER section of rules/aidex-conventions.md")
-    # (canon file, index token the rules NEVER section must contain verbatim,
+    # (canon file, index token — kept for the failure message,
     #  proof the canon still declares that index auto-generated / do-not-hand-edit)
     autogen_indexes = [
         ("00-global.md", "backlog/00-index.md",
@@ -338,11 +328,9 @@ def main() -> int:
         if not canon_txt:
             failures.append(f"per-type canon not found: {canon_path}")
         elif not canon_re.search(canon_txt):
-            failures.append(f"{canon_name} no longer declares its auto-generated index the "
-                            f"way this guard expects — re-sync the autogen_indexes list here")
-        if token not in rules_never:
-            failures.append(f"rules/aidex-conventions.md NEVER section is missing auto-gen "
-                            f"index '{token}' (declared do-not-hand-edit in {canon_name})")
+            failures.append(f"{canon_name} no longer declares '{token}' auto-generated / "
+                            f"do-not-hand-edit the way this guard expects — re-sync the "
+                            f"autogen_indexes list here")
 
     # 7. Every shipped subagent declares BOTH model and effort.
     #

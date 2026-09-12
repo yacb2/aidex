@@ -2,7 +2,7 @@
 # Publish-policy lockstep guard: the two aidex surfaces vs the Artifact tool's own default.
 #
 # Regression this locks (BL-081, 2026-07-24):
-#   Three layers gave three readings of one action. `rules/artifacts-local-first.md` and
+#   Three layers gave three readings of one action. the always-on `artifacts-local-first` rule and
 #   `skills/artifact/SKILL.md` both say never publish unprompted; the harness-supplied
 #   `Artifact` tool description says the opposite ("publishing proactively is fine for your
 #   own work-product"). An agent that had just built a local report had to reconcile them
@@ -22,7 +22,9 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
-RULE="$ROOT/rules/artifacts-local-first.md"
+# Plugin migration 2026-09-12: the always-on `artifacts-local-first` rule retired; the
+# canon reference carries both halves verbatim, so this guard reads it instead.
+RULE="$ROOT/skills/artifact/references/02-local-first-artifacts.md"
 DASH="$ROOT/skills/artifact/SKILL.md"
 
 failures=0
@@ -34,7 +36,7 @@ done
 
 # ---------- (1) both surfaces still gate on an explicit ask ----------
 grep -qiE 'only.*when explicitly asked|explicitly asked to share' "$RULE" \
-  || fail "(1) rules/artifacts-local-first.md no longer gates publishing on an explicit user ask"
+  || fail "(1) 02-local-first-artifacts.md no longer gates publishing on an explicit user ask"
 grep -qiE 'NEVER call the .?Artifact.? tool unprompted' "$DASH" \
   || fail "(1) skills/artifact/SKILL.md no longer forbids calling the Artifact tool unprompted"
 
@@ -46,9 +48,9 @@ grep -qiE 'NEVER call the .?Artifact.? tool unprompted' "$DASH" \
 # that is not there when a rewrap moves "tool's own default" onto the next line.
 RULE_FLAT="$(tr '\n' ' ' < "$RULE" | tr -s ' ')"
 grep -qiE 'overrides? the .?Artifact.? tool' <<<"$RULE_FLAT" \
-  || fail "(2) rules/artifacts-local-first.md does not name the Artifact tool's own default as the thing it overrides — the three-layer conflict reads as a contradiction again (BL-081)"
+  || fail "(2) 02-local-first-artifacts.md does not name the Artifact tool's own default as the thing it overrides — the three-layer conflict reads as a contradiction again (BL-081)"
 grep -qiE 'this rule wins|rule wins' <<<"$RULE_FLAT" \
-  || fail "(2) rules/artifacts-local-first.md names the conflict but never says which side wins"
+  || fail "(2) 02-local-first-artifacts.md names the conflict but never says which side wins"
 
 if [[ "$failures" -eq 0 ]]; then
   echo "OK — publish policy in lockstep: both surfaces gate on an explicit ask, and the rule declares its override of the tool default"

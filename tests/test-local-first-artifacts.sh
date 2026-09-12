@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # test-local-first-artifacts.sh — verifies the local-first artifact flow
-# contract: the global rule exists and carries all 4 numbered behaviors,
-# install.sh ships rules/*.md generically, and dash-conventions carries the
-# sibling-report GENERATED clause.
+# contract: the on-demand canon carries all 4 numbered behaviors and the routing
+# gates, and dash-conventions carries the sibling-report GENERATED clause.
 #
 # Run with: bash tests/test-local-first-artifacts.sh
 
@@ -12,7 +11,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
-RULE_FILE="$REPO_ROOT/rules/artifacts-local-first.md"
+# Plugin migration 2026-09-12: the always-on `artifacts-local-first` rule retired (a
+# plugin ships no rules). Every assertion below that was about the CONTRACT now reads the
+# canon; the ones that only checked the summary mirrored the canon are deleted, since
+# there is no summary left to mirror. RULE_FILE and CANON_FILE are the same file now,
+# so the gate assertions below run twice; that is harmless and kept for readability.
+RULE_FILE="$REPO_ROOT/skills/artifact/references/02-local-first-artifacts.md"
 
 # Drift repair 2026-07-24: two assertions here grepped for prose wording that
 # abc28cd removed from the rule while keeping both behaviors, so the guards went
@@ -45,19 +49,13 @@ if [ ! -f "$RULE_FILE" ]; then
   fail "rule file not found ($RULE_FILE)"
 else
   if ! grep -qi "publish.*only\|never publish" <<<"$RULE_FLAT"; then
-    fail "rule missing gate 2 (publish gated on explicit ask) — must stay always-on"
+    fail "canon missing gate 2 (publish gated on an explicit ask)"
   fi
   if ! grep -qi "D-04" "$RULE_FILE"; then
     fail "rule missing English-content (D-04) clause"
   fi
-  # The pointer must be present AND resolve. Anchored on the basename so the rule
-  # may write it as an absolute ~/.claude/skills path or a repo-relative one.
-  if ! grep -q "02-local-first-artifacts.md" "$RULE_FILE"; then
-    fail "rule does not point at the on-demand canon (02-local-first-artifacts.md)"
-  fi
-  if [ ! -f "$CANON_FILE" ]; then
-    fail "rule's pointer dangles — $CANON_FILE does not exist"
-  fi
+  # (deleted 2026-09-12) the "the always-on rule points at the on-demand canon, and the
+  # pointer resolves" pair only checked the summary->canon link. The summary is gone.
 fi
 
 # --- Task 6.1b: the on-demand canon carries the procedure ---
@@ -135,15 +133,8 @@ if ! grep -qi "artifact-design" "$REPO_ROOT/skills/artifact/SKILL.md"; then
   fail "artifact SKILL.md does not route declined ad-hoc asks to artifact-design"
 fi
 
-# --- Task 6.1: install.sh covers rules/*.md generically ---
-if ! grep -q 'rules/\*\.md' "$REPO_ROOT/install.sh"; then
-  fail "install.sh does not glob rules/*.md"
-fi
-# Regression (field, 2026-07-23): rules copied to ~/.claude/rules never load —
-# Claude Code only reads ~/.claude/rules/*.md, so install must symlink them.
-if grep -qE 'rules/\*\)\s*return 1' "$REPO_ROOT/install.sh"; then
-  fail "install.sh still excludes rules/* from symlinking (rules would never load)"
-fi
+# (deleted 2026-09-12) the two install.sh rule-shipping assertions: a plugin ships no
+# rules/ folder at all, so there is nothing for install.sh to glob or symlink.
 
 # --- Task 6.2: dash-conventions carries the sibling-report GENERATED clause ---
 DASH_CONV="$REPO_ROOT/skills/artifact/references/01-dash-conventions.md"
@@ -153,8 +144,8 @@ else
   if ! grep -q "sibling report" "$DASH_CONV"; then
     fail "dash-conventions.md missing sibling-report clause"
   fi
-  if ! grep -q "artifacts-local-first.md" "$DASH_CONV"; then
-    fail "dash-conventions.md does not reference rules/artifacts-local-first.md"
+  if ! grep -q "02-local-first-artifacts.md" "$DASH_CONV"; then
+    fail "dash-conventions.md does not reference 02-local-first-artifacts.md"
   fi
 fi
 
@@ -162,8 +153,8 @@ DASH_SKILL="$REPO_ROOT/skills/artifact/SKILL.md"
 if [ ! -f "$DASH_SKILL" ]; then
   fail "artifact SKILL.md not found ($DASH_SKILL)"
 else
-  if ! grep -q "artifacts-local-first.md" "$DASH_SKILL"; then
-    fail "artifact SKILL.md does not mention rules/artifacts-local-first.md"
+  if ! grep -q "02-local-first-artifacts.md" "$DASH_SKILL"; then
+    fail "artifact SKILL.md does not mention 02-local-first-artifacts.md"
   fi
 fi
 

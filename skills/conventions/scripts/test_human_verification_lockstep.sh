@@ -10,13 +10,12 @@
 #      artifact is the items' owner rows aggregated by the report, NOT a per-item
 #      human-verification.md; amended in as a consumer, never carved out
 #
-# Plus one POINTER, not a gate: rules/verification-before-claims.md. All three consumers
-# above are run-shaped, so an interactive session reaches none of them — measured
-# 2026-09-07, 0 of the 28 sessions where the user re-dictated this canon had fired
-# plan-exec, bugfix or a sweep. The always-on rule is the only surface that
-# reaches those sessions, and it points at the canon rather than restating it. The cell
-# below exists so that pointer cannot rot silently, which is the whole failure this
-# guard was built for.
+# There used to be a fourth surface, the always-on `verification-before-claims` rule
+# pointer; it retired with the plugin migration (2026-09-12). All three consumers above
+# are run-shaped, so an interactive session reaches none of them — measured 2026-09-07,
+# 0 of the 28 sessions where the user re-dictated this canon had fired plan-exec, bugfix
+# or a sweep. With no always-on surface left, the skill descriptions are what reach those
+# sessions, and the line the pointer carried verbatim is now asserted on the canon.
 #
 # What is guarded is NOT the four moves. Those were already written down, twice, and
 # still went missing. What is guarded is the property that makes the step survive
@@ -43,13 +42,12 @@ CANON="${CANON_OVERRIDE:-$SKILLS/conventions/references/human-verification-conve
 EXEC="${EXEC_OVERRIDE:-$SKILLS/plan-exec/references/02-close-out.md}"
 FIX="${FIX_OVERRIDE:-$SKILLS/bugfix/SKILL.md}"
 SWEEP="${SWEEP_OVERRIDE:-$SKILLS/backlog/references/sweep-execution-policy.md}"
-RULE="${RULE_OVERRIDE:-$SKILLS/../rules/verification-before-claims.md}"
 
 fail=0
 err() { printf 'FAIL: %s\n' "$*" >&2; fail=1; }
 die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
-for f in "$CANON" "$EXEC" "$FIX" "$SWEEP" "$RULE"; do
+for f in "$CANON" "$EXEC" "$FIX" "$SWEEP"; do
   [ -f "$f" ] || die "missing file: $f"
 done
 
@@ -146,18 +144,15 @@ case "$FIX_FLAT" in
   *) err "bugfix's stated step count does not include the human-verification step" ;;
 esac
 
-# ---------- the always-on pointer reaches interactive sessions ----------
-# A pointer, not a fourth gate: the rule must NAME the canon and must not restate the
-# four moves, or the one-owner-per-surface rule is broken by the fix for its carriage.
-RULE_FLAT="$(flat "$RULE")"
-case "$RULE_FLAT" in
-  *"human-verification-conventions.md"*) ;;
-  *) err "rules/verification-before-claims.md no longer names the canon — interactive sessions reach no verification gate at all" ;;
-esac
-case "$RULE_FLAT" in
+# ---------- the canon still carries the line the pointer used to repeat ----------
+# Plugin migration 2026-09-12: the always-on `verification-before-claims` rule retired
+# (a plugin ships no rules). Its "names the canon" cell was a summary->canon mirror and is
+# deleted as vacuous; the one sentence it carried verbatim is asserted on the canon itself,
+# which is where it now has to survive.
+case "$CANON_FLAT" in
   *"must never"*"first to find a broken click"*) ;;
-  *) err "the always-on pointer dropped the one line it carries verbatim" ;;
+  *) err "the canon dropped the one line the retired always-on pointer carried verbatim" ;;
 esac
 
-[ "$fail" -eq 0 ] && echo "OK — human-verification canon, its three consumers and the always-on pointer are in lockstep"
+[ "$fail" -eq 0 ] && echo "OK — human-verification canon and its three consumers are in lockstep"
 exit "$fail"

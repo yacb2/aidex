@@ -32,7 +32,7 @@ S="$TMP/full/snapshot.json"
 [[ "$(jq_ "$S" "s['window_tokens']")" == "1000000" ]] || fail "(1) window is 1m on this build; the 200k assumption must not come back"
 [[ "$(jq_ "$S" "s['categories']['skills']")" == "6800" ]] || fail "(1) skills category not parsed"
 [[ "$(jq_ "$S" "len(s['memory_files'])")" == "12" ]] || fail "(1) expected 12 memory files (CLAUDE.md x2, 9 rules, MEMORY.md)"
-[[ "$(jq_ "$S" "sum(1 for m in s['memory_files'] if m['path'].endswith('rules/aidex-conventions.md') and m['tokens']==3000)")" == "1" ]] \
+[[ "$(jq_ "$S" "sum(1 for m in s['memory_files'] if m['path'].endswith('aidex-conventions.md') and m['tokens']==3000)")" == "1" ]] \
   || fail "(1) per-file memory tokens are not measured (aidex-conventions.md should be 3k)"
 [[ "$(jq_ "$S" "len(s['mcp_tools'])")" == "81" ]] || fail "(1) MCP per-tool table not parsed"
 [[ "$(jq_ "$S" "s['skills']['dataviz']['tokens']")" == "480" ]] || fail "(1) built-in skills come from /context and must be kept"

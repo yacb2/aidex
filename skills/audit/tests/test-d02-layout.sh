@@ -108,7 +108,7 @@ for f in "${CANON_FILES[@]}"; do
   rel="$(basename "$f")"
 
   # D-01 is ISO. These files gave backlog and plan identity as YYYYMMDD-<slug>, a format
-  # rules/aidex-conventions.md bans outright.
+  # conventions/references/00-global.md bans outright.
   check "$rel: dates are ISO (D-01)" "$(grep -n 'YYYYMMDD' "$f")"
 
   # 03-lifecycle.md declares open/doing/done/dropped and marks the rest legacy

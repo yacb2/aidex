@@ -10,7 +10,7 @@ failure, not a spec-quality one.
 
 READ, NEVER A GATE. This prints a calibration and exits 0. It is deliberately not
 wired into register/start/close, and nothing here may block a run: per
-`rules/autonomy.md`, questions belong to the initial phase and an unattended run does
+`skills/conventions/references/autonomy-conventions.md`, questions belong to the initial phase and an unattended run does
 not halt for a signal. It is also not a prompt for a better estimate — the study says
 the human signal is the broken thing, so the remedy is measurement feedback, not a
 more insistent ask. Adding a field to the spec template is explicitly out of scope.
