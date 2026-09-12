@@ -34,6 +34,17 @@ way to see which tools actually ran).
 `run-eval.sh` / `build-wrapper.sh` on purpose. Nothing here should run in a
 suite sweep — every invocation spends quota.
 
+## Trust boundary
+
+`run-eval.sh` passes `--trust-plugin` (no TTY for the trust prompt) and
+`--scaffold` (which runs each case's `setup.sh` as you). Both are real trust
+bypasses, bounded structurally: the runner's target is always `.` inside
+`_tmp/evalkit`, which `build-wrapper.sh` wipes and rebuilds from this repo's own
+`skills/` tree on every run. Nothing outside the repo can be evaluated through
+it. Consequence: **review a new case's `setup.sh` in the diff the way you would
+any other executable** — it is the one file here that runs on your machine
+outside the sandbox.
+
 ## Add a case
 
 ```
@@ -52,7 +63,7 @@ skills/<skill>/evals/native/<case>/
 |---|---|---|
 | `tool_used` | `tool`, `input_match`, `min`, `max` | the trigger indicator; under ablation it is `scored:false` |
 | `llm` | body = criteria, `weight`, `arm` | judged 3x by `--judge-model`; grades the **final message** only |
-| `file_exists` | `path` glob, cwd-relative | sees only files the **run creates** — scaffolded files are invisible to it |
+| `file_exists` | `path` glob, cwd-relative | sees only files the **run creates** — scaffolded files are invisible to it. `*` works; character classes do **not** (`20[0-9][0-9]-*` failed 3/3 on a file that existed) |
 | `regex` | `pattern`, `match` | cannot be scoped to a file: no `files`/`source`/`path` key |
 | `tool_order` | `before`, `after` | tool names only; too coarse to encode RED→GREEN |
 
@@ -99,6 +110,12 @@ Known cost in the `aidex-bugfix` case: the prompt says the tests run with
 `./run_tests.sh` while `Bash` is ungranted, so the agent spends 2-3 turns hunting
 for a shell (`ToolSearch` for `Bash`) before answering. The phrasing is realistic
 and the `llm` grader does not need the run, so it stays.
+
+Grade the judge on what a judge can see. An `llm` grader reads the **final
+message**, so criteria that demand the answer recite front-matter fields fail on
+a terse-but-correct run — measured: `aidex-request` dropped a point that way with
+the artefact correctly written. Keep `llm` criteria on "was the artefact created,
+and where", and leave existence to `file_exists`.
 
 One run per arm is noise. The `aidex-bugfix` case fired the skill in one 1-run
 pass and not in the next, on identical input — always `--verdict` before deciding.
