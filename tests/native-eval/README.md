@@ -99,6 +99,14 @@ machine-wide, unrelated to the project under test, and has no documented
 override. Anything needing a real test run (RED→GREEN proof) belongs in CI on a
 Linux runner.
 
+## Skills that cannot be measured here
+
+`aidex-backlog` (id-claim scripts) and `aidex-worktree` (every path ends in a
+script; the overview write is gated behind `detect-topology.sh` and an isolation
+cycle) need Bash on every meaningful path. Do not fake a Write-only case for
+them: it would grade a fabricated result. Evidence lines are in
+`.context/research/2026-09-12-plugin-eval-pilot.md`, batch 3.
+
 ## Reading the numbers
 
 `costUsd` in the JSON is computed locally at API list rates. On a subscription it
@@ -116,6 +124,13 @@ message**, so criteria that demand the answer recite front-matter fields fail on
 a terse-but-correct run — measured: `aidex-request` dropped a point that way with
 the artefact correctly written. Keep `llm` criteria on "was the artefact created,
 and where", and leave existence to `file_exists`.
+
+A with-arm run carrying `error: timed out after Ns` is a budget failure, not a
+skill failure: the trace ends on a mid-task sentence and the `llm` judge fails
+it correctly. `run-eval.sh` prints those runs as `score invalid`. Measured on
+`aidex-reference`: the skill builds the profile and launches its refuter, and
+two of three runs hit 600 s with the artefact already written. Size the case's
+`timeout_seconds` to the skill's real path (that case runs at 900 s / 40 turns).
 
 One run per arm is noise. The `aidex-bugfix` case fired the skill in one 1-run
 pass and not in the next, on identical input — always `--verdict` before deciding.
