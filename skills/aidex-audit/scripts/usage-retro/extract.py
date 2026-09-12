@@ -17,6 +17,7 @@ Improvements over v1 (the 20260621-usage-retro one-off):
 Usage:
   extract.py --out DATASET.jsonl --cursor CURSOR.json [--since 90d|ISO] [--days N] [--all]
              [--transcripts-root DIR]
+  extract.py --out DATASET.jsonl --since A --until B    (a facet window; never with --cursor)
 """
 import json, os, glob, sys, datetime, argparse, re
 
@@ -135,6 +136,31 @@ def skills_in_assistant(o):
             if sk: out.append(sk)
     return out
 
+def parse_bound(s):
+    """`Nd` (relative to now) or ISO; None when neither parses."""
+    m = re.fullmatch(r"(\d+)d", s.strip())
+    if m:
+        return (datetime.datetime.now(datetime.timezone.utc)
+                - datetime.timedelta(days=int(m.group(1))))
+    return parse_ts(s)
+
+def resolve_until(args):
+    """The upper bound, or None. Refused together with --cursor: the cursor is a
+    watermark that advances to the last record read, and an upper bound would
+    advance it past every record the window deliberately left unread — the same
+    silent skip resolve_cutoff refuses when the cursor is unreadable."""
+    if not args.until:
+        return None
+    if args.cursor:
+        raise SystemExit(
+            "ERROR: --until cannot be combined with --cursor. The cursor is a "
+            "watermark and an upper bound would advance it past unread records; "
+            "a bounded window is a facet run, which never uses the cursor.")
+    t = parse_bound(args.until)
+    if not t:
+        raise SystemExit(f"ERROR: --until {args.until!r} is neither <N>d nor ISO.")
+    return t
+
 def resolve_cutoff(args):
     """Return (cutoff, label). The label is what the summary prints, and it exists
     because `records: N (window from <ts>)` reads identically whether the caller
@@ -142,9 +168,7 @@ def resolve_cutoff(args):
     read as full history."""
     now = datetime.datetime.now(datetime.timezone.utc)
     if args.since:
-        m = re.fullmatch(r"(\d+)d", args.since.strip())
-        if m: return now - datetime.timedelta(days=int(m.group(1))), "set by --since"
-        t = parse_ts(args.since)
+        t = parse_bound(args.since)
         if t: return t, "set by --since"
     # BL-183. `--all` used to mean only "ignore the cursor", so with no --since it
     # fell through to `now - days` and the flag named for the whole corpus was the
@@ -185,6 +209,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--cursor", default=None)
     ap.add_argument("--since", default=None)
+    ap.add_argument("--until", default=None,
+                    help="upper bound, same forms as --since; never with --cursor")
     ap.add_argument("--days", type=int, default=7)
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--transcripts-root", default="",
@@ -195,6 +221,7 @@ def main():
             if args.transcripts_root else TX_ROOT)
 
     now = datetime.datetime.now(datetime.timezone.utc)
+    until = resolve_until(args)
     cutoff, window_label = resolve_cutoff(args)
     records, max_ts = [], cutoff
     skipped_machine = skipped_unparseable = 0
@@ -206,6 +233,8 @@ def main():
         bucket, proj = bucket_for(name), short_project(name)
         for f in glob.glob(d + "*.jsonl"):
             try:
+                # mtime is a LOWER bound only: a file modified after `until` can
+                # still hold records inside the window.
                 if datetime.datetime.fromtimestamp(os.path.getmtime(f),
                         datetime.timezone.utc) < cutoff:
                     continue
@@ -269,6 +298,7 @@ def main():
                 # prompt_kinds, which is the one classifier that decides this.
                 ts = parse_ts(o.get("timestamp", ""))
                 if not ts or ts < cutoff: continue
+                if until and ts >= until: continue
                 fired = []
                 for j in range(i + 1, n):
                     # boundary = the next PROMPT of any kind. Using the old
@@ -345,7 +375,9 @@ def main():
     from collections import Counter
     print(f"records: {len(records)}  "
           + (f"(window: {window_label})" if window_label == "all history"
-             else f"(window from {cutoff.isoformat()[:19]} — {window_label})"))
+             else f"(window from {cutoff.isoformat()[:19]}"
+                  + (f" until {until.isoformat()[:19]}" if until else "")
+                  + f" — {window_label})"))
     print(f"  unparseable lines skipped: {skipped_unparseable} "
           f"(the line only, never the session)")
     print(f"  machine-authored prompts excluded: {skipped_machine} "

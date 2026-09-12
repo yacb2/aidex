@@ -33,6 +33,19 @@ python3 $R/mine_errors.py [--since YYYY-MM-DD | --days N] [--top N] [--json OUT]
 # Which instructions the user has to keep repeating — lexical near-duplicates plus
 # a topical intent lexicon, both reported per week so a remediated one is visible.
 python3 $R/mine_repetition.py --dataset <run>/dataset.jsonl [--sim 0.5] [--min 3]
+
+# Tool events: one iterator over Bash/Skill tool_use + tool_result pairs, subagent
+# transcripts included (`agent: sub`), exit code parsed from the result text. Imported,
+# never copied — the census and the facet readers are its consumers.
+python3 -c 'import mine_items; ...'   # mine_items.iter_tool_events(tx_root, since=, until=)
+
+# Which scripts run, per bucket and per agent, calls AND distinct sessions, file reads
+# (cat/sed/grep on the path) in their own column; prints the transcript files it walked.
+python3 $R/census_scripts.py [--since 90d] [--until 7d] [--top 40]
+
+# Residue readers of the facets (both need --projects-root; both print their count last):
+python3 $R/facets/read_artifacts.py --projects-root <dir>   # pages by kit version band
+python3 $R/facets/read_sweep.py     --projects-root <dir>   # one row per sweep report
 ```
 
 Every entry point that walks transcripts accepts `--transcripts-root`; the three that
@@ -169,3 +182,10 @@ this paragraph predicts — `mine_errors.py` still carried the naive-`parse_ts` 
 (`--since <plain date>`) raised `TypeError` while `--days` worked. Second time a parser
 fork has been paid for outside the tracked tree; both now live in
 `scripts/usage-retro/` and are pinned (`test-usage-retro.sh` case (o)).
+
+**The script census left this list on 2026-09-11.** The consultation
+`2026-09-11-retro-por-aristas` was argued from a census that lived in a session
+scratchpad; it now ships as `census_scripts.py` on `iter_tool_events`, with a fixture
+that carries Bash `command` blocks and a subagent transcript (`test-usage-retro.sh`
+cases (s) and (t)). Its numbers before that date are the consultation's and nothing
+else's.

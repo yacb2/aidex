@@ -219,8 +219,8 @@ violation — fix it before closing.
 
 ## `triage`, `quick-wins` and `detect-resolved` answer three different questions
 
-*Is the backlog healthy?* (`triage`: health, not prioritization) · *What should I do first?* (`quick-wins`) · *Is any
-of this already done?* (`detect-resolved`). Details and the `detect-resolved` fan-out:
+*Is the backlog healthy?* (`triage` — health, not prioritization) · *What first?*
+(`quick-wins`) · *Is any of this already done?* (`detect-resolved`). Details and fan-out:
 [references/02-triage-quick-wins-detect-resolved.md](references/02-triage-quick-wins-detect-resolved.md).
 One rule survives the split: **`detect-resolved` never closes an item** — closing is a
 separate, deliberate act with the evidence attached.

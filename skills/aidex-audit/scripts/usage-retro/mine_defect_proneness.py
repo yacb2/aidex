@@ -80,7 +80,9 @@ def main():
     args = ap.parse_args()
     M.configure(args)
 
-    items = M.build_registry()
+    # Pages are joined objects, not deliverables: they carry no `type` and would
+    # only inflate the denominator.
+    items = [it for it in M.build_registry() if it["kind"] != "page"]
     # slug and id both address an item; either mention attributes the session.
     # Keyed PER PROJECT, because BL ids are project-scoped (mine_items.py:224-226
     # builds its id_map the same way, for the same reason). A single flat map
