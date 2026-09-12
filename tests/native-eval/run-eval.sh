@@ -77,6 +77,13 @@ claude plugin eval . \
 eval_status=$?
 set -e
 [ -s "$OUT" ] || { echo "eval produced no JSON (exit $eval_status)" >&2; exit "$eval_status"; }
+# The HTML report lands under plugin-evals/results/, which collect-cases.sh
+# rm -rf's on the NEXT run — a report you did not copy out is gone (lost the
+# 2026-09-12 batch-2 report that way). Keep it next to the JSON.
+if [ -d "$REPO/plugin-evals/results" ]; then
+  cp -R "$REPO/plugin-evals/results" "${OUT%.json}-results"
+  echo "Report kept: ${OUT%.json}-results/"
+fi
 
 # `--threshold` gates the with-arm score only; there is no delta flag. The
 # verdict this suite cares about IS the delta, so assert it here.
