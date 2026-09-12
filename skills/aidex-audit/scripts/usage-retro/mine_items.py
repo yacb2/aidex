@@ -146,7 +146,42 @@ def build_registry():
                 "spec_codeblocks": body.count("```") // 2,
                 "spec_filerefs": len(set(re.findall(r'[\w/\.-]+\.(?:py|ts|tsx|vue|js|md|sh|json)\b', body))),
             })
+        # Artifact pages, keyed by BASENAME: 675 of 888 `wrap-report.sh --out` paths
+        # are cwd-relative and archiving moves the page, so the dated slug is the
+        # only stable key — and TOKEN already matches it. A page whose slug is a
+        # plan's or an item's (a plan's report page) rides on that entry as
+        # `pages`, never a second key for the same slug.
+        by_slug = {it["slug"]: it for it in items if it["project"] == proj}
+        for f in page_files(ctx):
+            slug = os.path.basename(f)[:-5]
+            if slug in by_slug:
+                by_slug[slug].setdefault("pages", []).append(f)
+                continue
+            m = re.search(r'<title>(.*?)</title>', open(f, errors="replace").read(),
+                          re.S | re.I)
+            it = {"project": proj, "kind": "page", "slug": slug, "path": f,
+                  "id": "", "title": (m.group(1).strip() if m else ""),
+                  "status": "", "priority": "", "estimate": "", "created": slug[:10],
+                  "updated": "", "date_added": "", "date_shipped": "",
+                  "spec_words": 0, "spec_headings": 0, "spec_checkboxes": 0,
+                  "spec_codeblocks": 0, "spec_filerefs": 0}
+            items.append(it)
+            by_slug[slug] = it
     return items
+
+
+PAGE = re.compile(r'^20\d\d-\d\d-\d\d-[a-z0-9][a-z0-9-]*\.html$')
+
+
+def page_files(ctx):
+    """Every dated artifact page under one `.context/`, active and `_archive/`
+    alike; `00-index.html` (rendered boards) and `.aidex-artifact-prev/` (the
+    wrap's own prior copies) are not pages. Shared with facets/read_artifacts.py."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(ctx):
+        dirnames[:] = [d for d in dirnames if d != ".aidex-artifact-prev"]
+        out.extend(os.path.join(dirpath, f) for f in filenames if PAGE.match(f))
+    return sorted(out)
 
 
 # `-Users-anyone-Documents-projects-foo-ws` -> `foo-ws`. Greedy on purpose, so it
@@ -222,6 +257,113 @@ def assistant_parts(o):
                                    "skill", "description", "old_string", "new_string"))
             tools.append((b.get("name", ""), searchable, fp, inp.get("command", "")))
     return "\n".join(txt), tools
+
+
+SCRIPT_PATH = re.compile(r'skills/[\w-]+/scripts/[\w.-]+')
+# A command whose FIRST word is a pager/filter is a read of the script, not a run.
+READ_CMD = re.compile(r'^\s*(?:cat|sed|grep|head|tail|less|wc|bat)\b')
+EXIT_CODE = re.compile(r'^Exit code (\d+)')
+
+
+def _result_text(b):
+    c = b.get("content")
+    if isinstance(c, list):
+        c = "\n".join(x.get("text", "") for x in c if isinstance(x, dict))
+    return c if isinstance(c, str) else str(c)
+
+
+def iter_tool_events(tx_root, since=None, until=None, projects=None):
+    """Yield dicts: session, parent_session, project, bucket, agent ('main'|'sub'),
+    ts, tool, command, script (skills/<skill>/scripts/<file> or ''), read_only (bool),
+    is_error (bool), exit_code (int|None), retry_of (event id|None).
+
+    THE tool-events walker for this package: one per Bash or Skill `tool_use`, its
+    result paired by `tool_use_id`. Subagent transcripts
+    (`<session>/subagents/*.jsonl`) are walked too and tagged `agent: sub`; the
+    prompt extractor never sees them, so the prompt denominator is untouched.
+    The exit code is not a field anywhere in the corpus: a failing Bash result is a
+    string that starts "Exit code N" with `is_error` set, so it is parsed from the
+    text. `since`/`until` are aware datetimes; `since` also prunes by file mtime.
+    """
+    from extract import bucket_for
+    for pdir in sorted(glob.glob(tx_root.rstrip("/") + "/*/")):
+        dname = os.path.basename(pdir.rstrip("/"))
+        proj = short_project_dir(dname)
+        if projects and proj not in projects:
+            continue
+        bucket = bucket_for(dname)
+        files = [(f, "main", None) for f in glob.glob(pdir + "*.jsonl")]
+        files += [(f, "sub", os.path.basename(os.path.dirname(os.path.dirname(f))))
+                  for f in glob.glob(pdir + "*/subagents/*.jsonl")]
+        for f, agent, parent in sorted(files):
+            if since is not None:
+                try:
+                    if os.path.getmtime(f) < since.timestamp():
+                        continue
+                except OSError:
+                    continue
+            session = os.path.basename(f)[:-6]
+            pending, last_cmd = {}, {}
+            try:
+                lines = open(f, errors='replace').read().splitlines()
+            except OSError:
+                continue
+            for idx, line in enumerate(lines):
+                if not line.strip():
+                    continue
+                try:
+                    o = json.loads(line)
+                except ValueError:
+                    continue
+                content = o.get("message", {}).get("content")
+                if not isinstance(content, list):
+                    continue
+                if o.get("type") == "assistant":
+                    for b in content:
+                        if not (isinstance(b, dict) and b.get("type") == "tool_use"):
+                            continue
+                        tool = b.get("name", "")
+                        if tool not in ("Bash", "Skill"):
+                            continue
+                        inp = b.get("input", {}) or {}
+                        cmd = str(inp.get("command") or inp.get("skill") or "")
+                        m = SCRIPT_PATH.search(cmd)
+                        ev = {
+                            "id": f"{session}:{idx}", "session": session,
+                            "parent_session": parent, "project": proj, "bucket": bucket,
+                            "agent": agent, "ts": o.get("timestamp", ""), "tool": tool,
+                            "command": cmd, "script": m.group(0) if m else "",
+                            "read_only": bool(m and READ_CMD.match(cmd)),
+                            "is_error": False, "exit_code": None,
+                            "retry_of": last_cmd.get(cmd),
+                        }
+                        last_cmd[cmd] = ev["id"]
+                        pending[b.get("id")] = ev
+                elif o.get("type") == "user":
+                    for b in content:
+                        if not (isinstance(b, dict) and b.get("type") == "tool_result"):
+                            continue
+                        ev = pending.pop(b.get("tool_use_id"), None)
+                        if ev is None:
+                            continue
+                        ev["is_error"] = bool(b.get("is_error"))
+                        m = EXIT_CODE.match(_result_text(b))
+                        ev["exit_code"] = int(m.group(1)) if m else (None if ev["is_error"] else 0)
+                        if _in_window(ev["ts"], since, until):
+                            yield ev
+            for ev in pending.values():   # tool_use with no result (session cut)
+                if _in_window(ev["ts"], since, until):
+                    yield ev
+
+
+def _in_window(ts, since, until):
+    if since is None and until is None:
+        return True
+    try:
+        t = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return (since is None or t >= since) and (until is None or t < until)
 
 
 DECAY = 40   # mention-free timeline records after which the active item lapses

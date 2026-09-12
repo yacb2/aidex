@@ -41,14 +41,15 @@ out="$(python3 "$CAL" --from "$OUT" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] || fail "(setup) calibration should exit 0 (got $rc): $out"
 
 # ---------------------------------------------------------------------------
-# (a) The fixture holds 4 items: alpha (done/S, worked), beta (done/S, named only
-#     in a tool_result so it has no attributed work), gamma (open/M) and delta
-#     (done/L, worked). A calibration over a quietly-filtered population is how a
+# (a) The fixture holds 6 items: alpha (done/S, worked), beta (done/S, named only
+#     in a tool_result so it has no attributed work), gamma (open/M), delta
+#     (done/L, worked), plus eta and archived theta (both open; added by the
+#     usage-retro-facets page-join fixture, phase 4). A calibration over a quietly-filtered population is how a
 #     flat scale gets mistaken for a well-calibrated one, so every drop is counted.
 # ---------------------------------------------------------------------------
 echo "$out" | grep -q '2 closed items with an estimate and measurable work' \
   || fail "(a) expected 2 scored items: $out"
-echo "$out" | grep -q 'excluded: 1 not closed, 0 no estimate, 1 no measurable work' \
+echo "$out" | grep -q 'excluded: 3 not closed, 0 no estimate, 1 no measurable work' \
   || fail "(a) exclusions should be itemised and counted: $out"
 
 # ---------------------------------------------------------------------------

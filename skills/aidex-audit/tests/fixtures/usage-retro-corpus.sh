@@ -20,6 +20,10 @@
 #   BL-904 / 2026-01-04-delta  session s5  no user prompt, 2 edits -> NOT working, on a
 #                                          CLOSED item, so downstream consumers that
 #                                          ignore `working` are observably wrong
+#   2026-01-07-eta.html        session s7  a PAGE (kind: page), wrapped by a Bash
+#                                          wrap-report.sh --out and named by the user
+#   2026-01-04-delta.html                  a page sharing delta's slug -> attached as
+#                                          `pages` on the item, never a second key
 
 set -euo pipefail
 
@@ -74,6 +78,19 @@ py_assistant_text() {  # text
 py_edit() {  # file_path
   python3 -c 'import json,sys; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Edit","id":"t","input":{"file_path":sys.argv[1],"old_string":"a","new_string":"b"}}]}}))' "$1"
 }
+# Bash tool events. The result is paired by tool_use_id, exactly as the real
+# corpus does it; there is no exit-code field — a failing command's result is a
+# STRING starting "Exit code N\n" with is_error true (verified on real transcripts
+# 2026-09-11), and a passing one is the plain output with no flag.
+py_bash() {  # id command
+  python3 -c 'import json,sys; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Bash","id":sys.argv[1],"input":{"command":sys.argv[2]}}]}}))' "$1" "$2"
+}
+py_bash_ok() {  # id output
+  python3 -c 'import json,sys; print(json.dumps({"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"content":[{"type":"tool_result","tool_use_id":sys.argv[1],"content":sys.argv[2]}]}}))' "$1" "$2"
+}
+py_bash_fail() {  # id exit-code output
+  python3 -c 'import json,sys; print(json.dumps({"type":"user","timestamp":"2026-01-01T00:00:00Z","message":{"content":[{"type":"tool_result","tool_use_id":sys.argv[1],"content":"Exit code "+sys.argv[2]+"\n"+sys.argv[3],"is_error":True}]}}))' "$1" "$2" "$3"
+}
 
 # --- s1: a real user prompt names BL-901 twice, then one edit ---
 {
@@ -118,5 +135,43 @@ py_edit() {  # file_path
   py_edit "$P/src/delta_a.py"
   py_edit "$P/src/delta_d.py"
 } > "$D/s5.jsonl"
+
+# --- s6: TOOL EVENTS, no tracked item named (attribution stays empty). A sweep
+#     close refused with exit 2, the same command retried, a `cat` of a script path
+#     (a read, not a run), and a subagent transcript that runs validate.py. ---
+{
+  py_user_prompt "sweep the backlog"
+  py_bash b1 "bash skills/aidex-backlog/scripts/close-item.sh --sweep BL-777"
+  py_bash_fail b1 2 "refused: item is not closable under --sweep"
+  py_bash b2 "bash skills/aidex-backlog/scripts/close-item.sh --sweep BL-777"
+  py_bash_fail b2 2 "refused: item is not closable under --sweep"
+  py_bash b3 "cat skills/aidex-backlog/scripts/close-item.sh"
+  py_bash_ok b3 "#!/usr/bin/env bash"
+} > "$D/s6.jsonl"
+mkdir -p "$D/s6/subagents"
+{
+  py_user_prompt "validate the tree"
+  py_bash b4 "python3 skills/aidex-conventions/scripts/validate.py --type plans"
+  py_bash_ok b4 "OK"
+} > "$D/s6/subagents/agent-x.jsonl"
+
+# --- pages: a dated page in reports/, one in an _archive/, a rendered board and a
+#     wrap's prior copy (both skipped), and a page whose slug is BL-904's ---
+mkdir -p "$P/.context/reports/_archive" "$P/.context/reports/.aidex-artifact-prev"
+page() {  # path title
+  printf '<title>%s</title>\n<main class="main"><section data-id="q1" data-decided>x</section></main>\n' "$2" > "$1"
+}
+page "$P/.context/reports/2026-01-07-eta.html" "Eta"
+page "$P/.context/reports/_archive/2026-01-08-theta.html" "Theta"
+page "$P/.context/reports/00-index.html" "Board"
+page "$P/.context/reports/.aidex-artifact-prev/2026-01-07-eta.html" "Eta prev"
+page "$P/.context/reports/2026-01-04-delta.html" "Delta page"
+
+# --- s7: the user names the eta page and the session wraps it ---
+{
+  py_user_prompt "wrap the 2026-01-07-eta consultation"
+  py_bash b5 "bash ~/.claude/skills/aidex-dash/scripts/wrap-report.sh --in _tmp/eta.md --out .context/reports/2026-01-07-eta.html"
+  py_bash_ok b5 "wrote .context/reports/2026-01-07-eta.html"
+} > "$D/s7.jsonl"
 
 printf '%s %s\n' "$PROJ" "$TX"

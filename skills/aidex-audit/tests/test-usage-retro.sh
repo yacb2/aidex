@@ -23,6 +23,10 @@
 #   (l) a transcript root under a DIFFERENT user's home still resolves
 #   (m) mine_items and mine_slow_tests share one runner vocabulary
 #   (o) mine_errors accepts the plain-date --since its own reference prints
+#   (s) iter_tool_events: subagent tagged, cat is a read, exit 2 parsed, retry_of
+#   (t) census_scripts prints its walked file count, reads in their own column
+#   (u) pages join the registry by basename; a page sharing an item's slug rides
+#       on the item as `pages`; 00-index.html and .aidex-artifact-prev/ are skipped
 #
 # Run with: bash skills/aidex-audit/tests/test-usage-retro.sh
 
@@ -42,7 +46,7 @@ trap cleanup EXIT
 report="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" \
   --transcripts-root "$TX" --out "$OUT" --min-mentions 1 2>&1)"
 
-echo "$report" | grep -q 'registry: 4 tracked items' \
+echo "$report" | grep -q 'registry: 6 tracked items' \
   || fail "(setup) expected 4 registry items: $report"
 
 # span_field <slug> <field> [session] — empty when no such span exists. The
@@ -105,7 +109,7 @@ grep -q 'unrelated.py' "$TX"/*/s2.jsonl \
    "$(span_field 2026-01-04-delta working s5.jsonl)" == "False" ]] \
   || fail "(e) 2 edits on the same item must NOT be a working span"
 
-echo "$report" | grep -q '2 working, 2 below the strict-span rule' \
+echo "$report" | grep -q '3 working, 2 below the strict-span rule' \
   || fail "(e) the run should report the working/non-working split: $report"
 
 # ---------------------------------------------------------------------------
@@ -280,9 +284,9 @@ cp -R "$TX"/-Users-yoelacevedo-Documents-projects-demo-ws \
 out_l="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" \
   --transcripts-root "$ALT" --out "$OUT/l" --min-mentions 1 2>&1)"
 rm -rf "$ALT"
-grep -q 'registry: 4 tracked items' <<<"$out_l" \
+grep -q 'registry: 6 tracked items' <<<"$out_l" \
   || fail "(l) fixture drift: the registry should be unchanged: $out_l"
-grep -q 'demo_ws: 4 spans' <<<"$out_l" \
+grep -q 'demo_ws: 5 spans' <<<"$out_l" \
   || fail "(l) a transcript root under another user's home found no sessions: $out_l"
 
 # ---------------------------------------------------------------------------
@@ -509,7 +513,74 @@ out_err2="$(python3 "$RETRO/mine_errors.py" --since 2026-01-01T00:00:00Z --top 1
 grep -q 'errored tool_results' <<<"$out_err2" \
   || fail "(o) an explicit-offset --since regressed: $out_err2"
 
+# ---------------------------------------------------------------------------
+# (s) TOOL EVENTS (usage-retro-facets, phase 1). One walker, exported from
+#     mine_items, that the census, the facets and the readers all import — never
+#     a fourth transcript walker. The fixture's s6 carries the real result shape:
+#     no exit-code field, a string starting "Exit code N" with is_error set.
+#     Subagent transcripts are walked and tagged; the prompt extractor never
+#     sees them (the extract-provenance suite pins that side).
+# ---------------------------------------------------------------------------
+read -r PROJ TX <<< "$(bash "$FIXTURE")"
+out_s="$(python3 - "$RETRO" "$TX" <<'PYS'
+import sys, json
+sys.path.insert(0, sys.argv[1]); import mine_items as M
+ev = list(M.iter_tool_events(sys.argv[2]))
+by = {e["command"]: e for e in ev}
+subs = [e for e in ev if e["agent"] == "sub"]
+assert len(subs) == 1 and subs[0]["parent_session"] == "s6" \
+    and subs[0]["script"].endswith("validate.py"), "subagent event tagged sub, parent s6"
+cat = by["cat skills/aidex-backlog/scripts/close-item.sh"]
+assert cat["read_only"] and cat["exit_code"] == 0, "cat of a path is a read"
+runs = [e for e in ev if e["command"].startswith("bash skills/aidex-backlog")]
+assert [e["exit_code"] for e in runs] == [2, 2], "exit 2 parsed from the result text"
+assert all(e["is_error"] for e in runs) and not runs[0]["read_only"]
+assert runs[0]["retry_of"] is None and runs[1]["retry_of"] == runs[0]["id"], "retry_of links the repeat"
+assert all(e["bucket"] == "real-usage" and e["project"] == "demo-ws" for e in ev)
+print("PYOK", len(ev))
+PYS
+)"
+[[ "$out_s" == *"PYOK 5"* ]] || fail "(s) iter_tool_events over the fixture: $out_s"
+
+# (t) the promoted census prints how many files it walked (an empty walk must be
+#     visible as one), and the `cat` lands in the reads column, not in calls.
+out_t="$(python3 "$RETRO/census_scripts.py" --transcripts-root "$TX" 2>&1)"
+grep -q 'transcript files walked: 8' <<<"$out_t" \
+  || fail "(t) census must print the walked file count (7 sessions + 1 subagent): $out_t"
+grep -E 'close-item\.sh +0/0 +0/0 +2/1 +0/0 +1$' <<<"$out_t" >/dev/null \
+  || fail "(t) close-item.sh: 2 calls/1 session under real-usage/main and 1 read apart: $out_t"
+grep -E 'validate\.py +0/0 +0/0 +0/0 +1/1 +0$' <<<"$out_t" >/dev/null \
+  || fail "(t) validate.py: the subagent run lands in real-usage/sub: $out_t"
+# ---------------------------------------------------------------------------
+# (u) PAGES IN THE JOIN. The wrap session s7 names 2026-01-07-eta in a real prompt
+#     and runs wrap-report.sh --out on it, so the page gets a span like any item.
+#     The delta page shares BL-904's slug: it must ride on the item as `pages`,
+#     never become a second registry key TOKEN would attribute twice. The board
+#     (00-index.html), the wrap's prior copy and the archived theta page pin the
+#     walk: theta is a page, the other two are not.
+# ---------------------------------------------------------------------------
+out_u="$(python3 - "$RETRO" "$PROJ" <<'PYU'
+import sys, os
+sys.path.insert(0, sys.argv[1]); import mine_items as M
+M.PROJ_ROOT = sys.argv[2]
+reg = M.build_registry()
+pages = {it["slug"]: it for it in reg if it["kind"] == "page"}
+assert set(pages) == {"2026-01-07-eta", "2026-01-08-theta"}, sorted(pages)
+assert pages["2026-01-07-eta"]["title"] == "Eta"
+assert "_archive" in pages["2026-01-08-theta"]["path"], "archived page still joins"
+delta = next(it for it in reg if it["slug"] == "2026-01-04-delta")
+assert delta["kind"] == "backlog" and len(delta.get("pages", [])) == 1 \
+    and delta["pages"][0].endswith("2026-01-04-delta.html"), "same-slug page rides on the item"
+assert sum(1 for it in reg if it["slug"] == "2026-01-04-delta") == 1, "one key per slug"
+print("PYOK")
+PYU
+)"
+[[ "$out_u" == *PYOK* ]] || fail "(u) pages in the registry: $out_u"
+[[ "$(span_field 2026-01-07-eta working s7.jsonl)" == "True" ]] \
+  || fail "(u) the wrap session must attribute to the page it wrapped"
+rm -rf "$PROJ" "$TX"
+
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, census promoted, pages join the registry by basename"

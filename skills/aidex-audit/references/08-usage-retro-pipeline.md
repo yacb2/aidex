@@ -23,7 +23,17 @@ bash ~/.claude/skills/aidex-audit/scripts/new-audit.sh custom usage-retro   # sc
 python3 $R/extract.py   --out "$RUN/dataset.jsonl" --cursor "$CUR"             # catch-up since cursor
 #   baseline instead:   --out "$RUN/dataset.jsonl" --cursor "$CUR" --since 90d
 python3 $R/prefilter.py --in "$RUN/dataset.jsonl"  --out "$RUN/candidates.jsonl"
+
+# One facet only (backlog | artifacts | session | planning), explicit or catch-up window:
+bash $R/facet-run.sh artifacts --since 60d --projects-root ~/Documents/projects
 ```
+
+The weekly run tags facets always (`facet:<name>` in every candidate's `signals`, and a
+`facet <name>: N admitted (M facet-only, ...)` line per facet in the prefilter summary).
+Copy those lines into a `## Facets` table in the run's `index.md`, one row per facet —
+rows admitted, facet-only, and the coverage gap (`facet_coverage.py gap --facet <name>`)
+only for facets whose `primary_source` is disk residue (`pages`, `items`); `—` for the
+transcript-primary ones, whose gap against the same corpus is zero by construction.
 
 `--transcripts-root` (env: `CLAUDE_PROJECTS_ROOT`) points the extractor at a different corpus;
 it defaults to `~/.claude/projects`. It is a parameter rather than a constant because a fixture
@@ -42,6 +52,43 @@ run silently narrowed to the 7-day `--days` default and then advanced the cursor
 that window, so every later catch-up resumed *after* a span nothing had extracted (83 days, in the
 reproduction, at exit 0). Pass `--since` or `--all` explicitly, or delete the cursor to start a
 fresh incremental history.
+
+## Facets
+
+A facet is one slice of the suite the retro can analyse on its own: a spec file
+`references/facets/<name>.md` (schema and list in `references/facets/00-index.md`) plus
+`scripts/usage-retro/facet-run.sh`, which runs the pipeline below scoped to it. First
+batch: `backlog`, `artifacts`, `session`, `planning` (consultation
+`2026-09-11-retro-por-aristas`; plan `usage-retro-facets`).
+
+- **Admission, not tag.** The four prefilter gates are all signal-shaped (a complaint, a
+  correction, a missed trigger, a repeated preference), so a facet that is working well
+  would never reach a shard through them. Facet membership is a fifth gate: a row is
+  admitted when its prompt matches the facet lexicon, its `skills_fired` /
+  `prior_skills` name a facet skill, or its prompt is a facet slash command. The summary
+  reports rows admitted and rows admitted by the facet alone.
+- **One lexicon owner.** The facet file owns its lexicon entries; `prefilter.INTENT` and
+  `mine_repetition.INTENTS` import them and keep only a `RESIDUAL` dict for what no facet
+  claims. `tests/test-facet-lexicon-lockstep.sh` fails on a label or skill in both.
+- **Two windows, never one.** The weekly run reads and advances the single cursor
+  (`.usage-retro/cursor.json`). A facet run passes `extract.py --since --until` and never
+  `--cursor` (the two together are refused: a watermark with an upper bound would skip
+  unread records). What a facet has read is a ledger, `.usage-retro/coverage.json`
+  (`facet_coverage.py window | record | gap`): the default window is "end of the facet's
+  last covered window → now", falling back to `--since 60d` and saying so; a run with
+  zero records records nothing.
+- **Subagents: events in, prompts out.** `mine_items.iter_tool_events` walks
+  `<session>/subagents/*.jsonl` too, tagging `agent: sub` and counting it apart; the
+  prompt extractor does not, so no denominator of an earlier run moves.
+- **Residue reader, optional, counted.** A facet whose residue is already on disk
+  declares a reader (`artifacts` → `facets/read_artifacts.py`, `backlog` →
+  `facets/read_sweep.py`); its output is a shard of its own, grouped by the version the
+  residue declares (a v9 page failing a v18 rule is "v9–v12 pages fail X", never "pages
+  fail"), and it always prints how many objects it processed, last.
+- **Findings** go to the same `00-inventory.md` with `facet:<name>` at the start of
+  Notes (no schema change), in a run folder `<date>-usage-retro-<facet>/`. Synthesis
+  groups by the facet's `sub_objectives`; a prompt complaint and a checker failure on the
+  same object are one finding with two sources.
 
 ## Pipeline
 
