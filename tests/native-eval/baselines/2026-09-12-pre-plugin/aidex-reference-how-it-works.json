@@ -1,0 +1,299 @@
+{
+ "source": "native-eval-2026-09-12T12-23-56.json",
+ "model": "claude-sonnet-5",
+ "judge": "haiku",
+ "runs": 3,
+ "case": {
+  "name": "aidex-reference-how-it-works",
+  "dir": "plugin-evals/aidex-reference--how-it-works",
+  "source": "mixed",
+  "promptMarkdown": "Documenta c\u00f3mo funciona la autenticaci\u00f3n por API key del backend. Lleva meses\nestable y nadie la tiene escrita en ninguna parte; quiero una referencia\nevergreen para el equipo. Ya est\u00e1 todo definido, no hace falta que me preguntes\nnada:\n\n- Alcance: el middleware `src/auth/middleware.py`, el cargador de configuraci\u00f3n\n  `src/config/loader.py` y los valores que consume en `src/config/settings.py`.\n- Tema: `auth` \u2014 es el primer m\u00f3dulo de referencia del proyecto.\n- Lo que debe quedar claro: qu\u00e9 rutas quedan exentas, de d\u00f3nde sale la lista de\n  keys v\u00e1lidas, en qu\u00e9 orden se resuelve la configuraci\u00f3n (variable de entorno\n  sobre archivo sobre valor por defecto) y qu\u00e9 responde el middleware cuando la\n  key falta o es inv\u00e1lida.\n- No hay nada que decidir ni que cambiar en el c\u00f3digo: solo documentarlo tal\n  como est\u00e1 hoy.\n\nEscribe la referencia.",
+  "runsPerCase": 3,
+  "timeoutSeconds": 600,
+  "maxTurns": 30,
+  "graders": [
+   {
+    "name": "reference-conventions",
+    "type": "llm",
+    "weight": 1,
+    "graderMarkdown": "El mensaje final debe decir que la referencia qued\u00f3 escrita bajo\n`.context/references/` y describirla como documentaci\u00f3n evergreen de c\u00f3mo\nfunciona la autenticaci\u00f3n por API key (no un plan, no una decisi\u00f3n, no una\ninvestigaci\u00f3n).\n\nFalla si la referencia se redact\u00f3 solo en el chat sin crear el archivo, si va a\notra carpeta, o si el agente se qued\u00f3 preguntando sin escribir nada.\n\nNo exijas que el mensaje recite los campos del front-matter ni el nombre exacto\ndel archivo.",
+    "config": {
+     "criteria": "El mensaje final debe decir que la referencia qued\u00f3 escrita bajo\n`.context/references/` y describirla como documentaci\u00f3n evergreen de c\u00f3mo\nfunciona la autenticaci\u00f3n por API key (no un plan, no una decisi\u00f3n, no una\ninvestigaci\u00f3n).\n\nFalla si la referencia se redact\u00f3 solo en el chat sin crear el archivo, si va a\notra carpeta, o si el agente se qued\u00f3 preguntando sin escribir nada.\n\nNo exijas que el mensaje recite los campos del front-matter ni el nombre exacto\ndel archivo.",
+     "focus": "last_message"
+    }
+   },
+   {
+    "name": "reference-file-created",
+    "type": "file_exists",
+    "weight": 1,
+    "config": {
+     "path": ".context/references/*/*.md",
+     "exists": true
+    }
+   },
+   {
+    "name": "skill-fired",
+    "type": "tool_used",
+    "weight": 1,
+    "config": {
+     "tool": "Skill",
+     "input_match": "aidex-reference",
+     "min": 1
+    }
+   }
+  ],
+  "arms": {
+   "with": [
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 30,
+     "costUsd": 0.8490773000000001,
+     "judgeCostUsd": 0.002379,
+     "durationSeconds": 322,
+     "startedAt": "2026-09-12T10:23:56.739Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-lR6Si4/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "reference-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "Documentaci\u00f3n creada en `.context/references/auth/`:\n\n- **`00-index.md`** \u2014 \u00edndice del tema, con el resumen ejecutivo y el orden de precedencia.\n- **`01-api-key-middleware.md`** \u2014 el contenido real: rutas exentas (`is_exempt`, match por prefijo, no exacto), origen de las keys v\u00e1lidas (`settings.API_KEYS` \u2190 `load_config()`), el orden de resoluci\u00f3n exacto (env `APP_API_KEYS`/`APP_API_KEY_HEADER` > archivo `config/app.json` > `DEFAULTS`), y las respuestas del middleware (401 si falta la key, 403 si es inv\u00e1lida, paso libre + `request.api_key` si es v\u00e1lida). Cada afirmaci\u00f3n est\u00e1 anclada a un s\u00edmbolo real del c\u00f3digo (`ApiKeyMiddleware.__call__`, `_header_name`, `load_config`, etc.), no a n\u00fameros de l\u00ednea.\n\nEnlac\u00e9 la referencia desde `CLAUDE.md` como pide la convenci\u00f3n del proyecto.\n\nDos cosas que quiero que sepas, sin adornarlas:\n\n1. **El bloque `## Verification` no tiene salida real.** Este entorno no tiene ninguna herramienta de shell disponible (lo confirm\u00e9 directamente y con un subagente), as\u00ed que no pude ejecutar el comando de prueba. En vez de inventar una salida falsa \u2014cosa que rompe justo la garant\u00eda que ese bloque existe para dar\u2014, dej\u00e9 el comando exacto y reproducible con una nota expl\u00edcita de que falta correrlo una vez y pegar el resultado real.\n2. **No corr\u00ed el resto de la maquinaria de la skill** (censo de cobertura, `validate.py`, el subagente refutador) por la misma raz\u00f3n: todos requieren ejecutar comandos y no hay forma de hacerlo aqu\u00ed. El documento en s\u00ed est\u00e1 completo y verificado por lectura directa del c\u00f3digo fuente, pero ese cierre mec\u00e1nico de la skill qued\u00f3 pendiente.\n\nSi me confirmas que el proyecto real s\u00ed tiene shell disponible (por ejemplo en tu m\u00e1quina o en CI), puedo darte el comando de verificaci\u00f3n para que lo corras y me pegues la salida, y as\u00ed cerrar el bloque como corresponde."
+      },
+      {
+       "name": "reference-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/references/*/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 0.5,
+     "passed": false,
+     "turns": 34,
+     "costUsd": 0.6963786000000001,
+     "judgeCostUsd": 0.0008280000000000006,
+     "durationSeconds": 602,
+     "startedAt": "2026-09-12T10:29:19.211Z",
+     "error": "timed out after 600s",
+     "tracePath": "/private/tmp/e-bM8GIk/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "reference-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "A\u00f1ado el enlace desde `CLAUDE.md` al nuevo \u00edndice de referencia, siguiendo la convenci\u00f3n de que sea el punto de entrada a los temas documentados."
+      },
+      {
+       "name": "reference-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/references/*/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 0.5,
+     "passed": false,
+     "turns": 27,
+     "costUsd": 0.6225264,
+     "judgeCostUsd": 0.0008219999999999998,
+     "durationSeconds": 602,
+     "startedAt": "2026-09-12T10:39:21.534Z",
+     "error": "timed out after 600s",
+     "tracePath": "/private/tmp/e-l6lU6N/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "reference-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "Ahora lanzo el refuter adversarial contra el m\u00f3dulo que acabo de escribir, para que ataque las afirmaciones antes de darlo por cerrado."
+      },
+      {
+       "name": "reference-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/references/*/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    }
+   ],
+   "without": [
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 9,
+     "costUsd": 0.10555,
+     "judgeCostUsd": 0.0009450000000000005,
+     "durationSeconds": 39,
+     "startedAt": "2026-09-12T10:49:24.022Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-3pEpL2/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "reference-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "He creado `docs/auth.md` con la referencia completa: flujo del middleware, rutas exentas, orden de precedencia de configuraci\u00f3n (env > archivo > default) y la tabla de respuestas ante key ausente/inv\u00e1lida, todo citando l\u00ednea y archivo exacto de origen. No modifiqu\u00e9 ning\u00fan c\u00f3digo."
+      },
+      {
+       "name": "reference-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/references/*/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 7,
+     "costUsd": 0.10482639999999999,
+     "judgeCostUsd": 0.001203000000000001,
+     "durationSeconds": 42,
+     "startedAt": "2026-09-12T10:50:02.543Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-jGGJR4/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "reference-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "Cre\u00e9 `docs/auth.md` con la referencia completa del m\u00f3dulo `auth`: registro del middleware, rutas exentas (`/health`, `/static`, chequeadas por prefijo), origen de las API keys (`APP_API_KEYS` > archivo `config/app.json` (o `APP_CONFIG_FILE`) > default `[]`), la precedencia de configuraci\u00f3n (entorno > archivo > default) para las tres claves, y las respuestas exactas del middleware (401 key faltante, 403 key inv\u00e1lida). Todo est\u00e1 anclado a l\u00edneas concretas de `middleware.py`, `loader.py` y `settings.py` para que quede verificable contra el c\u00f3digo."
+      },
+      {
+       "name": "reference-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/references/*/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 7,
+     "costUsd": 0.09621139999999997,
+     "judgeCostUsd": 0.0015200000000000005,
+     "durationSeconds": 40,
+     "startedAt": "2026-09-12T10:50:44.752Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-Sx23E5/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "reference-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "Escrib\u00ed la referencia en `docs/reference/auth.md`, cubriendo:\n\n- **Flujo del middleware**: exenci\u00f3n por prefijo, lectura del header, y las dos respuestas de error (`401` key ausente, `403` key inv\u00e1lida).\n- **Origen de las keys v\u00e1lidas**: no hay lista hardcodeada; viene de la config resuelta, con el caso borde de que una lista vac\u00eda por defecto implica rechazo total.\n- **Orden de resoluci\u00f3n**: env > archivo > default, aplicado por clave individual (no todo-o-nada), con la nota de que `exempt_prefixes` no tiene override por variable de entorno y que la resoluci\u00f3n ocurre una sola vez al importar `settings.py` (no hay recarga en caliente).\n- Tabla resumen de respuestas del middleware.\n\nNo toqu\u00e9 c\u00f3digo, solo documentaci\u00f3n basada en el estado actual de los tres archivos."
+      },
+      {
+       "name": "reference-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/references/*/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    }
+   ]
+  },
+  "aggregates": {
+   "score": 0.6666666666666666,
+   "passRate": 0.3333333333333333,
+   "scoreWithout": 0,
+   "passRateWithout": 0,
+   "delta": 0.6666666666666666
+  }
+ }
+}

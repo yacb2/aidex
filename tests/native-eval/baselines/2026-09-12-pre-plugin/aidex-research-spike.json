@@ -1,0 +1,299 @@
+{
+ "source": "native-eval-2026-09-12T12-51-31.json",
+ "model": "claude-sonnet-5",
+ "judge": "haiku",
+ "runs": 3,
+ "case": {
+  "name": "aidex-research-spike",
+  "dir": "plugin-evals/aidex-research--spike",
+  "source": "mixed",
+  "promptMarkdown": "Antes de que planifiquemos el redise\u00f1o de precios, investiga c\u00f3mo se calcula el\ndescuento en los pedidos y d\u00f3nde se pierde el redondeo. Contabilidad reporta\ndiferencias de un centavo entre el total del pedido y la suma de sus l\u00edneas.\n\nTodo lo que necesitas est\u00e1 en el c\u00f3digo de `src/orders/`; no hace falta que me\npreguntes nada ni que arregles nada todav\u00eda. Lo \u00fanico que quiero es que los\nhallazgos queden escritos, no sueltos en el chat.",
+  "runsPerCase": 3,
+  "timeoutSeconds": 600,
+  "maxTurns": 30,
+  "graders": [
+   {
+    "name": "research-conventions",
+    "type": "llm",
+    "weight": 1,
+    "graderMarkdown": "El mensaje final debe decir que los hallazgos de la investigaci\u00f3n quedaron\nescritos en `.context/research/` y resumir al menos un hallazgo concreto sobre\nel c\u00e1lculo del descuento o el redondeo.\n\nFalla si los hallazgos se quedaron solo en el chat sin crear el archivo, si el\ndocumento fue a otra carpeta, o si el agente se qued\u00f3 preguntando sin escribir\nnada.",
+    "config": {
+     "criteria": "El mensaje final debe decir que los hallazgos de la investigaci\u00f3n quedaron\nescritos en `.context/research/` y resumir al menos un hallazgo concreto sobre\nel c\u00e1lculo del descuento o el redondeo.\n\nFalla si los hallazgos se quedaron solo en el chat sin crear el archivo, si el\ndocumento fue a otra carpeta, o si el agente se qued\u00f3 preguntando sin escribir\nnada.",
+     "focus": "last_message"
+    }
+   },
+   {
+    "name": "research-file-created",
+    "type": "file_exists",
+    "weight": 1,
+    "config": {
+     "path": ".context/research/*.md",
+     "exists": true
+    }
+   },
+   {
+    "name": "skill-fired",
+    "type": "tool_used",
+    "weight": 1,
+    "config": {
+     "tool": "Skill",
+     "input_match": "aidex-research",
+     "min": 1
+    }
+   }
+  ],
+  "arms": {
+   "with": [
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 20,
+     "costUsd": 0.5865183000000003,
+     "judgeCostUsd": 0.0018509999999999998,
+     "durationSeconds": 165,
+     "startedAt": "2026-09-12T10:51:31.852Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-Ll47Id/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "research-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "No pude ejecutar el validador autom\u00e1tico (`validate.py`) porque este entorno no tiene una herramienta de shell disponible, pero revis\u00e9 manualmente el artefacto contra las convenciones (front-matter m\u00ednimo, nombre de archivo, y las tres secciones requeridas) y cumple con la estructura esperada.\n\n**Hallazgos guardados en** `.context/research/2026-09-12-order-discount-rounding.md`:\n\n- El descuento se calcula por dos caminos independientes: `pricing.py` redondea el descuento **l\u00ednea por l\u00ednea**, mientras que `totals.py` suma los subtotales brutos, aplica el descuento **una sola vez sobre el agregado** y redondea al final.\n- Como el redondeo no es distributivo, ambos caminos pueden llegar a centavos distintos. Reproduje el caso con el cup\u00f3n `SUMMER15` (15%) en dos l\u00edneas id\u00e9nticas de `10.03`: la suma de l\u00edneas da `17.06`, pero el total del pedido da `17.05` \u2014 exactamente la diferencia de un centavo que reporta Contabilidad.\n- No existe ninguna invariante que verifique `order.total == sum(line.discounted_total)`, por eso el desajuste pasa desapercibido y depende de la combinaci\u00f3n espec\u00edfica de precios/cantidades.\n- La nota de investigaci\u00f3n cierra con una recomendaci\u00f3n (elegir una \u00fanica fuente de verdad para el redondeo, y a\u00f1adir un test de regresi\u00f3n) para cuando planifiquen el redise\u00f1o de precios \u2014 pero no toqu\u00e9 el c\u00f3digo, tal como pediste."
+      },
+      {
+       "name": "research-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/research/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 16,
+     "costUsd": 0.27089440000000004,
+     "judgeCostUsd": 0.0018989999999999996,
+     "durationSeconds": 80,
+     "startedAt": "2026-09-12T10:54:16.704Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-11wbew/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "research-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "No tengo una herramienta de shell disponible en este entorno para ejecutar `validate.py`, as\u00ed que no pude correr el self-check autom\u00e1tico del skill. El hallazgo ya qued\u00f3 documentado igualmente.\n\n## Resumen\n\nInvestigu\u00e9 `src/orders/` y escrib\u00ed los hallazgos en `.context/research/2026-09-12-order-discount-rounding.md`. En resumen:\n\n- El descuento se calcula por **dos caminos independientes**: `pricing.line_total()` redondea cada l\u00ednea por separado, y `totals.order_total()` recalcula desde cero sumando los subtotales brutos y redondeando una sola vez para todo el pedido. `order_total()` nunca lee los `discounted_total` ya persistidos por l\u00ednea.\n- No es un bug del modo de redondeo (ambos usan `ROUND_HALF_UP` a centavos de forma consistente) \u2014 es un problema estructural: redondear N+1 veces sobre cifras derivadas por separado no garantiza que la suma de las partes coincida con el todo.\n- Inclu\u00ed un ejemplo num\u00e9rico reproducible (cup\u00f3n `WELCOME10`, dos l\u00edneas de `0.05`) que genera exactamente la diferencia de un centavo reportada por contabilidad.\n- El documento cierra con una recomendaci\u00f3n (no implementada, seg\u00fan lo pedido): que el total del pedido se derive sumando los `discounted_total` ya redondeados por l\u00ednea, en lugar de recalcular el descuento sobre el bruto \u2014 algo a evaluar en el redise\u00f1o de precios, no parcheado ahora.\n\nNo hice ning\u00fan cambio de c\u00f3digo, solo el archivo de investigaci\u00f3n."
+      },
+      {
+       "name": "research-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/research/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 18,
+     "costUsd": 0.2902196,
+     "judgeCostUsd": 0.0019260000000000002,
+     "durationSeconds": 86,
+     "startedAt": "2026-09-12T10:55:36.707Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-MGHN6k/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "research-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "Termin\u00e9 la investigaci\u00f3n y dej\u00e9 los hallazgos documentados en `.context/research/2026-09-12-order-discount-rounding.md` (no toqu\u00e9 el c\u00f3digo).\n\n**Resumen del hallazgo clave:** el descuento se calcula dos veces, de forma independiente, en dos puntos distintos:\n\n- `totals.order_total()` (`src/orders/totals.py:9-14`) suma los subtotales brutos de todas las l\u00edneas, aplica el descuento **una vez** sobre ese agregado y redondea el resultado \u2192 esto se guarda en `Order.total`.\n- `pricing.line_total()` (`src/orders/pricing.py:13-17`) aplica el descuento **l\u00ednea por l\u00ednea** y redondea cada l\u00ednea por separado \u2192 esto se guarda en `OrderLine.discounted_total`.\n\nNo hay ning\u00fan c\u00f3digo que derive `Order.total` sumando las l\u00edneas ya redondeadas, ni que concilie ambos valores. Como `ROUND_HALF_UP` no conmuta entre \"redondear las partes\" y \"redondear el todo\", ambos c\u00e1lculos pueden diferir en un centavo aunque cada uno sea aritm\u00e9ticamente correcto por s\u00ed solo (no es un bug de floats \u2014 todo usa `Decimal` correctamente). En el documento inclu\u00ed un ejemplo num\u00e9rico reproducible (tres l\u00edneas de 0.05 con 10% de descuento: el total da 0.14 pero la suma de l\u00edneas da 0.15).\n\nEl documento cierra con una recomendaci\u00f3n para la sesi\u00f3n de redise\u00f1o: elegir una \u00fanica fuente de verdad (redondear por l\u00ednea y sumar, o redondear el total y prorratear), sin decidir cu\u00e1l en este spike."
+      },
+      {
+       "name": "research-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/research/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    }
+   ],
+   "without": [
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 10,
+     "costUsd": 0.12048980000000001,
+     "judgeCostUsd": 0.001607,
+     "durationSeconds": 48,
+     "startedAt": "2026-09-12T10:57:02.899Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-p1GrI0/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "research-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "He escrito los hallazgos en `docs/orders-descuento-redondeo-hallazgos.md`. Resumen:\n\n**Causa ra\u00edz**: el descuento se calcula por dos caminos independientes que redondean en orden distinto:\n- `pricing.line_total()` redondea cada l\u00ednea individualmente antes de sumar.\n- `totals.order_total()` suma todos los brutos sin redondear y reci\u00e9n redondea al final, sin usar los valores por l\u00ednea ya guardados.\n\nComo ambos usan `ROUND_HALF_UP` pero sobre agregados distintos, \"redondear y sumar\" \u2260 \"sumar y redondear\" \u2014 de ah\u00ed el desfase de un centavo. Inclu\u00ed un caso concreto reproducible (3 l\u00edneas de $0.05 con cup\u00f3n `VIP33`) que da `total=0.10` vs `\u03a3 l\u00edneas=0.09`.\n\nNo toqu\u00e9 c\u00f3digo, solo dej\u00e9 el diagn\u00f3stico documentado para cuando planifiquen el redise\u00f1o."
+      },
+      {
+       "name": "research-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/research/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 10,
+     "costUsd": 0.12610120000000002,
+     "judgeCostUsd": 0.0017309999999999982,
+     "durationSeconds": 50,
+     "startedAt": "2026-09-12T10:57:50.898Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-qcsH57/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "research-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "He escrito los hallazgos en `docs/rounding-investigation.md`. Resumen:\n\n- **Causa ra\u00edz**: `pricing.py` redondea el descuento l\u00ednea por l\u00ednea (`line_total`), mientras que `totals.py` (`order_total`) suma los subtotales brutos sin redondear y aplica el descuento y el redondeo una sola vez, al final. Ambas f\u00f3rmulas son v\u00e1lidas por separado, pero redondean en momentos distintos, as\u00ed que \"redondear la suma\" y \"sumar los redondeos\" no siempre coinciden.\n- **Punto exacto**: `totals.py:11` reutiliza `line_subtotal` pero nunca `line_total`, as\u00ed que nunca ve los valores ya redondeados por l\u00ednea \u2014 no hay ninguna conciliaci\u00f3n entre ambos c\u00e1lculos.\n- **S\u00edntoma visible**: `views.py` (`confirm_order`) llama a ambas funciones por separado y devuelve `order.total` y la lista de `discounted_total` en el mismo JSON sin verificar consistencia.\n- Inclu\u00ed un ejemplo num\u00e9rico reproducible (3 l\u00edneas de 10.05 con cup\u00f3n del 10%) donde el total da 27.14 pero la suma de l\u00edneas da 27.15 \u2014 la diferencia de un centavo que reporta Contabilidad.\n\nNo hice ning\u00fan cambio de c\u00f3digo, solo investigaci\u00f3n documentada para alimentar la planificaci\u00f3n del redise\u00f1o."
+      },
+      {
+       "name": "research-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/research/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 13,
+     "costUsd": 0.15155200000000002,
+     "judgeCostUsd": 0.0017519999999999984,
+     "durationSeconds": 64,
+     "startedAt": "2026-09-12T10:58:40.827Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-x0aKxM/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "research-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "El sistema de memoria persistente est\u00e1 fuera de los directorios permitidos en este entorno, as\u00ed que no pude guardar ah\u00ed la nota \u2014 pero los hallazgos ya quedaron escritos en el repo, que es lo que pediste.\n\n**Investigaci\u00f3n completada** \u2014 escrita en `docs/hallazgos-redondeo-descuentos.md`. Resumen:\n\n- **Causa ra\u00edz**: hay dos caminos de c\u00e1lculo independientes. `src/orders/pricing.py` redondea el descuento **por l\u00ednea**; `src/orders/totals.py` aplica el descuento sobre el subtotal bruto **agregado** y redondea una sola vez. Son dos redondeos distintos de la misma operaci\u00f3n, as\u00ed que pueden no coincidir.\n- **Ejemplo reproducible**: cup\u00f3n `WELCOME10` (10%) con dos l\u00edneas de `unit_price = 0.05`. Por l\u00ednea: `0.05*0.9=0.045\u21920.05` cada una, suma = `0.10`. Por pedido: subtotal `0.10*0.9=0.09`. Diferencia de 1 centavo, igual al patr\u00f3n que reporta Contabilidad.\n- **D\u00f3nde se ve**: `confirm_order` en `views.py` expone ambos valores juntos, que es donde se nota el descuadre.\n- No toqu\u00e9 nada del c\u00f3digo, solo document\u00e9 el diagn\u00f3stico para que lo tengan a mano cuando planifiquen el redise\u00f1o de precios."
+      },
+      {
+       "name": "research-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/research/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    }
+   ]
+  },
+  "aggregates": {
+   "score": 1,
+   "passRate": 1,
+   "scoreWithout": 0,
+   "passRateWithout": 0,
+   "delta": 1
+  }
+ }
+}
