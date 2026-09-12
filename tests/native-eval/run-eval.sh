@@ -7,7 +7,8 @@
 #   ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
 #
 # --only <skill> is sugar for --case '<skill>--*'. collect-cases.sh names each
-# collected case `<skill>--<case>` from its FOLDER, so the DOUBLE dash is what
+# collected case `<skill>--<case>` (folder AND case.yaml `name:`, which is what
+# the eval's --case glob actually matches), so the DOUBLE dash is what
 # keeps --only plan from also selecting plan-exec cases. Use --case for anything
 # narrower.
 #
