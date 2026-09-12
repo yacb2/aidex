@@ -1,6 +1,6 @@
 ---
 name: conventions-auditor
-description: Runs the aidex-conventions validator (validate.py) against the project's .context/ and reports violations as aidex findings
+description: Runs the conventions validator (validate.py) against the project's .context/ and reports violations as aidex findings
 model: haiku
 effort: low
 allowed-tools: Read, Bash
@@ -16,7 +16,7 @@ You will receive the project path in the prompt.
 ## What you do
 
 You DO NOT re-implement convention checks. The validator at
-`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py` (wrapped by
+`${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.py` (wrapped by
 `validate.sh`) is the single source of truth for type-agnostic and
 type-specific structural checks across all 10 artifact types (backlog, plans,
 requests, decisions, references, research, audits, communications, loops,
@@ -30,14 +30,14 @@ references) remain in `validate-audit.sh` and are handled by `context-auditor`.
 The validator's stable JSON contract is documented inline below (see "Parse
 and emit"). Rule IDs surface verbatim in the `rule` field.
 
-If `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.sh` does not exist OR
+If `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` does not exist OR
 `python3` is unavailable, emit:
 
 ```
 DOMAIN: conventions
 INVENTORY: 0 (validator not installed)
 ISSUES:
-INFO  [CV-MISSING] validate.sh not found — skill aidex-conventions may not be installed
+INFO  [CV-MISSING] validate.sh not found — skill conventions may not be installed
 COUNTS: critical=0 warning=0 info=1
 ```
 
@@ -50,7 +50,7 @@ were given — do NOT depend on cwd). Capture stdout, stderr, and exit code.
 
 ```bash
 # $PROJECT is the project path passed in the prompt.
-out=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.sh "$PROJECT/.context" --json 2>/tmp/validate.err)
+out=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh "$PROJECT/.context" --json 2>/tmp/validate.err)
 rc=$?
 ```
 

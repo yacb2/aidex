@@ -466,10 +466,10 @@ do_update() {
         apply=$(ask_choice "Apply this change? (y/n)" "y")
         if [ "$apply" = "y" ]; then
           install_one "$item" && info "Updated: $item" || true
-          case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
+          case "$item" in skills/conventions) ;; skills/*) accepted_other_skill=1 ;; esac
         else
           warn "Skipped: $item"
-          [ "$item" = "skills/aidex-conventions" ] && declined_conventions=1
+          [ "$item" = "skills/conventions" ] && declined_conventions=1
         fi
       done
       for item in ${new_items[@]+"${new_items[@]}"}; do
@@ -479,7 +479,7 @@ do_update() {
           if install_one "$item"; then
             info "Installed: $item"
             accepted_new+=("$item")
-            case "$item" in skills/aidex-conventions) ;; skills/*) accepted_other_skill=1 ;; esac
+            case "$item" in skills/conventions) ;; skills/*) accepted_other_skill=1 ;; esac
           fi
         fi
       done
@@ -493,9 +493,9 @@ do_update() {
         fi
       done
       if [ "$declined_conventions" -eq 1 ] && [ "$accepted_other_skill" -eq 1 ]; then
-        warn "You updated skills but declined skills/aidex-conventions — other skills source"
+        warn "You updated skills but declined skills/conventions — other skills source"
         warn "its scripts/_lib.sh at runtime; a version skew there can break them. Consider"
-        warn "re-running --update and accepting aidex-conventions."
+        warn "re-running --update and accepting conventions."
       fi
       ;;
     3)

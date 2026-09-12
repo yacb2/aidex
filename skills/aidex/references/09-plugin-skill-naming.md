@@ -4,15 +4,22 @@ aidex ships as a Claude Code plugin named `aidex`.
 
 ## Invocation form
 
-- A plugin skill is invoked as `/<plugin>:<name>`, where `<name>` is the `name:`
-  value in the skill's SKILL.md front-matter. For plugin skills that front-matter
-  value overrides the folder name.
-- aidex's skills therefore carry short names: `plan`, `audit`, `reference`, ... and the
-  hub skill keeps `aidex`. Invocations read `/aidex:plan`, `/aidex:audit new`,
-  `/aidex:aidex init`.
-- Folder names are unchanged (`skills/aidex-plan/`, `skills/aidex/`, ...). A path
-  such as `${CLAUDE_PLUGIN_ROOT}/skills/aidex-plan/scripts/x.sh` is a path, not an
-  invocation, and keeps the folder spelling.
+- A plugin skill is invoked as `/<plugin>:<folder>`, where `<folder>` is the skill's
+  DIRECTORY name under `skills/`. The documentation says front-matter `name:`
+  overrides it; **it does not** — measured at runtime on Claude Code 2.1.269 with a
+  throwaway plugin, and corroborated by the eval trace `Skill(skill:
+  "aidex-suite:aidex-artifact")`, which carried the folder spelling while `name:`
+  was already short.
+- Folders and `name:` are therefore both the short form and must agree:
+  `skills/plan/` + `name: plan` → `/aidex:plan`, `skills/audit/` + `name: audit` →
+  `/aidex:audit new`. The hub is the bare namespace root: `skills/aidex/` +
+  `name: aidex` → `/aidex:aidex init`.
+- No `aidex-` prefix on a directory: the `aidex:` plugin namespace already supplies
+  it, and a prefixed folder would invoke as `/aidex:aidex-plan`.
+  `test_registry_lockstep.py` guard 9 and `tests/test-plugin-layout.sh` check h both
+  fail a directory that still carries one.
+- A path such as `${CLAUDE_PLUGIN_ROOT}/skills/plan/scripts/x.sh` is a path, not an
+  invocation, and uses the same folder spelling.
 
 ## skillOverrides does not apply to plugin skills
 

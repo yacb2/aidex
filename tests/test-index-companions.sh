@@ -126,9 +126,9 @@ page "$CTX/audits/code-quality/2026-01-01-live-run/findings.html" \
      "audit/code-quality/2026-01-01-live-run"
 
 cd "$PROJ" || exit 1
-bash "$SKILLS/aidex-plan/scripts/reindex-plans.sh"          >/dev/null 2>&1
-bash "$SKILLS/aidex-backlog/scripts/register-item.sh" --reindex >/dev/null 2>&1
-bash "$SKILLS/aidex-audit/scripts/reindex-audits.sh"        >/dev/null 2>&1
+bash "$SKILLS/plan/scripts/reindex-plans.sh"          >/dev/null 2>&1
+bash "$SKILLS/backlog/scripts/register-item.sh" --reindex >/dev/null 2>&1
+bash "$SKILLS/audit/scripts/reindex-audits.sh"        >/dev/null 2>&1
 
 PLANS="$(cat "$CTX/plans/00-index.md" 2>/dev/null)"
 BACKLOG="$(cat "$CTX/backlog/00-index.md" 2>/dev/null)"
@@ -167,8 +167,8 @@ fi
   || fail "(5) audits/00-index.md did not list the run's companion"
 
 # ---------- (6) the generators stay idempotent ----------
-for pair in "plans/00-index.md:$SKILLS/aidex-plan/scripts/reindex-plans.sh" \
-            "audits/00-index.md:$SKILLS/aidex-audit/scripts/reindex-audits.sh"; do
+for pair in "plans/00-index.md:$SKILLS/plan/scripts/reindex-plans.sh" \
+            "audits/00-index.md:$SKILLS/audit/scripts/reindex-audits.sh"; do
   idx="$CTX/${pair%%:*}"; gen="${pair#*:}"
   before="$(cat "$idx")"
   bash "$gen" >/dev/null 2>&1

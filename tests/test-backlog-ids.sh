@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-backlog-ids.sh — BL-NNN id assignment and duplicate detection in
-# skills/aidex-backlog/scripts/register-item.sh, against a fixture .context/.
+# skills/backlog/scripts/register-item.sh, against a fixture .context/.
 #
 # Regression: two entries could carry the same id and nothing noticed. Observed
 # in echo_lab 2026-07-22 — BL-186 and BL-193 were each on two items, weeks apart,
@@ -20,7 +20,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-SCRIPT="$REPO_ROOT/skills/aidex-backlog/scripts/register-item.sh"
+SCRIPT="$REPO_ROOT/skills/backlog/scripts/register-item.sh"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 

@@ -3,12 +3,13 @@
 #
 #   ./tests/native-eval/run-eval.sh                  # iterate: 1 run, both arms
 #   ./tests/native-eval/run-eval.sh --verdict         # decide: 3 runs, both arms
-#   ./tests/native-eval/run-eval.sh --case 'aidex-decision*'
-#   ./tests/native-eval/run-eval.sh --only aidex-artifact   # every case of one skill
+#   ./tests/native-eval/run-eval.sh --case 'decision*'
+#   ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
 #
-# --only <skill> is sugar for --case '<skill>-*'. Case names are `<skill>-<case>`,
-# so the glob is a prefix match: --only aidex-plan would also select a future
-# aidex-plan-exec case. Use --case when that matters.
+# --only <skill> is sugar for --case '<skill>--*'. build-wrapper.sh names each
+# collected case `<skill>--<case>` from its FOLDER, so the DOUBLE dash is what
+# keeps --only plan from also selecting plan-exec cases. Use --case for anything
+# narrower.
 #
 # Pinned by policy, not by taste:
 #   --no-publish   the HTML report must stay local (artifacts-local-first, gate 3)
@@ -42,7 +43,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --verdict) RUNS=3; shift ;;
     --case)    CASE_GLOB="$2"; shift 2 ;;
-    --only)    CASE_GLOB="$2-*"; shift 2 ;;
+    --only)    CASE_GLOB="$2--*"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
 done

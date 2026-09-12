@@ -51,7 +51,7 @@ What the snapshot carries, and which agent reads it:
 
 After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply all [C] pick individually [D] save report only`. If the user picks A/B/C, run this sequence:
 
-1. **Write audit doc.** Save the full report to `.context/audits/YYYY-MM-DD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `aidex-audit` skill if available, else write directly).
+1. **Write audit doc.** Save the full report to `.context/audits/YYYY-MM-DD-context-and-memory-optimization.md` using the project's audit conventions (delegate to the `audit` skill if available, else write directly).
 2. **Backup.** Before any mutation, copy to `~/.claude/aidex/backups/<project-name>/<timestamp>/` (user-level, outside the project tree — keeps backups out of every project and consolidated under the central aidex engine):
    - `settings.local.json` (project and user, if touched)
    - the entire memory directory

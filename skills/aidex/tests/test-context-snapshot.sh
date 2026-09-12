@@ -38,12 +38,12 @@ S="$TMP/full/snapshot.json"
 [[ "$(jq_ "$S" "s['skills']['dataviz']['tokens']")" == "480" ]] || fail "(1) built-in skills come from /context and must be kept"
 [[ "$(jq_ "$S" "s['skills']['session-handoff']['tokens']")" == "420" ]] || fail "(1) per-skill listing tokens not parsed"
 [[ "$(jq_ "$S" "s['usage_available']")" == "True" ]] || fail "(2) usage columns present but not detected"
-[[ "$(jq_ "$S" "s['skills']['aidex-plan-exec']['uses']")" == "141" ]] || fail "(2) uses column not merged"
-[[ "$(jq_ "$S" "s['skills']['aidex-plan-exec']['tokens_7d']")" == "399100000" ]] || fail "(2) 7d tokens (399.1m) not parsed"
+[[ "$(jq_ "$S" "s['skills']['plan-exec']['uses']")" == "141" ]] || fail "(2) uses column not merged"
+[[ "$(jq_ "$S" "s['skills']['plan-exec']['tokens_7d']")" == "399100000" ]] || fail "(2) 7d tokens (399.1m) not parsed"
 [[ "$(jq_ "$S" "s['skills']['document-skills:docx']['last_used']")" == "never" ]] || fail "(2) last used not merged onto the plugin skill id"
-[[ "$(jq_ "$S" "s['skills']['aidex-audit']['listed']")" == "False" ]] || fail "(2) a dash in skill-doctor must read as listed=false"
-[[ "$(jq_ "$S" "s['skills']['aidex-audit']['tokens']")" == "None" ]] || fail "(2) a silenced skill has no listing tokens"
-[[ "$(jq_ "$S" "'aidex-audit' in s['skills'] and s['skills']['aidex-audit']['uses']")" == "80" ]] || fail "(2) a silenced skill keeps its usage (only skill-doctor knows it exists)"
+[[ "$(jq_ "$S" "s['skills']['audit']['listed']")" == "False" ]] || fail "(2) a dash in skill-doctor must read as listed=false"
+[[ "$(jq_ "$S" "s['skills']['audit']['tokens']")" == "None" ]] || fail "(2) a silenced skill has no listing tokens"
+[[ "$(jq_ "$S" "'audit' in s['skills'] and s['skills']['audit']['uses']")" == "80" ]] || fail "(2) a silenced skill keeps its usage (only skill-doctor knows it exists)"
 grep -q "Plugin skills can't be turned off individually" <<<"$(jq_ "$S" "' '.join(s['skill_doctor_notes'])")" \
   || fail "(2) the footer note is the surface evidence for the plugin-skill exemption and must be kept"
 
@@ -52,8 +52,8 @@ python3 "$SCRIPT" --from-context "$FX/context.md" --from-doctor "$FX/skill-docto
   || fail "(3) a report without usage columns must still produce a snapshot"
 S="$TMP/nousage/snapshot.json"
 [[ "$(jq_ "$S" "s['usage_available']")" == "False" ]] || fail "(3) usage_available must be false"
-[[ "$(jq_ "$S" "'uses' in s['skills']['aidex-plan-exec']")" == "False" ]] || fail "(3) no fabricated usage fields"
-[[ "$(jq_ "$S" "s['skills']['aidex-plan-exec']['tokens']")" == "190" ]] || fail "(3) cost still comes from /context"
+[[ "$(jq_ "$S" "'uses' in s['skills']['plan-exec']")" == "False" ]] || fail "(3) no fabricated usage fields"
+[[ "$(jq_ "$S" "s['skills']['plan-exec']['tokens']")" == "190" ]] || fail "(3) cost still comes from /context"
 
 # ---------- (4) no /context ----------
 printf 'Skills loaded this session\n' > "$TMP/empty.md"

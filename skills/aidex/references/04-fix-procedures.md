@@ -11,7 +11,7 @@ For each `.md` file directly in `.context/references/` or `.context/docs/`:
 
 ### Metadata Fixes
 - Add the four required front-matter fields where one is missing: `title`, `status`,
-  `created`, `updated` (`aidex-conventions` § front-matter)
+  `created`, `updated` (`conventions` § front-matter)
 - Use the file modification date for `updated`, and the earliest known date for `created`
 
 ### Index Fixes

@@ -48,9 +48,9 @@ returns a verdict and nothing else. An unlisted verdict is a `KEEP`: nothing hap
 | `DELETE-{DUP,CLOSED,LOG}` | back up, then delete the file **and** its index line |
 | `MOVE-BACKLOG` | `.context/backlog/` — `register-item.sh --origin sweep --worklist <slug>` |
 | `MOVE-CLAUDEMD` | the project `CLAUDE.md` — a permanent constraint or command (<3 lines) |
-| `MOVE-REFERENCE` | `.context/references/<topic>/` via `aidex-reference` |
-| `MOVE-DECISION` | `.context/decisions/` (an ADR) via `aidex-decision` |
-| `MOVE-RESEARCH` | `.context/research/` via `aidex-research` |
+| `MOVE-REFERENCE` | `.context/references/<topic>/` via `reference` |
+| `MOVE-DECISION` | `.context/decisions/` (an ADR) via `decision` |
+| `MOVE-RESEARCH` | `.context/research/` via `research` |
 | `MOVE-SKILL` | that skill's `SKILL.md`/`references/`, or `~/.claude/rules/` |
 | `MOVE-GLOBAL` | the user-level memory directory, or a global rule |
 

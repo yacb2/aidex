@@ -76,7 +76,7 @@ the script prints `no TTY — skipped the artifact-style.md question` instead of
 On that line ask the user whether this project wants a `.context/artifact-style.md`, and
 in which language its HTML artifacts are written; re-run (idempotent) with
 `--artifact-style <lang>` or `--no-artifact-style`. Never created unasked; either answer
-is recorded in the marker aidex-artifact's mid-artifact offer reads, so neither asks twice.
+is recorded in the marker artifact's mid-artifact offer reads, so neither asks twice.
 
 ---
 
@@ -124,7 +124,7 @@ Read each agent's instructions from `${CLAUDE_PLUGIN_ROOT}/skills/aidex/agents/`
 | Subagent | Launches when | Model | Effort | Tools |
 |----------|--------------|-------|--------|-------|
 | [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | medium | Read, Glob, Grep, Bash |
-| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
+| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
 | [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | medium | Read, Glob, Grep |
 | [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | low | Read, Glob, Bash |
 | [memory-auditor](agents/memory-auditor.md) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
@@ -138,7 +138,7 @@ by reading their `.md` as a *prompt* (above) — they are not registered agent d
 This table is the whole configuration surface: pass the Tools column when the launch site
 supports restricting tools, and treat the agent files' own `allowed-tools:` as a comment.
 Effort follows the suite heuristic
-([workflow-spec conventions](../aidex-workflow/references/01-workflow-spec-conventions.md)):
+([workflow-spec conventions](../workflow/references/01-workflow-spec-conventions.md)):
 mechanical existence/parse checks → `low`; judgment over content quality or compliance →
 `medium`.
 
@@ -167,7 +167,7 @@ is `references/08-report-shapes.md` § Phase 2.
 Before emitting any finding that proposes deleting a file/directory, uninstalling a plugin, or removing a skill from disk, verify the four gates below. Failing **any** gate downgrades the proposal to a softer alternative or suppresses it.
 
 1. **Canonical type?** If the target is an empty directory, is it in the canonical list (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications, worktrees`)? If yes → do not propose deletion (empty canonical = healthy). The `backlog/_deferred/` and `<type>/_archive/` subdirs are part of their parent's canonical lifecycle — treat as healthy, never orphan/delete candidates.
-   **Acceptable-optional tier?** If the target is `data`, `diagrams`, `drafts`, `experiments`, `worklists`, or `workflows`, it is never required (some are scaffolded on demand — `worklists` by the worklist scripts, `workflows` by `aidex-workflow`; the rest are project-local, may be gitignored): INFO-at-most, never a deletion proposal. Only `.context/` dirs in NEITHER tier qualify as deletion candidates.
+   **Acceptable-optional tier?** If the target is `data`, `diagrams`, `drafts`, `experiments`, `worklists`, or `workflows`, it is never required (some are scaffolded on demand — `worklists` by the worklist scripts, `workflows` by `workflow`; the rest are project-local, may be gitignored): INFO-at-most, never a deletion proposal. Only `.context/` dirs in NEITHER tier qualify as deletion candidates.
 2. **Protected marketplace?** If the target is a plugin, is its marketplace in `PROTECTED_MARKETPLACES` (`claude-plugins-official`, `anthropics`)? If yes → downgrade to INFO, never propose disable/uninstall.
 3. **Reversible local override exists?** Is there a softer alternative (`enabledPlugins: false`, `skillOverrides: name-only/off`, archive-instead-of-delete)? (`skillOverrides` is not available for plugin skills — `references/09-plugin-skill-naming.md`) If yes → prefer it over the destructive action.
 4. **`.git` ancestor present?** For any `.gitignore` suggestion in `.context/`, walk up to find `.git`. If absent (typical of `*_ws/` workspace roots) → suppress the finding.

@@ -5,7 +5,7 @@
  "runs": 3,
  "case": {
   "name": "aidex-reference-how-it-works",
-  "dir": "plugin-evals/aidex-reference--how-it-works",
+  "dir": "plugin-evals/reference--how-it-works",
   "source": "mixed",
   "promptMarkdown": "Documenta c\u00f3mo funciona la autenticaci\u00f3n por API key del backend. Lleva meses\nestable y nadie la tiene escrita en ninguna parte; quiero una referencia\nevergreen para el equipo. Ya est\u00e1 todo definido, no hace falta que me preguntes\nnada:\n\n- Alcance: el middleware `src/auth/middleware.py`, el cargador de configuraci\u00f3n\n  `src/config/loader.py` y los valores que consume en `src/config/settings.py`.\n- Tema: `auth` \u2014 es el primer m\u00f3dulo de referencia del proyecto.\n- Lo que debe quedar claro: qu\u00e9 rutas quedan exentas, de d\u00f3nde sale la lista de\n  keys v\u00e1lidas, en qu\u00e9 orden se resuelve la configuraci\u00f3n (variable de entorno\n  sobre archivo sobre valor por defecto) y qu\u00e9 responde el middleware cuando la\n  key falta o es inv\u00e1lida.\n- No hay nada que decidir ni que cambiar en el c\u00f3digo: solo documentarlo tal\n  como est\u00e1 hoy.\n\nEscribe la referencia.",
   "runsPerCase": 3,
@@ -37,7 +37,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-reference",
+     "input_match": "reference",
      "min": 1
     }
    }

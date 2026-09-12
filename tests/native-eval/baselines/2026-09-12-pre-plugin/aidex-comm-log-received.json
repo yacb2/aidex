@@ -5,7 +5,7 @@
  "runs": 3,
  "case": {
   "name": "aidex-comm-log-received",
-  "dir": "plugin-evals/aidex-comm--log-received",
+  "dir": "plugin-evals/comm--log-received",
   "source": "mixed",
   "promptMarkdown": "Guarda este correo del cliente, registra este email tal como lleg\u00f3. No me\npreguntes nada, hazlo directamente.\n\nDe: Ana Robles <ana.robles@marealogistica.com>\nPara: equipo@portalclientes.dev\nFecha: 2026-09-10\nAsunto: Ajustes al portal antes del cierre de mes\n\nHola equipo,\n\nLes escribo con tres puntos que necesitamos resolver antes del cierre de mes:\n\n1. El listado de env\u00edos tarda m\u00e1s de veinte segundos en cargar cuando filtramos\n   por todo el trimestre; nuestro equipo de operaciones lo usa a diario.\n2. Necesitamos poder descargar ese mismo listado en Excel, hoy solo sale en PDF.\n3. Los usuarios de la sucursal de Monterrey no reciben el correo de aviso cuando\n   un env\u00edo cambia de estado.\n\nQuedo atenta a sus comentarios.\n\nSaludos,\nAna Robles\nCoordinadora de Operaciones, Marea Log\u00edstica",
   "runsPerCase": 3,
@@ -37,7 +37,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-comm",
+     "input_match": "comm",
      "min": 1
     }
    }
@@ -156,7 +156,7 @@
         true,
         true
        ],
-       "evidence": "Correo registrado en `.context/communications/received/2026-09-10-ajustes-portal-cierre-mes/body.md`, tal como lleg\u00f3 (sin traducir, con front-matter completo).\n\nNo pude ejecutar el script de validaci\u00f3n (`validate.py`) porque este entorno no tiene una herramienta de shell disponible \u2014 si quieres, puedo intentar delegarlo a un agente, o puedes correrlo t\u00fa manualmente:\n\n```\npython3 <ruta-al-skill>/aidex-conventions/scripts/validate.py --type communications\n```\n\nLos tres puntos del correo (lentitud del listado, exportaci\u00f3n a Excel, y falla de notificaciones en Monterrey) parecen requisitos de cliente accionables \u2014 si quieres, puedo capturarlos como `requests` con `/aidex-request` y enlazarlos a esta comunicaci\u00f3n."
+       "evidence": "Correo registrado en `.context/communications/received/2026-09-10-ajustes-portal-cierre-mes/body.md`, tal como lleg\u00f3 (sin traducir, con front-matter completo).\n\nNo pude ejecutar el script de validaci\u00f3n (`validate.py`) porque este entorno no tiene una herramienta de shell disponible \u2014 si quieres, puedo intentar delegarlo a un agente, o puedes correrlo t\u00fa manualmente:\n\n```\npython3 <ruta-al-skill>/conventions/scripts/validate.py --type communications\n```\n\nLos tres puntos del correo (lentitud del listado, exportaci\u00f3n a Excel, y falla de notificaciones en Monterrey) parecen requisitos de cliente accionables \u2014 si quieres, puedo capturarlos como `requests` con `/request` y enlazarlos a esta comunicaci\u00f3n."
       },
       {
        "name": "comm-file-created",

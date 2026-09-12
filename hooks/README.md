@@ -1,7 +1,7 @@
 # Durability Stop-hook (optional, opt-in — NOT auto-installed)
 
 The **enforcement** half of execution durability. The `durability-arbiter`
-(`skills/aidex-conventions/agents/`) is the *judgment* layer — but it only fires if the
+(`skills/conventions/agents/`) is the *judgment* layer — but it only fires if the
 agent *chooses* to consult it before stopping. The failure mode we actually see is the
 agent **just stopping** ("the rest needs your decision"). The only surface that fires on
 that involuntary stop is a Claude Code **Stop hook**. This directory holds the

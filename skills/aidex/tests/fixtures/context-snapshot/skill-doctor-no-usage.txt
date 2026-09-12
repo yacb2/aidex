@@ -9,33 +9,33 @@ Skills loaded this session
   document-skills:pptx         document-skills     ~250
   document-skills:pdf          document-skills     ~150
   restart                      userSettings         ~20
-  aidex-conventions            userSettings           -
+  conventions            userSettings           -
   fix-chrome-devtools          userSettings           -
   skill-trigger-eval           projectSettings     < 20
   ralph-loop:help              ralph-loop           ~20
   ralph-loop:ralph-loop        ralph-loop           ~20
-  aidex-artifact                   userSettings           -
-  aidex-workflow               userSettings           -
-  aidex-loop                   userSettings           -
-  aidex-reference              userSettings        ~240
-  aidex-request                userSettings           -
-  aidex-comm                   userSettings        ~290
-  aidex-worktree               userSettings        ~270
-  aidex-decision               userSettings        ~240
+  artifact                   userSettings           -
+  workflow               userSettings           -
+  loop                   userSettings           -
+  reference              userSettings        ~240
+  request                userSettings           -
+  comm                   userSettings        ~290
+  worktree               userSettings        ~270
+  decision               userSettings        ~240
   aidex                        userSettings        ~260
-  aidex-bugfix                 userSettings        ~210
-  aidex-skill                  userSettings           -
+  bugfix                 userSettings        ~210
+  skill                  userSettings           -
   skill-creator:skill-creator  skill-creator       ~120
-  aidex-audit                  userSettings           -
+  audit                  userSettings           -
   git-commit                   userSettings         ~80
-  aidex-backlog                userSettings           -
-  aidex-coverage               userSettings        ~270
-  aidex-plan                   userSettings        ~300
-  aidex-research               userSettings        ~220
-  aidex-review                 userSettings        ~300
+  backlog                userSettings           -
+  coverage               userSettings        ~270
+  plan                   userSettings        ~300
+  research               userSettings        ~220
+  review                 userSettings        ~300
   dependency-updater           userSettings        ~210
   handoff                      userSettings         ~30
-  aidex-plan-exec              userSettings        ~190
+  plan-exec              userSettings        ~190
   session-handoff              userSettings        ~420
 
   context = this skill's one-line listing in the system prompt, included every turn

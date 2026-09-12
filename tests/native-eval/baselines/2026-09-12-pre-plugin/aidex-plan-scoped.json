@@ -5,7 +5,7 @@
  "runs": 3,
  "case": {
   "name": "aidex-plan-scoped",
-  "dir": "plugin-evals/aidex-plan--scoped-plan",
+  "dir": "plugin-evals/plan--scoped-plan",
   "source": "mixed",
   "promptMarkdown": "Quiero un plan para a\u00f1adir exportaci\u00f3n a Excel de los informes mensuales.\nYa est\u00e1 todo definido, no hace falta que me preguntes nada:\n\n- Alcance: solo el informe mensual, reutilizando `report_sections()` de `src/reports/render.py`.\n- Librer\u00eda: openpyxl.\n- Entrega: un endpoint nuevo `GET /reports/<id>/export.xlsx` y un bot\u00f3n en la\n  vista de detalle del informe.\n- Criterio de aceptaci\u00f3n: el .xlsx abre en Excel con una hoja por secci\u00f3n y las\n  mismas cifras que el PDF.\n- No hay migraciones ni cambios de modelo.\n\nEscribe el plan.",
   "runsPerCase": 3,
@@ -37,7 +37,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-plan",
+     "input_match": "plan",
      "min": 1
     }
    }

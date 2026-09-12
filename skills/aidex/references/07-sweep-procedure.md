@@ -60,7 +60,7 @@ the SKILL documents *that* this exists and routes here, this file is *how*.
    fine, and nothing made that visible.
 
 7. **Done-but-not-archived across all four tiers of ONE project** — plans, audits,
-   requests, backlog: `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/archive-sweep.py`.
+   requests, backlog: `python3 ${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/archive-sweep.py`.
    `sweep.sh` covers the backlog only, which is how D-10 came to be applied there and
    skipped in the other three. Dry run by default; `--check` exits 1 for a gate;
    `--apply` moves the terminal set and never the status-drift set.

@@ -73,4 +73,16 @@ else
   fail "g. no un-namespaced (aidex-*) clauses (saw $G_COUNT)"
 fi
 
+# h. no skills/aidex-* directory: the plugin namespace supplies the prefix, and the
+#    invocation segment is the FOLDER name, so a prefixed folder would read
+#    /aidex:aidex-plan. The hub, skills/aidex/, is the bare namespace root and is
+#    deliberately not matched by the glob.
+H_DIRS=$(ls -d "$ROOT"/skills/aidex-* 2>/dev/null)
+H_COUNT=$(printf '%s' "$H_DIRS" | grep -c . || true)
+if [ -z "$H_DIRS" ]; then
+  pass "h. no skills/aidex-* directories (saw 0)"
+else
+  fail "h. no skills/aidex-* directories (saw $H_COUNT: $(printf '%s' "$H_DIRS" | tr '\n' ' '))"
+fi
+
 exit $FAIL
