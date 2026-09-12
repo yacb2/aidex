@@ -29,9 +29,9 @@
 set -uo pipefail   # not -e: a drifting project must not abort the sweep
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-VALIDATE="$SCRIPT_DIR/../../aidex-conventions/scripts/validate.py"
-RECONCILE="$SCRIPT_DIR/../../aidex-backlog/scripts/reconcile.sh"
-SWEEP="$SCRIPT_DIR/../../aidex-backlog/scripts/sweep.sh"
+VALIDATE="$SCRIPT_DIR/../../conventions/scripts/validate.py"
+RECONCILE="$SCRIPT_DIR/../../backlog/scripts/reconcile.sh"
+SWEEP="$SCRIPT_DIR/../../backlog/scripts/sweep.sh"
 
 ROOT="${AIDEX_WORKSPACE_ROOT:-$HOME/Documents/projects}"
 VERBOSE=0

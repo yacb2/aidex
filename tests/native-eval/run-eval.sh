@@ -3,18 +3,24 @@
 #
 #   ./tests/native-eval/run-eval.sh                  # iterate: 1 run, both arms
 #   ./tests/native-eval/run-eval.sh --verdict         # decide: 3 runs, both arms
-#   ./tests/native-eval/run-eval.sh --case 'aidex-decision*'
+#   ./tests/native-eval/run-eval.sh --case 'decision*'
+#   ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
+#
+# --only <skill> is sugar for --case '<skill>--*'. collect-cases.sh names each
+# collected case `<skill>--<case>` (folder AND case.yaml `name:`, which is what
+# the eval's --case glob actually matches), so the DOUBLE dash is what
+# keeps --only plan from also selecting plan-exec cases. Use --case for anything
+# narrower.
 #
 # Pinned by policy, not by taste:
 #   --no-publish   the HTML report must stay local (artifacts-local-first, gate 3)
 #   --trust-plugin no TTY for the first-run trust prompt. This IS a trust bypass,
 #                  so the runner is written so it cannot be aimed anywhere else:
-#                  the target is always `.` inside $REPO/_tmp/evalkit, which
-#                  build-wrapper.sh deletes and rebuilds on every invocation from
-#                  this repo's own skills/ and skills/*/evals/native/. The trust
-#                  boundary is therefore "code committed to this repo" — review a
-#                  case's setup.sh in the diff like any other executable, because
-#                  --scaffold runs it as you.
+#                  the target is always `$REPO`, this repo's own root, which IS
+#                  the plugin (`.claude-plugin/plugin.json`, name `aidex`) — no
+#                  copy is built. The trust boundary is therefore "code committed
+#                  to this repo" — review a case's setup.sh in the diff like any
+#                  other executable, because --scaffold runs it as you.
 #   --scaffold     cases need their fixture tree; without it they run bare
 #   --allow-tools  Write Edit ONLY. Granting Bash aborts every run on a machine
 #                  whose ~/.docker holds symlinks (Docker Desktop) — the eval
@@ -37,14 +43,18 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --verdict) RUNS=3; shift ;;
     --case)    CASE_GLOB="$2"; shift 2 ;;
+    --only)    CASE_GLOB="$2--*"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
 done
 
-"$REPO/tests/native-eval/build-wrapper.sh"
+"$REPO/tests/native-eval/collect-cases.sh"
 
+mkdir -p "$REPO/_tmp"
 OUT="$REPO/_tmp/native-eval-$(date +%Y-%m-%dT%H-%M-%S).json"
-cd "$REPO/_tmp/evalkit"
+# The plugin under test is the repo root as it ships — skills/, hooks/hooks.json
+# and .claude-plugin/plugin.json all load exactly as an installed user gets them.
+cd "$REPO"
 # `claude plugin eval` exits 1 whenever any case scores below --threshold
 # (default 1.0). That is an expected outcome here, not a runner failure: the
 # verdict is the delta assertion below. Capture the status instead of letting
@@ -67,6 +77,13 @@ claude plugin eval . \
 eval_status=$?
 set -e
 [ -s "$OUT" ] || { echo "eval produced no JSON (exit $eval_status)" >&2; exit "$eval_status"; }
+# The HTML report lands under plugin-evals/results/, which collect-cases.sh
+# rm -rf's on the NEXT run — a report you did not copy out is gone (lost the
+# 2026-09-12 batch-2 report that way). Keep it next to the JSON.
+if [ -d "$REPO/plugin-evals/results" ]; then
+  cp -R "$REPO/plugin-evals/results" "${OUT%.json}-results"
+  echo "Report kept: ${OUT%.json}-results/"
+fi
 
 # `--threshold` gates the with-arm score only; there is no delta flag. The
 # verdict this suite cares about IS the delta, so assert it here.

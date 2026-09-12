@@ -52,12 +52,12 @@
   {
     "query": "Crea un plan para implementar el sistema de notificaciones push con Firebase Cloud Messaging.",
     "should_trigger": false,
-    "expected_behavior": "This is a plan creation task — aidex-conventions handles this, not aidex"
+    "expected_behavior": "This is a plan creation task — conventions handles this, not aidex"
   },
   {
     "query": "Necesito crear una referencia para el sistema de deployment. Incluye los pasos de Vercel, los secrets y los environments.",
     "should_trigger": false,
-    "expected_behavior": "This is documentation creation — aidex-conventions handles this, not aidex"
+    "expected_behavior": "This is documentation creation — conventions handles this, not aidex"
   },
   {
     "query": "Fix the login bug where users get a 403 after their JWT expires but before the refresh token kicks in.",
@@ -87,12 +87,12 @@
   {
     "query": "Elena del equipo de producto nos pasó estos requisitos para la nueva pantalla de reportes. Captúralo como un request formal.",
     "should_trigger": false,
-    "expected_behavior": "This is a request capture — aidex-conventions handles this, not aidex"
+    "expected_behavior": "This is a request capture — conventions handles this, not aidex"
   },
   {
     "query": "Documenta la decisión de usar Postgres en vez de MongoDB para el servicio de analytics.",
     "should_trigger": false,
-    "expected_behavior": "This is a decision record — aidex-conventions handles this, not aidex"
+    "expected_behavior": "This is a decision record — conventions handles this, not aidex"
   },
   {
     "query": "Revisa mi PR #34 antes de hacer merge. Quiero asegurarme que no hay issues de seguridad.",

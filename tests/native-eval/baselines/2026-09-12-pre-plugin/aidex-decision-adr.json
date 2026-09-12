@@ -5,7 +5,7 @@
  "runs": 3,
  "case": {
   "name": "aidex-decision-adr",
-  "dir": "plugin-evals/aidex-decision--adr",
+  "dir": "plugin-evals/decision--adr",
   "source": "mixed",
   "promptMarkdown": "Decidimos migrar la cola de tareas de Celery a Dramatiq: menos infraestructura\n(sin broker Redis dedicado), mejor ergonom\u00eda de reintentos y una base de c\u00f3digo\nm\u00e1s peque\u00f1a. Evaluamos tambi\u00e9n quedarnos en Celery y usar RQ. Documenta la\ndecisi\u00f3n.",
   "runsPerCase": 3,
@@ -37,7 +37,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-decision",
+     "input_match": "decision",
      "min": 1
     }
    }

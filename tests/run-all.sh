@@ -21,18 +21,18 @@
 # And a third time, 2026-08-17: `hooks/` was never a discovery root, so both hook
 # tests were invisible. `test-context-depth-nudge.py` had been asserting that the
 # depth hook TELLS the assistant not to hand off on its own — pinning a rule the
-# hook does not own and that `rules/autonomy.md` answers the other way inside a
+# hook does not own and that `skills/conventions/references/autonomy-conventions.md` answers the other way inside a
 # run. A test nobody runs is how a checker that certifies the defect survives.
 # Location is not a reason to skip a test either.
 #
-# Docker-dependent tests are opted into, not discovered: nine aidex-worktree
+# Docker-dependent tests are opted into, not discovered: nine worktree
 # tests need a live daemon and take minutes, and folding them in by default would
 # turn a seconds-long daemon-free suite into one that cannot run on a laptop with
 # Docker closed. `RUN_DOCKER_TESTS=1 tests/run-all.sh` includes them.
 #
 # ONE ROOT IS NOT ENOUGH. Every test above runs from the checkout, where skills/
-# holds aidex and nothing else. Installed, the same file runs from ~/.claude/skills,
-# which also holds the user's own skills and carries a manifest. Three tests were
+# holds aidex and nothing else. Installed, the same file runs from the plugin root
+# ~/.claude/plugins/aidex/, next to the user's own skills in ~/.claude/skills/. Three tests were
 # green here and red there at the same moment — test_skill_budget.sh FAILing on a
 # user skill, test_workflow_core_drift.sh latently the same, and a coverage gate
 # resolving .context/ against ~/.claude. That is BL-115's shape, and a runner with
@@ -46,7 +46,7 @@
 # ~431s suite — 94% more for a property most tests cannot violate. A test under
 # skills/<x>/{tests,scripts}/ can only observe the root by climbing to it, and the
 # climb is syntactic: `../..`, $HOME/.claude, aidex/manifest, or pathlib's
-# parents[2+]. A `../../aidex-<name>` hop reaches a SIBLING SKILL, which every
+# parents[2+]. A `../../<name>` hop reaches a SIBLING SKILL, which every
 # install has, so it is root-independent and does not count. That selector picks
 # 21 tests / ~16s (+3.8%), and picks all three of the defects above — 3/3,
 # measured 2026-09-07, not asserted. `RUN_INSTALL_PARITY=full` re-runs the whole
@@ -82,12 +82,12 @@ TESTS=(tests/test-*.sh skills/*/tests/test-*.sh
        skills/*/scripts/test_*.sh skills/*/scripts/test_*.py
        skills/*/scripts/test-*.sh skills/*/scripts/test-*.py
        hooks/test-*.sh hooks/test-*.py)
-# aidex-worktree's scripts/test-*.sh are the docker set; the branch below owns
+# worktree's scripts/test-*.sh are the docker set; the branch below owns
 # them and names the one liar among them. Drop them from the general glob rather
 # than letting both paths claim them.
 _KEPT=()
 for _t in "${TESTS[@]}"; do
-  [[ "$_t" == skills/aidex-worktree/scripts/test-* ]] || _KEPT+=("$_t")
+  [[ "$_t" == skills/worktree/scripts/test-* ]] || _KEPT+=("$_t")
 done
 TESTS=("${_KEPT[@]}")
 if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
@@ -95,12 +95,12 @@ if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
   # TEST database, which is why its name starts that way. Discovery by filename
   # cannot tell the two apart, so the one liar is named here. Its real test is
   # `test-test-db-preflight.sh`, which the glob picks up.
-  for _wt in skills/aidex-worktree/scripts/test-*.sh; do
+  for _wt in skills/worktree/scripts/test-*.sh; do
     [[ "$_wt" == */test-db-preflight.sh ]] && continue
     TESTS+=("$_wt")
   done
 else
-  DOCKER_SKIPPED=(skills/aidex-worktree/scripts/test-*.sh)
+  DOCKER_SKIPPED=(skills/worktree/scripts/test-*.sh)
 fi
 DOCKER_SKIPPED=("${DOCKER_SKIPPED[@]:-}")
 [[ -z "${DOCKER_SKIPPED[0]:-}" ]] && DOCKER_SKIPPED=()
@@ -168,20 +168,20 @@ fi
 # Same verdict in both is the invariant; see the header for why and what it costs.
 # ---------------------------------------------------------------------------
 
-# Shipped = what install.sh copies. tests/ and hooks/test-* never reach a user, so
-# they have no second root to differ in. Docker tests are excluded even under
+# Shipped = what the plugin carries under skills/. tests/ and hooks/test-* never reach
+# a user, so they have no second root to differ in. Docker tests are excluded even under
 # RUN_DOCKER_TESTS=1: they create containers, and doing that twice per suite to
 # re-check a path-resolution property is not a trade worth making.
 PARITY_POOL=()
 for t in "${TESTS[@]}"; do
   case "$t" in
-    tests/*|hooks/*|skills/aidex-worktree/scripts/test-*) continue ;;
+    tests/*|hooks/*|skills/worktree/scripts/test-*) continue ;;
   esac
   PARITY_POOL+=("$t")
 done
 
 # A test under skills/<x>/{tests,scripts}/ can only observe the root by climbing to
-# it, and every climb is one of these four syntactic forms. `../../aidex-<name>`
+# it, and every climb is one of these four syntactic forms. `../../<name>`
 # is a hop to a SIBLING SKILL — present in every install — so it is root-independent
 # and deliberately not a match; without that exclusion the set is 32 tests / ~91s
 # instead of 21 / ~16s, for no added coverage.
@@ -200,7 +200,7 @@ else
   # the worst failure this pass could have: it drops a test from the check and
   # still prints a green line.
   for t in "${PARITY_POOL[@]}"; do
-    filtered="$(grep -v -E '\.\./\.\./aidex-[a-z]' "$t" 2>/dev/null)"
+    filtered="$(grep -v -E '\.\./\.\./(artifact|audit|backlog|bugfix|comm|conventions|coverage|decision|loop|plan-exec|plan|reference|request|research|review|skill|workflow|worktree)/' "$t" 2>/dev/null)"
     if [[ $? -gt 1 ]]; then
       printf 'parity: FAIL — could not read %s while selecting\n' "$t"
       PARITY_ISSUES+=("parity:unreadable:$t")
@@ -223,17 +223,27 @@ fi
 
 DIVERGED=()
 if [[ ${#PARITY[@]} -gt 0 ]]; then
-  # Built by the real installer, not imitated: CLAUDE_DIR defaults to $HOME/.claude,
-  # so an overridden HOME gives an install root by definition. It copies the WORKING
-  # TREE, so an uncommitted regression shows up here too.
-  if ! HOME="$PARITY_HOME" bash "$REPO_ROOT/install.sh" </dev/null >"$LOG" 2>&1; then
+  # aidex ships as a plugin since v1.0.0, so there is no installer to build this root
+  # with (docs/retired/install.sh resolved everything relative to its own directory).
+  # The root is the INSTALLED PLUGIN's shape — ~/.claude/plugins/aidex/ — copied from
+  # the WORKING TREE, so an uncommitted regression still shows up here. The property
+  # under test is unchanged and is the reason this pass exists: a shipped test must
+  # resolve the same from a non-checkout root, next to skills aidex does not own.
+  #
+  # Where the foreign skill goes moved with the migration, and the move is the point.
+  # The installer copied aidex INTO ~/.claude/skills, so a user skill landed in the
+  # same directory and every unscoped walker judged it (BL-115). A plugin's skills/
+  # is aidex-only by construction; a user's own skills sit OUTSIDE it, in
+  # ~/.claude/skills/, which is where the fixture plants one.
+  if ! { mkdir -p "$PARITY_HOME/.claude/plugins" \
+           && cp -R "$REPO_ROOT" "$PARITY_HOME/.claude/plugins/aidex"; } >"$LOG" 2>&1; then
     printf 'parity: FAIL — could not build the install root\n'
     cat "$LOG"
     PARITY_ISSUES+=("parity:install-failed")
   else
-    FAKE="$PARITY_HOME/.claude"
-    # An install root is never aidex-only. This skill plus the manifest install.sh
-    # just wrote are the whole difference between the two roots.
+    FAKE="$PARITY_HOME/.claude/plugins/aidex"
+    # A user's HOME is never aidex-only. This skill, outside the plugin, is the whole
+    # difference between the two roots.
     #
     # It VIOLATES aidex's own rules on purpose, and a benign one would make this
     # whole pass vacuous: an unscoped guard only diverges when the foreign skill
@@ -241,18 +251,19 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
     # the size budget (session-handoff ships at ~6.4k tokens against a 5k maximum),
     # a workflow asset whose blocks are not aidex's, and an agent with no `effort`.
     # None of them is aidex's to judge, which is the entire point.
-    mkdir -p "$FAKE/skills/foreign-skill/assets/workflows" "$FAKE/skills/foreign-skill/agents"
+    FOREIGN="$PARITY_HOME/.claude/skills/foreign-skill"
+    mkdir -p "$FOREIGN/assets/workflows" "$FOREIGN/agents"
     {
       printf -- '---\nname: foreign-skill\ndescription: A user skill living beside aidex.\n---\n\n'
       i=0; while [[ $i -lt 600 ]]; do
         echo "Body line long enough that this skill blows the token axis as well as the line axis."
         i=$((i + 1))
       done
-    } > "$FAKE/skills/foreign-skill/SKILL.md"
+    } > "$FOREIGN/SKILL.md"
     printf -- '// === CORE:START ===\nconst notOurs = true\n// === CORE:END ===\n// === ARBITER:START ===\nconst alsoNotOurs = true\n// === ARBITER:END ===\n' \
-      > "$FAKE/skills/foreign-skill/assets/workflows/foreign.workflow.js"
+      > "$FOREIGN/assets/workflows/foreign.workflow.js"
     printf -- '---\nname: foreign-agent\nmodel: sonnet\n---\n\nBody.\n' \
-      > "$FAKE/skills/foreign-skill/agents/foreign-agent.md"
+      > "$FOREIGN/agents/foreign-agent.md"
 
     for t in "${PARITY[@]}"; do
       here="$(awk -v p="$t" '$2 == p {print $1; exit}' "$VERDICTS")"
@@ -265,7 +276,7 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
       there=$?
       if [[ "$there" -ne "$here" ]]; then
         DIVERGED+=("$t")
-        printf 'PARITY  %s — exit %d from the checkout, exit %d from an install root\n' "$t" "$here" "$there"
+        printf 'PARITY  %s — exit %d from the checkout, exit %d from an installed-plugin root\n' "$t" "$here" "$there"
         cat "$LOG"
       fi
     done
@@ -273,7 +284,7 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#PARITY[@]} -gt 0 ]]; then
-  printf 'parity: %d of %d shipped tests re-run in an install-shaped root, %d diverged' \
+  printf 'parity: %d of %d shipped tests re-run in an installed-plugin root, %d diverged' \
     "${#PARITY[@]}" "${#PARITY_POOL[@]}" "${#DIVERGED[@]}"
   [[ "${RUN_INSTALL_PARITY:-}" == "full" ]] \
     && printf ' (full)\n' \
@@ -296,8 +307,26 @@ fi
 # `failed` made the line report 142 outcomes over 141 tests — self-contradictory in
 # exactly the red runs a reader reads it in. They get their own line, and they still
 # decide the exit code.
-printf '\n%d tests: %d passed, %d skipped, %d failed\n' \
+printf '\nran %d tests: %d passed, %d skipped, %d failed\n' \
   "${#TESTS[@]}" "$PASS" "$SKIPPED" "${#FAILED[@]}"
+
+# THE FLOOR. A glob that stops matching does not fail anything — it shrinks the
+# tally and the run stays green, which is BL-113's shape a fourth time. The
+# discovery census (tests/test-discovery-census.sh) is the guard for a test the
+# globs MISS, but it cannot see the collapse that drops `tests/test-*.sh` itself:
+# the census is a member of that glob, so it would not run to complain. One
+# literal number closes that hole.
+#
+# Deliberately a literal, not a second `find` over the TESTS pattern: the runner's
+# header names re-stating its own globs as the drift defect the census exists to
+# prevent, and a floor computed from them would agree with any collapse. Raise it
+# when the suite grows; it is a floor, not a count.
+MIN_TESTS=140
+if [[ ${#TESTS[@]} -lt $MIN_TESTS ]]; then
+  printf 'discovery FAIL: %d tests discovered, floor is %d — a glob in this file stopped matching\n' \
+    "${#TESTS[@]}" "$MIN_TESTS"
+  DISCOVERY_SHORT=1
+fi
 if [[ $SKIPPED -gt 0 ]]; then
   printf 'the %d skip(s) are structural — a precondition this environment lacks, not a failure:\n' "$SKIPPED"
   printf '  %s\n' "${SKIP_REASONS[@]}"
@@ -310,6 +339,6 @@ if [[ ${#PARITY_ISSUES[@]} -gt 0 ]]; then
   printf 'parity findings (outside the tally above — the tally counts the checkout run): %s\n' \
     "${PARITY_ISSUES[*]}"
 fi
-if [[ ${#FAILED[@]} -gt 0 || ${#PARITY_ISSUES[@]} -gt 0 ]]; then
+if [[ ${#FAILED[@]} -gt 0 || ${#PARITY_ISSUES[@]} -gt 0 || ${DISCOVERY_SHORT:-0} -eq 1 ]]; then
   exit 1
 fi

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-tier2-e2e-contract.sh — verifies the Tier-2-includes-E2E-by-default
-# contract is present on all canon surfaces + the user-installed rule file.
+# contract is present on all canon surfaces.
 #
 # Contract: Tier 2 = full isolation including isolated E2E capability by
 # default: worktree_up must leave a runnable per-worktree test-e2e.sh with no
@@ -36,17 +36,17 @@ check_file() {
   fi
 }
 
-check_file "$REPO_ROOT/skills/aidex-conventions/references/worktree-conventions.md" \
+check_file "$REPO_ROOT/skills/conventions/references/worktree-conventions.md" \
   "worktree-conventions.md"
 
-check_file "$REPO_ROOT/skills/aidex-worktree/references/03-case-taxonomy.md" \
+check_file "$REPO_ROOT/skills/worktree/references/03-case-taxonomy.md" \
   "03-case-taxonomy.md"
 
-check_file "$REPO_ROOT/skills/aidex-worktree/assets/templates/worktree-overview.md.template" \
+check_file "$REPO_ROOT/skills/worktree/assets/templates/worktree-overview.md.template" \
   "worktree-overview.md.template"
 
-check_file "$HOME/.claude/rules/e2e-testing.md" \
-  "~/.claude/rules/e2e-testing.md"
+# (deleted 2026-09-12) the fourth surface was $HOME/.claude/rules/e2e-testing.md. A plugin
+# ships no rules/ folder, and the check read the user's machine rather than the product.
 
 if [ "$failures" -eq 0 ]; then
   echo "OK"

@@ -1,0 +1,1190 @@
+# Local-first artifacts — the full procedure
+
+Canon for route B of the local-first artifact contract. The six gates and the
+request-shape routing are carried by this skill's `description:` and by `SKILL.md`
+(the always-on `artifacts-local-first` rule retired with the plugin migration);
+everything below is loaded when an artifact is actually being built.
+
+Read this file **before writing any page markup**, not after.
+
+## The procedure at a glance
+
+The canon below carries, on purpose, the incident behind every rule — that is what keeps
+the rules from being relitigated. This block is the other reading: just the moves, each
+pointing into its section.
+
+- **Route A** — the request maps to a deterministic board → run the renderer, open. Done.
+- **Route B** — everything else:
+  1. Intake questionnaire (§0), answered before any markup — existing page for this
+     thread (grep `artifact-anchor`)? anchor? read or CONSULTATION? strongest claim first?
+  2. Load design guidance via the Skill tool (§2).
+  3. Apply the project style profile — a delta over the kit (§3).
+  4. **Copy `assets/artifact-kit/skeleton.html`** and replace its text (§4): content plus
+     class names, no doctype/head/body, **no theme blocks** (tokens carry all three),
+     every table inside `.tw`, chart series on `--s1…--s8` in fixed order.
+  5. Wrap and verify in one step (§5):
+     `wrap-report.sh --title "<t>" --out <sibling-of-anchor>.html` — fix anything it
+     reports; never hand over a failing file. It also NOTEs neighbours that drifted.
+  6. Link the page from its anchor, set `artifact-anchor`, state the absolute path in
+     the reply, `open` it (§6-7).
+- **Consultation?** §8 on top: stable ids never renumbered, a notes box on every item,
+  the general-notes item last, the composer with both bars, a visual or a declared
+  `none:` reason — and the ledger updated every iteration, before the reply.
+- **Publish** only when explicitly asked. The local file is the durable copy.
+
+---
+
+## Route A — structured board
+
+The request maps to one of the deterministic `.context/` boards: backlog board,
+plans progress, audit inventory, coverage matrix.
+
+Run the renderer — `${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/render.sh <target>` — which is
+zero-token and idempotent, then open the output locally. Do not hand-generate what a
+renderer already produces.
+
+---
+
+## Route B — ad-hoc report
+
+Anything else: an analysis, a comparison, a one-off dashboard.
+
+### 0. Answer the intake questionnaire before writing anything
+
+Thirteen questions, answered **before** the first line of markup. They are cheap —
+most take a sentence — and each one is here because skipping it produced a page that
+had to be rewritten or, worse, one that shipped wrong.
+
+Answer them in your own head or out loud; there is no form. What matters is that they
+are settled BEFORE writing, because every one of them is expensive to change after.
+
+**What the page is about**
+
+1. **Does a page for this thread already exist?** If it does, UPDATE it — same path,
+   same ids — rather than starting a new one. This is the most important question on
+   the list, and it is first for that reason: one conversation produced four files
+   before it was asked, where it should have produced one or two. See
+   *Update in place* below for what "update" means concretely. Answer it with a grep,
+   not a memory: pages record their anchor in `<meta name="artifact-anchor">`, so
+   `grep -rl 'artifact-anchor" content="<type>/<file>' .context/` finds the thread's
+   existing page.
+2. **What is the anchor?** The plan, backlog item, audit run or request this content
+   belongs to — step 1 below. The report is a sibling of its anchor, and it records
+   the marker in its own `<meta name="artifact-anchor" content="<type>/<filename>">`
+   (the skeleton ships the tag) so the link exists in both directions.
+3. **Is this a read or a CONSULTATION?** A page the reader must answer carries
+   obligations a read does not (§ 8). Deciding this after the prose is written means
+   retrofitting items and ids onto paragraphs that were not built as claims.
+
+**Who it is for**
+
+4. **Who reads it, and what must they be able to DO when they finish** — decide,
+   execute, archive, forward? The register changes completely between a note to
+   yourself, a page for a client, and a page for your own self six months from now.
+   Nothing else on this list survives getting this one wrong.
+5. **What language?** The project style profile's `language:` field decides it; an
+   explicit request for this one page overrides it. Both, before writing — not as a
+   translation pass afterwards. **A project with no profile has not answered this
+   question — it has not chosen English.** `en` is only the fallback the wrapper has
+   to emit to produce a document at all, and it is indistinguishable from a real
+   choice at every later gate: `check-artifact.sh`'s `lang` check compares the body
+   against the declaration, so an English body under `lang="en"` agrees with itself
+   whether or not anyone meant it. So when there is no profile, ask the reader — or
+   pass `--lang` for what you already know — instead of letting the default answer.
+   From the second artifact of such a project onward `wrap_report.py` says so on
+   stderr; the one-time offer covers only the first (BL-322).
+
+**What goes in it**
+
+6. **What is the strongest claim, and is it in the standfirst?** Nothing else on
+   this list orders by importance, so without it a page comes out in the order it was
+   built. If the reader sees only the first screen, do they get the essential thing?
+   On a consultation the answer is bounded: the claim goes in the header
+   (title + standfirst) and nowhere else, because there is no introduction section to
+   put it in — see § 8.4. Anything looser produces a multi-section preamble above the
+   questions, which is what the block shape exists to prevent.
+7. **What does NOT go in?** Asked as an exclusion, because a page otherwise grows to
+   the size of the available material rather than to the size of the question. If the
+   decision needs three questions, six sections is five too many.
+8. **Which parts are command output and which are my own judgement?** Settled here,
+   before writing, not sorted out in the footer afterwards — by then the two are
+   already interleaved and the separation becomes a reconstruction.
+9. **Does the subject have a SHAPE?** A flow, a layout, a state machine, two
+   alternatives to compare, a before/after. If it does, the page opens with the
+   drawing (§ *A consultation carries a VISUAL by default*). If it does not, say so in
+   one line — that declaration is checked.
+10. **Does this thread have previous decisions?** If it does, the page opens with the
+    ledger. See *The ledger* below.
+
+**How it is built**
+
+11. **How deep does each question go?** Set by the cost of undoing it — see *Depth is
+    set by the cost of undoing* below.
+12. **Where does it land, and what is its filename?** Step 6. A sibling of the anchor,
+    `.context/reports/` only as the fallback, and never a new dated file when
+    question 1 said to update an existing one.
+13. **Is it being published?** Default no. Publishing happens only when explicitly
+    asked, and the local file stays the durable copy either way.
+
+### Update in place
+
+When question 1 says a page for this thread exists, the regeneration overwrites the
+SAME path. Concretely:
+
+- **Ids are kept.** An item that was `c3` stays `c3` for the same claim, forever. New
+  claims append new ids; nothing is renumbered. This is the same rule § 8 states, and
+  `check-artifact.sh --prev` enforces it across regenerations.
+- **Decided items leave the interface.** An item the reader has answered is removed
+  from the question set and summarised in the ledger. Leaving it in is asking a
+  settled question again; deleting it without recording the answer loses the decision. `check-artifact.sh` flags an id that sits in the ledger AND in the question set;
+  it cannot see one decided and never written to the ledger, because the ledger is
+  the only declaration of decidedness the page carries.
+- **The reply states the absolute path** of what was written, so the reader can tell
+  whether the tab they are looking at is the file that was just produced.
+- **Typed answers survive the regeneration** — the composer keeps them in
+  `localStorage` and restores them behind a visible banner, minus any item whose
+  question changed and any answer already sent. Mechanics and the residual risk
+  (another browser or machine, private windows, engines that refuse storage on
+  `file://`) are in § 8; `wrap-report.sh` prints a note when replacing a page with
+  reply surfaces.
+
+### Depth is set by the cost of undoing
+
+How much explanation a question carries is not a style preference; it is a function of
+what it costs to be wrong.
+
+| Cost of undoing | What the question carries |
+|---|---|
+| Reversible in a minute | The question alone. |
+| Touches code or a shared contract | The question plus a concrete example. |
+| Rewrites something that already exists | The question, a worked example, the consequence of each option, and the files it touches. |
+
+The bound is the point. The deepest level lengthens a consultation by roughly a third,
+and spending it on a question that can be undone in a minute is how a page becomes too
+long to answer.
+
+### When the reader says the question is unreadable
+
+The table above sets depth from **reversibility**. The other half is **familiarity**, and
+the page cannot know it: an item written straight out of a backlog `Context` field assumes
+the reader knows the file tree. On one real round 12 of 26 items came back as free text
+saying some form of "I do not understand this task" — the owner's words were *"me estás
+dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
+
+So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381) under its
+answer: one line, "Antes de responder necesito…", with five checkboxes. Ticking any of
+them pastes a fixed marker as a mark under that item's id, and **which** markers is the
+whole point:
+
+| Marker | What it asks for | What the rewrite owes |
+|---|---|---|
+| **`[explain-state]`** | What exists today | The files by name, the current value printed from the tree, what is already there and what is not. This is the gap almost every time — it is the assumption the reader is objecting to. |
+| **`[explain-options]`** | What the alternatives are | Each option's consequence and its cost, including the cost of the one being recommended. Never a defence of the recommendation. |
+| **`[explain-why]`** | The reason or the risk the item claims | The evidence for the claim, stated as a claim: "no entiendo cuál es el peligro de borrar facturas" is answered with what breaks and how it was measured, not with the recommendation again. |
+| **`[explain-term: X]`** | What the thing named X is | A definition — of a BL id, a term, a command — before anything else. "No me explicas qué es el BL 499… no sé qué responderte". The reader types X next to the tick and the marker carries it. |
+| **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, an example. Not more prose: the reader has said prose is not the shape that will land. |
+
+And the answer group itself ends, after "Otra", with one more choice: **"Todavía no — lo
+dejo para otra ronda"**, which pastes **`[not-now]`**. It is answer-side, a radio, exclusive
+with answering. A deferred question is not a blank: the count stops nagging, the item is
+carried as open in the next page's ledger and is not redrawn until asked for.
+
+The markers are never translated — the labels the reader sees are, the tokens are not — and
+they are what says WHICH items to rewrite and WHICH WAY, so the next round rewrites exactly
+those, in that direction, and leaves the rest alone.
+
+The split is by KIND OF GAP, not by amount, and that was decided against the simpler
+designs after they were attacked (Q4, 2026-09-07). One marker with a written cap was
+rejected because the cap is prose, and a prose ladder is the mechanism that had just
+failed; two markers by amount (`a bit more` / `deeper`) were rejected because they fix how
+much gets written and leave what to write to the writer — which is how an item reached 700
+words about the alternatives when what was missing was a table of which files exist.
+
+**The asks COMBINE, with each other and with an answer (v18, BL-381).** Until v17 they
+were two radios inside the answer group, exclusive with the answer and with each other —
+the owner had asked for exactly that in v15. Then 348 owner messages mined from every
+project transcript showed what the reader actually types when an item cannot be answered:
+*"explícamelo mejor y vuelve a darme las opciones"* (two asks at once), *"Sí (recomendada),
+pero…"* (an answer with a question beside it), *"¿Por qué necesitamos este sellado?"*,
+*"qué es el BL 499"*, *"lo más visual posible"*, *"todavía, tengo muchos pendientes"* —
+seven shapes, of which the two radios fitted one. Exclusivity was the property that failed.
+So the asks moved out of the group into a row of their own, as checkboxes, on the ITEM:
+which also gives them back to an item whose only surface is a value box, the cost v15
+stated. The general-notes item asks nothing and carries none. The row is one line of chips
+with no hint lines, lighter than the four lines the two v16 radios cost per group; the
+attack on "one checkbox that reveals the vocabulary" is written in BL-381 — disclosure only
+pays when what it hides is heavier than a line, and it costs the one thing the mining
+shows the reader lacks: seeing that the ask exists.
+
+**Where it stops.** Not with the marker's own depth — with the ROUND:
+
+- **Any combination of asks in one round is one round. An item whose asks come back in a
+  second round is the ceiling.** Until v17 the bound was "two marks on one item, across
+  any rounds", which was written for exclusive marks and would now forbid the first shape
+  above. The axis that actually grows is rounds, so the bound sits there: an item asked
+  about twice is not under-explained, it is mis-shaped. Return a different INSTRUMENT — a
+  mockup, a diagram, a before/after, the current state printed from the tree — or split it
+  into the two questions it is really asking, or answer it yourself and move it to the
+  ledger as a decision the reader can correct. Two rounds of asks must not become two
+  rounds of licence: that is exactly the unbounded growth the ceiling exists to stop.
+- **Answer the markers that were picked, not the one you would rather answer.** An
+  `[explain-state]` answered with a richer argument for the recommendation is the failure
+  this design replaced, not an expansion of it. An `[explain-term: X]` is answered with
+  what X is, first.
+- **A `[not-now]` is not a nudge to re-ask.** The item leaves the next page and sits in
+  its ledger as open until the reader brings it back.
+
+### The ledger
+
+A page opens with a **ledger of decisions already taken** only when the thread has
+previous decisions. On the first page of a thread there is nothing to record and the
+block is noise.
+
+It is one line per decision — id, state, the decision itself — using the `.ledger`
+component. Its job is that opening a new page in an ongoing thread does not mean
+re-reading the previous ones to find out what is already settled.
+
+**What the ledger carries, and what it does not (kit v17, BL-374).** The ledger holds
+what came in from BEFORE this page — decisions from earlier pages or links of the
+thread, and the open items carried in with them. **This page's own answers do not go
+there.** Since kit v17 a decided item has its own destination: the composer collapses
+it into the `Decided` section with the option that won (BL-373, § 8 below), and
+restating it in the ledger produced two adjacent sections saying the same thing — the
+shape one reader asked to have merged the day it first appeared. Until v16 the ledger
+had that second job; the composer took it, and the rule that put an answer in both
+places is what this paragraph retires.
+
+The per-round obligation that survives the narrowing: **a carried-in line that this
+page's decisions CLOSE is updated or dropped in the same round.** The failure it names
+was a ledger reading "BL-364 sigue sin decidir — es Q3 y Q4 aquí abajo" two sections
+above a Q3 and a Q4 that were already decided: the ledger contradicting the page it
+opens. The name should say the scope too — "what this thread brought in", never
+"what is decided", which is the composer's heading.
+
+**The ledger is re-read every iteration, not at the end.** Each time the reader answers
+something, the item takes `data-decided` (the composer records the answer), any carried-in
+ledger line that answer closes is updated, and the page is re-wrapped BEFORE
+the reply that acknowledges it. Settled at the top, still-open below: that ordering is
+the whole shape, and it means the page always reads as "here is where we are", never as
+a transcript.
+
+Two reasons it is the page and not a script. The summary is worth what the reading of it
+costs — condensing an answer is the same work as acting on it, and a mechanical capture
+of the raw paste would preserve the words while losing the decision. And the reader
+verifies it: a summary he can see and correct is a record, while one nobody re-reads is
+a log. It costs tokens, and that cost is the point — the artifact gets reviewed before
+the plan is implemented or the backlog item resolved, which is a pass that had to happen
+anyway.
+
+**A thread is not concluded until this is done.** Answers that live only in the chat are
+lost: on one intake set the four items written into a file survived and the other nine
+had to be reconstructed from the decisions they implied.
+
+**And when the ledger has everything, the page stops being a consultation.** The model
+implies it — a decided item leaves the ASKING set — but §8 never stated the end state,
+and a page that reached it was stuck: with zero items the gate still fired on the copy bar
+in its body, and the `consult-surfaces` escape was skipped for the same reason, so the
+failure message pointed at a declaration the page was already carrying (BL-331).
+
+**"Leaves the question set" means it stops being ASKED, not that it leaves the page.**
+The phrase is worth pinning because the ambiguity cost a round: `data-decided` takes the
+item out of the numerator, the denominator, the blank list, the paste and the answer
+store — everything the word "set" names — while the item itself stays drawn. Read the
+other way it says a settled item must be deleted, which is the second row below and the
+exception, not the default. `check_artifact.py` read it the wrong way until BL-359 and
+FAILED the default shape as "decided but still asked", which forced a page to hand-roll
+a section the kit does not define.
+
+Two ways to land it, and they are not equivalent:
+
+| | When to use it |
+|---|---|
+| **Add `data-decided` to each settled item; the composer collapses them out of the flow** | The default. Since kit v17 the item is MOVED into one composer-built `Decided` section, folded behind a summary carrying its id, its title and the option that won; a block whose every item is decided collapses as one unit, and the rail lists the section instead of what is in it. The page still records the reasoning — one click reopens it — without making the reader navigate past it every round. |
+| **Remove the items and declare `<meta name="consult-surfaces" content="none: <reason>">`** | When the questions themselves have stopped being worth re-reading. The declaration is honoured now; removing the copy bar as well is equivalent and needs no declaration. |
+
+What is NOT allowed is declaring your way out while questions remain: a page carrying one
+real item gets the whole §8 battery, meta tag or not.
+
+**Since kit v17 a decided item is COLLAPSED, not left in place.** Until v16 it stayed
+drawn where it was written, and the reference argued that this keeps the page a record of
+the reasoning. The first page to use it was rejected after one round — *"es demasiado
+distractor iterar sobre un artefacto manteniendo las mismas respuestas previas&hellip; es
+mucho más limpio ir iterando y tener la sensación de que va quedando menos"* — because by
+round three the reader was scrolling past seven answered questions to reach the open ones,
+on a page whose whole point was that less remained each round.
+
+What the composer does, and none of it is written by an author:
+
+| | |
+|---|---|
+| The unit | A decided item, or a whole block once **every** item in it is decided. A half-answered block stays where it is — its context paragraph and its open items keep their place, because the context is what the open questions need and §8.4 makes the block self-sufficient by contract — but since kit v18 (BL-380) its decided SIBLINGS fold in place: each becomes a `<details>` at the same position, with the same summary line a section unit gets, and loses its rail entry. v17 left the whole block untouched, and a page eleven blocks into its iteration looked like round one |
+| Where it goes | One `section#sec-decided`, inserted after the ledger (or after the header when there is none), each unit inside a `<details>` whose summary carries the id, the title and the option that won |
+| The verdict line | Derived from the checked options. `data-decided="<one line>"` overrides it, for an outcome that is not any single option |
+| The rail | One entry for the section, never one per settled question — the index is the other half of "navegar sobre cosas ya respondidas". A block still open keeps its entry and lists only its OPEN items under it; a decided item folded in place has none, the block is the way in |
+
+The node is **moved**, never copied or deleted, so the static file is unchanged: the same
+markup parses the same way, `check_artifact.py` needs no rule of its own, and BL-359's fix
+keeps holding. Hand-rolling this section on a page is the gate-1 violation the feature
+exists to remove — that is precisely what BL-359 was worked around with.
+
+**`data-decided`, and why it is an attribute rather than a checked input.** Until v15 this
+row read "mark the chosen option `checked`" — and that advice manufactured a defect. The
+round mechanism only knows an answer was sent when `restore()` is what put it back
+(`s.x` + `s.r`); an option the page ships pre-checked was never restored, so nothing
+records it as spent and it **re-composes into the pasted reply every round, forever**.
+Reported from use — *"me volviste a enviar las primeras respuestas seleccionadas"* — and
+reproduced with the answer store wiped to zero, which is what proves the markup and not
+the storage was the source.
+
+So the settled state lives on the ITEM. `data-decided` takes it out of the numerator, the
+denominator, the blank list, the paste and the answer store, disables its inputs, and
+suppresses every injected control on it — a question that is answered is not being asked.
+The chosen option keeps its `checked`: with the item decided that attribute is inert, and
+it is the only thing on the page that still says which option won.
+
+### 1. Find the anchor before writing
+
+An artifact is *about* something. Search `.context/` for the plan, backlog item, audit
+run, or request the content belongs to.
+
+- Exactly one plausible anchor: use it.
+- Several: outside an unattended run, ask in one line which one. **Inside** a run, take
+  the most specific and record the choice — picking an anchor is safe and additive
+  (autonomy class 4), so it is not a reason to stop.
+- None: use the `.context/reports/` fallback in step 6.
+
+Never default to the fallback without looking: reports land in `.context/reports/`
+while their obvious backlog and audit anchors sit one directory away.
+
+### 2. Load design guidance first
+
+Via the Skill tool, **before** writing any page markup: `artifact-design` when the
+session has it; otherwise the available equivalents — `theme-factory` for the theme,
+`dataviz` if the page carries charts.
+
+Not every surface ships `artifact-design`: headless `claude -p` does not. Do not
+hand-roll an unstyled page.
+
+### 3. Apply the project style profile
+
+`<project>/.context/artifact-style.md`. Since the kit shipped, this file is a **delta
+over the kit**, not a design system of its own, and the wrapper reads exactly three
+things from it:
+
+| In the profile | What it does |
+|---|---|
+| the first `css` fence inside a `## Delta` section | injected as a style block after the kit and before the page's own, so it overrides the kit |
+| `- Favicon emoji: X` | the document's icon; `--favicon` wins over it |
+| `- language: es` | the document's `<html lang>`; `--lang` > this field > `en` |
+
+Everything else in the profile — the palette table, the type roles, the layout and tone
+notes — is **prose for whoever writes the page**. It is worth writing and it changes
+nothing by itself: a project that fills in the palette table and adds no `## Delta`
+renders in the kit's own colours. The user's explicit words still win over all of it.
+
+The delta overrides **tokens**, not rules. The kit's components read every colour and
+font stack from custom properties, so a project restyles the whole system by changing
+values — and it writes both blocks, `:root` and `:root[data-theme="dark"]`, because the
+kit ships a dark palette too and a delta that only redefines the light one leaves the
+page half-restyled.
+
+**The scoping to a section is load-bearing.** A fence read from anywhere in the file
+picks up the profile's own examples and injects them as the project's real palette;
+marking the fence only moves the collision, since an example has to show the marker.
+So: examples live outside `## Delta`, and whatever sits in the first fence inside it is
+the project's palette. A delta that closes the style element is refused whole and out
+loud — the profile is a file a clone can carry, and the kit runs in every project,
+which is also the blast radius.
+
+**If absent, never create it silently — but do offer it once.** One line, exactly once
+per project: on the FIRST artifact (no profile and no earlier report), or whenever the
+user corrects styling or asks for consistent branding.
+
+On a first artifact there is no "signal" by construction, yet that is precisely when the
+palette is invented and then lost — this single offer is the only moment it can be
+captured. Seed from `artifact/assets/templates/artifact-style.md.template`, prefilled
+with the choices just made. Never repeat the offer, never nag.
+
+**"Exactly once" is kept by a marker, not by memory.** `wrap-report.sh --out` prints the
+offer when the project has a `.context/` and no profile, and records it in
+`.context/.aidex-artifact-style-offered` so it never fires again. The profile itself is
+never auto-created — only the record of the offer is. Without the marker the rule fails
+in both directions at once: missed where it mattered, and repeated where it did not.
+
+**Two surfaces write that marker, and one of them asks first.** `aidex/scripts/init-context.sh`
+puts the same question at `/aidex:aidex init` — the moment the user is present and expecting
+setup questions, rather than mid-artifact — and records the answer in the SAME file, so a
+decline there stops the wrap-time offer and vice versa (BL-337). It creates the profile
+only on an explicit yes, which leaves the rule above untouched: what moved is the
+question, not the never-create-it-silently. Without a TTY and without
+`--artifact-style <lang>` it writes NO marker, only a note that it skipped the question —
+a headless bootstrap must not silence this offer as well.
+
+The profile also carries the artifact's **language** as a field:
+
+```
+## Language
+
+- language: es
+```
+
+`wrap-report.sh` reads it and uses it as `<html lang>`; precedence is `--lang` > this
+field > `en`. The scope is artifacts only — `.context/` stays English (D-04) and
+`communications/` keep the language they arrived in, so this is configured once per
+project instead of restated per request.
+
+### 4. Write page content, then wrap it — do not hand-roll the document
+
+**Start from `assets/artifact-kit/skeleton.html`.** Copy it and replace its text; do not
+start from a bare `<h1>`. `wrap-report.sh` injects the kit's STYLES; the skeleton is what
+supplies its STRUCTURE, so a page that only avoids writing its own
+`<!doctype>` / `<html>` / `<head>` / `<body>` still has no layout. The entire width
+system lives on two classes:
+
+```html
+<div class="page">          <!-- caps the measure, lays the two-column grid -->
+  <main class="main">…</main>
+  <aside class="rail">…</aside>
+</div>
+```
+
+A page written without them gets every token and no layout: it renders full-bleed at the
+browser's default width, and past 64rem the type reads enormous. The contract now fails
+that page and names the skeleton.
+
+**Every table goes inside `<div class="tw">`**, and that is checked too. A table is the
+one element a page cannot cap: `max-width` will not take it below its min-content width,
+and `display: block` collapses a narrow table's cells — so there is no CSS net, only the
+wrapper. Unwrapped, a wide table overflows its column and is drawn straight over the
+rail, with no scrollbar to show it while the viewport is wider than the page. Any
+wrapper the page declares with `overflow-x: auto` satisfies the check — the class set is
+read from the document's own CSS, not from a list of blessed names. A page that genuinely wants to be full-bleed overrides
+`.page { max-width: none }` in its own `<style>` and keeps the grid, the rail and the
+responsive collapse — there is no opt-out marker, because the cascade already is one.
+
+Inside that container, write what `artifact-design` teaches: styles and markup, no
+`<!doctype>` / `<html>` / `<head>` / `<body>` of your own.
+
+**A page never writes a theme block.** Light, dark-by-system and dark-by-toggle are all
+three shipped by `tokens.css`, for every token the kit has — surfaces, ink, accent, flag,
+and `--s0`…`--s8`, the chart series slots. Write `fill="var(--s3)"` and the chart is
+correct in both themes with no `@media (prefers-color-scheme)` of your own. This is not
+a style preference: it is the one thing a per-page block gets wrong, because the media
+query alone loses to an explicit toggle in one direction and the page ends up half-dark.
+The series slots exist because charted artifacts were re-declaring five colours across
+three blocks every single time.
+
+Assign the series in fixed order — `--s1` is the first series whatever the chart is,
+`--s0` is the neutral rest/other fill — and never cycle. Past `--s8`, fold into "other"
+or facet. The values are dataviz's reference instance, re-validated against the kit's own
+surfaces; in light mode four of the slots sit below 3:1 contrast, which is the documented
+relief case — a light chart using them ships visible direct labels or a table view. A
+page needing a colour the kit does not have adds it in its own `<style>`, in all three
+theme forms; a project needing a different one changes the value in its `## Delta`.
+
+The Artifact tool supplies that envelope at publish time; a local file gets the same one
+from:
+
+```
+${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
+```
+
+(stdin in, file out), shared with the dash renderers so both routes produce the same kind
+of document. Skipping the wrap yields a headless fragment that browsers render in quirks
+mode — measured at 2 of 4 field reports before this existed.
+
+**A report that already exists as markdown is wrapped, not rewritten.** `--in <file>.md`
+renders the markdown into the kit's page structure first (`dash/md_body.py`), which is
+the close-out case: a run's durable record — `worklists/_archive/<worklist>-report.md`,
+`.context/proofs/<slug>/human-verification.md` — is already written and only the page is
+missing. Pass `--lang` explicitly there: a `.context/` report's body is English by D-04
+whatever the project's artifact language is, and the profile would otherwise stamp the
+other one over it. Content on stdin is always page markup; only a named `.md` converts.
+
+**The exception is for records, not for every page under `.context/`.** A consultation
+— a kickoff page, any page addressed TO the reader asking them to decide — follows the
+profile like any other artifact, even when it lands in `.context/reports/`. D-04 governs
+what is written *about* work done; a message to the reader is written in the reader's
+language. Only `<worklist>-report.md` and `human-verification.md` take `--lang en`.
+`wrap_report.py` prints a NOTE when an explicit `--lang` contradicts a declared profile
+(BL-371) — a wrong choice is otherwise invisible, because the `lang` gate compares the
+body with the declaration and an English body under `lang="en"` agrees with itself.
+
+**Use `--out`, not a shell redirect.** With `--out` the command writes the file *and*
+verifies the artifact contract on it, exiting non-zero if it fails — so wrapping and
+verifying are one step that cannot be half-done. Redirecting to stdout still works, and
+prints a NOTE saying the contract went unverified.
+
+### 5. Read what the contract check said
+
+`--out` already ran it. It checks doctype, charset, viewport, title, dark mode, **the body's language against
+`<html lang>`** (`lang`: an English page under a Spanish profile got the composer's
+Spanish chrome on top of English prose — the profile's `language:` decides, and the body
+follows it, or `--lang` is passed on purpose), no
+external CSS/JS/fonts/images, no sibling assets, the kit's layout container and wrapped
+tables on any page carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
+it. A non-zero exit means the file on disk is not deliverable.
+
+To re-check a file you did not just wrap:
+
+```
+${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/check-artifact.sh <file>
+```
+
+**Why this is one command and not two.** The verify is the step a real run drops first,
+and a check that is skipped is indistinguishable from a check that passed.
+
+**The contract is also re-judged after the fact.** It used to be evaluated exactly once,
+at the wrap, and never again — so a page that passed at 10:31 failed by 20:15 the same day
+when two rules landed that evening, invisibly, and a page that bypassed the wrapper
+entirely was never seen at all. Two mechanisms close that:
+
+- **Every `--out` wrap re-judges the `.html` neighbours of the file it just wrote** and
+  prints a NOTE per drifted page — non-blocking (this wrap's own file passed), but audible
+  exactly where new work happens.
+- **`check-artifact.sh --census [<dir>]`** walks a whole `.context/` (default: the current
+  project's), skipping `_archive/` (closed work) and `.aidex-artifact-prev/` (superseded
+  copies), and exits non-zero on active violations.
+
+Retroactive drift is *expected* — rules evolve past pages already written — so both read
+`.context/.aidex-waivers` (validate.py's format and anchor semantics) with the rule
+spelled `artifact-<check>`:
+
+```
+artifact-layout | .context/reports/x.html | sha256:<prefix> | pre-.tw page, thread closed | 2026-08-20
+```
+
+Anchored waivers resurface when the file changes; waived findings are reported as
+`waived: N`, never dropped. Fix a drifted page by re-wrapping it; waive it when the
+thread is closed and the page is kept as a record. The census also reports **baseline
+hygiene** — orphaned `.aidex-artifact-prev/` copies whose artifact is gone, and baseline
+dirs that followed an artifact into `_archive/` — with the exact `rm` to run. It reports;
+it never deletes.
+
+### 6. Save it as a sibling of the anchor
+
+`<slug>-report.html` next to a single-file artifact, or inside the folder for folder
+artifacts (`plans/<slug>/<slug>-report.html`). Add a link line back to it from the anchor
+(or its `proof_links`) so the artifact is reachable from the work it documents — and make
+sure the page's `<meta name="artifact-anchor">` names the anchor, so the link holds in
+both directions and intake question 1 stays a grep.
+
+No anchor at all: `.context/reports/YYYY-MM-DD-<slug>.html`, with the `artifact-anchor` meta
+**deleted** — not left blank. A blank one declares a join the page cannot make and is reported
+as `artifact-anchor-empty`; an absent one is silent, because most pages legitimately have no
+anchor (§3.2 of `00-global.md`).
+
+### 7. Open it locally
+
+`open <file>`.
+
+### 7b. Width, measure and tables (kit v9, one width since v19)
+
+The page takes the screen it is given, capped at `min(78rem, 100vw - 6rem)`, and that
+is the **only** width on the page: the column next to the rail (59.5rem at the cap) is
+the measure, and everything inside `.main` — headings, prose, tables in `.tw`, option
+groups, the ledger, figures, item boxes, reply boxes — shares its right edge. Do not cap
+anything by hand and do not add a second measure for prose: v9 to v18 capped running
+text at 46rem inside that column, and every artifact showed the header, the block
+titles, the block context and the item bodies stopping at two thirds of the width next
+to tables and item boxes that filled it (BL-383: 42 of 55 text elements on a real
+consultation, 13.5rem empty). The line runs ~95 characters; a consultation is short
+context paragraphs over tables, not long-form reading, so that is the lesser cost. If a
+page ever reads long, the fix is the body size, never a cap — `test-artifact-kit.sh`
+fails on any `max-width` inside the column.
+
+Inside `.tw`, the composer marks short cells (≤24 characters: numbers, dates, paths,
+ids) `nowrap`, so a 12-column table scrolls instead of breaking `2026-08-21` in two,
+and prose cells still wrap. A table that overflows gets a right-edge fade until the
+reader scrolls to its end — the scrollbar alone sits at the bottom of a tall table,
+out of view.
+
+The per-item **Clear** control sits in the label row of the box it clears (label left,
+Clear right) and appears only once the item has an answer — never beside the textarea's
+resize handle, where it is a mis-click away from wiping an answer.
+
+### 8. When the report is a CONSULTATION, not a read
+
+Route B covers a document to be read. A consultation is the same route with one extra
+obligation: the reader has to answer it, item by item, and hand the answers back. This is
+the dominant shape in practice — a proposal, a set of claims to confirm, a design brief
+with open questions — and rebuilding the mechanics each time produced a page whose
+answers were lost on the next regeneration.
+
+Five requirements. They exist because each one was violated in the field.
+
+The numbered items below are cited as § 8.1 to § 8.5 across the rule, the checker's
+messages and the tests; § 8.4 is the block shape.
+
+1. **Every claim is a numbered item with a STABLE id.** `c1`, `c2`, `q1`… assigned once
+   and never renumbered. A regeneration that inserts a claim in the middle appends a new
+   id; it does not shift the others. Without this the reply "sobre el 3, no estoy de
+   acuerdo" points at a different claim after the next rewrite.
+
+2. **Each item carries a reply slot, and the page composes the reply for pasting back.**
+   A `<textarea>` per item plus one button that builds a markdown skeleton —
+   `### <id> · <title>` then a blank line then the typed text — and copies it. The button
+   reports **how many items are still blank**, so a half-answered page is visible before
+   it is pasted rather than after. Skipped items are omitted, not sent empty.
+
+3. **Every item has a notes box, whatever else it offers, and the page has a general
+   one.** A radio group, a checkbox set and a select are closed lists: they carry the
+   answer the author anticipated and lose the one they did not, so a reader with
+   something to add picks the nearest wrong option instead. Reported from use — *"si
+   quiero mencionar algo más, además de la selección que realicé, sea simple o
+   múltiple, tengo que tener el espacio para comentarlo"*. The per-item box is the
+   `<textarea>` of requirement 2; the page-level `consult-item consult-notes` item is
+   **additional**, always last, and is where the reply that fits no question goes.
+   Both are checked: an item without free text fails, and so does a consultation with
+   no general-notes item.
+
+4. **The unit is the BLOCK: one context with the decisions that fall out of it.**
+   A consultation is a sequence of `<section class="consult-group">` blocks, each
+   carrying the shared evidence (the finding, the numbers, the paths, a slice of the
+   visual) above the one or several `consult-item`s it yields. Never a context
+   section at the top with the questions gathered at the bottom. That shape forces
+   the reader to understand in one place and answer in another, and since a
+   question's short title rarely matches the prose that explained it, answering item
+   nine means scrolling back to find which paragraph it was and then scrolling down
+   again. Reported from use — *"me obliga a entender arriba y a responder abajo…
+   cuando pudiéramos tener preguntas y explicación juntas"*.
+
+   **The block is self-sufficient, and this is the test:** could the reader answer
+   every decision in it if the page began at the block's heading? What the decisions
+   share goes in the block's context; what only one of them needs — its example, its
+   options with what each buys and costs, its recommendation with its reason — goes
+   in the item. The shape inside an item is evidence → options with hints →
+   recommendation. Reported from use, on a page that already kept the per-item rule
+   (items of 350-700 words) under a 1,553-word preamble two questions depended on —
+   *"tengo que seguir viendo arriba… termino respondiendo sobre la poca información
+   que me agregas en la pregunta"*. That page is why the unit moved from the item to
+   the block: the item rule was being satisfied by growing the items while
+   the context above them never moved.
+
+   **The page around the blocks is fixed.** Before the first block: the header
+   (title + standfirst, where the strongest claim lives — intake question 6), a
+   figure section when the subject has a shape, and the ledger. Between blocks:
+   nothing. After the general-notes item: a reference section for what the reader
+   needs to *verify* rather than to *decide* — where the figures come from, which
+   parts are command output — and the footer. A fact several blocks need is repeated
+   in each (a row, a figure) and linked to the reference section by anchor; the
+   reference section is never the only place a fact a decision needs lives.
+
+   **In a block context OR an item body, more than three facts of one shape are a
+   table, a list or a figure — never a paragraph.** The block's
+   context states the finding in a sentence; what it rests on — N skills with their
+   state and their proposed action, a queue of steps, what is called vs not called vs
+   proposed — goes in rows, with the columns the decision needs (the thing · what it is
+   today · the evidence · the proposal). The same holds for an item's own evidence: a
+   reorganisation, a split across layers, the things one decision moves — that is
+   exactly where the shape recurred one day after the rule was written, because the
+   rule named the block and the item body escaped it. The page that produced this rule listed twelve skills, their call
+   counts and their verdicts in one ~250-word paragraph and was returned unread —
+   *"no entiendo qué es lo que se llama, qué es lo que no se llama, qué es lo que
+   tenemos, qué es lo que sobra, y qué es lo que propones… es demasiada información
+   para leer de golpe en un párrafo"* — with the note that replies in the chat do the
+   same. Every table still goes inside `.tw` (§4). `check-artifact.sh` warns
+   (`consult-facts`) on a paragraph inside a block or an item that carries four or
+   more `<code>` tokens or semicolon-joined clauses — the shape both incidents had, and
+   one an explanatory paragraph does not. It is a warning because it is a proxy for the
+   shape, not the shape: it is cleared by rewriting the paragraph as rows, never by a
+   waiver. Whether a paragraph under the threshold is still a list of facts is a rule
+   you hold.
+
+   **An item with options states which one the session recommends, and why.** The
+   recommendation is not optional and not a neutral menu — that is a separate rule the
+   reader has flagged on two artifacts in one day. It is declared with
+   `data-recommended` on that option's input, which the kit renders as a visible pill
+   *and* appends to the copied label. Never typed into `data-label`: that attribute is
+   what the composer pastes, so the marker travels in the reply and is invisible on the
+   page, which is exactly what happened for all ten items of one round. `check-artifact.sh`
+   warns (`consult-rec`) when it finds it there.
+
+   **What is machine-checked is the SHAPE, not the quality — and that split is
+   deliberate.** `check-artifact.sh` fails (`consult-shape`) an item outside any
+   block, a block with no decision, a prose section between blocks, and a prose
+   section before the first block that is neither a figure nor the ledger. Each is a
+   fact of the DOM — *where* markup sits — not a stand-in for whether a block
+   explains itself. Whether the context a block carries is the context its decisions
+   need stays the rule you hold, now bounded to one block instead of a whole page.
+   Block ids (`G1`, `G2`…) are as stable as item ids and `--prev` holds them too.
+
+5. **A regeneration overwrites the SAME path, and the reply states that absolute path.**
+   Not a new dated file. The user has the page open in a browser and cannot otherwise
+   tell whether what he is looking at is what was just written — he has asked which file
+   is which, verbatim, twice inside one minute.
+
+**Typed answers persist across reloads since kit v4.** The composer stores them in
+`localStorage` keyed by the file's path and restores them behind a visible banner, so a
+regeneration no longer costs whatever the reader had typed — the round that produced this
+rule lost a full answer set that way. The residual risk is real but narrow: a different
+browser or machine, a private window, or an engine that refuses storage on `file://`.
+Mention it only when one of those is plausibly in play, not as a ritual warning on every
+round.
+
+**Since kit v6 an answer does not restore onto a question that changed.** Each stored
+answer carries a fingerprint of its item's question body, and `restore()` skips any item
+whose fingerprint no longer matches; the skipped item reads blank and the banner reports
+how many were dropped and why. This closes the case where the reader answered, asked for
+some questions to be explained better, and found them marked answered with the old text
+still in them. Two things it deliberately is not. It is not keyed on whether the session
+considered the item decided — a decided item stops being asked (above), which is a
+separate obligation this does not discharge. And it is not per page: clearing the store on
+regeneration would blank every half-typed answer in the set, which is the loss the
+persistence exists to prevent.
+
+**Since kit v7 a SENT answer does not cross into a new round.** Persistence is for
+surviving a reload mid-answer; it was also carrying consumed notes forward, so an item
+whose question did not change handed the reader back a note the session had already read
+and acted on — round after round, until the reader deleted it by hand or re-sent it.
+Observed with an "explain this one better" request that restored into its box after the
+explanation had been written into the page.
+
+`wrap-report.sh` stamps `<meta name="consult-round">` on each regeneration, counted from
+the stored **baseline** (`.aidex-artifact-prev/`), never from the file on disk — a failing
+wrap is left in place and does not advance the baseline, so counting from disk would
+increment across a round the reader never saw. The composer then applies one rule:
+
+| | Restored |
+|---|---|
+| Same round (a reload) | everything, sent or not |
+| A later round (a regeneration) | only what was never sent |
+
+"Sent" means the copy button was pressed while that answer was in the box; editing the
+item afterwards un-sends it. A page or a stored answer with no round marker keeps the
+earlier behaviour, so upgrading the kit never blanks what a reader already typed.
+
+**Independent decisions are separate items, never one checkbox group.** The test:
+if an option can be answered without looking at the others, it is its own item — a
+two-option radio with its own `data-recommended` and its own evidence. A checkbox group
+is for the FACETS of one decision (which parts of X to include). The shape that shipped
+(BL-375): "discard BL-010, BL-013 and BL-067?" as one checkbox group, where every box had
+its own reason to keep or drop, and the reader had to say so before the round was
+re-shaped into three radios. `check-artifact.sh` warns (`consult-independent`) on a
+checkbox group whose labels each name a distinct tracked id — a proxy for the shape,
+cleared by the rewrite.
+
+**Option groups live in `.opts`, and only there.** `class="opts one"` for a radio group,
+`class="opts"` for checkboxes. `components.css` styles options under no other class, so a
+group in a hand-invented wrapper renders with no grid, no hover and its hints inline —
+and still passes the contract, which checks ids, notes boxes and buttons rather than
+wrappers. That combination shipped (`class="consult-options"`, written by hand mid-round);
+`check-artifact.sh` now warns (`consult-opts`) when a mark sits outside `.opts`.
+
+**Every item carries a per-item Clear control**, injected by the composer in the page's
+language. Radios cannot be un-selected and a textarea has to be emptied by hand, so with
+persistence a wrong click survived every reload and the only recovery was editing the
+markdown the composer had already copied. It arrives by wrapping, so it is not written
+into a block and cannot be forgotten.
+
+**Since kit v10, three more things the composer owns, none of them written by
+the author:**
+
+| | What | Why |
+|---|---|---|
+| The count | "N of M answered" counts ITEMS | it counted the `## G1 · title` block headings too and said "12 de 9" on a nine-item page |
+| A releasable radio | clicking the picked option again un-picks it (mouse) | Clear also empties the notes; a reader who changed their mind about the mark alone had to retype |
+| The "other" choice | every `.opts` group ends with an injected `Other — see my notes` option, same name and input type as the group, in the page's language | a closed list loses the answer the author did not anticipate; the reader had to leave the group unmarked and hope the notes were read as the answer |
+
+**Since kit v11, the composer owns the fixed labels too.** Every string the
+author copies out of `skeleton.html` — `Notes on this one`, `The choice`, `The value`,
+`Anything that does not fit above`, and the textarea placeholders beside them, on top of
+`Copy my answers` and `Contents` — is replaced with the page's language when the copied
+text is still the skeleton's exact English default. A label the author wrote deliberately
+is left alone, which is what makes the swap safe. Leave the English defaults in place when
+authoring a non-English page: translating them by hand is what produced the mixed-language
+page this fixes, and a hand translation is no longer recognised as a default to swap.
+Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
+
+**Since kit v18, every open item carries an ASK ROW under its answer, and every option
+group ends with a "not now" choice** (BL-381). The row is the successor of the v12 per-item
+checkbox, the v15 in-group radio and the v16 pair; what survives from each: it is injected
+(v12), the general-notes item carries none (v15), the marks name WHICH gap (v16). What v18
+retires is exclusivity — see *When the reader says the question is unreadable* above for
+the evidence. The rule is one line: the composer appends the row after the item's last
+`.opts` group (or before its first field label when it has none), five checkboxes with a
+tagged vocabulary, and appends `Todavía no` as the last choice of every option group:
+
+| | |
+|---|---|
+| The asks are **checkboxes on the item** | Ticking one releases nothing: the reader can answer AND ask, or ask twice. The `[explain-term]` chip shows a small box for the term when ticked, and the paste folds it into the marker. |
+| "Not now" is a **radio in the group** | Answer-side, exclusive with the answers and with "Otra". It counts as a response, pastes `[not-now]`, and the item is carried as open, not redrawn. |
+| An item with **no option group** still gets the row | The v15 cost is gone; such an item has no "not now" though, because that choice lives in a group. |
+
+Ticking pastes the fixed markers — `[explain-state]`, `[explain-options]`, `[explain-why]`,
+`[explain-term: X]`, `[show-me]`, and `[not-now]` — under that item's id, and asking counts
+as a response rather than a blank. Do not write any of them by hand. What the next round
+owes in return, and where it stops, is *Depth is set by the cost of undoing* → *When the
+reader says the question is unreadable* above.
+
+**The general-notes item is not one of the questions.** It leaves the numerator, the
+denominator and the blank list: a reader who answered every question reads `2 de 2
+respondidas`, never `2 de 3 · en blanco: notes`. Its text still travels in the paste when
+it is filled, and a page whose only filled box is the notes is still sendable — the copy
+button keys on whether there is anything to send, not on the question counter.
+
+Do not write an "other" option by hand — the composer skips a group that already has one
+(`data-other` on an input), so a hand-written one only duplicates the label. The injected
+control is stripped from the question fingerprint like the badge, the Clear button and the
+ask row: leaving any of them in would mark every answer stored before that
+release as "the question changed" and drop it on the upgrade.
+
+Copy the shape from
+`${CLAUDE_PLUGIN_ROOT}/skills/artifact/assets/templates/consultation-block.html.template` rather than
+re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
+the page's own tokens.
+
+### A consultation carries a VISUAL by default
+
+The reader asks for one over and over — *"usa graficos o lo que necesites para poder
+mostrarme mejor el problema, porque sigo sin entenderlo"*. Being granted every time is
+exactly why it never registered as a defect: obeying it once changed no default, so the
+ask came back.
+
+So the default inverts. When the thing under discussion has a **shape** — a flow, a
+layout, a state machine, two alternatives to compare, a before/after — the page opens
+with the drawing and the prose explains it. Load `artifact-diagramming` for the
+mechanics; inline SVG satisfies the contract (no external host). Mermaid does not
+and is not a value: nothing in the kit or the wrapper renders it, and a local page
+cannot fetch a renderer, so a `<pre class="mermaid">` block shows the reader its own
+`graph TD` source on a page that passed the check (BL-328).
+
+**The default is bounded, and the bound is the point.** Plenty of consultations are
+claims about which nothing can be drawn — a naming decision, a yes/no on a policy.
+A decorative diagram added to satisfy a checker is worse than prose, because it costs
+the reader attention and returns nothing.
+
+That bound is why the check is on a **declaration**, not on the presence of a picture.
+No checker can judge whether a topic has a shape, and a rule that cannot be checked is
+the exact failure § 8 was written after. So the page states which it is:
+
+```html
+<meta name="consult-visual" content="svg">              <!-- or: img -->
+<meta name="consult-visual" content="none: a naming decision, nothing to draw">
+```
+
+A consultation page with no visual and no stated reason fails. A page that declares
+`none:` with a reason passes — and the reason is one grep away from review, which
+silence never is.
+
+The template's placeholder (`none: replace this with the reason, or with svg/img`)
+does **not** satisfy it, and neither do `tbd` / `todo` / `fixme`. That is the one thing
+this check cannot afford to accept: the instruction to write a reason standing in for a
+reason, on every page copied from the template, which is what the grep returned before.
+A page derived from the template fails this check until someone decides — copying is not
+deciding.
+
+### What is checked, and how
+
+**No contract rule ships without a named field incident.** Every check below cites the
+failure that created it, and that is the admission bar, not a writing style: a rule
+whose incident cannot be named is speculative, and each new rule costs five surfaces
+kept in lockstep (checker, kit, skeleton, template, tests) plus a round of retroactive
+drift on every page already on disk. The contract grows when the field breaks something,
+not when a rule sounds prudent.
+
+All three requirements are enforced by `check-artifact.sh`, which `--out` already runs.
+A page counts as a consultation when it offers the reader a **reply surface** — a
+`<textarea>`, a `contenteditable` element, reply boxes appended by script, or the
+composer's own `id="consult-copy"`. Not when it has the template's class names, because a
+page that never copied the template is exactly the one with no class names to key on.
+That is the observed violation: a hand-rolled consultation page with 14 reply boxes, zero
+stable ids and no doctype, which no check ever saw because the whole procedure was
+bypassed.
+
+The definition is deliberately broader than one element. It used to be the literal string
+`<textarea`, which is the one thing a hand-rolled page is free not to use: a page of
+`contenteditable` divs skipped every requirement below and printed `artifact contract OK`.
+Every alternative is structural — a tag, an attribute, a DOM call, an id — so a report
+that merely *mentions* textareas in its prose is still a read, not a consultation.
+
+**A read with interactive controls declares them.** The broad gate has one false
+positive: a dashboard whose `<select>` or text input only *filters* what is shown is not
+asking the reader anything, yet it collected the whole battery with no way to comply. The
+exit is a declaration with a reason — the same shape `consult-visual` has, one grep away
+from review:
+
+```html
+<meta name="consult-surfaces" content="none: the select filters rows, nothing to answer">
+```
+
+The exemption is **bounded**, in both directions that matter. It covers only closed
+controls (select, radio, checkbox, short text): a `<textarea>` or `contenteditable`
+element can never be declared away, because free text is what a consultation *is* and
+the page that bypassed the wrapper was exactly hand-rolled textareas. And a page carrying real consultation
+structure — a `data-id` item, the composer button, the item class — keeps the full
+battery whatever the meta says. A placeholder reason (`none: replace this…`, `tbd`)
+exempts nothing, same rule as the visual declaration.
+
+| Check | Fails when |
+|---|---|
+| `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
+| `consult-ids` | an id kept between two versions now names a different claim |
+
+**Four findings are WARNINGS, not violations.** They print as `WARN [check]`, never change
+the exit code, and are not waivable — a waiver keys on (`artifact-<check>`, path), and
+sharing that namespace would let one waiver silence a real failure on the same file. They
+run at authoring time only (a direct check of named files), never in `--census`: a warning
+on a page nobody is editing is noise no one can clear.
+
+| Warning | Fires when |
+|---|---|
+| `consult-opts` | an item's radio/checkbox sits outside any `.opts` wrapper — the kit styles options nowhere else, so they render unstyled and the contract passes anyway |
+| `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
+| `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
+| `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
+| `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
+| `svg-scope` | a bare element selector inside an embedded `<style>` — it is a stylesheet in the page, so it paints every matching node in the document (BL-330). Cleared by scoping it to the figure's id, never by a waiver |
+
+**`svg-contrast` left this table in v15.** It is the one check with two severities: it
+**fails** a named file — the wrap, where the author can still fix it — and only **warns**
+in `--census`, where the same finding lands on a page nobody is editing. The owner's
+reason for inverting it: a warning that fired on 26 of 26 figures of one page is a warning
+the reader learns to discount, which is exactly how the defect BL-330 found survived three
+green gates. One thing stays a warning even at the wrap — *nothing could be measured*.
+That is not a softening: the kit's own skeleton paints every label with `currentColor`,
+which is the pattern this canon prescribes, so failing on it would fail every page built
+the recommended way. It still has to be said out loud, because a gate that silently
+measured nothing is green and indistinguishable from one that passed.
+
+The first two shipped on the same page in one round, and both passed everything above.
+
+### The reader can switch the page's theme
+
+`tokens.css` declares the palette three times — bare `:root`, the system-dark media query
+guarded by `:not([data-theme="light"])`, and `:root[data-theme="dark"|"light"]` for an
+explicit choice. Until 2026-09-07 **nothing ever set that attribute**: measured on a real
+page, `data-theme` was `null` and the skeleton never mentioned it, so a third of the
+palette — maintained and kept in sync on every token change — had never once applied.
+
+The composer now injects a control on every wrapped page, so an author adds nothing. Four
+things about it are load-bearing:
+
+- **No stored choice means no attribute.** The default path is unchanged: with nothing
+  pinned the page follows `prefers-color-scheme`, which is what the `:not([data-theme=
+  "light"])` guard exists for. Only a click pins it.
+- **The choice is per artifact and per browser**, keyed on the file's own path like the
+  answer store, and every touch is wrapped — a browser that refuses storage still renders
+  the page correctly.
+- **The label names the destination, not the state.** It reads `Dark` when clicking it
+  makes the page dark.
+- **It leaves the viewport below the kit's breakpoint.** There the rail is a bottom bar
+  carrying the copy button, and a fixed pill sits on top of both; it joins the flow at the
+  end of the document instead.
+
+Why it is worth building rather than deleting the dead branch: pinned to the OS setting,
+neither the author nor the reader ever sees the other rendering, so a figure whose colours
+come out wrong in the mode nobody looks at stays invisible until someone else opens it.
+That is the same defect the section below is about, seen from the other end.
+
+### An embedded `<style>` is a stylesheet in the PAGE, not in the figure
+
+This is the one SVG fact that costs a whole page rather than a figure. An `<svg>`'s
+`<style>` element is **not scoped to that SVG**. It is a stylesheet in the document, so a
+bare `text { fill: #1F2937 }` written inside one figure matches every `<text>` on the
+page, and the last such block in source order wins.
+
+Reported on 2026-09-07 on a bench page carrying 26 figures: ten of them shipped that
+exact rule, and one piece of *evidence* was painting the page's own lead figure. Its
+computed fill was a slate blue that appears nowhere in the kit, at 1.15:1 against the dark
+ground. **Every gate was green** — `check-artifact.sh` looked at overlap, clipping and
+edges; the DevTools script looked at geometry; the author eyeballed the bars and not the
+small text. Twenty-six of twenty-six figures were below 4.5:1 and nothing said so.
+
+**The rule.** Every selector inside an embedded `<style>` is scoped to the figure's own
+id: `#fig-census text { … }`, never `text { … }`. `svg-scope` warns on a bare element
+selector, and the warning is cleared by scoping it, not by a waiver.
+
+**And the colour itself.** `svg-contrast` measures every `<text>` whose fill it can read
+against what it is painted on, in **both themes**, against 4.5:1 — and since v15 a finding
+**fails** the page at the wrap. There is no authoring-time waiver: a figure that wants to
+show a colour nobody can read shows it as a SWATCH with a legible label, not as text set
+in it. Three more things about the check are deliberate:
+
+| | |
+|---|---|
+| It refuses to guess | `currentColor`, a gradient, a `var()` — the half of the pair it cannot read is counted as *unmeasurable* and reported as a count, never assumed to pass |
+| It carries its own denominator | every finding says how many text nodes it measured. A gate that silently measured nothing is green and indistinguishable from one that passed, which is how this defect survived three of them |
+| It judges against the box, when there is one | text over a `<rect>` the figure draws itself — or an HTML wrapper the page paints, `figure.cell.litebox .figbox` on the bench page — is measured against that, and is theme-independent |
+
+**No literal fill clears both themes.** Against the light ground a colour must be dark;
+against the dark ground it must be light, and the two bands do not overlap. So a
+hard-coded fill on the bare page ground always fails one theme — that is a finding, not a
+limitation of the check. Two answers, both used on the bench page's own fix: inherit with
+`fill: currentColor` (or a kit token), or draw the box the text sits on and let it carry
+the ground.
+
+**Calibrated against the browser, not asserted.** On the 26-figure bench page the
+checker reports 6 figures / 65 text nodes below the floor; DevTools, measuring the same
+page in dark, reports 9 figures / 61 nodes of 837. It is close because it reads the
+wrapper: before it did, the same page read 12 figures / 107. The 168 nodes it calls
+unmeasurable are the ones that resolve `currentColor` correctly — the answer, not a gap.
+
+The browser is still what settles it. The checker reads source; opacity, a filter, a
+gradient stop and anything painted by a rule outside the figure are all invisible to it.
+Measure in DevTools before calling a figure fine — the ratio, not the screenshot: the
+1.15 above looked merely dim in a capture.
+
+### Figures: the checker estimates, the browser measures
+
+On 2026-09-03 a consultation passed `artifact contract OK` with two hand-authored
+figures the reader could not read: axis labels under event labels, two dates colliding,
+an arrow crossing three labels, two labels wider than their boxes. The contract reads DOM
+shape and never geometry, and `artifact-diagramming` says "align to a grid" with no way
+to verify it. Two layers now exist, and they are not interchangeable:
+
+- **`svg-text` at wrap time** is a static estimate on `viewBox` coordinates: font-size
+  times a per-character width table calibrated against `getBBox()` in system-ui. The size
+  comes from the attribute chain or from a `<style>` class rule on the label; a label
+  with neither is skipped, not guessed (the 16 px default produced collisions on 13 of 60
+  field pages that the browser did not show). It sees text-vs-text, text-vs-viewBox and
+  text-vs-enclosing-rect. It cannot see a path crossing a label or a label under a
+  `rotate()`, and it is ±5 % on width, so it warns and never fails. On the 2026-09-03
+  census every warning it kept was confirmed in the browser; the browser found more.
+- **`svg-scope` and `svg-contrast` at wrap time** read what the geometry checks never
+  looked at: colour. Both warn, and both are explained below.
+- **The DevTools script at authoring time** measures the rendering and is the check that
+  settles a figure. Run it through the Chrome DevTools MCP on the opened page, once per
+  figure, before the wrap; a page whose figures were never measured is the one that ships
+  unreadable.
+
+```js
+// Every <text> box, pairwise intersections, clipping against its <svg>, every path
+// sampled against the text boxes, and every path sampled against the NODE boxes it
+// does not connect. A label sitting on its own edge over a mask rect is legible and
+// is not reported (BL-315); the same label over a different edge is. Returns the
+// defects only; an empty array is the pass.
+() => {
+  const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const within = (q, r, pad = 0) => q.x > r.left + pad && q.x < r.right - pad && q.y > r.top + pad && q.y < r.bottom - pad;
+  const out = [];
+  document.querySelectorAll('svg').forEach((svg, n) => {
+    if (svg.closest('defs') || svg.getBoundingClientRect().width < 200) return;
+    const frame = svg.getBoundingClientRect(), m = svg.getScreenCTM();
+    const label = (t) => `'${t.textContent.trim()}'`;
+    const texts = [...svg.querySelectorAll('text')].filter(t => t.textContent.trim()).map(t => ({ t, r: t.getBoundingClientRect() }));
+    const paths = [...svg.querySelectorAll('path, line, polyline')]
+      .filter(p => typeof p.getTotalLength === 'function' && !p.closest('defs, marker, pattern, clipPath') && p.getTotalLength() >= 20);
+    const pts = (p, step) => { const out = [], len = p.getTotalLength(); for (let d = 0; d <= len; d += step) out.push(p.getPointAtLength(d).matrixTransform(m)); return out; };
+    const order = new Map(); { let i = 0; const w = document.createTreeWalker(svg, 1); while (w.nextNode()) order.set(w.currentNode, i++); }
+    // 1. clipped labels
+    texts.forEach(({ t, r }) => {
+      if (r.left < frame.left - 1 || r.right > frame.right + 1 || r.top < frame.top - 1 || r.bottom > frame.bottom + 1)
+        out.push(`svg #${n + 1}: ${label(t)} is clipped by its svg`);
+    });
+    // 2. label vs label. Two LINES of one label are not an overlap (BL-329): a
+    //    wrapped node label emits two <text> under the node's own <g>, their boxes
+    //    touch by a pixel, and nothing is unreadable. That artifact alone made
+    //    Graphviz DOT read as "8 defects" against hand-SVG's 0 in a seven-route
+    //    comparison where the true reading was 0 and 0. A false positive at that
+    //    rate teaches the reader to discount the number, which is how a checker
+    //    stops being evidence. Stacked lines only: two texts fully on top of each
+    //    other inside one <g> are still reported, which is the half that matters.
+    const sameLabel = (a, b) => {
+      if (a.t.parentNode !== b.t.parentNode) return false;
+      const ov = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      return ov < Math.min(a.r.height, b.r.height) / 2;
+    };
+    for (let i = 0; i < texts.length; i++)
+      for (let j = i + 1; j < texts.length; j++)
+        if (hit(texts[i].r, texts[j].r) && !sameLabel(texts[i], texts[j]))
+          out.push(`svg #${n + 1}: ${label(texts[i].t)} overlaps ${label(texts[j].t)}`);
+    // 3. path vs label — a mask rect painted between the path and the label hides the
+    //    line, and that is fine when the path is the label's own edge (the nearest one)
+    const rects = [...svg.querySelectorAll('rect')].map(r => ({ b: r.getBoundingClientRect(), o: order.get(r) }));
+    const own = new Map(texts.map(t => {
+      const cx = (t.r.left + t.r.right) / 2, cy = (t.r.top + t.r.bottom) / 2; let best = null, bd = Infinity;
+      paths.forEach(p => pts(p, 6).forEach(q => { const d = Math.hypot(q.x - cx, q.y - cy); if (d < bd) { bd = d; best = p; } }));
+      return [t, best];
+    }));
+    paths.forEach(p => {
+      const masked = (t) => rects.some(({ b, o }) => o > order.get(p) && b.left <= t.r.left + 1 && b.right >= t.r.right - 1 && b.top <= t.r.top + 1 && b.bottom >= t.r.bottom - 1 && b.width < t.r.width + 40 && b.height < t.r.height + 24);
+      for (const q of pts(p, 4)) {
+        const t = texts.find(({ r }) => within(q, r));
+        if (!t) continue;
+        if (masked(t) && own.get(t) === p) break;
+        out.push(masked(t) ? `svg #${n + 1}: label ${label(t.t)} masks another route` : `svg #${n + 1}: a path crosses ${label(t.t)}`);
+        break;
+      }
+    });
+    // 4. path through a node box it does not connect (a node box holds a text and is
+    //    clearly larger than it; a label mask is not a node)
+    const boxes = [...svg.querySelectorAll('rect, ellipse, polygon')].map(b => ({ b, r: b.getBoundingClientRect() }))
+      .filter(({ r }) => r.width >= 40 && r.height >= 18 && r.width < frame.width * 0.9)
+      .filter(({ r }) => texts.some(t => t.r.left >= r.left - 1 && t.r.right <= r.right + 1 && t.r.top >= r.top - 1 && t.r.bottom <= r.bottom + 1 && (r.height > t.r.height * 1.8 || r.width > t.r.width + 40)));
+    paths.forEach(p => {
+      const s = pts(p, 4), a = s[0], z = s[s.length - 1];
+      for (const { b, r } of boxes) {
+        if (b.contains(p) || p.contains(b) || within(a, r, -6) || within(z, r, -6)) continue;
+        if (s.filter(q => within(q, r, 3)).length >= 3) { out.push(`svg #${n + 1}: a path runs through a box it does not connect`); break; }
+      }
+    });
+  });
+  return out;
+}
+```
+
+An empty array is the pass. Anything else is moved before the wrap, not waived: a
+label the reader cannot read is the figure not existing.
+
+Two of its checks come from measuring other compilers' output on 2026-09-06
+(`.context/proofs/archify-probe/` in the aidex workspace), and each names the case that
+made it necessary:
+
+- **A label on its own edge over a mask is not a crossing.** Archify and Mermaid both
+  place edge labels on the edge with a background rect; the first version of this script
+  reported every one of them as "a path crosses", 2 false positives on a figure with 0
+  real ones (BL-315). The exemption is narrow on purpose: the mask must sit between the
+  path and the label in paint order, and the path must be the label's nearest edge. The
+  same label over a *different* route is still reported, because a mask there hides a
+  line the reader needed to follow (Mermaid did exactly that on the lifecycle spec).
+- **An edge through a node it does not connect.** Archify's `clean-flow/edge-through-node`
+  rule, re-implemented on rendered geometry: a path with three or more samples inside a
+  node box that holds neither of its ends. A node box is a rect that contains a text and
+  is clearly larger than it, so label masks and lane frames do not count. Without this,
+  Archify's own lifecycle output passed the script with a transition drawn straight
+  through a state box.
+
+The same function runs headless in
+`.context/proofs/archify-probe/bench/measure.mjs` (Playwright) for benches and CI-shaped
+checks; the DevTools MCP remains the authoring-time instrument.
+
+`consult-ids` needs both versions, so `--out` compares against the last version that
+**passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A file
+that fails is left on disk to be fixed in place, so it must not become the baseline: it
+did once, and the gate inverted — restoring the correct claim was reported as the
+violation, and re-running the same violating content passed. The baseline only advances on
+a passing run. When there is no stored baseline yet, `--out` falls back to snapshotting the
+file it is about to replace. `validate.py` does not walk that directory — its contents
+are superseded copies of pages already judged at their canonical paths, and a waiver
+could never settle them because the anchor hashes a file the next passing run replaces.
+To compare by hand:
+
+```
+check-artifact.sh <new.html> --prev <old.html>
+```
+
+It fails on a **shift** — an id whose title moved — which is what actually happened
+(a claim moved from D4 to D5 between two versions of one consultation, so a reply about
+"D5" meant two different things, and the violation was then papered over with a note to
+the reader). It does **not** fail on an id that disappears: ids are never renumbered, but
+they are allowed to be closed out.
+
+---
+
+## Publishing
+
+Publish online **only** when explicitly asked to share. Keep the local sibling as the
+durable copy and reuse the same URL on updates.
+
+This deliberately overrides the `Artifact` tool's own default ("publishing proactively is
+fine — artifacts start private"). When the two disagree, this rule wins, and nothing is
+lost by waiting, because publishing can run later against the same file and URL.
+
+Reasoning: `01-dash-conventions.md` § Publish is never automatic.
+
+---
+
+## Language
+
+English (D-04), unless the project style profile says otherwise.

@@ -32,7 +32,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-VALIDATE="$SCRIPT_DIR/../skills/aidex-conventions/scripts/validate.py"
+VALIDATE="$SCRIPT_DIR/../skills/conventions/scripts/validate.py"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }

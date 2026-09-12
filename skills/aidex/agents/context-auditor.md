@@ -12,7 +12,7 @@ You are a structural auditor for `.context/` project content only.
 
 ## Scope (delegation note)
 
-The Python validator at `~/.claude/skills/aidex-conventions/scripts/validate.py`
+The Python validator at `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.py`
 (run by the `conventions-auditor` subagent) is the **single source of truth**
 for type-agnostic and type-specific structural checks: filename format,
 front-matter, status vocabulary, cross-reference resolution, `_archive/`
@@ -38,8 +38,8 @@ If a check below overlaps a `CV-*` rule emitted by `conventions-auditor`,
 ## Setup
 
 Read conventions at runtime:
-- `~/.claude/skills/aidex-conventions/references/reference-conventions.md` (refs + docs)
-- `~/.claude/skills/aidex-conventions/references/plan-conventions.md` (plans)
+- `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/reference-conventions.md` (refs + docs)
+- `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/plan-conventions.md` (plans)
 
 ## Checks
 
@@ -90,7 +90,7 @@ Read conventions at runtime:
 
 ### Audits (scan `.context/audits/`)
 
-- **[UA] Canonical files**: Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex-audit migrate`). **Standalone one-shot runs are canon** (ADR 2026-07-02): a dated `YYYY-MM-DD-<slug>/` run folder DIRECTLY under `.context/audits/` is a sanctioned one-shot analysis — no boards required, never a layout violation.
+- **[UA] Canonical files**: Each `.context/audits/<methodology>/` folder has `00-methodology.md`, `00-inventory.md`, `00-changelog.md`. `validate-audit.sh` tolerates the legacy uppercase names (`METHODOLOGY.md`, `INVENTORY.md`, `CHANGELOG.md`) — treat the `00-*.md` names as primary. Legacy layout (those files at the root of `.context/audits/`) → flag for migration (`/aidex:audit migrate`). **Standalone one-shot runs are canon** (ADR 2026-07-02): a dated `YYYY-MM-DD-<slug>/` run folder DIRECTLY under `.context/audits/` is a sanctioned one-shot analysis — no boards required, never a layout violation.
 - **[UB] Run folder naming**: Run subfolders inside each methodology follow `YYYY-MM-DD-<slug>/` pattern (no other folders except `_archive/`). Legacy `YYYYMMDD-<slug>/` run folders → flag for migration. Dated run folders directly under `audits/` (standalone one-shots) follow the same `YYYY-MM-DD-<slug>/` pattern and are canon.
 - **[UC] Run folder content**: Each `YYYY-MM-DD-<slug>/` has `index.md` AND `findings.md`.
 - **[UD] INVENTORY integrity**: No duplicate IDs in INVENTORY. Every row has non-empty Status. Rows with status `escalated`, `in-progress`, or `closed` require non-empty `Escalated To` column.
@@ -99,20 +99,20 @@ Read conventions at runtime:
 - **[UG] Playbook for declared type**: If any run's `index.md` declares `Type: <type>` (a known type), `methodology/<type>.md` must exist.
 - **[UH] Changelog freshness**: `00-changelog.md` present and non-empty (has at least the initial entry); the legacy uppercase `CHANGELOG.md` name is tolerated (INFO, flag for migration), consistent with [UA]. Warn if last entry > 6 months old AND INVENTORY has grown >20% since.
 
-Fast implementation hint: shell out to `~/.claude/skills/aidex-audit/scripts/validate-audit.sh --json <audits-dir>` when available — it produces the same violations in JSON. Parse and map to check codes above. Fall back to manual checks only if the script is missing.
+Fast implementation hint: shell out to `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/validate-audit.sh --json <audits-dir>` when available — it produces the same violations in JSON. Parse and map to check codes above. Fall back to manual checks only if the script is missing.
 
 ### Cross-cutting checks (apply to ALL directories)
 
 - **[AG] Anti-patterns**:
   - `README.md` inside `references/` or `docs/` → WARNING. Convention: each module has `00-index.md`, CLAUDE.md is the top-level entry point. The README is a maintenance burden that desynchronizes.
-  - Empty directories — apply this decision matrix (per `~/.claude/skills/aidex-conventions/references/claudemd-conventions.md` § Project Context Directory):
+  - Empty directories — apply this decision matrix (per `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/claudemd-conventions.md` § Project Context Directory):
     - Empty + canonical (`audits, decisions, plans, requests, issues, references, research, backlog, roadmap, docs, loops, communications, worktrees`) → **no finding** (empty canonical is healthy).
     - Empty + acceptable non-canonical (`data, diagrams, drafts, experiments, worklists, workflows`) → INFO if undocumented in CLAUDE.md, no finding if documented or gitignored.
     - Empty + unrecognized → WARNING, suggest removal.
   - Pluralized directory names (`backlogs/` instead of `backlog/`) → WARNING.
   - `00-overview.md` outside `research/` → WARNING (only `00-index.md` allowed). Inside `research/<topic>/` → INFO (accepted alias).
 
-- **[AJ] Scratch bucket** (the one check that looks at the project root, not `.context/`): ephemeral output has exactly one home, `_tmp/` at the project/workspace root (per `~/.claude/skills/aidex-conventions/references/claudemd-conventions.md` § Scratch Output).
+- **[AJ] Scratch bucket** (the one check that looks at the project root, not `.context/`): ephemeral output has exactly one home, `_tmp/` at the project/workspace root (per `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/claudemd-conventions.md` § Scratch Output).
   - A root directory named `.scratch`, `scratch`, `tmp`, `temp`, or `.tmp` → WARNING, suggest renaming to `_tmp/` (state the contract; do not move files yourself).
   - A scratch-shaped directory **inside** `.context/` (same name list) → WARNING: `.context/` holds artifacts worth keeping; scratch belongs in root `_tmp/`.
   - `_tmp/` exists but has no `README.md` → INFO, offer the template from the canon.
@@ -153,7 +153,7 @@ If `.context/` exists but is missing standard directories, suggest them:
 - No `issues/` → "Consider adding .context/issues/ with 00-index.md for tracking bugs and problems"
 - No `backlog/` → "Consider adding .context/backlog/ for pending work items"
 - No `plans/` and project has active development → "Consider .context/plans/ for multi-session tracking"
-- No `audits/` but `plans/` contains folders with `findings.md` / `issues.md` / `methodology.md` → "Consider running `/aidex-audit migrate` to separate audits from plans"
+- No `audits/` but `plans/` contains folders with `findings.md` / `issues.md` / `methodology.md` → "Consider running `/aidex:audit migrate` to separate audits from plans"
 
 **Key principle:** Suggest the aidex convention, explain why, but let the user decide. Don't just report what's wrong — propose what's better.
 

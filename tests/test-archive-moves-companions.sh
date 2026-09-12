@@ -70,10 +70,10 @@ printf 'an older page that already owns this name\n' \
   > "$CTX/requests/_archive/2026-01-03-a-request-report.html"
 
 cd "$PROJ" || exit 1
-bash "$SKILLS/aidex-plan/scripts/close-plan.sh" 2026-01-01-modular-plan --status done \
+bash "$SKILLS/plan/scripts/close-plan.sh" 2026-01-01-modular-plan --status done \
   >/dev/null 2>&1
-bash "$SKILLS/aidex-backlog/scripts/close-item.sh" BL-001 --status done >/dev/null 2>&1
-REQ_OUT="$(bash "$SKILLS/aidex-conventions/scripts/close-dated-artifact.sh" \
+bash "$SKILLS/backlog/scripts/close-item.sh" BL-001 --status done >/dev/null 2>&1
+REQ_OUT="$(bash "$SKILLS/conventions/scripts/close-dated-artifact.sh" \
   requests 2026-01-03-a-request --status done 2>&1)"
 
 # ---------- (1) a companion BESIDE a modular plan follows it into the archive ----------
@@ -112,7 +112,7 @@ grep -q "an older page" "$CTX/requests/_archive/2026-01-03-a-request-report.html
 # content="plan/x<TAB>../outside.txt" made companions_of return `../outside-the-context.txt`,
 # a path outside `.context/` entirely. A newline injects a whole fake record the same way.
 # Not only a security bug — a stray control character silently corrupts the stream.
-LIB="$SKILLS/aidex-conventions/scripts/_lib.sh"
+LIB="$SKILLS/conventions/scripts/_lib.sh"
 INJ="$TMP/inject"; mkdir -p "$INJ/.context/plans"
 printf 'a file that lives outside .context/
 ' > "$INJ/outside-the-context.txt"

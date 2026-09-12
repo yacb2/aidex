@@ -125,16 +125,16 @@
 | Skill | Source | Tokens |
 |-------|--------|--------|
 | aidex | User | ~260 |
-| aidex-bugfix | User | ~210 |
-| aidex-comm | User | ~290 |
-| aidex-coverage | User | ~270 |
-| aidex-decision | User | ~240 |
-| aidex-plan | User | ~300 |
-| aidex-plan-exec | User | ~190 |
-| aidex-reference | User | ~240 |
-| aidex-research | User | ~220 |
-| aidex-review | User | ~300 |
-| aidex-worktree | User | ~270 |
+| bugfix | User | ~210 |
+| comm | User | ~290 |
+| coverage | User | ~270 |
+| decision | User | ~240 |
+| plan | User | ~300 |
+| plan-exec | User | ~190 |
+| reference | User | ~240 |
+| research | User | ~220 |
+| review | User | ~300 |
+| worktree | User | ~270 |
 | dependency-updater | User | ~210 |
 | git-commit | User | ~80 |
 | session-handoff | User | ~420 |
