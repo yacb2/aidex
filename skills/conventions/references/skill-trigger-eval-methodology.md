@@ -203,6 +203,14 @@ event rather than a marker — but the moment you add any file predicate to a
 `claude -p` run, it applies again. Drive markers to a non-sensitive path via the
 skill probe's env var. Full statement: §6 `claude -p` instrument facts.
 
+**Retired in aidex itself (2026-09-12).** The `> **Trigger-eval probe
+(test-only).**` block was deleted from all 18 aidex `SKILL.md` — models refuse it
+as a prompt injection, and the native `tool_used: Skill` grader
+(`tests/native-eval/`) measures the same property. The file-marker predicate in
+`skills/*/evals/eval-config.json` can therefore no longer fire here; the
+`trigger_eval.json` query sets and the stream-json detector above are unaffected.
+The constraint above still holds for any OTHER skill tree that uses a probe.
+
 **§8 applies unchanged.** Being 17x cheaper is not a licence to fan out: the
 contamination modes in §8 are properties of concurrent `claude` sessions over a
 shared skills tree and a shared `/tmp`, and nothing about the instrument changes

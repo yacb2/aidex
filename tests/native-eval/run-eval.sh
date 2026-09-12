@@ -6,7 +6,7 @@
 #   ./tests/native-eval/run-eval.sh --case 'decision*'
 #   ./tests/native-eval/run-eval.sh --only artifact   # every case of one skill
 #
-# --only <skill> is sugar for --case '<skill>--*'. build-wrapper.sh names each
+# --only <skill> is sugar for --case '<skill>--*'. collect-cases.sh names each
 # collected case `<skill>--<case>` from its FOLDER, so the DOUBLE dash is what
 # keeps --only plan from also selecting plan-exec cases. Use --case for anything
 # narrower.
@@ -15,12 +15,11 @@
 #   --no-publish   the HTML report must stay local (artifacts-local-first, gate 3)
 #   --trust-plugin no TTY for the first-run trust prompt. This IS a trust bypass,
 #                  so the runner is written so it cannot be aimed anywhere else:
-#                  the target is always `.` inside $REPO/_tmp/evalkit, which
-#                  build-wrapper.sh deletes and rebuilds on every invocation from
-#                  this repo's own skills/ and skills/*/evals/native/. The trust
-#                  boundary is therefore "code committed to this repo" — review a
-#                  case's setup.sh in the diff like any other executable, because
-#                  --scaffold runs it as you.
+#                  the target is always `$REPO`, this repo's own root, which IS
+#                  the plugin (`.claude-plugin/plugin.json`, name `aidex`) — no
+#                  copy is built. The trust boundary is therefore "code committed
+#                  to this repo" — review a case's setup.sh in the diff like any
+#                  other executable, because --scaffold runs it as you.
 #   --scaffold     cases need their fixture tree; without it they run bare
 #   --allow-tools  Write Edit ONLY. Granting Bash aborts every run on a machine
 #                  whose ~/.docker holds symlinks (Docker Desktop) — the eval
@@ -48,10 +47,13 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-"$REPO/tests/native-eval/build-wrapper.sh"
+"$REPO/tests/native-eval/collect-cases.sh"
 
+mkdir -p "$REPO/_tmp"
 OUT="$REPO/_tmp/native-eval-$(date +%Y-%m-%dT%H-%M-%S).json"
-cd "$REPO/_tmp/evalkit"
+# The plugin under test is the repo root as it ships — skills/, hooks/hooks.json
+# and .claude-plugin/plugin.json all load exactly as an installed user gets them.
+cd "$REPO"
 # `claude plugin eval` exits 1 whenever any case scores below --threshold
 # (default 1.0). That is an expected outcome here, not a runner failure: the
 # verdict is the delta assertion below. Capture the status instead of letting
