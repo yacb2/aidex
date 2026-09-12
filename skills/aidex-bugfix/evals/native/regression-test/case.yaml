@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: aidex-bugfix-regression-test
+context:
+  scaffold_script: "./setup.sh"
