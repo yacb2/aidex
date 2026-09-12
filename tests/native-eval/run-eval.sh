@@ -7,7 +7,14 @@
 #
 # Pinned by policy, not by taste:
 #   --no-publish   the HTML report must stay local (artifacts-local-first, gate 3)
-#   --trust-plugin no TTY for the first-run trust prompt
+#   --trust-plugin no TTY for the first-run trust prompt. This IS a trust bypass,
+#                  so the runner is written so it cannot be aimed anywhere else:
+#                  the target is always `.` inside $REPO/_tmp/evalkit, which
+#                  build-wrapper.sh deletes and rebuilds on every invocation from
+#                  this repo's own skills/ and skills/*/evals/native/. The trust
+#                  boundary is therefore "code committed to this repo" — review a
+#                  case's setup.sh in the diff like any other executable, because
+#                  --scaffold runs it as you.
 #   --scaffold     cases need their fixture tree; without it they run bare
 #   --allow-tools  Write Edit ONLY. Granting Bash aborts every run on a machine
 #                  whose ~/.docker holds symlinks (Docker Desktop) — the eval
@@ -55,7 +62,7 @@ claude plugin eval . \
   --max-cost-usd "$MAX_COST" \
   --no-publish \
   --trust-plugin \
-  "${KEEP_TEMP[@]}" \
+  ${KEEP_TEMP[@]+"${KEEP_TEMP[@]}"} \
   --json "$OUT"
 eval_status=$?
 set -e
