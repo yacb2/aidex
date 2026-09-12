@@ -501,7 +501,7 @@ contradictory `STATUS-*` files, unexpected mtimes on the staging source,
 ## 9. Two instruments, one boundary: firing vs. output (2026-08-06)
 
 **The harness this repo's 16 eval configs run on is not aidex's.** It is
-`${CLAUDE_PLUGIN_ROOT}/skills/skill-trigger-eval/scripts/eval-pty.sh` — outside this repo,
+`~/.claude/skills/skill-trigger-eval/scripts/eval-pty.sh` — outside this repo,
 untracked by its git, uncovered by its suite. That dependency was implicit until
 now; this section is the deliberate record of it, and of where the boundary sits.
 

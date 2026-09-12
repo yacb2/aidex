@@ -485,21 +485,18 @@ Skill descriptions deserve empirical testing. Inspection-only review is unreliab
 
 > **Companion:** [skill-trigger-eval-methodology.md](skill-trigger-eval-methodology.md) is the empirical record + experiment discipline — which recall levers are exhausted, the instrument's cross-session instability, and the anti-motivated-design rules (pre-commit, win-condition lock, faithfulness gate, interleaved-paired A/B). Read it before running an eval campaign or designing any description A/B. This section is the *quick* protocol; that doc is the *why* and the *traps*.
 
-### Recommended: PTY-based recall/precision eval
+### Recommended: the native `claude plugin eval` harness
 
-Use the `skill-trigger-eval` harness (`${CLAUDE_PLUGIN_ROOT}/skills/skill-trigger-eval/scripts/eval-pty.sh`) to score a skill against a curated query inventory:
+For aidex's own skills the harness is `tests/native-eval/` — one case per skill under
+`skills/<name>/evals/native/<case>/`, run with `bash tests/native-eval/run-eval.sh --only <name>`
+(with/without ablation, the `tool_used: Skill` grader scores whether the skill fired). The
+trigger-eval probe block that the PTY harness needed was retired on 2026-09-12 (models
+refuse it as a prompt injection); see the companion methodology doc.
 
-1. Curate 10 `should_trigger=true` queries (realistic phrasings users would actually type, both imperative and narrative).
-2. Curate 10 `should_trigger=false` queries (queries that should route to other skills, to measure precision).
-3. Place them in `skills/<name>/evals/trigger_eval.json` with an accompanying `eval-config.json`.
-4. Run from an isolated CWD (use `mktemp -d` — the harness inherits CWD and contaminates the host project):
-   ```bash
-   cd "$(mktemp -d)"
-   bash ${CLAUDE_PLUGIN_ROOT}/skills/skill-trigger-eval/scripts/eval-pty.sh \
-     --config /path/to/skills/<name>/evals/eval-config.json \
-     --timeout 60
-   ```
-5. Compute recall = TP / (TP + FN), precision = TN / (TN + FP). Target ≥ 60% recall and ≥ 90% precision.
+The external PTY harness (`~/.claude/skills/skill-trigger-eval/scripts/eval-pty.sh`) still
+scores a curated `trigger_eval.json` query set (10 `should_trigger=true`, 10 `false`) for a
+skill tree that carries a probe; run it from `mktemp -d` because it inherits CWD. Recall =
+TP / (TP + FN), precision = TN / (TN + FP); target >= 60% recall and >= 90% precision.
 
 ### Quick sanity check (no harness)
 
@@ -526,7 +523,7 @@ These were observed across the aidex 2026-05-15/16 trigger-eval (4 iterations, 3
 |----------------|-----|
 | Create a skill | Ask Claude: "create a new skill for X" (loads these conventions automatically) |
 | Validate structure | `/aidex:aidex` or ask: "check this skill's structure" |
-| Measure description recall/precision | Use the `skill-trigger-eval` harness with a curated `trigger_eval.json` (no API key needed) |
+| Measure description recall/precision | `bash tests/native-eval/run-eval.sh --only <name>` (aidex); the external PTY harness for other trees |
 | Improve a description after a low-recall eval | Rewrite trigger-first ("Use when…", triggers not capability); re-run the harness once. If still low after a trigger-first rewrite, the gap is structural (mega-skill, ambiguous inventory, matcher limit) — do not keep micro-tuning wording |
 | Update from external sources | Ask: "sync this skill/reference from official docs" |
 | Diagnose what a skill needs | `/aidex:aidex` or ask: "what does this skill need?" |

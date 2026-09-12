@@ -37,8 +37,10 @@ else
   fail "c. claude plugin validate exits 0 (claude CLI not found)"
 fi
 
-# d. no ~/.claude/skills or $HOME/.claude/skills references remain
-D_MATCHES=$(grep -rnE '~/\.claude/skills/|\$HOME/\.claude/skills' "$ROOT/skills" "$ROOT/hooks" 2>/dev/null)
+# d. no ~/.claude/skills or $HOME/.claude/skills reference to one of the PLUGIN's own
+#    skills remains (a reference to a user's external skill there is legitimate)
+D_NAMES=$(ls "$ROOT/skills" | paste -sd'|' -)
+D_MATCHES=$(grep -rnE "(~|\\\$HOME)/\.claude/skills/(aidex-[a-z-]+|$D_NAMES)(/|[^a-z-]|$)" "$ROOT/skills" "$ROOT/hooks" 2>/dev/null)
 D_COUNT=$(printf '%s' "$D_MATCHES" | grep -c . || true)
 if [ -z "$D_MATCHES" ]; then
   pass "d. no hardcoded ~/.claude/skills references (saw 0)"
@@ -46,13 +48,13 @@ else
   fail "d. no hardcoded ~/.claude/skills references (saw $D_COUNT)"
 fi
 
-# e. at least 150 lines use ${CLAUDE_PLUGIN_ROOT}/skills/
+# e. at least 140 lines use ${CLAUDE_PLUGIN_ROOT}/skills/
 E_MATCHES=$(grep -rnF '${CLAUDE_PLUGIN_ROOT}/skills/' "$ROOT/skills" 2>/dev/null)
 E_COUNT=$(printf '%s' "$E_MATCHES" | grep -c . || true)
-if [ -n "$E_MATCHES" ] && [ "$E_COUNT" -ge 150 ]; then
-  pass "e. CLAUDE_PLUGIN_ROOT skills refs >= 150 (saw $E_COUNT)"
+if [ -n "$E_MATCHES" ] && [ "$E_COUNT" -ge 140 ]; then
+  pass "e. CLAUDE_PLUGIN_ROOT skills refs >= 140 (saw $E_COUNT)"
 else
-  fail "e. CLAUDE_PLUGIN_ROOT skills refs >= 150 (saw $E_COUNT)"
+  fail "e. CLAUDE_PLUGIN_ROOT skills refs >= 140 (saw $E_COUNT)"
 fi
 
 # f. no invocation-shaped bare slash command remains
