@@ -31,8 +31,8 @@
 # Docker closed. `RUN_DOCKER_TESTS=1 tests/run-all.sh` includes them.
 #
 # ONE ROOT IS NOT ENOUGH. Every test above runs from the checkout, where skills/
-# holds aidex and nothing else. Installed, the same file runs from ~/.claude/skills,
-# which also holds the user's own skills and carries a manifest. Three tests were
+# holds aidex and nothing else. Installed, the same file runs from the plugin root
+# ~/.claude/plugins/aidex/, next to the user's own skills in ~/.claude/skills/. Three tests were
 # green here and red there at the same moment — test_skill_budget.sh FAILing on a
 # user skill, test_workflow_core_drift.sh latently the same, and a coverage gate
 # resolving .context/ against ~/.claude. That is BL-115's shape, and a runner with
@@ -307,8 +307,26 @@ fi
 # `failed` made the line report 142 outcomes over 141 tests — self-contradictory in
 # exactly the red runs a reader reads it in. They get their own line, and they still
 # decide the exit code.
-printf '\n%d tests: %d passed, %d skipped, %d failed\n' \
+printf '\nran %d tests: %d passed, %d skipped, %d failed\n' \
   "${#TESTS[@]}" "$PASS" "$SKIPPED" "${#FAILED[@]}"
+
+# THE FLOOR. A glob that stops matching does not fail anything — it shrinks the
+# tally and the run stays green, which is BL-113's shape a fourth time. The
+# discovery census (tests/test-discovery-census.sh) is the guard for a test the
+# globs MISS, but it cannot see the collapse that drops `tests/test-*.sh` itself:
+# the census is a member of that glob, so it would not run to complain. One
+# literal number closes that hole.
+#
+# Deliberately a literal, not a second `find` over the TESTS pattern: the runner's
+# header names re-stating its own globs as the drift defect the census exists to
+# prevent, and a floor computed from them would agree with any collapse. Raise it
+# when the suite grows; it is a floor, not a count.
+MIN_TESTS=140
+if [[ ${#TESTS[@]} -lt $MIN_TESTS ]]; then
+  printf 'discovery FAIL: %d tests discovered, floor is %d — a glob in this file stopped matching\n' \
+    "${#TESTS[@]}" "$MIN_TESTS"
+  DISCOVERY_SHORT=1
+fi
 if [[ $SKIPPED -gt 0 ]]; then
   printf 'the %d skip(s) are structural — a precondition this environment lacks, not a failure:\n' "$SKIPPED"
   printf '  %s\n' "${SKIP_REASONS[@]}"
@@ -321,6 +339,6 @@ if [[ ${#PARITY_ISSUES[@]} -gt 0 ]]; then
   printf 'parity findings (outside the tally above — the tally counts the checkout run): %s\n' \
     "${PARITY_ISSUES[*]}"
 fi
-if [[ ${#FAILED[@]} -gt 0 || ${#PARITY_ISSUES[@]} -gt 0 ]]; then
+if [[ ${#FAILED[@]} -gt 0 || ${#PARITY_ISSUES[@]} -gt 0 || ${DISCOVERY_SHORT:-0} -eq 1 ]]; then
   exit 1
 fi

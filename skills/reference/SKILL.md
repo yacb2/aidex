@@ -6,8 +6,6 @@ allowed-tools: Bash Read Write Edit Glob Grep Agent
 model-policy: per-stage
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-reference"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
-
 # Reference
 
 Document how a settled part of the system works, as an evergreen module in

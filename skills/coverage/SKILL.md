@@ -4,8 +4,6 @@ description: 'Use when writing, placing, or running tests in any project — whi
 allowed-tools: Bash Read Grep Glob Write Edit
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-coverage"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
-
 # Coverage
 
 > **Scope.** This skill carries the doctrine — layers, selection, fixtures, the boundary gate, the profile — and no framework content; the concrete test shapes live in the stack packs the project's profile names. Precision against `audit` is the `Not for` clause.

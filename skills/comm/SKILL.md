@@ -6,8 +6,6 @@ disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
 
-> **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-comm"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
-
 # Communications
 
 Log real correspondence — emails, WhatsApp, calls, meetings — and draft outgoing
