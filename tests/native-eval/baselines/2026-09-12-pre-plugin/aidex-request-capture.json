@@ -1,0 +1,300 @@
+{
+ "source": "native-eval-2026-09-12T11-31-31.json",
+ "model": "claude-sonnet-5",
+ "judge": "haiku",
+ "runs": 3,
+ "note": "the later T11-55-08 run (0.50) used a character-class file_exists glob that fails on existing files; reverted. The llm criteria were reworded after this run (no front-matter recital); a re-verdict under the current graders is owed (BL-397).",
+ "case": {
+  "name": "aidex-request-capture",
+  "dir": "plugin-evals/aidex-request--capture",
+  "source": "mixed",
+  "promptMarkdown": "El cliente nos escribi\u00f3 pidiendo que los informes mensuales se puedan exportar a\nExcel adem\u00e1s del PDF actual, porque su equipo de finanzas los reconcilia a mano.\nLo mencion\u00f3 en la reuni\u00f3n de ayer y dijo que lo necesitan antes del cierre de\ntrimestre. Capt\u00faralo.",
+  "runsPerCase": 3,
+  "timeoutSeconds": 600,
+  "maxTurns": 25,
+  "graders": [
+   {
+    "name": "request-conventions",
+    "type": "llm",
+    "weight": 1,
+    "graderMarkdown": "El mensaje final debe indicar que se cre\u00f3 el request en `.context/requests/` con\nnombre `YYYY-MM-DD-<slug>.md` (fecha ISO real, slug kebab-case) y front-matter\ncon un status del vocabulario base (`open`/`doing`/`done`/`dropped`). Falla si el\narchivo va a otra carpeta, si el nombre no lleva fecha ISO, o si el status est\u00e1\nfuera de ese vocabulario.",
+    "config": {
+     "criteria": "El mensaje final debe indicar que se cre\u00f3 el request en `.context/requests/` con\nnombre `YYYY-MM-DD-<slug>.md` (fecha ISO real, slug kebab-case) y front-matter\ncon un status del vocabulario base (`open`/`doing`/`done`/`dropped`). Falla si el\narchivo va a otra carpeta, si el nombre no lleva fecha ISO, o si el status est\u00e1\nfuera de ese vocabulario.",
+     "focus": "last_message"
+    }
+   },
+   {
+    "name": "request-file-created",
+    "type": "file_exists",
+    "weight": 1,
+    "config": {
+     "path": ".context/requests/*.md",
+     "exists": true
+    }
+   },
+   {
+    "name": "skill-fired",
+    "type": "tool_used",
+    "weight": 1,
+    "config": {
+     "tool": "Skill",
+     "input_match": "aidex-request",
+     "min": 1
+    }
+   }
+  ],
+  "arms": {
+   "with": [
+    {
+     "score": 0.5,
+     "passed": false,
+     "turns": 10,
+     "costUsd": 0.19677039999999998,
+     "judgeCostUsd": 0.001242,
+     "durationSeconds": 32,
+     "startedAt": "2026-09-12T09:31:32.359Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-g70FDM/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "request-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "No hay herramienta de shell disponible en esta sesi\u00f3n para correr el self-check de `validate.py`, as\u00ed que no pude ejecutarlo autom\u00e1ticamente.\n\nCaptur\u00e9 el pedido en `.context/requests/2026-09-12-excel-export-monthly-reports.md`:\n\n- **Qu\u00e9**: exportar informes mensuales a Excel, adem\u00e1s del PDF actual.\n- **Por qu\u00e9**: el equipo de finanzas del cliente los reconcilia a mano.\n- **Origen**: reuni\u00f3n del 2026-09-11 (ayer), prioridad alta.\n- **Deadline**: antes del cierre de trimestre.\n- **Estado**: `open`, sin escalar a\u00fan.\n\nSi quieren avanzar con la implementaci\u00f3n, puedo escalarlo a un plan (`aidex-plan`) cuando est\u00e9n listos."
+      },
+      {
+       "name": "request-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/requests/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 11,
+     "costUsd": 0.22517500000000004,
+     "judgeCostUsd": 0.001176,
+     "durationSeconds": 43,
+     "startedAt": "2026-09-12T09:32:04.460Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-92hwND/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "request-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "Ya qued\u00f3 capturada la solicitud del cliente como un request en `.context/requests/2026-09-12-excel-export-monthly-reports.md`:\n\n- **T\u00edtulo:** Add Excel export for monthly reports\n- **Origen:** meeting (2026-09-11)\n- **Prioridad:** high\n- **Deadline:** antes del cierre del Q3 2026 (~2026-09-30)\n- **Criterios de aceptaci\u00f3n:** exportar a .xlsx adem\u00e1s del PDF, mismos datos que el PDF, entregado antes del cierre de trimestre\n\nQueda en estado `open`. Si esto termina requiriendo trabajo de varias fases, se puede escalar despu\u00e9s a un plan con `escalated_to: plan/<slug>`."
+      },
+      {
+       "name": "request-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/requests/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 10,
+     "costUsd": 0.1972406,
+     "judgeCostUsd": 0.001137,
+     "durationSeconds": 36,
+     "startedAt": "2026-09-12T09:32:47.033Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-sRXNyA/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "request-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "No tengo acceso a una herramienta de shell en este entorno para correr `validate.py`, as\u00ed que verifiqu\u00e9 manualmente el archivo contra el canon (nombre de archivo, front-matter m\u00ednimo, campos tipo-espec\u00edficos y plantilla del cuerpo) y cumple.\n\nCapturado en `.context/requests/2026-09-11-monthly-reports-excel-export.md`: exportaci\u00f3n a Excel de los informes mensuales, solicitada por el cliente en la reuni\u00f3n del 11/09/2026, prioridad alta, con deadline antes del cierre de trimestre. Queda en estado `open`, listo para escalar a un plan cuando se empiece a trabajar."
+      },
+      {
+       "name": "request-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/requests/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    }
+   ],
+   "without": [
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 4,
+     "costUsd": 0.0638776,
+     "judgeCostUsd": 0.0012780000000000005,
+     "durationSeconds": 19,
+     "startedAt": "2026-09-12T09:33:22.818Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-u3V2fi/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "request-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "No tengo permiso para acceder al directorio de memoria en este entorno (el acceso est\u00e1 bloqueado por la configuraci\u00f3n de permisos), as\u00ed que no puedo guardar esto de forma persistente ahora mismo.\n\nPara que quede capturado igual, aqu\u00ed est\u00e1 resumido \u2014 puedes pegarlo donde lleven el registro de peticiones de clientes:\n\n**Petici\u00f3n del cliente:** exportar los informes mensuales a Excel, adem\u00e1s del PDF actual.\n**Por qu\u00e9:** el equipo de finanzas del cliente los reconcilia a mano y necesita el formato Excel para ese proceso.\n**Cu\u00e1ndo:** antes del cierre de trimestre.\n**Origen:** mencionado en la reuni\u00f3n de ayer (2026-09-11).\n\nSi me das permiso de acceso a la carpeta de memoria (o me dices que lo intente de nuevo m\u00e1s adelante), lo guardo ah\u00ed tambi\u00e9n."
+      },
+      {
+       "name": "request-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/requests/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 4,
+     "costUsd": 0.0712672,
+     "judgeCostUsd": 0.0013380000000000006,
+     "durationSeconds": 24,
+     "startedAt": "2026-09-12T09:33:41.867Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-31j6EH/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "request-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "No tengo permiso para escribir en el directorio de memoria en este entorno (el acceso est\u00e1 denegado por la configuraci\u00f3n de permisos), as\u00ed que no pude guardar la nota autom\u00e1ticamente.\n\nPara que quede registrado, aqu\u00ed est\u00e1 el resumen que normalmente guardar\u00eda como memoria de proyecto:\n\n- **Solicitud del cliente:** exportar los informes mensuales a Excel, adem\u00e1s del PDF actual.\n- **Por qu\u00e9:** su equipo de finanzas reconcilia los informes a mano y necesita el formato Excel.\n- **Plazo:** antes del cierre de trimestre.\n- **Origen:** mencionado en la reuni\u00f3n del 2026-09-11.\n\n\u00bfQuieres que revise los permisos del directorio de memoria (puede que necesites ajustarlos con `/config` o en `settings.json`), o prefieres que guarde este contexto en otro lugar del proyecto (por ejemplo, un archivo de notas o un ticket)?"
+      },
+      {
+       "name": "request-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/requests/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 3,
+     "costUsd": 0.0582962,
+     "judgeCostUsd": 0.0014370000000000008,
+     "durationSeconds": 15,
+     "startedAt": "2026-09-12T09:34:05.993Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-SCEdgW/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "request-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "No tengo permisos para acceder al directorio de memoria en este entorno, as\u00ed que no puedo guardarlo de forma persistente ahora mismo.\n\nPara que quede registrado quiero confirmar el dato clave: dijiste \"antes del cierre de trimestre\" \u2014 asumiendo que se refiere al Q3 2026, eso ser\u00eda antes del **30 de septiembre de 2026**. \u00bfEs correcto ese plazo?\n\nResumen de lo que capturar\u00eda en cuanto tenga acceso:\n- **Pedido:** el cliente solicit\u00f3 exportaci\u00f3n a Excel para los informes mensuales (adem\u00e1s del PDF actual).\n- **Por qu\u00e9:** el equipo de finanzas del cliente reconcilia los informes a mano.\n- **Plazo:** antes del cierre de Q3 2026 (30/09/2026, a confirmar).\n- **Origen:** mencionado en reuni\u00f3n del 2026-09-11 (ayer).\n\nSi me confirmas la fecha (o si tienes forma de habilitar el acceso al directorio de memoria), lo guardo de inmediato."
+      },
+      {
+       "name": "request-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/requests/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    }
+   ]
+  },
+  "aggregates": {
+   "score": 0.8333333333333334,
+   "passRate": 0.6666666666666666,
+   "scoreWithout": 0,
+   "passRateWithout": 0,
+   "delta": 0.8333333333333334
+  }
+ }
+}

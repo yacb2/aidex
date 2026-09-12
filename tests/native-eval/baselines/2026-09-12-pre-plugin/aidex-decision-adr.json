@@ -1,0 +1,299 @@
+{
+ "source": "native-eval-2026-09-12T09-43-15.json",
+ "model": "claude-sonnet-5",
+ "judge": "haiku",
+ "runs": 3,
+ "case": {
+  "name": "aidex-decision-adr",
+  "dir": "plugin-evals/aidex-decision--adr",
+  "source": "mixed",
+  "promptMarkdown": "Decidimos migrar la cola de tareas de Celery a Dramatiq: menos infraestructura\n(sin broker Redis dedicado), mejor ergonom\u00eda de reintentos y una base de c\u00f3digo\nm\u00e1s peque\u00f1a. Evaluamos tambi\u00e9n quedarnos en Celery y usar RQ. Documenta la\ndecisi\u00f3n.",
+  "runsPerCase": 3,
+  "timeoutSeconds": 600,
+  "maxTurns": 25,
+  "graders": [
+   {
+    "name": "adr-conventions",
+    "type": "llm",
+    "weight": 1,
+    "graderMarkdown": "El mensaje final debe indicar que se cre\u00f3 un ADR en `.context/decisions/` con\nnombre `YYYY-MM-DD-<slug>.md` (fecha ISO real, slug kebab-case) y front-matter\ncon status `accepted`. Falla si el archivo va a otra carpeta, si el nombre no\nlleva fecha ISO, o si el status no es del enum ADR (accepted/superseded/dropped).",
+    "config": {
+     "criteria": "El mensaje final debe indicar que se cre\u00f3 un ADR en `.context/decisions/` con\nnombre `YYYY-MM-DD-<slug>.md` (fecha ISO real, slug kebab-case) y front-matter\ncon status `accepted`. Falla si el archivo va a otra carpeta, si el nombre no\nlleva fecha ISO, o si el status no es del enum ADR (accepted/superseded/dropped).",
+     "focus": "last_message"
+    }
+   },
+   {
+    "name": "adr-file-created",
+    "type": "file_exists",
+    "weight": 1,
+    "config": {
+     "path": ".context/decisions/*.md",
+     "exists": true
+    }
+   },
+   {
+    "name": "skill-fired",
+    "type": "tool_used",
+    "weight": 1,
+    "config": {
+     "tool": "Skill",
+     "input_match": "aidex-decision",
+     "min": 1
+    }
+   }
+  ],
+  "arms": {
+   "with": [
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 7,
+     "costUsd": 0.3072993,
+     "judgeCostUsd": 0.001125000000000001,
+     "durationSeconds": 73,
+     "startedAt": "2026-09-12T07:51:55.069Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-YBzLZa/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "adr-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "No shell access is available in this environment, so I can't run the validator script. I manually checked the file against the canon (front-matter fields, ADR status enum, Context/Options Considered/Decision/Consequences structure, English language, filename format) and it conforms.\n\nI've created the ADR at `.context/decisions/2026-09-12-migrate-task-queue-celery-to-dramatiq.md` documenting the migration from Celery to Dramatiq, with RQ+Celery recorded as the rejected alternative. I wasn't able to run the automated `validate.py` self-check since this environment has no shell tool, but the file follows the documented conventions (front-matter, ADR status enum, Context/Options/Decision/Consequences structure)."
+      },
+      {
+       "name": "adr-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/decisions/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 8,
+     "costUsd": 0.4763994,
+     "judgeCostUsd": 0.001740000000000002,
+     "durationSeconds": 127,
+     "startedAt": "2026-09-12T07:53:08.186Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-Y49rdp/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "adr-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "Documento el ADR en `.context/decisions/2026-09-12-migrate-task-queue-celery-to-dramatiq.md`:\n\n- **Decisi\u00f3n:** migrar de Celery a Dramatiq.\n- **Opciones consideradas:** quedarse en Celery, RQ, y Dramatiq (elegida).\n- **Raz\u00f3n decisiva:** Dramatiq es la \u00fanica opci\u00f3n que elimina el broker Redis dedicado, mejora la ergonom\u00eda de reintentos/backoff/dead-letter, y reduce el c\u00f3digo de la capa de colas \u2014 RQ segu\u00eda dependiendo de Redis y Celery no resolv\u00eda ninguno de los tres problemas.\n- **Consecuencias:** se documentan tanto las ventajas (menos infraestructura, reintentos m\u00e1s simples, menos c\u00f3digo) como el costo (reescritura de tasks/workers/config, ecosistema m\u00e1s peque\u00f1o, curva de aprendizaje).\n\nNota: no pude ejecutar el validador autom\u00e1tico `validate.py` porque este entorno no tiene herramienta de shell disponible (ni yo ni los subagentes la tienen). Revis\u00e9 el archivo manualmente contra las convenciones (`00-global.md` y `request-decision-conventions.md`) y cumple: front-matter m\u00ednimo, enum de status correcto (`accepted`), nombre de archivo con fecha+slug, y plantilla de cuerpo (Context/Options Considered/Decision/Consequences). Si quieres, puedes correr t\u00fa mismo `python3 .../validate.py --type decisions` desde el directorio del proyecto para confirmarlo."
+      },
+      {
+       "name": "adr-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/decisions/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    },
+    {
+     "score": 1,
+     "passed": true,
+     "turns": 10,
+     "costUsd": 0.21841880000000002,
+     "judgeCostUsd": 0.001121999999999998,
+     "durationSeconds": 43,
+     "startedAt": "2026-09-12T07:55:15.198Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-VKdfCI/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "adr-conventions",
+       "passed": true,
+       "weight": 1,
+       "explanation": "judge votes: PASS PASS PASS",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        true,
+        true,
+        true
+       ],
+       "evidence": "I don't have shell execution access in this environment, so I couldn't run the suite's automated `validate.py` self-check \u2014 but I manually verified the file against the conventions (filename format, front-matter minimum fields, ADR status enum, Context/Options/Decision/Consequences template, English language) and it's compliant.\n\nDecision recorded at `.context/decisions/2026-09-12-celery-to-dramatiq-migration.md`:\n- **Decision:** migrate from Celery to Dramatiq.\n- **Alternatives weighed:** staying on Celery, and moving to RQ \u2014 both rejected because they either keep the friction (Celery) or keep the Redis broker dependency without fixing retry ergonomics (RQ).\n- **Status:** `accepted`."
+      },
+      {
+       "name": "adr-file-created",
+       "passed": true,
+       "weight": 1,
+       "explanation": ".context/decisions/*.md exists as expected",
+       "withOnly": false,
+       "scored": true
+      },
+      {
+       "name": "skill-fired",
+       "passed": true,
+       "weight": 1,
+       "explanation": "Skill called 1x (expected 1..\u221e)",
+       "withOnly": true,
+       "scored": false
+      }
+     ]
+    }
+   ],
+   "without": [
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 8,
+     "costUsd": 0.084461,
+     "judgeCostUsd": 0.0010019999999999977,
+     "durationSeconds": 30,
+     "startedAt": "2026-09-12T07:55:58.226Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-Axmv6H/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "adr-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "He creado el ADR en `docs/adr/0001-cola-de-tareas-dramatiq.md`, con formato est\u00e1ndar (Estado, Contexto, Decisi\u00f3n, Alternativas evaluadas, Razones, Consecuencias), documentando la migraci\u00f3n a Dramatiq y por qu\u00e9 se descartaron Celery (tal cual) y Celery+RQ.\n\nComo es el primer ADR del repo, dej\u00e9 la carpeta `docs/adr/` numerada por si quieren seguir agregando decisiones ah\u00ed en el futuro."
+      },
+      {
+       "name": "adr-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/decisions/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 6,
+     "costUsd": 0.07732420000000001,
+     "judgeCostUsd": 0.0008519999999999986,
+     "durationSeconds": 22,
+     "startedAt": "2026-09-12T07:56:27.904Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-2jIIOd/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "adr-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "Document\u00e9 la decisi\u00f3n como un ADR en `docs/adr/0001-cola-de-tareas-dramatiq.md`, cubriendo contexto, las alternativas evaluadas (mantener Celery, migrar a RQ, migrar a Dramatiq), la decisi\u00f3n final, la justificaci\u00f3n y las consecuencias de la migraci\u00f3n."
+      },
+      {
+       "name": "adr-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/decisions/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    },
+    {
+     "score": 0,
+     "passed": false,
+     "turns": 8,
+     "costUsd": 0.07560579999999999,
+     "judgeCostUsd": 0.0009029999999999976,
+     "durationSeconds": 20,
+     "startedAt": "2026-09-12T07:56:49.919Z",
+     "error": null,
+     "tracePath": "/private/tmp/e-XovHgc/out/trace.jsonl",
+     "skippedPaidGraders": false,
+     "graders": [
+      {
+       "name": "adr-conventions",
+       "passed": false,
+       "weight": 1,
+       "explanation": "judge votes: FAIL FAIL FAIL",
+       "withOnly": false,
+       "scored": true,
+       "judgeVotes": [
+        false,
+        false,
+        false
+       ],
+       "evidence": "Document\u00e9 la decisi\u00f3n como un ADR en `docs/adr/0001-migrar-de-celery-a-dramatiq.md`, con el contexto, las opciones evaluadas (mantener Celery, RQ, Dramatiq), la decisi\u00f3n y sus razones (menos infraestructura, mejor ergonom\u00eda de reintentos, base de c\u00f3digo m\u00e1s peque\u00f1a), y las consecuencias de la migraci\u00f3n."
+      },
+      {
+       "name": "adr-file-created",
+       "passed": false,
+       "weight": 1,
+       "explanation": ".context/decisions/*.md missing (expected present)",
+       "withOnly": false,
+       "scored": true
+      }
+     ]
+    }
+   ]
+  },
+  "aggregates": {
+   "score": 1,
+   "passRate": 1,
+   "scoreWithout": 0,
+   "passRateWithout": 0,
+   "delta": 1
+  }
+ }
+}
