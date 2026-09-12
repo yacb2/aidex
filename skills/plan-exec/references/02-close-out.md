@@ -9,8 +9,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 > close-out. `git merge` into the trunk is **class 2** — pre-authorizable at Orient,
 > never assumed mid-run — because it ends the review window this plan's work still
 > needs. Finish, leave the branch **ready to merge**, and say so in the final summary.
-> Rule: `skills/conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit; rationale:
-> `../../conventions/references/autonomy-conventions.md`.
+> Rule and rationale: `../../conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit.
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
    (`keep` to resume later, `remove` for a clean exit — it refuses to drop uncommitted
