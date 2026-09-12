@@ -64,7 +64,7 @@ An unlisted verdict is a `KEEP`. Every MOVE writes its destination **before** th
 is deleted, and `DELETE-{DUP,CLOSED,LOG}` backs up before removing the file and its index
 line. On completion re-run the sweep with `--stamp`: that silences the 30-day
 SessionStart nudge until the directory changes again. Budgets are words, never lines —
-800 per memory, 1,200 for the index. Canon: `rules/memory-hygiene.md`; detail:
+800 per memory, 1,200 for the index. Canon: [`references/memory-hygiene.md`](references/memory-hygiene.md); detail:
 [`references/03-memory-workflow.md`](references/03-memory-workflow.md).
 
 ## Sub-action: `/aidex:aidex init`
@@ -76,7 +76,7 @@ the script prints `no TTY — skipped the artifact-style.md question` instead of
 On that line ask the user whether this project wants a `.context/artifact-style.md`, and
 in which language its HTML artifacts are written; re-run (idempotent) with
 `--artifact-style <lang>` or `--no-artifact-style`. Never created unasked; either answer
-is recorded in the marker aidex-dash's mid-artifact offer reads, so neither asks twice.
+is recorded in the marker aidex-artifact's mid-artifact offer reads, so neither asks twice.
 
 ---
 

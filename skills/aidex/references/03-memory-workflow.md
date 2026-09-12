@@ -1,6 +1,6 @@
 # Memory Audit & Cleanup Workflow
 
-Canon: `rules/memory-hygiene.md`. Checker: `memory-sweep.py`. Reader:
+Canon: [`memory-hygiene.md`](memory-hygiene.md). Checker: `memory-sweep.py`. Reader:
 `agents/memory-auditor.md`. This file connects them — **the checks are the evidence, the
 outcomes are what you do about it.**
 

@@ -34,6 +34,8 @@ ui_stack:                 # space-separated: shadcn-vue reka-ui vue-sonner ag-gr
 ui_locale:                # locale of rendered UI strings: en
 
 # packs testing-playwright-app, testing-playwright-web
+# E2E runs only through the project's isolated runner (`test-e2e.sh`: a disposable
+# template-clone database `<db_name>_e2e`, dev ports +10) — never against the dev database.
 e2e_frontend_port:        # dev + 10: 3010
 e2e_backend_port:         # dev + 10: 8010
 e2e_service:              # compose service with profiles [e2e]: backend-test

@@ -153,7 +153,7 @@ def log(decision, rules):
 
 if hard:
     lines = ["This write was refused by the memory save gate — "
-             "rules/memory-hygiene.md is the canon.", ""]
+             "skills/aidex/references/memory-hygiene.md is the canon.", ""]
     for f in hard:
         lines.append("  [%s] %s" % (f.get("rule"), f.get("detail", "")))
         if f.get("fix") and f.get("fix") != "-":

@@ -7,7 +7,7 @@
 # fixture set written BEFORE them.
 #
 # The case that matters most is not any single check: it is `lockstep`. A check that
-# exists in the script but not in rules/memory-hygiene.md is undocumented enforcement,
+# exists in the script but not in references/memory-hygiene.md is undocumented enforcement,
 # and registry-lag drift is this repo's named systemic failure mode.
 
 set -uo pipefail
@@ -15,7 +15,7 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 REPO="$(cd "$DIR/../.." && pwd -P)"
 SCRIPT="$DIR/scripts/memory-sweep.py"
-RULE="$REPO/rules/memory-hygiene.md"
+RULE="$DIR/references/memory-hygiene.md"
 FIX="$DIR/tests/fixtures/memory"
 FAILURES=0
 fail() { printf 'FAIL: %s\n' "$*"; FAILURES=$((FAILURES + 1)); }
