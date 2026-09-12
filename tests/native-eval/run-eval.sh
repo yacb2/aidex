@@ -96,6 +96,12 @@ for c in d["cases"]:
             if g["name"] == name and not g["scored"] and g["passed"]
         )
         print(f"    indicator {name}: fired {fired}/{len(runs_with)}")
+    # A run that hit its budget carries `error` and its last message is a
+    # mid-task sentence: the llm point it lost says nothing about the skill.
+    for arm in ("with", "without"):
+        for i, r in enumerate(c["arms"][arm]):
+            if r.get("error"):
+                print(f"    {arm} run {i}: {r['error']} ({r['turns']} turns) -- score invalid")
     if not ok:
         failed.append(c["name"])
 if runs < 3:
