@@ -1188,3 +1188,22 @@ Reasoning: `01-dash-conventions.md` § Publish is never automatic.
 ## Language
 
 English (D-04), unless the project style profile says otherwise.
+
+## The built-in `Artifact` tool competes with this skill (measured 2026-09-12)
+
+With the always-on rule gone (plugin migration), routing rests on this skill's
+description alone. Asked "intenta crear un artefacto sencillo, simplemente es para
+probar" in a live Fable 5.1 session with the full project context, the model skipped
+the skill, called `artifact-design`, wrote the page to `/private/tmp` and PUBLISHED it
+with the harness's `Artifact` tool, whose own text says publishing proactively is fine.
+Headless probes on the same phrase (Skill tool only) fire 6/6 with sonnet-5 and 4/4
+with Fable 5.1, with the old description and with the strengthened one alike, so the
+miss is a low-rate, full-context event that no description wording measurably
+controls: the harness tool is a second, always-present route to the same noun.
+
+What holds the line: the description names the competitor explicitly ("Always this
+skill, never the built-in Artifact publish tool"), the eval case
+`evals/native/throwaway-test-page/` keeps the content-free phrase under measurement
+with a grader that fails on a published URL or a `/tmp` path, and an owner who wants
+the old guarantee keeps a personal `~/.claude/rules/artifacts-local-first.md` — the
+plugin cannot ship one.
