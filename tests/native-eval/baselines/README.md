@@ -11,7 +11,17 @@ consumer): run `./tests/native-eval/run-eval.sh --verdict`, store the new
 folder next to this one, and diff the `aggregates` per case. Anything below
 `EVAL_MIN_DELTA` that was above it before is a regression.
 
+Selection rule, per case: the latest JSON with `partial: false` and 3 runs in
+each arm, then check the research log for a grader change after that
+timestamp and annotate the row. The first pick here chose a 0.50 request run
+that a since-reverted glob had produced; the note field is where that goes.
+
 ## 2026-09-12-pre-plugin
+
+Measured against the `skills/` tree at commit `4496a80`. The two owed
+re-verdicts (reference at 900 s, request under the reworded criteria) are
+pre-migration numbers: take them from a checkout of that SHA, since
+`build-wrapper.sh` builds from whatever tree it runs in.
 
 The suite as installed skills, measured through the wrapper plugin that
 `build-wrapper.sh` assembles. `claude-sonnet-5`, judge `haiku`, 3 runs per arm.
