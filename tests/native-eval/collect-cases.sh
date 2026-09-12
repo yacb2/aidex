@@ -5,6 +5,8 @@
 # not a path, so the cases have to be materialised inside the repo root. They are
 # copied — never moved — from `skills/<skill>/evals/native/<case>/` into
 # `plugin-evals/<skill>--<case>/`, which is gitignored and rebuilt on every run.
+# The copy's case.yaml `name:` is rewritten to the same `<skill>--<case>`: the
+# eval's --case glob matches `name:`, not the folder.
 #
 # The DOUBLE dash in the collected name is load-bearing: it is what keeps
 # `run-eval.sh --only plan` from also selecting `plan-exec` cases.
@@ -30,6 +32,10 @@ for dir in "$REPO"/skills/*/evals/native/*/; do
   skill="$(basename "$(dirname "$(dirname "$(dirname "$dir")")")")"
   case_name="$(basename "$dir")"
   cp -R "$dir" "$OUT/${skill}--${case_name}"
+  # `claude plugin eval --case <glob>` matches the case.yaml `name:`, NOT the
+  # folder (measured 2026-09-12: --only bugfix selected zero cases). Rewrite the
+  # name to the collected folder name so --only keeps its double-dash contract.
+  sed -i '' "s/^name: .*/name: ${skill}--${case_name}/" "$OUT/${skill}--${case_name}/case.yaml"
   cases=$((cases + 1))
 done
 
