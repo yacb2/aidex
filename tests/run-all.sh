@@ -25,7 +25,7 @@
 # run. A test nobody runs is how a checker that certifies the defect survives.
 # Location is not a reason to skip a test either.
 #
-# Docker-dependent tests are opted into, not discovered: nine aidex-worktree
+# Docker-dependent tests are opted into, not discovered: nine worktree
 # tests need a live daemon and take minutes, and folding them in by default would
 # turn a seconds-long daemon-free suite into one that cannot run on a laptop with
 # Docker closed. `RUN_DOCKER_TESTS=1 tests/run-all.sh` includes them.
@@ -46,7 +46,7 @@
 # ~431s suite — 94% more for a property most tests cannot violate. A test under
 # skills/<x>/{tests,scripts}/ can only observe the root by climbing to it, and the
 # climb is syntactic: `../..`, $HOME/.claude, aidex/manifest, or pathlib's
-# parents[2+]. A `../../aidex-<name>` hop reaches a SIBLING SKILL, which every
+# parents[2+]. A `../../<name>` hop reaches a SIBLING SKILL, which every
 # install has, so it is root-independent and does not count. That selector picks
 # 21 tests / ~16s (+3.8%), and picks all three of the defects above — 3/3,
 # measured 2026-09-07, not asserted. `RUN_INSTALL_PARITY=full` re-runs the whole
@@ -82,12 +82,12 @@ TESTS=(tests/test-*.sh skills/*/tests/test-*.sh
        skills/*/scripts/test_*.sh skills/*/scripts/test_*.py
        skills/*/scripts/test-*.sh skills/*/scripts/test-*.py
        hooks/test-*.sh hooks/test-*.py)
-# aidex-worktree's scripts/test-*.sh are the docker set; the branch below owns
+# worktree's scripts/test-*.sh are the docker set; the branch below owns
 # them and names the one liar among them. Drop them from the general glob rather
 # than letting both paths claim them.
 _KEPT=()
 for _t in "${TESTS[@]}"; do
-  [[ "$_t" == skills/aidex-worktree/scripts/test-* ]] || _KEPT+=("$_t")
+  [[ "$_t" == skills/worktree/scripts/test-* ]] || _KEPT+=("$_t")
 done
 TESTS=("${_KEPT[@]}")
 if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
@@ -95,12 +95,12 @@ if [[ "${RUN_DOCKER_TESTS:-0}" == "1" ]]; then
   # TEST database, which is why its name starts that way. Discovery by filename
   # cannot tell the two apart, so the one liar is named here. Its real test is
   # `test-test-db-preflight.sh`, which the glob picks up.
-  for _wt in skills/aidex-worktree/scripts/test-*.sh; do
+  for _wt in skills/worktree/scripts/test-*.sh; do
     [[ "$_wt" == */test-db-preflight.sh ]] && continue
     TESTS+=("$_wt")
   done
 else
-  DOCKER_SKIPPED=(skills/aidex-worktree/scripts/test-*.sh)
+  DOCKER_SKIPPED=(skills/worktree/scripts/test-*.sh)
 fi
 DOCKER_SKIPPED=("${DOCKER_SKIPPED[@]:-}")
 [[ -z "${DOCKER_SKIPPED[0]:-}" ]] && DOCKER_SKIPPED=()
@@ -175,13 +175,13 @@ fi
 PARITY_POOL=()
 for t in "${TESTS[@]}"; do
   case "$t" in
-    tests/*|hooks/*|skills/aidex-worktree/scripts/test-*) continue ;;
+    tests/*|hooks/*|skills/worktree/scripts/test-*) continue ;;
   esac
   PARITY_POOL+=("$t")
 done
 
 # A test under skills/<x>/{tests,scripts}/ can only observe the root by climbing to
-# it, and every climb is one of these four syntactic forms. `../../aidex-<name>`
+# it, and every climb is one of these four syntactic forms. `../../<name>`
 # is a hop to a SIBLING SKILL — present in every install — so it is root-independent
 # and deliberately not a match; without that exclusion the set is 32 tests / ~91s
 # instead of 21 / ~16s, for no added coverage.
@@ -200,7 +200,7 @@ else
   # the worst failure this pass could have: it drops a test from the check and
   # still prints a green line.
   for t in "${PARITY_POOL[@]}"; do
-    filtered="$(grep -v -E '\.\./\.\./aidex-[a-z]' "$t" 2>/dev/null)"
+    filtered="$(grep -v -E '\.\./\.\./(artifact|audit|backlog|bugfix|comm|conventions|coverage|decision|loop|plan-exec|plan|reference|request|research|review|skill|workflow|worktree)/' "$t" 2>/dev/null)"
     if [[ $? -gt 1 ]]; then
       printf 'parity: FAIL — could not read %s while selecting\n' "$t"
       PARITY_ISSUES+=("parity:unreadable:$t")

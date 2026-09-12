@@ -36,13 +36,13 @@ check_file() {
   fi
 }
 
-check_file "$REPO_ROOT/skills/aidex-conventions/references/worktree-conventions.md" \
+check_file "$REPO_ROOT/skills/conventions/references/worktree-conventions.md" \
   "worktree-conventions.md"
 
-check_file "$REPO_ROOT/skills/aidex-worktree/references/03-case-taxonomy.md" \
+check_file "$REPO_ROOT/skills/worktree/references/03-case-taxonomy.md" \
   "03-case-taxonomy.md"
 
-check_file "$REPO_ROOT/skills/aidex-worktree/assets/templates/worktree-overview.md.template" \
+check_file "$REPO_ROOT/skills/worktree/assets/templates/worktree-overview.md.template" \
   "worktree-overview.md.template"
 
 check_file "$HOME/.claude/rules/e2e-testing.md" \

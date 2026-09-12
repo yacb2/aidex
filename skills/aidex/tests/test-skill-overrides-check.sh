@@ -17,7 +17,7 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 mkskill() { mkdir -p "$1"; printf -- '---\nname: %s\n---\nbody\n' "$(basename "$1")" > "$1/SKILL.md"; }
 
 # personal store
-mkskill "$TMP/skills/aidex-artifact"
+mkskill "$TMP/skills/artifact"
 mkskill "$TMP/skills/theme-factory"
 # a second store, the shape of a per-project install pointing at ~/.myskills
 mkskill "$TMP/extra/skill-trigger-eval"
@@ -35,7 +35,7 @@ run() { python3 "$CHECK" --settings "$TMP/settings.json" --skills-root "$TMP/ski
 ENABLED='"enabledPlugins": {"document-skills@anthropic": true, "vercel@official": true, "off-plugin@anthropic": false}'
 
 # 1 · every key resolves -> exit 0, and the run says how much it looked at
-settings "{$ENABLED, \"skillOverrides\": {\"aidex-artifact\": \"off\", \"document-skills:docx\": \"off\", \"skill-trigger-eval\": \"name-only\", \"vercel:release\": \"off\"}}"
+settings "{$ENABLED, \"skillOverrides\": {\"artifact\": \"off\", \"document-skills:docx\": \"off\", \"skill-trigger-eval\": \"name-only\", \"vercel:release\": \"off\"}}"
 OUT="$(run)"; RC=$?
 [[ $RC -eq 0 ]] && ok "1 every key resolving exits 0" || bad "1 rc=$RC: $OUT"
 grep -q 'OK — every key resolves' <<<"$OUT" && ok "1 says so" || bad "1 verdict: $OUT"

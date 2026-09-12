@@ -182,7 +182,7 @@ rm -rf "$d6"
 # test, not by whatever version happens to be installed.
 
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
-VALIDATE="$REPO_ROOT/skills/aidex-conventions/scripts/validate.py"
+VALIDATE="$REPO_ROOT/skills/conventions/scripts/validate.py"
 
 d7="$(mktemp -d)"
 AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7" </dev/null >/dev/null
@@ -229,7 +229,7 @@ rm -rf "$d7" "$d7b"
 # the flag, and a real pty answering the prompt.
 #
 # AIDEX_DIR points at the repo throughout: the template the profile is seeded
-# from ships in aidex-artifact, and without it the step correctly skips itself.
+# from ships in artifact, and without it the step correctly skips itself.
 
 PTY_DRIVER="$(mktemp -d)/pty-answer.py"
 cat > "$PTY_DRIVER" <<'PYEOF'
@@ -275,7 +275,7 @@ PYEOF
 
 # 8a — ABSENCE: no flag, no TTY -> question skipped, said to be skipped,
 #      and NOTHING written. Not even the marker: skipped is not asked, and a
-#      marker here would silence aidex-artifact's wrap-time offer too, losing the
+#      marker here would silence artifact's wrap-time offer too, losing the
 #      question at both surfaces instead of moving it.
 d8a="$(mktemp -d)"
 out8a="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" </dev/null)"
@@ -382,10 +382,10 @@ fi
   && pass "scenario8d: the re-run still created nothing" \
   || fail "scenario8d: the re-run created a profile nobody asked for"
 
-# ...and the marker it wrote is the one aidex-artifact's wrap-time offer reads, so
+# ...and the marker it wrote is the one artifact's wrap-time offer reads, so
 # that surface does not ask either. This is criterion 2 asserted at the
 # CONSUMER's seam, not only where the file is written.
-WRAP="$REPO_ROOT/skills/aidex-artifact/scripts/wrap-report.sh"
+WRAP="$REPO_ROOT/skills/artifact/scripts/wrap-report.sh"
 if [[ -x "$WRAP" ]]; then
   mkdir -p "$d8d/.context/reports"
   wrapbody='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
@@ -427,7 +427,7 @@ AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8e" --artifact-style es </dev/null >/dev/
 
 rm -rf "$d8e"
 
-# 8f — no aidex-artifact installed: no template, so the step skips itself and says so
+# 8f — no artifact installed: no template, so the step skips itself and says so
 #      instead of writing an empty profile.
 d8f="$(mktemp -d)"
 empty8f="$(mktemp -d)"
@@ -437,7 +437,7 @@ out8f="$(AIDEX_DIR="$empty8f" bash "$INIT" "$d8f" --artifact-style es </dev/null
   && pass "scenario8f: no template -> no profile" \
   || fail "scenario8f: a profile was written without a template"
 
-printf '%s\n' "$out8f" | grep -q 'aidex-artifact not installed' \
+printf '%s\n' "$out8f" | grep -q 'artifact not installed' \
   && pass "scenario8f: the missing template is noted" \
   || fail "scenario8f: the missing template was silent"
 

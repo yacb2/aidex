@@ -16,7 +16,7 @@
 # exit 0 as a PASS, so a skip announced only in prose would report a test that
 # never ran as one that passed.
 #
-# Lives at the repo root, NOT in skills/aidex-coverage/tests/, and that is the
+# Lives at the repo root, NOT in skills/coverage/tests/, and that is the
 # point: it names a real project (echo_lab_ws) and a real table in this
 # workspace's private .context/, so it is repo data by the same rule
 # 04-e2e-layer-audit.md states for the table itself. Shipped inside the skill it
@@ -47,7 +47,7 @@ if [ -n "$_common" ] && [ "$_common" != "$_gitdir" ]; then
   IN_WORKTREE="$REPO_ROOT"
   CANON_ROOT="$(dirname "$_common")"
 fi
-AUDIT="$CANON_ROOT/.context/references/aidex-coverage/01-echolab-e2e-layer-audit.md"
+AUDIT="$CANON_ROOT/.context/references/coverage/01-echolab-e2e-layer-audit.md"
 
 ECHOLAB="${ECHOLAB_PATH:-$HOME/Documents/projects/echo_lab_ws}"
 TIMELINE_DIR="$ECHOLAB/frontend/tests/e2e/timeline"

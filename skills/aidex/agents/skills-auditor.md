@@ -12,7 +12,7 @@ You are a skills auditor. Check skill structure across all scopes.
 
 ## Setup
 
-Read conventions: `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/skill-conventions.md`
+Read conventions: `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/skill-conventions.md`
 
 ## Scopes to Scan
 

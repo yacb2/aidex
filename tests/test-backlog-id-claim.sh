@@ -29,7 +29,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-SCRIPT="$REPO_ROOT/skills/aidex-backlog/scripts/register-item.sh"
+SCRIPT="$REPO_ROOT/skills/backlog/scripts/register-item.sh"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 

@@ -26,7 +26,7 @@ Then, in any project, just ask naturally — the right skill loads itself:
 - *"Audit my project's health"* → runs parallel auditors, returns a health score + suggested fixes
 - *"/aidex:audit new ux login-redesign"* → scaffolds a UX audit with a methodology playbook
 - *"/aidex:aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
-- *"Render the backlog as an HTML board"* → `aidex-artifact` generates a sortable, self-contained page
+- *"Render the backlog as an HTML board"* → `artifact` generates a sortable, self-contained page
 
 Something not firing? Run `./install.sh --doctor` from the repo checkout to health-check the install (symlinks, versions, exec bits, manifest) — it also catches content drift when your checkout moved on but the install did not.
 
@@ -60,25 +60,25 @@ skills).
 ```
 ~/.claude/                               <-- What Claude Code reads
 ├── skills/
-│   ├── aidex/                           <-- The orchestrator (from aidex)
-│   ├── aidex-conventions/               <-- Canon hub, non-invocable (from aidex)
-│   ├── aidex-plan/                      <-- (from aidex)
-│   ├── aidex-decision/                  <-- (from aidex)
-│   ├── aidex-request/                   <-- (from aidex)
-│   ├── aidex-research/                  <-- (from aidex)
-│   ├── aidex-reference/                 <-- (from aidex)
-│   ├── aidex-skill/                     <-- (from aidex)
-│   ├── aidex-audit/                     <-- (from aidex)
-│   ├── aidex-backlog/                   <-- (from aidex)
-│   ├── aidex-loop/                      <-- (from aidex)
-│   ├── aidex-comm/                      <-- (from aidex)
-│   ├── aidex-plan-exec/                 <-- (from aidex)
-│   ├── aidex-bugfix/                    <-- (from aidex)
-│   ├── aidex-workflow/                  <-- (from aidex)
-│   ├── aidex-worktree/                  <-- (from aidex)
-│   ├── aidex-artifact/                      <-- (from aidex)
-│   ├── aidex-review/                    <-- (from aidex)
-│   ├── aidex-coverage/                  <-- (from aidex)
+│   ├── aidex/                        <-- The orchestrator (from aidex)
+│   ├── conventions/                  <-- Canon hub, non-invocable (from aidex)
+│   ├── plan/                         <-- (from aidex)
+│   ├── decision/                     <-- (from aidex)
+│   ├── request/                      <-- (from aidex)
+│   ├── research/                     <-- (from aidex)
+│   ├── reference/                    <-- (from aidex)
+│   ├── skill/                        <-- (from aidex)
+│   ├── audit/                        <-- (from aidex)
+│   ├── backlog/                      <-- (from aidex)
+│   ├── loop/                         <-- (from aidex)
+│   ├── comm/                         <-- (from aidex)
+│   ├── plan-exec/                    <-- (from aidex)
+│   ├── bugfix/                       <-- (from aidex)
+│   ├── workflow/                     <-- (from aidex)
+│   ├── worktree/                     <-- (from aidex)
+│   ├── artifact/                     <-- (from aidex)
+│   ├── review/                       <-- (from aidex)
+│   ├── coverage/                     <-- (from aidex)
 │   └── my-personal-skill/               <-- Your own — never touched by the installer
 ├── rules/                               <-- Always-on session rules
 │   ├── aidex-conventions.md             <-- .context/ conventions canon (from aidex)
@@ -139,7 +139,7 @@ booking app with a backlog, a modular plan, two ADRs (one superseding the other)
 module, a request and a UX audit, all cross-linked. Every board below is rendered from files like those,
 at zero tokens, into a single self-contained HTML page:
 
-<img src="docs/assets/backlog-board.png" alt="aidex-artifact backlog board rendered from examples/.context" width="900">
+<img src="docs/assets/backlog-board.png" alt="artifact backlog board rendered from examples/.context" width="900">
 
 ## What's included
 
@@ -152,11 +152,11 @@ Wiring instructions and the status of each hook live in `hooks/README.md`.
 
 ### Global rules
 
-Nine always-on rules are installed to `~/.claude/rules/`, the sole surface Claude Code loads them from. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `aidex-conventions` skill.
+Nine always-on rules are installed to `~/.claude/rules/`, the sole surface Claude Code loads them from. Each is a short normative summary (NEVER/ALWAYS); the full canon lives in the `conventions` skill.
 
 | Rule | What it governs |
 |------|-----------------|
-| `aidex-conventions.md` | `.context/` conventions — date format, language, naming, status vocabulary, cross-references, archive policy |
+| `conventions.md` | `.context/` conventions — date format, language, naming, status vocabulary, cross-references, archive policy |
 | `autonomy.md` | Front-loaded autonomy: an unattended run asks its questions up front and then runs start to finish; only publishing (push/deploy/release) is gated |
 | `artifacts-local-first.md` | Any requested artifact/report/dashboard is written locally first, anchored next to the work it documents, and published only when explicitly asked |
 | `database-protection.md` | Destructive DB operations, split by target: **real** databases are never destroyed unattended and are not pre-authorizable; **disposable** ones (E2E clones, per-worktree throwaways) are routine work |
@@ -171,35 +171,35 @@ Nine always-on rules are installed to `~/.claude/rules/`, the sole surface Claud
 | Skill | Type | What it does |
 |-------|------|-------------|
 | **`aidex`** | User-invoked + context-triggered | The orchestrator. Audits the Claude Code ecosystem — `.context/` (including `audits/`), skills, symlinks, MEMORY.md, plugins, and the session's idle context budget. Launches parallel subagents, reports findings, suggests and applies fixes. |
-| **`aidex-conventions`** | Passive canon hub (non-invocable) | The canon. Full `.context/` and skill conventions that the invocable siblings below cite. Degraded to a non-invocable reference hub — it no longer auto-triggers; the siblings carry the triggers. |
-| **`aidex-plan`** | User-invoked + context-triggered | Creates `.context/plans/` — multi-phase implementation plans with numbered files, phases, and checkbox tracking. A triage step routes small work to a **scoped plan** instead: one file, no phases, just the file list and acceptance criteria, gated on structure rather than on how the request was worded. |
-| **`aidex-decision`** | User-invoked + context-triggered | Records `.context/decisions/` ADRs — what was chosen, why, the alternatives, and the consequences. |
-| **`aidex-request`** | User-invoked + context-triggered | Captures incoming stakeholder/client requests into `.context/requests/` before anyone acts on them. |
-| **`aidex-research`** | User-invoked + context-triggered | Investigation and spike notes into `.context/research/` before a plan or implementation. |
-| **`aidex-reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
-| **`aidex-skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
-| **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex:audit new <type> <slug>` · `/aidex:audit validate` · `/aidex:audit escalate <id>` · `/aidex:audit close <run>` · `/aidex:audit reindex` · `/aidex:audit migrate` · `/aidex:audit coverage-matrix` · `/aidex:audit coverage-sweep` · `/aidex:audit affected-tests`. Ships stock playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage, docs-coverage, rule-ablation). `affected-tests` also names any changed file that measurably breaks and has no E2E reaching it, before the change lands. |
-| **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex:audit escalate` to close the audit→backlog loop. Also scores closed items' `estimate:` against the effort they actually cost — a read that gates nothing. |
-| **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex:loop design` · `new` · `run`. |
-| **`aidex-workflow`** | User-invoked + context-triggered | Designs one-shot multi-agent fan-out / decomposition orchestrations — writes a `.context/workflows/` spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. |
-| **`aidex-comm`** | User-invoked + context-triggered | Captures inbound/outbound communications into `.context/communications/{received,sent}/` — emails, WhatsApp, calls, meetings — with channel/direction/from/to front-matter. Body stays in the native language of the communication (exempt from English-only). |
-| **`aidex-plan-exec`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `aidex-plan` for plan creation. |
-| **`aidex-review`** | User-invoked + context-triggered | Reviews code **as it stands** — a module, feature, path, or whole app — where every built-in instrument (`/code-review`, `/simplify`, `/security-review`) is anchored to a diff. Measures the target first (`resolve-review-target.sh`: files, LOC, security/perf surface, size class), proposes which finder angles are worth launching and what they cost, then fans out find→verify across four lenses (correctness · simplify · security · perf). An oversize target is refused **as a single pass** — a small-target finder count spread over a whole app produces a sample, and a sample reported as a review is the failure that check exists to stop — and `--partition` then emits the split to phase it: one part per immediate subdirectory, each measured as a target in its own right, the parts summing to the whole. The union of the phases is the coverage one sampled pass never had. |
-| **`aidex-bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
-| **`aidex-worktree`** | User-invoked + context-triggered | Creates and destroys fully isolated worktrees — one git worktree per participant repo, its own port slot, its own compose stack. The mechanism ships as `worktree.sh`; a project supplies only parameters in `.context/worktrees/config.env`. **One path, not tiers:** a worktree is born with its full stack always (`--no-infra` is the explicit code-only opt-out), because full isolation now costs ~25s to create and ~3s to tear down. `down` verifies nothing is left attributable to the slug, reports host processes it will not kill, and with `--delete-branch` removes the branch `new` created — via `git branch -d`, which refuses an unmerged branch. |
-| **`aidex-coverage`** | Model-invocable | The stack-agnostic testing canon: which layer a behaviour belongs in, which tests to run for a change (the full suite is a boundary gate, never a per-phase one), when to extract a fixture, and the per-project `.context/testing-profile.md` that names the stack pack (Django, Vue, Playwright, Payload, Svelte) carrying the concrete test shapes and the `test-e2e.sh` generator. Deliberately does **not** run audits or touch `module-map.json` / `coverage-matrix.json` — that split belongs to `aidex-audit`'s `test-coverage` playbook. |
-| **`aidex-artifact`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
+| **`conventions`** | Passive canon hub (non-invocable) | The canon. Full `.context/` and skill conventions that the invocable siblings below cite. Degraded to a non-invocable reference hub — it no longer auto-triggers; the siblings carry the triggers. |
+| **`plan`** | User-invoked + context-triggered | Creates `.context/plans/` — multi-phase implementation plans with numbered files, phases, and checkbox tracking. A triage step routes small work to a **scoped plan** instead: one file, no phases, just the file list and acceptance criteria, gated on structure rather than on how the request was worded. |
+| **`decision`** | User-invoked + context-triggered | Records `.context/decisions/` ADRs — what was chosen, why, the alternatives, and the consequences. |
+| **`request`** | User-invoked + context-triggered | Captures incoming stakeholder/client requests into `.context/requests/` before anyone acts on them. |
+| **`research`** | User-invoked + context-triggered | Investigation and spike notes into `.context/research/` before a plan or implementation. |
+| **`reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
+| **`skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
+| **`audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex:audit new <type> <slug>` · `/aidex:audit validate` · `/aidex:audit escalate <id>` · `/aidex:audit close <run>` · `/aidex:audit reindex` · `/aidex:audit migrate` · `/aidex:audit coverage-matrix` · `/aidex:audit coverage-sweep` · `/aidex:audit affected-tests`. Ships stock playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage, docs-coverage, rule-ablation). `affected-tests` also names any changed file that measurably breaks and has no E2E reaching it, before the change lands. |
+| **`backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex:audit escalate` to close the audit→backlog loop. Also scores closed items' `estimate:` against the effort they actually cost — a read that gates nothing. |
+| **`loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex:loop design` · `new` · `run`. |
+| **`workflow`** | User-invoked + context-triggered | Designs one-shot multi-agent fan-out / decomposition orchestrations — writes a `.context/workflows/` spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. |
+| **`comm`** | User-invoked + context-triggered | Captures inbound/outbound communications into `.context/communications/{received,sent}/` — emails, WhatsApp, calls, meetings — with channel/direction/from/to front-matter. Body stays in the native language of the communication (exempt from English-only). |
+| **`plan-exec`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `plan` for plan creation. |
+| **`review`** | User-invoked + context-triggered | Reviews code **as it stands** — a module, feature, path, or whole app — where every built-in instrument (`/code-review`, `/simplify`, `/security-review`) is anchored to a diff. Measures the target first (`resolve-review-target.sh`: files, LOC, security/perf surface, size class), proposes which finder angles are worth launching and what they cost, then fans out find→verify across four lenses (correctness · simplify · security · perf). An oversize target is refused **as a single pass** — a small-target finder count spread over a whole app produces a sample, and a sample reported as a review is the failure that check exists to stop — and `--partition` then emits the split to phase it: one part per immediate subdirectory, each measured as a target in its own right, the parts summing to the whole. The union of the phases is the coverage one sampled pass never had. |
+| **`bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
+| **`worktree`** | User-invoked + context-triggered | Creates and destroys fully isolated worktrees — one git worktree per participant repo, its own port slot, its own compose stack. The mechanism ships as `worktree.sh`; a project supplies only parameters in `.context/worktrees/config.env`. **One path, not tiers:** a worktree is born with its full stack always (`--no-infra` is the explicit code-only opt-out), because full isolation now costs ~25s to create and ~3s to tear down. `down` verifies nothing is left attributable to the slug, reports host processes it will not kill, and with `--delete-branch` removes the branch `new` created — via `git branch -d`, which refuses an unmerged branch. |
+| **`coverage`** | Model-invocable | The stack-agnostic testing canon: which layer a behaviour belongs in, which tests to run for a change (the full suite is a boundary gate, never a per-phase one), when to extract a fixture, and the per-project `.context/testing-profile.md` that names the stack pack (Django, Vue, Playwright, Payload, Svelte) carrying the concrete test shapes and the `test-e2e.sh` generator. Deliberately does **not** run audits or touch `module-map.json` / `coverage-matrix.json` — that split belongs to `audit`'s `test-coverage` playbook. |
+| **`artifact`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
 
 ### How it works
 
 **Creating things** — just ask naturally:
 ```
 "Create a plan for the auth migration"
-→ Claude loads aidex-plan, creates .context/plans/2026-04-02-auth-migration/
+→ Claude loads plan, creates .context/plans/2026-04-02-auth-migration/
   with numbered files, phases, checkboxes, following all conventions
 
 "Create a reference for the payment API"  
-→ Claude loads aidex-reference, creates .context/references/payment-api/
+→ Claude loads reference, creates .context/references/payment-api/
   with 00-index.md + 01-overview.md
 
 "/aidex:audit new ux login-redesign"

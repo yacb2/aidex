@@ -5,7 +5,7 @@
  "runs": 3,
  "case": {
   "name": "aidex-bugfix-regression-test",
-  "dir": "plugin-evals/aidex-bugfix--regression-test",
+  "dir": "plugin-evals/bugfix--regression-test",
   "source": "mixed",
   "promptMarkdown": "Hay un bug en `src/clamp.py`: `clamp(11, 0, 10)` devuelve 11 en vez de 10.\nArr\u00e9glalo. Los tests se corren con `./run_tests.sh`.",
   "runsPerCase": 3,
@@ -18,7 +18,7 @@
     "weight": 1,
     "config": {
      "tool": "Skill",
-     "input_match": "aidex-bugfix",
+     "input_match": "bugfix",
      "min": 1
     }
    },

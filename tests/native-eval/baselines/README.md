@@ -37,5 +37,5 @@ Every without-arm scored 0.00 in every run.
 | aidex-reference-how-it-works | 0.67 | +0.67 | 3/3 | 2 runs cut at 600 s with the artefact written; re-verdict at 900 s owed |
 | aidex-plan-scoped | 0.00 | 0.00 | 2/3 | fires, then stalls asking to confirm scope |
 
-Not measurable under this harness (Bash on every path): aidex-backlog,
-aidex-worktree. Not yet ported: the other 10 skills. Both owed under BL-397.
+Not measurable under this harness (Bash on every path): backlog,
+worktree. Not yet ported: the other 10 skills. Both owed under BL-397.

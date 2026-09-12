@@ -30,7 +30,7 @@ JSON
 
 # 2. Strip the legacy trigger-eval probe block. It asks the model to run
 #    printenv/touch as its first action, and models refuse it as a prompt
-#    injection (observed in aidex-bugfix and aidex-decision runs). The native
+#    injection (observed in bugfix and decision runs). The native
 #    `tool_used: Skill` grader replaces what it measured.
 stripped=0
 while IFS= read -r f; do

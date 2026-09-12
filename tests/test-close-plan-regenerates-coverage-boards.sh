@@ -19,7 +19,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-CLOSE="$SCRIPT_DIR/../skills/aidex-plan/scripts/close-plan.sh"
+CLOSE="$SCRIPT_DIR/../skills/plan/scripts/close-plan.sh"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }

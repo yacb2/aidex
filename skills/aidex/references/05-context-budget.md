@@ -33,14 +33,14 @@ Breaching a hard ceiling → CRITICAL. Between soft and hard → WARNING.
 `/skill-doctor` adds `uses`, `last used` and `7d tokens` per skill. Two rules:
 
 - **Usage may only downgrade a proposal, never generate one.** A skill with zero uses is
-  not a demote candidate by itself: `aidex-conventions` is non-invocable by design and
-  will always read as never used; `aidex-decision` fires a few times a month and is
+  not a demote candidate by itself: `conventions` is non-invocable by design and
+  will always read as never used; `decision` fires a few times a month and is
   correct every time. Demoting needs a stack exclusion (`CB-SR`) or a duplication
   (`CB-DU`) *and* no use — the usage column is what turns a WARNING into an INFO when
   the skill is in fact used. The suite's measured degradation mechanism on Claude 5 is
   conflict between skills, not the length of the listing.
 - **`7d tokens` never ranks anything.** It is the token volume of the turns run under a
-  skill, not the skill's overhead: `aidex-plan-exec` at 399M reflects long sessions, not
+  skill, not the skill's overhead: `plan-exec` at 399M reflects long sessions, not
   a heavy skill. Report it if asked; leave it out of every savings list.
 
 ## Two remedies, not one: remove and defer
@@ -124,7 +124,7 @@ Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable conte
   correctly and for free, and a copy in `.context/` goes stale exactly as fast as the
   one in CLAUDE.md. What survives the cut is the annotation a tree cannot carry — why a
   retired file is still present, which of two similar directories is live. See
-  `aidex-conventions/references/claudemd-conventions.md` § What NOT to Include.
+  `conventions/references/claudemd-conventions.md` § What NOT to Include.
 - Command catalogs with >5 entries → move to `.context/references/commands/`.
 - Stack tables with versions → keep a one-liner, move detail out.
 - Keep in CLAUDE.md: active constraints, critical gotchas that change behavior, entry points to references.

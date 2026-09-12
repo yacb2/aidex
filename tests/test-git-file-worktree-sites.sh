@@ -54,7 +54,7 @@ ITEM
 # --- detect-resolved.py: cited commits must be VERIFIED inside a worktree -----------
 CTX="$WT/.context"
 mk_item "$CTX/backlog" "2026-01-01-bl-001-a.md" open "Fixed in $SHA — see f.txt"
-out="$(python3 "$S/aidex-backlog/scripts/detect-resolved.py" "$CTX" 2>&1)"; rc=$?
+out="$(python3 "$S/backlog/scripts/detect-resolved.py" "$CTX" 2>&1)"; rc=$?
 # The run must SUCCEED first. On this test's first draft the flag was `--context`, which
 # detect-resolved does not take: argparse exited 2, the usage text contained no note, and
 # the "no note" branch below read as a PASS. A green assertion over a run that never
@@ -68,7 +68,7 @@ esac
 
 # --- archive-sweep.py: status drift needs git, and git is there ---------------------
 J="$TMP/as.json"
-python3 "$S/aidex-conventions/scripts/archive-sweep.py" "$CTX" --json "$J" >/dev/null 2>&1
+python3 "$S/conventions/scripts/archive-sweep.py" "$CTX" --json "$J" >/dev/null 2>&1
 drift=0
 if [[ -s "$J" ]]; then
   drift="$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))["status_drift"]))' "$J")"

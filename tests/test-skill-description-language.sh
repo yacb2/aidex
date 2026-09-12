@@ -3,7 +3,7 @@
 # `description:` is English-only. Native-language phrasings belong in the
 # skill's `evals/`, where they are measured, not in the matcher surface.
 #
-# Regression: aidex-artifact shipped "genera el dashboard" in its description
+# Regression: artifact shipped "genera el dashboard" in its description
 # (2026-07-25). The Spanish coverage already existed in its trigger_eval.json,
 # so the description carried a duplicate that violated the ADR.
 
