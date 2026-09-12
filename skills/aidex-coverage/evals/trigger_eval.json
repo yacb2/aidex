@@ -22,7 +22,7 @@
   {
     "query": "Which tests should I run for the files I just changed? Not the whole suite.",
     "should_trigger": true,
-    "expected_behavior": "references/13-affected-tests-expansion.md + /aidex-audit affected-tests --command."
+    "expected_behavior": "references/13-affected-tests-expansion.md + /aidex:audit affected-tests --command."
   },
   {
     "query": "Set up isolated E2E testing for this new project and generate test-e2e.sh.",

@@ -4,7 +4,7 @@
 #
 # D-02 moved the boards under `audits/<methodology>/` and renamed them to the 00- form
 # (b9d690e, 2026-07-02). 05-migration-guide.md last changed 2026-06-17 and still told
-# the migrator that `/aidex-audit new` creates INVENTORY.md, METHODOLOGY.md,
+# the migrator that `/aidex:audit new` creates INVENTORY.md, METHODOLOGY.md,
 # CHANGELOG.md and methodology/<type>.md at the audits root -- none of which the script
 # has produced since. SKILL.md mandates reading this file before accepting any migration
 # move, so it is a live instruction, not archived prose: its own Step 1 creates a

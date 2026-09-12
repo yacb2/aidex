@@ -6,7 +6,7 @@ An item is ELIGIBLE only when it is DEFINED — the contract define-check.py rea
 nothing parks it: not blocked, not awaiting the owner, and not living in another
 repo (`touches` / cited paths under a sibling project — a sweep of THIS repo cannot
 close it). Everything else is NEEDS-DECISION and belongs in the kickoff consultation,
-not in the run; "underdefined" is answered by `/aidex-backlog define`, not by the
+not in the run; "underdefined" is answered by `/aidex:backlog define`, not by the
 sweep (owner's call 2026-08-27, Q8).
 
 Measured on echo_lab 2026-08-24 (research/2026-08-24-small-sweep-throughput-analysis):

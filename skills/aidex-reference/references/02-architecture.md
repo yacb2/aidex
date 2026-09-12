@@ -216,7 +216,7 @@ The claim this file rests on is that the two censuses have different blind spots
 running only one is exposed. Check that a real project's axes disagree:
 
 ```bash
-cd <project> && ~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory
+cd <project> && ${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --advisory
 ```
 
 **Real output, 2026-07-29** (this repo, a CLI/toolkit with no routes at all):

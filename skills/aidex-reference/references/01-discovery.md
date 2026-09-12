@@ -328,8 +328,8 @@ This file states rules, so its check is that the expensive one is actually paid 
 is only followed if the census makes it a diff instead of a per-claim search:
 
 ```bash
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --dry-run
-bash ~/.claude/skills/aidex-reference/tests/test-docs-census.sh | tail -1
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --dry-run
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/tests/test-docs-census.sh | tail -1
 ```
 
 **Real output, 2026-07-29:** the dry run prints each axis command without executing it; the test

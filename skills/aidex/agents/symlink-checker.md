@@ -20,7 +20,7 @@ Scan for symlinks at BOTH levels. Use ABSOLUTE paths — do NOT rely on relative
 - `$PROJECT/.claude/rules/`
 
 **Global level:**
-- `~/.claude/skills/`
+- `${CLAUDE_PLUGIN_ROOT}/skills/`
 - `~/.claude/commands/`
 - `~/.claude/rules/`
 

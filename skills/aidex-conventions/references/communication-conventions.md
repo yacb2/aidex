@@ -235,7 +235,7 @@ Both mean `body.md`. `validate.py` reports them as `communication-legacy-body-na
 the rename is a single pass:
 
 ```bash
-bash ~/.claude/skills/aidex-comm/scripts/migrate-communications.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-comm/scripts/migrate-communications.sh
 ```
 
 It only touches files sitting directly inside a `<YYYY-MM-DD>-<slug>/` entry folder, never

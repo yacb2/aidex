@@ -271,7 +271,7 @@ else
     if [[ -z "$WT_DOWN" ]]; then
       err "Docker resources exist for $(basename "$ROOT")-wt-$SLUG but the project records no 'worktree_down'."
       err "Refusing to invent a teardown. Either:"
-      err "  - record worktree_down in $DOC (see /aidex-worktree bootstrap, Axis 4), or"
+      err "  - record worktree_down in $DOC (see /aidex:worktree bootstrap, Axis 4), or"
       err "  - reclaim the resources with the commands listed above, then re-run with --skip-teardown"
       exit 1
     fi

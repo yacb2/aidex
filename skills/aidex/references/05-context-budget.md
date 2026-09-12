@@ -99,7 +99,7 @@ Each `agents/*.md` inside an installed plugin is loaded on every session, regard
 
 When a project places a skill under `.claude/skills/<name>/` that shadows a global skill with the same `name` field, both pay metadata cost (global loader still lists it).
 
-- Cross-reference `~/.claude/skills/<name>/SKILL.md` frontmatter `name:` with `.claude/skills/<name>/SKILL.md`.
+- Cross-reference `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` frontmatter `name:` with `.claude/skills/<name>/SKILL.md`.
 - Compare `description` fields: Jaccard similarity on word sets >0.7 → duplicate.
 - Resolution: either delete the local copy (accept global) or unlink the global (keep local override). Don't keep both.
 
@@ -141,7 +141,7 @@ Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable conte
 A skill loaded globally but unused for the current project stack still pays metadata cost.
 
 - Detect project stack from `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `docker-compose.yml`, and the project's `CLAUDE.md` Tech Stack section as a tiebreaker.
-- For each global skill in `~/.claude/skills/` whose domain doesn't match the stack, propose a per-project `skillOverrides` patch in `<project>/.claude/settings.local.json` (`name-only` for cross-cutting plausible skills; `off` when categorically excluded). The skill stays installed, just silenced for this project. See `skills-auditor` for the full decision matrix.
+- For each global skill in `${CLAUDE_PLUGIN_ROOT}/skills/` whose domain doesn't match the stack, propose a per-project `skillOverrides` patch in `<project>/.claude/settings.local.json` (`name-only` for cross-cutting plausible skills; `off` when categorically excluded). The skill stays installed, just silenced for this project. See `skills-auditor` for the full decision matrix.
 
 ## Output shape
 

@@ -68,7 +68,7 @@ def _route_board(modules, gaps):
 def render(root):
     jpath = os.path.join(root, ".context", "audits", "test-coverage", "coverage-matrix.json")
     if not os.path.isfile(jpath):
-        P.die(f"no coverage-matrix.json at {jpath} — run /aidex-audit coverage-matrix first")
+        P.die(f"no coverage-matrix.json at {jpath} — run /aidex:audit coverage-matrix first")
     try:
         with open(jpath, encoding="utf-8") as f:
             data = json.load(f)
@@ -79,7 +79,7 @@ def render(root):
     if schema != EXPECTED_SCHEMA:
         P.die(f"coverage-matrix.json schema {schema!r} is not supported "
               f"(expected {EXPECTED_SCHEMA!r}) at {jpath} — "
-              "regenerate via /aidex-audit coverage-matrix")
+              "regenerate via /aidex:audit coverage-matrix")
 
     modules = data.get("modules") or []
     if not modules:

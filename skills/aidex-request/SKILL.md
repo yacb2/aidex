@@ -1,6 +1,6 @@
 ---
-name: aidex-request
-description: 'Use when the user relays an incoming stakeholder, client, or product request that should be captured as a written `.context/requests/` item before anyone acts on it — a feature ask, a requirement from a meeting, user feedback to formalize. Fires on "the client asked for X", "the stakeholder wants X", "capture this as a request", "log this requirement", "we got a request to add X". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); investigating how something works (aidex-research); documenting a settled reference (aidex-reference); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).'
+name: request
+description: 'Use when the user relays an incoming stakeholder, client, or product request that should be captured as a written `.context/requests/` item before anyone acts on it — a feature ask, a requirement from a meeting, user feedback to formalize. Fires on "the client asked for X", "the stakeholder wants X", "capture this as a request", "log this requirement", "we got a request to add X". Not for: planning multi-step work (/aidex:plan); recording a decision/ADR (/aidex:decision); investigating how something works (/aidex:research); documenting a settled reference (/aidex:reference); deferring/parking an idea (/aidex:backlog); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -17,7 +17,7 @@ lives in the shared `aidex-conventions` reference package (not forked here).
 ## Workflow
 
 1. Read the request conventions canon:
-   `~/.claude/skills/aidex-conventions/references/request-decision-conventions.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/request-decision-conventions.md`
    (Requests section; or `.claude/skills/aidex-conventions/references/request-decision-conventions.md`
    if a project-level copy exists).
 2. Create a single dated file: `.context/requests/YYYY-MM-DD-<slug>.md`
@@ -36,7 +36,7 @@ When a request reaches a terminal state, close it atomically (stamps `updated`,
 sets the terminal status, archives per D-10) instead of hand-editing:
 
 ```bash
-bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh requests <slug> [--status done|dropped]
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/close-dated-artifact.sh requests <slug> [--status done|dropped]
 ```
 
 A request escalated to a plan sets `escalated_to: plan/<slug>` first, then closes
@@ -47,7 +47,7 @@ with `--status done`.
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type requests
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type requests
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),

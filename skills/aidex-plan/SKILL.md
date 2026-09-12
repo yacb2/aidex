@@ -1,6 +1,6 @@
 ---
-name: aidex-plan
-description: 'Use when implementation work should become a written `.context/` plan before coding starts — either multi-phase work (a feature build, a migration, a refactor spanning backend/frontend/infra) or a single scoped change where only the file list and acceptance criteria need pinning down; a triage step picks which. Fires on "create a plan for X", "let''s plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let''s build a multi-phase plan", "implement X minimally", "a small scoped change to X", "just the minimum to ship X". Not for: fixing a bug or regression, which needs a failing test (aidex-bugfix); deferring or parking an idea for later (aidex-backlog); ADRs (aidex-decision), requests (aidex-request), research (aidex-research), or references (aidex-reference); ecosystem audits (aidex); project-state audits (aidex-audit); direct implementation with no plan doc.'
+name: plan
+description: 'Use when implementation work should become a written `.context/` plan before coding starts — either multi-phase work (a feature build, a migration, a refactor spanning backend/frontend/infra) or a single scoped change where only the file list and acceptance criteria need pinning down; a triage step picks which. Fires on "create a plan for X", "let''s plan X", "I want to plan X", "we need to plan X", "plan the migration of X", "let''s build a multi-phase plan", "implement X minimally", "a small scoped change to X", "just the minimum to ship X". Not for: fixing a bug or regression, which needs a failing test (/aidex:bugfix); deferring or parking an idea for later (/aidex:backlog); ADRs (/aidex:decision), requests (/aidex:request), research (/aidex:research), or references (/aidex:reference); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit); coding without a plan doc.'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Agent
 model-policy: inherit-session
@@ -18,7 +18,7 @@ the formatting canon lives in the shared `aidex-conventions` reference package
 ## Triage — pick the mode before anything else
 
 Runs on **every** invocation, before Step 0. Skip it in one line only when the user names
-the mode outright ("plan this as scoped", "/aidex-plan full"). Canon:
+the mode outright ("plan this as scoped", "/aidex:plan full"). Canon:
 `plan-conventions.md` §Plan mode.
 
 The discriminator is **not size** — it is whether more than one viable design exists and
@@ -90,7 +90,7 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
 ## Workflow
 
 1. Read the plan conventions canon:
-   `~/.claude/skills/aidex-conventions/references/plan-conventions.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/plan-conventions.md`
    (or `.claude/skills/aidex-conventions/references/plan-conventions.md` if a
    project-level copy exists).
 2. Decide the structure per that canon:
@@ -168,7 +168,7 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type plans
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type plans
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),
@@ -201,7 +201,7 @@ After writing a plan with **≥ 2 phases**, offer phase-by-phase execution via
 trivial plans skip this — do not add noise. A `mode: scoped` plan is one phase by
 construction, so it never reaches this step.
 
-1. Detect whether `aidex-plan-exec` is installed: check `~/.claude/skills/aidex-plan-exec/`
+1. Detect whether `aidex-plan-exec` is installed: check `${CLAUDE_PLUGIN_ROOT}/skills/aidex-plan-exec/`
    and any installed plugins.
 2. If present → offer: "Execute this plan phase-by-phase with review/commit/handoff
    via `aidex-plan-exec`?"

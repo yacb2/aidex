@@ -15,7 +15,7 @@ description: Create a new release with version bump, changelog update, and tag
 
 Cut a release for this workspace.
 
-**Procedure:** `~/.claude/skills/aidex-conventions/references/fleet-version-conventions.md`
+**Procedure:** `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/fleet-version-conventions.md`
 **Per-project facts:** `.claude/git-repos.json`
 
 Read both, then run the release procedure with `$ARGUMENTS` as the requested bump.

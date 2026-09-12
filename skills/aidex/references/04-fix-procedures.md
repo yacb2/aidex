@@ -85,7 +85,7 @@ SKILL.md serves this purpose. Delete? (y/n)
 
 ### Trim Duplicated Skills
 ```
-.claude/skills/my-skill: ~80% identical to ~/.claude/skills/my-skill
+.claude/skills/my-skill: ~80% identical to ${CLAUDE_PLUGIN_ROOT}/skills/my-skill
 Options:
   [1] Delete local (use global)
   [2] Trim local to project-specific only
@@ -104,7 +104,7 @@ Options:
 
 ### Fix Broken Symlinks
 ```
-.claude/skills/gsap-core → ~/.claude/skills/gsap-core (BROKEN)
+.claude/skills/gsap-core → ${CLAUDE_PLUGIN_ROOT}/skills/gsap-core (BROKEN)
 Options:
   [1] Remove symlink
   [2] Skip

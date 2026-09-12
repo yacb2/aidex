@@ -1,6 +1,6 @@
 ---
-name: aidex-worktree
-description: 'Use when the user wants to create, run or tear down a git worktree with its own isolated environment (database, ports, containers), or when a project has no worktree setup yet and one needs bootstrapping by investigating the repo topology and verifying the compose stack can run twice — "set up a worktree for X", "create an isolated worktree", "spin up a second environment", "tear down the worktree", "how do we do worktrees on this project", "my worktrees are leaving Docker images/volumes behind", "worktree ports collide", first-time worktree setup. Also fires when aidex-plan/aidex-plan-exec/aidex-loop reach their Isolation step. Not for: planning multi-step work (aidex-plan); designing a loop (aidex-loop); a single-repo code-only checkout with no services (native EnterWorktree).'
+name: worktree
+description: 'Use when the user wants to create, run or tear down a git worktree with its own isolated environment (database, ports, containers), or when a project has no worktree setup yet and one needs bootstrapping by investigating the repo topology and verifying the compose stack can run twice — "set up a worktree for X", "create an isolated worktree", "spin up a second environment", "tear down the worktree", "how do we do worktrees on this project", "my worktrees are leaving Docker images/volumes behind", "worktree ports collide", first-time worktree setup. Also fires when aidex-plan/aidex-plan-exec/aidex-loop reach their Isolation step. Not for: planning multi-step work (/aidex:plan); designing a loop (/aidex:loop); a single-repo code-only checkout with no services (native EnterWorktree).'
 argument-hint: "[status | bootstrap | new <slug> --branch <b> | down <slug> | list]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep
@@ -79,12 +79,12 @@ Dispatch by first argument:
 
 | Command | Purpose |
 |---|---|
-| `/aidex-worktree` (no args) | Status: config present? worktrees live? orphan sweep |
-| `/aidex-worktree status` | Same as no args (explicit alias) |
-| `/aidex-worktree bootstrap` | Investigate topology, verify the stack is isolatable, write `config.env` |
-| `/aidex-worktree new <slug> --branch <b>` | Create a fully isolated worktree (`scripts/worktree.sh new`) |
-| `/aidex-worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
-| `/aidex-worktree list` | Every worktree of this project: slot, branch, stack state |
+| `/aidex:worktree` (no args) | Status: config present? worktrees live? orphan sweep |
+| `/aidex:worktree status` | Same as no args (explicit alias) |
+| `/aidex:worktree bootstrap` | Investigate topology, verify the stack is isolatable, write `config.env` |
+| `/aidex:worktree new <slug> --branch <b>` | Create a fully isolated worktree (`scripts/worktree.sh new`) |
+| `/aidex:worktree down <slug>` | Tear it down completely and verify nothing remains. Add `--delete-branch` to also delete the branch `new` created (recorded in `.wt-branch`; a checkout that moved on is skipped, never deleted) in each participant repo — `git branch -d`, which refuses an unmerged branch, so it is its own gate. Off by default: the branch is the only trace a torn-down worktree leaves. It never merges anything. |
+| `/aidex:worktree list` | Every worktree of this project: slot, branch, stack state |
 | `bash scripts/test-db-preflight.sh --db <test-db> [--port P]` | **Read-only** check before starting a suite: is the test database `clear` (0), `BUSY` — another run holds it (1), `STALE` — an interrupted run left it behind (2), or `UNDETERMINED` (4). Never drops or terminates anything. Run it when a suite may already be in flight; the two failure states need opposite advice, and both otherwise surface as an opaque traceback |
 
 **Tearing a worktree down is not integrating its branch.** `down` never merges, and
@@ -175,7 +175,7 @@ substitute an eyeball.
    `dev.sh`." — then run the doc-shape check and **amend any gaps in-session** (see
    "Doc-shape check" below), and point the user to `worktree.sh new`.
 3. If it does not exist: tell the user no worktree procedure is recorded yet, and offer
-   to run `/aidex-worktree bootstrap`.
+   to run `/aidex:worktree bootstrap`.
 4. **Orphan sweep.** Run
    [scripts/orphan-sweep.sh](scripts/orphan-sweep.sh):
    ```bash
@@ -225,7 +225,7 @@ fix. A recommendation that never runs is what let a broken doc sit unrepaired fo
 ## `bootstrap` — investigate, verify, write `config.env`
 
 First-time setup for a project that has no worktree configuration yet. **Read**
-`~/.claude/skills/aidex-worktree/references/04-bootstrap.md` **and follow it step by
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/references/04-bootstrap.md` **and follow it step by
 step.** It holds the topology investigation, the port-span and database derivation, the
 compose-can-run-twice verification that must pass before anything is written, what goes
 into `config.env`, and the failure modes that make a bootstrapped project look correct

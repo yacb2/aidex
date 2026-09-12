@@ -45,7 +45,7 @@ survives the subject — then `REWRITE`.
 ## The six checks — the evidence behind a verdict
 
 These are the ids `scripts/memory-sweep.py` reports. Run the sweep first if you can
-(`python3 ~/.claude/skills/aidex/scripts/memory-sweep.py --project <slug>`); it does the
+(`python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/memory-sweep.py --project <slug>`); it does the
 mechanical half and you do the reading half. The three **blocking** ones are defects on
 their own; the three **advisory** ones are prompts to look, not verdicts.
 

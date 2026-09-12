@@ -24,8 +24,8 @@ Then, in any project, just ask naturally — the right skill loads itself:
 
 - *"Create a plan for the auth migration"* → scaffolds `.context/plans/…` with phases + checkboxes
 - *"Audit my project's health"* → runs parallel auditors, returns a health score + suggested fixes
-- *"/aidex-audit new ux login-redesign"* → scaffolds a UX audit with a methodology playbook
-- *"/aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
+- *"/aidex:audit new ux login-redesign"* → scaffolds a UX audit with a methodology playbook
+- *"/aidex:aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
 - *"Render the backlog as an HTML board"* → `aidex-dash` generates a sortable, self-contained page
 
 Something not firing? Run `./install.sh --doctor` from the repo checkout to health-check the install (symlinks, versions, exec bits, manifest) — it also catches content drift when your checkout moved on but the install did not.
@@ -178,9 +178,9 @@ Nine always-on rules are installed to `~/.claude/rules/`, the sole surface Claud
 | **`aidex-research`** | User-invoked + context-triggered | Investigation and spike notes into `.context/research/` before a plan or implementation. |
 | **`aidex-reference`** | User-invoked + context-triggered | Evergreen how-it-works documentation into `.context/references/` (architecture, runbooks, configuration). |
 | **`aidex-skill`** | User-invoked + context-triggered | Checks and structures a skill against this project's house skill conventions. |
-| **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex-audit new <type> <slug>` · `/aidex-audit validate` · `/aidex-audit escalate <id>` · `/aidex-audit close <run>` · `/aidex-audit reindex` · `/aidex-audit migrate` · `/aidex-audit coverage-matrix` · `/aidex-audit coverage-sweep` · `/aidex-audit affected-tests`. Ships stock playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage, docs-coverage, rule-ablation). `affected-tests` also names any changed file that measurably breaks and has no E2E reaching it, before the change lands. |
-| **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex-audit escalate` to close the audit→backlog loop. Also scores closed items' `estimate:` against the effort they actually cost — a read that gates nothing. |
-| **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex-loop design` · `new` · `run`. |
+| **`aidex-audit`** | User-invoked + context-triggered | Operates `.context/audits/`. Sub-actions: `/aidex:audit new <type> <slug>` · `/aidex:audit validate` · `/aidex:audit escalate <id>` · `/aidex:audit close <run>` · `/aidex:audit reindex` · `/aidex:audit migrate` · `/aidex:audit coverage-matrix` · `/aidex:audit coverage-sweep` · `/aidex:audit affected-tests`. Ships stock playbooks (ux, ai-opportunities, retest, security, perf, a11y, hitl, test-coverage, docs-coverage, rule-ablation). `affected-tests` also names any changed file that measurably breaks and has no E2E reaching it, before the change lands. |
+| **`aidex-backlog`** | User-invoked + context-triggered | Creates consistent entries in `.context/backlog/` with origin tracking. Called by `/aidex:audit escalate` to close the audit→backlog loop. Also scores closed items' `estimate:` against the effort they actually cost — a read that gates nothing. |
+| **`aidex-loop`** | User-invoked + context-triggered | Designs agentic loops — writes a `.context/loops/` loop-spec (goal + verifiable gate + state file + guardrails + engine), then hands off execution to native `/goal`, `/loop`, the ralph-loop plugin, or `claude -p`. Sub-actions: `/aidex:loop design` · `new` · `run`. |
 | **`aidex-workflow`** | User-invoked + context-triggered | Designs one-shot multi-agent fan-out / decomposition orchestrations — writes a `.context/workflows/` spec (goal + fan-out shape + per-agent model table + gate policy) before the Workflow runs. |
 | **`aidex-comm`** | User-invoked + context-triggered | Captures inbound/outbound communications into `.context/communications/{received,sent}/` — emails, WhatsApp, calls, meetings — with channel/direction/from/to front-matter. Body stays in the native language of the communication (exempt from English-only). |
 | **`aidex-plan-exec`** | User-invoked + context-triggered | Executes a written multi-phase plan (typically a `.context/plans/` doc) phase-by-phase, enforcing between-phase discipline: code-review, commit, and handoff when context grows. Routes back to `aidex-plan` for plan creation. |
@@ -202,13 +202,13 @@ Nine always-on rules are installed to `~/.claude/rules/`, the sole surface Claud
 → Claude loads aidex-reference, creates .context/references/payment-api/
   with 00-index.md + 01-overview.md
 
-"/aidex-audit new ux login-redesign"
+"/aidex:audit new ux login-redesign"
 → Scaffolds .context/audits/ux/2026-04-02-login-redesign/ with index, findings,
   and materializes that methodology's boards on first use —
   audits/ux/{00-inventory.md, 00-methodology.md (seeded from the ux playbook), 00-changelog.md}
 ```
 
-**Auditing** — ask or invoke `/aidex`:
+**Auditing** — ask or invoke `/aidex:aidex`:
 ```
 "Check my project's documentation health"
 → aidex launches parallel subagents:

@@ -1295,5 +1295,5 @@ if [[ $NO_INDEX -eq 0 ]]; then
   regen_index "$BACKLOG_DIR" || true
 fi
 
-# Emit the path to stdout so callers (like /aidex-audit escalate) can capture it
+# Emit the path to stdout so callers (like /aidex:audit escalate) can capture it
 printf '%s\n' "$OUT_FILE"

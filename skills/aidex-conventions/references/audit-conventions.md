@@ -253,7 +253,7 @@ What was walked, root-cause narrative, verification evidence, caveats.
 
 ## Audit types (methodologies)
 
-AIDEX ships playbook templates for the following methodologies. Each becomes a folder under `.context/audits/<methodology>/` on first use via `/aidex-audit new <methodology> <slug>`.
+AIDEX ships playbook templates for the following methodologies. Each becomes a folder under `.context/audits/<methodology>/` on first use via `/aidex:audit new <methodology> <slug>`.
 
 | Methodology | When to run | Playbook shape |
 |---|---|---|
@@ -268,7 +268,7 @@ AIDEX ships playbook templates for the following methodologies. Each becomes a f
 | `docs-coverage` | Surfaces outpaced their docs, `.context/references/` was reorganized, or a gap surfaced by luck | Census axes × breadth (generated matrix) + depth (judgment) |
 | `rule-ablation` | The always-on context layer grew, or a pruning decision needs a measurement before it can be made | Always-on rules × applicability screen (deterministic), then a live ablation arm only for what the screen leaves open |
 
-Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your own playbook.
+Custom methodologies are allowed — `/aidex:audit new custom <slug>` with your own playbook.
 
 ---
 
@@ -282,18 +282,18 @@ Custom methodologies are allowed — `/aidex-audit new custom <slug>` with your 
 
 ## Tooling
 
-- `/aidex-audit new <methodology> <slug>` — scaffold a new audit run inside the methodology folder.
-- `/aidex-audit validate` — check coherence inventory ↔ run findings ↔ backlog.
-- `/aidex-audit escalate <finding-id>` — move finding to backlog.
-- `/aidex-audit migrate` — move legacy audit-like folders out of `plans/` and reshape into the per-methodology layout.
+- `/aidex:audit new <methodology> <slug>` — scaffold a new audit run inside the methodology folder.
+- `/aidex:audit validate` — check coherence inventory ↔ run findings ↔ backlog.
+- `/aidex:audit escalate <finding-id>` — move finding to backlog.
+- `/aidex:audit migrate` — move legacy audit-like folders out of `plans/` and reshape into the per-methodology layout.
 
-`/aidex-backlog --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
+`/aidex:backlog --origin audit --finding <id>` creates the backlog entry with the correct `origin_ref`.
 
 ---
 
 ## Anti-patterns
 
-- **Audits inside `plans/`** — mixes "what is" with "what will be". Use `/aidex-audit migrate`.
+- **Audits inside `plans/`** — mixes "what is" with "what will be". Use `/aidex:audit migrate`.
 - **Global `INVENTORY.md`** — pre-D-02 layout; reshape into per-methodology inventories.
 - **Deleting findings** — breaks the audit trail. Use `status: dropped` with reason.
 - **Per-run findings files without a link to the methodology inventory** — silent duplication.

@@ -23,13 +23,13 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
    resolved (task-scoped ephemera does not live in the evergreen doc — see
    `../../aidex-worktree/references/02-worktree-overview-conventions.md`).
 6. If the project has `.context/audits/test-coverage/module-map.json` and the plan
-   touched mapped src paths, suggest running `/aidex-audit coverage-sweep` (advisory
+   touched mapped src paths, suggest running `/aidex:audit coverage-sweep` (advisory
    drift check — do not run it unprompted mid-plan; mention it in the close summary).
 7. **Guided human verification — at the integration boundary, and it emits a proof.**
    This is the last thing before the work leaves the review window: the full suite of
    final-phase step 1 has run, and what remains is what only a person can judge.
    **Read and follow**
-   `~/.claude/skills/aidex-conventions/references/human-verification-conventions.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/human-verification-conventions.md`
    — it owns the four moves (suites → Claude smoke-tests mechanically → a visible
    browser window on the changed feature → a checklist of only what needs eyes), the
    proof artifact they write, and the recorded skip. Two things this step gets wrong if
@@ -39,7 +39,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
      session.
    - **Wrap it and open it once.** `human-verification.md` is markdown, and a checklist
      handed over as an `.md` is one the reader asks to be rebuilt as a page (BL-345).
-     `~/.claude/skills/aidex-dash/scripts/wrap-report.sh --title "<plan> — human
+     `${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/wrap-report.sh --title "<plan> — human
      verification" --lang en --in .context/proofs/<slug>/human-verification.md --out
      .context/proofs/<slug>/human-verification.html`, then `open` that file — once, last,
      after the rest of close-out, per `rules/artifacts-local-first.md` gate 2. Never

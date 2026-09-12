@@ -160,24 +160,24 @@ def _in_namespace(n: str) -> bool:
 def _name_prefix_failures(pairs: list[tuple[str, str]]) -> list[str]:
     """Guard 9. (directory, front-matter `name:`) -> failures.
 
-    skill-conventions.md:80 requires the prefix in BOTH the directory and
-    `name:` — "the prefix *is* the namespace" — so both are checked, and so is
-    their agreement: a directory renamed without its `name:` (or the reverse)
-    is half a rename and installs under a name nothing cross-references.
+    skill-conventions.md:79 — the directory carries the collection prefix
+    (`aidex-<name>`), and `name:` carries the PLUGIN short form (`<name>`),
+    because a plugin skill's `name:` is the invocation segment after
+    `aidex:`. A directory renamed without its `name:` (or the reverse) is half
+    a rename and installs under a name nothing cross-references.
     """
     out = []
     for d, name in pairs:
         if not _in_namespace(d):
             out.append(f"skills/{d}/ is outside the aidex namespace — a suite skill is "
                        f"'{NAMESPACE_ROOT}' or '{NAMESPACE_ROOT}-<name>'")
+            continue
+        expected = NAMESPACE_ROOT if d == NAMESPACE_ROOT else d[len(NAMESPACE_ROOT) + 1:]
         if not name:
             out.append(f"skills/{d}/SKILL.md declares no `name:`")
-        elif not _in_namespace(name):
-            out.append(f"skills/{d}/SKILL.md declares name '{name}', outside the "
-                       f"aidex namespace")
-        elif name != d:
-            out.append(f"skills/{d}/SKILL.md declares name '{name}' — directory and "
-                       f"`name:` must agree")
+        elif name != expected:
+            out.append(f"skills/{d}/SKILL.md declares name '{name}' — the plugin short "
+                       f"form for this directory is '{expected}'")
     return out
 
 
@@ -655,15 +655,16 @@ def main() -> int:
     # A guard with no violating probe is the omission this file exists to catch.
     for probe, label in (
         ([("helper-scripts", "helper-scripts")], "a skill outside the aidex namespace"),
-        ([(f"{NAMESPACE_ROOT}-audit", "audit")], "a SKILL.md name outside the namespace"),
-        ([(f"{NAMESPACE_ROOT}-audit", f"{NAMESPACE_ROOT}-audits")],
+        ([(f"{NAMESPACE_ROOT}-audit", f"{NAMESPACE_ROOT}-audit")],
+         "a SKILL.md name still carrying the prefix"),
+        ([(f"{NAMESPACE_ROOT}-audit", "audits")],
          "a directory and `name:` that disagree"),
         ([(f"{NAMESPACE_ROOT}-audit", "")], "a SKILL.md with no `name:`"),
     ):
         if not _name_prefix_failures(probe):
             failures.append(f"the name-prefix guard passed {label}")
     if _name_prefix_failures([(NAMESPACE_ROOT, NAMESPACE_ROOT),
-                              (f"{NAMESPACE_ROOT}-audit", f"{NAMESPACE_ROOT}-audit")]):
+                              (f"{NAMESPACE_ROOT}-audit", "audit")]):
         failures.append("the name-prefix guard rejects the orchestrator or a valid "
                         "prefixed skill")
 

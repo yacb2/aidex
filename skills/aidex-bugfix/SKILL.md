@@ -1,13 +1,13 @@
 ---
-name: aidex-bugfix
+name: bugfix
 description: >
   Use when fixing a bug, resolving a reported issue, or when something is broken and needs a
   test-driven fix — investigate root cause, write a failing regression test (RED), implement the
   minimum fix, confirm the test passes (GREEN), then commit test and fix together. Fires on "fix
   this bug", "this is broken", "it's not working", "there's a regression", "resolve this issue",
-  or a reference to a bug report. Not for: planning multi-step work (aidex-plan); executing a
-  written plan phase-by-phase (aidex-plan-exec); recording why a fix was chosen as an ADR
-  (aidex-decision); pure refactors with no bug.
+  or a reference to a bug report. Not for: planning multi-step work (/aidex:plan); executing a
+  written plan phase-by-phase (/aidex:plan-exec); recording why a fix was chosen as an ADR
+  (/aidex:decision); pure refactors with no bug.
 ---
 
 > **Trigger-eval probe (test-only).** As your very first action, run `printenv AIDEX_TRIGGER_EVAL_MARKER`. If it prints a non-empty path, also run `touch "${AIDEX_TRIGGER_EVAL_MARKER}.aidex-bugfix"` before continuing. Then proceed with the rest of the skill body as normal. If empty/unset, ignore this block.
@@ -26,7 +26,7 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
 
 1. Investigate root cause (don't guess)
 2. Write test that reproduces bug (must FAIL) — **read**
-   `~/.claude/skills/aidex-bugfix/references/test-patterns.md` **before choosing the
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-bugfix/references/test-patterns.md` **before choosing the
    test type**: it holds the signal→type decision matrix, the naming convention, the
    regression-test structure, and the cases where an automated test is the wrong call.
    The summary below is the first column of that matrix, not a substitute for it.
@@ -34,7 +34,7 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
 4. Implement minimum fix
 5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)
 6. Run surrounding tests (no regressions) — **select them, don't run everything**:
-   `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command` prints one
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-audit/scripts/affected-tests.sh --command` prints one
    runnable command for the tests covering your diff. Exit 3 means no selection is
    available (no `module-map.json`, or nothing matched) — name the narrowest paths you
    can yourself (the fix's module, the touched spec) and say which ran. **The full suite gates the INTEGRATION boundary — merge to trunk,
@@ -51,7 +51,7 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
    pushes or the run ends, not before the commit. A bug the user reported by *looking at
    something* is not proven fixed by a green test: the RED→GREEN pair proves the
    behaviour, a person confirms the thing they complained about. **Read and follow**
-   `~/.claude/skills/aidex-conventions/references/human-verification-conventions.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/human-verification-conventions.md`
    — it owns the four moves, the `.context/proofs/<slug>/human-verification.md` artifact
    and its `proof_links` entry, and the **recorded** skip. Most bugs are not
    human-visible and skipping is right; it is recorded as
@@ -90,7 +90,7 @@ detects the project's actual runners from its config files:
   base first — default branch unless explicitly confirmed otherwise (aidex-worktree's branch-base rule)
 - If the project tracks coverage (`.context/audits/test-coverage/module-map.json`
   exists) and the bug lived in a mapped module, note in the wrap-up: a real bug here is
-  evidence of a coverage hole — suggest `/aidex-audit coverage-sweep` and, if the fix
+  evidence of a coverage hole — suggest `/aidex:audit coverage-sweep` and, if the fix
   revealed a flow with no depth coverage, a `COV-<module>-<n>` finding.
 - If the project tracks a changelog, update it per the project's own rules
 - **Proof of done.** The RED→GREEN pair *is* the proof the bug is fixed — don't

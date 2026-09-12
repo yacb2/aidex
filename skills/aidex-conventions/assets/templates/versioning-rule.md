@@ -4,7 +4,7 @@
   Template for a project-level `.claude/rules/versioning.md`.
   A rule is ALWAYS-ON: every line is paid for in every session, release or not.
   So it carries invariants only. The procedure lives in
-  `~/.claude/skills/aidex-conventions/references/fleet-version-conventions.md`,
+  `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/fleet-version-conventions.md`,
   and the per-project facts live in `.claude/git-repos.json`.
   Replace the bracketed values, delete this comment, and delete any line that
   states a fact `git-repos.json` already holds.
@@ -22,4 +22,4 @@
   this project's released version — bump it]**.
 - Releases are created locally and **never pushed automatically**.
 
-Procedure: `~/.claude/skills/aidex-conventions/references/fleet-version-conventions.md`
+Procedure: `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/fleet-version-conventions.md`

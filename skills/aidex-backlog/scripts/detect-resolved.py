@@ -5,7 +5,7 @@ An item that the work already fixed stays open until a human happens to read it.
 checks an open item against current code (RETRO-09 / BL-214). `harvest-commit.sh` closes on
 a commit trailer, which only catches the items someone remembered to name.
 
-This is the MECHANICAL half of `/aidex-backlog detect-resolved`. It does not decide
+This is the MECHANICAL half of `/aidex:backlog detect-resolved`. It does not decide
 anything: it enumerates open items and, for each, the anchors a reviewer would need — the
 paths its body cites, the commits it cites, the skills and scripts it names. The judgement
 half is a read-only subagent per item, fanned out by the skill, which reads those anchors

@@ -4,10 +4,10 @@ status: doing
 created: {{DATE}}
 updated: {{DATE}}
 version: 1.0.0
-worktree_new: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh new <slug> --branch <branch>"
-worktree_up: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh up <slug>"
-worktree_down: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh down <slug>"
-worktree_list: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh list --porcelain"
+worktree_new: "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh new <slug> --branch <branch>"
+worktree_up: "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh up <slug>"
+worktree_down: "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh down <slug>"
+worktree_list: "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh list --porcelain"
 ---
 
 <!-- The worktree_* fields are the EXACT commands executors (aidex-plan-exec
@@ -89,7 +89,7 @@ worktree_list: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh list --
 
      Read state before acting:
 
-       WT=~/.claude/skills/aidex-worktree/scripts/worktree.sh
+       WT=${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh
        bash $WT list --porcelain
 
        bash $WT new  <slug> --branch <branch>   # checkouts + stack + migrate + E2E
@@ -122,7 +122,7 @@ worktree_list: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh list --
 | run the E2E suite | `./test-e2e.sh` |
 | start an on-demand service | `docker compose --profile <p> up -d <svc>` |
 
-where `WT=~/.claude/skills/aidex-worktree/scripts/worktree.sh`, as in ## Procedure above.
+where `WT=${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh`, as in ## Procedure above.
 
 Ports for this slot are in `<worktree>/.env`. Every command above reads them.
 

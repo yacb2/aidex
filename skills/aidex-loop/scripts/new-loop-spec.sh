@@ -32,10 +32,10 @@ if [[ "${1:-}" == "new" ]]; then shift; fi
 SLUG="${1:-}"
 if [[ -z "$SLUG" ]]; then
   cat <<EOF >&2
-Usage: /aidex-loop new <slug>
+Usage: /aidex:loop new <slug>
 
 Example:
-  /aidex-loop new csv-export-greenfield
+  /aidex:loop new csv-export-greenfield
 EOF
   exit 2
 fi
@@ -58,7 +58,7 @@ cat >&2 <<EOF
 Next steps:
   1. Fill the spec: Goal, Stop condition (gate), Engine + why, Guardrails.
   2. See the engine matrix: $SKILL_DIR/references/01-loop-engines.md
-  3. When ready: /aidex-loop run $SLUG
+  3. When ready: /aidex:loop run $SLUG
 EOF
 
 # Machine-readable path on stdout.

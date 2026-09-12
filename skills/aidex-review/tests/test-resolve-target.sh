@@ -345,7 +345,7 @@ done
 #     angle names, the verbatim scope boundary, the finder cap — so a pointer nobody
 #     follows means finders launched with no scope boundary and invented angle names,
 #     with nothing erroring.
-PTR_LINE="$(grep -n 'Read `~/.claude/skills/aidex-review/references/01-review-angles.md`' "$SKILL_MD" | head -1 | cut -d: -f1)"
+PTR_LINE="$(grep -n 'Read `${CLAUDE_PLUGIN_ROOT}/skills/aidex-review/references/01-review-angles.md`' "$SKILL_MD" | head -1 | cut -d: -f1)"
 STEP_LINE="$(grep -n '^## Step 1' "$SKILL_MD" | head -1 | cut -d: -f1)"
 [ -n "$PTR_LINE" ] \
   || fail "SKILL.md has no imperative absolute-path pointer to the angle catalog (the form measured at 80.6% read)"
@@ -390,7 +390,7 @@ grep -q '01-review-angles.md' "$RESOLVER" \
 #     One direction only: IF the row claims refusal, it must also name --partition.
 #     A row that never mentions refusing is not this skill's row to police.
 #     Skipped when the README is absent — install.sh ships no README, so an
-#     unconditional read FAILs from the installed ~/.claude/skills/ tree (db45759's idiom).
+#     unconditional read FAILs from the installed ${CLAUDE_PLUGIN_ROOT}/skills/ tree (db45759's idiom).
 # ── The named target is never emptied by its own name ────────────────────────
 # Field-found 2026-08-23 reviewing skills/aidex-audit/scripts/coverage: EXCLUDE_DIRS
 # carries `coverage` (the artifact dir), and the exclusion ran over the FULL path, so

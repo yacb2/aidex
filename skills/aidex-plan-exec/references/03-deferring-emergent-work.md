@@ -11,7 +11,7 @@ loses it at the session boundary.
 ## The motion
 
 ```
-bash ~/.claude/skills/aidex-backlog/scripts/register-item.sh --origin plan \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-backlog/scripts/register-item.sh --origin plan \
   --plan <this-plan's-slug-or-folder> --title "<what is wrong>" \
   --priority <P0|P1|P2|P3> --type <bug|improvement|task|idea>
 ```

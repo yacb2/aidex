@@ -11,7 +11,7 @@
 #   audits/YYYY-MM-DD-<slug>/      standalone one-shot run (no boards; main md
 #                                  file with front-matter). Never a violation.
 #   Legacy (root boards, YYYYMMDD names, legacy status vocab) -> WARNINGS with a
-#   pointer to /aidex-audit migrate; reads never crash.
+#   pointer to /aidex:audit migrate; reads never crash.
 #
 # Waivers: accepted findings recorded in <context>/.aidex-waivers are suppressed
 # from counts and the exit code but always reported under a `waived: N` summary —
@@ -249,7 +249,7 @@ validate_inventory() {
   done < <(strip_html_comments "$inv")
 
   if [[ $legacy_here -gt 0 ]]; then
-    add_warning audit-legacy-status "$inv" "$scope inventory carries $legacy_here legacy status value(s) (triaged/escalated/in-progress/closed) — counted under the mapped base status; run /aidex-audit migrate to convert"
+    add_warning audit-legacy-status "$inv" "$scope inventory carries $legacy_here legacy status value(s) (triaged/escalated/in-progress/closed) — counted under the mapped base status; run /aidex:audit migrate to convert"
   fi
   if [[ $oversize_notes -gt 0 ]]; then
     add_warning audit-notes-oversize "$inv" "$scope inventory has $oversize_notes Notes cell(s) over 300 B — move the resolution narrative to the run findings.md or .context/proofs/ (canon: Notes is a one-line state note)"
@@ -258,7 +258,7 @@ validate_inventory() {
     add_warning audit-inventory-row-unparseable "$inv" "$scope inventory has row(s) whose columns do not line up and were not read:${unparsed_ids} — a literal pipe inside a cell must be escaped as \\| , otherwise it shifts every column right and the row is dropped (and its id then reads as an orphan reference)"
   fi
   if [[ $pipe_rows -gt 0 && $parsed_here -eq 0 ]]; then
-    add_warning audit-legacy-schema "$inv" "$scope inventory uses a legacy schema ($pipe_rows pipe-rows, 0 parse as canonical). Expected: | ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes | (the 11-column form with First Seen / Last Updated is also accepted). Run /aidex-audit migrate."
+    add_warning audit-legacy-schema "$inv" "$scope inventory uses a legacy schema ($pipe_rows pipe-rows, 0 parse as canonical). Expected: | ID | Type | Module | Summary | Status | Severity | Audit Runs | Escalated To | Notes | (the 11-column form with First Seen / Last Updated is also accepted). Run /aidex:audit migrate."
   fi
 }
 
@@ -270,7 +270,7 @@ validate_methodology_runs() {
     base="$(basename "$dir")"
     runs=$((runs+1))
     if [[ "$base" =~ ^[0-9]{8}- ]]; then
-      add_warning audit-legacy-run-name "$dir" "$scope run '$base' uses legacy YYYYMMDD naming — run /aidex-audit migrate"
+      add_warning audit-legacy-run-name "$dir" "$scope run '$base' uses legacy YYYYMMDD naming — run /aidex:audit migrate"
     fi
     [[ -f "$dir/index.md" ]]    || add_violation audit-run-missing-index "$dir/index.md" "missing index.md in $scope/$base"
     [[ -f "$dir/findings.md" ]] || add_violation audit-run-missing-findings "$dir/findings.md" "missing findings.md in $scope/$base"
@@ -287,7 +287,7 @@ if [[ -f "$AUDITS_DIR/00-inventory.md" && -f "$AUDITS_DIR/INVENTORY.md" ]]; then
   add_warning audit-duplicate-root-inventory "$AUDITS_DIR/INVENTORY.md" "both 00-inventory.md and INVENTORY.md exist at the audits root; preferring 00-inventory.md — remove the legacy file after confirming content is migrated"
 fi
 if [[ -n "$ROOT_INV" ]]; then
-  add_warning audit-legacy-root-boards "$ROOT_INV" "boards at the audits/ ROOT are the pre-D-02 legacy layout — run /aidex-audit migrate to group by methodology"
+  add_warning audit-legacy-root-boards "$ROOT_INV" "boards at the audits/ ROOT are the pre-D-02 legacy layout — run /aidex:audit migrate to group by methodology"
   validate_inventory "$ROOT_INV" "(root-legacy)"
 fi
 
@@ -414,7 +414,7 @@ if [[ -d "$COV_DIR" ]]; then
     fi
   fi
   if [[ -f "$COV_DIR/coverage-matrix.md" ]] && ! grep -q 'GENERATED' "$COV_DIR/coverage-matrix.md"; then
-    add_warning audit-coverage-matrix-ungenerated "$COV_DIR/coverage-matrix.md" "test-coverage/coverage-matrix.md lacks the GENERATED header — it looks hand-created; regenerate via /aidex-audit coverage-matrix (never hand-edit generated artifacts)"
+    add_warning audit-coverage-matrix-ungenerated "$COV_DIR/coverage-matrix.md" "test-coverage/coverage-matrix.md lacks the GENERATED header — it looks hand-created; regenerate via /aidex:audit coverage-matrix (never hand-edit generated artifacts)"
   fi
 fi
 
@@ -422,7 +422,7 @@ fi
 REINDEX_AUDITS="$SKILL_DIR/scripts/reindex-audits.sh"
 if [[ -x "$REINDEX_AUDITS" ]]; then
   drift_msg="$(NO_COLOR=1 bash "$REINDEX_AUDITS" --check 2>&1)" || \
-    add_warning audit-index-stale "$AUDITS_DIR/00-index.md" "${drift_msg:-00-index.md stale — run /aidex-audit reindex}"
+    add_warning audit-index-stale "$AUDITS_DIR/00-index.md" "${drift_msg:-00-index.md stale — run /aidex:audit reindex}"
 fi
 
 # ---------- Waivers ----------

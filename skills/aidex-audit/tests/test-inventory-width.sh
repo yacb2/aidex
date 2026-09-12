@@ -219,7 +219,7 @@ done
 # ---------------------------------------------------------------------------
 # The agents are the fifth writer of that row, and the one d63d71c did not bring
 # to width. inventory-seeder.md carried an 8-column shape (no Notes) aimed at a
-# global INVENTORY.md, so /aidex-audit migrate -- the one path that mass-produces
+# global INVENTORY.md, so /aidex:audit migrate -- the one path that mass-produces
 # rows -- produced them short a column, in a legacy location, with a legacy status.
 # An agent that embeds the shape cannot be migrated by editing the template, so the
 # assertion is that it embeds none and reads the target board's header instead.

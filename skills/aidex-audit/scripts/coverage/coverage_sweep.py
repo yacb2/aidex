@@ -172,7 +172,7 @@ def render(rows, display_date, baseline_label):
 
     if flagged:
         lines.append(
-            "Next: /aidex-audit new test-coverage <slug> scoped to the flagged "
+            "Next: /aidex:audit new test-coverage <slug> scoped to the flagged "
             "modules, then regenerate the matrix."
         )
     return "\n".join(lines)

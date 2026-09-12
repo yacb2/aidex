@@ -44,7 +44,7 @@ project** — a `.claude/skills/<name>` symlink pointing at something like
 positive that makes a checker like this one get discounted. On this machine:
 
 ```
-python3 ~/.claude/skills/aidex/scripts/check-skill-overrides.py --skills-dir ~/.myskills/skills
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/check-skill-overrides.py --skills-dir ~/.myskills/skills
 ```
 
 It also reports **SHADOWED**: a bare key that does resolve to a personal skill while a

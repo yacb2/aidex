@@ -170,7 +170,7 @@ def main():
     ui = [n for n in ("shadcn-vue", "reka-ui", "vue-sonner", "ag-grid-vue3", "primevue") if f'"{n}"' in pkg]
     v["ui_stack"] = " ".join(ui)
     # Stack packs: the framework-specific content aidex-coverage resolves by name from
-    # ~/.claude/skills/<pack>/. Derived from dependency markers only; blank means "no pack
+    # ${CLAUDE_PLUGIN_ROOT}/skills/<pack>/. Derived from dependency markers only; blank means "no pack
     # recognised", never a default.
     anypkg = pkg + root_pkg
     packs = []

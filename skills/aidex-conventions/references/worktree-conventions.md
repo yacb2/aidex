@@ -179,7 +179,7 @@ running container, not whether the data matters. Skipped teardowns accumulate un
   user has confirmed**. Never `rm` a volume the sweep didn't name, and never `rm` from
   memory of "probably orphaned" — always from the current report.
 - The orphan sweep (`aidex-worktree/scripts/orphan-sweep.sh`, wired into
-  `/aidex-worktree status`) is **report-only by construction**: it prints the exact
+  `/aidex:worktree status`) is **report-only by construction**: it prints the exact
   reclaim command per orphan and never executes anything. Deletion is always a
   separate, explicit, human-confirmed step.
 

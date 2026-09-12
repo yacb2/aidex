@@ -5,7 +5,7 @@ lexicon:
   plan:context: "\\.context|plan formal|documenta (esto|el plan)|seg[uú]n (el )?est[áa]ndar"
   plan:ask: "\\bplan(ea|ifica)?\\b|\\bvamos a planear\\b|\\bmulti-?fase\\b|\\bplan-exec\\b"
 skills: [aidex-plan, aidex-plan-exec]
-slash: ["/aidex-plan", "/aidex-plan-exec"]
+slash: ["/aidex:plan", "/aidex:plan-exec"]
 scripts: [worklist-advance.sh, close-plan.sh, reindex-plans.sh]
 paths: ["\\.context/plans/", "\\.context/worklists/"]
 primary_source: transcript

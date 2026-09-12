@@ -9,10 +9,10 @@ if [[ "${1:-}" == "escalate" ]]; then shift; fi
 
 if [[ $# -lt 1 ]]; then
   cat <<EOF >&2
-Usage: /aidex-audit escalate <finding-id>
+Usage: /aidex:audit escalate <finding-id>
 
 Example:
-  /aidex-audit escalate BUG-01-3
+  /aidex:audit escalate BUG-01-3
 EOF
   exit 2
 fi
@@ -41,9 +41,7 @@ RUN_REF="$AUDIT_RUN"
 REGISTER=""
 for candidate in \
   "$SKILL_DIR/../aidex-backlog/scripts/register-item.sh" \
-  "$ROOT/skills/aidex-backlog/scripts/register-item.sh" \
-  "$HOME/.claude/skills/aidex-backlog/scripts/register-item.sh" \
-  "$HOME/.claude/skills/aidex-backlog/scripts/register-item.sh"
+  "$ROOT/skills/aidex-backlog/scripts/register-item.sh"
 do
   if [[ -f "$candidate" && -x "$candidate" ]]; then
     REGISTER="$candidate"
@@ -95,4 +93,4 @@ mark_row_escalated "$INVENTORY" "$FINDING_ID" "$MARKER"
 ok "$FINDING_ID escalated"
 printf '  backlog entry: %s\n' "$BACKLOG_FILE" >&2
 printf '  inventory row: status -> done, Escalated To -> %s\n' "$MARKER" >&2
-printf '\nNext: /aidex-audit validate\n' >&2
+printf '\nNext: /aidex:audit validate\n' >&2

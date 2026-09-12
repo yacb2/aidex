@@ -1,6 +1,6 @@
 ---
-name: aidex-skill
-description: 'Use when the user wants an existing or in-progress skill checked or structured against THIS project''s house skill conventions — "what are our skill conventions", "review this skill against our standards", "does this skill follow our patterns", "structure this skill the way we do", "audit this skill''s front-matter/description for our rules". Not for: creating a skill from scratch, optimizing a skill''s description for triggering, or running skill evals (all skill-creator); planning (aidex-plan); decisions (aidex-decision); requests (aidex-request); research (aidex-research); references (aidex-reference); ecosystem audits (aidex).'
+name: skill
+description: 'Use when the user wants an existing or in-progress skill checked or structured against THIS project''s house skill conventions — "what are our skill conventions", "review this skill against our standards", "does this skill follow our patterns", "structure this skill the way we do", "audit this skill''s front-matter/description for our rules". Not for: creating a skill from scratch, optimizing a skill''s description for triggering, or running skill evals (all skill-creator); planning (/aidex:plan); decisions (/aidex:decision); requests (/aidex:request); research (/aidex:research); references (/aidex:reference); ecosystem audits (/aidex:aidex).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -16,7 +16,7 @@ create skills from scratch).
 ## Workflow
 
 1. Read the skill conventions canon:
-   `~/.claude/skills/aidex-conventions/references/skill-conventions.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/skill-conventions.md`
    (or the `.claude/skills/...` project-level copy if one exists).
 2. Identify the target skill the user is reviewing or structuring.
 3. Produce a gap report against the canon: front-matter (trigger-first

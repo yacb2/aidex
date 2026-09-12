@@ -39,7 +39,7 @@ file is a session narrative with no fact to extract, or another memory / `CLAUDE
 
 ## Where each verdict goes
 
-The routing table, in one place. `/aidex memory --apply` reads it; the auditor agent
+The routing table, in one place. `/aidex:aidex memory --apply` reads it; the auditor agent
 returns a verdict and nothing else. An unlisted verdict is a `KEEP`: nothing happens.
 
 | Verdict | Destination |

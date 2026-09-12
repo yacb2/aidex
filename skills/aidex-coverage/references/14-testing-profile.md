@@ -62,7 +62,7 @@ shape the skill writes is one workflow per `NN-<slug>.md` under the
 ## Stack packs
 
 `testing_packs` is the one key that is a pointer rather than a value: a space-separated
-list of skill names, each installed at `~/.claude/skills/<pack>/`. A pack carries what
+list of skill names, each installed at `${CLAUDE_PLUGIN_ROOT}/skills/<pack>/`. A pack carries what
 this skill deliberately does not — the test shapes, helpers, traps and E2E infrastructure
 of one framework as it is used in this fleet. The canon decides the layer, the selection
 and the gate; the pack says what a test at that layer looks like in that framework.

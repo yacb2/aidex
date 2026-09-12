@@ -1,6 +1,6 @@
 # Report and Action Shapes
 
-The literal output templates for Phases 2, 3 and 4 of the `/aidex` audit. Read this when
+The literal output templates for Phases 2, 3 and 4 of the `/aidex:aidex` audit. Read this when
 you reach the phase that emits one; `SKILL.md` keeps the routing rules and the gates that
 decide *what* goes into these shapes, this file is *how the shape looks*.
 

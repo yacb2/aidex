@@ -1,6 +1,6 @@
 # Find, merge, then verify — the Step 3 procedure
 
-The whole of `/aidex-review` Step 3: the read-only contract every agent carries, the
+The whole of `/aidex:review` Step 3: the read-only contract every agent carries, the
 finder shape, the merge barrier, the verifier's return shape, fallen-angle accounting,
 and the no-`Workflow` fallback.
 

@@ -287,7 +287,7 @@ Acceptance` are written by the defining agent **without asking**: an owner witho
 code in front of them cannot size faster than a reader of the code, and a wrong size only
 defers the item at the sweep.
 
-Bringing the backlog up to the contract is `/aidex-backlog define` (`triage.sh` reports
+Bringing the backlog up to the contract is `/aidex:backlog define` (`triage.sh` reports
 the gap; `define-check.py` lists what each item lacks and what the body already tells a
 script — touches candidates, cross-repo paths, cited ids, clusters of items sharing a
 token or citing each other, the "these could be one change" list; `define-item.sh`

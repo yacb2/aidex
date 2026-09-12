@@ -51,10 +51,10 @@ status: doing          # base lifecycle: open | doing | done | dropped
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 version: 1.0.0
-worktree_new:  "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh new <slug> --branch <branch>"
-worktree_up:   "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh up <slug>"
-worktree_down: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh down <slug>"
-worktree_list: "bash ~/.claude/skills/aidex-worktree/scripts/worktree.sh list --porcelain"
+worktree_new:  "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh new <slug> --branch <branch>"
+worktree_up:   "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh up <slug>"
+worktree_down: "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh down <slug>"
+worktree_list: "bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-worktree/scripts/worktree.sh list --porcelain"
 ```
 
 - The `worktree_*` fields are what executors read (aidex-plan-exec Orient,

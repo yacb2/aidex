@@ -9,7 +9,7 @@ measure task size.
 ## Entry points
 
 ```bash
-R=~/.claude/skills/aidex-audit/scripts/usage-retro
+R=${CLAUDE_PLUGIN_ROOT}/skills/aidex-audit/scripts/usage-retro
 export AIDEX_PROJECTS_ROOT=~/Documents/projects    # or pass --projects-root each time
 
 # The core: join tracked items to the sessions that worked on them.

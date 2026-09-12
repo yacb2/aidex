@@ -43,7 +43,7 @@ fi
 # The lock is anchored to its owner PID, because a bare `mkdir` lock cannot tell
 # "a run is in progress" from "a run died here in July". One that did exactly
 # that disabled this suite for seventeen days while reporting success.
-RUNLOCK="${AIDEX_WT_LIFECYCLE_LOCK:-${TMPDIR:-/tmp}/aidex-wt-lifecycle-test.lock}"
+RUNLOCK="${AIDEX_WT_LIFECYCLE_LOCK:-${TMPDIR:-/tmp}/aidex:wt-lifecycle-test.lock}"
 # A SYMLINK, not a directory, and the owner PID is its target: `ln -s` publishes
 # the name and the owner in one atomic step. `mkdir` then writing a pid file
 # leaves a window in which a second instance sees an ownerless lock, calls it
@@ -83,7 +83,7 @@ cleanup() {
   # plan's own subject.
   for p in $STRAY_PIDS; do kill "$p" 2>/dev/null; done
   for s in a b c d fail1; do ( cd "$WS" 2>/dev/null && bash "$WT" down "$s" ) >/dev/null 2>&1; done
-  rm -rf "$TMP" "${TMPDIR:-/tmp}/aidex-wt-slots-wtfix"
+  rm -rf "$TMP" "${TMPDIR:-/tmp}/aidex:wt-slots-wtfix"
   [[ -n "${RUNLOCK:-}" ]] && rm -rf "$RUNLOCK"
 }
 trap cleanup EXIT
@@ -150,12 +150,12 @@ for proj in $(docker ps -a --format '{{.Label "com.docker.compose.project"}}' | 
 done
 for v in $(docker volume ls --format '{{.Name}}' | grep '^wtfix-wt-' || true); do docker volume rm "$v" >/dev/null 2>&1; done
 for n in $(docker network ls --format '{{.Name}}' | grep '^wtfix-wt-' || true); do docker network rm "$n" >/dev/null 2>&1; done
-rm -rf "${TMPDIR:-/tmp}/aidex-wt-slots-wtfix"
+rm -rf "${TMPDIR:-/tmp}/aidex:wt-slots-wtfix"
 
 BASE="$TMP/base.snap"
 bash "$SNAP" take "$BASE" >/dev/null 2>&1
 
-SLOTDIR="${TMPDIR:-/tmp}/aidex-wt-slots-wtfix"
+SLOTDIR="${TMPDIR:-/tmp}/aidex:wt-slots-wtfix"
 claims() { ls "$SLOTDIR" 2>/dev/null | grep -c '^slot-' | tr -d ' '; }
 
 # --- 1. single cycle, twice, must be identical ------------------------------

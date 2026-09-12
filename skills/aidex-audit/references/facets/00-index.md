@@ -16,7 +16,7 @@ label: { en: "Artifacts", es: "Artefactos" }
 lexicon:                     # label -> regex, re.I; the ONLY owner of these entries
   artifact:page: "\\bartifact\\b|\\bartefacto\\b|\\bp[aá]gina de consulta\\b"
 skills: [artifact-design, artifact-diagramming, aidex-dash]
-slash: ["/aidex-dash"]
+slash: ["/aidex:dash"]
 scripts: [wrap-report.sh, check-artifact.sh, render.sh]
 paths: ["\\.context/reports/", "\\.html$"]
 primary_source: pages        # pages | transcript | items | events

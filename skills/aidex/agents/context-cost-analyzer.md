@@ -9,12 +9,12 @@ user-invocable: false
 ---
 
 You analyze a project's idle context cost. Input is the snapshot JSON written by
-`~/.claude/skills/aidex/scripts/context-snapshot.py` (path given in the prompt) plus the
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/context-snapshot.py` (path given in the prompt) plus the
 project path. Every token count you use comes from that file; you estimate nothing.
 
 ## Setup
 
-Read the budget heuristics: `~/.claude/skills/aidex/references/05-context-budget.md`.
+Read the budget heuristics: `${CLAUDE_PLUGIN_ROOT}/skills/aidex/references/05-context-budget.md`.
 
 ## Steps
 

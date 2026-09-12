@@ -9,7 +9,7 @@ authors no content and introduces no new data files.
 Every rendered page's **first line** is an HTML comment of the form:
 
 ```
-<!-- GENERATED <iso-timestamp> by /aidex-dash <target> — DO NOT EDIT, regenerate instead -->
+<!-- GENERATED <iso-timestamp> by /aidex:dash <target> — DO NOT EDIT, regenerate instead -->
 ```
 
 This is the same contract `coverage-matrix.md` carries: the render is a

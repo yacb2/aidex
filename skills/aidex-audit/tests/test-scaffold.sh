@@ -96,7 +96,7 @@ if grep -n "{{" "$S/index.md" >/dev/null 2>&1; then fail "standalone index has u
 
 # --- the documented no-args status block must read what the scaffolder writes (BL-094) ---
 # It read .context/audits/00-changelog.md, a root path new-audit.sh never creates,
-# so a bare /aidex-audit silently printed nothing about methodology changes.
+# so a bare /aidex:audit silently printed nothing about methodology changes.
 SKILL_DIR="$(cd "$SCRIPTS/.." && pwd -P)"
 STATUS_BLOCK="$(awk '/^# Quick status \(when invoked with no args\):$/{f=1} f{print} f && /^fi$/{exit}' "$SKILL_DIR/SKILL.md")"
 [[ -n "$STATUS_BLOCK" ]] || fail "could not extract the Quick status block from SKILL.md"

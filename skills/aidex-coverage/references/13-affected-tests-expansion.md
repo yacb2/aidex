@@ -11,7 +11,7 @@ does not turn a two-minute loop into a twenty-minute one.
 
 ## What the script does
 
-`/aidex-audit affected-tests [--since <ref>] [--command]`
+`/aidex:audit affected-tests [--since <ref>] [--command]`
 (`skills/aidex-audit/scripts/affected-tests.sh`, logic in `coverage/affected_tests.py`):
 
 - collects changed files per repo (working tree + staged; or `--since <ref>`);

@@ -1,6 +1,6 @@
 ---
-name: aidex-plan-exec
-description: 'Use when the user asks to execute, implement, or continue a written multi-phase plan — typically a `.context/plans/` document or any plan with checkboxes/phases. Fires on "implement the plan", "execute plan X", "let''s execute the plan", "continue with phase Y", "resume the plan", "run the plan phase by phase". Enforces between-phase discipline: code-review, commit, handoff when context grows. Not for: creating the plan itself (aidex-plan); one-shot tasks with no phases; bug fixes (aidex-bugfix); pure refactors with no plan document.'
+name: plan-exec
+description: 'Use when the user asks to execute, implement, or continue a written multi-phase plan — typically a `.context/plans/` document or any plan with checkboxes/phases. Fires on "implement the plan", "execute plan X", "let''s execute the plan", "continue with phase Y", "resume the plan", "run the plan phase by phase". Enforces between-phase discipline: code-review, commit, handoff when context grows. Not for: creating the plan itself (/aidex:plan); one-shot tasks with no phases; bug fixes (/aidex:bugfix); pure refactors with no plan document.'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Agent
 model-policy: per-stage
@@ -73,7 +73,7 @@ phase a fresh bounded agent, a two-stage gate per phase, crash-resumable via the
 Promote only when the work is **decomposable + machine-verifiable + unattended** and each
 phase's real work dwarfs the per-agent floor; the mandatory Orient evaluation is the opt-in.
 
-**Read `~/.claude/skills/aidex-plan-exec/references/01-unattended-batch-execution.md`
+**Read `${CLAUDE_PLUGIN_ROOT}/skills/aidex-plan-exec/references/01-unattended-batch-execution.md`
 before promoting anything** — promotion threshold and its measured ~22k/agent cost floor,
 the three shipped workflow forms and how to pick one, how to derive `args` from the plan,
 the phase tier map, and what happens when a phase fails its gate.
@@ -162,7 +162,7 @@ For each phase in order:
 2. Run the verification step the plan declares (tests, type-check, build,
    manual check). If none is declared, run the minimum that proves the change
    works (relevant test suite + type-check). **Iterate on the selection, not the
-   whole suite:** `~/.claude/skills/aidex-audit/scripts/affected-tests.sh --command`
+   whole suite:** `${CLAUDE_PLUGIN_ROOT}/skills/aidex-audit/scripts/affected-tests.sh --command`
    prints one runnable command for the tests covering the phase's diff; exit 3 means
    no selection is available, so run everything and say so. The between-phase
    checkpoint commits on the **selection**, stated rather than silent — say which
@@ -210,15 +210,15 @@ For each phase in order:
 
 After each phase passes verification, before starting the next phase, run the shared
 checkpoint — **read**
-`~/.claude/skills/aidex-conventions/references/checkpoint-conventions.md` **and follow its
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/checkpoint-conventions.md` **and follow its
 four moves** (scoped review with its recorded anchor and findings addressed by remedy · commit · register-don't-discuss ·
 auto-handoff without asking). It is one canon with two consumers (this skill and the
 backlog sweep) and is not restated here; `test_checkpoint_lockstep.sh` fails this file if
 it grows its own copy. What is plan-specific:
 
-- **Scope.** `~/.claude/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`,
+- **Scope.** `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`,
   or `--base <phase-start-sha> branch-vs-main` for a phase that spans commits — and
-  `~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` owns which
+  `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/review-scope-conventions.md` owns which
   reviewer covers which scope. **Exit 3 is an empty scope, never a passing review.**
 - **Where the evidence goes.** The Execution log in the plan's `00-index.md` takes the
   `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
@@ -248,7 +248,7 @@ After the last phase:
    run guided human verification — it emits a proof artifact, and a plan with
    nothing human-visible skips it by recording the reason, never by omission —
    reconcile deferrals to a `BL-NNN` or a `CLOSE`, and fire the notifier. **Read**
-   `~/.claude/skills/aidex-plan-exec/references/02-close-out.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-plan-exec/references/02-close-out.md`
    **and follow it step by step** — each step has a guard and an ordering that
    matter, and doing them from memory is how a worktree survives its plan.
 

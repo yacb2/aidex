@@ -23,7 +23,7 @@ A "process" is a plan execution, an audit run, or a loop. Its **initial phase**
 is the place where every clarification and every gate is resolved:
 
 - Plan → the `aidex-plan` design + the `aidex-plan-exec` Orient step.
-- Audit → the `/aidex-audit new` kickoff (scope + borders).
+- Audit → the `/aidex:audit new` kickoff (scope + borders).
 - Loop → the `aidex-loop` design interview (Step 1.5).
 
 After that point the run does not stop to ask permission or opinion. If a fork
