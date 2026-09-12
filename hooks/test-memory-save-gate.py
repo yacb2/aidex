@@ -85,6 +85,9 @@ def run(payload, sweep=SWEEP, raw=None, project_root=None):
     if sweep is None:
         env.pop("AIDEX_MEMORY_SWEEP", None)
         env["AIDEX_MEMORY_SWEEP"] = os.path.join(HOME, "does-not-exist.py")
+        # "No sweep anywhere" must also defeat the $CLAUDE_PLUGIN_ROOT fallback,
+        # which a real hook process always has set (seen 2026-09-12 from the cache).
+        env.pop("CLAUDE_PLUGIN_ROOT", None)
     else:
         env["AIDEX_MEMORY_SWEEP"] = sweep
     body = raw if raw is not None else json.dumps(payload)
