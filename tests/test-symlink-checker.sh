@@ -6,9 +6,12 @@
 #   target=$(readlink "$link"); if [ ! -e "$target" ]
 # `readlink` without -f returns the target exactly as written, so a RELATIVE target was
 # resolved against the caller's cwd instead of the link's own directory. Every healthy
-# relative symlink was reported BROKEN -> [LK1] CRITICAL. install.sh writes absolute
-# links, so aidex's own install never tripped it — it only misfired on hand-made links,
-# which is precisely what this agent exists to judge.
+# relative symlink was reported BROKEN -> [LK1] CRITICAL. The links aidex itself once
+# created were absolute, so its own setup never tripped it — it only misfired on
+# hand-made links, which is precisely what this agent exists to judge.
+#
+# This test asserts the shipped agent's snippet, not any installer; it survives the
+# plugin migration unchanged.
 #
 # The snippet is EXTRACTED from the shipped agent file, never copied here: on 2026-07-24
 # two repo tests were found silently dead because they hard-coded values another file
@@ -43,7 +46,7 @@ mkdir -p "$TMP/real/adir"
 
 # (1) healthy RELATIVE symlink — the regression case
 ln -s "../../real/target.md"  "$TMP/.claude/skills/rel-ok.md"
-# (2) healthy ABSOLUTE symlink — what install.sh writes
+# (2) healthy ABSOLUTE symlink
 ln -s "$TMP/real/target.md"   "$TMP/.claude/skills/abs-ok.md"
 # (3) healthy RELATIVE symlink to a directory — the common skill case
 ln -s "../../real/adir"       "$TMP/.claude/skills/rel-dir-ok"

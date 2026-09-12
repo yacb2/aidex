@@ -9,7 +9,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 > close-out. `git merge` into the trunk is **class 2** — pre-authorizable at Orient,
 > never assumed mid-run — because it ends the review window this plan's work still
 > needs. Finish, leave the branch **ready to merge**, and say so in the final summary.
-> Rule: `rules/autonomy.md` § Integrating a branch is not a commit; rationale:
+> Rule: `skills/conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit; rationale:
 > `../../conventions/references/autonomy-conventions.md`.
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
@@ -42,7 +42,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
      `${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/wrap-report.sh --title "<plan> — human
      verification" --lang en --in .context/proofs/<slug>/human-verification.md --out
      .context/proofs/<slug>/human-verification.html`, then `open` that file — once, last,
-     after the rest of close-out, per `rules/artifacts-local-first.md` gate 2. Never
+     after the rest of close-out, per `skills/artifact/references/02-local-first-artifacts.md` gate 2. Never
      publish it (gate 3). The `.md` stays the canon and the linked `proof_links` target.
    - **A plan with nothing human-visible skips it by RECORDING one line**
      (`human-verification: skipped — <reason>`), never by the step being absent. "Pure

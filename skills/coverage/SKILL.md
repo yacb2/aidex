@@ -82,7 +82,7 @@ The Playwright packs generate the script; this is the contract their template is
 against (`testing-playwright-app/tests/test-gen-test-e2e.sh` asserts each line):
 
 - It targets a disposable database cloned from a template, never dev's, and never ships
-  a dev-port Playwright config (`rules/e2e-testing.md`).
+  a dev-port Playwright config.
 - It sources the checkout's `.env` **before** its port defaults apply and exports
   `E2E_DB_PORT`, so an `worktree` checkout drives its own stack; it never sets
   `COMPOSE_PROJECT_NAME` (the worktree owns it).

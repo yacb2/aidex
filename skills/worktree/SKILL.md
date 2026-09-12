@@ -89,9 +89,9 @@ Dispatch by first argument:
 
 **Tearing a worktree down is not integrating its branch.** `down` never merges, and
 that is deliberate — but the rule belongs where a session that is not running this
-skill can see it, which is `rules/autonomy.md` § *Integrating a branch is not a
-commit* (class 2: pre-authorizable up front, never assumed mid-run; rationale in
-`../conventions/references/autonomy-conventions.md`) — a rule stated only inside
+skill can see it, which is `skills/conventions/references/autonomy-conventions.md`
+§ *Integrating a branch is not a commit* (class 2: pre-authorizable up front, never
+assumed mid-run) — a rule stated only inside
 `worktree.sh` is invisible to the session that would do the merging. Leave the branch
 ready to merge; say so; do not merge it.
 

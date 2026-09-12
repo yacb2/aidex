@@ -11,7 +11,7 @@
 #                          order on the command line == execution order.
 #   --publish              gate-policy.publish (default: ask; `never` for a sweep)
 #   --merge                gate-policy.merge (default: ask). Integrating the branch is
-#                          class 2 in rules/autonomy.md: pre-authorizable at the initial
+#                          class 2 in skills/conventions/references/autonomy-conventions.md: pre-authorizable at the initial
 #                          phase, never assumed mid-run. This is where that grant is
 #                          recorded, so the run stops printing a fixed refusal over an
 #                          answer the owner already gave (BL-361). An ABSENT key means

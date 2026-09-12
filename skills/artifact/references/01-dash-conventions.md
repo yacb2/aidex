@@ -47,8 +47,8 @@ backlog/finding items never get their own HTML.
 
 The same GENERATED contract and sibling-path rule apply to ad-hoc reports —
 one-off HTML written for a specific `.context/` artifact rather than one of
-dash's own board renderers (see `rules/artifacts-local-first.md`, installed
-to `~/.claude/rules/`, for the always-on session rule). `<slug>-report.html`
+dash's own board renderers (see `02-local-first-artifacts.md` in this folder for the
+full contract). `<slug>-report.html`
 sits next to a single-file artifact, or `<slug>/<slug>-report.html` inside a
 folder artifact. The markdown stays canon; the HTML is disposable,
 regenerable render output — never the source of truth. Publish policy is
@@ -81,7 +81,7 @@ who want the native auto-Artifact behavior off entirely).
 ### Why this overrides the Artifact tool's own default
 
 The `Artifact` tool states that "publishing proactively is fine for your own
-work-product — artifacts start private". `rules/artifacts-local-first.md` gate 3
+work-product — artifacts start private". `02-local-first-artifacts.md` gate 3
 deliberately overrides that, and this is the reasoning it points at.
 
 Both readings are defensible. The tool optimizes for the page being reachable;

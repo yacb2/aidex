@@ -26,7 +26,7 @@ The files, not the index, are where the problem concentrates. Grade the files.
 
 ## The default hypothesis is that a memory should NOT exist
 
-`rules/memory-hygiene.md` is the canon: a memory is ONE durable fact a reader six months
+`skills/aidex/references/memory-hygiene.md` is the canon: a memory is ONE durable fact a reader six months
 from now needs. A memory is **not** a session log, a run's progress, something the repo
 already records (code, git history, CLAUDE.md, `.context/`), pending work (a backlog
 item), a decision rationale (an ADR), or a how-it-works doc (a reference).

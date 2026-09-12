@@ -147,7 +147,7 @@ clean(sid)
 print("\n=== 7. the hook counts and does not prescribe ===")
 # The header says: "this hook counts, states the number, and stops there."
 # Bands 2 and 3 did not. They told the assistant who decides a handoff, which
-# `rules/autonomy.md` already owns and answers differently inside an unattended
+# `skills/conventions/references/autonomy-conventions.md` already owns and answers differently inside an unattended
 # run -- there the handoff is a mandated step, not the user's call. Measured
 # 2026-08-17: band-3's wording came back as a near-verbatim translation in six
 # real sessions, one of which declined to launch a remaining gate in order to ask.

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# eval-local-first-behavior.sh — BEHAVIORAL eval of rules/artifacts-local-first.md.
+# eval-local-first-behavior.sh — BEHAVIORAL eval of the local-first artifact contract
+# (skills/artifact/references/02-local-first-artifacts.md).
 #
 # NOT a unit gate: each scenario is a real headless `claude -p` session (API cost,
 # minutes of wall clock). Instrument: stream-json event detection (the LOOP-004

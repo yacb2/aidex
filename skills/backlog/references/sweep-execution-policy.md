@@ -38,7 +38,7 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
    `human-verification.md` take `--lang en` by D-04 (BL-371); the English rule for
    backlog ENTRIES in `backlog/SKILL.md` does not reach this page.
 5. Gate policy fixed once: `publish: never`, `destructive: deny`, and **merge is class 2
-   per `rules/autonomy.md`** — asked by default, grantable at the kickoff, never assumed
+   per `skills/conventions/references/autonomy-conventions.md`** — asked by default, grantable at the kickoff, never assumed
    mid-run. `sweep-kickoff.sh --merge preauthorized` records the grant into
    `gate-policy.merge`; without it the branch is left ready and the merge is asked for.
    A grant is conditional on the boundary gate passing AND the whole-branch review below.
@@ -187,7 +187,7 @@ spelled out in Stage 3 (BL-363).
    standing, which is the fallback, not the contract.
 2. `worklist-close.sh` — refuses while an owner row is unanswered or a deferral is
    unreconciled; `--force` records the override. The closed list archives.
-3. **Open the page — once, here, and nowhere earlier.** `rules/artifacts-local-first.md`
+3. **Open the page — once, here, and nowhere earlier.** `skills/artifact/references/02-local-first-artifacts.md`
    gate 2 opens an artifact exactly once, when it is final, and the report is not final
    until step 2 has archived the closed list. `open <report>.html`, and cite that path
    in the run's summary rather than the `.md`. Never publish it (gate 3).

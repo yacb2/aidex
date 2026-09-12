@@ -32,7 +32,7 @@ does not turn a two-minute loop into a twenty-minute one.
 ## What it does not do
 
 - It never executes tests. E2E in particular runs only behind the project's
-  `test-e2e.sh` (`rules/e2e-testing.md`).
+  `test-e2e.sh` (`skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees`).
 - It does not expand across dependencies. The map is per module; a signal, a mixin, or
   a shared component is not followed. That expansion is the human step below.
 - It does not widen across the API contract. The repo-aware tier drops the other repo's

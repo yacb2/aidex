@@ -78,7 +78,7 @@ echo "$out_b" | grep -q 'NO E2E: module people — no e2e tests mapped' \
 echo "$out_b" | grep -q 'BEFORE this change lands' \
   || fail "(b) expected the before-it-lands instruction: $out_b"
 echo "$out_b" | grep -q 'disposable database, never dev' \
-  || fail "(b) the E2E it asks for must respect rules/e2e-testing.md: $out_b"
+  || fail "(b) the E2E it asks for must respect the disposable-DB E2E contract (coverage/SKILL.md): $out_b"
 rm -rf "$WS"
 
 # ---------------------------------------------------------------------------

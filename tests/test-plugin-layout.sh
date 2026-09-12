@@ -56,7 +56,10 @@ else
 fi
 
 # f. no invocation-shaped bare slash command remains
-F_MATCHES=$(grep -rnE '(^|[^A-Za-z0-9_/.])/aidex-[a-z-]+([^A-Za-z0-9_/-]|$)' "$ROOT/skills" "$ROOT/docs" "$ROOT/README.md" 2>/dev/null)
+# docs/retired/ is verbatim retired history (the pre-plugin rules/ folder, moved there
+# 2026-09-12). Nothing reads it, and rewriting the slash commands inside it would falsify
+# the record it exists to keep, so it is excluded rather than edited.
+F_MATCHES=$(grep -rnE '(^|[^A-Za-z0-9_/.])/aidex-[a-z-]+([^A-Za-z0-9_/-]|$)' "$ROOT/skills" "$ROOT/docs" "$ROOT/README.md" 2>/dev/null | grep -v '^[^:]*docs/retired/')
 F_COUNT=$(printf '%s' "$F_MATCHES" | grep -c . || true)
 if [ -z "$F_MATCHES" ]; then
   pass "f. no bare /aidex-* slash command refs (saw 0)"

@@ -13,7 +13,7 @@
 # READ-ONLY BY CONSTRUCTION. It queries `pg_database` and `pg_stat_activity` and
 # does nothing else. It never DROPs, never TRUNCATEs and never calls
 # pg_terminate_backend — killing another session's run is precisely the
-# destructive-by-surprise class `rules/database-protection.md` forbids, and it is
+# destructive-by-surprise class `conventions/references/database-protection.md` forbids, and it is
 # not needed: naming the collision is the whole point.
 #
 # WHY (BL-136). Measured across the transcript corpus: 12 runs died on

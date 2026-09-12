@@ -134,7 +134,7 @@ Project CLAUDE.md above ~3k tokens (~300 lines) typically contains movable conte
 `~/.claude/CLAUDE.md` and `~/.claude/rules/*.md` often overlap. Each is imported into every session.
 
 - Flag rules whose titles or first paragraphs overlap across the two locations.
-- Canonical home: `~/.claude/rules/` for AIDEX-managed, `~/.claude/CLAUDE.md` for personal.
+- Canonical home: `~/.claude/rules/` for the user's own standing rules, `~/.claude/CLAUDE.md` for personal preferences. (aidex itself ships no rules — it is a plugin, and its canon lives in skill `references/`.)
 
 ### 6. Stack-irrelevant global skills
 

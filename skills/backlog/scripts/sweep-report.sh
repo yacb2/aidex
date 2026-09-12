@@ -8,7 +8,7 @@
 # and a `.html` page beside it — `<report>.html` — wrapped through artifact's
 # artifact kit and named on stderr as `page: <path>`. It opens neither: the one
 # open belongs to stage 6 of the sweep policy, after `worklist-close.sh`, per
-# `rules/artifacts-local-first.md` gate 2.
+# `skills/artifact/references/02-local-first-artifacts.md` gate 2.
 #
 # Resolves the work-list (active or worklists/_archive/), then renders
 # `.context/worklists/_archive/<worklist-basename>-report.md` — the run's COMPANION: it is
@@ -79,7 +79,7 @@ python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"
 # stderr: stage 6 translates the quoted rows and wraps it over the same page.
 # The English page stays the fallback, so a run that skips the step still hands
 # over a page that exists and passes.
-# It does NOT open the page. `rules/artifacts-local-first.md` gate 2 opens a page
+# It does NOT open the page. `skills/artifact/references/02-local-first-artifacts.md` gate 2 opens a page
 # once, when it is final, and that call belongs to the close-out step (stage 6),
 # after `worklist-close.sh` — not to a script that a run may re-run while items
 # are still moving. An `open` in here would also be invisible to

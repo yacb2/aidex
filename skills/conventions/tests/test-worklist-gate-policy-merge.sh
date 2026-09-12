@@ -2,7 +2,7 @@
 # test-worklist-gate-policy-merge.sh — the merge grant is RECORDED, not hardcoded.
 #
 # BL-361: sweep-kickoff.sh printed an unconditional "merge ASKED at close-out (never
-# pre-authorized in a sweep)" with nowhere to record a grant, while rules/autonomy.md
+# pre-authorized in a sweep)" with nowhere to record a grant, while autonomy-conventions.md
 # makes integrating a branch class 2 — pre-authorizable at the initial phase. The
 # owner pre-authorized the merge at the 2026-09-08 kickoff, so the run carried a
 # policy line contradicting its own work-list. gate-policy.merge is now the field

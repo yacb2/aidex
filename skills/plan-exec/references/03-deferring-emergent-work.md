@@ -3,7 +3,7 @@
 > Paths in this file are relative to the skill root (`../`).
 
 A phase routinely turns up work it does not own: a defect next to the code it touched, a
-missing test, a convention the plan predates. `rules/autonomy.md` classifies that as
+missing test, a convention the plan predates. `skills/conventions/references/autonomy-conventions.md` classifies that as
 **class b — emergent discovered work: append and continue, not asked**. The *append* is
 what this file covers: register the finding, or the run either stops to discuss it or
 loses it at the session boundary.

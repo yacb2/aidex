@@ -90,7 +90,7 @@ sweep report) — not only in a handoff seed, which is exactly what a handoff dr
 Estimate session context growth. If the conversation has grown substantially (long tool
 outputs, many file reads, several units in one session), **hand off between units
 automatically** — handoff is a mandated step of the running process, never a question
-(`rules/autonomy.md` class 3). If a session-handoff skill is installed, invoke it and
+(`skills/conventions/references/autonomy-conventions.md` class 3). If a session-handoff skill is installed, invoke it and
 **auto-compose the seed** yourself; otherwise `/compact` or continue in-session. Never
 hard-depend on any handoff skill.
 

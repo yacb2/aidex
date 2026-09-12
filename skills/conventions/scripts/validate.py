@@ -1957,9 +1957,9 @@ def main() -> int:
         sys.stdout.write("\n")
     else:
         print(f"\nConventions validation — {context_dir}")
-        # `ignored` is surfaced here, not only in --json: two always-on promises depend on
-        # it (rules/aidex-conventions.md "Skipped files are reported as an `ignored: N`
-        # count" and 00-global.md "visible rather than silent"). Before the 2026-07-25 fix
+        # `ignored` is surfaced here, not only in --json: two canon promises depend on it
+        # (00-global.md "Skipped files are reported as an `ignored: N` count" and
+        # 00-global.md "visible rather than silent"). Before the 2026-07-25 fix
         # a fully-exempted tree printed "scanned: 0 · violations: 0" + "OK — no violations",
         # while the sibling suppression mechanism (`waived`) was printed correctly.
         ignored_n = summary.get("ignored") or 0

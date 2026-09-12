@@ -57,7 +57,7 @@ After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply al
    - the entire memory directory
    - any SKILL.md files about to be edited
    Derive `<project-name>` from the current project directory's basename. No `.gitignore` step is needed since the backup lives outside the project.
-3. **Apply.** Print a numbered diff for every change, then execute according to the class each patch falls into under [`rules/autonomy.md`](../../rules/autonomy.md). The `[A]/[B]/[C]/[D]` menu above **is** the front-loaded gate — re-asking `y/n` per item after the user picked A or B is the execution-time leak that rule names, so do not do it. Patch order (highest savings first):
+3. **Apply.** Print a numbered diff for every change, then execute according to the class each patch falls into under [`autonomy-conventions.md`](../../conventions/references/autonomy-conventions.md). The `[A]/[B]/[C]/[D]` menu above **is** the front-loaded gate — re-asking `y/n` per item after the user picked A or B is the execution-time leak that rule names, so do not do it. Patch order (highest savings first):
 
    | Patch | Autonomy class | Under [A]/[B] |
    |---|---|---|

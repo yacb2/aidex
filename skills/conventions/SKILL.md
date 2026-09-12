@@ -43,10 +43,13 @@ This skill defines conventions for thirteen documentation types:
 
 **This table is a dispatch table, not a reading list.** Find the row for the artifact
 kind you are about to write or judge, and **read that one file in full before writing
-anything** — the files live in `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/`. Working
-from the summary in `rules/aidex-conventions.md` is enough to *recognize* a convention
-and never enough to *apply* one: the per-type file owns the front-matter schema, the
-status vocabulary and the archive rule that `validate.py` actually enforces.
+anything** — the files live in `${CLAUDE_PLUGIN_ROOT}/skills/conventions/references/`. There
+is no always-on summary any more (the `rules/` folder retired with the plugin migration):
+this skill carries the recognition itself, and the sibling entry-point skills' own
+descriptions are what fire on a `.context/` ask. [`00-global.md`](references/00-global.md)
+is the recognition surface — read it to know *that* a convention applies — and the per-type
+file below is the application surface: it owns the front-matter schema, the status
+vocabulary and the archive rule that `validate.py` actually enforces.
 
 | Type | Conventions |
 |------|-------------|
@@ -59,6 +62,7 @@ status vocabulary and the archive rule that `validate.py` actually enforces.
 | Audit | [audit-conventions.md](references/audit-conventions.md) |
 | Communication | [communication-conventions.md](references/communication-conventions.md) |
 | Autonomy (proceed vs. pause) | [autonomy-conventions.md](references/autonomy-conventions.md) |
+| Database lifecycle (real vs. disposable) | [database-protection.md](references/database-protection.md) |
 | Worktrees & isolation (parallel work) | [worktree-conventions.md](references/worktree-conventions.md) |
 | Worklist (run-queue) | [worklist-conventions.md](references/worklist-conventions.md) |
 | Workflow CORE (single-sourced blocks) | [workflow-core.md](references/workflow-core.md) |

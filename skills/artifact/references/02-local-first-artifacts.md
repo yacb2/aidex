@@ -1,8 +1,9 @@
 # Local-first artifacts — the full procedure
 
-Canon for route B of `rules/artifacts-local-first.md`. That rule is always-on and
-carries only the routing and the two gates; everything below is loaded when an
-artifact is actually being built.
+Canon for route B of the local-first artifact contract. The six gates and the
+request-shape routing are carried by this skill's `description:` and by `SKILL.md`
+(the always-on `artifacts-local-first` rule retired with the plugin migration);
+everything below is loaded when an artifact is actually being built.
 
 Read this file **before writing any page markup**, not after.
 

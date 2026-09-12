@@ -21,7 +21,7 @@
 # And a third time, 2026-08-17: `hooks/` was never a discovery root, so both hook
 # tests were invisible. `test-context-depth-nudge.py` had been asserting that the
 # depth hook TELLS the assistant not to hand off on its own — pinning a rule the
-# hook does not own and that `rules/autonomy.md` answers the other way inside a
+# hook does not own and that `skills/conventions/references/autonomy-conventions.md` answers the other way inside a
 # run. A test nobody runs is how a checker that certifies the defect survives.
 # Location is not a reason to skip a test either.
 #
@@ -168,8 +168,8 @@ fi
 # Same verdict in both is the invariant; see the header for why and what it costs.
 # ---------------------------------------------------------------------------
 
-# Shipped = what install.sh copies. tests/ and hooks/test-* never reach a user, so
-# they have no second root to differ in. Docker tests are excluded even under
+# Shipped = what the plugin carries under skills/. tests/ and hooks/test-* never reach
+# a user, so they have no second root to differ in. Docker tests are excluded even under
 # RUN_DOCKER_TESTS=1: they create containers, and doing that twice per suite to
 # re-check a path-resolution property is not a trade worth making.
 PARITY_POOL=()
@@ -223,17 +223,27 @@ fi
 
 DIVERGED=()
 if [[ ${#PARITY[@]} -gt 0 ]]; then
-  # Built by the real installer, not imitated: CLAUDE_DIR defaults to $HOME/.claude,
-  # so an overridden HOME gives an install root by definition. It copies the WORKING
-  # TREE, so an uncommitted regression shows up here too.
-  if ! HOME="$PARITY_HOME" bash "$REPO_ROOT/install.sh" </dev/null >"$LOG" 2>&1; then
+  # aidex ships as a plugin since v1.0.0, so there is no installer to build this root
+  # with (docs/retired/install.sh resolved everything relative to its own directory).
+  # The root is the INSTALLED PLUGIN's shape — ~/.claude/plugins/aidex/ — copied from
+  # the WORKING TREE, so an uncommitted regression still shows up here. The property
+  # under test is unchanged and is the reason this pass exists: a shipped test must
+  # resolve the same from a non-checkout root, next to skills aidex does not own.
+  #
+  # Where the foreign skill goes moved with the migration, and the move is the point.
+  # The installer copied aidex INTO ~/.claude/skills, so a user skill landed in the
+  # same directory and every unscoped walker judged it (BL-115). A plugin's skills/
+  # is aidex-only by construction; a user's own skills sit OUTSIDE it, in
+  # ~/.claude/skills/, which is where the fixture plants one.
+  if ! { mkdir -p "$PARITY_HOME/.claude/plugins" \
+           && cp -R "$REPO_ROOT" "$PARITY_HOME/.claude/plugins/aidex"; } >"$LOG" 2>&1; then
     printf 'parity: FAIL — could not build the install root\n'
     cat "$LOG"
     PARITY_ISSUES+=("parity:install-failed")
   else
-    FAKE="$PARITY_HOME/.claude"
-    # An install root is never aidex-only. This skill plus the manifest install.sh
-    # just wrote are the whole difference between the two roots.
+    FAKE="$PARITY_HOME/.claude/plugins/aidex"
+    # A user's HOME is never aidex-only. This skill, outside the plugin, is the whole
+    # difference between the two roots.
     #
     # It VIOLATES aidex's own rules on purpose, and a benign one would make this
     # whole pass vacuous: an unscoped guard only diverges when the foreign skill
@@ -241,18 +251,19 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
     # the size budget (session-handoff ships at ~6.4k tokens against a 5k maximum),
     # a workflow asset whose blocks are not aidex's, and an agent with no `effort`.
     # None of them is aidex's to judge, which is the entire point.
-    mkdir -p "$FAKE/skills/foreign-skill/assets/workflows" "$FAKE/skills/foreign-skill/agents"
+    FOREIGN="$PARITY_HOME/.claude/skills/foreign-skill"
+    mkdir -p "$FOREIGN/assets/workflows" "$FOREIGN/agents"
     {
       printf -- '---\nname: foreign-skill\ndescription: A user skill living beside aidex.\n---\n\n'
       i=0; while [[ $i -lt 600 ]]; do
         echo "Body line long enough that this skill blows the token axis as well as the line axis."
         i=$((i + 1))
       done
-    } > "$FAKE/skills/foreign-skill/SKILL.md"
+    } > "$FOREIGN/SKILL.md"
     printf -- '// === CORE:START ===\nconst notOurs = true\n// === CORE:END ===\n// === ARBITER:START ===\nconst alsoNotOurs = true\n// === ARBITER:END ===\n' \
-      > "$FAKE/skills/foreign-skill/assets/workflows/foreign.workflow.js"
+      > "$FOREIGN/assets/workflows/foreign.workflow.js"
     printf -- '---\nname: foreign-agent\nmodel: sonnet\n---\n\nBody.\n' \
-      > "$FAKE/skills/foreign-skill/agents/foreign-agent.md"
+      > "$FOREIGN/agents/foreign-agent.md"
 
     for t in "${PARITY[@]}"; do
       here="$(awk -v p="$t" '$2 == p {print $1; exit}' "$VERDICTS")"
@@ -265,7 +276,7 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
       there=$?
       if [[ "$there" -ne "$here" ]]; then
         DIVERGED+=("$t")
-        printf 'PARITY  %s — exit %d from the checkout, exit %d from an install root\n' "$t" "$here" "$there"
+        printf 'PARITY  %s — exit %d from the checkout, exit %d from an installed-plugin root\n' "$t" "$here" "$there"
         cat "$LOG"
       fi
     done
@@ -273,7 +284,7 @@ if [[ ${#PARITY[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#PARITY[@]} -gt 0 ]]; then
-  printf 'parity: %d of %d shipped tests re-run in an install-shaped root, %d diverged' \
+  printf 'parity: %d of %d shipped tests re-run in an installed-plugin root, %d diverged' \
     "${#PARITY[@]}" "${#PARITY_POOL[@]}" "${#DIVERGED[@]}"
   [[ "${RUN_INSTALL_PARITY:-}" == "full" ]] \
     && printf ' (full)\n' \

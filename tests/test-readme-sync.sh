@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # test-readme-sync.sh — the README is documentation that goes stale silently.
-# It drifted four releases (badge 0.21.1 vs VERSION 0.23.2), lost 3 of 17 skills
-# from its own tree while the table below listed all 17, documented 1 of 3
-# installed rules, and taught YYYYMMDD paths its own validator flags (BL-099).
-# Each of those is mechanical, so each is asserted here instead of re-audited.
+# It drifted four releases (badge 0.21.1 vs the shipped version), lost 3 of 17 skills
+# from its own tree while the table below listed all 17, and taught YYYYMMDD paths its
+# own validator flags (BL-099). Each of those is mechanical, so each is asserted here
+# instead of re-audited. Since v1.0.0 the version is the plugin manifest's, and the
+# rules checks are gone with rules/ (see docs/retired/README.md).
 
 set -uo pipefail
 
@@ -13,13 +14,13 @@ failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 pass() { printf 'ok: %s\n' "$*"; }
 
-# --- badge tracks install.sh VERSION ---
-version="$(sed -n 's/^VERSION="\(.*\)"$/\1/p' "$REPO_ROOT/install.sh" | head -1)"
+# --- badge tracks the plugin manifest version ---
+version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$REPO_ROOT/.claude-plugin/plugin.json" | head -1)"
 badge="$(sed -n 's|.*badge/version-\([0-9][^-]*\)-blue.*|\1|p' "$README" | head -1)"
 if [ -n "$version" ] && [ "$badge" = "$version" ]; then
-  pass "version badge matches install.sh ($version)"
+  pass "version badge matches .claude-plugin/plugin.json ($version)"
 else
-  fail "version badge '$badge' != install.sh VERSION '$version' — bump the badge in the release commit"
+  fail "version badge '$badge' != plugin.json version '$version' — bump the badge in the release commit"
 fi
 
 # --- every shipped skill appears in the tree AND in the table ---
@@ -47,28 +48,9 @@ else
   fail "README says '### $declared skills' but skills/ holds ${#skills[@]}"
 fi
 
-# --- every installed rule is documented ---
-missing_rules=()
-for r in "$REPO_ROOT"/rules/*.md; do
-  grep -q "$(basename "$r")" "$README" || missing_rules+=("$(basename "$r")")
-done
-[ ${#missing_rules[@]} -eq 0 ] \
-  && pass "all installed rules are documented" \
-  || fail "rules installed but undocumented: ${missing_rules[*]}"
-
-# --- the "N always-on rules" sentence states the real count ---
-rule_count="$(find "$REPO_ROOT/rules" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')"
-rule_word="$(sed -n 's/^\([A-Za-z0-9]*\) always-on rules are installed.*/\1/p' "$README" | head -1 | tr '[:upper:]' '[:lower:]')"
-case "$rule_word" in
-  one) rule_declared=1;; two) rule_declared=2;; three) rule_declared=3;; four) rule_declared=4;;
-  five) rule_declared=5;; six) rule_declared=6;; seven) rule_declared=7;; eight) rule_declared=8;;
-  nine) rule_declared=9;; ten) rule_declared=10;; *) rule_declared="$rule_word";;
-esac
-if [ "$rule_declared" = "$rule_count" ]; then
-  pass "the rules sentence declares the real count ($rule_count)"
-else
-  fail "README says '$rule_word always-on rules' but rules/ holds $rule_count"
-fi
+# The two rules checks that lived here (every rules/*.md documented, and the
+# "N always-on rules" count) are deleted: aidex ships as a plugin since v1.0.0 and a
+# plugin cannot carry always-on rules. rules/ is retired to docs/retired/.
 
 # --- no YYYYMMDD paths: the README must not teach what validate.py flags ---
 if legacy="$(grep -nE '/2[0-9]{7}-' "$README")"; then
@@ -82,4 +64,4 @@ if [ "$failures" -gt 0 ]; then
   echo "$failures failure(s)"
   exit 1
 fi
-echo "OK — README tracks version, skills, rules and the date convention"
+echo "OK — README tracks version, all ${#skills[@]} skills and the date convention"

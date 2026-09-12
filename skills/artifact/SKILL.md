@@ -46,7 +46,7 @@ and a failed write keeps the previous good render).
 Ad-hoc reports — anything that is not one of the boards above — are the other
 half of this skill, not an out-of-scope request: they follow the same
 sibling-path and publish-gated conventions (see
-`references/02-local-first-artifacts.md` and `rules/artifacts-local-first.md`).
+`references/02-local-first-artifacts.md`).
 **When a request is an ad-hoc analysis rather than a board, never decline and
 never hand-roll an unstyled page: load the `artifact-design` skill, start from
 `assets/artifact-kit/skeleton.html`, then write the sibling HTML and open it

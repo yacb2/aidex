@@ -45,7 +45,7 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
    commit — an unmapped change is unknown scope, so the selection proves nothing.
    That same command also names, on stderr, any file in your diff that **measurably
    breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
-   against a disposable database, never dev (`rules/e2e-testing.md`).
+   against a disposable database, never dev (`skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees`).
 7. Commit test + fix together
 8. **Guided human verification, at the integration boundary** — before the fix merges,
    pushes or the run ends, not before the commit. A bug the user reported by *looking at

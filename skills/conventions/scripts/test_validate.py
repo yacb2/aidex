@@ -897,9 +897,9 @@ def check_baseline_scoped_write(failures: list[str]) -> None:
 def check_ignored_visible_in_plain(failures: list[str]) -> None:
     """`ignored: N` must be visible in DEFAULT output, not only in --json.
 
-    Regression (deep audit 2026-07-25): two always-on promises — rules/aidex-conventions.md
-    "Skipped files are reported as an `ignored: N` count" and 00-global.md "visible rather
-    than silent" — were kept only in the --json branch. Plain output printed
+    Regression (deep audit 2026-07-25): two canon promises — "Skipped files are reported
+    as an `ignored: N` count" and 00-global.md "visible rather than silent" — were kept
+    only in the --json branch. Plain output printed
     "scanned: 0 · violations: 0" and "OK — no violations" for a tree whose files had all
     been silently exempted, while the sibling suppression mechanism (`waived`) IS printed.
     """

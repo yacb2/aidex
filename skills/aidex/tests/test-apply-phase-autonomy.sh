@@ -5,7 +5,7 @@
 #   `skills/aidex/SKILL.md` ended its synthesis with a front-loaded menu
 #   ([A] apply all critical / [B] apply all / [C] pick individually / [D] report only) and
 #   then, having been authorized, asked `apply? [y/n/skip]` again for every single change.
-#   `rules/autonomy.md` classifies small reversible additive patches as class 4 —
+#   `autonomy-conventions.md` classifies small reversible additive patches as class 4 —
 #   proceed and document — and names per-item menus at execution time as *the* leak
 #   surface. Two aidex-owned surfaces prescribed opposite behavior for the same moment,
 #   and a second section of the same file listed "trim duplicated content" as destructive
@@ -29,7 +29,10 @@ SKILL="$SCRIPT_DIR/../SKILL.md"
 # orchestrator body breached the token maximum (ADR 2026-08-06). The contract is that the
 # SKILL documents this, not that one file contains it, so both are read.
 CTX="$SCRIPT_DIR/../references/01-context-audit.md"
-RULE="$SCRIPT_DIR/../../../rules/autonomy.md"
+# Plugin migration 2026-09-12: the always-on `autonomy` rule retired; the numbered
+# classes it summarized are owned by the canon reference, which uses the same
+# "N. **" numbered-bold format this guard greps for.
+RULE="$SCRIPT_DIR/../../conventions/references/autonomy-conventions.md"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -45,7 +48,7 @@ APPLY="$(awk '/^#+ Apply phase/{f=1;next} /^---$/{f=0} f' "$CTX" | tr '\n' ' ' |
 
 # ---------- (1) the front-loaded gate is not re-asked ----------
 if grep -qiE 'Always confirm per item\. No batch apply without prompts' <<<"$APPLY"; then
-  fail "(1) the apply phase still mandates a per-item prompt for every change, which is the execution-time leak rules/autonomy.md names"
+  fail "(1) the apply phase still mandates a per-item prompt for every change, which is the execution-time leak autonomy-conventions.md names"
 fi
 grep -qiE 'front-loaded gate' <<<"$APPLY" \
   || fail "(1) the apply phase never states that the [A]/[B]/[C]/[D] menu is the gate — without that, 'ask once' has no anchor and drifts back to per-item"
@@ -86,11 +89,11 @@ fi
 # ---------- (5) the classes cited actually exist in the rule ----------
 for c in 1 4; do
   grep -qE "^${c}\. \*\*" "$RULE" \
-    || fail "(5) SKILL.md classifies patches as class $c, but rules/autonomy.md defines no such numbered class"
+    || fail "(5) SKILL.md classifies patches as class $c, but autonomy-conventions.md defines no such numbered class"
 done
 
 if [[ "$failures" -eq 0 ]]; then
-  echo "OK — apply phase in lockstep with rules/autonomy.md: menu is the gate, every patch classified, class-1 kinds still gated"
+  echo "OK — apply phase in lockstep with autonomy-conventions.md: menu is the gate, every patch classified, class-1 kinds still gated"
   exit 0
 fi
 exit 1

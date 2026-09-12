@@ -5,7 +5,7 @@
 # The item's two scope guards are the interesting assertions here, because this
 # read sits next to three items that all shipped mechanical gates and the obvious
 # mistake is to build a fourth:
-#   - it must never gate anything (rules/autonomy.md: a run does not stop for a signal)
+#   - it must never gate anything (conventions/references/autonomy-conventions.md: a run does not stop for a signal)
 #   - it must never print a single accuracy number (that would average the flat
 #     median together with the spreading tail and hide the whole finding)
 #

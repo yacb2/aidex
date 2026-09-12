@@ -18,7 +18,7 @@ from pathlib import Path
 
 STATUS = {"open", "doing", "done", "dropped"}
 PUBLISH = {"ask", "preauthorized", "never"}
-# Integrating the branch is class 2 in rules/autonomy.md — pre-authorizable at the
+# Integrating the branch is class 2 in skills/conventions/references/autonomy-conventions.md — pre-authorizable at the
 # initial phase. An ABSENT key means "ask": that is exactly what every work-list
 # written before BL-361 meant, so their validity does not depend on a rewrite.
 MERGE = {"ask", "preauthorized"}
