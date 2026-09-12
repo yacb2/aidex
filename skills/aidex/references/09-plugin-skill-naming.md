@@ -32,3 +32,16 @@ be emitted against aidex's own skills. It remains valid for non-plugin skills in
 user's ecosystem. Two sites in `skills/aidex/SKILL.md` (the token-savings code list
 and the destructive-action checklist) still name `skillOverrides` as a toggle; they
 are flagged in place and left for a later redesign.
+
+## Two runtime gotchas measured at the 1.0.0 cut-over (2026-09-12)
+
+- **A directory-source marketplace copies the whole directory into the cache,
+  gitignored files included.** `claude plugin marketplace add <path>` +
+  `claude plugin install` produced a 7.8 MB cache of which 364 KB was `_tmp/` and
+  `plugin-evals/`. Harmless, but a local `_tmp/` holding backups or logs ships with
+  the plugin. A GitHub source copies only the committed tree.
+- **`claude plugin eval --case <glob>` matches the case.yaml `name:`, not the case
+  folder.** Renaming folders alone leaves `--case` selecting zero cases;
+  `tests/native-eval/collect-cases.sh` rewrites `name:` to `<skill>--<case>` for that
+  reason, and the eval's results directory lives under the eval dir, so anything that
+  rebuilds the eval dir destroys the previous report (`run-eval.sh` copies it out).
