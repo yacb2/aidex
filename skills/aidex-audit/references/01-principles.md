@@ -36,7 +36,7 @@ editing three places — in practice, two of them rot.
 - A new run observes a finding → check the methodology's `00-inventory.md`. If it is
   there, append the run to `Audit Runs`; if not, add a row.
 - Per-run `findings.md` cites ids and links back to the inventory.
-- `/aidex-audit validate` catches findings mentioned in per-run files and missing from it.
+- `/aidex:audit validate` catches findings mentioned in per-run files and missing from it.
 
 ---
 
@@ -72,7 +72,7 @@ audit run
    ▼
 finding row in audits/<methodology>/00-inventory.md
    │
-   ▼ (via /aidex-audit escalate)
+   ▼ (via /aidex:audit escalate)
 backlog entry
    │
    ▼ (via planning)
@@ -81,7 +81,7 @@ plan
    ▼ (via commits)
 code changes
    │
-   ▼ (via /aidex-audit new retest)
+   ▼ (via /aidex:audit new retest)
 re-test audit
    │
    ▼
@@ -95,7 +95,7 @@ in the chain is queryable: "what is escalated but not yet planned?" is a row wit
 **Practical:** each transition adds a marker back to the finding, in the `<type>/<filename>`
 form (D-03) — never a relative markdown link. The inventory row accumulates them:
 
-- `Escalated To: backlog/2026-04-12-export-csv.md` after `/aidex-audit escalate`
+- `Escalated To: backlog/2026-04-12-export-csv.md` after `/aidex:audit escalate`
 - `Escalated To: plan/2026-04-15-export.md` once planning starts
 - the closing commit SHA in `Notes`, per the board's own header table
 
@@ -120,5 +120,5 @@ often become architectural decisions (`.context/decisions/`) rather than one-off
 | A methodology change with no changelog entry | Add it retroactively; next time enforce it in review |
 | Duplicate findings across runs with different ids | Consolidate: keep the oldest id, mark the newer ones as duplicates in their `Notes`, regenerate views |
 | `Status: deleted`, or rows disappearing | Restore from git history and transition to `dropped` instead |
-| Audits under `.context/plans/` | Run `/aidex-audit migrate` |
+| Audits under `.context/plans/` | Run `/aidex:audit migrate` |
 | A global board at the `audits/` root | Pre-D-02 layout — reshape into per-methodology inventories |

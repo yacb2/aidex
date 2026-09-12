@@ -1,6 +1,6 @@
 ---
-name: aidex-decision
-description: 'Use when the user has made an architectural, technical, or product decision and wants it recorded as a written `.context/decisions/` ADR — what was chosen, why, the alternatives, and the consequences — so the team does not re-litigate it later. Fires on "we decided X", "document this decision", "write an ADR", "record the decision to X", "log why we chose X", "we settled on X, write it up". Not for: planning multi-step work (aidex-plan); deferring or parking an idea for later (aidex-backlog); capturing a stakeholder/client request (aidex-request), research notes (aidex-research), or a settled reference (aidex-reference); ecosystem audits (aidex); project-state audits (aidex-audit).'
+name: decision
+description: 'Use when the user has made an architectural, technical, or product decision and wants it recorded as a written `.context/decisions/` ADR — what was chosen, why, the alternatives, and the consequences — so the team does not re-litigate it later. Fires on "we decided X", "document this decision", "write an ADR", "record the decision to X", "log why we chose X", "we settled on X, write it up". Not for: planning multi-step work (/aidex:plan); deferring or parking an idea for later (/aidex:backlog); capturing a stakeholder/client request (/aidex:request), research notes (/aidex:research), or a settled reference (/aidex:reference); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -17,7 +17,7 @@ lives in the shared `aidex-conventions` reference package (not forked here).
 ## Workflow
 
 1. Read the decision conventions canon:
-   `~/.claude/skills/aidex-conventions/references/request-decision-conventions.md`
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/request-decision-conventions.md`
    (Decisions section; or `.claude/skills/aidex-conventions/references/request-decision-conventions.md`
    if a project-level copy exists).
 2. Create a single dated file: `.context/decisions/YYYY-MM-DD-<slug>.md`
@@ -40,8 +40,8 @@ in place). Close atomically (stamps `updated`, sets status + `superseded_by`,
 archives per D-10) instead of hand-editing:
 
 ```bash
-bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh decisions <slug> --status superseded --superseded-by decision/<new-adr>
-bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh decisions <slug> --status dropped
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/close-dated-artifact.sh decisions <slug> --status superseded --superseded-by decision/<new-adr>
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/close-dated-artifact.sh decisions <slug> --status dropped
 ```
 
 ## Self-check
@@ -49,7 +49,7 @@ bash ~/.claude/skills/aidex-conventions/scripts/close-dated-artifact.sh decision
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type decisions
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type decisions
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),

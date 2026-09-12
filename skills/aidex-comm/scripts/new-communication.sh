@@ -140,13 +140,13 @@ inject_style() {
 
 usage() {
   cat <<EOF >&2
-Usage: /aidex-comm new <received|sent|meeting|call> <slug> [--channel <email|whatsapp|other>]
+Usage: /aidex:comm new <received|sent|meeting|call> <slug> [--channel <email|whatsapp|other>]
 
 Examples:
-  /aidex-comm new received client-pricing-question --channel email
-  /aidex-comm new sent followup-proposal --channel whatsapp
-  /aidex-comm new meeting access-core-kickoff
-  /aidex-comm new call supplier-delivery-date
+  /aidex:comm new received client-pricing-question --channel email
+  /aidex:comm new sent followup-proposal --channel whatsapp
+  /aidex:comm new meeting access-core-kickoff
+  /aidex:comm new call supplier-delivery-date
 EOF
   exit 2
 }

@@ -52,7 +52,7 @@ Is the concern "every session opens heavy" / always-on cost? ──▶ rule-abla
 Anything visual, interactive, or product-level ──▶ ux
 ```
 
-For anything that doesn't fit, pass `custom` to `/aidex-audit new` and write your own `00-methodology.md` in the methodology folder it creates.
+For anything that doesn't fit, pass `custom` to `/aidex:audit new` and write your own `00-methodology.md` in the methodology folder it creates.
 
 ---
 
@@ -84,7 +84,7 @@ You don't have to accept the stock playbook as-is. First time you run a type, th
 If none of them fits:
 
 ```
-/aidex-audit new custom <slug>
+/aidex:audit new custom <slug>
 ```
 
 This creates a methodology folder named after the slug, with its `00-methodology.md` from a minimal stub. Fill it in following the shape above. Six sections, concise, actionable.
@@ -112,4 +112,4 @@ You can run one audit per type per date, or combine types into a single scope (e
 
 ## Not every project needs every playbook
 
-Don't materialize a playbook until you need it. The table above is the index of what ships; a playbook becomes a file in your project only on `/aidex-audit new <type> <slug>` first use, as that methodology's `00-methodology.md`. Keeps `.context/audits/` to the methodologies you actually run.
+Don't materialize a playbook until you need it. The table above is the index of what ships; a playbook becomes a file in your project only on `/aidex:audit new <type> <slug>` first use, as that methodology's `00-methodology.md`. Keeps `.context/audits/` to the methodologies you actually run.

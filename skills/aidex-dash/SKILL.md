@@ -1,5 +1,5 @@
 ---
-name: aidex-dash
+name: dash
 description: 'Use when the user wants an interactive HTML dashboard/render/board of `.context/` data — the backlog board, a plan''s progress, an audit inventory, the coverage matrix — or says "render X as HTML", "generate the dashboard", "show this as a page". Not for: authoring content (the markdown stays canon); publishing without being asked.'
 argument-hint: "[backlog | plans [slug] | audit <methodology> | coverage]"
 disable-model-invocation: false
@@ -52,7 +52,7 @@ Never hand-roll an unstyled page after declining a board render.
 
 **Scope:** this skill is deployed `user-invocable-only` — the natural-language entry point for every
 artifact ask is `rules/artifacts-local-first.md`, which invokes dash's
-`render.sh` for board-shaped requests. `/aidex-dash` stays for explicit calls.
+`render.sh` for board-shaped requests. `/aidex:dash` stays for explicit calls.
 Per-project design tokens live in `.context/artifact-style.md` (template:
 `assets/templates/artifact-style.md.template`), including a `language:` field
 that `wrap-report.sh` reads as the artifact's `<html lang>` — artifacts only;

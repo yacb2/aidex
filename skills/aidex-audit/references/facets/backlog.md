@@ -6,7 +6,7 @@ lexicon:
   backlog:defer: "\\bpara m[aá]s adelante\\b|\\banota para luego\\b"
   backlog:sweep: "\\bsweep\\b|\\bbarrido\\b|\\bworklist\\b"
 skills: [aidex-backlog]
-slash: ["/aidex-backlog"]
+slash: ["/aidex:backlog"]
 scripts: [register-item.sh, define-item.sh, define-check.py, start-item.sh, defer-item.sh, triage.sh, quick-wins.py, normalize-language.sh, sweep-kickoff.sh, sweep-gate.sh, sweep-report.sh, sweep-eligible.py, sweep.sh, close-item.sh, reconcile.sh, harvest-commit.sh, detect-resolved.py]
 paths: ["\\.context/backlog/", "\\.context/worklists/"]
 primary_source: items

@@ -19,6 +19,10 @@
 set -euo pipefail
 . "$(dirname "$0")/_lib.sh"
 
+# This skill's own root, resolved from this script's location: the advice printed
+# below must name a path the reader can actually open.
+SKILL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
 if [[ "${1:-}" == "migrate" ]]; then shift; fi
 
 LAYOUT=0 APPLY=0 METH=""
@@ -152,7 +156,7 @@ if [[ "$LAYOUT" -eq 1 ]]; then
   else
     REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-audits.sh"
     [[ -x "$REINDEX" ]] && bash "$REINDEX" >/dev/null 2>&1 || true
-    ok "layout migration applied ($changes change(s)). Run /aidex-audit validate."
+    ok "layout migration applied ($changes change(s)). Run /aidex:audit validate."
   fi
   exit 0
 fi
@@ -287,7 +291,7 @@ cat <<EOF
 
   1. Review the candidates above.
   2. Scaffold the target methodology if it does not exist yet:
-       /aidex-audit new <type> <slug>   (creates the methodology folder and its
+       /aidex:audit new <type> <slug>   (creates the methodology folder and its
        three boards: 00-inventory.md, 00-methodology.md, 00-changelog.md; delete
        the scaffolded run if you only wanted the boards). Never create the
        directory by hand -- an empty one is three missing-board violations.
@@ -295,15 +299,15 @@ cat <<EOF
        git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>
   4. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
   5. If you have many candidates, invoke Claude with the inventory-seeder agent:
-       Read ~/.claude/skills/aidex-audit/agents/inventory-seeder.md
+       Read $SKILL_ROOT/agents/inventory-seeder.md
        Provide it the methodology and the list of moved folders; it will generate
        rows for audits/<methodology>/00-inventory.md.
   6. Add an entry to .context/audits/<methodology>/00-changelog.md recording the
      migration.
   7. Refresh the run-level roll-up, which a manual move does not touch:
-       /aidex-audit reindex   (from the migrated project — it resolves the root
+       /aidex:audit reindex   (from the migrated project — it resolves the root
        from the working directory, not from this script's argument)
-  8. Run /aidex-audit validate to check coherence.
+  8. Run /aidex:audit validate to check coherence.
 
-  See ~/.claude/skills/aidex-audit/references/05-migration-guide.md for full details.
+  See $SKILL_ROOT/references/05-migration-guide.md for full details.
 EOF

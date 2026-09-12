@@ -16,7 +16,7 @@ finding.**
   coverage was probably thin (or shallow) right there.
 - **After a feature push** on a tracked module — src likely outpaced its tests.
 - **When `coverage-sweep` flags drift** — a module's src commits moved without its tests
-  (`/aidex-audit coverage-sweep`, advisory).
+  (`/aidex:audit coverage-sweep`, advisory).
 - **First-time adoption** of a module — build its slice of the map, establish a baseline.
 
 ---
@@ -134,7 +134,7 @@ that reads as "nothing is defect-prone"). Generate it as part of this run (read-
 miner over `.context/` items and transcripts; writes only the jsonl):
 
 ```bash
-python3 ~/.claude/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-audit/scripts/usage-retro/mine_defect_proneness.py \
   --denominator all --projects-root <workspace-parent-dir> \
   --out .context/audits/test-coverage/defect-prone.jsonl
 ```
@@ -152,7 +152,7 @@ Record the two passes **separately**. Breadth is mechanical; depth is judgment.
 
 ### Breadth (mechanical)
 
-Run `/aidex-audit coverage-matrix`. It regenerates `coverage-matrix.md/.json` from the
+Run `/aidex:audit coverage-matrix`. It regenerates `coverage-matrix.md/.json` from the
 map. Then flag:
 
 - every surface (route / endpoint / form) with **zero mapped tests** → candidate `gap`
@@ -192,7 +192,7 @@ as a `gap`, not as coverage.
   - **P2** — a secondary flow gap
   - **P3** — backend-only regression test suffices; no E2E required
 
-Escalate per the standard lifecycle (`/aidex-audit escalate <id>` → backlog, or a
+Escalate per the standard lifecycle (`/aidex:audit escalate <id>` → backlog, or a
 remediation plan). One canonical row per finding in `00-inventory.md`.
 
 **Closing a `gap` finding remediated with new tests:** run `diff-cover` against the branch
@@ -208,7 +208,7 @@ gate, per `q4` — and it is a frontend-only check today (backend `diff-cover` i
 
 - `module-map.json` — the keystone, **maintained** by hand (assisted on first run).
 - `coverage-matrix.md` / `coverage-matrix.json` — **generated**, never hand-edited
-  (they carry the `GENERATED` header; `/aidex-audit validate` flags a matrix without
+  (they carry the `GENERATED` header; `/aidex:audit validate` flags a matrix without
   it).
 - Findings — rows in the rolling `00-inventory.md`; this run's `findings.md` is a
   filtered view.

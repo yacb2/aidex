@@ -25,19 +25,8 @@ cat > "$OUT/.claude-plugin/plugin.json" <<'JSON'
 }
 JSON
 
-# 1. Make cross-skill references resolvable inside the eval sandbox.
-#    The shipped skills point at ~/.claude/skills/... — an absolute path into the
-#    real HOME, which the eval sandbox replaces. ${CLAUDE_PLUGIN_ROOT} expands to
-#    the wrapper dir and the Read succeeds (verified in a run trace).
-#    This rewrite is eval-only: installed skills are NOT a plugin and have no
-#    CLAUDE_PLUGIN_ROOT, so it must never be committed back into skills/.
-rewritten=0
-while IFS= read -r f; do
-  if grep -q '~/.claude/skills/' "$f"; then
-    perl -pi -e 's{~/\.claude/skills/}{\$\{CLAUDE_PLUGIN_ROOT\}/skills/}g' "$f"
-    rewritten=$((rewritten + 1))
-  fi
-done < <(find "$OUT/skills" -name '*.md')
+# 1. (retired) The ~/.claude/skills/ -> ${CLAUDE_PLUGIN_ROOT}/skills/ rewrite: the
+#    shipped tree now carries the placeholder itself (plugin migration, phase 1).
 
 # 2. Strip the legacy trigger-eval probe block. It asks the model to run
 #    printenv/touch as its first action, and models refuse it as a prompt
@@ -63,7 +52,6 @@ done
 
 echo "wrapper:   $OUT"
 echo "skills:    $(find "$OUT/skills" -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ')"
-echo "rewritten: $rewritten file(s) with ~/.claude/skills/ paths"
 echo "stripped:  $stripped probe block(s)"
 echo "cases:     $cases"
 [ "$cases" -gt 0 ] || { echo "ERROR: no cases under skills/*/evals/native/*/" >&2; exit 1; }

@@ -37,13 +37,13 @@ done
 
 if [[ -z "$TARGET" ]]; then
   cat <<EOF >&2
-Usage: /aidex-audit remediate <run> [--check] [--dry-run]
+Usage: /aidex:audit remediate <run> [--check] [--dry-run]
 
 Emit a remediation loop-spec from a run's unresolved findings.
 
 Example:
-  /aidex-audit remediate 2026-06-21-3mo-retro
-  /aidex-audit remediate 2026-06-21-3mo-retro --check   # the loop's gate
+  /aidex:audit remediate 2026-06-21-3mo-retro
+  /aidex:audit remediate 2026-06-21-3mo-retro --check   # the loop's gate
 EOF
   exit 2
 fi
@@ -170,7 +170,7 @@ SLUG="remediate-$(slugify "${RUN_SLUG:11}")"
 [[ "$SLUG" == "remediate-" ]] && SLUG="remediate-$(slugify "$RUN_SLUG")"
 is_valid_slug "$SLUG" || die "could not derive a valid slug from run '$RUN_SLUG'"
 
-GATE_CMD="/aidex-audit remediate $RUN_SLUG --check"
+GATE_CMD="/aidex:audit remediate $RUN_SLUG --check"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   info "[dry-run] remediate $RUN_SLUG"
@@ -189,9 +189,7 @@ fi
 NEWLOOP=""
 for candidate in \
   "$SKILL_DIR/../aidex-loop/scripts/new-loop-spec.sh" \
-  "$ROOT/skills/aidex-loop/scripts/new-loop-spec.sh" \
-  "$HOME/.claude/skills/aidex-loop/scripts/new-loop-spec.sh" \
-  "$HOME/.claude/skills/aidex-loop/scripts/new-loop-spec.sh"
+  "$ROOT/skills/aidex-loop/scripts/new-loop-spec.sh"
 do
   [[ -f "$candidate" && -x "$candidate" ]] && { NEWLOOP="$candidate"; break; }
 done
@@ -302,7 +300,7 @@ progress file to keep in sync, and nothing to reconcile afterwards.
   registered ADR or existing code.
 - **Pre-authorized (run without asking):** \`git commit\`, dependency changes,
   additive migrations, running the SELECTED tests for the finding's module
-  (\`/aidex-audit affected-tests --command\`, or the paths you name). The full
+  (\`/aidex:audit affected-tests --command\`, or the paths you name). The full
   suite runs once, at close-out — never per finding (decision 2026-08-26, D4).
 - **Always-ask (pause every time):** \`git push\` / publish / deploy / release,
   and merging into the trunk.
@@ -320,8 +318,8 @@ progress file to keep in sync, and nothing to reconcile afterwards.
 
 ## End-to-end verification step
 
-After the gate goes green, run \`/aidex-audit validate\` — every row this loop
-closed must carry its evidence — then \`/aidex-audit close $RUN_SLUG\`.
+After the gate goes green, run \`/aidex:audit validate\` — every row this loop
+closed must carry its evidence — then \`/aidex:audit close $RUN_SLUG\`.
 
 ## Run command
 

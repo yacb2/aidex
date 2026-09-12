@@ -18,7 +18,7 @@ You have the problem if:
 ## Assisted migration — the script detects, you move
 
 ```
-/aidex-audit migrate
+/aidex:audit migrate
 ```
 
 `migrate-audit.sh` **detects only.** It scores each direct child of `.context/plans/` on
@@ -27,13 +27,13 @@ file presence (`findings.md`, `methodology.md`, `issues.md`, `metrics.md` raise 
 candidates / ambiguous / plans, and prints the steps below for you to carry out:
 
 1. **Review** the candidates it printed. Accept, reject, or mark as "keep in plans" (audits that morphed into plans).
-2. **Scaffold the methodology** if it does not exist yet — `/aidex-audit new <type> <slug>`, so the target exists with its three boards (delete the scaffolded run if you only wanted the boards). Never create the directory by hand: an empty methodology is three missing-board violations.
+2. **Scaffold the methodology** if it does not exist yet — `/aidex:audit new <type> <slug>`, so the target exists with its three boards (delete the scaffolded run if you only wanted the boards). Never create the directory by hand: an empty methodology is three missing-board violations.
 3. **Move** each accepted candidate — `git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>` (D-02 groups runs by methodology; D-01 dates them ISO).
 4. **Rename** `issues.md` or similar to `findings.md` inside the moved folder.
 5. **Seed the inventory** — with many candidates, invoke the `inventory-seeder` agent with the methodology and the list of moved folders; it generates the rows for `00-inventory.md`.
 6. **Changelog entry** — record the migration in `<methodology>/00-changelog.md`, with date and list of migrated folders.
-7. **Reindex** — `/aidex-audit reindex`, from the migrated project; a manual move does not touch the roll-up.
-8. **Validate** — `/aidex-audit validate`. Issues are reported, not blocking.
+7. **Reindex** — `/aidex:audit reindex`, from the migrated project; a manual move does not touch the roll-up.
+8. **Validate** — `/aidex:audit validate`. Issues are reported, not blocking.
 
 If a legacy folder carried its own methodology notes, extract them into that methodology's `00-methodology.md` while you are at step 3 — the script does not print this because it cannot see inside the notes.
 
@@ -46,7 +46,7 @@ If you have 1–3 legacy folders, doing it by hand is often faster and produces 
 ### Step 1: Scaffold the methodology
 
 ```bash
-/aidex-audit new <type> <slug>
+/aidex:audit new <type> <slug>
 ```
 
 This creates the methodology folder and its three boards from templates —
@@ -87,7 +87,7 @@ Add to `<methodology>/00-changelog.md`:
 ### Step 5: Validate
 
 ```bash
-/aidex-audit validate
+/aidex:audit validate
 ```
 
 Fix anything flagged.
@@ -107,7 +107,7 @@ Some "audits" in `.context/plans/` really are plans — they audited, then plann
 
 ## What to keep in `plans/`
 
-After migration, `.context/plans/` should only contain work-in-progress or completed implementations. If a folder there still looks audit-like after migration, you missed one — re-run `/aidex-audit migrate`.
+After migration, `.context/plans/` should only contain work-in-progress or completed implementations. If a folder there still looks audit-like after migration, you missed one — re-run `/aidex:audit migrate`.
 
 ---
 
@@ -131,7 +131,7 @@ Then try again, possibly manual instead of automated.
 - [ ] `.context/audits/<methodology>/00-methodology.md` references the playbooks in use
 - [ ] `.context/audits/<methodology>/00-changelog.md` has a migration entry
 - [ ] `.context/plans/` contains no audit-like folders
-- [ ] `/aidex-audit validate` exits 0
+- [ ] `/aidex:audit validate` exits 0
 - [ ] Cross-references (backlog entries, decisions) updated to point at audit IDs instead of plan paths
 - [ ] Team knows the new convention (link them to `audit-conventions.md`)
 
@@ -139,4 +139,4 @@ Then try again, possibly manual instead of automated.
 
 ## Preventing recurrence
 
-After migration, update your workflow to call `/aidex-audit new` instead of creating a plan folder with `findings.md` in it. If unsure whether an artifact is an audit or a plan, use the decision flow in [04-playbooks.md](04-playbooks.md) or ask: "am I describing what *is*, or what *will be*?" If it's "what is" — it's an audit.
+After migration, update your workflow to call `/aidex:audit new` instead of creating a plan folder with `findings.md` in it. If unsure whether an artifact is an audit or a plan, use the decision flow in [04-playbooks.md](04-playbooks.md) or ask: "am I describing what *is*, or what *will be*?" If it's "what is" — it's an audit.

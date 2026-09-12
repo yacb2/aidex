@@ -23,6 +23,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+# Sibling-skill scripts this validator names in its advice. Resolved from this
+# file's own location so the printed path is one the reader can actually run.
+MIGRATE_COMMS_SH = (Path(__file__).resolve().parents[2]
+                    / "aidex-comm" / "scripts" / "migrate-communications.sh")
+
 # ---------- Conventions canon ----------
 
 TYPES = ["backlog", "plans", "requests", "decisions", "references", "research", "audits",
@@ -505,7 +510,7 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
             return Finding(type_name, str(path), "communication-legacy-body-name", "violation",
                            f"{name!r} is a pre-canonical body filename — rename it to "
                            f"{COMM_LEGACY_BODY_FILES[name]!r} "
-                           f"(bash ~/.claude/skills/aidex-comm/scripts/migrate-communications.sh)")
+                           f"(bash {MIGRATE_COMMS_SH})")
         if is_comm_attachment(type_name, path):
             return None
         if name == "body.md":
@@ -529,7 +534,7 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
            and not _is_audit_run_folder(path.parent.name):
             return Finding(type_name, str(path), "audit-legacy-board-name", "warning",
                            f"legacy board name {path.name!r} — canonical is "
-                           f"{AUDIT_LEGACY_BOARD_FILES[path.name]!r}; run /aidex-audit migrate")
+                           f"{AUDIT_LEGACY_BOARD_FILES[path.name]!r}; run /aidex:audit migrate")
         # Run-internal sub-documents (notes, logs, stage write-ups) are free-form;
         # the dated naming applies to the run folder, not files within it.
         if is_audit_subdoc(type_name, path):
@@ -1100,7 +1105,7 @@ def check_audit_folders(context_dir: Path) -> list[Finding]:
         name = d.name
         if re.match(r"^\d{8}-", name):
             findings.append(Finding("audits", str(d), "audit-run-legacy-name", "warning",
-                                    f"run folder {name!r} uses legacy YYYYMMDD naming — run /aidex-audit migrate"))
+                                    f"run folder {name!r} uses legacy YYYYMMDD naming — run /aidex:audit migrate"))
         elif re.match(r"^\d{4}-\d{2}-\d{2}", name) and not ISO_FOLDER.match(name):
             findings.append(Finding("audits", str(d), "audit-run-name-invalid", "violation",
                                     f"run folder {name!r} does not match YYYY-MM-DD-<slug>"))

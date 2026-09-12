@@ -189,9 +189,9 @@ fields as project-local and does not reject them.
 
 ```bash
 # 1. read the axis commands without running them
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --dry-run
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --dry-run
 # 2. approve this exact block (required once, and again after any edit to it)
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --trust --advisory
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --trust --advisory
 ```
 
 **Real output, {{DATE}}:** <!-- paste what you actually got. -->

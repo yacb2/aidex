@@ -8,7 +8,7 @@
 #                      `scripts/${ACTION}.sh` named six scripts that never existed.
 #   3. hint-lockstep — every command the sub-actions table documents also appears in
 #                      `argument-hint`. That string is what autocomplete shows when the
-#                      user types `/aidex-audit`, so a command missing from it is
+#                      user types `/aidex:audit`, so a command missing from it is
 #                      invisible at the one moment someone is choosing what to run —
 #                      how coverage-matrix, coverage-sweep and affected-tests shipped
 #                      undiscoverable (BL-155). The table is the single owner of
@@ -68,10 +68,10 @@ check_hint_lockstep() {
   local disp; disp="$(basename "$(cd "$(dirname "$skill")" && pwd)")/SKILL.md"
   local hint; hint="$(grep -m1 '^argument-hint:' "$skill")"
   local cmds=() cmd
-  # The table rows, not the prose: a row's first cell opens `| `/aidex-audit <cmd>`.
+  # The table rows, not the prose: a row's first cell opens `| `/aidex:audit <cmd>`.
   # The bare help row has a backtick where the command would be, so it drops out.
   while IFS= read -r cmd; do cmds+=("$cmd"); done \
-    < <(grep -oE '^\| `/aidex-audit [a-z-]+' "$skill" | awk '{print $3}' | sort -u)
+    < <(grep -oE '^\| `/aidex:audit [a-z-]+' "$skill" | awk '{print $3}' | sort -u)
 
   # An empty command list or a missing hint line passes the loop below vacuously.
   if [[ -z "$hint" || "${#cmds[@]}" -lt 3 ]]; then

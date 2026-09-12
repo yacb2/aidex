@@ -13,7 +13,10 @@ set -euo pipefail
 
 MARK="# >>> aidex commit-trailer harvester (D-09) >>>"
 END_MARK="# <<< aidex commit-trailer harvester <<<"
-HARVEST='"$HOME/.claude/skills/aidex-backlog/scripts/harvest-commit.sh" >/dev/null 2>&1 || true'
+# The hook we write runs as a git post-commit in the user's repo, outside any plugin
+# context, so it must carry the ABSOLUTE path resolved from this script's own location.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+HARVEST="\"$SCRIPT_DIR/harvest-commit.sh\" >/dev/null 2>&1 || true"
 
 REMOVE=0
 [[ "${1:-}" == "--remove" ]] && REMOVE=1

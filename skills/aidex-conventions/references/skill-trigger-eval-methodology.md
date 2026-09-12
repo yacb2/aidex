@@ -437,7 +437,7 @@ An A/B that stages from the live repo (the `feedback_skill_split_test_isolation`
 mechanism — read `REPO/<name>/SKILL.md`, write `/tmp/.claude/skills/`) assumes
 the repo is stable for the duration of staging. A benign third party — the
 user's other Claude session, a scheduled job, a different agent — editing
-the repo or the installed `~/.claude/skills/` copies *during* the run violates that
+the repo or the installed `${CLAUDE_PLUGIN_ROOT}/skills/` copies *during* the run violates that
 assumption silently. The 2026-05-19 attempt observed coordinated repo edits
 mid-run that were the user's own work from another session — not malicious,
 not relevant to the experiment, and still **invalidating**, because some
@@ -493,7 +493,7 @@ contradictory `STATUS-*` files, unexpected mtimes on the staging source,
 ## 9. Two instruments, one boundary: firing vs. output (2026-08-06)
 
 **The harness this repo's 16 eval configs run on is not aidex's.** It is
-`~/.claude/skills/skill-trigger-eval/scripts/eval-pty.sh` — outside this repo,
+`${CLAUDE_PLUGIN_ROOT}/skills/skill-trigger-eval/scripts/eval-pty.sh` — outside this repo,
 untracked by its git, uncovered by its suite. That dependency was implicit until
 now; this section is the deliberate record of it, and of where the boundary sits.
 

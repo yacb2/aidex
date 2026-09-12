@@ -5,7 +5,7 @@
 # `AUDIT_TYPES` in scripts/_lib.sh is the runtime enum: normalize_type() accepts nothing
 # outside it, so it is the owner and every other site is a copy. The copies drift the way
 # copies do — when rule-ablation shipped it reached the header comment of new-audit.sh and
-# not its usage text, so `/aidex-audit new` printed a list of valid types missing one it
+# not its usage text, so `/aidex:audit new` printed a list of valid types missing one it
 # accepts. 04-playbooks.md carried the same drift as prose counts: "Nine stock audit
 # types" and "If none of the eight fits" over a table of ten (BL-160).
 #
@@ -110,7 +110,7 @@ check "04-playbooks.md still points at $NO_TEMPLATE outside the table" \
 
 # --- sites 7-9: the copies outside this skill ------------------------------------
 # Only reachable from a repo checkout: install.sh ships skills/ and rules/, not README.md,
-# so in the installed ~/.claude/skills/ tree these three are absent. Skipping is printed, never counted as a pass.
+# so in the installed ${CLAUDE_PLUGIN_ROOT}/skills/ tree these three are absent. Skipping is printed, never counted as a pass.
 PROSE_SITES=("$PLAYBOOKS")
 if [[ -f "$README" && -f "$CONV_SKILL" && -f "$CONV_AUDIT" ]]; then
   PROSE_SITES+=("$README" "$CONV_SKILL" "$CONV_AUDIT")

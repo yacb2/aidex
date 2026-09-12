@@ -32,10 +32,10 @@ if [[ "${1:-}" == "new" ]]; then shift; fi
 SLUG="${1:-}"
 if [[ -z "$SLUG" ]]; then
   cat <<EOF >&2
-Usage: /aidex-workflow new <slug>
+Usage: /aidex:workflow new <slug>
 
 Example:
-  /aidex-workflow new review-auth-across-dimensions
+  /aidex:workflow new review-auth-across-dimensions
 EOF
   exit 2
 fi
@@ -58,7 +58,7 @@ cat >&2 <<EOF
 Next steps:
   1. Fill the spec: Goal, Shape, Work-list, Per-agent model+effort, Gate policy.
   2. See the shape catalog: $SKILL_DIR/references/01-workflow-spec-conventions.md
-  3. When ready: /aidex-workflow run $SLUG
+  3. When ready: /aidex:workflow run $SLUG
 EOF
 
 # Machine-readable path on stdout.

@@ -25,15 +25,15 @@ if [[ "${1:-}" == "new" ]]; then shift; fi
 
 usage() {
   cat <<EOF >&2
-Usage: /aidex-audit new <type> <slug>
-       /aidex-audit new --standalone <slug>
+Usage: /aidex:audit new <type> <slug>
+       /aidex:audit new --standalone <slug>
 
 Types: ux, ai-opportunities, security, perf, a11y, hitl, retest, test-coverage, docs-coverage, rule-ablation, custom
        (legacy -audit-suffixed names and the `coverage` short form accepted as aliases)
 
 Examples:
-  /aidex-audit new ux login-redesign
-  /aidex-audit new --standalone usage-retro-q3
+  /aidex:audit new ux login-redesign
+  /aidex:audit new --standalone usage-retro-q3
 EOF
   exit 2
 }
@@ -154,6 +154,6 @@ Next steps:
   2. Edit the run index: $RUN_DIR/index.md (set scope, auditor, context)
   3. As you find issues, add rows to: $M_DIR/00-inventory.md
   4. Reference IDs from: $RUN_DIR/findings.md
-  5. When ready to escalate: /aidex-audit escalate <finding-id>
-  6. Validate any time: /aidex-audit validate
+  5. When ready to escalate: /aidex:audit escalate <finding-id>
+  6. Validate any time: /aidex:audit validate
 EOF

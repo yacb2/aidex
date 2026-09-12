@@ -1,5 +1,5 @@
 ---
-name: aidex-coverage
+name: coverage
 description: 'Use when writing, placing, or running tests in any project — which layer a behaviour belongs in ("unit or E2E for X", "component test or browser test"), which tests to run for a change instead of the whole suite, when to extract a fixture, setting up an isolated disposable E2E environment, or the per-project testing profile and the stack pack it names for the concrete test shapes (Django, Vue, Playwright, Payload, Svelte). Fires on "write a test for", "add a regression test", "which tests should I run", "run only the affected tests", "set up E2E for this project", "generate test-e2e.sh", "how do we test this stack". Not for: running a coverage audit, the module map / coverage matrix, tracking a finding, or suite-speed measurement — all of that is aidex-audit''s test-coverage playbook.'
 allowed-tools: Bash Read Grep Glob Write Edit
 ---
@@ -20,7 +20,7 @@ facts (ports, database names, commands, personas) live in that profile, never he
 [references/14-testing-profile.md](references/14-testing-profile.md).
 
 **The full suite is a boundary gate, not a phase gate.** Per change, run the narrowest
-selection that can observe it (`/aidex-audit affected-tests --command`, or the profile's
+selection that can observe it (`/aidex:audit affected-tests --command`, or the profile's
 single-test command, or one spec via `./test-e2e.sh e2e/<spec>.spec.ts`); the whole suite
 runs once, at plan close-out or pre-merge. A full E2E suite costs ~5 minutes; spending
 that per change is what this rule exists to stop.
@@ -60,10 +60,10 @@ records which plan phase produced each file.
 ## Resolving the stack packs
 
 1. Read `<project>/.context/testing-profile.md`. If it does not exist, seed it:
-   `python3 ~/.claude/skills/aidex-coverage/scripts/profile-init.py <project>` (never
+   `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-coverage/scripts/profile-init.py <project>` (never
    `--force` over an existing one; blank keys are unanswered, not zero).
 2. Take `testing_packs` — a space-separated list of skill names — and read each pack's
-   `~/.claude/skills/<pack>/SKILL.md`; its "Question -> file" table says which of its
+   `${CLAUDE_PLUGIN_ROOT}/skills/<pack>/SKILL.md`; its "Question -> file" table says which of its
    references answers the question at hand. Read with Read; a pack is never invoked as a
    skill (`disable-model-invocation: true`), so nothing fires on its own.
 3. Apply the doctrine here first — layer, selection, gate — then the pack's shape. When

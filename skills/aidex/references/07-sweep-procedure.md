@@ -1,16 +1,16 @@
 # Fleet Sweep Procedure
 
-The whole procedure behind `/aidex sweep`: check the fleet for drift instead of one
+The whole procedure behind `/aidex:aidex sweep`: check the fleet for drift instead of one
 project at a time. **Read-only — it never writes to a project.** Every instrument below
 reports and offers; none of them fixes anything for you.
 
 Split out of `SKILL.md` on 2026-09-08 (BL-343), which had reached the token maximum the
-`/aidex context` procedure had already been split out for (ADR 2026-08-06). Same contract:
+`/aidex:aidex context` procedure had already been split out for (ADR 2026-08-06). Same contract:
 the SKILL documents *that* this exists and routes here, this file is *how*.
 
 ## The seven instruments
 
-1. **Fleet conformance** — `bash ~/.claude/skills/aidex/scripts/compliance-sweep.sh`.
+1. **Fleet conformance** — `bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/compliance-sweep.sh`.
    Add `--root <dir>` to scan somewhere other than the workspace root
    (`$AIDEX_WORKSPACE_ROOT`, default `~/Documents/projects`), or name project paths to
    check only those. Add `--verbose` to also see the clean and skipped ones.
@@ -25,10 +25,10 @@ the SKILL documents *that* this exists and routes here, this file is *how*.
 
 4. **Rule-propagation drift** — a project restating a globally-owned rule, or
    `skillOverrides` that contradict one:
-   `python3 ~/.claude/skills/aidex/scripts/conformance-sweep.py`.
+   `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/conformance-sweep.py`.
 
 5. **Workspace-root litter** — what has accumulated OUTSIDE any project's `.claude/` and
-   `.context/`: `python3 ~/.claude/skills/aidex/scripts/root-litter-sweep.py`. Read-only;
+   `.context/`: `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/root-litter-sweep.py`. Read-only;
    it reports and offers, never deletes.
 
    It covers holding folders that only grow (`_toDelete`, `_backups`, `_archive`), loose
@@ -45,7 +45,7 @@ the SKILL documents *that* this exists and routes here, this file is *how*.
 
 6. **Auditor freshness** — before trusting any of the auditor's own configuration advice,
    especially after updating Claude Code:
-   `python3 ~/.claude/skills/aidex/scripts/surface-drift-check.py`.
+   `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/surface-drift-check.py`.
 
    It reads `references/06-claude-code-surface.md`, which records which Claude Code
    version each of the auditor's own recommendations was last verified against —
@@ -60,7 +60,7 @@ the SKILL documents *that* this exists and routes here, this file is *how*.
    fine, and nothing made that visible.
 
 7. **Done-but-not-archived across all four tiers of ONE project** — plans, audits,
-   requests, backlog: `python3 ~/.claude/skills/aidex-conventions/scripts/archive-sweep.py`.
+   requests, backlog: `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/archive-sweep.py`.
    `sweep.sh` covers the backlog only, which is how D-10 came to be applied there and
    skipped in the other three. Dry run by default; `--check` exits 1 for a gate;
    `--apply` moves the terminal set and never the status-drift set.

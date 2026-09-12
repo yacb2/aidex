@@ -1,6 +1,6 @@
 ---
-name: aidex-research
-description: 'Use when the user needs to investigate, explore, or spike on how something works and the findings should land as written `.context/research/` notes before any plan or implementation. Fires on "research how X works", "investigate X", "spike on X", "look into how X is done", "I need to understand X before planning". Not for: planning multi-step work once the approach is known (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); documenting a settled, stable reference (aidex-reference); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).'
+name: research
+description: 'Use when the user needs to investigate, explore, or spike on how something works and the findings should land as written `.context/research/` notes before any plan or implementation. Fires on "research how X works", "investigate X", "spike on X", "look into how X is done", "I need to understand X before planning". Not for: planning multi-step work once the approach is known (/aidex:plan); recording a decision/ADR (/aidex:decision); capturing a stakeholder request (/aidex:request); documenting a settled, stable reference (/aidex:reference); deferring/parking an idea (/aidex:backlog); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write
 ---
@@ -18,7 +18,7 @@ the `aidex-conventions` canon, but research's own body shape is defined here.
 ## Workflow
 
 1. Read the shared documentation canon:
-   `~/.claude/skills/aidex-conventions/references/00-global.md` (language,
+   `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/00-global.md` (language,
    IDs, statuses, archive rules. Or the `.claude/skills/...` project-level copy
    if one exists). Research has its **own** body shape (below) — it does **not**
    borrow the reference runbook/MODULE template.
@@ -62,7 +62,7 @@ section is written. On close:
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type research
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type research
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),

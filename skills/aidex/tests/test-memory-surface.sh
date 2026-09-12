@@ -88,7 +88,7 @@ check "it gates on the memory directory, not a line count" \
 echo "== the /aidex memory sub-action exists and names its three forms =="
 # Nothing else fails if this block is deleted, and SKILL.md sits a handful of tokens under
 # a hard maximum — the newest, largest block is the first thing a future trim reaches for.
-SUB="$(sed -n '/^## Sub-action: `\/aidex memory`/,/^## Sub-action: `\/aidex init`/p' "$SKILL/SKILL.md")"
+SUB="$(sed -n '/^## Sub-action: `\/aidex:aidex memory`/,/^## Sub-action: `\/aidex:aidex init`/p' "$SKILL/SKILL.md")"
 check "the sub-action section is present" '[[ -n "$SUB" ]]'
 check "it dispatches on \$ARGUMENTS like init does" '[[ "$SUB" == *"\$ARGUMENTS"* ]]'
 check "it names the scoped form" '[[ "$SUB" == *"--project"* ]]'

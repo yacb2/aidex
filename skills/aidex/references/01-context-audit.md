@@ -1,6 +1,6 @@
-# `/aidex context` — the idle-token footprint audit
+# `/aidex:aidex context` — the idle-token footprint audit
 
-The full procedure for `/aidex context`.
+The full procedure for `/aidex:aidex context`.
 
 Focused audit of the session's **idle token footprint** (everything loaded before the user types anything). Use when the user:
 
@@ -10,7 +10,7 @@ Focused audit of the session's **idle token footprint** (everything loaded befor
 
 ## Inputs
 
-- **The snapshot** — `python3 ~/.claude/skills/aidex/scripts/context-snapshot.py`, run in
+- **The snapshot** — `python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/context-snapshot.py`, run in
   the project cwd. It runs Claude Code's own `/context` and `/skill-doctor` through
   `claude -p` (local commands: no model call, zero tokens, seconds) and writes
   `_tmp/context-snapshot/<date>/snapshot.json` next to the raw reports. The cwd matters:
@@ -34,7 +34,7 @@ What the snapshot carries, and which agent reads it:
 
 ## Flow
 
-1. **Read the budget heuristics first:** `~/.claude/skills/aidex/references/05-context-budget.md`. It holds the idle-token budget thresholds, the cost drivers ranked by typical savings, and the `CB-*` codes the agents below emit — without it you cannot tell an expensive footprint from a normal one, and the synthesis in step 4 has nothing to rank against.
+1. **Read the budget heuristics first:** `${CLAUDE_PLUGIN_ROOT}/skills/aidex/references/05-context-budget.md`. It holds the idle-token budget thresholds, the cost drivers ranked by typical savings, and the `CB-*` codes the agents below emit — without it you cannot tell an expensive footprint from a normal one, and the synthesis in step 4 has nothing to rank against.
 2. **Take the snapshot.** Run `context-snapshot.py` (or `--from-context` on the pasted report). Surface idle total and per-category token counts immediately, from the JSON — nothing is estimated from file sizes any more. If `usage_available` is false (HIPAA or telemetry off), say so once and continue: cost is complete, usage is absent.
 3. **Launch in parallel** (single message, `run_in_background: true`), each with the snapshot path:
    - `context-cost-analyzer` — classifies the categories, owns `CB-CM`, `CB-MD` and
@@ -74,11 +74,11 @@ After step 4 (synthesis), end with the menu `[A] apply all critical [B] apply al
 **Guardrails for apply phase:**
 - Step 2's backup is what makes class 4 safe to apply unprompted. If the backup step failed or was skipped, nothing is class 4 — fall back to per-item confirmation.
 - Never edit `feedback_*.md` files automatically — they are human-review only.
-- Never delete large external trees outside `~/.claude/skills/` and `~/.claude/commands/` — escalate to backlog instead.
+- Never delete large external trees outside `${CLAUDE_PLUGIN_ROOT}/skills/` and `~/.claude/commands/` — escalate to backlog instead.
 - If `.context/decisions/` exists and an entry overlaps it, prefer linking from MEMORY.md to the decision doc over deleting silently.
 - For third-party plugin skills, do NOT propose `disable-model-invocation` flips — get overwritten on plugin update. Use `settings.local.json` overrides instead.
 - **Before applying any MEMORY.md edit or delete, read**
-  `~/.claude/skills/aidex/references/03-memory-workflow.md`. It holds the memory
+  `${CLAUDE_PLUGIN_ROOT}/skills/aidex/references/03-memory-workflow.md`. It holds the memory
   classification (what belongs in memory vs. `.context/`), the externalization
   workflow, and the `MEM-*` codes that decide which entries are safe to rewrite and
   which are human-review only — applying a memory patch without it is how a

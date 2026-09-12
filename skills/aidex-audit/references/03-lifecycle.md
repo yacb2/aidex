@@ -23,7 +23,7 @@ Boards written by pre-rebuild tooling may still carry the legacy 6-state enum.
 The migration map (canon `audit-conventions.md` §Status map) is authoritative:
 `triaged → open (+note)` · `escalated → done + Escalated To` · `in-progress →
 doing` · `closed → done`. Tooling **reads** legacy values (with a warning) but
-only ever **writes** base vocabulary; `/aidex-audit migrate` converts boards.
+only ever **writes** base vocabulary; `/aidex:audit migrate` converts boards.
 
 ---
 
@@ -47,7 +47,7 @@ done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to par
   created artifact gets the back-link `origin_ref:
   audit/<methodology>/<run>/<finding-id>` (standalone runs: `audit/<run>/<id>`).
 - **open → doing:** plan started; `Escalated To` updated to `plan/<…>` — or a
-  run-level remediation loop-spec started (`/aidex-audit remediate <run>`),
+  run-level remediation loop-spec started (`/aidex:audit remediate <run>`),
   which sets `loop/<…>` on every unresolved row of that run. It stops at
   `doing` on purpose: emitting them `done` would satisfy the loop's own gate
   before any work happened, and the write-back that closes each row would
@@ -70,13 +70,13 @@ done --regression--> new REGRESSION-<parent>-<n> row (status: open, links to par
 
 ## Enforcement
 
-`/aidex-audit validate` checks:
+`/aidex:audit validate` checks:
 
 - Every `done` row has **either** a non-empty `Escalated To` **or** a verifying
   reference in `Notes` — a bare `done` with neither is flagged.
 - Every `doing` row has a non-empty `Escalated To` (the plan doing the work).
 - Every `dropped` row has a reason in `Notes`.
-- Legacy status values are reported as warnings ("run /aidex-audit migrate"),
+- Legacy status values are reported as warnings ("run /aidex:audit migrate"),
   never crashes, and counted under their mapped base status.
 - No backlog entry claims `origin_ref: audit/<methodology>/<run>/<id>` for an ID
   that doesn't exist in the inventory.

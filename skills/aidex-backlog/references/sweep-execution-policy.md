@@ -1,6 +1,6 @@
 # Sweep execution policy — the six stages of a backlog sweep
 
-Governs `/aidex-backlog sweep`: an **autonomous batch** of small backlog items, as
+Governs `/aidex:backlog sweep`: an **autonomous batch** of small backlog items, as
 distinct from working one item (`start-item.sh` → `aidex-bugfix`) or ordering a
 cross-source queue (`worklist-conventions.md`, which this policy sits on top of). It is
 a run mode of `aidex-backlog`, not a skill

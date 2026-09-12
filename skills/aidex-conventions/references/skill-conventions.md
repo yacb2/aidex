@@ -19,14 +19,14 @@ Standards for creating Claude Code skills with progressive disclosure.
 
 | Scope | Location | Available in |
 |-------|----------|-------------|
-| Global | `~/.claude/skills/<name>/` | All projects |
+| Global | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | All projects |
 | Project | `.claude/skills/<name>/` | Only that project |
 
 **Resolution order:** Project-level overrides global if same name exists.
 
 **When asked to update a skill:**
 1. Check if the skill exists at project level (`.claude/skills/<name>/`)
-2. If not, check global (`~/.claude/skills/<name>/`)
+2. If not, check global (`${CLAUDE_PLUGIN_ROOT}/skills/<name>/`)
 3. If both exist, ask which one to update
 4. If the change is project-specific but only a global skill exists, consider creating a project-level copy
 
@@ -76,7 +76,7 @@ failure is actionable.
 `name` is a discovery and collision surface, not just a label. Two source-grounded rules:
 
 - **Active / verb-first, kebab-case.** Prefer gerund or verb-first names that say what the skill *does* (Anthropic best-practices recommends gerund form; Superpowers `writing-skills`: "name by what you DO"). Avoid vague names ("helper", "utils"). Keep one consistent pattern across a collection — Anthropic explicitly lists *inconsistent patterns within a skill collection* as an anti-pattern.
-- **Prefix-namespace any distributed skill collection.** A set of skills shipped together and installed into a shared `~/.claude/skills/` namespace must carry a collection prefix so it cannot collide with the user's own arbitrarily-named skills (most users have *some* `audit`, `plan`, or `backlog` skill). Plugins get this for free via the `plugin:skill` namespace (Superpowers ships as `superpowers:writing-skills`, `superpowers:test-driven-development`, …). A non-plugin installer (like aidex) has no automatic namespace, so it must encode the prefix manually in both the skill directory and `name:` (e.g., `aidex-audit`, `aidex-backlog`). The prefix *is* the namespace; consistency across the set is not cosmetic — it is collision avoidance.
+- **Prefix-namespace any distributed skill collection.** A set of skills shipped together and installed into a shared `${CLAUDE_PLUGIN_ROOT}/skills/` namespace must carry a collection prefix so it cannot collide with the user's own arbitrarily-named skills (most users have *some* `audit`, `plan`, or `backlog` skill). Plugins get this for free via the `plugin:skill` namespace (Superpowers ships as `superpowers:writing-skills`, `superpowers:test-driven-development`, …). aidex ships as a plugin: the skill directory keeps the collection prefix (`aidex-audit`, `aidex-backlog`) so the tree is self-describing, and `name:` carries the short form (`audit`, `backlog`) because a plugin skill's `name:` is the segment after `aidex:` in `/aidex:audit`. `test_registry_lockstep.py` guard 9 enforces the pair. The prefix *is* the namespace; consistency across the set is not cosmetic — it is collision avoidance.
 
 ### The `description` field (trigger-first — evidence-backed)
 
@@ -107,7 +107,7 @@ Anthropic's *actual* shipped git example leads with capability — `Generate des
 **Example (aidex skill, iteration-4 final form):**
 
 ```yaml
-description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context. Also fires on "audit my project", "organize my ecosystem", "health-check my project", "my .context/ is a mess", and the /aidex command. Not for: creating .context/ docs (aidex-conventions); project-state audits like UX or security (aidex-audit); backlog items (aidex-backlog).
+description: Use when the user wants to audit, organize, clean up, or health-check their Claude Code setup — a messy or inconsistent .context/, a bloated or stale MEMORY.md, broken symlinks in .claude/skills, unused or misplaced skills, dead CLAUDE.md links, plugins inflating idle context. Also fires on "audit my project", "organize my ecosystem", "health-check my project", "my .context/ is a mess", and the /aidex:aidex command. Not for: creating .context/ docs (/aidex:conventions); project-state audits like UX or security (/aidex:audit); backlog items (/aidex:backlog).
 ```
 
 **`when_to_use` field:** Claude Code supports a separate `when_to_use` field (concatenated into the listing, 1,536-char combined cap). It is optional. Superpowers folds everything into a single trigger-first `description` for cross-tool portability (the agentskills.io standard has only `name` + `description`). Prefer the single-field form; use `when_to_use` only if `description` would otherwise exceed ~900 chars.
@@ -200,7 +200,7 @@ random — it tracks the phrasing exactly:
 
 | Phrasing | Example | Read rate |
 |---|---|---|
-| Imperative, numbered step, explicit path | `1. Read the plan conventions canon:`<br>`` `~/.claude/skills/…/plan-conventions.md` `` | **80.6%** |
+| Imperative, numbered step, explicit path | `1. Read the plan conventions canon:`<br>`` `${CLAUDE_PLUGIN_ROOT}/skills/…/plan-conventions.md` `` | **80.6%** |
 | Markdown link in prose | `See [references/04-playbooks.md](…) for when to pick each.` | **0%** |
 
 So: **write pointers as steps, not as citations.**
@@ -487,7 +487,7 @@ Skill descriptions deserve empirical testing. Inspection-only review is unreliab
 
 ### Recommended: PTY-based recall/precision eval
 
-Use the `skill-trigger-eval` harness (`~/.claude/skills/skill-trigger-eval/scripts/eval-pty.sh`) to score a skill against a curated query inventory:
+Use the `skill-trigger-eval` harness (`${CLAUDE_PLUGIN_ROOT}/skills/skill-trigger-eval/scripts/eval-pty.sh`) to score a skill against a curated query inventory:
 
 1. Curate 10 `should_trigger=true` queries (realistic phrasings users would actually type, both imperative and narrative).
 2. Curate 10 `should_trigger=false` queries (queries that should route to other skills, to measure precision).
@@ -495,7 +495,7 @@ Use the `skill-trigger-eval` harness (`~/.claude/skills/skill-trigger-eval/scrip
 4. Run from an isolated CWD (use `mktemp -d` — the harness inherits CWD and contaminates the host project):
    ```bash
    cd "$(mktemp -d)"
-   bash ~/.claude/skills/skill-trigger-eval/scripts/eval-pty.sh \
+   bash ${CLAUDE_PLUGIN_ROOT}/skills/skill-trigger-eval/scripts/eval-pty.sh \
      --config /path/to/skills/<name>/evals/eval-config.json \
      --timeout 60
    ```
@@ -525,14 +525,14 @@ These were observed across the aidex 2026-05-15/16 trigger-eval (4 iterations, 3
 | You want to... | Use |
 |----------------|-----|
 | Create a skill | Ask Claude: "create a new skill for X" (loads these conventions automatically) |
-| Validate structure | `/aidex` or ask: "check this skill's structure" |
+| Validate structure | `/aidex:aidex` or ask: "check this skill's structure" |
 | Measure description recall/precision | Use the `skill-trigger-eval` harness with a curated `trigger_eval.json` (no API key needed) |
 | Improve a description after a low-recall eval | Rewrite trigger-first ("Use when…", triggers not capability); re-run the harness once. If still low after a trigger-first rewrite, the gap is structural (mega-skill, ambiguous inventory, matcher limit) — do not keep micro-tuning wording |
 | Update from external sources | Ask: "sync this skill/reference from official docs" |
-| Diagnose what a skill needs | `/aidex` or ask: "what does this skill need?" |
-| Move between scopes | `/aidex` or ask: "should this skill be global?" |
-| Audit the ecosystem | `/aidex` or ask: "audit my project" |
-| Fix documentation issues | `/aidex` or ask: "fix documentation issues" |
+| Diagnose what a skill needs | `/aidex:aidex` or ask: "what does this skill need?" |
+| Move between scopes | `/aidex:aidex` or ask: "should this skill be global?" |
+| Audit the ecosystem | `/aidex:aidex` or ask: "audit my project" |
+| Fix documentation issues | `/aidex:aidex` or ask: "fix documentation issues" |
 
 ## Troubleshooting
 

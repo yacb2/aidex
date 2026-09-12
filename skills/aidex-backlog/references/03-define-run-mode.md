@@ -1,4 +1,4 @@
-# Define run mode (`/aidex-backlog define`)
+# Define run mode (`/aidex:backlog define`)
 
 A sweep **chooses** among defined items; it does not define them. The contract — `type`,
 `priority`, `estimate`, `surface`, `verify`, `touches`, `## Context`, `## Acceptance` with

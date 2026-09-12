@@ -1,6 +1,6 @@
 ---
-name: aidex-backlog
-description: 'Use when the user wants to capture or defer something for later without acting on it now, or to work the existing backlog as a board. Fires on "add to the backlog", "add to the backlog the idea of X", "park this for later", "defer this one", "shelve the X idea", "queue this for later", "track this for later", "we''ll do this later", "move finding <id> to the backlog", "show me the backlog", "list open backlog items". Also owns the board itself, not just intake: "triage the backlog", "sweep the open items", "do a backlog sweep", "define these items", "which of these are already done", "what can we close quickly", "run these as a work-list", and /aidex-backlog commands. Not for: plans (aidex-plan), decisions (aidex-decision), references (aidex-reference); auditing project state (aidex-audit); ecosystem audits (aidex).'
+name: backlog
+description: 'Use when the user wants to capture or defer something for later without acting on it now, or to work the existing backlog as a board. Fires on "add to the backlog", "add to the backlog the idea of X", "park this for later", "defer this one", "shelve the X idea", "queue this for later", "track this for later", "we''ll do this later", "move finding <id> to the backlog", "show me the backlog", "list open backlog items". Also owns the board itself, not just intake: "triage the backlog", "sweep the open items", "do a backlog sweep", "define these items", "which of these are already done", "what can we close quickly", "run these as a work-list", and /aidex:backlog commands. Not for: plans (/aidex:plan), decisions (/aidex:decision), references (/aidex:reference); auditing project state (/aidex:audit); ecosystem audits (/aidex:aidex).'
 argument-hint: "[--list | --origin manual --title \"<title>\" | --origin audit --finding <id>]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Agent
@@ -19,27 +19,27 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 
 | Command | Script | Purpose |
 |---|---|---|
-| `/aidex-backlog` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
-| `/aidex-backlog --origin manual --title "<title>" [--type] [--priority] [--estimate] [--surface] [--verify] [--touches] [--depends] [--context] [--acceptance …]` | same | Non-interactive manual entry. Given all six contract fields plus a Context and an Acceptance it lands **defined** in one step; every registration ends with `define-check.py`'s verdict for the new id and, when underdefined, the exact `define-item.sh` command. Nothing is mandatory: a bare stub still registers |
-| `/aidex-backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex-audit escalate`) |
-| `/aidex-backlog --origin issue --issue <id>` | same | From an issue tracker ID |
-| `/aidex-backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `aidex-plan-exec`'s between-phase checkpoint) |
-| `/aidex-backlog --origin sweep [--worklist <file>]` | same | Discovered mid-sweep: registered, judged against the kickoff criteria, appended to the queue — never asked |
-| `/aidex-backlog sweep --title "<run>" [--size XS,S] [--include\|--exclude BL-NNN] [--dry-run]` | [scripts/sweep-kickoff.sh](scripts/sweep-kickoff.sh) | **The sweep kickoff**: partition → cluster-ordered work-list (`mode: sweep`, publish never) → the NEEDS-DECISION list for one consultation artifact. See [Sweep run mode](#sweep-run-mode-aidex-backlog-sweep) |
+| `/aidex:backlog` | [scripts/register-item.sh](scripts/register-item.sh) | Interactive: prompt for title, origin, priority |
+| `/aidex:backlog --origin manual --title "<title>" [--type] [--priority] [--estimate] [--surface] [--verify] [--touches] [--depends] [--context] [--acceptance …]` | same | Non-interactive manual entry. Given all six contract fields plus a Context and an Acceptance it lands **defined** in one step; every registration ends with `define-check.py`'s verdict for the new id and, when underdefined, the exact `define-item.sh` command. Nothing is mandatory: a bare stub still registers |
+| `/aidex:backlog --origin audit --finding <id>` | same | From an audit finding (called by `/aidex:audit escalate`) |
+| `/aidex:backlog --origin issue --issue <id>` | same | From an issue tracker ID |
+| `/aidex:backlog --origin plan --plan <slug>` | same | Deferred mid-run from a plan (called by `aidex-plan-exec`'s between-phase checkpoint) |
+| `/aidex:backlog --origin sweep [--worklist <file>]` | same | Discovered mid-sweep: registered, judged against the kickoff criteria, appended to the queue — never asked |
+| `/aidex:backlog sweep --title "<run>" [--size XS,S] [--include\|--exclude BL-NNN] [--dry-run]` | [scripts/sweep-kickoff.sh](scripts/sweep-kickoff.sh) | **The sweep kickoff**: partition → cluster-ordered work-list (`mode: sweep`, publish never) → the NEEDS-DECISION list for one consultation artifact. See [Sweep run mode](#sweep-run-mode-aidex-backlog-sweep) |
 | `bash scripts/sweep-gate.sh [--only <leg>] [--json]` | [scripts/sweep-gate.sh](scripts/sweep-gate.sh) | **The boundary gate**, from `testing-profile.md`'s `*_suite_cmd`/`build_cmd`: raw exit + spec count per leg; a countless leg is FAIL, never PASS; a detached E2E leg is printed, not run (`--from-log` scores it). Not `sweep.sh`, the D-10 archiver |
 | `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk as the work-list's companion (`worklists/_archive/<worklist>-report.md`), anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics. Writes `<report>.html` beside it (artifact kit); close-out opens that page once. With a non-`en` profile `language:` it also leaves `_tmp/sweep-report/<report>.<lang>.md` and prints a `translate:` line — stage 6 translates the quoted rows and wraps it over the page (BL-382) |
 | `python3 scripts/define-check.py [--json] [BL-NNN …]` | [scripts/define-check.py](scripts/define-check.py) | Read-only: open items below the definition contract, what each lacks, what the body already tells a script. Exit 1 while any is underdefined |
 | `bash scripts/define-item.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/define-item.sh](scripts/define-item.sh) | The writer: a definition verdict INTO the item (`triage.sh` stays read-only) |
-| `/aidex-backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
-| `/aidex-backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
+| `/aidex:backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
+| `/aidex:backlog --check-ids` | same | Read-only id guard: duplicate or non-`BL-NNN` ids. Exit 1 on any. Unlike `--reindex`, writes nothing |
 | `bash scripts/start-item.sh <BL-id\|slug>` | [scripts/start-item.sh](scripts/start-item.sh) | Open the item for work: `status` → `doing` → stamp `updated` → rebuild index. **When the item carries `type: bug`, it prints the RED→GREEN route** — that front-matter field, not any bug-report phrasing, is what enters the procedure |
 | `bash scripts/close-item.sh <BL-id> [--commit <sha>] [--status dropped] [--superseded-by <ref>] [--escalated-to <ref>] [--sweep]` | [scripts/close-item.sh](scripts/close-item.sh) | Atomically close one item: status → record commit → move to `_archive/` → rebuild index (D-10). **`--sweep` makes proof a precondition**: `done` needs `## Verification` rows with proof that meet the item's `surface` minimum, else exit 2 and nothing changes; an unanswered `owner` row PARKS the item (`awaiting: owner`, never archived) |
 | `bash scripts/defer-item.sh defer <BL-id\|slug> --reason "<blocker>"` | [scripts/defer-item.sh](scripts/defer-item.sh) | Move an open item to `backlog/_deferred/` (open-but-blocked): set/append `blocked_by` → stamp `updated` → rebuild index (`## Deferred` section). Not a close — `status` stays `open` |
 | `bash scripts/defer-item.sh reactivate <BL-id\|slug>` | same | Move a deferred item back to the active queue: clear `blocked_by` → stamp `updated` → rebuild index |
-| `/aidex-backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
-| `/aidex-backlog quick-wins` | [scripts/quick-wins.py](scripts/quick-wins.py) | **A proposed attack order**, grouped by priority then cheapest estimate then oldest, with blocked items apart. Reads front-matter and **never opens a body** — that constraint is the feature, not an optimisation |
-| `/aidex-backlog detect-resolved` | [scripts/detect-resolved.py](scripts/detect-resolved.py) | **Which open items the code may already have fixed.** The script builds the work-list — per item, the paths and commits its body cites; the skill fans one read-only subagent per item over those anchors. Proposes with a cited path or commit; **never closes** |
-| `/aidex-backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
+| `/aidex:backlog worklist new\|advance\|close <args>` | [aidex-conventions/scripts/worklist-*.sh](../aidex-conventions/scripts/) | The run-queue lifecycle. Delegates to the canon hub's scripts, which is where they stay — a work-list is cross-source (backlog + plans + audits), so no single artifact skill owns its *content*. This skill owns the **entry point**, because "resolve these in a row" is what creates one (ADR 2026-08-06) |
+| `/aidex:backlog quick-wins` | [scripts/quick-wins.py](scripts/quick-wins.py) | **A proposed attack order**, grouped by priority then cheapest estimate then oldest, with blocked items apart. Reads front-matter and **never opens a body** — that constraint is the feature, not an optimisation |
+| `/aidex:backlog detect-resolved` | [scripts/detect-resolved.py](scripts/detect-resolved.py) | **Which open items the code may already have fixed.** The script builds the work-list — per item, the paths and commits its body cites; the skill fans one read-only subagent per item over those anchors. Proposes with a cited path or commit; **never closes** |
+| `/aidex:backlog triage [--quiet]` | [scripts/triage.sh](scripts/triage.sh) | **The backlog's health in one read-only pass**: id shape/duplicates + archive sweep + cross-artifact drift, one consolidated report. Prints the fix commands, runs none of them; exit 1 on anything actionable, so it can gate CI |
 | `bash scripts/normalize-language.sh` | [scripts/normalize-language.sh](scripts/normalize-language.sh) | **Reports** backlog bodies that read Spanish-dominant (D-04). Read-only, and it translates nothing — rewriting an item's prose is a human or assisted step, never automatic. No second detector: it filters `validate.py --type backlog --json` for `body-language-not-english`, so the sweep and the validator can never disagree. Exit 1 when any item is reported |
 | `bash scripts/sweep.sh [--apply\|--check]` | [scripts/sweep.sh](scripts/sweep.sh) | Batch-archive items already marked done/dropped that linger in the active folder; rebuild index once. Dry-run by default; `--check` is the dry-run that exits 1 on findings |
 | `bash scripts/reconcile.sh` | [scripts/reconcile.sh](scripts/reconcile.sh) | Read-only cross-artifact drift detector (shared): flags open backlog whose plan is done (close candidates) + done-without-commits. Exit 1 on actionable drift |
@@ -57,7 +57,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 
 ```bash
 # Bare-word sub-actions route to their own script; everything else is register-item.sh,
-# which owns the flag interface. Without this, `/aidex-backlog triage` reached
+# which owns the flag interface. Without this, `/aidex:backlog triage` reached
 # register-item.sh and died on "unknown option: triage".
 case "${1:-}" in
   triage)   shift; bash "${CLAUDE_SKILL_DIR}/scripts/triage.sh" "$@" ;;
@@ -80,7 +80,7 @@ When invoked with no arguments, the script prompts interactively. When invoked w
 When asked to **work several items in a row** ("resuelve los backlogs seguidos"), first
 fix the order **once** via the `AskUserQuestion` survey → a durable
 `.context/worklists/` work-list (`worklist-new.sh` — **read**
-`~/.claude/skills/aidex-conventions/references/worklist-conventions.md` **before writing
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/worklist-conventions.md` **before writing
 one**: it holds the queue format, the gate-policy block, and which of the three classes
 of mid-run question the queue is meant to absorb), then walk it with `worklist-advance.sh` instead of
 pausing between items to ask "what next?" (the dominant un-governed stop). The survey
@@ -103,7 +103,7 @@ errors, fall back to the [autonomy canon](../aidex-conventions/references/autono
 and proceed. This is the gate that turns "I resolved 2, the other 15 need you" into "I
 resolved the 14 safe ones; here are the 3 that are genuinely yours."
 
-## Sweep run mode (`/aidex-backlog sweep`)
+## Sweep run mode (`/aidex:backlog sweep`)
 
 **Running a whole batch of XS/S items** is a run mode of this skill, not a new skill
 (ADR `decision/2026-08-06-worklist-entry-point-is-aidex-backlog`). Its policy is
@@ -122,7 +122,7 @@ acceptance criteria is not small, it is undefined.
 
 ---
 
-## Define run mode (`/aidex-backlog define`)
+## Define run mode (`/aidex:backlog define`)
 
 A sweep **chooses** among defined items; it does not define them. Contract and run:
 **[references/03-define-run-mode.md](references/03-define-run-mode.md)** — read it first.
@@ -203,7 +203,7 @@ Details: [references/04-commit-provenance-and-audit-escalation.md](references/04
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type backlog
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type backlog
 ```
 
 With a ratchet baseline (`.context/.validate-baseline.json`), non-zero means a NEW
@@ -211,7 +211,7 @@ violation — fix it before closing.
 
 ## Related
 
-- **aidex-audit** — uses this skill for escalation (`/aidex-audit escalate`)
+- **aidex-audit** — uses this skill for escalation (`/aidex:audit escalate`)
 - **aidex-conventions** — parent convention for `.context/backlog/`
 - **aidex-dash** — renders the backlog as an interactive HTML board on demand (`render.sh backlog`); publishing stays user-gated
 

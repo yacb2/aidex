@@ -1,6 +1,6 @@
 ---
-name: aidex-review
-description: 'Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app", "review the changes since Friday / this weekend" (the changes pick the modules, reviewed as they stand). Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (aidex-audit); fixing a specific known bug (aidex-bugfix).'
+name: review
+description: 'Use when the user wants code reviewed as it stands — a module, a feature, a path, or the whole app — rather than a diff or a pull request. Covers correctness/bug hunting, simplification and dead code, exploitable security defects, and performance waste, and it first proposes which finder agents are worth launching and what they will cost. Fires on "review this module", "review the X feature", "find bugs in this module", "what dead code is in X", "can this module be simplified", "security review of this code", "review the whole app", "review the changes since Friday / this weekend" (the changes pick the modules, reviewed as they stand). Not for: reviewing a diff, branch, or PR (the built-in /code-review, /simplify and /security-review already do that); auditing a running system against Lighthouse/OWASP program methodology (/aidex:audit); fixing a specific known bug (/aidex:bugfix).'
 argument-hint: "[correctness|simplify|security|perf|all] (<path> | --app) [--finders N] [--include-tests] [--include-docs] [--go]"
 disable-model-invocation: false
 model-policy: inherit-session
@@ -100,7 +100,7 @@ Lens selection when the user said `all` (or named no lens):
 | `security` | `security_surface_files` > 0 **and** the module handles input, auth, secrets, or subprocesses | the probe found no surface — say "no signal", never "secure" |
 | `perf` | `perf_surface_files` > 0 **and** the module is on a request/render path | it is a one-shot script or build tool |
 
-**Read `~/.claude/skills/aidex-review/references/01-review-angles.md` before choosing
+**Read `${CLAUDE_PLUGIN_ROOT}/skills/aidex-review/references/01-review-angles.md` before choosing
 angles** — it holds the angle names per lens and the verbatim scope boundary every finder
 must be given. Skip it and the run invents angle names and launches finders with no
 boundary: too narrow and they read the module and report nothing, too wide and they
@@ -128,7 +128,7 @@ on total LOC, before `source_loc`, so the same target measures a different floor
 So say "≥ *floor*, and the one run we have measured came in around 17× its floor".
 Printing the floor alone as the number is the failure this sentence exists to stop.
 The ratio stays here because quoting it is the instruction; its provenance and the
-caveat it carries are owned by `~/.claude/skills/aidex-review/references/01-review-angles.md` § Cost,
+caveat it carries are owned by `${CLAUDE_PLUGIN_ROOT}/skills/aidex-review/references/01-review-angles.md` § Cost,
 which is where a re-measurement lands.
 
 **Name the model and effort in the same breath as the cost.** This skill is
@@ -151,7 +151,7 @@ case launch what you judged and report the same table alongside the findings.
 
 Fan out with the `Workflow` tool (this skill body is the opt-in that makes it available).
 
-**Read `~/.claude/skills/aidex-review/references/02-find-merge-verify.md` and follow it.**
+**Read `${CLAUDE_PLUGIN_ROOT}/skills/aidex-review/references/02-find-merge-verify.md` and follow it.**
 It is the whole step: the read-only contract every agent prompt carries verbatim (and the
 `git status --porcelain` before/after that proves it), the finder shape (a finder reports,
 it does not filter), the merge barrier keyed on the defect claimed (3.2), the verifier's
@@ -189,14 +189,14 @@ mix picks between them:
 Backlog, one call each, real interface (verified 2026-08-10):
 
 ```bash
-bash ~/.claude/skills/aidex-backlog/scripts/register-item.sh \
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-backlog/scripts/register-item.sh \
   --origin manual --title "<the finding>" --type bug --priority P2 --estimate S
 ```
 
 Audit run — **`aidex-audit` owns this format; do not grow a second writer here**:
 
 ```bash
-bash ~/.claude/skills/aidex-audit/scripts/new-audit.sh custom <slug>   # methodology run,
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-audit/scripts/new-audit.sh custom <slug>   # methodology run,
 #   NOT --standalone: escalate-finding.sh resolves ids only through
 #   audits/<methodology>/00-inventory.md, so a standalone run cannot be escalated by id
 ```
@@ -207,7 +207,7 @@ choose this destination.
 **Then prove the landing, with `aidex-audit`'s own validator, not by looking:**
 
 ```bash
-bash ~/.claude/skills/aidex-audit/scripts/validate-audit.sh
+bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-audit/scripts/validate-audit.sh
 ```
 
 An `audit-orphan-finding-ref` means the ids are in the journal and **not** in the

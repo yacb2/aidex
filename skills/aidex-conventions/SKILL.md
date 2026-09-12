@@ -1,5 +1,5 @@
 ---
-name: aidex-conventions
+name: conventions
 description: NOT auto-invoked. Shared documentation-canon hub for the aidex-* family — holds the .context/ convention references (references/*.md) that the single-purpose sibling skills delegate into. Routing — plan multi-step work → aidex-plan; record a decision/ADR → aidex-decision; capture a stakeholder/client request → aidex-request; investigate/research how something works → aidex-research; document a settled system reference → aidex-reference; defer/park an idea for later → aidex-backlog; capture/draft a communication received or to send → aidex-comm; check a skill against house conventions → aidex-skill. This skill is the canon home, not an entry point; the siblings are the entry points.
 disable-model-invocation: true
 user-invocable: false
@@ -43,7 +43,7 @@ This skill defines conventions for thirteen documentation types:
 
 **This table is a dispatch table, not a reading list.** Find the row for the artifact
 kind you are about to write or judge, and **read that one file in full before writing
-anything** — the files live in `~/.claude/skills/aidex-conventions/references/`. Working
+anything** — the files live in `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/`. Working
 from the summary in `rules/aidex-conventions.md` is enough to *recognize* a convention
 and never enough to *apply* one: the per-type file owns the front-matter schema, the
 status vocabulary and the archive rule that `validate.py` actually enforces.
@@ -74,7 +74,7 @@ status vocabulary and the archive rule that `validate.py` actually enforces.
 
 For a project that pre-dates these conventions — mixed `YYYYMMDD-` filenames, missing
 front-matter, legacy status terms, no roll-up indexes — **read**
-`~/.claude/skills/aidex-conventions/references/migration-guide.md` **and follow it**.
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/migration-guide.md` **and follow it**.
 It holds the `migrate-conventions.py` invocation and its dry-run-by-default contract,
 what the migration does and deliberately does not restructure, the manual-review cases
 it declines out loud, and the separate backfill for `plans/00-index.md` and
@@ -124,9 +124,9 @@ Skill **descriptions** stay English-only regardless (D-11). The assistant contin
 
 | Type | Location | Naming |
 |------|----------|--------|
-| Global skills | `~/.claude/skills/<name>/` | kebab-case |
+| Global skills | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | kebab-case |
 | Project skills | `.claude/skills/<name>/` | kebab-case |
-| Shared skills (aidex) | `~/.claude/skills/<name>/` | kebab-case |
+| Shared skills (aidex) | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/` | kebab-case |
 | Plans | `.context/plans/` | `YYYY-MM-DD-<feature>.md` or `YYYY-MM-DD-<feature>/` |
 | Issues | `.context/issues/` | `ISSUE-NNN-description.md` + `00-index.md` |
 | Roadmap | `.context/roadmap/` | `README.md` + `NN-phase-name.md` |
@@ -252,5 +252,5 @@ When documentation needs updating from official sources:
 
 ## Related
 
-- **Auditing and fixing:** Use the `aidex` skill (`/aidex`) for ecosystem audits and automated fixes
+- **Auditing and fixing:** Use the `aidex` skill (`/aidex:aidex`) for ecosystem audits and automated fixes
 - **Agent definitions:** `aidex` skill contains the subagent specifications used during audits

@@ -1,6 +1,6 @@
 ---
-name: aidex-loop
-description: 'Use when the user wants to design, scaffold, or choose an agentic LOOP that repeats one task until a check passes — iterate-until-green automation, a long-running unattended build, or picking which loop engine fits — landing as a written `.context/loops/` loop-spec (goal + verifiable stop condition + guardrails + chosen engine) before the loop runs. Fires on "design a loop for X", "set up a loop to keep building until tests pass", "make a loop that iterates until green", "loop until the build is clean", "which loop should I use". Not for: one-shot multi-agent fan-out across N different targets, which repeats nothing (aidex-workflow); executing an existing loop right now (hand off to the ralph-loop plugin, /loop, or /goal); one-off tasks with no stop condition; planning multi-step work without a loop (aidex-plan); ecosystem audits (aidex); project-state audits (aidex-audit).'
+name: loop
+description: 'Use when the user wants to design, scaffold, or choose an agentic LOOP that repeats one task until a check passes — iterate-until-green automation, a long-running unattended build, or picking which loop engine fits — landing as a written `.context/loops/` loop-spec (goal + verifiable stop condition + guardrails + chosen engine) before the loop runs. Fires on "design a loop for X", "set up a loop to keep building until tests pass", "make a loop that iterates until green", "loop until the build is clean", "which loop should I use". Not for: one-shot multi-agent fan-out across N different targets, which repeats nothing (/aidex:workflow); executing an existing loop right now (hand off to the ralph-loop plugin, /loop, or /goal); one-off tasks with no stop condition; planning multi-step work without a loop (/aidex:plan); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 argument-hint: "[design [slug] | new <slug> | run <slug>]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Agent
@@ -37,10 +37,10 @@ Dispatch by first argument:
 
 | Command | Backed by | Purpose |
 |---|---|---|
-| `/aidex-loop` | — | Show help + list existing `.context/loops/` specs |
-| `/aidex-loop design [slug]` | model + `new-loop-spec.sh` | Interactive: run the loop-suitability questions, pick an engine, then scaffold the spec |
-| `/aidex-loop new <slug>` | [scripts/new-loop-spec.sh](scripts/new-loop-spec.sh) | Scaffold an empty loop-spec file (skip the interview) |
-| `/aidex-loop run <slug>` | model | Read a finished spec and emit/execute the chosen engine's command |
+| `/aidex:loop` | — | Show help + list existing `.context/loops/` specs |
+| `/aidex:loop design [slug]` | model + `new-loop-spec.sh` | Interactive: run the loop-suitability questions, pick an engine, then scaffold the spec |
+| `/aidex:loop new <slug>` | [scripts/new-loop-spec.sh](scripts/new-loop-spec.sh) | Scaffold an empty loop-spec file (skip the interview) |
+| `/aidex:loop run <slug>` | model | Read a finished spec and emit/execute the chosen engine's command |
 
 ### Dispatch logic
 
@@ -161,7 +161,7 @@ This is the loop's instance of the shared autonomy canon — full decision rule,
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type loops
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type loops
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),

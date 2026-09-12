@@ -23,7 +23,7 @@ and before the next unit starts.
 ### 1. Code-review the diff — scope first, verdict with its anchor
 
 **Resolve the scope first.** Run
-`~/.claude/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/resolve-review-scope.sh --files working-diff`
 so what is being reviewed is a recorded fact, not an assumption. **When the unit spans
 commits, resolve from the merge base** — `--base <merge-base> branch-vs-main` — never
 from a phrase like "since the last review": a review over the wrong diff reads as a
@@ -33,7 +33,7 @@ passing review over the right one.
 
 Then run the **correctness** angles over that scope, and the cleanup and security angles
 only where the scope routing sends them — **read
-`~/.claude/skills/aidex-conventions/references/review-scope-conventions.md` before picking
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/review-scope-conventions.md` before picking
 the reviewer**; it owns which instrument covers which scope, and why `/security-review`
 must not be delegated to for a non-PR scope. For a high-risk or
 ambiguous unit, route the diff through more than one reviewer (the project's review

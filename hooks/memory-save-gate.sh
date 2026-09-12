@@ -98,12 +98,16 @@ else:
 
 try:
     import importlib.util
-    # The ABSOLUTE installed path, never a relative traversal from this hook's own
-    # directory: the harness invokes hooks with an unpredictable cwd. AIDEX_MEMORY_SWEEP
+    # Resolved from this hook's OWN file location (never the cwd, which the harness
+    # sets unpredictably), with $CLAUDE_PLUGIN_ROOT as the fallback. AIDEX_MEMORY_SWEEP
     # overrides it for the test suite, which must exercise the repo copy — the installed
     # one can lag, and on 2026-08-31 it did, which is what fail-open is for.
-    sweep = os.environ.get("AIDEX_MEMORY_SWEEP") or os.path.join(
-        home, ".claude", "skills", "aidex", "scripts", "memory-sweep.py")
+    here = os.environ.get("AIDEX_HOOK_DIR", "")
+    sweep = os.environ.get("AIDEX_MEMORY_SWEEP") or os.path.abspath(
+        os.path.join(here, "..", "skills", "aidex", "scripts", "memory-sweep.py"))
+    if not os.path.exists(sweep) and os.environ.get("CLAUDE_PLUGIN_ROOT"):
+        sweep = os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"],
+                             "skills", "aidex", "scripts", "memory-sweep.py")
     spec = importlib.util.spec_from_file_location("memory_sweep", sweep)
     ms = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ms)          # guarded by `if __name__ == "__main__"`
@@ -177,5 +181,9 @@ if soft:
 sys.exit(0)
 PY
 )
+
+# This hook's own directory, so the Python above can locate its sibling skills/
+# tree without depending on the cwd the harness happens to use.
+export AIDEX_HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 exec python3 -c "$PYSRC"

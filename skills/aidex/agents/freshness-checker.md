@@ -12,7 +12,7 @@ You are a freshness checker. Detect stale documentation.
 
 ## Setup
 
-Read conventions: `~/.claude/skills/aidex-conventions/references/reference-conventions.md`
+Read conventions: `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/reference-conventions.md`
 
 ## Checks
 

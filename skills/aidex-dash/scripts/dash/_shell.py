@@ -361,7 +361,7 @@ def page(title, sections, generated_by):
     """
     stamp = datetime.now().isoformat(timespec="seconds")
     generated = (
-        f"<!-- GENERATED {stamp} by /aidex-dash {generated_by} "
+        f"<!-- GENERATED {stamp} by /aidex:dash {generated_by} "
         "— DO NOT EDIT, regenerate instead -->"
     )
     body = (

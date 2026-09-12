@@ -125,7 +125,7 @@ stay the last section because `--append` writes to the end of the file.
 A plain work-list only *names* the next item, so the queue and the item lifecycle run
 beside each other and an item can be worked at `status: open` and closed out of band.
 With `mode: sweep` (written by `worklist-new.sh --mode sweep`, the shape
-`/aidex-backlog sweep` creates), a plain `worklist-advance.sh`:
+`/aidex:backlog sweep` creates), a plain `worklist-advance.sh`:
 
 1. **closes the head** through `close-item.sh --sweep <BL-id>` when its ref is `backlog`.
    The proof refusal is inherited: no `## Verification` rows with proof → the item is not

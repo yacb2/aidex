@@ -1,6 +1,6 @@
 ---
-name: aidex-comm
-description: 'Use when the user wants to log or draft a real communication with a person — capture an email/WhatsApp that was received, log a meeting or call that happened, or draft a message/email to send — as a written `.context/communications/` entry, kept in the communication''s native language. Fires on "log this email", "save the email the client sent", "capture this WhatsApp from X", "record the call with X", "log the meeting with X", "draft an email to X", "write a reply to the client", "save this thread", and /aidex-comm commands. Not for: capturing a stakeholder/product requirement to act on (aidex-request); recording a decision/ADR (aidex-decision); planning multi-step work (aidex-plan); deferring an idea (aidex-backlog); research notes (aidex-research); references (aidex-reference); ecosystem audits (aidex); project-state audits (aidex-audit).'
+name: comm
+description: 'Use when the user wants to log or draft a real communication with a person — capture an email/WhatsApp that was received, log a meeting or call that happened, or draft a message/email to send — as a written `.context/communications/` entry, kept in the communication''s native language. Fires on "log this email", "save the email the client sent", "capture this WhatsApp from X", "record the call with X", "log the meeting with X", "draft an email to X", "write a reply to the client", "save this thread", and /aidex:comm commands. Not for: capturing a stakeholder/product requirement to act on (/aidex:request); recording a decision/ADR (/aidex:decision); planning multi-step work (/aidex:plan); deferring an idea (/aidex:backlog); research notes (/aidex:research); references (/aidex:reference); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 argument-hint: "[new <received|sent|meeting|call> <slug> [--channel email] | migrate]"
 disable-model-invocation: false
 allowed-tools: Bash Read Write
@@ -24,11 +24,11 @@ English-default does NOT apply here; D-11 governs skill *descriptions*, not arti
 
 | Command | Script | Purpose |
 |---|---|---|
-| `/aidex-comm new received <slug> [--channel email]` | [scripts/new-communication.sh](scripts/new-communication.sh) | Scaffold a received async record (email/WhatsApp) under `received/` |
-| `/aidex-comm new sent <slug> [--channel whatsapp]` | same | Scaffold an outgoing async draft under `sent/` (status starts `draft`) |
-| `/aidex-comm new meeting <slug>` | same | Scaffold a synchronous meeting record under `meetings/` (participant-based, `status: sent`) |
-| `/aidex-comm new call <slug>` | same | Scaffold a synchronous call record under `meetings/` (participant-based, `status: sent`) |
-| `/aidex-comm migrate` | [scripts/migrate-communications.sh](scripts/migrate-communications.sh) | Rename pre-canonical `email.md` / `conversation.md` bodies to `body.md`, reporting each |
+| `/aidex:comm new received <slug> [--channel email]` | [scripts/new-communication.sh](scripts/new-communication.sh) | Scaffold a received async record (email/WhatsApp) under `received/` |
+| `/aidex:comm new sent <slug> [--channel whatsapp]` | same | Scaffold an outgoing async draft under `sent/` (status starts `draft`) |
+| `/aidex:comm new meeting <slug>` | same | Scaffold a synchronous meeting record under `meetings/` (participant-based, `status: sent`) |
+| `/aidex:comm new call <slug>` | same | Scaffold a synchronous call record under `meetings/` (participant-based, `status: sent`) |
+| `/aidex:comm migrate` | [scripts/migrate-communications.sh](scripts/migrate-communications.sh) | Rename pre-canonical `email.md` / `conversation.md` bodies to `body.md`, reporting each |
 
 `--channel` is async-only and accepts `email` (default), `whatsapp`, `other`. For meetings
 and calls use `new meeting` / `new call` — the channel is fixed to the kind.
@@ -61,7 +61,7 @@ Write the body afterward in the native language.
 
 ## Entry format
 
-**Read `~/.claude/skills/aidex-conventions/references/communication-conventions.md`
+**Read `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/references/communication-conventions.md`
 before writing an entry** — it is the full canon behind the shapes below: the
 front-matter schema per direction, async (`received`/`sent`) vs synchronous
 (`meetings/`), the draft→sent transition, the English-only exemption for bodies, and
@@ -124,9 +124,9 @@ and derive each one**:
 
 | The action item is… | Register it as | Command |
 |---|---|---|
-| Work this side has agreed to do | a backlog entry | `bash ~/.claude/skills/aidex-backlog/scripts/register-item.sh --origin communication --communication <folder> --title "<item>"` |
-| Something a stakeholder or client is asking for | a request | `/aidex-request` — capture the ask, then cross-ref the communication |
-| A decision the meeting settled | an ADR | `/aidex-decision` |
+| Work this side has agreed to do | a backlog entry | `bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-backlog/scripts/register-item.sh --origin communication --communication <folder> --title "<item>"` |
+| Something a stakeholder or client is asking for | a request | `/aidex:request` — capture the ask, then cross-ref the communication |
+| A decision the meeting settled | an ADR | `/aidex:decision` |
 
 `--origin communication` stamps `origin_ref: communication/<YYYY-MM-DD>-<slug>` — the D-03
 marker, the folder name, never a filesystem path. That is what makes the entry answer
@@ -203,7 +203,7 @@ with `status: sent` too.
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type communications
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type communications
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),

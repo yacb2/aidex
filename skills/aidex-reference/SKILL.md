@@ -1,6 +1,6 @@
 ---
-name: aidex-reference
-description: 'Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing". Not for: planning multi-step work (aidex-plan); recording a decision/ADR (aidex-decision); capturing a stakeholder request (aidex-request); investigating something not yet settled (aidex-research); deferring/parking an idea (aidex-backlog); ecosystem audits (aidex); project-state audits (aidex-audit).'
+name: reference
+description: 'Use when the user wants to document how an existing, settled part of the system works as an evergreen `.context/references/` module — architecture, configuration, an operational runbook, a how-it-works guide. Fires on "create a reference for X", "document how X works", "write up the X architecture", "document the X configuration", "write a runbook for X", "what is documented and what is missing". Not for: planning multi-step work (/aidex:plan); recording a decision/ADR (/aidex:decision); capturing a stakeholder request (/aidex:request); investigating something not yet settled (/aidex:research); deferring/parking an idea (/aidex:backlog); ecosystem audits (/aidex:aidex); project-state audits (/aidex:audit).'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Glob Grep Agent
 model-policy: per-stage
@@ -46,7 +46,7 @@ A wrong axis command reports full coverage of nothing.
 ## 1 · Census — what exists versus what is documented
 
 ```bash
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --advisory
 ```
 
 **First run in a project refuses and prints the axis commands.** They are shell strings from
@@ -77,7 +77,7 @@ number you paste into a `## Verification` block.
 declaring an item it describes wrongly still reports 100% covered. Rot needs the other pass:
 
 ```bash
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory --stale
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --advisory --stale
 ```
 
 `--stale` flags items whose **source moved after the owning module last changed** — the
@@ -168,8 +168,8 @@ thing, and the reverse is equally possible.
 Validate the artifact you just wrote and fix any violation before closing:
 
 ```bash
-python3 ~/.claude/skills/aidex-conventions/scripts/validate.py --type references
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory
+python3 ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py --type references
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --advisory
 ```
 
 If the project carries a ratchet baseline (`.context/.validate-baseline.json`),

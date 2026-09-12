@@ -38,7 +38,7 @@ pointing into its section.
 The request maps to one of the deterministic `.context/` boards: backlog board,
 plans progress, audit inventory, coverage matrix.
 
-Run the renderer — `~/.claude/skills/aidex-dash/scripts/render.sh <target>` — which is
+Run the renderer — `${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/render.sh <target>` — which is
 zero-token and idempotent, then open the output locally. Do not hand-generate what a
 renderer already produces.
 
@@ -411,7 +411,7 @@ never auto-created — only the record of the offer is. Without the marker the r
 in both directions at once: missed where it mattered, and repeated where it did not.
 
 **Two surfaces write that marker, and one of them asks first.** `aidex/scripts/init-context.sh`
-puts the same question at `/aidex init` — the moment the user is present and expecting
+puts the same question at `/aidex:aidex init` — the moment the user is present and expecting
 setup questions, rather than mid-artifact — and records the answer in the SAME file, so a
 decline there stops the wrap-time offer and vice versa (BL-337). It creates the profile
 only on an explicit yes, which leaves the rule above untouched: what moved is the
@@ -485,7 +485,7 @@ The Artifact tool supplies that envelope at publish time; a local file gets the 
 from:
 
 ```
-~/.claude/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
 ```
 
 (stdin in, file out), shared with the dash renderers so both routes produce the same kind
@@ -527,7 +527,7 @@ it. A non-zero exit means the file on disk is not deliverable.
 To re-check a file you did not just wrap:
 
 ```
-~/.claude/skills/aidex-dash/scripts/check-artifact.sh <file>
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/check-artifact.sh <file>
 ```
 
 **Why this is one command and not two.** The verify is the step a real run drops first,
@@ -829,7 +829,7 @@ ask row: leaving any of them in would mark every answer stored before that
 release as "the question changed" and drop it on the upgrade.
 
 Copy the shape from
-`~/.claude/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
 re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
 the page's own tokens.
 

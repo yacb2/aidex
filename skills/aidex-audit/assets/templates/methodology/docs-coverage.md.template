@@ -33,7 +33,7 @@ of its workflow. Same script, two entry points: an author runs it to avoid missi
 
 **1. The profile must exist.** `.context/references/00-profile.md` declares the census axes
 and their enumeration commands. If it is missing, this audit cannot run — create it via
-`/aidex-reference profile`, which seeds it from the shared template.
+`/aidex:reference profile`, which seeds it from the shared template.
 
 **2. Stack-profile check.** If the project's stack does not match the template's embedded
 example commands, **run an `aidex-research` spike FIRST** — "how is this stack laid out:
@@ -60,7 +60,7 @@ Record the two passes **separately**. Breadth is mechanical; depth is judgment.
 ### Breadth (mechanical)
 
 ```bash
-~/.claude/skills/aidex-reference/scripts/docs-census.sh --advisory \
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/scripts/docs-census.sh --advisory \
   --write .context/audits/docs-coverage/<run>/coverage-matrix.md
 ```
 
@@ -129,7 +129,7 @@ need a cheap pass over many modules, the refuter when a module matters.
   - **P2** — secondary gap, phantom, or contested ownership
   - **P3** — a documented item whose depth is thin but not misleading
 
-Escalate per the standard lifecycle (`/aidex-audit escalate <id>` → backlog, or a
+Escalate per the standard lifecycle (`/aidex:audit escalate <id>` → backlog, or a
 remediation plan). One canonical row per finding in `00-inventory.md`.
 
 **Record defensible gaps as waived findings, not as prose.** A module with no owning

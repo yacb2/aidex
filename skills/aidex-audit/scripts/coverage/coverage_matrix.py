@@ -284,7 +284,7 @@ def build_matrix(root, coverage_dir=None):
 def render_markdown(data):
     lines = []
     lines.append(
-        f"<!-- GENERATED {data['generated']} by /aidex-audit coverage-matrix "
+        f"<!-- GENERATED {data['generated']} by /aidex:audit coverage-matrix "
         "— DO NOT EDIT, regenerate instead -->"
     )
     lines.append("# Coverage Matrix")

@@ -271,7 +271,7 @@ less than half the size of a wrapped one with comparable content.
 This file sets a size trigger, so the check is that it and its siblings respect it:
 
 ```bash
-wc -w ~/.claude/skills/aidex-reference/references/*.md ~/.claude/skills/aidex-reference/SKILL.md
+wc -w ${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/references/*.md ${CLAUDE_PLUGIN_ROOT}/skills/aidex-reference/SKILL.md
 ```
 
 **Real output, 2026-09-02 — stated as the invariant, not the numbers:** every reference module is

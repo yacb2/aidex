@@ -15,9 +15,9 @@ directly (no plan); in the **plan** (per phase) when escalated — never both.
 - **Trailers:** `Backlog: BL-007` (fixed directly) · `Plan: <slug>#<phase>` (escalated).
 - The harvester is idempotent and a silent no-op when no trailer is present.
 
-## Integration with audits (`/aidex-audit escalate <id>`)
+## Integration with audits (`/aidex:audit escalate <id>`)
 
-When called by `/aidex-audit escalate <id>`, the skill:
+When called by `/aidex:audit escalate <id>`, the skill:
 
 1. Creates the entry with `origin: audit`
 2. Sets `origin_ref: audit/<audit-run>/<finding-id>` (e.g., `audit/20260415-login-redesign/BUG-01-3`)

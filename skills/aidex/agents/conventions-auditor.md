@@ -16,7 +16,7 @@ You will receive the project path in the prompt.
 ## What you do
 
 You DO NOT re-implement convention checks. The validator at
-`~/.claude/skills/aidex-conventions/scripts/validate.py` (wrapped by
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.py` (wrapped by
 `validate.sh`) is the single source of truth for type-agnostic and
 type-specific structural checks across all 10 artifact types (backlog, plans,
 requests, decisions, references, research, audits, communications, loops,
@@ -30,7 +30,7 @@ references) remain in `validate-audit.sh` and are handled by `context-auditor`.
 The validator's stable JSON contract is documented inline below (see "Parse
 and emit"). Rule IDs surface verbatim in the `rule` field.
 
-If `~/.claude/skills/aidex-conventions/scripts/validate.sh` does not exist OR
+If `${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.sh` does not exist OR
 `python3` is unavailable, emit:
 
 ```
@@ -50,7 +50,7 @@ were given — do NOT depend on cwd). Capture stdout, stderr, and exit code.
 
 ```bash
 # $PROJECT is the project path passed in the prompt.
-out=$(bash ~/.claude/skills/aidex-conventions/scripts/validate.sh "$PROJECT/.context" --json 2>/tmp/validate.err)
+out=$(bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex-conventions/scripts/validate.sh "$PROJECT/.context" --json 2>/tmp/validate.err)
 rc=$?
 ```
 

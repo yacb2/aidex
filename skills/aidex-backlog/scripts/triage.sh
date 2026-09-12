@@ -80,7 +80,7 @@ run_check "drift" "closure that did not propagate across artifacts" \
   bash "$SCRIPT_DIR/reconcile.sh" || true
 
 run_check "definition" "open items below the definition contract (kept out of any sweep)" \
-  "bash $SCRIPT_DIR/define-item.sh <BL-id> --surface … --verify … --touches …   # or /aidex-backlog define" \
+  "bash $SCRIPT_DIR/define-item.sh <BL-id> --surface … --verify … --touches …   # or /aidex:backlog define" \
   python3 "$SCRIPT_DIR/define-check.py" --quiet || true
 
 say ""

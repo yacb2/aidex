@@ -165,7 +165,7 @@ REASON = (
     f"An autonomous durable run ({run_type}) is active. Per the autonomy canon, do NOT "
     f"stop on safe + additive work. Continue to the run's stop condition. For any genuinely "
     f"ambiguous fork, consult the durability-arbiter "
-    f"(~/.claude/skills/aidex-conventions/agents/durability-arbiter.md) instead of stopping, "
+    f"(${{CLAUDE_PLUGIN_ROOT}}/skills/aidex-conventions/agents/durability-arbiter.md) instead of stopping, "
     f"and batch real ASKs (unauthorized publish / deny-class / hard blocker) into ONE list at "
     f"the very end. If you are genuinely done or truly blocked, say so explicitly and you may stop."
 )

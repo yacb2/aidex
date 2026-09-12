@@ -27,13 +27,13 @@ done
 
 if [[ -z "$FINDING_ID" ]]; then
   cat <<EOF >&2
-Usage: /aidex-audit escalate <finding-id> --loop [--dry-run]
+Usage: /aidex:audit escalate <finding-id> --loop [--dry-run]
 
 Escalate a bulk, machine-checkable finding to an aidex-loop loop-spec.
 For single fixes and ideas, omit --loop (escalates to the backlog instead).
 
 Example:
-  /aidex-audit escalate A11Y-02-1 --loop
+  /aidex:audit escalate A11Y-02-1 --loop
 EOF
   exit 2
 fi
@@ -107,9 +107,7 @@ fi
 NEWLOOP=""
 for candidate in \
   "$SKILL_DIR/../aidex-loop/scripts/new-loop-spec.sh" \
-  "$ROOT/skills/aidex-loop/scripts/new-loop-spec.sh" \
-  "$HOME/.claude/skills/aidex-loop/scripts/new-loop-spec.sh" \
-  "$HOME/.claude/skills/aidex-loop/scripts/new-loop-spec.sh"
+  "$ROOT/skills/aidex-loop/scripts/new-loop-spec.sh"
 do
   if [[ -f "$candidate" && -x "$candidate" ]]; then
     NEWLOOP="$candidate"
@@ -163,5 +161,5 @@ cat >&2 <<EOF
 Next:
   1. Open the loop-spec and write the Stop condition (the exact machine gate).
   2. Choose an engine (see aidex-loop references/01-loop-engines.md).
-  3. Validate: /aidex-audit validate
+  3. Validate: /aidex:audit validate
 EOF

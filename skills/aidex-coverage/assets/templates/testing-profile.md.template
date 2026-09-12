@@ -8,7 +8,7 @@ project_slug:             # snake_case, also the DB base name: my_project
 project_kebab:            # kebab-case, compose/container prefix: my-project
 blindspot_expansions:     # mandatory selection widenings, one `- ` line each: migration => every app referencing the model; touched *.test.ts => vue-tsc -b; removed UI surface => grep tests/e2e/ for its endpoints and testids
 module_map:               # repo-relative path: .context/audits/test-coverage/module-map.json
-testing_packs:            # space-separated stack packs, resolved at ~/.claude/skills/<pack>/: testing-django testing-vue testing-playwright-app
+testing_packs:            # space-separated stack packs, resolved at ${CLAUDE_PLUGIN_ROOT}/skills/<pack>/: testing-django testing-vue testing-playwright-app
 
 # only a project with NO pack: its whole test surface is one suite (leg `suite`)
 suite_cmd:                # FULL suite for a project whose ENTIRE test surface is one suite — a shell toolkit, a single-package library (leg `suite`, not in the default leg set): bash tests/run-all.sh
@@ -60,4 +60,4 @@ Read by `aidex-coverage` (which resolves `testing_packs` to the stack packs hold
 framework-specific test shapes and infrastructure), by every `{{key}}` in those packs, by
 the packs' generators (e.g. `testing-playwright-app/scripts/gen-test-e2e.sh`, which writes
 `test-e2e.sh` from it) and by `aidex-audit affected-tests` (the `*_test_cmd` keys). Canon:
-`~/.claude/skills/aidex-coverage/references/14-testing-profile.md`.
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-coverage/references/14-testing-profile.md`.
