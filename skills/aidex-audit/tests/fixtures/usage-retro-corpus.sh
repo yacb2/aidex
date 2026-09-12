@@ -170,7 +170,7 @@ page "$P/.context/reports/2026-01-04-delta.html" "Delta page"
 # --- s7: the user names the eta page and the session wraps it ---
 {
   py_user_prompt "wrap the 2026-01-07-eta consultation"
-  py_bash b5 "bash \${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/wrap-report.sh --in _tmp/eta.md --out .context/reports/2026-01-07-eta.html"
+  py_bash b5 "bash \${CLAUDE_PLUGIN_ROOT}/skills/aidex-artifact/scripts/wrap-report.sh --in _tmp/eta.md --out .context/reports/2026-01-07-eta.html"
   py_bash_ok b5 "wrote .context/reports/2026-01-07-eta.html"
 } > "$D/s7.jsonl"
 

@@ -24,7 +24,7 @@
 #   4. Offer .context/artifact-style.md — the ONE question init asks. Created
 #      only on an explicit yes (the --artifact-style flag, or a non-empty answer
 #      at a TTY); a decline is recorded in .context/.aidex-artifact-style-offered,
-#      the same marker aidex-dash's wrap-time offer uses, so neither surface asks
+#      the same marker aidex-artifact's wrap-time offer uses, so neither surface asks
 #      twice. With no flag and no TTY the question is SKIPPED and said to be
 #      skipped — no profile, and no marker either, because skipped is not asked
 #      and silencing the wrap-time offer here would lose the question entirely.
@@ -181,7 +181,7 @@ fi
 
 # --- Step 4: the one question — .context/artifact-style.md ---
 #
-# Why it lives here and not only in aidex-dash's wrap-time offer: the wrap fires
+# Why it lives here and not only in aidex-artifact's wrap-time offer: the wrap fires
 # MID-TASK, when the user is being handed an artifact and not being set up. A
 # usage-retro measured it at 14 firings across 7 projects with 6 ignored. Init is
 # the opposite context — the user is present and expecting setup questions.
@@ -190,13 +190,13 @@ fi
 # 02-local-first-artifacts.md § "If absent, never create it silently"). It moves
 # the QUESTION, and still writes the file only on an explicit yes.
 #
-# The record of a decline is the SAME marker aidex-dash writes
+# The record of a decline is the SAME marker aidex-artifact writes
 # (wrap_report.py OFFER_MARKER), not a second one, so a decline here silences the
 # wrap-time offer and vice versa — neither surface asks twice.
 
 STYLE_PROFILE="$CONTEXT_DIR/artifact-style.md"
 STYLE_MARKER="$CONTEXT_DIR/.aidex-artifact-style-offered"
-STYLE_TEMPLATE="$AIDEX_DIR/skills/aidex-dash/assets/templates/artifact-style.md.template"
+STYLE_TEMPLATE="$AIDEX_DIR/skills/aidex-artifact/assets/templates/artifact-style.md.template"
 
 record_style_offer() {
   # Same filename, same meaning, same closing sentence as wrap_report.py's, so
@@ -225,7 +225,7 @@ if [[ -L "$STYLE_PROFILE" || -L "$STYLE_MARKER" ]]; then
 elif [[ -f "$STYLE_PROFILE" ]]; then
   printf 'exists: %s\n' "${STYLE_PROFILE#"$PROJECT_DIR"/}"
 elif [[ ! -f "$STYLE_TEMPLATE" ]]; then
-  note "aidex-dash not installed at $AIDEX_DIR — skipped the artifact-style.md question"
+  note "aidex-artifact not installed at $AIDEX_DIR — skipped the artifact-style.md question"
 elif [[ -n "$STYLE_LANG" ]]; then
   # An explicit flag is an explicit yes, marker or not: the marker gates the
   # QUESTION, never an answer the caller already gave.
@@ -262,7 +262,7 @@ else
   # this note is the handoff: it tells the caller to ask the one question and
   # re-run with the answer (init is idempotent, so the re-run costs nothing).
   # No marker is written: skipped is not asked, and writing one here would
-  # silence aidex-dash's wrap-time offer for every headlessly bootstrapped
+  # silence aidex-artifact's wrap-time offer for every headlessly bootstrapped
   # project — losing the question at both surfaces instead of moving it.
   note "no TTY — skipped the artifact-style.md question; no profile created. Ask the user for the artifact language, then re-run with --artifact-style <lang> (or --no-artifact-style to record a decline)"
 fi

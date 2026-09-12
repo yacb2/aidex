@@ -25,7 +25,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import mine_items  # noqa: E402  (page_files, add_root_args)
 
-CHECKER = os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "aidex-dash",
+CHECKER = os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "aidex-artifact",
                                         "scripts", "check-artifact.sh"))
 META = re.compile(r'<meta\s+name=["\']?(artifact-kit|consult-round)["\']?\s+content=["\']?(\d+)', re.I)
 ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=', re.I | re.S)

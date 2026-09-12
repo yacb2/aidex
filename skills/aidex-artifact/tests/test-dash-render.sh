@@ -8,7 +8,7 @@
 # (all plans/backlog items closed and archived, D-10) renders an empty board —
 # only a missing directory is an error.
 #
-# Run with: bash skills/aidex-dash/tests/test-dash-render.sh
+# Run with: bash skills/aidex-artifact/tests/test-dash-render.sh
 
 set -uo pipefail
 

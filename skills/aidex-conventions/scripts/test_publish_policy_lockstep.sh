@@ -3,7 +3,7 @@
 #
 # Regression this locks (BL-081, 2026-07-24):
 #   Three layers gave three readings of one action. `rules/artifacts-local-first.md` and
-#   `skills/aidex-dash/SKILL.md` both say never publish unprompted; the harness-supplied
+#   `skills/aidex-artifact/SKILL.md` both say never publish unprompted; the harness-supplied
 #   `Artifact` tool description says the opposite ("publishing proactively is fine for your
 #   own work-product"). An agent that had just built a local report had to reconcile them
 #   with nothing on the page saying which wins, so the conflict read as a contradiction
@@ -23,7 +23,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd -P)"
 RULE="$ROOT/rules/artifacts-local-first.md"
-DASH="$ROOT/skills/aidex-dash/SKILL.md"
+DASH="$ROOT/skills/aidex-artifact/SKILL.md"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
@@ -36,7 +36,7 @@ done
 grep -qiE 'only.*when explicitly asked|explicitly asked to share' "$RULE" \
   || fail "(1) rules/artifacts-local-first.md no longer gates publishing on an explicit user ask"
 grep -qiE 'NEVER call the .?Artifact.? tool unprompted' "$DASH" \
-  || fail "(1) skills/aidex-dash/SKILL.md no longer forbids calling the Artifact tool unprompted"
+  || fail "(1) skills/aidex-artifact/SKILL.md no longer forbids calling the Artifact tool unprompted"
 
 # ---------- (2) the override is declared, not merely asserted ----------
 # The rule must name the thing it overrides AND say it wins. Both halves are required:

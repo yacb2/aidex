@@ -76,7 +76,7 @@ def split_head_style(content):
     return m.group(1).strip(), content[m.end():].strip()
 
 
-# .../skills/aidex-dash/scripts/dash/wrap_report.py -> .../skills
+# .../skills/aidex-artifact/scripts/dash/wrap_report.py -> .../skills
 _SKILLS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                            os.pardir, os.pardir, os.pardir))
 LIB_SH = os.path.join(_SKILLS_DIR, "aidex-conventions", "scripts", "_lib.sh")
@@ -323,7 +323,7 @@ def style_profile_offer(ctx):
     return ("NOTE: this project has no .context/artifact-style.md, so this artifact's "
             "palette, fonts, favicon and language are being invented here and lost. "
             "Offer the profile to the reader ONCE, now — seed it from "
-            "aidex-dash/assets/templates/artifact-style.md.template, prefilled with the "
+            "aidex-artifact/assets/templates/artifact-style.md.template, prefilled with the "
             "choices just made. Do not create it unasked. This offer is now recorded in "
             f"{marker} and will not fire again.")
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# allowed-tools lockstep guard for aidex-dash.
+# allowed-tools lockstep guard for aidex-artifact.
 #
 # Regression this locks (BL-080, 2026-07-24):
 #   SKILL.md declared `allowed-tools: Bash Read Glob Grep` — no Write, no Skill — while the
@@ -12,7 +12,7 @@
 # The check is body-driven, not a frozen expected list — a future branch that adds an Edit
 # or a WebFetch instruction fails here rather than at the user's first permission denial.
 #
-# Run with: bash skills/aidex-dash/tests/test-allowed-tools-lockstep.sh
+# Run with: bash skills/aidex-artifact/tests/test-allowed-tools-lockstep.sh
 
 set -uo pipefail
 
@@ -60,7 +60,7 @@ for t in $DECLARED; do
 done
 
 if [[ "$failures" -eq 0 ]]; then
-  echo "OK — aidex-dash allowed-tools in lockstep with its body: $DECLARED"
+  echo "OK — aidex-artifact allowed-tools in lockstep with its body: $DECLARED"
   exit 0
 fi
 exit 1

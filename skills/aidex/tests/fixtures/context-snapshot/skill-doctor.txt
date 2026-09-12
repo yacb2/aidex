@@ -14,7 +14,7 @@ Skills loaded this session
   skill-trigger-eval           projectSettings     < 20          -     2×  80 days
   ralph-loop:help              ralph-loop           ~20          -     1×  80 days
   ralph-loop:ralph-loop        ralph-loop           ~20          -    11×  80 days
-  aidex-dash                   userSettings           -          -     1×  62 days
+  aidex-artifact                   userSettings           -          -     1×  62 days
   aidex-workflow               userSettings           -          -    22×  61 days
   aidex-loop                   userSettings           -          -   127×  55 days
   aidex-reference              userSettings        ~240          -   132×  35 days

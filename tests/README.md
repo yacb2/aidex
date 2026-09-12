@@ -46,7 +46,7 @@ clone (BL-289). `.context/testing-profile.md` still wins wherever it exists, and
 The map's repo `test_hint` is a **loop**, not a bare runner — a shell suite has one file
 per test, so `bash a.sh b.sh` would run only the first and pass the second as an argument.
 
-Verified 2026-09-08: a diff touching `skills/aidex-dash/scripts/dash/check_artifact.py`
+Verified 2026-09-08: a diff touching `skills/aidex-artifact/scripts/dash/check_artifact.py`
 selects that skill's tests plus the three cross-skill lockstep tests, not
 `tests/run-all.sh`.
 

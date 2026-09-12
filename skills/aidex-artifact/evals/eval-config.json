@@ -1,5 +1,5 @@
 {
-  "skill": "aidex-dash",
+  "skill": "aidex-artifact",
   "model": "claude-sonnet-5",
   "setup": {
     "env": {
@@ -12,10 +12,10 @@
   },
   "success_check": {
     "type": "file_exists",
-    "path": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-dash"
+    "path": "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-artifact"
   },
   "cleanup_paths": [
-    "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-dash"
+    "{{HOME}}/.claude/tmp/aidex-eval-{{TEST_ID}}.aidex-artifact"
   ],
   "queries_file": "./trigger_eval.json"
 }

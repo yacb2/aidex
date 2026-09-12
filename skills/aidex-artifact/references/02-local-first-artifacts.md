@@ -38,7 +38,7 @@ pointing into its section.
 The request maps to one of the deterministic `.context/` boards: backlog board,
 plans progress, audit inventory, coverage matrix.
 
-Run the renderer — `${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/render.sh <target>` — which is
+Run the renderer — `${CLAUDE_PLUGIN_ROOT}/skills/aidex-artifact/scripts/render.sh <target>` — which is
 zero-token and idempotent, then open the output locally. Do not hand-generate what a
 renderer already produces.
 
@@ -401,7 +401,7 @@ user corrects styling or asks for consistent branding.
 
 On a first artifact there is no "signal" by construction, yet that is precisely when the
 palette is invented and then lost — this single offer is the only moment it can be
-captured. Seed from `aidex-dash/assets/templates/artifact-style.md.template`, prefilled
+captured. Seed from `aidex-artifact/assets/templates/artifact-style.md.template`, prefilled
 with the choices just made. Never repeat the offer, never nag.
 
 **"Exactly once" is kept by a marker, not by memory.** `wrap-report.sh --out` prints the
@@ -485,7 +485,7 @@ The Artifact tool supplies that envelope at publish time; a local file gets the 
 from:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-artifact/scripts/wrap-report.sh --title "<t>" [--lang es] [--favicon "X"] --out <file>
 ```
 
 (stdin in, file out), shared with the dash renderers so both routes produce the same kind
@@ -527,7 +527,7 @@ it. A non-zero exit means the file on disk is not deliverable.
 To re-check a file you did not just wrap:
 
 ```
-${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/check-artifact.sh <file>
+${CLAUDE_PLUGIN_ROOT}/skills/aidex-artifact/scripts/check-artifact.sh <file>
 ```
 
 **Why this is one command and not two.** The verify is the step a real run drops first,
@@ -829,7 +829,7 @@ ask row: leaving any of them in would mark every answer stored before that
 release as "the question changed" and drop it on the upgrade.
 
 Copy the shape from
-`${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/assets/templates/consultation-block.html.template` rather than
+`${CLAUDE_PLUGIN_ROOT}/skills/aidex-artifact/assets/templates/consultation-block.html.template` rather than
 re-deriving it. It is the item block plus the compose-and-copy button, styled to inherit
 the page's own tokens.
 

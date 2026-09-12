@@ -3,8 +3,8 @@ title: "artifacts"
 label: { en: "Artifacts", es: "Artefactos" }
 lexicon:
   artifact:page: "\\bartifacts?\\b|\\bartefactos?\\b|\\bp[aá]gina de consulta\\b|\\bconsultation\\b|\\bwrap(-report)?\\b|check-artifact"
-skills: [artifact-design, artifact-diagramming, aidex-dash]
-slash: ["/aidex:dash"]
+skills: [artifact-design, artifact-diagramming, aidex-artifact]
+slash: ["/aidex:artifact"]
 scripts: [wrap-report.sh, check-artifact.sh, render.sh]
 paths: ["\\.context/reports/", "\\.html$"]
 primary_source: pages
