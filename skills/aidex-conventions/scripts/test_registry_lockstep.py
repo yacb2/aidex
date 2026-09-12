@@ -112,7 +112,7 @@ def _model_policy_failures(rel: str, head: str, body: str) -> list[str]:
         return []
     declared_fanout = bool(re.search(r"\b(Workflow|Agent|Task)\b", tools.group(1)))
     # Flattened: markdown wraps mid-sentence, and a line-anchored search silently misses
-    # any mandate that straddles a newline — how the aidex-dash Skill mandate hid (BL-080).
+    # any mandate that straddles a newline — how the aidex-artifact Skill mandate hid (BL-080).
     body_fanout = bool(FANOUT_BODY.search(re.sub(r"\s+", " ", body)))
 
     failures: list[str] = []

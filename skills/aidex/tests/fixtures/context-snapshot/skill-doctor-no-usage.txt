@@ -14,7 +14,7 @@ Skills loaded this session
   skill-trigger-eval           projectSettings     < 20
   ralph-loop:help              ralph-loop           ~20
   ralph-loop:ralph-loop        ralph-loop           ~20
-  aidex-dash                   userSettings           -
+  aidex-artifact                   userSettings           -
   aidex-workflow               userSettings           -
   aidex-loop                   userSettings           -
   aidex-reference              userSettings        ~240

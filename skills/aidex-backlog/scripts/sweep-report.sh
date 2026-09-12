@@ -5,7 +5,7 @@
 #   sweep-report.sh <worklist slug|path> [--out <file>] [--print]
 #
 # Writes TWO files: the markdown report (the canon, and the only path on stdout)
-# and a `.html` page beside it — `<report>.html` — wrapped through aidex-dash's
+# and a `.html` page beside it — `<report>.html` — wrapped through aidex-artifact's
 # artifact kit and named on stderr as `page: <path>`. It opens neither: the one
 # open belongs to stage 6 of the sweep policy, after `worklist-close.sh`, per
 # `rules/artifacts-local-first.md` gate 2.
@@ -84,7 +84,7 @@ python3 "$SCRIPT_DIR/sweep-report.py" "$ROOT" "$WL" --out "$OUT"
 # after `worklist-close.sh` — not to a script that a run may re-run while items
 # are still moving. An `open` in here would also be invisible to
 # `hooks/artifact-open-once.sh`, which sees the Bash call and not what it spawns.
-WRAP="$(cd "$SCRIPT_DIR/../../aidex-dash/scripts" 2>/dev/null && pwd -P || true)/wrap-report.sh"
+WRAP="$(cd "$SCRIPT_DIR/../../aidex-artifact/scripts" 2>/dev/null && pwd -P || true)/wrap-report.sh"
 HTML="${OUT%.md}.html"
 TITLE="$(sed -n 's/^title: *"\{0,1\}\(.*[^"]\)"\{0,1\} *$/\1/p' "$OUT" | head -1)"
 if [[ "$OUT" != *.md ]]; then
@@ -118,5 +118,5 @@ print(profile_language(find_context_dir(sys.argv[2])) or "en")' "$DASH_PY" "$(di
     echo "NOTE: hand over $OUT and fix the page before opening it." >&2
   fi
 else
-  echo "NOTE: aidex-dash is not installed next to this skill, so no page was written beside $OUT." >&2
+  echo "NOTE: aidex-artifact is not installed next to this skill, so no page was written beside $OUT." >&2
 fi

@@ -6,7 +6,7 @@
 # (tests/eval-local-first-behavior.sh) calls the same checker, so the assertion
 # logic is proven here and merely reused there.
 #
-# Run with: bash skills/aidex-dash/tests/test-artifact-contract.sh
+# Run with: bash skills/aidex-artifact/tests/test-artifact-contract.sh
 
 set -uo pipefail
 

@@ -4,6 +4,11 @@
 #   ./tests/native-eval/run-eval.sh                  # iterate: 1 run, both arms
 #   ./tests/native-eval/run-eval.sh --verdict         # decide: 3 runs, both arms
 #   ./tests/native-eval/run-eval.sh --case 'aidex-decision*'
+#   ./tests/native-eval/run-eval.sh --only aidex-artifact   # every case of one skill
+#
+# --only <skill> is sugar for --case '<skill>-*'. Case names are `<skill>-<case>`,
+# so the glob is a prefix match: --only aidex-plan would also select a future
+# aidex-plan-exec case. Use --case when that matters.
 #
 # Pinned by policy, not by taste:
 #   --no-publish   the HTML report must stay local (artifacts-local-first, gate 3)
@@ -37,6 +42,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --verdict) RUNS=3; shift ;;
     --case)    CASE_GLOB="$2"; shift 2 ;;
+    --only)    CASE_GLOB="$2-*"; shift 2 ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
   esac
 done

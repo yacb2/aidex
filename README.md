@@ -26,7 +26,7 @@ Then, in any project, just ask naturally — the right skill loads itself:
 - *"Audit my project's health"* → runs parallel auditors, returns a health score + suggested fixes
 - *"/aidex:audit new ux login-redesign"* → scaffolds a UX audit with a methodology playbook
 - *"/aidex:aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
-- *"Render the backlog as an HTML board"* → `aidex-dash` generates a sortable, self-contained page
+- *"Render the backlog as an HTML board"* → `aidex-artifact` generates a sortable, self-contained page
 
 Something not firing? Run `./install.sh --doctor` from the repo checkout to health-check the install (symlinks, versions, exec bits, manifest) — it also catches content drift when your checkout moved on but the install did not.
 
@@ -76,7 +76,7 @@ skills).
 │   ├── aidex-bugfix/                    <-- (from aidex)
 │   ├── aidex-workflow/                  <-- (from aidex)
 │   ├── aidex-worktree/                  <-- (from aidex)
-│   ├── aidex-dash/                      <-- (from aidex)
+│   ├── aidex-artifact/                      <-- (from aidex)
 │   ├── aidex-review/                    <-- (from aidex)
 │   ├── aidex-coverage/                  <-- (from aidex)
 │   └── my-personal-skill/               <-- Your own — never touched by the installer
@@ -139,7 +139,7 @@ booking app with a backlog, a modular plan, two ADRs (one superseding the other)
 module, a request and a UX audit, all cross-linked. Every board below is rendered from files like those,
 at zero tokens, into a single self-contained HTML page:
 
-<img src="docs/assets/backlog-board.png" alt="aidex-dash backlog board rendered from examples/.context" width="900">
+<img src="docs/assets/backlog-board.png" alt="aidex-artifact backlog board rendered from examples/.context" width="900">
 
 ## What's included
 
@@ -188,7 +188,7 @@ Nine always-on rules are installed to `~/.claude/rules/`, the sole surface Claud
 | **`aidex-bugfix`** | User-invoked + context-triggered | Guided TDD bug fixing: investigate → write a RED regression test → fix → GREEN → commit test and fix together. Detects test runners from project config; stack-agnostic. |
 | **`aidex-worktree`** | User-invoked + context-triggered | Creates and destroys fully isolated worktrees — one git worktree per participant repo, its own port slot, its own compose stack. The mechanism ships as `worktree.sh`; a project supplies only parameters in `.context/worktrees/config.env`. **One path, not tiers:** a worktree is born with its full stack always (`--no-infra` is the explicit code-only opt-out), because full isolation now costs ~25s to create and ~3s to tear down. `down` verifies nothing is left attributable to the slug, reports host processes it will not kill, and with `--delete-branch` removes the branch `new` created — via `git branch -d`, which refuses an unmerged branch. |
 | **`aidex-coverage`** | Model-invocable | The stack-agnostic testing canon: which layer a behaviour belongs in, which tests to run for a change (the full suite is a boundary gate, never a per-phase one), when to extract a fixture, and the per-project `.context/testing-profile.md` that names the stack pack (Django, Vue, Playwright, Payload, Svelte) carrying the concrete test shapes and the `test-e2e.sh` generator. Deliberately does **not** run audits or touch `module-map.json` / `coverage-matrix.json` — that split belongs to `aidex-audit`'s `test-coverage` playbook. |
-| **`aidex-dash`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
+| **`aidex-artifact`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
 
 ### How it works
 

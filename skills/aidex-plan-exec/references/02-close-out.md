@@ -39,7 +39,7 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
      session.
    - **Wrap it and open it once.** `human-verification.md` is markdown, and a checklist
      handed over as an `.md` is one the reader asks to be rebuilt as a page (BL-345).
-     `${CLAUDE_PLUGIN_ROOT}/skills/aidex-dash/scripts/wrap-report.sh --title "<plan> — human
+     `${CLAUDE_PLUGIN_ROOT}/skills/aidex-artifact/scripts/wrap-report.sh --title "<plan> — human
      verification" --lang en --in .context/proofs/<slug>/human-verification.md --out
      .context/proofs/<slug>/human-verification.html`, then `open` that file — once, last,
      after the rest of close-out, per `rules/artifacts-local-first.md` gate 2. Never

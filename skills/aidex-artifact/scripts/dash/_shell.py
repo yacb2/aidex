@@ -2,7 +2,7 @@
 """HTML shell for the dash render layer: design tokens, components, and the
 
 vanilla sort/filter JS — all reused from the session-validated visual reference
-(.context/drafts/aidex-dash-demo.html). Stdlib only. No external requests, no
+(.context/drafts/aidex-artifact-demo.html). Stdlib only. No external requests, no
 emojis; every page is a self-contained single file that works from file://.
 
 Public surface:
@@ -170,7 +170,7 @@ _SCRIPT = """<script>
 _FOOTER = (
     '<footer>This page is a <strong>render, not a source</strong>: every value above '
     'lives in <code>.context/</code> markdown/JSON (the canon). Regenerate anytime with '
-    'aidex-dash; never edit by hand. Self-contained single file &mdash; works from '
+    'aidex-artifact; never edit by hand. Self-contained single file &mdash; works from '
     '<code>file://</code> with no server and no external requests.</footer>'
 )
 
@@ -361,7 +361,7 @@ def page(title, sections, generated_by):
     """
     stamp = datetime.now().isoformat(timespec="seconds")
     generated = (
-        f"<!-- GENERATED {stamp} by /aidex:dash {generated_by} "
+        f"<!-- GENERATED {stamp} by /aidex:artifact {generated_by} "
         "— DO NOT EDIT, regenerate instead -->"
     )
     body = (

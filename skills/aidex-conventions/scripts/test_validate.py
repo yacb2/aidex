@@ -614,14 +614,14 @@ def check_artifact_style_language(failures: list[str]) -> None:
             failures.append("artifact-style language: a profile with no `language:` "
                             "field must declare no language")
 
-        # (c) `- language: es` — the shape aidex-dash writes and parses
+        # (c) `- language: es` — the shape aidex-artifact writes and parses
         (ctx / "artifact-style.md").write_text(
             "# Artifact style profile\n\n## Language\n\n- language: es\n",
             encoding="utf-8")
         declared = v.declared_artifact_language(ctx)
         if declared != "es":
             failures.append(f"artifact-style language: `- language: es` parsed as "
-                            f"{declared!r} — must match aidex-dash's own LANG_FIELD")
+                            f"{declared!r} — must match aidex-artifact's own LANG_FIELD")
 
         # the artifact the profile authorises: silent
         if v.check_body_language("reports", Path("r.html"), spanish,

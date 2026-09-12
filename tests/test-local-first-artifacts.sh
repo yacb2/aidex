@@ -32,7 +32,7 @@ RULE_FLAT=""
 # monolith: gates stay resident, procedure lives in the canon, and — the failure mode
 # relocation introduces — the rule's pointer must resolve to a file that exists.
 # A dangling pointer is silent: the stub still says "read this", and nothing errors.
-CANON_FILE="$REPO_ROOT/skills/aidex-dash/references/02-local-first-artifacts.md"
+CANON_FILE="$REPO_ROOT/skills/aidex-artifact/references/02-local-first-artifacts.md"
 # Same for the canon. Any assertion on a MULTI-WORD phrase must read the flattened
 # copy: markdown rewraps, and a line-based grep then reports a missing rule that is
 # right there. That false negative fired twice on 2026-08-06 (here and in
@@ -88,7 +88,7 @@ fi
 
 if [ -f "$RULE_FILE" ]; then
   # Regression (field, 2026-07-23): an ad-hoc "HTML offline" ask was hand-rolled
-  # without design guidance after aidex-dash declined — loading artifact-design
+  # without design guidance after aidex-artifact declined — loading artifact-design
   # must be an explicit numbered step, and dash must route instead of just decline.
   # The design-guidance step must be named AND ordered before markup is written.
   # Two anchors: the skill name (a mechanism) and the ordering constraint, matched
@@ -120,15 +120,19 @@ if [ -f "$CANON_FILE" ]; then
   fi
 fi
 
-if [ ! -f "$REPO_ROOT/skills/aidex-dash/assets/templates/artifact-style.md.template" ]; then
-  fail "artifact-style.md.template missing in aidex-dash assets"
+if [ ! -f "$REPO_ROOT/skills/aidex-artifact/assets/templates/artifact-style.md.template" ]; then
+  fail "artifact-style.md.template missing in aidex-artifact assets"
 fi
-if ! grep -q "user-invocable-only" "$REPO_ROOT/skills/aidex-dash/SKILL.md"; then
-  fail "aidex-dash SKILL.md missing the user-invocable-only scope note"
+# Plugin migration 2026-09-12: the skill is no longer deployed user-invocable-only —
+# its own `description:` is the natural-language entry for every artifact ask, so the
+# scope note was removed. What must survive is that the description still carries the
+# ad-hoc artifact shapes, not only the board render.
+if ! grep -qE "^description:.*artifact" "$REPO_ROOT/skills/aidex-artifact/SKILL.md"; then
+  fail "aidex-artifact SKILL.md description no longer names the artifact shape"
 fi
 
-if ! grep -qi "artifact-design" "$REPO_ROOT/skills/aidex-dash/SKILL.md"; then
-  fail "aidex-dash SKILL.md does not route declined ad-hoc asks to artifact-design"
+if ! grep -qi "artifact-design" "$REPO_ROOT/skills/aidex-artifact/SKILL.md"; then
+  fail "aidex-artifact SKILL.md does not route declined ad-hoc asks to artifact-design"
 fi
 
 # --- Task 6.1: install.sh covers rules/*.md generically ---
@@ -142,7 +146,7 @@ if grep -qE 'rules/\*\)\s*return 1' "$REPO_ROOT/install.sh"; then
 fi
 
 # --- Task 6.2: dash-conventions carries the sibling-report GENERATED clause ---
-DASH_CONV="$REPO_ROOT/skills/aidex-dash/references/01-dash-conventions.md"
+DASH_CONV="$REPO_ROOT/skills/aidex-artifact/references/01-dash-conventions.md"
 if [ ! -f "$DASH_CONV" ]; then
   fail "dash-conventions.md not found ($DASH_CONV)"
 else
@@ -154,12 +158,12 @@ else
   fi
 fi
 
-DASH_SKILL="$REPO_ROOT/skills/aidex-dash/SKILL.md"
+DASH_SKILL="$REPO_ROOT/skills/aidex-artifact/SKILL.md"
 if [ ! -f "$DASH_SKILL" ]; then
-  fail "aidex-dash SKILL.md not found ($DASH_SKILL)"
+  fail "aidex-artifact SKILL.md not found ($DASH_SKILL)"
 else
   if ! grep -q "artifacts-local-first.md" "$DASH_SKILL"; then
-    fail "aidex-dash SKILL.md does not mention rules/artifacts-local-first.md"
+    fail "aidex-artifact SKILL.md does not mention rules/artifacts-local-first.md"
   fi
 fi
 

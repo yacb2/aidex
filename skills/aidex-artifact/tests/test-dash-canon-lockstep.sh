@@ -10,7 +10,7 @@
 # column -> render_audit dies; bump the coverage schema key -> render_coverage
 # dies.
 #
-# Run with: bash skills/aidex-dash/tests/test-dash-canon-lockstep.sh
+# Run with: bash skills/aidex-artifact/tests/test-dash-canon-lockstep.sh
 
 set -uo pipefail
 

@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _coverage_lib as lib
 
 # Pinned shape of coverage-matrix.json. Bump when the key set changes; the dash
-# consumer (aidex-dash render_coverage.py) rejects any value it does not know,
+# consumer (aidex-artifact render_coverage.py) rejects any value it does not know,
 # so a producer-side rename fails loudly instead of rendering a wrong board.
 # /2 adds the route board: typed `surfaces.routes` + `surfaces.actions`, per-route
 # E2E reach, and `route_gaps`. Stamped on EVERY run, including a v1 input map —

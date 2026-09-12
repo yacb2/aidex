@@ -20,7 +20,11 @@ Two things the legacy `evals/{eval-config.json,trigger_eval.json}` suites cannot
 ./tests/native-eval/run-eval.sh                      # iterate: 1 run/arm
 ./tests/native-eval/run-eval.sh --verdict            # decide: 3 runs/arm
 ./tests/native-eval/run-eval.sh --case 'aidex-decision-adr'
+./tests/native-eval/run-eval.sh --only aidex-artifact   # every case of one skill
 ```
+
+`--only <skill>` is sugar for `--case '<skill>-*'` — a prefix match on the case
+name, so `--only aidex-plan` would also select a future `aidex-plan-exec` case.
 
 `--case` matches the `name:` inside `case.yaml`, **not** the folder. A run that
 selects zero cases exits 1 rather than reporting green.

@@ -335,7 +335,7 @@ HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 
 # `- language: es` in the project's artifact style profile. The regex is a COPY of
-# aidex-dash's `LANG_FIELD` (scripts/dash/wrap_report.py) on purpose: that script is
+# aidex-artifact's `LANG_FIELD` (scripts/dash/wrap_report.py) on purpose: that script is
 # what writes the field and turns it into `<html lang>`, so the checker must read it
 # exactly as the writer does or it silences the wrong set. A field, not prose — the
 # profile's own body says "language, favicon, tone" and must not match.

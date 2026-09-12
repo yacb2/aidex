@@ -125,7 +125,7 @@ if [[ -s "$PAGE" ]] && grep -q "$AID" "$PAGE"; then
 else
   bad "the page does not carry $AID"
 fi
-CHK="$SCRIPTS/../../aidex-dash/scripts/check-artifact.sh"
+CHK="$SCRIPTS/../../aidex-artifact/scripts/check-artifact.sh"
 if [[ -s "$PAGE" ]]; then
   bash "$CHK" "$PAGE" > "$TMP/chk.out" 2>&1
   [[ $? -eq 0 ]] && ok "the page passes check-artifact.sh" || bad "check-artifact.sh on the page: $(cat "$TMP/chk.out")"
@@ -164,7 +164,7 @@ else
 fi
 grep -q "^translate: .*$SRC2 .*--lang es .*--out $PAGE2" "$TMP/rep2.err" && ok "language: es — stderr names the stage-6 step: source, --lang es, the same page" || bad "no translate line: $(cat "$TMP/rep2.err")"
 T2="$(sed -n 's/^title: *"\{0,1\}\(.*[^"]\)"\{0,1\} *$/\1/p' "$SRC2" | head -1)"
-if bash "$SCRIPTS/../../aidex-dash/scripts/wrap-report.sh" --title "$T2" --lang es --in "$SRC2" --out "$PAGE2" >"$TMP/wrap2.out" 2>&1 && grep -q '<html[^>]*lang="es"' "$PAGE2" && grep -q 'Filas del owner' "$PAGE2"; then
+if bash "$SCRIPTS/../../aidex-artifact/scripts/wrap-report.sh" --title "$T2" --lang es --in "$SRC2" --out "$PAGE2" >"$TMP/wrap2.out" 2>&1 && grep -q '<html[^>]*lang="es"' "$PAGE2" && grep -q 'Filas del owner' "$PAGE2"; then
   ok "language: es — wrapping the source over the page yields lang=\"es\" and passes the contract (lang gate included)"
 else
   bad "wrap of the es source: $(cat "$TMP/wrap2.out")"

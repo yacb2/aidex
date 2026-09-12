@@ -213,7 +213,7 @@ violation — fix it before closing.
 
 - **aidex-audit** — uses this skill for escalation (`/aidex:audit escalate`)
 - **aidex-conventions** — parent convention for `.context/backlog/`
-- **aidex-dash** — renders the backlog as an interactive HTML board on demand (`render.sh backlog`); publishing stays user-gated
+- **aidex-artifact** — renders the backlog as an interactive HTML board on demand (`render.sh backlog`); publishing stays user-gated
 
 ---
 

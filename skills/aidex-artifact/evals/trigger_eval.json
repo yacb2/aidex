@@ -81,13 +81,13 @@
   },
   {
     "query": "Genera un reporte HTML del análisis de rendimiento que acabamos de hacer.",
-    "should_trigger": false,
-    "expected_behavior": "ES ad-hoc report, NOT a .context/ board — route B of the artifact rule, not the dash renderer. Near-miss."
+    "should_trigger": true,
+    "expected_behavior": "ES ad-hoc report — not a .context/ board, but in scope since the plugin migration: the skill owns the local-first artifact flow, not only the board renderers."
   },
   {
     "query": "Create a chart of our monthly active users from this CSV.",
     "should_trigger": false,
-    "expected_behavior": "Generic data visualization with no .context/ board behind it — dataviz, not aidex-dash."
+    "expected_behavior": "Generic data visualization with no .context/ board behind it — dataviz, not aidex-artifact."
   },
   {
     "query": "Muéstrame el backlog.",
