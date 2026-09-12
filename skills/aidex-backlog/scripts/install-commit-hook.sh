@@ -16,7 +16,10 @@ END_MARK="# <<< aidex commit-trailer harvester <<<"
 # The hook we write runs as a git post-commit in the user's repo, outside any plugin
 # context, so it must carry the ABSOLUTE path resolved from this script's own location.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-HARVEST="\"$SCRIPT_DIR/harvest-commit.sh\" >/dev/null 2>&1 || true"
+# The hook runs outside any plugin context, so it bakes the install-time path and,
+# when that path is gone (a plugin update moves the cache dir per version), falls
+# back to the newest cached copy of the plugin.
+HARVEST="h=\"$SCRIPT_DIR/harvest-commit.sh\"; [ -x \"\$h\" ] || h=\$(ls -t \"\$HOME\"/.claude/plugins/cache/*/aidex/*/skills/aidex-backlog/scripts/harvest-commit.sh 2>/dev/null | head -1); [ -n \"\$h\" ] && \"\$h\" >/dev/null 2>&1 || true"
 
 REMOVE=0
 [[ "${1:-}" == "--remove" ]] && REMOVE=1
