@@ -2,8 +2,8 @@
 name: memory-auditor
 description: Audits the memory FILES in a project's memory directory — one verdict per file against the memory-hygiene checks — plus the MEMORY.md index it is summarized by
 model: sonnet
+tools: Read, Grep, Glob
 effort: medium
-allowed-tools: Read, Glob, Grep
 context: fork
 user-invocable: false
 ---

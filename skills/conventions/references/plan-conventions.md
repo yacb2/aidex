@@ -422,7 +422,11 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   to the workspace where the phase's own sample output shows it relative to its repo). Three
   caveats travel with this row and it is weaker than `standard`'s: 2/3 vs 3/3 is Fisher
   p = 1.0, so the gate count carries nothing; the 7.7% token gap is mostly each model's own
-  system-prompt floor, worth ~3% on the work itself; what is clean is that all three
+  system-prompt floor, worth ~3% on the work itself (that explains the gap *between* models;
+  the *level* of the floor is mostly tool and skill-catalog schema the agent definition
+  controls — 14k with `tools: [Bash]` against 49k unrestricted on sonnet, measured
+  2026-09-13, `references/claude-code-runtime/04-subagent-gotchas.md` in the aidex
+  workspace); what is clean is that all three
   `fable/low` runs cost less than all three `sonnet/low` runs, complete separation at n=3,3
   (p = 0.05). **`haiku` carries no effort dimension at all** — the loader accepts `effort:` on
   it and drops it — so no row may be written as `haiku/<effort>`. Evidence:
@@ -434,6 +438,14 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   the only cell to emit a proof carrying a false exit code. Its arbiter half has no ground
   truth — it fires only on `K+1` gate exhaustion and its output is a STOP-vs-ASK judgment — so
   the row is not moved on evidence that reaches only one of its two roles.
+
+  **Pending measurement (BL-406 E2, registered 2026-09-13):** the cell BL-335 never ran —
+  `sonnet`/`low` with `tools:` restricted and no `Skill` catalog — on the same phase and
+  gate. No row moves before it. **Cost is compared on the transcript, weighted,** never on
+  the `<subagent_tokens>` figure of a task notification: that figure sums cache reads at
+  face value, and both sweeps above compared it. Weighted cost per call is
+  `input + 1.25·create_5m + 2·create_1h + 0.1·cache_read + 5·output`
+  (`proofs/subagent-floor/first-call-usage.py` emits both columns).
 - **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is the first fenced command of the phase's **Verify** block if not declared inline.
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.

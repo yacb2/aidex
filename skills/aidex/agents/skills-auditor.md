@@ -2,8 +2,8 @@
 name: skills-auditor
 description: Audits skills across all scopes for structural issues, frontmatter compliance, and scope placement
 model: haiku
+tools: Read, Grep, Glob, Skill
 effort: medium
-allowed-tools: Read, Glob, Grep
 context: fork
 user-invocable: false
 ---

@@ -2,6 +2,7 @@
 name: reference-refuter
 description: Adversarial close-gate for a reference module. Given a module path, tries to REFUTE its claims against the code, the database and the tree. Returns a verdict per claim. Never rewrites the document.
 model: sonnet
+tools: Read, Grep, Glob, Bash
 effort: high
 ---
 

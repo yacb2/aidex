@@ -58,16 +58,27 @@ cross-item merge, "0 found → skip"). This mirrors the plan-exec Workflow guida
 
 ## Per-agent model table
 
-The user-facing reason this skill exists separate from a plan: explicit, per-stage model
-and effort assignment. Each row maps a stage to `agent(prompt, {model, effort})`:
+The user-facing reason this skill exists separate from a plan: explicit, per-stage model,
+effort and **toolset** assignment. Each row maps a stage to
+`agent(prompt, {model, effort, agentType?})`:
 
 ```markdown
-| Stage | Agent | Model | Effort | Why |
-|---|---|---|---|---|
-| find | finders ×N | sonnet | medium | breadth, cheap |
-| verify | skeptics ×3 | opus | high | adversarial, must be right |
-| synth | synthesizer | opus | high | judgment |
+| Stage | Agent | Model | Effort | Tools / skills | Why |
+|---|---|---|---|---|---|
+| find | finders ×N | sonnet | medium | Read Grep Glob | breadth, cheap |
+| verify | skeptics ×3 | opus | high | Read Grep Glob Bash | adversarial, must be right |
+| synth | synthesizer | opus | high | Read | judgment |
 ```
+
+**The Tools column is a cost line, not decoration.** A workflow agent's fixed prefix is
+paid on every turn, and most of it is tool schema: on sonnet, 14k with `tools: [Bash]`,
+24k adding `Skill` (the skill catalog lives in that tool's description), 32k with the
+default set headless, 49k in an interactive session with MCP servers (measured
+2026-09-13, `references/claude-code-runtime/04-subagent-gotchas.md` in the aidex
+workspace). `agent()` has **no `tools` option**: the restriction travels through
+`agentType`, naming a registered agent definition that carries `tools:` (and `skills:`
+for a body the stage needs). A row whose Tools cell is "default" is declaring that it
+pays the full prefix, and says why.
 
 Heuristic: breadth/mechanical → `sonnet` (`low` for pure transforms, `medium` for
 search); adversarial verify, synthesis, or judgment → `opus/high`. Omit `model` to

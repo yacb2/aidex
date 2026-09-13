@@ -2,8 +2,8 @@
 name: context-cost-analyzer
 description: Reads the measured context snapshot (/context + /skill-doctor via claude -p) and cross-references it with MEMORY.md, CLAUDE.md, skills and plugins to produce a priority-ordered list of token savings
 model: haiku
+tools: Read, Grep, Glob, Bash
 effort: low
-allowed-tools: Read, Glob, Grep, Bash
 context: fork
 user-invocable: false
 ---

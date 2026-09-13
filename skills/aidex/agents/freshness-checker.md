@@ -2,8 +2,8 @@
 name: freshness-checker
 description: Detects stale documentation by comparing each artifact's front-matter `updated` date against recent project activity
 model: haiku
+tools: Read, Grep, Glob, Bash, WebFetch
 effort: low
-allowed-tools: Read, Glob, Grep, Bash, WebFetch
 context: fork
 user-invocable: false
 ---

@@ -2,8 +2,8 @@
 name: symlink-checker
 description: Verifies all symlinks in .claude/ resolve to valid targets
 model: haiku
+tools: Read, Glob, Bash
 effort: low
-allowed-tools: Read, Glob, Bash
 context: fork
 user-invocable: false
 ---
