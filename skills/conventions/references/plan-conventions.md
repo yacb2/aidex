@@ -387,7 +387,7 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
 
   | tier | model | effort | status |
   |---|---|---|---|
-  | `mechanical` | `fable` | `low` | measured 2026-09-07 |
+  | `mechanical` | `fable` | `low` | measured 2026-09-07; `tools:` restricted, measured 2026-09-13 |
   | `standard` | `fable` | `low` | measured 2026-09-07 |
   | `hard` | `opus` | `high` | default |
   | `gate` — the verifier and arbiter of every batch shape | `sonnet` | `low` | default |
@@ -439,13 +439,25 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   truth — it fires only on `K+1` gate exhaustion and its output is a STOP-vs-ASK judgment — so
   the row is not moved on evidence that reaches only one of its two roles.
 
-  **Pending measurement (BL-406 E2, registered 2026-09-13):** the cell BL-335 never ran —
-  `sonnet`/`low` with `tools:` restricted and no `Skill` catalog — on the same phase and
-  gate. No row moves before it. **Cost is compared on the transcript, weighted,** never on
-  the `<subagent_tokens>` figure of a task notification: that figure sums cache reads at
-  face value, and both sweeps above compared it. Weighted cost per call is
+  **`mechanical` runs with a restricted toolset (BL-406 E2, 2026-09-13).** The cell BL-335
+  never ran — the same phase and gate with `tools: [Bash, Read, Edit, Write, Grep, Glob]`
+  and no `Skill` catalog — was replayed twelve times: three each at `fable/low` unrestricted
+  (control), `fable/low` restricted, `sonnet/low` restricted and `haiku` restricted. Restricted
+  `fable/low` held the gate 3/3, same as the control, and every one of its runs cost less than
+  every control run (147k-342k raw against 418k-667k; 80k-109k weighted against 134k-153k),
+  because the prefix is paid on every call and the restricted prefix is a third of the size.
+  The row therefore carries a toolset, and the toolset travels the only way the runtime
+  allows: a registered agent definition with `tools:` (`workflow`'s
+  `01-workflow-spec-conventions.md` §Tools column). The cheaper models did not get cheaper by
+  restriction: `sonnet/low` (2/3) and `haiku` (1/3) took 3-6x the calls of `fable` for the
+  same phase and re-read their prefix each time, ending above the unrestricted control in
+  both raw and weighted cost. Evidence: `.context/proofs/e2/` in the aidex workspace.
+  **Cost is compared on the transcript, weighted,** never on the `<subagent_tokens>` figure
+  of a task notification: that figure sums cache reads at face value, and both 2026-09-07
+  sweeps compared it. Weighted cost per call is
   `input + 1.25·create_5m + 2·create_1h + 0.1·cache_read + 5·output`
-  (`proofs/subagent-floor/first-call-usage.py` emits both columns).
+  (`proofs/subagent-floor/all-calls-usage.py` emits both columns for a whole run,
+  `first-call-usage.py` for the floor).
 - **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is the first fenced command of the phase's **Verify** block if not declared inline.
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.
