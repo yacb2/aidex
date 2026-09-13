@@ -1,6 +1,6 @@
 ---
 name: plan-exec
-description: 'Use when the user asks to execute, implement, or continue a written multi-phase plan — typically a `.context/plans/` document or any plan with checkboxes/phases. Fires on "implement the plan", "execute plan X", "let''s execute the plan", "continue with phase Y", "resume the plan", "run the plan phase by phase". Enforces between-phase discipline: code-review, commit, handoff when context grows. Not for: creating the plan itself (/aidex:plan); one-shot tasks with no phases; bug fixes (/aidex:bugfix); pure refactors with no plan document.'
+description: 'Use whenever the user asks to execute, implement, resume or continue a written plan — a `.context/plans/` document or any plan with checkboxes/phases — however small the phase looks, even a single-file edit: the plan''s checkboxes and Execution log are updated by this skill, so do not carry out the phase directly from the plan text. Fires on "implement the plan", "execute plan X", "let''s execute the plan", "continue with phase Y", "resume the plan", "run phase 1 of the plan", "run the plan phase by phase". Enforces between-phase discipline: code-review, commit, handoff when context grows. Not for: creating the plan itself (/aidex:plan); one-shot tasks with no phases; bug fixes (/aidex:bugfix); pure refactors with no plan document.'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Agent
 model-policy: per-stage

@@ -3,11 +3,14 @@ type: llm
 weight: 1
 ---
 
-The final message must say that a self-contained HTML page was written to a local
-path inside `.context/` (a sibling of the auth-migration research note, or the
-`.context/reports/` fallback), and that it is a consultation page the team can read
-and answer — the open decisions carried on the page, not only in the chat.
+El mensaje final debe nombrar una ruta a un archivo HTML escrito dentro de
+`.context/` (junto a la nota de research de auth-migration, o en
+`.context/reports/`) y presentarlo como una página de consulta que el equipo
+puede leer y responder, con las decisiones abiertas dentro de la página.
 
-It fails if the answer was written as chat prose or as another markdown document
-instead of an HTML page, if no path is named, or if the page was published online
-(shared as a Claude Artifact / a URL) without being asked to share it.
+Pasa aunque el mensaje diga que no pudo ejecutar `wrap-report.sh`,
+`check-artifact.sh` o `open`, o que envolvió la página a mano: la imposibilidad
+de correr scripts no cuenta en contra. Falla si la respuesta quedó como prosa en
+el chat o como otro documento markdown en vez de un HTML, si no se nombra
+ninguna ruta, o si la página se publicó en línea (artifact de Claude o URL) sin
+que se pidiera compartirla.

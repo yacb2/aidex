@@ -1,13 +1,14 @@
 ---
 name: bugfix
 description: >
-  Use when fixing a bug, resolving a reported issue, or when something is broken and needs a
-  test-driven fix — investigate root cause, write a failing regression test (RED), implement the
+  Use whenever a bug is reported and a fix is asked for, however small the fix looks, even a
+  one-line change: the regression test comes before the edit, so do not patch the code directly
+  on a bug report. Investigate root cause, write a failing regression test (RED), implement the
   minimum fix, confirm the test passes (GREEN), then commit test and fix together. Fires on "fix
   this bug", "this is broken", "it's not working", "there's a regression", "resolve this issue",
-  or a reference to a bug report. Not for: planning multi-step work (/aidex:plan); executing a
-  written plan phase-by-phase (/aidex:plan-exec); recording why a fix was chosen as an ADR
-  (/aidex:decision); pure refactors with no bug.
+  "X returns Y instead of Z, fix it", or a reference to a bug report. Not for: planning
+  multi-step work (/aidex:plan); executing a written plan phase-by-phase (/aidex:plan-exec);
+  recording why a fix was chosen as an ADR (/aidex:decision); pure refactors with no bug.
 ---
 
 # Bug Fix Workflow

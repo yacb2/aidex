@@ -49,7 +49,9 @@ round. Four outcomes:
 For `mode: scoped` only. The scope **is** the file list plus the acceptance criteria, so
 Step 0 collapses to a single confirm-or-correct round on exactly those two — no
 four-question interrogation, and **no adversarial design pass**: that already ran, once,
-at triage.
+at triage. If the request waives questions ("no me preguntes", "ya está todo definido",
+"don't ask, just write it") there is no round at all: take the recommended answers as
+confirmed, record them in the plan's Context, and write the plan in this same turn.
 
 Then, **before saving**, run the necessity recheck in both directions — file→criterion
 and criterion→file (`plan-conventions.md` §The necessity recheck). "Is this necessary?"
