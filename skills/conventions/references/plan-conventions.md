@@ -451,13 +451,18 @@ Use one carrier per plan consistently; the derivation reads whichever the plan u
   `01-workflow-spec-conventions.md` §Tools column). The cheaper models did not get cheaper by
   restriction: `sonnet/low` (2/3) and `haiku` (1/3) took 3-6x the calls of `fable` for the
   same phase and re-read their prefix each time, ending above the unrestricted control in
-  both raw and weighted cost. Evidence: `.context/proofs/e2/` in the aidex workspace.
+  raw and weighted tokens; priced per model they are cheaper per run ($0.32-0.37 and
+  $0.30-0.40 against $0.98-1.26 for the control and $0.69-0.87 for restricted `fable/low`),
+  so the gate, not the cost, is what disqualifies them. Evidence: `.context/proofs/e2/` in
+  the aidex workspace.
   **Cost is compared on the transcript, weighted,** never on the `<subagent_tokens>` figure
   of a task notification: that figure sums cache reads at face value, and both 2026-09-07
   sweeps compared it. Weighted cost per call is
-  `input + 1.25·create_5m + 2·create_1h + 0.1·cache_read + 5·output`
-  (`proofs/subagent-floor/all-calls-usage.py` emits both columns for a whole run,
-  `first-call-usage.py` for the floor).
+  `input + 1.25·create_5m + 2·create_1h + 0.1·cache_read + 5·output`, and it ranks runs
+  of the **same model only**: base prices differ 10x across models and Fable 5.1 bills cache
+  reads at 0.025x, so a cross-model comparison is made in dollars from the per-model price
+  table (2026-09-13). `proofs/subagent-floor/all-calls-usage.py` emits tokens, dollars
+  and duration for a whole run, `first-call-usage.py` the floor.
 - **`gate:`** — the phase's machine-checkable verification command (the test/type-check/build it must pass). A phase with no gate is not batch-eligible. In single-file plans the gate is the first fenced command of the phase's **Verify** block if not declared inline.
 - **`phase-type: hitl-align | afk-impl`** — the execution mode:
   - **`afk-impl`** (default if omitted) — an implementation phase that can run unattended/batched: it has a machine gate and needs no human judgment mid-phase. **Only `afk-impl` phases are batch-eligible** as a `Workflow`.
