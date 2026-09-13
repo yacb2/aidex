@@ -113,14 +113,29 @@ fire. The `trigger_eval.json` query sets are unaffected and remain usable by the
 stream-json detector (§3a of
 `skills/conventions/references/skill-trigger-eval-methodology.md`).
 
-## Bash is not granted, on purpose
+## Bash is opt-in: `EVAL_BASH=1`
 
-`--allow-tools Write Edit` only. Granting `Bash` aborts every run on a machine
-whose `~/.docker` contains symlinks (Docker Desktop's `bin/`, `cli-plugins/`):
-the eval sandbox cannot exclude the credential store reliably and refuses. It is
-machine-wide, unrelated to the project under test, and has no documented
-override. Anything needing a real test run (RED→GREEN proof) belongs in CI on a
-Linux runner.
+`--allow-tools Write Edit` by default. Granting `Bash` aborts every run on a
+machine whose `~/.docker` contains symlinks (Docker Desktop's `bin/`,
+`cli-plugins/`): the eval sandbox cannot exclude the credential store reliably
+and refuses. It is machine-wide, unrelated to the project under test, and has no
+documented override (re-verified 2026-09-13, CLI 2.1.270).
+
+`EVAL_BASH=1` works around it without touching `~/.docker`: the runner points
+`HOME` at a throwaway directory whose `.docker` is empty and plain (the check
+reads `$HOME`, measured), and grants Bash. The child then cannot see the macOS
+keychain, so the login must arrive as `CLAUDE_CODE_OAUTH_TOKEN` from
+`claude setup-token` (one-year subscription token, Pro/Max/Team/Enterprise;
+usage counts against the plan). Export it in your own shell; the runner never
+reads or stores it:
+
+```bash
+export CLAUDE_CODE_OAUTH_TOKEN="$(claude setup-token)"
+EVAL_BASH=1 EVAL_JOBS=2 ./tests/native-eval/run-eval.sh --only bugfix
+```
+
+A dry run with a fake token reaches the child and dies at turn 1 with
+`401 Invalid bearer token`, cost 0 — use that to check the wiring.
 
 ## Skills that cannot be measured here
 

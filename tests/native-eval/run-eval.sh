@@ -22,10 +22,15 @@
 #                  to this repo" — review a case's setup.sh in the diff like any
 #                  other executable, because --scaffold runs it as you.
 #   --scaffold     cases need their fixture tree; without it they run bare
-#   --allow-tools  Write Edit ONLY. Granting Bash aborts every run on a machine
-#                  whose ~/.docker holds symlinks (Docker Desktop) — the eval
-#                  sandbox refuses rather than risk exposing the credential
-#                  store. RED->GREEN proof therefore belongs in CI, not here.
+#   --allow-tools  Write Edit by default. Granting Bash aborts every run on a
+#                  machine whose ~/.docker holds symlinks (Docker Desktop) — the
+#                  eval sandbox refuses rather than risk exposing the credential
+#                  store. EVAL_BASH=1 works around it WITHOUT touching ~/.docker:
+#                  the eval runs under a throwaway HOME whose .docker is an empty
+#                  plain directory, and the login reaches the child through
+#                  CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) instead of
+#                  the macOS keychain the fake HOME cannot see. Run it from your
+#                  own shell with the token exported; the runner never reads it.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -56,6 +61,15 @@ OUT="$REPO/_tmp/native-eval-$(date +%Y-%m-%dT%H-%M-%S).json"
 # The plugin under test is the repo root as it ships — skills/, hooks/hooks.json
 # and .claude-plugin/plugin.json all load exactly as an installed user gets them.
 cd "$REPO"
+TOOLS=(Write Edit)
+if [ "${EVAL_BASH:-0}" = 1 ]; then
+  [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "EVAL_BASH=1 needs CLAUDE_CODE_OAUTH_TOKEN exported (claude setup-token)" >&2; exit 2; }
+  FAKE_HOME="$(mktemp -d "${TMPDIR:-/tmp}/aidex-eval-home.XXXXXX")"
+  mkdir -p "$FAKE_HOME/.docker"
+  export HOME="$FAKE_HOME"
+  TOOLS+=(Bash)
+  echo "EVAL_BASH: HOME=$FAKE_HOME (plain .docker), tools: ${TOOLS[*]}"
+fi
 # `claude plugin eval` exits 1 whenever any case scores below --threshold
 # (default 1.0). That is an expected outcome here, not a runner failure: the
 # verdict is the delta assertion below. Capture the status instead of letting
@@ -68,7 +82,7 @@ claude plugin eval . \
   --concurrency "$JOBS" \
   --ablation with-without \
   --scaffold \
-  --allow-tools Write Edit \
+  --allow-tools "${TOOLS[@]}" \
   --model "$MODEL" \
   --judge-model "$JUDGE" \
   --max-cost-usd "$MAX_COST" \
@@ -123,7 +137,7 @@ for c in d["cases"]:
     # A run that hit its budget carries `error` and its last message is a
     # mid-task sentence: the llm point it lost says nothing about the skill.
     for arm in ("with", "without"):
-        for i, r in enumerate(c["arms"][arm]):
+        for i, r in enumerate(c["arms"].get(arm, [])):
             if r.get("error"):
                 print(f"    {arm} run {i}: {r['error']} ({r['turns']} turns) -- score invalid")
             elif any("cost ceiling" in (g.get("explanation") or "") for g in r["graders"]):
