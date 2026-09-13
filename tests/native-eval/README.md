@@ -137,6 +137,14 @@ EVAL_BASH=1 EVAL_JOBS=2 ./tests/native-eval/run-eval.sh --only bugfix
 A dry run with a fake token reaches the child and dies at turn 1 with
 `401 Invalid bearer token`, cost 0 — use that to check the wiring.
 
+What the mode gives up: the check it sidesteps exists so the child's OS sandbox
+can hide the real `~/.docker` from Bash; under the throwaway HOME that exclusion
+covers the empty copy instead, so the plugin under test could read the real
+`~/.docker/config.json`. Acceptable here because the plugin under test is this
+repo's own reviewed code (see `--trust-plugin` above) and Docker Desktop keeps
+registry logins in the macOS keychain (`credsStore: desktop`, no inline `auths`).
+Do not use `EVAL_BASH=1` to evaluate a plugin you did not author.
+
 ## Skills that cannot be measured here
 
 `backlog` (id-claim scripts) and `worktree` (every path ends in a
