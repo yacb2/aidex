@@ -33,6 +33,7 @@ MODEL="${EVAL_MODEL:-claude-sonnet-5}"
 JUDGE="${EVAL_JUDGE_MODEL:-haiku}"
 MIN_DELTA="${EVAL_MIN_DELTA:-0.30}"
 MAX_COST="${EVAL_MAX_COST:-8}"
+JOBS="${EVAL_JOBS:-1}"
 RUNS=1
 CASE_GLOB='*'
 
@@ -64,6 +65,7 @@ claude plugin eval . \
   --eval-dir plugin-evals \
   --case "$CASE_GLOB" \
   --runs "$RUNS" \
+  --concurrency "$JOBS" \
   --ablation with-without \
   --scaffold \
   --allow-tools Write Edit \
@@ -102,8 +104,13 @@ if not d["cases"]:
 failed = []
 for c in d["cases"]:
     a = c["aggregates"]
-    ok = a["delta"] >= min_delta
-    print(f"{c['name']:38} {a['score']:6.2f} {a['scoreWithout']:8.2f} {a['delta']:7.2f}  {'ok' if ok else 'BELOW'}")
+    # Past --max-cost-usd the eval skips the remaining llm judges and drops
+    # scoreWithout/delta from the aggregates; the affected runs show a grader
+    # explanation "skipped: cost ceiling" and their 0 is not a verdict.
+    without = a.get("scoreWithout", a.get("passRateWithout", 0.0))
+    delta = a.get("delta", a["score"] - without)
+    ok = delta >= min_delta
+    print(f"{c['name']:38} {a['score']:6.2f} {without:8.2f} {delta:7.2f}  {'ok' if ok else 'BELOW'}")
     runs_with = c["arms"]["with"]
     indicators = {g["name"] for r in runs_with for g in r["graders"] if not g["scored"]}
     for name in sorted(indicators):
@@ -119,6 +126,8 @@ for c in d["cases"]:
         for i, r in enumerate(c["arms"][arm]):
             if r.get("error"):
                 print(f"    {arm} run {i}: {r['error']} ({r['turns']} turns) -- score invalid")
+            elif any("cost ceiling" in (g.get("explanation") or "") for g in r["graders"]):
+                print(f"    {arm} run {i}: judge skipped at the cost ceiling -- score invalid")
     if not ok:
         failed.append(c["name"])
 if runs < 3:

@@ -31,7 +31,9 @@ FOLDER name (`plan`, `plan-exec`, `artifact`), and the double dash is what keeps
 selects zero cases exits 1 rather than reporting green.
 
 Knobs, all env vars: `EVAL_MODEL` (default `claude-sonnet-5`), `EVAL_JUDGE_MODEL`
-(`haiku`), `EVAL_MIN_DELTA` (`0.30`), `EVAL_MAX_COST` (`8`), `EVAL_KEEP_TEMP=1`
+(`haiku`), `EVAL_MIN_DELTA` (`0.30`), `EVAL_MAX_COST` (`8`), `EVAL_JOBS` (`1`, passes `--concurrency`; 1-8 agent runs at once on the same
+rate limit — the way to parallelise, since two `run-eval.sh` processes collide on
+`plugin-evals/`, which collect-cases.sh rebuilds), `EVAL_KEEP_TEMP=1`
 (passes `--keep-temp`, so a run's `trace.jsonl` survives for inspection — the only
 way to see which tools actually ran).
 
@@ -155,3 +157,17 @@ two of three runs hit 600 s with the artefact already written. Size the case's
 
 One run per arm is noise. The `bugfix` case fired the skill in one 1-run
 pass and not in the next, on identical input — always `--verdict` before deciding.
+
+## Sandbox facts measured 2026-09-13
+
+- Fixtures must not live under `.claude/`: the sandbox denies Write and Edit there
+  in both arms (the `skill` case scored 0.00/0.00 until its fixture moved to
+  `skills/deploy-notes/`).
+- Past `--max-cost-usd` the eval skips the remaining llm judges (grader
+  explanation "skipped: cost ceiling") and drops `scoreWithout`/`delta` from the
+  aggregates. The summary tolerates that and flags those runs as invalid.
+- The artifact family costs about USD 10 reference per 3-run verdict (with-runs
+  of 800-900 s without Bash). Run it alone, or raise `EVAL_MAX_COST`.
+- A case whose fixture already documents the conventions (a plan with checkboxes,
+  a testing profile, an audit methodology) scores in the without-arm too. Its
+  measure is the fired indicator and the with-arm score, not the delta.
