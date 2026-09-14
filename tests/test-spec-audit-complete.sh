@@ -39,14 +39,18 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 # worktree — could never cite a green suite (BL-338). The table is workspace
 # data with exactly one copy, so a worktree grades the main checkout's copy
 # instead of pretending it has its own.
-CANON_ROOT="$REPO_ROOT"
+# Since the workspace split (BL-412, 2026-09-14) the repo has no `.context/` of its own:
+# it lives one level up, at the workspace root. `find_project_root` walks up to the
+# nearest `.context/` and hops to the main checkout from a linked worktree, so one
+# resolver covers both shapes (tests/test-spec-audit-root-walk.sh pins it).
+# shellcheck source=../skills/conventions/scripts/_lib.sh
+. "$REPO_ROOT/skills/conventions/scripts/_lib.sh"
 IN_WORKTREE=""
 _gitdir="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-dir 2>/dev/null || true)"
 _common="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-if [ -n "$_common" ] && [ "$_common" != "$_gitdir" ]; then
-  IN_WORKTREE="$REPO_ROOT"
-  CANON_ROOT="$(dirname "$_common")"
-fi
+[ -n "$_common" ] && [ "$_common" != "$_gitdir" ] && IN_WORKTREE="$REPO_ROOT"
+CANON_ROOT="$(cd "$REPO_ROOT" && find_project_root 2>/dev/null || true)"
+[ -n "$CANON_ROOT" ] || CANON_ROOT="$REPO_ROOT"
 AUDIT="$CANON_ROOT/.context/references/coverage/01-echolab-e2e-layer-audit.md"
 
 ECHOLAB="${ECHOLAB_PATH:-$HOME/Documents/projects/echo_lab_ws}"
