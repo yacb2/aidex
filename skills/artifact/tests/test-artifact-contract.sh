@@ -495,15 +495,28 @@ bash "$CHECK" "$TMP/regen-retitle.html" --prev "$TMP/consult-ok.html" >/dev/null
   && ok "case and whitespace changes in a title are not a shift" \
   || bad "a retyped title was reported as a moved claim"
 
-# Documented non-failure: ids are never renumbered, but they may be closed out.
+# BL-396: an id that DISAPPEARS is a failure too — a claim is closed by marking its
+# item decided, never by removing it. Two decided items vanished from a live
+# consultation under a string-slice rewrite and this check stayed green for two rounds.
 python3 - "$TMP/consult-ok.html" "$TMP/regen-dropped.html" <<'PY'
 import re, sys
 t = open(sys.argv[1], encoding="utf-8").read()
-t = re.sub(r'<section class="consult-item" data-id="c2".*?</section>', "", t, flags=re.S)
-open(sys.argv[2], "w").write(t)
+t2 = re.sub(r'<section class="consult-item" data-id="c2".*?</section>', "", t, flags=re.S)
+assert t2 != t, 'fixture drift: no c2 section to drop'
+open(sys.argv[2], "w").write(t2)
 PY
-bash "$CHECK" "$TMP/regen-dropped.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1 \
-  && ok "a removed item is not a renumbering" || bad "--prev failed on a legitimately closed item"
+out="$(bash "$CHECK" "$TMP/regen-dropped.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" == *"[consult-ids]"* && "$out" == *"dropped"* && "$out" == *"c2"* ]] \
+  && ok "a dropped id fails --prev and is named" \
+  || bad "an id removed between rounds passed --prev (BL-396): $out"
+
+# The one exit: a page declaring consult-surfaces: none is a closed page, not a round.
+sed 's#<title>#<meta name="consult-surfaces" content="none: closed page, the record stays"><title>#' \
+  "$TMP/regen-dropped.html" > "$TMP/regen-dropped-closed.html"
+out="$(bash "$CHECK" "$TMP/regen-dropped-closed.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" != *"dropped between rounds"* ]] \
+  && ok "a closed page (consult-surfaces: none) may drop ids" \
+  || bad "the closed-page exit did not clear the dropped-id failure: $out"
 
 bash "$CHECK" "$TMP/consult-ok.html" "$TMP/regen-same.html" --prev "$TMP/consult-ok.html" >/dev/null 2>&1
 [[ $? -eq 2 ]] && ok "--prev with several files is a usage error, not a guess" \

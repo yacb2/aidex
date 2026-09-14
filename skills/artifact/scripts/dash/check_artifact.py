@@ -26,7 +26,9 @@ Checks (per file):
                with a decision, nothing but blocks between the first block and
                the general notes, only header/figure/ledger before them (BL-247)
   consult-ids  with --prev: an id kept between two regenerations still names
-               the same claim
+               the same claim, and no id disappears — a closed claim stays on
+               the page; only a page declaring `consult-surfaces: none` (the
+               closed-page exit) may drop ids (BL-396)
   svg-contrast figure text below 4.5:1 against what it is painted on, in either
                theme (BL-330). The one check with two severities: it FAILS a
                named file — the wrap — and only WARNS in `--census`, because a
@@ -1904,9 +1906,13 @@ def check_consultation(path, text, flat):
 
 def check_prev(new_path, prev_path):
     """Requirement 1 across regenerations: an id kept between two versions
-    still names the same claim. The failure is a SHIFT — the ids all still
-    exist, the titles moved. An id that DISAPPEARS is not flagged: ids are
-    never renumbered, but a claim is allowed to be closed out.
+    still names the same claim, and no id disappears. A SHIFT is an id whose
+    title moved; a DROP is an id the previous version had and this one lacks.
+    BL-396: the drop was documented as "a claim may be closed out" and the
+    check stayed green while a string-slice rewrite of one block removed two
+    decided items from a live consultation for two rounds. A closed claim
+    stays on the page (§8.1: ids are never removed); the one exit is the page
+    declaring `consult-surfaces: none`, which is a closed page, not a round.
 
     Fails CLOSED: a diff that did not run is indistinguishable from a diff
     that passed, which is BL-126 reproduced inside the checker written to
@@ -1928,6 +1934,17 @@ def check_prev(new_path, prev_path):
                       f"change"))
         return fails, notes
     moved = [i for i in sorted(set(old) & set(new)) if old[i] != new[i]]
+    dropped = sorted(set(old) - set(new))
+    if dropped:
+        new_text = open(new_path, encoding="utf-8", errors="replace").read()
+        if not surfaces_declaration(new_text):
+            for i in dropped:
+                fails.append(("consult-ids", os.path.basename(new_path),
+                              f'id dropped between rounds — {i} ("{old[i]}") '
+                              f'was on the previous version and is not on this '
+                              f'one. Ids are never removed: keep the item and '
+                              f'mark it decided or closed; only a page declaring '
+                              f'consult-surfaces: none may drop ids'))
     # BL-323: a TRANSLATION changes every title by definition, and that is not
     # the failure this check exists for. On a real 12-item page it produced 12
     # FAILs at once, and the remedy the message proposes — append a new id — is

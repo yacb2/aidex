@@ -1169,8 +1169,10 @@ check-artifact.sh <new.html> --prev <old.html>
 It fails on a **shift** — an id whose title moved — which is what actually happened
 (a claim moved from D4 to D5 between two versions of one consultation, so a reply about
 "D5" meant two different things, and the violation was then papered over with a note to
-the reader). It does **not** fail on an id that disappears: ids are never renumbered, but
-they are allowed to be closed out.
+the reader). It also fails on an id that **disappears**: a claim is closed by marking
+its item decided, never by removing it (BL-396: a string-slice rewrite of one block
+dropped two decided items and the check stayed green for two rounds). The one exit is a
+page declaring `consult-surfaces: none` — a closed page, not a round.
 
 ---
 
