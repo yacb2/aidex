@@ -1,6 +1,6 @@
 # The aidex test surface
 
-Why this file is here: `testing-profile.md` at the repo root is the FACTS the scripts
+Why this file is here: `.context/testing-profile.md` is the FACTS the scripts
 read — keys, commands, expansions — and `profile-init.py --check` holds it to a 250-word
 body so facts and explanation do not mix in the one file every gate parses. The
 explanation is this document. It is TRACKED, unlike `.context/references/testing/`, which
@@ -33,10 +33,13 @@ runner runs.
 
 ## Where the profile lives
 
-At the repo ROOT, not in `.context/`, because aidex gitignores `.context/` by policy: a
-profile there could never travel with a checkout, so the gate was unrunnable on a fresh
-clone (BL-289). `.context/testing-profile.md` still wins wherever it exists, and both
-`sweep-gate.sh` and `profile-init.py --check` resolve it that way (BL-365).
+In `.context/`, like every other project's. From 2026-09-01 to 2026-09-14 it sat at the
+repo ROOT as the tracked fallback (BL-289: `.context/` is gitignored here, so the gate
+was unrunnable on a fresh clone). The owner reversed that on 2026-09-14: the profile
+names this machine's commands and layout and is workspace-private, so it does not
+belong in the public repo. Consequence, accepted: `sweep-gate.sh` refuses on a fresh
+clone until `profile-init.py` seeds a profile there. Both `sweep-gate.sh` and
+`profile-init.py --check` still resolve `.context/` first, root second (BL-365).
 
 ## Per-item selection
 

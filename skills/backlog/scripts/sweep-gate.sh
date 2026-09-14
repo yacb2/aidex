@@ -78,10 +78,9 @@ fi
 LEGS=("${ALL_LEGS[@]}"); [[ ${#ONLY[@]} -gt 0 ]] && LEGS=("${ONLY[@]}")
 
 ROOT="$(find_project_root)"
-# The profile normally lives in .context/. A project that GITIGNORES .context/ — aidex
-# does, by policy — could never let the profile travel with a checkout, so its own
-# boundary gate was unrunnable on a fresh clone and the refusal named the one path it
-# could not have. A repo-level testing-profile.md is the tracked fallback; .context/
+# The profile normally lives in .context/. A project that GITIGNORES .context/ could
+# never let the profile travel with a checkout, so its boundary gate was unrunnable on a
+# fresh clone and the refusal named the one path it could not have. A repo-level testing-profile.md is the tracked fallback; .context/
 # still wins when both exist, so nothing changes for a project that has one (BL-289).
 PROFILE="$ROOT/.context/testing-profile.md"
 PROFILE_ALT="$ROOT/testing-profile.md"

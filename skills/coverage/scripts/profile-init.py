@@ -75,9 +75,8 @@ PROFILE_BODY_MAX = 250  # words after the front-matter; the template's note is ~
 def resolve_profile(root):
     """The profile path, resolved the way sweep-gate.sh does.
 
-    A project that GITIGNORES .context/ — aidex does, by policy — cannot let the
-    profile travel with a checkout, so a tracked repo-root testing-profile.md is the
-    fallback (BL-289). .context/ still wins when both exist. This reader and the gate
+    A project that GITIGNORES .context/ cannot let the profile travel with a
+    checkout, so a tracked repo-root testing-profile.md is the fallback (BL-289). .context/ still wins when both exist. This reader and the gate
     share one contract; they disagreed about where the file lives until BL-365.
     """
     prof = os.path.join(root, ".context", "testing-profile.md")
