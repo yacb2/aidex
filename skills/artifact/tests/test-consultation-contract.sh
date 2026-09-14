@@ -509,6 +509,27 @@ grep -q "WARN \[svg-text\].*'much too long for this box'.*wider than" "$TMP/out"
 grep -qE "WARN \[svg-text\].*'(left|right|rotated axis)" "$TMP/out" \
   && fail "10c. a well-placed or rotated label was reported — the estimate is too wide: $(cat "$TMP/out")"
 
+# ---- 10c2. BL-411: a label that starts INSIDE its box and runs past its right
+# edge. The real figure (a1-t2-figure.svg): three 10.5 px labels at x=342 in a
+# 200 px rect at x=330, 208-219 px wide in Chrome, so 28-30 px past the edge on
+# three pages the owner read. The check compared label WIDTH to rect WIDTH and
+# never where the label sits, and the per-character table put r/t/f at 0.3 em,
+# 8 % under the browser on this label set.
+mkpage "$TMP/warn-svg-edge.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg viewBox=\"0 0 720 230\" role=\"img\" aria-label=\"probe\">
+  <rect x=\"330\" y=\"88\" width=\"200\" height=\"56\" fill=\"none\" stroke=\"currentColor\"/>
+  <g font-size=\"12\"><text x=\"342\" y=\"110\">subagente fresco, tools:[…]</text></g>
+  <g font-size=\"10.5\"><text x=\"342\" y=\"128\">crea 14k (49k sin restringir); modelo barato</text></g>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-svg-edge.html")"
+[[ "$rc" == "0" ]] || fail "10c2. svg-text changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[svg-text\].*'crea 14k (49k sin restringir); modelo barato'.*past the right edge" "$TMP/out" \
+  || fail "10c2. BL-411: a label running past its box edge was not reported: $(cat "$TMP/out")"
+grep -q "'subagente fresco, tools:\[…\]'" "$TMP/out" \
+  && fail "10c2. a label that fits its box (156 px in 188) was reported: $(cat "$TMP/out")"
+
 # ---- 10d. BL-330: an embedded <style> is a stylesheet in the PAGE, and the
 # text nobody measured. Reported by the owner on a bench page: "los textos que
 # están en un azul no se leen prácticamente". One figure's own

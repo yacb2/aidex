@@ -495,10 +495,14 @@ def facts_paragraphs(body):
 # against getBBox() of 52 labels in system-ui: digits and capitals ~0.6, the
 # narrow glyphs ~0.3, everything else ~0.52. A single 0.55 constant reported a
 # 26 px gap as a 13 px collision; the table lands within ±5 % of the rendering.
+# BL-411 (2026-09-14, 12 Spanish labels at 10.5-12 px in Chrome): r, t and f
+# at 0.3 put the estimate 8 % under the browser (-11.7 % worst); at 0.45 the
+# mean error is -3.3 %, inside the ±5 % the message claims.
 SVG_TAG = re.compile(r'<(/?)([a-zA-Z][\w:-]*)([^>]*?)(/?)>', re.S)
 SVG_ATTR = re.compile(r'([\w:-]+)\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))')
 SVG_BLOCK = re.compile(r'<svg\b([^>]*)>(.*?)</svg>', re.S | re.I)
-SVG_NARROW = set("iljtfIr.,:;'|!()[] ")
+SVG_NARROW = set("iljI.,:;'|!()[] ")
+SVG_MID = set("rtf")       # 0.45: narrower than a lowercase letter, wider than an i
 SVG_WIDE = set("mwMW@")
 # A container whose children ARE placed on the canvas: geometry and inherited
 # presentation flow through it. SVG_TEMPLATES is the other kind — its children
@@ -585,6 +589,8 @@ def svg_text_width(label, size, bold=False, mono=False):
     for ch in label:
         if ch in SVG_NARROW:
             w += 0.3
+        elif ch in SVG_MID:
+            w += 0.45
         elif ch in SVG_WIDE:
             w += 0.85
         elif ch.isdigit() or ch.isupper():
@@ -1183,9 +1189,20 @@ def svg_text_findings(text):
                            f"against {vb.strip()}) — the browser clips it")
             cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
             for rx0, ry0, rx1, ry1, _rf in rects:
-                if rx0 <= cx <= rx1 and ry0 <= cy <= ry1 and (x1 - x0) > (rx1 - rx0) + slack:
+                if not (rx0 <= cx <= rx1 and ry0 <= cy <= ry1):
+                    continue
+                if (x1 - x0) > (rx1 - rx0) + slack:
                     out.append(f"svg #{n}: '{label}' is wider than the box it sits in "
                                f"(estimated {x1 - x0:.0f} px in a {rx1 - rx0:.0f} px rect)")
+                    break
+                # BL-411: a label narrower than its box still leaves it when it
+                # does not start at the box's left edge — width against width
+                # said "fits" for three labels 28-30 px past their rect.
+                if x1 > rx1 + slack or x0 < rx0 - slack:
+                    side = "right" if x1 > rx1 + slack else "left"
+                    out.append(f"svg #{n}: '{label}' runs past the {side} edge of the box "
+                               f"it sits in (estimated x {x0:.0f}..{x1:.0f} against a rect "
+                               f"{rx0:.0f}..{rx1:.0f})")
                     break
         for i in range(len(texts)):
             for j in range(i + 1, len(texts)):
