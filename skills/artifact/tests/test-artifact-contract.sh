@@ -1193,6 +1193,23 @@ bash "$CHECK" "$TMP/wrapped-ok.html" >/dev/null 2>&1 \
   && ok "control: one section per h2 plus #raillist passes" \
   || bad "the well-formed rail page was rejected: $(bash "$CHECK" "$TMP/wrapped-ok.html" 2>&1)"
 
+# A tag left open swallows what follows: haiku's T2 page (A1, 2026-09-14) never
+# closed its <figure>, so in the DOM every section was a child of the figure,
+# `.main > section[id]` matched nothing and the rail listed one entry — while a
+# depth counter over <section> tags alone saw nothing wrong. The check must see
+# nesting the way the browser does: sections must be DIRECT children of .main.
+mkkit swallowed.html '<div class="page"><main class="main"><h1>t</h1><figure><svg viewBox="0 0 10 10"></svg><section id="s1"><h2>One</h2><p>Prose.</p></section><section id="s2"><h2>Two</h2><p>Prose.</p></section></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
+out="$(bash "$CHECK" "$TMP/swallowed.html" 2>&1)"
+[[ "$out" == *"rail"* ]] \
+  && ok "sections swallowed by an unclosed <figure> are caught (the rail would index none)" \
+  || bad "an unclosed figure hid every section from the rail and the check passed: $out"
+
+mkkit nested.html '<div class="page"><main class="main"><h1>t</h1><div class="wrap"><section id="s1"><h2>One</h2><p>Prose.</p></section></div></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
+out="$(bash "$CHECK" "$TMP/nested.html" 2>&1)"
+[[ "$out" == *"rail"* ]] \
+  && ok "a section wrapped in a div under .main is caught (not a direct child)" \
+  || bad "a section that is not a direct child of .main passed: $out"
+
 # The wrapper closes the gap for the .html body path the way md_body already
 # does for markdown: a body with .main and no #raillist gets the skeleton's aside.
 printf '%s\n' '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>One</h2><p>Prose.</p></section></main></div>' > "$TMP/norail-body.html"

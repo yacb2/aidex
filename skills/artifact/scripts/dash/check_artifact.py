@@ -1387,29 +1387,56 @@ CENSUS_ADVISORY = ("svg-contrast",)
 
 
 def h2s_outside_id_sections(flat):
-    """Count <h2> tags not enclosed by an open <section ... id=...>.
+    """Count <h2> elements the rail cannot index, the way the browser nests them.
 
-    Nesting is tracked with a depth counter over <section> / </section>; an h2 at
-    depth 0, or at a depth whose innermost open section carries no id, is an
-    orphan. The composer indexes only DIRECT children of .main, so a nested
-    section is an approximation the check accepts (nested id'd sections are
-    listed under their parent by the consult-group path); the two shipped
-    failures were depth-0 h2s and a missing aside, both caught exactly.
+    composer.js indexes `.main > section[id]` and takes the first h2 of each. So
+    an h2 is indexable only if some ancestor is a section WITH an id that is a
+    DIRECT child of `.main`. A regex depth counter over <section> tags missed
+    the shipped case: haiku's consultation (A1, 2026-09-14) never closed its
+    <figure>, so every section was nested inside the figure and the rail listed
+    one entry. html.parser follows the source nesting the same way the browser
+    does for an unclosed non-void element, so the parser sees what the reader
+    saw. Fails closed: an h2 with no .main ancestor is counted too.
     """
-    orphan = 0
-    stack = []
-    for m in re.finditer(r'<(/?)(section|h2)\b([^>]*)>', flat, re.I):
-        closing, tag, attrs = m.group(1), m.group(2).lower(), m.group(3)
-        if tag == "section":
-            if closing:
-                if stack:
-                    stack.pop()
-            else:
-                stack.append(bool(re.search(r'\bid=["\'][^"\']+["\']', attrs)))
-        elif not closing:
-            if not any(stack):
-                orphan += 1
-    return orphan
+    from html.parser import HTMLParser
+
+    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+            "meta", "param", "source", "track", "wbr"}
+
+    class P(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stack = []          # (tag, is_main, indexable_section)
+            self.orphans = 0
+
+        def handle_starttag(self, tag, attrs):
+            a = dict(attrs)
+            classes = (a.get("class") or "").split()
+            is_main = tag == "main" and "main" in classes or "main" in classes
+            parent_is_main = bool(self.stack) and self.stack[-1][1]
+            indexable = (tag == "section" and bool(a.get("id"))
+                         and parent_is_main)
+            if tag == "h2":
+                if not any(fr[2] for fr in self.stack):
+                    self.orphans += 1
+            if tag in VOID:
+                return
+            self.stack.append((tag, is_main, indexable))
+
+        def handle_startendtag(self, tag, attrs):
+            self.handle_starttag(tag, attrs)
+            if tag not in VOID:
+                self.stack.pop()
+
+        def handle_endtag(self, tag):
+            for k in range(len(self.stack) - 1, -1, -1):
+                if self.stack[k][0] == tag:
+                    del self.stack[k:]
+                    return
+
+    p = P()
+    p.feed(flat)
+    return p.orphans
 
 
 def check_file(path):
@@ -1519,9 +1546,11 @@ def check_file(path):
             orphan = h2s_outside_id_sections(flat)
             if orphan:
                 report("rail", f"{orphan} <h2> heading(s) not inside an id'd "
-                       f"<section> — the rail indexes `.main > section[id]` "
-                       f"only, so those headings are missing from the index. "
-                       f"Give each h2 its own <section id=\"…\">")
+                       f"<section> that is a DIRECT child of .main — the rail "
+                       f"indexes `.main > section[id]` only (an unclosed tag "
+                       f"above them nests them somewhere else), so those "
+                       f"headings are missing from the index. Give each h2 its "
+                       f"own <section id=\"…\"> directly under <main>")
         try:
             bad = unwrapped_tables(text)
         except Exception as e:                      # noqa: BLE001 — fail closed
