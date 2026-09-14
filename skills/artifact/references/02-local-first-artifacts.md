@@ -843,7 +843,8 @@ ask came back.
 
 So the default inverts. When the thing under discussion has a **shape** — a flow, a
 layout, a state machine, two alternatives to compare, a before/after — the page opens
-with the drawing and the prose explains it. Load `artifact-diagramming` for the
+with the drawing and the prose explains it. Load `artifact-diagramming` (a Claude Code
+built-in skill, not one of aidex's; there is no `skills/artifact-diagramming/`) for the
 mechanics; inline SVG satisfies the contract (no external host). Mermaid does not
 and is not a value: nothing in the kit or the wrapper renders it, and a local page
 cannot fetch a renderer, so a `<pre class="mermaid">` block shows the reader its own
@@ -1031,7 +1032,7 @@ Measure in DevTools before calling a figure fine — the ratio, not the screensh
 On 2026-09-03 a consultation passed `artifact contract OK` with two hand-authored
 figures the reader could not read: axis labels under event labels, two dates colliding,
 an arrow crossing three labels, two labels wider than their boxes. The contract reads DOM
-shape and never geometry, and `artifact-diagramming` says "align to a grid" with no way
+shape and never geometry, and the built-in `artifact-diagramming` says "align to a grid" with no way
 to verify it. Two layers now exist, and they are not interchangeable:
 
 - **`svg-text` at wrap time** is a static estimate on `viewBox` coordinates: font-size

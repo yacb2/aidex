@@ -15,7 +15,7 @@ title: "artifacts"           # English identifier == filename stem
 label: { en: "Artifacts", es: "Artefactos" }
 lexicon:                     # label -> regex, re.I; the ONLY owner of these entries
   artifact:page: "\\bartifact\\b|\\bartefacto\\b|\\bp[aá]gina de consulta\\b"
-skills: [artifact-design, artifact-diagramming, artifact]
+skills: [artifact-design, artifact-diagramming, artifact]  # the first two are Claude Code built-ins
 slash: ["/aidex:artifact"]
 scripts: [wrap-report.sh, check-artifact.sh, render.sh]
 paths: ["\\.context/reports/", "\\.html$"]
