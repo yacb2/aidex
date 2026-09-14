@@ -163,6 +163,23 @@ the refute-bias asks of them. The defect was in the *announcement* — a number 
 the dominant term reads as a total. State the floor, call it a floor, and say what the one
 measured run cost against it.
 
+**Re-measured 2026-09-13 (Q9, aidex spike `2026-09-13-supervised-cheap-subagents`,
+`08-programme-design.md` § Q9, `proofs/prog/q9/`).** One correctness finder per run, three
+default angles, on three real modules snapshotted before eleven labelled shipped defects
+(nine tier-1), 45 runs blind-graded: every cell from `sonnet/low` to `opus/medium` found 1
+of 135 label-chances. What every cell finds instead is the same cluster of real,
+low-severity, unlabelled defects; opus is not more precise, only more voluminous. Per run:
+`opus/medium` 4-7 findings at $1.0-3.5 and 4-13 min; `fable/low` 5-7 at $0.9-3.6 and 4-8
+min; `sonnet/medium` restricted 3-5 at $0.5-1.3 and 6-11 min; `sonnet/low` 2-3 at $0.3-0.6
+and 1.5-4 min. Restricting opus's tools changed nothing measurable. Two consequences the
+policy above has to carry: reviewer money buys volume of minor findings, not recall of the
+class that ships (fenced-code paths, selector chains, branch order), which usage finds and
+the bugfix regression test closes; and a finder on `sonnet/medium` restricted returns the
+same class at a third of the price, with `fable/low` the cheaper-than-opus escalation when a
+first pass returns fewer than 3 findings. Whether `inherit-session` yields to that row is a
+policy decision, not a measurement, and is open (Q9 adoption). Limits: N=3 per cell, one
+repository, one finder per run against production's 3 + verifier.
+
 **The §4 figure does not transfer without this caveat.** That measurement is the *diff*
 regime: hunks, a capped candidate count, Haiku verifiers. A module review has no such cap,
 and the uncapped candidate surface is what moves the total.
