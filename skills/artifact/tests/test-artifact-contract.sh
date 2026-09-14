@@ -1149,7 +1149,7 @@ out="$(bash "$CHECK" "$TMP/bare-table.html" 2>&1)"
   && ok "a table outside any scroll container is caught" \
   || bad "a bare table passed, so it is free to paint over the rail: $out"
 
-mkkit tw-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><div class="tw"><table><tr><td>a</td><td>b</td></tr></table></div></section></main></div>'
+mkkit tw-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><div class="tw"><table><tr><td>a</td><td>b</td></tr></table></div></section></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
 bash "$CHECK" "$TMP/tw-table.html" >/dev/null 2>&1 \
   && ok "control: the same table inside .tw passes" \
   || bad "a table inside the kit wrapper was rejected: $(bash "$CHECK" "$TMP/tw-table.html" 2>&1)"
@@ -1158,7 +1158,7 @@ bash "$CHECK" "$TMP/tw-table.html" >/dev/null 2>&1 \
 # document carries, not from a whitelist — a page that wraps its tables in
 # `.scroll` is honouring the rule, and a checker that only knows `.tw` would fail
 # it for a defect it does not have. One artifact on disk does exactly this.
-mkkit own-scroll.html '<style>.roll{overflow-x:auto}</style><div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><div class="roll"><table><tr><td>a</td></tr></table></div></section></main></div>'
+mkkit own-scroll.html '<style>.roll{overflow-x:auto}</style><div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><div class="roll"><table><tr><td>a</td></tr></table></div></section></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
 bash "$CHECK" "$TMP/own-scroll.html" >/dev/null 2>&1 \
   && ok "a page's own overflow wrapper counts, without a whitelist" \
   || bad "a table in the page's own scroll wrapper was rejected: $(bash "$CHECK" "$TMP/own-scroll.html" 2>&1)"
@@ -1166,10 +1166,43 @@ bash "$CHECK" "$TMP/own-scroll.html" >/dev/null 2>&1 \
 # A commented-out table is not markup. skeleton.html is a file of examples in
 # comments, so this is the false positive that would have fired on the very page
 # authors copy from.
-mkkit commented-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><!-- <table><tr><td>example</td></tr></table> --><p>Prose.</p></section></main></div>'
+mkkit commented-table.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>s</h2><!-- <table><tr><td>example</td></tr></table> --><p>Prose.</p></section></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
 bash "$CHECK" "$TMP/commented-table.html" >/dev/null 2>&1 \
   && ok "a table inside an HTML comment is not counted" \
   || bad "a commented-out table was reported as unwrapped: $(bash "$CHECK" "$TMP/commented-table.html" 2>&1)"
+
+# --- The rail is built at runtime from `.main > section[id]` into #raillist ----
+# (composer.js), so a page can pass every static check and open with NO index:
+# either the author wrote .page/.main and left the <aside class="rail"> out, or
+# only some of the h2s sit in an id'd top-level section and the rail lists those.
+# Both shipped on 2026-09-13 (D4, spike 2026-09-13-supervised-cheap-subagents).
+echo "== the navigation rail (D4) =="
+mkkit norail.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>One</h2><p>Prose.</p></section><section id="s2"><h2>Two</h2><p>Prose.</p></section></main></div>'
+out="$(bash "$CHECK" "$TMP/norail.html" 2>&1)"
+[[ "$out" == *"rail"* ]] \
+  && ok "a kit page with .page/.main but no #raillist is caught" \
+  || bad "a page with no rail container passed, so it opens with no index: $out"
+
+mkkit partrail.html '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>One</h2><p>Prose.</p></section><h2>Two</h2><p>Loose.</p><div><h2>Three</h2></div></main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>'
+out="$(bash "$CHECK" "$TMP/partrail.html" 2>&1)"
+[[ "$out" == *"rail"* ]] \
+  && ok "an h2 outside any id'd top-level section is caught (the rail would list 1 of 3)" \
+  || bad "a page whose rail can only index 1 of its 3 headings passed: $out"
+
+bash "$CHECK" "$TMP/wrapped-ok.html" >/dev/null 2>&1 \
+  && ok "control: one section per h2 plus #raillist passes" \
+  || bad "the well-formed rail page was rejected: $(bash "$CHECK" "$TMP/wrapped-ok.html" 2>&1)"
+
+# The wrapper closes the gap for the .html body path the way md_body already
+# does for markdown: a body with .main and no #raillist gets the skeleton's aside.
+printf '%s\n' '<div class="page"><main class="main"><h1>t</h1><section id="s1"><h2>One</h2><p>Prose.</p></section></main></div>' > "$TMP/norail-body.html"
+bash "$WRAP" --title "t" --lang en --in "$TMP/norail-body.html" --out "$TMP/norail-wrapped.html" >/dev/null 2>&1
+grep -q 'id="raillist"' "$TMP/norail-wrapped.html" \
+  && ok "wrap injects the rail aside into an .html body that has none" \
+  || bad "the wrapped page still has no #raillist"
+bash "$CHECK" "$TMP/norail-wrapped.html" >/dev/null 2>&1 \
+  && ok "and the wrapped page passes the rail check" \
+  || bad "the wrapped page fails: $(bash "$CHECK" "$TMP/norail-wrapped.html" 2>&1)"
 
 # Route A boards are full of tables and are not kit pages: the same stamp gate as
 # the layout check keeps them out of it.

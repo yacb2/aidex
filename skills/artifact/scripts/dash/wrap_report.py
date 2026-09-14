@@ -363,6 +363,24 @@ def _warn_prose_only_language(ctx):
           f"`- language: <code>` line to the profile, or pass --lang.", file=sys.stderr)
 
 
+
+RAIL_ASIDE = ('<aside class="rail">\n  <p class="railhead">Contents</p>\n'
+              '  <nav class="raillist" id="raillist"></nav>\n</aside>')
+
+
+def inject_rail(body):
+    """Add the skeleton's rail aside after </main> when the body has none.
+
+    md_body emits it for markdown; the .html body path relied on the author
+    copying it from skeleton.html, and two delegated pages shipped without it
+    (D4, 2026-09-13). The aside is inert without the composer, which every
+    wrapped page carries, so injecting it is never wrong on a kit page.
+    """
+    if re.search(r'id=["\']raillist["\']', body) or "</main>" not in body:
+        return body
+    return body.replace("</main>", "</main>\n" + RAIL_ASIDE, 1)
+
+
 def main():
     p = argparse.ArgumentParser(description="Wrap report content in the document envelope")
     p.add_argument("--title", required=True, help="document title (browser tab)")
@@ -421,6 +439,7 @@ def main():
               file=sys.stderr)
 
     head_extra, body = split_head_style(content)
+    body = inject_rail(body)
     # Reset -> kit tokens -> kit components -> project delta -> the page's own
     # <style>. Each layer may override the one before it, and the author's block
     # is last so a local rule still wins. Writing a page is writing content plus

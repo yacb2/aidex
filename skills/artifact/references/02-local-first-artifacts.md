@@ -920,6 +920,7 @@ exempts nothing, same rule as the visual declaration.
 |---|---|
 | `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
 | `consult-ids` | an id kept between two versions now names a different claim |
+| `rail` | a kit page inside `.page`/`.main` with no `#raillist`, or an `<h2>` outside any id'd `<section>` — composer.js builds the index at load from `.main > section[id]`, so either way the reader opens a page with a missing or partial index (D4, 2026-09-13: two delegated pages shipped so). `wrap-report.sh` injects the aside after `</main>` when the body has none |
 
 **Four findings are WARNINGS, not violations.** They print as `WARN [check]`, never change
 the exit code, and are not waivable — a waiver keys on (`artifact-<check>`, path), and

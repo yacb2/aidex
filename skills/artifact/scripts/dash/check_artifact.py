@@ -1385,6 +1385,33 @@ def svg_contrast_reports(text, name):
 CENSUS_ADVISORY = ("svg-contrast",)
 
 
+
+def h2s_outside_id_sections(flat):
+    """Count <h2> tags not enclosed by an open <section ... id=...>.
+
+    Nesting is tracked with a depth counter over <section> / </section>; an h2 at
+    depth 0, or at a depth whose innermost open section carries no id, is an
+    orphan. The composer indexes only DIRECT children of .main, so a nested
+    section is an approximation the check accepts (nested id'd sections are
+    listed under their parent by the consult-group path); the two shipped
+    failures were depth-0 h2s and a missing aside, both caught exactly.
+    """
+    orphan = 0
+    stack = []
+    for m in re.finditer(r'<(/?)(section|h2)\b([^>]*)>', flat, re.I):
+        closing, tag, attrs = m.group(1), m.group(2).lower(), m.group(3)
+        if tag == "section":
+            if closing:
+                if stack:
+                    stack.pop()
+            else:
+                stack.append(bool(re.search(r'\bid=["\'][^"\']+["\']', attrs)))
+        elif not closing:
+            if not any(stack):
+                orphan += 1
+    return orphan
+
+
 def check_file(path):
     """Every violation in one file, as (check, name, message) tuples."""
     fails = []
@@ -1459,15 +1486,42 @@ def check_file(path):
     # wants to be full-bleed overrides `.page { max-width: none }` in its own
     # <style> and keeps the grid, the rail and the responsive collapse.
     if KIT_STAMP.search(flat):
+        contained = True
         for cls in ("page", "main"):
             if not re.search(r'class=["\'](?:[^"\']*\s)?' + cls
                              + r'(?:\s[^"\']*)?["\']', flat):
+                contained = False
                 report("layout", f'no element with class="{cls}" — the content '
                        f'is outside the kit\'s layout container, so the page '
                        f'renders full-bleed with no reading measure. Wrap it '
                        f'the way assets/artifact-kit/skeleton.html does: '
                        f'<div class="page"><main class="main">…</main>'
                        f'<aside class="rail">…</aside></div>')
+        # --- the rail (D4, 2026-09-13) -------------------------------------------
+        # composer.js builds the index at load from `.main > section[id]` (one
+        # entry per section that holds an h2) into #raillist. Nothing static
+        # rendered it, so two shipped pages passed with no index: one had no
+        # <aside class="rail"> at all, one had 9 h2s and 3 id'd sections.
+        # Static approximation: #raillist must exist, and every <h2> in the
+        # document must be preceded by an id'd <section> open tag that is still
+        # open (depth-counted), which is what the composer can index.
+        # Only inside the container: a page that already fails `layout` has no
+        # column for a rail to sit beside, and a second finding for the same
+        # missing structure would defeat a waiver of the first (census fixture).
+        if not contained:
+            pass
+        elif not re.search(r'id=["\']raillist["\']', flat):
+            report("rail", 'no element with id="raillist" — composer.js builds '
+                   'the page index into it, so the page opens with no rail. Add '
+                   'the skeleton\'s <aside class="rail"> after </main>, or wrap '
+                   'with wrap-report.sh which injects it')
+        else:
+            orphan = h2s_outside_id_sections(flat)
+            if orphan:
+                report("rail", f"{orphan} <h2> heading(s) not inside an id'd "
+                       f"<section> — the rail indexes `.main > section[id]` "
+                       f"only, so those headings are missing from the index. "
+                       f"Give each h2 its own <section id=\"…\">")
         try:
             bad = unwrapped_tables(text)
         except Exception as e:                      # noqa: BLE001 — fail closed
