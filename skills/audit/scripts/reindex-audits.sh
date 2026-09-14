@@ -56,6 +56,21 @@ INVENTORY=""
 [[ -f "$AUDITS_DIR/00-inventory.md" ]] && INVENTORY="$AUDITS_DIR/00-inventory.md"
 [[ -z "$INVENTORY" && -f "$AUDITS_DIR/INVENTORY.md" ]] && INVENTORY="$AUDITS_DIR/INVENTORY.md"
 
+# BL-389: a finding id that appears twice makes every per-run count and every
+# append-note ambiguous (00-inventory.md carried USAGE-19..23 once per run for
+# three months). Refuse to regenerate over one; validate-audit.sh names the same
+# rows as audit-duplicate-id.
+for inv in "$AUDITS_DIR"/00-inventory.md "$AUDITS_DIR"/*/00-inventory.md; do
+  [[ -f "$inv" ]] || continue
+  dups="$(awk -F'|' '
+    { if (index($0,"<!--")>0) in_comment=1
+      if (in_comment) { if (index($0,"-->")>0) in_comment=0; next }
+      if ($0 !~ /^\|/) next
+      id=$2; gsub(/^[[:space:]]+|[[:space:]]+$/,"",id)
+      if (id ~ /^[A-Z]+[-A-Z0-9]*-[0-9]+$/ && ++seen[id]==2) print id }' "$inv")"
+  [[ -z "$dups" ]] || die "duplicate finding id(s) in $inv: $(printf '%s' "$dups" | tr '\n' ' ')— fix the inventory before reindexing (validate-audit.sh: audit-duplicate-id)"
+done
+
 # Read run index.md front-matter, \037-separated: status, title, methodology, created, updated.
 # `methodology` falls back to legacy `type:` when absent.
 read_run_fm() {
