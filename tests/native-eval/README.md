@@ -6,7 +6,7 @@ Verified on **2.1.269**. Findings and the schema deltas behind these choices:
 
 ## What this measures
 
-Two things the legacy `evals/{eval-config.json,trigger_eval.json}` suites cannot:
+Two things the legacy trigger suites cannot:
 
 1. **Did the skill fire** — natively, via a `tool_used: Skill` grader, with no
    `printenv`/`touch` probe block in `SKILL.md`.
@@ -64,18 +64,38 @@ skills/<skill>/evals/native/<case>/
 `collect-cases.sh` collects them into the gitignored `plugin-evals/<skill>--<case>/`
 at the repo root — `--eval-dir` takes a directory NAME below the plugin, not a path.
 
-### Grader shapes that exist in 2.1.269
+### Grader shapes (re-measured on 2.1.273, 2026-09-16)
+
+Written against 2.1.269; two rows were wrong by 2.1.273. Re-measured with
+throwaway probe suites — every cell below is a run, not a doc page.
 
 | type | keys | notes |
 |---|---|---|
-| `tool_used` | `tool`, `input_match`, `min`, `max` | the trigger indicator; under ablation it is `scored:false` |
-| `llm` | body = criteria, `weight`, `arm` | judged 3x by `--judge-model`; grades the **final message** only |
-| `file_exists` | `path` glob, cwd-relative | sees only files the **run creates** — scaffolded files are invisible to it. `*` works; character classes do **not** (`20[0-9][0-9]-*` failed 3/3 on a file that existed) |
-| `regex` | `pattern`, `match` | cannot be scoped to a file: no `files`/`source`/`path` key |
-| `tool_order` | `before`, `after` | tool names only; too coarse to encode RED→GREEN |
+| `tool_used` | `tool`, `input_match`, `min`, `max` | the trigger indicator; `arm: with-only` is the input, `scored:false` is how it reads back in the JSON |
+| `llm` | body = criteria, `weight`, `arm`, `focus` | judged 3x by `--judge-model` (default haiku); `focus: last_message` grades the final message only |
+| `file_exists` | `path` glob, cwd-relative | sees only files the **run creates** — scaffolded files are invisible to it (still true at 2.1.273). `*` works; character classes do **not** (`20[0-9][0-9]-*` failed 3/3 on a file that existed) |
+| `regex` | `pattern`, `match`, `target` | **can** be scoped to a file since some version after 2.1.269: `target: {source: file, path: <literal>}`, also `target: trace`. The path must be literal — a `*` glob throws "path does not exist" |
+| `tool_order` | `before`, `after` | tool names only; too coarse to encode RED->GREEN |
+| `baseline` | `baseline_file`, body = criteria | accepted at 2.1.273; a paid grader, skipped at the cost ceiling. Unused in this suite |
 
-There is **no** `target:` key on any grader, and no published JSON Schema —
-`claude plugin eval init --bare <name>` is the only authoritative template.
+File visibility differs **by grader type on the same path in the same run**:
+
+| | literal path | glob | sees the scaffold | sees what the run creates |
+|---|---|---|---|---|
+| `regex` with `target: {source: file}` | yes | no (throws) | **yes** | yes |
+| `file_exists` | yes | `*` only | **no** | yes |
+
+That asymmetry is a trap: `file_exists` reports a scaffolded file as "missing"
+while a `regex` grader reads that same file's contents in the same run. Measured
+2026-09-16 on a scaffolded `src/clamp.py`: `regex` matched both the scaffold's
+own marker and the agent's edit; `file_exists` on the same path said missing.
+
+`prompt.md` front-matter accepts exactly `schema_version, name, description,
+tags, plugins, runs, expected_outcome, model, max_turns, timeout_seconds,
+allowed_tools, artifact_publish, growthbook_overrides, append_system_prompt,
+env`. `scaffold_script` is **not** one of them — it lives in `case.yaml` under
+`context`. There is no published JSON Schema; `claude plugin eval init --bare
+<name>` and the loader's own error messages are the authoritative template.
 
 ## The target is the repo root, not a copy
 
@@ -109,9 +129,16 @@ final message, and the native `tool_used: Skill` grader measures the same
 property without it. The blocks were deleted with the strip step.
 
 Consequence for the legacy harness: its **file-marker** predicate can no longer
-fire. The `trigger_eval.json` query sets are unaffected and remain usable by the
-stream-json detector (§3a of
-`skills/conventions/references/skill-trigger-eval-methodology.md`).
+fire. So `skills/*/evals/eval-config.json` was a config for a check that could
+never pass again, and the 18 files were deleted on 2026-09-16.
+
+`skills/*/evals/trigger_eval.json` stays. Those 18 files are **386 queries
+labelled by hand** with `should_trigger` true/false, they do not depend on the
+deleted predicate, and the stream-json detector still reads them (§3a of
+`skills/conventions/references/skill-trigger-eval-methodology.md`). They are a
+trigger sample far larger than the n=3 per skill the native cases give. They are
+**not** judge-alignment data: they label whether a skill should fire, which a
+deterministic `tool_used: Skill` grader already decides without a judge.
 
 ## Bash is opt-in: `EVAL_BASH=1`
 
@@ -180,6 +207,65 @@ two of three runs hit 600 s with the artefact already written. Size the case's
 
 One run per arm is noise. The `bugfix` case fired the skill in one 1-run
 pass and not in the next, on identical input — always `--verdict` before deciding.
+
+### Two gate modes: `delta` and `fired-only`
+
+Six of the 19 cases (`artifact` x2, `review`, `coverage`, `audit`, `plan-exec`)
+have a delta of ~0 **by construction** — their fixture or prompt already carries
+what the skill would add, so the without-arm scores too. Until 2026-09-16 the
+runner gated every case on `delta >= EVAL_MIN_DELTA`, so a full-suite run exited
+1 and named those six correct cases as failures. A gate that is wrong on six of
+nineteen is a gate the operator learns to ignore, which is exactly how
+`durability-stop-hook.sh` earned its retirement.
+
+Mark such a case in its `case.yaml`:
+
+```yaml
+tags: ["fired-only"]
+```
+
+`tags` is a valid case key (the loader accepts all 19 cases with it) and `cp -R`
+in `collect-cases.sh` carries it into the collected copy, which is where the gate
+reads it from. The summary prints the mode it used per case:
+
+```
+coverage--which-layer     1.00  1.00  0.00  ok    [fired-only]
+    indicator skill-fired: fired 3/3
+```
+
+A `fired-only` case is not unchecked — it must fire its indicator in **every**
+run. That still catches the real defect this suite exists to find: `bugfix` fired
+5/15 across five batches before its description was rewritten, and `plan-exec`
+2/3 before the same fix. What it no longer does is demand a delta the case
+cannot produce.
+
+## An `llm` grader on the final message credits self-certification
+
+Measured 2026-09-16 over the seven frozen records in
+`baselines/2026-09-12-pre-plugin/`: **12 passing grader verdicts across 6 of the
+7 cases** come from runs where the agent said it could not execute the skill's
+`validate.py` and had checked the artefact by hand instead. The judge voted
+PASS 3-0 on every one of them.
+
+Nothing in that path looks at the artefact. Under `focus: last_message` the
+agent's own compliance claim IS the evidence, so the grader scores the
+self-assessment, not the file. Twelve is an upper bound on suspect passes rather
+than a count of them: one of the twelve is the opposite of a defect, a
+`reference` run that refused to fabricate a command's output and said so.
+
+It is the same sentence that produces the *false negatives* those graders were
+patched for four times (bugfix, artifact x2, plan), where the judge read a
+"no shell here" opening as the outcome. An exemption telling the judge to ignore
+such statements makes this false positive more likely, not less — the two
+failures share a cause and pull in opposite directions.
+
+> Assert an artefact's conventions with a `regex` grader over the file itself,
+> and leave the judge only what a regex cannot see.
+
+The cost of doing that: a `regex` target must be a literal path and these
+artefacts are date-stamped, so the case prompt has to pin the filename. That is
+acceptable — the case is testing whether the body follows the canon, not whether
+the model picks a good slug.
 
 ## Sandbox facts measured 2026-09-13
 

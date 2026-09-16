@@ -103,7 +103,14 @@ fi
 
 # `--threshold` gates the with-arm score only; there is no delta flag. The
 # verdict this suite cares about IS the delta, so assert it here.
-MIN_DELTA="$MIN_DELTA" RUNS="$RUNS" python3 - "$OUT" <<'PY'
+#
+# Two modes, because one gate cannot judge both kinds of case. A `fired-only`
+# case (tagged in its case.yaml) has a delta of ~0 BY CONSTRUCTION: its fixture
+# or prompt already carries what the skill would add, so the without-arm scores
+# too. Gating those on delta marked 6 of 19 correct cases as failures, which is
+# how an operator learns to ignore a gate. They are asserted on the fired
+# indicator instead - the property they actually measure.
+MIN_DELTA="$MIN_DELTA" RUNS="$RUNS" REPO="$REPO" python3 - "$OUT" <<'PY'
 import json, os, sys
 
 d = json.load(open(sys.argv[1]))
@@ -115,6 +122,18 @@ if not d["cases"]:
     print("\nERROR: the run selected ZERO cases — a green result here means nothing.")
     print("--case matches the `name:` in case.yaml, not the folder name.")
     sys.exit(1)
+def fired_only(case):
+    """Read the collected case.yaml - cp -R carries the source tags through."""
+    path = os.path.join(os.environ["REPO"], case.get("dir", ""), "case.yaml")
+    try:
+        with open(path) as fh:
+            for line in fh:
+                if line.startswith("tags:") and "fired-only" in line:
+                    return True
+    except OSError:
+        pass
+    return False
+
 failed = []
 for c in d["cases"]:
     a = c["aggregates"]
@@ -123,17 +142,32 @@ for c in d["cases"]:
     # explanation "skipped: cost ceiling" and their 0 is not a verdict.
     without = a.get("scoreWithout", a.get("passRateWithout", 0.0))
     delta = a.get("delta", a["score"] - without)
-    ok = delta >= min_delta
-    print(f"{c['name']:38} {a['score']:6.2f} {without:8.2f} {delta:7.2f}  {'ok' if ok else 'BELOW'}")
     runs_with = c["arms"]["with"]
     indicators = {g["name"] for r in runs_with for g in r["graders"] if not g["scored"]}
-    for name in sorted(indicators):
-        fired = sum(
+    fired_counts = {
+        name: sum(
             1 for r in runs_with
             for g in r["graders"]
             if g["name"] == name and not g["scored"] and g["passed"]
         )
-        print(f"    indicator {name}: fired {fired}/{len(runs_with)}")
+        for name in sorted(indicators)
+    }
+
+    if fired_only(c):
+        # Assert the indicator, not the delta. No indicator at all, or one that
+        # misses a run, means the skill did not engage - that IS a failure here.
+        ok = bool(indicators) and all(
+            n == len(runs_with) for n in fired_counts.values()
+        )
+        mode = "fired-only"
+    else:
+        ok = delta >= min_delta
+        mode = "delta"
+    verdict = "ok" if ok else "BELOW"
+    print(f"{c['name']:38} {a['score']:6.2f} {without:8.2f} {delta:7.2f}  "
+          f"{verdict:5} [{mode}]")
+    for name in sorted(indicators):
+        print(f"    indicator {name}: fired {fired_counts[name]}/{len(runs_with)}")
     # A run that hit its budget carries `error` and its last message is a
     # mid-task sentence: the llm point it lost says nothing about the skill.
     for arm in ("with", "without"):
@@ -147,6 +181,8 @@ for c in d["cases"]:
 if runs < 3:
     print("\nNOTE: 1 run per arm is for grader iteration. Use --verdict before deciding anything.")
 if failed:
-    print(f"\ndelta below {min_delta}: {', '.join(failed)}")
+    print(f"\nFAILED: {', '.join(failed)}")
+    print(f"(delta cases need delta >= {min_delta}; fired-only cases need "
+          f"their indicator to fire in every run)")
     sys.exit(1)
 PY

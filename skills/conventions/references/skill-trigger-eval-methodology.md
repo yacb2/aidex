@@ -207,8 +207,9 @@ skill probe's env var. Full statement: §6 `claude -p` instrument facts.
 (test-only).**` block was deleted from all 18 aidex `SKILL.md` — models refuse it
 as a prompt injection, and the native `tool_used: Skill` grader
 (`tests/native-eval/`) measures the same property. The file-marker predicate in
-`skills/*/evals/eval-config.json` can therefore no longer fire here; the
-`trigger_eval.json` query sets and the stream-json detector above are unaffected.
+`skills/*/evals/eval-config.json` can therefore no longer fire here; those 18
+files were deleted on 2026-09-16. The `trigger_eval.json` query sets and the
+stream-json detector above are unaffected and stay.
 The constraint above still holds for any OTHER skill tree that uses a probe.
 
 **§8 applies unchanged.** Being 17x cheaper is not a licence to fan out: the
@@ -508,9 +509,11 @@ now; this section is the deliberate record of it, and of where the boundary sits
 **What the external harness owns — "did the skill fire?"** It supports exactly
 two predicates, `file_exists` and `file_contains`, and rejects anything else
 (`:58-64`, evaluated at `:149-151`). Its check path is a literal existence test
-with two substitutions only, `{{TEST_ID}}` and `{{HOME}}` (`:91-93`). All 16
-`skills/*/evals/eval-config.json` declare `file_exists`; `file_contains` has
-been available the whole time and is unused.
+with two substitutions only, `{{TEST_ID}}` and `{{HOME}}` (`:91-93`). All 18
+`skills/*/evals/eval-config.json` declared `file_exists`; `file_contains` has
+been available the whole time and was never used. Those config files are gone
+since 2026-09-16 (their predicate could not fire after the probe strip), so this
+paragraph is a record of the harness contract, not of live files in this repo.
 
 **Why it is not extended for output grading.** Its own `description` scopes it:
 *"this skill only answers 'did the skill fire?'"*, and explicitly excludes graded
