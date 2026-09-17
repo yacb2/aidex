@@ -3,9 +3,12 @@ type: llm
 weight: 1
 ---
 
-El mensaje final debe decir que el pedido quedó capturado como un artefacto en
-`.context/requests/`, e identificar de qué pedido se trata (exportar a Excel los
-informes mensuales). Falla si el pedido se contestó solo en el chat sin crear el
-artefacto, o si lo guardó en otra carpeta.
+Lo único que se juzga aquí es la SUSTANCIA: que el pedido capturado sea exportar
+a Excel los informes mensuales, recogiendo el motivo (finanzas los reconcilia a
+mano) y el plazo (antes del cierre de trimestre).
 
-El nombre del archivo debe empezar por una fecha ISO `YYYY-MM-DD`.
+Falla si el pedido se contestó solo en el chat sin escribir el artefacto, o si lo
+que quedó capturado es otro pedido.
+
+La ruta, el nombre del archivo y los encabezados del cuerpo NO se juzgan aquí —
+los asserta `request-structure` sobre el archivo.

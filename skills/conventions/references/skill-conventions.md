@@ -498,6 +498,50 @@ scores a curated `trigger_eval.json` query set (10 `should_trigger=true`, 10 `fa
 skill tree that carries a probe; run it from `mktemp -d` because it inherits CWD. Recall =
 TP / (TP + FN), precision = TN / (TN + FP); target >= 60% recall and >= 90% precision.
 
+### Grader design: what the judge may be asked (measured 2026-09-16)
+
+A case that produces an artefact needs two graders, not one, and the split is not
+a matter of taste.
+
+> An `llm` grader may only be asked what a `regex` over the artefact cannot see.
+> Every structural fact — the path, the filename, the front-matter keys, the body
+> headings — belongs in a `regex` grader with `target: {source: file, path: <literal>}`.
+
+Under the default `focus: last_message` an `llm` grader never opens the artefact:
+it reads the agent's closing message, so the agent's own compliance claim *is* the
+evidence. Measured over the seven frozen baselines in
+`tests/native-eval/baselines/2026-09-12-pre-plugin/`, 12 passing verdicts across 6
+of the 7 cases came from runs where the agent said it could not run `validate.py`
+and had checked by hand; the judge voted PASS 3-0 on every one.
+
+Adding a file-content `regex` grader to the four cases where those passes
+concentrate settled it: the regex passed **12/12 with-arm runs and failed 12/12
+without-arm runs**. The artefacts did comply — the suite was right by luck, not by
+construction. What the regex exposed was the same defect one arm over: the judge
+passed 11 of 12 *without*-arm runs, including three that wrote `email.txt` with no
+front-matter at all, because its criteria only named a folder.
+
+The same sentence about `validate.py` also produced the opposite error, and this
+is why an exemption telling the judge to ignore such disclaimers is the wrong fix —
+it makes the false positive worse. `request--capture` carried both halves in one
+3-run verdict: a conforming artefact judged FAIL 0-3, and three non-conforming ones
+judged PASS 3-0. Rewriting the four criteria to ask only about substance, with no
+exemption added, took the with-arm judge from 11/12 to 12/12 and the case's delta
+from 0.22 (below the gate) to 0.67.
+
+Two corollaries, each decided per case rather than swept:
+
+- Drop a `file_exists` grader whose path a `regex` already pins — it then passes in
+  both arms and asserts nothing. Keep it where its glob still discriminates
+  (`comm--log-received`: the glob demands `body.md`, the without-arm does not write
+  one).
+- Assert only stable structural facts. Do not reimplement `validate.py`'s ruleset in
+  a grader; that is a second copy of the canon, and it drifts.
+
+The cost is that a `regex` target must be a literal path, so a case prompt has to
+pin the artefact filename. Acceptable: the case tests whether the body follows the
+canon, not whether the model picks a good slug.
+
 ### Quick sanity check (no harness)
 
 | Test Type | Method | Expected |

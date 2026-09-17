@@ -8,3 +8,6 @@ El cliente nos escribió pidiendo que los informes mensuales se puedan exportar 
 Excel además del PDF actual, porque su equipo de finanzas los reconcilia a mano.
 Lo mencionó en la reunión de ayer y dijo que lo necesitan antes del cierre de
 trimestre. Captúralo.
+
+Guárdalo exactamente en `.context/requests/2026-09-16-exportar-informes-a-excel.md`;
+no cambies ese nombre de archivo.

@@ -11,3 +11,7 @@ diferencias de un centavo entre el total del pedido y la suma de sus líneas.
 Todo lo que necesitas está en el código de `src/orders/`; no hace falta que me
 preguntes nada ni que arregles nada todavía. Lo único que quiero es que los
 hallazgos queden escritos, no sueltos en el chat.
+
+Escribe las notas exactamente en
+`.context/research/2026-09-16-redondeo-en-descuentos-de-pedidos.md`; no cambies ese
+nombre de archivo.

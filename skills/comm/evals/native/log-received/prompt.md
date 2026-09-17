@@ -7,6 +7,10 @@ allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
 Guarda este correo del cliente, registra este email tal como llegó. No me
 preguntes nada, hazlo directamente.
 
+Guárdalo exactamente en la carpeta
+`.context/communications/received/2026-09-10-ajustes-portal-cierre-mes/`; no
+cambies ese nombre de carpeta.
+
 De: Ana Robles <ana.robles@marealogistica.com>
 Para: equipo@portalclientes.dev
 Fecha: 2026-09-10

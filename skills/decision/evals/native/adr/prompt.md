@@ -8,3 +8,6 @@ Decidimos migrar la cola de tareas de Celery a Dramatiq: menos infraestructura
 (sin broker Redis dedicado), mejor ergonomía de reintentos y una base de código
 más pequeña. Evaluamos también quedarnos en Celery y usar RQ. Documenta la
 decisión.
+
+Guárdalo exactamente en `.context/decisions/2026-09-16-migrar-cola-a-dramatiq.md`;
+no cambies ese nombre de archivo.

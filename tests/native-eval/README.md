@@ -267,6 +267,79 @@ artefacts are date-stamped, so the case prompt has to pin the filename. That is
 acceptable — the case is testing whether the body follows the canon, not whether
 the model picks a good slug.
 
+### Result: the prediction resolved to HOLD, and the defect is on the other arm
+
+Measured 2026-09-16, `--verdict` (3 runs/arm) on the four cases where the 12
+self-certification passes concentrate, after adding one `regex` grader each
+(`comm-structure`, `adr-structure`, `request-structure`, `research-structure`) and
+pinning the artefact path in the prompt. Reference cost USD 6.59, no run errored.
+
+| case | with | without | delta | gate |
+|---|---|---|---|---|
+| `comm--log-received` | 1.00 | 0.33 | 0.67 | ok |
+| `decision--adr` | 1.00 | 0.56 | 0.44 | ok |
+| `request--capture` | 0.89 | 0.67 | 0.22 | **BELOW** |
+| `research--spike` | 1.00 | 0.67 | 0.33 | ok |
+
+The regex grader passed **12/12 with-arm runs and failed 12/12 without-arm runs** —
+a perfect split. The prediction declared in advance resolves to **HOLD**: the
+artefacts behind the self-certified passes genuinely followed the canon, so the
+12 were not false positives. The suite was right, but by luck rather than by
+construction; the regex makes it robust either way.
+
+What the regex did surface is the same judge defect one arm over. On the
+**without** arm the `llm` grader voted PASS 3-0 on 11 of 12 runs that the regex
+rejects. In `comm--log-received` all three without-runs wrote
+`received/<slug>/email.txt` or `email.md` — no `body.md`, no front-matter at all —
+and the judge passed every one, because its criteria only ask *which folder*.
+
+`request--capture` carries both halves of the defect in a single 3-run verdict,
+which is the cleanest evidence yet that the false positive and the false negative
+share a cause:
+
+- `with[2]`: artefact fully conforming (regex PASS), judge voted **FAIL 0-3** — the
+  final message opened with "no pude ejecutar `validate.py`".
+- `without[0..2]`: artefact non-conforming (regex FAIL), judge voted **PASS 3-0**.
+
+That is what drags its delta to 0.22 and trips the gate. Two structural clauses in
+the `llm` criteria ("in `.context/requests/`", "filename must start with an ISO
+date") are now asserted three times over — by the judge, by `file_exists` and by
+the regex — and the judge's copy is the one that passes the without-arm. Pruning
+the structural clauses out of the `llm` graders, and dropping a `file_exists`
+whose path a regex already covers, is the follow-up; it is a grader-weight change
+and is not made here on the strength of one verdict.
+
+### Splitting the two graders' remits fixed the gate
+
+Applied and re-measured 2026-09-16, same `--verdict` protocol, USD 6.93. Two
+changes, each decided per case rather than swept across all four:
+
+- The structural clauses came out of all four `llm` criteria (folder, filename,
+  `status`, body headings). Each criterion now opens by naming what it judges —
+  substance — and names the `*-structure` grader that asserts the rest.
+- `file_exists` was deleted from `decision`, `request` and `research`, where it
+  passed 3/3 in **both** arms and asserted nothing the regex does not. It stays in
+  `comm`, where its glob demands `body.md` and the without-arm writes `email.txt`:
+  there it still fails 3/3 without the suite, so the asymmetry is the point.
+
+| case | with | without | delta | before |
+|---|---|---|---|---|
+| `comm--log-received` | 1.00 | 0.33 | 0.67 | 0.67 |
+| `decision--adr` | 1.00 | 0.50 | 0.50 | 0.44 |
+| `request--capture` | 1.00 | 0.33 | **0.67** | 0.22 BELOW |
+| `research--spike` | 1.00 | 0.50 | 0.50 | 0.33 |
+
+The judge's false negative is **gone**: the `llm` grader passed 12/12 with-arm
+runs, against 11/12 before. No exemption about "I could not run `validate.py`" was
+added — that sentence stopped mattering once the criteria ask only about content,
+which is the cheaper fix the four earlier grader patches were reaching for.
+
+The judge still passes most without-arm runs (11/12). That is no longer a defect:
+without the suite the agent does capture the right substance, it just does not
+follow the canon, and the canon is now the regex's job. Each grader fails on the
+arm it is supposed to fail on, and the delta comes from the structural assertion
+rather than from a judge's opinion of a self-report.
+
 ## Sandbox facts measured 2026-09-13
 
 - Fixtures must not live under `.claude/`: the sandbox denies Write and Edit there
