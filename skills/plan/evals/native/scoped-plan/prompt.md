@@ -16,3 +16,6 @@ Ya está todo definido, no hace falta que me preguntes nada:
 - No hay migraciones ni cambios de modelo.
 
 Escribe el plan.
+
+Escribe el plan exactamente en
+`.context/plans/2026-09-16-exportacion-a-excel-del-informe-mensual.md`; no cambies ese nombre de archivo.

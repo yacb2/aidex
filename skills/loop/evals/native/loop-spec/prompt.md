@@ -12,3 +12,6 @@ todo pase, con tope de 15 iteraciones y sin tocar `tests/`.
 Déjalo especificado y escrito en el proyecto; NO lo ejecutes ahora, solo quiero el
 diseño listo para lanzarlo mañana. Ya está todo definido, no hace falta que me
 preguntes nada.
+
+Escribe el loop-spec exactamente en
+`.context/loops/2026-09-16-cart-tests-green.md`; no cambies ese nombre de archivo.

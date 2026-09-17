@@ -340,6 +340,72 @@ follow the canon, and the canon is now the regex's job. Each grader fails on the
 arm it is supposed to fail on, and the delta comes from the structural assertion
 rather than from a judge's opinion of a self-report.
 
+### Rolling the split out to the rest of the suite (2026-09-17)
+
+Seven more cases got a `*-structure` regex grader and had their `llm` criteria cut
+back to substance. Two cases were deliberately **left** on the judge alone —
+`aidex--init-context` and `worktree--bootstrap-topology` — because what they assert
+is the agent's *report* (which topology it detected; what it suggested without
+writing it), which is exactly what a regex over an artefact cannot see.
+
+Three of the seven needed no prompt edit at all: the canon already determines the
+path (`skills/deploy-notes/SKILL.md`, the scaffolded `tests/test_clamp.py`, and
+`.context/references/auth/00-index.md` — references are `00-index.md` by canon and
+the prompt already names the topic). The other four pin a literal filename the way
+the first four do.
+
+Verification was **one run per arm over the seven**, not a 3-run verdict of one, USD
+7.6 total. The risk being bought off was transcription — a wrong literal path or a
+heading the agent writes differently — and a 1-run pass answers that for all seven,
+while a verdict answers it for one. The numbers below are 1-run and are **not**
+quotable as deltas.
+
+| case | with | without |
+|---|---|---|
+| `bugfix--regression-test` | 1.00 | 0.00 |
+| `skill--violating-skill-md` | 1.00 | 0.00 |
+| `reference--how-it-works` | 1.00 | 0.33 |
+| `loop--loop-spec` | 1.00 | 0.67 |
+| `plan--scoped-plan` | 1.00 | 0.67 |
+| `workflow--fanout-spec` | 1.00 | 0.67 |
+| `backlog--park-idea` | 0.67 | 0.67 |
+
+Six of seven matched first time. Two things the pass bought that were not expected:
+
+**Pinning the path is not free.** The two cases that needed no prompt edit are the
+two whose without-arm scored a clean 0.00. Where the prompt pins a literal filename,
+the without-arm receives that instruction too, so a `file_exists` on that path now
+passes in both arms and stops discriminating. The pinning mechanism the first four
+cases adopted hands the baseline arm a fact it would otherwise have to get right on
+its own.
+
+**`backlog--park-idea` failed because the regex was wrong, not the artefact.** It
+required a `## Acceptance` heading that the case's own fixture (`BL-001`) does not
+have, so the agent — correctly following the in-project precedent — did not write
+one. Reading the kept scaffold (`EVAL_KEEP_TEMP=1`, USD 1) settled it in one run
+instead of guessing at the pattern.
+
+That reading also found the thing worth keeping: the fixture `BL-001` carries
+`type: feature` and `surface: backend`, **neither of which is in the canon enum**
+(`bug|improvement|task|idea`, `internal|behaviour|ui|ops`). The without-arm copies
+the fixture verbatim, off-enum values and all; the with-arm writes `type: idea`.
+The corrected regex passes the with-arm and fails the without-arm on exactly that.
+
+**The fixture's canon violation is therefore load-bearing — do not "fix" it.** A
+conforming fixture would give the without-arm a conforming shape to copy and the
+case would stop discriminating.
+
+### Three `tool_used: Bash` graders were unpassable by construction
+
+`aidex--init-context`, `backlog--park-idea` and `worktree--bootstrap-topology` each
+carried a grader requiring a Bash call. Bash is not in the operator grant (`Write
+Edit`), so the CLI withholds the tool and no call can occur — the grader failed in
+**both** arms on every run, depressing both scores and compressing the delta. The
+CLI says so outright when the case is selected. All three are deleted; granting Bash
+to fix them is not available (measured to destroy the delta). Re-expressing what they
+meant — that the agent used the script rather than hand-writing the artefact — as a
+regex over what the script produces is open work.
+
 ## Sandbox facts measured 2026-09-13
 
 - Fixtures must not live under `.claude/`: the sandbox denies Write and Edit there

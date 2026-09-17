@@ -3,26 +3,26 @@ type: llm
 weight: 1
 ---
 
-El mensaje final debe nombrar el archivo escrito bajo `.context/workflows/`
-(por ejemplo `.context/workflows/2026-09-13-revision-modulos.md`) como el entregable
-del trabajo.
+Lo único que se juzga aquí es la SUSTANCIA del diseño de la orquestación:
 
-Además el mensaje debe dejar ver, al menos, dos de estas tres propiedades del diseño:
+1. El fan-out reparte los cuatro módulos (`src/auth.py`, `src/payments.py`,
+   `src/notifications.py`, `src/reports.py`) sobre las dos dimensiones pedidas,
+   corrección y seguridad.
+2. Cada agente tiene modelo y esfuerzo asignados concretamente, no "el que
+   corresponda".
+3. Hay una regla de aceptación que dice qué debe cumplir la salida de cada
+   agente para darse por buena.
 
-1. La forma del fan-out: cómo se reparten los cuatro módulos y las dos dimensiones
-   (corrección y seguridad) entre agentes que corren en paralelo, en una sola pasada.
-2. Una asignación de modelo y esfuerzo por agente o por etapa (por ejemplo
-   sonnet/medium para la búsqueda amplia y opus/high para la verificación o la
-   síntesis), no un modelo único para todo.
-3. La condición de parada o la regla de aceptación: qué debe cumplir la salida de
-   cada agente para darse por buena, y qué queda sujeto a confirmación del usuario.
+Pasa si al menos dos de las tres quedaron cubiertas.
 
-No cuentan en contra: decir que no pudo ejecutar el script de scaffolding o los
-tests, decir que tomó parámetros por defecto porque no hubo encuesta interactiva, ni
-cerrar con un ofrecimiento de lanzar la orquestación cuando el usuario lo pida,
-siempre que el archivo ya esté escrito y nombrado.
+No cuenta en contra que el mensaje diga que no pudo ejecutar scripts o el
+validador, ni que cierre con un ofrecimiento. Tampoco cuenta en contra que la
+orquestación no se haya lanzado: el usuario pidió expresamente no lanzarla.
 
-Falla si: el diseño solo aparece en el chat sin archivo escrito; el archivo quedó en
-otra carpeta (`.context/plans/`, `.context/reviews/`, la raíz del proyecto); no se
-escribió nada; o se lanzaron realmente los agentes a pesar de que se pidió no
-ejecutarla.
+Falla si la respuesta se queda en el chat sin escribir ningún archivo, o si lo
+diseñado es algo que se repite hasta que pasa un check (un loop) en vez de una
+sola pasada en paralelo.
+
+La ruta, el front-matter (incluido que `shape` quede resuelto y no en
+`undecided`) y los encabezados del spec NO se juzgan aquí — los asserta
+`workflow-structure` sobre el archivo.
