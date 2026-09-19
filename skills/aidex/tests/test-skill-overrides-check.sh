@@ -28,9 +28,15 @@ mkskill "$TMP/cache/anthropic/off-plugin/v1/skills/never-loaded"
 # the .claude/skills layout some plugins use instead
 mkskill "$TMP/cache/official/vercel/v1/.claude/skills/release"
 
+# The discovery pass (case 8) scans a projects root for stores. Left unset it
+# defaults to the real ~/.claude/projects, which is how "fully fixtured" stopped
+# being true — so every helper declares one, and it exists from the start.
+mkdir -p "$TMP/projects"
+
 settings() { printf '%s\n' "$1" > "$TMP/settings.json"; }
 run() { python3 "$CHECK" --settings "$TMP/settings.json" --skills-root "$TMP/skills" \
-          --skills-dir "$TMP/extra" --plugin-cache "$TMP/cache" "$@"; }
+          --skills-dir "$TMP/extra" --plugin-cache "$TMP/cache" \
+          --projects-root "$TMP/projects" "$@"; }
 
 ENABLED='"enabledPlugins": {"document-skills@anthropic": true, "vercel@official": true, "off-plugin@anthropic": false}'
 
@@ -42,6 +48,15 @@ grep -q 'OK — every key resolves' <<<"$OUT" && ok "1 says so" || bad "1 verdic
 # A green gate must say what it saw, or a checker that enumerated nothing looks the same.
 grep -qE 'checked 4 skillOverrides key\(s\) against [0-9]+ personal \+ [0-9]+ plugin' <<<"$OUT" \
   && ok "1 prints the counts it processed" || bad "1 no counts: $OUT"
+# …and the counts are the FIXTURE's, not the machine's. BL-417: the header above
+# claims full fixturing, but run() omitted --projects-root, so every assertion
+# discovered the real ~/.claude/projects and scanned this machine's stores — the
+# run reported "79 personal + 3 plugin skill(s)" here. A personal skill named
+# like a fixture key (docx, ghost-skill, theme-factory) then turned cells 2, 3
+# and 8c red for reasons that have nothing to do with the code.
+grep -qE 'checked 4 skillOverrides key\(s\) against 3 personal \+ ' <<<"$OUT" \
+  && ok "1 the counts are the fixture's, not the machine's" \
+  || bad "1 counts leaked the real store: $OUT"
 grep -q 'vercel:release' <<<"$OUT" && bad "1 a resolving key was reported" || ok "1 the .claude/skills plugin layout is found"
 
 # 2 · a bare plugin-skill name is UNRESOLVED, and the suggestion names the real id
@@ -105,7 +120,7 @@ mkdir -p "$PROJ/myproject/.claude/skills"
 mkskill "$TMP/shared-store/gcloud-billing"          # the store nobody told us about
 mkskill "$PROJ/myproject/.claude/skills/local-only" # a real project-local skill
 ln -s "$TMP/shared-store/gcloud-billing" "$PROJ/myproject/.claude/skills/gcloud-billing"
-mkdir -p "$TMP/projects/-tmp-myproject"
+mkdir -p "$TMP/projects/-tmp-myproject"   # the projects root itself exists already
 printf '{"cwd": "%s/myproject"}\n' "$PROJ" > "$TMP/projects/-tmp-myproject/a.jsonl"
 disc() { python3 "$CHECK" --settings "$TMP/settings.json" --skills-root "$TMP/skills" \
            --plugin-cache "$TMP/cache" --projects-root "$TMP/projects" "$@"; }
