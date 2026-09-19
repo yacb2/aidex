@@ -1,6 +1,6 @@
 {
   "name": "aidex",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Skills, hooks and .context/ conventions for organizing a Claude Code ecosystem — a layer on top of the official skills, not a replacement.",
   "author": {
     "name": "YACB2"
