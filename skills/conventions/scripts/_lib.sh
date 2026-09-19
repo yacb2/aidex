@@ -97,15 +97,20 @@ find_project_root() {
      && gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" \
      && [[ -n "$common" && "$common" != "$gitdir" ]]; then
     mainroot="$(cd "$(dirname "$common")" 2>/dev/null && pwd -P)" || mainroot=""
-    dir="$mainroot"
-    while [[ -n "$dir" && "$dir" != "/" ]]; do
-      [[ -n "$stop" && "$dir" == "$stop" ]] && break
-      if [[ -d "$dir/.context" ]]; then
-        printf '%s\n' "$dir"
-        return 0
-      fi
-      dir="$(dirname "$dir")"
-    done
+    # The walk STOPS AT THE MAIN WORKTREE'S OWN ROOT — it does not continue up.
+    # BL-418, field-observed 2026-09-17: a repo nested inside a workspace that
+    # has its own `.context/` (every split workspace since BL-412) carries no
+    # `.context/` at its root BY DESIGN, so an upward walk from there escaped
+    # the repo and resolved to the WORKSPACE's private `.context/`. Every aidex
+    # script run inside a cell worktree then wrote into the owner's live
+    # artifacts — 34 lifecycle-test files reached
+    # `aidex_ws/.context/worklists/_archive/` before anyone noticed.
+    # The main worktree IS the project: with a `.context/` it answers as itself,
+    # and without one it is still the right root to create it in.
+    if [[ -n "$mainroot" && "$mainroot" != "$stop" ]]; then
+      printf '%s\n' "$mainroot"
+      return 0
+    fi
   fi
 
   # No .context yet — fall back to the nearest thing that looks like a project

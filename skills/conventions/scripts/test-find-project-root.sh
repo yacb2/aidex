@@ -131,6 +131,35 @@ else
   echo "skip: git not on PATH — case 8 not exercised"
 fi
 
+# --- case 10: the hop STOPS at the main worktree's root (BL-418) ------------
+# A repo nested inside a workspace that has its own .context/ — the shape of every
+# split workspace since BL-412: the main tree deliberately carries NO .context/.
+# The hop used to keep walking up from there, escape the repo, and land on the
+# WORKSPACE's private .context/, so any script run inside a cell worktree wrote
+# into the owner's live artifacts (observed: 34 lifecycle-test files in
+# aidex_ws/.context/worklists/_archive/). The main tree is the project; the walk
+# must stop there.
+if command -v git >/dev/null 2>&1; then
+  WS="$FAKEHOME/projects/ws"
+  mkdir -p "$WS/.context"
+  NESTED="$WS/proj"
+  mkdir -p "$NESTED"
+  ( cd "$NESTED" && git init -q . && : > f.txt && git add -A \
+      && git -c user.email=t@t -c user.name=t commit -qm init ) >/dev/null 2>&1
+  # The worktree is created OUTSIDE the workspace, as the cells are: otherwise
+  # pass 1 finds the workspace .context/ before the hop ever runs.
+  NWT="$FAKEHOME/projects/proj-wt-feat"
+  ( cd "$NESTED" && git worktree add -q "$NWT" -b feat ) >/dev/null 2>&1
+  if [[ -d "$NWT" ]]; then
+    got="$(run "$NWT" "$FAKEHOME")"
+    [[ "$got" == "$NESTED" ]] || fail "from a worktree of a repo nested in a workspace, expected the main tree '$NESTED', got '$got' — a script would write into the parent workspace's private .context/"
+  else
+    echo "skip: git worktree add unavailable — case 10 not exercised"
+  fi
+else
+  echo "skip: git not on PATH — case 10 not exercised"
+fi
+
 # --- case 9: there is exactly ONE definition of this function in the suite ------
 # Nineteen scripts carried a private copy. All of them were three fixes behind:
 # no $HOME boundary (2026-07-25), no project-marker fallback, no linked-worktree

@@ -4,14 +4,25 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# Resolve the root the way the scripts under test do (BL-418): from inside a
+# linked worktree `git rev-parse --show-toplevel` answers the WORKTREE, while
+# worklist-new.sh writes wherever find_project_root() points — so cleanup()
+# deleted a path nothing had ever written, and every run from a worktree left a
+# lifecycle-test file behind in a live .context/.
+ROOT="$( . "$DIR/_lib.sh"; find_project_root )"
 fail=0
 assert() { if eval "$2"; then echo "  [PASS] $1"; else echo "  [FAIL] $1"; fail=1; fi; }
 
 slug="lifecycle-test-$$"
 file="$(bash "$DIR/worklist-new.sh" --title "Lifecycle test $$" --slug "$slug" \
   --ref "backlog:BL-1 — do a" --ref "plan:p-2 — do b" --ref "inline:do c" --publish ask)"
-cleanup() { rm -f "$file" "$ROOT/.context/worklists/_archive/$(basename "$file")"; }
+cleanup() {
+  rm -f "$file" "$ROOT/.context/worklists/_archive/$(basename "$file")"
+  # Prune the fixture directories, but only while they are empty: `rmdir -p`
+  # stops at the first non-empty parent, so a real project's .context/ is
+  # untouched and a root that had none before the run does not keep one.
+  rmdir -p "$ROOT/.context/worklists/_archive" 2>/dev/null || true
+}
 trap cleanup EXIT
 
 assert "new: file created"              "[[ -f '$file' ]]"
