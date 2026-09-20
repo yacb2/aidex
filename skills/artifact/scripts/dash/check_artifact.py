@@ -388,7 +388,9 @@ def ledger_ids(text):
     """Ids named by the ledger. Empty is a LEGITIMATE answer twice over: the
     first page of a thread carries no ledger at all, and `.ledger` is also used
     as a plain grid whose rows have no `.k` key. Neither is a violation, so
-    neither reports."""
+    neither reports. Id harvesting tolerates that plain grid; consult-shape
+    does not EXEMPT it before the first block — a grid of anything but `.k`/`.v`
+    rows is judged there like any other preamble (BL-426, `_ledger_shape`)."""
     out = set()
     for m in LEDGER_OPEN.finditer(text):
         body = _subtree(text, m.group(1), m.end())
@@ -1725,6 +1727,91 @@ FIGURE_OPEN = re.compile(r'<(figure)\b[^>]*>', re.I)
 LEDGER_SUB = re.compile(r'<(div)\b[^>]*\bclass\s*=\s*["\'][^"\']*\bledger\b[^>]*>', re.I)
 SECHEAD_SUB = re.compile(r'<(div)\b[^>]*\bclass\s*=\s*["\'][^"\']*\bsec-head\b[^>]*>', re.I)
 
+MAIN_OPEN = re.compile(r'<main\b[^>]*>', re.I)
+SECTION_SUB = re.compile(r'<(section)\b[^>]*>', re.I)
+HEADER_SUB = re.compile(r'<(header)\b[^>]*>', re.I)
+# The page title and the two header lines are the header even when no <header>
+# wraps them: the report pages put them straight under <main>.
+TITLE_LINE = re.compile(
+    r'<h1\b[^>]*>.*?</h1\s*>'
+    r'|<p\b[^>]*\bclass\s*=\s*["\'][^"\']*\b(?:standfirst|eyebrow)\b[^"\']*'
+    r'["\'][^>]*>.*?</p\s*>', re.I | re.S)
+
+ELEM_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*?(/?)>', re.S)
+VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
+             "link", "meta", "param", "source", "track", "wbr"}
+CLASS_VAL = re.compile(r'\bclass\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
+# A grid cell is a heading or a table away from the layout BL-426 reports, at
+# any depth: `.v` is a cell, and a table inside one cannot be capped either.
+LEDGER_BANNED = re.compile(r'<(h[1-6]|table)\b', re.I)
+
+
+def _child_nodes(fragment):
+    """(tag, open_tag, inner) per top-level element of `fragment`, and
+    (None, "", text) for the text between them. Comments are the caller's to
+    strip: this walk reads a commented-out `<p>` as markup."""
+    out, pos = [], 0
+    while True:
+        m = ELEM_OPEN.search(fragment, pos)
+        if not m:
+            out.append((None, "", fragment[pos:]))
+            return out
+        out.append((None, "", fragment[pos:m.start()]))
+        tag = m.group(1)
+        if m.group(2) == "/" or tag.lower() in VOID_TAGS:
+            out.append((tag, m.group(0), ""))
+            pos = m.end()
+            continue
+        inner = _subtree(fragment, tag, m.end())
+        out.append((tag, m.group(0), inner))
+        pos = m.end() + len(inner)
+        close = re.match(r'</' + re.escape(tag) + r'\s*>', fragment[pos:], re.I)
+        if close:
+            pos += close.end()
+
+
+def _class_tokens(open_tag):
+    """The class attribute split on whitespace. Tokens, never substrings:
+    `k-1`, `v-align`, `key` and `kv` are not `k` and not `v`."""
+    m = CLASS_VAL.search(open_tag)
+    if not m:
+        return set()
+    return set(next(g for g in m.groups() if g is not None).split())
+
+
+def _ledger_row_ok(inner):
+    """True when a row's element children are only `.k`/`.v` cells, one of each
+    at least. What sits INSIDE a cell is free: `.v` carries inline markup."""
+    seen = set()
+    for tag, open_tag, _ in _child_nodes(inner):
+        if tag is None:
+            continue
+        cells = _class_tokens(open_tag) & {"k", "v"}
+        if not cells:
+            return False
+        seen |= cells
+    return {"k", "v"} <= seen
+
+
+def _ledger_shape(body):
+    """Empty when `body` is a ledger, else the shapes in it that are not rows.
+    `.ledger` is a grid of rows, each a `<div>` of a `.k` key and a `.v` value
+    (components.css); anything else laid in it becomes a grid cell of its own,
+    side by side with the next. An EMPTY ledger is a ledger — the row count is
+    not the shape."""
+    body = strip_html_comments(body)
+    bad = []
+    for tag, _open, inner in _child_nodes(body):
+        if tag is None:
+            if inner.strip():
+                bad.append("loose text")
+        elif tag.lower() in VOID_TAGS:
+            continue
+        elif tag.lower() != "div" or not _ledger_row_ok(inner):
+            bad.append(tag.lower())
+    bad.extend(m.group(1).lower() for m in LEDGER_BANNED.finditer(body))
+    return ", ".join(dict.fromkeys(bad))
+
 
 def check_shape(path, text):
     """The block shape, judged on the ITEM-bearing page only: a read has no
@@ -1782,19 +1869,49 @@ def check_shape(path, text):
     # Before the first block: the header, a visual section, the ledger, and the
     # section that merely contains the blocks. Anything else is the preamble
     # the reader scrolls back to.
-    for m in SECTION_OPEN.finditer(text, 0, first):
-        body = _subtree(text, "section", m.end())
-        if m.end() + len(body) > first:        # contains the first block
-            continue
-        rest = _strip_subtrees(body, SECHEAD_SUB)
+    def judge_preamble(fragment):
+        label = _h2_text(fragment)
+        rest = _strip_subtrees(fragment, SECHEAD_SUB)
         rest = _strip_subtrees(rest, FIGURE_OPEN)
+        # The exemption belongs to the ledger's SHAPE, not to its class name: a
+        # writer that meets this FAIL can otherwise wrap the prose in
+        # `<div class="ledger">` and pass, and the grid then clips it (BL-426).
+        pos = 0
+        for lm in LEDGER_SUB.finditer(rest):
+            if lm.start() < pos:               # a nested ledger reports once
+                continue
+            sub = _subtree(rest, lm.group(1), lm.end())
+            pos = lm.end() + len(sub)
+            shape = _ledger_shape(sub)
+            if shape:
+                report(f"the ledger before the first block is not a ledger: "
+                       f"it holds {shape} — `.ledger` is a grid of rows, each "
+                       f"a <div> of a .k key and a .v value, and nothing else. "
+                       f"A summary before the first block is a real ledger of "
+                       f".k/.v rows, never a table; anything else goes into "
+                       f"the block that needs it or after the questions")
         rest = _strip_subtrees(rest, LEDGER_SUB)
         if PROSE.search(rest):
-            report(f"prose before the first block: \"{_h2_text(body)}\" — "
+            report(f"prose before the first block: \"{label}\" — "
                    f"before the blocks only the header (title + standfirst), "
                    f"a figure and the ledger may appear. The strongest claim "
                    f"goes in the standfirst; context goes in the block that "
                    f"needs it; reference material goes after the questions")
+
+    # The region before the first block that sits in NO section: the report
+    # pages put the title, the standfirst and the ledger straight under <main>,
+    # and a rule that only reads sections is one missing wrapper from silent.
+    mm = MAIN_OPEN.search(text, 0, first)
+    bare = strip_html_comments(strip_script_style(text[mm.end() if mm else 0:first]))
+    bare = _strip_subtrees(bare, SECTION_SUB)
+    bare = _strip_subtrees(bare, HEADER_SUB)
+    judge_preamble(TITLE_LINE.sub(" ", bare))
+
+    for m in SECTION_OPEN.finditer(text, 0, first):
+        body = _subtree(text, "section", m.end())
+        if m.end() + len(body) > first:        # contains the first block
+            continue
+        judge_preamble(strip_html_comments(body))
     return fails
 
 

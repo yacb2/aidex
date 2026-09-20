@@ -90,6 +90,121 @@ mkpage "$TMP/fig.html" "$header$figsec$ledger$(group G1 'Context' "$(item Q1 'Fi
 rc="$(run "$TMP/fig.html")"
 [[ "$rc" == 0 ]] || fail "a visual section before the ledger passes: $(cat "$TMP/out")"
 
+# --- BL-426: the ledger exemption is a SHAPE, not a class name ----------------
+# `.ledger` is a grid built for rows of `.k`/`.v` (components.css:107). A writer
+# that meets the "prose before the first block" FAIL can wrap the prose in
+# `<div class="ledger">` and pass, and the grid then lays the h2 and the table
+# side by side with the table clipped (2026-09-20, the owner-decisions page).
+lsec() {  # lsec <ledger-children>
+  printf '<section id="sec-ledger"><div class="sec-head"><h2>Carried in</h2></div><div class="ledger">%s</div></section>' "$1"
+}
+row='<div><span class="k">d1</span><span class="v"><b>Done.</b> x</span></div>'
+
+# (1) an h2 + a table laundered into the ledger
+mkpage "$TMP/led-table.html" "$visual$header$(lsec '<h2>Summary</h2><table><tr><td>x</td></tr></table>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-table.html")"; expect_fail "h2 + table inside div.ledger" "not a ledger"
+grep -q "h2, table" "$TMP/out" || fail "the ledger failure does not name the shape: $(cat "$TMP/out")"
+
+# (2) one valid row plus a stray child
+mkpage "$TMP/led-mixed.html" "$visual$header$(lsec "$row<p>A loose paragraph.</p>")$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-mixed.html")"; expect_fail "a ledger mixing a row with a stray child" "not a ledger"
+
+# (3) a row with a key and no value
+mkpage "$TMP/led-nov.html" "$visual$header$(lsec '<div><span class="k">d1</span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-nov.html")"; expect_fail "a ledger row with .k and no .v" "not a ledger"
+
+# (4) the well-formed ledger still passes
+mkpage "$TMP/led-ok.html" "$visual$header$(lsec "$row$row")$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-ok.html")"
+[[ "$rc" == 0 ]] || fail "a well-formed ledger was rejected: $(cat "$TMP/out")"
+
+# (5) an empty ledger, and the first page of a thread with no ledger at all
+mkpage "$TMP/led-empty.html" "$visual$header$(lsec '')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-empty.html")"
+[[ "$rc" == 0 ]] || fail "an empty ledger was rejected: $(cat "$TMP/out")"
+mkpage "$TMP/led-none.html" "$visual$header$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-none.html")"
+[[ "$rc" == 0 ]] || fail "a first page with no ledger was rejected: $(cat "$TMP/out")"
+
+# --- BL-426 round 2: the row is a SHAPE, not a containment test ---------------
+# Every cell below passed the first predicate, which asked only whether `.k` and
+# `.v` appeared ANYWHERE inside the row: a heading and a table keyed `k`/`v`
+# deep inside satisfy that and still break the grid.
+
+# (A1) a heading standing beside the key and the value
+mkpage "$TMP/led-a1.html" "$visual$header$(lsec '<div><h2>Resumen</h2><span class="k"></span><span class="v"></span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a1.html")"; expect_fail "a heading beside the row's k and v" "not a ledger"
+
+# (A2) the heading and the table hidden INSIDE a well-formed value
+mkpage "$TMP/led-a2.html" "$visual$header$(lsec '<div><span class="k">R</span><span class="v"><h2>R</h2><table><tr><td>x</td></tr></table></span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a2.html")"; expect_fail "a heading and a table inside .v" "not a ledger"
+
+# (A3) class values that merely START with k/v are not the tokens
+mkpage "$TMP/led-a3.html" "$visual$header$(lsec '<div><h2 class="k-1">R</h2><table class="v-align"><tr><td>x</td></tr></table></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a3.html")"; expect_fail "k-1 and v-align are not the k and v tokens" "not a ledger"
+
+# (A4) the keys carried by a table's cells rather than by the row
+mkpage "$TMP/led-a4.html" "$visual$header$(lsec '<div><h2>R</h2><table><tr><td class="k">a</td><td class="v">b</td></tr></table></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a4.html")"; expect_fail "a table whose cells carry k and v" "not a ledger"
+
+# (A6) a cell that is neither the key nor the value
+mkpage "$TMP/led-a6.html" "$visual$header$(lsec '<div><span class="k">d1</span><span>stray</span><span class="v">x</span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a6.html")"; expect_fail "a third cell beside the key and the value" "not a ledger"
+
+# (A7) a table alone inside the value — a table is the one element a grid cell
+# cannot cap, so it is banned at any depth, heading or no heading
+mkpage "$TMP/led-a7.html" "$visual$header$(lsec '<div><span class="k">R</span><span class="v"><table><tr><td>x</td></tr></table></span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a7.html")"; expect_fail "a table alone inside .v" "not a ledger"
+
+# (A8) a heading alone inside the value
+mkpage "$TMP/led-a8.html" "$visual$header$(lsec '<div><span class="k">R</span><span class="v"><h3>Resumen</h3> x</span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a8.html")"; expect_fail "a heading alone inside .v" "not a ledger"
+
+# (A9) the same near-miss tokens on two otherwise well-shaped cells: the class
+# is a list of TOKENS, and `k-1` is not `k` however a substring test reads it
+mkpage "$TMP/led-a9.html" "$visual$header$(lsec '<div><span class="k-1">d1</span><span class="v-align">x</span></div>')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a9.html")"; expect_fail "cells classed k-1 and v-align" "not a ledger"
+
+# (A5) loose prose text as the ledger's own content
+mkpage "$TMP/led-a5.html" "$visual$header$(lsec 'Un resumen suelto, sin filas.')$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-a5.html")"; expect_fail "loose text as the ledger's content" "not a ledger"
+
+# --- BL-426 round 2: the pre-first-block region that sits in NO section --------
+# The four 2026-09-20 report pages put the h1, the standfirst and the ledger
+# directly under <main>, with no wrapping <section> — and the section loop above
+# never looked there, so the whole rule was one wrapper away from silent.
+mkpage "$TMP/bare-led.html" "$visual$header<div class=\"ledger\"><h2>Resumen</h2><table><tr><td>x</td></tr></table></div>$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/bare-led.html")"; expect_fail "a bare ledger under <main> laundering an h2 + table" "not a ledger"
+
+mkpage "$TMP/bare-p.html" "$visual$header<p>Fifteen hundred words of preamble, in no section at all.</p>$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/bare-p.html")"; expect_fail "a bare preamble under <main>" "before the first block"
+
+mkpage "$TMP/bare-h2.html" "$visual$header<h2>Resumen</h2><table><tr><td>x</td></tr></table>$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/bare-h2.html")"; expect_fail "a bare h2 + table under <main>" "before the first block"
+
+# --- BL-426 round 2: what the stricter predicate must keep accepting ----------
+# (B1) a commented-out row is not markup
+mkpage "$TMP/led-b1.html" "$visual$header$(lsec "$row<!-- <p>old note</p> -->")$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-b1.html")"
+[[ "$rc" == 0 ]] || fail "a commented-out child failed the ledger: $(cat "$TMP/out")"
+
+# (B2) a void element between two rows
+mkpage "$TMP/led-b2.html" "$visual$header$(lsec "$row<br>$row")$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-b2.html")"
+[[ "$rc" == 0 ]] || fail "a <br> between two rows failed the ledger: $(cat "$TMP/out")"
+
+# (B3) the shape the four report pages are written in: h1, eyebrow, standfirst
+# and a well-formed ledger, all bare under <main>.
+mkpage "$TMP/bare-ok.html" "$visual<p class=\"eyebrow\">CONSULTA</p><h1>Claim</h1><p class=\"standfirst\">The thesis, with <code>code</code> in it.</p><div class=\"ledger\">$row$row</div>$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/bare-ok.html")"
+[[ "$rc" == 0 ]] || fail "the report pages' bare header + ledger was rejected: $(cat "$TMP/out")"
+
+# (B4) inline markup inside the value
+vrich='<div><span class="k">d1</span><span class="v"><b>Done.</b> see <a href="#x"><code>file.py</code></a><br>and the rest</span></div>'
+mkpage "$TMP/led-b4.html" "$visual$header$(lsec "$vrich")$(group G1 'Context' "$(item Q1 'First')")$notes$bars"
+rc="$(run "$TMP/led-b4.html")"
+[[ "$rc" == 0 ]] || fail "inline markup inside .v was rejected: $(cat "$TMP/out")"
+
 # --- a read page (no items) is untouched by the shape rules -------------------
 mkpage "$TMP/read.html" "$header<section id=\"a\"><h2>One</h2><p>x</p></section><section id=\"b\"><h2>Two</h2><p>y</p></section>"
 rc="$(run "$TMP/read.html")"
@@ -108,4 +223,4 @@ rc="$(run "$TMP/good.html")"
 grep -q "G1\|G2" "$TMP/out" && fail "a group was reported on a passing page: $(cat "$TMP/out")"
 
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
-echo "ok: consultation shape (8 cases)"
+echo "ok: consultation shape (32 cases)"

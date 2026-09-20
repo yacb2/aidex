@@ -227,14 +227,17 @@ rc="$(run "$TMP/ledger-notes.html")"
 
 # A ledger keyed 1/2/3 is a numbered list, not item ids — and `.ledger` is also
 # used as a plain grid with no `.k` at all. Neither may be read as a decision.
+# The plain grid sits AFTER the blocks: id harvesting still tolerates it, but
+# since BL-426 consult-shape no longer EXEMPTS a non-row grid before the first
+# block, and this case is about ids, not about the preamble.
 mkpage "$TMP/ledger-numbered.html" "$visual
 <div class=\"ledger\"><div><span class=\"k\">1</span><span class=\"v\">A numbered row.</span></div></div>
-<div class=\"ledger\"><article><p>A grid row with no key at all.</p></article></div>
 $gopen
 $(item c1)
 $notesitem
 $bars
 $gclose
+<div class=\"ledger\"><article><p>A grid row with no key at all.</p></article></div>
 $composer"
 rc="$(run "$TMP/ledger-numbered.html")"
 [[ "$rc" == "0" ]] || fail "8. a numbered or keyless ledger was read as item ids: $(cat "$TMP/out")"
