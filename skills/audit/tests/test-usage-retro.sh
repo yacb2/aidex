@@ -27,6 +27,8 @@
 #   (t) census_scripts prints its walked file count, reads in their own column
 #   (u) pages join the registry by basename; a page sharing an item's slug rides
 #       on the item as `pages`; 00-index.html and .aidex-artifact-prev/ are skipped
+#   (v) prefilter: no miss?:<skill> while that skill is already running (BL-388),
+#       and the tag survives at the first turn, in another session, past the window
 #
 # Run with: bash skills/audit/tests/test-usage-retro.sh
 
@@ -580,7 +582,93 @@ PYU
   || fail "(u) the wrap session must attribute to the page it wrapped"
 rm -rf "$PROJ" "$TX"
 
+# ---------------------------------------------------------------------------
+# (v) THE miss? LOOKBACK (BL-388). A trigger-miss means the skill did not run;
+#     a prompt that keeps working on the page the skill is ALREADY producing is
+#     not one. Measured on the 2026-09-11 artifacts dataset: 113 of the 199
+#     miss?:artifact-design tags had the skill firing earlier in the same
+#     session, and analysts discarded every one by hand.
+#
+#     Both directions are pinned, because a fix that tags nothing would pass a
+#     one-sided assertion: within the lookback the tag must be GONE, and at the
+#     first turn of a session, in a different session, and one turn past the
+#     window it must still be THERE.
+#
+#     THE CONTROL IS A SKILL FROM ANOTHER FACET, never an artifact sibling:
+#     `artifact` and `artifact-diagramming` share artifact-design's lexicon
+#     word for word, so pinning THEIR tags would pin the false positive this
+#     item exists to remove. `backlog` never fires in session A, so its tag
+#     must survive on every row there.
+#
+#     The lexicon key is NOT the invocation name (`backlog` vs `aidex-backlog`,
+#     `aidex:plan`, `code-review:code-review`): sessions C, D and E pin the
+#     mapping, since a guard written against raw names silently protects only
+#     the handful of skills whose two names coincide.
+# ---------------------------------------------------------------------------
+MISSDIR="$(mktemp -d)"
+python3 - "$MISSDIR/dataset.jsonl" <<'PYVD'
+import json, sys
+def row(session, ts, prompt, fired=(), prior=()):
+    return dict(session=session, project="p", bucket="real-usage", ts=ts, is_slash=False,
+                kind="real", prompt=prompt, prompt_chars=len(prompt), prior_assistant="",
+                prior_skills=list(prior), skills_fired=list(fired))
+rows = [
+    # session A: the skill fires, then four follow-ups at growing distance
+    row("A", "2026-09-01T10:00:00+00:00", "hazme un artifact del retro", ["artifact-design"]),
+    # session B, interleaved: a session-blind lookback would swallow these
+    row("B", "2026-09-01T10:00:30+00:00", "necesito un artifact nuevo"),
+    row("B", "2026-09-01T10:00:40+00:00", "el artefacto quedó raro"),
+    # A+1 also names the backlog — the control tag, from a facet that never fired here
+    row("A", "2026-09-01T10:01:00+00:00", "ajusta el artifact y anótalo en el backlog",
+        [], ["artifact-design"]),
+    row("A", "2026-09-01T10:02:00+00:00", "el artifact necesita otra sección"),
+    row("A", "2026-09-01T10:03:00+00:00", "revisa el artifact del retro"),
+    row("A", "2026-09-01T10:04:00+00:00", "abre el artifact de ayer"),
+    # session C: the invocation name carries the aidex- prefix, in prior_skills
+    row("C", "2026-09-01T11:00:00+00:00", "investiga como funciona esto", [], ["aidex-research"]),
+    # session D: the same, one turn back through the window (prior_skills empty)
+    row("D", "2026-09-01T12:00:00+00:00", "crea el backlog item", ["aidex-backlog"]),
+    row("D", "2026-09-01T12:01:00+00:00", "agrega otro backlog item para esto"),
+    # session E: the plugin:skill colon shape
+    row("E", "2026-09-01T13:00:00+00:00", "planifica la migración", ["aidex:plan"]),
+    row("E", "2026-09-01T13:01:00+00:00", "sigue con el plan de la migración"),
+]
+with open(sys.argv[1], "w") as fh:
+    for r in rows: fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+PYVD
+python3 "$RETRO/prefilter.py" --in "$MISSDIR/dataset.jsonl" --out "$MISSDIR/cands.jsonl" \
+  >/dev/null 2>"$MISSDIR/err" || fail "(v) prefilter failed: $(cat "$MISSDIR/err")"
+out_v="$(python3 - "$MISSDIR/cands.jsonl" <<'PYV'
+import json, sys
+sig = {}
+for line in open(sys.argv[1]):
+    r = json.loads(line); sig[r["prompt"]] = r["signals"]
+def has(p, tag): return tag in sig.get(p, [])
+bad = []
+def gone(p, tag, why):
+    if has(p, tag): bad.append(f"{why}: {tag} still on {p!r}")
+def kept(p, tag, why):
+    if not has(p, tag): bad.append(f"{why}: {tag} missing from {p!r}")
+# inside the lookback the tag is gone, whatever the invocation name looked like
+gone("ajusta el artifact y anótalo en el backlog", "miss?:artifact-design", "1 turn after the fire")
+gone("el artifact necesita otra sección", "miss?:artifact-design", "2 turns after the fire")
+gone("revisa el artifact del retro", "miss?:artifact-design", "3 turns after the fire")
+gone("investiga como funciona esto", "miss?:research", "aidex- prefix in prior_skills")
+gone("agrega otro backlog item para esto", "miss?:backlog", "aidex- prefix one turn back")
+gone("sigue con el plan de la migración", "miss?:plan", "plugin:skill colon form one turn back")
+# the control: a skill of another facet that never fired in this session keeps its tag
+kept("ajusta el artifact y anótalo en el backlog", "miss?:backlog", "unrelated-facet control")
+# outside the window, and the boundary cases, still tag
+kept("abre el artifact de ayer", "miss?:artifact-design", "4 turns past the fire")
+kept("necesito un artifact nuevo", "miss?:artifact-design", "first turn of a session")
+kept("el artefacto quedó raro", "miss?:artifact-design", "empty prior_skills, prior turn fired nothing")
+print("\n".join(bad) or "PYOK")
+PYV
+)"
+[[ "$out_v" == *PYOK* ]] || fail "(v) miss? lookback: $out_v"
+rm -rf "$MISSDIR"
+
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, census promoted, pages join the registry by basename"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, census promoted, pages join the registry by basename, miss? is silent while the skill is already running"

@@ -8,7 +8,7 @@ reads prompt + prior_assistant and judges, discarding heuristic false positives.
 Usage: prefilter.py --in DATASET.jsonl --out CANDIDATES.jsonl
 """
 import json, re, os, sys, argparse
-from collections import Counter
+from collections import Counter, defaultdict, deque
 
 # The standing-preference detector and the analyst window are both owned by the
 # shipped, tested miner. Importing rather than copying is deliberate: this repo
@@ -58,6 +58,45 @@ INTENT = facets.skill_lexicon() | RESIDUAL
 INTENT_RE = {k: re.compile("|".join(v), re.I) for k, v in INTENT.items()}
 FACETS = facets.compiled()
 
+def lexicon_keys(fired):
+    """The INTENT keys named by a list of Skill invocation names.
+
+    The two namespaces are not the same string: INTENT is keyed by lexicon key
+    (`backlog`, `plan`, `research`), while `skills_fired`/`prior_skills` carry
+    the literal Skill argument. Censused over the four shipped datasets under
+    .context/audits/usage-retro (91 distinct names), those come in three
+    shapes: bare (`artifact-design`, `session-handoff`, `audit`), `aidex-`
+    prefixed (`aidex-backlog`, `aidex-plan-exec`, `aidex-research`) and
+    `<plugin>:<skill>` (`code-review:code-review`, `version:release`,
+    `dt:dt-usage`, and `aidex:plan` for an aidex skill reached through the
+    plugin). So: drop the plugin prefix, then the `aidex-` one, and keep what
+    INTENT actually knows. A name that maps to no key (`git-commit`,
+    `backlog-register`) yields nothing rather than a guess.
+    """
+    keys = set()
+    for name in fired:
+        short = name.rsplit(":", 1)[-1]
+        for cand in (short, short[len("aidex-"):] if short.startswith("aidex-") else short):
+            if cand in INTENT: keys.add(cand)
+    return keys
+
+# How far back a fire of the same skill still counts as "already running" (BL-388).
+# A trigger-miss means the skill did not run; a follow-up on the page it is
+# already producing is not one. Measured on the 2026-09-11 artifacts dataset
+# (3,928 records): 113 of the 199 miss?:artifact-design tags had the skill
+# firing earlier in the same session, and the analysts discarded every one by
+# hand. By distance in turns: 32 at 1, 29 at 2, 12 at 3, then a flat tail
+# (15, 4, 21 beyond). The density collapses after 2, so 3 keeps one turn of
+# slack and leaves the long tail — where a re-trigger is plausibly a real miss —
+# taggable.
+#
+# The census counted EVERY record of the session as a turn, slash commands
+# included, and the window below consumes them the same way — so a fire
+# followed by three /slash turns has already fallen out of it. Measuring and
+# enforcing on the same notion of "turn" is the point; whether a slash turn
+# should count at all is a separate question, unmeasured here.
+MISS_LOOKBACK_TURNS = 3
+
 IMPROVE = [
     r"\bse pod[ií]a mejorar\b", r"\bse puede mejorar\b", r"\bmejorem", r"\bmejorar(lo|la|emos)?\b",
     r"\bpodr[ií]amos\b", r"\bqu[eé] tal si\b", r"\by si en (vez|lugar)\b", r"\ben (vez|lugar) de\b",
@@ -79,6 +118,10 @@ def main():
         sys.exit(f"ERROR: no facet named {args.facet!r} under {facets.facets_dir()}")
     recs = [json.loads(l) for l in open(args.inp) if l.strip()]
     cands = []
+    # Per session, the skills fired by the last MISS_LOOKBACK_TURNS records.
+    # Keyed by session so an interleaved second session never suppresses the
+    # first turn of its neighbour; records arrive in ts order per session.
+    recent = defaultdict(lambda: deque(maxlen=MISS_LOOKBACK_TURNS))
     for r in recs:
         p = r["prompt"]; signals = []
         if FRICTION_RE.search(p): signals.append("friction")
@@ -87,8 +130,13 @@ def main():
             if prior_sk:
                 for sk in set(prior_sk): signals.append(f"evolve?:{sk}")
             else: signals.append("improve?")
+        # Both sides are lexicon keys, never invocation names (see lexicon_keys).
+        window = recent[r["session"]]
+        running = lexicon_keys(prior_sk).union(*window) if window else lexicon_keys(prior_sk)
+        recent[r["session"]].append(lexicon_keys(r["skills_fired"] or []))
         if not r["skills_fired"] and not r["is_slash"]:
             for sk, rx in INTENT_RE.items():
+                if sk in running: continue
                 if rx.search(p): signals.append(f"miss?:{sk}")
         # The fourth gate (BL-164). The three above are all defect-shaped: they
         # need a complaint, a correction, or a missed trigger. A standing
