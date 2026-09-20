@@ -92,6 +92,39 @@ never acted on), the auditor-freshness re-verification loop behind
 
 ---
 
+## Sub-action: `/aidex:aidex doctor`
+
+The install health check the retired `./install.sh --doctor` gave (BL-404). Run
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex/scripts/doctor.sh` and show its report.
+
+Four checks, one `PASS:`/`FAIL:` line each, exit 0 all clear / 1 on any FAIL / 2 on a
+usage error:
+
+| Check | FAIL means |
+|---|---|
+| Stray skill copies | a directory **or symlink** in `<claude-dir>/skills/` named `aidex-*` — the pre-plugin installer's leftover, and it loads *instead of* the plugin's copy |
+| Exec bits | a `skills/*/scripts/*.sh` or a hook wired by `hooks/hooks.json` lost its `+x`; the skill that calls it fails with an error naming the caller, not the cause. Also fails when `hooks.json` is missing or names no hook at all — a check that enumerated nothing must not read as clean |
+| `python3` on PATH | the suite's python checkers cannot run |
+| Hooks wired once | a shipped hook is wired by the plugin *and* by hand in `<claude-dir>/settings.json`, so it fires twice per event, silently. Matched on the `/hooks/<path>` component, so the user's own same-named script elsewhere is not a finding |
+
+A personal directory whose name merely **equals** a plugin skill (`plan`, `review`…) is
+a `NOTE:` line, not a FAIL: plugin skills are namespaced (`/aidex:plan` vs `/plan`), so
+it shadows nothing. It is not counted and does not change the exit code — report it,
+prescribe nothing.
+
+**Read-only, and it stays that way.** Every FAIL prints its own fix command
+(`rm -rf …` for a directory, plain `rm …` for a symlink, `chmod +x …`, the settings
+entry to delete); the script runs none of them. Offer to apply them, one at a time, and
+let the user answer. A missing `settings.json` is a PASS, never an error — with or
+without `python3`.
+
+Roots are injectable for testing only: `--claude-dir` (default `~/.claude`) and
+`--plugin-root` (default self-located); a `--claude-dir` that does not exist or a
+`--plugin-root` with no `skills/` is exit 2, never a green report. Gate:
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/aidex/tests/test-doctor.sh`.
+
+---
+
 ## Phase 0: Discovery
 
 Before launching any subagent, scan what exists in the project:

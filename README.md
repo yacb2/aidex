@@ -211,8 +211,10 @@ skill's `references/`, cited by the skills that need it (see
 
 The same verbs exist on the CLI (`claude plugin install|update|uninstall|list`), and
 `claude plugin validate .` checks this repo's own manifests. The install diagnosis the
-old `./install.sh --doctor` gave returns as a skill sub-action (BL-404); the retired
-installer and its tests live in [`docs/retired/`](docs/retired/README.md).
+old `./install.sh --doctor` gave is back as `/aidex:aidex doctor` — stray skill copies,
+exec bits, `python3`, hooks wired twice; read-only, it prints each fix and runs none
+(BL-404). The retired installer and its tests live in
+[`docs/retired/`](docs/retired/README.md).
 
 Your own skills go in `project/.claude/skills/<name>/SKILL.md` for one project, or in a
 plugin of your own for all of them — a plugin never touches either.
