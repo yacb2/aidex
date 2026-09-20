@@ -41,6 +41,46 @@ page "$C/reports/2026-01-05-live.html" 18 2
 page "$C/reports/_archive/2026-01-02-old.html" 9 1
 page "$C/reports/00-index.html" 18 0                     # a rendered board, not a page
 page "$C/reports/.aidex-artifact-prev/2026-01-05-live.html" 17 1   # the wrap's prior copy
+# BL-385 dates: 2026-07-24 is the day the envelope checks landed (the boundary — the
+# rule existed that day), and `2026-13-45` passes mine_items.PAGE but is no date at all.
+page "$C/reports/2026-07-24-boundary.html" 18 0
+# Inside the kit's layout container, so it reaches `rail` — a check no since-map
+# entry covers (it landed 2026-09-13, after the map the backlog item fixed).
+cat > "$C/reports/2026-13-45-bad.html" <<'EOF'
+<title>Page</title>
+<meta name="artifact-kit" content="18">
+<div class="page"><main class="main"><section data-id="q1" data-title="one">a</section>
+<section data-id="q2" data-title="two" data-decided>b</section></main></div>
+EOF
+
+# A figure whose label is unreadable on the page ground: `svg-contrast`, the one
+# check that FAILS a named file and only WARNS in the census. The same page active
+# and archived, so the severity difference is the only variable between them.
+fig() {  # path
+  cat > "$1" <<'EOF'
+<title>Fig</title>
+<meta name="artifact-kit" content="18">
+<main class="main"><figure><svg viewBox="0 0 100 40">
+<text x="5" y="20" font-size="10" fill="#eef0ec">pale</text></svg></figure></main>
+EOF
+}
+fig "$C/reports/2026-09-10-fig.html"
+fig "$C/reports/_archive/2026-09-10-fig-old.html"
+# A PROJECT (or any ancestor) literally named `_archive` does not archive the pages
+# inside it: what archives a page is its place under its own `.context/`.
+mkdir -p "$W/_archive/.context/reports"
+fig "$W/_archive/.context/reports/2026-09-10-fig.html"
+
+# `siblings`: a .css or .js file next to the page (the checker reads those two
+# extensions only). Dated before the checker existed, so it must read predates-rule.
+mkdir -p "$C/reports/sib"
+page "$C/reports/sib/2026-07-01-with-assets.html" 18 0
+: > "$C/reports/sib/style.css"
+
+# A checker that fails WITHOUT printing a parseable `FAIL [check]` — a traceback on
+# stderr, a usage error, a missing interpreter. The page is not ok; it is unjudged.
+STUB="$W/stub-checker.sh"
+printf '#!/usr/bin/env bash\necho boom >&2\nexit 1\n' > "$STUB"
 
 # A sweep report with the headings sweep-report.py emits (its `section()` regex is
 # the contract, so a renamed heading here would be the generator's own change).
@@ -84,12 +124,16 @@ EOF
 # (1) read_artifacts: two pages, bands, the board and the prior copy skipped -------
 out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$W" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "read_artifacts exits 0" || bad "read_artifacts rc=$rc: $out"
-[[ "$(tail -1 <<<"$out")" == "pages processed: 2" ]] \
-  && ok "pages processed: 2 is the LAST line (board and prior copy skipped)" \
+[[ "$(tail -1 <<<"$out")" == "pages processed: 8" ]] \
+  && ok "pages processed: 8 is the LAST line (board and prior copy skipped)" \
   || bad "count line: $(tail -1 <<<"$out")"
-grep -Eq '^v9 +1 +1 +1 +2 +1' <<<"$out" && ok "v9 band: 1 page, archived, consult, 2 items, 1 decided" \
+# Every column, checker-ok included: no page in this fixture passes the contract, and
+# nothing read that last column until a fail-open bug lived in it.
+grep -Eq '^v9 +1 +1 +1 +2 +1 +0$' <<<"$out" && ok "v9 band: 1 page, archived, consult, 2 items, 1 decided, 0 ok" \
   || bad "v9 band row missing: $out"
-grep -Eq '^v18 +1 +0 +1 +2 +1' <<<"$out" && ok "v18 band: 1 page, active" || bad "v18 band row missing: $out"
+grep -Eq '^v18 +7 +1 +1 +8 +4 +0$' <<<"$out" \
+  && ok "v18 band: 7 pages, 1 archived (the _archive-named project is not), 8 items, 4 decided, 0 ok" \
+  || bad "v18 band row missing: $out"
 # BL-386: `data-decided` in the kit CSS and the composer script is not an item's attribute.
 over="$(awk '/^(v[0-9]+|pre-wrapper)[[:space:]]/ && $6 > $5' <<<"$out")"
 [[ -z "$over" ]] && ok "decided never exceeds items on a band row" \
@@ -97,10 +141,57 @@ over="$(awk '/^(v[0-9]+|pre-wrapper)[[:space:]]/ && $6 > $5' <<<"$out")"
 # The round of each page, not only how many pages carry one.
 grep -Eq '^round 2: .*2026-01-05-live\.html' <<<"$out" \
   && ok "the consult round is reported per page" || bad "per-page round line missing: $out"
-# Both pages lack the kit envelope, so the checker fails them; the finding names the band range.
-grep -Eq '^fail \[[^]]+\]: 2 page\(s\), v9–v18$' <<<"$out" \
+# Every page lacks the kit envelope, so the checker fails them; the finding names the band range.
+grep -Eq '^fail \[doctype\]: 8 page\(s\), v9–v18$' <<<"$out" \
   && ok "a checker failure is reported with its version band range" \
   || bad "band-ranged failure line missing: $out"
+
+# BL-385: every failure line carries the page's date and its verdict against the
+# check's since date, so predates-rule vs defect is read off the run.
+grep -Fq 'fail [doctype] 2026-01-02 predates-rule (since 2026-07-24): ' <<<"$out" \
+  && ok "a page older than the check is labelled predates-rule, with its date" \
+  || bad "predates-rule line missing: $out"
+grep -Fq 'fail [svg-contrast] 2026-09-10 defect (since 2026-09-07): ' <<<"$out" \
+  && ok "a page younger than the check is labelled defect, with its date" \
+  || bad "defect line missing: $out"
+# The boundary: the rule landed that day, so the page had it.
+grep -Fq 'fail [doctype] 2026-07-24 defect (since 2026-07-24): ' <<<"$out" \
+  && ok "a page dated exactly on the since date is a defect, not predates-rule" \
+  || bad "boundary line missing: $out"
+grep -Fq 'fail [doctype] undated defect (since 2026-07-24): ' <<<"$out" \
+  && ok "a page whose basename digits are no date is undated and a defect" \
+  || bad "undated line missing: $out"
+# A check the map does not carry cannot be claimed to postdate any page.
+grep -Fq 'fail [rail] undated defect (no since date): ' <<<"$out" \
+  && ok "a check absent from the since-map is a defect, and says so" \
+  || bad "unmapped-check line missing: $out"
+
+# Census severity: `svg-contrast` fails the active page and is only advisory on the
+# archived one — the page the census leaves alone.
+grep -Eq '^advisory \[svg-contrast\] 2026-09-10 \(census severity, archived\): .*2026-09-10-fig-old\.html$' <<<"$out" \
+  && ok "svg-contrast on an _archive/ page is graded at census severity" \
+  || bad "advisory line missing: $out"
+grep -Fq 'fail [svg-contrast] 2026-09-10 defect (since 2026-09-07): '"$C/reports/_archive/2026-09-10-fig-old.html" <<<"$out" \
+  && bad "svg-contrast still fails an archived page at wrap severity: $out" \
+  || ok "an archived page does not fail on a census-advisory check"
+# An ANCESTOR named `_archive` is not an archive: the page is active, at wrap severity.
+grep -Fq 'fail [svg-contrast] 2026-09-10 defect (since 2026-09-07): '"$W/_archive/.context/reports/2026-09-10-fig.html" <<<"$out" \
+  && ok "a page under a project named _archive keeps wrap severity" \
+  || bad "the _archive-named project was demoted to census severity: $out"
+
+# `siblings` is a check of the same 2026-07-24 commit, so a page older than it predates it.
+grep -Fq 'fail [siblings] 2026-07-01 predates-rule (since 2026-07-24): ' <<<"$out" \
+  && ok "siblings carries its since date, and an older page predates it" \
+  || bad "siblings since-date line missing: $out"
+
+# A checker that fails without a parseable FAIL line leaves the page UNJUDGED, never ok.
+stub_out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$W" --checker "$STUB" 2>/dev/null)"
+[[ "$(tail -1 <<<"$stub_out")" == "pages processed: 8" ]] \
+  && ok "a checker with no sibling module still ends with the count line" \
+  || bad "the reader died before its count line: $(tail -1 <<<"$stub_out")"
+awk '/^(v[0-9]+|pre-wrapper)[[:space:]]/ && $7 != 0 { exit 1 }' <<<"$stub_out" \
+  && ok "a checker that exits non-zero with no FAIL line counts 0 pages checker-ok" \
+  || bad "fail-open: an unjudged page counted as checker-ok: $stub_out"
 
 # (2) read_sweep: one report, counts from its sections ----------------------------
 out="$(python3 "$FACETS/read_sweep.py" --projects-root "$W" 2>&1)"; rc=$?

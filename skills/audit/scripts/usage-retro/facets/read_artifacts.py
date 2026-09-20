@@ -15,11 +15,17 @@ and `.aidex-artifact-prev/` by design (the census is the quality gate for pages
 being edited, not an instrument), and a v9 page failing a v18 rule is a finding about
 v9–v12 pages, never "pages fail". The checker runs per file here for that reason.
 
+A failure line carries the page's own date and grades itself against the date the
+check became a rule (`SINCE`): `predates-rule` or `defect`. Deciding that took an
+ad-hoc re-run over 88 pages the first time (BL-385). Because the run is per file, a
+check the census only WARNS about (`CENSUS_ADVISORY`, imported from the checker) is
+demoted on an `_archive/` page — the page the census itself skips.
+
 Prints `pages processed: N` LAST, always — a reader that saw nothing must say 0.
 
 usage: read_artifacts.py --projects-root DIR [--checker PATH]
 """
-import os, re, sys, glob, argparse, subprocess, collections
+import os, re, sys, glob, argparse, subprocess, collections, datetime, importlib.util
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -34,20 +40,103 @@ META = re.compile(r'<meta\s+name=["\']?(artifact-kit|consult-round)["\']?\s+cont
 ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
 DECIDED = re.compile(r'\bdata-decided\b', re.I)
 FAIL = re.compile(r'^\s*FAIL \[([^\]]+)\]', re.M)
+PAGE_DATE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})-')
+
+# When each check became a rule, from the commit that introduced it (BL-385). A page
+# written before its check existed fails a rule that did not exist yet; calling that a
+# defect is what made the first facet run unreadable. The `envelope` group of the
+# backlog item is not one check name — the checker prints those checks individually,
+# and 12c7649 (2026-07-24) is the commit that created the checker, so every check it
+# was born with shares that date.
+SINCE = {
+    "doctype": "2026-07-24", "charset": "2026-07-24", "viewport": "2026-07-24",
+    "title": "2026-07-24", "themes": "2026-07-24", "self": "2026-07-24",
+    "siblings": "2026-07-24", "missing": "2026-07-24",
+    "consult": "2026-08-17", "consult-ids": "2026-08-17",
+    "layout": "2026-08-19",
+    "consult-shape": "2026-08-27",
+    "lang": "2026-08-31",
+    "svg-contrast": "2026-09-07",
+}
 
 
-def read_page(path, checker):
+def page_date(path):
+    """`YYYY-MM-DD` from the basename, or None when those digits are not a real
+    date. `mine_items.PAGE` already refuses a page without the prefix, so the only
+    dateless page that reaches here is one whose digits do not form a date
+    (`2026-13-45-x.html`) — it is reported `undated` and, below, graded `defect`:
+    a page that cannot say when it was written cannot claim to predate anything."""
+    m = PAGE_DATE.match(os.path.basename(path))
+    if not m:
+        return None
+    try:
+        return datetime.date(*(int(g) for g in m.groups())).isoformat()
+    except ValueError:
+        return None
+
+
+def verdict(check, date):
+    """`predates-rule` only when the page is STRICTLY older than the check's since
+    date: a page written the day the rule landed had the rule, so the boundary day
+    is a `defect`. A check absent from SINCE is a `defect` too — the map is the only
+    evidence the rule is younger than the page, and without it there is none."""
+    since = SINCE.get(check)
+    if since is None:
+        return "defect", "no since date"
+    if date is not None and date < since:
+        return "predates-rule", f"since {since}"
+    return "defect", f"since {since}"
+
+
+def census_advisory(checker):
+    """The checks the CHECKER itself grades as advisory in `--census` — imported,
+    never restated here. The checker has no per-file census mode, so an archived
+    page is checked per file and these findings are demoted afterwards.
+
+    The module is found by string surgery on a path the caller controls, so it can
+    fail for reasons that have nothing to do with the tree being read: `--checker`
+    is a stub, a wrapper somewhere else, not a file at all. A reader must still
+    read — it says on stderr that nothing will be demoted, and walks the pages."""
+    mod = os.path.join(os.path.dirname(os.path.abspath(checker)), "dash",
+                       "check_artifact.py")
+    try:
+        spec = importlib.util.spec_from_file_location("check_artifact_for_reader", mod)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return tuple(m.CENSUS_ADVISORY)
+    except Exception as e:                          # noqa: BLE001 — advisory
+        print(f"note: no census-advisory list next to the checker ({e}) — "
+              f"nothing demoted on archived pages", file=sys.stderr)
+        return ()
+
+
+def read_page(path, ctx, checker, advisory_checks):
     txt = open(path, errors="replace").read()
     meta = {k.lower(): int(v) for k, v in META.findall(txt)}
     band = f"v{meta['artifact-kit']}" if "artifact-kit" in meta else "pre-wrapper"
     r = subprocess.run(["bash", checker, path], capture_output=True, text=True)
     tags = ITEM.findall(txt)
+    # RELATIVE to the page's own `.context/`: what archives a page is where it sits
+    # under that directory, and a project (or any ancestor of the projects root)
+    # named `_archive` archives nothing. Against the absolute path this decided a
+    # SEVERITY, which is exactly where such a coincidence must not be read.
+    archived = "_archive" in os.path.relpath(path, ctx).split(os.sep)
+    fails = sorted(set(FAIL.findall(r.stdout)))
+    # An archived page is exactly the page the census leaves alone, so a check the
+    # census only warns about must not make it count as failing here either.
+    advisory = [c for c in fails if archived and c in advisory_checks]
+    fails = [c for c in fails if c not in advisory]
     return {
         "path": path, "band": band, "version": meta.get("artifact-kit", 0),
-        "round": meta.get("consult-round", 0),
+        "round": meta.get("consult-round", 0), "date": page_date(path),
         "items": len(tags), "decided": sum(1 for t in tags if DECIDED.search(t)),
-        "archived": "_archive" in path.split(os.sep),
-        "ok": r.returncode == 0, "fails": sorted(set(FAIL.findall(r.stdout))),
+        "archived": archived,
+        # The checker's EXIT CODE is the verdict; demotion is the only thing that
+        # overrides it. A checker that dies without printing a parseable
+        # `FAIL [check]` — a traceback, a usage error, no interpreter — leaves the
+        # page unjudged, and `not fails` would have called that page ok.
+        "ok": r.returncode == 0 or (bool(advisory) and not fails),
+        "fails": fails, "advisory": advisory,
     }
 
 
@@ -59,10 +148,11 @@ def main():
     mine_items.configure(args)
     mine_items.require_projects_root()
 
+    advisory_checks = census_advisory(args.checker)
     pages = []
     for ctx in sorted(glob.glob(os.path.join(mine_items.PROJ_ROOT, "*", ".context"))):
         for f in mine_items.page_files(ctx):
-            pages.append(read_page(f, args.checker))
+            pages.append(read_page(f, ctx, args.checker, advisory_checks))
 
     bands = collections.defaultdict(list)
     for p in pages:
@@ -80,6 +170,17 @@ def main():
         if p["round"]:
             print(f"round {p['round']}: {p['path']} ({p['band']}, "
                   f"{p['decided']}/{p['items']} decided)")
+
+    # One line per failing (page, check), carrying the page's own date and the
+    # verdict against the check's since date, so predates-rule vs defect is read
+    # off the run instead of reconstructed by an ad-hoc re-run (BL-385).
+    for p in sorted(pages, key=lambda p: p["path"]):
+        for c in p["fails"]:
+            label, since = verdict(c, p["date"])
+            print(f"fail [{c}] {p['date'] or 'undated'} {label} ({since}): {p['path']}")
+        for c in p["advisory"]:
+            print(f"advisory [{c}] {p['date'] or 'undated'} (census severity, "
+                  f"archived): {p['path']}")
 
     # Which versions fail which check: the band range is the finding's subject.
     by_check = collections.defaultdict(set)
