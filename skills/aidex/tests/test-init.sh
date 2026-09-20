@@ -101,6 +101,27 @@ fi
 
 rm -rf "$d3"
 
+# --- Scenario 3b: AIDEX_DIR unset -> the suite is found next to the script ---
+# Under the plugin layout nothing lives at ~/.claude/skills; the default used to
+# point there, so every seeding step skipped itself on a real install. HOME is
+# an empty dir here so a machine that still has the retired install cannot pass
+# this for the wrong reason.
+
+d3b="$(mktemp -d)"
+home3b="$(mktemp -d)"
+
+out3b="$(env -u AIDEX_DIR HOME="$home3b" bash "$INIT" "$d3b" </dev/null)"
+
+if [[ -f "$d3b/.context/backlog/00-index.md" ]]; then
+  pass "scenario3b: backlog index seeded with AIDEX_DIR unset"
+else
+  fail "scenario3b: backlog index not seeded with AIDEX_DIR unset: $(printf '%s' "$out3b" | grep -i 'not installed' | head -1)"
+fi
+[[ -f "$d3b/.context/references/01-project-commands.md" ]] \
+  || fail "scenario3b: 01-project-commands.md not written with AIDEX_DIR unset"
+
+rm -rf "$d3b" "$home3b"
+
 # --- Scenario 4: suite not installed (AIDEX_DIR -> empty temp dir) ---
 
 d4="$(mktemp -d)"
