@@ -7,9 +7,9 @@
 #   --channel: async only; defaults to email. Ignored for meeting/call (the kind is the channel).
 #
 # Reads the workspace communications style profile (.context/communication-style.md) and
-# renders it into the scaffolded body, so voice/sign-off/tone/address/date format are in
-# front of whoever writes the body instead of being corrected afterwards (BL-216). A
-# project with no profile gets the documented defaults, never an error.
+# renders it into the scaffolded body, so voice/sign-off/tone/address/date format/paste
+# font are in front of whoever writes the body instead of being corrected afterwards
+# (BL-216, BL-415). A project with no profile gets the documented defaults, never an error.
 #
 # Scaffolds .context/communications/<folder>/<YYYY-MM-DD>-<slug>/body.md from the template.
 # received entries default to status=sent (a record); sent entries default to status=draft;
@@ -63,10 +63,10 @@ render_template() {
 
 # --- Communications style profile (BL-216) ---------------------------------------
 # Same shape as .context/artifact-style.md: a human-readable markdown file whose
-# machine-readable part is the first fenced block under `## Profile`. Five axes, each
+# machine-readable part is the first fenced block under `## Profile`. Six axes, each
 # with a shipped default, because a workspace with no profile must still scaffold.
 STYLE_PROFILE_REL=".context/communication-style.md"
-STYLE_AXES="voice sign_off tone address date_format"
+STYLE_AXES="voice sign_off tone address date_format paste_font"
 
 # Shipped defaults, one per axis. A case statement rather than an associative array:
 # macOS ships bash 3.2, where `declare -A` does not exist and the assignment fails
@@ -78,6 +78,10 @@ style_default() {
     tone)        printf '%s' "cordial-professional — one line of courtesy opening and closing, plain vocabulary" ;;
     address)     printf '%s' "mirror the interlocutor's own register" ;;
     date_format) printf '%s' "spelled out in the body's own language (front-matter stays ISO per D-01)" ;;
+    # Outlook's composing default, so a pasted body.html lands in the same face as the
+    # message around it. Single-quoted: the stack carries its own double quotes, which
+    # the CSS needs for the multi-word families.
+    paste_font)  printf '%s' 'font-family: Aptos,"Aptos Display",Calibri,Carlito,"Segoe UI",Arial,sans-serif at 12 pt — state it on any body.html (a browser preview falls back to Calibri; that is expected)' ;;
   esac
 }
 

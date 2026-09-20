@@ -156,12 +156,13 @@ English. Borrow the shape, never the language.
 
 ### The house style is already in the scaffolded body
 
-`new-communication.sh` reads `.context/communication-style.md` and renders its five axes —
-voice, sign-off, tone, address, date format — into the `body.md` it creates, so the draft
-starts in this workspace's voice instead of being corrected into it. A workspace with no
-profile gets the documented defaults; that is the normal case, not an error. Read the block
-at the top of the scaffolded file before writing, and if a correction keeps recurring on a
-sixth axis, record it in the profile rather than re-applying it. Full shape:
+`new-communication.sh` reads `.context/communication-style.md` and renders its six axes —
+voice, sign-off, tone, address, date format, paste font — into the `body.md` it creates, so
+the draft starts in this workspace's voice instead of being corrected into it. A workspace
+with no profile gets the documented defaults; that is the normal case, not an error. Read
+the block at the top of the scaffolded file before writing, and if a correction keeps
+recurring on an axis the profile does not carry, record it there rather than re-applying
+it. Full shape:
 `conventions/references/communication-conventions.md` § House style.
 
 ### An outgoing email body must survive a paste into Outlook or Gmail
@@ -183,6 +184,13 @@ this as `communication-paste-unsafe` — scoped to `sent/` + `channel: email` on
 If the recipient genuinely needs a rendered table, write a `body.html` **alongside**
 `body.md` and have the user paste that one — attachments already live next to the body,
 so this needs no new file tier. It is opt-in: do not emit one unless it is asked for.
+
+A `body.html` **states `font-family` explicitly**, at the scaffolded `paste_font` value.
+Omitting it is not neutral — copying from a browser puts computed styles on the clipboard,
+so an unstyled block pastes as the browser's default serif instead of inheriting Outlook's
+composing font. Do not emit an `@font-face`: Aptos lives inside `Outlook.app`, so a browser
+preview falls back to Calibri, and that gap is documented rather than worked around. Full
+contract: `conventions/references/communication-conventions.md` § Typography contract.
 
 ---
 

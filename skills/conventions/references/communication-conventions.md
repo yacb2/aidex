@@ -158,6 +158,31 @@ When a recipient genuinely needs a rendered table, emit a `body.html` **alongsid
 `body.md` and paste that instead — attachments sit next to the body by design, and an
 `.html` companion needs no new tier.
 
+#### Typography contract — every `body.html`
+
+A `body.html` **must state `font-family` explicitly**, at the value of the `paste_font`
+axis (see § House style).
+
+Omitting it does not make the block inherit the mail client's font. Copying from a browser
+puts *computed* styles on the clipboard, so an unstyled block arrives carrying the
+browser's own default — a serif face sitting above an Outlook signature and a quoted
+thread in the client's composing font. Stating the wrong font fails the same way: the
+echo_lab_ws draft of 2026-09-16 specified Calibri and landed visibly apart from the message
+written around it.
+
+The value is not a style choice. It tracks the **composing font of the sender's mail
+client**, so that the pasted block is indistinguishable from text typed directly into the
+same message. That is why it ships as a default that is already right (Outlook's current
+composing default) rather than as something each draft decides, and why the axis exists at
+all: for the person whose client is set to something else.
+
+**The browser preview is not a proof.** Aptos ships inside `Outlook.app`, not in the system
+font path, so a `body.html` opened in a browser falls back to Calibri and misrepresents
+what Outlook will render. That discrepancy is documented, not worked around: the scaffold
+emits **no `@font-face`**, since pointing at `Outlook.app/Contents/Resources/DFonts/` is
+macOS- and install-path-specific and would not travel. Nothing is lost in the paste either
+way — the clipboard carries the `font-family` list, not the resolved face.
+
 ---
 
 ## Draft → sent flow
@@ -200,13 +225,13 @@ is the only `.context/` type with such an exemption — everywhere else, English
 
 ## House style — the workspace communications profile
 
-A generated draft that gets the same five corrections applied by hand every time is a
+A generated draft that gets the same six corrections applied by hand every time is a
 draft the tool wrote in the wrong voice. Those corrections are recorded once, per
 workspace, in `.context/communication-style.md`, and `new-communication.sh` renders them
 into every scaffolded `body.md` — at the point of writing, not as a later review step.
 
 The file is documentation first: prose explaining the choices, with one machine-readable
-fenced block under a `## Profile` heading. Only that block is parsed, and only these five
+fenced block under a `## Profile` heading. Only that block is parsed, and only these six
 keys (anything else in it is ignored, not rejected):
 
 ```
@@ -215,7 +240,12 @@ sign_off: none — the message ends with its last paragraph
 tone: cordial-professional — one line of courtesy opening and closing
 address: tú by default; usted when the interlocutor's register calls for it
 date_format: prose in the body's own language, e.g. "el 24 de agosto"
+paste_font: font-family: Aptos,"Aptos Display",Calibri,Carlito,"Segoe UI",Arial,sans-serif at 12 pt
 ```
+
+A value may carry double quotes and commas — `paste_font` always does, and the whole line
+after `paste_font:` is the value. Only a quote that *surrounds* the whole value is
+stripped.
 
 **A workspace with no profile is the normal case, not an error.** Each axis falls back on
 its own to the shipped default (`STYLE_DEFAULTS` in `new-communication.sh`), so a partial
@@ -227,6 +257,12 @@ its own native language, and pinning one would translate a supplier's thread. An
 **paste-safety** — "no markdown tables or blockquotes in an outgoing email" is a property
 of Outlook and Gmail, not of anyone's taste, so it is canon above and a `validate.py` rule,
 applying to every workspace.
+
+`paste_font` splits from both, which is why it *is* an axis. It is not taste and not a
+property of the clients in general: it is a property of **one person's** mail client,
+identical across every workspace that person owns. So the shipped default carries it (no
+workspace has to copy it in, and none can drift), and the axis exists only as the override
+for a client configured differently.
 
 ## Pre-canonical body filenames
 
