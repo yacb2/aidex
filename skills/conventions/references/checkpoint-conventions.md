@@ -87,9 +87,15 @@ sweep report) — not only in a handoff seed, which is exactly what a handoff dr
 
 ### 4. Context check → auto-handoff, never asked
 
-Estimate session context growth. If the conversation has grown substantially (long tool
-outputs, many file reads, several units in one session), **hand off between units
-automatically** — handoff is a mandated step of the running process, never a question
+The trigger is a number, not an impression: **at 250k tokens of context** — the band
+`hooks/context-depth-nudge.sh` reports — **hand off at the next unit boundary,
+automatically.** Never on call count, and never mid-unit: a hop costs about 40% fact
+survival, so it has to buy more than it drops, and cost per call at 350+ calls measured
+2.4x the first 50 (325 chained sessions, 2026-09-12). Where no depth is reported, fall back
+to the estimate — long tool outputs, many file reads, several units in one session. A known
+pause of more than an hour is a trigger too: on return the session re-creates a median 150k
+tokens of cache at write price, about four handoffs' worth. Handoff is a mandated step of
+the running process, never a question
 (`skills/conventions/references/autonomy-conventions.md` class 3). If a session-handoff skill is installed, invoke it and
 **auto-compose the seed** yourself; otherwise `/compact` or continue in-session. Never
 hard-depend on any handoff skill.
