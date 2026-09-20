@@ -28,7 +28,10 @@ import mine_items  # noqa: E402  (page_files, add_root_args)
 CHECKER = os.path.normpath(os.path.join(HERE, "..", "..", "..", "..", "artifact",
                                         "scripts", "check-artifact.sh"))
 META = re.compile(r'<meta\s+name=["\']?(artifact-kit|consult-round)["\']?\s+content=["\']?(\d+)', re.I)
-ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=', re.I | re.S)
+# An item is an OPEN TAG carrying `data-id`, and only such a tag can be decided:
+# the kit CSS (`.consult-item[data-decided]`) and the composer script
+# (`hasAttribute('data-decided')`) mention the token on every page (BL-386).
+ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
 DECIDED = re.compile(r'\bdata-decided\b', re.I)
 FAIL = re.compile(r'^\s*FAIL \[([^\]]+)\]', re.M)
 
@@ -38,10 +41,11 @@ def read_page(path, checker):
     meta = {k.lower(): int(v) for k, v in META.findall(txt)}
     band = f"v{meta['artifact-kit']}" if "artifact-kit" in meta else "pre-wrapper"
     r = subprocess.run(["bash", checker, path], capture_output=True, text=True)
+    tags = ITEM.findall(txt)
     return {
         "path": path, "band": band, "version": meta.get("artifact-kit", 0),
         "round": meta.get("consult-round", 0),
-        "items": len(ITEM.findall(txt)), "decided": len(DECIDED.findall(txt)),
+        "items": len(tags), "decided": sum(1 for t in tags if DECIDED.search(t)),
         "archived": "_archive" in path.split(os.sep),
         "ok": r.returncode == 0, "fails": sorted(set(FAIL.findall(r.stdout))),
     }
@@ -68,6 +72,14 @@ def main():
         print(f"{band:<13} {len(ps):>5}  {sum(p['archived'] for p in ps):>8}  "
               f"{sum(1 for p in ps if p['round']):>7}  {sum(p['items'] for p in ps):>5}  "
               f"{sum(p['decided'] for p in ps):>7}  {sum(p['ok'] for p in ps):>10}")
+
+    # The round each page reached, not just how many pages carry one: a page stores
+    # `consult-round` and, per item, the verdict TEXT on `data-decided` — never the
+    # round an item was decided in, so rounds-to-all-decided is not derivable here.
+    for p in sorted(pages, key=lambda p: p["path"]):
+        if p["round"]:
+            print(f"round {p['round']}: {p['path']} ({p['band']}, "
+                  f"{p['decided']}/{p['items']} decided)")
 
     # Which versions fail which check: the band range is the finding's subject.
     by_check = collections.defaultdict(set)

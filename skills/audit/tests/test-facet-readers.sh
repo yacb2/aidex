@@ -23,13 +23,18 @@ trap 'rm -rf "$W"' EXIT
 C="$W/demo_ws/.context"
 mkdir -p "$C/reports/_archive" "$C/reports/.aidex-artifact-prev" "$C/worklists/_archive"
 
+# A real wrapped page embeds the kit CSS and the composer script, and BOTH mention
+# `data-decided` outside any item — that is what BL-386 was over-counting.
 page() {  # path kit-version consult-round
   cat > "$1" <<EOF
 <title>Page</title>
 <meta name="artifact-kit" content="$2">
 <meta name="consult-round" content="$3">
+<style>.consult-item[data-decided] { border-style: dashed; }
+.consult-item[data-decided] .opts label { cursor: default; }</style>
 <main class="main"><section data-id="q1" data-title="one">a</section>
 <section data-id="q2" data-title="two" data-decided>b</section></main>
+<script>function isDecided(el) { return el.hasAttribute('data-decided'); }</script>
 EOF
 }
 page "$C/reports/2026-01-05-live.html" 18 2
@@ -85,6 +90,13 @@ out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$W" 2>&1)"; rc=$?
 grep -Eq '^v9 +1 +1 +1 +2 +1' <<<"$out" && ok "v9 band: 1 page, archived, consult, 2 items, 1 decided" \
   || bad "v9 band row missing: $out"
 grep -Eq '^v18 +1 +0 +1 +2 +1' <<<"$out" && ok "v18 band: 1 page, active" || bad "v18 band row missing: $out"
+# BL-386: `data-decided` in the kit CSS and the composer script is not an item's attribute.
+over="$(awk '/^(v[0-9]+|pre-wrapper)[[:space:]]/ && $6 > $5' <<<"$out")"
+[[ -z "$over" ]] && ok "decided never exceeds items on a band row" \
+  || bad "decided > items (token counted outside an item): $over"
+# The round of each page, not only how many pages carry one.
+grep -Eq '^round 2: .*2026-01-05-live\.html' <<<"$out" \
+  && ok "the consult round is reported per page" || bad "per-page round line missing: $out"
 # Both pages lack the kit envelope, so the checker fails them; the finding names the band range.
 grep -Eq '^fail \[[^]]+\]: 2 page\(s\), v9–v18$' <<<"$out" \
   && ok "a checker failure is reported with its version band range" \
