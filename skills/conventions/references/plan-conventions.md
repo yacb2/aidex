@@ -249,6 +249,10 @@ destructive migrations; see autonomy-conventions.md]
 
 **Isolation:** [worktree recommendation if parallel to other work — omit otherwise]
 
+## Open decisions   <!-- optional; omit the whole section when the design is settled -->
+
+- [Decision still open] — unblocker: research | prototype | owner conversation
+
 ---
 
 ## Phases Overview
@@ -272,6 +276,38 @@ The `status` field uses the base lifecycle from [`00-global.md` §6](00-global.m
 > **Checkbox state has one carrier.** Task/phase checkboxes live in the phase
 > checkpoints (below). The Session Checkpoint is a pointer (status / phase /
 > next), not a second checkbox list — duplicated checkboxes drift.
+
+---
+
+## Open decisions (optional)
+
+A plan written while part of the design is still open has one place to say so: a
+short section under the header layer, **one line per open decision, each naming its
+unblocker as exactly one of `research`, `prototype`, `owner conversation`**. Those
+three are the whole vocabulary — a decision no one of them closes is not an open
+decision, it is a task.
+
+```markdown
+## Open decisions
+
+- Cache key for the rendered segment — unblocker: prototype
+- Whether the export stays synchronous over 50 MB — unblocker: owner conversation
+- Which diffing library survives the licence check — unblocker: research
+```
+
+The unblocker is the content, not the question. "We have not decided the cache key"
+is a note; "the cache key needs a prototype" is the next action, and it is what lets a
+reader (or the executor at Orient) see whether the plan is waiting on work, on a
+reader, or on nothing.
+
+**Optional, and never a requirement.** Omit the section when the design is settled —
+a plan without it validates exactly as before, `validate.py` neither demands it nor
+parses it, and it creates no backlog item, ticket or store of its own. It is **not
+required for `direct` work or for `scoped` plans**: `direct` does not produce a plan,
+and a scoped plan's premise is that the *how* is already settled — an open design
+decision inside one is the signal to re-triage as `full`, not to add a section. A line
+is deleted when its decision closes; the decision itself then lands in
+**Architecture** or in an ADR, never here.
 
 ---
 

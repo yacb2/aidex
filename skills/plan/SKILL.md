@@ -106,6 +106,9 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
    rules that matter:
    - **Carry the Step-0 ratified paragraph verbatim** into the plan's **Design
      concept** slot, plus **Non-goals** — that layer is the plan's durable core.
+   - **Optional `## Open decisions`** (canon §Open decisions): one line per still-open
+     decision, each naming its unblocker as `research`, `prototype` or
+     `owner conversation`. Omit it when the design is settled; never for a scoped plan.
    - **Per phase: Goal + Acceptance** (2–4 observable behaviors, ≥1
      machine-checkable) **+ a machine gate**. Per task: Files + Spec (intent,
      pattern anchor, discovered constraints). **Do not pre-write implementation
