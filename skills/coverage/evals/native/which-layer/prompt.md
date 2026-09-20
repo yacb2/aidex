@@ -11,6 +11,7 @@ regla la expone `billing/views.py` en el endpoint `/api/quote/`.
 Quiero saber en qué nivel de prueba corresponde cubrir ese comportamiento (mi
 primer impulso fue mandarlo a pruebas de navegador, porque el usuario lo ve en la
 pantalla del carrito) y quiero esa prueba escrita ya, en el lugar que corresponda
-dentro de `billing/tests/`. Justifícame el nivel elegido.
+dentro de `billing/tests/`; si termina siendo un archivo nuevo, llámalo
+`billing/tests/test_quote_total.py`. Justifícame el nivel elegido.
 
 Ya está todo definido, no hace falta que me preguntes nada.
