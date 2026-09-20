@@ -5,9 +5,12 @@
 // arbiter) decides continuation; the JS loop is the verify_first carrier in batch.
 //
 // CONTRACT: launched by the plan-exec skill via the `Workflow` tool with
-//   args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort }],
+//   args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType }],
 //                           autonomySurface, preAuthorized, maxRetries })
 // `args` arrives as a JSON STRING (Phase-1 gotcha) -> parseArgs() does JSON.parse.
+// `agentType` is OPTIONAL: the name of a registered agent definition (`.claude/agents/<name>.md`
+// in the project, or `~/.claude/agents/<name>.md`) whose `tools:` carries the tier row's toolset.
+// Omitted -> the implementer runs with the default toolset and pays the full prefix.
 // `gateCmd` is VERIFIER-ONLY: it reaches the Bash verifier, never the implementer (see the
 // KEYSTONE note on the implement closure) — the implementer satisfies `spec`, not a visible test.
 //
@@ -259,7 +262,11 @@ for (const p of cfg.phases || []) {
         `Implement the spec's contract fully and correctly. A separate verifier will check your work; ` +
         `you are NOT shown that check, so satisfy the spec itself — do not target a test.\n` +
         (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),
-        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'fable', effort: p.effort || 'low' }
+        // `agentType` is the only carrier for a TOOLSET (`agent()` has no `tools` option):
+        // it names a registered agent definition whose `tools:` is the tier row's. Spread
+        // conditionally — an `agentType: undefined` key is not the same as no key.
+        { label: `exec:${p.id}`, phase: 'Execute', schema: WORK_SCHEMA, model: p.model || 'fable', effort: p.effort || 'low',
+          ...(p.agentType ? { agentType: p.agentType } : {}) }
       ),
   }
   const r = await runPhase(phaseSpec, ctx)

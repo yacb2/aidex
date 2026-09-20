@@ -132,6 +132,14 @@ the phase tier map, and what happens when a phase fails its gate.
    one line and log it to the Execution log; a phase whose cell you changed is not a phase
    whose plan you edited. Ask nothing: an unstated tier is `standard`, and no override is
    the default.
+   **A tier row whose cell restricts `tools:` also needs a registered agent definition**, since
+   `agent()` has no `tools` option: the toolset travels only as `agentType`, the name of an agent
+   file. One definition per tier the plan uses (never per phase) — `model`/`effort` from the canon
+   row, `tools:` exactly the row's list, `user-invocable: false` — living in the project's
+   `.claude/agents/<name>.md`, or `~/.claude/agents/<name>.md` when several projects share it; those
+   are the two locations an agent name resolves from, project first. Pass its name as the batch
+   phase's `agentType`. No definition → the phase runs unrestricted and pays ~49k of prefix per call
+   instead of ~14k.
 8. Create a TaskList mirroring the plan's phases so progress is visible.
 9. **Front-load the work-list for chained multi-item runs.** A single plan's phases
    are already an ordered queue (walk them). But when this session chains **multiple

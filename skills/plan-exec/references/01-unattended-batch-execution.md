@@ -51,14 +51,14 @@ single-agent baseline of that same plan, the threshold is the structural rule ab
   are edge-free (empty/omitted `depends_on`) and can run in parallel → `fan-out-with-gate`.
   When unsure, the sequential pipeline is the safe default (it never mis-orders).
 - **Launch:** read the chosen asset and hand it to the `Workflow` tool, passing the plan as
-  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, depends_on }],
+  `args = JSON.stringify({ planPath, phases: [{ id, spec, gateCmd, model, effort, agentType, depends_on }],
   autonomySurface, preAuthorized, maxRetries })`. `depends_on` is a list of phase `id`s a phase
   needs done first (omit/`[]` = edge-free); the pipeline form ignores it, the fan-out form
   schedules on it. `args` arrives as a JSON **string** — the script `JSON.parse`s it. Iterate
   via `{scriptPath}` re-invoke (picks up edits, runs fresh).
 - **Review form launch (separate invocation, after implementation):**
   `args = JSON.stringify({ planPath, diffCmd, successCriteria, standards_ref, reviewModel,
-  reviewEffort, autonomySurface, preAuthorized, maxRetries })`. `diffCmd` is the Bash command the
+  reviewEffort, reviewAgentType, autonomySurface, preAuthorized, maxRetries })`. `diffCmd` is the Bash command the
   reviewer runs to get the cumulative diff (e.g. `cd <repo> && git diff <base>...HEAD`).
   `standards_ref` is the **push** side of push/pull — a standard/rule text handed **only** to the
   reviewer, so it can enforce a rule the implementer was never shown; omit it to review against the
@@ -97,6 +97,13 @@ For each unchecked phase, in order:
   names). If the plan declares no machine gate for a phase, that phase is **not** batch-eligible
   — run it in the interactive path instead; do not invent a gate.
 - `model` / `effort` — from the phase's tier hint (below).
+- `agentType` — **optional**, and the only carrier for a toolset: `agent()` has no `tools` option,
+  so a tier row that restricts `tools:` takes effect only when the phase names a registered agent
+  definition that carries it (`.claude/agents/<name>.md` in the project, or `~/.claude/agents/`;
+  see SKILL.md Orient step 7 for the stub). Omit the key when the plan has no such definition —
+  the phase then runs on the default toolset and pays the full per-call prefix. Same key and same
+  handling in both implementing forms; the review form takes `reviewAgentType` alongside
+  `reviewModel`/`reviewEffort`, since that form has no phases.
 - `depends_on` — the phase's prerequisite phases (from the plan's `(depends_on: [...])` metadata;
   omit/`[]` = edge-free). This decides the form and the schedule. **Referent rule (load-bearing):**
   the plan writes `depends_on` in human terms (phase **numbers** like `[1, 2]`, or slugs); you must

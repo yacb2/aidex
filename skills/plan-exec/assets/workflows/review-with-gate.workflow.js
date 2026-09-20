@@ -16,12 +16,18 @@
 //
 // CONTRACT: launched by the plan-exec skill via the `Workflow` tool with
 //   args = JSON.stringify({ planPath, diffCmd, successCriteria, standards_ref,
-//                           reviewModel, reviewEffort, autonomySurface, preAuthorized, maxRetries })
+//                           reviewModel, reviewEffort, reviewAgentType,
+//                           autonomySurface, preAuthorized, maxRetries })
 // `args` arrives as a JSON STRING (Phase-1 gotcha) -> parseArgs() does JSON.parse.
 // - `diffCmd` — a Bash command the reviewer runs to obtain the cumulative diff under review
 //   (e.g. "cd <repo> && git diff main...HEAD"). The script can't run bash; the reviewer is a
 //   Bash-capable agent that runs it in its own fresh context.
 // - `standards_ref` — optional pushed standard (see PUSH/PULL above). Omitted => criteria alone.
+// - `reviewAgentType` — OPTIONAL, the reviewer's counterpart of the implementing forms' per-phase
+//   `agentType`: the name of a registered agent definition (`.claude/agents/<name>.md` in the
+//   project, or `~/.claude/agents/<name>.md`) whose `tools:` the reviewer runs with. Omitted =>
+//   the default toolset. It rides the same carrier as `reviewModel`/`reviewEffort` because this
+//   form has no phases.
 //
 // CORE INVARIANT: the block between CORE:START/CORE:END is the canonical durability CORE,
 // single-sourced at skills/conventions/references/workflow-core.md and enforced by
@@ -283,6 +289,10 @@ function review(cfg) {
       schema: REVIEW_SCHEMA,
       model: cfg.reviewModel || 'opus',
       effort: cfg.reviewEffort || 'high',
+      // Same carrier as model/effort (here: the cfg-level `review*` keys, since this form
+      // has no phases). `agentType` is the only way a TOOLSET reaches agent(); spread it
+      // conditionally — an `agentType: undefined` key is not the same as no key.
+      ...(cfg.reviewAgentType ? { agentType: cfg.reviewAgentType } : {}),
     }
   )
 }
