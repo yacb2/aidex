@@ -25,6 +25,15 @@ Then restart Claude Code. In any project, just ask naturally — the right skill
 - *"/aidex:aidex init"* → bootstraps the `.context/` skeleton in a project that doesn't have one yet
 - *"Render the backlog as an HTML board"* → `artifact` generates a sortable, self-contained page
 
+### Your first session
+
+The install lands 19 skills and 4 hooks and says nothing, on purpose — no first-run nudge.
+Start here:
+
+1. `/aidex:aidex` — audits the Claude Code setup of the project you are in and tells you what it found.
+2. `/aidex:aidex init` — only if the project has no `.context/` yet; it creates the skeleton the other skills write into.
+3. Nothing else to configure. `conventions` is passive: it is the canon the other skills read, never something you invoke.
+
 ## What this solves
 
 AI coding assistants load context into every session. As your tooling grows, you end up with:
