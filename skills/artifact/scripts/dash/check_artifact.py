@@ -291,7 +291,11 @@ ITEM_NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
 # artifacts.md` § Update in place makes keeping the item and marking it the
 # DEFAULT for a decided one, and both the kit's CSS and composer.js already
 # honour the attribute; the checker was the only reader that did not.
-ITEM_DECIDED = re.compile(r'\bdata-decided\b', re.I)
+# BL-421: `\b` after "decided" is satisfied by the hyphen of `data-decided-round`
+# — the round stamp the wrapper writes NEXT TO this mark — so without the
+# lookahead an item carrying only the stamp reads as settled and the still-asked
+# rule goes silent on a live question.
+ITEM_DECIDED = re.compile(r'\bdata-decided\b(?!-)', re.I)
 
 
 def _subtree(text, tag, start):

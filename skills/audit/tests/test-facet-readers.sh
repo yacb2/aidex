@@ -193,6 +193,98 @@ awk '/^(v[0-9]+|pre-wrapper)[[:space:]]/ && $7 != 0 { exit 1 }' <<<"$stub_out" \
   && ok "a checker that exits non-zero with no FAIL line counts 0 pages checker-ok" \
   || bad "fail-open: an unjudged page counted as checker-ok: $stub_out"
 
+# (1b) BL-421: the round the consultation decided every item in ------------------
+# Its own tree, so the band rows and counts above keep counting what they were
+# written to count.
+B="$(mktemp -d)"
+BC="$B/decided_ws/.context/reports"
+mkdir -p "$BC"
+# Every page carries the kit's real residue: components.css and composer.js spell
+# `data-decided` AND `data-decided-round` outside any item. The stamp in that text
+# says round 9 — no page may ever report 9 (the trap 0d27c21 fixed for data-decided).
+decided_page() {  # path consult-round <item-tag>...
+  local path="$1" round="$2"; shift 2
+  {
+    printf '<title>P</title>\n<meta name="artifact-kit" content="18">\n'
+    printf '<meta name="consult-round" content="%s">\n' "$round"
+    printf '<style>.consult-item[data-decided] { border-style: dashed; }\n'
+    printf '.consult-item[data-decided-round="9"] { color: red; }</style>\n'
+    printf '<main class="main">\n'
+    printf '%s\n' "$@"
+    printf '</main>\n'
+    printf '<script>function r(el) { return el.getAttribute('"'"'data-decided-round'"'"') || 9; }</script>\n'
+  } > "$path"
+}
+# (a) decided across two rounds: the page reports the LAST round, not the first.
+decided_page "$BC/2026-02-01-two-rounds.html" 3 \
+  '<section class="consult-item" data-id="q1" data-title="one" data-decided data-decided-round="1">a</section>' \
+  '<section class="consult-item" data-id="q2" data-title="two" data-decided="the other one" data-decided-round="2">b</section>'
+# (b) one item still open.
+decided_page "$BC/2026-02-02-open.html" 2 \
+  '<section class="consult-item" data-id="q1" data-title="one" data-decided data-decided-round="1">a</section>' \
+  '<section class="consult-item" data-id="q2" data-title="two">b</section>'
+# (c) a page written before the stamp existed: decided, and no round anywhere.
+decided_page "$BC/2026-02-03-legacy.html" 4 \
+  '<section class="consult-item" data-id="q1" data-title="one" data-decided>a</section>' \
+  '<section class="consult-item" data-id="q2" data-title="two" data-decided>b</section>'
+# (d) a read page: nothing to decide, which is not "all decided in round 0".
+decided_page "$BC/2026-02-04-read.html" 1 '<p>no items here</p>'
+
+out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$B" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "read_artifacts exits 0 on the decided-round tree" \
+  || bad "read_artifacts rc=$rc: $out"
+grep -Eq '^round 3: .*2026-02-01-two-rounds\.html \(v18, 2/2 questions decided, decided-round 2\)$' <<<"$out" \
+  && ok "a page decided across two rounds reports the round the LAST item was decided in" \
+  || bad "two-round line wrong: $out"
+grep -Eq '^round 2: .*2026-02-02-open\.html \(v18, 1/2 questions decided, decided-round not-all-decided\)$' <<<"$out" \
+  && ok "a page with one open item reports not-all-decided, never the max so far" \
+  || bad "open-item line wrong: $out"
+grep -Eq '^round 4: .*2026-02-03-legacy\.html \(v18, 2/2 questions decided, decided-round unknown\)$' <<<"$out" \
+  && ok "a legacy page (data-decided, no data-decided-round) is unknown, not round 0 or 1" \
+  || bad "legacy line wrong: $out"
+grep -Eq '^round 1: .*2026-02-04-read\.html \(v18, 0/0 questions decided, decided-round no-items\)$' <<<"$out" \
+  && ok "a page with no items says so instead of claiming everything was decided" \
+  || bad "no-items line wrong: $out"
+# (e) F1: a REAL page's item set is not every `data-id` tag. The group wrapping a
+# block carries one and is never decided, and `notes` is the one item the contract
+# mandates on every page — counting either makes every real page not-all-decided
+# (43 of 43 on disk). check_artifact.py excludes `notes` from its still-asked rule
+# for the same reason.
+decided_page "$BC/2026-02-05-real-shape.html" 5 \
+  '<section class="consult-group" data-id="G1" data-title="context">' \
+  '<section class="consult-item" data-id="q1" data-title="one" data-decided data-decided-round="1">a</section>' \
+  '<section class="consult-item" data-id="q2" data-title="two" data-decided data-decided-round="2">b</section>' \
+  '<section class="consult-item consult-notes" data-id="notes" data-title="General notes" data-decided>c</section>' \
+  '</section>'
+out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$B" 2>&1)"
+grep -Eq '^round 5: .*2026-02-05-real-shape\.html \(v18, [0-9]+/[0-9]+ questions decided, decided-round 2\)$' <<<"$out" \
+  && ok "the group tag and the mandatory notes item do not hold a page at not-all-decided" \
+  || bad "real-shape line wrong: $out"
+
+# (f) F1 again, from the kit's OWN skeleton through the real wrapper: the shape the
+# fixtures above imitate, with the composer and the kit CSS really injected.
+KITDIR="$HERE/../../artifact"
+mkdir -p "$B/kit_ws/.context/reports"
+{
+  printf '<style>\n'; cat "$KITDIR/assets/artifact-kit/tokens.css"; printf '</style>\n'
+  printf '<style>\n'; cat "$KITDIR/assets/artifact-kit/components.css"; printf '</style>\n'
+  sed -E 's|<section class="consult-item" data-id="(Q1\|Q2)"|<section class="consult-item" data-decided data-id="\1"|' \
+    "$KITDIR/assets/artifact-kit/skeleton.html"
+} > "$B/kitbody.html"
+kout="$(bash "$KITDIR/scripts/wrap-report.sh" --title "Kit decided" --in "$B/kitbody.html" \
+  --out "$B/kit_ws/.context/reports/2026-02-06-kit.html" 2>&1)" \
+  && ok "the skeleton with its questions decided still passes the contract" \
+  || bad "wrapping the decided skeleton failed: $kout"
+out="$(python3 "$FACETS/read_artifacts.py" --projects-root "$B" 2>&1)"
+grep -Eq '^round 1: .*2026-02-06-kit\.html \(v[0-9]+, [0-9]+/[0-9]+ questions decided, decided-round 1\)$' <<<"$out" \
+  && ok "a real wrapped kit page reports the round it decided its questions in" \
+  || bad "kit page line wrong: $(grep '2026-02-06-kit' <<<"$out")"
+
+grep -q 'decided-round 9' <<<"$out" \
+  && bad "a data-decided-round token in the kit CSS/composer text was counted: $out" \
+  || ok "data-decided-round outside an item tag is not counted"
+rm -rf "$B"
+
 # (2) read_sweep: one report, counts from its sections ----------------------------
 out="$(python3 "$FACETS/read_sweep.py" --projects-root "$W" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "read_sweep exits 0" || bad "read_sweep rc=$rc: $out"

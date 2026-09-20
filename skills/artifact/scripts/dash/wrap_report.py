@@ -167,6 +167,30 @@ def _round_of(path):
     return int(next(g for g in m.groups() if g is not None)) if m else 0
 
 
+def _baseline_path(outfile):
+    """The `.aidex-artifact-prev/` copy of `--out`: the last version that PASSED."""
+    out = os.path.abspath(outfile)
+    return os.path.join(os.path.dirname(out), ".aidex-artifact-prev",
+                        os.path.basename(out))
+
+
+def next_round(outfile):
+    """The round number the page about to be written is, or 0 when it is not a
+    round of anything (no `--out`). See `round_meta` for why the BASELINE, and
+    not the file on disk, is what it counts from."""
+    if not outfile:
+        return 0
+    out = os.path.abspath(outfile)
+    baseline = _baseline_path(out)
+    if os.path.isfile(baseline):
+        prev = _round_of(baseline) or 1
+    elif os.path.isfile(out):
+        prev = _round_of(out) or 1
+    else:
+        prev = 0
+    return prev + 1
+
+
 def round_meta(outfile):
     """`<meta name="consult-round">` for the page about to be written.
 
@@ -190,18 +214,112 @@ def round_meta(outfile):
     than a gap: without `--out` there is no thread to be a round of, and a page
     with no marker keeps the pre-round behaviour exactly.
     """
-    if not outfile:
-        return ""
-    out = os.path.abspath(outfile)
-    baseline = os.path.join(os.path.dirname(out), ".aidex-artifact-prev",
-                            os.path.basename(out))
-    if os.path.isfile(baseline):
-        prev = _round_of(baseline) or 1
-    elif os.path.isfile(out):
-        prev = _round_of(out) or 1
-    else:
-        prev = 0
-    return f'<meta name="consult-round" content="{prev + 1}">'
+    r = next_round(outfile)
+    return f'<meta name="consult-round" content="{r}">' if r else ""
+
+
+ITEM_TAG = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I)
+ATTR_ID = re.compile(r'\bdata-id\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
+# `data-decided` and NOT `data-decided-round`: `\b` after "decided" is satisfied by
+# the hyphen, so the plain pattern reads the stamp as the mark it stamps.
+ATTR_DECIDED = re.compile(
+    r'\bdata-decided\b(?!-)(?:\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+)))?', re.I)
+ATTR_DECIDED_ROUND = re.compile(
+    r'\bdata-decided-round\s*=\s*(?:"(\d+)"|\'(\d+)\'|(\d+))', re.I)
+# The attribute however it is spelled, valid or not. The digits-only pattern above
+# decides whether to KEEP a hand-written stamp; this one is how the attribute is
+# found for replacement, so `data-decided-round="two"` is corrected in place
+# instead of being invisible and answered with a second copy of the attribute.
+ANY_DECIDED_ROUND = re.compile(
+    r'\s*\bdata-decided-round\b(?:\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+))?', re.I)
+
+
+def _attr(rx, tag):
+    """The attribute's value, `""` for a bare attribute, None when it is absent.
+    Bare and absent are different states here: `data-decided` with no value is a
+    decision whose verdict line is derived from the ticked options."""
+    m = rx.search(tag)
+    if not m:
+        return None
+    return next((g for g in m.groups() if g is not None), "")
+
+
+def decided_rounds_of(path):
+    """`{data-id: (verdict, round or None)}` for the DECIDED items of a page on
+    disk — `None` when the item carries no usable stamp, which is every page
+    whose last passing render predates BL-421. Decided-without-a-stamp and
+    not-decided-at-all are different states and the caller acts differently on
+    them, so the absent stamp is carried, not dropped. A stamp whose value is not
+    digits is no stamp."""
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        return {}
+    out = {}
+    for tag in ITEM_TAG.findall(text):
+        ident, verdict = _attr(ATTR_ID, tag), _attr(ATTR_DECIDED, tag)
+        stamp = _attr(ATTR_DECIDED_ROUND, tag)
+        if ident and verdict is not None:
+            out[ident] = (verdict, int(stamp) if stamp else None)
+    return out
+
+
+def stamp_decided_rounds(body, outfile, this_round):
+    """Write `data-decided-round` onto every decided item (BL-421).
+
+    The page stores its round once, in a meta, and the verdict TEXT on
+    `data-decided` — so "how many rounds did this consultation take to decide
+    everything" was not derivable from the page, which is what the artifacts
+    facet promised its reader. The round an item was decided in is a property of
+    the moment it was decided, so it is stamped here, where the round is known.
+
+    The author's source (the `.body` sidecar) carries no stamp and must not have
+    to: it is re-wrapped every round, so a stamp derived from the source alone
+    would be the CURRENT round every time and an item decided in round 1 would
+    read as decided in round 5. The previous PASSING render is the carrier —
+    an item decided there, with the same verdict, keeps the round it got there;
+    anything else (newly decided, or re-decided with a different verdict) takes
+    this round. An author who spells a VALID `data-decided-round` by hand is left
+    alone.
+
+    The migration case is the one that must stay silent: a baseline written before
+    this existed has decided items and no stamp on any of them, and those items
+    were decided in some round nobody recorded. They stay UNSTAMPED — the reader
+    reports them `unknown` — because stamping them with the round of the wrap that
+    happens to migrate the page is a confident wrong answer, and one that would
+    then be carried forward as fact by every later round.
+    """
+    if not outfile or not this_round:
+        return body
+    baseline = _baseline_path(outfile)
+    prev = decided_rounds_of(baseline if os.path.isfile(baseline)
+                             else os.path.abspath(outfile))
+
+    def one(m):
+        tag = m.group(0)
+        verdict = _attr(ATTR_DECIDED, tag)
+        # An undecided item is never stamped, and a stamp already there is the
+        # author's markup: this writes the round of a decision, it does not tidy.
+        if verdict is None:
+            return tag
+        if ATTR_DECIDED_ROUND.search(tag):
+            return tag
+        was = prev.get(_attr(ATTR_ID, tag) or "")
+        carried = was is not None and was[0] == verdict
+        rnd = was[1] if carried else this_round
+        present = ANY_DECIDED_ROUND.search(tag)      # an invalid hand stamp
+        if rnd is None:
+            return ANY_DECIDED_ROUND.sub("", tag, count=1) if present else tag
+        if present:
+            return ANY_DECIDED_ROUND.sub(
+                lambda _m: f' data-decided-round="{rnd}"', tag, count=1)
+        inner = tag[1:-1].rstrip()
+        selfclose = inner.endswith("/")
+        if selfclose:
+            inner = inner[:-1].rstrip()
+        return f'<{inner} data-decided-round="{rnd}"' + ("/>" if selfclose else ">")
+
+    return ITEM_TAG.sub(one, body)
 
 
 def kit_script():
@@ -502,6 +620,9 @@ def main():
 
     head_extra, body = split_head_style(content)
     body = inject_rail(body)
+    # Before the kit is injected: the composer script and the kit CSS both spell
+    # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
+    body = stamp_decided_rounds(body, args.outfile, next_round(args.outfile))
     # Reset -> kit tokens -> kit components -> project delta -> the page's own
     # <style>. Each layer may override the one before it, and the author's block
     # is last so a local rule still wins. Writing a page is writing content plus

@@ -286,6 +286,25 @@ grep -qi 'decided but still asked' "$TMP/out" \
 [[ "$rc" == "1" ]] \
   || fail "8b. BL-359: the live item named in the ledger did not fail the wrap: $(cat "$TMP/out")"
 
+# ---- 8c. BL-421: the STAMP is not the mark ----------------------------------
+# `data-decided-round` is written next to `data-decided`, never instead of it —
+# but `\bdata-decided\b` is satisfied by the hyphen, so an item carrying only the
+# stamp read as settled and the still-asked rule went silent on a live question.
+stamped_only() { printf '<section class="consult-item" data-decided-round="3" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
+mkpage "$TMP/ledger-stamp-only.html" "$visual
+$ledger_bad
+$gopen
+$(stamped_only c1)
+$notesitem
+$bars
+$gclose
+$composer"
+rc="$(run "$TMP/ledger-stamp-only.html")"
+grep -qi 'decided but still asked' "$TMP/out" \
+  || fail "8c. BL-421: an item carrying only data-decided-round was read as decided — the round stamp is not the decision: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] \
+  || fail "8c. BL-421: the stamp-only item named in the ledger did not fail the wrap: $(cat "$TMP/out")"
+
 
 TPL="$SKILL/assets/templates/consultation-block.html.template"
 for needle in 'type="radio"' 'type="checkbox"' '<select' 'type="text"' '<textarea' \

@@ -407,6 +407,81 @@ bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null
 grep -q 'consult-round' "$KIT/composer.js" \
   || fail "composer.js never reads the consult-round marker the wrapper stamps"
 
+# ---------- the round an item was DECIDED in is stamped on the item --------
+#
+# BL-421: the page stored its round once and the verdict text per item, so "how
+# many rounds did this consultation take to decide everything" — what the
+# artifacts facet promises its reader — was not derivable from the page. The
+# author's sidecar carries no stamp and is re-wrapped every round, so the stamp
+# has to come from the previous PASSING render: an item decided in round 2 must
+# still read 2 in round 3, and only a CHANGED verdict takes the later round.
+DEC="$TMP/decided"
+mkdir -p "$DEC/.context/reports"
+DPG="$DEC/.context/reports/d.html"
+stamp_of() {  # file id
+  sed -nE 's/.*data-id="'"$2"'"[^>]*data-decided-round="([0-9]+)".*/\1/p' "$1" | head -1
+}
+decided_body() {  # verdict -> a skeleton page whose Q1 is decided
+  sed 's|<section class="consult-item" data-id="Q1"|<section class="consult-item" data-decided="'"$1"'" data-id="Q1"|' \
+    "$TMP/body.html" > "$TMP/dbody.html"
+}
+
+cp "$TMP/body.html" "$TMP/dbody.html"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "round 1 of the decided probe failed to wrap"
+grep -q 'data-decided-round' "$DPG" \
+  && fail "an item with no decision was stamped with a round"
+
+decided_body "we keep it"
+out="$(bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" 2>&1)" \
+  || fail "round 2 of the decided probe failed to wrap: $out"
+[[ "$(stamp_of "$DPG" Q1)" == "2" ]] \
+  || fail "the wrapper did not stamp data-decided-round on the item decided this round (got '$(stamp_of "$DPG" Q1)')"
+[[ -z "$(stamp_of "$DPG" Q2)" ]] \
+  || fail "an undecided item was stamped with a round (got '$(stamp_of "$DPG" Q2)')"
+
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "round 3 of the decided probe failed to wrap"
+[[ "$(round_of "$DPG")" == "3" && "$(stamp_of "$DPG" Q1)" == "2" ]] \
+  || fail "the item decided in round 2 was re-stamped when the page moved on (round '$(round_of "$DPG")', stamp '$(stamp_of "$DPG" Q1)')"
+
+decided_body "no, the other one"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "round 4 of the decided probe failed to wrap"
+[[ "$(stamp_of "$DPG" Q1)" == "4" ]] \
+  || fail "an item RE-decided with a different verdict kept its old round (got '$(stamp_of "$DPG" Q1)')"
+
+# F2 — MIGRATION. Every page whose last passing render predates the stamp has
+# decided items and no stamp on them. Stamping those with the current round is a
+# confident wrong answer: the item was decided some earlier round nobody recorded.
+# It stays unstamped, and the reader says `unknown`.
+BASE="$DEC/.context/reports/.aidex-artifact-prev/d.html"
+[[ -f "$BASE" ]] || fail "the decided probe left no baseline to age"
+sed -i.bak -E 's/ data-decided-round="[0-9]+"//g' "$BASE" && rm -f "$BASE.bak"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "round 5 of the decided probe failed to wrap"
+[[ -z "$(stamp_of "$DPG" Q1)" ]] \
+  || fail "an item already decided in a baseline that predates the stamp was dated with the CURRENT round (got '$(stamp_of "$DPG" Q1)')"
+# ...and the migration case is only the unchanged one: the same page with a new
+# verdict is decided NOW, and says so.
+decided_body "a third answer"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "round 6 of the decided probe failed to wrap"
+[[ "$(stamp_of "$DPG" Q1)" == "6" ]] \
+  || fail "re-deciding an unstamped legacy item did not stamp the round it was re-decided in (got '$(stamp_of "$DPG" Q1)')"
+
+# F3 — a hand-written stamp whose value is not digits. The guard reads digits, so
+# an invalid one used to be invisible and the wrapper appended a SECOND attribute.
+sed 's|<section class="consult-item" data-id="Q1"|<section class="consult-item" data-decided="x" data-decided-round="two" data-id="Q1"|' \
+  "$TMP/body.html" > "$TMP/dbody.html"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "the hand-stamped page failed to wrap"
+q1tag="$(grep -o '<section class="consult-item"[^>]*data-id="Q1"[^>]*>' "$DPG" | head -1)"
+[[ "$(grep -o 'data-decided-round=' <<<"$q1tag" | wc -l | tr -d ' ')" == "1" ]] \
+  || fail "the item carries more than one data-decided-round after an invalid hand stamp: $q1tag"
+grep -q 'data-decided-round="[0-9]\+"' <<<"$q1tag" \
+  || fail "the invalid hand stamp was left in place instead of being replaced by a round: $q1tag"
+
 # ---------- the recommendation is ONE declaration, on both surfaces --------
 # It travelled in `data-label` alone once, which is the composer's copy string:
 # the marker reached the pasted reply and was invisible on the page.

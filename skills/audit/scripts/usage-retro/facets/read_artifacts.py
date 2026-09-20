@@ -8,7 +8,9 @@ name), so every reader here is a standalone script that adds its parent to sys.p
 Walks every dated artifact page under `<projects-root>/*/.context/` — the SAME set
 `mine_items.page_files` joins to sessions, active and `_archive/` alike — and reports
 what the pages themselves say: kit version, consult round, items and how many are
-decided, and the verdict of `check-artifact.sh` run on each file.
+decided, the round the consultation reached every item in (`data-decided-round`,
+stamped per item by the wrapper since BL-421 — `unknown` on a page written before
+it), and the verdict of `check-artifact.sh` run on each file.
 
 Grouped by kit VERSION BAND on purpose: `check-artifact.sh --census` skips `_archive/`
 and `.aidex-artifact-prev/` by design (the census is the quality gate for pages
@@ -38,7 +40,22 @@ META = re.compile(r'<meta\s+name=["\']?(artifact-kit|consult-round)["\']?\s+cont
 # the kit CSS (`.consult-item[data-decided]`) and the composer script
 # (`hasAttribute('data-decided')`) mention the token on every page (BL-386).
 ITEM = re.compile(r'<[a-zA-Z][\w:-]*\b[^>]*\bdata-id\s*=[^>]*>', re.I | re.S)
-DECIDED = re.compile(r'\bdata-decided\b', re.I)
+# `\b` after "decided" is satisfied by the hyphen of `data-decided-round`, so the
+# bare pattern reads the STAMP as the mark. An item carries both; the two are read
+# apart here so a page that somehow carries only the stamp is not called decided.
+DECIDED = re.compile(r'\bdata-decided\b(?!-)', re.I)
+# A QUESTION, which is not every `data-id` tag. A block carries `data-id` so the
+# id-stability rule can hold it (`.consult-group`) and is a context, never a claim;
+# `notes` is the one item the contract mandates on every page and it is answered,
+# not decided. Counting either holds every real page at "not all decided" — it did,
+# on 43 of 43 pages on disk. The predicate is check_artifact.py's own: its
+# `consult_items()` skips the group class, and its still-asked rule skips `notes`.
+# Mirrored rather than "a tag whose class says consult-item", so a page that never
+# spelled the class still has its questions read.
+GROUP = re.compile(r'\bclass\s*=\s*["\'][^"\']*\bconsult-group\b', re.I)
+ITEM_ID = re.compile(r'\bdata-id\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
+DECIDED_ROUND = re.compile(
+    r'\bdata-decided-round\s*=\s*(?:"(\d+)"|\'(\d+)\'|(\d+))', re.I)
 FAIL = re.compile(r'^\s*FAIL \[([^\]]+)\]', re.M)
 PAGE_DATE = re.compile(r'^(\d{4})-(\d{2})-(\d{2})-')
 
@@ -73,6 +90,45 @@ def page_date(path):
         return datetime.date(*(int(g) for g in m.groups())).isoformat()
     except ValueError:
         return None
+
+
+def questions(tags):
+    """The item tags that are QUESTIONS: no block, no mandatory notes item."""
+    out = []
+    for t in tags:
+        m = ITEM_ID.search(t)
+        ident = next((g for g in m.groups() if g is not None), "") if m else ""
+        if not GROUP.search(t) and ident != "notes":
+            out.append(t)
+    return out
+
+
+def decided_round(tags):
+    """The round at which EVERY item of the page was decided, as a label.
+
+    Over the page's QUESTIONS (`questions()`), never every `data-id` tag.
+
+    Four states, and they are not one number: `no-items` (a read page, nothing to
+    decide — vacuously "all decided" is the answer that would make a rounds
+    histogram count read pages as round 0), `not-all-decided` (the consultation is
+    still open — the max over the decided ones is not the round it will finish
+    in), `unknown` (decided items that carry no `data-decided-round`: every page
+    wrapped before BL-421, which must never be reported as round 0 or round 1),
+    and the max of the stamps, which is the round the last item was decided in.
+    """
+    tags = questions(tags)
+    if not tags:
+        return "no-items"
+    decided = [t for t in tags if DECIDED.search(t)]
+    if len(decided) < len(tags):
+        return "not-all-decided"
+    rounds = []
+    for t in decided:
+        m = DECIDED_ROUND.search(t)
+        if not m:
+            return "unknown"
+        rounds.append(int(next(g for g in m.groups() if g is not None)))
+    return str(max(rounds))
 
 
 def verdict(check, date):
@@ -129,7 +185,15 @@ def read_page(path, ctx, checker, advisory_checks):
     return {
         "path": path, "band": band, "version": meta.get("artifact-kit", 0),
         "round": meta.get("consult-round", 0), "date": page_date(path),
+        # The band table's `items`/`decided` stay the RAW census of `data-id` tags
+        # that carry the mark — what the pages say, which is what the version-band
+        # rows have always counted. The question set is the narrower thing, so it
+        # is reported next to the verdict it belongs to and labelled, rather than
+        # silently re-pointing a column two other assertions read.
         "items": len(tags), "decided": sum(1 for t in tags if DECIDED.search(t)),
+        "questions": len(questions(tags)),
+        "questions_decided": sum(1 for t in questions(tags) if DECIDED.search(t)),
+        "decided_round": decided_round(tags),
         "archived": archived,
         # The checker's EXIT CODE is the verdict; demotion is the only thing that
         # overrides it. A checker that dies without printing a parseable
@@ -163,13 +227,17 @@ def main():
               f"{sum(1 for p in ps if p['round']):>7}  {sum(p['items'] for p in ps):>5}  "
               f"{sum(p['decided'] for p in ps):>7}  {sum(p['ok'] for p in ps):>10}")
 
-    # The round each page reached, not just how many pages carry one: a page stores
-    # `consult-round` and, per item, the verdict TEXT on `data-decided` — never the
-    # round an item was decided in, so rounds-to-all-decided is not derivable here.
+    # The round each page reached, not just how many pages carry one — and, since
+    # BL-421, the round the consultation DECIDED everything in: the wrapper stamps
+    # `data-decided-round` on an item when it is decided, so the two numbers are the
+    # rounds the page took and the round it finished. `decided-round` is a label,
+    # never a bare number: `unknown` is what a page written before the stamp says,
+    # and reading that as round 0 or 1 is the finding the facet would invent.
     for p in sorted(pages, key=lambda p: p["path"]):
         if p["round"]:
             print(f"round {p['round']}: {p['path']} ({p['band']}, "
-                  f"{p['decided']}/{p['items']} decided)")
+                  f"{p['questions_decided']}/{p['questions']} questions decided, "
+                  f"decided-round {p['decided_round']})")
 
     # One line per failing (page, check), carrying the page's own date and the
     # verdict against the check's since date, so predates-rule vs defect is read
