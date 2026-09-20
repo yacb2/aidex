@@ -43,6 +43,10 @@ python3 -c 'import mine_items; ...'   # mine_items.iter_tool_events(tx_root, sin
 # (cat/sed/grep on the path) in their own column; prints the transcript files it walked.
 python3 $R/census_scripts.py [--since 90d] [--until 7d] [--top 40]
 
+# Where the spend goes: the main session against one row per (subagent model,
+# agent type), in tokens and USD. Nested subagents/workflows/ transcripts included.
+python3 $R/subagent_spend.py [--transcripts-root DIR]
+
 # Residue readers of the facets (both need --projects-root; both print their count last):
 python3 $R/facets/read_artifacts.py --projects-root <dir>   # pages by kit version band
 python3 $R/facets/read_sweep.py     --projects-root <dir>   # one row per sweep report
@@ -73,6 +77,68 @@ touched, re-edits of the same file, user turns, tool calls, test runs, reverts,
 errored tool results, and which skills fired. Plus the spec's own shape from
 front-matter and body — word count, headings, checkboxes, code blocks, file
 references — so realized effort can be regressed against what the spec looked like.
+
+## What `subagent_spend.py` answers
+
+Which subagent **model** and which **agent type** carries the spend (BL-402), with the
+main-session line alongside: turns, the five token classes, and USD. Subagents are the
+savings mechanism, not the waste — the lever is model choice inside them, so a count of
+subagents answers nothing and this table is the one that does.
+
+Five rules carry it, each of them a silently wrong number if dropped, and each pinned
+by `tests/test-subagent-spend.sh` against `tests/fixtures/subagent-spend-corpus.sh`:
+
+- **No `isSidechain` filter.** The extractor this descends from
+  (claude-session-handoff BL-035) dropped every subagent turn and reported the
+  remainder as the session's cost — it removed exactly the turns the question is about.
+- **One API message is one turn, and the scope is the project.** Claude Code writes a
+  line per content block, and re-writes a message once it settles: the first line
+  carries a partial `usage` (`output_tokens: 1`), the last the total. Censused over 300
+  real agent transcripts: 4,141 duplicate-`message.id` groups, last occurrence largest
+  in every one — so within a file, keep the last. Across files the same id recurs for
+  two reasons: a resumed session replays its parent's records verbatim (571 of 571 real
+  main-vs-main duplicates carry identical tokens), and the turn that LAUNCHED an agent
+  is copied into the child's transcript with a stale `output_tokens` (7 real cases).
+  First file to settle an id keeps it, and main transcripts are walked before subagent
+  ones, so a launch turn is credited to `main`, where it was produced.
+- **A non-`message` usage iteration is its own turn, on its own model.** The settled
+  line's top-level `usage` is the sum of its `type: "message"` iterations only; an
+  `advisor_message` (20,736 in the author's corpus) or `fallback_message` (10) carries
+  its own `model` and tokens, is billed separately, and appears nowhere in that block.
+  They routinely run a costlier model than the agent hosting them, so folding them into
+  the parent's row would price opus work at sonnet rates — 5,262 USD corpus-wide, 2,056
+  of it inside subagent rows. They get their own row and never an `(inherited)` label.
+- **The flat cache-creation field beats a stale dict.** On a multi-iteration message
+  `cache_creation_input_tokens` is the aggregate while
+  `cache_creation.ephemeral_5m_input_tokens` still holds iteration 0 alone (8480 against
+  6976 in the real record). When the two disagree the flat field is the total and the
+  excess is charged to 5m — an assumption, stated in the script's docstring.
+- **The transcript's model prices the turn; the meta file only labels it.** A subagent
+  whose `agent-*.meta.json` names no model (or names `inherit`) ran on whatever the main
+  session was using, so its row reads `<model> (inherited)`. A meta that exists and
+  cannot be read is a third case: type `unknown`, no label, a warning on stderr.
+
+Two shapes the rest of this package does not handle. Agent transcripts also live
+**nested** at `subagents/workflows/wf_*/agent-*.jsonl` — 7,289 of the author's against
+3,164 at the flat depth, so the one-level glob `iter_tool_events` uses omits two thirds
+of them. And `<synthetic>` placeholder turns carry a full `usage` block, so they are
+skipped by model, the same predicate `extract.py` applies to the adjacency channel.
+
+**This instrument deliberately diverges from `~/.claude/hooks/delegation_saving.py`,
+which prices a delegation from the same records.** That hook sums per line with no
+dedupe, reads the `cache_creation` dict before the flat field, and never looks inside
+`usage.iterations` — so against it this table applies three rules it does not:
+keep-last per `message.id` scoped per project, non-`message` iterations priced on their
+own model, and the flat cache-creation field winning over a stale dict. The two
+therefore disagree by design, by about 8.4% of spend on the author's corpus; the hook
+is a live per-delegation nudge and is not this item's to change.
+
+Prices come from `scripts/usage-retro/pricing.py`, a verbatim copy of the delegation
+monitor's table (read date in its docstring) so the public repo does not depend on the
+workspace. A model absent from it contributes tokens and no USD: the row is marked `*`
+when it also has priced turns and `n/a` when it has none, and the footer counts them.
+Pricing an unknown model at zero, or printing a partial sum bare, would understate the
+total while the row still looked complete.
 
 ## What it cannot answer
 
