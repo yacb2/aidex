@@ -143,8 +143,11 @@ SAME path. Concretely:
   input at `.aidex-artifact-prev/<page>.html.body` (`.body.md` for a markdown input),
   next to the contract baseline. A revision edits that file and wraps from it with
   `--in`. The wrapped page is 100-200 KB of which the content is 12-33%, and carving
-  the content back out of it is the only way to wrap a page twice — a defect the
-  contract check passes. A page that predates the sidecar has none: extract its
+  the content back out of it is the only way to wrap a page twice. **A regeneration
+  wraps the page's CONTENT, never the file on disk** — feeding the wrapped page back
+  in as a body injects the kit twice, both composers append to the same rail, and the
+  reader sees the index twice; `check-artifact.sh` FAILS that page as `[double-wrap]`
+  (BL-414). A page that predates the sidecar has none: extract its
   content once, and the next wrap writes it. It is written on a PASS only, so it is
   always the source of the page that is at that path; an attempt that failed keeps its
   own content under `<page>.html.failed.body` instead and never overwrites this one.

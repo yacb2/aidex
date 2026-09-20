@@ -175,13 +175,15 @@ n_title="$(grep -viE 'consult-group' "$KIT/skeleton.html" | grep -oiE 'data-titl
 # ---------- a page built from the skeleton passes the contract -------------
 # Assembled by INLINING. Copying the .css/.js next to the output would trip the
 # contract's own `siblings` rule, which scans the report's directory at depth 1.
+# The composer is NOT inlined here: the wrapper injects it from this same $KIT at
+# the end of <body>, so inlining it too built a page with two composers appending
+# to one #raillist — the rail drawn twice, which `double-wrap` now fails (BL-414).
 OUT="$TMP/reports/kit-smoke.html"
 mkdir -p "$TMP/reports"
 {
   printf '<style>\n'; cat "$KIT/tokens.css"; printf '</style>\n'
   printf '<style>\n'; cat "$KIT/components.css"; printf '</style>\n'
   cat "$KIT/skeleton.html"
-  printf '\n<script>\n'; cat "$KIT/composer.js"; printf '</script>\n'
 } > "$TMP/body.html"
 
 out="$(bash "$WRAP" --title "Kit smoke" --in "$TMP/body.html" --out "$OUT" 2>&1)"; rc=$?

@@ -1366,6 +1366,40 @@ err="$(bash "$WRAP" --title "G" --out "$CEN/.context/reports/good.html" 2>&1 >/d
   && ok "sweep: waived drift stays quiet, so the note cannot become a nag" \
   || bad "the wrap nagged about drift that is already waived: $err"
 
+echo "== double wrap: one kit envelope per document (BL-414) =="
+# The field shape: a revising caller took the WRAPPED page from disk as its body,
+# stripped only the <!doctype> (which is the one thing the wrapper refuses), and
+# piped it back through --out. The kit went in twice, both composers appended to
+# the same #raillist, and the contract said OK. The fixture is built by running the
+# REAL wrapper twice — a hand-written page could not prove the wrapper produces it.
+DW="$TMP/dw"; mkdir -p "$DW"
+printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$DW/once.html" >/dev/null 2>&1
+sed '/<!doctype/Id' "$DW/once.html" > "$DW/body2.html"
+dw_out="$(bash "$WRAP" --title "T" --in "$DW/body2.html" --out "$DW/twice.html" 2>&1)"; dw_rc=$?
+# The render is rolled back on a failing --out, so judge the kept attempt.
+DW_PAGE="$DW/twice.html"
+[[ -f "$DW/.aidex-artifact-prev/twice.html.failed" ]] && DW_PAGE="$DW/.aidex-artifact-prev/twice.html.failed"
+[[ $(grep -c 'name="artifact-kit"' "$DW_PAGE") -eq 2 ]] \
+  && ok "the fixture really is doubly wrapped (two kit stamps)" \
+  || bad "the fixture is not a double wrap, so the rule below proves nothing"
+chk_out="$(bash "$CHECK" "$DW_PAGE" 2>&1)"
+[[ "$chk_out" == *"FAIL [double-wrap]"* ]] \
+  && ok "the checker FAILS a doubly-wrapped page" \
+  || bad "the checker accepted a doubly-wrapped page: $chk_out"
+[[ "$chk_out" == *"body"* ]] \
+  && ok "the message points at extracting the body" \
+  || bad "the message does not say what to do: $chk_out"
+[[ $dw_rc -ne 0 ]] \
+  && ok "--out exits non-zero on a doubly-wrapped output" \
+  || bad "--out wrote a doubly-wrapped page and reported success: $dw_out"
+[[ ! -e "$DW/twice.html" ]] \
+  && ok "the doubly-wrapped page is not left at the reader's path" \
+  || bad "--out left a doubly-wrapped page on disk"
+# A single wrap of the same content must stay clean: the rule keys on the kit
+# stamp and the composer, never on how many <style> or <meta> blocks a page has.
+bash "$CHECK" "$DW/once.html" >/dev/null 2>&1 \
+  && ok "a singly-wrapped page still passes" || bad "the double-wrap rule fires on a normal page"
+
 echo "== lang: the body's language must match <html lang> (BL-279) =="
 # The 2026-08-31 memory-audit page: English prose under a Spanish profile. The
 # wrapper set lang=es and the composer spoke Spanish over an English body.

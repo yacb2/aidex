@@ -19,6 +19,8 @@ Checks (per file):
   themes       prefers-color-scheme — readable in dark mode
   self         no external stylesheet/script/font/image: one file, no network
   siblings     no .css/.js dropped next to it — the artifact IS the file
+  double-wrap  one kit envelope per document: two stamps or two composer.js
+               mean an already-wrapped page was fed back in as a body (BL-414)
   layout       a kit page keeps its content inside .page / .main (BL-177),
                and every table inside a scrolling wrapper
   consult      a page the reader must ANSWER carries the §8 shape
@@ -94,6 +96,28 @@ CONSULT_GATE = re.compile(
     r'|data-id=|id=["\']?consult-copy|class=["\'][^"\']*consult-item', re.I)
 
 KIT_STAMP = re.compile(r'<meta[^>]+name=["\']?artifact-kit', re.I)
+
+# --- one kit envelope per document (BL-414) ----------------------------------
+# A revising caller that takes the WRAPPED page from disk as its body gets a
+# second full kit: two stamps, two composers, and both run buildRail() against
+# the same #raillist and APPEND to it, so the reader sees the index twice. The
+# composer is counted by CODE, not by its banner comment — prose satisfying the
+# grep is this contract's own dominant defect class. The signature is a function
+# the composer DECLARES, not a DOM query it makes: a page's own script may read
+# `#raillist` legitimately (test-composer-functional.sh's harness does), and
+# keying on that counted the harness as a second composer.
+COMPOSER_SIG = re.compile(r"\bfunction\s+railLink\s*\(")
+
+
+def composer_copies(text):
+    """How many <script> blocks in this document are a kit composer."""
+    n = 0
+    for m in re.finditer(r"<script\b[^>]*>(.*?)</script>", text, re.I | re.S):
+        js = re.sub(r"/\*.*?\*/", " ", m.group(1), flags=re.S)
+        js = re.sub(r"(?m)//.*$", " ", js)
+        if COMPOSER_SIG.search(js):
+            n += 1
+    return n
 
 # The two halves of the gate, split for the consult-surfaces declaration below.
 # FREE_TEXT is what a consultation IS — BL-168's page was hand-rolled textareas
@@ -1532,6 +1556,27 @@ def check_file(path):
     # There is no opt-out marker and there is deliberately none: a page that
     # wants to be full-bleed overrides `.page { max-width: none }` in its own
     # <style> and keeps the grid, the rail and the responsive collapse.
+    # --- one wrap per document (BL-414) -----------------------------------------
+    # Counted, not detected by shape: a page legitimately carries many <style>
+    # blocks and many <meta name="consult-round"> (five on the field page), so
+    # neither can key this. The kit stamp and the composer are emitted exactly
+    # once per wrap and by nothing else.
+    stamps = len(KIT_STAMP.findall(flat))
+    try:
+        composers = composer_copies(text)
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        report("double-wrap", f"the composer scan did not run ({e})")
+        composers = 0
+    if stamps > 1 or composers > 1:
+        report("double-wrap", f"{stamps} kit stamp(s) and {composers} copy/ies of "
+               f"composer.js — this page was wrapped more than once (an "
+               f"already-wrapped page fed back in as the body). Both composers "
+               f"append to the same #raillist, so the reader sees the index "
+               f"twice. Wrap the page's CONTENT, never the file on disk: take "
+               f"the body from .aidex-artifact-prev/<page>.body, or extract "
+               f"what is inside <body> minus the kit's injected <style>/"
+               f"<script>, and wrap that once")
+
     if KIT_STAMP.search(flat):
         contained = True
         for cls in ("page", "main"):
