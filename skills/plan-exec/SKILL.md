@@ -140,6 +140,13 @@ the phase tier map, and what happens when a phase fails its gate.
    are the two locations an agent name resolves from, project first. Pass its name as the batch
    phase's `agentType`. No definition → the phase runs unrestricted and pays ~49k of prefix per call
    instead of ~14k.
+   **The definition must be on disk before this session started.** The agent registry is read at
+   session start: a stub written mid-session is invisible to the session that wrote it, and a batch
+   naming it dies at once with `agent type '<name>' not found`. So check for it here, at Orient —
+   if it is missing, write it and hand off; the next session sees it. Two things measured on a real
+   batched run (2026-09-20): the restricted implementer's first call read 15,826 `cache_creation`
+   against 50,841 for the same run's unrestricted verifier, and the phase's `model` cell won over
+   the definition's `model:` line — `agentType` carries the toolset, nothing else.
 8. Create a TaskList mirroring the plan's phases so progress is visible.
 9. **Front-load the work-list for chained multi-item runs.** A single plan's phases
    are already an ordered queue (walk them). But when this session chains **multiple
