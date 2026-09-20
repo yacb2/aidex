@@ -14,6 +14,8 @@
 #
 # Usage:
 #   sweep-gate.sh                       # every leg: backend, frontend, build, e2e
+#                                     # (a profile that binds only `suite_cmd` and no leg
+#                                     # key defaults to the single `suite` leg instead)
 #   sweep-gate.sh --only <leg> [...]    # a subset (repeatable)
 #   sweep-gate.sh --json                # the same rows as a JSON array (for sweep-report.sh)
 #   sweep-gate.sh --only <leg> --from-log <file>          # any leg, not only e2e: a backend
@@ -65,7 +67,8 @@ for l in "${ONLY[@]:-}"; do
   # surface is one suite (a shell toolkit, a single-package library) had to map it onto
   # `backend` to bind the gate at all — a lie that happens to pass because the count
   # regex matches. Adding it to the DEFAULT set instead would ask every existing project
-  # for a fifth key it has no answer for, so it is opt-in via --only suite (BL-289).
+  # for a fifth key it has no answer for, so it is opt-in via --only suite (BL-289) —
+  # except for a profile that declares no leg key at all, where it is the default (BL-424).
   case "$l" in backend|frontend|build|e2e|suite) ;; *) die "unknown leg: $l (backend|frontend|build|e2e|suite)" ;; esac
 done
 if [[ -n "$FROM_LOG" ]]; then
@@ -94,6 +97,23 @@ profile_key() {
     sub(/^[^:]*:[[:space:]]*/,""); sub(/[[:space:]]+#.*$/,""); gsub(/^["\x27]|["\x27]$/,""); print; exit}' "$PROFILE"
 }
 key_for() { case "$1" in backend) echo backend_suite_cmd;; frontend) echo frontend_suite_cmd;; build) echo build_cmd;; e2e) echo e2e_suite_cmd;; suite) echo suite_cmd;; esac; }
+
+# A project whose whole surface is one suite answers the profile with `suite_cmd` and
+# nothing else, and the four-leg default refused it for a `backend_suite_cmd` it will
+# never have (BL-424). The default set follows the profile: when NONE of the four leg
+# keys is DECLARED and `suite_cmd` is bound, the one bound leg is the default. A profile
+# that declares any leg key keeps the four-leg default exactly as before — `suite` stays
+# out of it, so a mixed profile is not silently reduced to one leg. Declared means the
+# key is PRESENT, whatever its value: an empty `backend_suite_cmd:` is a half-filled
+# profile, and testing the value would drop the placeholder and go green over one leg.
+profile_has() {
+  awk -v k="$1" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{f=1; exit} END{exit !f}' "$PROFILE"
+}
+if [[ ${#ONLY[@]} -eq 0 ]]; then
+  declared=0
+  for leg in "${ALL_LEGS[@]}"; do if profile_has "$(key_for "$leg")"; then declared=1; fi; done
+  if [[ $declared -eq 0 && -n "$(profile_key suite_cmd)" ]]; then LEGS=(suite); fi
+fi
 
 # Every leg is bound BEFORE any leg runs: a gate that ran two suites and then died on a
 # missing key would leave the caller with half a verdict and a log to reinterpret.

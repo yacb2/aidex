@@ -233,5 +233,46 @@ grep -q "testing-profile.md" "$TMP/err" && grep -q "$P/testing-profile.md" "$TMP
   && ok "10 the refusal names BOTH paths it looked in" \
   || bad "10 refusal message: $(cat "$TMP/err")"
 
+# ── 11 · a profile that pins ONLY suite_cmd binds without --only (BL-424) ────
+# The gate documents itself as reading the profile's `*_suite_cmd`/`build_cmd`, but the
+# default leg set was hard-coded to backend|frontend|build|e2e, so a project whose whole
+# surface is one suite had to pass `--only suite` every time or be refused for a
+# `backend_suite_cmd` it will never have. A bare `suite_cmd` is the profile's whole
+# answer: it binds the one leg.
+stub sh 0 "133/133 passed"
+profile "suite_cmd: bin/sh"
+OUT="$(run)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=suite exit=0 count=133"* ]] \
+  && ok "11 a bare suite_cmd binds without --only" || bad "11 bare suite_cmd: rc=$RC $OUT $(cat "$TMP/err")"
+[[ "$OUT" == *"verdict=PASS legs=1"* ]] && ok "11 exactly one leg ran" || bad "11 legs: $OUT"
+
+# the mutation that keeps this honest: a profile with NO suite key of any kind must
+# still be refused. An unbound gate that defaults to "nothing to run" is a green tick
+# over zero suites — the same failure as a countless leg.
+profile "e2e_detached: false"
+OUT="$(run)"; RC=$?
+[[ $RC -eq 2 ]] && ok "11 mutation: a profile with no suite key at all is still refused" \
+  || bad "11 a keyless profile was not refused: rc=$RC $OUT"
+[[ "$OUT" != *"verdict=PASS"* ]] && ok "11 mutation: a keyless profile never reports PASS" || bad "11 keyless PASS: $OUT"
+
+# a leg key that is PRESENT but empty is a half-filled profile, not a suite-only one:
+# the default must test the key's presence, never its value, or the placeholder is
+# silently dropped and the gate goes green over one leg.
+profile "backend_suite_cmd:" "suite_cmd: bin/sh"
+OUT="$(run)"; RC=$?
+[[ $RC -eq 2 && "$OUT" != *"verdict=PASS"* ]] && ok "11 an empty leg key is still refused, not reduced to the suite leg" \
+  || bad "11 an empty backend_suite_cmd was reduced to one leg: rc=$RC $OUT"
+
+# a profile carrying the four leg keys is untouched, even when suite_cmd is also there.
+stub be 0 "== 1284 passed in 40.1s =="
+stub fe 0 "Tests  133 passed (133)"
+stub bd 0 "built in 3.2s"
+stub e2 0 "  12 passed (1.2m)"
+profile "backend_suite_cmd: bin/be" "frontend_suite_cmd: bin/fe" "build_cmd: bin/bd" \
+        "e2e_suite_cmd: bin/e2" "e2e_detached: false" "suite_cmd: bin/sh"
+OUT="$(run)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"verdict=PASS legs=4"* && "$OUT" != *"leg=suite"* ]] \
+  && ok "11 the four-leg default is unchanged when the leg keys are present" || bad "11 four-leg: rc=$RC $OUT"
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

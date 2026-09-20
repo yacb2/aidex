@@ -13,8 +13,9 @@ aidex is a Bash and Claude Code skills toolkit: no frontend, no backend service,
 database, no browser. The `frontend`, `build` and `e2e` legs do not exist, and their keys
 are deliberately absent rather than empty.
 
-`sweep-gate.sh` must therefore be run as **`--only suite`**. A bare invocation refuses on
-the four unbound legs — correct behaviour, not a defect.
+A bare `sweep-gate.sh` therefore binds the one `suite` leg: a profile that declares none
+of the four leg keys and pins `suite_cmd` defaults to it (BL-424). `--only suite` still
+works and means the same thing here.
 
 `testing_packs: none` is an answer, not an unanswered question: no stack pack applies to a
 project whose entire test surface is shell scripts.
