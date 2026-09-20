@@ -71,6 +71,7 @@ Exit 2 = usage error.
 import html as _html
 import os
 import re
+import time
 import sys
 import unicodedata
 
@@ -2091,6 +2092,12 @@ def _skip_part(path):
     return ".aidex-artifact-prev" in parts or "_archive" in parts
 
 
+# The age at which a build lock stops meaning "an agent is working on this page".
+# artifact-open-once.sh stops refusing the open at the same 20 minutes; the two must
+# not drift, or the sweep calls residue what the hook still treats as a live build.
+BUILD_LOCK_STALE_AFTER = 20 * 60
+
+
 def baseline_hygiene(walk_root):
     """Dead .aidex-artifact-prev content, as note strings with the exact rm to
     run. Report-only, never deletes: a baseline is dead when its artifact is
@@ -2110,11 +2117,77 @@ def baseline_hygiene(walk_root):
                 dirnames.remove(d)
                 continue
             entries = os.listdir(bdir)
-            orphans = [e for e in entries
-                       if not os.path.exists(os.path.join(dirpath, e))]
-            for e in orphans:
-                notes.append(f"orphaned baseline (its artifact is gone): rm "
-                             f"'{os.path.join(bdir, e)}'")
+            # Five spellings live here and all of them are the PAGE's, not files with
+            # a life of their own: the baseline `<page>`, its source `<page>.body`
+            # (`.body.md`), and the last attempt that did not pass — `<page>.failed`
+            # and its own source `<page>.failed.body` (`.failed.body.md`). So an
+            # entry is keyed to the page its name reduces to, and every one of them
+            # is dead state once that page is gone.
+            #
+            # There is no exemption for "the page never existed". One was tried on
+            # 2026-09-20 and removed the same day: it used "no baseline entry" as a
+            # proxy for "first build in progress", which is also the shape of a page
+            # written before baselines existed that failed once and was then deleted
+            # (88 KB, silent forever), and it was not idempotent — running the `rm`
+            # the note asked for removed the baseline entry and turned the other two
+            # into exempt ones. What the author needs is not silence but the truth
+            # about WHAT each entry is, which is what the notes say below.
+            # `.building` is the sixth spelling (2026-09-20): the lock a delegated
+            # build keeps while it is still writing the page. It reduces to the same
+            # page, so a live build is not residue and is not reported.
+            def page_of(entry):
+                entry = re.sub(r"\.building$", "", entry)
+                return re.sub(r"\.(failed)?(\.?body(\.md)?)?$", "", entry)
+
+            for e in sorted(entries):
+                page = page_of(e)
+                path = os.path.join(bdir, e)
+                page_there = os.path.exists(os.path.join(dirpath, page))
+                # A lock is judged on its AGE, not on whether the page is there:
+                # nothing removes it but `--done`, and once it is older than the
+                # window the hook stops honouring it, so an abandoned lock beside a
+                # perfectly good page is exactly as invisible as one beside no page.
+                # The page's presence only changes what the note has to say.
+                if e.endswith(".building"):
+                    # A lock with no page beside it is the ORDINARY shape of a build
+                    # in progress: the page does not exist until the first wrap
+                    # passes, and a first wrap that fails rolls it back off disk
+                    # while the agent keeps working. This sweep runs on every wrap,
+                    # so reporting a fresh one would fire on every failing build.
+                    # Only an abandoned lock is residue, and abandoned is the same
+                    # 20 minutes artifact-open-once.sh stops blocking at — one
+                    # definition, two consumers.
+                    try:
+                        age = time.time() - os.path.getmtime(path)
+                    except OSError:
+                        continue
+                    if -BUILD_LOCK_STALE_AFTER <= age <= BUILD_LOCK_STALE_AFTER:
+                        continue
+                    where = ("the page is there, so the build landed and never ran "
+                             "--done" if page_there else
+                             "with no page beside it — the build was abandoned")
+                    notes.append(f"build lock nobody cleared ({where}): rm '{path}'")
+                    continue
+                # Every other spelling is keyed to its page and is dead only once
+                # that page is gone.
+                if page_there:
+                    continue
+                if e.endswith(".body") or e.endswith(".body.md"):
+                    if e.startswith(page + ".failed"):
+                        # Work, not residue: nobody else has this content, and the
+                        # page it was meant to become was never published (or is
+                        # gone). `rm` as the only advice would throw away the draft.
+                        notes.append(f"unfinished attempt (no page at "
+                                     f"'{os.path.join(dirpath, page)}'): wrap it again "
+                                     f"with --in '{path}', or rm it")
+                    else:
+                        notes.append(f"source of a deleted artifact: rm '{path}' (it is "
+                                     f"the only copy of that page's content)")
+                else:
+                    # The baseline and the failing render are both DERIVED: whatever
+                    # they were made from is either beside them or already gone.
+                    notes.append(f"orphaned baseline (its artifact is gone): rm "
+                                 f"'{path}'")
             if not entries:
                 notes.append(f"empty baseline directory: rmdir '{bdir}'")
     return notes

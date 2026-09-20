@@ -361,9 +361,9 @@ grep -q "Array.isArray(s.f)" "$KIT/composer.js" \
 # ---------- the round marker counts from the BASELINE, not from disk -------
 #
 # The composer drops a SENT answer when the round advances, so what counts as a
-# new round is load-bearing. A failing wrap is left on disk on purpose and does
-# NOT advance the baseline, so counting from the file would increment across a
-# round the reader never saw and blank answers on it.
+# new round is load-bearing. A failing wrap does NOT advance the baseline, so
+# counting from the file would increment across a round the reader never saw and
+# blank answers on it.
 RND="$TMP/rounds"
 mkdir -p "$RND/.context/reports"
 PG="$RND/.context/reports/r.html"
@@ -379,14 +379,22 @@ bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null
 [[ "$(round_of "$PG")" == "2" ]] \
   || fail "a regeneration did not advance the round (got '$(round_of "$PG")')"
 
-# A wrap that FAILS the contract: an external script is the cheapest violation
-# that leaves the file on disk.
+# A wrap that FAILS the contract: an external script is the cheapest violation.
 printf '<div class="page"><main class="main"><h1>Bad</h1><script src="https://x/y.js"></script></main></div>\n' > "$TMP/rbad.html"
 bash "$WRAP" --title "Round probe" --in "$TMP/rbad.html" --out "$PG" >/dev/null 2>&1
 rc=$?
 [[ "$rc" -ne 0 ]] || fail "the deliberately-violating page passed the contract — the round test proves nothing"
-[[ "$(round_of "$PG")" == "3" ]] \
-  || fail "the failing wrap did not stamp its own round (got '$(round_of "$PG")')"
+# CHANGED 2026-09-20. This used to read the round off $PG, because a failing wrap
+# was left there. The failing render moved out of the reader's path — $PG is rolled
+# back to the last version that passed — so the round-3 stamp is read off the kept
+# render instead, and $PG must still be the round the reader last saw. Both halves
+# matter: the failing wrap really did stamp 3 (it is not reusing the round), and a
+# reader reloading $PG in the meantime does not see a round advance.
+FAILED_PG="$RND/.context/reports/.aidex-artifact-prev/r.html.failed"
+[[ -f "$FAILED_PG" && "$(round_of "$FAILED_PG")" == "3" ]] \
+  || fail "the failing wrap did not stamp its own round (got '$(round_of "$FAILED_PG")')"
+[[ "$(round_of "$PG")" == "2" ]] \
+  || fail "the rolled-back page is not the round the reader last saw (got '$(round_of "$PG")')"
 
 bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null 2>&1 \
   || fail "the fixed page failed to wrap"
@@ -419,7 +427,7 @@ grep -q 'consult-clear' "$KIT/composer.js" \
 # answer stored before the upgrade as "the question changed" and drop it.
 grep -q 'kit-other' "$KIT/composer.js" \
   || fail "composer.js does not inject the 'other' choice into option groups"
-grep -qE "querySelectorAll\('[^']*\.kit-other[^']*\.kit-notnow[^']*\.kit-ask[^']*'\)\.forEach\(function \(c\) \{ c\.remove\(\); \}\)" "$KIT/composer.js" \
+grep -qE "querySelectorAll\('[^']*\.kit-other[^']*\.kit-notnow[^']*\.kit-ask[^']*\.kit-provisional[^']*'\)\.forEach\(function \(c\) \{ c\.remove\(\); \}\)" "$KIT/composer.js" \
   || fail "composer.js hashes an injected control ('other', 'not now' or the ask row) into the question fingerprint — every stored answer is dropped on the upgrade"
 grep -q 'consult-clear' "$KIT/components.css" \
   || fail "components.css has no .consult-clear rule — the injected control is unstyled"
@@ -433,10 +441,20 @@ grep -q 'consult-clear' "$SKILL/assets/templates/consultation-block.html.templat
 # makes for `blank`.
 grep -q 'kit-ask' "$KIT/composer.js" \
   || fail "composer.js does not inject the ask row"
-for m in '[explain-state]' '[explain-options]' '[explain-why]' '[explain-term]' '[show-me]' '[not-now]'; do
+for m in '[explain-state]' '[explain-options]' '[explain-why]' '[explain-simpler]' '[question]' '[reframe]' '[show-me]' '[not-now]' '[provisional]'; do
   grep -qF "'$m'" "$KIT/composer.js" \
     || fail "composer.js lost the fixed $m marker — the request stops being machine-readable in the paste"
 done
+# The retired chip: 0 uses in 333 answered items (census 2026-09-20), replaced
+# by [question] + the notes box. It must be gone from the row, not merely unused.
+grep -qF "'[explain-term]'" "$KIT/composer.js" \
+  && fail "composer.js still injects the retired [explain-term] chip"
+grep -q 'kit-term' "$KIT/composer.js" \
+  && fail "composer.js still carries the retired term box"
+grep -q 'kit-provisional' "$KIT/composer.js" \
+  || fail "composer.js never marks an option-plus-ask item provisional — the page gives the reader no signal that the option is not a decision"
+grep -q 'kit-provisional' "$KIT/components.css" \
+  || fail "components.css has no .kit-provisional rule — the injected line is unstyled"
 grep -q 'kit-ask' "$KIT/components.css" \
   || fail "components.css has no .kit-ask rule — the injected row is unstyled"
 grep -q 'kit-notnow' "$KIT/components.css" \
@@ -453,8 +471,8 @@ grep -q 'kit-theme' "$KIT/components.css" \
 grep -q 'data-theme' "$KIT/tokens.css" \
   || fail "tokens.css no longer declares the explicit-theme palette the control switches to"
 
-for m in 'explain-state' 'explain-options' 'explain-why' 'explain-term' 'show-me' 'not-now'; do
-  grep -q "$m" "$SKILL/references/02-local-first-artifacts.md" \
+for m in 'explain-state' 'explain-options' 'explain-why' 'explain-simpler' 'question' 'reframe' 'show-me' 'not-now' 'provisional'; do
+  grep -qF "[$m]" "$SKILL/references/02-local-first-artifacts.md" \
     || fail "the canon never documents the $m marker — a session reading a paste has nothing that says what it means"
 done
 

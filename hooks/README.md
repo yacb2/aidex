@@ -257,3 +257,54 @@ change timing. Due **2026-09-03**:
 > since merely dropping alongside peak would prove nothing. **Retire** if the
 > median trigger still tracks peak within +/-10%, or if the nudge fires more than
 > 3x in a median session (noise, not signal).
+
+## artifact-open-once.sh — one open per page per user turn, plus the build lock (PreToolUse/Bash)
+
+Two rules, both arithmetic, both per PAGE. The hook's own header carries the full
+reasoning; this is the map.
+
+1. **Once per user turn** (BL-294, 2026-09-01). A path already `open`ed since the last
+   thing the user said is refused. Per turn and never per session, because a
+   consultation page is contractually re-wrapped and re-opened every time the reader
+   answers; blocking that loop would train the override into a habit.
+2. **Not while an agent is still building it** (2026-09-20). A page with a fresh
+   `<dir>/.aidex-artifact-prev/<page>.building` beside it is refused, with the message
+   that only the agent's hand-back ends a build. The lock is written by
+   `wrap-report.sh --building` on every wrap of a delegated build and removed by
+   `wrap-report.sh --done --out <page>`; a lock older than **20 minutes** is stale, so
+   the open goes through and the hook says the build never ended.
+
+The second rule exists because a delegated artifact agent writes its final `--out`
+path two or three times mid-run (16 of 37 runs), and an intermediate wrap can PASS
+`check-artifact.sh` — so neither "the file changed" nor "the gate is green" means the
+agent finished. The incident is
+`.context/references/2026-09-20-artifact-seen-before-the-agent-finishes.md`: the page
+was opened 1 min 41 s before the hand-back, on a state the agent then changed.
+
+**Why the lock is per page and not per pending agent.** The obvious guard — refuse
+`open` while any async agent has not handed back — was replayed over every main session
+since 2026-09-14 and blocked **18 of 26** real opens, nearly all of them pages no
+pending agent was touching. That is the retired durability hook's failure shape. A file
+beside the page has no opinion about the transcript.
+
+**What a path has to look like to be seen.** Targets are resolved from the command
+text, so three spellings of one page all count as that page: the bare path, a
+`file://` URL (`localhost` host tolerated, tried both raw and percent-decoded) and
+a `#fragment`. The literal spelling is always tried first, so a filename that really
+contains a `#` or a `%20` is still tracked as itself. **Unguarded, on purpose:
+a relative path after a `cd`** (`cd /dir && open page.html`) resolves against the
+session's working directory, not the `cd` target, so it may miss the page entirely.
+Tracking `cd` across command segments would mean interpreting the shell — variables,
+`cd -`, subshells — and a friction guard that guesses wrong in that direction blocks
+the wrong file. Pass an absolute path, which every documented flow already does
+(`wrap-report.sh` prints one).
+
+**One JSON object per invocation**, always. A stale-lock notice rides on whatever the
+hook decides as `systemMessage`; it is never an answer of its own. Printing it
+separately and falling through wrote two objects on stdout, which parse as neither —
+and the verdict in the second one was lost.
+
+**Tests:** `python3 test-artifact-open-once.py` — 49 checks, self-contained. The refusal
+cells are the cheap half; the allow cells are the point (consultation loop, a different
+page, a URL, a non-`open` command, a stale lock, and five fail-open paths). The
+producing half of the lock is `skills/artifact/tests/test-build-lock.sh`.

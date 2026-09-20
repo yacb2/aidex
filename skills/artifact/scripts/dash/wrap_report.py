@@ -177,10 +177,12 @@ def round_meta(outfile):
     round"; the composer then drops only what was already SENT (see composer.js
     § the ROUND).
 
-    Derived from the BASELINE, never from the file on disk. A wrap that fails
-    the contract leaves its output in place deliberately and does NOT advance the
-    baseline, so counting from disk would increment twice across a failed wrap
-    and a fixed one — blanking sent-answer state on a round the reader never saw.
+    Derived from the BASELINE, never from the file on disk. A wrap that fails the
+    contract does NOT advance the baseline, so counting from disk would increment
+    twice across a failed wrap and a fixed one — blanking sent-answer state on a
+    round the reader never saw. (The rollback makes disk agree again in the common
+    case; it does not restore the invariant, because a page deleted by hand and
+    re-wrapped would still count from nothing.)
     The on-disk file is only the fallback for a page written before baselines
     existed.
 
@@ -381,6 +383,47 @@ def inject_rail(body):
     return body.replace("</main>", "</main>\n" + RAIL_ASIDE, 1)
 
 
+def lock_path(outfile):
+    """The build lock for `outfile`, beside its contract baseline.
+
+    One file, named after the page, so the state is per PAGE. The alternative
+    considered and rejected was a transcript-scoped guard ("refuse an open while
+    any agent is pending"): replayed over every main session since 2026-09-14 it
+    blocked 18 of 26 real opens, nearly all of them pages no pending agent was
+    touching.
+    """
+    out = os.path.abspath(outfile)
+    return os.path.join(os.path.dirname(out), ".aidex-artifact-prev",
+                        os.path.basename(out) + ".building")
+
+
+def end_build(argv):
+    """`--done --out <page>`: the build is over. Removes the lock, wraps nothing.
+
+    Deliberately NOT a flag on the last wrap. A passing wrap is not the end of a
+    build — the incident this exists for is an INTERMEDIATE wrap that passed the
+    contract and was opened as final — so no property of a wrap can stand in for
+    completion. The agent has to say it, once, as its own step.
+    """
+    p = argparse.ArgumentParser(prog="wrap-report.sh --done",
+                                description="End a build: remove the page build lock")
+    p.add_argument("--done", action="store_true", required=True)
+    p.add_argument("--out", dest="outfile", required=True,
+                   help="the page whose build is finished")
+    args = p.parse_args(argv)
+    lock = lock_path(args.outfile)
+    try:
+        os.unlink(lock)
+    except OSError:
+        # Idempotent on purpose: a build that never locked, a second --done, a
+        # lock already swept. Every build must be endable the same way, so this
+        # is a note and never an error.
+        print(f"NOTE: no build lock at {lock} — nothing to clear.", file=sys.stderr)
+        return 0
+    print(f"build lock cleared: {lock}", file=sys.stderr)
+    return 0
+
+
 def main():
     p = argparse.ArgumentParser(description="Wrap report content in the document envelope")
     p.add_argument("--title", required=True, help="document title (browser tab)")
@@ -393,7 +436,23 @@ def main():
                    help="write the document here and run check-artifact.sh on it. Prefer "
                         "this over a shell redirect: the contract check is the step a run "
                         "drops first, and it cannot run against a pipe (BL-126)")
+    p.add_argument("--building", action="store_true",
+                   help="this wrap is one step of a build that is still running: keep a "
+                        "lock beside the page so nobody opens it as final. End the build "
+                        "with --done --out <page>. For a DELEGATED build; a session "
+                        "wrapping its own page and opening it does not pass this")
+    p.add_argument("--done", action="store_true",
+                   help="with --out and nothing else: the build is finished, remove the "
+                        "lock. Wraps nothing")
     args = p.parse_args()
+
+    # A lock lives beside the page, so there is nothing to lock without --out. Wrapping
+    # anyway would produce the one state the flag exists to prevent: output that looks
+    # finished while the build runs.
+    if args.building and not args.outfile:
+        print("ERROR: --building needs --out <page> — the build lock is a file beside "
+              "the page, and a wrap to stdout has no page", file=sys.stderr)
+        return 2
 
     content = (open(args.infile, encoding="utf-8").read() if args.infile
                else sys.stdin.read())
@@ -409,7 +468,10 @@ def main():
     # `--title` doubles as the fallback h1: `human-verification.md` carries no `# `
     # line, so the page had no on-page heading at all and an empty rail while the
     # caller was already passing the exact title it needed.
-    if args.infile and args.infile.lower().endswith(".md"):
+    # What the author wrote, before any rendering: this is what the body sidecar
+    # keeps, so a markdown report is revised as markdown.
+    raw, raw_is_md = content, bool(args.infile and args.infile.lower().endswith(".md"))
+    if raw_is_md:
         content = md_body.render(content, args.title)
     if re.search(r"<!doctype\s+html", content, re.I):
         print("ERROR: content already has a doctype — pass page content only, "
@@ -479,15 +541,33 @@ def main():
                   f"rather than a first report (cwd={os.getcwd()})", file=sys.stderr)
             return 4
 
+    # Refresh the lock BEFORE the page is written: the write is the event a watcher
+    # sees, so a lock created after it has a window where the page looks final. On
+    # every wrap of the build, not on the first one only — the guard is an age
+    # (20 minutes in artifact-open-once.sh), so a build longer than that would
+    # otherwise unlock itself halfway through. Best-effort, like the baseline: a
+    # read-only tree must not fail a page that satisfies the contract.
+    if args.building:
+        try:
+            os.makedirs(os.path.join(outdir, ".aidex-artifact-prev"), exist_ok=True)
+            with open(lock_path(args.outfile), "w", encoding="utf-8") as fh:
+                fh.write("building\n")
+        except OSError as e:
+            print(f"NOTE: could not write the build lock ({e}); this page can be "
+                  f"opened as final while you are still writing it.", file=sys.stderr)
+
     # The baseline the id-stability rule compares against is the last PASSING
     # version, kept here, and NOT whatever happens to be on disk.
     #
-    # A failing write is deliberately left in place so the author can fix it
-    # without re-deriving the page. With only a temp snapshot, that made the
-    # violating document the next run's baseline and inverted the gate: the author
-    # restoring the correct title got the FIX reported as the violation, and
-    # re-running the same violating content PASSED. One check, single-shot,
-    # self-erasing after exactly the event it exists to catch.
+    # A failing write used to be left in place so the author could fix it without
+    # re-deriving the page. With only a temp snapshot, that made the violating
+    # document the next run's baseline and inverted the gate: the author restoring
+    # the correct title got the FIX reported as the violation, and re-running the
+    # same violating content PASSED. One check, single-shot, self-erasing after
+    # exactly the event it exists to catch. The failing render is rolled back off
+    # `--out` now, so the snapshot is a passing version too — but the stored
+    # baseline is still what the rule needs, because it survives the page being
+    # deleted and re-created.
     #
     # A sibling directory rather than a sibling file, because check-artifact.sh's
     # own `siblings` rule scans the report's directory at depth 1.
@@ -523,42 +603,149 @@ def main():
     with open(args.outfile, "w", encoding="utf-8") as fh:
         fh.write(doc)
 
-    offer = style_profile_offer(ctx)
-    if offer:
-        print(offer, file=sys.stderr)
+    # `<page>.body` (`.body.md` for a markdown input) is the SOURCE OF THE PAGE that
+    # is at `--out`, kept beside the baseline. A wrapped page is 100-200 KB of which
+    # the author's content is 12-33%; without this a revision round loads the wrapped
+    # file, carves the content back out and re-wraps it — the only way to double-wrap
+    # a page, which the contract check passes.
+    #
+    # Written on a PASS only, and that is the whole invariant. It was written on every
+    # wrap for one day; the 2026-09-20 review ran the consequence: a failing wrap is
+    # rolled back off `--out`, so writing the attempt here destroyed the source of the
+    # very version the rollback had just restored — and when the attempt was html over
+    # a page wrapped from markdown, the "drop the other spelling" line deleted it
+    # outright while stderr said the page was left exactly as it was. A failing
+    # attempt never touches this name: it lives entirely under `.failed` (below).
+    #
+    # Inside the baseline directory because validate.py, _lib.sh and the audit readers
+    # skip it by name; never `.html`, so no sweep takes it for an artifact.
+    # Best-effort, as the baseline is.
+    body_suffix = ".body.md" if raw_is_md else ".body"
+    body_file = baseline + body_suffix
 
     checker = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                            "check-artifact.sh")
-    if not os.path.isfile(checker):
-        print(f"ERROR: wrote {args.outfile} but check-artifact.sh is missing at {checker} "
-              f"— the contract was not verified", file=sys.stderr)
-        return 3
-    # Say where it landed, absolutely. `--out` takes a relative path in the
-    # documented flow, so a run standing in the wrong project writes a perfectly
-    # valid report into a neighbour's `.context/` and exits 0 — the one-level
-    # makedirs cannot tell that apart from a first report, and widening it would
-    # break the primary placement (a report is a sibling of its anchor, anywhere
-    # in the tree). Printing the resolved path is what makes the landing visible,
-    # and it is this suite's own rule for consultation pages.
-    print(os.path.abspath(args.outfile))
+    checker_missing = not os.path.isfile(checker)
 
+    # Everything that happens when this wrap does not land, in one place, because the
+    # `finally` below has to be able to call it however the check ended — a checker
+    # that raised, or a Ctrl-C between the run and the verdict, used to leave an
+    # UNVERIFIED document at `--out`, which is the one state this mechanism exists to
+    # make impossible.
+    aftermath = {}
+
+    def not_landed():
+        """Take the failing render off `--out` and keep the attempt under `.failed`.
+
+        `--out` goes back byte-for-byte to the version that was there before this
+        wrap, or is removed when this wrap was the first at that path: the reader,
+        and the session, often have that tab open, and a page that fails its
+        contract must never be what sits there.
+
+        The attempt is kept whole — the render AND its source — for the author only.
+        Never `.html`: the neighbour sweep scans the directory for artifacts, and the
+        baseline directory is the one place every reader already skips by name.
+        """
+        if aftermath:
+            return
+        failed_copy = baseline + ".failed"
+        failed_body = failed_copy + body_suffix
+        try:
+            os.makedirs(baseline_dir, exist_ok=True)
+            shutil.copyfile(args.outfile, failed_copy)
+            for stale in (failed_copy + ".body", failed_copy + ".body.md"):
+                if stale != failed_body and os.path.isfile(stale):
+                    os.unlink(stale)
+            with open(failed_body, "w", encoding="utf-8") as fh:
+                fh.write(raw)
+        except OSError as e:
+            failed_copy = failed_body = None
+            print(f"NOTE: could not keep this attempt at {baseline}.failed ({e}); it "
+                  f"exists nowhere on disk now — keep what you wrote before re-running.",
+                  file=sys.stderr)
+        if prev_snapshot:
+            shutil.copyfile(prev_snapshot, args.outfile)
+        elif os.path.isfile(args.outfile):
+            os.unlink(args.outfile)
+        aftermath.update(restored=bool(prev_snapshot), render=failed_copy,
+                         source=failed_body)
+
+    # The id rule is judged against the last version that PASSED: the stored
+    # baseline, or — for a page that predates baselines — the snapshot of whatever
+    # was on disk before this wrap. Since the rollback, that snapshot is a passing
+    # version in every case but one: the first wrap after this change over a page the
+    # OLD code left failing at `--out`, which is a violating document with no
+    # baseline beside it. It becomes the baseline as soon as one wrap passes.
     cmd = ["bash", checker, args.outfile]
     prev_for_check = baseline if os.path.isfile(baseline) else prev_snapshot
     if prev_for_check:
         cmd += ["--prev", prev_for_check]
+    rc = None
     try:
-        rc = subprocess.run(cmd).returncode
+        rc = 1 if checker_missing else subprocess.run(cmd).returncode
     finally:
+        if rc != 0:
+            not_landed()
         if prev_snapshot:
             os.unlink(prev_snapshot)
+
+    # One sentence for both refusals, keyed on what the rollback actually did: a
+    # caller told "nothing was left" re-derives a page that is sitting there intact.
+    landed = (f"{os.path.abspath(args.outfile)} and its source were left exactly as "
+              f"they were before this wrap"
+              if aftermath.get("restored") else
+              f"nothing was written at {os.path.abspath(args.outfile)} — this wrap "
+              f"was the first at that path")
+    if checker_missing:
+        print(f"ERROR: check-artifact.sh is missing at {checker}, so the contract could "
+              f"not be verified and {landed}.", file=sys.stderr)
+        return 3
     if rc != 0:
-        print(f"ERROR: {args.outfile} was written but FAILS the artifact contract above. "
-              f"Fix the content and re-run; do not open or hand over this file.",
-              file=sys.stderr)
+        fix = (f"Fix {aftermath['source']} and wrap it again with --in"
+               if aftermath.get("source") else "Fix what you wrote and wrap it again")
+        where = (f" The render that failed is at {aftermath['render']} if you need to "
+                 f"read it." if aftermath.get("render") else "")
+        print(f"ERROR: this wrap FAILS the artifact contract above, so {landed}. {fix}; "
+              f"do not open or hand over the failing render.{where}", file=sys.stderr)
         # The baseline is NOT advanced. That is the whole point: the next run
         # compares against the last version that passed, so restoring the correct
         # content passes and repeating the violation still fails.
         return 1
+
+    # Passed, so this version's source becomes the page's source — and the attempt
+    # that failed before it, render and source alike, is answered and goes.
+    try:
+        os.makedirs(baseline_dir, exist_ok=True)
+        for stale in (baseline + ".body", baseline + ".body.md", baseline + ".failed",
+                      baseline + ".failed.body", baseline + ".failed.body.md"):
+            if stale != body_file and os.path.isfile(stale):
+                os.unlink(stale)
+                # The hygiene note calls this one work, not residue, and leaves the
+                # choice to the author; taking it for them is right — the page
+                # passed at this path — but doing so silently is not.
+                if ".failed.body" in stale:
+                    print(f"NOTE: the unfinished attempt kept at {stale} was superseded "
+                          f"by this passing wrap and removed.", file=sys.stderr)
+        with open(body_file, "w", encoding="utf-8") as fh:
+            fh.write(raw)
+    except OSError as e:
+        print(f"NOTE: could not keep the page content at {body_file} ({e}); the next "
+              f"revision will have to extract it from the wrapped file.", file=sys.stderr)
+
+    # Offered on a PASS only: a failing first wrap would otherwise spend the project's
+    # single offer on an artifact that never existed.
+    offer = style_profile_offer(ctx)
+    if offer:
+        print(offer, file=sys.stderr)
+
+    # Say where it landed, absolutely, and only once something did. `--out` takes a
+    # relative path in the documented flow, so a run standing in the wrong project
+    # writes a perfectly valid report into a neighbour's `.context/` and exits 0 —
+    # the one-level makedirs cannot tell that apart from a first report, and widening
+    # it would break the primary placement (a report is a sibling of its anchor,
+    # anywhere in the tree). Printing the resolved path is what makes the landing
+    # visible, and it is this suite's own rule for consultation pages.
+    print(os.path.abspath(args.outfile))
     # Passed, so this version becomes the baseline. Best-effort: a read-only tree
     # is a real state (`style_profile_offer` guards for it too), and losing the
     # baseline degrades to the old snapshot behaviour rather than failing a page
@@ -602,4 +789,6 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # `--done` takes no content and no title, so it cannot go through the wrap
+    # parser at all; it is dispatched before it.
+    sys.exit(end_build(sys.argv[1:]) if "--done" in sys.argv[1:] else main())

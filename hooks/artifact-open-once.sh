@@ -40,10 +40,46 @@
 command -v python3 >/dev/null 2>&1 || exit 0
 
 exec python3 -c '
-import json, os, shlex, sys
+import json, os, shlex, sys, time
+from urllib.parse import unquote
 
 def out(payload):
     print(json.dumps(payload))
+
+
+def candidates(arg):
+    """The paths one `open` argument can mean, most literal first.
+
+    `open` takes three spellings of the same page and only the bare one used to be
+    seen: a `file://` URL and a `#fragment` both failed isfile(), so a locked page
+    opened either way went through, and neither spelling ever spent the per-turn
+    budget. The fragment is tried as a STRIPPED alternative rather than stripped
+    outright, because a real filename may contain a `#` and the literal path is
+    the one to prefer when it exists.
+    """
+    out_paths = []
+    forms = [arg]
+    if arg.startswith("file://"):
+        rest = arg[len("file://"):]
+        # file:///abs and file://localhost/abs are the two spellings in the wild.
+        if rest.startswith("localhost/"):
+            rest = rest[len("localhost"):]
+        if rest.startswith("/"):
+            # BOTH, literal first. Decoding INSTEAD of the literal loses a file
+            # whose name really contains a percent escape (`a%20b.html` is a legal
+            # name, and `open` on it works): it resolved to `a b.html`, which does
+            # not exist, so that spelling had no lock lookup and no budget.
+            forms = [rest, unquote(rest)]
+    for f in list(forms):
+        if "#" in f:
+            forms.append(f.split("#", 1)[0])
+    for f in forms:
+        if not f:
+            continue
+        p = os.path.abspath(os.path.expanduser(f))
+        if p not in out_paths:
+            out_paths.append(p)
+    return out_paths
 
 try:
     data = json.loads(sys.stdin.read())
@@ -89,12 +125,89 @@ try:
             if a.startswith("-"):
                 i += 1
                 continue
-            p = os.path.abspath(os.path.expanduser(a))
-            if os.path.isfile(p) and p not in targets:
-                targets.append(p)
+            for p in candidates(a):
+                if os.path.isfile(p) and p not in targets:
+                    targets.append(p)
+                    break
             i += 1
 
     if not targets:
+        sys.exit(0)
+
+    # THE BUILD LOCK, added 2026-09-20. A delegated artifact agent writes its final
+    # `--out` path two or three times mid-run, so a file watcher — or a passing
+    # contract check — says "done" while the agent is still working; the reported
+    # incident opened the page 1 min 41 s before the hand-back, on an intermediate
+    # wrap that had passed the gate. `wrap-report.sh --building` refreshes
+    # <dir>/.aidex-artifact-prev/<page>.building on every wrap of that build and
+    # `--done` removes it, so the state is per PAGE. That is the whole reason this
+    # is not "refuse while any agent is pending": replayed over the sessions since
+    # 2026-09-14, the transcript-scoped guard blocked 18 of 26 real opens, nearly
+    # all of them pages no pending agent was touching.
+    #
+    # STALE MEANS ALLOW. A lock older than STALE_AFTER is an agent that died, was
+    # cancelled, or forgot its last step; holding the page hostage on that would be
+    # the misfire that unwired the other hooks in this repo. It is announced instead of
+    # ignored silently, because "the page may be half-written" is exactly what the
+    # reader needs to know when the guard steps aside.
+    STALE_AFTER = 20 * 60
+    locked, stale = [], []
+    now = time.time()
+    for p in targets:
+        lock = os.path.join(os.path.dirname(p), ".aidex-artifact-prev",
+                            os.path.basename(p) + ".building")
+        try:
+            age = now - os.path.getmtime(lock)
+        except OSError:
+            continue
+        # A mtime in the FUTURE has two bands, and collapsing them either way is a
+        # defect. A few seconds or minutes ahead is ordinary clock skew (a
+        # container, a network share, a restored tree) over a lock an agent is
+        # really holding — calling that stale would disarm the guard on exactly the
+        # machines that produce it. Further ahead than the whole window is a date
+        # nothing can age out of: it would hold the page forever and announce a
+        # negative number of minutes, and a guard whose worst case is permanent is
+        # the one shape this hook must never have. So: skew is fresh, absurd is
+        # stale, and the age printed is never negative.
+        absurd = age < -STALE_AFTER
+        (stale if age > STALE_AFTER or absurd else locked).append(
+            (p, lock, max(age, 0)))
+
+    # ONE hook answer, always. The stale notice used to be printed on its own and
+    # then fall through to the per-turn rule, so a second open of a stale-locked
+    # page in the same turn wrote two JSON objects on stdout — which parses as
+    # neither, and the deny in the second one was lost. The notice is a rider on
+    # whatever this invocation decides, never an answer of its own.
+    stale_msg = None
+    if stale:
+        p, lock, age = stale[0]
+        stale_msg = ("stale build lock ignored (%s, last touched %d minutes ago): the "
+                     "agent that was building %s never ran `wrap-report.sh --done`, so "
+                     "this page may be a half-finished state. Opening anyway."
+                     % (lock, int(age // 60), p))
+
+    if locked:
+        lines = ["An agent is still building this page:", ""]
+        lines += ["  %s" % p for p, _, _ in locked]
+        lines += ["",
+                  "The build lock beside it (.aidex-artifact-prev/<page>.building) was "
+                  "refreshed %d minute(s) ago by the last wrap of that agent. An artifact "
+                  "agent writes its --out path several times mid-run, so neither the "
+                  "file changing nor check-artifact.sh passing means it has finished: "
+                  "an intermediate wrap passes the contract."
+                  % int(min(a for _, _, a in locked) // 60),
+                  "",
+                  "The only signal that the agent is done is its own hand-back. Wait "
+                  "for it — do not watch the file, do not poll it — and open the page "
+                  "after it arrives. The lock is ignored after 20 minutes, so a dead "
+                  "agent cannot block the page for longer than that."]
+        payload = {"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": "\n".join(lines)}}
+        if stale_msg:
+            payload["systemMessage"] = stale_msg
+        out(payload)
         sys.exit(0)
 
     transcript = data.get("transcript_path") or ""
@@ -149,16 +262,21 @@ try:
                   "",
                   "If the page changed in a way the reader has to see, say so in your "
                   "reply and let them ask; their next message clears this."]
-        out({"hookSpecificOutput": {
+        payload = {"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": "\n".join(lines)}})
+            "permissionDecisionReason": "\n".join(lines)}}
+        if stale_msg:
+            payload["systemMessage"] = stale_msg
+        out(payload)
         sys.exit(0)
 
     os.makedirs(state_dir, exist_ok=True)
     with open(state, "a") as fh:
         for p in targets:
             fh.write("%d\t%s\n" % (turn, p))
+    if stale_msg:
+        out({"systemMessage": stale_msg})
 except Exception:
     pass
 sys.exit(0)

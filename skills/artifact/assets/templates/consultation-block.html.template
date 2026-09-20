@@ -24,15 +24,15 @@
   additional: per-item notes do not replace it.
 
   Every item also gets a per-item "Clear" control, and every OPTION GROUP gets
-  two injected choices in the page's own language: "Other" and, since kit v15,
-  "Explain this one better" as the last row of the group. Do not write either
-  into a block: they arrive by wrapping, so a page cannot ship without them and
-  an author cannot get them wrong.
+  two injected choices in the page's own language: "Other" and, since kit v18,
+  "Not now" as the last row of the group. Do not write either into a block:
+  they arrive by wrapping, so a page cannot ship without them and an author
+  cannot get them wrong.
 
   The explain asks are a ROW on the item since kit v18 (BL-381), injected
-  under the last option group: five checkboxes with a tagged vocabulary that
-  combine with each other and with an answer. Every option group also ends
-  with an injected "not now" choice. Neither is written here.
+  under the last option group: seven checkboxes (kit v19) with a tagged
+  vocabulary that combine with each other and with an answer. Every option
+  group also ends with an injected "not now" choice. Neither is written here.
 
   Depth is set by the cost of undoing the decision: a reversible one-minute
   choice gets the question alone; something touching code or a shared contract
@@ -40,9 +40,14 @@
   the consequence of each option, and the file it touches. A returned
   `[explain-state]` says the gap is what exists today, `[explain-options]` the
   alternatives and their cost, `[explain-why]` the risk claimed,
-  `[explain-term: X]` what X is, `[show-me]` a different instrument; asks that
-  come back on the same item in a SECOND round mean it is mis-shaped rather
-  than under-explained. A returned `[not-now]` is carried as open, not redrawn.
+  `[explain-simpler]` that the explanation is too dense, `[question]` that the
+  reader's own question is in the notes, `[reframe]` that the item asks the
+  wrong thing and must be RE-FRAMED rather than re-explained, `[show-me]` a
+  different instrument; asks that come back on the same item in a SECOND round
+  mean it is mis-shaped rather than under-explained. An option pasted with
+  `[provisional]` beside it is NOT a decision: answer the ask and keep the item
+  open with that option preselected. A returned `[not-now]` is carried as open,
+  not redrawn.
 
   THE UNIT IS THE BLOCK, NOT THE ITEM (BL-247). A block is one context with the
   decisions that fall out of it — one decision or several — and it is the ONLY

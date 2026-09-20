@@ -434,14 +434,24 @@ window.addEventListener('load', function () {
     var row = document.querySelector('[data-id="Q1"] .kit-ask');
     var ask = function (m) { return row ? row.querySelector('input[data-label="' + m + '"]') : null; };
     var exState = ask('[explain-state]'), exOpts = ask('[explain-options]'),
-        exWhy = ask('[explain-why]'), exTerm = ask('[explain-term]'), exShow = ask('[show-me]');
-    var term = row ? row.querySelector('.kit-term') : null;
+        exWhy = ask('[explain-why]'), exSimpler = ask('[explain-simpler]'),
+        exQuestion = ask('[question]'), exReframe = ask('[reframe]'), exShow = ask('[show-me]');
     var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
-    [exState, exWhy, exTerm].forEach(function (c) {
+    /* An option AND asks: the item is PROVISIONAL, and the page has to say so
+     * the moment both are set (census 2026-09-20: 19 of 333 answers are this
+     * shape and the rule for them was unwritten). */
+    var provBefore = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
+    [exState, exWhy, exQuestion].forEach(function (c) {
       if (c) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }
     });
-    if (term) { term.value = 'BL-499'; term.dispatchEvent(new Event('input', { bubbles: true })); }
+    /* Ticking 'tengo una pregunta' puts the cursor in the notes box: the
+     * question itself travels in the notes, so the box is where the reader
+     * must land without hunting for it. */
+    var focused = document.activeElement === document.querySelector('[data-id="Q1"] textarea');
+    var provOn = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
+    var provText = provOn ? document.querySelector('[data-id="Q1"] .kit-provisional')
+        .textContent.replace(/[|<>]/g, ' ').replace(/\s+/g, ' ').trim() : '';
     var xcap = '';
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -450,6 +460,10 @@ window.addEventListener('load', function () {
     document.getElementById('consult-copy').click();
     var st1 = document.getElementById('consult-status').textContent;
     var answerKept = pre && pre.checked;
+    /* Releasing the option releases the provisional line with it. */
+    if (pre) { pre.checked = false; pre.dispatchEvent(new Event('change', { bubbles: true })); }
+    var provOff = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
+    if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     /* Now the answer side: "not now" is a radio in the group, so it releases
      * the answer, counts as a response and pastes its own marker. */
     var notNow = document.querySelector('[data-id="Q1"] .opts input[data-label="[not-now]"]');
@@ -462,13 +476,17 @@ window.addEventListener('load', function () {
     document.getElementById('consult-copy').click();
     var rowEl = row;
     document.title = 'EXPLAINED|ROW=' + (row ? '1' : '0')
-      + '|CHIPS=' + [exState, exOpts, exWhy, exTerm, exShow].filter(Boolean).length
+      + '|CHIPS=' + [exState, exOpts, exWhy, exSimpler, exQuestion, exReframe, exShow].filter(Boolean).length
+      + '|TERMCHIP=' + (row && row.querySelector('input[data-label="[explain-term]"]') ? '1' : '0')
+      + '|TERMBOX=' + document.querySelectorAll('[data-id="Q1"] .kit-term').length
+      + '|PROVBEFORE=' + provBefore + '|PROVON=' + provOn + '|PROVOFF=' + provOff
+      + '|PROVTEXT=' + provText
+      + '|FOCUSNOTES=' + (focused ? '1' : '0')
       + '|CHIPTYPE=' + (exState ? exState.type : '')
       + '|CHIPINGROUP=' + (exState && exState.closest('.opts') ? '1' : '0')
       + '|ANSWERKEPT=' + (answerKept ? '1' : '0')
       + '|BOTHKEPT=' + (exState && exState.checked && exWhy && exWhy.checked ? '1' : '0')
       + '|ROWAFTEROPTS=' + (rowEl && rowEl.previousElementSibling && rowEl.previousElementSibling.classList.contains('opts') ? '1' : '0')
-      + '|TERMSHOWN=' + (term ? (getComputedStyle(term).display !== 'none' ? '1' : '0') : 'x')
       + '|EXNOGROUP=' + document.querySelectorAll('[data-id="Q2"] .kit-ask').length
       + '|EXNOTES=' + document.querySelectorAll('.consult-notes .kit-ask').length
       + '|EXDECIDED=' + document.querySelectorAll('[data-id="Q0"] .kit-ask, [data-id="Q0"] input[data-label="[not-now]"]').length
@@ -477,6 +495,7 @@ window.addEventListener('load', function () {
       + '|NOTNOW=' + (notNow ? notNow.type + ':' + notNow.name : '')
       + '|NOTNOWRELEASED=' + (pre && !pre.checked ? '1' : '0')
       + '|NOTNOWTEXT=' + (notNow ? notNow.closest('label').textContent.replace(/[|<>]/g, ' ').trim() : '')
+      + '|PROVNOTNOW=' + document.querySelectorAll('[data-id="Q1"] .kit-provisional').length
       + '|PASTE=' + xcap.replace(/[|<>\n]/g, ' ')
       + '|PASTE2=' + ncap.replace(/[|<>\n]/g, ' ')
       + '|STATUS=' + st1.replace(/[|<>]/g, ' ')
@@ -527,7 +546,7 @@ window.addEventListener('load', function () {
       /* BL-325: the explain request is a mark like any other, so it inherits
        * the round rule for free — restored on a reload, gone once sent. */
       + '|EXKEPT=' + ((document.querySelector('[data-id="Q1"] .kit-ask input[type="checkbox"]') || {}).checked ? '1' : '0')
-      + '|TERMKEPT=' + ((document.querySelector('[data-id="Q1"] .kit-term') || {}).value || '')
+      + '|QKEPT=' + ((document.querySelector('[data-id="Q1"] .kit-ask input[data-label="[question]"]') || {}).checked ? '1' : '0')
       + '|REC=' + (document.querySelector('[data-id="Q1"] .kit-tag') || {}).textContent
       + '|RECPOS=' + (document.querySelector('[data-id="Q1"] .kit-tag + .hint') ? 'before-hint' : 'elsewhere')
       /* BL-247: the rail nests a block's items under the block — one entry
@@ -820,8 +839,12 @@ t="$(run 'phase=explain')"
 [[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
 [[ "$t" == *"ROW=1"* ]] \
   || fail "BL-381: no ask row was injected on the option item: $t"
-[[ "$t" == *"CHIPS=5"* ]] \
-  || fail "BL-381: the ask row does not carry the five tagged asks (state, options, why, term, show-me): $t"
+[[ "$t" == *"CHIPS=7"* ]] \
+  || fail "BL-381 + census 2026-09-20: the ask row does not carry the seven tagged asks (state, options, why, simpler, question, reframe, show-me): $t"
+[[ "$t" == *"TERMCHIP=0"* && "$t" == *"TERMBOX=0"* ]] \
+  || fail "census 2026-09-20: the 'what is X' chip (or its term box) is still injected — 0 uses in 333 answered items, replaced by [question]: $t"
+[[ "$t" == *"FOCUSNOTES=1"* ]] \
+  || fail "census 2026-09-20: ticking 'tengo una pregunta' did not focus the notes box — the question text travels in the notes: $t"
 [[ "$t" == *"CHIPTYPE=checkbox"* && "$t" == *"CHIPINGROUP=0"* ]] \
   || fail "BL-381: an ask is still a radio in the answer group — it must be a checkbox outside it, or it cannot combine with an answer: $t"
 [[ "$t" == *"ANSWERKEPT=1"* ]] \
@@ -830,8 +853,15 @@ t="$(run 'phase=explain')"
   || fail "BL-381: two asks in one round did not both stay ticked — 'explícamelo mejor y vuelve a darme las opciones' is the reported shape: $t"
 [[ "$t" == *"ROWAFTEROPTS=1"* ]] \
   || fail "BL-381: the ask row is not immediately after the option group — it must read as a separate surface, below the answer: $t"
-[[ "$t" == *"TERMSHOWN=1"* ]] \
-  || fail "BL-381: the term box did not appear once 'what is X' was ticked: $t"
+# An option WITH an ask is PROVISIONAL, and the page says so while both are set.
+[[ "$t" == *"PROVBEFORE=0"* ]] \
+  || fail "provisional: the item was marked provisional with an option and no ask — an option alone is an answer: $t"
+[[ "$t" == *"PROVON=1"* ]] \
+  || fail "provisional: an option plus an ask did not put the provisional line on the item — the reader has no signal that the option is not a decision: $t"
+[[ "$t" == *"PROVOFF=0"* ]] \
+  || fail "provisional: releasing the option left the provisional line behind — asks with no answer beside them leave the item plainly open: $t"
+[[ "$t" == *"PROVTEXT=Provisional"* ]] \
+  || fail "provisional: the line on the item is not in the page's language, or does not name the state: $t"
 [[ "$t" == *"EXNOGROUP=1"* ]] \
   || fail "BL-381: an item with no option group got no ask row — the row lives on the ITEM now, so the v15 cost is gone: $t"
 [[ "$t" == *"EXNOTES=0"* ]] \
@@ -850,21 +880,25 @@ excount="$(printf '%s' "$t" | sed -nE 's/.*EXCOUNT=([0-9]+).*/\1/p')"
 [[ "$t" == *"NOTNOWTEXT=Todavía no"* ]] \
   || fail "BL-381: the not-now choice stayed in English on a lang=es page: $t"
 # The paste: the answer AND every ask, each under the item's id, markers verbatim.
-[[ "$t" == *"### Q1 · The probed question  - Option A (recomendada) - [explain-state] - [explain-why] - [explain-term: BL-499]"* ]] \
-  || fail "BL-381: the paste does not carry the answer plus the three asks in order, with the term inside its marker: $t"
+[[ "$t" == *"### Q1 · The probed question  - Option A (recomendada) [provisional] - [explain-state] - [explain-why] - [question]"* ]] \
+  || fail "BL-381 + provisional: the paste does not carry the qualified answer plus the three asks in order: $t"
 [[ "$t" == *"PASTE="*"[explain-options]"* ]] \
   && fail "BL-381: the paste carries a marker that was NOT ticked: $t"
 [[ "$t" == *"### Q1 · The probed question  - [not-now] - [explain-state]"* ]] \
   || fail "BL-381: the not-now choice did not paste its marker in the answer's place, with the asks still following: $t"
 [[ "$t" == *"PASTE2="*"Option A"* ]] \
   && fail "BL-381: 'not now' pasted alongside the answer it was meant to release: $t"
+[[ "$t" == *"PROVNOTNOW=0"* ]] \
+  || fail "provisional: 'not now' plus an ask was marked provisional — a deferral is not an option to qualify: $t"
+[[ "$t" == *"PASTE2="*"[provisional]"* ]] \
+  && fail "provisional: the marker travelled with no option beside it: $t"
 # An ask IS a response; so is deferring. Neither leaves the item in the blank list.
 [[ "$t" == *"STATUS=1 de 2 respondidas"* && "$t" == *"STATUS2=1 de 2 respondidas"* ]] \
   || fail "BL-381: an item carrying only asks, or only 'not now', is still counted blank: $t"
 
 t="$(run 'phase=verify')"
-[[ "$t" == *"EXKEPT=1"* && "$t" == *"TERMKEPT=BL-499"* ]] \
-  || fail "BL-381: the asks (or the typed term) did not survive a reload in their own round: $t"
+[[ "$t" == *"EXKEPT=1"* && "$t" == *"QKEPT=1"* ]] \
+  || fail "BL-381: the asks did not survive a reload in their own round: $t"
 wrap_page                                   # same content, new round
 t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* ]] \
@@ -1087,5 +1121,165 @@ tp="$(run 'phase=partial')"
 [[ "$tp" == *"STATUS=Sin responder"* ]] \
   || fail "BL-380: folding in place changed the count — the decided item must stay out of numerator and denominator: $tp"
 
+# ---- provisional across EVERY reply surface, not only the option group -----
+#
+# The kit documents four reply surfaces (radio/checkbox, select, short text,
+# free prose) and the ask row is injected on an item whatever its surface is.
+# A provisional rule that only knew about `.opts` would leave a chosen SELECT
+# value with an ask beside it reading as a decision, on the page and in the
+# paste — the exact ambiguity the rule exists to remove, on the surfaces the
+# option group does not cover. The prose box is the deliberate exception: free
+# prose is not a chosen answer, so an ask beside it leaves the item open, and
+# that cell is also what would fail if isProvisional were hard-coded true.
+SPAGE="$TMP/reports/surfaces.html"
+write_surfaces_body() {
+cat > "$TMP/sbody.html" <<'HTML'
+<meta name="consult-visual" content="none: a surfaces probe, nothing to draw">
+<div class="page">
+<main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Surfaces probe</h1></header>
+<section id="sec-ask">
+  <div class="sec-head"><h2>Questions</h2></div>
+  <section class="consult-group" id="G1" data-id="G1" data-title="The context">
+    <div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>
+  <section class="consult-item" data-id="S1" data-title="The select surface">
+    <h3><span class="consult-id">S1</span>Which one, from the list</h3>
+    <p class="fieldlabel">La eleccion</p>
+    <select><option value="">&mdash;</option><option value="a">Alpha</option><option value="b">Beta</option></select>
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="S2" data-title="The value surface">
+    <h3><span class="consult-id">S2</span>What value</h3>
+    <p class="fieldlabel">El valor</p>
+    <input type="text">
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="S3" data-title="The prose surface">
+    <h3><span class="consult-id">S3</span>Write what you think</h3>
+    <p class="fieldlabel">Write freely</p>
+    <div contenteditable="true"></div>
+  </section>
+  <section class="consult-item" data-id="S4" data-title="The bare surface">
+    <h3><span class="consult-id">S4</span>Which one, once more</h3>
+    <p class="fieldlabel">La eleccion</p>
+    <select><option value="">&mdash;</option><option value="a">Alpha</option></select>
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
+  </section>
+  <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
+    <h3><span class="consult-id">notes</span>General notes</h3>
+    <textarea></textarea>
+  </section>
+  <div class="endbar">
+    <button type="button" id="consult-copy-end">Copy my answers</button>
+    <span class="consult-status" id="consult-status-end"></span>
+  </div>
+</section>
+</main>
+<aside class="rail">
+  <p class="railhead">Contents</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy"></button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>
+</div>
+<script>
+window.addEventListener('load', function () {
+  var q = location.search;
+  var prov = function (id) { return document.querySelectorAll('[data-id="' + id + '"] .kit-provisional').length; };
+  var ask = function (id, m) {
+    return document.querySelector('[data-id="' + id + '"] .kit-ask input[data-label="' + m + '"]');
+  };
+  var tick = function (id, m) {
+    var c = ask(id, m);
+    if (c) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }
+    return !!c;
+  };
+  if (q.indexOf('phase=sfill') === -1 && q.indexOf('phase=sverify') === -1) return;
+  if (q.indexOf('phase=sfill') !== -1) {
+    var sel = document.querySelector('[data-id="S1"] select');
+    sel.value = 'a'; sel.dispatchEvent(new Event('change', { bubbles: true }));
+    var txt = document.querySelector('[data-id="S2"] input[type="text"]');
+    txt.value = 'Un valor'; txt.dispatchEvent(new Event('input', { bubbles: true }));
+    var ce = document.querySelector('[data-id="S3"] [contenteditable]');
+    ce.textContent = 'solo prosa'; ce.dispatchEvent(new Event('input', { bubbles: true }));
+    var before = prov('S1') + prov('S2') + prov('S3');
+    tick('S1', '[show-me]'); tick('S2', '[show-me]'); tick('S3', '[show-me]');
+    /* [question] has no surface of its own. On an item whose only free box is
+     * a contenteditable the cursor belongs there; on an item with no free box
+     * at all it belongs in the page's general-notes box. */
+    tick('S3', '[question]');
+    var focusCe = document.activeElement === ce;
+    /* The last fallback. The contract requires a notes box on a closed-choice
+     * item, so a page that HAS no free box anywhere on the item only reaches
+     * the composer when it was written by hand or predates that rule — the
+     * composer still must not focus nothing. S4 is stripped of its box here to
+     * stand in for that page; it is a separate item so the stale fingerprint
+     * this creates cannot touch S1's stored answer. */
+    var bare = document.querySelector('[data-id="S4"] textarea');
+    if (bare) bare.remove();
+    tick('S4', '[question]');
+    var focusNotes = document.activeElement === document.querySelector('.consult-notes textarea');
+    var cap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (x) { cap = x; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    document.title = 'SURFACES|BEFORE=' + before
+      + '|S1PROV=' + prov('S1') + '|S2PROV=' + prov('S2') + '|S3PROV=' + prov('S3')
+      + '|FOCUSCE=' + (focusCe ? '1' : '0') + '|FOCUSNOTES=' + (focusNotes ? '1' : '0')
+      + '|PASTE=' + cap.replace(/[|<>\n]/g, ' ');
+  } else {
+    document.title = 'SVERIFY|S1PROV=' + prov('S1') + '|S2PROV=' + prov('S2')
+      + '|SEL=' + (document.querySelector('[data-id="S1"] select') || {}).value
+      + '|ASK=' + ((ask('S1', '[show-me]') || {}).checked ? '1' : '0');
+  }
+});
+</script>
+HTML
+}
+
+write_surfaces_body
+bash "$WRAP" --title "surfaces" --lang es --out "$SPAGE" < "$TMP/sbody.html" > "$TMP/swrap.log" 2>&1 \
+  || fail "the surfaces probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/swrap.log" | head -4)"
+srun() {  # srun <query>
+  chrome_dump "$TMP/sdom.html" "file://$SPAGE?$1" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/sdom.html" | head -1
+}
+rm -rf "$TMP/profile"
+ts="$(srun 'phase=sfill')"
+[[ "$ts" == *SURFACES* ]] || fail "the surfaces phase did not run: $ts"
+[[ "$ts" == *"BEFORE=0"* ]] \
+  || fail "provisional: an answered surface with NO ask was marked provisional: $ts"
+[[ "$ts" == *"S1PROV=1"* ]] \
+  || fail "provisional: a chosen SELECT value with an ask beside it is not marked provisional — the surface is an answer like any option: $ts"
+[[ "$ts" == *"S2PROV=1"* ]] \
+  || fail "provisional: a short-text answer with an ask beside it is not marked provisional: $ts"
+[[ "$ts" == *"S3PROV=0"* ]] \
+  || fail "provisional: free prose with an ask beside it was marked provisional — prose is not a chosen answer, and this cell is what fails if the predicate is hard-coded: $ts"
+[[ "$ts" == *"Alpha [provisional]"* ]] \
+  || fail "provisional: the copied reply does not qualify the chosen select value: $ts"
+[[ "$ts" == *"Un valor [provisional]"* ]] \
+  || fail "provisional: the copied reply does not qualify the short-text answer: $ts"
+[[ "$ts" == *"solo prosa [provisional]"* ]] \
+  && fail "provisional: the copied reply qualified free prose, which is not an answer to qualify: $ts"
+[[ "$ts" == *"FOCUSCE=1"* ]] \
+  || fail "the question chip focused nothing on an item whose only free box is a contenteditable: $ts"
+[[ "$ts" == *"FOCUSNOTES=1"* ]] \
+  || fail "the question chip focused nothing on an item with no free box — the page's general-notes box is where the question goes: $ts"
+
+# The state survives a reload: the pair is restored, so the line comes back.
+ts="$(srun 'phase=sverify')"
+[[ "$ts" == *"SEL=a"* && "$ts" == *"ASK=1"* ]] \
+  || fail "provisional: the select answer or its ask did not survive the reload, so the line below proves nothing: $ts"
+[[ "$ts" == *"S1PROV=1"* ]] \
+  || fail "provisional: a restored answer-plus-ask pair came back without its provisional line: $ts"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice and the ask row, the explicit theme, v4 answer sets, the all-decided page, the half-answered block and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block and the localised chrome included"

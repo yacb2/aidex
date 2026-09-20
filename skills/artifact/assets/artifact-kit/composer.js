@@ -62,11 +62,15 @@
       askOptionsTitle: 'What the options are and what each one costs, the recommended one included.',
       askWhy: 'the why',
       askWhyTitle: 'The reason or the risk the item claims, with the evidence for it.',
-      askTerm: 'what X is',
-      askTermTitle: 'A definition of a named thing: an id, a term, a command.',
-      askTermPh: 'which one',
+      askSimpler: 'simpler',
+      askSimplerTitle: 'The same explanation, shorter and plainer: less text, not more of it.',
+      askQuestion: 'I have a question',
+      askQuestionTitle: 'Something none of the above names. Write it in the notes box \u2014 ticking this puts the cursor there.',
+      askReframe: 'the framing is wrong',
+      askReframeTitle: 'The question itself is the wrong question. Say in the notes what it should be asking.',
       askShow: 'show me',
-      askShowTitle: 'A mockup, a diagram, a before/after, an example \u2014 not more prose.',
+      askShowTitle: 'A mockup, a diagram, a before/after, worked examples \u2014 not more prose.',
+      provisional: 'Provisional: you chose an option and asked for something as well. The next round answers the ask and keeps this question open, with that option already ticked.',
       toLight: 'Light',
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark',
@@ -118,11 +122,15 @@
       askOptionsTitle: 'Cu\u00e1les son las opciones y qu\u00e9 cuesta cada una, la recomendada incluida.',
       askWhy: 'el porqu\u00e9',
       askWhyTitle: 'La raz\u00f3n o el riesgo que el item afirma, con su evidencia.',
-      askTerm: 'qu\u00e9 es X',
-      askTermTitle: 'La definici\u00f3n de algo con nombre: un id, un t\u00e9rmino, un comando.',
-      askTermPh: 'cu\u00e1l',
+      askSimpler: 'm\u00e1s simple',
+      askSimplerTitle: 'La misma explicaci\u00f3n, m\u00e1s corta y m\u00e1s llana: menos texto, no m\u00e1s.',
+      askQuestion: 'tengo una pregunta',
+      askQuestionTitle: 'Algo que ninguna de las anteriores nombra. Escr\u00edbela en la caja de notas \u2014 al marcar esto el cursor salta ah\u00ed.',
+      askReframe: 'est\u00e1 mal planteada',
+      askReframeTitle: 'La pregunta en s\u00ed est\u00e1 mal planteada. Di en las notas qu\u00e9 deber\u00eda preguntar.',
       askShow: 'mu\u00e9stramelo',
-      askShowTitle: 'Un mockup, un diagrama, un antes/despu\u00e9s, un ejemplo \u2014 no m\u00e1s prosa.',
+      askShowTitle: 'Un mockup, un diagrama, un antes/despu\u00e9s, ejemplos concretos \u2014 no m\u00e1s prosa.',
+      provisional: 'Provisional: elegiste una opci\u00f3n y adem\u00e1s pediste algo. La pr\u00f3xima ronda responde lo que pediste y deja esta pregunta abierta, con esa opci\u00f3n ya marcada.',
       toLight: 'Claro',
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
@@ -151,13 +159,31 @@
   /* Three more since v18 (BL-381), from 348 owner messages mined out of every
    * project transcript: the asks the reader actually typed when an item could
    * not be answered were "why is this a risk", "what IS the thing named here"
-   * and "show me", none of which the two above name. `[explain-term]` carries
-   * the term the reader typed: `[explain-term: BL-499]`. And one answer-side
-   * marker, `[not-now]`: a question deferred on purpose, which is not a blank. */
+   * and "show me", none of which the two above name. And one answer-side
+   * marker, `[not-now]`: a question deferred on purpose, which is not a blank.
+   *
+   * v19, from the census of 333 answered items (2026-09-20): `[explain-term]`
+   * and its term box are RETIRED — 0 uses in 333, while "what is X" was typed
+   * in prose 5 times, i.e. the reader asks in the notes and never reached for
+   * the chip. Its slot goes to `[question]`, the shape that has no control at
+   * all (33 of the 127 notes are a question none of the chips names): ticking
+   * it focuses the notes box and the question travels there. `[reframe]` is
+   * the rarest and most expensive shape (5 of 127, "creo que lo estamos
+   * pensando mal") and the one every other chip assumes away. `[explain-simpler]`
+   * is the only ask about the FORM of the explanation rather than a missing
+   * piece of it. `[show-examples]` was proposed with them and NOT built:
+   * `[show-me]` already means "a mockup, a diagram, a before/after, an example",
+   * so it would have been a second control for one meaning — its title now names
+   * examples explicitly instead. */
   var EXPLAIN_WHY = '[explain-why]';
-  var EXPLAIN_TERM = '[explain-term]';
+  var EXPLAIN_SIMPLER = '[explain-simpler]';
+  var QUESTION = '[question]';
+  var REFRAME = '[reframe]';
   var SHOW_ME = '[show-me]';
   var NOT_NOW = '[not-now]';
+  /* Not a chip and never ticked: a qualifier the composer appends to a chosen
+   * option when an ask sits beside it. See isProvisional. */
+  var PROVISIONAL = '[provisional]';
 
   // Built with DOM nodes rather than innerHTML: the id and the title are author
   // text, and a title carrying an angle bracket would otherwise be parsed as
@@ -512,31 +538,67 @@
     });
   }
 
-  /* The mark a checked input pastes. `[explain-term]` folds the term typed
-   * next to it INTO the marker — `[explain-term: BL-499]` — so the session
-   * greps one token and reads the term from it, instead of pairing a bare
-   * marker with a free-text line that could be anything. */
-  function markLabel(i) {
+  /* PROVISIONAL (v19). An option chosen with an ask ticked beside it is not a
+   * decision: 19 of 333 answered items are that shape and what the option MEANT
+   * there was never written down — in 8 sampled rows the session held the item
+   * open 7 times and once took the option as decided, so practice was already
+   * "the ask wins", unwritten and drifting. The rule is now stated in the canon
+   * AND carried on both surfaces: a line on the item while both are set, and a
+   * `[provisional]` qualifier on the option line in the copied reply.
+   *
+   * `[not-now]` is not an option: deferring with an ask beside it is a deferral,
+   * not a qualified answer, so it never takes the qualifier. An ask with NO
+   * answer is not provisional either — there is nothing to qualify.
+   *
+   * THE RULE IS ABOUT AN ANSWER, NOT ABOUT AN OPTION GROUP. The kit has four
+   * reply surfaces and the ask row is injected on an item whatever its surface
+   * is, so a predicate that only knew `.opts` would leave a chosen SELECT value
+   * or a typed VALUE with an ask beside it reading as a decision — the same
+   * ambiguity, on the surfaces the option group does not cover. What is NOT an
+   * answer: free prose (`textarea`, `[contenteditable]`). It is what the item's
+   * notes box is for, it qualifies an answer rather than being one, and an ask
+   * typed beside prose leaves the item plainly open — nothing to qualify. */
+  function answerMarks(el) {
+    return [].slice.call(el.querySelectorAll(
+      '.opts input[type="radio"]:checked, .opts input[type="checkbox"]:checked'
+    )).filter(function (i) { return (i.dataset.label || i.value || '') !== NOT_NOW; });
+  }
+
+  function answerValues(el) {
+    return [].slice.call(el.querySelectorAll('select, input[type="text"]'))
+      .filter(function (x) { return String(x.value || '').trim() !== ''; });
+  }
+
+  function askMarks(el) {
+    return [].slice.call(el.querySelectorAll('.kit-ask input[type="checkbox"]:checked'));
+  }
+
+  function isProvisional(el) {
+    if (isDecided(el)) return false;
+    if (!askMarks(el).length) return false;
+    return answerMarks(el).length > 0 || answerValues(el).length > 0;
+  }
+
+  /* The mark a checked input pastes. `prov` is the item's provisional state,
+   * passed in rather than recomputed per input: only an ANSWER-side option
+   * takes the qualifier, and it goes after the recommendation suffix so the
+   * option's own text stays byte-identical to what the page shows. */
+  function markLabel(i, prov) {
     var label = i.dataset.label || i.value || '';
-    if (label === EXPLAIN_TERM) {
-      var box = i.closest('label') ? i.closest('label').querySelector('.kit-term') : null;
-      var term = box ? box.value.trim() : '';
-      return term ? '[explain-term: ' + term + ']' : label;
-    }
-    return label + recSuffix(i);
+    var qualified = prov && label !== NOT_NOW && i.closest('.opts');
+    return label + recSuffix(i) + (qualified ? ' ' + PROVISIONAL : '');
   }
 
   function readItem(el) {
-    var parts = [], marked = [];
+    var parts = [], marked = [], prov = isProvisional(el);
     el.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked')
-      .forEach(function (i) { marked.push(markLabel(i)); });
+      .forEach(function (i) { marked.push(markLabel(i, prov)); });
     if (marked.length) parts.push(marked.map(function (m) { return '- ' + m; }).join('\n'));
     el.querySelectorAll('select').forEach(function (s) {
-      if (s.value) parts.push(s.options[s.selectedIndex].text.trim());
+      if (s.value) parts.push(s.options[s.selectedIndex].text.trim() + (prov ? ' ' + PROVISIONAL : ''));
     });
     el.querySelectorAll('input[type="text"]').forEach(function (i) {
-      if (i.classList.contains('kit-term')) return;   /* pasted inside its marker */
-      if (i.value.trim()) parts.push(i.value.trim());
+      if (i.value.trim()) parts.push(i.value.trim() + (prov ? ' ' + PROVISIONAL : ''));
     });
     el.querySelectorAll('[contenteditable]').forEach(function (c) {
       if (c.textContent.trim()) parts.push(c.textContent.trim());
@@ -566,6 +628,7 @@
         return;
       }
       var notes = el.classList.contains('consult-notes');
+      markProvisional(el);
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);
       if (links[i]) links[i].classList.toggle('done', !!body);
@@ -647,15 +710,15 @@
    * silently WAS the contenteditable array — every such answer read as already
    * sent and vanished on the next round, which `test-composer-functional.sh`
    * caught. Adding a key means checking it against both lists. */
-  /* `k` is the ask row's term box (v18). Its own kind, AFTER the author's
-   * surfaces, so a v4 flat list — which fills the kinds in this order — keeps
-   * landing where it did before the box existed. */
+  /* The `k` kind was the ask row's term box (v18). The box is retired with its
+   * chip (v19, 0 uses in 333), so the kind is gone with it: it was last in the
+   * list, so every earlier kind keeps landing where it did, and a stored `k`
+   * array from a v18 page simply matches nothing on restore. */
   var FREE = [
     { k: 's', q: 'select' },
-    { k: 't', q: 'input[type="text"]:not(.kit-term)' },
+    { k: 't', q: 'input[type="text"]' },
     { k: 'c', q: '[contenteditable]' },
-    { k: 'a', q: 'textarea' },
-    { k: 'k', q: '.kit-term' }
+    { k: 'a', q: 'textarea' }
   ];
 
   function freeValue(el) {
@@ -712,7 +775,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-provisional').forEach(function (c) { c.remove(); });
     /* Chrome this file TRANSLATES is put back into English before hashing
      * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
      * fingerprint, and every answer a reader stored while the labels were still
@@ -931,8 +994,9 @@
    *
    * One line, not five: chips with a title each and no hint lines, because
    * the two v16 radios cost four lines per group and the whole complaint about
-   * these pages is their length. `[explain-term]` carries a small text box that
-   * appears when ticked; readItem folds its value into the marker.
+   * these pages is their length. Seven chips since v19; at phone width the row
+   * wraps, which components.css tightens rather than hides — a disclosed chip
+   * costs the one thing the mining shows the reader lacks, seeing it exists.
    *
    * Every chip is a mark with a `data-label`, so every path that handles marks
    * handles it: readItem pastes it, snapshotItem stores it, restore re-checks
@@ -943,7 +1007,9 @@
     [EXPLAIN_STATE, 'askState', 'askStateTitle'],
     [EXPLAIN_OPTIONS, 'askOptions', 'askOptionsTitle'],
     [EXPLAIN_WHY, 'askWhy', 'askWhyTitle'],
-    [EXPLAIN_TERM, 'askTerm', 'askTermTitle'],
+    [EXPLAIN_SIMPLER, 'askSimpler', 'askSimplerTitle'],
+    [QUESTION, 'askQuestion', 'askQuestionTitle'],
+    [REFRAME, 'askReframe', 'askReframeTitle'],
     [SHOW_ME, 'askShow', 'askShowTitle']
   ];
   function addAskRows() {
@@ -964,12 +1030,22 @@
         input.setAttribute('data-label', spec[0]);
         lab.appendChild(input);
         lab.appendChild(document.createTextNode(' ' + L[spec[1]]));
-        if (spec[0] === EXPLAIN_TERM) {
-          var box = document.createElement('input');
-          box.type = 'text';
-          box.className = 'kit-term';
-          box.placeholder = L.askTermPh;
-          lab.appendChild(box);
+        /* `[question]` has no surface of its own: the question travels in the
+         * notes, so ticking the chip puts the cursor there. The v18 chip it
+         * replaces carried its own text box and was never used once in 333
+         * answered items; the box the item already has is the one the reader
+         * types in. */
+        if (spec[0] === QUESTION) {
+          input.addEventListener('change', function () {
+            if (!input.checked) return;
+            /* The item's own notes box first, its free-prose box second, and
+             * the page's general-notes box last: an item whose only surface is
+             * a value or a list has nowhere of its own to type a question, and
+             * focusing nothing is how the chip would silently do nothing. */
+            var box = el.querySelector('textarea') || el.querySelector('[contenteditable]')
+                   || document.querySelector('.consult-notes textarea');
+            if (box) box.focus();
+          });
         }
         row.appendChild(lab);
       });
@@ -984,6 +1060,26 @@
         else el.appendChild(row);
       }
     });
+  }
+
+  /* The provisional line, added and removed as the pair (option, ask) makes and
+   * unmakes the state. Injected like every other kit affordance — a page gets
+   * it by being wrapped — and stripped from the question fingerprint, or the
+   * moment a reader ticked an ask beside an option the item would read as "the
+   * question changed" and their stored answer would be dropped. */
+  function markProvisional(el) {
+    var want = isProvisional(el);
+    var node = el.querySelector('.kit-provisional');
+    if (want && !node) {
+      node = document.createElement('p');
+      node.className = 'kit-provisional';
+      node.textContent = L.provisional;
+      var row = el.querySelector('.kit-ask');
+      if (row) row.parentNode.insertBefore(node, row.nextSibling);
+      else el.appendChild(node);
+    } else if (!want && node) {
+      node.remove();
+    }
   }
 
   /* A picked radio can be released by picking it again (BL-268). The browser

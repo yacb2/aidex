@@ -180,11 +180,9 @@ li::marker { color: var(--muted); }
    shares its dashed band: the two exits read as one band, not two. */
 .opts .kit-other + .kit-notnow { border-top: none; margin-top: 0; padding-top: 0.1rem; }
 
-/* The ask row (kit v18, BL-381): a second surface under the answer, one line
-   of chips with a lead-in. Deliberately lighter than the two v16 radios it
-   replaces — no hint lines; each chip carries a title. The term box is hidden
-   until its chip is ticked, and sized as a word, not as the item's own text
-   inputs (which are full-width). */
+/* The ask row (kit v18, BL-381; seven chips since v19): a second surface under
+   the answer, one line of chips with a lead-in. Deliberately lighter than the
+   two v16 radios it replaces — no hint lines; each chip carries a title. */
 .kit-ask { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; align-items: baseline;
            margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px dashed var(--rule);
            font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
@@ -194,9 +192,22 @@ li::marker { color: var(--muted); }
 .kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
 .kit-ask label:has(input:checked) { color: var(--ink); }
 .kit-ask input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
-.consult-item .kit-ask .kit-term { display: none; width: 9rem; padding: 0.1rem 0.4rem;
-                                   font-size: 0.8rem; margin-left: 0.2rem; }
-.consult-item .kit-ask label:has(input:checked) .kit-term { display: inline-block; }
+/* A phone is 21-24rem of usable width: seven chips wrap to three or four rows
+   there, and each row has to stay tappable. The chips keep their size (a 0.82rem
+   target is already the floor); what gives is the space between them and the
+   lead-in, which takes a line of its own so no chip is orphaned beside it. */
+@media (max-width: 34rem) {
+  .kit-ask { gap: 0.25rem 0.5rem; }
+  .kit-ask-lead { flex-basis: 100%; }
+  .kit-ask label { padding: 0.25rem 0.3rem; }
+}
+
+/* The provisional line (kit v19): shown on an item that has BOTH a chosen
+   option and an ask, which is not a decision. Quiet, one line, under the ask
+   row it belongs to — it reports a state the reader created, it does not warn. */
+.kit-provisional { margin: 0.45rem 0 0; font-family: var(--sans); font-size: 0.78rem;
+                   line-height: 1.5; color: var(--ink-soft);
+                   border-left: 2px solid var(--accent-dim); padding-left: 0.6rem; }
 
 .consult-item select, .consult-item input[type="text"], .consult-item textarea {
   width: 100%; box-sizing: border-box; padding: .5rem .7rem; font-family: var(--sans); font-size: 0.9rem;

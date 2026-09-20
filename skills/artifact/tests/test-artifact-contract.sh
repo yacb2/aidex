@@ -136,9 +136,29 @@ out="$(printf '<div class="page"><main class="main"><h1>answer me</h1>\n<textare
                 || bad "--out returned 0 for a file that violates the contract"
 [[ "$out" == *"[consult]"* ]] && ok "--out surfaces which check failed" \
                              || bad "--out hid the failing check: $out"
-# The file is still written, so the author can fix it in place rather than re-derive it.
-[[ -f "$TMP/coupled-bad.html" ]] && ok "the failing file is kept for fixing" \
-                                 || bad "--out deleted the failing file"
+# CHANGED 2026-09-20. This used to assert "the failing file is kept for fixing":
+# `--out` left the violating document at the very path the reader has open, and a
+# page that fails its contract must never be what sits there. The author's work is
+# carried by the body sidecar now (test-body-sidecar.sh), so nothing is lost by
+# taking the failing render out of the reader's path. This wrap was the FIRST at
+# that path, so there is nothing to restore: the page must not exist at all.
+[[ ! -e "$TMP/coupled-bad.html" ]] \
+  && ok "a failing FIRST wrap leaves no page at --out" \
+  || bad "--out left a contract-failing page at the reader's path"
+[[ -f "$TMP/.aidex-artifact-prev/coupled-bad.html.failed" ]] \
+  && ok "the failing render is kept for the author at .aidex-artifact-prev/<page>.failed" \
+  || bad "the failing render was lost entirely"
+[[ "$out" == *"coupled-bad.html.failed"* && "$out" == *"coupled-bad.html.failed.body"* ]] \
+  && ok "the error names the failed render and the attempt's own source to fix" \
+  || bad "the error message points the author nowhere: $out"
+
+# ...and a later PASSING wrap of the same page clears it, or the directory keeps a
+# render nobody will ever look at again.
+printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-bad.html" >/dev/null 2>&1 \
+  && ok "the same path wraps clean afterwards" || bad "the clean re-wrap failed"
+[[ ! -e "$TMP/.aidex-artifact-prev/coupled-bad.html.failed" ]] \
+  && ok "a passing wrap removes the kept failing render" \
+  || bad "the .failed render outlived the fix"
 
 # stdout mode cannot check (a pipe has no path), so the omission must be audible.
 err="$(printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" 2>&1 >/dev/null)"
@@ -877,12 +897,27 @@ rc1=$?
 [[ $rc1 -eq 0 ]] && ok "run 1: the original consultation passes" \
                  || bad "run 1 did not pass, so nothing below measures the baseline"
 
+# Snapshot what run 1 actually left at $PAGE. Comparing against the stored
+# baseline instead would only coincide here (run 1 passed, so the two are equal);
+# the claim under test is that the PAGE is unchanged, which has to be measured
+# against the page.
+cp "$PAGE" "$TMP/inv-run1.html"
 out2="$(shifted "A different claim")"; rc2=$?
 [[ $rc2 -ne 0 ]] && ok "run 2: a claim moved behind a kept id fails" \
                  || bad "run 2: the id shift was not caught: $out2"
-grep -q 'data-title="A different claim"' "$PAGE" \
-  && ok "run 2: the violating file is still on disk to be fixed in place" \
-  || bad "run 2: the failing write was rolled back (that behaviour is asserted above)"
+# CHANGED 2026-09-20. This used to assert that the violating file was still on disk
+# at $PAGE ("fixed in place"). The failing render moved out of the reader's path: on
+# a fail $PAGE goes back byte-for-byte to what run 1 wrote, and the violating render
+# is kept at .aidex-artifact-prev/<page>.failed for the author, whose real working
+# copy is the body sidecar. What the block below measures is unchanged — the baseline
+# is still the last PASSING version, so 3a and 3b must still come out as they do.
+cmp -s "$PAGE" "$TMP/inv-run1.html" \
+  && ok "run 2: the page is restored to the last version that passed" \
+  || bad "run 2: the failing render was left at the reader's path"
+grep -q 'data-title="A different claim"' \
+     "$INV/.context/reports/.aidex-artifact-prev/c.html.failed" \
+  && ok "run 2: the violating render is kept for the author at <page>.failed" \
+  || bad "run 2: the violating render was not kept anywhere"
 
 # 3a — the author does what the message told them to do.
 out3a="$(shifted "$C2_TITLE")"; rc3a=$?

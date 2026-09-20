@@ -13,6 +13,16 @@
 #   wrap-report.sh --title "<title>" --in body.html --out out.html
 #   wrap-report.sh --title "<title>" --lang en --in report.md --out report.html
 #
+# A DELEGATED build (an agent writing the page for someone else) adds --building to
+# every wrap and ends with one --done:
+#   wrap-report.sh --building --title "<title>" --in body.html --out out.html
+#   wrap-report.sh --done --out out.html
+# Between the two, out.html carries a lock at .aidex-artifact-prev/out.html.building and
+# artifact-open-once.sh refuses to open it: an agent writes its --out path several times
+# mid-run and an intermediate wrap PASSES the contract, so neither the file changing nor
+# a green check means the build is over — only the hand-back does. --done wraps nothing,
+# removes the lock and is safe to repeat. A lock nobody cleared is ignored after 20 min.
+#
 # An `--in` file ending in `.md` is rendered from markdown first (dash/md_body.py):
 # the close-out case, where a run already wrote a durable report and only the page
 # is missing. Content on stdin is always page markup — a pipe has no name to read

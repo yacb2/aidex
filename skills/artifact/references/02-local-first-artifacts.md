@@ -139,8 +139,47 @@ SAME path. Concretely:
   settled question again; deleting it without recording the answer loses the decision. `check-artifact.sh` flags an id that sits in the ledger AND in the question set;
   it cannot see one decided and never written to the ledger, because the ledger is
   the only declaration of decidedness the page carries.
+- **Revise the CONTENT, never the wrapped file.** Every `--out` wrap keeps its own
+  input at `.aidex-artifact-prev/<page>.html.body` (`.body.md` for a markdown input),
+  next to the contract baseline. A revision edits that file and wraps from it with
+  `--in`. The wrapped page is 100-200 KB of which the content is 12-33%, and carving
+  the content back out of it is the only way to wrap a page twice — a defect the
+  contract check passes. A page that predates the sidecar has none: extract its
+  content once, and the next wrap writes it. It is written on a PASS only, so it is
+  always the source of the page that is at that path; an attempt that failed keeps its
+  own content under `<page>.html.failed.body` instead and never overwrites this one.
+
+  **And one item is revised without reading even that file.**
+  `scripts/artifact-item.sh list <page.html>` prints the sidecar's outline — one line
+  per unit, id · kind · size · title, items indented under their block;
+  `get <page.html> <id>` prints exactly that unit, `put <page.html> <id> <file>` puts
+  exactly that unit back and prints the wrap command to run next. Measured 2026-09-20
+  on one consultation: editing a single item costs 131 KB read from the wrapped page,
+  43 KB from the sidecar, ~2.7 KB through the outline plus the one unit. `put` refuses
+  an id that is missing or duplicated and a replacement whose outer element does not
+  carry the same id — § 8.1 holds here too. A block that GAINS or LOSES an item is an
+  ordinary round, not a violation: the put is taken and the added and removed ids are
+  printed. On a `.body.md` it is stricter, because a markdown id is the slug of its
+  heading in document order: adding a `## ` inside one section renames every section
+  after it, so it is refused and put one section at a time. Markup that does not close
+  the way it is written — a self-closing `<div/>`, an unclosed nested element — is
+  refused as well: a browser reads both as swallowing the items that follow, and the
+  contract check passes either way. It edits the sidecar only:
+  the wrap is what verifies the contract, so it stays a separate step you can see fail.
+  A page with no sidecar is the fallback above, and the error says so.
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
+- **A DELEGATED build locks the page until it hands back.** An agent revising a page
+  wraps every step with `wrap-report.sh --building ... --out <page>` and ends the build
+  once with `wrap-report.sh --done --out <page>`; between the two,
+  `artifact-open-once.sh` refuses to open that page and says why. It is the only signal
+  that works: an agent writes its final `--out` path two or three times mid-run, so the
+  file changing means nothing, and an intermediate wrap PASSES the contract, so a green
+  `check-artifact.sh` means nothing either — on 2026-09-20 a page was opened and
+  reported green 1 min 41 s before its agent handed back more changes. Whoever launched
+  the agent waits for the hand-back rather than watching the file. A lock is ignored
+  after 20 minutes, so an agent that dies without `--done` costs one window, not the
+  page.
 - **Typed answers survive the regeneration** — the composer keeps them in
   `localStorage` and restores them behind a visible banner, minus any item whose
   question changed and any answer already sent. Mechanics and the residual risk
@@ -171,18 +210,34 @@ the reader knows the file tree. On one real round 12 of 26 items came back as fr
 saying some form of "I do not understand this task" — the owner's words were *"me estás
 dando contexto asumiendo que conozco qué es lo que está y qué es lo que no está"*.
 
-So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381) under its
-answer: one line, "Antes de responder necesito…", with five checkboxes. Ticking any of
-them pastes a fixed marker as a mark under that item's id, and **which** markers is the
-whole point:
+So every open item carries an injected **ask row** (`.kit-ask`, kit v18, BL-381; seven
+chips since kit v19) under its answer: one line, "Antes de responder necesito…", with
+seven checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
+id, and **which** markers is the whole point:
 
 | Marker | What it asks for | What the rewrite owes |
 |---|---|---|
 | **`[explain-state]`** | What exists today | The files by name, the current value printed from the tree, what is already there and what is not. This is the gap almost every time — it is the assumption the reader is objecting to. |
 | **`[explain-options]`** | What the alternatives are | Each option's consequence and its cost, including the cost of the one being recommended. Never a defence of the recommendation. |
 | **`[explain-why]`** | The reason or the risk the item claims | The evidence for the claim, stated as a claim: "no entiendo cuál es el peligro de borrar facturas" is answered with what breaks and how it was measured, not with the recommendation again. |
-| **`[explain-term: X]`** | What the thing named X is | A definition — of a BL id, a term, a command — before anything else. "No me explicas qué es el BL 499… no sé qué responderte". The reader types X next to the tick and the marker carries it. |
-| **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, an example. Not more prose: the reader has said prose is not the shape that will land. |
+| **`[explain-simpler]`** | The same explanation, plainer | Shorter and in fewer terms — the one ask about the FORM of the explanation rather than about a piece missing from it. Not more text: the item is already too dense, so answering it with an expansion is answering the opposite ask. |
+| **`[question]`** | Something no chip names | The reader's own question, typed in that item's notes box (ticking the chip focuses it). Answer THAT question in the next round, first, before re-explaining anything around it. |
+| **`[reframe]`** | The item is asking the wrong thing | **Re-frame the item, never just re-explain it.** Every other marker assumes the question is the right one; this one says it is not. The notes say why. The next round returns a DIFFERENT question — re-scoped, split, or dropped — and says in one line what changed and why. An item that comes back re-explained under the same framing has not been answered. |
+| **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, worked examples. Not more prose: the reader has said prose is not the shape that will land. |
+
+**`[explain-term: X]` is RETIRED (kit v19).** The census of 333 answered items
+(`.context/references/2026-09-20-consultation-reply-census.md`) found **0** uses of it
+while "what is X" was typed in prose 5 times: the reader asks in the notes and never
+reached for the chip. Its slot went to `[question]`, which is the shape with no control at
+all — 33 of the 127 notes are a question none of the chips names. A paste from an older
+page can still carry `[explain-term: X]`, and a session reading one answers it the way the
+retired row said: with what X is, first. Do not write it into a new page.
+
+**`[show-examples]` was proposed with them and not built.** `[show-me]` already means "a
+mockup, a diagram, a before/after, an example", so a second chip would have been two
+controls for one meaning; its title now names examples explicitly instead. The rule when a
+new chip is proposed: if an existing marker's *answer* would be the same, widen that
+marker's title, do not add a chip.
 
 And the answer group itself ends, after "Otra", with one more choice: **"Todavía no — lo
 dejo para otra ronda"**, which pastes **`[not-now]`**. It is answer-side, a radio, exclusive
@@ -216,6 +271,44 @@ attack on "one checkbox that reveals the vocabulary" is written in BL-381 — di
 pays when what it hides is heavier than a line, and it costs the one thing the mining
 shows the reader lacks: seeing that the ask exists.
 
+### What a chosen option MEANS when an ask sits beside it
+
+The asks combine with an answer, and until kit v19 nothing said what the answer was worth
+when they did. The census of 333 answered items measured both shapes in use — **19 items
+with an option AND at least one ask marker, 46 with an ask and no option** — and found the
+precedence unwritten: in 8 sampled rows of the 19, the session held the item open 7 times
+and once took the option as decided despite a `[show-me]`. Practice was "the ask wins",
+unwritten and drifting, and the page gave the reader no signal either way.
+
+The rule, and it is the precedence rule for the three states an answer can be in:
+
+- **An answer with an ask beside it is PROVISIONAL. A provisional answer is not a
+  decision.** The next round answers the ask and keeps the item OPEN, with that answer
+  preselected. It does not move to the ledger, it is not recorded as settled, and it is not
+  implemented. The page says so while both are set (`.kit-provisional`, a line on the item)
+  and the copied reply says so too: the answer gains a `[provisional]` marker —
+  `- Option A (recomendada) [provisional]`, `Alpha [provisional]`, `2026-10-01 [provisional]`.
+- **"Answer" means any of the ANSWER surfaces, not only an option group**: a ticked option,
+  a chosen `select` value, a typed short-text value. **Free prose is not an answer** — a
+  `textarea` or a `[contenteditable]` is what qualifies an answer or says what the options
+  do not cover, so an ask typed beside prose leaves the item plainly open and nothing is
+  qualified. The ask row is injected on an item whatever its surface is, so a rule that
+  knew only about option groups would leave a chosen value reading as a decision.
+- **An option with a NOTE and no ask is DECIDED**, including when the note attaches a
+  condition ("sí, pero solo si X") — 16 of the 127 notes are exactly that shape, and
+  reading them as open is what turns a settled question into a second round. Record the
+  decision, and **restate the condition in the record**: the ledger line carries the option
+  AND the condition the reader put on it, because a condition dropped at the record is a
+  decision the next round cannot honour.
+- **An ask with no option leaves the item OPEN**, which is what it always meant.
+- A `[not-now]` takes no `[provisional]` qualifier: a deferral with an ask beside it is a
+  deferral, not a qualified answer.
+
+**Asks and an option stay combinable — this is not a route back to exclusivity.** v15 made
+them exclusive at the owner's request, v18 retired that on evidence, and the census
+confirms it: making them exclusive again would refuse 19 real answers out of 333. The fix
+for the ambiguity is the stated precedence above, not the removal of the shape.
+
 **Where it stops.** Not with the marker's own depth — with the ROUND:
 
 - **Any combination of asks in one round is one round. An item whose asks come back in a
@@ -229,8 +322,11 @@ shows the reader lacks: seeing that the ask exists.
   rounds of licence: that is exactly the unbounded growth the ceiling exists to stop.
 - **Answer the markers that were picked, not the one you would rather answer.** An
   `[explain-state]` answered with a richer argument for the recommendation is the failure
-  this design replaced, not an expansion of it. An `[explain-term: X]` is answered with
-  what X is, first.
+  this design replaced, not an expansion of it. An `[explain-simpler]` is answered by
+  cutting the item, never by adding to it; a `[question]` is answered by answering the
+  question in the notes, first; a `[reframe]` is answered with a different question, not
+  with the same one explained again. An `[explain-term: X]` from a page written before kit
+  v19 is answered with what X is, first.
 - **A `[not-now]` is not a nudge to re-ask.** The item leaves the next page and sits in
   its ledger as open until the reader brings it back.
 
@@ -523,7 +619,17 @@ Spanish chrome on top of English prose — the profile's `language:` decides, an
 follows it, or `--lang` is passed on purpose), no
 external CSS/JS/fonts/images, no sibling assets, the kit's layout container and wrapped
 tables on any page carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
-it. A non-zero exit means the file on disk is not deliverable.
+it.
+
+**A failing wrap does not land.** `--out` is rolled back to the version that was there
+before it — byte for byte — and is simply not created when the wrap was the first at that
+path, because the reader (or the session) may already have that tab open and a page that
+fails its contract must never be what sits there. The attempt is kept whole for you under
+the `.failed` name: the render at `.aidex-artifact-prev/<page>.html.failed` and the
+content it was made from at `<page>.html.failed.body` (`.failed.body.md` for a markdown
+input). That source is what you fix and wrap again with `--in`; the error message names
+it. A later passing wrap deletes the whole set. The page's own sidecar is untouched by a
+failing wrap — it is still the source of the page that is on disk.
 
 To re-check a file you did not just wrap:
 
@@ -661,6 +767,16 @@ messages and the tests; § 8.4 is the block shape.
    the block: the item rule was being satisfied by growing the items while
    the context above them never moved.
 
+   **A fact a decision rests on is an item, or the brief says it is not one.** Before the
+   brief is handed over, list what each decision depends on. Each of those facts is either
+   its own `consult-item` with its own stable id, or is written in the brief as a
+   deliberate non-decision — one line, with the reason (settled, out of scope, decided in
+   `<ref>`). A fact a decision rests on that lives only as block context is not a
+   self-sufficient block: the reader cannot answer it, so he raises it himself several
+   rounds later, and the item is spun out as its own page. Measured on one real
+   consultation, 2026-09-20: the workspace-vs-office scoping of company holidays sat as
+   context under two items for six rounds, until the reader surfaced it himself.
+
    **The page around the blocks is fixed.** Before the first block: the header
    (title + standfirst, where the strongest claim lives — intake question 6), a
    figure section when the subject has a shape, and the ledger. Between blocks:
@@ -742,7 +858,7 @@ explanation had been written into the page.
 
 `wrap-report.sh` stamps `<meta name="consult-round">` on each regeneration, counted from
 the stored **baseline** (`.aidex-artifact-prev/`), never from the file on disk — a failing
-wrap is left in place and does not advance the baseline, so counting from disk would
+wrap does not advance the baseline, so counting from disk would
 increment across a round the reader never saw. The composer then applies one rule:
 
 | | Restored |
@@ -797,23 +913,27 @@ page this fixes, and a hand translation is no longer recognised as a default to 
 Adding a language is one entry in `composer.js`'s `STRINGS` table and no code.
 
 **Since kit v18, every open item carries an ASK ROW under its answer, and every option
-group ends with a "not now" choice** (BL-381). The row is the successor of the v12 per-item
+group ends with a "not now" choice** (BL-381); since kit v19 the row is seven chips and an
+option answered alongside an ask is marked provisional. The row is the successor of the v12 per-item
 checkbox, the v15 in-group radio and the v16 pair; what survives from each: it is injected
 (v12), the general-notes item carries none (v15), the marks name WHICH gap (v16). What v18
 retires is exclusivity — see *When the reader says the question is unreadable* above for
 the evidence. The rule is one line: the composer appends the row after the item's last
-`.opts` group (or before its first field label when it has none), five checkboxes with a
+`.opts` group (or before its first field label when it has none), seven checkboxes with a
 tagged vocabulary, and appends `Todavía no` as the last choice of every option group:
 
 | | |
 |---|---|
-| The asks are **checkboxes on the item** | Ticking one releases nothing: the reader can answer AND ask, or ask twice. The `[explain-term]` chip shows a small box for the term when ticked, and the paste folds it into the marker. |
+| The asks are **checkboxes on the item** | Ticking one releases nothing: the reader can answer AND ask, or ask twice — the answer (option, select value or typed value, never free prose) is then PROVISIONAL, said on the item and in the paste. The `[question]` chip focuses the item's notes box — its prose box, or the page's general notes, when the item has none: the question itself travels there. |
 | "Not now" is a **radio in the group** | Answer-side, exclusive with the answers and with "Otra". It counts as a response, pastes `[not-now]`, and the item is carried as open, not redrawn. |
 | An item with **no option group** still gets the row | The v15 cost is gone; such an item has no "not now" though, because that choice lives in a group. |
 
 Ticking pastes the fixed markers — `[explain-state]`, `[explain-options]`, `[explain-why]`,
-`[explain-term: X]`, `[show-me]`, and `[not-now]` — under that item's id, and asking counts
-as a response rather than a blank. Do not write any of them by hand. What the next round
+`[explain-simpler]`, `[question]`, `[reframe]`, `[show-me]`, and `[not-now]` — under that
+item's id, and asking counts as a response rather than a blank. An option ticked with any
+of the asks beside it pastes with a `[provisional]` qualifier and carries a line saying so
+on the page; what that state means is *What a chosen option MEANS when an ask sits beside
+it* above. Do not write any of them by hand. What the next round
 owes in return, and where it stops, is *Depth is set by the cost of undoing* → *When the
 reader says the question is unreadable* above.
 
@@ -1152,11 +1272,11 @@ The same function runs headless in
 checks; the DevTools MCP remains the authoring-time instrument.
 
 `consult-ids` needs both versions, so `--out` compares against the last version that
-**passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A file
-that fails is left on disk to be fixed in place, so it must not become the baseline: it
-did once, and the gate inverted — restoring the correct claim was reported as the
-violation, and re-running the same violating content passed. The baseline only advances on
-a passing run. When there is no stored baseline yet, `--out` falls back to snapshotting the
+**passed** the contract, kept at `<report-dir>/.aidex-artifact-prev/<name>.html`. A render
+that fails must not become the baseline: it did once, and the gate inverted — restoring
+the correct claim was reported as the violation, and re-running the same violating content
+passed. The baseline only advances on a passing run, and a failing wrap is rolled back off
+`--out` and kept at `<name>.html.failed` instead. When there is no stored baseline yet, `--out` falls back to snapshotting the
 file it is about to replace. `validate.py` does not walk that directory — its contents
 are superseded copies of pages already judged at their canonical paths, and a waiver
 could never settle them because the anchor hashes a file the next passing run replaces.
