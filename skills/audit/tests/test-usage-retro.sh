@@ -23,7 +23,12 @@
 #   (l) a transcript root under a DIFFERENT user's home still resolves
 #   (m) mine_items and mine_slow_tests share one runner vocabulary
 #   (o) mine_errors accepts the plain-date --since its own reference prints
-#   (s) iter_tool_events: subagent tagged, cat is a read, exit 2 parsed, retry_of
+#   (s) iter_tool_events: subagent tagged, cat is a read, exit 2 parsed, retry_of,
+#       a mention is not a run and a wrap carries its --out basename (BL-387)
+#   (s2) the lexer by direct call: a here-string is not a heredoc, only `<<-` takes
+#        an indented terminator, a run in an `if`/`while` head or via source/sudo
+#        still counts, `command -v` does not, and one pathological command does not
+#        stop the walk
 #   (t) census_scripts prints its walked file count, reads in their own column
 #   (u) pages join the registry by basename; a page sharing an item's slug rides
 #       on the item as `pages`; 00-index.html and .aidex-artifact-prev/ are skipped
@@ -539,18 +544,86 @@ assert [e["exit_code"] for e in runs] == [2, 2], "exit 2 parsed from the result 
 assert all(e["is_error"] for e in runs) and not runs[0]["read_only"]
 assert runs[0]["retry_of"] is None and runs[1]["retry_of"] == runs[0]["id"], "retry_of links the repeat"
 assert all(e["bucket"] == "real-usage" and e["project"] == "demo-ws" for e in ev)
+
+# BL-387, both directions. A path is attributed from what the command EXECUTES:
+mention = next(e for e in ev if e["command"].startswith("git commit"))
+assert mention["script"] == "" and not mention["read_only"], \
+    "a commit message + heredoc naming the path is a mention, not a run"
+reached = {e["command"]: e["script"] for e in ev
+           if e["command"].startswith(("cd demo_ws", "AIDEX_DEBUG="))}
+assert len(reached) == 2 and all(s.endswith("close-item.sh") for s in reached.values()), \
+    f"a run behind `cd x &&` and behind an env assignment still attributes: {reached}"
+wrap = next(e for e in ev if e["script"].endswith("wrap-report.sh"))
+assert wrap["out"] == "2026-01-07-eta.html", f"wrap carries its --out basename: {wrap['out']}"
+assert all(e["out"] == "" for e in ev if e is not wrap), "only wraps carry `out`"
 print("PYOK", len(ev))
 PYS
 )"
-[[ "$out_s" == *"PYOK 5"* ]] || fail "(s) iter_tool_events over the fixture: $out_s"
+[[ "$out_s" == *"PYOK 8"* ]] || fail "(s) iter_tool_events over the fixture: $out_s"
+
+# ---------------------------------------------------------------------------
+# (s2) THE LEXER ITSELF, by direct call. Four shapes the corpus does not carry
+#      today, so nothing downstream would go red on them — and the unsafe one
+#      (F2) fails OPEN: a heredoc body lexed as commands is counted as a RUN by
+#      census_scripts.py, which is the defect this whole item exists to remove.
+#      One assertion per shape, written before its fix.
+# ---------------------------------------------------------------------------
+out_s2="$(python3 - "$RETRO" <<'PYS2'
+import sys
+sys.path.insert(0, sys.argv[1]); import mine_items as M
+A, bad = M.attribute_command, []
+def eq(got, want, label):
+    if got != want:
+        bad.append(f"{label}: got {got!r}, want {want!r}")
+
+# F1 a here-string is not a heredoc: `<<<` must not swallow the rest of the command
+eq(A('grep -q x <<< "yes"\nbash skills/a/scripts/real.sh')[0],
+   "skills/a/scripts/real.sh", "F1 here-string")
+# F2 only `<<-` strips indentation, and TABS only: an indented terminator of a
+#    plain heredoc is BODY. Failing open here reports a mention as a run.
+eq(A("cat <<EOF\n  EOF\nskills/a/scripts/x.sh\nEOF"), ("", False, ""), "F2 space-indented EOF is body")
+eq(A("cat <<-EOF\n\tEOF\nbash skills/a/scripts/x.sh")[0],
+   "skills/a/scripts/x.sh", "F2 a TAB-indented terminator closes <<-")
+eq(A("cat <<-EOF\n  EOF\nskills/a/scripts/x.sh\nEOF"), ("", False, ""), "F2 <<- does not strip spaces")
+# F3 a run in a condition head, after `!`, or through `source`/`.`/`sudo`
+eq(A("if bash skills/a/scripts/x.sh; then :; fi")[0], "skills/a/scripts/x.sh", "F3 if-head")
+eq(A("if ! bash skills/a/scripts/x.sh; then :; fi")[0], "skills/a/scripts/x.sh", "F3 if !")
+eq(A("while bash skills/a/scripts/x.sh; do :; done")[0], "skills/a/scripts/x.sh", "F3 while-head")
+eq(A("source skills/a/scripts/x.sh")[0], "skills/a/scripts/x.sh", "F3 source")
+eq(A(". skills/a/scripts/x.sh")[0], "skills/a/scripts/x.sh", "F3 dot")
+eq(A("sudo bash skills/a/scripts/x.sh")[0], "skills/a/scripts/x.sh", "F3 sudo")
+# F4 `command -v` is a lookup, not a run
+eq(A("command -v skills/a/scripts/x.sh"), ("", False, ""), "F4 command -v")
+# F5 one pathological command must not kill a 220k-event walk: the walker keeps
+#    going and the event it could not parse simply carries no script.
+import json, os, shutil, tempfile
+tx = tempfile.mkdtemp()
+os.makedirs(tx + "/-Users-x-projects-demo-ws")
+def ev(i, cmd):
+    return [json.dumps({"type": "assistant", "timestamp": "2026-01-01T00:00:00Z",
+                        "message": {"content": [{"type": "tool_use", "name": "Bash",
+                                                 "id": i, "input": {"command": cmd}}]}}),
+            json.dumps({"type": "user", "timestamp": "2026-01-01T00:00:00Z",
+                        "message": {"content": [{"type": "tool_result",
+                                                 "tool_use_id": i, "content": "ok"}]}})]
+with open(tx + "/-Users-x-projects-demo-ws/p1.jsonl", "w") as fh:
+    fh.write("\n".join(ev("a", "$(" * 5000 + "bash x.sh" + ")" * 5000)
+                       + ev("b", "bash skills/a/scripts/x.sh")) + "\n")
+got = [(e["script"], e["exit_code"]) for e in M.iter_tool_events(tx)]
+shutil.rmtree(tx, ignore_errors=True)
+eq(got, [("", 0), ("skills/a/scripts/x.sh", 0)], "F5 a pathological command does not stop the walk")
+print("PYOK" if not bad else "BAD: " + " | ".join(bad))
+PYS2
+)"
+[[ "$out_s2" == *PYOK* ]] || fail "(s2) attribute_command lexer: $out_s2"
 
 # (t) the promoted census prints how many files it walked (an empty walk must be
 #     visible as one), and the `cat` lands in the reads column, not in calls.
 out_t="$(python3 "$RETRO/census_scripts.py" --transcripts-root "$TX" 2>&1)"
 grep -q 'transcript files walked: 8' <<<"$out_t" \
   || fail "(t) census must print the walked file count (7 sessions + 1 subagent): $out_t"
-grep -E 'close-item\.sh +0/0 +0/0 +2/1 +0/0 +1$' <<<"$out_t" >/dev/null \
-  || fail "(t) close-item.sh: 2 calls/1 session under real-usage/main and 1 read apart: $out_t"
+grep -E 'close-item\.sh +0/0 +0/0 +4/1 +0/0 +1$' <<<"$out_t" >/dev/null \
+  || fail "(t) close-item.sh: 4 calls/1 session under real-usage/main and 1 read apart: $out_t"
 grep -E 'validate\.py +0/0 +0/0 +0/0 +1/1 +0$' <<<"$out_t" >/dev/null \
   || fail "(t) validate.py: the subagent run lands in real-usage/sub: $out_t"
 # ---------------------------------------------------------------------------
@@ -671,4 +744,4 @@ rm -rf "$MISSDIR"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, census promoted, pages join the registry by basename, miss? is silent while the skill is already running"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, a script is attributed by argv and a wrap carries its --out, census promoted, pages join the registry by basename, miss? is silent while the skill is already running"

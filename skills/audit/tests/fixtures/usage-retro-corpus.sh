@@ -138,7 +138,9 @@ py_bash_fail() {  # id exit-code output
 
 # --- s6: TOOL EVENTS, no tracked item named (attribution stays empty). A sweep
 #     close refused with exit 2, the same command retried, a `cat` of a script path
-#     (a read, not a run), and a subagent transcript that runs validate.py. ---
+#     (a read, not a run), a commit message + heredoc that only MENTION the path,
+#     two real runs behind a `cd &&` chain and an env assignment, and a subagent
+#     transcript that runs validate.py. ---
 {
   py_user_prompt "sweep the backlog"
   py_bash b1 "bash skills/backlog/scripts/close-item.sh --sweep BL-777"
@@ -147,6 +149,19 @@ py_bash_fail() {  # id exit-code output
   py_bash_fail b2 2 "refused: item is not closable under --sweep"
   py_bash b3 "cat skills/backlog/scripts/close-item.sh"
   py_bash_ok b3 "#!/usr/bin/env bash"
+  # b6 only MENTIONS the path — in a commit message and inside a heredoc body.
+  # b7/b8 are real runs the argv rule must still reach: past a `cd x &&` chain
+  # and past a leading env assignment (BL-387).
+  py_bash b6 "git commit -F - <<'MSG'
+fix(backlog): the sweep close refuses a non-closable item
+
+skills/backlog/scripts/close-item.sh --sweep now exits 2.
+MSG"
+  py_bash_ok b6 "[main abc1234] fix(backlog): the sweep close refuses a non-closable item"
+  py_bash b7 "cd demo_ws && bash skills/backlog/scripts/close-item.sh --sweep BL-778"
+  py_bash_ok b7 "closed BL-778"
+  py_bash b8 "AIDEX_DEBUG=1 bash skills/backlog/scripts/close-item.sh --sweep BL-779"
+  py_bash_ok b8 "closed BL-779"
 } > "$D/s6.jsonl"
 mkdir -p "$D/s6/subagents"
 {

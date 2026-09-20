@@ -260,9 +260,195 @@ def assistant_parts(o):
 
 
 SCRIPT_PATH = re.compile(r'skills/[\w-]+/scripts/[\w.-]+')
-# A command whose FIRST word is a pager/filter is a read of the script, not a run.
-READ_CMD = re.compile(r'^\s*(?:cat|sed|grep|head|tail|less|wc|bat)\b')
+# A simple command whose HEAD word is a pager/filter is a read of the script, not a run.
+READ_CMD = re.compile(r'^(?:cat|sed|grep|egrep|rg|head|tail|less|wc|bat)$')
+INTERPRETER = re.compile(r'^(?:bash|sh|zsh|python|python3|node|source|\.)$')
+ENV_ASSIGN = re.compile(r'^[A-Za-z_]\w*=')
+# Keywords that can sit before the real head word of a simple command; `do` matters:
+# the run inside `for r in ...; do bash <script>; done` is a run.
+SKIP_WORDS = {"{", "do", "then", "else", "!", "if", "elif", "while", "until"}
+# Wrappers that execute their operand: the script is what follows them.
+RUNNERS = {"timeout", "env", "nohup", "stdbuf", "nice", "time", "command", "xargs",
+           "exec", "sudo"}
+DURATION = re.compile(r'^\d+(?:\.\d+)?[smhd]?$')
+VAR_REF = re.compile(r'\$\{(\w+)\}|\$(\w+)')
+# `(?<!<)` keeps a here-STRING (`<<<`) out: it has no delimiter line and swallowing
+# the rest of the command as its body would drop every run after it.
+HEREDOC = re.compile(r"(?<!<)<<(-?)\s*[\"']?([A-Za-z_][\w-]*)[\"']?")
 EXIT_CODE = re.compile(r'^Exit code (\d+)')
+
+
+def _strip_heredocs(cmd):
+    """Drop heredoc BODIES: a path named in a patch payload or a commit message
+    piped through `-F -` is a mention, never a run."""
+    if "<<" not in cmd:
+        return cmd
+    lines, out, i = cmd.split("\n"), [], 0
+    while i < len(lines):
+        out.append(lines[i])
+        delims = HEREDOC.findall(lines[i])
+        i += 1
+        for dash, d in delims:
+            # Only `<<-` allows an indented terminator, and bash strips TABS only:
+            # under `<<EOF` an indented `  EOF` is body, and closing there would hand
+            # the rest of the body to the lexer as commands — a mention read as a run.
+            while i < len(lines) and (lines[i].lstrip("\t") if dash else lines[i]) != d:
+                i += 1
+            i += 1          # the closing delimiter line itself
+    return "\n".join(out)
+
+
+def _take_subst(cmd, i):
+    """The inside of a `$(...)` / backtick substitution starting at i -> (inner, next i)."""
+    if cmd[i] == "`":
+        j = cmd.find("`", i + 1)
+        return (cmd[i + 1:], len(cmd)) if j < 0 else (cmd[i + 1:j], j + 1)
+    depth, j = 1, i + 2
+    while j < len(cmd) and depth:
+        depth += (cmd[j] == "(") - (cmd[j] == ")")
+        j += 1
+    return cmd[i + 2:j - 1 if depth == 0 else j], j
+
+
+def _simple_commands(cmd):
+    """The command text as a list of simple commands, each a list of argv words.
+
+    Splits on `;`, newlines, `|`, `&&`/`||` and subshell parens, so a real run that
+    is the second or third link of a chain is still seen. Quoted text keeps its
+    content but never splits, so argv POSITION decides: a path quoted after `echo`
+    or `git commit -m` stays an argument of that command and attributes nothing,
+    while `bash "skills/.../x.sh"` still resolves. A `$(...)` really does execute,
+    so its inside is scanned as commands of its own, even inside double quotes.
+    """
+    cmds, words, cur = [], [], []
+
+    def end_word():
+        if cur:
+            words.append("".join(cur))
+            del cur[:]
+
+    def end_cmd():
+        end_word()
+        if words:
+            cmds.append(list(words))
+            del words[:]
+
+    i, n = 0, len(cmd)
+    while i < n:
+        c = cmd[i]
+        if c == "\\" and i + 1 < n:
+            if cmd[i + 1] != "\n":      # a line continuation joins, it is not a word
+                cur.append(cmd[i + 1])
+            i += 2
+        elif c in "'\"":
+            q, i = c, i + 1
+            while i < n and cmd[i] != q:
+                if q == '"' and cmd[i] == "\\" and i + 1 < n:
+                    cur.append(cmd[i + 1])
+                    i += 2
+                elif q == '"' and (cmd.startswith("$(", i) or cmd[i] == "`"):
+                    inner, i = _take_subst(cmd, i)
+                    cmds.extend(_simple_commands(inner))
+                else:
+                    cur.append(cmd[i])
+                    i += 1
+            i += 1
+        elif cmd.startswith("$(", i) or c == "`":
+            inner, i = _take_subst(cmd, i)
+            cmds.extend(_simple_commands(inner))
+        elif c in " \t":
+            end_word()
+            i += 1
+        elif c in ";\n\r|&()":
+            end_cmd()
+            i += 1
+        else:
+            cur.append(c)
+            i += 1
+    end_cmd()
+    return cmds
+
+
+def _expand(word, env):
+    """Substitute the `VAR=value` assignments seen earlier in the same command. An
+    unknown variable is left alone: `${CLAUDE_PLUGIN_ROOT}/skills/x/scripts/y.sh`
+    still names its script."""
+    if "$" not in word or not env:
+        return word
+    return VAR_REF.sub(lambda m: env.get(m.group(1) or m.group(2), m.group(0)), word)
+
+
+def _out_basename(words):
+    """The basename of `--out <path>` / `--out=<path>` in one simple command."""
+    for k, w in enumerate(words):
+        if w == "--out" and k + 1 < len(words):
+            return os.path.basename(words[k + 1])
+        if w.startswith("--out="):
+            return os.path.basename(w[len("--out="):])
+    return ""
+
+
+def _script_of(words, env):
+    """(script, read_only, argv words) for ONE simple command, by what it EXECUTES:
+    the head word, or the first operand of an interpreter, after leading `VAR=value`
+    assignments and shell keywords. `-c`/`-m` code is not a path. A pager/filter head
+    is a READ of whichever argument names a script. `env` expands the assignments seen
+    earlier in the same command, so `S=<path>; bash $S` is the run it is."""
+    words = [_expand(w, env) for w in words]
+    k = 0
+    while k < len(words):
+        if words[k] in SKIP_WORDS or ENV_ASSIGN.match(words[k]):
+            k += 1
+        elif os.path.basename(words[k]) in RUNNERS:   # `timeout 25 bash <script>`
+            runner = os.path.basename(words[k])
+            k += 1
+            while k < len(words) and (words[k].startswith("-") or DURATION.match(words[k])):
+                if runner == "command" and words[k] in ("-v", "-V"):
+                    return "", False, words           # a lookup of the path, not a run
+                k += 1
+        else:
+            break
+    if k >= len(words):
+        return "", False, words
+    head = os.path.basename(words[k])
+    if READ_CMD.match(head):
+        for w in words[k + 1:]:
+            m = SCRIPT_PATH.search(w)
+            if m:
+                return m.group(0), True, words
+        return "", False, words
+    if INTERPRETER.match(head):
+        for w in words[k + 1:]:
+            if w in ("-c", "-m"):
+                return "", False, words       # the next word is code, not a path
+            if w.startswith("-"):
+                continue
+            m = SCRIPT_PATH.search(w)
+            return (m.group(0) if m else ""), False, words
+        return "", False, words
+    m = SCRIPT_PATH.search(words[k])
+    return (m.group(0) if m else ""), False, words
+
+
+def attribute_command(cmd):
+    """(script, read_only, out) for a whole Bash command: the first simple command
+    that RUNS a suite script wins, else the first that reads one. `out` is the
+    `--out` basename of a wrap-report.sh event, so a wrap joins the page it wrote."""
+    read, env = None, {}
+    for words in _simple_commands(_strip_heredocs(cmd)):
+        for w in words:
+            if ENV_ASSIGN.match(w):
+                name, _, val = w.partition("=")
+                env[name] = _expand(val, env)
+        script, read_only, argv = _script_of(words, env)
+        if not script:
+            continue
+        if read_only:
+            read = read or (script, True, "")
+            continue
+        out = _out_basename(argv) if script.endswith("wrap-report.sh") else ""
+        return script, False, out
+    return read or ("", False, "")
 
 
 def _result_text(b):
@@ -275,7 +461,12 @@ def _result_text(b):
 def iter_tool_events(tx_root, since=None, until=None, projects=None):
     """Yield dicts: session, parent_session, project, bucket, agent ('main'|'sub'),
     ts, tool, command, script (skills/<skill>/scripts/<file> or ''), read_only (bool),
-    is_error (bool), exit_code (int|None), retry_of (event id|None).
+    out (basename of --out on a wrap-report.sh event, else ''), is_error (bool),
+    exit_code (int|None), retry_of (event id|None).
+
+    `script` is what the command EXECUTES (see attribute_command): a path named
+    inside a heredoc, a commit message, an `echo` or a `grep` pattern is a mention,
+    not a run.
 
     THE tool-events walker for this package: one per Bash or Skill `tool_use`, its
     result paired by `tool_use_id`. Subagent transcripts
@@ -327,13 +518,16 @@ def iter_tool_events(tx_root, since=None, until=None, projects=None):
                             continue
                         inp = b.get("input", {}) or {}
                         cmd = str(inp.get("command") or inp.get("skill") or "")
-                        m = SCRIPT_PATH.search(cmd)
+                        try:
+                            script, read_only, out = attribute_command(cmd)
+                        except Exception:   # one pathological command, not the walk
+                            script, read_only, out = "", False, ""
                         ev = {
                             "id": f"{session}:{idx}", "session": session,
                             "parent_session": parent, "project": proj, "bucket": bucket,
                             "agent": agent, "ts": o.get("timestamp", ""), "tool": tool,
-                            "command": cmd, "script": m.group(0) if m else "",
-                            "read_only": bool(m and READ_CMD.match(cmd)),
+                            "command": cmd, "script": script,
+                            "read_only": read_only, "out": out,
                             "is_error": False, "exit_code": None,
                             "retry_of": last_cmd.get(cmd),
                         }

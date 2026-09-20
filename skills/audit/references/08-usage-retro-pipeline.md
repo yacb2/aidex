@@ -80,6 +80,24 @@ batch: `backlog`, `artifacts`, `session`, `planning` (consultation
 - **Subagents: events in, prompts out.** `mine_items.iter_tool_events` walks
   `<session>/subagents/*.jsonl` too, tagging `agent: sub` and counting it apart; the
   prompt extractor does not, so no denominator of an earlier run moves.
+- **One tool event, its fields.** `{ id, session, parent_session, project, bucket, agent,
+  ts, tool, command, script, read_only, out, is_error, exit_code, retry_of }`.
+  `script` is what the command EXECUTES, never a substring of its text (BL-387): the head
+  word of a simple command, or the operand of `bash`/`sh`/`zsh`/`python3`/`source` and of
+  a wrapper like `timeout`/`sudo`, past leading `VAR=value` assignments (expanded, so
+  `S=<path>; bash $S` counts), past `cd x &&` and past a keyword (`if`/`while`/`do`/`!`)
+  — every link of a `;`/`&&`/`|` chain is examined, the first that runs a script wins.
+  `command -v <path>` is a lookup, not a run. Only `<<-` takes a TAB-indented terminator
+  and `<<<` is a here-string, not a heredoc: both mis-parses would hand a heredoc body to
+  the lexer or discard the rest of the command (pinned by `test-usage-retro.sh` (s2)).
+  A path named inside a heredoc body, a commit message, an `echo`, a `grep` pattern or a
+  `python3 -c` program is a MENTION and attributes nothing;
+  a `cat`/`sed`/`grep` of the path is a READ (`read_only`), in its own column. Measured on
+  the corpus 2026-09-20: 16,062 substring attributions → 14,442 argv ones, and the 8
+  exotic exits (128/143) that the first artifacts run blamed on suite scripts were all
+  `git add`/`git diff` arguments. `out` is the `--out` basename of a `wrap-report.sh`
+  event (both `--out p` and `--out=p`), so a wrap joins the page it wrote and consultation
+  rounds separate from corrections.
 - **Residue reader, optional, counted.** A facet whose residue is already on disk
   declares a reader (`artifacts` → `facets/read_artifacts.py`, `backlog` →
   `facets/read_sweep.py`); its output is a shard of its own, grouped by the version the
