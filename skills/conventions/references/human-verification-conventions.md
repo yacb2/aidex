@@ -1,7 +1,7 @@
 # Guided human verification at the integration boundary
 
 Shared canon. Consumers: `plan-exec` (close-out step 7), `bugfix`
-(step 8) and `backlog`'s sweep run mode (`sweep-execution-policy.md`, close-out).
+(step 9) and `backlog`'s sweep run mode (`sweep-execution-policy.md`, close-out).
 None restates it — a restated protocol is a second place to drift.
 
 ## Why this is a step and not guidance

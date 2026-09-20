@@ -5,7 +5,7 @@
 # consumers that must delegate to it rather than restate it:
 #
 #   1. plan-exec/references/02-close-out.md   (close-out step 7)
-#   2. bugfix/SKILL.md                        (step 8)
+#   2. bugfix/SKILL.md                        (step 9)
 #   3. backlog/references/sweep-execution-policy.md (sweep close-out) — its proof
 #      artifact is the items' owner rows aggregated by the report, NOT a per-item
 #      human-verification.md; amended in as a consumer, never carved out
@@ -140,7 +140,7 @@ esac
 # leaves a reader trusting the smaller number.
 steps=$(grep -cE '^[0-9]+\. ' "$FIX")
 case "$FIX_FLAT" in
-  *"these eight steps"*) [ "$steps" -ge 8 ] || err "bugfix says eight steps but lists $steps" ;;
+  *"these nine steps"*) [ "$steps" -ge 9 ] || err "bugfix says nine steps but lists $steps" ;;
   *) err "bugfix's stated step count does not include the human-verification step" ;;
 esac
 

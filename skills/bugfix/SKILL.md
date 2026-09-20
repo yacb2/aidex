@@ -21,7 +21,7 @@ Test-driven bug fixing methodology that ensures every fix includes a regression 
 
 ## Workflow
 
-The bug-fix workflow is these eight steps — the agent table and prose below key to their step numbers:
+The bug-fix workflow is these nine steps — the agent table and prose below key to their step numbers:
 
 1. Investigate root cause (don't guess)
 2. Write test that reproduces bug (must FAIL) — **read**
@@ -46,7 +46,13 @@ The bug-fix workflow is these eight steps — the agent table and prose below ke
    breaks** and has no E2E reaching it. Write that spec now, before the fix lands —
    against a disposable database, never dev (`skills/coverage/SKILL.md § What the generated test-e2e.sh guarantees`).
 7. Commit test + fix together
-8. **Guided human verification, at the integration boundary** — before the fix merges,
+8. **Name what prevents the class, not the instance** — the regression test covers this
+   bug; say what stops the next one of its kind: a rule, a broader test, or a
+   `.context/references/` note. **"Nothing, this was a one-off" is a valid answer**, and
+   it is written down like any other: one `class-prevention: <answer>` line in the commit
+   body, next to the RED→GREEN proof (amend it if the answer only lands after the
+   commit). This is a question, not a gate — it never blocks the commit.
+9. **Guided human verification, at the integration boundary** — before the fix merges,
    pushes or the run ends, not before the commit. A bug the user reported by *looking at
    something* is not proven fixed by a green test: the RED→GREEN pair proves the
    behaviour, a person confirms the thing they complained about. **Read and follow**
@@ -67,7 +73,7 @@ This skill uses specialized agents for parallel investigation:
 | `bug-investigator` | Sonnet | Trace root cause through code | Step 1 |
 | `test-scout` | Sonnet | Find related tests and patterns | Step 1 |
 | `regression-checker` | Sonnet | Verify no regressions after fix | Step 6 |
-| Main session | Opus | Write test, write fix, decisions | Steps 2-5, 7-8 |
+| Main session | Opus | Write test, write fix, decisions | Steps 2-5, 7-9 |
 
 Agent definitions: `agents/` directory in this skill folder.
 
