@@ -273,6 +273,17 @@ Include scripts when: same code is rewritten repeatedly, deterministic reliabili
 
 **Scripts from repeated patterns:** Look at what subagents keep reinventing — if test runs, validation steps, or tool invocations repeatedly generate similar helper scripts, bundle that script in `scripts/`. This avoids context waste from Claude recreating the same logic each session.
 
+**A skill plus a script is the default integration; an MCP server needs a stated reason.**
+New capability arrives as a skill that calls a script in its own `scripts/` or an already
+installed CLI — that costs tokens only in the sessions that invoke it. An MCP server's
+tool schemas are loaded into *every* session whether the tools are used or not, and the
+bill is measurable: a subagent declaring `tools: [Bash]` starts at ~14k tokens against
+~49k for the unrestricted default (sonnet, measured 2026-09-13) — the difference is tool
+and catalog schema, paid on every call. So adding an MCP server is a decision that must
+name what a script cannot do. The counter-example that qualifies: Chrome DevTools, which
+drives a **live, stateful browser session** — a CLI invocation cannot hold that state
+between calls. "It is more convenient" does not qualify.
+
 ## Fan-out: `allowed-tools` and `model-policy` (house fields)
 
 `model-policy` is **not** in the official front-matter spec above — it is an aidex-house
