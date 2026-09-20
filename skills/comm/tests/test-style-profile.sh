@@ -156,8 +156,58 @@ grep -q 'first-person singular' "$BODY" \
 pass "a profile carrying no ## Profile fence degrades to the defaults"
 rm -rf "$ROOT"
 
+# --- Cell 5: a quote is stripped only when it WRAPS the whole value (BL-422) --------
+# The parser used to strip a leading and a trailing quote independently, so a font stack
+# whose first (or last) family is quoted silently lost that quote and rendered CSS that
+# still looked plausible. Every assertion here is byte-exact for that reason.
+ROOT="$(mk_project)"
+mkdir -p "$ROOT/.context"
+# Written with printf, not a heredoc: the date_format cell needs a REAL trailing space
+# after the closing quote, and an editor that trims trailing whitespace would delete it.
+TRAILING_WS_VALUE='"Fecha X" '
+{
+  printf '## Profile\n\n```\n'
+  printf 'paste_font: "Segoe UI",Arial,sans-serif\n'
+  printf 'tone: Arial,"Segoe UI"\n'
+  printf 'address: "Segoe UI",Arial,"Aptos Display"\n'
+  printf 'voice: "first person"\n'
+  printf 'sign_off: "\n'
+  printf 'date_format: %s\n' "$TRAILING_WS_VALUE"
+  printf '```\n'
+} > "$ROOT/.context/communication-style.md"
+BODY="$(scaffold "$ROOT" wrapping-quote)"; RC=$?
+[[ $RC -eq 0 ]] || fail "cell 5: expected exit 0, got $RC"
+grep -qF -- 'paste_font:  "Segoe UI",Arial,sans-serif' "$BODY" \
+  || fail "cell 5a: a value STARTING with a quoted family lost its opening quote"
+grep -qF -- 'tone:        Arial,"Segoe UI"' "$BODY" \
+  || fail "cell 5b: a value ENDING with a quoted family lost its closing quote"
+grep -qF -- 'address:     "Segoe UI",Arial,"Aptos Display"' "$BODY" \
+  || fail "cell 5c: a value that starts AND ends with a quote but is not one wrapped string was stripped"
+# The pair that must still be stripped — otherwise a never-strip fix would pass cells 5a-5c.
+grep -qF -- 'voice:       first person' "$BODY" \
+  || fail "cell 5d: a genuinely wrapped value kept its surrounding quotes"
+# Degenerate: a lone quote is not a pair, and trailing whitespace means the quote does
+# not surround the value, so neither is stripped.
+grep -qF -- "sign_off:    \"" "$BODY" \
+  || fail "cell 5e: a lone double quote was consumed instead of rendered"
+grep -qF -- "date_format: $TRAILING_WS_VALUE" "$BODY" \
+  || fail "cell 5f: a quote followed by whitespace was treated as surrounding the value"
+pass "a quote is stripped only when one matching pair wraps the whole value"
+rm -rf "$ROOT"
+
+# --- Cell 5g: an empty wrapped value falls back to the axis default ------------------
+ROOT="$(mk_project)"
+mkdir -p "$ROOT/.context"
+printf '## Profile\n\n```\nvoice: ""\n```\n' > "$ROOT/.context/communication-style.md"
+BODY="$(scaffold "$ROOT" empty-quoted)"; RC=$?
+[[ $RC -eq 0 ]] || fail "cell 5g: expected exit 0, got $RC"
+grep -qF -- "${DEFAULTS[0]}" "$BODY" \
+  || fail "cell 5g: an empty quoted value did not fall back to the shipped default"
+pass "an empty quoted value degrades to the axis default"
+rm -rf "$ROOT"
+
 if [[ $FAILURES -gt 0 ]]; then
   printf '\n%d cell(s) failed\n' "$FAILURES"
   exit 1
 fi
-printf '\nOK — communications style profile: 5 cells passed\n'
+printf '\nOK — communications style profile: 7 cells passed\n'

@@ -102,14 +102,24 @@ read_style_profile() {
 # profile carries that are not axes are ignored rather than rejected: the file is
 # documentation first, config second.
 style_value() {
-  local axis="$1" file="$2" line val=""
+  local axis="$1" file="$2" line val="" inner
   while IFS= read -r line; do
     case "$line" in
       "$axis":*) val="${line#*:}" ;;
       *) continue ;;
     esac
     val="${val# }"
-    val="${val%\"}"; val="${val#\"}"
+    # Strip a quote only when ONE matching pair wraps the whole value and nothing is
+    # quoted inside it. Stripping the two ends independently ate the opening quote of
+    # `paste_font: "Segoe UI",Arial,sans-serif` — a font stack whose first family is
+    # quoted is not a quoted string, and the result was plausible-looking broken CSS
+    # (BL-422).
+    case "$val" in
+      '"'*'"')
+        inner="${val#\"}"; inner="${inner%\"}"
+        case "$inner" in *'"'*) ;; *) val="$inner" ;; esac
+        ;;
+    esac
     [[ -n "$val" ]] && { printf '%s' "$val"; return 0; }
   done < <(read_style_profile "$file")
   style_default "$axis"
