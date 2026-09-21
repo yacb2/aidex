@@ -118,6 +118,12 @@ does not match still fails.
 
 ## 6. The contact sheet
 
+**The review surface may be a generated board instead of one image** (ADR, second
+amendment of 2026-09-21): a static HTML file over the same baselines, one tile per cell
+and project, in the shipped tree a sibling script of the composer that imports its lists.
+Every property below holds for it unchanged; detect which one the project has and record
+that one's path.
+
 A small composer script turns one gallery's baselines into a single image: rows are the
 matrix cells, columns the four projects.
 

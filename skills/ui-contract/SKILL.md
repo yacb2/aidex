@@ -102,7 +102,9 @@ The word on its own is not a claim. A model looking at its own screenshots has a
 asserted "verified in light and dark" in this corpus and been disproved in three
 sessions. All three parts, or the phase does not close:
 
-1. **The contact-sheet path.** A sheet exists on disk and its path is written down. The
+1. **The contact-sheet path.** A sheet exists on disk and its path is written down — the
+   generated review board (one HTML file over the committed baselines) where the project
+   has one, the composed image otherwise. The
    owner is the final reviewer of that image — never the model.
 2. **The gate's closing line, from a run with NO snapshot update.** A run that rewrote
    its own baselines proves the code agrees with itself. A baseline that genuinely must
