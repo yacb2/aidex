@@ -162,9 +162,19 @@ grep -Fq 'fail [doctype] undated defect (since 2026-07-24): ' <<<"$out" \
   && ok "a page whose basename digits are no date is undated and a defect" \
   || bad "undated line missing: $out"
 # A check the map does not carry cannot be claimed to postdate any page.
-grep -Fq 'fail [rail] undated defect (no since date): ' <<<"$out" \
+# Asked of verdict() itself: section (5) keeps every real check mapped, so no fixture
+# page can produce this line any more (it was `rail` until BL-438 dated it).
+unmapped="$(python3 - "$FACETS/read_artifacts.py" <<'PY'
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("ra", sys.argv[1]); ra = importlib.util.module_from_spec(spec); spec.loader.exec_module(ra)
+print(*ra.verdict("no-such-check", "2026-01-01"), sep="|")
+PY
+)"
+[[ "$unmapped" == "defect|no since date" ]] \
   && ok "a check absent from the since-map is a defect, and says so" \
-  || bad "unmapped-check line missing: $out"
+  || bad "unmapped verdict: $unmapped"
+grep -Fq 'fail [rail] undated defect (since 2026-09-14): ' <<<"$out" \
+  && ok "rail carries its since date" || bad "rail line missing: $out"
 
 # Census severity: `svg-contrast` fails the active page and is only advisory on the
 # archived one — the page the census leaves alone.
@@ -309,6 +319,19 @@ for r in read_artifacts:pages read_sweep:reports; do
     && ok "${r%%:*} on an empty tree says 0 and exits 0" || bad "${r%%:*} empty tree rc=$rc: $out"
 done
 rm -rf "$E"
+
+# (5) every check the contract reports has a since-date (BL-438) ------------------
+# verdict() calls a failure of an unmapped check a defect whatever the page's age:
+# double-wrap shipped 2026-09-20 and graded two 2026-08-19 pages as defects.
+missing="$(python3 - "$FACETS/read_artifacts.py" "$HERE/../../artifact/scripts/dash/check_artifact.py" <<'PY'
+import re, sys, importlib.util
+spec = importlib.util.spec_from_file_location("ra", sys.argv[1]); ra = importlib.util.module_from_spec(spec); spec.loader.exec_module(ra)
+ids = set(re.findall(r'report\("([a-z-]+)"', open(sys.argv[2], encoding="utf-8").read()))
+print(" ".join(sorted(ids - set(ra.SINCE))))
+PY
+)"
+[[ -z "$missing" ]] && ok "every reported check id has a SINCE date" \
+  || bad "checks with no SINCE date (verdict() reads them as defects): $missing"
 
 echo "facet readers: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

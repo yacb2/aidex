@@ -80,6 +80,11 @@ def lexicon_keys(fired):
             if cand in INTENT: keys.add(cand)
     return keys
 
+def delegate_keys(agents):
+    """Lexicon keys whose own regex matches a launched agent's name: `artifact-sonnet`
+    is the artifact skills running, `task-general` is nobody's delegate (BL-438)."""
+    return {sk for sk, rx in INTENT_RE.items() if any(rx.search(a) for a in agents)}
+
 # How far back a fire of the same skill still counts as "already running" (BL-388).
 # A trigger-miss means the skill did not run; a follow-up on the page it is
 # already producing is not one. Measured on the 2026-09-11 artifacts dataset
@@ -133,9 +138,14 @@ def main():
         # Both sides are lexicon keys, never invocation names (see lexicon_keys).
         window = recent[r["session"]]
         running = lexicon_keys(prior_sk).union(*window) if window else lexicon_keys(prior_sk)
-        recent[r["session"]].append(lexicon_keys(r["skills_fired"] or []))
+        delegated = delegate_keys(r.get("agents_fired") or [])
+        running |= delegated
+        recent[r["session"]].append(lexicon_keys(r["skills_fired"] or []) | delegated)
         if not r["skills_fired"] and not r["is_slash"]:
             for sk, rx in INTENT_RE.items():
+                # Named, never silently dropped: `Plan` or `research-sonnet` doing the
+                # job in place of the skill may still be what the analyst is looking for.
+                if sk in delegated and rx.search(p): signals.append(f"delegated:{sk}")
                 if sk in running: continue
                 if rx.search(p): signals.append(f"miss?:{sk}")
         # The fourth gate (BL-164). The three above are all defect-shaped: they

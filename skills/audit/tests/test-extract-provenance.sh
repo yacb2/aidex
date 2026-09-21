@@ -133,6 +133,25 @@ else
   bad "skill fires were credited across a machine body: got '$fired', want 'plan'"
 fi
 
+# --- a delegated build is visible (BL-438) -------------------------------------
+# Since page building moved to a subagent, the response to "make me an artifact"
+# carries an Agent launch and no Skill block. With only skills_fired on the record
+# the prefilter read that as a trigger-miss: 2 of 2 misses reported by the
+# 2026-09-21 artifacts run were false.
+agents="$(python3 -c '
+import json, sys
+for line in open(sys.argv[1], encoding="utf-8"):
+    r = json.loads(line)
+    if "como un artefacto" in r["prompt"]:
+        print(",".join(r.get("agents_fired", ["<no field>"])) + "|" + ",".join(r["skills_fired"]))
+        break
+' "$OUT/dataset.jsonl")"
+if [[ "$agents" == "artifact-sonnet|" ]]; then
+  ok "an Agent launch lands in agents_fired, never in skills_fired"
+else
+  bad "the delegated build is invisible on the record: got '$agents', want 'artifact-sonnet|'"
+fi
+
 # --- one thing said once is one record (BL-170) -------------------------------
 # A resumed session is written to a NEW transcript file with its earlier records
 # replayed, so a file-walking extractor counts those prompts once per file. In
@@ -476,8 +495,8 @@ print(" ".join(f"{k}={v}" for k, v in sorted(seen.items())))
 rm -rf "$SCRATCH"
 # The corpus is tripled on disk; only the real project may reach the dataset, and
 # with its ORIGINAL --all count of 11 -- a scratch dir leaking in would multiply it.
-[[ "$sprojects" == "demo-ws=11" ]] \
-  && ok "encoded scratchpad and _tmp dirs are excluded (only demo-ws=11 survives)" \
+[[ "$sprojects" == "demo-ws=12" ]] \
+  && ok "encoded scratchpad and _tmp dirs are excluded (only demo-ws=12 survives)" \
   || bad "scratch dirs leaked into the dataset: got '"'"'$sprojects'"'"'"
 
 # --- a bare-filename cursor does not crash the run --------------------------

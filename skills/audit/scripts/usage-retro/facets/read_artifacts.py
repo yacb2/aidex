@@ -74,6 +74,8 @@ SINCE = {
     "consult-shape": "2026-08-27",
     "lang": "2026-08-31",
     "svg-contrast": "2026-09-07",
+    "rail": "2026-09-14",          # ad5ec00
+    "double-wrap": "2026-09-20",   # c5f20ee
 }
 
 

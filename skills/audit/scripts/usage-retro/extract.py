@@ -4,7 +4,7 @@ extract.py (v2) — distill Claude Code transcripts into an AIDEX-usage dataset.
 
 Read-only over ~/.claude/projects. For every REAL user prompt in the window it emits
 one record:
-  { session, project, bucket, ts, is_slash, prompt, prior_assistant, prior_skills, skills_fired }
+  { session, project, bucket, ts, is_slash, prompt, prior_assistant, prior_skills, skills_fired, agents_fired }
 
 Improvements over v1 (the 20260621-usage-retro one-off):
   - Excludes synthetic/throwaway project dirs (tmp, eval-harness CWDs, bare -claude).
@@ -134,6 +134,17 @@ def skills_in_assistant(o):
         if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") == "Skill":
             sk = b.get("input", {}).get("skill")
             if sk: out.append(sk)
+    return out
+
+def agents_in_assistant(o):
+    """Subagent types launched in this record. A delegated build carries an Agent
+    launch and no Skill block, so skills_fired alone reads it as a miss (BL-438)."""
+    out = []
+    if o.get("type") != "assistant": return out
+    for b in o.get("message", {}).get("content", []):
+        if isinstance(b, dict) and b.get("type") == "tool_use" and b.get("name") in ("Agent", "Task"):
+            a = b.get("input", {}).get("subagent_type")
+            if a: out.append(a)
     return out
 
 def parse_bound(s):
@@ -299,7 +310,7 @@ def main():
                 ts = parse_ts(o.get("timestamp", ""))
                 if not ts or ts < cutoff: continue
                 if until and ts >= until: continue
-                fired = []
+                fired, agents = [], []
                 for j in range(i + 1, n):
                     # boundary = the next PROMPT of any kind. Using the old
                     # classify_user() here would walk straight past an injected
@@ -307,6 +318,7 @@ def main():
                     if kinds.get(j, ("skip", ""))[0] != "skip":
                         break
                     fired += skills_in_assistant(objs[j])
+                    agents += agents_in_assistant(objs[j])
                 records.append({
                     "session": session, "project": proj, "bucket": bucket,
                     "ts": ts.isoformat(), "is_slash": kind == prompt_kinds.SLASH,
@@ -315,6 +327,7 @@ def main():
                     "prompt_chars": len(txt),
                     "prior_assistant": prior[-700:],
                     "prior_skills": prior_sk, "skills_fired": fired,
+                    "agents_fired": agents,
                 })
                 if ts > max_ts: max_ts = ts
                 prior, prior_sk = "", []

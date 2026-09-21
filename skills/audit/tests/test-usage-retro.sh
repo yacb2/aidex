@@ -681,8 +681,9 @@ rm -rf "$PROJ" "$TX"
 MISSDIR="$(mktemp -d)"
 python3 - "$MISSDIR/dataset.jsonl" <<'PYVD'
 import json, sys
-def row(session, ts, prompt, fired=(), prior=()):
-    return dict(session=session, project="p", bucket="real-usage", ts=ts, is_slash=False,
+def row(session, ts, prompt, fired=(), prior=(), agents=None):
+    extra = {} if agents is None else {"agents_fired": list(agents)}   # old datasets have no such key
+    return dict(**extra, session=session, project="p", bucket="real-usage", ts=ts, is_slash=False,
                 kind="real", prompt=prompt, prompt_chars=len(prompt), prior_assistant="",
                 prior_skills=list(prior), skills_fired=list(fired))
 rows = [
@@ -705,6 +706,13 @@ rows = [
     # session E: the plugin:skill colon shape
     row("E", "2026-09-01T13:00:00+00:00", "planifica la migración", ["aidex:plan"]),
     row("E", "2026-09-01T13:01:00+00:00", "sigue con el plan de la migración"),
+    # session F (BL-438): the page is delegated — an agent whose name matches the
+    # skill's own lexicon did the job, so neither the launch turn nor the follow-up
+    # inside the lookback is a miss
+    row("F", "2026-09-01T14:00:00+00:00", "preséntame todo esto como un artefacto", agents=["artifact-sonnet"]),
+    row("F", "2026-09-01T14:01:00+00:00", "al artefacto le falta la tabla", agents=[]),
+    # session G: an agent that is NOT the skill's delegate suppresses nothing
+    row("G", "2026-09-01T15:00:00+00:00", "quiero un artefacto con esto", agents=["task-general"]),
 ]
 with open(sys.argv[1], "w") as fh:
     for r in rows: fh.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -729,6 +737,12 @@ gone("revisa el artifact del retro", "miss?:artifact-design", "3 turns after the
 gone("investiga como funciona esto", "miss?:research", "aidex- prefix in prior_skills")
 gone("agrega otro backlog item para esto", "miss?:backlog", "aidex- prefix one turn back")
 gone("sigue con el plan de la migración", "miss?:plan", "plugin:skill colon form one turn back")
+# a delegated build is not a miss, on the launch turn or inside the lookback (BL-438)
+gone("preséntame todo esto como un artefacto", "miss?:artifact-design", "delegated to artifact-sonnet")
+gone("al artefacto le falta la tabla", "miss?:artifact-design", "1 turn after the delegated build")
+kept("preséntame todo esto como un artefacto", "delegated:artifact-design", "the delegation is named, not dropped")
+gone("al artefacto le falta la tabla", "delegated:artifact-design", "only the launch turn is a delegation")
+kept("quiero un artefacto con esto", "miss?:artifact-design", "an unrelated agent is not the skill running")
 # the control: a skill of another facet that never fired in this session keeps its tag
 kept("ajusta el artifact y anótalo en el backlog", "miss?:backlog", "unrelated-facet control")
 # outside the window, and the boundary cases, still tag

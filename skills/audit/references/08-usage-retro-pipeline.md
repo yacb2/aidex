@@ -119,10 +119,15 @@ extract.py  →  prefilter.py  →  fan-out analysts  →  synthesize (dedup)  �
 
 ### 1. extract.py (read-only distill)
 One record per real user prompt: `{ session, project, bucket, ts, is_slash, prompt,
-prior_assistant, prior_skills, skills_fired }`.
+prior_assistant, prior_skills, skills_fired, agents_fired }`.
 - `prior_assistant` = the assistant's last text response BEFORE the prompt (the adjacency).
 - `prior_skills` = skills that fired in that prior response (detects "fired X, then asked to fix X").
 - `skills_fired` = skills that fired in the response TO this prompt (detects trigger-miss when empty).
+- `agents_fired` = `subagent_type` of every Agent launch in that same response. A delegated
+  build has no Skill block, so `prefilter.py` treats an agent whose NAME matches a skill's own
+  lexicon (`artifact-sonnet` for the artifact skills) as that skill running: no `miss?:` on the
+  launch turn or inside the lookback, and a `delegated:<skill>` tag on the launch turn instead
+  (BL-438: 2 of 2 misses reported by the 2026-09-21 artifacts run were delegations).
 - Skill-fires are assistant `tool_use` blocks with `name == "Skill"`, `input.skill`.
 - Excludes synthetic project dirs (tmp, eval-harness CWDs, bare `-claude`). Exclusion is at the
   PROJECT level only: there is no text filter on prompts. One existed and was deleted — it ran

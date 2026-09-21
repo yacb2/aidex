@@ -56,6 +56,18 @@ py_skill() {  # skill name
     "message":{"content":[{"type":"tool_use","name":"Skill","id":"t","input":{"skill":sys.argv[1]}}]}}))' "$1"
 }
 
+py_agent() {  # subagent_type
+  python3 -c 'import json,sys; print(json.dumps({"type":"assistant","timestamp":"2026-01-01T10:00:00Z",
+    "message":{"content":[{"type":"tool_use","name":"Agent","id":"a","input":{"subagent_type":sys.argv[1],"description":"d","prompt":"p"}}]}}))' "$1"
+}
+
+# --- s12: the page is DELEGATED — an Agent launch and no Skill block (BL-438) ---
+{
+  py_typed "presentame todo esto como un artefacto para ver como continuamos" "2026-01-09T10:00:00Z"
+  py_agent "artifact-sonnet"
+  py_assistant_text "Done."
+} > "$D/s12.jsonl"
+
 # --- s1: typed prompt, then two machine bodies, each followed by a skill fire ---
 # ORDER IS THE POINT. If the look-ahead treats a machine body as "not a prompt"
 # it keeps walking, and comm + session-handoff land on the typed prompt.
