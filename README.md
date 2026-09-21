@@ -54,7 +54,7 @@ aidex solves this with two pillars:
 
 The suite ships as a single Claude Code plugin. `.claude-plugin/plugin.json` declares it,
 `.claude-plugin/marketplace.json` makes the repo its own marketplace, `skills/` holds the
-19 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the four shipped hooks
+19 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the five shipped hooks
 automatically when the plugin is installed. Nothing is copied into `~/.claude/` and nothing
 is symlinked: symlinked skills and rules were the loader path with three separate bugs
 (Claude Code 2.0.62, 2.1.198, 2.1.239), and a plugin has neither problem.
@@ -85,7 +85,7 @@ aidex/                                   <-- the plugin, as Claude Code loads it
 │   ├── review/
 │   └── coverage/
 ├── hooks/
-│   └── hooks.json                       <-- wires the four shipped hooks on install
+│   └── hooks.json                       <-- wires the five shipped hooks on install
 └── docs/retired/                        <-- the pre-plugin installer and rules/, for the record
 
 project/.claude/skills/                  <-- your own project-specific skills (real files)
