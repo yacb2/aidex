@@ -14,6 +14,7 @@ page's own rules sit after the minimal reset and win; everything else stays in
 """
 import argparse
 import datetime
+import html
 import os
 import re
 import shutil
@@ -611,6 +612,103 @@ def insert_built_line(body, text):
     return f'{body[:end]}  <p class="railbuilt">{esc(text)}</p>\n{body[end:]}'
 
 
+# --- which QUESTIONS changed since the previous render (USAGE-21) ------------
+# Since kit v6 the composer fingerprints each item's question body and
+# `restore()` skips an answer whose fingerprint moved: that item reads blank on
+# the new round and the page's banner tells the READER how many were dropped.
+# Nothing told the WRITER WHICH questions he had just rephrased, so a round could
+# quietly cost an answer that was typed and never sent — and the writer is the
+# one who can still say so in the reply.
+#
+# "Changed" has to mean what composer.js means by it, and Python cannot run
+# composer.js, so an item is normalised here the way `questionHash` normalises
+# its clone: the controls the kit INJECTS are dropped, every `[contenteditable]`
+# subtree is emptied (its text is the reader's own typing, not the question), and
+# what is left is taken the way `textContent` takes it — tags vanish, they do
+# not become spaces — with whitespace collapsed. Three steps of that function
+# are deliberately not mirrored, and none of them can invent a difference this
+# does not have:
+#   - the FNV hash: the normalised text is compared directly, so there is no
+#     collision to worry about either;
+#   - the `.fieldlabel` re-translation, which the browser applies to a label the
+#     FILE always stores in English — on disk there is nothing to put back;
+#   - `<option>` text is kept, exactly as the composer keeps it.
+# A class is matched as a whole token and `contenteditable` as an attribute
+# NAME: `\b` is satisfied by a hyphen, the trap `ATTR_DECIDED` records above.
+CONSULT_ITEM_OPEN = re.compile(
+    r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\'](?:[^"\']*\s)?'
+    r'consult-item(?=[\s"\'])[^>]*>',
+    re.I | re.S)
+# What `questionHash` removes from the clone before hashing. A render saved out
+# of a browser carries these; the item they sit in is the same question.
+QUESTION_DROP = re.compile(
+    r'<([a-zA-Z][\w:-]*)\b(?:[^>"\']|"[^"]*"|\'[^\']*\')*?'
+    r'(?:\scontenteditable(?=[\s=>/])'
+    r'|\sclass\s*=\s*["\'](?:[^"\']*\s)?'
+    r'(?:kit-tag|consult-clear|kit-other|kit-notnow|kit-ask|kit-provisional)'
+    r'(?=[\s"\']))'
+    r'[^>]*>', re.I | re.S)
+VOID_ELEMENTS = {"area", "base", "br", "col", "embed", "hr", "img", "input",
+                 "link", "meta", "param", "source", "track", "wbr"}
+
+
+def question_texts(text):
+    """`{data-id: the item's QUESTION}` for every `.consult-item` of a render.
+
+    `.consult-item` and not every `data-id`, because that is the composer's own
+    `items`: a block (`.consult-group`) carries an id too and CONTAINS its
+    questions, so judging it as well would name the block every time one of its
+    items was rephrased.
+
+    `_subtree` and `strip_script_style` come from `check_artifact` rather than
+    from a copy here — a private second implementation of a shared walk is
+    exactly what `find_context_dir` above records the cost of.
+    """
+    import check_artifact as ca
+
+    def question_of(body):
+        body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+        kept, pos = [], 0
+        for m in QUESTION_DROP.finditer(body):
+            if m.start() < pos:
+                continue                 # already inside a dropped subtree
+            if (m.group(1).lower() in VOID_ELEMENTS
+                    or m.group(0).rstrip().rstrip(">").endswith("/")):
+                continue                 # no subtree, and no text of its own
+            sub = ca._subtree(body, m.group(1), m.end())
+            kept.append(body[pos:m.start()])
+            pos = m.end() + len(sub)
+            close = re.match(r"</" + re.escape(m.group(1)) + r"\s*>",
+                             body[pos:], re.I)
+            if close:
+                pos += close.end()
+        kept.append(body[pos:])
+        plain = html.unescape(re.sub(r"<[^>]+>", "", "".join(kept)))
+        return re.sub(r"\s+", " ", plain).strip()
+
+    out = {}
+    text = ca.strip_script_style(text)
+    for m in CONSULT_ITEM_OPEN.finditer(text):
+        ident = _attr(ATTR_ID, m.group(0))
+        if ident:
+            out[ident] = question_of(ca._subtree(text, m.group(1), m.end()))
+    return out
+
+
+def changed_questions(prev_text, new_text):
+    """The ids whose question differs between two renders, in the NEW render's
+    order.
+
+    An id on one side only is not one of them. An added question was never
+    answered, and a removed one is no longer on the page for an answer to
+    restore into — reporting either would make the note fire on every round that
+    opens or closes a claim, which is every round.
+    """
+    old = question_texts(prev_text)
+    return [i for i, q in question_texts(new_text).items()
+            if i in old and old[i] != q]
+
+
 def lock_path(outfile):
     """The build lock for `outfile`, beside its contract baseline.
 
@@ -858,8 +956,18 @@ def main():
     # later there is no "before" left to compare against. This is the fallback for
     # a file that predates the stored baseline; when a baseline exists it wins.
     prev_snapshot = None
+    # Read here, printed only once the wrap has passed: a failing wrap is rolled
+    # back off `--out`, so the questions the reader is looking at did not change
+    # after all. Compared against the render being REPLACED — what the reader
+    # last saw, which is what his stored answers were fingerprinted against —
+    # and not against the contract baseline. Under `--building` that is the
+    # immediately previous wrap of the same build: the lock carries the round the
+    # build started at and no render, so there is no build-start baseline to
+    # compare with; the ids therefore name what the last wrap changed.
+    rephrased = []
     if os.path.isfile(args.outfile):
         prev_text = open(args.outfile, encoding="utf-8", errors="replace").read()
+        rephrased = changed_questions(prev_text, doc)
         fd, prev_snapshot = tempfile.mkstemp(suffix=".prev.html")
         os.close(fd)
         shutil.copyfile(args.outfile, prev_snapshot)
@@ -1010,6 +1118,13 @@ def main():
     except OSError as e:
         print(f"NOTE: could not keep the page content at {body_file} ({e}); the next "
               f"revision will have to extract it from the wrapped file.", file=sys.stderr)
+
+    # One line for the whole set: the writer is being told what to say in the
+    # reply, and a note per item is a list he has to re-assemble himself.
+    if rephrased:
+        print(f"NOTE: the question of {', '.join(rephrased)} changed since the "
+              f"previous render — answers the reader had typed there and not "
+              f"sent will not restore.", file=sys.stderr)
 
     # Offered on a PASS only: a failing first wrap would otherwise spend the project's
     # single offer on an artifact that never existed.

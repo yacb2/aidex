@@ -203,7 +203,10 @@ SAME path. Concretely:
   question changed and any answer already sent. Mechanics and the residual risk
   (another browser or machine, private windows, engines that refuse storage on
   `file://`) are in § 8; `wrap-report.sh` prints a note when replacing a page with
-  reply surfaces.
+  reply surfaces. It also names the items whose QUESTION it just rephrased —
+  compared against the render being replaced (under `--building`, the previous wrap of the same build — so a multi-wrap build names only what its last wrap changed), normalised the way the composer
+  normalises an item before fingerprinting it — because those are the boxes that
+  will read blank, and the reply is where the reader learns it.
 
 ### Depth is set by the cost of undoing
 
