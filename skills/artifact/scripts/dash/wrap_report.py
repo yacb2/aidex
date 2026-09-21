@@ -13,6 +13,7 @@ page's own rules sit after the minimal reset and win; everything else stays in
 <body>.
 """
 import argparse
+import datetime
 import os
 import re
 import shutil
@@ -501,6 +502,115 @@ def inject_rail(body):
     return body.replace("</main>", "</main>\n" + RAIL_ASIDE, 1)
 
 
+# --- when this page was built (BL-439, audit finding USAGE-29) ---------------
+# The reader asked eight times across two retro windows whether the tab he had
+# open was the page that had just been written. Naming the absolute path in the
+# reply answers WHICH FILE and never WHICH VERSION, and a page that is re-wrapped
+# in place is byte-different and pixel-identical until it is reloaded. So the
+# page says when it was built, and the wrap prints the same line, and the two are
+# compared by eye.
+#
+# Written HERE and not in composer.js on purpose: a local page opened through a
+# viewer that shows it as a static snapshot runs no script, and that is exactly
+# the reader who cannot tell. Local time of the machine that wrapped, to the
+# minute — a stamp nobody can read against their own clock answers nothing.
+BUILT_FORMAT = "%Y-%m-%d %H:%M"
+# Two words per language, in the page's language, like every other piece of kit
+# chrome. composer.js's STRINGS table is the other half of this and cannot be
+# reached from here: it runs in the browser, and this line exists precisely for
+# the page that never runs it.
+BUILT_LABELS = {"en": ("Built", "round"), "es": ("Generado", "ronda")}
+BUILT_P = re.compile(r'[ \t]*<p class="railbuilt"[^>]*>.*?</p>\n?', re.I | re.S)
+# The rail is an ELEMENT, and the stamp goes inside that element. Anchoring on
+# the first `id="raillist"` string in the document put it inside an
+# `<aside class="note">` of the page's own, on a page that quoted the kit's
+# markup in a <code> (nothing escapes the quotes there) — with the count still
+# reading exactly one, which is what a count-based check cannot see.
+ASIDE_OPEN = re.compile(r"<aside\b[^>]*>", re.I)
+CLASS_ATTR = re.compile(r'\bclass\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))', re.I)
+ASIDE_TAG = re.compile(r"</?aside\b", re.I)
+# Closed on the right: `id="raillist-old"` is another element's id and must not
+# answer for a rail the page does not have.
+RAILLIST_ID = re.compile(r'id=["\']?raillist(?=["\'\s>])', re.I)
+# What makes a page a consultation is that it carries questions. `data-id` alone
+# does not: a consultation BLOCK carries one too, and so may an author's own
+# markup on a page that asks nothing — the round belongs on the pages that have
+# rounds.
+CONSULT_ITEM = re.compile(r'class=["\'][^"\']*consult-item', re.I)
+
+
+def built_text(lang, rnd, when=None):
+    """The one line the page shows: `Built 2026-09-21 08:24 · round 3`.
+
+    `rnd` is falsy on anything that is not a consultation round, and the clause
+    is then absent rather than empty — a read has no round, and a `· round 1` on
+    every report would make the number mean "wrapped once" instead.
+    """
+    label, round_word = BUILT_LABELS.get((lang or "en")[:2].lower(),
+                                         BUILT_LABELS["en"])
+    stamp = (when or datetime.datetime.now()).strftime(BUILT_FORMAT)
+    return f"{label} {stamp}" + (f" · {round_word} {rnd}" if rnd else "")
+
+
+def _rail_aside(body):
+    """The `<aside>` whose class list carries the token `rail`, or None.
+
+    By class TOKEN, not by a substring: `raillist` contains `rail` and a
+    `rail-legacy` is not this element either.
+    """
+    for m in ASIDE_OPEN.finditer(body):
+        cm = CLASS_ATTR.search(m.group(0))
+        if not cm:
+            continue
+        classes = next(g for g in cm.groups() if g is not None)
+        if "rail" in classes.split():
+            return m
+    return None
+
+
+def _closing_aside(body, start):
+    """Offset of the `</aside>` that closes the aside opened at `start`.
+
+    Counted, not found: the rail may legitimately contain an `<aside>` of its
+    own, and taking the first closing tag would land the stamp inside it.
+    """
+    depth = 0
+    for tok in ASIDE_TAG.finditer(body, start):
+        depth += 1 if tok.group(0).lower() == "<aside" else -1
+        if depth == 0:
+            return tok.start()
+    return -1
+
+
+def insert_built_line(body, text):
+    """Put the built line at the end of the rail, replacing any line already
+    there.
+
+    Replacing and not appending is the whole property: a body handed back from
+    the wrapped page instead of from the `.body` sidecar would otherwise grow a
+    second stamp per round, and two stamps is exactly what `double-wrap` reads
+    as a page carrying two kits.
+
+    A body with no rail keeps the meta and loses the visible line. That is not a
+    silent hole: `check_artifact.py`'s `rail` check already fails a page with no
+    `#raillist`, so the only pages that reach it are wraps to stdout, which the
+    contract never verifies either.
+    """
+    body = BUILT_P.sub("", body)
+    rail = _rail_aside(body)
+    end = _closing_aside(body, rail.start()) if rail else -1
+    if end < 0:
+        # No rail aside: a hand-written index inside some other element. The old
+        # anchor is kept as the fallback rather than dropping the line — it is
+        # wrong only when a page BOTH quotes the markup and has no rail, and
+        # then there is nothing right to do with it.
+        m = RAILLIST_ID.search(body)
+        end = body.find("</aside>", m.end()) if m else -1
+    if end < 0:
+        return body
+    return f'{body[:end]}  <p class="railbuilt">{esc(text)}</p>\n{body[end:]}'
+
+
 def lock_path(outfile):
     """The build lock for `outfile`, beside its contract baseline.
 
@@ -513,6 +623,36 @@ def lock_path(outfile):
     out = os.path.abspath(outfile)
     return os.path.join(os.path.dirname(out), ".aidex-artifact-prev",
                         os.path.basename(out) + ".building")
+
+
+def held_round(outfile):
+    """The round a build in progress DISPLAYS, or 0 when no build holds it.
+
+    A delegated build wraps its page several times and the reader sees none of
+    the intermediate states — `artifact-open-once.sh` refuses to open a locked
+    page — yet every one of those wraps passes, advances the baseline and
+    therefore the round. Three wraps handed the reader `· round 3` for a page
+    he had never seen, on the one line whose whole job is to be trusted.
+
+    So the lock carries the round the build STARTED at, and every wrap of that
+    build shows it. It is the DISPLAY only: `consult-round`, the baseline and
+    BL-421's `data-decided-round` keep counting wraps, because the composer
+    reads that number to decide which answers were already sent and holding it
+    back would restore a consumed answer into a new round.
+
+    A lock written before this existed carries no number: fall back to the
+    wrap's own round rather than inventing one.
+    """
+    if not outfile:
+        return 0
+    try:
+        with open(lock_path(outfile), encoding="utf-8") as fh:
+            for line in fh:
+                if line.strip().isdigit():
+                    return int(line.strip())
+    except OSError:
+        return 0
+    return 0
 
 
 def end_build(argv):
@@ -622,12 +762,26 @@ def main():
     body = inject_rail(body)
     # Before the kit is injected: the composer script and the kit CSS both spell
     # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
-    body = stamp_decided_rounds(body, args.outfile, next_round(args.outfile))
+    this_round = next_round(args.outfile)
+    body = stamp_decided_rounds(body, args.outfile, this_round)
+    # One clock for the meta, the visible line and the line printed at the end,
+    # so the three cannot disagree across a minute boundary.
+    now = datetime.datetime.now()
+    # What the page SHOWS: the round this build started at while a build holds
+    # the page, this wrap's round otherwise. Read before the lock is refreshed
+    # below — a lock written by this same wrap would answer with this round.
+    shown_round = held_round(args.outfile) or this_round
+    built = built_text(lang, shown_round if CONSULT_ITEM.search(body) else 0,
+                       when=now)
+    body = insert_built_line(body, built)
     # Reset -> kit tokens -> kit components -> project delta -> the page's own
     # <style>. Each layer may override the one before it, and the author's block
     # is last so a local rule still wins. Writing a page is writing content plus
     # class names; the boilerplate is no longer re-authored per artifact.
-    head_extra = "\n".join(p for p in (kit_head(), round_meta(args.outfile),
+    built_meta = (f'<meta name="artifact-built" '
+                  f'content="{esc(now.strftime(BUILT_FORMAT))}">')
+    head_extra = "\n".join(p for p in (kit_head(), built_meta,
+                                       round_meta(args.outfile),
                                        profile_delta(ctx), head_extra) if p)
     body = "\n".join(p for p in (body, kit_script()) if p)
     doc = document(args.title, body, lang=lang,
@@ -672,7 +826,11 @@ def main():
         try:
             os.makedirs(os.path.join(outdir, ".aidex-artifact-prev"), exist_ok=True)
             with open(lock_path(args.outfile), "w", encoding="utf-8") as fh:
-                fh.write("building\n")
+                # The round this build started at, re-written unchanged on every
+                # wrap of it (`shown_round` is read from this file above). The
+                # first line is what artifact-open-once.sh and the tests know;
+                # the number is additive.
+                fh.write(f"building\n{shown_round}\n")
         except OSError as e:
             print(f"NOTE: could not write the build lock ({e}); this page can be "
                   f"opened as final while you are still writing it.", file=sys.stderr)
@@ -867,6 +1025,10 @@ def main():
     # anywhere in the tree). Printing the resolved path is what makes the landing
     # visible, and it is this suite's own rule for consultation pages.
     print(os.path.abspath(args.outfile))
+    # The page's own build line, verbatim, so the session can quote it in the
+    # reply and the reader can compare it with what his tab is showing. The path
+    # says which FILE; only this says which VERSION of it (BL-439).
+    print(built)
     # Passed, so this version becomes the baseline. Best-effort: a read-only tree
     # is a real state (`style_profile_offer` guards for it too), and losing the
     # baseline degrades to the old snapshot behaviour rather than failing a page

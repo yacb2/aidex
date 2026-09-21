@@ -261,6 +261,13 @@ textarea { resize: vertical; }
 .railitem.sub { padding-left: 1.4rem; }
 .railitem.sec .dot { border: none; background: none; }
 .railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
+/* When this page was built (BL-439), written by the wrap and not by the
+   composer: the reader who cannot tell a stale tab from a fresh one is often
+   the one whose viewer shows the file as a static snapshot with no script. At
+   the foot of the rail, in the chrome register, so it is found where the reader
+   already looks for what the page IS rather than for what it says. */
+.railbuilt { margin: 0.6rem 0 0; font-family: var(--sans); font-size: 0.7rem;
+             letter-spacing: 0.03em; color: var(--muted); }
 
 /* Two copy bars, one status. The rail bar carries the bare consult-copy and
    consult-status ids; the end bar carries the same two with an -end suffix. Do
@@ -306,7 +313,11 @@ textarea { resize: vertical; }
   .rail { position: sticky; top: auto; bottom: 0; order: 2; padding: 0.6rem 0;
           max-height: none;
           background: var(--paper); border-top: 1px solid var(--rule); gap: 0.5rem; }
-  .rail .railhead, .rail .raillist, .rail .railsep { display: none; }
+  /* The build stamp goes with the index: here the rail is pinned to the bottom
+     of the viewport over the content, and a line the reader cannot dismiss is
+     not worth the strip it costs on a phone. The <meta> stays in the head at
+     every width, so the page still carries the answer. */
+  .rail .railhead, .rail .raillist, .rail .railsep, .rail .railbuilt { display: none; }
   .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .consult-bar button { width: auto; }
 }

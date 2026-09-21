@@ -172,6 +172,21 @@ SAME path. Concretely:
   A page with no sidecar is the fallback above, and the error says so.
 - **The reply states the absolute path** of what was written, so the reader can tell
   whether the tab they are looking at is the file that was just produced.
+- **And the page states WHEN it was built**, which the path cannot: a page re-wrapped in
+  place is byte-different and pixel-identical until it is reloaded. Every wrap writes one
+  line at the foot of the rail — `Built 2026-09-21 08:24`, plus `· round N` on a
+  consultation — and a `<meta name="artifact-built">` beside the kit stamp; `wrap-report.sh`
+  prints the same line as its last line of output. **Quote it in the reply**: the reader
+  compares the two and the question stops being asked (BL-439, USAGE-29: eight times across
+  two retro windows). Written server-side by the wrap, not by `composer.js`, because a
+  viewer showing a local page as a static snapshot runs no script — and the local time of
+  the machine that wrapped, so the reader reads it against his own clock. A re-wrap
+  REPLACES the line; two of them would be a page carrying two kits (`double-wrap`).
+  **A `--building` build shows ONE round** — the one the page was at when the build
+  started, held in the lock — because the reader sees none of the intermediate wraps and
+  a delegated build that wrapped three times otherwise handed him `· round 3` for a page
+  he had never seen. The `consult-round` meta keeps counting wraps either way: the
+  composer reads it to know which answers were already sent.
 - **A DELEGATED build locks the page until it hands back.** An agent revising a page
   wraps every step with `wrap-report.sh --building ... --out <page>` and ends the build
   once with `wrap-report.sh --done --out <page>`; between the two,
