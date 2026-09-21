@@ -246,6 +246,28 @@ without it (this materializes the global verification-before-claims rule).
 | Worklist (run-queue) | `worklists/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | `_archive/` on close (by `worklist-close.sh`); referenceable as `worklist/<file>` |
 | Workflow spec | `workflows/` (acceptable-optional) | `YYYY-MM-DD-<slug>.md` | — | No |
 
+### 8.1 Where a write-down goes
+
+Work produces by-products nobody asked for as an artifact: an incidental gotcha, a
+readout of a measurement, the analysis of an incident, a sweep's leftovers. They are
+written down — a finding mentioned only in chat is lost — and **the kind of content picks
+the folder, never the fact that it is "something to refer to later"**. `references/` is
+not the default: it holds evergreen how-it-works modules in `<topic>/` folders and takes
+no dated file (`validate.py` rule `reference-dated-file`; the `references-root-gate` hook
+refuses the write).
+
+| What you have | Home |
+|---|---|
+| Findings, gotchas or leftovers of one run; an incident analysis; a readout or census | `research/YYYY-MM-DD-<slug>.md` — dated by nature; if the run already has a research topic folder, its next `NN-<slug>.md` |
+| A log or readout of a running experiment | next to the experiment, in `experiments/<dated-slug>/` |
+| The state of a feature or repo, catalogued | an audit run (`audit-conventions.md`) |
+| Something to do later | a backlog item; the write-up above is its `origin_ref` |
+| A choice that was made | a decision (ADR) |
+| A finding that changes how a settled part works | update the module in `references/<topic>/` and stamp `updated`; the dated write-up stays in `research/` |
+
+One write-down has one home. When it spawns a backlog item or an ADR, link it; do not
+copy it.
+
 ---
 
 ## 9. Canonical vs acceptable-optional `.context/` types

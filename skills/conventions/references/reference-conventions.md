@@ -17,6 +17,14 @@ references/<topic>/
 └── NN-<final-topic>.md
 ```
 
+### No dated file at the root
+
+`references/` is evergreen by name, so nothing dated lives at its root. A flat dated
+file (`references/YYYY-MM-DD-<slug>.md`) is research's spike shape in the wrong folder:
+findings, readouts and incident analyses are dated by nature and go where
+[`00-global.md` §8.1](00-global.md) routes them. `validate.py` reports it as
+`reference-dated-file`, and the `references-root-gate` hook refuses the write.
+
 ### No archive folder (D-05)
 
 References and research are **versioned in place**. There is **no `_archive/`** in `references/` or `research/`. ADR: `decision/2026-05-14-archive-folder-convention` (named, not linked: these ADRs live in the aidex repo's own gitignored `.context/decisions/`, per `00-global.md` §11).

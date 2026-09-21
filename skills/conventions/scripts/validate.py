@@ -489,6 +489,16 @@ def check_filename(type_name: str, path: Path) -> Finding | None:
     # per-methodology audit canonical files.
     if name in ("00-index.md", "00-overview.md"):
         return None
+    # references/ is evergreen by name: a DATED flat file at its root is research's spike
+    # shape in the wrong folder, and its ISO name passes every check below — so it is
+    # refused here, with the home it should have had (canon §8.1). Undated root files
+    # (00-profile.md, init's 01-project-commands.md) are not this rule's business.
+    if type_name == "references" and path.parent.name == "references" \
+       and (ISO_FILENAME.match(name) or LEGACY_FILENAME.match(name)):
+        return Finding(type_name, str(path), "reference-dated-file", "violation",
+                       "references/ is evergreen and takes no dated file — a dated write-up (findings, "
+                       "readout, incident analysis) is research/YYYY-MM-DD-<slug>.md; settled "
+                       "how-it-works content is a module in references/<topic>/ (00-global.md §8.1)")
     if name in ("00-methodology.md", "00-inventory.md", "00-changelog.md"):
         return None
     if is_loop_state_sidecar(type_name, path):

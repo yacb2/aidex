@@ -229,7 +229,7 @@ id, and **which** markers is the whole point:
 | **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, worked examples. Not more prose: the reader has said prose is not the shape that will land. |
 
 **`[explain-term: X]` is RETIRED (kit v19).** The census of 333 answered items
-(`.context/references/2026-09-20-consultation-reply-census.md`) found **0** uses of it
+(`.context/research/2026-09-20-consultation-reply-census.md`) found **0** uses of it
 while "what is X" was typed in prose 5 times: the reader asks in the notes and never
 reached for the chip. Its slot went to `[question]`, which is the shape with no control at
 all — 33 of the 127 notes are a question none of the chips names. A paste from an older

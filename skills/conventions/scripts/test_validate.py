@@ -1092,6 +1092,26 @@ def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
         failures.append("placeholder-body unit: archived entry warned (should be exempt)")
 
 
+def check_references_root_unit(failures: list[str]) -> None:
+    """references/ is evergreen and takes no dated file at its root. A flat dated file
+    there is research's spike shape in the wrong folder: the ISO name used to pass
+    filename-format, which is how 17 run write-ups landed in one workspace's references/
+    root in six days. research/ keeps its flat dated spike."""
+    v = _load_validator()
+    flat = v.check_filename("references", Path(".context/references/2026-09-20-sweep-findings.md"))
+    if flat is None or flat.rule != "reference-dated-file" or flat.severity != "violation":
+        failures.append("references-root unit: flat dated file at references/ root not flagged")
+    for ok in (".context/references/00-profile.md",
+               ".context/references/01-project-commands.md",  # what `/aidex init` writes
+               ".context/references/00-index.md",
+               ".context/references/hooks/01-gate.md",
+               ".context/references/hooks/00-index.md"):
+        if v.check_filename("references", Path(ok)) is not None:
+            failures.append(f"references-root unit: {ok} flagged (false positive)")
+    if v.check_filename("research", Path(".context/research/2026-09-20-spike.md")) is not None:
+        failures.append("references-root unit: research flat dated spike flagged (false positive)")
+
+
 def check_backlog_type_unit(failures: list[str]) -> None:
     """Direct cells for check_backlog_type (ADR 2026-07-23 type facet): a valid
     type is silent; an out-of-enum value is a violation; an absent value warns on
@@ -1420,6 +1440,7 @@ def main() -> int:
     check_crossref_topic_folders_unit(failures)
     check_backlog_placeholder_body_unit(failures)
     check_backlog_type_unit(failures)
+    check_references_root_unit(failures)
     check_backlog_priority_unit(failures)
     check_waivers(failures)
     check_waiver_moved_path(failures)

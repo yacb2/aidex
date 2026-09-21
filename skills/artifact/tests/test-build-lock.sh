@@ -3,7 +3,7 @@
 # build lock at `.aidex-artifact-prev/<page>.building`, and `artifact-open-once.sh`
 # refuses to open it (the hook's own half is in hooks/test-artifact-open-once.py).
 #
-# The incident (.context/references/2026-09-20-artifact-seen-before-the-agent-finishes.md):
+# The incident (.context/research/2026-09-20-artifact-seen-before-the-agent-finishes.md):
 # an artifact agent writes its final `--out` path two or three times mid-run, so a
 # file watcher fires while it is still working — and the INTERMEDIATE wrap passes the
 # contract, which is why nothing already here could catch it. The main session opened

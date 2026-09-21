@@ -258,6 +258,21 @@ change timing. Due **2026-09-03**:
 > median trigger still tracks peak within +/-10%, or if the nudge fires more than
 > 3x in a median session (noise, not signal).
 
+## references-root-gate.sh — no dated file at `.context/references/` root (PreToolUse/Write)
+
+Denies a `Write` of a dated file (`YYYY-MM-DD-*`) directly under a project's
+`.context/references/`. That folder is evergreen by name; a dated write-up there is
+research's spike shape in the wrong folder, and until 2026-09-21 nothing refused it — the
+ISO name passed `validate.py` and no skill runs when a session writes a finding by hand
+(17 such files in one workspace in six days). The deny reason carries the routing of
+`00-global.md` §8.1, so the block names the right home. `validate.py` rule
+`reference-dated-file` is the same check after the fact, for files that arrive by `mv`.
+
+Write only (an Edit never creates a file), path match only, fail-open on any error.
+Sunset review 2026-12-21, criterion in the script header.
+
+**Tests:** `python3 test-references-root-gate.py` — 12 checks.
+
 ## artifact-open-once.sh — one open per page per user turn, plus the build lock (PreToolUse/Bash)
 
 Two rules, both arithmetic, both per PAGE. The hook's own header carries the full
@@ -278,7 +293,7 @@ The second rule exists because a delegated artifact agent writes its final `--ou
 path two or three times mid-run (16 of 37 runs), and an intermediate wrap can PASS
 `check-artifact.sh` — so neither "the file changed" nor "the gate is green" means the
 agent finished. The incident is
-`.context/references/2026-09-20-artifact-seen-before-the-agent-finishes.md`: the page
+`.context/research/2026-09-20-artifact-seen-before-the-agent-finishes.md`: the page
 was opened 1 min 41 s before the hand-back, on a state the agent then changed.
 
 **Why the lock is per page and not per pending agent.** The obvious guard — refuse

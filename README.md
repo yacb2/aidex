@@ -27,7 +27,7 @@ Then restart Claude Code. In any project, just ask naturally — the right skill
 
 ### Your first session
 
-The install lands 19 skills and 4 hooks and says nothing, on purpose — no first-run nudge.
+The install lands 19 skills and 5 hooks and says nothing, on purpose — no first-run nudge.
 Start here:
 
 1. `/aidex:aidex` — audits the Claude Code setup of the project you are in and tells you what it found.
@@ -94,7 +94,7 @@ project/.claude/skills/                  <-- your own project-specific skills (r
 
 | Scope | Location | Loaded in | Use for |
 |-------|----------|-----------|---------|
-| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 19 suite skills + the 4 hooks |
+| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 19 suite skills + the 5 hooks |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific skills of your own |
 | **Per-project silencing** | `project/.claude/settings.local.json` `enabledPlugins` | That project only | Skills **provided by a plugin are exempt from `skillOverrides`**, at any key format — so aidex's skills cannot be silenced one by one. The only lever is `enabledPlugins: {"aidex@aidex": false}`, all-or-nothing for the whole plugin. `skillOverrides` (`name-only`, `user-invocable-only`, `off`) still applies to skills of your own. |
 
@@ -128,9 +128,10 @@ at zero tokens, into a single self-contained HTML page:
 
 ### Hooks
 
-Four hooks ship wired by `hooks/hooks.json` and start working the moment the plugin is
-installed: `memory-audit-nudge.sh` (SessionStart), `memory-save-gate.sh` and
-`artifact-open-once.sh` (PreToolUse), and `context-depth-nudge.sh` (UserPromptSubmit).
+Five hooks ship wired by `hooks/hooks.json` and start working the moment the plugin is
+installed: `memory-audit-nudge.sh` (SessionStart), `memory-save-gate.sh`,
+`references-root-gate.sh` and `artifact-open-once.sh` (PreToolUse), and
+`context-depth-nudge.sh` (UserPromptSubmit).
 The retired ones are kept in `hooks/` for the record; what each does and why lives in
 `hooks/README.md`.
 
