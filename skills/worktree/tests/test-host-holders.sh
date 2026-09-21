@@ -50,7 +50,10 @@ kill -0 "$SLEEPER" 2>/dev/null \
 
 # --- 2. list flags an unclaimed slot whose port is still held -----------------
 ( cd "$TMP" && exec python3 -m http.server "$PORT" --bind 127.0.0.1 ) >/dev/null 2>&1 & LISTENER=$!; PIDS+=("$LISTENER")
-for _ in 1 2 3 4 5 6 7 8 9 10; do lsof -nP -ti :"$PORT" >/dev/null 2>&1 && break; sleep 0.2; done
+# Under a loaded suite python takes longer than 2 s to bind: wait up to 10 s, and a
+# listener that never came up is a fixture failure, not a finding about `list`.
+up=0; for _ in $(seq 1 50); do lsof -nP -ti :"$PORT" >/dev/null 2>&1 && { up=1; break; }; sleep 0.2; done
+[[ "$up" -eq 1 ]] || fail "fixture: the listener never bound port $PORT"
 out="$( cd "$TMP/p" && PATH="$BIN:$PATH" bash "$S/worktree.sh" list 2>&1 )"
 grep -q "port $PORT" <<<"$out" && grep -q "slot 1" <<<"$out" \
   || fail "#2: list did not flag slot 1's port $PORT held with no worktree: $out"
