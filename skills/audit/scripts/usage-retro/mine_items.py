@@ -470,8 +470,9 @@ def iter_tool_events(tx_root, since=None, until=None, projects=None):
 
     THE tool-events walker for this package: one per Bash or Skill `tool_use`, its
     result paired by `tool_use_id`. Subagent transcripts
-    (`<session>/subagents/*.jsonl`) are walked too and tagged `agent: sub`; the
-    prompt extractor never sees them, so the prompt denominator is untouched.
+    (`<session>/subagents/**/*.jsonl`, Workflow runs nest a level down) are
+    walked too and tagged `agent: sub`; the prompt extractor never sees them, so
+    the prompt denominator is untouched.
     The exit code is not a field anywhere in the corpus: a failing Bash result is a
     string that starts "Exit code N" with `is_error` set, so it is parsed from the
     text. `since`/`until` are aware datetimes; `since` also prunes by file mtime.
@@ -484,8 +485,11 @@ def iter_tool_events(tx_root, since=None, until=None, projects=None):
             continue
         bucket = bucket_for(dname)
         files = [(f, "main", None) for f in glob.glob(pdir + "*.jsonl")]
-        files += [(f, "sub", os.path.basename(os.path.dirname(os.path.dirname(f))))
-                  for f in glob.glob(pdir + "*/subagents/*.jsonl")]
+        # Recursive: a Workflow run nests its agents in subagents/workflows/wf_*/
+        # (BL-431). The parent is the session directory, read from the path
+        # relative to the project so the nesting depth cannot change it.
+        files += [(f, "sub", f[len(pdir):].split("/", 1)[0])
+                  for f in glob.glob(pdir + "*/subagents/**/*.jsonl", recursive=True)]
         for f, agent, parent in sorted(files):
             if since is not None:
                 try:

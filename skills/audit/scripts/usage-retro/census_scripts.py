@@ -36,7 +36,8 @@ def parse_bound(s):
 
 def count_files(tx_root):
     return (len(glob.glob(tx_root.rstrip("/") + "/*/*.jsonl"))
-            + len(glob.glob(tx_root.rstrip("/") + "/*/*/subagents/*.jsonl")))
+            + len(glob.glob(tx_root.rstrip("/") + "/*/*/subagents/**/*.jsonl",
+                            recursive=True)))
 
 
 def main():

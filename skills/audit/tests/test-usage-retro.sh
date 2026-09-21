@@ -626,6 +626,34 @@ grep -E 'close-item\.sh +0/0 +0/0 +4/1 +0/0 +1$' <<<"$out_t" >/dev/null \
   || fail "(t) close-item.sh: 4 calls/1 session under real-usage/main and 1 read apart: $out_t"
 grep -E 'validate\.py +0/0 +0/0 +0/0 +1/1 +0$' <<<"$out_t" >/dev/null \
   || fail "(t) validate.py: the subagent run lands in real-usage/sub: $out_t"
+# (t2) BL-431: a Workflow run writes its agents under subagents/workflows/wf_*/,
+#      one level below where the walker globbed — 7,289 nested against 3,164 flat
+#      on 2026-09-20, so two thirds of subagent tool events reached no miner.
+#      The nested transcript is still tagged with its SESSION as parent (not the
+#      `workflows` directory), and the census counts what it walked; the
+#      journal.jsonl beside it carries no assistant turn and yields no event.
+read -r PROJ TX <<< "$(bash "$FIXTURE")"
+WF="$(echo "$TX"/*/s6/subagents)/workflows/wf_t1"
+mkdir -p "$WF"
+cp "$(echo "$TX"/*/s6/subagents)/agent-x.jsonl" "$WF/agent-y.jsonl"
+printf '{"type":"journal","step":1}\n' > "$WF/journal.jsonl"
+out_t2="$(python3 - "$RETRO" "$TX" <<'PYT2'
+import sys
+sys.path.insert(0, sys.argv[1]); import mine_items as M
+subs = [e for e in M.iter_tool_events(sys.argv[2]) if e["agent"] == "sub"]
+assert len(subs) == 2, f"flat + nested subagent transcript both walked: {len(subs)}"
+assert {e["parent_session"] for e in subs} == {"s6"}, \
+    f"a nested transcript's parent is its session: {[e['parent_session'] for e in subs]}"
+print("PYOK")
+PYT2
+)"
+[[ "$out_t2" == *PYOK* ]] || fail "(t2) nested subagents/workflows/ transcript: $out_t2"
+out_t2c="$(python3 "$RETRO/census_scripts.py" --transcripts-root "$TX" 2>&1)"
+grep -q 'transcript files walked: 10' <<<"$out_t2c" \
+  || fail "(t2) census counts the nested transcript and its journal (8 + 2): $out_t2c"
+grep -E 'validate\.py +0/0 +0/0 +0/0 +2/2 +0$' <<<"$out_t2c" >/dev/null \
+  || fail "(t2) validate.py: both subagent runs land in real-usage/sub: $out_t2c"
+
 # ---------------------------------------------------------------------------
 # (u) PAGES IN THE JOIN. The wrap session s7 names 2026-01-07-eta in a real prompt
 #     and runs wrap-report.sh --out on it, so the page gets a span like any item.
@@ -758,4 +786,4 @@ rm -rf "$MISSDIR"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 
-echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, a script is attributed by argv and a wrap carries its --out, census promoted, pages join the registry by basename, miss? is silent while the skill is already running"
+echo "OK — usage-retro: provenance gate (tool_result attributes nothing, real prompt does), strict-span rule at the 3-edit boundary, predicate pinned, roots honoured end-to-end, rootless run refused, project-scoped id resolution, one bad line skips the line not the session, machine-independent transcript prefix, one shared runner vocabulary, mine_errors takes a plain-date --since, tool events walk subagents and parse the exit code, a script is attributed by argv and a wrap carries its --out, census promoted, nested Workflow transcripts walked with their session as parent, pages join the registry by basename, miss? is silent while the skill is already running"
