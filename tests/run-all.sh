@@ -321,7 +321,7 @@ printf '\nran %d tests: %d passed, %d skipped, %d failed\n' \
 # header names re-stating its own globs as the drift defect the census exists to
 # prevent, and a floor computed from them would agree with any collapse. Raise it
 # when the suite grows; it is a floor, not a count.
-MIN_TESTS=140
+MIN_TESTS=160
 if [[ ${#TESTS[@]} -lt $MIN_TESTS ]]; then
   printf 'discovery FAIL: %d tests discovered, floor is %d — a glob in this file stopped matching\n' \
     "${#TESTS[@]}" "$MIN_TESTS"
