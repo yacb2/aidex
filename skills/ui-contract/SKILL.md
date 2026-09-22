@@ -54,6 +54,9 @@ blank cell is a state nobody decided about.
 | Modal or panel | open · submitting · error |
 
 Cross each state with light/dark and desktop/mobile wherever the screen is responsive.
+**Light and dark are the only two modes this contract renders**, also in a project that
+ships more themes (the boilerplate allows several): the gate compares two modes per cell,
+and a third theme is reviewed by hand when it is introduced, never as extra baselines.
 
 A not-applicable cell carries its reason in words ("this list has no permission gate —
 the route itself is unauthenticated"), and the harness refuses a blank one at run time.
@@ -70,6 +73,31 @@ the open question it is.
    every genuinely new one. A new component that duplicates an existing primitive is the
    finding, not the plan.
 4. **State matrix** — the pattern's full table from Step 2, every cell filled.
+
+## Step 3b — A layout that departs from its reference: skeleton first
+
+Applies only when item 2 of the section names a reference screen AND the new screen
+arranges the same components differently (typically a form that groups the same fields
+another way). A screen that follows its reference keeps the plain order: build and wire,
+then gallery and gate. A screen with no reference at all is level 3, not this step.
+
+The plan then carries these phases, in this order, each one closing on its own evidence:
+
+1. **Skeleton of the real page** — the route and the page built from the real components
+   against fixture data, no API call behind it. No logic to correct yet, so every layout
+   correction is cheap.
+2. **Board review of the skeleton** — the skeleton is rendered as gallery cells and the
+   owner reviews it on the board (part 1 of "verified") BEFORE anything is wired. The
+   owner's verdict on the layout closes this phase; a rejected layout goes back to phase 1
+   and loses only composition, never logic.
+3. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
+   closing line from a run with no snapshot update.
+4. **Wire** — the API behind the approved layout, with the gallery's baselines as the
+   regression guard for what the owner approved.
+
+Decided 2026-09-22 on the consultation `2026-09-21-ui-contract-consulta` (item B1): the
+alternatives — a throwaway page in the boilerplate, a drawn round, or the plain order —
+either rebuild a copy, are not verifiable, or make every layout correction touch logic.
 
 ## Step 4 — Build the gallery, then run the gate
 
