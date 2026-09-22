@@ -798,6 +798,17 @@ messages and the tests; § 8.4 is the block shape.
    consultation, 2026-09-20: the workspace-vs-office scoping of company holidays sat as
    context under two items for six rounds, until the reader surfaced it himself.
 
+   **A round's brief says why the last round did not close.** The brief for round N+1
+   opens with one line per item still open — `<id>: writer-framing | brief-gap |
+   new-question | owner-changed` — where `writer-framing` means the page had the answer
+   and the reader could not see it, `brief-gap` means the brief never carried what the
+   reader needed, `new-question` means the answer opened a question, and `owner-changed`
+   means the reader revised an earlier answer. The page's round count cannot tell a
+   writer fault from the other three: on 19 fully decided consultations (2026-09-05 to
+   2026-09-22) it ranged 2-22 and its median did not move when the writer changed. The
+   label is the only record that can, and it is what decides whether a writer change is
+   worth testing.
+
    **The page around the blocks is fixed.** Before the first block: the header
    (title + standfirst, where the strongest claim lives — intake question 6), a
    figure section when the subject has a shape, and the ledger. Between blocks:
