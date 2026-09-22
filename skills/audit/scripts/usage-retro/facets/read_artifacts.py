@@ -76,6 +76,7 @@ SINCE = {
     "svg-contrast": "2026-09-07",
     "rail": "2026-09-14",          # ad5ec00
     "double-wrap": "2026-09-20",   # c5f20ee
+    "gallery": "2026-09-22",       # the gallery row, plan phase 1
 }
 
 
