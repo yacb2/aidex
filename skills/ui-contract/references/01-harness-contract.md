@@ -124,6 +124,15 @@ and project, in the shipped tree a sibling script of the composer that imports i
 Every property below holds for it unchanged; detect which one the project has and record
 that one's path.
 
+**The owner's review surface is a consultation page, not the board** (ADR, fourth
+amendment of 2026-09-23). The board script also prints the matrix as rows JSON,
+`--rows-json <gallery>`: gallery, tiles, and per row either a path per tile (relative to
+the repo root) or a `notApplicable` reason, deterministic and refusing a declared cell
+with no baseline like the board does. The artifact kit's `gallery-items.sh` turns that
+document into consultation items (`/aidex:artifact`, reference
+`02-local-first-artifacts.md` § Gallery rows). The board and the image remain the
+developer's lens while building.
+
 A small composer script turns one gallery's baselines into a single image: rows are the
 matrix cells, columns the four projects.
 

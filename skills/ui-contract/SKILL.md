@@ -86,8 +86,8 @@ The plan then carries these phases, in this order, each one closing on its own e
 1. **Skeleton of the real page** — the route and the page built from the real components
    against fixture data, no API call behind it. No logic to correct yet, so every layout
    correction is cheap.
-2. **Board review of the skeleton** — the skeleton is rendered as gallery cells and the
-   owner reviews it on the board (part 1 of "verified") BEFORE anything is wired. The
+2. **Review of the skeleton** — the skeleton is rendered as gallery cells and the owner
+   rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired. The
    owner's verdict on the layout closes this phase; a rejected layout goes back to phase 1
    and loses only composition, never logic.
 3. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
@@ -130,10 +130,14 @@ The word on its own is not a claim. A model looking at its own screenshots has a
 asserted "verified in light and dark" in this corpus and been disproved in three
 sessions. All three parts, or the phase does not close:
 
-1. **The contact-sheet path.** A sheet exists on disk and its path is written down — the
-   generated review board (one HTML file over the committed baselines) where the project
-   has one, the composed image otherwise. The
-   owner is the final reviewer of that image — never the model.
+1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
+   consultation page (`/aidex:artifact`, § Gallery rows): the project emits its rows JSON
+   (`--rows-json`), the kit turns them into items with zoom, light/dark compare, region
+   marks and a verdict per row, and the pasted reply parses back with `gallery-reply.sh`.
+   That page's path is written down, with the owner's verdict per row. The generated
+   board (one HTML file over the committed baselines) or the composed image stays the
+   developer's lens while building, not the owner's review. The owner is the final
+   reviewer — never the model.
 2. **The gate's closing line, from a run with NO snapshot update.** A run that rewrote
    its own baselines proves the code agrees with itself. A baseline that genuinely must
    move is *reported*, with which cells moved and why, and moved in a separate, named act.
@@ -161,4 +165,4 @@ record that it did.
   build flag and assert in a production build that the route is gone; found missing in
   the boilerplate, where the demo routes shipped to every authenticated user.
 - **The gate does not judge taste.** It catches overflow, contrast, layout churn and
-  pixel drift. Whether the screen is *good* is the owner's call on the contact sheet.
+  pixel drift. Whether the screen is *good* is the owner's call on the review surface.
