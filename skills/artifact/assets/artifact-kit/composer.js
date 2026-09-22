@@ -1365,6 +1365,16 @@
      * into their folds by now, and Up/Down claims DOM order. */
     var rows = [].slice.call(document.querySelectorAll('.consult-item'))
       .filter(isGalleryRow);
+    /* The checker strips a tile name; the arrows (indexOf) and the CSS filters
+     * (^= and $=) compare it exactly, so the stray space goes here, once. */
+    rows.forEach(function (row) {
+      row.querySelectorAll('figure[data-tile]').forEach(function (f) {
+        f.setAttribute('data-tile', f.getAttribute('data-tile').trim());
+      });
+    });
+    /* Up/Down skips settled rows: collapseDecided has folded them away, and
+     * the kit's contract is that the open questions stay in view. */
+    var walkRows = rows.filter(function (r) { return !isDecided(r); });
     var groups = [].slice.call(document.querySelectorAll('.consult-group'))
       .filter(function (g) { return (g.getAttribute('data-tiles') || '').trim(); });
     if (!rows.length && !groups.length) return;
@@ -1406,7 +1416,8 @@
     dlg.appendChild(keys);
     document.body.appendChild(dlg);
 
-    var opener = null;                /* the figure that opened it */
+    var origin = null;                /* the figure that opened it: focus returns here */
+    var opener = null;                /* the figure on screen now */
 
     function sizeLabel() {
       // Names the DESTINATION, like the theme button does.
@@ -1431,6 +1442,7 @@
        * whatever size is on screen — there it IS the same look, continued. */
       dlg.classList.remove('native');
       sizeLabel();
+      origin = fig;
       show(fig);
       if (dlg.showModal) dlg.showModal();
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
@@ -1444,7 +1456,7 @@
     /* Esc closes without a listener of its own; `close` fires for both paths,
      * so the focus return is written once. */
     dlg.addEventListener('close', function () {
-      if (opener) opener.focus();
+      if (origin) origin.focus();
     });
 
     /* The tiles, in the order the matrix declares. A tile the row does not
@@ -1472,10 +1484,10 @@
       if (!opener) return;
       var row = opener.closest('.consult-item');
       var name = opener.getAttribute('data-tile');
-      var i = rows.indexOf(row);
+      var i = walkRows.indexOf(row);
       if (i === -1) return;
-      for (var j = i + dir; j >= 0 && j < rows.length; j += dir) {
-        var f = tileFigure(rows[j], name);
+      for (var j = i + dir; j >= 0 && j < walkRows.length; j += dir) {
+        var f = tileFigure(walkRows[j], name);
         if (f) return show(f);
       }
     }
@@ -1524,14 +1536,17 @@
     ];
 
     function galState() {
-      try { return JSON.parse(localStorage.getItem(GAL_KEY) || '{}') || {}; }
+      try {
+        var v = JSON.parse(localStorage.getItem(GAL_KEY) || '{}');
+        return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+      }
       catch (e) { return {}; }        /* storage refused: no filter is kept */
     }
 
     function galStore(id, key, value) {
       try {
         var all = galState();
-        if (!all[id]) all[id] = {};
+        if (!all[id] || typeof all[id] !== 'object' || Array.isArray(all[id])) all[id] = {};
         all[id][key] = value;
         localStorage.setItem(GAL_KEY, JSON.stringify(all));
       } catch (e) { /* unavailable — the filter still applies in this tab */ }

@@ -195,7 +195,9 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
                                   background: var(--paper); color: var(--ink); }
 .kit-zoom-size[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .kit-zoom-body { padding: 0.7rem; }
-.kit-zoom img { display: block; margin: 0 auto; max-width: 90vw; max-height: 90vh;
+/* The UA caps the dialog at 100% - 2em - 6px, so 90vw alone overflows it on a
+   narrow screen; the height leaves room for the header and the keys line. */
+.kit-zoom img { display: block; margin: 0 auto; max-width: min(90vw, 100%); max-height: calc(90vh - 6rem);
                 width: auto; height: auto; background: var(--paper); }
 .kit-zoom.native img { max-width: none; max-height: none; }
 .kit-zoom-keys { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);

@@ -1319,7 +1319,9 @@ cat > "$TMP/gbody.html" <<HTML
       <figure data-tile="light-desktop"><img src="$PX" alt="with-data light-desktop"><figcaption>light &middot; desktop</figcaption></figure>
       <figure data-tile="dark-desktop"><img src="$PX" alt="with-data dark-desktop"><figcaption>dark &middot; desktop</figcaption></figure>
       <figure data-tile="light-mobile"><img src="$PX" alt="with-data light-mobile"><figcaption>light &middot; mobile</figcaption></figure>
-      <figure data-tile="dark-mobile"><img src="$PX" alt="with-data dark-mobile"><figcaption>dark &middot; mobile</figcaption></figure>
+      <!-- A trailing space in data-tile: the checker strips it, so the kit must too
+           or the arrows freeze and the filter never hides this tile. -->
+      <figure data-tile="dark-mobile "><img src="$PX" alt="with-data dark-mobile"><figcaption>dark &middot; mobile</figcaption></figure>
     </div>
     <div class="opts one">
       <label><input type="radio" name="audit-with-data" data-label="Approved"><span>Approved</span></label>
@@ -1416,6 +1418,7 @@ window.addEventListener('load', function () {
        trusted Esc). */
     var modal = dlg && dlg.matches(':modal') ? '1' : '0';
     var hrow = dlg ? dlg.querySelector('.kit-zoom-row').textContent : '';
+    var h0tile = htile(), h0cell = hcell();
     var fit = dlg.classList.contains('native') ? '1' : '0';
     dlg.querySelector('.kit-zoom-size').click();
     var nativeOn = dlg.classList.contains('native') ? '1' : '0';
@@ -1432,6 +1435,11 @@ window.addEventListener('load', function () {
     key('ArrowDown');  var down2 = hcell() + '/' + htile();
     key('ArrowUp');    var up1 = hcell();
     key('ArrowUp');    var up2 = hcell();
+    /* Walk to the row's far end and close THERE: focus must go back to the
+       tile that opened the dialog, not to the last one shown (the walk above
+       ends on the opener, so without this the FOCUS cell passes by chance). */
+    key('ArrowRight'); key('ArrowRight'); key('ArrowRight');
+    var right3 = htile();
     dlg.querySelector('.kit-zoom-close').click();
     /* Esc and the close button both return the focus through the dialog's
        own close event, which the engine queues rather than firing inline (no
@@ -1442,11 +1450,11 @@ window.addEventListener('load', function () {
     dlg.dispatchEvent(new Event('close'));
     window.open = openWin;
     document.title = 'GZOOM|OPEN=' + openState + '|MODAL=' + modal
-      + '|HROW=' + hrow.replace(/[|<>]/g, ' ') + '|HTILE=' + htile() + '|HCELL=' + hcell()
+      + '|HROW=' + hrow.replace(/[|<>]/g, ' ') + '|HTILE=' + h0tile + '|HCELL=' + h0cell
       + '|SRC=' + (dlg.querySelector('img').getAttribute('src').slice(0, 14))
       + '|FIT=' + fit + '|NATIVE=' + nativeOn + '|NATIVEOFF=' + nativeOff
       + '|RIGHT=' + right1 + '|LEFT=' + left1 + '|LEFTEND=' + left2
-      + '|DOWN=' + down1 + '|DOWNEND=' + down2 + '|UP=' + up1 + '|UPEND=' + up2
+      + '|DOWN=' + down1 + '|DOWNEND=' + down2 + '|UP=' + up1 + '|UPEND=' + up2 + '|RIGHT3=' + right3.trim() + '/' + (right3 === right3.trim() ? 'clean' : 'raw')
       + '|CLOSED=' + (dlg.open ? '0' : '1')
       + '|FOCUS=' + (document.activeElement === first ? '1' : '0')
       + '|ROLE=' + first.getAttribute('role') + '|TABINDEX=' + first.getAttribute('tabindex')
@@ -1470,7 +1478,13 @@ window.addEventListener('load', function () {
     var ta = document.querySelector('[data-id="audit-with-data"] textarea');
     ta.value = 'la fila se ve bien'; ta.dispatchEvent(new Event('input', { bubbles: true }));
     var before = paste();
+    /* A stored value of the wrong shape (a string where a block's object
+       belongs) must not stop the filter from being saved from then on. */
+    var gk = 'aidex-kit-gallery:' + location.pathname;
+    localStorage.setItem(gk, '{"E":"light"}');
     var hit = bar('E', 'light');
+    var storedMode = '';
+    try { storedMode = JSON.parse(localStorage.getItem(gk)).E.mode || ''; } catch (e) {}
     var g = document.getElementById('E');
     var darkFig = fig('audit-with-data', 'dark-desktop');
     var lightFig = fig('audit-with-data', 'light-desktop');
@@ -1491,16 +1505,30 @@ window.addEventListener('load', function () {
     key('ArrowRight');
     var reached = htile();
     dlg.querySelector('.kit-zoom-close').click();
+    /* The viewport rule matches on the END of the tile name ($=), which is
+       where a stray space sits; the mode rule (^=) would hide it regardless. */
+    bar('E', 'both'); bar('E', 'desktop');
+    var spaced = document.querySelector('[data-id="audit-with-data"] figure img[alt="with-data dark-mobile"]').parentNode;
+    var spacedHid = getComputedStyle(spaced).display;
+    bar('E', 'light'); bar('E', 'mobile');
     document.title = 'GFILTER|BAR=' + (hit ? '1' : '0')
       + '|MODE=' + g.getAttribute('data-mode') + '|VIEW=' + g.getAttribute('data-viewport')
       + '|DARKHID=' + darkHid + '|LIGHTVIS=' + lightVis
-      + '|DESKHID=' + deskHid + '|MOBVIS=' + mobVis
+      + '|DESKHID=' + deskHid + '|MOBVIS=' + mobVis + '|SPACEDHID=' + spacedHid
+      + '|STORED=' + storedMode
       + '|PRESSED=' + document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]').length
       + '|BARS=' + document.querySelectorAll('.kit-galbar').length
       + '|INPUTS=' + document.querySelectorAll('.kit-galbar input, .kit-galbar select, .kit-galbar textarea').length
       + '|SAME=' + (before === after ? '1' : '0')
       + '|REACHED=' + reached
       + '|PASTE=' + after.replace(/[|<>\n]/g, ' ');
+  } else if (q.indexOf('phase=gdecided') !== -1) {
+    fig('audit-with-data', 'light-desktop').click();
+    key('ArrowDown');
+    var dd = hcell();
+    dlg.querySelector('.kit-zoom-close').click();
+    document.title = 'GDECIDED|DOWN=' + dd
+      + '|FOLDED=' + (document.querySelector('[data-id="audit-empty"]').closest('details:not([open])') ? '1' : '0');
   } else if (q.indexOf('phase=grecall') !== -1) {
     var g2 = document.getElementById('E');
     var pressed = [].map.call(document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]'),
@@ -1555,7 +1583,9 @@ tg="$(grun 'phase=gzoom')"
 [[ "$tg" == *"CLOSED=1"* ]] \
   || fail "the close button did not close the dialog: $tg"
 [[ "$tg" == *"FOCUS=1"* ]] \
-  || fail "closing the dialog did not return focus to the tile that opened it: $tg"
+  || fail "closing the dialog did not return focus to the tile that opened it (the walk ended on another tile): $tg"
+[[ "$tg" == *"RIGHT3=dark-mobile/clean"* ]] \
+  || fail "Right did not reach a tile whose data-tile carries a stray space the checker accepts (or the header shows the raw value): $tg"
 [[ "$tg" == *"ROLE=button"* && "$tg" == *"TABINDEX=0"* ]] \
   || fail "the tile was not made a button (role and tabindex), so it is unreachable from the keyboard: $tg"
 [[ "$tg" == *"FIGS=4"* && "$tg" == *"CAPS=4"* ]] \
@@ -1584,6 +1614,10 @@ tg="$(grun 'phase=gfilter')"
   || fail "filtering to light did not hide the dark tiles (or hid everything): $tg"
 [[ "$tg" == *"DESKHID=none"* && "$tg" == *"MOBVIS=1"* ]] \
   || fail "filtering to mobile did not hide the desktop tiles (or hid everything): $tg"
+[[ "$tg" == *"SPACEDHID=none"* ]] \
+  || fail "the desktop filter did not hide a mobile tile whose data-tile carries a stray space: $tg"
+[[ "$tg" == *"STORED=light"* ]] \
+  || fail "a stored filter of the wrong shape stopped the filter from being saved: $tg"
 [[ "$tg" == *"PRESSED=2"* ]] \
   || fail "the toolbar does not show which filter is on (one pressed button per control): $tg"
 # THE RED CONTROL. The filter writes an attribute on the block and nothing else;
@@ -1597,6 +1631,20 @@ tg="$(grun 'phase=gfilter')"
   || fail "the row's verdict and notes did not reach the paste, so the identity assertion above proves nothing: $tg"
 [[ "$tg" == *"REACHED=dark-desktop"* ]] \
   || fail "the arrows skipped a filtered-out tile — a filter is a viewing aid, not a change to what is being judged: $tg"
+
+# A decided row is folded out of view by the composer; the arrows must not open
+# it from the row above (the kit's collapse contract: open questions stay in view).
+sed 's/data-id="audit-empty" data-title/data-id="audit-empty" data-decided="Approved" data-title/' \
+  "$TMP/gbody.html" > "$TMP/gbody-decided.html"
+GPAGE_D="$TMP/reports/gallery-decided.html"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_D" < "$TMP/gbody-decided.html" > "$TMP/gwrap-d.log" 2>&1 \
+  || fail "the decided gallery probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-d.log" | head -4)"
+chrome_dump "$TMP/gdom-d.html" "file://$GPAGE_D?phase=gdecided" 45 || true
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-d.html" | head -1)"
+[[ "$tg" == *"GDECIDED"* && "$tg" == *"FOLDED=1"* ]] \
+  || fail "the decided gallery probe did not run, or the decided row was not folded: $tg"
+[[ "$tg" == *"DOWN=audit-with-data"* ]] \
+  || fail "Down opened a decided row that the page has folded away: $tg"
 
 # The filter is where the reader left it on the next visit (same profile, same
 # path), and it is still not part of the paste.
