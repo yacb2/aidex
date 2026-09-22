@@ -1349,7 +1349,7 @@
     document.body.appendChild(b);
   }
 
-  /* ---- The gallery row: zoom, keyboard, filters (kit v20) ----------------
+  /* ---- The gallery row: zoom, keyboard, filters (kit v21) ----------------
    *
    * A gallery row is one screen state seen in every tile of the matrix, and
    * judging it means looking at a capture at the size it was taken. Until this

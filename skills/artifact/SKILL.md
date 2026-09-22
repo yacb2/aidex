@@ -50,6 +50,11 @@ never hand-roll an unstyled page: load the `artifact-design` skill, start from
 `assets/artifact-kit/skeleton.html`, then write the sibling HTML and open it
 locally.**
 
+A consultation about screenshots (a UI proposal, a state gallery) carries them as
+gallery rows: `scripts/gallery-items.sh` turns the project's rows JSON into items
+before the wrap, `scripts/gallery-reply.sh` parses the pasted reply back
+(`references/02-local-first-artifacts.md` § Gallery rows).
+
 Per-project design tokens live in `.context/artifact-style.md` (template:
 `assets/templates/artifact-style.md.template`), including a `language:` field
 that `wrap-report.sh` reads as the artifact's `<html lang>` — artifacts only;
