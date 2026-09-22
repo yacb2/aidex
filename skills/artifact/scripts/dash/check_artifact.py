@@ -567,11 +567,13 @@ def gallery_findings(text):
 
         # A figure in the grid with no `data-tile` is a cell nothing can place:
         # the reader counts four images and the matrix has three.
-        untiled = sum(1 for g in grids for f in GAL_FIGURE_OPEN.finditer(g)
+        # Scanned over the whole row, not only its `.gal` grids: a row admitted
+        # by shape (tiles with no grid) has no grid to look inside.
+        untiled = sum(1 for f in GAL_FIGURE_OPEN.finditer(body)
                       if not DATA_TILE.search(f.group(0)))
         if untiled:
-            out.append(f"gallery item '{ident}' has {untiled} figure(s) in its "
-                       f".gal grid with no data-tile — a tile nothing can "
+            out.append(f"gallery item '{ident}' has {untiled} figure(s) "
+                       f"with no data-tile — a tile nothing can "
                        f"place, so the reader counts more cells than the "
                        f"matrix has")
 
@@ -589,16 +591,22 @@ def gallery_findings(text):
                        f"a complete row from a truncated one")
             continue
 
+        twice = sorted({t for t in tiles if tiles.count(t) > 1})
+        if twice:
+            out.append(f"gallery item '{ident}' sits in a block that declares "
+                       f"tile(s) twice: {' '.join(twice)} — a repeated name "
+                       f"counts as a cell no row can show, so a missing tile "
+                       f"passes as present")
+            continue
         found = [next(g for g in fm.groups() if g is not None).strip()
                  for fm in FIGURE_TILE.finditer(body)]
         reasons = []
         for nm in GAL_NA_OPEN.finditer(body):
             inner = _subtree_closed(body, nm.group(1), nm.end())
-            if inner is None:
-                tail = body[nm.end():]
-                cut = tail.find("<")
-                inner = tail if cut < 0 else tail[:cut]
-            reasons.append(flatten(inner).strip())
+            # Unclosed is empty whatever text follows: in the browser that
+            # element swallows the verdict and the notes, so the "reason" is
+            # not the reason the author sees.
+            reasons.append("" if inner is None else flatten(inner).strip())
 
         if found and reasons:
             out.append(f"gallery item '{ident}' carries both tiles and a "

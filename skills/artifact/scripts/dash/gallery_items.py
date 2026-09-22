@@ -167,9 +167,14 @@ def check_row(row, tiles, n):
     if not has_tiles and not has_na:
         die("row '%s' has neither 'tiles' nor 'notApplicable'" % cell)
     if has_na:
-        if not str(row["notApplicable"]).strip():
+        # `str()` would turn null or false into a non-empty "reason", so the
+        # same isinstance guard the tile paths carry applies here.
+        if not isinstance(row["notApplicable"], str):
+            die("row '%s': 'notApplicable' must be a string (the reason)"
+                % cell)
+        if not row["notApplicable"].strip():
             die("row '%s' is notApplicable with an empty reason" % cell)
-        return cell, None, str(row["notApplicable"]).strip()
+        return cell, None, row["notApplicable"].strip()
     if not isinstance(row["tiles"], dict):
         die("row '%s': 'tiles' must be an object of tile -> path" % cell)
     for t in row["tiles"]:

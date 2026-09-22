@@ -448,6 +448,36 @@ page "$TMP/blank-tiles.html" "$(block ' data-tiles="   "' "$(galrow audit-with-d
 rc="$(run "$TMP/blank-tiles.html")"; red "a whitespace-only data-tiles declares no matrix" \
   "audit-with-data.*not inside a"
 
+echo "== the second adversarial round (on the fix diff) =="
+
+# (R1) `str(None)` IS A NON-EMPTY REASON. The fix round gave tile names and
+# paths an isinstance guard and left the sibling field in the same row without
+# one, so `"notApplicable": null` rendered the word "None" as the reason.
+refuse "R1 a null notApplicable" \
+  '{"gallery":"audit","tiles":["light-desktop"],"rows":[{"cell":"x","notApplicable":null}]}' \
+  "notApplicable.*string"
+refuse "R1 a non-string notApplicable" \
+  '{"gallery":"audit","tiles":["light-desktop"],"rows":[{"cell":"x","notApplicable":false}]}' \
+  "notApplicable.*string"
+
+# (R2) THE UNTILED SCAN LOOKED ONLY INSIDE `.gal` GRIDS, so the hand-made shape
+# the F1 fix admitted (tiles with no grid) hid a fifth, unplaceable figure.
+page "$TMP/r2-nogrid-untiled.html" "$(block "$tiles_attr" "$(plain_gal audit-with-data "$all_four<figure><img src=\"file:///abs/checkout/shots/x.png\" alt=\"x\"><figcaption>x</figcaption></figure>")")"
+rc="$(run "$TMP/r2-nogrid-untiled.html")"; red "R2 an untiled figure outside any .gal grid fails" \
+  "audit-with-data.*figure.*no data-tile"
+
+# (R3) AN UNCLOSED gal-na WITH TEXT IS STILL UNCLOSED: the browser swallows the
+# radios and the notes into it. F2 covered only the case with no text at all.
+page "$TMP/r3-unclosed-text.html" "$(block "$tiles_attr" "$(galrow audit-no-permission '<div class="gal-na">The role never reaches this screen.')")"
+rc="$(run "$TMP/r3-unclosed-text.html")"; red "R3 an unclosed gal-na that carries text is an empty reason" \
+  "audit-no-permission.*empty gal-na"
+
+# (R4) A BLOCK THAT DECLARES A TILE TWICE hides a missing one: four names, three
+# cells, and the row with three tiles passes as complete.
+page "$TMP/r4-dupe-decl.html" "$(block 'data-tiles="light-desktop light-desktop dark-desktop light-mobile"' "$(galrow audit-with-data "<div class=\"gal\">$(figure light-desktop)$(figure dark-desktop)$(figure light-mobile)</div>")")"
+rc="$(run "$TMP/r4-dupe-decl.html")"; red "R4 a block declaring a tile twice fails" \
+  "declares tile(s)\? twice: light-desktop"
+
 # (lower) the dead declaration on .gal figure
 grep -E '^\.gal figure \{' "$KIT" | grep -q 'gap:' \
   && fail "the .gal figure rule still sets a gap it does not use" \
