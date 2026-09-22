@@ -483,5 +483,25 @@ grep -E '^\.gal figure \{' "$KIT" | grep -q 'gap:' \
   && fail "the .gal figure rule still sets a gap it does not use" \
   || ok "the .gal figure rule carries no dead declaration"
 
+echo "== the hidden marks channel (Phase 4) =="
+
+# The composer injects <textarea class="kit-marks" hidden> at runtime; a page may
+# also carry one (a decided row keeps the marks it was decided with). It is a
+# channel into the paste, never the reader's notes box.
+marks_ta='<textarea class="kit-marks" hidden>[mark light-desktop 10.0,10.0 20.0x20.0] recorded</textarea>'
+nonotes_row="<section class=\"consult-item consult-gallery\" data-id=\"audit-with-data\" data-title=\"audit row\"><h3><span class=\"consult-id\">audit-with-data</span>audit row</h3><p>The cells of this row.</p><div class=\"gal\">$all_four</div><div class=\"opts one\"><label><input type=\"radio\" name=\"audit-with-data\" data-label=\"Approved\"><span>Approved</span></label></div>$marks_ta</section>"
+page "$TMP/m1-marks-only.html" "$(block "$tiles_attr" "$nonotes_row")"
+rc="$(run "$TMP/m1-marks-only.html")"; red "M1 a hidden kit-marks textarea is not the notes box" \
+  "audit-with-data.*no notes box"
+# ...and a bare `hidden` textarea is not one either, whatever its class.
+page "$TMP/m1b-hidden-only.html" "$(block "$tiles_attr" "${nonotes_row/class=\"kit-marks\" /}")"
+rc="$(run "$TMP/m1b-hidden-only.html")"; red "M1b a hidden textarea is not the notes box" \
+  "audit-with-data.*no notes box"
+# GREEN: the same channel beside the visible notes box passes.
+page "$TMP/m2-marks-and-notes.html" "$(block "$tiles_attr" "$(galrow audit-with-data "<div class=\"gal\">$all_four</div>$marks_ta")")"
+rc="$(run "$TMP/m2-marks-and-notes.html")"
+[[ "$rc" == 0 ]] && ok "M2 a kit-marks textarea beside the notes box passes" \
+  || fail "M2 a row with its notes box and a kit-marks textarea was rejected: $(cat "$TMP/out")"
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"

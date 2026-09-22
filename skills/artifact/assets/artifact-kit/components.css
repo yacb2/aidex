@@ -166,7 +166,7 @@ li::marker { color: var(--muted); }
    composer.js, never written into the markup): a click or Enter opens it in
    the zoom dialog. Keyed off the role, so a page read with scripts off keeps
    the plain grid and shows no affordance it cannot honour. */
-.gal figure[role="button"] { cursor: zoom-in; border-radius: 4px; }
+.gal figure[role="button"] { cursor: zoom-in; border-radius: 4px; position: relative; }
 .gal figure[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* The ZOOM DIALOG. One per page, built and reused by the composer.
@@ -209,7 +209,7 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 /* COMPARE (GitHub's image-diff modes). Both images sit in ONE grid cell, the
    sibling on top; 2-up gives each its own column. The slider writes two
    properties on the dialog and these rules are all that read them. */
-.kit-compare { display: grid; justify-items: center; }
+.kit-compare { display: grid; justify-items: center; position: relative; }
 .kit-compare img { grid-area: 1 / 1; }
 .kit-zoom .kit-zoom-other, .kit-zoom .kit-zoom-range { display: none; }
 .kit-zoom:not([data-compare="off"]) .kit-zoom-other { display: block; }
@@ -221,6 +221,33 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 .kit-zoom[data-compare="swipe"] .kit-zoom-range,
 .kit-zoom[data-compare="onion"] .kit-zoom-range { display: inline-block; flex: 1 1 5rem;
                                                    min-width: 4rem; width: auto; }
+/* REGION MARKS. The layers are placed over the image's content box by the
+   composer (placeOver), so a mark's percentages mean the same pixels in the
+   dialog at any size and on the grid tile. Marks belong to the tile being
+   judged: with compare on, the layer and its marks are hidden and draw nothing.
+   The tile layer never takes the pointer, so a click still opens the zoom; the
+   MARKS do, so their note (a title) shows on hover. Their events bubble: to
+   the dialog layer (a press inside a mark still draws or opens its note) and
+   to the tile's figure (a click still opens the zoom). */
+.kit-marks-layer { position: absolute; cursor: crosshair; touch-action: none; }
+.kit-marks-layer.readonly { cursor: default; }
+.kit-zoom:not([data-compare="off"]) .kit-marks-layer { display: none; }
+.kit-marks-tile { position: absolute; pointer-events: none; }
+.kit-mark { position: absolute; box-sizing: border-box; pointer-events: auto;
+            border: 2px solid var(--accent); box-shadow: 0 0 0 1px var(--paper); }
+.kit-mark.drawing { border-style: dashed; }
+dialog.kit-mark-note { border: 1px solid var(--rule); border-radius: 6px; padding: 0.8rem;
+                       background: var(--paper); color: var(--ink);
+                       font-family: var(--sans); font-size: 0.85rem; }
+dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
+.kit-mark-note label { display: flex; flex-direction: column; gap: 0.3rem; }
+.kit-mark-note input { font: inherit; width: min(28rem, 80vw); padding: 0.25rem 0.4rem;
+                       border: 1px solid var(--rule); border-radius: 4px;
+                       background: var(--paper); color: var(--ink); }
+.kit-mark-acts { display: flex; gap: 0.4rem; justify-content: flex-end; margin-top: 0.6rem; }
+.kit-mark-acts button { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+                        border: 1px solid var(--rule); border-radius: 4px;
+                        background: var(--paper); color: var(--ink); }
 .kit-zoom-keys { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);
                  font-size: 0.72rem; color: var(--muted); }
 

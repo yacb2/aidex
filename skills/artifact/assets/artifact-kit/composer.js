@@ -100,7 +100,12 @@
       cmpTitle: 'Compare this tile with the other mode of the same viewport',
       cmpNone: 'This row has no tile in the other mode of this viewport',
       cmpRange: 'Right: more of this tile · left: more of the other mode',
-      cmpSize: function (a, b) { return 'The two captures differ in size (' + a + ' against ' + b + '): shown side by side.'; }
+      cmpSize: function (a, b) { return 'The two captures differ in size (' + a + ' against ' + b + '): shown side by side.'; },
+      markHint: 'Drag to mark a region · click a mark to edit or delete it',
+      markNote: 'Note for this mark',
+      markSave: 'Save',
+      markDelete: 'Delete mark',
+      markCancel: 'Cancel'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -184,7 +189,12 @@
       cmpTitle: 'Compara este tile con el otro modo de la misma pantalla',
       cmpNone: 'Esta fila no tiene el tile del otro modo en esta pantalla',
       cmpRange: 'Derecha: m\u00e1s de este tile \u00b7 izquierda: m\u00e1s del otro modo',
-      cmpSize: function (a, b) { return 'Las dos capturas tienen tama\u00f1os distintos (' + a + ' frente a ' + b + '): se muestran lado a lado.'; }
+      cmpSize: function (a, b) { return 'Las dos capturas tienen tama\u00f1os distintos (' + a + ' frente a ' + b + '): se muestran lado a lado.'; },
+      markHint: 'Arrastra para marcar una zona \u00b7 haz clic en una marca para editarla o borrarla',
+      markNote: 'Nota para esta marca',
+      markSave: 'Guardar',
+      markDelete: 'Borrar marca',
+      markCancel: 'Cancelar'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -823,7 +833,7 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-provisional').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-provisional, .kit-marks-tile').forEach(function (c) { c.remove(); });
     /* Chrome this file TRANSLATES is put back into English before hashing
      * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
      * fingerprint, and every answer a reader stored while the labels were still
@@ -837,7 +847,16 @@
         if (c.textContent.trim() === L[row[2]]) c.textContent = STRINGS.en[row[2]];
       });
     });
-    return fnv((clone.textContent || '').replace(/\s+/g, ' ').trim());
+    var text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+    /* A gallery row's question is also WHAT IT SHOWS: a round that re-captures
+     * a tile under the same text is a new question, so the marks drawn on the
+     * old capture never come back onto a different screenshot. Only a row with
+     * tiles gains the suffix, so every other item hashes as it always did. */
+    var srcs = [].map.call(el.querySelectorAll('figure[data-tile] img'), function (i) {
+      return i.getAttribute('src') || '';
+    });
+    if (srcs.length) text += ' ' + srcs.join(' ');
+    return fnv(text);
   }
 
   function snapshotItem(el) {
@@ -1090,7 +1109,9 @@
              * the page's general-notes box last: an item whose only surface is
              * a value or a list has nowhere of its own to type a question, and
              * focusing nothing is how the chip would silently do nothing. */
-            var box = el.querySelector('textarea') || el.querySelector('[contenteditable]')
+            /* Never the hidden kit-marks channel of a gallery row: focusing
+             * it would put the cursor nowhere the reader can see. */
+            var box = el.querySelector('textarea:not(.kit-marks)') || el.querySelector('[contenteditable]')
                    || document.querySelector('.consult-notes textarea');
             if (box) box.focus();
           });
@@ -1166,6 +1187,7 @@
       el.querySelectorAll(kind.q).forEach(function (x) { setFreeValue(x, ''); });
     });
     delete copied[el.dataset.id];
+    redrawMarks();                    /* the marks were in a textarea: cleared too */
     // save() rebuilds the whole store from the page, so an emptied item drops
     // out of localStorage on its own — there is no per-key delete to keep in
     // step with it.
@@ -1349,6 +1371,10 @@
    * localStorage — never in an input, or `readItem` would paste the way the
    * reader was looking at the page as if it were part of their answer. */
   var GAL_KEY = 'aidex-kit-gallery:' + location.pathname;
+  /* Set by gallery() once its rows exist; called after restore() and by the
+   * per-item Clear, the two writers of a marks textarea that are not the
+   * mark layer itself. */
+  var redrawMarks = function () {};
 
   /* By SHAPE, like the checker (`gallery_findings`): the rows written by hand
    * before the generator existed carry the grid and not the class, and a
@@ -1467,6 +1493,13 @@
     other.className = 'kit-zoom-other';
     stack.appendChild(img);
     stack.appendChild(other);
+    /* The region-mark layer: sized over the current image by placeOver(),
+     * never over the sibling, and hidden by components.css whenever compare
+     * is on — marks belong to the tile being judged. */
+    var mlayer = document.createElement('div');
+    mlayer.className = 'kit-marks-layer';
+    mlayer.title = L.markHint;
+    stack.appendChild(mlayer);
     body.appendChild(stack);
     var keys = document.createElement('p');
     keys.className = 'kit-zoom-keys';
@@ -1503,6 +1536,7 @@
       else other.removeAttribute('src');
       other.setAttribute('alt', sImg ? (sImg.getAttribute('alt') || '') : '');
       compare();
+      drawDialog();
     }
 
     /* The other mode of the same viewport (`light-desktop` <-> `dark-desktop`),
@@ -1572,6 +1606,8 @@
        * size button is the one a fresh open has always handed the focus to. */
       if (dlg.showModal) { dlg.showModal(); bSize.focus(); }
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
+      /* show() ran while the dialog was closed, when the image had no box. */
+      placeOver(mlayer, img);
     }
 
     bSize.addEventListener('click', function () {
@@ -1627,6 +1663,259 @@
       if (!m || ev.target === range) return;
       ev.preventDefault();            /* or the dialog scrolls under the move */
       m[0](m[1]);
+    });
+
+    /* ---- region marks (Phase 4) ----
+     *
+     * A rectangle dragged on the dialog image, kept as PERCENTAGES of the image
+     * (research note, pattern 3: pins relative to the frame), so a mark drawn
+     * at fit size lands on the same pixels at native size and on a grid tile of
+     * any width.
+     *
+     * Storage is ONE hidden `textarea.kit-marks` per tiled row, the
+     * last textarea of the item, holding one contract line per mark:
+     *   [mark light-desktop 12.5,34.0 40.0x10.5] the breadcrumb wraps
+     * It is not a second store: readItem pastes it, snapshotItem/restore keep
+     * it (the `a` list, after the notes box, so a stored notes answer keeps its
+     * index), the question-hash rule and the round rule govern it like any
+     * answer, Clear empties it. The checker does not count it as a notes box.
+     *
+     * Drawing needs an open row and compare off; a decided row shows its marks
+     * (a page may carry them in its own kit-marks textarea) and draws none. */
+    var MARK_LINE = /^\[mark (\S+) (\d{1,3}(?:\.\d)?),(\d{1,3}(?:\.\d)?) (\d{1,3}(?:\.\d)?)x(\d{1,3}(?:\.\d)?)\](?: (.*))?$/;
+
+    function marksBox(row) { return row.querySelector('textarea.kit-marks'); }
+
+    function readMarks(row) {
+      var ta = marksBox(row);
+      if (!ta) return [];
+      return ta.value.split('\n').map(function (l) {
+        var m = MARK_LINE.exec(l.trim());
+        return m ? { tile: m[1], x: +m[2], y: +m[3], w: +m[4], h: +m[5], note: m[6] || '' } : null;
+      }).filter(Boolean);
+    }
+
+    function markLine(k) {
+      return '[mark ' + k.tile + ' ' + k.x.toFixed(1) + ',' + k.y.toFixed(1) + ' '
+        + k.w.toFixed(1) + 'x' + k.h.toFixed(1) + ']' + (k.note ? ' ' + k.note : '');
+    }
+
+    /* Written like a reader's typing: the composer's input listener refreshes
+     * the count and saves the store, so no second path can drift from it. */
+    function writeMarks(row, marks) {
+      var ta = marksBox(row);
+      ta.value = marks.map(markLine).join('\n');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      drawRow(row);
+      drawDialog();
+    }
+
+    function drawBoxes(layer, marks) {
+      [].slice.call(layer.querySelectorAll('.kit-mark:not(.drawing)')).forEach(function (b) { b.remove(); });
+      marks.forEach(function (k) {
+        var b = document.createElement('div');
+        b.className = 'kit-mark';
+        b.style.left = k.x + '%';
+        b.style.top = k.y + '%';
+        b.style.width = k.w + '%';
+        b.style.height = k.h + '%';
+        if (k.note) b.title = k.note;   /* an attribute, never text: the hash reads text */
+        layer.appendChild(b);
+      });
+    }
+
+    /* Over the image's CONTENT box: the grid tile has a border, the dialog
+     * image a centring margin, and a layer sized to the parent would put a
+     * percentage on the wrong pixels. */
+    function placeOver(layer, im) {
+      layer.style.left = (im.offsetLeft + im.clientLeft) + 'px';
+      layer.style.top = (im.offsetTop + im.clientTop) + 'px';
+      layer.style.width = im.clientWidth + 'px';
+      layer.style.height = im.clientHeight + 'px';
+    }
+
+    function placeTile(fig) {
+      var layer = fig.querySelector('.kit-marks-tile'), im = fig.querySelector('img');
+      if (layer && im) placeOver(layer, im);
+    }
+
+    var ro = window.ResizeObserver ? new ResizeObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.target === img || e.target === stack) placeOver(mlayer, img);
+        else placeTile(e.target.closest('figure') || e.target);
+      });
+    }) : null;
+    if (ro) { ro.observe(img); ro.observe(stack); }
+
+    function drawRow(row) {
+      var marks = readMarks(row);
+      row.querySelectorAll('figure[data-tile]').forEach(function (fig) {
+        var mine = marks.filter(function (k) { return k.tile === fig.getAttribute('data-tile'); });
+        var layer = fig.querySelector('.kit-marks-tile');
+        if (!mine.length) { if (layer) layer.remove(); return; }
+        if (!layer) {
+          layer = document.createElement('div');
+          layer.className = 'kit-marks-tile';
+          fig.appendChild(layer);
+          var im = fig.querySelector('img');
+          if (ro) { ro.observe(fig); if (im) ro.observe(im); }
+        }
+        drawBoxes(layer, mine);
+        placeTile(fig);
+      });
+    }
+
+    function drawDialog() {
+      if (!opener) return;
+      var row = opener.closest('.consult-item');
+      var tile = opener.getAttribute('data-tile');
+      mlayer.classList.toggle('readonly', isDecided(row) || !marksBox(row));
+      drawBoxes(mlayer, readMarks(row).filter(function (k) { return k.tile === tile; }));
+      placeOver(mlayer, img);
+    }
+
+    rows.forEach(function (row) {
+      if (marksBox(row) || !row.querySelector('figure[data-tile] img')) return;
+      var ta = document.createElement('textarea');
+      ta.className = 'kit-marks';
+      ta.hidden = true;
+      row.appendChild(ta);
+    });
+    redrawMarks = function () { rows.forEach(drawRow); };
+
+    /* The note dialog: a second, small modal, a sibling of the zoom dialog
+     * rather than inside it, so its text box keeps the arrow keys (the zoom
+     * dialog walks tiles on them) and its close cannot reach the zoom
+     * dialog's focus return. Buttons act synchronously; Esc is a cancel. */
+    var ndlg = document.createElement('dialog');
+    ndlg.className = 'kit-mark-note';
+    var nlab = document.createElement('label');
+    nlab.textContent = L.markNote;
+    var ninput = document.createElement('input');
+    ninput.type = 'text';
+    nlab.appendChild(ninput);
+    ndlg.appendChild(nlab);
+    var nrow = document.createElement('div');
+    nrow.className = 'kit-mark-acts';
+    var nbtn = {};
+    [['save', 'markSave'], ['delete', 'markDelete'], ['cancel', 'markCancel']].forEach(function (a) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.act = a[0];
+      b.textContent = L[a[1]];
+      b.addEventListener('click', function () { finish(a[0]); });
+      nrow.appendChild(b);
+      nbtn[a[0]] = b;
+    });
+    ndlg.appendChild(nrow);
+    document.body.appendChild(ndlg);
+    /* Not an answer until saved: kept from the composer's document listeners. */
+    ['input', 'change'].forEach(function (t) {
+      ndlg.addEventListener(t, function (ev) { ev.stopPropagation(); });
+    });
+    ninput.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      finish('save');
+    });
+    ndlg.addEventListener('close', function () { finish('cancel'); });
+
+    var pending = null;               /* { row, index (null = new), mark, box } */
+    function openNote(p) {
+      pending = p;
+      ninput.value = p.mark.note;
+      nbtn['delete'].hidden = p.index === null;   /* a new mark is discarded by Cancel */
+      if (ndlg.showModal) ndlg.showModal(); else ndlg.setAttribute('open', '');
+      ninput.focus();
+    }
+
+    function finish(act) {
+      var p = pending;
+      pending = null;
+      if (!p) return;
+      if (p.box) p.box.remove();
+      var marks = readMarks(p.row);
+      if (act === 'save') {
+        p.mark.note = ninput.value.replace(/\s+/g, ' ').trim();
+        if (p.index === null) marks.push(p.mark); else marks[p.index] = p.mark;
+        writeMarks(p.row, marks);
+      } else if (act === 'delete' && p.index !== null) {
+        marks.splice(p.index, 1);
+        writeMarks(p.row, marks);
+      }
+      if (ndlg.open) ndlg.close();
+      /* Back into the zoom dialog, or the arrows stop walking. */
+      if (dlg.open && !dlg.contains(document.activeElement)) dlg.focus();
+    }
+
+    function pct(v, from, len) { return Math.min(100, Math.max(0, (v - from) / len * 100)); }
+
+    var drag = null;
+    mlayer.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0 || !opener || pending) return;
+      var row = opener.closest('.consult-item');
+      if (isDecided(row) || !marksBox(row) || dlg.getAttribute('data-compare') !== 'off') return;
+      ev.preventDefault();
+      try { mlayer.setPointerCapture(ev.pointerId); } catch (e) { /* synthetic pointer */ }
+      var box = document.createElement('div');
+      box.className = 'kit-mark drawing';
+      mlayer.appendChild(box);
+      drag = { x: ev.clientX, y: ev.clientY, box: box, row: row, tile: opener.getAttribute('data-tile') };
+    });
+
+    function rectOf(d, ev) {
+      var r = mlayer.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      /* Endpoints rounded to tenths, the size taken between them: x + w can
+       * never pass 100 by a rounding step. */
+      var x0 = Math.round(pct(Math.min(d.x, ev.clientX), r.left, r.width) * 10);
+      var x1 = Math.round(pct(Math.max(d.x, ev.clientX), r.left, r.width) * 10);
+      var y0 = Math.round(pct(Math.min(d.y, ev.clientY), r.top, r.height) * 10);
+      var y1 = Math.round(pct(Math.max(d.y, ev.clientY), r.top, r.height) * 10);
+      return { tile: d.tile, x: x0 / 10, y: y0 / 10, w: (x1 - x0) / 10, h: (y1 - y0) / 10, note: '' };
+    }
+
+    mlayer.addEventListener('pointermove', function (ev) {
+      if (!drag) return;
+      var k = rectOf(drag, ev);
+      if (!k) return;
+      drag.box.style.left = k.x + '%';
+      drag.box.style.top = k.y + '%';
+      drag.box.style.width = k.w + '%';
+      drag.box.style.height = k.h + '%';
+    });
+
+    mlayer.addEventListener('pointerup', function (ev) {
+      if (!drag) return;
+      var d = drag;
+      drag = null;
+      /* Under 4 px either way is a click: it opens the mark under it, if any,
+       * and never creates one. */
+      if (Math.abs(ev.clientX - d.x) < 4 && Math.abs(ev.clientY - d.y) < 4) {
+        d.box.remove();
+        var r = mlayer.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        var px = pct(ev.clientX, r.left, r.width), py = pct(ev.clientY, r.top, r.height);
+        var marks = readMarks(d.row), hit = null;
+        marks.forEach(function (k, i) {
+          if (k.tile === d.tile && px >= k.x && px <= k.x + k.w && py >= k.y && py <= k.y + k.h) hit = i;
+        });
+        if (hit !== null) {
+          var m = marks[hit];
+          openNote({ row: d.row, index: hit, mark: { tile: m.tile, x: m.x, y: m.y, w: m.w, h: m.h, note: m.note }, box: null });
+        }
+        return;
+      }
+      var k = rectOf(d, ev);
+      /* Under 1.0 percent either way after clamping (a drag wholly off one
+       * edge, or a flat line) is no region: its hit test could never match,
+       * so it could never be opened or deleted. */
+      if (!k || k.w < 1 || k.h < 1) { d.box.remove(); return; }
+      openNote({ row: d.row, index: null, mark: k, box: d.box });
+    });
+    mlayer.addEventListener('pointercancel', function () {
+      if (drag) drag.box.remove();
+      drag = null;
     });
 
     /* ---- every tile becomes the button ---- */
@@ -1740,6 +2029,7 @@
     sealDecided();
     releasableRadios();
     var recovered = restore();
+    redrawMarks();
     /* Shown when anything was DROPPED too, not only when something was
      * recovered: an answer the reader typed is missing from the page, and the
      * banner is the only thing that says why. */

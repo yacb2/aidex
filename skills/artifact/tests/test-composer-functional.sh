@@ -1655,6 +1655,203 @@ window.addEventListener('load', function () {
       + '|NOSIB=' + noSib + '|FOCUS0=' + focus0 + '|LANDED=' + landed + '|KEPT=' + kept
       + '|STKEPT=' + stKept
       + '|PASTE=' + moved.replace(/[|<>\n]/g, ' ');
+  } else if (q.indexOf('phase=gm') !== -1) {
+    /* REGION MARKS (Phase 4). Drawn by pointer on the layer over the dialog
+       image, stored in the row's hidden kit-marks textarea, pasted by readItem
+       like any textarea. The probe page gives audit-with-data a 400x200 image,
+       so a pixel is 0.25 of a percent across and 0.5 down. */
+    var mta = function (row) {
+      return document.querySelector('[data-id="' + row + '"] textarea.kit-marks');
+    };
+    var layer = function () { return dlg.querySelector('.kit-marks-layer'); };
+    var ndlg = function () { return document.querySelector('dialog.kit-mark-note'); };
+    var drag = function (x0, y0, x1, y1) {
+      var ly = layer();
+      if (!ly) return;
+      var r = ly.getBoundingClientRect();
+      var ev = function (type, x, y, at) {
+        at.dispatchEvent(new PointerEvent(type, { clientX: r.left + x, clientY: r.top + y,
+          bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, button: 0 }));
+      };
+      /* The press lands on whatever is under the pointer, as a real one does:
+         inside a mark that is the mark, and the layer must still hear it. The
+         move and the release go to the layer, which captures the pointer. */
+      var under = document.elementFromPoint(r.left + x0, r.top + y0);
+      ev('pointerdown', x0, y0, under && ly.contains(under) ? under : ly);
+      ev('pointermove', x1, y1, ly); ev('pointerup', x1, y1, ly);
+    };
+    var note = function (text, act) {
+      var n = ndlg();
+      if (!n || !n.open) return '0';
+      if (text !== null) n.querySelector('input').value = text;
+      n.querySelector('button[data-act="' + act + '"]').click();
+      return '1';
+    };
+    var tileMarks = function (row, tile) {
+      return document.querySelectorAll('[data-id="' + row + '"] figure[data-tile="' + tile + '"] .kit-mark').length;
+    };
+    var enc = function (s) { return btoa(unescape(encodeURIComponent(s))); };
+    var akey2 = function (k) {
+      (document.activeElement || document.body).dispatchEvent(
+        new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    };
+    var pev = function (el) { return el ? getComputedStyle(el).pointerEvents : 'nomark'; };
+    if (q.indexOf('phase=gmrecall') !== -1) {
+      fig('audit-with-data', 'light-desktop').click();
+      var inDlg = dlg.querySelectorAll('.kit-marks-layer .kit-mark').length;
+      dlg.querySelector('.kit-zoom-close').click();
+      document.title = 'GMRECALL|TILE=' + tileMarks('audit-with-data', 'light-desktop')
+        + '|DLG=' + inDlg
+        + '|PASTE=' + paste().replace(/[|<>\n]/g, ' ');
+    } else if (q.indexOf('phase=gmedge') !== -1) {
+      var chanE = mta('audit-with-data');
+      fig('audit-with-data', 'light-desktop').click();
+      /* A drag that clamps to no width (all of it left of the image) or has
+         no height creates nothing: such a mark could never be hit, so never
+         opened or deleted. */
+      drag(0, 50, -40, 51);
+      var deg1 = chanE.value + '/' + (ndlg().open ? 'note' : 'nonote');
+      if (ndlg().open) note(null, 'cancel');
+      drag(100, 100, 110, 100);
+      var deg2 = chanE.value + '/' + (ndlg().open ? 'note' : 'nonote');
+      if (ndlg().open) note(null, 'cancel');
+      /* Right-to-left and bottom-to-top: the rectangle of the forward drag
+         (50,68 to 210,89 is 12.5,34.0 40.0x10.5). */
+      drag(210, 89, 50, 68);
+      note('reversed', 'save');
+      var rev = chanE.value;
+      /* Past the right and the bottom edge: clamped to 100. */
+      drag(300, 150, 450, 260);
+      note('edge', 'save');
+      var clamp = chanE.value.split('\n')[1] || '';
+      var dmark = dlg.querySelector('.kit-marks-layer .kit-mark[title="edge"]');
+      var peDlg = pev(dmark);
+      /* A press inside a mark reaches the layer: the click opens its note. */
+      drag(340, 180, 341, 180);
+      var hitE = ndlg().open ? ndlg().querySelector('input').value : 'closed';
+      /* Esc on the note dialog (the UA closes the TOP modal only; a trusted
+         Esc cannot be sent, so its effects are replayed): the key reaches no
+         handler of the zoom dialog, the note closes, the zoom stays open and
+         holds the focus, and nothing is written. */
+      var vEsc = chanE.value;
+      ndlg().querySelector('input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      ndlg().close();
+      ndlg().dispatchEvent(new Event('close'));
+      var aeE = document.activeElement;
+      var esc = (ndlg().open ? 'noteopen' : 'noteclosed') + '/' + (dlg.open ? 'zoomopen' : 'zoomclosed')
+        + '/' + (dlg.contains(aeE) ? 'in' : 'out:' + (aeE ? aeE.tagName : 'none'))
+        + '/' + (chanE.value === vEsc ? 'same' : 'changed');
+      dlg.querySelector('.kit-zoom-close').click();
+      /* The grid tile: the note shows on hover, and a click on a mark is still
+         a click on the tile, which opens the zoom. */
+      var tmark = document.querySelector('[data-id="audit-with-data"] figure[data-tile="light-desktop"] .kit-mark[title="edge"]');
+      var peTile = pev(tmark);
+      if (tmark) tmark.click();
+      var tileZoom = dlg.open ? htile() : 'closed';
+      if (dlg.open) dlg.querySelector('.kit-zoom-close').click();
+      document.title = 'GMEDGE|DEG1=' + deg1 + '|DEG2=' + deg2
+        + '|REV=' + rev.replace(/[|<>\n]/g, ' ') + '|CLAMP=' + clamp.replace(/[|<>\n]/g, ' ')
+        + '|PEDLG=' + peDlg + '|HIT=' + hitE + '|ESC=' + esc
+        + '|PETILE=' + peTile + '|TILEZOOM=' + tileZoom;
+    } else if (q.indexOf('phase=gmask') !== -1) {
+      /* The row's notes box is a contenteditable; the hidden kit-marks
+         textarea is the only textarea in it. The chip must reach the box the
+         reader can type in. */
+      var chip = document.querySelector('[data-id="audit-with-data"] .kit-ask input[data-label="[question]"]');
+      chip.checked = true;
+      chip.dispatchEvent(new Event('change', { bubbles: true }));
+      var ce = document.querySelector('[data-id="audit-with-data"] [contenteditable]');
+      var aeA = document.activeElement;
+      document.title = 'GMASK|FOCUSCE=' + (aeA === ce ? '1' : '0:' + (aeA ? aeA.tagName + '.' + aeA.className : 'none'));
+    } else if (q.indexOf('phase=gmoldset') !== -1) {
+      /* Entries as Phase 3 stored them: a gallery row's notes box was its
+         only textarea, and the general-notes item carries the hash the kit
+         computed for it before gallery rows hashed their tiles. */
+      localStorage.setItem('aidex-kit-answers:' + location.pathname, JSON.stringify({
+        'audit-with-data': { m: ['Approved'], a: ['notes from phase 3'] },
+        'notes': { a: ['general from phase 3'], h: 'd6d63aa3' }
+      }));
+      document.title = 'GMOLDSET|DONE';
+    } else if (q.indexOf('phase=gmold') !== -1) {
+      var vis = document.querySelector('[data-id="audit-with-data"] textarea:not(.kit-marks)');
+      var genl = document.querySelector('[data-id="notes"] textarea');
+      document.title = 'GMOLD|VIS=' + vis.value + '|MARKS=' + (mta('audit-with-data') ? '[' + mta('audit-with-data').value + ']' : 'none')
+        + '|NOTES=' + genl.value;
+    } else if (q.indexOf('phase=gmdecided') !== -1) {
+      /* A decided row: its answer is sealed, so nothing is drawn on it; the
+         marks it was decided with (written into the page) are still shown. */
+      var before = mta('audit-with-data') ? mta('audit-with-data').value : 'none';
+      fig('audit-with-data', 'light-desktop').click();
+      drag(50, 68, 210, 89);
+      var nOpen = ndlg() && ndlg().open ? '1' : '0';
+      var after = mta('audit-with-data') ? mta('audit-with-data').value : 'none';
+      dlg.querySelector('.kit-zoom-close').click();
+      document.title = 'GMDECIDED|SAME=' + (before === after ? '1' : '0')
+        + '|NOTE=' + nOpen + '|TILE=' + tileMarks('audit-with-data', 'light-desktop')
+        + '|VAL=' + after.replace(/[|<>\n]/g, ' ');
+    } else {
+      /* Identity first: a row with no marks pastes exactly what Phase 3 did,
+         with the hidden textarea already in place. */
+      var r4 = document.querySelector('[data-id="audit-with-data"] input[data-label="Approved"]');
+      r4.checked = true; r4.dispatchEvent(new Event('change', { bubbles: true }));
+      var ta4 = document.querySelector('[data-id="audit-with-data"] textarea:not(.kit-marks)');
+      ta4.value = 'la fila se ve bien'; ta4.dispatchEvent(new Event('input', { bubbles: true }));
+      var plain = paste();
+      var chan = mta('audit-with-data');
+      var chanState = chan ? (chan.hidden ? 'hidden' : 'shown') : 'none';
+      fig('audit-with-data', 'light-desktop').click();
+      /* A drag under 4 px is a click on empty image: nothing is created. */
+      drag(100, 100, 103, 102);
+      var sub = (chan ? chan.value : 'none') + '/' + (ndlg() && ndlg().open ? 'note' : 'nonote');
+      drag(50, 68, 210, 89);
+      var noteOpen = ndlg() && ndlg().open ? '1' : '0';
+      var saved1 = note('the breadcrumb wraps under the title', 'save');
+      var one = chan ? chan.value : '';
+      /* Out of the image on the top-left: clamped to 0. */
+      drag(-20, -10, 100, 50);
+      note('the logo is cut', 'save');
+      /* A third mark, then deleted by clicking inside it. */
+      drag(300, 150, 380, 190);
+      note('temporary', 'save');
+      var three = chan ? chan.value.split('\n').length : 0;
+      drag(340, 170, 341, 171);
+      var editOpen = ndlg() && ndlg().open ? ndlg().querySelector('input').value : 'closed';
+      note(null, 'delete');
+      var afterDel = chan ? chan.value.split('\n').length : 0;
+      /* Cancel on a NEW mark writes nothing. */
+      drag(200, 20, 260, 60);
+      note('never saved', 'cancel');
+      var afterCancel = chan ? chan.value.split('\n').length : 0;
+      var inDlg2 = dlg.querySelectorAll('.kit-marks-layer .kit-mark').length;
+      /* The note dialog closed back into the zoom dialog: the arrows still walk. */
+      var ae = document.activeElement;
+      var focusIn = dlg.contains(ae) ? 'in' : 'out:' + (ae ? ae.tagName : 'none');
+      akey2('ArrowRight');
+      var walked = htile();
+      akey2('ArrowLeft');
+      /* Compare on: the layer is hidden and draws nothing. */
+      dlg.querySelector('.kit-zoom-cmp[data-value="swipe"]').click();
+      var lyDisp = layer() ? getComputedStyle(layer()).display : 'nolayer';
+      var v0 = chan ? chan.value : '';
+      drag(10, 10, 100, 100);
+      var cmpDraw = (chan && chan.value === v0 ? 'none' : 'drawn') + '/' + (ndlg() && ndlg().open ? 'note' : 'nonote');
+      if (ndlg() && ndlg().open) note(null, 'cancel');
+      dlg.querySelector('.kit-zoom-cmp[data-value="off"]').click();
+      dlg.querySelector('.kit-zoom-close').click();
+      var tileN = tileMarks('audit-with-data', 'light-desktop');
+      var r5 = document.querySelector('[data-id="audit-with-data"] input[data-label="Needs changes"]');
+      r5.checked = true; r5.dispatchEvent(new Event('change', { bubbles: true }));
+      var withMarks = paste();
+      document.body.setAttribute('data-paste', enc(withMarks));
+      document.title = 'GMARKS|CHAN=' + chanState
+        + '|PLAIN=' + plain.replace(/[|<>\n]/g, ' ')
+        + '|SUB=' + sub + '|NOTEOPEN=' + noteOpen + '|SAVED=' + saved1
+        + '|ONE=' + one.replace(/[|<>\n]/g, ' ')
+        + '|THREE=' + three + '|EDIT=' + editOpen + '|DEL=' + afterDel + '|CANCEL=' + afterCancel
+        + '|DLG=' + inDlg2 + '|FOCUSIN=' + focusIn + '|WALKED=' + walked
+        + '|LYCMP=' + lyDisp + '|CMPDRAW=' + cmpDraw + '|TILE=' + tileN
+        + '|PASTE=' + withMarks.replace(/[|<>\n]/g, ' ');
+    }
   } else if (q.indexOf('phase=grecall') !== -1) {
     var g2 = document.getElementById('E');
     var pressed = [].map.call(document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]'),
@@ -1830,6 +2027,141 @@ tg="$(grun 'phase=gcompare')"
   || fail "a step that disabled the focused compare button left the focus on it (Chrome then drops it to the body and the walk dies): $tg"
 [[ "$tg" == *"STKEPT=1"* ]] \
   || fail "moving the compare slider overwrote the copy confirmation on the status line: $tg"
+
+# ---- REGION MARKS (plan 2026-09-22, Phase 4, Task 4.1) ----
+# A rectangle dragged on the dialog image, stored as percentages of the image in
+# the row's hidden <textarea class="kit-marks">, one contract line per mark:
+#   [mark <tile> x,y wxh] note
+# That textarea is the ONLY channel: readItem pastes it, the answer store keeps
+# it, the question-hash rule governs it. The probe page gives audit-with-data a
+# 400x200 PNG on every tile so a drag in pixels is an exact percentage.
+BIG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADICAAAAADjfug+AAABJ0lEQVR42u3RMQEAAAzCMPxrQxQmduxIJTSpXhULgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAgIEAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAAREAEBIiBABASIgAARECACIiBABASIgAARECACIiBABASIgAARECACIiBABASILhsrGRSYySDjUQAAAABJRU5ErkJggg=='
+sed "/alt=\"with-data/s|$PX|$BIG|" "$TMP/gbody.html" > "$TMP/gbody-marks.html"
+GPAGE_M="$TMP/reports/gallery-marks.html"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks.html" > "$TMP/gwrap-m.log" 2>&1 \
+  || fail "the marks probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-m.log" | head -4)"
+mrun() {  # mrun <page> <query>
+  chrome_dump "$TMP/gdom-m.html" "file://$1?$2" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/gdom-m.html" | head -1
+}
+rm -rf "$TMP/profile"
+tg="$(mrun "$GPAGE_M" 'phase=gmarks')"
+[[ "$tg" == *GMARKS* ]] || fail "the marks phase did not run: $tg"
+[[ "$tg" == *"CHAN=hidden"* ]] \
+  || fail "the composer did not give the tiled row one hidden kit-marks textarea: $tg"
+[[ "$tg" == *"PLAIN=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien|"* ]] \
+  || fail "a row with no marks no longer pastes what Phase 3 pasted (identity): $tg"
+[[ "$tg" == *"SUB=/nonote"* ]] \
+  || fail "a drag under 4 px created a mark or opened the note dialog: $tg"
+[[ "$tg" == *"NOTEOPEN=1"* && "$tg" == *"SAVED=1"* ]] \
+  || fail "a real drag did not open the note dialog: $tg"
+[[ "$tg" == *"ONE=[mark light-desktop 12.5,34.0 40.0x10.5] the breadcrumb wraps under the title|"* ]] \
+  || fail "the drag was not stored as the contract line with its percentages and its note: $tg"
+[[ "$tg" == *"THREE=3"* && "$tg" == *"EDIT=temporary"* && "$tg" == *"DEL=2"* ]] \
+  || fail "clicking inside a mark did not open its note, or delete did not remove it: $tg"
+[[ "$tg" == *"CANCEL=2"* ]] \
+  || fail "cancelling the note of a new mark still stored the mark: $tg"
+[[ "$tg" == *"DLG=2"* ]] \
+  || fail "the dialog image does not carry one overlay per mark of the tile: $tg"
+[[ "$tg" == *"FOCUSIN=in"* && "$tg" == *"WALKED=dark-desktop"* ]] \
+  || fail "after the note dialog closed the focus left the zoom dialog, or the arrows stopped walking: $tg"
+[[ "$tg" == *"LYCMP=none"* && "$tg" == *"CMPDRAW=none/nonote"* ]] \
+  || fail "with compare on the mark layer is still shown or still draws: $tg"
+[[ "$tg" == *"TILE=2"* ]] \
+  || fail "the grid tile does not carry an overlay per mark: $tg"
+b64="$(grep -oE 'data-paste="[^"]*"' "$TMP/gdom-m.html" | head -1 | sed -E 's/^data-paste="(.*)"$/\1/')"
+printf '%s' "$b64" | base64 -d > "$TMP/gmarks-paste.txt" 2>/dev/null
+printf '%s\n' '## E · The matrix' '' '### audit-with-data · audit · with-data' '' '- Needs changes' '' \
+  'la fila se ve bien' '' \
+  '[mark light-desktop 12.5,34.0 40.0x10.5] the breadcrumb wraps under the title' \
+  '[mark light-desktop 0.0,0.0 25.0x25.0] the logo is cut' > "$TMP/gmarks-want.txt"
+# The paste has no trailing newline; the expectation file does.
+printf '\n' >> "$TMP/gmarks-paste.txt"
+cmp -s "$TMP/gmarks-paste.txt" "$TMP/gmarks-want.txt" \
+  || fail "the paste with two marks is not the verdict, the notes and one contract line per mark under the row heading: $(diff "$TMP/gmarks-want.txt" "$TMP/gmarks-paste.txt" | head -12)"
+
+# Same profile, a reload: the marks come back through the answer store.
+tg="$(mrun "$GPAGE_M" 'phase=gmrecall')"
+[[ "$tg" == *"GMRECALL|TILE=2"* && "$tg" == *"DLG=2"* ]] \
+  || fail "the marks did not survive a reload (grid overlay and dialog overlay): $tg"
+[[ "$tg" == *"PASTE=## E · The matrix  ### audit-with-data · audit · with-data  - Needs changes  la fila se ve bien  [mark light-desktop 12.5,34.0 40.0x10.5] the breadcrumb wraps under the title [mark light-desktop 0.0,0.0 25.0x25.0] the logo is cut"* ]] \
+  || fail "the restored marks do not paste: $tg"
+
+# The edges of drawing: degenerate drags, reversed drags, clamping on the far
+# edges, the note on hover (a title needs pointer events), Esc on the note.
+rm -rf "$TMP/profile"
+tg="$(mrun "$GPAGE_M" 'phase=gmedge')"
+[[ "$tg" == *GMEDGE* ]] || fail "the marks edge phase did not run: $tg"
+[[ "$tg" == *"DEG1=/nonote"* && "$tg" == *"DEG2=/nonote"* ]] \
+  || fail "a drag that clamps to no width, or has no height, created a mark nobody can open or delete (or opened the note dialog): $tg"
+[[ "$tg" == *"REV=[mark light-desktop 12.5,34.0 40.0x10.5] reversed|"* ]] \
+  || fail "a right-to-left, bottom-to-top drag is not the rectangle of the same forward drag: $tg"
+[[ "$tg" == *"CLAMP=[mark light-desktop 75.0,75.0 25.0x25.0] edge|"* ]] \
+  || fail "a drag past the right and bottom edges was not clamped to 100: $tg"
+[[ "$tg" == *"PEDLG="* && "$tg" != *"PEDLG=none"* && "$tg" != *"PEDLG=nomark"* ]] \
+  || fail "a mark in the dialog takes no pointer events, so its note (title) never shows on hover: $tg"
+[[ "$tg" == *"PETILE="* && "$tg" != *"PETILE=none"* && "$tg" != *"PETILE=nomark"* ]] \
+  || fail "a mark on the grid tile takes no pointer events, so its note (title) never shows on hover: $tg"
+[[ "$tg" == *"HIT=edge"* ]] \
+  || fail "a click inside a mark no longer reaches the layer and opens its note: $tg"
+[[ "$tg" == *"ESC=noteclosed/zoomopen/in/same"* ]] \
+  || fail "Esc on the note dialog closed the zoom dialog too, left the focus outside it, or wrote something: $tg"
+[[ "$tg" == *"TILEZOOM=light-desktop"* ]] \
+  || fail "a click on a mark of the grid tile no longer opens the tile in the zoom dialog: $tg"
+
+# A round that RE-CAPTURES a tile is a new question for the row (marks are
+# answers, and the question-hash covers the tiles' image src): the unsent
+# marks of the old capture must not come back onto a different screenshot.
+# Same profile as gmedge, which left two marks on light-desktop.
+PX="$PX" perl -0pe 's{(<figure data-tile="light-desktop"><img src=")[^"]*(" alt="with-data light-desktop")}{$1$ENV{PX}$2}' \
+  "$TMP/gbody-marks.html" > "$TMP/gbody-marks-recap.html"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks-recap.html" > "$TMP/gwrap-mr.log" 2>&1 \
+  || fail "the re-captured marks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-mr.log" | head -4)"
+tg="$(mrun "$GPAGE_M" 'phase=gmrecall')"
+[[ "$tg" == *"GMRECALL|TILE=0"* && "$tg" == *"DLG=0"* && "$tg" != *"[mark"* ]] \
+  || fail "marks drawn on the old capture came back onto a re-captured tile: $tg"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks.html" > "$TMP/gwrap-m.log" 2>&1 \
+  || fail "the marks probe page failed to re-wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-m.log" | head -4)"
+
+# Entries a Phase-3 page stored: the gallery row's notes answer (no hash, the
+# kit's upgrade path) lands in the visible notes box and not in the kit-marks
+# channel appended after it; the general-notes item's stored hash, computed by
+# the kit before gallery rows hashed their tiles, still matches — the rule
+# changed for gallery rows only.
+rm -rf "$TMP/profile"
+mrun "$GPAGE_M" 'phase=gmoldset' > /dev/null
+tg="$(mrun "$GPAGE_M" 'phase=gmold')"
+[[ "$tg" == *"GMOLD|VIS=notes from phase 3|MARKS=[]"* ]] \
+  || fail "a Phase-3 notes answer on a gallery row did not restore into the visible notes box (or leaked into the marks channel): $tg"
+[[ "$tg" == *"NOTES=general from phase 3"* ]] \
+  || fail "a non-gallery item's question hash moved with the gallery-row rule, so its stored answer read as stale: $tg"
+
+# The [question] chip on a gallery row whose notes box is a contenteditable:
+# the row's only textarea is the hidden kit-marks channel, which must not take
+# the focus.
+perl -0pe 's{(data-id="audit-with-data".*?)<textarea></textarea>}{$1<div contenteditable="true"></div>}s' \
+  "$TMP/gbody-marks.html" > "$TMP/gbody-marks-ce.html"
+GPAGE_MC="$TMP/reports/gallery-marks-ce.html"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_MC" < "$TMP/gbody-marks-ce.html" > "$TMP/gwrap-mc.log" 2>&1 \
+  || fail "the contenteditable marks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-mc.log" | head -4)"
+rm -rf "$TMP/profile"
+tg="$(mrun "$GPAGE_MC" 'phase=gmask')"
+[[ "$tg" == *"GMASK|FOCUSCE=1"* ]] \
+  || fail "the question chip focused the hidden kit-marks textarea instead of the row's contenteditable notes box: $tg"
+
+# A decided row: the page carries the marks it was decided with; they are shown
+# and nothing new is drawn (the answer is sealed).
+perl -0pe 's/data-id="audit-with-data" data-title/data-id="audit-with-data" data-decided="Needs changes" data-title/; s{(data-id="audit-with-data".*?<textarea></textarea>)}{$1\n    <textarea class="kit-marks" hidden>[mark light-desktop 10.0,10.0 20.0x20.0] recorded</textarea>}s' \
+  "$TMP/gbody-marks.html" > "$TMP/gbody-marks-d.html"
+GPAGE_MD="$TMP/reports/gallery-marks-decided.html"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_MD" < "$TMP/gbody-marks-d.html" > "$TMP/gwrap-md.log" 2>&1 \
+  || fail "the decided marks probe failed to wrap (a hidden kit-marks textarea beside the notes box must pass): $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-md.log" | head -4)"
+rm -rf "$TMP/profile"
+tg="$(mrun "$GPAGE_MD" 'phase=gmdecided')"
+[[ "$tg" == *"GMDECIDED|SAME=1"* && "$tg" == *"NOTE=0"* ]] \
+  || fail "a mark was drawn on a decided row: $tg"
+[[ "$tg" == *"TILE=1"* && "$tg" == *"VAL=[mark light-desktop 10.0,10.0 20.0x20.0] recorded"* ]] \
+  || fail "the marks a decided row carries in the page are not shown on its tile: $tg"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

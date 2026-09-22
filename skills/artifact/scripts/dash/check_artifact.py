@@ -287,6 +287,14 @@ ITEM_SURFACE = re.compile(r'<textarea\b|contenteditable\s*=|<select\b'
 # A radio group, a checkbox set and a select are closed lists: they carry the
 # answer the author anticipated and lose the one they did not.
 ITEM_NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
+# A textarea the reader cannot see is not a notes box. The kit composer owns a
+# `<textarea class="kit-marks" hidden>` per gallery row (region marks, Phase 4 of
+# the gallery-review unit) and a page may carry one for a decided row; neither
+# qualifies anything the reader chose. Stripped before the notes and surface
+# scans, so a row with only that channel still fails both rules.
+HIDDEN_TEXTAREA = re.compile(r'<textarea\b(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*?'
+                             r'(?:\shidden(?=[\s=/>])|\bclass\s*=\s*["\x27][^"\x27]*\bkit-marks\b)'
+                             r'.*?</textarea\s*>', re.I | re.S)
 # BL-359: the item's own declaration that it is settled. `02-local-first-
 # artifacts.md` § Update in place makes keeping the item and marking it the
 # DEFAULT for a decided one, and both the kit's CSS and composer.js already
@@ -333,7 +341,7 @@ def consult_items(text):
             continue
         tag = m.group(1)
         ident = next(g for g in m.groups()[1:] if g is not None)
-        body = _subtree(text, tag, m.end())
+        body = HIDDEN_TEXTAREA.sub(' ', _subtree(text, tag, m.end()))
         # The open tag itself may BE the surface (an <input data-id=...>).
         items.append((
             ident,
