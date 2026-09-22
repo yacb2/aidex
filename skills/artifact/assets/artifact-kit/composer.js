@@ -76,7 +76,22 @@
       themeTitle: 'Switch this page between light and dark',
       decided: 'Decided',
       decidedCount: function (n) { return n + (n === 1 ? ' question already settled' : ' questions already settled'); },
-      decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.'
+      decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.',
+      zoomOpen: 'Open this tile at full size',
+      zoomNative: 'Native size (1:1)',
+      zoomFit: 'Fit to the window',
+      zoomSizeTitle: 'Switch between fitting the window and the capture’s own pixels',
+      zoomClose: 'Close',
+      zoomCloseTitle: 'Close this tile and go back to the row (Esc)',
+      zoomKeys: 'Left/Right: the tiles of this row · Up/Down: the same tile on the next row',
+      galMode: 'Mode',
+      galViewport: 'Viewport',
+      galBoth: 'Both',
+      galLight: 'Light',
+      galDark: 'Dark',
+      galDesktop: 'Desktop',
+      galMobile: 'Mobile',
+      galBarTitle: 'Hides tiles while you read. What you copy never changes.'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -136,7 +151,22 @@
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
       decided: 'Decidido',
       decidedCount: function (n) { return n + (n === 1 ? ' pregunta ya resuelta' : ' preguntas ya resueltas'); },
-      decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.'
+      decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.',
+      zoomOpen: 'Abre este tile a tama\u00f1o completo',
+      zoomNative: 'Tama\u00f1o original (1:1)',
+      zoomFit: 'Ajustar a la ventana',
+      zoomSizeTitle: 'Alterna entre ajustar a la ventana y los p\u00edxeles propios de la captura',
+      zoomClose: 'Cerrar',
+      zoomCloseTitle: 'Cierra este tile y vuelve a la fila (Esc)',
+      zoomKeys: 'Izquierda/Derecha: los tiles de esta fila \u00b7 Arriba/Abajo: el mismo tile en la fila siguiente',
+      galMode: 'Modo',
+      galViewport: 'Pantalla',
+      galBoth: 'Ambos',
+      galLight: 'Claro',
+      galDark: 'Oscuro',
+      galDesktop: 'Escritorio',
+      galMobile: 'M\u00f3vil',
+      galBarTitle: 'Oculta tiles mientras lees. Lo que copias no cambia.'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -1279,6 +1309,278 @@
     document.body.appendChild(b);
   }
 
+  /* ---- The gallery row: zoom, keyboard, filters (kit v20) ----------------
+   *
+   * A gallery row is one screen state seen in every tile of the matrix, and
+   * judging it means looking at a capture at the size it was taken. Until this
+   * the only way in was the image as the grid draws it — a quarter-width
+   * thumbnail — or an anchor that navigated the page away and lost every
+   * answer typed into it.
+   *
+   * So: ONE `<dialog>` per page, built here and reused by every tile. Native
+   * `showModal()` rather than a hand-rolled overlay (research note, pattern 5):
+   * it brings the focus trap, the backdrop and Esc for nothing, and a modal
+   * without those is the accessibility defect a library would be bought for.
+   *
+   * The JS only ADDS attributes and listeners; it writes no markup into the
+   * row. A viewer with scripts off still sees the grid and its captions, which
+   * is what the static snapshot has to keep being.
+   *
+   * Nothing here is a reply surface. The tiles are figures, the toolbar is
+   * made of `<button>`s, and the filter state lives on the BLOCK and in
+   * localStorage — never in an input, or `readItem` would paste the way the
+   * reader was looking at the page as if it were part of their answer. */
+  var GAL_KEY = 'aidex-kit-gallery:' + location.pathname;
+
+  /* By SHAPE, like the checker (`gallery_findings`): the rows written by hand
+   * before the generator existed carry the grid and not the class, and a
+   * predicate that knew only the class would go silent on exactly them. */
+  function isGalleryRow(el) {
+    return el.classList.contains('consult-gallery')
+        || !!el.querySelector('.gal, figure[data-tile]');
+  }
+
+  /* The block's declared matrix is the keyboard order — the same list the
+   * checker judges completeness against, so the arrows and the rule agree on
+   * what the row's cells are. A row with no block (or a block that declares
+   * nothing) falls back to the order its own figures are written in. */
+  function tileOrder(row) {
+    var g = row.closest('.consult-group');
+    var declared = g ? (g.getAttribute('data-tiles') || '').split(/\s+/) : [];
+    declared = declared.filter(Boolean);
+    if (declared.length) return declared;
+    return [].map.call(row.querySelectorAll('figure[data-tile]'), function (f) {
+      return f.getAttribute('data-tile') || '';
+    });
+  }
+
+  function tileFigure(row, name) {
+    return [].filter.call(row.querySelectorAll('figure[data-tile]'), function (f) {
+      return f.getAttribute('data-tile') === name;
+    })[0] || null;
+  }
+
+  function gallery() {
+    /* Re-queried rather than reusing `items`: decided rows have been MOVED
+     * into their folds by now, and Up/Down claims DOM order. */
+    var rows = [].slice.call(document.querySelectorAll('.consult-item'))
+      .filter(isGalleryRow);
+    var groups = [].slice.call(document.querySelectorAll('.consult-group'))
+      .filter(function (g) { return (g.getAttribute('data-tiles') || '').trim(); });
+    if (!rows.length && !groups.length) return;
+
+    /* ---- the dialog ---- */
+    var dlg = document.createElement('dialog');
+    dlg.className = 'kit-zoom';
+    var head = document.createElement('div');
+    head.className = 'kit-zoom-head';
+    var hRow = document.createElement('span');
+    hRow.className = 'kit-zoom-row';
+    var hTile = document.createElement('span');
+    hTile.className = 'kit-zoom-tile';
+    var hCell = document.createElement('span');
+    hCell.className = 'kit-zoom-cell';
+    var bSize = document.createElement('button');
+    bSize.type = 'button';
+    bSize.className = 'kit-zoom-size';
+    bSize.title = L.zoomSizeTitle;
+    var bClose = document.createElement('button');
+    bClose.type = 'button';
+    bClose.className = 'kit-zoom-close';
+    bClose.textContent = L.zoomClose;
+    bClose.title = L.zoomCloseTitle;
+    head.appendChild(hRow);
+    head.appendChild(hTile);
+    head.appendChild(hCell);
+    head.appendChild(bSize);
+    head.appendChild(bClose);
+    var body = document.createElement('div');
+    body.className = 'kit-zoom-body';
+    var img = document.createElement('img');
+    body.appendChild(img);
+    var keys = document.createElement('p');
+    keys.className = 'kit-zoom-keys';
+    keys.textContent = L.zoomKeys;
+    dlg.appendChild(head);
+    dlg.appendChild(body);
+    dlg.appendChild(keys);
+    document.body.appendChild(dlg);
+
+    var opener = null;                /* the figure that opened it */
+
+    function sizeLabel() {
+      // Names the DESTINATION, like the theme button does.
+      bSize.textContent = dlg.classList.contains('native') ? L.zoomFit : L.zoomNative;
+      bSize.setAttribute('aria-pressed', dlg.classList.contains('native') ? 'true' : 'false');
+    }
+
+    function show(fig) {
+      var row = fig.closest('.consult-item');
+      var src = fig.querySelector('img');
+      opener = fig;
+      img.setAttribute('src', src ? src.getAttribute('src') : '');
+      img.setAttribute('alt', src ? (src.getAttribute('alt') || '') : '');
+      hRow.textContent = (row && row.dataset.title) || '';
+      hTile.textContent = fig.getAttribute('data-tile') || '';
+      hCell.textContent = (row && row.dataset.id) || '';
+    }
+
+    function open(fig) {
+      /* Fit size on every fresh open: the reader asked to see the tile, not to
+       * resume the last tile's magnification. Moving with the arrows keeps
+       * whatever size is on screen — there it IS the same look, continued. */
+      dlg.classList.remove('native');
+      sizeLabel();
+      show(fig);
+      if (dlg.showModal) dlg.showModal();
+      else dlg.setAttribute('open', '');   /* no modal support: still readable */
+    }
+
+    bSize.addEventListener('click', function () {
+      dlg.classList.toggle('native');
+      sizeLabel();
+    });
+    bClose.addEventListener('click', function () { dlg.close(); });
+    /* Esc closes without a listener of its own; `close` fires for both paths,
+     * so the focus return is written once. */
+    dlg.addEventListener('close', function () {
+      if (opener) opener.focus();
+    });
+
+    /* The tiles, in the order the matrix declares. A tile the row does not
+     * carry is stepped OVER rather than treated as the end: a row missing a
+     * cell is a defect the checker reports, and the arrows must not turn it
+     * into a wall. Filters never enter here — hiding a tile is a viewing aid,
+     * and a reader who navigates to a hidden cell still has to be able to
+     * judge it. */
+    function step(dir) {
+      if (!opener) return;
+      var row = opener.closest('.consult-item');
+      var order = tileOrder(row);
+      var i = order.indexOf(opener.getAttribute('data-tile'));
+      if (i === -1) return;
+      for (var j = i + dir; j >= 0 && j < order.length; j += dir) {
+        var f = tileFigure(row, order[j]);
+        if (f) return show(f);        /* no wrapping: the ends are the ends */
+      }
+    }
+
+    /* The same tile on another row, rows in DOM order. A row that does not
+     * carry this tile — the not-applicable row is the common case — is stepped
+     * over for the same reason. */
+    function stepRow(dir) {
+      if (!opener) return;
+      var row = opener.closest('.consult-item');
+      var name = opener.getAttribute('data-tile');
+      var i = rows.indexOf(row);
+      if (i === -1) return;
+      for (var j = i + dir; j >= 0 && j < rows.length; j += dir) {
+        var f = tileFigure(rows[j], name);
+        if (f) return show(f);
+      }
+    }
+
+    dlg.addEventListener('keydown', function (ev) {
+      var moves = { ArrowLeft: [step, -1], ArrowRight: [step, 1],
+                    ArrowUp: [stepRow, -1], ArrowDown: [stepRow, 1] };
+      var m = moves[ev.key];
+      if (!m) return;
+      ev.preventDefault();            /* or the dialog scrolls under the move */
+      m[0](m[1]);
+    });
+
+    /* ---- every tile becomes the button ---- */
+    rows.forEach(function (row) {
+      row.querySelectorAll('figure[data-tile]').forEach(function (fig) {
+        if (!fig.querySelector('img')) return;   /* nothing to enlarge */
+        fig.setAttribute('role', 'button');
+        fig.setAttribute('tabindex', '0');
+        fig.setAttribute('title', L.zoomOpen);
+        fig.addEventListener('click', function (ev) {
+          /* The round-5 prototype wrapped each tile in an anchor that opened
+           * the file in a new tab, and pages carrying that markup are still on
+           * disk: the zoom must not ALSO navigate away from the answers. */
+          ev.preventDefault();
+          open(fig);
+        });
+        fig.addEventListener('keydown', function (ev) {
+          if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
+          ev.preventDefault();        /* Space would scroll the page */
+          open(fig);
+        });
+      });
+    });
+
+    /* ---- the filters ---- */
+    /* `data-mode` and `data-viewport`, the vocabulary the project's board
+     * already speaks (`gallery_board.py`), so the page and the harness name
+     * the same things. The values are set on the BLOCK and the hiding is done
+     * by components.css: one attribute, no per-figure bookkeeping to drift. */
+    var FILTERS = [
+      { key: 'mode', label: 'galMode',
+        opts: [['both', 'galBoth'], ['light', 'galLight'], ['dark', 'galDark']] },
+      { key: 'viewport', label: 'galViewport',
+        opts: [['both', 'galBoth'], ['desktop', 'galDesktop'], ['mobile', 'galMobile']] }
+    ];
+
+    function galState() {
+      try { return JSON.parse(localStorage.getItem(GAL_KEY) || '{}') || {}; }
+      catch (e) { return {}; }        /* storage refused: no filter is kept */
+    }
+
+    function galStore(id, key, value) {
+      try {
+        var all = galState();
+        if (!all[id]) all[id] = {};
+        all[id][key] = value;
+        localStorage.setItem(GAL_KEY, JSON.stringify(all));
+      } catch (e) { /* unavailable — the filter still applies in this tab */ }
+    }
+
+    var saved = galState();
+    groups.forEach(function (g) {
+      if (g.querySelector('.kit-galbar')) return;
+      var gid = g.dataset.id || g.id || '';
+      var bar = document.createElement('div');
+      bar.className = 'kit-galbar';
+      bar.title = L.galBarTitle;
+      FILTERS.forEach(function (f) {
+        var wrap = document.createElement('span');
+        wrap.className = 'kit-galgroup';
+        var lab = document.createElement('span');
+        lab.className = 'kit-gallabel';
+        lab.textContent = L[f.label];
+        wrap.appendChild(lab);
+        var btns = [];
+        function apply(value, persist) {
+          g.setAttribute('data-' + f.key, value);
+          btns.forEach(function (b) {
+            b.setAttribute('aria-pressed', b.dataset.value === value ? 'true' : 'false');
+          });
+          if (persist) galStore(gid, f.key, value);
+        }
+        f.opts.forEach(function (o) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'kit-galopt';
+          b.dataset.value = o[0];
+          b.textContent = L[o[1]];
+          b.addEventListener('click', function () { apply(o[0], true); });
+          btns.push(b);
+          wrap.appendChild(b);
+        });
+        var was = saved[gid] && saved[gid][f.key];
+        /* An unknown stored value would hide by a rule no button can undo. */
+        var known = f.opts.some(function (o) { return o[0] === was; });
+        apply(known ? was : 'both', false);
+        bar.appendChild(wrap);
+      });
+      var afterHead = g.querySelector('.sec-head');
+      if (afterHead) afterHead.parentNode.insertBefore(bar, afterHead.nextSibling);
+      else g.insertBefore(bar, g.firstChild);
+    });
+  }
+
   try {
     var stored = localStorage.getItem(THEME_KEY);
     if (stored === 'dark' || stored === 'light') {
@@ -1286,6 +1588,7 @@
     }
   } catch (e) { /* storage refused: the page still renders, on the OS setting */ }
   themeControl();
+  gallery();
 
   fitTables();
   if (items.length) {

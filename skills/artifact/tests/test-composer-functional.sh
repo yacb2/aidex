@@ -1281,5 +1281,332 @@ ts="$(srun 'phase=sverify')"
 [[ "$ts" == *"S1PROV=1"* ]] \
   || fail "provisional: a restored answer-plus-ask pair came back without its provisional line: $ts"
 
+# ---- the GALLERY row: zoom, keyboard and filters (plan 2026-09-22, Phase 2) --
+#
+# A gallery row is judged by LOOKING at the capture, so the kit gives every tile
+# a dialog at native size. Three things have to hold together and none of them
+# is visible to the structural checks:
+#
+#   the dialog OPENS in the page (no navigation, no new tab) and closes back
+#   onto the tile that opened it — a zoom that navigated away would lose every
+#   answer already typed on the page;
+#
+#   the arrows walk the matrix — the row's tiles in the block's declared order,
+#   the same tile down the rows — and refuse to wrap, so an end is an end;
+#
+#   a filter hides tiles and changes NOTHING about the paste. That last cell is
+#   the RED control of this section: the filter is a <button> writing an
+#   attribute on the BLOCK, and if it were ever built as an input inside the
+#   item (the obvious cheap way) the paste would gain a "- Light" line and this
+#   assertion is what would say so.
+GPAGE="$TMP/reports/gallery.html"
+# A 1x1 PNG, inline: the tiles must be real images the dialog can show, and a
+# path would make this test depend on a screenshot tree only one worktree has.
+PX='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+write_gallery_body() {
+cat > "$TMP/gbody.html" <<HTML
+<meta name="consult-visual" content="none: a gallery probe, nothing to draw">
+<div class="page">
+<main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Gallery probe</h1></header>
+<section id="sec-ask">
+  <div class="sec-head"><h2>Questions</h2></div>
+  <section class="consult-group" id="E" data-id="E" data-title="The matrix" data-tiles="light-desktop dark-desktop light-mobile dark-mobile">
+    <div class="sec-head"><h2>The matrix</h2></div><p>One row per screen state.</p>
+  <section class="consult-item consult-gallery" data-id="audit-with-data" data-title="audit &middot; with-data">
+    <h3><span class="consult-id">audit-with-data</span>audit &middot; with-data</h3>
+    <div class="gal">
+      <figure data-tile="light-desktop"><img src="$PX" alt="with-data light-desktop"><figcaption>light &middot; desktop</figcaption></figure>
+      <figure data-tile="dark-desktop"><img src="$PX" alt="with-data dark-desktop"><figcaption>dark &middot; desktop</figcaption></figure>
+      <figure data-tile="light-mobile"><img src="$PX" alt="with-data light-mobile"><figcaption>light &middot; mobile</figcaption></figure>
+      <figure data-tile="dark-mobile"><img src="$PX" alt="with-data dark-mobile"><figcaption>dark &middot; mobile</figcaption></figure>
+    </div>
+    <div class="opts one">
+      <label><input type="radio" name="audit-with-data" data-label="Approved"><span>Approved</span></label>
+      <label><input type="radio" name="audit-with-data" data-label="Needs changes"><span>Needs changes</span></label>
+    </div>
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item consult-gallery" data-id="audit-empty" data-title="audit &middot; empty">
+    <h3><span class="consult-id">audit-empty</span>audit &middot; empty</h3>
+    <div class="gal">
+      <figure data-tile="light-desktop"><img src="$PX" alt="empty light-desktop"><figcaption>light &middot; desktop</figcaption></figure>
+      <figure data-tile="dark-desktop"><img src="$PX" alt="empty dark-desktop"><figcaption>dark &middot; desktop</figcaption></figure>
+      <figure data-tile="light-mobile"><img src="$PX" alt="empty light-mobile"><figcaption>light &middot; mobile</figcaption></figure>
+      <figure data-tile="dark-mobile"><img src="$PX" alt="empty dark-mobile"><figcaption>dark &middot; mobile</figcaption></figure>
+    </div>
+    <div class="opts one">
+      <label><input type="radio" name="audit-empty" data-label="Approved"><span>Approved</span></label>
+      <label><input type="radio" name="audit-empty" data-label="Needs changes"><span>Needs changes</span></label>
+    </div>
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
+  <!-- The not-applicable row: no tiles at all, so the arrows must step OVER it
+       rather than stop on it. -->
+  <section class="consult-item consult-gallery" data-id="audit-no-permission" data-title="audit &middot; no-permission">
+    <h3><span class="consult-id">audit-no-permission</span>audit &middot; no-permission</h3>
+    <p class="gal-na">Unreachable in the demo.</p>
+    <div class="opts one">
+      <label><input type="radio" name="audit-no-permission" data-label="Approved"><span>Approved</span></label>
+      <label><input type="radio" name="audit-no-permission" data-label="Needs changes"><span>Needs changes</span></label>
+    </div>
+    <p class="fieldlabel">Notas sobre esta</p>
+    <textarea></textarea>
+  </section>
+  </section>
+  <section class="consult-item consult-notes" data-id="notes" data-title="General notes">
+    <h3><span class="consult-id">notes</span>General notes</h3>
+    <textarea></textarea>
+  </section>
+  <div class="endbar">
+    <button type="button" id="consult-copy-end">Copy my answers</button>
+    <span class="consult-status" id="consult-status-end"></span>
+  </div>
+</section>
+</main>
+<aside class="rail">
+  <p class="railhead">Contents</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy"></button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>
+</div>
+<script>
+window.addEventListener('load', function () {
+  var q = location.search;
+  if (q.indexOf('phase=g') === -1) return;
+  var dlg = document.querySelector('dialog.kit-zoom');
+  var fig = function (row, tile) {
+    return document.querySelector('[data-id="' + row + '"] figure[data-tile="' + tile + '"]');
+  };
+  var htile = function () { return dlg ? dlg.querySelector('.kit-zoom-tile').textContent : ''; };
+  var hcell = function () { return dlg ? dlg.querySelector('.kit-zoom-cell').textContent : ''; };
+  var key = function (k) {
+    dlg.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+  };
+  var bar = function (group, value) {
+    var b = document.querySelector('#' + group + ' .kit-galbar button[data-value="' + value + '"]');
+    if (b) b.click();
+    return !!b;
+  };
+  var paste = function () {
+    var cap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { cap = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    return cap;
+  };
+  if (q.indexOf('phase=gzoom') !== -1) {
+    var first = fig('audit-with-data', 'light-desktop');
+    var href0 = location.href;
+    var tabs = 0;
+    var openWin = window.open;
+    window.open = function () { tabs++; return null; };
+    first.click();
+    var openState = dlg && dlg.open ? '1' : '0';
+    /* The :modal match is what says showModal() was used rather than show():
+       the focus trap, the backdrop and Esc all come from that, and none of
+       them can be asserted from a synthetic key event (the UA only honours a
+       trusted Esc). */
+    var modal = dlg && dlg.matches(':modal') ? '1' : '0';
+    var hrow = dlg ? dlg.querySelector('.kit-zoom-row').textContent : '';
+    var fit = dlg.classList.contains('native') ? '1' : '0';
+    dlg.querySelector('.kit-zoom-size').click();
+    var nativeOn = dlg.classList.contains('native') ? '1' : '0';
+    dlg.querySelector('.kit-zoom-size').click();
+    var nativeOff = dlg.classList.contains('native') ? '1' : '0';
+    /* The matrix, walked. Right from the first tile, then Left twice: the
+       second Left has nowhere to go and must leave the dialog where it is. */
+    key('ArrowRight'); var right1 = htile();
+    key('ArrowLeft');  var left1 = htile();
+    key('ArrowLeft');  var left2 = htile();
+    key('ArrowDown');  var down1 = hcell() + '/' + htile();
+    /* The third row carries no tiles (not applicable), so Down must step over
+       it and stop — never land on a row with nothing to show. */
+    key('ArrowDown');  var down2 = hcell() + '/' + htile();
+    key('ArrowUp');    var up1 = hcell();
+    key('ArrowUp');    var up2 = hcell();
+    dlg.querySelector('.kit-zoom-close').click();
+    /* Esc and the close button both return the focus through the dialog's
+       own close event, which the engine queues rather than firing inline (no
+       backticks anywhere in this heredoc: it is unquoted, so a backtick in a
+       comment is a command run by bash) — and a real Esc needs a trusted key
+       this harness cannot send. Dispatching the
+       same event synchronously is what makes the return readable here. */
+    dlg.dispatchEvent(new Event('close'));
+    window.open = openWin;
+    document.title = 'GZOOM|OPEN=' + openState + '|MODAL=' + modal
+      + '|HROW=' + hrow.replace(/[|<>]/g, ' ') + '|HTILE=' + htile() + '|HCELL=' + hcell()
+      + '|SRC=' + (dlg.querySelector('img').getAttribute('src').slice(0, 14))
+      + '|FIT=' + fit + '|NATIVE=' + nativeOn + '|NATIVEOFF=' + nativeOff
+      + '|RIGHT=' + right1 + '|LEFT=' + left1 + '|LEFTEND=' + left2
+      + '|DOWN=' + down1 + '|DOWNEND=' + down2 + '|UP=' + up1 + '|UPEND=' + up2
+      + '|CLOSED=' + (dlg.open ? '0' : '1')
+      + '|FOCUS=' + (document.activeElement === first ? '1' : '0')
+      + '|ROLE=' + first.getAttribute('role') + '|TABINDEX=' + first.getAttribute('tabindex')
+      /* The markup itself is untouched: a reader with scripts off sees the same
+         grid and the same captions. */
+      + '|FIGS=' + document.querySelectorAll('[data-id="audit-with-data"] figure[data-tile]').length
+      + '|CAPS=' + document.querySelectorAll('[data-id="audit-with-data"] figcaption').length
+      + '|HREF=' + (location.href === href0 ? 'same' : 'changed')
+      + '|TABS=' + tabs;
+  } else if (q.indexOf('phase=gkey') !== -1) {
+    /* Enter on a focused tile opens it too: the tile is a button, and a
+       reviewer on the keyboard never reaches a mouse-only affordance. */
+    var f2 = fig('audit-empty', 'dark-mobile');
+    f2.focus();
+    f2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    document.title = 'GKEY|OPEN=' + (dlg && dlg.open ? '1' : '0')
+      + '|CELL=' + hcell() + '|TILE=' + htile();
+  } else if (q.indexOf('phase=gfilter') !== -1) {
+    var r = document.querySelector('[data-id="audit-with-data"] input[data-label="Approved"]');
+    r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
+    var ta = document.querySelector('[data-id="audit-with-data"] textarea');
+    ta.value = 'la fila se ve bien'; ta.dispatchEvent(new Event('input', { bubbles: true }));
+    var before = paste();
+    var hit = bar('E', 'light');
+    var g = document.getElementById('E');
+    var darkFig = fig('audit-with-data', 'dark-desktop');
+    var lightFig = fig('audit-with-data', 'light-desktop');
+    var after = paste();
+    /* Read while only the MODE filter is on: applying the viewport filter next
+       would hide the light-desktop tile as well and the assertion below would
+       pass for the other rule's reason. */
+    var darkHid = getComputedStyle(darkFig).display;
+    var lightVis = getComputedStyle(lightFig).display !== 'none' ? '1' : '0';
+    bar('E', 'mobile');
+    var deskFig = fig('audit-empty', 'light-desktop');
+    var mobFig = fig('audit-empty', 'light-mobile');
+    var deskHid = getComputedStyle(deskFig).display;
+    var mobVis = getComputedStyle(mobFig).display !== 'none' ? '1' : '0';
+    /* Filters are a viewing aid, never a change of what is being judged: the
+       arrows still reach a hidden tile. */
+    lightFig.click();
+    key('ArrowRight');
+    var reached = htile();
+    dlg.querySelector('.kit-zoom-close').click();
+    document.title = 'GFILTER|BAR=' + (hit ? '1' : '0')
+      + '|MODE=' + g.getAttribute('data-mode') + '|VIEW=' + g.getAttribute('data-viewport')
+      + '|DARKHID=' + darkHid + '|LIGHTVIS=' + lightVis
+      + '|DESKHID=' + deskHid + '|MOBVIS=' + mobVis
+      + '|PRESSED=' + document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]').length
+      + '|BARS=' + document.querySelectorAll('.kit-galbar').length
+      + '|INPUTS=' + document.querySelectorAll('.kit-galbar input, .kit-galbar select, .kit-galbar textarea').length
+      + '|SAME=' + (before === after ? '1' : '0')
+      + '|REACHED=' + reached
+      + '|PASTE=' + after.replace(/[|<>\n]/g, ' ');
+  } else if (q.indexOf('phase=grecall') !== -1) {
+    var g2 = document.getElementById('E');
+    var pressed = [].map.call(document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]'),
+      function (b) { return b.dataset.value; }).join(',');
+    document.title = 'GRECALL|MODE=' + g2.getAttribute('data-mode')
+      + '|VIEW=' + g2.getAttribute('data-viewport')
+      + '|PRESSED=' + pressed
+      + '|PASTE=' + paste().replace(/[|<>\n]/g, ' ');
+  }
+});
+</script>
+HTML
+}
+
+write_gallery_body
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE" < "$TMP/gbody.html" > "$TMP/gwrap.log" 2>&1 \
+  || fail "the gallery probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap.log" | head -4)"
+grun() {  # grun <query>
+  chrome_dump "$TMP/gdom.html" "file://$GPAGE?$1" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/gdom.html" | head -1
+}
+rm -rf "$TMP/profile"
+tg="$(grun 'phase=gzoom')"
+[[ "$tg" == *GZOOM* ]] || fail "the gallery zoom phase did not run: $tg"
+[[ "$tg" == *"OPEN=1"* ]] \
+  || fail "clicking a tile did not open the zoom dialog: $tg"
+[[ "$tg" == *"MODAL=1"* ]] \
+  || fail "the dialog was opened with show() rather than showModal() — no focus trap, no backdrop, and Esc does not close it: $tg"
+[[ "$tg" == *"HROW=audit · with-data"* && "$tg" == *"HTILE=light-desktop"* \
+   && "$tg" == *"HCELL=audit-with-data"* ]] \
+  || fail "the dialog header does not carry the row, the tile and the cell id: $tg"
+[[ "$tg" == *"SRC=data:image/png"* ]] \
+  || fail "the dialog showed no image for the tile that opened it: $tg"
+[[ "$tg" == *"FIT=0"* ]] \
+  || fail "the dialog opened at native size — fit to the window is the default: $tg"
+[[ "$tg" == *"NATIVE=1"* && "$tg" == *"NATIVEOFF=0"* ]] \
+  || fail "the size toggle does not switch the dialog between fit and native: $tg"
+[[ "$tg" == *"RIGHT=dark-desktop"* ]] \
+  || fail "Right did not move to the next tile of the block's declared order: $tg"
+[[ "$tg" == *"LEFT=light-desktop"* ]] \
+  || fail "Left did not move back to the previous tile: $tg"
+[[ "$tg" == *"LEFTEND=light-desktop"* ]] \
+  || fail "Left wrapped around from the first tile — the ends are the ends: $tg"
+[[ "$tg" == *"DOWN=audit-empty/light-desktop"* ]] \
+  || fail "Down did not move to the same tile on the next row: $tg"
+[[ "$tg" == *"DOWNEND=audit-empty/light-desktop"* ]] \
+  || fail "Down landed on the not-applicable row (or wrapped): a row with no tiles has nothing to show: $tg"
+[[ "$tg" == *"UP=audit-with-data"* ]] \
+  || fail "Up did not move back to the previous row: $tg"
+[[ "$tg" == *"UPEND=audit-with-data"* ]] \
+  || fail "Up wrapped around from the first row: $tg"
+[[ "$tg" == *"CLOSED=1"* ]] \
+  || fail "the close button did not close the dialog: $tg"
+[[ "$tg" == *"FOCUS=1"* ]] \
+  || fail "closing the dialog did not return focus to the tile that opened it: $tg"
+[[ "$tg" == *"ROLE=button"* && "$tg" == *"TABINDEX=0"* ]] \
+  || fail "the tile was not made a button (role and tabindex), so it is unreachable from the keyboard: $tg"
+[[ "$tg" == *"FIGS=4"* && "$tg" == *"CAPS=4"* ]] \
+  || fail "the composer rewrote the row's markup — with scripts off the grid and its captions must be unchanged: $tg"
+[[ "$tg" == *"HREF=same"* ]] \
+  || fail "opening a tile changed the page URL — the answers already typed would be lost: $tg"
+[[ "$tg" == *"TABS=0"* ]] \
+  || fail "opening a tile opened a new tab: $tg"
+
+tg="$(grun 'phase=gkey')"
+[[ "$tg" == *"GKEY|OPEN=1"* ]] \
+  || fail "Enter on a focused tile did not open it: $tg"
+[[ "$tg" == *"CELL=audit-empty"* && "$tg" == *"TILE=dark-mobile"* ]] \
+  || fail "Enter opened the wrong tile: $tg"
+
+rm -rf "$TMP/profile"
+tg="$(grun 'phase=gfilter')"
+[[ "$tg" == *GFILTER* ]] || fail "the gallery filter phase did not run: $tg"
+[[ "$tg" == *"BAR=1"* && "$tg" == *"BARS=1"* ]] \
+  || fail "no filter toolbar was injected on the block that declares a matrix: $tg"
+[[ "$tg" == *"MODE=light"* ]] \
+  || fail "the mode filter did not set data-mode on the block: $tg"
+[[ "$tg" == *"VIEW=mobile"* ]] \
+  || fail "the viewport filter did not set data-viewport on the block: $tg"
+[[ "$tg" == *"DARKHID=none"* && "$tg" == *"LIGHTVIS=1"* ]] \
+  || fail "filtering to light did not hide the dark tiles (or hid everything): $tg"
+[[ "$tg" == *"DESKHID=none"* && "$tg" == *"MOBVIS=1"* ]] \
+  || fail "filtering to mobile did not hide the desktop tiles (or hid everything): $tg"
+[[ "$tg" == *"PRESSED=2"* ]] \
+  || fail "the toolbar does not show which filter is on (one pressed button per control): $tg"
+# THE RED CONTROL. The filter writes an attribute on the block and nothing else;
+# built the cheap way — a radio group inside the item — the paste would gain a
+# "- Light" line here and SAME would read 0.
+[[ "$tg" == *"INPUTS=0"* ]] \
+  || fail "the filter toolbar carries a form control — the composer pastes those, so how the reader was LOOKING at the page would travel as part of their answer: $tg"
+[[ "$tg" == *"SAME=1"* ]] \
+  || fail "a filtered page pastes different text from an unfiltered one: $tg"
+[[ "$tg" == *"PASTE=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien"* ]] \
+  || fail "the row's verdict and notes did not reach the paste, so the identity assertion above proves nothing: $tg"
+[[ "$tg" == *"REACHED=dark-desktop"* ]] \
+  || fail "the arrows skipped a filtered-out tile — a filter is a viewing aid, not a change to what is being judged: $tg"
+
+# The filter is where the reader left it on the next visit (same profile, same
+# path), and it is still not part of the paste.
+tg="$(grun 'phase=grecall')"
+[[ "$tg" == *"GRECALL|MODE=light"* && "$tg" == *"VIEW=mobile"* ]] \
+  || fail "the filter did not survive the reload — it is stored per block under the kit's path-keyed scheme: $tg"
+[[ "$tg" == *"PRESSED=light,mobile"* ]] \
+  || fail "the restored filter is not reflected in the toolbar, so the reader cannot see what is hidden: $tg"
+[[ "$tg" == *"PASTE=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien"* ]] \
+  || fail "a restored filter changed what the page pastes: $tg"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, and the localised chrome included"

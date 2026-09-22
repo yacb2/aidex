@@ -162,6 +162,67 @@ li::marker { color: var(--muted); }
    nobody can judge, and judging is the whole point of the row. */
 @media (max-width: 700px) { .gal { grid-template-columns: 1fr; } }
 
+/* A tile is a BUTTON once the composer has run (role and tabindex are set from
+   composer.js, never written into the markup): a click or Enter opens it in
+   the zoom dialog. Keyed off the role, so a page read with scripts off keeps
+   the plain grid and shows no affordance it cannot honour. */
+.gal figure[role="button"] { cursor: zoom-in; border-radius: 4px; }
+.gal figure[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The ZOOM DIALOG. One per page, built and reused by the composer.
+   `showModal()` brings the backdrop, the focus trap and Esc for nothing.
+   Fit size is the default (90vw/90vh, the capture entire); `native` drops the
+   caps so the image is its own pixels and the dialog scrolls around it —
+   which is the only way to judge a 1600px capture of type.
+
+   The dialog itself carries NO max-width: the browser's own dialog rules
+   already hold it inside the viewport, and a second width in this file is the
+   two-widths defect BL-383 pinned (the cap belongs on the image, which is the
+   thing being sized). */
+dialog.kit-zoom { padding: 0; overflow: auto;
+                  border: 1px solid var(--rule); border-radius: 6px;
+                  background: var(--paper); color: var(--ink); }
+dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
+.kit-zoom-head { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap;
+                 align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem;
+                 border-bottom: 1px solid var(--rule); background: var(--paper);
+                 font-family: var(--sans); font-size: 0.8rem; }
+.kit-zoom-row { font-weight: 600; }
+.kit-zoom-tile, .kit-zoom-cell { font-family: var(--mono); color: var(--muted); font-size: 0.74rem; }
+.kit-zoom-size { margin-left: auto; }
+.kit-zoom-size, .kit-zoom-close { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+                                  border: 1px solid var(--rule); border-radius: 4px;
+                                  background: var(--paper); color: var(--ink); }
+.kit-zoom-size[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.kit-zoom-body { padding: 0.7rem; }
+.kit-zoom img { display: block; margin: 0 auto; max-width: 90vw; max-height: 90vh;
+                width: auto; height: auto; background: var(--paper); }
+.kit-zoom.native img { max-width: none; max-height: none; }
+.kit-zoom-keys { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);
+                 font-size: 0.72rem; color: var(--muted); }
+
+/* The per-block filter toolbar, injected by the composer on every block that
+   declares a matrix. It sets one attribute on the block and the four rules
+   below do the hiding — the tiles stay in the markup, so what the copy button
+   composes is the same text whether or not anything is filtered. */
+.kit-galbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem;
+              font-family: var(--sans); font-size: 0.78rem; margin: 0.1rem 0 0.7rem; }
+.kit-galgroup { display: flex; align-items: center; gap: 0.25rem; }
+.kit-gallabel { color: var(--muted); margin-right: 0.15rem; }
+.kit-galopt { font: inherit; padding: 0.1rem 0.55rem; cursor: pointer;
+              border: 1px solid var(--rule); border-radius: 4px;
+              background: var(--paper); color: var(--ink); }
+.kit-galopt[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
+                                   color: var(--paper); }
+/* Keyed off the tile NAME, like the mobile cap above: a matrix that adds a
+   viewport filters by naming its tiles `<mode>-<viewport>`, and nothing here
+   has to learn the new tile. Scoped to the block, which is the element the
+   toolbar writes, so no other attribute of that name can reach a figure. */
+.consult-group[data-mode="light"] figure[data-tile^="dark-"] { display: none; }
+.consult-group[data-mode="dark"] figure[data-tile^="light-"] { display: none; }
+.consult-group[data-viewport="desktop"] figure[data-tile$="-mobile"] { display: none; }
+.consult-group[data-viewport="mobile"] figure[data-tile$="-desktop"] { display: none; }
+
 .opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 0.1rem 1.5rem; }
 .opts.one { grid-template-columns: 1fr; }
 .opts label { display: flex; gap: 0.6rem; align-items: flex-start; font-family: var(--sans);
