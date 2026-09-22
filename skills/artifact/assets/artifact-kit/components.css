@@ -179,7 +179,9 @@ li::marker { color: var(--muted); }
    already hold it inside the viewport, and a second width in this file is the
    two-widths defect BL-383 pinned (the cap belongs on the image, which is the
    thing being sized). */
-dialog.kit-zoom { padding: 0; overflow: auto;
+/* The dialog takes the focus only as a parking spot (composer.js compare()),
+   never as a control, so it draws no ring. */
+dialog.kit-zoom { padding: 0; overflow: auto; outline: none;
                   border: 1px solid var(--rule); border-radius: 6px;
                   background: var(--paper); color: var(--ink); }
 dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
@@ -188,18 +190,37 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
                  border-bottom: 1px solid var(--rule); background: var(--paper);
                  font-family: var(--sans); font-size: 0.8rem; }
 .kit-zoom-row { font-weight: 600; }
-.kit-zoom-tile, .kit-zoom-cell { font-family: var(--mono); color: var(--muted); font-size: 0.74rem; }
-.kit-zoom-size { margin-left: auto; }
-.kit-zoom-size, .kit-zoom-close { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+.kit-zoom-tile, .kit-zoom-with, .kit-zoom-cell { font-family: var(--mono); color: var(--muted); font-size: 0.74rem; }
+.kit-zoom-cmpgroup { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center;
+                      gap: 0.25rem; min-width: 0; }
+.kit-zoom-cmp { white-space: nowrap; }
+.kit-zoom-size, .kit-zoom-close, .kit-zoom-cmp { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
                                   border: 1px solid var(--rule); border-radius: 4px;
                                   background: var(--paper); color: var(--ink); }
-.kit-zoom-size[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.kit-zoom-size[aria-pressed="true"], .kit-zoom-cmp[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .kit-zoom-body { padding: 0.7rem; }
 /* The UA caps the dialog at 100% - 2em - 6px, so 90vw alone overflows it on a
    narrow screen; the height leaves room for the header and the keys line. */
 .kit-zoom img { display: block; margin: 0 auto; max-width: min(90vw, 100%); max-height: calc(90vh - 6rem);
                 width: auto; height: auto; background: var(--paper); }
 .kit-zoom.native img { max-width: none; max-height: none; }
+.kit-zoom-note { margin: 0; padding: 0.4rem 0.7rem 0; font-family: var(--sans); font-size: 0.78rem; }
+
+/* COMPARE (GitHub's image-diff modes). Both images sit in ONE grid cell, the
+   sibling on top; 2-up gives each its own column. The slider writes two
+   properties on the dialog and these rules are all that read them. */
+.kit-compare { display: grid; justify-items: center; }
+.kit-compare img { grid-area: 1 / 1; }
+.kit-zoom .kit-zoom-other, .kit-zoom .kit-zoom-range { display: none; }
+.kit-zoom:not([data-compare="off"]) .kit-zoom-other { display: block; }
+.kit-zoom[data-compare="2up"] .kit-compare { grid-template-columns: repeat(2, auto); gap: 0.7rem; }
+.kit-zoom[data-compare="2up"] .kit-zoom-other { grid-area: 1 / 2; }
+.kit-zoom[data-compare="2up"]:not(.native) img { max-width: min(44vw, 100%); }
+.kit-zoom[data-compare="swipe"] .kit-zoom-other { clip-path: inset(0 0 0 var(--kit-swipe)); }
+.kit-zoom[data-compare="onion"] .kit-zoom-other { opacity: var(--kit-onion); }
+.kit-zoom[data-compare="swipe"] .kit-zoom-range,
+.kit-zoom[data-compare="onion"] .kit-zoom-range { display: inline-block; flex: 1 1 5rem;
+                                                   min-width: 4rem; width: auto; }
 .kit-zoom-keys { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);
                  font-size: 0.72rem; color: var(--muted); }
 

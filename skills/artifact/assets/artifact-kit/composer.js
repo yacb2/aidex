@@ -91,7 +91,16 @@
       galDark: 'Dark',
       galDesktop: 'Desktop',
       galMobile: 'Mobile',
-      galBarTitle: 'Hides tiles while you read. What you copy never changes.'
+      galBarTitle: 'Hides tiles while you read. What you copy never changes.',
+      cmp: 'Compare',
+      cmpOff: 'Off',
+      cmp2up: '2-up',
+      cmpSwipe: 'Swipe',
+      cmpOnion: 'Onion skin',
+      cmpTitle: 'Compare this tile with the other mode of the same viewport',
+      cmpNone: 'This row has no tile in the other mode of this viewport',
+      cmpRange: 'Right: more of this tile · left: more of the other mode',
+      cmpSize: function (a, b) { return 'The two captures differ in size (' + a + ' against ' + b + '): shown side by side.'; }
     },
     es: {
       none: 'Sin responder todavía.',
@@ -166,7 +175,16 @@
       galDark: 'Oscuro',
       galDesktop: 'Escritorio',
       galMobile: 'M\u00f3vil',
-      galBarTitle: 'Oculta tiles mientras lees. Lo que copias no cambia.'
+      galBarTitle: 'Oculta tiles mientras lees. Lo que copias no cambia.',
+      cmp: 'Comparar',
+      cmpOff: 'No',
+      cmp2up: 'Lado a lado',
+      cmpSwipe: 'Deslizar',
+      cmpOnion: 'Superponer',
+      cmpTitle: 'Compara este tile con el otro modo de la misma pantalla',
+      cmpNone: 'Esta fila no tiene el tile del otro modo en esta pantalla',
+      cmpRange: 'Derecha: m\u00e1s de este tile \u00b7 izquierda: m\u00e1s del otro modo',
+      cmpSize: function (a, b) { return 'Las dos capturas tienen tama\u00f1os distintos (' + a + ' frente a ' + b + '): se muestran lado a lado.'; }
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -1382,6 +1400,7 @@
     /* ---- the dialog ---- */
     var dlg = document.createElement('dialog');
     dlg.className = 'kit-zoom';
+    dlg.tabIndex = -1;                /* focusable, so compare() can park the focus here */
     var head = document.createElement('div');
     head.className = 'kit-zoom-head';
     var hRow = document.createElement('span');
@@ -1399,25 +1418,69 @@
     bClose.className = 'kit-zoom-close';
     bClose.textContent = L.zoomClose;
     bClose.title = L.zoomCloseTitle;
+    /* Compare: the other mode of the same viewport, GitHub's three image-diff
+     * modes (research note, pattern 2). Buttons and one range input, all in
+     * the dialog — outside every item, so `readItem` never sees the slider. */
+    var hWith = document.createElement('span');
+    hWith.className = 'kit-zoom-with';
+    var cmpWrap = document.createElement('span');
+    cmpWrap.className = 'kit-zoom-cmpgroup';
+    var cmpLab = document.createElement('span');
+    cmpLab.className = 'kit-gallabel';
+    cmpLab.textContent = L.cmp;
+    cmpWrap.appendChild(cmpLab);
+    var cmpBtns = [['off', 'cmpOff'], ['2up', 'cmp2up'], ['swipe', 'cmpSwipe'], ['onion', 'cmpOnion']]
+      .map(function (c) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'kit-zoom-cmp';
+        b.dataset.value = c[0];
+        b.textContent = L[c[1]];
+        b.addEventListener('click', function () { cmp = c[0]; compare(); });
+        cmpWrap.appendChild(b);
+        return b;
+      });
+    var range = document.createElement('input');
+    range.type = 'range';
+    range.className = 'kit-zoom-range';
+    range.min = '0';
+    range.max = '100';
+    range.title = L.cmpRange;
+    range.setAttribute('aria-label', L.cmpRange);
+    cmpWrap.appendChild(range);
     head.appendChild(hRow);
     head.appendChild(hTile);
+    head.appendChild(hWith);
     head.appendChild(hCell);
+    head.appendChild(cmpWrap);
     head.appendChild(bSize);
     head.appendChild(bClose);
+    var note = document.createElement('p');
+    note.className = 'kit-zoom-note';
+    note.hidden = true;
     var body = document.createElement('div');
     body.className = 'kit-zoom-body';
+    var stack = document.createElement('div');
+    stack.className = 'kit-compare';
     var img = document.createElement('img');
-    body.appendChild(img);
+    var other = document.createElement('img');   /* the sibling, on top */
+    other.className = 'kit-zoom-other';
+    stack.appendChild(img);
+    stack.appendChild(other);
+    body.appendChild(stack);
     var keys = document.createElement('p');
     keys.className = 'kit-zoom-keys';
     keys.textContent = L.zoomKeys;
     dlg.appendChild(head);
+    dlg.appendChild(note);
     dlg.appendChild(body);
     dlg.appendChild(keys);
     document.body.appendChild(dlg);
 
     var origin = null;                /* the figure that opened it: focus returns here */
     var opener = null;                /* the figure on screen now */
+    var cmp = 'off';                  /* the compare mode the reader chose */
+    var sib = null;                   /* the opener's other-mode figure, if any */
 
     function sizeLabel() {
       // Names the DESTINATION, like the theme button does.
@@ -1434,7 +1497,63 @@
       hRow.textContent = (row && row.dataset.title) || '';
       hTile.textContent = fig.getAttribute('data-tile') || '';
       hCell.textContent = (row && row.dataset.id) || '';
+      sib = sibling(fig);
+      var sImg = sib && sib.querySelector('img');
+      if (sImg) other.setAttribute('src', sImg.getAttribute('src'));
+      else other.removeAttribute('src');
+      other.setAttribute('alt', sImg ? (sImg.getAttribute('alt') || '') : '');
+      compare();
     }
+
+    /* The other mode of the same viewport (`light-desktop` <-> `dark-desktop`),
+     * looked up among ALL the row's figures: a filter hides tiles, not data. */
+    function sibling(fig) {
+      var name = fig.getAttribute('data-tile') || '';
+      var m = /^(light|dark)-/.exec(name);
+      if (!m) return null;
+      var f = tileFigure(fig.closest('.consult-item'),
+        (m[1] === 'light' ? 'dark-' : 'light-') + name.slice(m[0].length));
+      return f && f.querySelector('img') ? f : null;
+    }
+
+    /* Swipe and onion stack one image on the other, which is only honest when
+     * both are the same size. They come from one viewport, so they should be;
+     * when they are not, the dialog shows them side by side and says so. The
+     * check runs again on every `load`, because a capture not yet decoded has
+     * no size to compare. */
+    function compare() {
+      var on = !!sib && cmp !== 'off';
+      var differ = on && cmp !== '2up' && img.complete && other.complete
+        && img.naturalWidth > 0 && other.naturalWidth > 0
+        && (img.naturalWidth !== other.naturalWidth || img.naturalHeight !== other.naturalHeight);
+      dlg.setAttribute('data-compare', !on ? 'off' : differ ? '2up' : cmp);
+      note.hidden = !differ;
+      note.textContent = differ ? L.cmpSize(img.naturalWidth + 'x' + img.naturalHeight,
+        other.naturalWidth + 'x' + other.naturalHeight) : '';
+      hWith.textContent = on ? '\u2194 ' + sib.getAttribute('data-tile') : '';
+      /* A disabled control loses the focus to the body, outside the dialog,
+       * and the arrows die with it: park the focus on the dialog first. */
+      if (!sib && cmpBtns.indexOf(document.activeElement) !== -1) dlg.focus();
+      cmpBtns.forEach(function (b) {
+        b.disabled = !sib;
+        b.title = sib ? L.cmpTitle : L.cmpNone;
+        b.setAttribute('aria-pressed', b.dataset.value === (sib ? cmp : 'off') ? 'true' : 'false');
+      });
+    }
+    img.addEventListener('load', compare);
+    other.addEventListener('load', compare);
+
+    /* The slider is the CURRENT tile's share in both modes: in swipe it shows
+     * left of the line, in onion the sibling on top fades out as it grows. So
+     * right always means more of the tile being judged. Never stored. */
+    function slide() {
+      dlg.style.setProperty('--kit-swipe', range.value + '%');
+      dlg.style.setProperty('--kit-onion', String(1 - range.value / 100));
+    }
+    /* Stopped here: the composer's document listeners would refresh() the
+     * status line on every tick and wipe a copy confirmation. */
+    range.addEventListener('input', function (ev) { ev.stopPropagation(); slide(); });
+    range.addEventListener('change', function (ev) { ev.stopPropagation(); });
 
     function open(fig) {
       /* Fit size on every fresh open: the reader asked to see the tile, not to
@@ -1442,9 +1561,16 @@
        * whatever size is on screen — there it IS the same look, continued. */
       dlg.classList.remove('native');
       sizeLabel();
+      /* Compare too: off, the slider in the middle. The arrows keep both,
+       * like the size — moving on is the same look, continued. */
+      cmp = 'off';
+      range.value = '50';
+      slide();
       origin = fig;
       show(fig);
-      if (dlg.showModal) dlg.showModal();
+      /* showModal() focuses the first header control, a compare button; the
+       * size button is the one a fresh open has always handed the focus to. */
+      if (dlg.showModal) { dlg.showModal(); bSize.focus(); }
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
     }
 
@@ -1496,7 +1622,9 @@
       var moves = { ArrowLeft: [step, -1], ArrowRight: [step, 1],
                     ArrowUp: [stepRow, -1], ArrowDown: [stepRow, 1] };
       var m = moves[ev.key];
-      if (!m) return;
+      /* A focused slider owns the arrows, as every native range does; the
+       * walk is one Tab away. */
+      if (!m || ev.target === range) return;
       ev.preventDefault();            /* or the dialog scrolls under the move */
       m[0](m[1]);
     });

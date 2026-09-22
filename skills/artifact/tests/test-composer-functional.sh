@@ -1303,6 +1303,9 @@ GPAGE="$TMP/reports/gallery.html"
 # A 1x1 PNG, inline: the tiles must be real images the dialog can show, and a
 # path would make this test depend on a screenshot tree only one worktree has.
 PX='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+# A 2x1 PNG on ONE sibling (audit-empty dark-mobile): the compare probe needs a
+# pair whose intrinsic sizes differ, and swipe/onion over two sizes is a lie.
+PX2='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADklEQVR4nGNgYGD4D8IABgMB/8+HxnAAAAAASUVORK5CYII='
 write_gallery_body() {
 cat > "$TMP/gbody.html" <<HTML
 <meta name="consult-visual" content="none: a gallery probe, nothing to draw">
@@ -1336,7 +1339,7 @@ cat > "$TMP/gbody.html" <<HTML
       <figure data-tile="light-desktop"><img src="$PX" alt="empty light-desktop"><figcaption>light &middot; desktop</figcaption></figure>
       <figure data-tile="dark-desktop"><img src="$PX" alt="empty dark-desktop"><figcaption>dark &middot; desktop</figcaption></figure>
       <figure data-tile="light-mobile"><img src="$PX" alt="empty light-mobile"><figcaption>light &middot; mobile</figcaption></figure>
-      <figure data-tile="dark-mobile"><img src="$PX" alt="empty dark-mobile"><figcaption>dark &middot; mobile</figcaption></figure>
+      <figure data-tile="dark-mobile"><img src="$PX2" alt="empty dark-mobile"><figcaption>dark &middot; mobile</figcaption></figure>
     </div>
     <div class="opts one">
       <label><input type="radio" name="audit-empty" data-label="Approved"><span>Approved</span></label>
@@ -1529,6 +1532,129 @@ window.addEventListener('load', function () {
     dlg.querySelector('.kit-zoom-close').click();
     document.title = 'GDECIDED|DOWN=' + dd
       + '|FOLDED=' + (document.querySelector('[data-id="audit-empty"]').closest('details:not([open])') ? '1' : '0');
+  } else if (q.indexOf('phase=gcompare') !== -1) {
+    /* The compare control, walked mode by mode. Everything is read
+       synchronously: the dialog shows images the page has already loaded, so
+       their sizes are known the moment the src is set. */
+    var r3 = document.querySelector('[data-id="audit-with-data"] input[data-label="Approved"]');
+    r3.checked = true; r3.dispatchEvent(new Event('change', { bubbles: true }));
+    var ta3 = document.querySelector('[data-id="audit-with-data"] textarea');
+    ta3.value = 'la fila se ve bien'; ta3.dispatchEvent(new Event('input', { bubbles: true }));
+    var plain = paste();
+    fig('audit-with-data', 'light-desktop').click();
+    /* Phase 2's contract: a fresh open puts the focus on the size button,
+       not on the first header control (the compare group sits before it). */
+    var focus0 = document.activeElement ? document.activeElement.className : '';
+    var cmpB = function (v) { return dlg.querySelector('.kit-zoom-cmp[data-value="' + v + '"]'); };
+    var state = function () { return dlg.getAttribute('data-compare'); };
+    var rng = dlg.querySelector('input.kit-zoom-range');
+    var other = dlg.querySelector('img.kit-zoom-other');
+    var slide = function (v) {
+      rng.value = v; rng.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    var ctrl = dlg.querySelectorAll('.kit-zoom-cmp').length;
+    var enabled = [].every.call(dlg.querySelectorAll('.kit-zoom-cmp'), function (b) { return !b.disabled; });
+    var st0 = state();
+    cmpB('2up').click();
+    var st2 = state() + '/' + (other ? other.getAttribute('alt') : '');
+    cmpB('swipe').click();
+    var stS = state();
+    var sw = [25, 50, 75].map(function (v) {
+      slide(v);
+      return dlg.style.getPropertyValue('--kit-swipe').trim() + ':' + getComputedStyle(other).clipPath;
+    }).join(',');
+    cmpB('onion').click();
+    var stO = state();
+    var on = [25, 50, 75].map(function (v) {
+      slide(v);
+      return getComputedStyle(other).opacity;
+    }).join(',');
+    /* The arrows walk while compare is on, and compare stays on: the next
+       tile's sibling is the other mode of the NEW tile. */
+    key('ArrowRight');
+    var walked = htile() + '/' + state() + '/' + other.getAttribute('alt') + '/' + rng.value;
+    /* A focused slider keeps the arrows for itself, like any native range:
+       the key reaches the dialog's handler and must not walk the tile. */
+    rng.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    var owned = htile();
+    var moved = paste();
+    var inItem = rng.closest('.consult-item') ? '1' : '0';
+    dlg.querySelector('.kit-zoom-close').click();
+    /* A fresh open: compare off, the slider back to its middle. */
+    fig('audit-with-data', 'light-mobile').click();
+    var fresh = state() + '/' + rng.value;
+    /* The mobile pair differs in size (1x1 against 2x1): swipe falls back to
+       2-up and says so; walking to a same-size pair restores swipe. */
+    dlg.querySelector('.kit-zoom-close').click();
+    fig('audit-empty', 'light-mobile').click();
+    cmpB('swipe').click();
+    var note = dlg.querySelector('.kit-zoom-note');
+    var mism = state() + '/' + (note && !note.hidden ? note.textContent : 'nonote');
+    key('ArrowLeft');
+    var back = htile() + '/' + state() + '/' + (note && note.hidden ? 'hidden' : 'shown');
+    dlg.querySelector('.kit-zoom-close').click();
+    /* A filter hides the sibling tile; it is still the sibling. */
+    bar('E', 'light');
+    fig('audit-with-data', 'light-desktop').click();
+    cmpB('2up').click();
+    var filtered = state();
+    dlg.querySelector('.kit-zoom-close').click();
+    bar('E', 'both');
+    /* No sibling at all: the control is disabled and says why. */
+    fig('audit-empty', 'dark-desktop').remove();
+    fig('audit-empty', 'light-desktop').click();
+    var dis = [].every.call(dlg.querySelectorAll('.kit-zoom-cmp'), function (b) { return b.disabled; });
+    var why = (cmpB('2up') && cmpB('2up').title) || '';
+    cmpB('2up').click();
+    var noSib = state();
+    dlg.querySelector('.kit-zoom-close').click();
+    /* The walk must survive a step onto a tile with no sibling while a compare
+       button has the focus: that step disables the focused button, and a
+       disabled control drops the focus to the body, out of the dialog, where
+       the next arrow never reaches the dialog's key handler. Chrome runs that
+       drop as a posted task, after this synchronous probe has reported, so
+       what is asserted is its cause: after the step the focus must sit, in
+       the dialog, on something that is NOT disabled. The keys go to whatever
+       holds the focus, as a real key does. */
+    var akey = function (k) {
+      (document.activeElement || document.body).dispatchEvent(
+        new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    };
+    fig('audit-with-data', 'light-desktop').click();
+    cmpB('swipe').click();
+    cmpB('swipe').focus();
+    akey('ArrowDown');                /* audit-empty light-desktop: no sibling now */
+    var landed = hcell() + '/' + htile() + '/' + state();
+    var ae = document.activeElement;
+    var held = (dlg.contains(ae) ? 'in' : 'out:' + ae.tagName) + (ae.disabled ? ':disabled' : '');
+    akey('ArrowRight');
+    var kept = held + '/' + hcell() + '/' + htile();
+    dlg.querySelector('.kit-zoom-close').click();
+    /* The slider is not an answer: moving it must not reach the composer's
+       document listeners, whose refresh() would overwrite the copy
+       confirmation on the status line. The fallback path confirms
+       synchronously, so the line is readable here. */
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+    document.getElementById('consult-copy').click();
+    var fb = document.querySelector('body > textarea:last-of-type');
+    if (fb) fb.remove();
+    var stEl = document.getElementById('consult-status');
+    var st1 = stEl.textContent;
+    fig('audit-with-data', 'light-desktop').click();
+    cmpB('swipe').click();
+    slide(30);
+    rng.dispatchEvent(new Event('change', { bubbles: true }));
+    var stKept = stEl.textContent === st1 ? '1' : '0:' + stEl.textContent.replace(/[|<>]/g, ' ');
+    dlg.querySelector('.kit-zoom-close').click();
+    document.title = 'GCOMPARE|CTRL=' + ctrl + '|ENABLED=' + (enabled ? '1' : '0')
+      + '|ST0=' + st0 + '|ST2=' + st2 + '|STS=' + stS + '|SW=' + sw + '|STO=' + stO + '|ON=' + on
+      + '|WALKED=' + walked + '|OWNED=' + owned + '|INITEM=' + inItem
+      + '|SAME=' + (plain === moved ? '1' : '0')
+      + '|FRESH=' + fresh + '|MISM=' + mism + '|BACK=' + back
+      + '|FILTERED=' + filtered + '|DIS=' + (dis ? '1' : '0') + '|WHY=' + (why ? '1' : '0')
+      + '|NOSIB=' + noSib + '|FOCUS0=' + focus0 + '|LANDED=' + landed + '|KEPT=' + kept
+      + '|STKEPT=' + stKept
+      + '|PASTE=' + moved.replace(/[|<>\n]/g, ' ');
   } else if (q.indexOf('phase=grecall') !== -1) {
     var g2 = document.getElementById('E');
     var pressed = [].map.call(document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]'),
@@ -1656,5 +1782,54 @@ tg="$(grun 'phase=grecall')"
 [[ "$tg" == *"PASTE=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien"* ]] \
   || fail "a restored filter changed what the page pastes: $tg"
 
+# ---- the COMPARE control (plan 2026-09-22, Phase 3) ----
+# The other mode of the same viewport, in 2-up, swipe or onion skin. The slider
+# is the one form control the dialog carries, and the dialog lives outside every
+# item: the paste taken with compare on and the slider moved must be the very
+# bytes of the paste taken before the dialog was opened.
+rm -rf "$TMP/profile"
+tg="$(grun 'phase=gcompare')"
+[[ "$tg" == *GCOMPARE* ]] || fail "the gallery compare phase did not run: $tg"
+[[ "$tg" == *"CTRL=4"* && "$tg" == *"ENABLED=1"* ]] \
+  || fail "the dialog carries no compare control (off, 2-up, swipe, onion) on a tiled row: $tg"
+[[ "$tg" == *"ST0=off"* ]] \
+  || fail "the dialog did not open with compare off: $tg"
+[[ "$tg" == *"ST2=2up/with-data dark-desktop"* ]] \
+  || fail "2-up did not show the other mode of the same viewport: $tg"
+[[ "$tg" == *"STS=swipe"* && "$tg" == *"STO=onion"* ]] \
+  || fail "swipe and onion skin did not set their state on the dialog: $tg"
+[[ "$tg" == *"SW=25%:inset(0px 0px 0px 25%),50%:inset(0px 0px 0px 50%),75%:inset(0px 0px 0px 75%)"* ]] \
+  || fail "the slider does not drive --kit-swipe and the top image's clip-path in swipe mode: $tg"
+[[ "$tg" == *"ON=0.75,0.5,0.25"* ]] \
+  || fail "the slider does not drive the top image's opacity in onion mode (the slider is the current tile's share in both modes): $tg"
+[[ "$tg" == *"WALKED=dark-desktop/onion/with-data light-desktop/75"* ]] \
+  || fail "the arrows did not walk with compare on, or dropped the mode, the sibling or the slider: $tg"
+[[ "$tg" == *"OWNED=dark-desktop"* ]] \
+  || fail "an arrow on the focused slider walked the tile instead of moving the slider: $tg"
+[[ "$tg" == *"INITEM=0"* ]] \
+  || fail "the compare slider sits inside a consult-item, where the composer would read it: $tg"
+[[ "$tg" == *"SAME=1"* ]] \
+  || fail "a paste taken with compare on and the slider moved differs from one taken without them: $tg"
+[[ "$tg" == *"PASTE=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien"* ]] \
+  || fail "the row's verdict and notes did not reach the compare paste, so its identity proves nothing: $tg"
+[[ "$tg" == *"FRESH=off/50"* ]] \
+  || fail "a fresh open did not reset compare to off and the slider to the middle: $tg"
+[[ "$tg" == *"MISM=2up/"*"1x1"*"2x1"* ]] \
+  || fail "swipe over two captures of different sizes did not fall back to 2-up with a note naming both sizes: $tg"
+[[ "$tg" == *"BACK=dark-desktop/swipe/hidden"* ]] \
+  || fail "walking from a mismatched pair to a same-size pair did not restore swipe and hide the note: $tg"
+[[ "$tg" == *"FILTERED=2up"* ]] \
+  || fail "a sibling tile hidden by a filter stopped counting as the sibling: $tg"
+[[ "$tg" == *"DIS=1"* && "$tg" == *"WHY=1"* && "$tg" == *"NOSIB=off"* ]] \
+  || fail "a tile with no sibling left the compare control enabled, or without its reason in the title: $tg"
+[[ "$tg" == *"FOCUS0=kit-zoom-size|"* ]] \
+  || fail "a fresh open did not put the focus on the size button: $tg"
+[[ "$tg" == *"LANDED=audit-empty/light-desktop/off"* ]] \
+  || fail "the focus probe did not step onto the tile with no sibling: $tg"
+[[ "$tg" == *"KEPT=in/audit-empty/light-mobile"* ]] \
+  || fail "a step that disabled the focused compare button left the focus on it (Chrome then drops it to the body and the walk dies): $tg"
+[[ "$tg" == *"STKEPT=1"* ]] \
+  || fail "moving the compare slider overwrote the copy confirmation on the status line: $tg"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
