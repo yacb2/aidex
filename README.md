@@ -27,7 +27,7 @@ Then restart Claude Code. In any project, just ask naturally — the right skill
 
 ### Your first session
 
-The install lands 19 skills and 5 hooks and says nothing, on purpose — no first-run nudge.
+The install lands 20 skills and 5 hooks and says nothing, on purpose — no first-run nudge.
 Start here:
 
 1. `/aidex:aidex` — audits the Claude Code setup of the project you are in and tells you what it found.
@@ -54,7 +54,7 @@ aidex solves this with two pillars:
 
 The suite ships as a single Claude Code plugin. `.claude-plugin/plugin.json` declares it,
 `.claude-plugin/marketplace.json` makes the repo its own marketplace, `skills/` holds the
-19 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the five shipped hooks
+20 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the five shipped hooks
 automatically when the plugin is installed. Nothing is copied into `~/.claude/` and nothing
 is symlinked: symlinked skills and rules were the loader path with three separate bugs
 (Claude Code 2.0.62, 2.1.198, 2.1.239), and a plugin has neither problem.
@@ -83,7 +83,8 @@ aidex/                                   <-- the plugin, as Claude Code loads it
 │   ├── worktree/
 │   ├── artifact/
 │   ├── review/
-│   └── coverage/
+│   ├── coverage/
+│   └── ui-contract/
 ├── hooks/
 │   └── hooks.json                       <-- wires the five shipped hooks on install
 └── docs/retired/                        <-- the pre-plugin installer and rules/, for the record
@@ -94,7 +95,7 @@ project/.claude/skills/                  <-- your own project-specific skills (r
 
 | Scope | Location | Loaded in | Use for |
 |-------|----------|-----------|---------|
-| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 19 suite skills + the 5 hooks |
+| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 20 suite skills + the 5 hooks |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific skills of your own |
 | **Per-project silencing** | `project/.claude/settings.local.json` `enabledPlugins` | That project only | Skills **provided by a plugin are exempt from `skillOverrides`**, at any key format — so aidex's skills cannot be silenced one by one. The only lever is `enabledPlugins: {"aidex@aidex": false}`, all-or-nothing for the whole plugin. `skillOverrides` (`name-only`, `user-invocable-only`, `off`) still applies to skills of your own. |
 
@@ -142,7 +143,7 @@ plugin cannot ship always-on rules, and each one's canon now lives in the `conve
 skill's `references/`, cited by the skills that need it (see
 [`docs/retired/`](docs/retired/README.md)).
 
-### 19 skills
+### 20 skills
 
 | Skill | Type | What it does |
 |-------|------|-------------|
@@ -165,6 +166,7 @@ skill's `references/`, cited by the skills that need it (see
 | **`worktree`** | User-invoked + context-triggered | Creates and destroys fully isolated worktrees — one git worktree per participant repo, its own port slot, its own compose stack. The mechanism ships as `worktree.sh`; a project supplies only parameters in `.context/worktrees/config.env`. **One path, not tiers:** a worktree is born with its full stack always (`--no-infra` is the explicit code-only opt-out), because full isolation now costs ~25s to create and ~3s to tear down. `down` verifies nothing is left attributable to the slug, reports host processes it will not kill, and with `--delete-branch` removes the branch `new` created — via `git branch -d`, which refuses an unmerged branch. |
 | **`coverage`** | Model-invocable | The stack-agnostic testing canon: which layer a behaviour belongs in, which tests to run for a change (the full suite is a boundary gate, never a per-phase one), when to extract a fixture, and the per-project `.context/testing-profile.md` that names the stack pack (Django, Vue, Playwright, Payload, Svelte) carrying the concrete test shapes and the `test-e2e.sh` generator. Deliberately does **not** run audits or touch `module-map.json` / `coverage-matrix.json` — that split belongs to `audit`'s `test-coverage` playbook. |
 | **`artifact`** | User-invoked + context-triggered | Renders `.context/` boards as self-contained interactive HTML (backlog board, plan progress, audit inventory, coverage matrix) via deterministic scripts — ~0 recurring tokens; markdown stays canon, HTML is a regenerable sibling render. Never publishes unprompted; opens locally via `file://`, and can be published as a Claude Code Artifact only on explicit request. |
+| **`ui-contract`** | User-invoked + context-triggered | Fixes what a screen must look like *before* it is built and what proves it afterwards. Three levels sized to the change (adjustment · new screen on an existing pattern · new visual direction), a state matrix fixed per page pattern (list 6 states, form 5, modal/panel 3 — a cell may read not-applicable with a reason, never blank), and the UI-contract section a plan carries. The medium is a state gallery rendered by the project's **real** components against fixtures, not a drawn mockup. Routes to two agents: `gallery-builder` (opus — a gallery is code no gate checks) and `verify-ui` (sonnet — runs the gate, reports paths). "Verified" is three things or it is not a claim: the contact-sheet path, the gate's closing line from a run with no snapshot update, and a reviewer pass on the harness predicates themselves. |
 
 ### How it works
 

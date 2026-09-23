@@ -1,0 +1,86 @@
+# UI-contract integration into four sibling skills — PROPOSED, NOT APPLIED.
+#
+# ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` §5 wires the new
+# `ui-contract` skill into four siblings. This file is those four edits, one hunk each,
+# held apart from the commit that ships the skill.
+#
+# WHY NOT APPLIED: BL-427's adoption branches (`bl-427-adoptions`,
+# `bl-427-adoptions-b`) are live over `skills/plan/SKILL.md` and
+# `skills/bugfix/SKILL.md`. Two sessions editing the same four files is a merge
+# conflict nobody needs, so the hunks are written deliberately far from the lines
+# BL-427 moves (its plan hunk is at ~line 106, its bugfix hunks at ~21, ~46 and ~67;
+# these land at plan ~40, bugfix ~117, and in two files BL-427 does not touch).
+#
+# RE-CHECK AFTER BL-427 MERGES: run `git apply --check` again before applying, and
+# re-run `bash tests/run-all.sh` afterwards. Two measured constraints, both real:
+#   - `skills/backlog/SKILL.md` sits ~4,972 of a 5,000-token hard maximum WITH this
+#     hunk applied (4,914 without it). The backlog hunk is therefore capped at about
+#     340 bytes; anything longer FAILS `test_skill_budget.sh` and, through it,
+#     `test-lockstep-scope.sh`. Do not "improve" it by making it longer.
+#   - each hunk states WHEN it applies, so a plan, phase, bug or item that touches no
+#     screen pays nothing. Keep that clause if you reword anything.
+#
+# Verified on 2026-09-21 against `main` (41deff7): `git apply --check` clean, and
+# `bash tests/run-all.sh` = 158 tests, 157 passed, 1 skipped, 0 failed with all four
+# hunks applied. Also `git apply --check` clean against the `bl-427-adoptions` versions
+# of plan/SKILL.md and bugfix/SKILL.md — a snapshot, not a promise: re-check anyway.
+#
+# Apply with: git apply docs/proposed/2026-09-21-ui-contract-integration.patch
+diff --git a/skills/backlog/SKILL.md b/skills/backlog/SKILL.md
+index 0579987..b81de12 100644
+--- a/skills/backlog/SKILL.md
++++ b/skills/backlog/SKILL.md
+@@ -152,6 +152,10 @@ The complete front-matter schema is the single-source **15-field table** in
+ and `verify` say how the item will be proven, and a sweep cannot close it otherwise). Don't
+ re-copy the schema here; author entries via the script or straight from that table.
+ 
++**When an item's fix changes what a screen looks like**, intake owes one mark and no more:
++`ui` in `touches`, plus the reference screen if known. Level, matrix and gallery belong to
++the plan (`/aidex:ui-contract`), never to intake.
++
+ ---
+ 
+ ## Lifecycle
+diff --git a/skills/bugfix/SKILL.md b/skills/bugfix/SKILL.md
+index 2896ef0..5986c70 100644
+--- a/skills/bugfix/SKILL.md
++++ b/skills/bugfix/SKILL.md
+@@ -116,4 +116,7 @@ When a bug is purely visual (CSS layout, spacing, colors) and cannot be tested p
+ 2. Document the visual issue clearly
+ 3. Fix it
+ 4. Write a smoke test if any aspect is testable (e.g., component renders, class is applied)
+-5. Commit with clear description of what was visually broken
++5. **The waived regression test is replaced, not dropped** — a before/after contact sheet
++   (`/aidex:ui-contract`) is this bug's proof, and its path goes in the commit body.
++   "Purely visual" exempts the *test*, never the evidence.
++6. Commit with clear description of what was visually broken
+diff --git a/skills/plan-exec/SKILL.md b/skills/plan-exec/SKILL.md
+index 918a55d..ca730fe 100644
+--- a/skills/plan-exec/SKILL.md
++++ b/skills/plan-exec/SKILL.md
+@@ -235,6 +235,9 @@ it grows its own copy. What is plan-specific:
+   reviewer covers which scope. **Exit 3 is an empty scope, never a passing review.**
+ - **Where the evidence goes.** The Execution log in the plan's `00-index.md` takes the
+   `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
++- **A phase that touched UI does not close without its evidence** in that same Execution
++  log: the contact-sheet path, and the gate's closing line from a run with **no snapshot
++  update**, plus a reviewer pass on any new harness guard (`/aidex:ui-contract`). No screen touched: nothing owed.
+ - **Deferrals** use `register-item.sh --origin plan --plan <this plan>`
+   ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md)).
+ - **Which model runs which step** — orchestrate, implement, and do the mechanical work
+diff --git a/skills/plan/SKILL.md b/skills/plan/SKILL.md
+index 9aa1878..2d8b371 100644
+--- a/skills/plan/SKILL.md
++++ b/skills/plan/SKILL.md
+@@ -35,6 +35,11 @@ it read, the outcome is already `research`.
+ | Reverts with a single `git revert` | scoped |
+ | Two or more viable designs where choosing wrong costs a rewrite | full |
+ 
++**When — and only when — the work touches UI** (a screen, a component, a visual change),
++the plan also carries a **UI-contract section**: level · reference screen · components
++reused/new · state matrix. `/aidex:ui-contract` owns that section, in either mode. Work
++that touches no screen skips it and pays nothing.
++
+ Present the **evidence per signal**, then the recommendation — a bare verdict invites a
+ rubber stamp, which is the failure this replaces. The user ratifies or corrects in one
+ round. Four outcomes:
