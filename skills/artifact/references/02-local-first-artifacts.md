@@ -1027,6 +1027,82 @@ reason, on every page copied from the template, which is what the grep returned 
 A page derived from the template fails this check until someone decides — copying is not
 deciding.
 
+### Gallery rows: screenshots the reader rules on, one row per screen state
+
+When the consultation is about UI — a proposal, a state gallery, baselines to accept — the
+screenshots are the questions. A **gallery row** is one screen state seen in every tile of
+the project's matrix (light/dark x desktop/mobile), with a verdict, a notes box and region
+marks. The project owns the matrix; the kit owns the markup. Neither re-declares the other.
+
+**Two steps, never folded into the wrap.** The project emits the rows, the kit turns them
+into items, the items go into the body sidecar, and the page is wrapped as usual:
+
+```bash
+python3 _scripts/gallery_board.py --rows-json audit > /tmp/audit.json      # the project
+bash ${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/gallery-items.sh /tmp/audit.json \
+    --root <abs repo root> --group-id E --group-title "Galería audit" --lang es
+# paste the printed consult-group into the .body sidecar, then wrap-report.sh as always
+```
+
+The wrap's contract is content in, page out. A generator inside it would make the sidecar a
+derived file, and a re-capture could no longer be reviewed as a diff of the body. (The wrap
+does stamp `data-decided-round` on decided items; that annotates tags already there, it
+writes no content.)
+
+**Rows contract** (what `--rows-json` prints; deterministic, paths relative to `--root`):
+
+```json
+{"gallery": "audit", "shots_dir": "frontend/tests/demo/__screenshots__",
+ "tiles": ["light-desktop", "dark-desktop", "light-mobile", "dark-mobile"],
+ "rows": [{"cell": "with-data", "tiles": {"light-desktop": "<path>.png", "...": "..."}},
+          {"cell": "no-permission", "notApplicable": "reason text"}]}
+```
+
+Item ids are `<gallery>-<cell>` and stay stable across rounds. The block carries
+`data-tiles`; the checker fails a row with a missing or duplicated tile, a figure with no
+`data-tile`, an id that is not two or more slugs, or a not-applicable row with no reason.
+
+**What the reader gets** (composer, no dependency): a zoom `<dialog>` on any tile (fit or
+native size, arrows walk the row and the rows, Esc returns focus to the tile that opened
+it); per-block mode/viewport filters, remembered and never pasted; light/dark compare in
+the dialog (2-up, swipe, onion skin; 2-up when the pair differs in size); region marks
+drawn on the zoomed image as percentage rectangles with a note each, shown on the grid
+tile too.
+
+**Paste contract.** Each row pastes like any item, marks last:
+
+```
+### audit-with-data · audit · with-data
+
+- Necesita cambios
+
+<notes>
+
+[mark light-mobile 1.7,0.2 33.0x5.6] el breadcrumb se parte bajo el título
+```
+
+`gallery-reply.sh <reply.md>` turns the copied block into
+`{rows: [{id, gallery, cell, verdict, asks, provisional, notes, marks}], other}`. Feed it
+the block alone: text after the paste cannot be told from notes, and trailing text after a
+row's marks is refused.
+
+**What drops an answer, by design.**
+
+- A row's question fingerprint covers its tile `src` list: a re-capture is a new question,
+  so the row's stored answer is dropped. Upgrading a page to this kit drops each gallery
+  row's unsent answer once, for the same reason.
+- Every passing wrap is a new round, body changed or not (`round_meta` in
+  `wrap_report.py`). A re-wrap that only refreshes the kit therefore blanks the answers the
+  reader already SENT. Accepted: the session holds those answers, and counting "changed"
+  would need a body comparison the round was designed not to depend on. Refresh the kit
+  when a round is due anyway, not between rounds.
+
+**Images: linked while open, copied at close (D2).** `gallery-items.sh` writes
+`file://<root>/<path>` and never inlines. While the consultation is open the baselines stay
+where the project keeps them, so a re-capture shows up on the next wrap. When it closes,
+copy the files into `<page>-assets/` next to the page and point the `src` there, or the
+record breaks the day the worktree comes down.
+
 ### What is checked, and how
 
 **No contract rule ships without a named field incident.** Every check below cites the

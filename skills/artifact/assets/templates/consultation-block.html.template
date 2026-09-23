@@ -176,6 +176,74 @@
 </section>
 <!-- end of block G1 -->
 
+<!-- A GALLERY BLOCK — GENERATED, NEVER HAND-WRITTEN.
+
+     A UI proposal is reviewed one screen state at a time: a row is one state
+     seen in every tile of the matrix (light/dark x desktop/mobile), with its
+     own verdict and its own notes. The block below is what
+     `scripts/gallery-items.sh` prints; it is here so a reader of this template
+     knows the shape exists and what the rules on it are, not so it can be
+     copied by hand. Copy it by hand and the ids stop being the project's cell
+     names, the tile list stops matching the project's matrix, and the two
+     drift the first time a state is added — which is the whole reason the
+     matrix is declared once, in the project, and emitted as rows JSON:
+
+       gallery-items.sh rows.json --root <abs repo root> \
+           --group-id E --group-title "…" [--lang es|en]
+
+     Two attributes carry rules check-artifact.sh enforces:
+
+     `data-tiles` on the BLOCK names the matrix every row in it must show. Each
+     row carries exactly those tiles, each once, as `<figure data-tile="…">`
+     — a row missing its dark-mobile cell is a verdict given on three quarters
+     of the evidence, and every other rule on the page passes it.
+
+     `data-id` on the ITEM is `<gallery>-<cell>`: the project's own names, so
+     the id is stable across rounds without anyone maintaining a counter.
+
+     The row a screen cannot reach carries one `<p class="gal-na">` with the
+     reason INSTEAD of the grid — never both, never neither.
+
+     Everything else is an ordinary item: an `.opts one` verdict group and a
+     notes textarea, so composer.js pastes it unchanged. No option is marked
+     `data-recommended` — the session has not seen the screenshots. -->
+<section class="consult-group" id="E" data-id="E" data-title="Gallery audit, one row per state" data-tiles="light-desktop dark-desktop light-mobile dark-mobile">
+  <div class="sec-head">
+    <h2>Gallery audit, one row per state</h2>
+  </div>
+  <section class="consult-item consult-gallery" data-id="audit-with-data" data-title="audit · with-data">
+    <h3><span class="consult-id">audit-with-data</span>audit · with-data</h3>
+    <p>This row's cells, read from the committed baseline. Mark the verdict and, if it needs changes, say which in the row's notes.</p>
+    <div class="gal">
+      <figure data-tile="light-desktop"><img src="file:///abs/repo/root/shots/light-desktop/audit-with-data.png" alt="audit · with-data · light-desktop" loading="lazy"><figcaption>light · desktop</figcaption></figure>
+      <figure data-tile="dark-desktop"><img src="file:///abs/repo/root/shots/dark-desktop/audit-with-data.png" alt="audit · with-data · dark-desktop" loading="lazy"><figcaption>dark · desktop</figcaption></figure>
+      <figure data-tile="light-mobile"><img src="file:///abs/repo/root/shots/light-mobile/audit-with-data.png" alt="audit · with-data · light-mobile" loading="lazy"><figcaption>light · mobile</figcaption></figure>
+      <figure data-tile="dark-mobile"><img src="file:///abs/repo/root/shots/dark-mobile/audit-with-data.png" alt="audit · with-data · dark-mobile" loading="lazy"><figcaption>dark · mobile</figcaption></figure>
+    </div>
+    <div class="opts one">
+      <label><input type="radio" name="audit-with-data" data-label="Approved"><span>Approved: these cells stand as the baseline</span></label>
+      <label><input type="radio" name="audit-with-data" data-label="Needs changes"><span>Needs changes (say which in the notes)</span></label>
+      <label><input type="radio" name="audit-with-data" data-label="Cannot judge"><span>Cannot judge it from this capture</span></label>
+    </div>
+    <p class="fieldlabel">Notes on this row</p>
+    <textarea placeholder="What to change, and in which cell&hellip;"></textarea>
+  </section>
+  <!-- The not-applicable row: the reason instead of the grid. -->
+  <section class="consult-item consult-gallery" data-id="audit-no-permission" data-title="audit · no-permission">
+    <h3><span class="consult-id">audit-no-permission</span>audit · no-permission</h3>
+    <p>This row's cells, read from the committed baseline. Mark the verdict and, if it needs changes, say which in the row's notes.</p>
+    <p class="gal-na">The role that reaches this screen always has the permission, so the state is unreachable in the demo.</p>
+    <div class="opts one">
+      <label><input type="radio" name="audit-no-permission" data-label="Approved"><span>Approved: these cells stand as the baseline</span></label>
+      <label><input type="radio" name="audit-no-permission" data-label="Needs changes"><span>Needs changes (say which in the notes)</span></label>
+      <label><input type="radio" name="audit-no-permission" data-label="Cannot judge"><span>Cannot judge it from this capture</span></label>
+    </div>
+    <p class="fieldlabel">Notes on this row</p>
+    <textarea placeholder="What to change, and in which cell&hellip;"></textarea>
+  </section>
+</section>
+<!-- end of the generated gallery block -->
+
 <!-- The page-level general-notes item. Always last, always present: it is where
      the reply that does not fit any question goes, and without it that reply is
      lost or forced into the wrong item. -->

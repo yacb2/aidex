@@ -287,6 +287,14 @@ ITEM_SURFACE = re.compile(r'<textarea\b|contenteditable\s*=|<select\b'
 # A radio group, a checkbox set and a select are closed lists: they carry the
 # answer the author anticipated and lose the one they did not.
 ITEM_NOTES = re.compile(r'<textarea\b|contenteditable\s*=', re.I | re.S)
+# A textarea the reader cannot see is not a notes box. The kit composer owns a
+# `<textarea class="kit-marks" hidden>` per gallery row (region marks, Phase 4 of
+# the gallery-review unit) and a page may carry one for a decided row; neither
+# qualifies anything the reader chose. Stripped before the notes and surface
+# scans, so a row with only that channel still fails both rules.
+HIDDEN_TEXTAREA = re.compile(r'<textarea\b(?:[^>"\x27]|"[^"]*"|\x27[^\x27]*\x27)*?'
+                             r'(?:\shidden(?=[\s=/>])|\bclass\s*=\s*["\x27][^"\x27]*\bkit-marks\b)'
+                             r'.*?</textarea\s*>', re.I | re.S)
 # BL-359: the item's own declaration that it is settled. `02-local-first-
 # artifacts.md` § Update in place makes keeping the item and marking it the
 # DEFAULT for a decided one, and both the kit's CSS and composer.js already
@@ -333,7 +341,7 @@ def consult_items(text):
             continue
         tag = m.group(1)
         ident = next(g for g in m.groups()[1:] if g is not None)
-        body = _subtree(text, tag, m.end())
+        body = HIDDEN_TEXTAREA.sub(' ', _subtree(text, tag, m.end()))
         # The open tag itself may BE the surface (an <input data-id=...>).
         items.append((
             ident,
@@ -443,6 +451,213 @@ def consult_item_bodies(text):
     for m in ITEM_OPEN.finditer(text):
         ident = next(g for g in m.groups()[1:] if g is not None)
         out.append((ident, _subtree(text, m.group(1), m.end())))
+    return out
+
+
+# --- the gallery row (Phase 1, 2026-09-22) -----------------------------------
+# A `consult-gallery` item is one screen state seen in every tile the matrix
+# declares. What makes it answerable is that the reader sees EVERY tile: a row
+# missing its dark-mobile cell is a verdict given on three quarters of the
+# evidence, and nothing else on the page says so — the item still has its
+# options, its notes box and its stable id, so every rule that already exists
+# passes it. The tiles are named by the enclosing block (`data-tiles`) rather
+# than hard-coded here: the matrix belongs to the project that emits the rows,
+# and a second copy of it in the checker would disagree with the first the day
+# a viewport is added.
+#
+# The other half is the row that is not applicable at all (a state a screen
+# cannot reach): it carries one `.gal-na` with the reason and no tiles. A row
+# with BOTH claims both things at once, and a row with NEITHER is an item with
+# nothing to look at.
+GALLERY_CLASS = re.compile(r'\bclass\s*=\s*["\'][^"\']*\bconsult-gallery\b',
+                           re.I)
+ANY_OPEN_TAG = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*>', re.I | re.S)
+GAL_FIGURE_OPEN = re.compile(r'<figure\b[^>]*>', re.I | re.S)
+DATA_TILE = re.compile(r'\bdata-tile\s*=\s*'
+                       r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))',
+                       re.I | re.S)
+FIGURE_TILE = re.compile(r'<figure\b[^>]*\bdata-tile\s*=\s*'
+                         r'(?:"([^"]*)"|\x27([^\x27]*)\x27|([^\s>]+))[^>]*>',
+                         re.I | re.S)
+GAL_NA_OPEN = re.compile(r'<([a-zA-Z][\w:-]*)\b[^>]*\bclass\s*=\s*["\'][^"\']*'
+                         r'\bgal-na\b[^>]*>', re.I | re.S)
+# `<gallery>-<cell>`: two or more lowercase slugs. An id of one word cannot name
+# both halves, and a capital or an underscore is a hand-written id that the
+# generator would never have produced.
+GALLERY_ID = re.compile(r'^[a-z0-9]+(-[a-z0-9]+)+$')
+
+
+def _subtree_closed(text, tag, start):
+    """`_subtree`, but None when the element is never closed.
+
+    `_subtree` answers an unclosed element with the REST of its container, which
+    is the right answer when the question is "what is in this item" and the
+    wrong one when it is "what does this element say". A `<p class="gal-na">`
+    nobody closed then reads as a reason whose text is the verdict labels below
+    it — a row with no reason and no tiles passing as not applicable.
+    """
+    op = re.compile(r'<' + re.escape(tag) + r'\b', re.I)
+    cl = re.compile(r'</' + re.escape(tag) + r'\s*>', re.I)
+    depth, pos = 1, start
+    while depth:
+        m_o, m_c = op.search(text, pos), cl.search(text, pos)
+        if not m_c:
+            return None
+        if m_o and m_o.start() < m_c.start():
+            depth, pos = depth + 1, m_o.end()
+        else:
+            depth, pos = depth - 1, m_c.end()
+            if not depth:
+                return text[start:m_c.start()]
+    return ""
+
+
+def _gal_grids(body):
+    """Every `.gal` subtree in an item. The class is a TOKEN: `gal-na` is the
+    not-applicable line, not an empty grid, and a substring test reads it as
+    one."""
+    out = []
+    for m in ANY_OPEN_TAG.finditer(body):
+        if "gal" in _class_tokens(m.group(0)):
+            out.append(_subtree(body, m.group(1), m.end()))
+    return out
+
+
+def gallery_findings(text):
+    """Every violation of the gallery-row shape, as plain messages.
+
+    Judged against the ENCLOSING block's `data-tiles`, so the failure is about
+    this page's own declared matrix. A gallery item with no such block is its
+    own failure: without the declaration there is nothing to be complete
+    against, and a silent pass there would empty the rule.
+
+    What makes an item a gallery row is what it LOOKS like, never a class the
+    author had to remember: `consult-gallery`, or a `.gal` grid, or any
+    `<figure data-tile>`. The first version keyed on the class alone, and the
+    rows that existed before the generator — five rounds of hand-written block E
+    — carry the grid and not the class, so the whole battery went silent on
+    precisely the markup it was written for.
+    """
+    # Comments first, as every other scan in this file does: a previous round's
+    # row left commented out is not markup, and judging it fails the page it was
+    # removed from.
+    text = strip_html_comments(text)
+    out = []
+    groups = []                       # (body_start, body_end, tiles|None)
+    for m in GROUP_OPEN.finditer(text):
+        body = _subtree(text, m.group(1), m.end())
+        # A `data-tiles` of nothing but spaces declares no matrix. It is not an
+        # empty matrix: with `[]` every tile a row shows is "undeclared" and the
+        # message names all four as the defect instead of the absent list.
+        tiles = (_tag_attr(m.group(0), "data-tiles") or "").split() or None
+        groups.append((m.end(), m.end() + len(body), tiles))
+
+    for m in ITEM_OPEN.finditer(text):
+        if GROUP_CLASS.search(m.group(0)):
+            continue                  # a block is a context, never a row
+        ident = next(g for g in m.groups()[1:] if g is not None)
+        # A page may carry its own <style>, and components.css defines both
+        # `.gal` and `.gal-na`: read the markup only, never a stylesheet that
+        # would answer the check on behalf of a row that has no figures.
+        body = strip_script_style(_subtree(text, m.group(1), m.end()))
+
+        grids = _gal_grids(body)
+        if not (GALLERY_CLASS.search(m.group(0)) or grids
+                or FIGURE_TILE.search(body)):
+            continue
+
+        if not GALLERY_ID.match(ident):
+            out.append(f"gallery item '{ident}' has an id that is not "
+                       f"<gallery>-<cell> (two or more lowercase slugs joined "
+                       f"by hyphens) — the row id is what keeps this cell "
+                       f"answerable across rounds, and it is the project's "
+                       f"gallery and cell names, never a serial number")
+
+        # A figure in the grid with no `data-tile` is a cell nothing can place:
+        # the reader counts four images and the matrix has three.
+        # Scanned over the whole row, not only its `.gal` grids: a row admitted
+        # by shape (tiles with no grid) has no grid to look inside.
+        untiled = sum(1 for f in GAL_FIGURE_OPEN.finditer(body)
+                      if not DATA_TILE.search(f.group(0)))
+        if untiled:
+            out.append(f"gallery item '{ident}' has {untiled} figure(s) "
+                       f"with no data-tile — a tile nothing can "
+                       f"place, so the reader counts more cells than the "
+                       f"matrix has")
+
+        # The innermost block containing this item: a block inside a block
+        # would otherwise be judged by the outer one's matrix.
+        enclosing = [g for g in groups if g[0] <= m.start() < g[1]]
+        tiles = None
+        if enclosing:
+            tiles = min(enclosing, key=lambda g: g[1] - g[0])[2]
+        if tiles is None:
+            out.append(f"gallery item '{ident}' is not inside a "
+                       f"<section class=\"consult-group\" data-tiles=\"…\"> — "
+                       f"the block declares which tiles every row in it must "
+                       f"show, and without it no reader and no check can tell "
+                       f"a complete row from a truncated one")
+            continue
+
+        twice = sorted({t for t in tiles if tiles.count(t) > 1})
+        if twice:
+            out.append(f"gallery item '{ident}' sits in a block that declares "
+                       f"tile(s) twice: {' '.join(twice)} — a repeated name "
+                       f"counts as a cell no row can show, so a missing tile "
+                       f"passes as present")
+            continue
+        found = [next(g for g in fm.groups() if g is not None).strip()
+                 for fm in FIGURE_TILE.finditer(body)]
+        reasons = []
+        for nm in GAL_NA_OPEN.finditer(body):
+            inner = _subtree_closed(body, nm.group(1), nm.end())
+            # Unclosed is empty whatever text follows: in the browser that
+            # element swallows the verdict and the notes, so the "reason" is
+            # not the reason the author sees.
+            reasons.append("" if inner is None else flatten(inner).strip())
+
+        if found and reasons:
+            out.append(f"gallery item '{ident}' carries both tiles and a "
+                       f"not-applicable reason — a row is either shown in "
+                       f"every tile or declared not applicable, never both")
+            continue
+        if not found and not reasons:
+            out.append(f"gallery item '{ident}' has neither a tile nor a "
+                       f"not-applicable reason — there is nothing for the "
+                       f"reader to judge. Show the {len(tiles)} tile(s) "
+                       f"({' '.join(tiles)}) as <figure data-tile=\"…\">, or "
+                       f"state why the row does not apply in a "
+                       f"<p class=\"gal-na\">")
+            continue
+        if reasons:
+            if len(reasons) > 1:
+                out.append(f"gallery item '{ident}' carries {len(reasons)} "
+                           f"gal-na reasons — a row is not applicable for one "
+                           f"reason")
+            elif not reasons[0]:
+                out.append(f"gallery item '{ident}' has an empty gal-na — the "
+                           f"reason a row does not apply is the whole content "
+                           f"of that row (an unclosed <p> is an empty one: the "
+                           f"text after it belongs to whatever follows)")
+            continue
+
+        unknown = [t for t in found if t not in tiles]
+        if unknown:
+            out.append(f"gallery item '{ident}' shows tile(s) the block does "
+                       f"not declare: {' '.join(sorted(set(unknown)))} "
+                       f"(declared: {' '.join(tiles)}) — a tile outside the "
+                       f"matrix is a cell no other row has, so the rows stop "
+                       f"being comparable")
+        dupes = sorted({t for t in found if found.count(t) > 1})
+        if dupes:
+            out.append(f"gallery item '{ident}' shows tile(s) twice: "
+                       f"{' '.join(dupes)} — one row, one figure per tile")
+        missing = [t for t in tiles if t not in found]
+        if missing:
+            out.append(f"gallery item '{ident}' is missing tile(s) "
+                       f"{' '.join(missing)} — the block declares "
+                       f"{' '.join(tiles)}, and a verdict given on part of "
+                       f"the matrix reads as a verdict on all of it")
     return out
 
 
@@ -1664,6 +1879,16 @@ def check_file(path):
         if not declared:
             fails.extend(check_consultation(path, text, flat))
 
+    # --- the gallery row's own completeness --------------------------------
+    # Outside the consultation gate on purpose: a gallery item IS a question,
+    # so it can never be one of the pages that declare their controls to be
+    # filters, and a page with no `consult-gallery` item reports nothing here.
+    try:
+        for msg in gallery_findings(text):
+            report("gallery", msg)
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        report("gallery", f"the gallery-row scan did not run ({e})")
+
     # Colour, last, and on EVERY page — a read's figures are read too. A page
     # whose figure text nobody can see does not ship. Failing here rather than
     # warning is v15 and was the owner's call (Q3): a warning that fired on 26
@@ -2057,22 +2282,30 @@ def check_consultation(path, text, flat):
     # page passed the check and showed the reader a wall of `graph TD`. A fleet
     # census on 2026-09-07 found zero pages using it, so removing the value costs
     # nothing and makes the route's retirement real in the code.
-    if not re.search(r'<svg|<img|<canvas', text, re.I):
-        try:
-            reason = visual_declaration(text)
-        except Exception as e:                      # noqa: BLE001 — fail closed
-            report("consult", f"the visual-declaration scan did not run ({e})")
-            reason = "scan failed"
-        if not reason:
-            report("consult", 'no visual and no <meta name="consult-visual" '
-                   'content="none: why"> — a consultation opens with the '
-                   'drawing when the subject has a shape, and states the '
-                   'reason when it does not')
-        elif PLACEHOLDER_REASON.search(reason):
-            report("consult", f'the consult-visual declaration is still the '
-                   f'template placeholder ("{reason}") — that is the '
-                   f'instruction to write a reason, not a reason. Replace it '
-                   f'with why this page has no drawing, or with svg/img')
+    has_visual = bool(re.search(r'<svg|<img|<canvas', text, re.I))
+    try:
+        reason = visual_declaration(text)
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        report("consult", f"the visual-declaration scan did not run ({e})")
+        reason = "scan failed"
+    if not has_visual and not reason:
+        report("consult", 'no visual and no <meta name="consult-visual" '
+               'content="none: why"> — a consultation opens with the '
+               'drawing when the subject has a shape, and states the '
+               'reason when it does not')
+    # The PLACEHOLDER is judged whether or not the page carries a visual, and
+    # that is the half this rule was missing. A page can hold an image and
+    # still declare `none: replace this with the reason` — the template does,
+    # since the gallery block below it ships example tiles — and the old
+    # placement read the image as the answer and let the un-answered
+    # declaration through. A declaration that says "none" on a page that has
+    # one is not a smaller violation than silence; it is a false statement the
+    # next round is written from.
+    elif reason and PLACEHOLDER_REASON.search(reason):
+        report("consult", f'the consult-visual declaration is still the '
+               f'template placeholder ("{reason}") — that is the '
+               f'instruction to write a reason, not a reason. Replace it '
+               f'with why this page has no drawing, or with svg/img')
 
     # The template's own recorded regression: with only the media query, an
     # explicitly-toggled dark page keeps the light sticky bar and the
