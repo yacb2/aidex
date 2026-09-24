@@ -41,7 +41,13 @@ import re
 from _shell import esc
 
 FM = re.compile(r"\A---\n.*?\n---\n?", re.S)
-CODE = re.compile(r"`([^`]+)`")
+# The OPENING backtick may not be escaped. The escape pass runs after this one
+# (a backslash inside a code span is literal, per CommonMark), so without this
+# guard `` \`0013\` `` still opened a span and shipped `\<code>0013</code>\.` —
+# both backslashes visible and the backticks gone, which is the opposite of
+# what the author asked for. Guarding the opening backtick is enough: a span
+# needs a pair, so an escaped opener leaves its partner with nothing to close.
+CODE = re.compile(r"(?<!\\)`([^`]+)`")
 BOLD = re.compile(r"\*\*(.+?)\*\*")
 ITAL = re.compile(r"(?<![\w*])[_*]([^_*\n]+)[_*](?![\w*])")
 SEP_ROW = re.compile(r"^\|[\s:|-]+\|$")
@@ -65,6 +71,68 @@ HEADING = re.compile(r"^#{1,6}\s")
 # 2026-09-08). The marker must be bare and alone on its line — a line with prose
 # after it, or text before it, is content.
 FENCE = re.compile(r"^\s*(```|~~~)\s*([A-Za-z0-9_+-]*)\s*$")
+# A bracketed inline span, `[text]{.pill .high}` — Pandoc's span syntax, the
+# inline half of the `:::` fence grammar the page spec borrows
+# (references/03-spec-grammar.md § Provenance). It exists for the two inline
+# types the corpus repeats and `components.css` does not define, `pill` and
+# `chip` (references/04-block-vocabulary.md), and it fires for NOTHING else:
+# `[a]{.foo}` is left exactly as written. A general attribute-on-any-span would
+# be a way to put arbitrary classes — and arbitrary markup — into report prose
+# that reaches this renderer from backlog titles and proof cells.
+SPAN = re.compile(r"\[([^\]\n]+)\]\{([^}\n]*)\}")
+# A backslash escape for this renderer's OWN inline markers, and for nothing
+# else: `\\`, `` \` ``, `\*`, `\_`, `\[`. Standard markdown, and the hole the
+# corpus walked into — `.context/worklists/_archive/*-report.md`, written as
+# plain prose, came out as `.context/worklists/archive/-report.md` with an
+# `<em>` around the middle. Both the underscore and the asterisk were EATEN,
+# silently, on a page `check-artifact` passes, and this function's own
+# docstring already named that exact path as the thing backticks protect. A
+# page that cannot write a filename without a monospace font it did not mean
+# is a renderer missing its escape, not an author's mistake.
+#
+# Deliberately NOT escapable: `#`, `-`, `|`, `:::`. Those are BLOCK markers,
+# read by `_blocks` a layer above this one, and an escape here would be read
+# after they had already done their work.
+ESCAPE = re.compile(r"\\([\\`*_\[])")
+SPAN_TYPES = ("pill", "chip")
+SPAN_CLASS = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+# A right-aligned column in a pipe table's separator row (`---:`). Standard
+# markdown alignment, read here as the `num` marker of the block vocabulary:
+# right-aligned, `tabular-nums`. The kit did NOT style `.num` when this was
+# written — the class was emitted and rendered as an ordinary cell, which is
+# what `04-block-vocabulary.md § num` said was already handled and was not
+# (kit v22 adds `th.num, td.num`). No new syntax was invented for the marker —
+# the one an author already knows is the one that was missing a meaning here.
+RIGHT_ALIGNED = re.compile(r"^-+:$")
+
+# The stash sentinel of `_inline`. U+0000 cannot appear in the author's text
+# (it is stripped on the way in) and cannot survive into the output (the
+# restore loop below runs until none is left), so the two halves of that
+# invariant are named here rather than spelled twice inside the function.
+NUL = "\x00"
+STASHED = re.compile(r"\x00(\d+)\x00")
+
+
+def _span_classes(attr_text):
+    """The class list of a bracketed span, or None when it is not one of ours.
+
+    `.name` accumulates a class; a bare `tone=name` adds its value as a class,
+    which is how `04-block-vocabulary.md` spells the second class of a `pill`
+    or a `chip`. The text arrives ALREADY ESCAPED, so a quoted value would have
+    become `&quot;` — quoting is not offered here, and a value that needs it is
+    not a one-word tone.
+    """
+    classes = []
+    for tok in attr_text.split():
+        if tok.startswith(".") and SPAN_CLASS.match(tok[1:]):
+            classes.append(tok[1:])
+        elif tok.startswith("tone=") and SPAN_CLASS.match(tok[5:]):
+            classes.append(tok[5:])
+        else:
+            return None
+    if not classes or classes[0] not in SPAN_TYPES:
+        return None
+    return classes
 
 
 def _inline(text):
@@ -73,21 +141,72 @@ def _inline(text):
     Code first and stashed: a path or a commit line inside backticks is literal,
     and letting `**` or `_` run over it is how `sweep-report.sh`'s own
     `_archive/<worklist>-report.md` would come out italicised in the middle.
+    The bracketed `[x]{.pill}` span is stashed for the same reason — a tone with
+    an underscore in it would otherwise be read as emphasis inside the class
+    attribute this renderer just wrote.
+
+    TWO INVARIANTS, both of them load-bearing and both tested:
+
+    1. **No `NUL` reaches the output.** The stash marker is `\\x00<n>\\x00`, and
+       a span STASHED INSIDE another stashed span (a code span in a pill label,
+       the shape `[`T-12`]{.chip}` writes) leaves a marker inside the first
+       stash's own text. A single `re.sub` replaced the outer marker and never
+       rescanned its replacement, so the author's identifier was replaced by the
+       stash INDEX between two literal U+0000 bytes — data loss, past a green
+       `check-artifact`. The restore runs until nothing is left to restore, and
+       any `NUL` the input itself carried is dropped before anything is stashed,
+       so the sentinel can only ever be this function's own.
+    2. **A stashed span's label is still markdown.** `[**bold**]{.pill}` used to
+       ship its asterisks as literal text, because `SPAN.sub` ran before
+       `BOLD.sub` and stashed content was never re-processed. The label is run
+       through emphasis HERE, before it is stashed, which is the only place it
+       can be done without exposing the class attribute to `ITAL`.
     """
     stash = []
 
-    def keep(m):
-        stash.append(m.group(1))
-        return f"\x00{len(stash) - 1}\x00"
+    def keep(html):
+        stash.append(html)
+        return f"{NUL}{len(stash) - 1}{NUL}"
 
-    text = CODE.sub(keep, esc(text))
+    def keep_code(m):
+        return keep(f"<code>{m.group(1)}</code>")
+
+    def keep_span(m):
+        classes = _span_classes(m.group(2))
+        if classes is None:
+            return m.group(0)
+        label = ITAL.sub(r"<em>\1</em>", BOLD.sub(r"<strong>\1</strong>",
+                                                 m.group(1)))
+        return keep(f'<span class="{" ".join(classes)}">{label}</span>')
+
+    text = CODE.sub(keep_code, esc(text.replace(NUL, "")))
+    # AFTER the code spans and BEFORE everything else. After, because a
+    # backslash inside a code span is literal (CommonMark says so, and a path
+    # in backticks is the one place an author means the backslash they typed).
+    # Before, because the point is to stop `SPAN`, `BOLD` and `ITAL` from
+    # seeing the character at all.
+    text = ESCAPE.sub(lambda m: keep(m.group(1)), text)
+    text = SPAN.sub(keep_span, text)
     text = BOLD.sub(r"<strong>\1</strong>", text)
     text = ITAL.sub(r"<em>\1</em>", text)
-    return re.sub(r"\x00(\d+)\x00", lambda m: f"<code>{stash[int(m.group(1))]}</code>", text)
+    # Bounded by the stash: every pass resolves at least the outermost marker,
+    # so `len(stash)` passes resolve a chain that is `len(stash)` deep, and a
+    # marker that survives all of them cannot exist (nothing but `keep` writes
+    # one). The guard is the bound, not a `while True`.
+    for _ in range(len(stash)):
+        if NUL not in text:
+            break
+        text = STASHED.sub(lambda m: stash[int(m.group(1))], text)
+    return text
 
 
 def _cells(line):
     return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def _num_columns(sep_row):
+    """Which columns a separator row marks right-aligned — the `num` columns."""
+    return [bool(RIGHT_ALIGNED.match(c)) for c in _cells(sep_row)]
 
 
 def _table(rows):
@@ -97,12 +216,22 @@ def _table(rows):
     an unwrapped wide one is drawn straight over the rail with no scrollbar —
     which `check-artifact.sh` fails.
     """
-    head, body = rows[0], rows[2:] if len(rows) > 1 and SEP_ROW.match(rows[1]) else rows[1:]
+    has_sep = len(rows) > 1 and bool(SEP_ROW.match(rows[1]))
+    head, body = rows[0], rows[2:] if has_sep else rows[1:]
+    nums = _num_columns(rows[1]) if has_sep else []
+
+    def cls(n):
+        # A table with a ragged row is ordinary in a hand-written report, so the
+        # marker is read by INDEX and a column the separator never described is
+        # simply not a num column.
+        return ' class="num"' if n < len(nums) and nums[n] else ""
+
     out = ['<div class="tw"><table>', "<thead><tr>"]
-    out += [f"<th>{_inline(c)}</th>" for c in _cells(head)]
+    out += [f"<th{cls(n)}>{_inline(c)}</th>" for n, c in enumerate(_cells(head))]
     out.append("</tr></thead><tbody>")
     for r in body:
-        out.append("<tr>" + "".join(f"<td>{_inline(c)}</td>" for c in _cells(r)) + "</tr>")
+        out.append("<tr>" + "".join(f"<td{cls(n)}>{_inline(c)}</td>"
+                                    for n, c in enumerate(_cells(r))) + "</tr>")
     out.append("</tbody></table></div>")
     return "".join(out)
 
@@ -266,3 +395,31 @@ def render(md_text, title=""):
             "</aside>",
             "</div>"]
     return "\n".join(out)
+
+
+def fragment(md_text):
+    """The markdown as a run of body-level blocks — no page, no sections, no rail.
+
+    `render()` is the whole-document entry: it takes a report and returns the
+    kit's `.page`/`.main` skeleton with a rail. A page SPEC needs the other half —
+    the prose inside one `:::` block, or one run between two of them, rendered in
+    place with whatever wrapper that block's emitter puts around it
+    (`../spec_build.py`). Splitting a document into sections there would put a
+    `<section>` inside a `.consult-item`.
+
+    This is the same subset, the same escaping and the same `degrade, never drop`
+    rule as `render()` — it is that function's block loop, exposed. There is no
+    second renderer, by Q7 of the plan.
+    """
+    return "\n".join(blocks(md_text))
+
+
+def blocks(md_text):
+    """`fragment()` as a LIST of block-level fragments, in written order.
+
+    A spec emitter needs the parts, not the join: `masthead` promotes the first
+    paragraph to the standfirst and `item` promotes the first one to its `<h3>`,
+    and a joined string cannot be split back — a fenced code block contains
+    newlines of its own.
+    """
+    return _blocks(md_text.split("\n"))

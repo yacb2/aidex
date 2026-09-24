@@ -78,7 +78,7 @@ case "${1:-}" in
 esac
 
 shopt -s nullglob
-TESTS=(tests/test-*.sh skills/*/tests/test-*.sh
+TESTS=(tests/test-*.sh skills/*/tests/test-*.sh skills/*/tests/test_*.py
        skills/*/scripts/test_*.sh skills/*/scripts/test_*.py
        skills/*/scripts/test-*.sh skills/*/scripts/test-*.py
        hooks/test-*.sh hooks/test-*.py)

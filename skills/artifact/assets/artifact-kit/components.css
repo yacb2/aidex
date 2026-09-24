@@ -102,6 +102,70 @@ li::marker { color: var(--muted); }
       border-left: 2px solid var(--rule); padding-left: 0.8rem; }
 .ex b { color: var(--ink); font-weight: 600; }
 
+/* THE BLOCK VOCABULARY (kit v22). `num`, `pill`, `chip`, `callout` and
+   `verdict`/`win` are the classes `references/04-block-vocabulary.md` fixed for
+   the page spec — and they were chosen, deliberately, as the classes the corpus
+   repeats that this file did NOT define. That selection rule is also how they
+   shipped inert: a spec-built page emitted every one of them, passed
+   `check-artifact`, and rendered a verdict whose winner was indistinguishable,
+   an unframed callout, bare-word pills and a left-aligned numeric column. No
+   new colour is introduced here; every value is a token, so a project's delta
+   restyles these with everything else. */
+
+/* A numeric column, marked in the source by a `---:` separator cell. The
+   `tabular-nums` half is the point of the marker: equal-width digits make a
+   column of figures comparable down its length, which proportional digits in
+   the body face are not. */
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* The two inline tags. `pill` is a status or confidence tag inside a sentence;
+   `chip` is an outcome label in a list or a table, so it is the smaller,
+   upper-case, fully-rounded one — the pair has to be told apart at a glance or
+   the distinction the vocabulary draws is invisible. Sized off the sans stack
+   and the sunk paper rather than a tint of the accent: the accent is a
+   FOREGROUND colour in both themes (the same reason `.kit-tag` is transparent),
+   and a filled tag loses its own text in one of them. */
+.pill, .chip { font-family: var(--sans); font-weight: 600; white-space: nowrap;
+               background: var(--paper-sunk); border: 1px solid var(--rule);
+               color: var(--ink-soft); vertical-align: 0.06em; }
+.pill { font-size: 0.74rem; letter-spacing: 0.02em; padding: 0.08em 0.42em; border-radius: 3px; }
+.chip { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+        padding: 0.1em 0.5em; border-radius: 999px; }
+/* The tones, written by the corpus as the SECOND class of the span
+   (`pill high`, `chip chip-kill`) and by `tone=` in a spec. Scoped to their
+   own tag, so a word this common cannot restyle anything else on the page. */
+.pill.high { color: var(--accent); border-color: var(--accent-dim); }
+.pill.info { color: var(--ink-soft); border-color: var(--rule); }
+.pill.warn, .chip.warn { color: var(--flag); border-color: var(--flag); }
+.chip.chip-kill, .chip.kill { color: var(--flag); border-color: var(--flag); }
+.chip.ok, .pill.ok { color: var(--accent); border-color: var(--accent-dim); }
+
+/* The framed aside: the paragraph the page does not want skimmed past. Louder
+   than `.note`, which is its quieter sibling and already styled — with no rule
+   of its own the two read as one voice, which is the whole distinction gone.
+   It keeps the body face and body size (a callout is content, not chrome) and
+   takes the frame plus an accent edge. */
+.callout { border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+           border-radius: 4px; background: var(--paper-sunk); padding: 0.9rem 1.1rem;
+           display: flex; flex-direction: column; gap: 0.6rem; }
+
+/* The verdict strip at the head of a comparison: N cells, one of them the
+   winner. The winner is the only reason the strip exists, so it is the cell
+   that carries the accent frame and the un-sunk paper — with no rule at all,
+   `.win` computed identically to its neighbours and the scoreboard had no
+   score. The figure is the large numeral, the label its line, the caption the
+   small print under both. */
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+           gap: 0.6rem; font-family: var(--sans); }
+.verdict > div { border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-sunk);
+                 padding: 0.7rem 0.9rem; color: var(--ink-soft); font-size: 0.85rem; line-height: 1.4; }
+.verdict > div b { display: block; font-family: var(--serif); font-weight: 600;
+                   font-size: 1.75rem; line-height: 1.1; color: var(--ink);
+                   font-variant-numeric: tabular-nums; }
+.verdict > div small { display: block; margin-top: 0.3rem; font-size: 0.72rem; color: var(--muted); }
+.verdict > div.win { background: var(--paper); color: var(--ink); border-color: var(--accent);
+                     box-shadow: inset 0 0 0 1px var(--accent); }
+
 /* The ledger: what this thread already decided, so a decided item leaves the
    interface instead of being asked again. */
 .ledger { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1px; background: var(--rule); }

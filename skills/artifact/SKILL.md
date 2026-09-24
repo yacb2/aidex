@@ -46,9 +46,10 @@ half of this skill, not an out-of-scope request: they follow the same
 sibling-path and publish-gated conventions (see
 `references/02-local-first-artifacts.md`).
 **When a request is an ad-hoc analysis rather than a board, never decline and
-never hand-roll an unstyled page: load the `artifact-design` skill, start from
-`assets/artifact-kit/skeleton.html`, then write the sibling HTML and open it
-locally.**
+never hand-roll an unstyled page: load the `artifact-design` skill, then write a
+page SPEC and build it (§ Spec-first below). For a page that already exists as
+HTML with no spec beside it, start from `assets/artifact-kit/skeleton.html` and
+write the sibling HTML instead. Either way, open it locally.**
 
 A consultation about screenshots (a UI proposal, a state gallery) carries them as
 gallery rows: `scripts/gallery-items.sh` turns the project's rows JSON into items
@@ -59,6 +60,42 @@ Per-project design tokens live in `.context/artifact-style.md` (template:
 `assets/templates/artifact-style.md.template`), including a `language:` field
 that `wrap-report.sh` reads as the artifact's `<html lang>` — artifacts only;
 `.context/` stays English (D-04).
+
+## Spec-first
+
+**A new page, and a revision of a page that already has one, are written as a
+`.spec.md` — not as HTML.** The spec is a small markdown dialect of `:::` fences;
+one command builds it into the kit's markup, wraps it and runs the contract check:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md -o <name>.html --check
+```
+
+Edits to a page on this route go through the verbs
+(`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
+rebuild the page. The built HTML is an output; it is regenerated, never hand-edited.
+
+The boundary is exact:
+
+| The page | What you write |
+|---|---|
+| New | a `.spec.md` |
+| Already has a `.spec.md` | edit that `.spec.md` |
+| Exists as HTML with no `.spec.md` | leave it on the HTML route; do **not** migrate it |
+
+The HTML-body route is not removed and no existing page is converted as a side
+effect of touching it. `check-artifact` is the net either way — a page that fails
+it never lands, whichever route wrote it.
+
+Figures are blocks too, chosen by one ladder — the highest rung that carries the
+meaning: (1) `chart` / `diagram`, closed stdlib blocks; (2) `graph`, DOT through
+Graphviz; (3) `figure`, a file — figure-opus's SVG or a screenshot. The table with one
+example per rung is `references/02-local-first-artifacts.md` § The figure ladder. No
+spec inlines SVG.
+
+The how-to, with worked examples, is `references/02-local-first-artifacts.md`
+§ Route S; the syntax is `references/03-spec-grammar.md` and the closed set of
+block types is `references/04-block-vocabulary.md`.
 
 ## Render-per-index rule
 

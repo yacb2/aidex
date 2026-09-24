@@ -70,7 +70,9 @@ a census warning on a page nobody is editing is noise no one can clear.
 Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
 """
+import hashlib
 import html as _html
+import xml.etree.ElementTree as _ET
 import os
 import re
 import time
@@ -1057,6 +1059,347 @@ def svg_literal_colour(v):
     if m:
         return tuple(min(255, int(g)) for g in m.groups())
     return None
+
+
+# --- svg-embed: what a figure FILE may carry into a page ----------------------
+# The rules a spec's `::: figure` block applies to an .svg before inlining it
+# (spec_build.py imports this; it keeps no copy). Not a per-page check: a page
+# already on disk is judged by the checks above, and the originals of the spec
+# corpus are measured against these rules, not failed by them.
+#
+# An ALLOWLIST over a real parse, not a denylist over a scan. The file is parsed
+# as strict XML (`xml.etree`); what does not parse is refused, and so is any
+# element or attribute not named below. The page then gets the PARSED TREE,
+# re-serialised with every text node and value escaped — never a slice of the
+# source — so the browser's HTML parser reads exactly the elements checked here
+# and no construct can mean one thing to this parser and another to it. The
+# denylist it replaced let `<a>`, `<base>`, `<form>`, `href="data:text/html…"`
+# and a namespaced `x:href` through, each a road out of the figure.
+#
+# Paint is refused as a hex literal or a colour FUNCTION (rgb, hsl, hwb, lab,
+# lch, oklab, oklch, color). A named colour (`white`) is just as fixed and is
+# not refused here: the rule is the figure-kit's, and widening it is a
+# decision, not a fix.
+SVG_NS = 'http://www.w3.org/2000/svg'
+SVG_XLINK_NS = 'http://www.w3.org/1999/xlink'
+SVG_XML_NS = 'http://www.w3.org/XML/1998/namespace'
+SVG_EMBED_ELEMENTS = frozenset((
+    'svg', 'g', 'defs', 'title', 'desc', 'rect', 'circle', 'ellipse', 'line',
+    'polyline', 'polygon', 'path', 'text', 'tspan', 'marker', 'use', 'symbol',
+    'clipPath', 'mask', 'linearGradient', 'radialGradient', 'stop', 'pattern',
+    'style'))
+SVG_EMBED_ATTRS = frozenset((
+    # identity, structure, accessibility
+    'id', 'class', 'style', 'lang', 'role', 'aria-label', 'aria-labelledby',
+    'aria-describedby', 'aria-hidden', 'focusable', 'version', 'type', 'media',
+    # geometry and coordinate systems
+    'viewBox', 'preserveAspectRatio', 'width', 'height', 'x', 'y', 'x1', 'y1',
+    'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'fx', 'fy', 'fr', 'd', 'points',
+    'pathLength', 'transform', 'dx', 'dy', 'rotate', 'textLength',
+    'lengthAdjust',
+    # markers, clipping, masks, gradients, patterns
+    'marker-start', 'marker-mid', 'marker-end', 'markerWidth', 'markerHeight',
+    'markerUnits', 'refX', 'refY', 'orient', 'clip-path', 'clip-rule',
+    'clipPathUnits', 'mask', 'maskUnits', 'maskContentUnits', 'gradientUnits',
+    'gradientTransform', 'spreadMethod', 'offset', 'stop-color', 'stop-opacity',
+    'patternUnits', 'patternContentUnits', 'patternTransform',
+    # presentation
+    'fill', 'fill-opacity', 'fill-rule', 'stroke', 'stroke-width',
+    'stroke-opacity', 'stroke-dasharray', 'stroke-dashoffset',
+    'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'opacity',
+    'color', 'display', 'visibility', 'overflow', 'vector-effect',
+    'shape-rendering', 'text-rendering', 'paint-order',
+    # text
+    'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
+    'text-anchor', 'dominant-baseline', 'alignment-baseline', 'baseline-shift',
+    'letter-spacing', 'word-spacing', 'text-decoration', 'white-space',
+    # references: a #fragment of this file and nothing else (checked below)
+    'href'))
+SVG_EMBED_PAINT = re.compile(
+    r'^\s*(#[0-9a-fA-F]{3,8}\b|(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color)\()',
+    re.I)
+SVG_EMBED_DECL = re.compile(r'(?:^|[;{\s])(fill|stroke)\s*:\s*([^;}]+)', re.I)
+SVG_EMBED_URL_OK = re.compile(r'url\(#[A-Za-z_][\w.-]*\)', re.I)
+SVG_EMBED_FUNC = re.compile(r'([A-Za-z_-][\w-]*)?\(')
+# The CSS functions a figure's styles may call: custom properties and
+# arithmetic, colours, transforms — and `url()`, only as exactly `url(#id)`.
+# Anything else (`image-set()`, `image()`, `cross-fade()`, `element()`, …) may
+# fetch or reference something, so it is refused rather than searched.
+SVG_EMBED_CSS_FUNCS = frozenset((
+    'var', 'calc', 'min', 'max', 'clamp', 'rgb', 'rgba', 'hsl', 'hsla', 'hwb',
+    'lab', 'lch', 'oklab', 'oklch', 'color', 'translate', 'translatex',
+    'translatey', 'rotate', 'scale', 'scalex', 'scaley', 'matrix', 'skewx',
+    'skewy', 'url'))
+SVG_EMBED_CSS_WORDS = ('javascript:', 'expression', 'behavior', '-moz-binding')
+SVG_EMBED_ENTITY = re.compile(r'&([A-Za-z][A-Za-z0-9]*);')
+SVG_EMBED_XML_ENTITIES = ('amp', 'lt', 'gt', 'quot', 'apos')
+
+
+def _svg_embed_urls(text, where):
+    """A `url(` that is not exactly `url(#id)` — no quotes, no spaces."""
+    return [f"{where} {text[m.start():m.start() + 40]!r} — only url(#id), "
+            f"exactly; anything else is an external reference or hides one"
+            for m in re.finditer(r'url\(', text, re.I)
+            if not SVG_EMBED_URL_OK.match(text, m.start())]
+
+
+# Third security pass: CSS in a figure is an ALLOWLIST, and it is scoped. A
+# <style> inside an inline <svg> is a stylesheet of the whole DOCUMENT, and
+# `position:fixed` lifts the drawing out of its <figure> — both confirmed in
+# headless Chrome (a figure repainted <body> and hid the page's <h1>). So a
+# figure may style only paint and text, only with type/.class/#id compounds
+# joined by a descendant or `>` combinator, and every selector is rewritten
+# under its own root, `svg[data-embed="<key>"] <selector>`, so no rule can
+# match outside the figure that carries it.
+SVG_EMBED_CSS_PROPS = frozenset((
+    'fill', 'fill-opacity', 'fill-rule', 'stroke', 'opacity', 'font-family',
+    'font-size', 'font-weight', 'font-style', 'font-variant', 'text-anchor',
+    'dominant-baseline', 'letter-spacing', 'text-decoration', 'paint-order',
+    'vector-effect', 'visibility'))
+SVG_EMBED_CSS_PROP_PREFIXES = ('stroke-', 'marker-')
+SVG_EMBED_COMPOUND = re.compile(r'(?:[A-Za-z][\w-]*)?(?:[.#][A-Za-z_-][\w-]*)*')
+SVG_EMBED_RULES = re.compile(r'(?:\s*[^{}]+\{[^{}]*\})*\s*')
+# Presentation attributes the ROOT <svg> may not carry: each moves or unclips
+# the drawing relative to the page around it.
+SVG_EMBED_ROOT_REFUSED = ('transform', 'overflow', 'display')
+
+
+def _svg_embed_prop_ok(prop):
+    return (prop in SVG_EMBED_CSS_PROPS
+            or prop.startswith(SVG_EMBED_CSS_PROP_PREFIXES))
+
+
+def _svg_embed_decls(body, where):
+    """`(violations, "prop:value;…")` for one declaration block."""
+    out, kept = [], []
+    for decl in body.split(';'):
+        if not decl.strip():
+            continue
+        prop, colon, val = decl.partition(':')
+        prop, val = prop.strip().lower(), val.strip()
+        if not colon or not prop or not val:
+            out.append(f"{where} {decl.strip()!r} is not a declaration")
+            continue
+        if not _svg_embed_prop_ok(prop):
+            out.append(f"{where} {prop} — a figure's CSS sets paint and text "
+                       f"only")
+            continue
+        if prop in ('fill', 'stroke') and SVG_EMBED_PAINT.match(val):
+            out.append(f"{where} {{{prop}: {val}}} — a literal colour; use "
+                       f"currentColor or a kit class")
+            continue
+        kept.append(f"{prop}:{val}")
+    return out, ';'.join(kept)
+
+
+def _svg_embed_selector(sel):
+    """The selector, whitespace-normalised, or None when it is outside the
+    grammar: compounds of type, .class and #id, joined by ' ' or '>'."""
+    parts = re.split(r'\s*>\s*|\s+', sel.strip())
+    if not sel.strip() or any(
+            not p or not SVG_EMBED_COMPOUND.fullmatch(p)
+            or re.match(r'(html|body)\b', p, re.I) for p in parts):
+        return None
+    return ' '.join(sel.split())
+
+
+def _svg_embed_css(css, where, rules, key=None):
+    """`(violations, css_out)` for CSS a figure carries — its <style>
+    (`rules`) or a `style=""` value. `css_out` is what the page gets: the
+    declarations that were checked, and (with `key`) every selector scoped
+    under `svg[data-embed="key"]`.
+
+    First refused by SHAPE (second security pass): a backslash (a CSS escape
+    can spell anything), an unclosed comment, any @-rule, `</`, a function not
+    in SVG_EMBED_CSS_FUNCS, `url(` that is not exactly `url(#id)`, the words in
+    SVG_EMBED_CSS_WORDS. Then by the property and selector allowlists."""
+    if '\\' in css:
+        return [f"{where} a backslash — a CSS escape can spell anything, so "
+                f"figure CSS carries none"], ''
+    out = []
+    if '</' in css:
+        out.append(f"{where} '</' — markup inside CSS")
+    body = re.sub(r'/\*.*?\*/', ' ', css, flags=re.S)
+    if '/*' in body:
+        out.append(f"{where} an unclosed comment")
+        body = body[:body.index('/*')]
+    out += [f"{where} {kw} — an @-rule; figure CSS is plain rules"
+            for kw in re.findall(r'@[\w-]*', body)]
+    low = body.lower()
+    out += [f"{where} {w} — CSS that loads or runs something"
+            for w in SVG_EMBED_CSS_WORDS if w in low]
+    for m in SVG_EMBED_FUNC.finditer(body):
+        name = (m.group(1) or '').lower()
+        if name and name != 'url' and name not in SVG_EMBED_CSS_FUNCS:
+            out.append(f"{where} {name}( — a CSS function a figure may not call")
+    out += _svg_embed_urls(body, where)
+    if out:
+        return out, ''
+    if not rules:
+        return _svg_embed_decls(body, where)
+    if not SVG_EMBED_RULES.fullmatch(body):
+        return [f"{where} text that is not a rule (`selector {{ … }}`)"], ''
+    scope = f'svg[data-embed="{key}"] ' if key else ''
+    kept = []
+    for sels, decls in SVG_CSS_RULE.findall(body):
+        good = []
+        for sel in sels.split(','):
+            norm = _svg_embed_selector(sel)
+            if norm is None:
+                out.append(f"{where} selector {sel.strip()!r} — only type, "
+                           f".class and #id, joined by a space or '>'")
+            else:
+                good.append(scope + norm)
+        why, decl_out = _svg_embed_decls(decls, f"{where} {sels.strip()}")
+        out += why
+        kept.append(', '.join(good) + '{' + decl_out + '}')
+    return out, ' '.join(kept)
+
+
+def _svg_embed_name(tag):
+    """`(local, in_svg_namespace)` for an element tag as ElementTree gives it."""
+    if tag.startswith('{'):
+        ns, local = tag[1:].split('}', 1)
+        return local, ns == SVG_NS
+    return tag, True
+
+
+def _svg_embed_attr(key):
+    """The attribute's name as it is written back, or None when it is in a
+    namespace a figure may not use (anything but xlink:href, xml:space/lang)."""
+    if not key.startswith('{'):
+        return key
+    ns, local = key[1:].split('}', 1)
+    if ns == SVG_XLINK_NS and local == 'href':
+        return 'xlink:href'
+    if ns == SVG_XML_NS and local in ('space', 'lang'):
+        return 'xml:' + local
+    return None
+
+
+def _svg_embed_check(el, out):
+    local, ours = _svg_embed_name(el.tag)
+    if not ours:
+        out.append(f"<{el.tag}> — an element in a foreign namespace")
+        return
+    if local not in SVG_EMBED_ELEMENTS:
+        out.append(f"<{local}> is not an SVG element a figure may carry")
+        return
+    for key, val in el.attrib.items():
+        name = _svg_embed_attr(key)
+        if name is None:
+            out.append(f"<{local} {key}=…> — an attribute in a foreign namespace")
+            continue
+        if name.lower().startswith('on'):
+            out.append(f"<{local} {name}=…> — an event handler is code")
+            continue
+        if name not in SVG_EMBED_ATTRS and name not in (
+                'xlink:href', 'xml:space', 'xml:lang'):
+            out.append(f"<{local} {name}=…> is not an attribute a figure "
+                       f"may carry")
+            continue
+        if name in ('href', 'xlink:href') and not val.strip().startswith('#'):
+            out.append(f"<{local} {name}=\"{val}\"> — only a #fragment of this "
+                       f"file; the page must stand alone")
+            continue
+        if name == 'style':
+            out += _svg_embed_css(val, f"<{local} style=…>", rules=False)[0]
+            continue
+        out += _svg_embed_urls(val, f"<{local} {name}=…>")
+        if name in ('fill', 'stroke') and SVG_EMBED_PAINT.match(val):
+            out.append(f"<{local} {name}=\"{val.strip()}\"> — a literal colour; "
+                       f"use currentColor or a kit class")
+    if local == 'style':
+        # Its text reaches the page UNESCAPED (see _svg_embed_write), so it
+        # must mean the same whether a parser reads it raw or decodes it.
+        text = el.text or ''
+        if len(el):
+            out.append("<style> holds elements — a stylesheet is text")
+        for bad in ('<', '&', ']]>'):
+            if bad in text:
+                out.append(f"<style> text holds {bad!r} — it would read "
+                           f"differently to an HTML and an XML parser")
+        out += _svg_embed_css(text, "<style>", rules=True)[0]
+        return
+    for child in el:
+        _svg_embed_check(child, out)
+
+
+def _svg_embed_write(el, out, key, root=False):
+    local = _svg_embed_name(el.tag)[0]
+    out.append('<' + local)
+    if root:
+        out.append(' data-embed="%s"' % key)
+    for k, val in el.attrib.items():
+        name = _svg_embed_attr(k)
+        if name == 'style':
+            val = _svg_embed_css(val, '', rules=False)[1]
+        out.append(' %s="%s"' % (name, _html.escape(val, quote=True)))
+    if not len(el) and not el.text:
+        out.append('/>')
+        return
+    if local == 'style':
+        # The CHECKED rules, each selector scoped under this figure's root. No
+        # '<' and no '&' (refused above): raw text reads the same to an HTML
+        # tokenizer (raw text or data state) and to XML.
+        out.append('>' + _svg_embed_css(el.text or '', '', rules=True,
+                                        key=key)[1] + '</style>')
+        return
+    out.append('>' + _html.escape(el.text or '', quote=True))
+    for child in el:
+        _svg_embed_write(child, out, key)
+        out.append(_html.escape(child.tail or '', quote=True))
+    out.append('</%s>' % local)
+
+
+def _svg_embed_parse(text):
+    """The file as an ElementTree root (raises `ParseError`). An HTML named
+    character reference (`&middot;`) becomes its numeric form first; the five
+    XML ones are left to XML, so the rewrite can never produce `<` or `&`."""
+    from html.entities import name2codepoint
+
+    def entity(m):
+        name = m.group(1)
+        if name in SVG_EMBED_XML_ENTITIES or name not in name2codepoint:
+            return m.group(0)
+        return '&#%d;' % name2codepoint[name]
+
+    return _ET.fromstring(SVG_EMBED_ENTITY.sub(entity, text))
+
+
+def svg_embed_sanitize(text):
+    """`(violations, html)` for an SVG file's text: `html` is the drawing as a
+    page may inline it — the parsed tree re-serialised — or None when anything
+    is refused. Comments and processing instructions are dropped; an HTML named
+    character reference (`&middot;`) is read as its character, because inline
+    SVG copied out of a page carries them and they are text, not structure.
+    """
+    if re.search(r'<!(DOCTYPE|ENTITY)', text, re.I):
+        return ["a <!DOCTYPE>/<!ENTITY> — a figure declares no entities"], None
+    try:
+        root = _svg_embed_parse(text)
+    except _ET.ParseError as e:
+        return [f"the file does not parse as XML ({e})"], None
+    local, ours = _svg_embed_name(root.tag)
+    if local != 'svg' or not ours:
+        return [f"the root element is <{root.tag}>, not <svg>"], None
+    out = [f"<svg {k}=…> on the root — it moves or unclips the drawing "
+           f"against the page around it" for k in root.attrib
+           if k in SVG_EMBED_ROOT_REFUSED]
+    _svg_embed_check(root, out)
+    if out:
+        return out, None
+    # The scope key: this file's own, so two figures on one page never share
+    # one, and the build stays deterministic.
+    key = hashlib.sha256(text.encode('utf-8')).hexdigest()[:8]
+    html = []
+    _svg_embed_write(root, html, key, root=True)
+    return [], ''.join(html)
+
+
+def svg_embed_violations(svg):
+    """Why this SVG source may not be inlined as a kit figure; [] when it may."""
+    return svg_embed_sanitize(svg)[0]
 
 
 def _relative_luminance(rgb):
@@ -2731,3 +3074,4 @@ def main(argv):
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+

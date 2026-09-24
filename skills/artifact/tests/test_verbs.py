@@ -1,0 +1,668 @@
+#!/usr/bin/env python3
+"""The per-operation VERBS: spec-only edits, atomic refusals, and the rebuild.
+
+Six claims, in the order the plan's acceptance names them:
+
+  THE SPEC IS WHAT MOVES — one case per verb, asserting both halves: what the
+  SPEC text became, and what the REBUILT page then carries. A verb asserted on
+  the spec alone would pass while building nothing, and a verb asserted on the
+  page alone would pass while the spec and the page had drifted apart, which is
+  the one failure the spec route exists to remove.
+
+  THE ROUND TRIP — verb call, then `check-artifact.sh` on the rebuilt page. No
+  exemption, no WARN. This is the test Task 1.3 names.
+
+  ATOMICITY — a verb pointed at a missing id, at the wrong kind of block, or at
+  an edit whose result would not build, writes NOTHING: the spec file is
+  compared BYTE for BYTE afterwards, and so is the page. A half-edited spec is
+  worse than a refused edit; a refusal that leaves half a fence behind is worse
+  than both.
+
+  NO VERB WRITES HTML — asserted twice, because each half is weak alone. Behind:
+  the page a verb produced is byte-identical to the page `spec_build.py -o`
+  produces from the same spec text (modulo the build STAMP, which is a clock).
+  In front: the module holds no markup and calls no emitter, so there is no
+  second renderer to drift from the kit.
+
+  THE AUTHOR'S FORMATTING SURVIVES — a diff of the whole spec before and after,
+  asserting that `add-item` and `new-round` only ever ADD lines and `decide`
+  changes exactly ONE. No reflow, no re-indent, no attr reordering, no re-quoted
+  title, no normalised trailing newline.
+
+  IDEMPOTENCY, PER VERB — `decide` on an already-decided item and `new-round` on
+  an already-synced ledger come back byte-identical; `add-item` with a used id
+  refuses. Each is the choice `spec_verbs.py` documents, asserted so the
+  docstring and the behaviour cannot part ways.
+
+Stdlib only, no runner: `python3 test_verbs.py`, prints OK, exits 0.
+"""
+import ast
+import difflib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SKILL = os.path.dirname(HERE)
+SCRIPTS = os.path.join(SKILL, "scripts")
+sys.path.insert(0, SCRIPTS)
+sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
+
+import spec_verbs                                            # noqa: E402
+from spec_verbs import VerbError, add_item, decide, new_round  # noqa: E402
+
+VERBS = os.path.join(SCRIPTS, "spec_verbs.py")
+BUILD = os.path.join(SCRIPTS, "spec_build.py")
+CHECK = os.path.join(SCRIPTS, "check-artifact.sh")
+
+failures = []
+
+
+def fail(msg):
+    failures.append(msg)
+    print("FAIL: " + msg)
+
+
+def ok(msg):
+    print("  ok: " + msg)
+
+
+def check(label, cond, detail=""):
+    if cond:
+        ok(label)
+    else:
+        fail("%s%s" % (label, (": " + detail) if detail else ""))
+
+
+def refuses(label, fn, needle):
+    """The verb refuses with a `VerbError` that names `needle`."""
+    try:
+        fn()
+    except VerbError as exc:
+        if needle not in str(exc):
+            fail("%s: message %r does not mention %r" % (label, str(exc), needle))
+        else:
+            ok("%s (%s)" % (label, exc))
+        return
+    except Exception as exc:                        # noqa: BLE001
+        fail("%s: raised %s instead of VerbError (%s)"
+             % (label, type(exc).__name__, exc))
+        return
+    fail("%s: accepted it" % label)
+
+
+def diff_shape(before, after):
+    """`(added, removed)` line counts between two spec texts.
+
+    Line-level and not token-level on purpose: the claim is that the bytes of
+    every line the verb did not edit are where the author left them, and a
+    line-level diff that reports zero removals proves exactly that for an
+    insert.
+    """
+    a, b = before.split("\n"), after.split("\n")
+    added = removed = 0
+    for row in difflib.ndiff(a, b):
+        if row.startswith("+ "):
+            added += 1
+        elif row.startswith("- "):
+            removed += 1
+    return added, removed
+
+
+# The fixture: every shape the verbs address and `check_artifact.py` has a rule
+# about — a masthead with its visual declaration, a group, a decided item, an
+# open item, and the general-notes item the contract requires.
+PAGE = '''::: masthead {eyebrow="Fixture · spec verbs" byline="Fuente: `tests/test_verbs.py`" visual="none: la decisión es de formato y no tiene forma que dibujar"}
+# La página editada por verbos
+
+Dos preguntas abiertas y una decisión cerrada.
+:::
+
+::: group {#G1 title="Formato del spec" eyebrow="Bloque G1"}
+La consulta de hoy: qué escribe el agente cuando la página cambia.
+
+::: item {#Q1   title="Fences o YAML"    }
+¿Fences de Pandoc o YAML anidado?
+
+- Fences de Pandoc — prosa con marcas mínimas {recommended}
+- YAML anidado — estructura explícita
+:::
+
+::: item {#Q2 title="Marcador de columna" decided=yes}
+¿El marcador va en la fila separadora?
+
+- Sí, `---:` es markdown estándar {recommended}
+- No, un atributo nuevo
+:::
+:::
+
+::: notes {title="Notas generales"}
+:::
+'''
+
+LEDGERED = PAGE.replace(
+    "::: group {#G1",
+    "::: ledger\n- d1 — **Hecho.** La gramática vive en `03-spec-grammar.md`.\n"
+    ":::\n\n::: group {#G1", 1)
+
+
+print("== add-item: the spec, then the page ==")
+after = add_item(PAGE, "G1", "Q3", "Ruta de figuras",
+                 body="¿Qué renderizador dibuja las barras?",
+                 options=["El de la librería — una rueda binaria",
+                          "Uno propio de stdlib — SVG contra los tokens del kit "
+                          "{recommended}"])
+check("the new fence lands INSIDE the group, after the last item",
+      after.index('#Q3') > after.index('#Q2')
+      and after.index('#Q3') < after.index("::: notes"), after)
+check("the item is written with the id, the title and its options",
+      '::: item {#Q3 title="Ruta de figuras"}' in after
+      and "¿Qué renderizador dibuja las barras?" in after
+      and "- El de la librería — una rueda binaria" in after, after)
+added, removed = diff_shape(PAGE, after)
+check("add-item only ADDS lines — nothing the author wrote is moved or "
+      "re-indented", removed == 0 and added == 7, "%d added, %d removed"
+      % (added, removed))
+check("the oddly spaced fence of #Q1 is copied through, space for space",
+      '::: item {#Q1   title="Fences o YAML"    }' in after)
+
+refuses("add-item refuses an id the spec already uses",
+        lambda: add_item(PAGE, "G1", "Q2", "otra"), "#Q2 is already used")
+refuses("...and names the group it cannot find",
+        lambda: add_item(PAGE, "G9", "Q3", "x"), "#G9")
+refuses("...and lists the groups the spec does have",
+        lambda: add_item(PAGE, "G9", "Q3", "x"), "#G1")
+refuses("...and refuses an id the grammar cannot spell",
+        lambda: add_item(PAGE, "G1", "3-Q", "x"), "not a usable id")
+quoted = add_item(PAGE, "G1", "Q3", 'con "comillas"')
+check("a title carrying a double quote is WRITTEN, not refused — the attr "
+      "grammar escapes one since the corpus conversion",
+      '::: item {#Q3 title="con \\"comillas\\""}' in quoted, quoted)
+check("...and it parses back to the title the caller gave, character for "
+      "character",
+      [n.attrs.get("title") for n in spec_verbs._walk(spec_verbs.spec_parser.parse(quoted))
+       if n.id == "Q3"] == ['con "comillas"'], quoted)
+refuses("add-item refuses a group id that is an ITEM's",
+        lambda: add_item(PAGE, "Q1", "Q3", "x"), "no `group` with id #Q1")
+
+print()
+print("== decide: the attr, and only the attr ==")
+one = decide(PAGE, "Q1", "yes")
+check("the verdict lands as `decided=` on the item's own fence, and the "
+      "author's spacing inside the braces is left where it was",
+      '::: item {#Q1   title="Fences o YAML"    decided="yes"}' in one, one)
+added, removed = diff_shape(PAGE, one)
+check("decide changes exactly one line", (added, removed) == (1, 1),
+      "%d added, %d removed" % (added, removed))
+check("no other fence gains a verdict",
+      one.replace('decided="yes"', "", 1).count("decided") == 1)
+check("decide is idempotent for the same verdict — byte-identical spec",
+      decide(one, "Q1", "yes") == one)
+two = decide(one, "Q1", "no, se reabre")
+check("a DIFFERENT verdict overwrites (the `owner-changed` case)",
+      'decided="no, se reabre"' in two and 'decided="yes"' not in two, two)
+check("...and still changes exactly one line", diff_shape(one, two) == (1, 1))
+check("an existing bare verdict is replaced in place, not appended",
+      decide(PAGE, "Q2", "no").count("decided") == 1
+      and 'decided="no"' in decide(PAGE, "Q2", "no"))
+refuses("decide refuses an id the spec does not carry",
+        lambda: decide(PAGE, "Q9", "yes"), "#Q9")
+refuses("...and lists the items it does carry",
+        lambda: decide(PAGE, "Q9", "yes"), "#Q1")
+refuses("decide refuses a block that is not an item",
+        lambda: decide(PAGE, "G1", "yes"), "is a `group` block")
+refuses("...and an empty verdict", lambda: decide(PAGE, "Q1", "  "),
+        "empty verdict")
+
+print()
+print("== new-round: the ledger, keyed by id ==")
+rnd = new_round(PAGE)
+check("a spec with no ledger gets one, right after the masthead",
+      "::: ledger\n- Q2 — Marcador de columna\n:::" in rnd
+      and rnd.index("::: ledger") < rnd.index("::: group"), rnd)
+added, removed = diff_shape(PAGE, rnd)
+check("new-round only ADDS lines", removed == 0 and added == 4,
+      "%d added, %d removed" % (added, removed))
+check("new-round is idempotent — a key already in the ledger is not written "
+      "twice", new_round(rnd) == rnd)
+check("a spec with nothing decided comes back byte-identical",
+      new_round(decide(PAGE, "Q2", "yes").replace(' decided="yes"', ""))
+      == PAGE.replace(" decided=yes", ""))
+existing = new_round(LEDGERED)
+check("an existing ledger is APPENDED to, its own rows untouched",
+      "- d1 — **Hecho.** La gramática vive en `03-spec-grammar.md`." in existing
+      and "- Q2 — Marcador de columna" in existing
+      and diff_shape(LEDGERED, existing) == (1, 0), existing)
+verdicted = new_round(decide(PAGE, "Q1", "Pandoc, cerrado"))
+check("a TEXT verdict travels into the row beside the title",
+      "- Q1 — Fences o YAML (Pandoc, cerrado)" in verdicted, verdicted)
+check("...and `yes` does not, because it says nothing a row should repeat",
+      "- Q2 — Marcador de columna\n" in verdicted)
+check("an author's rewritten row is left alone — the KEY is what is compared",
+      new_round(rnd.replace("- Q2 — Marcador de columna",
+                            "- Q2 — Reescrito a mano"))
+      == rnd.replace("- Q2 — Marcador de columna", "- Q2 — Reescrito a mano"))
+
+print()
+print("== the ledger keyspace is the item keyspace ==")
+# A key is a COMPOUND in the field — `c35 · T-265`, `c1 + c12` — and
+# `check_artifact.ledger_ids` harvests the TOKENS inside it. Whole-string
+# equality on either side of that is a silent bug: the contract reads an id the
+# verb cannot see. The fixture ledger below is the field shape; the one the
+# suite already had (`- d1 — …`) is a bare single-token key, which is exactly
+# the case where whole-string equality happens to be right.
+COMPOUND = PAGE.replace(
+    "::: group {#G1",
+    "::: ledger\n- Q2 · T-265 — **Hecho.** La fecha va en la columna "
+    "izquierda.\n:::\n\n::: group {#G1", 1)
+check("new-round adds NO second row for an id a COMPOUND key already names",
+      new_round(COMPOUND) == COMPOUND, new_round(COMPOUND))
+
+SETTLED = PAGE.replace(
+    "::: group {#G1",
+    "::: ledger\n- Q7 · T-300 — **Hecho.** El filtro de estado es propio.\n"
+    ":::\n\n::: group {#G1", 1)
+refuses("add-item refuses an id the LEDGER owns, with no block of that id",
+        lambda: add_item(SETTLED, "G1", "Q7", "Filtro de estado"),
+        "already used by a ledger row")
+refuses("...and reads the compound key by TOKEN, not whole-string",
+        lambda: add_item(SETTLED, "G1", "T-300", "Filtro de estado"),
+        "already used by a ledger row")
+check("...while an id no ledger token names is still accepted",
+      '::: item {#Q8 title="Otra"}' in add_item(SETTLED, "G1", "Q8", "Otra"))
+
+NESTED_LEDGER = PAGE.replace(
+    "::: item {#Q1",
+    "::: ledger\n- Q2 — Marcador de columna\n:::\n\n::: item {#Q1", 1)
+refuses("new-round refuses a ledger nested inside a block — settled rows do "
+        "not go in the middle of the question set",
+        lambda: new_round(NESTED_LEDGER), "nested inside")
+refuses("...and refuses a spec carrying two ledgers rather than guessing",
+        lambda: new_round(NESTED_LEDGER.replace(
+            "::: group {#G1", "::: ledger\n- z1 — Otra cosa\n:::\n\n"
+            "::: group {#G1", 1)), "2 `ledger` blocks")
+
+print()
+print("== --body is spec text, so it is read as spec text ==")
+refuses("add-item refuses a body that closes the item's own fence",
+        lambda: add_item(PAGE, "G1", "Q3", "Ruta",
+                         body="una línea\n:::\n\n::: item {#Q1 title=\"otra\"}"),
+        "closes the item's own fence")
+refuses("...including one that only opens a block it never closes",
+        lambda: add_item(PAGE, "G1", "Q3", "Ruta",
+                         body="::: figure {src=\"x.svg\"}"),
+        "is not usable spec text")
+refuses("...and a nested block whose id the spec already carries",
+        lambda: add_item(PAGE, "G1", "Q3", "Ruta",
+                         body="::: figure {#Q2 src=\"x.svg\"}\n:::"),
+        "already uses")
+check("a body that only indents its fence is prose and is accepted",
+      "    ::: no es una marca" in add_item(PAGE, "G1", "Q3", "Ruta",
+                                            body="    ::: no es una marca"))
+check("...and the accepted item is still exactly one fence",
+      add_item(PAGE, "G1", "Q3", "Ruta", body="prosa").count("::: item") == 3)
+
+print()
+print("== the general-notes item stays last ==")
+# The same page with the general-notes item INSIDE the group. The contract
+# ("always last", 02-local-first-artifacts.md §7.3) is not checked by
+# check_artifact.py, so an item appended after it would ship silently.
+NOTES_TAIL = ':::\n:::\n\n::: notes {title="Notas generales"}\n:::\n'
+INNER_NOTES = PAGE.replace(
+    NOTES_TAIL, ':::\n\n::: notes {title="Notas generales"}\n:::\n:::\n', 1)
+check("the fixture really moved the notes item inside the group",
+      INNER_NOTES != PAGE and INNER_NOTES.rstrip().endswith(":::\n:::"),
+      INNER_NOTES[-200:])
+moved = add_item(INNER_NOTES, "G1", "Q3", "Ruta de figuras")
+check("an item added to a group whose last child is the notes item lands "
+      "BEFORE it", moved.index("#Q3") < moved.index("::: notes"), moved)
+check("...and the notes item is still the last block of the spec",
+      moved.rstrip().endswith(":::") and moved.count("::: notes") == 1)
+
+print()
+print("== CRLF: the line ending is the author's too ==")
+CRLF = PAGE.replace("\n", "\r\n")
+
+
+def lf_only(text):
+    """Lines terminated by a bare LF in a text whose other lines are CRLF."""
+    rows = text.split("\n")[:-1]                 # the last is after the final \n
+    return [r for r in rows if not r.endswith("\r")]
+
+
+check("add-item injects no LF-only line into a CRLF spec",
+      not lf_only(add_item(CRLF, "G1", "Q3", "Ruta",
+                           body="¿Qué renderizador?", options=["Uno propio"])),
+      str(lf_only(add_item(CRLF, "G1", "Q3", "Ruta"))))
+check("new-round injects none either, ledger or no ledger",
+      not lf_only(new_round(CRLF))
+      and not lf_only(new_round(LEDGERED.replace("\n", "\r\n"))),
+      str(lf_only(new_round(CRLF))))
+check("...and decide still changes exactly one line on a CRLF spec",
+      diff_shape(CRLF, decide(CRLF, "Q1", "yes")) == (1, 1))
+
+print()
+print("== decide, with `decided` anywhere in the attr group ==")
+POSITIONS = ('::: item {#Qa decided="no" title="Primera"}\ncuerpo\n:::\n\n'
+             '::: item {#Qb decided="no"}\ncuerpo\n:::\n\n'
+             '::: item {#Qc decided="" title="Vacía"}\ncuerpo\n:::\n')
+first = decide(POSITIONS, "Qa", "sí, cerrado")
+check("`decided` FIRST in the group is rewritten in place, the title untouched",
+      '::: item {#Qa decided="sí, cerrado" title="Primera"}' in first, first)
+only = decide(POSITIONS, "Qb", "sí")
+check("`decided` as the ONLY attr beside the id is rewritten, not appended",
+      '::: item {#Qb decided="sí"}' in only
+      and only.count("decided") == 3, only)
+empty = decide(POSITIONS, "Qc", "sí")
+check("an EMPTY `decided=\"\"` is filled in place",
+      '::: item {#Qc decided="sí" title="Vacía"}' in empty, empty)
+check("...and each of the three changes exactly one line",
+      diff_shape(POSITIONS, first) == (1, 1)
+      and diff_shape(POSITIONS, only) == (1, 1)
+      and diff_shape(POSITIONS, empty) == (1, 1))
+
+print()
+print("== the trailing newline is the author's too ==")
+check("a spec with no final newline keeps none",
+      not decide(PAGE.rstrip("\n"), "Q1", "yes").endswith("\n"))
+check("a spec with one keeps exactly one",
+      decide(PAGE, "Q1", "yes").endswith(":::\n")
+      and not decide(PAGE, "Q1", "yes").endswith(":::\n\n"))
+
+print()
+print("== the file half: refuse without writing, or write and rebuild ==")
+tmp = tempfile.mkdtemp(prefix="spec-verbs-test-")
+try:
+    def fresh(name, text=PAGE):
+        d = os.path.join(tmp, name)
+        os.makedirs(d)
+        path = os.path.join(d, "page.spec.md")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        return path
+
+    def run(*argv):
+        return subprocess.run([sys.executable, VERBS] + list(argv),
+                              capture_output=True, text=True)
+
+    def read(path, mode="r"):
+        with open(path, mode, **({} if "b" in mode else
+                                 {"encoding": "utf-8"})) as fh:
+            return fh.read()
+
+    # --- the CLI, one case per verb, spec AND page ---------------------------
+    spec = fresh("cli-add")
+    page = os.path.join(os.path.dirname(spec), "page.html")
+    r = run("add-item", spec, "--group", "G1", "--id", "Q3",
+            "--title", "Ruta de figuras", "--body", "¿Qué renderizador?",
+            "--option", "Uno propio de stdlib {recommended}",
+            "--option", "El de la librería")
+    check("add-item exits 0 and prints the page it rebuilt",
+          r.returncode == 0 and r.stdout.strip().endswith("page.html"),
+          r.stdout + r.stderr)
+    check("...the SPEC carries the new item",
+          '::: item {#Q3 title="Ruta de figuras"}' in read(spec))
+    built = read(page)
+    check("...and the PAGE carries it, with the id the spec wrote",
+          'data-id="Q3"' in built
+          and '<span class="consult-id">Q3</span>' in built
+          and 'name="Q3"' in built
+          and 'data-label="Uno propio de stdlib"' in built, built[:400])
+    check("...and the option marked {recommended} is the recommended one",
+          "data-recommended" in built)
+
+    spec = fresh("cli-decide")
+    page = os.path.join(os.path.dirname(spec), "page.html")
+    r = run("decide", spec, "--id", "Q1", "--verdict", "yes")
+    check("decide exits 0", r.returncode == 0, r.stdout + r.stderr)
+    check("...the SPEC records the verdict", 'decided="yes"' in read(spec))
+    built = read(page)
+    check("...and the PAGE marks the item decided, bare as the kit reads it",
+          re.search(r'<section class="consult-item" data-id="Q1"[^>]*'
+                    r'\sdata-decided\b', built) is not None, built[:2000])
+    r = run("decide", spec, "--id", "Q1", "--verdict",
+            "Fences de Pandoc, cerrado")
+    check("a text verdict reaches the page as the value of data-decided",
+          r.returncode == 0
+          and 'data-decided="Fences de Pandoc, cerrado"' in read(page),
+          r.stdout + r.stderr)
+
+    spec = fresh("cli-round")
+    page = os.path.join(os.path.dirname(spec), "page.html")
+    r = run("new-round", spec)
+    check("new-round exits 0", r.returncode == 0, r.stdout + r.stderr)
+    check("...the SPEC grew a ledger", "::: ledger" in read(spec))
+    built = read(page)
+    check("...and the PAGE carries the ledger row as a `.k`/`.v` pair",
+          '<span class="k">Q2</span><span class="v">Marcador de columna</span>'
+          in built, built[:2000])
+
+    # --- the round trip the phase names -------------------------------------
+    print()
+    print("== the rebuilt page passes check-artifact.sh, unmodified ==")
+    spec = fresh("roundtrip")
+    page = os.path.join(os.path.dirname(spec), "page.html")
+    for argv, label in (
+            (("add-item", spec, "--group", "G1", "--id", "Q3",
+              "--title", "Ruta de figuras", "--body", "¿Qué renderizador?",
+              "--option", "Uno propio de stdlib {recommended}",
+              "--option", "El de la librería"), "add-item"),
+            (("decide", spec, "--id", "Q1", "--verdict", "yes"), "decide"),
+            (("new-round", spec), "new-round")):
+        r = run(*argv)
+        check("%s rebuilds the page" % label, r.returncode == 0,
+              r.stdout + r.stderr)
+        c = subprocess.run(["bash", CHECK, page], capture_output=True,
+                           text=True)
+        check("...and check-artifact.sh passes it with no exemption (%s)"
+              % label, c.returncode == 0, c.stdout + c.stderr)
+        check("...and prints no WARN (%s)" % label,
+              "WARN" not in (c.stdout + c.stderr), c.stdout + c.stderr)
+
+    # --- atomicity ----------------------------------------------------------
+    print()
+    print("== a refused verb writes nothing ==")
+    spec = fresh("atomic")
+    page = os.path.join(os.path.dirname(spec), "page.html")
+    r = subprocess.run([sys.executable, BUILD, spec, "-o", page],
+                       capture_output=True, text=True)
+    check("the page builds once before the refusals", r.returncode == 0,
+          r.stdout + r.stderr)
+    spec_bytes, page_bytes = read(spec, "rb"), read(page, "rb")
+    for argv, label, needle in (
+            (("decide", spec, "--id", "Q9", "--verdict", "yes"),
+             "decide on a missing id", "#Q9"),
+            (("add-item", spec, "--group", "G9", "--id", "Q3",
+              "--title", "x"), "add-item into a missing group", "#G9"),
+            (("add-item", spec, "--group", "G1", "--id", "Q2",
+              "--title", "x"), "add-item with an id already used", "#Q2"),
+            (("decide", spec, "--id", "G1", "--verdict", "yes"),
+             "decide on a block that is not an item", "#G1"),
+            # The one refusal that comes from the BUILD and not from the id
+            # lookup: the spec parses, and `emit_item` then refuses an option
+            # with no label. It is the case the in-memory build gate exists for.
+            (("add-item", spec, "--group", "G1", "--id", "Q4",
+              "--title", "x", "--option", "   "),
+             "add-item whose result would not build", "unbuildable")):
+        r = run(*argv)
+        check("%s exits non-zero" % label, r.returncode != 0,
+              r.stdout + r.stderr)
+        check("...and says so, naming the target (%s)" % label,
+              needle in r.stderr, r.stderr)
+        check("...and the SPEC is byte-identical (%s)" % label,
+              read(spec, "rb") == spec_bytes)
+        check("...and the PAGE is byte-identical (%s)" % label,
+              read(page, "rb") == page_bytes)
+
+    # --- the gate is the REBUILD's, not a weaker one -------------------------
+    print()
+    print("== an edit that builds but fails the CONTRACT is refused ==")
+    # The gap this covers: `build()` + a title is a WEAKER gate than the rebuild,
+    # which also runs check_artifact.py. An edit that passes the weak gate and
+    # fails the strong one used to be WRITTEN, the rebuild then failed, and every
+    # later verb call wrote and failed the same way — the spec wedged with no
+    # verb able to recover it. Fixture: a ledger that records Q2 as settled while
+    # Q2 is still open (`decided but still asked`), so ANY edit's result parses,
+    # builds, and fails the contract.
+    WEDGE = PAGE.replace(' decided=yes', '').replace(
+        "::: group {#G1",
+        "::: ledger\n- Q2 — Marcador de columna\n:::\n\n::: group {#G1", 1)
+    spec = fresh("contract-gate", WEDGE)
+    page = os.path.join(os.path.dirname(spec), "page.html")
+    spec_bytes = read(spec, "rb")
+    r = run("add-item", spec, "--group", "G1", "--id", "Q3", "--title", "Ruta")
+    check("an edit whose result fails the contract exits non-zero",
+          r.returncode == 1, r.stdout + r.stderr)
+    check("...and says the edit was refused, not that the spec was written",
+          "unbuildable" in r.stderr
+          and "the spec was written" not in r.stderr, r.stderr)
+    check("...and the SPEC is byte-identical afterwards",
+          read(spec, "rb") == spec_bytes, read(spec))
+    check("...and no page was written at all", not os.path.exists(page))
+    check("...and no trial file was left beside the spec",
+          sorted(os.listdir(os.path.dirname(spec))) == ["page.spec.md"],
+          str(os.listdir(os.path.dirname(spec))))
+    # ...and the spec is not wedged: the edit that REPAIRS the contract passes
+    # the same gate and is written. A gate that refused this too would have
+    # traded a wedge for a dead end.
+    r = run("decide", spec, "--id", "Q2", "--verdict", "yes")
+    check("the repairing edit is accepted — the spec is refused, not frozen",
+          r.returncode == 0 and 'decided="yes"' in read(spec),
+          r.stdout + r.stderr)
+
+    print()
+    print("== the write path refuses like the read path ==")
+    ro = fresh("readonly")
+    subprocess.run([sys.executable, BUILD, ro, "-o",
+                    os.path.join(os.path.dirname(ro), "page.html")],
+                   capture_output=True, text=True)
+    ro_bytes = read(ro, "rb")
+    os.chmod(os.path.dirname(ro), 0o555)
+    try:
+        r = run("decide", ro, "--id", "Q1", "--verdict", "yes")
+        check("a spec in a read-only directory is a refusal, not a traceback",
+              r.returncode == 1 and "Traceback" not in r.stderr, r.stderr)
+        check("...and the refusal names the file it could not write",
+              "cannot write" in r.stderr, r.stderr)
+        check("...and the spec is byte-identical", read(ro, "rb") == ro_bytes)
+    finally:
+        os.chmod(os.path.dirname(ro), 0o755)
+
+    print()
+    print("== a symlinked spec is edited through the link, never replaced ==")
+    real = fresh("symlink-real")
+    link_dir = os.path.join(tmp, "symlink-link")
+    os.makedirs(link_dir)
+    link = os.path.join(link_dir, "page.spec.md")
+    os.symlink(real, link)
+    r = run("decide", link, "--id", "Q1", "--verdict", "yes")
+    check("the verb edits a symlinked spec", r.returncode == 0,
+          r.stdout + r.stderr)
+    check("...the path is still a symlink — `os.replace` did not fork the file",
+          os.path.islink(link), str(os.listdir(link_dir)))
+    check("...and what changed is the file the link names",
+          'decided="yes"' in read(real))
+
+    # --- no verb writes HTML -------------------------------------------------
+    print()
+    print("== the page comes out of build(), never out of a verb ==")
+    # Both runs start from a page that does not exist, so both are round 1 and
+    # the only difference left is the clock in the build stamp.
+    a_spec = fresh("nohtml-verb")
+    r = run("decide", a_spec, "--id", "Q1", "--verdict", "yes")
+    check("the verb rebuilt its page", r.returncode == 0, r.stdout + r.stderr)
+    b_spec = fresh("nohtml-plain")
+    shutil.copyfile(a_spec, b_spec)
+    b_page = os.path.join(os.path.dirname(b_spec), "page.html")
+    r = subprocess.run([sys.executable, BUILD, b_spec, "-o", b_page],
+                       capture_output=True, text=True)
+    check("spec_build.py built the same spec on its own", r.returncode == 0,
+          r.stdout + r.stderr)
+
+    STAMP = re.compile(r'(<meta name="artifact-built" content=")[^"]*'
+                       r'|(<p class="railbuilt"[^>]*>).*?(</p>)', re.S)
+
+    def normalised(path):
+        text = read(path).replace(os.path.dirname(path), "<dir>")
+        return STAMP.sub("<stamp>", text)
+
+    a_page = os.path.join(os.path.dirname(a_spec), "page.html")
+    check("the verb's page is byte-identical to the plain build's, once the "
+          "clock is normalised", normalised(a_page) == normalised(b_page),
+          "\n".join(list(difflib.unified_diff(
+              normalised(a_page).splitlines(),
+              normalised(b_page).splitlines(), "verb", "build", lineterm=""))
+              [:40]))
+
+    source = read(VERBS)
+    # Read as a SYNTAX TREE, not grepped. The module's own docstring quotes
+    # `<meta name="consult-round">` and names `spec_build.py`, so a regex over
+    # the text answers for the prose and not for the code — the first version of
+    # both assertions failed on exactly that, which is the shape they exist to
+    # catch elsewhere.
+    tree = ast.parse(source)
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            doc = ast.get_docstring(node, clean=False)
+            if doc is not None:
+                docstrings.add(doc)
+    literals = [n.value for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                and n.value not in docstrings]
+    markup = [s for s in literals
+              if re.search(r"<(?:div|section|p|span|input|header|aside|meta)\b",
+                           s)]
+    check("spec_verbs.py holds no markup of its own — no tag, no kit class",
+          not markup, str(markup))
+    touched = sorted({n.attr for n in ast.walk(tree)
+                      if isinstance(n, ast.Attribute)
+                      and isinstance(n.value, ast.Name)
+                      and n.value.id == "spec_build"})
+    check("...and calls no emitter: the only spec_build names it touches are "
+          "the ones a caller may",
+          touched == ["HINT_SEP", "LANGS", "build", "main", "page_title"],
+          str(touched))
+    writes = re.findall(r'open\(([^,]+), "w"', source)
+    check("...and the only file it opens for writing is the spec's own temp",
+          writes == ["tmp"], str(writes))
+
+    print()
+    print("== the CLI's own edges ==")
+    r = run("decide", os.path.join(tmp, "missing.spec.md"), "--id", "Q1",
+            "--verdict", "yes")
+    check("a spec that is not there is a refusal, not a traceback",
+          r.returncode == 1 and "cannot read the spec" in r.stderr, r.stderr)
+    bad = fresh("unparseable", "prosa\n\n::: item {#a #b}\n:::\n")
+    r = run("decide", bad, "--id", "Q1", "--verdict", "yes")
+    check("a spec that does not parse is refused with its line",
+          r.returncode == 1 and "line 3" in r.stderr, r.stderr)
+    r = run()
+    check("no verb prints the usage and exits 2", r.returncode == 2)
+    spec = fresh("outflag")
+    elsewhere = os.path.join(tmp, "outflag", "otra.html")
+    r = run("decide", spec, "--id", "Q1", "--verdict", "yes",
+            "--out", elsewhere)
+    check("--out chooses the page", r.returncode == 0
+          and os.path.isfile(elsewhere), r.stdout + r.stderr)
+    r = run("decide", spec, "--id", "Q1", "--verdict", "no", "--out", spec)
+    check("--out pointed at the spec itself is refused",
+          r.returncode == 1 and "is the spec itself" in r.stderr, r.stderr)
+    check("...and the spec was not written first",
+          'decided="yes"' in read(spec))
+finally:
+    shutil.rmtree(tmp, ignore_errors=True)
+
+print()
+if failures:
+    print("%d failure(s)" % len(failures))
+    raise SystemExit(1)
+print("OK — the verbs: add-item/decide/new-round on the spec and on the "
+      "rebuilt page, the round trip through check-artifact.sh, atomic "
+      "refusals compared byte for byte, the page produced only by build(), "
+      "the author's formatting and trailing newline preserved, and each "
+      "verb's documented idempotency")

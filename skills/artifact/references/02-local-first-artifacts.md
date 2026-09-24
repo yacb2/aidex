@@ -14,7 +14,11 @@ the rules from being relitigated. This block is the other reading: just the move
 pointing into its section.
 
 - **Route A** — the request maps to a deterministic board → run the renderer, open. Done.
-- **Route B** — everything else:
+- **Route S** — a NEW page, or a new round of a page that already has a `.spec.md`:
+  write/edit the `.spec.md`, build it with `spec_build.py … -o <page>.html --check`, use
+  the verbs for edits. Never write HTML. This is the default (d3).
+- **Route B** — a page that already exists as HTML with no `.spec.md`. It stays here and
+  is not migrated. Everything below §0 is this route:
   1. Intake questionnaire (§0), answered before any markup — existing page for this
      thread (grep `artifact-anchor`)? anchor? read or CONSULTATION? strongest claim first?
   2. Load design guidance via the Skill tool (§2).
@@ -45,9 +49,291 @@ renderer already produces.
 
 ---
 
-## Route B — ad-hoc report
+## Route S — the page SPEC (the default for a new or revised page)
 
-Anything else: an analysis, a comparison, a one-off dashboard.
+**A new page, and a new round of a page already on this route, are written as a
+`.spec.md` — never as HTML.** The spec is a small markdown dialect; `spec_build.py`
+turns it into the kit's markup, wraps it and runs the contract check in one command.
+The page is a build output: it is regenerated, never hand-edited.
+
+The boundary with Route B below is exact, and it is decision **d3** of the plan:
+
+| The page | What you write |
+|---|---|
+| New | a `.spec.md` (this route) |
+| Already has a `.spec.md` | edit that `.spec.md` (this route) |
+| Exists as HTML with no `.spec.md` | **leave it on Route B.** Do not migrate it |
+
+Route B is not deprecated and no page is converted as a side effect of touching it.
+`check-artifact` is the net on both routes: a page that fails it never lands.
+
+### The three files this route is made of
+
+| Layer | File | What it owns |
+|---|---|---|
+| Grammar | `references/03-spec-grammar.md` | `:::` fences, `{…}` attrs, nesting, what is malformed |
+| Vocabulary | `references/04-block-vocabulary.md` | the closed set of block types, their attrs, corpus counts |
+| Verbs | `scripts/spec_verbs.py` | the per-operation edits: `add-item`, `decide`, `new-round` |
+
+Read the grammar file for syntax questions and the vocabulary file for "which block
+says this". The table below is the index, not a replacement for either.
+
+### The vocabulary, in one table
+
+The list is closed — an unknown type is refused by name with the known set printed. `spec_build.EMITTERS` is the dispatch these come from, and
+`tests/test_lockstep.py` fails if this list and that dispatch ever disagree.
+
+| Type | Fence? | What it is | Required attrs |
+|---|---|---|---|
+| `masthead` | yes | the opening block: eyebrow, `h1`, standfirst, byline | — (`title=` or a `# ` line, never both) |
+| `section` | yes | a page section that is not a decision block | `#id`, `heading` |
+| `group` | yes | a titled block one or more decisions come from | `#id` |
+| `item` | yes | one decision: question, options, notes field; may nest an aside or a figure block | `#id` |
+| `notes` | yes | the general-notes item; exactly one per consultation | — |
+| `gallery` | yes | a screenshot-state gallery built from a rows JSON | `rows` |
+| `ledger` | yes | what earlier rounds settled | — |
+| `verdict` | yes | the scoreboard strip of a comparison | — |
+| `callout` | yes | a framed aside the reader must not skim past | — |
+| `note` | yes | the quieter aside; `{.warn}` is its one class | — |
+| `chart` | yes | bars, lines or stacked bars drawn from data rows (rung 1) | `type` |
+| `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle (rung 1) | `shape` |
+| `graph` | yes | boxes and edges in DOT, laid out by Graphviz with the kit classes (rung 2) | — |
+| `figure` | yes | a drawing from a file: figure-opus's SVG or a screenshot (rung 3) | `src` |
+| `prose` | **no** | a run of markdown outside any fence — the implicit default | — |
+| `num` | **no** | a right-aligned numeric column: mark it `\|---:\|` in the table | — |
+| `pill` | **no** | an inline status tag: `[confianza alta]{.pill .high}` | — |
+| `chip` | **no** | an inline outcome label: `[deferred]{.chip .chip-kill}` | — |
+
+The four "no" rows are refused as fences on purpose, each with a message saying where
+the construct really goes. `::: prose` in particular is refused rather than rendered:
+its body would live in a child node and the whole body used to leave the page silently.
+
+### Worked example: a whole page, written and built
+
+Write the spec next to where the page will live — `<name>.spec.md` beside `<name>.html`:
+
+```
+::: masthead {eyebrow="Ejemplo · spec-first" lang="es" visual="svg"}
+# Una página escrita como spec
+
+Todo lo que ves aquí sale de un archivo de texto.
+
+Fuente: `skills/artifact/references/02-local-first-artifacts.md`.
+:::
+
+::: group {#G1 title="Formato del spec" eyebrow="Bloque G1" heading="El spec es la fuente; la página se regenera"}
+La consulta de hoy: qué escribe el agente cuando la página cambia.
+
+::: item {#Q1 title="¿Fences o HTML a mano?"}
+¿Qué escribe el agente cuando hay que revisar la página?
+
+::: note
+La ruta HTML sigue existiendo para las páginas que ya están en ella.
+:::
+
+- Fences: el agente edita el `.spec.md` y reconstruye {recommended}
+- HTML a mano: lo de antes
+:::
+:::
+
+::: notes {title="Notas generales"}
+:::
+
+::: ledger
+- d1 — **Hecho.** El corpus de 30 páginas reconstruye.
+- Una fila sin clave, que solo dice algo.
+:::
+
+::: section {#sec-datos eyebrow="Lo medido" heading="Cuánto pesa cada página"}
+Dos páginas del corpus, medidas el 24 de septiembre.
+
+::: chart {#c1 type=bar title="Bytes por página" unit=KB}
+| Página | KB |
+|---|---|
+| consulta A | 37 |
+| consulta B | 74 |
+:::
+:::
+```
+
+Build it — one command does build, wrap and contract check:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/spec_build.py" <name>.spec.md \
+  -o <name>.html --check
+```
+
+It prints the page path and the check's last line. On a spec error it prints
+`<spec>:<line>: <message>` and exits 1, and **nothing is written**. Without `-o` the
+page BODY goes to stdout, which is how you look at a build without landing a file;
+`--check` needs `-o`, because the contract cannot be checked against a pipe.
+
+Five things this example is carrying, each of which costs a rebuild if you get it wrong:
+
+- **`visual=` on the masthead is REQUIRED on a consultation page.** A page with
+  questions that carries no `<svg>`, `<img>` or `<canvas>` and no `visual=` fails the
+  build with `no visual and no <meta name="consult-visual" content="none: why">`, and
+  nothing is written. Three honest values:
+  - `visual="svg"` / `visual="img"` — the page HAS a drawing. That is why the example
+    above says `svg`: its `chart` block draws one. Declaring it on a page with no
+    drawing is a false statement, and it fails the same check anyway.
+  - `visual="none: <why>"` — the honest answer when the subject has no shape: a naming
+    decision, a yes/no on a policy, a list of files to approve. Write the real reason;
+    `none: tbd`, `none: todo` and the template's own `none: replace this with the
+    reason` are refused by name.
+  - Nothing at all — only on a READ page, one with no reply surface at all (no
+    `item`, no `notes`). The consultation rules, this one included, do not look at it.
+- **`lang="es"` on the masthead is the PAGE's language** and wins over `--lang`. Set it.
+  An English page without it builds into `<html lang="es">` and fails the contract.
+- **The title is written once** — either `title="…"` on the fence or a `# ` line in the
+  body. Both on one masthead is refused, not resolved.
+- **`{recommended}` is not an attr.** It sits at the end of an option line, inside the
+  block's prose, and the `item` builder reads it there.
+- **`decided=yes` is an ordinary keyed attr.** The grammar has no bare flags, so
+  `{… decided}` alone is malformed.
+
+### The ordering trap the contract enforces
+
+`check_artifact`'s `consult-shape` rule allows only the masthead, a figure and the
+ledger before the first `group`. A `section` head is stripped before that rule looks,
+so a section whose body is only a `chart` may sit up there — but **a section with its
+own PROSE before the first group fails the build**, with `prose before the first block`
+naming the section's heading. Measured on this file's own example on 2026-09-24: moving
+the `section` below the `notes` block turned the same spec from a refusal into
+`artifact contract OK`. Reference material goes after the questions.
+
+### The verbs: editing a page that already exists
+
+**Never edit the built HTML, and never hand-rewrite the spec's structure.** A verb is a
+text transform on the spec: it addresses its target by the `#id` the spec wrote, refuses
+atomically (a verb that cannot find its id, or whose result would not build, writes
+nothing), and rebuilds the page itself. The author's formatting survives — no reflow, no
+attr reordering, no re-quoting.
+
+All three take `<spec.md>`, plus `--out <page.html>` (default: the spec's name with
+`.html`) and `--lang es|en`.
+
+**`add-item`** — a new `::: item` at the END of a group. Refuses a second call with the
+same id, because two items sharing a paste key means one shadows the other.
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" add-item <name>.spec.md \
+  --group G1 --id Q2 --title "Dónde vive el spec" \
+  --body "¿El .spec.md queda junto a la página?" \
+  --option "Sí, hermano de la página {recommended}" \
+  --option "No, en otro sitio"
+```
+
+**`decide`** — records a verdict as `decided="…"` on the item's fence, rewriting that one
+attr span and leaving the other bytes of the line alone. Idempotent for the same verdict;
+a different verdict overwrites, because a reader revising an earlier answer is one of the
+four documented round labels.
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" decide <name>.spec.md \
+  --id Q1 --verdict "Fences"
+```
+
+**`new-round`** — syncs the ledger to the decided items, one row per decision keyed by id.
+Idempotent: a key already in the ledger is left untouched. It does **not** move a round
+counter — the round lives in `<meta name="consult-round">`, which the wrap derives from
+the contract baseline, and a second writer would only disagree with it.
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" new-round <name>.spec.md
+```
+
+Each verb prints the rebuilt page's path on stdout and the contract check's lines on
+stderr; a refusal prints `spec-verbs <verb>: <why>` and exits 1 with the spec untouched.
+
+**What a successful verb run looks like, and where its answer is.** A verb builds
+TWICE: first a trial build into a throwaway directory — that is what lets it refuse
+atomically, leaving the spec untouched when the result would not build — and then the
+real one. So one run prints two `artifact contract OK` lines and two sets of wrap
+output, and the second pair is the one that landed. **The authoritative result is the
+LAST line of stdout: the absolute path of the page that now exists.** Everything above
+it is the two builds reporting — the FIRST path printed is inside a
+`spec-verbs-trial-…` temp directory and is deleted before the run ends. A run that
+ends with a path succeeded; a run that failed printed `spec-verbs <verb>: <why>` and
+exited 1 instead.
+
+### The figure ladder: which block draws a figure
+
+A figure on this route is always a block in the spec, never raw SVG. Use **the
+highest rung that carries the figure's meaning without loss**:
+
+| Rung | Block | It carries | Example |
+|---|---|---|---|
+| 1 | `chart`, `diagram` | data rows, or boxes and arrows in one of four closed shapes — stdlib, nothing to install | items closed per week as bars; a three-step pipeline |
+| 2 | `graph` | any node-and-edge figure the closed shapes cannot lay out: a star, labelled or dashed edges, parallel lanes — DOT, laid out by Graphviz | a template at the centre with its derived projects on dashed spokes |
+| 3 | `figure` | what neither can draw: a screen mockup, a screenshot, a grid of text cells, an illustration | a drawn settings screen with its three states |
+
+Drop a rung only when the one above loses something the page relies on, and say what in
+the caption's neighbourhood, not silently. A rung-3 drawing is figure-opus's job: it
+writes an `.svg` that passes the `figure` block's rules (strict XML, allowlisted
+elements, kit classes and `currentColor`, no literal colour) and returns its path; the
+spec embeds it with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
+
+A figure that illustrates one decision goes INSIDE that `item`, where it was written;
+`masthead` and `note` do not nest one.
+
+### The `chart` block
+
+The one block whose body is **data, not prose**. Two forms, chosen by the first non-blank
+line of the body; mixing them in one body is refused.
+
+`label,value` lines — one series:
+
+```
+::: chart {#c2 type=bar title="Bytes por página" unit=KB}
+consulta A,37
+consulta B,74
+:::
+```
+
+A pipe table — the multi-series form, and the only one with column names:
+
+```
+::: chart {#c3 type=line title="Rondas por consulta"}
+| Ronda | Preguntas | Cerradas |
+|---|---|---|
+| r1 | 8 | 2 |
+| r2 | 6 | 5 |
+:::
+```
+
+`type` is required and is `bar`, `line` or `stacked` (horizontal bars, one segment per
+series column, the row's total at its end; one series column is plain horizontal bars,
+and a negative cell is refused). `title` becomes the `<figcaption>`, `unit`
+labels the axis (on `stacked`, the totals), `#id` becomes the figure's id. The first table row names the columns;
+its first cell names the label column and is not drawn; the rest become the legend, and
+no legend is drawn for a single series. At most **8** series — `--s1..--s8` is the whole
+palette, and past it the answer is one "other" column or a second chart, never a cycled
+colour. Every fill is `var(--sN)` and every rule and label is `currentColor`: there is no
+literal colour in the emitter, because the kit declares those slots in four theme blocks
+and a fifth would only ever agree with one of them.
+
+Every value must be a number matching `[+-]?(digits[.digits] | .digits)` — no exponent,
+no hex, no thousands separator, no `NaN`. That is narrower than `float()` on purpose:
+`float("nan")` succeeds and then draws a bar of NaN pixels, which every browser paints
+as nothing at all, with no error anywhere. A decimal comma gets a message naming the
+cell, the column and the value rewritten with a point.
+
+### What the spec route does NOT change
+
+The contract, the anchor, the sibling path, the publish policy and the consultation
+rules of §8 are all unchanged — the spec is a way of WRITING the page, not a different
+page. `wrap-report.sh` is still what wraps it (`spec_build.py` calls it over stdin), the
+check is still the gate, and the reply still states the absolute path.
+
+---
+
+## Route B — ad-hoc report, written as HTML
+
+The **legacy** route, and still a live one: a page that already exists as HTML with no
+`.spec.md` beside it stays here. A new page or a revision of a page already on Route S
+does not come here — see Route S above for that boundary (d3). Nothing in this section
+is deprecated and no page is migrated as a side effect of touching it.
 
 ### 0. Answer the intake questionnaire before writing anything
 
