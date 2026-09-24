@@ -284,7 +284,8 @@ def run(tmp):
         ("a comment, and an XML prolog before the root",
          '<?xml version="1.0"?>\n<!-- c --><svg><!-- <script> --><rect/></svg>\n'
          '<!-- after -->\n'),
-        ("a fragment url() in <style>", '<svg><style>#f rect{fill:url(#g)}</style></svg>'),
+        ("a fragment url() in <style>", '<svg><defs><linearGradient id="g"/></defs>'
+         '<style>#f rect{fill:url(#g)}</style></svg>'),
         ("an HTML named entity, as a character", '<svg><text>a &middot; b</text></svg>'),
         ("the corpus's markers and title/desc",
          '<svg role="img" aria-labelledby="t"><title id="t">T</title><desc>D</desc>'
@@ -311,10 +312,53 @@ def run(tmp):
           out is not None and "a · b &amp; c" in out, repr(out))
     _w, out = check_artifact.svg_embed_sanitize(
         '<svg xmlns="http://www.w3.org/2000/svg" '
-        'xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="#g"/></svg>')
+        'xmlns:xlink="http://www.w3.org/1999/xlink"><g id="g"/><use xlink:href="#g"/></svg>')
     check("namespaces are dropped from names; xlink:href is written back as xlink:href",
           out is not None and out.startswith('<svg data-embed="')
-          and out.endswith('"><use xlink:href="#g"/></svg>'), repr(out))
+          and '<use xlink:href="#e' in out and out.endswith('-g"/></svg>'),
+          repr(out))
+
+    # BL-452: an id is scoped to its own figure. Two figures that both define
+    # `<marker id="m">` resolved url(#m) to the FIRST one in the document, and
+    # an embed id equal to a page id (`raillist`) duplicated it ahead of the
+    # real element. Every id takes the figure's own key, every reference to it
+    # follows, and a reference to an id the file does not define is refused.
+    print()
+    print("== ids are scoped to their own figure ==")
+    arrow = ('<svg aria-labelledby="t"><title id="t">T</title><defs>'
+             '<marker id="m"><path d="M0 0L8 4z"/></marker>'
+             '<linearGradient id="g"><stop offset="0"/></linearGradient></defs>'
+             '<style>#l{stroke-width:2}</style>'
+             '<line id="l" marker-end="url(#m)" style="fill:url(#g)"/>'
+             '<use href="#l"/><g id="raillist"/></svg>')
+    _w, out = check_artifact.svg_embed_sanitize(arrow)
+    key = out and out.split('data-embed="', 1)[1][:8]
+    scoped = "e%s-" % key
+    check("every id carries the figure's key",
+          out is not None and 'id="%sm"' % scoped in out and 'id="%sl"' % scoped in out
+          and 'id="%st"' % scoped in out and 'id="raillist"' not in out, repr(out))
+    check("url(#…) in an attribute and in style= follows the id",
+          out is not None and 'marker-end="url(#%sm)"' % scoped in out
+          and "fill:url(#%sg)" % scoped in out, repr(out))
+    check("href=#… and aria-labelledby follow the id",
+          out is not None and 'href="#%sl"' % scoped in out
+          and 'aria-labelledby="%st"' % scoped in out, repr(out))
+    check("a #id selector in <style> follows the id",
+          out is not None and "#%sl" % scoped in out.split("<style>", 1)[1],
+          repr(out))
+    _w, other = check_artifact.svg_embed_sanitize(arrow.replace("T<", "U<"))
+    check("the same ids in another file get another key",
+          other is not None and 'id="%sm"' % scoped not in other, repr(other))
+    for label, src, needle in [
+            ("an href to an id the file does not define",
+             '<svg><use href="#nowhere"/></svg>', "#nowhere"),
+            ("a url(#…) to an id the file does not define",
+             '<svg><line marker-end="url(#raillist)"/></svg>', "#raillist"),
+            ("an aria reference to an id the file does not define",
+             '<svg aria-labelledby="h1"><text>x</text></svg>', "#h1")]:
+        why, out = check_artifact.svg_embed_sanitize(src)
+        check("refused: %s" % label,
+              out is None and any(needle in w for w in why), repr(why))
 
     # Second security pass. CSS is no longer searched for bad words: anything
     # that could hide one (a backslash escape, an @-rule, an unclosed comment,
@@ -375,7 +419,7 @@ def run(tmp):
     src = ('<svg><style>rect.a > text#t, g .b{fill:currentColor;font-size:12px;'
            'stroke-width:2} text{font-family:var(--mono)}</style>'
            '<g class="b"><rect class="a" style="fill:var(--s1);font-weight:600;'
-           'stroke-dasharray:2 2;marker-end:url(#m)"/></g></svg>')
+           'stroke-dasharray:2 2;marker-end:url(#m)"/></g><marker id="m"/></svg>')
     key = hashlib.sha256(src.encode("utf-8")).hexdigest()[:8]
     why, out = check_artifact.svg_embed_sanitize(src)
     scope = 'svg[data-embed="%s"]' % key
@@ -384,7 +428,7 @@ def run(tmp):
     check("the root carries data-embed = the first 8 hex of the file's sha256",
           out is not None and out.startswith('<svg data-embed="%s">' % key), repr(out))
     check("every selector is rewritten under the figure's own root",
-          out is not None and "<style>%s rect.a > text#t, %s g .b{" % (scope, scope)
+          out is not None and "<style>%s rect.a > text#e%s-t, %s g .b{" % (scope, key, scope)
           in out and "%s text{font-family:var(--mono)}" % scope in out, repr(out))
     check("style= keeps its allowed declarations",
           out is not None and 'style="fill:var(--s1);font-weight:600;' in out, repr(out))
@@ -465,12 +509,23 @@ def run(tmp):
         def handle_starttag(self, tag, attrs):
             self.seq.append((tag, [(k, v) for k, v in attrs]))
 
-    def tree_seq(el):
+    def scoped(name, val, key):
+        # BL-452: what the page gets for an id and each kind of reference.
+        if name == "id":
+            return "e%s-%s" % (key, val)
+        if name in ("href", "xlink:href"):
+            return "#e%s-%s" % (key, val[1:])
+        if name in ("aria-labelledby", "aria-describedby"):
+            return " ".join("e%s-%s" % (key, r) for r in val.split())
+        return val.replace("url(#", "url(#e%s-" % key)
+
+    def tree_seq(el, key):
         out = [(check_artifact._svg_embed_name(el.tag)[0].lower(),
-                [(check_artifact._svg_embed_attr(k).lower(), v)
+                [(check_artifact._svg_embed_attr(k).lower(),
+                  scoped(check_artifact._svg_embed_attr(k), v, key))
                  for k, v in el.attrib.items()])]
         for child in el:
-            out += tree_seq(child)
+            out += tree_seq(child, key)
         return out
 
     corpus = os.environ.get("AIDEX_SPEC_CORPUS", "")
@@ -496,10 +551,10 @@ def run(tmp):
         p.close()
         got = p.seq[1:]
         root = check_artifact._svg_embed_parse(src)
-        want = tree_seq(root)
+        key = hashlib.sha256(src.encode("utf-8")).hexdigest()[:8]
+        want = tree_seq(root, key)
         # The one attribute the sanitizer adds: the scope key on the root.
-        want[0][1].insert(0, ("data-embed",
-                           hashlib.sha256(src.encode("utf-8")).hexdigest()[:8]))
+        want[0][1].insert(0, ("data-embed", key))
         bad = [t for t, a in got if t == "script"] + [
             k for _t, a in got for k, _v in a if k.startswith("on")]
         check("round trip: %s — the HTML parser reads the same %d element(s), "

@@ -1120,6 +1120,9 @@ SVG_EMBED_PAINT = re.compile(
     re.I)
 SVG_EMBED_DECL = re.compile(r'(?:^|[;{\s])(fill|stroke)\s*:\s*([^;}]+)', re.I)
 SVG_EMBED_URL_OK = re.compile(r'url\(#[A-Za-z_][\w.-]*\)', re.I)
+SVG_EMBED_URL_REF = re.compile(r'url\(#([A-Za-z_][\w.-]*)\)', re.I)
+# Attributes whose value is a space-separated list of ids (BL-452).
+SVG_EMBED_ID_LISTS = ('aria-labelledby', 'aria-describedby')
 SVG_EMBED_FUNC = re.compile(r'([A-Za-z_-][\w-]*)?\(')
 # The CSS functions a figure's styles may call: custom properties and
 # arithmetic, colours, transforms — and `url()`, only as exactly `url(#id)`.
@@ -1249,11 +1252,51 @@ def _svg_embed_css(css, where, rules, key=None):
                 out.append(f"{where} selector {sel.strip()!r} — only type, "
                            f".class and #id, joined by a space or '>'")
             else:
+                if key:
+                    norm = re.sub(r'#([A-Za-z_-][\w-]*)', lambda m: '#'
+                                  + _svg_embed_id(m.group(1), key), norm)
                 good.append(scope + norm)
         why, decl_out = _svg_embed_decls(decls, f"{where} {sels.strip()}")
         out += why
+        if key:
+            decl_out = _svg_embed_scope_urls(decl_out, key)
         kept.append(', '.join(good) + '{' + decl_out + '}')
     return out, ' '.join(kept)
+
+
+def _svg_embed_id(name, key):
+    """An id as the page gets it: prefixed with its figure's key (BL-452), so
+    two figures never share one and none can equal an id of the page."""
+    return f'e{key}-{name}'
+
+
+def _svg_embed_scope_urls(text, key):
+    return SVG_EMBED_URL_REF.sub(
+        lambda m: f'url(#{_svg_embed_id(m.group(1), key)})', text)
+
+
+def _svg_embed_refs(root):
+    """Every reference to an id the file does not define, named (BL-452): a
+    scoped id cannot reach the page's own, so such a reference is dangling."""
+    ids = {el.get('id').strip() for el in root.iter() if el.get('id')}
+    out = []
+    for el in root.iter():
+        local = _svg_embed_name(el.tag)[0]
+        for key, val in el.attrib.items():
+            name = _svg_embed_attr(key)
+            if name in ('href', 'xlink:href'):
+                refs = [val.strip()[1:]]
+            elif name in SVG_EMBED_ID_LISTS:
+                refs = val.split()
+            else:
+                refs = SVG_EMBED_URL_REF.findall(val)
+            out += [f"<{local} {name}=…> — #{r} is not an id this file defines"
+                    for r in refs if r not in ids]
+        if local == 'style':
+            out += [f"<style> url(#{r}) — #{r} is not an id this file defines"
+                    for r in SVG_EMBED_URL_REF.findall(el.text or '')
+                    if r not in ids]
+    return out
 
 
 def _svg_embed_name(tag):
@@ -1334,6 +1377,14 @@ def _svg_embed_write(el, out, key, root=False):
         name = _svg_embed_attr(k)
         if name == 'style':
             val = _svg_embed_css(val, '', rules=False)[1]
+        if name == 'id':
+            val = _svg_embed_id(val.strip(), key)
+        elif name in ('href', 'xlink:href'):
+            val = '#' + _svg_embed_id(val.strip()[1:], key)
+        elif name in SVG_EMBED_ID_LISTS:
+            val = ' '.join(_svg_embed_id(r, key) for r in val.split())
+        else:
+            val = _svg_embed_scope_urls(val, key)
         out.append(' %s="%s"' % (name, _html.escape(val, quote=True)))
     if not len(el) and not el.text:
         out.append('/>')
@@ -1387,6 +1438,8 @@ def svg_embed_sanitize(text):
            f"against the page around it" for k in root.attrib
            if k in SVG_EMBED_ROOT_REFUSED]
     _svg_embed_check(root, out)
+    if not out:
+        out = _svg_embed_refs(root)
     if out:
         return out, None
     # The scope key: this file's own, so two figures on one page never share
