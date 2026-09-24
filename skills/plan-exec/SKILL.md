@@ -50,6 +50,10 @@ The operative rule here:
 - **Only stop for:** a `deny`-class destructive action (skip + document), an
   un-pre-authorized publish (surface at the end), or a genuine hard blocker you
   cannot resolve (missing credentials, truly unknowable intended behavior).
+- **A phase report is not a stop.** Put the phase's status note in the same message as
+  the next phase's first tool call, and never close a turn by announcing the next step
+  instead of taking it. Both were observed as phase-close reports the user answered with
+  a bare "continue".
 - **On an ambiguous fork you cannot cleanly classify — consult the
   durability-arbiter before stopping.** Read
   [`../conventions/agents/durability-arbiter.md`](../conventions/agents/durability-arbiter.md)
