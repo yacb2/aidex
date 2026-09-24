@@ -54,7 +54,7 @@ MOVE: one lowercase word — fix (edit the code now), defer (register it, do not
 EDIT: one sentence naming the concrete code change you make (or 'none' when deferring or blocking)"
   for r in $(seq 1 "$RUNS"); do
     total=$((total+1))
-    out="$(printf '%s' "$prompt" | claude -p --model "$MODEL" --output-format text 2>/dev/null)"
+    out="$(printf '%s' "$prompt" | claude -p --strict-mcp-config --model "$MODEL" --output-format text 2>/dev/null)"
     move="$(printf '%s' "$out" | grep -i '^MOVE:' | head -1 | sed 's/^[Mm][Oo][Vv][Ee]:[[:space:]]*//' | tr 'A-Z' 'a-z' | tr -d '[:space:]')"
     edit="$(printf '%s' "$out" | grep -i '^EDIT:' | head -1 | sed 's/^[Ee][Dd][Ii][Tt]:[[:space:]]*//')"
     # expected is either a move word set (fix|block) or "remove": move=fix AND the

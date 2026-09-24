@@ -170,6 +170,7 @@ def claude_version():
 
 def run_command(cmd):
     """stdout of `claude -p <cmd>`, or None when it could not run."""
+    # No --strict-mcp-config here: /context must report the real MCP cost (BL-448 exception).
     try:
         r = subprocess.run([CLAUDE, "-p", cmd, "--output-format", "text"],
                            capture_output=True, text=True, timeout=180)

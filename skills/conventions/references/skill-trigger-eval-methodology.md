@@ -332,6 +332,17 @@ Consequences (mandatory, portable to any project):
   both to the **same non-sensitive predicate path** via the skill probe's env var,
   and clear a same-session faithfulness gate first (§7). Provenance:
   `03-pilot-precommit.md` Thread-1 redesign, `04-thread1-verdict.md`.
+- **Every headless `claude -p` starts the full MCP server set of its scope**, one
+  process tree per run. In-process subagents do not; they share the parent's servers.
+  On 2026-09-24, 16 parallel experiment cells each started ag-mcp, lighthouse,
+  chrome-devtools and more over npx, and pushed a 10-core machine to a 15-minute load
+  average of 190 with 7.5 of 9 GB swap in use. So any runner (experiment cells, eval
+  loops, delegate launchers) passes `--strict-mcp-config`, which starts no server
+  unless `--mcp-config` names one, and runs **at most 3 cells at once**. The one
+  exception is a run whose measurement *is* the live context, such as
+  `aidex/scripts/context-snapshot.py` running `/context` or a trigger eval that must
+  see the real tool listing. Such a run keeps the servers and runs serially.
+  Provenance: BL-448.
 
 ## 7. Anti-motivated-design discipline (applies to every project)
 
