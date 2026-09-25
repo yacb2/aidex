@@ -152,6 +152,14 @@ takes the table's `gate` row, since it only runs a command and reports.
 A run may override a phase's cell here for cost, remaining quota, or model availability, and
 logs the reason in the Execution log — the canon's table is a default, not a constant.
 
+### Bugs a phase reports but did not fix
+
+The implementing forms tell each phase agent to leave a bug outside its phase unpatched
+and report it as an `OUT-OF-SCOPE BUG: <what, how to reproduce>` line in its `summary`.
+CORE collects those lines from every attempt into each phase result's `outOfScopeBugs`,
+whether the phase passed or not. Route each as SKILL.md § 1 step 6 says (a bugfix
+delegate, or a registered item) — never patch it in the batch's own commits.
+
 ### When a phase fails the gate
 
 The conditional arbiter rules at retry-exhaustion. On `STOP` (deny-class / stop-condition): halt
