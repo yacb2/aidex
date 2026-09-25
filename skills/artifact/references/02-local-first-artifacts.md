@@ -305,7 +305,8 @@ A pipe table — the multi-series form, and the only one with column names:
 `type` is required and is `bar`, `line` or `stacked` (horizontal bars, one segment per
 series column, the row's total at its end; one series column is plain horizontal bars,
 and a negative cell is refused). `title` becomes the `<figcaption>`, `unit`
-labels the axis (on `stacked`, the totals), `#id` becomes the figure's id. The first table row names the columns;
+labels the axis (on `stacked`, the totals), `#id` becomes the figure's id. `labels=off`,
+`y-title` and `x-title` are optional on `bar`/`line` (`03-spec-grammar.md` § The `chart` body). The first table row names the columns;
 its first cell names the label column and is not drawn; the rest become the legend, and
 no legend is drawn for a single series. At most **8** series — `--s1..--s8` is the whole
 palette, and past it the answer is one "other" column or a second chart, never a cycled

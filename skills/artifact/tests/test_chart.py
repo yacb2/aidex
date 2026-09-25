@@ -26,6 +26,8 @@ Four groups:
 
 Stdlib only, no runner: `python3 test_chart.py`, prints OK, exits 0.
 """
+import html as html_lib
+import math
 import os
 import re
 import shutil
@@ -121,10 +123,10 @@ try:
     print("== the data grammar: the two forms ==")
     html = holds("`label,value` rows build a one-series bar chart",
                  '::: chart {type=bar title="T"}\nuno,3\ndos,7\n:::',
-                 "<figure>", "<svg ", 'fill="var(--s1)"',
+                 '<figure class="chart">', "<svg ", 'fill="var(--s1)"',
                  ">uno<", ">dos<", "<figcaption>T</figcaption>")
     check("a one-series chart draws no legend",
-          html.count('fill="var(--s1)"') == 2, html)
+          svg_of(html).count('fill="var(--s1)"') == 2, html)
 
     html = holds("a pipe table builds a multi-series chart, names from the header",
                  '::: chart {type=bar}\n| R | Abiertas | Cerradas |\n'
@@ -142,7 +144,7 @@ try:
     holds("`type=` is the one spelling of the kind",
           '::: chart {type=line}\nuno,3\n:::', "<polyline")
     holds("a #id reaches the figure byte-exactly and is not a data-id",
-          '::: chart {#c1 type=bar}\nuno,3\n:::', '<figure id="c1">')
+          '::: chart {#c1 type=bar}\nuno,3\n:::', '<figure id="c1" class="chart">')
     check("a chart is never given a data-id", "data-id" not in BUILT[-1][1],
           "data-id on a figure is how check_artifact recognises a consultation "
           "ITEM: the page then failed eight consult rules with no question in it")
@@ -269,15 +271,20 @@ try:
     # of one point renders nothing at all, which is why a dot is emitted for
     # every point.
     html = holds("a single row, bar", '::: chart {type=bar}\nsolo,3\n:::', "<rect")
-    check("the single bar sits in the middle of the plot",
+    solo_x = float(re.search(r'<text x="([-\d.]+)"[^>]*>solo<',
+                             svg_of(html)).group(1))
+    plot = re.search(r'<line x1="([-\d.]+)" y1="[-\d.]+" x2="([-\d.]+)"',
+                     svg_of(html))
+    check("the single bar sits in the middle of the plot, over its label",
           abs((fnum(rects(svg_of(html))[0], "x")
-               + fnum(rects(svg_of(html))[0], "width") / 2) - 384) < 1,
-          svg_of(html))
+               + fnum(rects(svg_of(html))[0], "width") / 2) - solo_x) < 0.02
+          and abs(solo_x - (float(plot.group(1)) + float(plot.group(2))) / 2)
+          < 0.02, svg_of(html))
     html = holds("a single row, line", '::: chart {type=line}\nsolo,3\n:::',
                  "<polyline", "<circle")
     pts = re.search(r'points="([^"]*)"', html).group(1)
     check("a one-point polyline is degenerate, so the point carries a dot",
-          len(pts.split()) == 1 and html.count("<circle") == 1, pts)
+          len(pts.split()) == 1 and svg_of(html).count("<circle") == 1, pts)
     html = holds("a line chart of several points",
                  '::: chart {type=line}\na,1\nb,2\nc,3\n:::', "<polyline")
     check("the polyline carries one point per row",
@@ -422,7 +429,7 @@ try:
     # number worth writing — "0" under a segment that is there is a lie.
     html = holds("cells below the two-decimal precision build",
                  '::: chart {type=stacked}\n| R | A | B |\n|---|---|---|\n'
-                 '| r1 | 0.004 | 0.004 |\n:::', ">0.01<")
+                 '| r1 | 0.004 | 0.004 |\n:::', ">0,008<")
     check("...and no segment is labelled 0", '>0<' not in svg_of(html),
           svg_of(html))
     html = holds("a tiny cell beside a real one",
@@ -430,14 +437,14 @@ try:
                  '| r1 | 0.004 | 5 |\n:::', "<rect")
     check("...labels neither: the real one is alone, its value is the total",
           '>0<' not in svg_of(html)
-          and 'font-size="10"' not in svg_of(html),
+          and 'class="val"' not in svg_of(html),
           svg_of(html))
 
     # The case where a sub-precision segment is WIDE: every cell is tiny, so
     # 0.004 of a 0.024 total is ~100 px and "0" would fit under it.
     html = holds("a sub-precision cell wide enough to hold a label",
                  '::: chart {type=stacked}\n| R | A | B | C |\n|---|---|---|---|\n'
-                 '| r1 | 0.004 | 0.01 | 0.01 |\n:::', ">0.01<")
+                 '| r1 | 0.004 | 0.01 | 0.01 |\n:::', ">0,024<", ">0,01<")
     check("...labels the two printable segments and not the tiny one as 0",
           '>0<' not in svg_of(html), svg_of(html))
 
@@ -474,7 +481,15 @@ try:
     check("a lone first entry wider than the plot starts at x0 on row 1",
           out and 'x="16" y="%s"' % chart_svg._num(chart_svg.PAD_T) in out[0],
           out[0] if out else "no legend")
-    check("...and the entry after it wraps to row 2", rows == 2, str(rows))
+    first_ys = [float(y) for y in re.findall(r'y="([\d.]+)" font-size', "".join(
+        e for e in out if "W" in e))]
+    last_rect_y = float(re.findall(r'<rect x="[\d.]+" y="([\d.]+)"',
+                                   "".join(out))[-1])
+    check("...wraps its name inside the plot, and the entry after it starts "
+          "below every line of it",
+          rows >= 2 and last_rect_y > max(first_ys)
+          and all(len(t) * 0.62 * 11 <= 704 - 31 for t in re.findall(
+              r">(W+)<", "".join(out))), "%s %s %s" % (rows, first_ys, last_rect_y))
 
     print()
     print("== bar and line are untouched by the stacked kind ==")
@@ -483,9 +498,354 @@ try:
     html = holds("a two-series bar chart keeps its legend on one line",
                  '::: chart {type=bar}\n| R | A | B |\n|---|---|---|\n'
                  '| r1 | 1 | 2 |\n:::', ">A<")
-    check("...and its plot starts where it did (PAD_T + one LEGEND_H)",
-          '<rect x="64" y="16" width="10" height="10"' in html
-          and 'y1="40"' in html, svg_of(html))
+    s = svg_of(html)
+    swatch_y = re.findall(r'<rect x="[-\d.]+" y="([-\d.]+)" width="10" '
+                          r'height="10"', s)
+    grid_y = [float(y) for y in re.findall(r'<line x1="[-\d.]+" y1="([-\d.]+)"',
+                                           s)]
+    check("...and its plot starts one legend row and one label row down",
+          swatch_y == ["16", "16"] and min(grid_y) == chart_svg.PAD_T
+          + chart_svg.LEGEND_H + chart_svg.VALUE_SIZE + 6, s)
+
+    print()
+    print("== F5 level: round ticks with zero, fitted margin, value labels ==")
+    # The F-shape data of the 2026-09-24 A/B: four bands x three series, from
+    # -36.23 to +272.87. The arm-B chart put its ticks at the data extremes
+    # (272.87 / 118.32 / -36.23), gave zero no tick, cut its tick text at the
+    # svg's left edge and wrote no value on any bar.
+    F_SPEC = ('::: chart {#cf type=bar title="Neto" unit=USD}\n'
+              '| Banda | opus-5 | fable-5.1 | opus-5.5 |\n|---|---|---|---|\n'
+              '| 0-90k | -0.08 | -0.45 | -1.69 |\n'
+              '| 90-125k | 4.23 | -36.23 | -2.82 |\n'
+              '| 125-180k | 38.06 | -11.81 | -26.67 |\n'
+              '| 180k+ | 272.87 | 25.87 | -12.16 |\n:::')
+    F_VALUES = (-0.08, -0.45, -1.69, 4.23, -36.23, -2.82, 38.06, -11.81,
+                -26.67, 272.87, 25.87, -12.16)
+    lo_d, hi_d, ticks = chart_svg._scale(-36.23, 272.87)
+    check("the F data ticks at -50 / 0 / 100 / 200 / 300",
+          ticks == [-50, 0, 100, 200, 300] and (lo_d, hi_d) == (-50, 300),
+          "%r %r %r" % (lo_d, hi_d, ticks))
+
+    def nice(x):
+        """x is 1, 2 or 5 times a power of ten."""
+        if x <= 0:
+            return False
+        m = x / 10 ** math.floor(math.log10(x) + 1e-9)
+        return any(abs(m - k) < 1e-6 for k in (1, 2, 5))
+
+    for lo, hi in ((-36.23, 272.87), (0, 7.4), (-4, 6), (-6, -0.5), (0, 1),
+                   (0, 0.037), (-1234, 98765), (0, 63), (-0.08, 0.45),
+                   (0, 9999999)):
+        step = chart_svg._nice_step(hi - lo)
+        d_lo, d_hi, tk = chart_svg._scale(lo, hi)
+        inner = [t for t in tk if t not in (d_lo, d_hi)]
+        check("domain (%s, %s): 0 is a tick, the ticks cover the data, the step "
+              "is 1/2/5 x 10^n and every inner tick is a multiple of it"
+              % (lo, hi),
+              0 in tk and d_lo <= lo and d_hi >= hi and nice(step)
+              and all(abs(t / step - round(t / step)) < 1e-6 for t in inner)
+              and tk == sorted(tk) and 3 <= len(tk) <= 8
+              and tk[0] == d_lo and tk[-1] == d_hi,
+              "step %r ticks %r" % (step, tk))
+
+    html = holds("the F data builds", F_SPEC, "<svg ")
+    s = svg_of(html)
+    tick_text = re.findall(
+        r'<text x="([-\d.]+)" y="[-\d.]+" text-anchor="end"[^>]*>([^<]*)</text>',
+        s)
+    check("...its tick labels are the round values, 0 among them, signed",
+          [t for _x, t in tick_text]
+          == ["−50 USD", "0 USD", "+100 USD", "+200 USD", "+300 USD"],
+          str(tick_text))
+    widest = max(chart_svg._text_width(t, chart_svg.TICK_SIZE)
+                 for _x, t in tick_text)
+    right = float(tick_text[0][0])
+    check("...the widest tick label fits inside the viewBox's left edge",
+          right - widest >= chart_svg.PAD_EDGE - 0.01, "%s %s" % (right, widest))
+    plot_x0 = float(re.search(r'<line x1="([-\d.]+)"', s).group(1))
+    check("...and the plot starts right after it: the margin is computed",
+          abs(plot_x0 - (chart_svg.PAD_EDGE + widest + chart_svg.TICK_GAP)) < 0.02,
+          "%s vs %s" % (plot_x0, widest))
+    short = svg_of(build('::: chart {type=bar}\na,3\nb,7\n:::'))
+    x_short = float(re.search(r'<line x1="([-\d.]+)"', short).group(1))
+    check("...a chart with short tick labels gets a narrower margin",
+          x_short < plot_x0, "%s vs %s" % (x_short, plot_x0))
+    check("the svg keeps a responsive viewBox and no fixed width or min-width",
+          re.match(r'<svg class="chart-w" viewBox="0 0 720 [\d.]+"', s)
+          and not re.search(r'<svg[^>]*\b(width|height|style)=', s), s[:120])
+
+    def label_boxes(svg_text, size):
+        """(x0, y0, x1, y1, text) for every value label, by its own anchor."""
+        out = []
+        for m in re.finditer(
+                r'<text x="([-\d.]+)" y="([-\d.]+)" text-anchor="(\w+)" '
+                r'font-size="%s" class="val"[^>]*>([^<]*)</text>' % size, svg_text):
+            x, y, anchor, t = (float(m.group(1)), float(m.group(2)),
+                               m.group(3), m.group(4))
+            w = chart_svg._text_width(t, size)
+            x0 = {"start": x, "middle": x - w / 2, "end": x - w}[anchor]
+            out.append((x0, y - size, x0 + w, y, t))
+        return out
+
+    def overlaps(boxes):
+        return [(a[4], b[4]) for i, a in enumerate(boxes) for b in boxes[i + 1:]
+                if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]]
+
+    boxes = label_boxes(s, chart_svg.VALUE_SIZE)
+    said = [b[4] for b in boxes] + re.findall(r"<title>([^<]*)</title>", s)
+    check("every one of the 12 bars carries its value, as a label or a tooltip",
+          all(any(chart_svg._fmt(v, 2, "es", True) in t for t in said)
+              for v in F_VALUES), str(said))
+    check("...and here all 12 fit as labels", len(boxes) == 12, str(boxes))
+    check("...no two value labels overlap", not overlaps(boxes),
+          str(overlaps(boxes)))
+    check("...the numbers are the page's: decimal comma, U+2212 minus, + sign",
+          "+272,87" in s and "−36,23" in s and "272.87" not in s, s)
+    bars = [r for r in rects(s) if 'height="10"' not in r]
+    zero_y = float(re.search(r'<line x1="[-\d.]+" y1="([-\d.]+)"[^>]*'
+                             r'stroke-opacity="0.45"', s).group(1))
+    for (bx0, by0, bx1, by1, t) in boxes:
+        v = float(t.replace("−", "-").replace(",", ".").replace("+", ""))
+        bar = next(r for r in bars
+                   if fnum(r, "x") <= (bx0 + bx1) / 2 <= fnum(r, "x") + fnum(r, "width")
+                   and abs(fnum(r, "height")
+                           - abs(zero_y - (fnum(r, "y") if v >= 0
+                                           else fnum(r, "y") + fnum(r, "height"))))
+                   < 0.05)
+        top, bottom = fnum(bar, "y"), fnum(bar, "y") + fnum(bar, "height")
+        if not ((v >= 0 and by1 <= top) or (v < 0 and by0 >= bottom)):
+            fail("label %s is not outside its bar's end (%s..%s)"
+                 % (t, top, bottom))
+            break
+    else:
+        ok("...every positive label sits above its bar, every negative one below")
+    en = build('::: masthead {lang="en"}\n# T\n:::\n\n' + F_SPEC)
+    check("an English page keeps the decimal point",
+          "+272.87" in svg_of(en) and "272,87" not in svg_of(en))
+    off = svg_of(build(F_SPEC.replace("unit=USD", "unit=USD labels=off")))
+    check("labels=off draws no value label", 'class="val"' not in off, off)
+    rejects("labels= is on or off", F_SPEC.replace("unit=USD", "labels=yes"), 1,
+            "labels=", SpecBuildError)
+    line_on = svg_of(build('::: chart {type=line labels=on}\na,1.5\nb,2\n:::'))
+    check("a line chart labels its points only when asked (labels=on)",
+          'class="val"' in line_on and 'class="val"' not in svg_of(
+              build('::: chart {type=line}\na,1.5\nb,2\n:::')), line_on)
+
+    html = holds("y-title and x-title draw the axis titles",
+                 F_SPEC.replace("unit=USD", 'unit=USD y-title="USD neto" '
+                                'x-title="Profundidad de contexto"'),
+                 ">USD neto<", ">Profundidad de contexto<")
+    rejects("a stacked chart has no value axis to title",
+            '::: chart {type=stacked y-title="x"}\na,1\n:::', 1,
+            "y-title", SpecBuildError)
+
+    # Collisions: eight series of nearly equal values put eight labels at the
+    # same height in bars far narrower than the text. Alternate or drop the
+    # smaller to its tooltip — never overlap.
+    head8 = "| R | " + " | ".join("S%d" % i for i in range(1, 9)) + " |"
+    pos = " | ".join("100.0%d" % i for i in range(1, 9))
+    neg = " | ".join("-50.%d" % i for i in range(1, 9))
+    cs = svg_of(build("::: chart {type=bar}\n%s\n|%s\n| r1 | %s |\n| r2 | %s |\n"
+                      "| r3 | %s |\n| r4 | %s |\n:::"
+                      % (head8, "---|" * 9, pos, neg, pos, neg)))
+    cb = label_boxes(cs, chart_svg.VALUE_SIZE)
+    check("crowded labels never overlap", not overlaps(cb), str(overlaps(cb)))
+    shown = set(b[4] for b in cb)
+    all_titles = re.findall(r"<title>([^<]*)</title>", cs)
+    titles = [t for t in all_titles if t.split(": ")[-1] not in shown]
+    check("...a label that cannot be placed is still in its bar's <title>",
+          len(all_titles) == 32 and titles and len(cb) < 32,
+          "%d + %r" % (len(cb), titles))
+    kept = sorted(float(b[4].replace("−", "-").replace(",", "."))
+                  for b in cb if not b[4].startswith("−"))
+    check("...and the dropped one is never bigger than the one it yielded to",
+          all(float(t.split(": ")[-1].replace(",", ".")) <= max(kept)
+              for t in titles if "−" not in t), str(titles))
+
+    print()
+    print("== at 390 px no chart text is under 11 px ==")
+    # The kit column is 294 px at a 390 px viewport and 888 px at 1280. A
+    # 720-wide viewBox scaled to 294 draws 11-unit text at 4.5 px; no single
+    # viewBox holds 11 px at 294 AND stays sane at 888. So the figure carries a
+    # second, narrow rendering and a container query swaps them at 720 px.
+    full = build(F_SPEC)
+    fig = re.search(r"<figure\b.*?</figure>", full, re.S).group(0)
+    narrow = re.search(r'<svg class="chart-n"[^>]*>.*?</svg>', fig, re.S)
+    check("the figure carries a wide and a narrow rendering",
+          '<svg class="chart-w"' in fig and narrow is not None, fig[:300])
+    check("...swapped by a container query at the wide viewBox's width",
+          "@container (width < 720px)" in fig
+          and "container-type: inline-size" in fig, fig[:400])
+    nw = float(re.search(r'viewBox="0 0 ([\d.]+)', narrow.group(0)).group(1))
+    sizes = [float(x) for x in re.findall(r'font-size="([\d.]+)"',
+                                          narrow.group(0))]
+    check("...every narrow text is at least 11 px on a 294 px column",
+          sizes and min(sizes) * 294 / nw >= 11, "%s %s" % (nw, sizes))
+    wide_sizes = [float(x) for x in re.findall(r'font-size="([\d.]+)"', s)]
+    check("...and every wide text is at least 11 px from 720 px up",
+          min(wide_sizes) >= 11, str(wide_sizes))
+    nb = label_boxes(narrow.group(0), chart_svg.NARROW.value)
+    check("...the narrow rendering is horizontal bars with all 12 labels",
+          len(nb) == 12, str(nb))
+    nticks = re.findall(r'text-anchor="middle" font-size="12" '
+                        r'fill-opacity="0.7" fill="currentColor">([^<]*)<',
+                        narrow.group(0))
+    check("...its value axis keeps all five ticks, the unit on the last one",
+          sorted(nticks) == sorted(["\u221250", "0", "+100", "+200",
+                                    "+300 USD"]), str(nticks))
+    check("...none overlapping and all inside its viewBox",
+          not overlaps(nb) and all(0 <= b[0] and b[2] <= nw for b in nb),
+          str(nb))
+
+    long_label = "Interpolación por días naturales (lo que hace el servicio hoy)"
+    st = build('::: chart {type=stacked unit=h}\n%s,120\notra,80\n:::'
+               % long_label)
+    st_n = re.search(r'<svg class="chart-n".*?</svg>', st, re.S)
+    st_lines = re.findall(r'<text x="16" y="[\d.]+" font-size="12" '
+                          r'fill="currentColor">([^<]*)</text>',
+                          st_n.group(0) if st_n else "")
+    check("a stacked row label too wide for the narrow rendering wraps inside it",
+          st_n and " ".join(st_lines[:-1]) == long_label and len(st_lines) > 2
+          and all(16 + chart_svg._text_width(t, 12) <= 300 for t in st_lines),
+          str(st_lines))
+
+    long_name = "Interpolación por días naturales (lo que hay hoy)"
+    ln = build('::: chart {type=line unit=días}\n| Fecha | %s | Prorrateo |\n'
+               '|---|---|---|\n| ene | 1.5 | 1.2 |\n| feb | 3 | 2.6 |\n:::'
+               % long_name)
+    ln_n = re.search(r'<svg class="chart-n".*?</svg>', ln, re.S).group(0)
+    leg = [(float(x), t) for x, t in re.findall(
+        r'<text x="([\d.]+)" y="[\d.]+" font-size="12" fill="currentColor">'
+        r'([^<]*)</text>', ln_n)]
+    check("a series name too wide for the narrow legend wraps inside the viewBox",
+          len(leg) >= 3 and all(x + chart_svg._text_width(t, 12) <= 300
+                                for x, t in leg), str(leg))
+    ys = [float(y) for y in re.findall(r'<rect x="[\d.]+" y="([\d.]+)" '
+                                       r'width="10" height="10"', ln_n)]
+    grid_top = min(float(y) for y in re.findall(
+        r'<line x1="[\d.]+" y1="([\d.]+)"', ln_n))
+    check("...and the next entry and the plot start below its lines",
+          len(ys) == 2 and ys[1] - ys[0] >= 2 * 16 and grid_top > ys[1] + 10,
+          "%s %s" % (ys, grid_top))
+
+    print()
+    print("== review round (review-diff-opus): what the first F5 pass lost ==")
+
+    def wide_of(h):
+        return re.search(r'<svg class="chart-w".*?</svg>', h, re.S).group(0)
+
+    def narrow_of(h):
+        m = re.search(r'<svg class="chart-n".*?</svg>', h, re.S)
+        return m.group(0) if m else ""
+
+    def texts(svg_text):
+        return [html_lib.unescape(t) for t in
+                re.findall(r"<text\b[^>]*>([^<]*)</text>", svg_text)]
+
+    # 1. Thinning category labels left bars with no name.
+    long_cat = ("Una etiqueta de categoría muy larga que describe la banda uno "
+                "completa")
+    two = build('::: chart {type=bar}\n%s,3\nOtra etiqueta,4\n:::' % long_cat)
+    w_texts = texts(wide_of(two))
+    check("a long category label wraps rather than being thinned away",
+          long_cat in " ".join(w_texts) and "Otra etiqueta" in w_texts,
+          str(w_texts))
+    titles = re.findall(r"<title>([^<]*)</title>", wide_of(two))
+    check("...and every bar's <title> names its category and value",
+          any(long_cat in html_lib.unescape(t) and t.endswith(": 3")
+              for t in titles)
+          and any("Otra etiqueta: 4" in t for t in titles), str(titles))
+    months = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+              "agosto", "sept", "oct", "nov", "dic"]
+    ml = build("::: chart {type=line}\n%s\n:::"
+               % "\n".join("%s,%d" % (m, i) for i, m in enumerate(months)))
+    n_texts = texts(narrow_of(ml))
+    check("a thinned narrow line chart keeps its first and last label",
+          "enero" in n_texts and "dic" in n_texts, str(n_texts))
+    check("...and every point's <title> carries its month",
+          all(any(("%s: %d" % (m, i)) in t for t in re.findall(
+              r"<title>([^<]*)</title>", narrow_of(ml)))
+              for i, m in enumerate(months)), narrow_of(ml)[:300])
+
+    # 2. The narrow drawing lost the unit when its tick was dropped.
+    neg = build('::: chart {type=bar unit=USD}\na,-272\nb,10\n:::')
+    check("the unit survives in the narrow drawing when its tick is dropped",
+          "USD" in " ".join(texts(narrow_of(neg))), str(texts(narrow_of(neg))))
+
+    # 3. Small nonzero values printed as "0".
+    tiny = svg_of(build('::: chart {type=bar}\na,0.001\nb,0.002\nc,0.003\n:::'))
+    vals = re.findall(r'class="val"[^>]*>([^<]*)<', tiny)
+    check("small nonzero values keep their digits: distinct, none '0'",
+          len(vals) == 3 and len(set(vals)) == 3 and "0" not in vals, str(vals))
+
+    mixed = svg_of(build('::: chart {type=bar}\na,-272\nb,0.004\n:::'))
+    check("...and a big value beside a tiny one is not padded to its decimals "
+          "(-272,000 reads as thousands on an es page)",
+          ">−272<" in mixed and "272,0" not in mixed and ">+0,004<" in mixed,
+          mixed)
+
+    # A rounding carry wrote zeros the data never had: 99.995 -> +100,00.
+    carry = svg_of(build('::: chart {type=bar}\na,99.995\nb,9.9999\nc,-1\n:::'))
+    check("a rounding carry prints no zeros of its own (99.995 -> +100, "
+          "9.9999 -> +10)", ">+100<" in carry and ">+10<" in carry
+          and "100,00" not in carry and "10,00" not in carry,
+          str(re.findall(r'class="val"[^>]*>([^<]*)<', carry)))
+    st_carry = svg_of(build('::: chart {type=stacked unit=h}\na,2.004\n:::'))
+    check("...nor a stacked total (2.004 h -> 2 h)",
+          ">2 h<" in st_carry and "2,00" not in st_carry, st_carry)
+
+    # 4. A domain below _clean's rounding collapsed to a ZeroDivisionError.
+    try:
+        chart_svg.svg("bar", ["a"], [("", [3e-12])])
+        chart_svg.figure("bar", ["a"], [("", [3e-12])])
+        ok("a 3e-12 value draws, no raw exception")
+    except Exception as exc:                        # noqa: BLE001
+        fail("a 3e-12 value raised %s: %s" % (type(exc).__name__, exc))
+
+    # 5. A single word wider than the narrow line overflowed the viewBox.
+    word = "claude-opus-5-5-20260901-extended-context-window"
+    url = "https://example.com/very/long/unbreakable/path/segment/that/keeps"
+    lw = build('::: chart {type=bar y-title="%s"}\n| k | %s | x |\n|---|---|---|\n'
+               '| a | 1 | 2 |\n:::' % (url, word))
+    for cls, svg_text in (("chart-w", wide_of(lw)), ("chart-n", narrow_of(lw))):
+        vw = float(re.search(r'viewBox="0 0 ([\d.]+)', svg_text).group(1))
+        out = []
+        for m in re.finditer(r'<text x="([-\d.]+)" y="[-\d.]+"( text-anchor="'
+                             r'(\w+)")? font-size="([\d.]+)"[^>]*>([^<]*)</text>',
+                             svg_text):
+            t = html_lib.unescape(m.group(5))
+            wd = chart_svg._text_width(t, float(m.group(4)))
+            x0 = {"start": 0, "middle": wd / 2, "end": wd}[m.group(3) or "start"]
+            x0 = float(m.group(1)) - x0
+            if x0 < 0 or x0 + wd > vw:
+                out.append(t)
+        check("a word wider than its line is broken inside the %s viewBox" % cls,
+              not out, str(out))
+    check("...and its pieces still spell the whole word",
+          word in "".join(texts(narrow_of(lw))), str(texts(narrow_of(lw))))
+
+    # 6. Ticks: decimals from the step, integers print as integers.
+    def ticks_w(spec):
+        return [t for _x, t in re.findall(
+            r'<text x="([-\d.]+)" y="[-\d.]+" text-anchor="end"[^>]*>([^<]*)<',
+            svg_of(build(spec)))]
+    check("data 1..2 ticks at 0 / 0,5 / 1 / 1,5 / 2",
+          ticks_w('::: chart {type=bar}\na,1\nb,2\n:::')
+          == ["0", "0,5", "1", "1,5", "2"],
+          str(ticks_w('::: chart {type=bar}\na,1\nb,2\n:::')))
+    check("data 0..11 ticks at integers only",
+          ticks_w('::: chart {type=bar}\na,0\nb,11\n:::') == ["0", "5", "10", "15"],
+          str(ticks_w('::: chart {type=bar}\na,0\nb,11\n:::')))
+
+    # 7. Stacked follows the page language.
+    st_es = svg_of(build('::: chart {type=stacked}\n| R | A | B |\n|---|---|---|\n'
+                         '| r1 | 1.5 | 2.25 |\n:::'))
+    st_en = svg_of(build('::: masthead {lang="en"}\n# T\n:::\n\n'
+                         '::: chart {type=stacked}\n| R | A | B |\n|---|---|---|\n'
+                         '| r1 | 1.5 | 2.25 |\n:::'))
+    check("a stacked chart writes the decimal comma on an es page",
+          ">3,75<" in st_es and ">1,5<" in st_es and "1.5" not in st_es, st_es)
+    check("...and the point on an en page", ">3.75<" in st_en, st_en)
 
     print()
     print("== colour comes only from the kit's tokens ==")
@@ -540,7 +900,7 @@ try:
     check("no <script> reaches the page", "<script" not in html, html)
     svg = svg_of(html)
     check("the SVG's own tags are still well formed (every < opens a known tag)",
-          not re.findall(r'<(?!/?(?:svg|line|text|rect|polyline|circle)\b)', svg),
+          not re.findall(r'<(?!/?(?:svg|line|text|rect|polyline|circle|title)\b)', svg),
           svg)
     holds("an ampersand in a label is escaped once, not twice",
           '::: chart {type=bar}\nA & B,3\n:::', ">A &amp; B<")
@@ -574,7 +934,9 @@ try:
     check("check-artifact.sh passes the built page on its own",
           r.returncode == 0, r.stdout + r.stderr)
     page = open(out, encoding="utf-8").read()
-    check("the page carries both charts", page.count("<svg ") == 2, page[:200])
+    check("the page carries both charts, each drawn wide and narrow",
+          page.count('<figure id="c') == 2 and page.count("<svg ") == 4,
+          page[:200])
     check("...and the kit", "artifact-kit" in page)
     # The one warning this page does carry is the "nothing could be measured"
     # note, and it is NOT a defect to clear: `currentColor` is what the canon
@@ -602,8 +964,11 @@ try:
     check("...with no svg-text warning: no label overlaps, none leaves the "
           "viewBox or its segment", not others, "\n".join(others))
     stacked_page = open(out2, encoding="utf-8").read()
-    check("the stacked page carries its three charts",
-          stacked_page.count("<svg ") == 3, stacked_page[:200])
+    check("the stacked page carries its three charts, each drawn wide and "
+          "narrow", stacked_page.count('<figure') == 3
+          and stacked_page.count('<svg class="chart-w"') == 3
+          and stacked_page.count('<svg class="chart-n"') == 3,
+          stacked_page[:200])
     BUILT.append(("the wrapped stacked page", stacked_page))
 
     print()

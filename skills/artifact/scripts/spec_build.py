@@ -864,7 +864,7 @@ def emit_chart(node, ctx):
     claims the categories are ordered and the gaps between them are real), and
     guessing which claim the page makes is not this file's to guess.
     """
-    a = _attrs(node, {"type", "title", "unit"})
+    a = _attrs(node, {"type", "title", "unit", "labels", "y-title", "x-title"})
     kind = (a.get("type") or "").strip()
     if not kind:
         raise SpecBuildError(
@@ -876,6 +876,20 @@ def emit_chart(node, ctx):
         raise SpecBuildError(
             node.line, "`chart` type=%r is not one of: %s"
             % (kind, ", ".join(chart_svg.KINDS)))
+
+    labels_attr = a.get("labels", "").strip()
+    if "labels" in a and labels_attr not in ("on", "off"):
+        raise SpecBuildError(
+            node.line, "`chart` labels=%r — labels= is on or off (the default "
+            "is on for bars, off for lines)" % labels_attr)
+    if kind == "stacked":
+        for key in ("labels", "y-title", "x-title"):
+            if key in a:
+                raise SpecBuildError(
+                    node.line,
+                    "`chart` type=stacked takes no %s — a stacked chart has no "
+                    "value axis: it writes every total and every segment that "
+                    "fits, and `unit` names what they count" % key)
 
     rows = _data_lines(node)
     if not any(ln.strip() for _n, ln in rows):
@@ -909,7 +923,11 @@ def emit_chart(node, ctx):
                             title=a.get("title", "").strip(),
                             unit=a.get("unit", "").strip(),
                             classes=" ".join(node.classes),
-                            ident=node.id or "")
+                            ident=node.id or "", lang=ctx.lang,
+                            show_labels=({"on": True, "off": False}
+                                         .get(labels_attr)),
+                            ytitle=a.get("y-title", "").strip(),
+                            xtitle=a.get("x-title", "").strip())
 
 
 @emitter("diagram")
