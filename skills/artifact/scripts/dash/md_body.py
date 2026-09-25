@@ -36,6 +36,7 @@ Two decisions that are load-bearing:
 It emits no `data-id`, no reply surface and no copy bar: a report is read, not
 answered, and any of those would drag it into the §8 consultation battery.
 """
+import html as _html
 import re
 
 from _shell import esc
@@ -113,6 +114,49 @@ NUL = "\x00"
 STASHED = re.compile(r"\x00(\d+)\x00")
 
 
+# An inline link, `[text](target)`. The target may hold ONE level of balanced
+# parentheses (`wiki/Ley_(física)`) and no whitespace. What becomes an `<a>`: a
+# relative path, a `#fragment`, and the schemes in LINK_SCHEMES, none of which
+# carries script. `http:` and `mailto:` are there because research notes wrapped
+# from markdown use them (21 links in 10 of 9,242 fleet .md files, 2026-09-25).
+# Every other scheme (`javascript:`, `data:`, `vbscript:`, `file:`), a
+# protocol-relative `//host`, a backslash (read as `/` by the URL parser), a
+# backslash escape and any control character (a leading one is stripped by the
+# URL parser, so `\x01javascript:` would run) are refused. A refused link is
+# rendered as plain text, `label (target)`: no href, and no `[x](y)` shape left
+# for `check_artifact.py`'s `raw-link` check, so a markdown wrap still writes.
+# `spec_build.py` refuses the same targets earlier, with the spec line.
+LINK = re.compile(r"\[([^\]\n]+)\]\(((?:[^\s()]|\([^\s()]*\))+)\)")
+SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+LINK_SCHEMES = ("https:", "http:", "mailto:")
+
+
+def link_ok(target):
+    """True when `target` may become an href: relative, #fragment or LINK_SCHEMES."""
+    if any(ord(c) < 0x21 or ord(c) == 0x7F or c == "\\" for c in target):
+        return False
+    if target.startswith("//"):
+        return False
+    m = SCHEME.match(target)
+    return not m or m.group(0).lower() in LINK_SCHEMES
+
+
+def refused_links(text):
+    """The link targets in one line of inline text that `_inline` refuses.
+
+    The same tokenisation as `_inline`: code spans are taken out first, and a
+    backslash escape becomes a NUL marker exactly as `_inline`'s stash does, so
+    `\\[x](y)` is not a link and a target holding an escape (`a\\_b.html`) is
+    refused here as it is there.
+    """
+    # NUL + the escaped character, so the target can be reported as written;
+    # an escaped `[` stays out of LINK's reach as `\x01`, as the stash keeps it.
+    text = ESCAPE.sub(lambda e: NUL + e.group(1).replace("[", "\x01"),
+                      CODE.sub(" ", text.replace(NUL, "")))
+    return [m.group(2).replace(NUL, "\\").replace("\x01", "[")
+            for m in LINK.finditer(text) if not link_ok(m.group(2))]
+
+
 def _span_classes(attr_text):
     """The class list of a bracketed span, or None when it is not one of ours.
 
@@ -179,14 +223,30 @@ def _inline(text):
                                                  m.group(1)))
         return keep(f'<span class="{" ".join(classes)}">{label}</span>')
 
+    def keep_link(m):
+        # The target arrives escaped (`&` is `&amp;`, `"` is `&quot;`), which is
+        # what an attribute value needs. Tested on the UNESCAPED text, so an
+        # entity cannot spell a scheme past the check.
+        target = _html.unescape(m.group(2))
+        label = ITAL.sub(r"<em>\1</em>", BOLD.sub(r"<strong>\1</strong>",
+                                                 m.group(1)))
+        if NUL in m.group(2) or not link_ok(target):
+            return keep(f"{label} ({m.group(2)})")
+        return keep(f'<a href="{m.group(2)}">{label}</a>')
+
     text = CODE.sub(keep_code, esc(text.replace(NUL, "")))
     # AFTER the code spans and BEFORE everything else. After, because a
     # backslash inside a code span is literal (CommonMark says so, and a path
     # in backticks is the one place an author means the backslash they typed).
     # Before, because the point is to stop `SPAN`, `BOLD` and `ITAL` from
     # seeing the character at all.
-    text = ESCAPE.sub(lambda m: keep(m.group(1)), text)
+    # `\[` is kept as `&#91;`: the reader sees a bracket, and `check_artifact`'s
+    # `raw-link` (which reads the source) does not take `\[x](y)` for a link the
+    # builder failed to render.
+    text = ESCAPE.sub(lambda m: keep("&#91;" if m.group(1) == "[" else m.group(1)),
+                      text)
     text = SPAN.sub(keep_span, text)
+    text = LINK.sub(keep_link, text)
     text = BOLD.sub(r"<strong>\1</strong>", text)
     text = ITAL.sub(r"<em>\1</em>", text)
     # Bounded by the stash: every pass resolves at least the outermost marker,

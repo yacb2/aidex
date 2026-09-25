@@ -297,5 +297,31 @@ ok 'a bare tilde line inside a backtick-fenced block is data, and the heading af
 
 [[ $failures -eq 0 ]] && ok "a prose checklist renders as a list, keeps every heading, and gets an h1"
 
+# ---------- links on the markdown route (Phase 5 review, 2026-09-25) ----------
+# Inline links made a refused target stay literal, which raw-link then failed, so a
+# research note with an http: or mailto: link stopped wrapping at all (21 links in
+# 10 of 9,242 .md files). http: and mailto: are allowed; a still-refused target is
+# plain text `label (target)` with no href, and the wrap still writes.
+mkdir -p "$TMP/links"
+printf '# Enlaces
+
+La [fuente](http://example.com/a) y [yo](mailto:a@b.c).
+' > "$TMP/links/ok.md"
+( cd "$TMP/links" && bash "$WRAP" --title t --lang es --in ok.md --out ok.html ) >/dev/null 2>&1; rc=$?
+[[ $rc -eq 0 ]] && ok "a .md with http: and mailto: links wraps (rc 0)" || fail "a .md with http:/mailto: links: wrap rc $rc"
+[[ "$(grep -o 'href="http://example.com/a"\|href="mailto:a@b.c"' "$TMP/links/ok.html" 2>/dev/null | wc -l | tr -d ' ')" -eq 2 ]] \
+  && ok "…with both hrefs" || fail "the http:/mailto: hrefs are missing"
+printf '# Enlaces
+
+No [x](javascript:alert(1)) aqui.
+' > "$TMP/links/bad.md"
+( cd "$TMP/links" && bash "$WRAP" --title t --lang es --in bad.md --out bad.html ) >/dev/null 2>&1; rc=$?
+[[ $rc -eq 0 ]] && ok "a .md with a javascript: link still wraps (rc 0)" || fail "a .md with a javascript: link: wrap rc $rc"
+grep -q 'href=' <(sed -n '/<main/,/<\/main>/p' "$TMP/links/bad.html" 2>/dev/null) \
+  && fail "the javascript: target reached an href" || ok "…with no href in the body"
+grep -qF 'x (javascript:alert(1))' "$TMP/links/bad.html" 2>/dev/null \
+  && ok "…and the target as plain text, label (target)" || fail "the refused link is not rendered as label (target)"
+bash "$CHECK" "$TMP/links/bad.html" 2>&1 | grep -q 'raw-link' && fail "raw-link fired on the refused link" || ok "…and no raw-link"
+
 [[ $failures -eq 0 ]] && echo "OK — markdown wraps into a contract-passing page ($(wc -c < "$TMP/report.html" | tr -d ' ') bytes)"
 exit $(( failures > 0 ))

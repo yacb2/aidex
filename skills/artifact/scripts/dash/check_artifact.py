@@ -187,10 +187,17 @@ HTML_LANG = re.compile(r'<html\b[^>]*\blang\s*=\s*["\']?([A-Za-z]{2})', re.I)
 WORD_RE_LANG = re.compile(r"[a-záéíóúñü]+", re.I)
 
 
+def visible_source(text):
+    """The page's markup minus scripts, styles and comments (tags kept)."""
+    return strip_html_comments(strip_script_style(text))
+
+
+RAW_LINK = re.compile(r"\[[^\]<>\n]+\]\([^()\s<>]+(?:\([^()\s<>]*\)[^()\s<>]*)?\)")
+
+
 def visible_text(text):
     """The page as a reader sees it: no scripts, styles, comments or tags."""
-    own = strip_html_comments(strip_script_style(text))
-    return re.sub(r'<[^>]+>', ' ', own)
+    return re.sub(r'<[^>]+>', ' ', visible_source(text))
 
 
 def language_mismatch(text):
@@ -2136,6 +2143,22 @@ def check_file(path):
                        f"languages on one page. Write the body in the profile's "
                        f"language (artifact-style.md `language:`) or pass --lang "
                        f"(BL-279)")
+
+    # --- raw-link: markdown link syntax shipped to the reader as text ----------
+    # A spec had no inline link until 2026-09-25, so `[R1](R1.html)` reached the
+    # blind-review page as brackets and a filename (the build was patched after
+    # the fact). The builder renders links now and refuses a bad scheme; this is
+    # the check for what still slips through (an HTML-route page, a refused
+    # target left literal by `md_body._inline`). Text inside <code>, <pre> or a
+    # <textarea> is the author quoting the syntax, and is not counted.
+    unquoted = re.sub(r"<(code|pre|textarea)\b[^>]*>.*?</\1\s*>", " ",
+                      visible_source(text), flags=re.I | re.S)
+    raw = RAW_LINK.search(re.sub(r"<[^>]+>", " ", unquoted))
+    if raw:
+        report("raw-link", f"the page shows a raw markdown link, {raw.group(0)!r}, "
+                           f"as text — write it as <a href>, or in a spec as "
+                           f"[text](target) with a relative, #fragment or "
+                           f"https: target, which the builder renders")
 
     # --- self: one file, no network -------------------------------------------
     if re.search(r'<link[^>]+rel=["\']?stylesheet', flat, re.I):

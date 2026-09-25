@@ -61,6 +61,20 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/clean.html" 2>&1)"; rc=$?
   && ok "--shots writes clean-1280.png and clean-390.png" || bad "--shots did not write both screenshots"
 [[ "$(grep -c '^{' <<<"$out")" -eq 2 ]] && ok "one JSON line per width" || bad "expected 2 JSON lines: $out"
 
+echo "== the kit's own rows pass clean (must-pass, Phase 5) =="
+# kit-rows.html is B-R-2's key/value ledger, the same ledger at 390 px, long
+# unbreakable paths in a list and in prose, and a page taller than the viewport.
+# Each of the four kit rules it guards was verified load-bearing by mutation
+# (2026-09-25): back to minmax(20rem, 1fr) -> div.ledger content-spills @390;
+# no overflow-wrap on p/li -> li and p content-spills @390; the key/value rules
+# back to theirs (key shrinks to 1.8rem and cannot wrap, value has no 60% floor)
+# -> span.k text-overlap; the theme pill fixed bottom-left again
+# -> fixed-over-text at both widths.
+out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/kit-rows.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "kit-rows fixture exits 0" || bad "kit-rows fixture exit $rc: $(grep '^DEFECT' <<<"$out")"
+[[ -s "$TMP/shots/kit-rows-1280.png" && -s "$TMP/shots/kit-rows-390.png" ]] \
+  && ok "--shots writes kit-rows-1280.png and kit-rows-390.png" || bad "no kit-rows screenshots"
+
 echo "== crash and missing browser =="
 # A page that breaks the measuring code: getComputedStyle is gone, so evaluate throws.
 printf '<!doctype html><title>x</title><p>x</p><script>window.getComputedStyle = null</script>' > "$TMP/crash.html"

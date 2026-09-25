@@ -1219,6 +1219,42 @@ def spec_lang(spec_text):
     return ""
 
 
+def _refuse_links(spec_text):
+    """Refuse a `[text](target)` whose target is not a relative path, a
+    `#fragment` or `https:`, naming the spec line it is on.
+
+    `md_body._inline` is the owner of what becomes an `<a>`; this only reads its
+    verdict (`md_body.refused_links`) line by line, outside ``` / ~~~ fences,
+    so the author gets a line number instead of a literal link on the page.
+    """
+    fence = None
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        fm = md_body.FENCE.match(ln)
+        if fm and (fence is None or fm.group(1) == fence):
+            fence = None if fence else fm.group(1)
+            continue
+        if fence:
+            continue
+        for target in md_body.refused_links(ln):
+            raise SpecBuildError(
+                n, "link target %r is refused: a spec links only to a "
+                "relative path, a #fragment, https:, http: or mailto: "
+                "(javascript:, data:, file:, every other scheme and a "
+                "backslash escape in the target are refused)" % target)
+
+
+def _refuse_title_links(tree):
+    """A `[x](y)` in `title=` is refused: the title also reaches the rail and a
+    decided item's <summary> as `data-title`, raw, where no link is rendered."""
+    for node in _walk(tree):
+        title = node.attrs.get("title", "")
+        if md_body.LINK.search(md_body.CODE.sub(" ", title)):
+            raise SpecBuildError(
+                node.line, "`%s` title= holds a link, %r: the title is also the "
+                "rail entry and shows there as raw text. Put the link in the "
+                "body" % (node.block_type, title))
+
+
 def build(spec_text, lang=None, base_dir="."):
     """The spec as an artifact-kit page BODY (no doctype, no head).
 
@@ -1228,6 +1264,8 @@ def build(spec_text, lang=None, base_dir="."):
     lang = spec_lang(spec_text) or lang or "es"
     ctx = BuildContext(lang=lang, base_dir=base_dir)
     tree = parse(spec_text)
+    _refuse_links(spec_text)
+    _refuse_title_links(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
 
     head = []
