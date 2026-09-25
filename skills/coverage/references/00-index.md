@@ -21,7 +21,9 @@ broken code. Numbered 15 because 07–12 are vacated slots, not free ones.
 
 **2026-09-25:** file 16 was added from OpenClaw's `test-audit` skill (research note
 `.context/research/2026-09-25-openclaw-test-audit-skill-vs-aidex-coverage.md`): the
-correct-but-worthless axis that 15 does not cover.
+correct-but-worthless axis that 15 does not cover. The same day it moved to
+`skills/testing/references/` (plan `.context/plans/2026-09-25-testing-canon-delivery/`,
+Phase 2), with the write-time core it serves; 16 is now `testing`'s, not this skill's.
 
 **2026-08-27:** files 07–12, `assets/templates/test-e2e.sh.template` and `scripts/gen-test-e2e.sh`
 left this skill for the stack packs in `myskills` (`testing-django` 07 + items 2–3 of 02;

@@ -1,0 +1,62 @@
+[
+  {
+    "query": "Write a pytest test for the supplier list endpoint that proves a user from another workspace gets a 404.",
+    "should_trigger": true,
+    "expected_behavior": "Should answer the four questions, place it at the API layer (tenant boundary), read the profile's testing_packs for the pytest shape, and run it alone with backend_test_cmd."
+  },
+  {
+    "query": "Add a Vitest test for the InvoiceBadge component covering each status prop.",
+    "should_trigger": true,
+    "expected_behavior": "Should check whether an existing test owns the status mapping before adding one, and extend its table instead of a sibling per prop."
+  },
+  {
+    "query": "Write a Playwright spec that creates a payment term and checks it appears in the grid.",
+    "should_trigger": true,
+    "expected_behavior": "Should question the layer first: persisting a row is observable below E2E; the grid rendering is the only part the browser decides."
+  },
+  {
+    "query": "Necesito una prueba de regresión para el bug del total de la factura; ¿en qué capa y cómo la escribo?",
+    "should_trigger": true,
+    "expected_behavior": "ES bug-regression request. Should write one regression test at the layer that owns the failure and hand the RED-first procedure to bugfix."
+  },
+  {
+    "query": "I just refactored the price rounding helper. Add tests for this change.",
+    "should_trigger": true,
+    "expected_behavior": "Should ask what new way to fail the refactor opened; a behaviour-preserving refactor may need no new test, and says so."
+  },
+  {
+    "query": "Cover the new CSV export endpoint with a test before I merge.",
+    "should_trigger": true,
+    "expected_behavior": "Should name the contract (columns, permission), pick the lowest layer, and run the single test by the profile command."
+  },
+  {
+    "query": "Agrega un test para el nuevo filtro por fecha del listado de facturas.",
+    "should_trigger": true,
+    "expected_behavior": "ES write-a-test request. Should apply the four questions and the layer rubric before writing."
+  },
+  {
+    "query": "Which tests should I run for the files I just changed? Not the whole suite.",
+    "should_trigger": false,
+    "expected_behavior": "Selection is coverage's (affected-tests), not testing's."
+  },
+  {
+    "query": "Set up isolated E2E testing for this new project and generate test-e2e.sh.",
+    "should_trigger": false,
+    "expected_behavior": "E2E environment is coverage's."
+  },
+  {
+    "query": "Run a coverage audit on the checkout module and log P0/P1 findings to 00-inventory.md.",
+    "should_trigger": false,
+    "expected_behavior": "Audit is audit's test-coverage playbook."
+  },
+  {
+    "query": "The invoice total is wrong when a discount is applied — fix it.",
+    "should_trigger": false,
+    "expected_behavior": "Bug fix request: bugfix fires and owns RED->GREEN; testing is read from there, not triggered."
+  },
+  {
+    "query": "What's the weather like today?",
+    "should_trigger": false,
+    "expected_behavior": "Unrelated."
+  }
+]

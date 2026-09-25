@@ -1,6 +1,6 @@
 # A correct test that earns nothing
 
-[15](15-green-that-proves-nothing.md) is the test that passes over broken code. This is the
+[15](../../coverage/references/15-green-that-proves-nothing.md) is the test that passes over broken code. This is the
 other axis: a test that is correct, goes red when it should, and still costs more than it
 protects — because another test already owns the failure, or because what it guards is
 the implementation, not a behaviour. Agents write these by default: a test per change,
@@ -29,7 +29,7 @@ until the [retention bar](#retention-bar) is checked.
 - **Same contract, invoked again** — a second test of the same input class through the
   same path; belongs as a row of the first test's table, not as a new test.
 - **Layer replay** — the same scenario asserted at unit, API and E2E with no risk that
-  only the higher layer can see ([01](01-layer-model.md) decides who owns it).
+  only the higher layer can see ([01](../../coverage/references/01-layer-model.md) decides who owns it).
 - **Mock that implements the assertion** — the mock returns exactly what the test then
   checks, or one mock stands in for several different collaborators.
 - **Fixture supplies what the owner should produce** — the ordering, the persisted row,
@@ -59,4 +59,4 @@ baseline is a product bug to reproduce, not a stale test to remove.
 Name, per candidate: what failure it can actually detect, which remaining test is the
 stronger proof of the same contract (or why no contract exists), and any seam its removal
 unlocks. A candidate missing one of these stays. After a batch, mutate each contract whose
-only proof moved to a keeper and confirm the keeper goes red ([15 §1](15-green-that-proves-nothing.md)).
+only proof moved to a keeper and confirm the keeper goes red ([15 §1](../../coverage/references/15-green-that-proves-nothing.md)).
