@@ -329,6 +329,28 @@ exponent, no hex, no thousands separator, and no `NaN`/`inf`. That is narrower t
 every browser paints as nothing at all, with no error anywhere. A chart that silently
 renders wrong is the outcome this grammar exists to prevent.
 
+**What the drawing does with the rows (`bar` and `line`).** The value axis is ticked at
+round values (1, 2 or 5 x 10^n) and **0 is always a tick**; each end of the axis is the
+data's end rounded out to half a step and labelled, so -36.23 .. 272.87 ticks at
+-50 / 0 / 100 / 200 / 300. The left margin is the widest tick label's width. Numbers are
+written the page's way: a decimal comma on an `es` page, U+2212 for minus, `+` on the
+positives of a mixed-sign chart; each value keeps its own decimals (two, or three
+significant digits for a small one, so a nonzero value never reads `0`). Category labels
+wrap at their spaces or, when they cannot, are thinned keeping the first and the last. Three
+optional attrs:
+
+| Attr | Values | Effect |
+|---|---|---|
+| `labels` | `on`, `off` | a value label on every bar (default `on` for `bar`, `off` for `line`); a label that would touch another moves one line out, and if that is taken too the smaller one is not drawn — never an overlap. Every bar and point carries a `<title>` tooltip with its series, category and value either way |
+| `y-title` | text | the value axis's title, horizontal, above the plot |
+| `x-title` | text | the category axis's title, under the category labels |
+
+The figure carries two renderings: the wide one (720 units, every text 11 units) and a
+narrow one (300 units, text 12, bars drawn horizontally with the label past each bar's
+end), and a container query shows the narrow one when the figure is under 720 px wide —
+so no chart text is under 11 px on a 390 px phone. `type=stacked` takes none of the three
+attrs: it has no value axis.
+
 ### `type=stacked`: horizontal stacked bars
 
 The same two body forms, read differently: each data row is ONE horizontal bar, its

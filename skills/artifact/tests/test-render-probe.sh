@@ -5,9 +5,10 @@
 # command when Playwright or its Chromium cannot be found, and exits 4 (not 1, not 0)
 # when the probe itself crashes.
 #
-# The fixtures under fixtures/render-probe/ are page BODIES; each is wrapped here
-# with the real wrap-report.sh, so every run probes a page carrying the current kit
-# rather than a frozen copy of an old one.
+# The .html fixtures under fixtures/render-probe/ are page BODIES; each is wrapped
+# here with the real wrap-report.sh, so every run probes a page carrying the current
+# kit rather than a frozen copy of an old one. The .spec.md ones are built with
+# spec_build.py, which wraps them itself.
 #
 # The exit-3 case runs always. The rest needs Playwright (AIDEX_PLAYWRIGHT_DIR or a
 # global install); without it the test prints SKIP and exits 2, which run-all.sh
@@ -60,6 +61,26 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/clean.html" 2>&1)"; rc=$?
 [[ -s "$TMP/shots/clean-1280.png" && -s "$TMP/shots/clean-390.png" ]] \
   && ok "--shots writes clean-1280.png and clean-390.png" || bad "--shots did not write both screenshots"
 [[ "$(grep -c '^{' <<<"$out")" -eq 2 ]] && ok "one JSON line per width" || bad "expected 2 JSON lines: $out"
+
+echo "== a chart built from a spec: the F-shape data =="
+# Four bands x three series, -36.23 .. +272.87: the chart whose arm-B build cut
+# its tick labels at the svg edge. Built by spec_build.py (a kit-wrapped page),
+# never frozen, so the probe always sees what chart_svg.py draws today.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/chart-f5.spec.md" -o "$TMP/chart-f5.html" ) >/dev/null 2>&1 \
+  && ok "built chart-f5 from its spec" || bad "spec_build.py failed on chart-f5.spec.md"
+out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/chart-f5.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "the F-shape chart is clean at 1280 and 390 px" || bad "chart-f5 exit $rc: $out"
+[[ -s "$TMP/shots/chart-f5-1280.png" && -s "$TMP/shots/chart-f5-390.png" ]] \
+  && ok "--shots writes chart-f5-1280.png and chart-f5-390.png" || bad "no chart-f5 screenshots"
+
+echo "== a chart whose names have no space to break at =="
+# A 48-character model id as a series name, a URL as y-title, a long category
+# label and twelve months: each ran past the 300-unit narrow svg or lost a label
+# before the review round.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/chart-long-word.spec.md" -o "$TMP/chart-long-word.html" ) >/dev/null 2>&1 \
+  && ok "built chart-long-word from its spec" || bad "spec_build.py failed on chart-long-word.spec.md"
+out="$(bash "$PROBE" "$TMP/chart-long-word.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "the long-word chart is clean at 1280 and 390 px" || bad "chart-long-word exit $rc: $out"
 
 echo "== crash and missing browser =="
 # A page that breaks the measuring code: getComputedStyle is gone, so evaluate throws.
