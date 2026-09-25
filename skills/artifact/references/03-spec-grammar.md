@@ -44,6 +44,32 @@ not ask for, so they are a workaround, not the answer.
   arrive after they had already decided. A paragraph that must open with `- ` has
   no spelling in this grammar; see `$AIDEX_SPEC_CORPUS/corpus-specs/CONVERSION-NOTES.md`.
 
+### Inline links
+
+`[text](target)` becomes `<a href="target">text</a>` wherever prose is rendered, in
+a body or in an attr such as `heading=`. The label may carry `` ` ``, `**` and `_`;
+the target may hold one level of balanced parentheses and no whitespace.
+
+- **Allowed targets:** a relative path (`R1.html`, `../research/nota.html#s2`), a
+  `#fragment`, `https:`, `http:` and `mailto:` (none of them carries script;
+  `http:` and `mailto:` are what the markdown notes the same renderer wraps use).
+- **Refused, with the spec line:** every other scheme (`javascript:`, `data:`,
+  `vbscript:`, `file:`), a protocol-relative `//host`, a backslash or a backslash
+  escape in the target (`a\_b.html`; write `a_b.html`, a target is never read as
+  emphasis) and any control character. The builder stops on the first one:
+  `line 3: link target 'javascript:alert(1)' is refused: ...`. The markdown route
+  (`wrap-report.sh --in x.md`) does not stop: it renders a refused link as plain
+  text, `label (target)`, with no href.
+- **Not in `title=`:** the title is also the rail entry and a decided item's
+  summary, where it shows as raw text. A link there is refused with the fence's line.
+- **Not a link:** inside a code span or a code fence, or after `\[` (which reaches
+  the page as `&#91;`, a bracket the reader sees and the contract does not take for
+  a link).
+
+`check-artifact` fails a page (`raw-link`) whose visible text still shows a
+`[text](target)`, outside `<code>`, `<pre>` and `<textarea>`: the shape the
+blind-review page shipped before this existed.
+
 ## The shape
 
 ```

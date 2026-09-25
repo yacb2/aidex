@@ -24,7 +24,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--serif);
    and reply boxes were squeezed into the prose column. This cap is the one
    width (see the header comment); everything inside `.main` runs to it. */
 .page { max-width: min(78rem, 100vw - 6rem); margin-inline: auto; padding-top: 3.5rem;
-        display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3.5rem; align-items: start; }
+        position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 15rem; gap: 3.5rem; align-items: start; }
 .main { min-width: 0; display: flex; flex-direction: column; }
 /* The cap is derived from `top`, not guessed: a sticky box pins at its top
    offset and never scrolls internally, so one taller than the viewport hides
@@ -93,6 +93,11 @@ figure svg .mut { color: var(--muted); }
 figcaption { font-family: var(--sans); font-size: 0.76rem; line-height: 1.5; color: var(--muted); }
 
 ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; }
+/* A path is one unbreakable word (`~/.claude/aidex/delegation/*.tsv`), and at 390 px
+   it ran past the column and scrolled the whole page sideways (R1, R6 of the
+   2026-09-24 A/B set). `anywhere`, not `break-word`: a `li` is a flex item of the
+   `ul` above, and only `anywhere` lowers the min-content width a flex item keeps. */
+p, li { overflow-wrap: anywhere; }
 li::marker { color: var(--muted); }
 
 .note { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
@@ -168,11 +173,19 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* The ledger: what this thread already decided, so a decided item leaves the
    interface instead of being asked again. */
-.ledger { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1px; background: var(--rule); }
+/* `min(20rem, 100%)`: at 390 px the column is 294 px and a bare 20rem track spilled
+   every row 28 px past the ledger's border. */
+.ledger { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: 1px; background: var(--rule); }
 .ledger > div { background: var(--paper); display: flex; gap: 0.7rem; align-items: baseline;
                 padding: 0.55rem 0.9rem; font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
-.ledger .k { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); min-width: 1.8rem; }
-.ledger .v { color: var(--ink-soft); }
+/* The key column is sized by its key, up to 40% of the row, and wraps beyond it:
+   the value keeps at least 60% (its `min-width`, not a `max-width` on the key, which
+   would be a second measure inside the column). The key used to shrink to its own
+   `min-width` whatever it said, so `by_model.py` or `Exclusiones` ran under the
+   value's first words (B-R-2, 2026-09-24). */
+.ledger .k { font-family: var(--mono); font-size: 0.75rem; color: var(--accent); min-width: 1.8rem;
+             overflow-wrap: anywhere; }
+.ledger .v { color: var(--ink-soft); flex: 1 1 0; min-width: 60%; overflow-wrap: anywhere; }
 .ledger .v b { color: var(--ink); font-weight: 600; }
 
 /* A block: one context, then the decisions that fall out of it (BL-247). No
@@ -527,6 +540,10 @@ textarea { resize: vertical; }
      not worth the strip it costs on a phone. The <meta> stays in the head at
      every width, so the page still carries the answer. */
   .rail .railhead, .rail .raillist, .rail .railsep, .rail .railbuilt { display: none; }
+  /* A READ page's rail has nothing left to show here, and an empty strip pinned
+     to the viewport bottom still hid a line of whatever scrolled under it (a
+     figure heading's second line at 390 px on F2, F3 and F5, 2026-09-25). */
+  .rail:not(:has(.consult-bar)) { display: none; }
   .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .consult-bar button { width: auto; }
 }
@@ -538,25 +555,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* The theme control (BL-327), injected by the composer onto every wrapped page.
-   Bottom LEFT and fixed: the rail and the copy bar both live at the top right,
-   and at the narrow width where the rail stops being a column there is still
-   nothing in that corner. Sized as a quiet pill rather than a button, because
-   it is chrome the reader uses once and then forgets. */
-.kit-theme { position: fixed; left: 1rem; bottom: 1rem; z-index: 20;
+   In the top band of `.page` (its 3.5rem padding-top), right-aligned: above the
+   rail's "Contents" at desktop width and above the header on a phone. It was
+   FIXED at the bottom left until 2026-09-25, and there it sat over the reading
+   column at some scroll position on all 18 A/B pages (render-probe
+   `fixed-over-text`). In the flow it covers nothing at any scroll position; the
+   cost is that it scrolls away with the page, which is fine for chrome the reader
+   uses once. Sized as a quiet pill rather than a button. A page with no `.page`
+   gets it at the end of the body, in the flow. */
+.kit-theme { display: block; margin: 0.5rem auto 2rem;
              font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
              letter-spacing: 0.09em; color: var(--muted); cursor: pointer;
              background: var(--paper); border: 1px solid var(--rule);
              border-radius: 999px; padding: 0.3rem 0.7rem; }
+.page > .kit-theme { position: absolute; top: 1rem; right: 0; margin: 0; }
 .kit-theme:hover { color: var(--ink); border-color: var(--muted); }
 .kit-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* Below the kit's own breakpoint the rail stops being a column and spans the
-   full width, so a FIXED pill sits on top of it and on the copy button inside
-   it — measured at 500px: overlapsRail and overlapsBar both true. It leaves the
-   viewport and joins the flow instead, at the end of the document, where
-   nothing can be under it at any scroll position. */
-@media (max-width: 62rem) {
-  .kit-theme { position: static; display: block; margin: 0.5rem auto 2rem; }
-}
 @media print { .kit-theme { display: none; } }
 
 /* Decided questions, collapsed out of the flow (kit v17, BL-373). The section

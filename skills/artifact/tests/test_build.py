@@ -528,7 +528,7 @@ try:
     holds("an UNescaped backtick pair still makes a code span",
           "::: note\nel `0013` de siempre\n:::", "<code>0013</code>")
     holds("`\\[` keeps a bracket out of the pill/chip span syntax",
-          "::: note\n\\[x]{.pill .high}\n:::", "[x]{.pill .high}")
+          "::: note\n\\[x]{.pill .high}\n:::", "&#91;x]{.pill .high}")
     check("…and no <span class=\"pill\"> was emitted",
           'class="pill' not in BUILT[-1][1], BUILT[-1][1])
 
@@ -704,6 +704,130 @@ try:
     rejects("the refusal carries the line of the offending FENCE, deep in a page",
             "prosa\n\n::: callout\nx\n:::\n\n::: note\ny\n:::\n\n"
             '::: group {#G1}\nz\n:::\n', 11, "title")
+
+    print()
+    print("== inline links: [text](target) ==")
+    # The blind-review page (experiments/2026-09-24-artifact-route-ab/review/
+    # gen_review.py) had to patch its HTML after the build because the grammar
+    # had no link: a spec could not point at a sibling page.
+    holds("a link to a sibling page renders as <a href>",
+          "Abre [R1](R1.html) y puntúala.", '<a href="R1.html">R1</a>')
+    holds("a #fragment link", "Ver [el bloque](#G1).",
+          '<a href="#G1">el bloque</a>')
+    holds("an https: link, its & escaped in the attribute",
+          "La [fuente](https://example.com/a?b=1&c=2).",
+          '<a href="https://example.com/a?b=1&amp;c=2">fuente</a>')
+    holds("a relative path with directories",
+          "Ver [la nota](../research/nota.html#s2).",
+          '<a href="../research/nota.html#s2">la nota</a>')
+    holds("an underscore in the target is not read as emphasis",
+          "Ver [by_model](by_model_v2.html) y _esto_.",
+          '<a href="by_model_v2.html">by_model</a>', "<em>esto</em>")
+    holds("a code span as the label is still code",
+          "Ver [`R1`](R1.html).", '<a href="R1.html"><code>R1</code></a>')
+    holds("emphasis in the label is rendered",
+          "Ver [**R1**](R1.html).", '<a href="R1.html"><strong>R1</strong></a>')
+    holds("one level of parentheses in an https: target is kept",
+          "La [página](https://en.wikipedia.org/wiki/Ley_(física)).",
+          '<a href="https://en.wikipedia.org/wiki/Ley_(física)">página</a>')
+    holds("a link inside backticks stays literal code",
+          "Escribe `[R1](R1.html)` así.", "<code>[R1](R1.html)</code>")
+    check("…and no <a> was emitted for it", "<a " not in BUILT[-1][1],
+          BUILT[-1][1])
+    holds("an escaped bracket is not a link",
+          "Literal \\[R1](R1.html) aquí.", "&#91;R1](R1.html)")
+    check("…and no <a> was emitted for it", "<a " not in BUILT[-1][1],
+          BUILT[-1][1])
+    holds("a link in an item body, the blind-review shape",
+          '::: group {#G1 title="T"}\n::: item {#R1 title="R1"}\n'
+          "Abre [R1](R1.html) y puntúala.\n\n- 1\n- 2\n:::\n:::\n",
+          '<a href="R1.html">R1</a>')
+    holds("a refused scheme inside a code fence is code, not a refusal",
+          "```\n[x](javascript:alert(1))\n```\n", "[x](javascript:alert(1))")
+    rejects("javascript: is refused, with the line it is on",
+            "prosa\n\nVer [x](javascript:alert(1)).\n", 3, "javascript:")
+    rejects("JavaScript: in any case is refused",
+            "Ver [x](JavaScript:alert(1)).", 1, "refused")
+    rejects("data: is refused", "prosa\n[x](data:text/html,hola)\n", 2, "data:")
+    holds("http: is allowed (Phase 5 review: it carries no script)",
+          "[x](http://example.com)", '<a href="http://example.com">x</a>')
+    holds("mailto: is allowed", "[yo](mailto:a@b.c)", '<a href="mailto:a@b.c">yo</a>')
+    rejects("file: is refused", "[x](file:///etc/passwd)", 1, "file:")
+    rejects("a backslash escape in a target is refused by the builder, as "
+            "_inline refuses it (same tokenisation)", "[x](a\\_b.html)", 1,
+            "refused")
+    rejects("a backslash-backslash target is refused by the builder",
+            "[a](\\\\evil.com)", 1, "refused")
+    rejects("a link in title= is refused: the rail and the decided summary "
+            "show the title raw",
+            '::: group {#G1 title="T"}\n::: item {#Q1 title="Ver [R1](R1.html)"}\n'
+            "?\n:::\n:::\n", 2, "title=")
+    rejects("a protocol-relative //host is refused",
+            "[x](//example.com/a)", 1, "refused")
+    rejects("a refused link deep in a block names its own line, not the fence's",
+            '::: group {#G1 title="T"}\n::: item {#Q1 title="T"}\nuno\n'
+            "dos [x](javascript:void(0))\n:::\n:::\n", 4, "javascript:")
+    rejects("a refused link in an attr is refused at the fence line",
+            '::: section {#s1 heading="Ver [x](data:,a)"}\nx\n:::\n', 1,
+            "data:")
+    import md_body                                  # noqa: E402
+    for bad in ("javascript:alert(1)", "\x01javascript:alert(1)",
+                "java\tscript:x", "data:text/html,x", "vbscript:x",
+                "\\\\evil.example/x", "//evil.example/x", "file:///x"):
+        check("_inline never emits an href for %r" % bad,
+              "href" not in md_body._inline("[x](%s)" % bad),
+              md_body._inline("[x](%s)" % bad))
+
+    print()
+    print("== check-artifact fails a raw [x](y) left in the visible text ==")
+    wrap = os.path.join(SCRIPTS, "wrap-report.sh")
+
+    def contract(label, body):
+        src = os.path.join(tmp, label + ".body")
+        with open(src, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        r = subprocess.run(["bash", wrap, "--title", "t", "--lang", "es",
+                            "--in", src], capture_output=True, text=True,
+                           cwd=tmp)
+        page = os.path.join(tmp, label + ".html")
+        with open(page, "w", encoding="utf-8") as fh:
+            fh.write(r.stdout)
+        return subprocess.run(["bash", CHECK, page], capture_output=True,
+                              text=True)
+
+    review = ('::: masthead {eyebrow="Revisión ciega" lang="es" visual="none: '
+              'solo enlaza"}\n# Revisión ciega de páginas\n\nPuntúa cada '
+              'página que se abre desde su bloque, según lo útil que es para '
+              'lo que se pidió.\n:::\n\n'
+              '::: group {#GR title="Informe" heading="R1: informe"}\n'
+              "**Lo que se pidió:** un informe de la nota.\n\n"
+              '::: item {#R1 title="R1"}\nAbre [R1](R1.html) y puntúala.\n\n'
+              "- 1 — no sirve\n- 5 — excelente\n:::\n:::\n\n"
+              '::: notes {title="Comentario general"}\n:::\n')
+    linked = build(review)
+    r = contract("linked", linked)
+    check("the built review page passes check-artifact",
+          r.returncode == 0, r.stdout + r.stderr)
+    # The pre-fix shape: the same page as the builder emitted it before inline
+    # links existed, the markdown shipped to the reader as text.
+    raw = linked.replace('<a href="R1.html">R1</a>', "[R1](R1.html)")
+    check("(the pre-fix shape carries the literal link)",
+          "[R1](R1.html)" in raw and raw != linked)
+    r = contract("raw", raw)
+    check("check-artifact FAILS the pre-fix shape with [raw-link]",
+          r.returncode != 0 and "[raw-link]" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
+    check("…and names the raw link it saw", "[R1](R1.html)" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
+    escaped = build(review.replace("Abre [R1](R1.html)", "Abre \\[R1](R1.html)"))
+    check("(the escaped bracket builds no <a>)", '<a href="R1.html"' not in escaped)
+    r = contract("escaped", escaped)
+    check("a documented `\\[` escape passes check-artifact (no raw-link)",
+          r.returncode == 0, r.stdout + r.stderr)
+    r = contract("coded", linked.replace('<a href="R1.html">R1</a>',
+                                         "<code>[R1](R1.html)</code>"))
+    check("a raw link shown as <code> is not flagged — that is the author "
+          "quoting the syntax", r.returncode == 0, r.stdout + r.stderr)
 
     print()
     print("== the built page passes check-artifact.sh, unmodified ==")

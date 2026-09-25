@@ -1346,7 +1346,12 @@
       label();
     });
     label();
-    document.body.appendChild(b);
+    /* In `.page`, where components.css pins it to the top band; never fixed over
+     * the reading column again (render-probe `fixed-over-text`, 18 of 18 A/B
+     * pages, 2026-09-25). A page without `.page` gets it at the end of <body>. */
+    var host = document.querySelector('.page');
+    if (host) host.insertBefore(b, host.firstChild);
+    else document.body.appendChild(b);
   }
 
   /* ---- The gallery row: zoom, keyboard, filters (kit v21) ----------------
