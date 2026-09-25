@@ -273,6 +273,29 @@ Sunset review 2026-12-21, criterion in the script header.
 
 **Tests:** `python3 test-references-root-gate.py` — 12 checks.
 
+## first-test-write-gate.sh — the first new test file waits for the testing core (PreToolUse/Write)
+
+Denies the first `Write` of a test file that does not exist yet, once per
+`(session_id, agent_id or "main")`; the retry, and every later new test in that context,
+goes through. The reason points to `/aidex:testing` and asks for its questions to be
+answered before writing again; it never restates them (`skills/testing/tests/test-single-source.sh`).
+It starts with the literal `aidex:testing`, which is how a reader of a transcript
+recognizes the gate. `skills/testing/scripts/census.py` does **not** count the deny as
+"core in context": the reason is only a pointer, so counting it would measure "the hook
+fired"; the Skill load or Read it leads to is what counts. Measured shape: the 2026-09-25 probe denied 6/6,
+changed the first landed file 6/6, cost one extra Write each.
+
+Test paths: `test_*.py`, `*_test.py`, `*.{spec,test}.{ts,tsx,js,jsx,mjs,cjs}`,
+`test-*.sh`, any `*.sh` under a `tests/` dir — the same regex as census.py's `TEST_RE`.
+Edit/MultiEdit, a Write over an existing file and non-test paths pass and write no state.
+Main is keyed by the ABSENT `agent_id` (what main sends); a present value, even `""`, is
+keyed as itself. No `session_id`: allow, no state. State:
+`~/.claude/aidex/first-test-write/<session>.tsv`, checked and appended under `flock`, so
+parallel Writes from one context get exactly one deny. Fail-open on any error.
+
+**Tests:** `python3 test-first-test-write-gate.py` — 48 checks, including the pattern
+table run through census.py's `is_test` so the two regexes cannot drift apart.
+
 ## artifact-open-once.sh — one open per page per user turn, plus the build lock (PreToolUse/Bash)
 
 Two rules, both arithmetic, both per PAGE. The hook's own header carries the full

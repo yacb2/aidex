@@ -14,7 +14,10 @@
 #   never    test Write only                                   -> n
 #   sub      main fires aidex:bugfix, a subagent writes a test -> n, writer subagent;
 #            with --preloaded-agents impl-opus                 -> y
-#   hook     denied test Write (reason names aidex:testing), then a retry -> y
+#   hook     denied test Write, Read of skills/testing/SKILL.md, then the retry -> y
+#   blindretry denied test Write (the real deny text), then the retry with no read -> n:
+#            the deny is a pointer, not the core; counting it would measure "the hook
+#            fired" (~100% after install by construction)
 #   src      writes only a non-test file                       -> not a session
 #   old      test write before --since                         -> not a session
 #   exp      test write in a worktrees-agent project dir       -> excluded
@@ -27,6 +30,7 @@
 #   webapp   Skill webapp-testing -> n
 #   conftest writes only conftest.py, a fixture, a helper      -> not a session
 #   editfirst Edit of an existing test, then the skill, then a Write -> n
+#   tsx      writes only src/Button.test.tsx (a pattern the hook gates) -> a row
 #   agents   impl-opus.md frontmatter skills: [aidex:bugfix] -> sub n; skills: - aidex:testing
 #            (agentType aidex:impl-opus) -> y; --preloaded-agents impl-opus -> y
 # Commits (throwaway git repo): fix+test+RED, fix+test, fix without test,
@@ -88,10 +92,17 @@ dump(f"{P}/sub.jsonl", [use(D + "1.000Z", "Skill", {"skill": "aidex:bugfix"})[0]
 dump(f"{P}/sub/subagents/agent-a1.jsonl", [w(D + "3.000Z", "/r/tests/test-x.sh")])
 with open(f"{P}/sub/subagents/agent-a1.meta.json", "w") as fh:
     json.dump({"agentType": "aidex:impl-opus"}, fh)
+DENY = ("PreToolUse:Write hook error: aidex:testing: this is the first new test file in this "
+        "context, so the testing core has to be read before it lands.\nLoad the aidex:testing "
+        "skill (Skill tool) or Read /p/skills/testing/SKILL.md.\nAnswer its questions for this "
+        "test, then write the file again; this gate fires once per session and agent.")
 e, tid = use(D + "1.000Z", "Write", {"file_path": "/r/tests/test_h.py", "content": "x"})
-dump(f"{P}/hook.jsonl", [e, result(D + "2.000Z", tid,
-     "PreToolUse:Write hook error: read the aidex:testing canon before writing a test", True),
-     w(D + "3.000Z", "/r/tests/test_h.py")])
+dump(f"{P}/hook.jsonl", [e, result(D + "2.000Z", tid, DENY, True),
+     use(D + "3.000Z", "Read", {"file_path": "/p/skills/testing/SKILL.md"})[0],
+     w(D + "4.000Z", "/r/tests/test_h.py")])
+e, tid = use(D + "1.000Z", "Write", {"file_path": "/r/tests/test_br.py", "content": "x"})
+dump(f"{P}/blindretry.jsonl", [e, result(D + "2.000Z", tid, DENY, True),
+     w(D + "3.000Z", "/r/tests/test_br.py")])
 import shutil
 shutil.copy(f"{P}/before.jsonl", f"{P}/resumed.jsonl")
 dump(f"{P}/src.jsonl", [w(D + "1.000Z", "/r/src/app.py")])
@@ -115,6 +126,7 @@ dump(f"{P}/webapp.jsonl", [use(D + "1.000Z", "Skill", {"skill": "webapp-testing"
 dump(f"{P}/conftest.jsonl", [w(D + "1.000Z", "/r/tests/conftest.py"),
                              w(D + "2.000Z", "/r/tests/fixtures/data.json"),
                              w(D + "3.000Z", "/r/tests/helpers/dialog.ts")])
+dump(f"{P}/tsx.jsonl", [w(D + "1.000Z", "/r/src/Button.test.tsx")])
 dump(f"{P}/editfirst.jsonl", [use(D + "1.000Z", "Edit", {"file_path": "/r/tests/test_a.py"})[0],
                               use(D + "2.000Z", "Skill", {"skill": "aidex:testing"})[0],
                               w(D + "3.000Z", "/r/tests/test_b.py")])
@@ -152,21 +164,22 @@ col() {  # col <session> <column> [tsv]
 }
 eq "only test-writing, in-window, non-experiment sessions are rows" \
    "$(awk -F'\t' 'NR>1{print $2}' "$TMP/s.tsv" | sort | tr '\n' ' ')" \
-   "after basedir before editfirst hook never nonerr slash sub webapp "
+   "after basedir before blindretry editfirst hook never nonerr slash sub tsx webapp "
 eq "before: core before first test write" "$(col before core_before_first_test_write)" y
 eq "after: signal after the write is not before" "$(col after core_before_first_test_write)" n
 eq "after: but core was in context at some point" "$(col after core_anywhere)" y
 eq "never: no signal" "$(col never core_before_first_test_write)" n
 eq "sub: first write is attributed to the subagent" "$(col sub first_writer)" subagent
 eq "sub: main's skill load does not reach the subagent" "$(col sub core_before_first_test_write)" n
-eq "hook: the deny reason counts, the denied write does not" "$(col hook core_before_first_test_write)" y
+eq "hook: the Read after the deny counts, the denied write does not" "$(col hook core_before_first_test_write)" y
+eq "blindretry: the deny alone is not the core" "$(col blindretry core_before_first_test_write)" n
 eq "nonerr: a non-error tool_result naming aidex:testing is not a signal" "$(col nonerr core_before_first_test_write)" n
 eq "slash: a typed /aidex:testing command is a signal" "$(col slash core_before_first_test_write)" y
 eq "basedir: the skill's isMeta base-directory text is a signal" "$(col basedir core_before_first_test_write)" y
 eq "webapp: a skill that merely ends in -testing is not a signal" "$(col webapp core_before_first_test_write)" n
 eq "editfirst: an Edit of an existing test is the first write" "$(col editfirst core_before_first_test_write)" n
 eq "sub: an agent whose skills: lacks testing is not preloaded" "$(col sub core_before_first_test_write)" n
-eq "summary line" "$(printf '%s\n' "$out" | grep -c 'core before first test write: 4/10')" 1
+eq "summary line" "$(printf '%s\n' "$out" | grep -c 'core before first test write: 4/12')" 1
 
 echo "== experiment dirs =="
 run --include-all --tsv "$TMP/i.tsv" >/dev/null

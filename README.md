@@ -27,7 +27,7 @@ Then restart Claude Code. In any project, just ask naturally — the right skill
 
 ### Your first session
 
-The install lands 21 skills and 5 hooks and says nothing, on purpose — no first-run nudge.
+The install lands 21 skills and 6 hooks and says nothing, on purpose — no first-run nudge.
 Start here:
 
 1. `/aidex:aidex` — audits the Claude Code setup of the project you are in and tells you what it found.
@@ -54,7 +54,7 @@ aidex solves this with two pillars:
 
 The suite ships as a single Claude Code plugin. `.claude-plugin/plugin.json` declares it,
 `.claude-plugin/marketplace.json` makes the repo its own marketplace, `skills/` holds the
-21 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the five shipped hooks
+21 skills — invoked `/aidex:<name>` — and `hooks/hooks.json` wires the six shipped hooks
 automatically when the plugin is installed. Nothing is copied into `~/.claude/` and nothing
 is symlinked: symlinked skills and rules were the loader path with three separate bugs
 (Claude Code 2.0.62, 2.1.198, 2.1.239), and a plugin has neither problem.
@@ -87,7 +87,7 @@ aidex/                                   <-- the plugin, as Claude Code loads it
 │   ├── testing/
 │   └── ui-contract/
 ├── hooks/
-│   └── hooks.json                       <-- wires the five shipped hooks on install
+│   └── hooks.json                       <-- wires the six shipped hooks on install
 └── docs/retired/                        <-- the pre-plugin installer and rules/, for the record
 
 project/.claude/skills/                  <-- your own project-specific skills (real files)
@@ -96,7 +96,7 @@ project/.claude/skills/                  <-- your own project-specific skills (r
 
 | Scope | Location | Loaded in | Use for |
 |-------|----------|-----------|---------|
-| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 21 suite skills + the 5 hooks |
+| **Plugin** | `aidex` (installed via `/plugin`) | All projects | The 21 suite skills + the 6 hooks |
 | **Local** | `project/.claude/skills/` | That project only | Project-specific skills of your own |
 | **Per-project silencing** | `project/.claude/settings.local.json` `enabledPlugins` | That project only | Skills **provided by a plugin are exempt from `skillOverrides`**, at any key format — so aidex's skills cannot be silenced one by one. The only lever is `enabledPlugins: {"aidex@aidex": false}`, all-or-nothing for the whole plugin. `skillOverrides` (`name-only`, `user-invocable-only`, `off`) still applies to skills of your own. |
 
@@ -130,9 +130,9 @@ at zero tokens, into a single self-contained HTML page:
 
 ### Hooks
 
-Five hooks ship wired by `hooks/hooks.json` and start working the moment the plugin is
+Six hooks ship wired by `hooks/hooks.json` and start working the moment the plugin is
 installed: `memory-audit-nudge.sh` (SessionStart), `memory-save-gate.sh`,
-`references-root-gate.sh` and `artifact-open-once.sh` (PreToolUse), and
+`references-root-gate.sh`, `first-test-write-gate.sh` and `artifact-open-once.sh` (PreToolUse), and
 `context-depth-nudge.sh` (UserPromptSubmit).
 The retired ones are kept in `hooks/` for the record; what each does and why lives in
 `hooks/README.md`.

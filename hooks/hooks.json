@@ -1,5 +1,5 @@
 {
-  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, references-root gate, artifact open-once, context-depth nudge",
+  "description": "aidex plugin hooks \u2014 memory hygiene nudge/gate, references-root gate, first-test-write gate, artifact open-once, context-depth nudge",
   "hooks": {
     "SessionStart": [
       {
@@ -21,6 +21,10 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/references-root-gate.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/first-test-write-gate.sh\""
           }
         ],
         "matcher": "Write|Edit|MultiEdit"

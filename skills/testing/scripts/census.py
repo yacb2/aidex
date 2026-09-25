@@ -15,14 +15,16 @@ main session loaded does not count for a write the subagent makes. Signals:
   - a typed slash command of the same (<command-name>/aidex:testing</command-name>),
   - the skill's isMeta "Base directory for this skill: .../skills/testing" text,
   - a Read of a file under skills/testing/,
-  - an ERROR tool_result containing "aidex:testing" (the write hook's deny reason),
   - the subagent's type is an agent whose frontmatter `skills:` names testing
     (read from --agents-dir, default ~/.claude/agents; --preloaded-agents overrides).
 A test file is what the first-test-write hook gates: test_*.py, *_test.py,
-*.{spec,test}.{ts,js}, test-*.sh, or *.sh under a tests/ dir (not conftest.py,
-fixtures, helpers). A test write is a Write or Edit to one; a write whose
-tool_result is an error (denied) is not a write, and a write event replayed into a
-resumed or forked transcript (same uuid) counts once.
+*.{spec,test}.{ts,tsx,js,jsx,mjs,cjs}, test-*.sh, or *.sh under a tests/ dir (not conftest.py,
+fixtures, helpers). The hook's deny is NOT a signal: its reason only points to the
+skill, so counting it would measure "the hook fired" (~100% after install by
+construction); the Skill load or Read it leads to is what counts. A test write is
+a Write or Edit to one; a write whose tool_result is an error (denied) is not a
+write, and a write event replayed into a resumed or forked transcript (same uuid)
+counts once.
 
 Transcripts are ~/.claude/projects/<project>/<session>.jsonl, with subagents at
 <project>/<session>/subagents/*.jsonl (+ .meta.json carrying agentType). Events are
@@ -40,7 +42,7 @@ import argparse, datetime, glob, json, os, re, subprocess, sys
 
 EXCLUDE = ("-tmp-", "_tmp", "worktrees-agent", "e1-wt", "rehearsal")
 TEST_RE = re.compile(
-    r"(^|/)(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(spec|test)\.(ts|js)|test-[^/]*\.sh)$"
+    r"(^|/)(test_[^/]*\.py|[^/]*_test\.py|[^/]*\.(spec|test)\.(ts|tsx|js|jsx|mjs|cjs)|test-[^/]*\.sh)$"
     r"|(^|/)tests/([^/]+/)*[^/]*\.sh$")
 WRITE_TOOLS = ("Write", "Edit")
 SKILL_RE = re.compile(r"(^|:)(aidex[:-])?(testing|bugfix)$")
@@ -98,8 +100,6 @@ def scan(path, since, until, preloaded):
         for b in content:
             if isinstance(b, dict) and b.get("type") == "tool_result" and b.get("is_error"):
                 errored.add(b.get("tool_use_id"))
-                if "aidex:testing" in json.dumps(b.get("content")):
-                    core.append(ts)
     writes = []
     for o in events:
         ts = o.get("timestamp", "")
