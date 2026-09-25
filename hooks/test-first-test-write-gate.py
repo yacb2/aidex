@@ -148,6 +148,144 @@ check("census is_test matches the hook on every table path",
       all(census.is_test(new(p)) for p in POSITIVE)
       and not any(census.is_test(new(p)) for p in NEGATIVE))
 
+# ---- Bash: a command that creates a new test file is gated like a Write ----
+# The 2026-09-25 eval wrote its first test through Bash in 4 of 12 runs (cat > ... <<EOF,
+# python - <<EOF ... open(p,'w')): a Write-only gate never fired there and the census
+# dropped the writes. Paths are relative to the event's cwd, as Bash resolves them.
+def bash(command, session, agent=None, cwd=repo):
+    ev = {"tool_name": "Bash", "session_id": session, "cwd": cwd,
+          "tool_input": {"command": command}}
+    if agent is not None:
+        ev["agent_id"] = agent
+    code, out = run(home, json.dumps(ev))
+    return "allow" if not out.strip() else json.loads(out)["hookSpecificOutput"]["permissionDecision"]
+
+EVAL = json.load(open(os.path.join(HERE, "test-first-test-write-gate.eval-commands.json")))
+# (command, the test paths it writes). Each is run through the hook (new path -> deny) and
+# through census.bash_writes (the census counts exactly what the hook gates).
+BASH_WRITES = [
+    ("cat > tests/test_a.py <<'EOF'\nimport os\nx = 1 > 0\nEOF", ["tests/test_a.py"]),
+    ("cat <<EOF >tests/test_a.py\nx\nEOF\npytest -q", ["tests/test_a.py"]),
+    ("echo 'def test_x(): pass' >> tests/test_a.py", ["tests/test_a.py"]),
+    ("printf x > \"tests/test_a.py\" 2>/dev/null", ["tests/test_a.py"]),
+    ("echo x | tee tests/test_a.py >/dev/null", ["tests/test_a.py"]),
+    ("tee -a src/a.test.ts <<'EOF'\nx\nEOF", ["src/a.test.ts"]),
+    ("touch tests/__init__.py tests/test_a.py", ["tests/test_a.py"]),
+    ("python3 - <<'EOF'\nopen('tests/test_a.py', 'w').write('x')\nEOF", ["tests/test_a.py"]),
+    ("python - <<EOF\nt = 'tests/test_a.py'\nwith open(t, mode='a') as fh:\n    fh.write('x')\nEOF", ["tests/test_a.py"]),
+    ("python3 -c \"from pathlib import Path; Path('tests/test_a.py').write_text('x')\"", ["tests/test_a.py"]),
+    ("python3 -c \"open('pkg/a_test.py','x').close()\"", ["pkg/a_test.py"]),
+    (EVAL["S3-2"][0], ["tests/test_shipping.py"]),   # cat > heredoc, first test write
+    (EVAL["S3-2"][1], ["tests/test_shipping.py"]),   # python - heredoc, open(t,'w') via a name
+    (EVAL["S4-1"][0], ["tests/test_shipping.py"]),   # cat > heredoc after a python - heredoc
+    ("cd sub && cat > tests/test_a.py <<'EOF'\nx\nEOF", ["sub/tests/test_a.py"]),
+    ("cd sub; cd ../other\npushd deep >/dev/null && touch test_a.py", ["other/deep/test_a.py"]),
+    ("export D=pkg; W=$D/tests; echo x >> ${W}/test_a.py", ["pkg/tests/test_a.py"]),
+    ("(cd sub && make) && echo x > tests/test_a.py", ["tests/test_a.py"]),
+    ("cd sub && python3 - <<'EOF'\np = 'tests/test_a.py'\nopen(p, 'w').write('x')\nEOF", ["sub/tests/test_a.py"]),
+    ("if true; then echo x > tests/test_a.py; fi", ["tests/test_a.py"]),
+]
+BASH_NOT_WRITES = [
+    "pytest tests/test_x.py",
+    "pytest -q tests/test_x.py 2>&1 | tail -3",
+    "cat tests/test_x.py > /tmp/out.txt",
+    "grep -n 'def test_' tests/test_x.py >/dev/null",
+    "sed -i '' 's/a/b/' tests/test_existing.py",
+    "cat > pricing.py <<'EOF'\n# writes tests/test_x.py later: open('tests/test_x.py','w')\nEOF",
+    "python3 - <<'EOF'\nprint(open('tests/test_x.py').read())\nEOF",
+    "echo \"x > tests/test_x.py\"",
+    "cp tests/test_x.py /tmp/backup.py",
+    "echo 'unbalanced",
+    # cp/mv copy or move a test, they do not author one: never a write (README says why).
+    "cp /tmp/draft.py tests/test_a.py && pytest -q",
+    "mv -f draft.py tests/test_a.py",
+    "cp /tmp/test_a.py tests/",
+    # Only an unquoted operator is a redirect; a comment is not code.
+    "echo 'a' # > tests/test_c.py",
+    "echo '>' tests/test_a.py",
+    "grep -n '>' tests/test_x.py",
+    "echo \\> tests/test_a.py",
+    # A python name reassigned: each open() resolves against the assignment in effect.
+    "python3 - <<'EOF'\np='pricing.py'; open(p,'w'); p='tests/test_a.py'; print(open(p).read())\nEOF",
+]
+for i, (cmd, want) in enumerate(BASH_WRITES):
+    check(f"Bash write #{i} ({cmd.splitlines()[0][:40]!r}) of a new test is denied",
+          bash(cmd, session=f"b{i}") == "deny")
+for i, cmd in enumerate(BASH_NOT_WRITES):
+    check(f"Bash {cmd.splitlines()[0][:50]!r} is allowed", bash(cmd, session=f"bn{i}") == "allow")
+check("the Bash allows above wrote no state",
+      not any(os.path.exists(os.path.join(state_dir, f"bn{i}.tsv")) for i in range(len(BASH_NOT_WRITES))))
+check("Bash: once per (session, agent) — the retry is allowed",
+      bash(BASH_WRITES[0][0], session="b0") == "allow")
+check("Bash and Write share one budget: a Write after a Bash deny is allowed",
+      call(home, new("tests/test_zz.py"), session="b0")[1] == "allow")
+check("Bash of a subagent is denied on its own", bash(BASH_WRITES[0][0], session="b0", agent="a") == "deny")
+check("Bash redirect onto an existing test is allowed",
+      bash("cat > tests/test_existing.py <<'EOF'\nx\nEOF", session="bx") == "allow")
+check("Bash with an absolute path to a new test is denied",
+      bash(f"touch {new('tests/test_abs.py')}", session="bx", cwd="/") == "deny")
+
+# cd moves the directory a relative path resolves against. Subagents open nearly every
+# command with `cd /abs && ...`; resolving against the event cwd instead denied appends
+# to EXISTING tests and spent the one deny, so the next real new test landed ungated.
+repo2 = tempfile.mkdtemp()  # no tests/test_existing.py at its root, only under sub/
+sub = os.path.join(repo2, "sub")
+os.makedirs(os.path.join(sub, "tests"), exist_ok=True)
+open(os.path.join(sub, "tests", "test_existing.py"), "w").close()
+check("cd sub && cat >> an existing sub/tests test is allowed",
+      bash("cd sub && cat >> tests/test_existing.py <<'EOF'\nx\nEOF", session="cd1", cwd=repo2) == "allow")
+check("... and did not spend the deny: a new test Write is denied",
+      call(home, new("tests/test_new.py"), session="cd1")[1] == "deny")
+check("cd <abs> && python3 - rewriting an existing test is allowed",
+      bash(f"cd {sub} && python3 - <<'EOF'\np='tests/test_existing.py'\ns=open(p).read()\n"
+           "open(p,'w').write(s)\nEOF", session="cd2", cwd="/") == "allow")
+check("... and did not spend the deny", call(home, new("tests/test_new.py"), session="cd2")[1] == "deny")
+check("D=<abs>; echo >> $D/tests/test_existing.py is allowed",
+      bash(f"D={sub}; echo x >> $D/tests/test_existing.py", session="cd3", cwd=repo2) == "allow")
+check("cd <abs> && touch a NEW test there is denied",
+      bash(f"cd {sub} && touch tests/test_brand_new.py", session="cd4", cwd="/") == "deny")
+# A path the detector cannot resolve is never denied; the census still counts it.
+check("an unresolved $VAR path is allowed",
+      bash("echo x >> $UNSET/tests/test_u.py", session="cd5") == "allow")
+check("a relative path after cd \"$(...)\" is allowed",
+      bash("cd \"$(git rev-parse --show-toplevel)\" && touch tests/test_u.py", session="cd5") == "allow")
+check("... neither wrote state", not os.path.exists(os.path.join(state_dir, "cd5.tsv")))
+
+# The hook imports the detector from ../skills/testing/scripts/census.py: in a copy of the
+# shipped layout it denies, and without census.py it fails open (so the import is load-bearing).
+import shutil
+root = tempfile.mkdtemp()
+os.makedirs(os.path.join(root, "hooks"))
+shutil.copy(HOOK, os.path.join(root, "hooks"))
+shutil.copytree(os.path.join(HERE, "..", "skills", "testing", "scripts"),
+                os.path.join(root, "skills", "testing", "scripts"))
+shutil.copy(os.path.join(HERE, "..", "skills", "testing", "SKILL.md"), os.path.join(root, "skills", "testing"))
+def layout_call(session):
+    ev = {"tool_name": "Write", "session_id": session, "tool_input": {"file_path": new("tests/test_l.py")}}
+    return subprocess.run(["sh", os.path.join(root, "hooks", "first-test-write-gate.sh")],
+                          input=json.dumps(ev), capture_output=True, text=True,
+                          env=dict(os.environ, HOME=home)).stdout
+check("from a copy of the shipped layout, a new-test Write is denied", '"deny"' in layout_call("lay1"))
+os.remove(os.path.join(root, "skills", "testing", "scripts", "census.py"))
+check("... and without census.py it fails open", layout_call("lay2") == "")
+
+check("census.bash_writes finds exactly the test paths of every table command",
+      all(sorted(p for p in census.bash_writes(c) if census.is_test(p)) == sorted(w)
+          for c, w in BASH_WRITES))
+check("census.bash_writes finds no test path in the non-write commands",
+      not any(p for c in BASH_NOT_WRITES
+              for p in census.bash_writes(c) if census.is_test(p)))
+check("census.bash_writes resolves against a given cwd across cd",
+      census.bash_writes("cd /w/a && cd ../b && echo x > tests/test_a.py", "/r") == ["/w/b/tests/test_a.py"])
+check("census.bash_writes keeps an unresolved path (census counts it, the hook allows it)",
+      census.bash_writes("echo x >> $U/tests/test_a.py") == ["$U/tests/test_a.py"])
+check("_py_writes resolves each open() against the assignment in effect",
+      census.bash_writes("python3 - <<'EOF'\np='pricing.py'; open(p,'w'); p='tests/test_a.py'; "
+                         "print(open(p).read())\nEOF") == ["pricing.py"])
+check("... also one statement per line",
+      census.bash_writes("python3 - <<'EOF'\np='pricing.py'\nopen(p,'w')\np='tests/test_a.py'\n"
+                         "print(open(p).read())\nEOF") == ["pricing.py"])
+
 # ---- fail open ----
 check("garbage stdin fails open", run(home, "not json") == (0, ""))
 check("empty stdin fails open", run(home, "") == (0, ""))

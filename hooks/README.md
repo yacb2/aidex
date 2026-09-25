@@ -273,9 +273,9 @@ Sunset review 2026-12-21, criterion in the script header.
 
 **Tests:** `python3 test-references-root-gate.py` — 12 checks.
 
-## first-test-write-gate.sh — the first new test file waits for the testing core (PreToolUse/Write)
+## first-test-write-gate.sh — the first new test file waits for the testing core (PreToolUse/Write, Bash)
 
-Denies the first `Write` of a test file that does not exist yet, once per
+Denies the first `Write` — or `Bash` command — that creates a test file that does not exist yet, once per
 `(session_id, agent_id or "main")`; the retry, and every later new test in that context,
 goes through. The reason points to `/aidex:testing` and asks for its questions to be
 answered before writing again; it never restates them (`skills/testing/tests/test-single-source.sh`).
@@ -286,15 +286,26 @@ fired"; the Skill load or Read it leads to is what counts. Measured shape: the 2
 changed the first landed file 6/6, cost one extra Write each.
 
 Test paths: `test_*.py`, `*_test.py`, `*.{spec,test}.{ts,tsx,js,jsx,mjs,cjs}`,
-`test-*.sh`, any `*.sh` under a `tests/` dir — the same regex as census.py's `TEST_RE`.
-Edit/MultiEdit, a Write over an existing file and non-test paths pass and write no state.
+`test-*.sh`, any `*.sh` under a `tests/` dir — census.py's `TEST_RE`, imported. A Bash
+command's written paths come from census.py's `bash_writes`: unquoted `>`/`>>` targets
+(heredocs included; a quoted `'>'` or a `# comment` is not a redirect), `tee`, `touch`, and
+`open(p, 'w'|'a'|'x')` / `Path(p).write_text(` inside `python -` heredocs and `python -c`
+(a literal, or a name resolved against the assignment in effect). Relative paths follow
+`cd`/`pushd`/`popd` and `( )` subshells from the event's `cwd` — subagents open nearly every
+command with `cd /abs && ...` — and `$VAR`s assigned earlier in the command are substituted;
+a path still holding a `$` is unknown and is never denied (the census still counts it).
+`cp`/`mv` are not writes: they copy or move a test, they do not author one. The
+2026-09-25 eval wrote its first test through Bash in 4 of 12 runs. `sed -i`, test runs,
+reads and anything unparseable pass.
+Edit/MultiEdit, a write over an existing file and non-test paths pass and write no state.
 Main is keyed by the ABSENT `agent_id` (what main sends); a present value, even `""`, is
 keyed as itself. No `session_id`: allow, no state. State:
 `~/.claude/aidex/first-test-write/<session>.tsv`, checked and appended under `flock`, so
 parallel Writes from one context get exactly one deny. Fail-open on any error.
 
-**Tests:** `python3 test-first-test-write-gate.py` — 48 checks, including the pattern
-table run through census.py's `is_test` so the two regexes cannot drift apart.
+**Tests:** `python3 test-first-test-write-gate.py` — 109 checks, including the pattern
+table and the Bash command table (with the eval's verbatim commands, in
+`test-first-test-write-gate.eval-commands.json`) run through census.py too.
 
 ## artifact-open-once.sh — one open per page per user turn, plus the build lock (PreToolUse/Bash)
 

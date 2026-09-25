@@ -31,6 +31,12 @@
 #   conftest writes only conftest.py, a fixture, a helper      -> not a session
 #   editfirst Edit of an existing test, then the skill, then a Write -> n
 #   tsx      writes only src/Button.test.tsx (a pattern the hook gates) -> a row
+#   bashfirst the eval's verbatim S3-2 Bash (cat > tests/test_shipping.py <<EOF; pytest), its
+#            result an "Exit code 1" error (the RED run), then the skill, then a Write -> n
+#   bashdeny a hook-denied Bash test write, a Read of skills/testing/, then the Bash retry -> y
+#   bashpy   python3 -c "...Path('tests/test_p.py').write_text(...)" only -> a row
+#   bashrun  pytest tests/test_r.py and sed -i on a test only -> not a session
+#   multiedit a MultiEdit of a test file only -> a row
 #   agents   impl-opus.md frontmatter skills: [aidex:bugfix] -> sub n; skills: - aidex:testing
 #            (agentType aidex:impl-opus) -> y; --preloaded-agents impl-opus -> y
 # Commits (throwaway git repo): fix+test+RED, fix+test, fix without test,
@@ -52,6 +58,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 T="$TMP/projects"
 
+EVAL_COMMANDS="$TESTS_DIR/../../../hooks/test-first-test-write-gate.eval-commands.json" \
 python3 - "$T" <<'PY'
 import json, os, sys
 root = sys.argv[1]
@@ -131,6 +138,20 @@ dump(f"{P}/editfirst.jsonl", [use(D + "1.000Z", "Edit", {"file_path": "/r/tests/
                               use(D + "2.000Z", "Skill", {"skill": "aidex:testing"})[0],
                               w(D + "3.000Z", "/r/tests/test_b.py")])
 
+EVAL = json.load(open(os.environ["EVAL_COMMANDS"]))
+e, tid = use(D + "1.000Z", "Bash", {"command": EVAL["S3-2"][0]})
+dump(f"{P}/bashfirst.jsonl", [e, result(D + "2.000Z", tid, "Exit code 1\nF....\n1 failed, 4 passed", True),
+     use(D + "3.000Z", "Skill", {"skill": "aidex:testing"})[0], w(D + "4.000Z", "/r/tests/test_bf.py")])
+e, tid = use(D + "1.000Z", "Bash", {"command": "cat > tests/test_bd.py <<'EOF'\nx\nEOF"})
+dump(f"{P}/bashdeny.jsonl", [e, result(D + "2.000Z", tid, DENY.replace(":Write", ":Bash"), True),
+     use(D + "3.000Z", "Read", {"file_path": "/p/skills/testing/SKILL.md"})[0],
+     use(D + "4.000Z", "Bash", {"command": "cat > tests/test_bd.py <<'EOF'\nx\nEOF"})[0]])
+dump(f"{P}/bashpy.jsonl", [use(D + "1.000Z", "Bash", {"command":
+     "python3 -c \"from pathlib import Path; Path('tests/test_p.py').write_text('x')\""})[0]])
+dump(f"{P}/bashrun.jsonl", [use(D + "1.000Z", "Bash", {"command": "pytest tests/test_r.py"})[0],
+     use(D + "2.000Z", "Bash", {"command": "sed -i '' 's/a/b/' tests/test_r.py"})[0]])
+dump(f"{P}/multiedit.jsonl", [use(D + "1.000Z", "MultiEdit", {"file_path": "/r/tests/test_me.py", "edits": []})[0]])
+
 # Agent definitions: impl-opus preloads testing in one dir, only bugfix in the other.
 for d, skills in (("agents", "[aidex:bugfix]"), ("agents-pre", "\n  - aidex:testing")):
     os.makedirs(f"{root}-{d}")
@@ -164,7 +185,7 @@ col() {  # col <session> <column> [tsv]
 }
 eq "only test-writing, in-window, non-experiment sessions are rows" \
    "$(awk -F'\t' 'NR>1{print $2}' "$TMP/s.tsv" | sort | tr '\n' ' ')" \
-   "after basedir before blindretry editfirst hook never nonerr slash sub tsx webapp "
+   "after basedir bashdeny bashfirst bashpy before blindretry editfirst hook multiedit never nonerr slash sub tsx webapp "
 eq "before: core before first test write" "$(col before core_before_first_test_write)" y
 eq "after: signal after the write is not before" "$(col after core_before_first_test_write)" n
 eq "after: but core was in context at some point" "$(col after core_anywhere)" y
@@ -178,8 +199,14 @@ eq "slash: a typed /aidex:testing command is a signal" "$(col slash core_before_
 eq "basedir: the skill's isMeta base-directory text is a signal" "$(col basedir core_before_first_test_write)" y
 eq "webapp: a skill that merely ends in -testing is not a signal" "$(col webapp core_before_first_test_write)" n
 eq "editfirst: an Edit of an existing test is the first write" "$(col editfirst core_before_first_test_write)" n
+eq "bashfirst: a Bash heredoc is the first test write, even when its pytest failed" \
+   "$(col bashfirst core_before_first_test_write)" n
+eq "bashfirst: the Bash write and the later Write are both counted" "$(col bashfirst n_test_writes)" 2
+eq "bashdeny: the denied Bash is not a write, the Read before the retry counts" \
+   "$(col bashdeny core_before_first_test_write)" y
+eq "bashdeny: only the retry is counted" "$(col bashdeny n_test_writes)" 1
 eq "sub: an agent whose skills: lacks testing is not preloaded" "$(col sub core_before_first_test_write)" n
-eq "summary line" "$(printf '%s\n' "$out" | grep -c 'core before first test write: 4/12')" 1
+eq "summary line" "$(printf '%s\n' "$out" | grep -c 'core before first test write: 5/16')" 1
 
 echo "== experiment dirs =="
 run --include-all --tsv "$TMP/i.tsv" >/dev/null
