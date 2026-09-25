@@ -139,7 +139,8 @@ the phase tier map, and what happens when a phase fails its gate.
    **A tier row whose cell restricts `tools:` also needs a registered agent definition**, since
    `agent()` has no `tools` option: the toolset travels only as `agentType`, the name of an agent
    file. One definition per tier the plan uses (never per phase) — `model`/`effort` from the canon
-   row, `tools:` exactly the row's list, `user-invocable: false` — living in the project's
+   row, `tools:` exactly the row's list, `skills: [aidex:testing]` (a restricted tier has no
+   Skill tool), `user-invocable: false` — living in the project's
    `.claude/agents/<name>.md`, or `~/.claude/agents/<name>.md` when several projects share it; those
    are the two locations an agent name resolves from, project first. Pass its name as the batch
    phase's `agentType`. No definition → the phase runs unrestricted and pays ~49k of prefix per call
@@ -204,6 +205,12 @@ For each phase in order:
    in the same turn: aidex's own repo gitignores `.context/`, and it is the exception
    — 1,135 plan files are tracked across the six fleet repos, 0 here (census
    2026-09-07).
+6. **Tests and bugs met mid-phase.** Tests follow `testing`; every delegate brief names
+   `aidex:testing`. An in-scope bug is fixed RED-first (`bugfix`). An out-of-scope one —
+   found here or reported by a delegate (batch: the result's `outOfScopeBugs`) — is never
+   patched inline: route it with its reproduction to a bugfix delegate (`bugfix-opus`
+   where defined) or register it ([03](references/03-deferring-emergent-work.md)). If it
+   blocks the phase's gate, the phase stays blocked until that fix lands, then resumes.
 
 > **Scoped plans carry a file contract.** When the plan's front-matter says
 > `mode: scoped`, its `**Files:**` list is the declared blast radius, written on

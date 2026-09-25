@@ -166,8 +166,16 @@ async function runPhase(phase, ctx) {
   let feedback = ''
   let directed = 0
   const asks = []
+  // Bugs the implementer reported instead of patching (an `OUT-OF-SCOPE BUG: ...` summary
+  // line), from EVERY attempt, returned on EVERY path: the orchestrator routes them to a
+  // bugfix run, so a line dropped here is a bug nobody routes.
+  const outOfScopeBugs = []
   for (let attempt = 1; attempt <= K + 1; attempt++) {
     const work = await phase.implement(feedback, attempt)
+    for (const line of String((work && work.summary) || '').split('\n')) {
+      const bug = line.trim()
+      if (bug.startsWith('OUT-OF-SCOPE BUG:') && !outOfScopeBugs.includes(bug)) outOfScopeBugs.push(bug)
+    }
     // Director path: a blocked implementer consults the arbiter BEFORE burning a gate
     // attempt; CONTINUE re-launches it with the direction (max 2 redirects per phase).
     if (work && work.blocked_reason && !work.done && directed < 2) {
@@ -178,16 +186,16 @@ async function runPhase(phase, ctx) {
       )
       if (v && v.verdict === 'CONTINUE') {
         directed++
-        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase.`
+        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase's own work — a bug outside its scope stays unpatched and reported.`
         attempt--
         continue
       }
-      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks }
+      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks, outOfScopeBugs }
     }
     // Publication/deny path: actions the implementer REPORTED instead of performing.
     for (const action of (work && work.pending_actions) || []) {
       const c = await checkAction(action, ctx)
-      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks }
+      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks, outOfScopeBugs }
       if (c && c.verdict === 'ASK') asks.push(c.batched_question || `Authorize: ${action}?`)
       // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
     }
@@ -206,7 +214,7 @@ async function runPhase(phase, ctx) {
         log(`gate ${phase.id}: attempt ${attempt} green but no proof artifact — retrying for proof`)
         continue
       }
-      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks, outOfScopeBugs }
     }
     feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
     log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
@@ -215,7 +223,7 @@ async function runPhase(phase, ctx) {
     `Phase ${phase.id} failed its machine gate ${K + 1} times. Decide STOP (clean halt) or ASK (escalate).`,
     ctx.autonomySurface
   )
-  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks }
+  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks, outOfScopeBugs }
 }
 
 // Publication/deny trigger (decision Q2): consult the arbiter ONLY when a pending action
@@ -281,7 +289,10 @@ function review(cfg) {
     `Obtain the cumulative diff under review by running exactly this command:\n\n    ${cfg.diffCmd}\n\n` +
     `Review that diff against:\n\n## Success criteria\n${cfg.successCriteria}${standards}\n\n` +
     `Report every violation as a finding with a severity (blocking | minor | nit) and cite the ` +
-    `specific criterion or standard it breaks. Set passed=false if and only if there is at least ` +
+    `specific criterion or standard it breaks. Judge the tests the diff adds or changes by the ` +
+    `aidex:testing skill (preloaded, or load it with the Skill tool); a test it would not have written ` +
+    `is a finding like any other. ` +
+    `Set passed=false if and only if there is at least ` +
     `one blocking finding. Do not assume any prior conversation.`,
     {
       label: 'review',
