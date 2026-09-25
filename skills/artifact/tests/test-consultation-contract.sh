@@ -497,6 +497,58 @@ rc="$(run "$TMP/warn-entities.html")"
 grep -q "WARN \[consult-facts\]" "$TMP/out" \
   && fail "10b2. BL-324: entity-encoded accents were counted as clause separators: $(cat "$TMP/out")"
 
+# ---- 10b3. BL-463: an item placed BEFORE the evidence it asks about. The
+# codefilm round-4 page put each `::: item` above the videos the owner had to
+# judge, so the answer box rendered first and the material after. The signal a
+# checker can read without guessing is evidence left AFTER a block's last item:
+# evidence between two items is the next item's (evidence -> item, per
+# decision, is the prescribed order) and must stay silent. Evidence is a
+# figure, img, svg, video, table (also inside `.tw`), or a `@@VIDEO` marker
+# paragraph that a project's post-build step turns into <video>.
+mkpage "$TMP/warn-order.html" "$visual
+<section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Videos\"><div class=\"sec-head\"><h2>Videos</h2></div>
+<p>What both films share.</p>
+<section class=\"consult-item\" data-id=\"V1\" data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
+<p>F1 before and after:</p>
+<p>@@VIDEO a.mp4|F1 before@@</p>
+</section>
+<section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"Numbers\"><div class=\"sec-head\"><h2>Numbers</h2></div>
+<section class=\"consult-item\" data-id=\"T1\" data-title=\"Pick\"><h3>Pick</h3><textarea></textarea></section>
+<div class=\"tw\"><table><tr><td>x</td></tr></table></div>
+</section>
+<section class=\"consult-group\" id=\"G3\" data-id=\"G3\" data-title=\"Frames\"><div class=\"sec-head\"><h2>Frames</h2></div>
+<section class=\"consult-item\" data-id=\"F1\" data-title=\"Look\"><h3>Look</h3><textarea></textarea></section>
+<video src=\"b.mp4\" controls></video>
+</section>
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/warn-order.html")"
+[[ "$rc" == "0" ]] || fail "10b3. consult-order changed the exit code — it is a warning: $(cat "$TMP/out")"
+for pair in "G1.*'V1'" "G2.*'T1'" "G3.*'F1'"; do
+  grep -q "WARN \[consult-order\].*$pair" "$TMP/out" \
+    || fail "10b3. BL-463: evidence after the last item of a block was not reported ($pair): $(cat "$TMP/out")"
+done
+
+mkpage "$TMP/order-clean.html" "$visual
+<section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Videos\"><div class=\"sec-head\"><h2>Videos</h2></div>
+<p>What both films share.</p>
+<div class=\"tw\"><table><tr><td>x</td></tr></table></div>
+<p>@@VIDEO a.mp4|F1 before@@</p>
+<section class=\"consult-item\" data-id=\"V1\" data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
+<video src=\"b.mp4\" controls></video>
+<section class=\"consult-item\" data-id=\"V2\" data-title=\"Approve F2\"><h3>Approve F2</h3><textarea></textarea></section>
+<p>A closing sentence is prose, not evidence.</p>
+<p><svg width=\"8\" height=\"8\"></svg> an inline legend swatch is decoration, not evidence.</p>
+</section>
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/order-clean.html")"
+[[ "$rc" == "0" ]] || fail "10b3. the evidence-first page failed: $(cat "$TMP/out")"
+grep -q "WARN \[consult-order\]" "$TMP/out" \
+  && fail "10b3. evidence placed before each item was reported: $(cat "$TMP/out")"
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact
