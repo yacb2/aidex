@@ -23,6 +23,15 @@ single-test command, or one spec via `./test-e2e.sh e2e/<spec>.spec.ts`); the wh
 runs once, at plan close-out or pre-merge. A full E2E suite costs ~5 minutes; spending
 that per change is what this rule exists to stop.
 
+**Before adding a test, answer four questions; a missing answer means it is not added
+yet.** (1) What observable behaviour or contract does it protect? (2) What credible
+regression turns it red? (3) Why does no existing test already catch that — one contract
+has one owner test, at the layer [01](references/01-layer-model.md) assigns; extend that
+test or its table before adding a sibling. (4) Does it need an export, flag or hook no
+production caller needs? Then test at the real boundary. A test that breaks under a
+behaviour-preserving refactor asserts implementation. The patterns that fail this gate
+are in [references/16-tests-that-earn-nothing.md](references/16-tests-that-earn-nothing.md).
+
 **What this skill is not.** It does not run an audit, does not build or read
 `module-map.json` or `coverage-matrix.json`, does not track a finding through its
 lifecycle, and does not carry the suite-speed measurement procedure. All of that is
@@ -48,6 +57,7 @@ authoring rule for anyone writing a new coverage-bearing test.
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 | What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
 | This test passes — what would make it pass over broken code anyway? | [references/15-green-that-proves-nothing.md](references/15-green-that-proves-nothing.md) |
+| This test is correct — is it worth keeping, or does another test already own the failure? | [references/16-tests-that-earn-nothing.md](references/16-tests-that-earn-nothing.md) |
 | Which tests do I run for this change, and when does the selection widen? | [references/13-affected-tests-expansion.md](references/13-affected-tests-expansion.md) |
 | What goes in the per-project profile, which stack packs exist, and what never goes in the profile? | [references/14-testing-profile.md](references/14-testing-profile.md) |
 | How do I write a backend / component / store / E2E test, which helpers exist, how is the disposable E2E environment built and `test-e2e.sh` generated, how do seed generators work? | The stack pack named by the profile — see below |

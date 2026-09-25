@@ -31,13 +31,17 @@ module is a live defect, not a style issue.
 outside every configured `testDir` / pytest root — they never run, whatever
 they assert.
 
-**v. Cross-layer duplicate check.** For each E2E spec, ask what it asserts that
+**v. Duplicate and junk check.** For each E2E spec, ask what it asserts that
 the sibling unit/component tests do not. The
 [rubric](01-layer-model.md#the-layer-assignment-rubric) decides: if the browser
 is not what decides, and a lower-layer test already observes the same failure,
 the E2E case is a duplicate (candidate to demote), not extra safety.
 [04-e2e-layer-audit.md](04-e2e-layer-audit.md) is the template for this step
 at full scale; the completed table lands in the project's own `.context/`.
+The same question applies between every pair of layers and inside one layer: one
+contract has one owner test. Sweep the module's tests against the junk patterns of
+[16-tests-that-earn-nothing.md](16-tests-that-earn-nothing.md); each hit is a
+candidate that needs its "before deleting" fields, never a deletion on sight.
 
 Untested-logic complement to v: a composable/helper that many tests **mock** but
 none tests is a gap the mock count itself reveals — grep for the module name in

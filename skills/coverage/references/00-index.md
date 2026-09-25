@@ -19,6 +19,10 @@ was added after the playbook's field test against `echo_lab_ws` on 2026-08-23.
 memories in one workspace that all recorded the same failure — a test that passes over
 broken code. Numbered 15 because 07–12 are vacated slots, not free ones.
 
+**2026-09-25:** file 16 was added from OpenClaw's `test-audit` skill (research note
+`.context/research/2026-09-25-openclaw-test-audit-skill-vs-aidex-coverage.md`): the
+correct-but-worthless axis that 15 does not cover.
+
 **2026-08-27:** files 07–12, `assets/templates/test-e2e.sh.template` and `scripts/gen-test-e2e.sh`
 left this skill for the stack packs in `myskills` (`testing-django` 07 + items 2–3 of 02;
 `testing-vue` 08 + item 6 of 02; `testing-playwright-app` 09–12 + template + generator) under
