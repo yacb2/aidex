@@ -159,8 +159,16 @@ async function runPhase(phase, ctx) {
   let feedback = ''
   let directed = 0
   const asks = []
+  // Bugs the implementer reported instead of patching (an `OUT-OF-SCOPE BUG: ...` summary
+  // line), from EVERY attempt, returned on EVERY path: the orchestrator routes them to a
+  // bugfix run, so a line dropped here is a bug nobody routes.
+  const outOfScopeBugs = []
   for (let attempt = 1; attempt <= K + 1; attempt++) {
     const work = await phase.implement(feedback, attempt)
+    for (const line of String((work && work.summary) || '').split('\n')) {
+      const bug = line.trim()
+      if (bug.startsWith('OUT-OF-SCOPE BUG:') && !outOfScopeBugs.includes(bug)) outOfScopeBugs.push(bug)
+    }
     // Director path: a blocked implementer consults the arbiter BEFORE burning a gate
     // attempt; CONTINUE re-launches it with the direction (max 2 redirects per phase).
     if (work && work.blocked_reason && !work.done && directed < 2) {
@@ -171,16 +179,16 @@ async function runPhase(phase, ctx) {
       )
       if (v && v.verdict === 'CONTINUE') {
         directed++
-        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase.`
+        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase's own work — a bug outside its scope stays unpatched and reported.`
         attempt--
         continue
       }
-      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks }
+      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks, outOfScopeBugs }
     }
     // Publication/deny path: actions the implementer REPORTED instead of performing.
     for (const action of (work && work.pending_actions) || []) {
       const c = await checkAction(action, ctx)
-      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks }
+      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks, outOfScopeBugs }
       if (c && c.verdict === 'ASK') asks.push(c.batched_question || `Authorize: ${action}?`)
       // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
     }
@@ -199,7 +207,7 @@ async function runPhase(phase, ctx) {
         log(`gate ${phase.id}: attempt ${attempt} green but no proof artifact — retrying for proof`)
         continue
       }
-      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks, outOfScopeBugs }
     }
     feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
     log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
@@ -208,7 +216,7 @@ async function runPhase(phase, ctx) {
     `Phase ${phase.id} failed its machine gate ${K + 1} times. Decide STOP (clean halt) or ASK (escalate).`,
     ctx.autonomySurface
   )
-  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks }
+  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks, outOfScopeBugs }
 }
 
 // Publication/deny trigger (decision Q2): consult the arbiter ONLY when a pending action
@@ -265,6 +273,10 @@ function makeImplement(p) {
         `proof_links entry) — a phase without one does not pass, however green the gate. If genuinely blocked, return ` +
       `done=false with blocked_reason instead of guessing or stopping silently.\n` +
       `Read prior phase outputs from disk as needed; do NOT assume prior conversation.\n` +
+      `Any test you write or change follows the aidex:testing skill (preloaded by your agent definition; ` +
+      `if it is not in your context, load it with the Skill tool). A bug inside this phase's ` +
+      `scope: fix it RED-first (aidex:bugfix) and quote the RED line in your summary. A bug outside it: ` +
+      `do NOT patch it — add a line "OUT-OF-SCOPE BUG: <what, how to reproduce>" to your summary.\n` +
       `Implement the spec's contract fully and correctly. A separate verifier will check your work; ` +
       `you are NOT shown that check, so satisfy the spec itself — do not target a test.\n` +
       (feedback ? `\nPrior attempt feedback (from the verifier):\n${feedback}\n` : ''),

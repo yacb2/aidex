@@ -39,7 +39,9 @@ prompts as **"IMPLEMENT plan task X (write actual code — not a planning task)"
 - No parallel agents editing a repo's shared files (`__init__.py`, routers), and note
   that parallel sessions share one git working tree.
 - Embed the operating rules in every agent prompt: `docker compose run --rm`, never
-  `exec`; no commits or pushes from agents.
+  `exec`; no commits or pushes from agents; any test the agent writes follows the
+  `aidex:testing` skill (name it — a delegate does not inherit this session's context);
+  a bug found outside the agent's scope is reported, never patched (SKILL.md § 1, step 6).
 
 ## The bulk-fixture loop
 

@@ -6,18 +6,18 @@
   },
   {
     "query": "Write a pytest test for the supplier list endpoint that proves a user from another workspace gets a 404.",
-    "should_trigger": true,
-    "expected_behavior": "testing-django pack via the profile, cross-workspace shape."
+    "should_trigger": false,
+    "expected_behavior": "Writing a test is testing's since 2026-09-25 (testing-canon plan Phase 2); coverage should not fire, testing should."
   },
   {
     "query": "Add a Vitest test for the InvoiceBadge component covering each status prop.",
-    "should_trigger": true,
-    "expected_behavior": "testing-vue pack via the profile, it.each component mount."
+    "should_trigger": false,
+    "expected_behavior": "Writing a test is testing's since 2026-09-25 (testing-canon plan Phase 2); coverage should not fire, testing should."
   },
   {
     "query": "Write a Playwright spec that creates a payment term and checks it appears in the grid.",
-    "should_trigger": true,
-    "expected_behavior": "testing-playwright-app pack via the profile, CRUD with RUN_ID."
+    "should_trigger": false,
+    "expected_behavior": "Writing a test is testing's since 2026-09-25 (testing-canon plan Phase 2); coverage should not fire, testing should."
   },
   {
     "query": "Which tests should I run for the files I just changed? Not the whole suite.",
@@ -41,8 +41,8 @@
   },
   {
     "query": "Necesito una prueba de regresión para el bug del total de la factura; ¿en qué capa y cómo la escribo?",
-    "should_trigger": true,
-    "expected_behavior": "Layer 1/2 + the testing-django pack."
+    "should_trigger": false,
+    "expected_behavior": "Writing a test is testing's since 2026-09-25 (testing-canon plan Phase 2); coverage should not fire, testing should."
   },
   {
     "query": "Build the coverage matrix for the billing module and flag every surface with zero mapped tests.",
