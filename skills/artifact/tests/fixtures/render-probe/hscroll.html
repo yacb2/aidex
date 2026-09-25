@@ -1,0 +1,13 @@
+<!-- render-probe fixture: page-hscroll. A chart svg with a minimum width wider
+     than a phone, as on two spec-route reports of the A/B: at 390 px the whole page
+     scrolls sideways. Clean at 1280 px. -->
+<style>
+.hsfix { min-width: 640px; display: block; }
+</style>
+<div class="page"><main class="main">
+<h1>Serie ancha</h1>
+<p>El gráfico de abajo tiene un ancho mínimo.</p>
+<svg class="hsfix" viewBox="0 0 640 80" width="640" height="80" role="img" aria-label="Serie">
+  <rect x="0" y="10" width="620" height="60" fill="#3a7"/>
+</svg>
+</main></div>

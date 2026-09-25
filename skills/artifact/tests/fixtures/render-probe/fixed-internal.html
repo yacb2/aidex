@@ -1,0 +1,14 @@
+<!-- render-probe fixture: text-overlap inside ONE fixed toolbar. Two labels of the
+     same fixed bar drawn over each other. Fixed text against body text is check 4's;
+     fixed against fixed must still be text-overlap, or a broken toolbar passes. Bottom RIGHT, clear of the kit's theme pill. -->
+<style>
+.tbfix { position: fixed; bottom: 0; right: 0; width: 18rem; height: 2.5rem; z-index: 30;
+         background: var(--paper-sunk); font-family: var(--sans); }
+.tbfix span { position: absolute; top: 0.4rem; left: 0.5rem; }
+.tbfix .tb2 { left: 1.1rem; top: 0.55rem; }
+</style>
+<div class="page"><main class="main">
+<h1>Barra fija</h1>
+<p>Página corta.</p>
+</main></div>
+<div class="tbfix"><span class="tb1">Guardar cambios</span><span class="tb2">Descartar todo</span></div>

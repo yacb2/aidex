@@ -1,0 +1,11 @@
+<!-- render-probe fixture: text-overlap. The key/value card of B-R-2 (A/B 2026-09-24):
+     a fixed-width key column whose key does not wrap, so "by_model.py" runs into the
+     value beside it. The same element also spills out of its column (content-spills). -->
+<style>
+.kvfix { display: grid; grid-template-columns: 3rem 1fr; gap: 0.5rem; }
+.kvfix .k { white-space: nowrap; font-family: var(--mono); }
+</style>
+<div class="page"><main class="main">
+<h1>Estado de los scripts</h1>
+<div class="kvfix"><span class="k">by_model.py</span><strong>Sin commit.</strong></div>
+</main></div>

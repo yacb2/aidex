@@ -1,0 +1,29 @@
+<!-- render-probe fixture: the consultation bar exemption, both directions.
+     At 390 px the kit pins `.rail` to the viewport bottom as an opaque bar and the long
+     body scrolls UNDER it: body-under-bar is NOT a defect. Two labels drawn over each
+     other INSIDE the bar ARE (text-overlap). At 1280 px the rail is the desktop column:
+     its heading pulled over the body column IS a defect there (the kit hides
+     .railhead at 390, so that line only exists at desktop width). The rail carries
+     id="raillist" so the wrapper does not inject a second rail of its own. -->
+<style>
+.railfix-over { margin-left: -50rem; }
+.barfix { position: relative; }
+.barfix .b2 { position: absolute; left: 0.4rem; top: 0.1rem; }
+</style>
+<div class="page">
+<main class="main">
+<h1>Consulta de prueba</h1>
+<p class="standfirst">Entradilla larga de la consulta, que a 390 px pasa por debajo de la barra fija de copia porque el cuerpo es más alto que la ventana.</p>
+<p>Párrafo del cuerpo uno. Texto suficiente para que la página sea más alta que la ventana y el cuerpo corra por debajo de la barra inferior del móvil.</p>
+<p>Párrafo del cuerpo dos. Texto suficiente para que la página sea más alta que la ventana y el cuerpo corra por debajo de la barra inferior del móvil.</p>
+<p>Párrafo del cuerpo tres. Texto suficiente para que la página sea más alta que la ventana y el cuerpo corra por debajo de la barra inferior del móvil.</p>
+<p>Párrafo del cuerpo cuatro. Texto suficiente para que la página sea más alta que la ventana y el cuerpo corra por debajo de la barra inferior del móvil.</p>
+<p>Párrafo del cuerpo cinco. Texto suficiente para que la página sea más alta que la ventana y el cuerpo corra por debajo de la barra inferior del móvil.</p>
+<p>Párrafo del cuerpo seis. Texto suficiente para que la página sea más alta que la ventana y el cuerpo corra por debajo de la barra inferior del móvil.</p>
+</main>
+<aside class="rail">
+<p class="railhead railfix-over">Encabezado del índice desplazado</p>
+<nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><span class="barfix"><span class="b1">Copiar respuestas</span><span class="b2">Estado encima</span></span></div>
+</aside>
+</div>
