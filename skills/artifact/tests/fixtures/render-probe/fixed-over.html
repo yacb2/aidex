@@ -1,0 +1,15 @@
+<!-- render-probe fixture: fixed-over-text. A page's own position:fixed control
+     laid over the body column, the way the kit theme pill covered captions and
+     table cells. Not the kit pill itself: the kit is due to move that one, and this
+     fixture must keep failing after it does. -->
+<style>
+.fixfix { position: fixed; top: 6rem; left: 0; right: 0; z-index: 30; text-align: center;
+          background: var(--paper-sunk); padding: 0.3rem; font-family: var(--sans); }
+</style>
+<div class="page"><main class="main">
+<h1>Control fijo</h1>
+<p>Primer párrafo del cuerpo, que queda debajo del control fijo mientras la página se lee de arriba abajo.</p>
+<p>Segundo párrafo del cuerpo, que queda debajo del control fijo mientras la página se lee de arriba abajo.</p>
+<p>Tercer párrafo del cuerpo, que queda debajo del control fijo mientras la página se lee de arriba abajo.</p>
+</main></div>
+<button class="fixfix" type="button">Filtro fijo</button>

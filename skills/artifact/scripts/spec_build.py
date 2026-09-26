@@ -864,7 +864,7 @@ def emit_chart(node, ctx):
     claims the categories are ordered and the gaps between them are real), and
     guessing which claim the page makes is not this file's to guess.
     """
-    a = _attrs(node, {"type", "title", "unit"})
+    a = _attrs(node, {"type", "title", "unit", "labels", "y-title", "x-title"})
     kind = (a.get("type") or "").strip()
     if not kind:
         raise SpecBuildError(
@@ -876,6 +876,20 @@ def emit_chart(node, ctx):
         raise SpecBuildError(
             node.line, "`chart` type=%r is not one of: %s"
             % (kind, ", ".join(chart_svg.KINDS)))
+
+    labels_attr = a.get("labels", "").strip()
+    if "labels" in a and labels_attr not in ("on", "off"):
+        raise SpecBuildError(
+            node.line, "`chart` labels=%r — labels= is on or off (the default "
+            "is on for bars, off for lines)" % labels_attr)
+    if kind == "stacked":
+        for key in ("labels", "y-title", "x-title"):
+            if key in a:
+                raise SpecBuildError(
+                    node.line,
+                    "`chart` type=stacked takes no %s — a stacked chart has no "
+                    "value axis: it writes every total and every segment that "
+                    "fits, and `unit` names what they count" % key)
 
     rows = _data_lines(node)
     if not any(ln.strip() for _n, ln in rows):
@@ -909,7 +923,11 @@ def emit_chart(node, ctx):
                             title=a.get("title", "").strip(),
                             unit=a.get("unit", "").strip(),
                             classes=" ".join(node.classes),
-                            ident=node.id or "")
+                            ident=node.id or "", lang=ctx.lang,
+                            show_labels=({"on": True, "off": False}
+                                         .get(labels_attr)),
+                            ytitle=a.get("y-title", "").strip(),
+                            xtitle=a.get("x-title", "").strip())
 
 
 @emitter("diagram")
@@ -928,7 +946,7 @@ def emit_diagram(node, ctx):
     lane in the wrong shape — is refused by `diagram_layout.parse_body` at the
     line INSIDE the fence, with `SpecSyntaxError`, exactly as `chart` does.
     """
-    a = _attrs(node, {"shape", "title"})
+    a = _attrs(node, {"shape", "title", "dir"})
     shape = (a.get("shape") or "").strip()
     if not shape:
         raise SpecBuildError(
@@ -967,11 +985,20 @@ def emit_diagram(node, ctx):
             "`diagram` shape=%r has one box — a cycle of one is a box, and "
             "the ring it would be placed on has no second point to turn "
             "around" % shape)
-    lay = diagram_layout.layout(shape, boxes, arrows, titles)
+    direction = a.get("dir")
+    if direction is not None and direction not in ("lr", "tb"):
+        raise SpecBuildError(
+            node.line, "`diagram` dir=%r is not `lr` or `tb`" % direction)
+    if direction is not None and diagram_layout.SHAPE_ALIASES[shape] != "row":
+        raise SpecBuildError(
+            node.line, "`diagram` dir= is a `row` attribute — shape=%s places "
+                       "its boxes one way only" % shape)
+    lay, narrow = diagram_layout.drawings(shape, boxes, arrows, titles,
+                                          direction)
     return diagram_svg.figure(lay,
                               title=a.get("title", "").strip(),
                               classes=" ".join(node.classes),
-                              ident=node.id or "")
+                              ident=node.id or "", narrow=narrow)
 
 
 # The file types a `figure` embeds, and the MIME type of the raster ones.
@@ -1219,6 +1246,42 @@ def spec_lang(spec_text):
     return ""
 
 
+def _refuse_links(spec_text):
+    """Refuse a `[text](target)` whose target is not a relative path, a
+    `#fragment` or `https:`, naming the spec line it is on.
+
+    `md_body._inline` is the owner of what becomes an `<a>`; this only reads its
+    verdict (`md_body.refused_links`) line by line, outside ``` / ~~~ fences,
+    so the author gets a line number instead of a literal link on the page.
+    """
+    fence = None
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        fm = md_body.FENCE.match(ln)
+        if fm and (fence is None or fm.group(1) == fence):
+            fence = None if fence else fm.group(1)
+            continue
+        if fence:
+            continue
+        for target in md_body.refused_links(ln):
+            raise SpecBuildError(
+                n, "link target %r is refused: a spec links only to a "
+                "relative path, a #fragment, https:, http: or mailto: "
+                "(javascript:, data:, file:, every other scheme and a "
+                "backslash escape in the target are refused)" % target)
+
+
+def _refuse_title_links(tree):
+    """A `[x](y)` in `title=` is refused: the title also reaches the rail and a
+    decided item's <summary> as `data-title`, raw, where no link is rendered."""
+    for node in _walk(tree):
+        title = node.attrs.get("title", "")
+        if md_body.LINK.search(md_body.CODE.sub(" ", title)):
+            raise SpecBuildError(
+                node.line, "`%s` title= holds a link, %r: the title is also the "
+                "rail entry and shows there as raw text. Put the link in the "
+                "body" % (node.block_type, title))
+
+
 def build(spec_text, lang=None, base_dir="."):
     """The spec as an artifact-kit page BODY (no doctype, no head).
 
@@ -1228,6 +1291,8 @@ def build(spec_text, lang=None, base_dir="."):
     lang = spec_lang(spec_text) or lang or "es"
     ctx = BuildContext(lang=lang, base_dir=base_dir)
     tree = parse(spec_text)
+    _refuse_links(spec_text)
+    _refuse_title_links(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
 
     head = []

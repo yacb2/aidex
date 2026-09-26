@@ -44,6 +44,32 @@ not ask for, so they are a workaround, not the answer.
   arrive after they had already decided. A paragraph that must open with `- ` has
   no spelling in this grammar; see `$AIDEX_SPEC_CORPUS/corpus-specs/CONVERSION-NOTES.md`.
 
+### Inline links
+
+`[text](target)` becomes `<a href="target">text</a>` wherever prose is rendered, in
+a body or in an attr such as `heading=`. The label may carry `` ` ``, `**` and `_`;
+the target may hold one level of balanced parentheses and no whitespace.
+
+- **Allowed targets:** a relative path (`R1.html`, `../research/nota.html#s2`), a
+  `#fragment`, `https:`, `http:` and `mailto:` (none of them carries script;
+  `http:` and `mailto:` are what the markdown notes the same renderer wraps use).
+- **Refused, with the spec line:** every other scheme (`javascript:`, `data:`,
+  `vbscript:`, `file:`), a protocol-relative `//host`, a backslash or a backslash
+  escape in the target (`a\_b.html`; write `a_b.html`, a target is never read as
+  emphasis) and any control character. The builder stops on the first one:
+  `line 3: link target 'javascript:alert(1)' is refused: ...`. The markdown route
+  (`wrap-report.sh --in x.md`) does not stop: it renders a refused link as plain
+  text, `label (target)`, with no href.
+- **Not in `title=`:** the title is also the rail entry and a decided item's
+  summary, where it shows as raw text. A link there is refused with the fence's line.
+- **Not a link:** inside a code span or a code fence, or after `\[` (which reaches
+  the page as `&#91;`, a bracket the reader sees and the contract does not take for
+  a link).
+
+`check-artifact` fails a page (`raw-link`) whose visible text still shows a
+`[text](target)`, outside `<code>`, `<pre>` and `<textarea>`: the shape the
+blind-review page shipped before this existed.
+
 ## The shape
 
 ```
@@ -329,6 +355,28 @@ exponent, no hex, no thousands separator, and no `NaN`/`inf`. That is narrower t
 every browser paints as nothing at all, with no error anywhere. A chart that silently
 renders wrong is the outcome this grammar exists to prevent.
 
+**What the drawing does with the rows (`bar` and `line`).** The value axis is ticked at
+round values (1, 2 or 5 x 10^n) and **0 is always a tick**; each end of the axis is the
+data's end rounded out to half a step and labelled, so -36.23 .. 272.87 ticks at
+-50 / 0 / 100 / 200 / 300. The left margin is the widest tick label's width. Numbers are
+written the page's way: a decimal comma on an `es` page, U+2212 for minus, `+` on the
+positives of a mixed-sign chart; each value keeps its own decimals (two, or three
+significant digits for a small one, so a nonzero value never reads `0`). Category labels
+wrap at their spaces or, when they cannot, are thinned keeping the first and the last. Three
+optional attrs:
+
+| Attr | Values | Effect |
+|---|---|---|
+| `labels` | `on`, `off` | a value label on every bar (default `on` for `bar`, `off` for `line`); a label that would touch another moves one line out, and if that is taken too the smaller one is not drawn — never an overlap. Every bar and point carries a `<title>` tooltip with its series, category and value either way |
+| `y-title` | text | the value axis's title, horizontal, above the plot |
+| `x-title` | text | the category axis's title, under the category labels |
+
+The figure carries two renderings: the wide one (720 units, every text 11 units) and a
+narrow one (300 units, text 12, bars drawn horizontally with the label past each bar's
+end), and a container query shows the narrow one when the figure is under 720 px wide —
+so no chart text is under 11 px on a 390 px phone. `type=stacked` takes none of the three
+attrs: it has no value axis.
+
 ### `type=stacked`: horizontal stacked bars
 
 The same two body forms, read differently: each data row is ONE horizontal bar, its
@@ -389,8 +437,22 @@ Three line kinds. Blank lines are ignored anywhere.
 | Line | Means |
 |---|---|
 | `name: Label` | a box called `name`, labelled `Label`. The name is letters, digits, `_` and `-`; the label is everything after the colon |
+| `name: Label`, a bar, a sublabel | the same box with a **sublabel**: a second, smaller, muted line under the label. The syntax is in the fenced example under **Sublabel** below |
 | `A -> B` | one arrow, from a declared box to another declared box |
 | `lane Title` | opens a lane. `before-after` only, exactly two, and every box of that shape sits under one |
+
+**Sublabel.** The first bare `|` in a box line splits the label from its sublabel; a
+backslash before a bar makes it a literal bar. A backslash is not itself escapable, so a
+label that ends in a backslash needs a space before the splitting bar:
+
+```
+c: Cortar | en partes
+x: a \| b | c
+w: C:\ | disco
+```
+
+`c` draws `Cortar` over the muted `en partes`; `x` draws `a | b` over `c`; `w` draws
+`C:\` over `disco`.
 
 A line is read as a BOX before it is read as an arrow, so `paso: construir -> enviar` is
 a box whose label contains an arrow and not an ambiguity. `lane` is a reserved FIRST
@@ -407,6 +469,42 @@ rev -> esc
 :::
 ```
 
+A label ending in `?` is a **decision**, drawn as a rounded box sized to its text. A `row`
+is **ranked** in declaration order: each box takes the next column, or a later one when a
+box it is pointed at from is further on. Two consecutive boxes that one box points at
+share a column, stacked, at the column's width — a branch, not a longer row; nothing
+else is stacked. An arrow to a later column than the next runs on its own lane over the
+top of the columns between; one back to an earlier column runs on its own lane under
+them, in `flg`, leaving and entering by the bottom faces; one between two boxes of a
+stack runs down its own track in the gap beside it. Every route turns only in the gaps
+between columns or outside the row, so no arrow is ever drawn through a box, and each
+role has its own port on a box (in, out, skip, back), so two arrows that share no box
+never share a line or a point.
+
+```
+::: diagram {#flujo shape=row title="Cada parte se delega o se queda"}
+p: Prompt
+c: Cortar | en partes
+r: Enrutar | por la tabla
+d: ¿Prof. ≥ piso?
+g: Delegar | al agente
+s: Se queda | aquí
+p -> c
+c -> r
+r -> d
+d -> g
+d -> s
+:::
+```
+
+`dir` (`row` only) is `lr` (ranks left to right) or `tb` (one box per line, top to
+bottom, in declaration order). Unset, it is `lr` when that drawing fits the page's 720
+units and `tb` otherwise. An `lr` drawing wider than 320 units also gets a `tb` twin,
+and the figure shows the twin at 48rem and under: the kit stretches a figure to its
+column, and at 390 px a wide flow would draw its text under 11 px. A `tb` drawing is kept
+within those 320 units by wrapping a long label onto more lines, at spaces only; a single
+word too wide for what is left is drawn whole, not cut.
+
 ```
 ::: diagram {shape=before-after title="A mano contra el spec"}
 lane Antes: SVG a mano
@@ -418,12 +516,14 @@ b1: Escribir las cajas
 :::
 ```
 
-**A box is sized to its label, before anything is placed** (the plan's Q10). The metric
-is a fixed monospace column table — `0.6 em` per column, the advance of the kit's
-`--mono` stack, which is also what the labels are drawn in — counting **characters**,
-with East-Asian Wide and Fullwidth ones at two columns. Nothing is a fixed size and
-nothing is ever clipped: a run wider than the page scales down as one figure
-(`figure svg { width: 100% }`), and a single box wider than the page is refused instead.
+**A box is sized to its label, before anything is placed** (the plan's Q10). Labels are
+drawn in the kit's `--sans` token (`style="font-family:var(--sans)"` on the root), and
+the width is the larger of `chart_svg._text_width` (0.62 em per character, East-Asian
+Wide and Fullwidth ones counted twice) and `check_artifact`'s own proportional estimate,
+counting **characters**, never bytes. The root also carries a `max-width` of 1.2 px per
+unit, so a short row is never stretched past body size. Nothing is ever clipped: a
+drawing wider than its column scales down as one figure, and a single box wider than
+the page is refused instead.
 
 | Rule | Refused example | What the message says |
 |---|---|---|
@@ -432,6 +532,7 @@ nothing is ever clipped: a run wider than the page scales down as one figure
 | An arrow joins two different boxes | `a -> a` | a loop on one box says nothing the box does not |
 | One arrow per line | `a -> b -> c` | write a chain as one line per hop |
 | Every label is non-empty | `a:` | a box is sized to its label and an empty one has nothing to read |
+| A sublabel bar is followed by a sublabel | `a: Cortar` and a bar with nothing after it | to write the second line or drop the bar |
 | A box fits the page | a 89-column label | the width it needs against the page's 720, and to move the sentence into prose |
 | `lane` belongs to `before-after` | `lane X` in a `row` | that shape draws one run, so there is no lane to open |
 | `before-after` has exactly two lanes, both filled | one lane, three lanes, an empty one | the count found; the shape IS the comparison |
@@ -441,7 +542,8 @@ Lanes may hold **different numbers of boxes** — three above and one below is a
 and each lane is placed on its own.
 
 What is NOT a body rule, because it belongs to the block and not to a line: a missing or
-unknown `shape`, an empty body, and a `cycle` with one box (the ring it would be placed
+unknown `shape`, a `dir` other than `lr`/`tb` or on a shape other than `row`, an empty
+body, and a `cycle` with one box (the ring it would be placed
 on has no second point). Those are `SpecBuildError` at the **fence's** line.
 
 What the renderer does with the three classes, so a reader can tell the arrows apart:

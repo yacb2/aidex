@@ -1,0 +1,59 @@
+<!-- render-probe fixture: kit-rows — MUST PASS CLEAN (Phase 5 of the artifact-quality
+     plan). The kit's own shapes that drew over their page on the 2026-09-24 A/B set:
+       - the key/value ledger copied verbatim from B-R-2's "Qué se tocó" block: long
+         mono keys (`by_model.py`, `Exclusiones`) ran under their values at both widths;
+       - the same ledger at 390 px: `minmax(20rem, 1fr)` needed 320 px in a 294 px column;
+       - long unbreakable paths in a list and in prose, the cause of the 390 px
+         horizontal scroll on R1 and R6;
+       - a page taller than the viewport, so the theme toggle has body text under it
+         at some scroll position if it is ever fixed over the reading column again. -->
+<div class="page"><main class="main">
+<header>
+  <p class="eyebrow">Fixture · render probe · filas del kit</p>
+  <h1>Filas clave/valor, rutas largas y el control de tema</h1>
+  <p class="standfirst">Las formas del kit que se dibujaban sobre su propia página en la prueba A/B del 2026-09-24.</p>
+</header>
+<section id="sec-fuentes">
+  <div class="sec-head">
+    <p class="eyebrow">Fuentes</p>
+    <h2>Rutas que no se pueden cortar</h2>
+  </div>
+<ul><li><strong>Corpus:</strong> <code>~/.claude/aidex/delegation/*.tsv</code>, filas con <code>ts &gt; phase2_cutover_ts</code> (2026-09-17 21:52), la última fila por <code>(session, task)</code>, con <code>excluded_sessions.txt</code> aplicado: el mismo corpus y el mismo método que la lectura temprana (<code>readout.py</code>, <code>per_agent.py</code>).</li><li><strong>Corte nuevo:</strong> por <code>main_model</code>, una columna que el hook del ledger ya escribe. Lo calcula un script puntual, <code>by_model.py</code>, que se quedó en el scratchpad de la sesión.</li><li><strong>Precios:</strong> <code>saved_usd</code> y <code>delegate_usd</code> los calcula por fila el hook Stop en vivo, que ya cotiza <code>claude-opus-5-5</code>. La lectura no tuvo que volver a calcular precios; solo agrupa esa columna.</li></ul>
+<p>El corpus completo vive en <code>~/.claude/aidex/delegation/*.tsv</code> y el script de precios en <code>.context/research/scripts/pricing.py</code>; la lectura temprana está en <code>.context/research/2026-09-21-delegation-phase2-early-readout.md</code>.</p>
+</section>
+<section id="sec-intacto">
+  <div class="sec-head">
+    <p class="eyebrow">Alcance</p>
+    <h2>Qué se tocó y qué se dejó fuera</h2>
+  </div>
+<div class="ledger">
+  <div><span class="k">pricing.py</span><span class="v"><strong>Tocado.</strong> Se añadió <code>&quot;claude-opus-5-5&quot;: (4, 5, 8, 0.20, 20)</code> a <code>.context/research/scripts/pricing.py</code>, con la misma tarifa que el hook en vivo; antes caía en el fallback de prefijo <code>claude-opus-5</code> ($5/$25). No se cambió ninguna otra fila. Un grep no encontró otros scripts que dependieran del fallback anterior, pero no se revisaron a fondo todos los que usan el archivo.</span></div>
+  <div><span class="k">by_model.py</span><span class="v"><strong>Sin commit.</strong> Está en el scratchpad de la sesión, no en <code>experiments/2026-09-16-delegation-monitor/</code>. Si este corte vuelve a hacer falta, lo correcto es integrarlo en <code>per_agent.py</code> en lugar de rehacerlo.</span></div>
+  <div><span class="k">Exclusiones</span><span class="v"><strong>Reutilizadas sin revisar.</strong> <code>excluded_sessions.txt</code> y <code>phase2_cutover_ts</code> se copiaron tal cual de la lectura temprana. Si esta misma sesión lanzó alguno de los agentes que mide, esas filas están dentro del corpus y no se filtraron.</span></div>
+  <div><span class="k">Sonnet con Opus 5.5</span><span class="v"><strong>N=6 / N=11.</strong> Demasiado pocas filas; el informe lo dice y no las suaviza.</span></div>
+  <div><span class="k">Fable 90-125k</span><span class="v"><strong>No es un hallazgo de Opus 5.5.</strong> El -36.23 es la cifra más negativa de todo el corte y ya dominaba el hallazgo 3 de la lectura temprana antes de que existiera 5.5. Casi todo es de Fable; las sesiones con Opus 5 apenas salen negativas en esa banda.</span></div>
+  <div><span class="k">readout.py</span><span class="v"><strong>No se volvió a ejecutar.</strong> Los totales de la fase (filas, neto, mediana) son los de la lectura temprana más las filas que entraron desde el 2026-09-21, sin volver a sumarlas.</span></div>
+  <div><span class="k">Calidad y tiempo real</span><span class="v"><strong>Sin tocar.</strong> La tasa de defectos que encuentra <code>review-diff-opus</code> y no se contabiliza (hallazgo 4 de la lectura temprana) sigue fuera; esta nota tampoco la cubre.</span></div>
+</div>
+</section>
+<section id="sec-relleno">
+  <div class="sec-head">
+    <p class="eyebrow">Relleno</p>
+    <h2>Texto bajo cualquier posición de desplazamiento</h2>
+  </div>
+<p>Este párrafo existe para que la página sea más alta que la ventana: un control fijo sobre la columna de lectura tendría texto debajo en alguna posición de desplazamiento, y la sonda lo vería.</p>
+<p>Con Opus 5.5, todas las bandas medidas, hasta 180k+, dan saldo negativo en las delegaciones a agentes opus, y la unidad sintética de la nota 19 sitúa el cruce cerca de 265k.</p>
+<p>Mantenerlo en 125k con Opus 5.5 contradice lo que dicen 49 filas, de -30.63 a -50.95 de neto según el corte. Lo más barato sin ir más allá de los datos sería 200k.</p>
+<p>El techo de esa franja es frágil: el 265k se apoya en N=4 celdas sintéticas y en 0 filas en vivo por encima.</p>
+<p>Con Opus 5.5 hay pocas filas de agentes sonnet (N=6, N=11) para mover el suelo de 90k en cualquier sentido.</p>
+<p>La regla del tope por unidad de 120+ turnos sigue atacando la mayor fuente de pérdida.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+<p>Cada línea de este bloque llega hasta el borde izquierdo de la columna de lectura, que es donde el control de tema fijo se dibujaba antes: abajo a la izquierda, sobre el texto, en cualquier página más alta que la ventana. La sonda muestrea cuatro posiciones de desplazamiento y compara la caja del control con la de cada texto.</p>
+</section>
+</main></div>

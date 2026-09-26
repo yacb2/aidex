@@ -1,0 +1,15 @@
+<!-- render-probe fixture: a parent that CUTS its own multi-line text (overflow hidden,
+     2rem tall) holding a nowrap child that SPILLS sideways. Two defects of two kinds:
+     the innermost-only rule must not let the child's content-spills hide the parent's
+     content-cut. -->
+<style>
+.cutfix { overflow: hidden; height: 2rem; width: 14rem; border: 1px solid var(--rule); }
+.cutfix .nwfix { white-space: nowrap; }
+</style>
+<div class="page"><main class="main">
+<h1>Caja recortada</h1>
+<div class="cutfix">
+<p>Un párrafo de varias líneas que no cabe en una caja de dos rem de alto, así que la caja corta todo lo que sigue a la primera línea.</p>
+<div class="nwfix">.context/research/scripts/pricing.py sin cortes posibles</div>
+</div>
+</main></div>
