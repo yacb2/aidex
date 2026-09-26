@@ -946,7 +946,7 @@ def emit_diagram(node, ctx):
     lane in the wrong shape — is refused by `diagram_layout.parse_body` at the
     line INSIDE the fence, with `SpecSyntaxError`, exactly as `chart` does.
     """
-    a = _attrs(node, {"shape", "title"})
+    a = _attrs(node, {"shape", "title", "dir"})
     shape = (a.get("shape") or "").strip()
     if not shape:
         raise SpecBuildError(
@@ -985,11 +985,20 @@ def emit_diagram(node, ctx):
             "`diagram` shape=%r has one box — a cycle of one is a box, and "
             "the ring it would be placed on has no second point to turn "
             "around" % shape)
-    lay = diagram_layout.layout(shape, boxes, arrows, titles)
+    direction = a.get("dir")
+    if direction is not None and direction not in ("lr", "tb"):
+        raise SpecBuildError(
+            node.line, "`diagram` dir=%r is not `lr` or `tb`" % direction)
+    if direction is not None and diagram_layout.SHAPE_ALIASES[shape] != "row":
+        raise SpecBuildError(
+            node.line, "`diagram` dir= is a `row` attribute — shape=%s places "
+                       "its boxes one way only" % shape)
+    lay, narrow = diagram_layout.drawings(shape, boxes, arrows, titles,
+                                          direction)
     return diagram_svg.figure(lay,
                               title=a.get("title", "").strip(),
                               classes=" ".join(node.classes),
-                              ident=node.id or "")
+                              ident=node.id or "", narrow=narrow)
 
 
 # The file types a `figure` embeds, and the MIME type of the raster ones.

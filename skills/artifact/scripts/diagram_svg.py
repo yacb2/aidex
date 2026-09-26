@@ -35,12 +35,21 @@ What each class MEANS here, so the page is readable and not merely coloured:
 
 Text
 ----
-Labels are drawn in the kit's `--mono` stack, spelled out (a presentation
-attribute cannot read `var(--mono)` either). That is not a style choice, it is
-what makes `diagram_layout`'s column table TRUE: a monospace advance of 0.6 em
-is what both this module's sizing and `check_artifact.svg_text_width`'s
-monospace branch assume, so the box a label is given and the box the checker
-measures it against are computed the same way.
+Labels are drawn in the kit's `--sans` token, set ONCE on the root as
+`style="font-family:var(--sans)"`: a style attribute resolves a custom
+property where a presentation attribute does not, so no font stack is copied
+here. `diagram_layout.text_width` sizes every box for that font. The same
+`style` caps the drawing at `MAX_SCALE` px per unit, so a short row is never
+blown up to the column's width.
+
+Two drawings, one figure
+------------------------
+When `diagram_layout.drawings` returns a narrow twin, the figure carries both
+svgs (`dg-wide`, `dg-narrow`) and one `<style>` rule that shows the wide one
+above 48rem and the narrow one at or under it. 48rem because the kit's column
+there is at least 672 px, where a 720-unit drawing still draws 12-unit
+sublabels at 11 px. The rule lives HERE, not in `components.css`, only because
+the kit is another phase's file; it is `SWAP_CSS` and moves there verbatim.
 
 Every label reaching the SVG goes through `esc()`, once, at the point of
 emission — `_shell.esc` is `html.escape(quote=True)`. A box label is DATA and
@@ -61,10 +70,13 @@ HEAD_L = 9.0           # the arrowhead, from its tip back along the line
 HEAD_A = 0.38          # half its opening, in radians
 CORNER = 3.0           # the box's corner radius
 STROKE = 1.5
-# Spelled out because a presentation attribute cannot resolve `var(--mono)`.
+# `graph_svg.py` still draws in the monospace stack and reads it from here.
 # Byte-for-byte the `--mono` stack of `tokens.css`; the two are checked against
 # each other by `test_diagram.py`, so this copy cannot drift silently.
 MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+SWAP_CSS = ("figure svg.dg-narrow{display:none}"
+            "@media (max-width: 48rem){figure svg.dg-wide{display:none}"
+            "figure svg.dg-narrow{display:block}}")
 
 
 def _num(x):
@@ -84,10 +96,11 @@ def _num(x):
 
 
 def _path(points):
-    """`M`, then `L` for a segment or `Q` for a quadratic. Nothing else."""
+    """`M`, then `L` per leg of a polyline, or `Q` for a 3-point quadratic."""
     d = "M %s,%s" % (_num(points[0][0]), _num(points[0][1]))
-    if len(points) == 2:
-        d += " L %s,%s" % (_num(points[1][0]), _num(points[1][1]))
+    if len(points) != 3:
+        for x, y in points[1:]:
+            d += " L %s,%s" % (_num(x), _num(y))
     else:
         d += " Q %s,%s %s,%s" % (_num(points[1][0]), _num(points[1][1]),
                                  _num(points[2][0]), _num(points[2][1]))
@@ -111,11 +124,13 @@ def _head(x, y, angle, tone):
                _num(b[0]), _num(b[1])))
 
 
-def svg(lay):
+def svg(lay, cls=""):
     """One `<svg>` element for a placed `diagram_layout.Layout`."""
     vx, vy, vw, vh = lay.view
-    out = ['<svg viewBox="%s %s %s %s" xmlns="http://www.w3.org/2000/svg" '
-           'role="img">' % (_num(vx), _num(vy), _num(vw), _num(vh))]
+    out = ['<svg%s viewBox="%s %s %s %s" xmlns="http://www.w3.org/2000/svg" '
+           'role="img" style="font-family:var(--sans);max-width:%spx">'
+           % (' class="%s"' % cls if cls else "", _num(vx), _num(vy),
+              _num(vw), _num(vh), _num(vw * dl.MAX_SCALE))]
 
     if lay.divider:
         dx0, dy, dx1 = lay.divider
@@ -126,8 +141,8 @@ def svg(lay):
 
     for text, tx, ty in lay.titles:
         out.append('  <text class="mut" x="%s" y="%s" font-size="%s" '
-                   'font-family="%s" fill="currentColor">%s</text>'
-                   % (_num(tx), _num(ty), _num(dl.TITLE_FS), MONO, esc(text)))
+                   'fill="currentColor">%s</text>'
+                   % (_num(tx), _num(ty), _num(dl.TITLE_FS), esc(text)))
 
     # The arrows first, so a box is painted over the line that reaches it and
     # not under it. Both are `currentColor` on a transparent box, so the order
@@ -140,25 +155,36 @@ def svg(lay):
         out.append(_head(tip[0], tip[1], r.angle, r.tone))
 
     for b in lay.boxes:
+        # A decision is a rounded box: its ends are half circles, of a
+        # one- or two-line box's height at most, so a wrapped label in a tall
+        # decision is not eaten by the curve.
         out.append('  <rect class="%s" x="%s" y="%s" width="%s" height="%s" '
                    'rx="%s" fill="none" stroke="currentColor" '
                    'stroke-width="%s"/>'
                    % (b.tone, _num(b.x), _num(b.y), _num(b.w), _num(b.h),
-                      _num(CORNER), _num(STROKE)))
-        # The baseline sits 0.35 em below the box's middle, which is where a
-        # cap-height glyph reads as centred. `check_artifact` measures a label
-        # from 0.8 em above the baseline to 0.25 em below it, so this keeps the
-        # whole glyph box inside the rect with room on both sides.
-        out.append('  <text x="%s" y="%s" text-anchor="middle" font-size="%s" '
-                   'font-family="%s" fill="currentColor">%s</text>'
-                   % (_num(b.cx), _num(b.cy + 0.35 * dl.FS), _num(dl.FS),
-                      MONO, esc(b.label)))
+                      _num(min(b.h, dl.SUB_BOX_H) / 2.0 if b.decision
+                           else CORNER), _num(STROKE)))
+        # The label's lines, then the sublabel, as one block LINE_H apart and
+        # centred on the box's middle; a lone line's baseline sits 0.35 em
+        # below the middle, where a cap-height glyph reads as centred.
+        # `check_artifact` measures a line from 0.8 em above its baseline to
+        # 0.25 em below it (13.65 units at FS): every glyph box stays inside
+        # the rect and apart from the next.
+        rows = [(ln, dl.FS, "") for ln in b.lines]
+        if b.sub:
+            rows.append((b.sub, dl.SUB_FS, ' class="mut"'))
+        y = b.cy + 0.35 * dl.FS - (len(rows) - 1) * dl.LINE_H / 2.0
+        for text, size, cls in rows:
+            out.append('  <text%s x="%s" y="%s" text-anchor="middle" '
+                       'font-size="%s" fill="currentColor">%s</text>'
+                       % (cls, _num(b.cx), _num(y), _num(size), esc(text)))
+            y += dl.LINE_H
 
     out.append("</svg>")
     return "\n".join(out)
 
 
-def figure(lay, title="", classes="", ident=""):
+def figure(lay, title="", classes="", ident="", narrow=None):
     """The whole block: the kit's `<figure>`, the diagram, and its caption.
 
     Identical plumbing to `chart_svg.figure`, including the one thing that is
@@ -172,7 +198,11 @@ def figure(lay, title="", classes="", ident=""):
         head += ' id="%s"' % esc(ident)
     if classes:
         head += ' class="%s"' % esc(classes)
-    out = [head + ">", svg(lay)]
+    if narrow is None:
+        out = [head + ">", svg(lay)]
+    else:
+        out = [head + ">", "<style>%s</style>" % SWAP_CSS,
+               svg(lay, "dg-wide"), svg(narrow, "dg-narrow")]
     if title:
         out.append("<figcaption>%s</figcaption>" % esc(title))
     out.append("</figure>")

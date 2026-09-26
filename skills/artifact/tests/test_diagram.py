@@ -11,10 +11,13 @@ all (`.context/research/2026-09-23-deterministic-diagrams-prior-art.md`, the
 
 Six groups:
 
-  THE METRIC — the monospace column table. Characters and never bytes, wide
-  characters at two columns, and the one inequality everything else rests on:
-  `columns(s) >= len(s)`, so this module's estimate is never below
-  `check_artifact.svg_text_width`'s monospace branch, whatever the label holds.
+  THE METRIC — characters and never bytes, wide characters at two columns;
+  since Phase 4 (sans labels) a box is never narrower than
+  `check_artifact.svg_text_width`'s proportional estimate of its label.
+
+  PHASE 4 — the F-shape flow: sans font, sublabels, a compact decision, lr at
+  1280 with a tb twin for 390, `dir`, and no arrow through a box it does not
+  join (lr and tb, including an arc over a stacked branch).
 
   THE GRAMMAR — every malformed line refused at the line INSIDE the fence with
   `SpecSyntaxError`, and the three fence-level refusals (no shape, unknown
@@ -220,7 +223,7 @@ try:
     check("...and strictly grows past the minimum box, by the metric",
           all(g > 0 for g in grew)
           and abs(dl.box_width("x" * 40)
-                  - (dl.CHAR_W * dl.FS * 40 + 2 * dl.PAD_X)) < 1e-9,
+                  - (dl.text_width("x" * 40) + 2 * dl.PAD_X)) < 1e-9,
           str(grew))
     check("a one-character label still gets the minimum box, not a sliver",
           dl.box_width("x") == dl.MIN_BOX_W, str(dl.box_width("x")))
@@ -318,22 +321,22 @@ try:
           len(fwd.routes[0].points) == 2
           and fwd.routes[0].points[0][1] == fwd.routes[0].points[1][1]
           and fwd.routes[0].tone == "mut", str(fwd.routes[0].points))
-    skip = lay("row", "a: uno", "b: dos", "c: tres", "a -> c")
+    skip = lay("row", "a: uno", "b: dos", "c: tres", "a -> b", "b -> c",
+               "a -> c")
     top = min(b.y for b in skip.boxes)
-    check("a forward arrow that skips a box bows ABOVE the run, never through it",
-          len(skip.routes[0].points) == 3
-          and skip.routes[0].points[1][1] < top
-          and skip.routes[0].tone == "mut", str(skip.routes[0].points))
+    up = min(p[1] for p in skip.routes[2].points)
+    check("a forward arrow that skips a box detours ABOVE the run, never through it",
+          up < top and skip.routes[2].tone == "mut", str(skip.routes[2].points))
     back = lay("row", "a: uno", "b: dos", "c: tres", "c -> a")
     bottom = max(b.y + b.h for b in back.boxes)
-    check("a backward arrow bows BELOW the run and wears the `flg` tone",
-          len(back.routes[0].points) == 3
-          and back.routes[0].points[1][1] > bottom
-          and back.routes[0].tone == "flg", str(back.routes[0].points))
-    check("...and the two curves never share a side, so they cannot overdraw",
-          skip.routes[0].points[1][1] < top < bottom < back.routes[0].points[1][1])
-    check("the canvas grew to hold the curve it drew",
-          back.view[1] + back.view[3] > bottom + dl.ARC,
+    down = max(p[1] for p in back.routes[0].points)
+    check("a backward arrow detours BELOW the run and wears the `flg` tone",
+          down > bottom and back.routes[0].tone == "flg",
+          str(back.routes[0].points))
+    check("...and the two detours never share a side, so they cannot overdraw",
+          up < top < bottom < down)
+    check("the canvas grew to hold the detour it drew, margin included",
+          back.view[1] + back.view[3] >= down + dl.MARGIN - 1e-9,
           str(back.view))
     holds("`pipeline` is a spelling of `row`, not a fourth shape",
           fence("pipeline", "a: uno", "b: dos", "a -> b"), "<svg ")
@@ -537,8 +540,8 @@ try:
     # The one label the layout will not draw: `figure svg { width: 100% }`
     # scales the viewBox to the page, so a box wider than the page has no
     # readable size left. Everything SHORTER is laid out and scaled, never cut.
-    fits = "L" * 88
-    over = "L" * 89
+    fits = "L" * 85
+    over = "L" * 86
     check("the refusal boundary is where a box outgrows the page",
           dl.text_width(fits) + 2 * dl.PAD_X <= dl.MAX_BOX_W
           < dl.text_width(over) + 2 * dl.PAD_X,
@@ -602,8 +605,7 @@ try:
         # UNESCAPED, because that is what the checker measures: it strips the
         # tags and runs `html.unescape` before sizing. Measuring `&#x27;` as
         # six characters is the same confusion as measuring bytes.
-        tw = check_artifact.svg_text_width(_html.unescape(text), dl.FS,
-                                           mono=True)
+        tw = check_artifact.svg_text_width(_html.unescape(text), dl.FS)
         if tw > 0:
             margins.append((rw + max(4.0, 0.06 * tw)) / tw)
     # The floor is analytic, not a hope: a box is `tw + 2*PAD_X` wide and the
@@ -620,6 +622,372 @@ try:
           floor > 1.10, "%.4f" % floor)
 
     print()
+    print("== Phase 4: page font, sublabels, a compact decision, direction ==")
+    # The F-shape flow of the route A/B review: five steps, a decision, two
+    # branches. At 1280 the kit's column is 888 px (78rem cap, 15rem rail,
+    # 3.5rem gap); at 390 it is 294 px (100vw - 6rem). F5's hand-drawn diagram
+    # was a 720 x 330 viewBox stretched to 888 px, so 407 px tall.
+    COL_1280, COL_390, BODY_PX = 888.0, 294.0, 17.0
+    F5_H = 330.0 * COL_1280 / 720.0
+    F_SHAPE = fence(
+        "row", "p: Prompt", "c: Cortar | en partes", "r: Enrutar | por la tabla",
+        "d: ¿Prof. ≥ piso?", "g: Delegar | al agente", "s: Se queda | aquí",
+        "p -> c", "c -> r", "r -> d", "d -> g", "d -> s")
+    f_rows = [(i + 2, ln) for i, ln in
+              enumerate(F_SHAPE.split("\n")[1:-1])]
+    f_boxes, f_arrows, f_titles = dl.parse_body(f_rows, "row")
+    wide, narrow = dl.drawings("row", f_boxes, f_arrows, f_titles)
+    fb = by_name(wide)
+    check("the F-shape builds left to right: each step right of the last",
+          wide.dir == "lr" and fb["p"].x < fb["c"].x < fb["r"].x < fb["d"].x
+          < fb["g"].x, "dir=%s" % wide.dir)
+    check("...its two branches share a column, stacked, not in a row",
+          abs(fb["g"].cx - fb["s"].cx) < 1e-9
+          and (fb["g"].y + fb["g"].h <= fb["s"].y
+               or fb["s"].y + fb["s"].h <= fb["g"].y),
+          "g=(%.1f,%.1f) s=(%.1f,%.1f)" % (fb["g"].x, fb["g"].y,
+                                           fb["s"].x, fb["s"].y))
+    scale = min(dl.MAX_SCALE, COL_1280 / wide.view[2])
+    check("node text is at most the body size at 1280 (%.1f px)"
+          % (dl.FS * scale), dl.FS * scale <= BODY_PX)
+    dec = fb["d"]
+    check("the decision node is no wider than twice its text (%.0f vs %.0f)"
+          % (dec.w, dl.text_width(dec.label)),
+          dec.decision and dec.w <= 2 * dl.text_width(dec.label))
+    check("the figure is no taller than 1.5x F5's diagram (%.0f vs %.0f px)"
+          % (wide.view[3] * scale, F5_H), wide.view[3] * scale <= 1.5 * F5_H)
+    check("a box carries its sublabel", fb["c"].sub == "en partes"
+          and fb["p"].sub == "" and fb["c"].label == "Cortar")
+    check("at 390 the flow reflows to a vertical drawing narrow enough for "
+          "11 px sublabels (%s)" % (narrow and "%.0f wide" % narrow.view[2]),
+          narrow is not None and narrow.dir == "tb"
+          and dl.SUB_FS * min(dl.MAX_SCALE, COL_390 / narrow.view[2]) >= 11
+          and dl.FS * min(dl.MAX_SCALE, COL_390 / narrow.view[2]) >= 11)
+    nb = by_name(narrow)
+    check("...top to bottom in declaration order",
+          nb["p"].y < nb["c"].y < nb["r"].y < nb["d"].y < nb["g"].y < nb["s"].y)
+    html = holds("the F-shape builds through the spec", F_SHAPE, "<svg ")
+    svgs = re.findall(r"<svg\b.*?</svg>", html, re.S)
+    check("...into two drawings, the wide one first",
+          len(svgs) == 2 and 'class="dg-wide"' in svgs[0]
+          and 'class="dg-narrow"' in svgs[1], str([s[:80] for s in svgs]))
+    check("...and the swap rule that shows one of them per width",
+          re.search(r"<style>[^<]*@media \(max-width: *48rem\)[^<]*svg\.dg-wide"
+                    r"[^<]*display: *none", html) is not None, html[:400])
+    check("no diagram text is drawn in the monospace stack",
+          "monospace" not in html, html[:400])
+    check("...every drawing takes the kit's sans token",
+          all('font-family:var(--sans)' in s.split(">", 1)[0] for s in svgs))
+    check("...and never grows past MAX_SCALE (a max-width on the root)",
+          all(re.search(r'max-width:[\d.]+px', s.split(">", 1)[0]) for s in svgs))
+    check("the sublabel is a second, smaller, muted line inside its box",
+          re.search(r'<text class="mut"[^>]*font-size="%s"[^>]*>en partes<'
+                    % ds._num(dl.SUB_FS), svgs[0]) is not None, svgs[0])
+    check("the decision is a rounded box (rx = half its height)",
+          re.search(r'<rect[^>]*rx="%s"' % ds._num(dl.SUB_BOX_H / 2.0),
+                    svgs[0]) is not None)
+    got = findings(html)
+    check("no svg-text finding on either drawing", not got, "\n".join(got))
+
+    # Direction: lr when the lr drawing fits the page, otherwise tb.
+    long_f = fence("row", *["b%d: una etiqueta bastante larga %d" % (i, i)
+                            for i in range(6)])
+    lw, ln = dl.drawings("row", *dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(long_f.split("\n")[1:-1])], "row"))
+    check("a flow too wide for the page is drawn top to bottom, alone",
+          lw.dir == "tb" and ln is None, "dir=%s" % lw.dir)
+    short = build(fence("row", "a: uno", "b: dos", "a -> b"))
+    check("a flow narrow enough for 390 needs no second drawing",
+          len(re.findall(r"<svg\b", short)) == 1 and "<style>" not in short)
+    holds("dir=tb forces the vertical drawing",
+          "::: diagram {shape=row dir=tb}\na: uno\nb: dos\na -> b\n:::",
+          "<svg ")
+    t_lay = dl.drawings("row", *dl.parse_body([(2, "a: uno"), (3, "b: dos")],
+                                                "row"), direction="tb")[0]
+    check("...which stacks the boxes", t_lay.dir == "tb"
+          and t_lay.boxes[0].y < t_lay.boxes[1].y
+          and t_lay.boxes[0].cx == t_lay.boxes[1].cx)
+    rejects("an unknown dir is refused at the fence",
+            "::: diagram {shape=row dir=rl}\na: x\n:::", 1, "dir=", SpecBuildError)
+    rejects("dir on a shape that has no direction is refused",
+            "::: diagram {shape=cycle dir=lr}\na: x\nb: y\n:::", 1, "dir",
+            SpecBuildError)
+    rejects("a sublabel after `|` may not be empty",
+            fence("row", "a: Cortar |"), 2, "empty sublabel", SpecSyntaxError)
+    rejects("...nor the label before it",
+            fence("row", "a: | en partes"), 2, "empty label", SpecSyntaxError)
+
+    # No LEG of any route enters a box, its own two ends included. The one
+    # owner of that check: each straight leg is clipped against the box's open
+    # interior (Liang-Barsky), and a quadratic is cut into 400 short legs.
+    def _hits(p, q, b, eps=0.01):
+        x0, y0 = b.x + eps, b.y + eps
+        x1, y1 = b.x + b.w - eps, b.y + b.h - eps
+        dx, dy = q[0] - p[0], q[1] - p[1]
+        t0, t1 = 0.0, 1.0
+        for pp, qq in ((-dx, p[0] - x0), (dx, x1 - p[0]),
+                       (-dy, p[1] - y0), (dy, y1 - p[1])):
+            if pp == 0:
+                if qq <= 0:
+                    return False
+            else:
+                r = qq / pp
+                if pp < 0:
+                    t0 = max(t0, r)
+                else:
+                    t1 = min(t1, r)
+        return t1 - t0 > 1e-9
+
+    def _legs(pts):
+        if len(pts) == 3:
+            pts = [((1 - t) ** 2 * pts[0][0] + 2 * t * (1 - t) * pts[1][0]
+                    + t * t * pts[2][0],
+                    (1 - t) ** 2 * pts[0][1] + 2 * t * (1 - t) * pts[1][1]
+                    + t * t * pts[2][1])
+                   for t in [k / 400.0 for k in range(401)]]
+        return list(zip(pts, pts[1:]))
+
+    def entered(L):
+        return sorted({(k, b.name) for k, r in enumerate(L.routes)
+                       for p, q in _legs(r.points) for b in L.boxes
+                       if _hits(p, q, b)})
+
+    # Two arrows that share no box must not share ink: no axis-aligned stretch
+    # longer than 1 unit in common, and no end of one within 1 unit of an end
+    # of the other — except a fan out of one port of a shared source or into
+    # one port of a shared target. Route k is arrow k (declaration order).
+    def merged(L, arrows):
+        out, R = [], L.routes
+        for i in range(len(R)):
+            for j in range(i + 1, len(R)):
+                a, b = arrows[i], arrows[j]
+                pi, pj = R[i].points, R[j].points
+                for ki, u in (("start", pi[0]), ("end", pi[-1])):
+                    for kj, v in (("start", pj[0]), ("end", pj[-1])):
+                        if math.hypot(u[0] - v[0], u[1] - v[1]) >= 1:
+                            continue
+                        if ki == kj == "start" and a.src == b.src:
+                            continue
+                        if ki == kj == "end" and a.dst == b.dst:
+                            continue
+                        out.append(("port", "%s->%s %s" % (a.src, a.dst, ki),
+                                    "%s->%s %s" % (b.src, b.dst, kj)))
+                if a.src == b.src or a.dst == b.dst:
+                    continue
+                if len(pi) == 3 or len(pj) == 3:
+                    continue
+                for p, q in zip(pi, pi[1:]):
+                    for s_, t_ in zip(pj, pj[1:]):
+                        for ax in (0, 1):
+                            o = 1 - ax
+                            if not (p[o] == q[o] == s_[o] == t_[o]):
+                                continue
+                            lo = max(min(p[ax], q[ax]), min(s_[ax], t_[ax]))
+                            hi = min(max(p[ax], q[ax]), max(s_[ax], t_[ax]))
+                            if hi - lo > 1:
+                                out.append(("stretch", "%s->%s" % (a.src, a.dst),
+                                            "%s->%s" % (b.src, b.dst)))
+        return out
+
+    tricky = ["a: A", "b: una caja muy ancha en medio", "c: C",
+              "d: otra caja ancha también", "e: E",
+              "a -> b", "b -> c", "c -> d", "d -> e", "a -> e", "e -> a",
+              "a -> c"]
+    rows = [(i + 2, x) for i, x in enumerate(tricky)]
+    for direction in ("lr", "tb"):
+        L = dl.drawings("row", *dl.parse_body(rows, "row"),
+                        direction=direction)[0]
+        hit = entered(L)
+        check("%s: no arrow passes through a box it does not join" % direction,
+              not hit, str(hit[:5]))
+    # A skip arc over a BRANCH: the stacked column stands taller than the two
+    # boxes the arc joins, so a bow of a fixed ARC above them cuts its top box.
+    branch = ["a: A", "b: B de arriba", "c: C de abajo", "d: D", "e: E",
+              "a -> b", "a -> c", "b -> d", "c -> d", "d -> e", "a -> d",
+              "e -> a"]
+    L = dl.drawings("row", *dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(branch)], "row"))[0]
+    hit = entered(L)
+    check("lr: an arc over a stacked branch clears its top and bottom box",
+          L.dir == "lr" and not hit, str(hit[:5]))
+    hit = entered(narrow) + entered(wide)
+    check("F-shape, both drawings: no arrow through a box", not hit,
+          str(hit[:5]))
+
+    # Review round (review-diff-opus, DO NOT SHIP): an arc whose END box has a
+    # sibling stacked in its column put the control point ~37,500 units out.
+    def drawn(*body, **kw):
+        return dl.drawings("row", *dl.parse_body(
+            [(i + 2, x) for i, x in enumerate(body)], "row"), **kw)[0]
+
+    def near_bounds(L):
+        x0 = min(b.x for b in L.boxes) - dl.ARC * 3
+        x1 = max(b.x + b.w for b in L.boxes) + dl.ARC * 3
+        y0 = min(b.y for b in L.boxes) - dl.ARC * 3
+        y1 = max(b.y + b.h for b in L.boxes) + dl.ARC * 3
+        return [p for r in L.routes for p in r.points
+                if not (x0 <= p[0] <= x1 and y0 <= p[1] <= y1)]
+    tall = 4 * dl.SUB_BOX_H + 2 * dl.ARC + 2 * dl.MARGIN
+    REPROS = [
+        ("a retry from the upper branch", (
+            "b: Build", "t: Tests pass?", "f: Fix", "s: Ship",
+            "b -> t", "t -> f", "t -> s", "f -> b")),
+        ("a skip into the lower branch of the F-shape", (
+            "p: Prompt", "c: Cortar | en partes", "r: Enrutar | por la tabla",
+            "d: ¿Prof. ≥ piso?", "g: Delegar | al agente",
+            "s: Se queda | aquí", "p -> c", "c -> r", "r -> d", "d -> g",
+            "d -> s", "r -> s")),
+        ("a skip into a stacked pair", (
+            "a: A", "b: B", "c: C", "d: D",
+            "a -> b", "b -> c", "b -> d", "a -> d")),
+    ]
+    for label, body in REPROS:
+        L = drawn(*body)
+        check("%s: the drawing stays under %.0f units tall (%.0f)"
+              % (label, tall, L.view[3]), L.view[3] < tall)
+        far = near_bounds(L)
+        check("%s: every route point within 3 ARC of the boxes" % label,
+              not far, str(far[:3]))
+        hit = entered(L)
+        check("%s: no arrow through a box" % label, not hit, str(hit[:5]))
+
+    # A plain row declared out of order stays a row: nothing is stacked
+    # unless two boxes are pointed at by the same box.
+    L = drawn("a: Start", "b: End", "c: Middle", "a -> c", "c -> b")
+    check("a row declared out of order is not stacked into a column",
+          len({round(b.cx, 2) for b in L.boxes}) == 3,
+          str([(b.name, round(b.x), round(b.y)) for b in L.boxes]))
+    hit = entered(L)
+    check("...and no arrow crosses a box it does not join", not hit,
+          str(hit[:5]))
+    # `flg` means backward: to an earlier column it ends LEFT of where it
+    # starts; between two boxes of one column (same rank, stacked in
+    # declaration order) backward is UP, so it ends above where it starts.
+    for body in (("a: A", "b: B", "c: C", "z: Z",
+                  "a -> b", "b -> c", "a -> z", "z -> c"),
+                 ("a: Start", "b: End", "c: Middle", "a -> c", "c -> b"),
+                 ("a: A", "b: B", "c: C", "a -> b", "a -> c", "c -> b"),
+                 REPROS[0][1]):
+        L = drawn(*body)
+        wrong = [r.points for r in L.routes if r.tone == "flg"
+                 and not (r.points[-1][0] < r.points[0][0]
+                          or (abs(r.points[-1][0] - r.points[0][0]) < 1e-9
+                              and r.points[-1][1] < r.points[0][1]))]
+        check("every flg arrow runs backward: leftward, or up its column "
+              "(%s)" % body[-1], not wrong, str(wrong[:2]))
+
+    def parsed(*body):
+        return dl.parse_body([(i + 2, x) for i, x in enumerate(body)], "row")
+
+    def bounded(L, arrows):
+        # lr: the tallest column, the detour lanes it needs, and margins
+        cols = {}
+        for b in L.boxes:
+            cols.setdefault(round(b.cx, 2), []).append(b)
+        tallest = max(sum(b.h for b in c) + dl.VGAP * (len(c) - 1)
+                      for c in cols.values())
+        return L.view[3] <= (tallest + 2 * dl.MARGIN + 2 * dl.DETOUR
+                             + len(arrows) * dl.LANE + 1e-6)
+
+    def legible(L):
+        # the drawing a 390 px screen shows: the kit's 294 px column
+        k = min(dl.MAX_SCALE, COL_390 / L.view[2])
+        subs = any(b.sub for b in L.boxes)
+        return dl.FS * k >= 11 and (not subs or dl.SUB_FS * k >= 11)
+
+    NAMED = [
+        ("two stacked columns, arcs into and out of each stack", (
+            "a: A", "b: B", "c: C", "d: D", "e: E", "f: F",
+            "a -> b", "a -> c", "b -> d", "c -> d", "d -> e", "d -> f",
+            "b -> f", "c -> e")),
+        ("a branch whose narrow sibling feeds the next column", (
+            "q: Ready?", "y: Delegar al agente especializado", "n: No",
+            "m: Reintentar", "k: Abandonar",
+            "q -> y", "q -> n", "n -> m", "n -> k")),
+        ("an arrow between two boxes of one column", (
+            "a: A", "b: B", "c: C", "a -> b", "a -> c", "c -> b")),
+        ("a retry back over the row", (
+            "a: Build", "b: Test", "c: Fix", "a -> b", "b -> c", "c -> a")),
+    ]
+    for label, body in NAMED:
+        boxes_, arrows_, titles_ = parsed(*body)
+        for direction in ("lr", "tb"):
+            L = dl.drawings("row", boxes_, arrows_, titles_,
+                            direction=direction)[0]
+            hit = entered(L)
+            check("%s (%s): no leg enters a box" % (label, direction),
+                  not hit, str(hit[:4]))
+            m = merged(L, arrows_)
+            check("%s (%s): no two arrows share a stretch or a port"
+                  % (label, direction), not m, str(m[:4]))
+    # A label too long for 390 in one line wraps in the vertical drawing.
+    long_lbl = "Revisar el contrato con el cliente antes de firmar"
+    wide_, narrow_ = dl.drawings("row", *parsed(
+        "a: " + long_lbl, "b: Firmar", "c: Archivar", "a -> b", "b -> c"))
+    check("a long label: the tb twin keeps text at 11 px or more at 390 (%s)"
+          % (narrow_ and "%.0f wide" % narrow_.view[2]),
+          narrow_ is not None and legible(narrow_))
+    check("...by wrapping the label, every word kept in order",
+          narrow_ is not None and len(narrow_.boxes[0].lines) >= 2
+          and " ".join(narrow_.boxes[0].lines) == long_lbl
+          and wide_.boxes[0].lines == [long_lbl],
+          str(narrow_ and narrow_.boxes[0].lines))
+    html = holds("...and the wrapped label builds",
+                 fence("row", "a: " + long_lbl, "b: Firmar", "c: Archivar",
+                       "a -> b", "b -> c"), "<svg ")
+    got = findings(html)
+    check("...with no svg-text finding on either drawing", not got,
+          "\n".join(got))
+    import random as _random
+    rng = _random.Random(20260925)
+    bad_cross, bad_tall, bad_merge, bad_small, graphs = [], [], [], [], 0
+    for _ in range(300):
+        n = rng.randint(3, 7)
+        names = [chr(97 + i) for i in range(n)]
+        edges = set()
+        for i in range(n - 1):
+            if rng.random() < 0.7:
+                edges.add((names[i], names[i + 1]))
+        for _k in range(rng.randint(0, 4)):
+            edges.add(tuple(rng.sample(names, 2)))
+        body = ["%s: %s%s%s" % (x, x.upper() * rng.randint(1, 12),
+                                "?" if rng.random() < 0.15 else "",
+                                " | sub" if rng.random() < 0.2 else "")
+                for x in names] + ["%s -> %s" % e for e in sorted(edges)]
+        boxes_, arrows_, titles_ = parsed(*body)
+        for direction in ("lr", "tb"):
+            graphs += 1
+            L = dl.drawings("row", boxes_, arrows_, titles_,
+                            direction=direction)[0]
+            if entered(L):
+                bad_cross.append((direction, " ; ".join(body), entered(L)[:2]))
+            m = merged(L, arrows_)
+            if m:
+                bad_merge.append((direction, " ; ".join(body), m[:2]))
+            if direction == "lr" and not bounded(L, arrows_):
+                bad_tall.append((direction, L.view[3], " ; ".join(body)))
+            if direction == "tb" and not legible(L):
+                bad_small.append((L.view[2], " ; ".join(body)))
+    check("random sweep: no leg enters a box (%d drawings, %d crossing)"
+          % (graphs, len(bad_cross)), not bad_cross, str(bad_cross[:3]))
+    check("random sweep: no two arrows that share no box share a stretch or "
+          "a port (%d merged)" % len(bad_merge), not bad_merge,
+          str(bad_merge[:3]))
+    check("random sweep: every lr drawing is its tallest column plus its "
+          "detour lanes (%d over)" % len(bad_tall), not bad_tall,
+          str(bad_tall[:3]))
+    check("random sweep: every tb drawing keeps its text at 11 px or more "
+          "at 390 (%d under)" % len(bad_small), not bad_small,
+          str(bad_small[:3]))
+    # A literal bar in a label is `\|`.
+    b = dl.parse_body([(2, "x: a \\| b")], "row")[0][0]
+    check("`\\|` is a literal bar, not a sublabel",
+          b.label == "a | b" and b.sub == "", "%r / %r" % (b.label, b.sub))
+    b = dl.parse_body([(2, "x: a \\| b | c")], "row")[0][0]
+    check("...and the first bare `|` still opens the sublabel",
+          b.label == "a | b" and b.sub == "c", "%r / %r" % (b.label, b.sub))
+
+    print()
     print("== colour: three classes, currentColor, zero hex ==")
     html = build(fence("row", "a: uno", "b: dos", "a -> b", "b -> a"))
     svg = svg_of(html)
@@ -630,7 +998,7 @@ try:
           set(re.findall(r'class="([a-z]+)"', svg)) <= {"acc", "flg", "mut"},
           str(set(re.findall(r'class="([a-z]+)"', svg))))
     check("nothing is painted with a var() in a presentation attribute",
-          "var(--" not in svg, svg)
+          not re.search(r'\b(fill|stroke)="var\(', svg), svg)
     hexes = []
     for label, page in BUILT:
         found = re.findall(r'#[0-9a-fA-F]{3,8}\b', svg_of(page))
@@ -697,7 +1065,8 @@ try:
     check("check-artifact.sh passes the built page on its own",
           r.returncode == 0, r.stdout + r.stderr)
     page = open(out, encoding="utf-8").read()
-    check("the page carries all three shapes", page.count("<svg ") == 3,
+    check("the page carries all three shapes (the row with its narrow twin)",
+          page.count("<svg ") == 4 and page.count('class="dg-narrow"') == 1,
           page[:200])
     check("...and the kit", "artifact-kit" in page)
     check("...and its ids survive byte-exactly",
@@ -753,7 +1122,7 @@ print()
 if failures:
     print("%d failure(s)" % len(failures))
     raise SystemExit(1)
-print("OK — the diagram block: the monospace column metric (characters, never "
+print("OK — the diagram block: the sans metric (characters, never "
       "bytes, wide characters at two, never below the checker's own), a box "
       "sized to its own label, every malformed line refused at its own line "
       "inside the fence and the block's three at the fence line, the three "
