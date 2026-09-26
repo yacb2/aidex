@@ -48,6 +48,10 @@ block against this canonical one and fails on any mismatch.
   payload capture, screenshot, `proof_links` entry) produced before the phase commit. A green
   gate with no artifact is retried for the artifact, never passed — this is the mechanical
   carrier of the `proof_links` mandate, which prose alone left at 7.6% adoption.
+- **Reported out-of-scope bugs survive the phase** — an implementer that finds a bug outside
+  its phase reports it as an `OUT-OF-SCOPE BUG: ...` line in `summary` instead of patching it;
+  `runPhase` collects those lines from every attempt and returns them as `outOfScopeBugs` on
+  every path (pass, gate failure, blocked-STOP, deny-STOP), for the orchestrator to route.
 - **Transient verifier failure ≠ gate verdict** — a `null` proof (verifier agent died)
   gets one verifier retry before counting as a failed attempt.
 
@@ -135,8 +139,16 @@ async function runPhase(phase, ctx) {
   let feedback = ''
   let directed = 0
   const asks = []
+  // Bugs the implementer reported instead of patching (an `OUT-OF-SCOPE BUG: ...` summary
+  // line), from EVERY attempt, returned on EVERY path: the orchestrator routes them to a
+  // bugfix run, so a line dropped here is a bug nobody routes.
+  const outOfScopeBugs = []
   for (let attempt = 1; attempt <= K + 1; attempt++) {
     const work = await phase.implement(feedback, attempt)
+    for (const line of String((work && work.summary) || '').split('\n')) {
+      const bug = line.trim()
+      if (bug.startsWith('OUT-OF-SCOPE BUG:') && !outOfScopeBugs.includes(bug)) outOfScopeBugs.push(bug)
+    }
     // Director path: a blocked implementer consults the arbiter BEFORE burning a gate
     // attempt; CONTINUE re-launches it with the direction (max 2 redirects per phase).
     if (work && work.blocked_reason && !work.done && directed < 2) {
@@ -147,16 +159,16 @@ async function runPhase(phase, ctx) {
       )
       if (v && v.verdict === 'CONTINUE') {
         directed++
-        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase.`
+        feedback = `Arbiter direction: ${v.action || v.reason} Do not stop for this; complete the phase's own work — a bug outside its scope stays unpatched and reported.`
         attempt--
         continue
       }
-      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks }
+      return { phaseId: phase.id, passed: false, attempts: attempt, escalated: v || { verdict: 'ASK', reason: 'arbiter unavailable on blocked implementer' }, asks, outOfScopeBugs }
     }
     // Publication/deny path: actions the implementer REPORTED instead of performing.
     for (const action of (work && work.pending_actions) || []) {
       const c = await checkAction(action, ctx)
-      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks }
+      if (c && c.verdict === 'STOP') return { phaseId: phase.id, passed: false, attempts: attempt, escalated: c, asks, outOfScopeBugs }
       if (c && c.verdict === 'ASK') asks.push(c.batched_question || `Authorize: ${action}?`)
       // CONTINUE: pre-authorized or outside pub/deny — nothing to gate.
     }
@@ -175,7 +187,7 @@ async function runPhase(phase, ctx) {
         log(`gate ${phase.id}: attempt ${attempt} green but no proof artifact — retrying for proof`)
         continue
       }
-      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks }
+      return { phaseId: phase.id, passed: true, attempts: attempt, proof, work, asks, outOfScopeBugs }
     }
     feedback = `Attempt ${attempt} failed the gate (exit ${proof ? proof.exit_code : 'n/a'}). Fix the root cause:\n${proof ? proof.evidence : 'verifier unavailable'}`
     log(`gate ${phase.id}: attempt ${attempt} failed (exit ${proof ? proof.exit_code : 'n/a'})`)
@@ -184,7 +196,7 @@ async function runPhase(phase, ctx) {
     `Phase ${phase.id} failed its machine gate ${K + 1} times. Decide STOP (clean halt) or ASK (escalate).`,
     ctx.autonomySurface
   )
-  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks }
+  return { phaseId: phase.id, passed: false, attempts: K + 1, escalated: v, asks, outOfScopeBugs }
 }
 
 // Publication/deny trigger (decision Q2): consult the arbiter ONLY when a pending action

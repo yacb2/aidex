@@ -57,6 +57,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                or more `<code>` tokens or semicolon-separated clauses — the shape
                of "N things with their state and verdict" written as prose, which
                the reader returns unread; rows, not a paragraph (BL-269, BL-270)
+  consult-order a block whose last item is followed by evidence (figure, img,
+               svg, video, table, canvas, a `@@VIDEO` marker paragraph) before
+               the block ends — the answer box rendered above the material it
+               asks about; evidence precedes its question (BL-463)
   svg-text     two inline-SVG labels whose estimated boxes intersect, a label
                that leaves its viewBox, or a label wider than the rect it sits
                in — a consultation shipped two unreadable figures past every
@@ -742,6 +746,49 @@ def facts_paragraphs(body):
         if codes >= FACTS_MIN or clauses >= FACTS_MIN:
             excerpt = ' '.join(prose.split())
             out.append((codes, clauses, excerpt[:60]))
+    return out
+
+
+# The item-before-its-evidence shape (BL-463). §8.4 orders a unit as evidence ->
+# question, so evidence BETWEEN two items is the next item's and reads right;
+# only evidence left after a block's LAST item has no question below it. That is
+# the one position a checker can judge without guessing which item a video is
+# for. Read on the built HTML, where every block has already become markup; a
+# `@@VIDEO` marker paragraph counts because a project's post-build step turns it
+# into <video> after this check has run (codefilm round 4, 2026-09-25).
+EVIDENCE_TAGS = {"figure", "img", "svg", "video", "table", "canvas"}
+EVIDENCE_INSIDE = re.compile(r'<(?:figure|img|svg|video|table|canvas)\b', re.I)
+VIDEO_MARKER = re.compile(r'^\s*@@VIDEO\b')
+
+
+def trailing_evidence(text):
+    """[(group_id, item_id, evidence_tag)] for every block whose last item is
+    followed, before the block ends, by a figure, img, svg, video, table,
+    canvas or `@@VIDEO` paragraph."""
+    out = []
+    for g in GROUP_OPEN.finditer(text):
+        body = strip_html_comments(strip_script_style(_subtree(text, g.group(1), g.end())))
+        last, after = None, None
+        for tag, open_tag, inner in _child_nodes(body):
+            if tag is None:
+                continue
+            m = None
+            for m in ITEM_OPEN.finditer(open_tag + inner):
+                pass
+            if m:
+                last, after = next(x for x in m.groups()[1:] if x is not None), None
+            elif last and after is None:
+                t = tag.lower()
+                # A paragraph is evidence only as a video marker: an inline
+                # icon or legend swatch inside prose is decoration.
+                if t == "p":
+                    if VIDEO_MARKER.match(inner):
+                        after = "@@VIDEO"
+                elif t in EVIDENCE_TAGS or EVIDENCE_INSIDE.search(inner):
+                    after = t
+        if last and after:
+            gid = _tag_attr(g.group(0), "data-id") or _tag_attr(g.group(0), "id") or "?"
+            out.append((gid, last, after))
     return out
 
 
@@ -1956,6 +2003,18 @@ def warn_file(path):
                           f"paragraph (§8.4, BL-269/BL-270). Rewrite it as "
                           f"rows; this warning is cleared by the rewrite, not "
                           f"by a waiver"))
+
+    try:
+        trailing = trailing_evidence(text)
+    except Exception:                               # noqa: BLE001 — advisory
+        trailing = []
+    for gid, ident, kind in trailing:
+        warns.append(("consult-order", name,
+                      f"block '{gid}' ends with evidence ({kind}) after its last "
+                      f"item '{ident}' — the reader meets the answer box before "
+                      f"the material it asks about. Evidence precedes its "
+                      f"question and an item closes its unit (§8.4, BL-463): "
+                      f"move the evidence above the item it belongs to"))
     return warns
 
 

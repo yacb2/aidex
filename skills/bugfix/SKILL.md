@@ -29,6 +29,8 @@ The bug-fix workflow is these nine steps — the agent table and prose below key
    test type**: it holds the signal→type decision matrix, the naming convention, the
    regression-test structure, and the cases where an automated test is the wrong call.
    The summary below is the first column of that matrix, not a substitute for it.
+   Where the regression test goes and how many to write — one, at the owning layer — is
+   `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md` § Bug regressions; read it with the matrix.
 3. Confirm test fails **for the right reason** — the failure message names the buggy behavior, not an import/syntax/setup error. Verify this before writing the fix.
 4. Implement minimum fix
 5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)

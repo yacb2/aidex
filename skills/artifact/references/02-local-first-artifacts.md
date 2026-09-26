@@ -1075,6 +1075,18 @@ messages and the tests; § 8.4 is the block shape.
    the block: the item rule was being satisfied by growing the items while
    the context above them never moved.
 
+   **Evidence precedes its question; an item is the last block of its unit.** The
+   reader sees what must be judged, then answers it: the prose, table, figure or video
+   a decision rests on sits ABOVE that item, per decision (evidence, item, evidence,
+   item) or per block (all the evidence, then the items). Never item first and its
+   material below — spec_build keeps source order, so a `::: item` written above its
+   videos renders the answer box first. Reported from use on the codefilm round-4 page
+   (2026-09-25), which put every item above the videos it asked about.
+   `check-artifact.sh` warns (`consult-order`) when evidence is left after a block's
+   last item. It cannot see a middle item placed before its own evidence: that
+   evidence sits before the next item, which is the prescribed order, so which item
+   it belongs to is yours to hold.
+
    **A fact a decision rests on is an item, or the brief says it is not one.** Before the
    brief is handed over, list what each decision depends on. Each of those facts is either
    its own `consult-item` with its own stable id, or is written in the brief as a
@@ -1438,7 +1450,7 @@ exempts nothing, same rule as the visual declaration.
 | `consult-ids` | an id kept between two versions now names a different claim |
 | `rail` | a kit page inside `.page`/`.main` with no `#raillist`, or an `<h2>` outside any id'd `<section>` — composer.js builds the index at load from `.main > section[id]`, so either way the reader opens a page with a missing or partial index (D4, 2026-09-13: two delegated pages shipped so). `wrap-report.sh` injects the aside after `</main>` when the body has none |
 
-**Four findings are WARNINGS, not violations.** They print as `WARN [check]`, never change
+**The findings below are WARNINGS, not violations.** They print as `WARN [check]`, never change
 the exit code, and are not waivable — a waiver keys on (`artifact-<check>`, path), and
 sharing that namespace would let one waiver silence a real failure on the same file. They
 run at authoring time only (a direct check of named files), never in `--census`: a warning
@@ -1450,6 +1462,7 @@ on a page nobody is editing is noise no one can clear.
 | `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
+| `consult-order` | a block's last item is followed, before the block ends, by a figure, img, svg, video, table, canvas or a `<p>@@VIDEO …@@</p>` marker (a project post-build step turns those into `<video>`) — the answer box renders above the material it asks about (§8.4, BL-463). Cleared by moving the evidence above its item |
 | `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
 | `svg-scope` | a bare element selector inside an embedded `<style>` — it is a stylesheet in the page, so it paints every matching node in the document (BL-330). Cleared by scoping it to the figure's id, never by a waiver |
 

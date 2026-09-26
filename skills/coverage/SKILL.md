@@ -1,6 +1,6 @@
 ---
 name: coverage
-description: 'Use when writing, placing, or running tests in any project — which layer a behaviour belongs in ("unit or E2E for X", "component test or browser test"), which tests to run for a change instead of the whole suite, when to extract a fixture, setting up an isolated disposable E2E environment, or the per-project testing profile and the stack pack it names for the concrete test shapes (Django, Vue, Playwright, Payload, Svelte). Fires on "write a test for", "add a regression test", "which tests should I run", "run only the affected tests", "set up E2E for this project", "generate test-e2e.sh", "how do we test this stack". Not for: running a coverage audit, the module map / coverage matrix, tracking a finding, or suite-speed measurement — all of that is audit''s test-coverage playbook.'
+description: 'Use when planning or placing tests rather than writing one — which layer a behaviour belongs in ("unit or E2E for X", "component test or browser test"), which tests to run for a change instead of the whole suite, when to extract a fixture, setting up an isolated disposable E2E environment, or the per-project testing profile and the stack pack it names (Django, Vue, Playwright, Payload, Svelte). Fires on "which tests should I run", "run only the affected tests", "set up E2E for this project", "generate test-e2e.sh", "how do we test this stack". Not for: writing or changing a test (/aidex:testing); running a coverage audit, the module map / coverage matrix, tracking a finding, or suite-speed measurement — all of that is audit''s test-coverage playbook.'
 allowed-tools: Bash Read Grep Glob Write Edit
 ---
 
@@ -22,6 +22,10 @@ selection that can observe it (`/aidex:audit affected-tests --command`, or the p
 single-test command, or one spec via `./test-e2e.sh e2e/<spec>.spec.ts`); the whole suite
 runs once, at plan close-out or pre-merge. A full E2E suite costs ~5 minutes; spending
 that per change is what this rule exists to stop.
+
+**Writing a test is `testing`'s.** The four questions asked before a test is added, the
+one-owner rule and the patterns of a test that earns nothing live in
+`${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md`; this skill is the doctrine it points to.
 
 **What this skill is not.** It does not run an audit, does not build or read
 `module-map.json` or `coverage-matrix.json`, does not track a finding through its
@@ -48,6 +52,7 @@ authoring rule for anyone writing a new coverage-bearing test.
 | How do I check changed-lines coverage on a branch? | [references/05-diff-cover.md](references/05-diff-cover.md) |
 | What is the per-module checklist the playbook's judged layer runs (endpoint census, scaffold sweep, cross-layer duplicates)? | [references/06-judgment-pass.md](references/06-judgment-pass.md) |
 | This test passes — what would make it pass over broken code anyway? | [references/15-green-that-proves-nothing.md](references/15-green-that-proves-nothing.md) |
+| This test is correct — is it worth keeping, or does another test already own the failure? | `testing`'s [references/16-tests-that-earn-nothing.md](../testing/references/16-tests-that-earn-nothing.md) |
 | Which tests do I run for this change, and when does the selection widen? | [references/13-affected-tests-expansion.md](references/13-affected-tests-expansion.md) |
 | What goes in the per-project profile, which stack packs exist, and what never goes in the profile? | [references/14-testing-profile.md](references/14-testing-profile.md) |
 | How do I write a backend / component / store / E2E test, which helpers exist, how is the disposable E2E environment built and `test-e2e.sh` generated, how do seed generators work? | The stack pack named by the profile — see below |
