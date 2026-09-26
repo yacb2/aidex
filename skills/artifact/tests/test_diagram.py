@@ -938,9 +938,72 @@ try:
     got = findings(html)
     check("...with no svg-text finding on either drawing", not got,
           "\n".join(got))
+    # A sublabel wider than 390 on its own wraps too: the label is not
+    # broken one word per line to make room for a sublabel that never fits.
+    sub_body = ("a: Delegar al agente | una segunda linea bastante larga "
+                "para esta caja", "b: Firmar el contrato con el cliente",
+                "c: Archivar", "a -> b", "b -> c")
+    sub_ = dl.drawings("row", *parsed(*sub_body))[0]
+    check("a long sublabel: the tb drawing keeps text at 11 px or more at "
+          "390 (%.0f wide)" % sub_.view[2],
+          sub_.dir == "tb" and legible(sub_))
+    check("...and the label is not broken one word per line",
+          sub_.boxes[0].lines == ["Delegar al agente"],
+          str(sub_.boxes[0].lines))
+    sub_text = "una segunda linea bastante larga para esta caja"
+    check("...the sublabel wraps instead, every word kept in order",
+          len(sub_.boxes[0].sub_lines) >= 2
+          and " ".join(sub_.boxes[0].sub_lines) == sub_text,
+          str(sub_.boxes[0].sub_lines))
+
+    def rows_outside(L):
+        # every text row's glyph box, placed as `diagram_svg.svg` places it,
+        # inside its rect: [baseline - 0.8 em, baseline + 0.25 em]
+        out = []
+        for b in L.boxes:
+            sizes = [dl.FS] * len(b.lines) + [dl.SUB_FS] * len(b.sub_lines)
+            y = b.cy + 0.35 * dl.FS - (len(sizes) - 1) * dl.LINE_H / 2.0
+            for size in sizes:
+                if (y - 0.8 * size < b.y - 1e-6
+                        or y + 0.25 * size > b.y + b.h + 1e-6):
+                    out.append((b.name, round(y, 1), round(b.y, 1), b.h))
+                y += dl.LINE_H
+        return out
+
+    def needless(L):
+        # a text broken onto lines although it fits whole in its box
+        return [(b.name, b.lines, b.sub_lines) for b in L.boxes
+                if (len(b.lines) > 1
+                    and dl.box_width(b.label, "", b.decision) <= b.w + 1e-9)
+                or (len(b.sub_lines) > 1
+                    and dl.box_width("", b.sub, b.decision) <= b.w + 1e-9)]
+
+    tall_ = dl.drawings("row", *parsed(
+        "a: Delegar al agente | una segunda linea bastante larga para esta "
+        "caja y otra linea mas que sigue y sigue", "b: Firmar", "a -> b"),
+        direction="tb")[0]
+    check("a sublabel of three lines: every text row inside its box",
+          not rows_outside(tall_), str(rows_outside(tall_)))
+    names_ = [chr(97 + i) for i in range(10)]
+    held_ = dl.drawings("row", *parsed(*(
+        ["a: Anticonstitucionalmentemente | una linea de subtitulo corta"]
+        + ["%s: %s" % (x, x.upper()) for x in names_[1:]]
+        + ["%s -> %s" % (names_[i], names_[i + 1]) for i in range(9)]
+        + ["a -> %s" % x for x in names_[2:]])), direction="tb")[0]
+    check("a sublabel narrower than its label's one long word stays whole",
+          not needless(held_), str(needless(held_)))
+    nb_ = "Revisar el\u00a0contrato con el cliente antes de\tfirmar el acuerdo"
+    nbl_ = dl.drawings("row", *parsed("a: " + nb_, "b: B", "a -> b"),
+                       direction="tb")[0].boxes[0].lines
+    check("a label wraps at spaces only: a no-break space and a tab hold, "
+          "and every character is kept", len(nbl_) >= 2
+          and " ".join(nbl_) == nb_, str(nbl_))
     import random as _random
     rng = _random.Random(20260925)
+    WORDS = ("el la de agente contrato cliente revisar firmar archivar "
+             "delegar tabla prompt sesion partes profundidad").split()
     bad_cross, bad_tall, bad_merge, bad_small, graphs = [], [], [], [], 0
+    bad_rows, bad_wrap = [], []
     for _ in range(300):
         n = rng.randint(3, 7)
         names = [chr(97 + i) for i in range(n)]
@@ -950,9 +1013,12 @@ try:
                 edges.add((names[i], names[i + 1]))
         for _k in range(rng.randint(0, 4)):
             edges.add(tuple(rng.sample(names, 2)))
-        body = ["%s: %s%s%s" % (x, x.upper() * rng.randint(1, 12),
+        body = ["%s: %s%s%s" % (x, " ".join(x.upper() * rng.randint(1, 12)
+                                          for _w in range(rng.randint(1, 3))),
                                 "?" if rng.random() < 0.15 else "",
-                                " | sub" if rng.random() < 0.2 else "")
+                                " | " + " ".join(rng.choice(WORDS) for _w in
+                                                 range(rng.randint(1, 7)))
+                                if rng.random() < 0.2 else "")
                 for x in names] + ["%s -> %s" % e for e in sorted(edges)]
         boxes_, arrows_, titles_ = parsed(*body)
         for direction in ("lr", "tb"):
@@ -968,6 +1034,10 @@ try:
                 bad_tall.append((direction, L.view[3], " ; ".join(body)))
             if direction == "tb" and not legible(L):
                 bad_small.append((L.view[2], " ; ".join(body)))
+            if direction == "tb" and rows_outside(L):
+                bad_rows.append((rows_outside(L)[:2], " ; ".join(body)))
+            if direction == "tb" and needless(L):
+                bad_wrap.append((needless(L)[:2], " ; ".join(body)))
     check("random sweep: no leg enters a box (%d drawings, %d crossing)"
           % (graphs, len(bad_cross)), not bad_cross, str(bad_cross[:3]))
     check("random sweep: no two arrows that share no box share a stretch or "
@@ -979,6 +1049,10 @@ try:
     check("random sweep: every tb drawing keeps its text at 11 px or more "
           "at 390 (%d under)" % len(bad_small), not bad_small,
           str(bad_small[:3]))
+    check("random sweep: every tb text row sits inside its box (%d out)"
+          % len(bad_rows), not bad_rows, str(bad_rows[:3]))
+    check("random sweep: no tb text is wrapped when it fits its box whole "
+          "(%d needless)" % len(bad_wrap), not bad_wrap, str(bad_wrap[:3]))
     # A literal bar in a label is `\|`.
     b = dl.parse_body([(2, "x: a \\| b")], "row")[0][0]
     check("`\\|` is a literal bar, not a sublabel",

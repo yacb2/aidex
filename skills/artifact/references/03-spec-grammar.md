@@ -501,9 +501,11 @@ d -> s
 bottom, in declaration order). Unset, it is `lr` when that drawing fits the page's 720
 units and `tb` otherwise. An `lr` drawing wider than 320 units also gets a `tb` twin,
 and the figure shows the twin at 48rem and under: the kit stretches a figure to its
-column, and at 390 px a wide flow would draw its text under 11 px. A `tb` drawing is kept
-within those 320 units by wrapping a long label onto more lines, at spaces only; a single
-word too wide for what is left is drawn whole, not cut.
+column, and at 390 px a wide flow would draw its text under 11 px. A `tb` drawing is
+narrowed toward those 320 units by wrapping a long label and a long sublabel, each on its
+own, onto more lines at spaces only. It is held to 320 when every box can get narrow
+enough; a single word too wide for the room its detour arrows leave is drawn whole, not
+cut, and the drawing is then wider than 320 and its text smaller at 390.
 
 ```
 ::: diagram {shape=before-after title="A mano contra el spec"}
