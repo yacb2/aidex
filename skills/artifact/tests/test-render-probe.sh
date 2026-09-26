@@ -61,6 +61,57 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/clean.html" 2>&1)"; rc=$?
   && ok "--shots writes clean-1280.png and clean-390.png" || bad "--shots did not write both screenshots"
 [[ "$(grep -c '^{' <<<"$out")" -eq 2 ]] && ok "one JSON line per width" || bad "expected 2 JSON lines: $out"
 
+echo "== a diagram built from a spec (must pass clean) =="
+# The F-shape flow, built by the real spec_build.py so the page carries today's
+# diagram renderer: lr at 1280, its tb twin at 390. Clean at both widths, and the
+# drawn text measured in the browser: at least 11 px at 390, at most the 17 px body
+# at 1280, in the kit's sans font, the narrow twin the one shown at 390.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/diagram-flow.spec.md" -o "$TMP/diagram-flow.html" ) >/dev/null 2>&1 \
+  && ok "built diagram-flow from its spec" || bad "spec_build failed on diagram-flow.spec.md"
+out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/diagram-flow.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "diagram-flow exits 0 at 1280 and 390" || bad "diagram-flow exit $rc: $out"
+[[ -s "$TMP/shots/diagram-flow-1280.png" && -s "$TMP/shots/diagram-flow-390.png" ]] \
+  && ok "--shots writes both diagram-flow screenshots" || bad "no diagram-flow screenshots"
+module="$AIDEX_PLAYWRIGHT_DIR/node_modules/playwright"
+[[ -f "$module/package.json" ]] || module="$g/playwright"
+sizes="$(PW="$module" node -e '
+const { chromium } = require(process.env.PW);
+(async () => {
+  const b = await chromium.launch();
+  for (const width of [1280, 390]) {
+    const p = await b.newPage({ viewport: { width, height: 900 } });
+    await p.goto("file://" + process.argv[1]);
+    console.log(width, await p.evaluate(() => {
+      const px = [], shown = [];
+      let tall = 0;
+      for (const s of document.querySelectorAll("figure svg")) {
+        if (getComputedStyle(s).display === "none") continue;
+        shown.push(s.getAttribute("class"));
+        const k = s.getBoundingClientRect().width / s.viewBox.baseVal.width;
+        tall = Math.max(tall, s.getBoundingClientRect().height);
+        for (const t of s.querySelectorAll("text")) px.push(parseFloat(t.getAttribute("font-size")) * k);
+      }
+      const sans = [...document.querySelectorAll("figure svg text")].every(t => !/mono/i.test(getComputedStyle(t).fontFamily));
+      return [Math.min(...px).toFixed(1), Math.max(...px).toFixed(1), shown.join(",") || "-", sans, tall.toFixed(0)].join(" ");
+    }));
+  }
+  await b.close();
+})();' "$TMP/diagram-flow.html" 2>&1)"
+read -r _ min1280 max1280 shown1280 sans1280 tall1280 <<<"$(grep '^1280 ' <<<"$sizes")"
+read -r _ min390 max390 shown390 sans390 tall390 <<<"$(grep '^390 ' <<<"$sizes")"
+[[ "$shown1280" == dg-wide && "$shown390" == dg-narrow ]] \
+  && ok "the wide drawing shows at 1280, the narrow twin at 390" || bad "drawings shown: 1280=$shown1280 390=$shown390 ($sizes)"
+awk -v a="$min390" 'BEGIN { exit !(a >= 11) }' \
+  && ok "no diagram text under 11 px at 390 (smallest $min390 px)" || bad "diagram text at 390: smallest $min390 px ($sizes)"
+awk -v a="$max1280" 'BEGIN { exit !(a <= 17) }' \
+  && ok "no diagram text over the 17 px body at 1280 (largest $max1280 px)" || bad "diagram text at 1280: largest $max1280 px ($sizes)"
+# F5's hand-drawn diagram was 407 px tall at 1280; a runaway route (a control point
+# thousands of units out) passes every other check here and draws a 45,000 px figure.
+awk -v a="$tall1280" 'BEGIN { exit !(a <= 610) }' \
+  && ok "the diagram is at most 1.5x F5's height at 1280 (${tall1280} px)" || bad "diagram ${tall1280} px tall at 1280 ($sizes)"
+[[ "$sans1280" == true && "$sans390" == true ]] \
+  && ok "every diagram label resolves to the kit's sans font" || bad "a diagram label is in a monospace font ($sizes)"
+
 echo "== crash and missing browser =="
 # A page that breaks the measuring code: getComputedStyle is gone, so evaluate throws.
 printf '<!doctype html><title>x</title><p>x</p><script>window.getComputedStyle = null</script>' > "$TMP/crash.html"
