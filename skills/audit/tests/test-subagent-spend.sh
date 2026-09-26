@@ -32,6 +32,7 @@
 #   (m) F4/F5 — a meta that is not an object, and a truncated meta: agent type
 #       `unknown`, NO inherited label, a warning on stderr, exit 0
 #   (n) F6 — a row mixing priced and unpriced turns is marked, not silently partial
+#   (o) Opus 5.5 is priced as itself, not by the longest-prefix fallback to Opus 5
 #
 # Run with: bash skills/audit/tests/test-subagent-spend.sh
 
@@ -322,6 +323,20 @@ rm -rf "$EMPTY"
 [[ $rc_i -ne 0 ]] || fail "(i) an empty corpus must not exit 0: $out_i"
 printf '%s\n' "$out_i" | grep -qi 'no assistant turns' \
   || fail "(i) an empty corpus should say so, not print a table of zeroes: $out_i"
+
+# ---------------------------------------------------------------------------
+# (o) Opus 5.5 is priced as itself. With no `claude-opus-5-5` row, the longest-prefix
+#     lookup fell back to `claude-opus-5` and billed Opus 5.5 at $5/$25/$0.50: every
+#     Opus 5.5 row came out inflated (cache reads 2.5x) and still looked well-formed.
+#     Prices: claude.dev "What a task costs on Opus 5.5" (2026-09-25).
+# ---------------------------------------------------------------------------
+for m in claude-opus-5-5 claude-opus-5-5-20260922; do
+  got_o="$(cd "$RETRO" && python3 -c "import pricing; print(pricing.prices_for('$m'))")"
+  [[ "$got_o" == "(4, 5, 8, 0.2, 20)" ]] \
+    || fail "(o) $m must price as Opus 5.5 (4, 5, 8, 0.2, 20), got $got_o"
+done
+got_o5="$(cd "$RETRO" && python3 -c "import pricing; print(pricing.prices_for('claude-opus-5'))")"
+[[ "$got_o5" == "(5, 6.25, 10, 0.5, 25)" ]] || fail "(o) claude-opus-5 must keep its own row, got $got_o5"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — subagent_spend: <synthetic> excluded, split message.id counted once from the last line, dedupe per PROJECT with the launch replay credited to main, non-message iterations priced on their own model, flat cache-creation beats a stale dict, sidechain turns attributed, inherited label only where the meta named no model, broken meta warns without inheriting, partial USD marked, TOTAL equals the printed rows"

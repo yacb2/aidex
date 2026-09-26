@@ -6,6 +6,7 @@ introductory price became standard (page note). Keys are model-id prefixes, long
 PRICES = {
     "claude-fable-5-1":  (10, 12.5, 20, 0.25, 50),
     "claude-fable-5":    (10, 12.5, 20, 1.00, 50),
+    "claude-opus-5-5":   (4, 5, 8, 0.20, 20),  # claude.dev "What a task costs on Opus 5.5", 2026-09-25
     "claude-opus-5":     (5, 6.25, 10, 0.50, 25),
     "claude-opus-4-8":   (5, 6.25, 10, 0.50, 25),
     "claude-opus-4-7":   (5, 6.25, 10, 0.50, 25),
