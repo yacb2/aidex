@@ -105,7 +105,10 @@
       markNote: 'Note for this mark',
       markSave: 'Save',
       markDelete: 'Delete mark',
-      markCancel: 'Cancel'
+      markCancel: 'Cancel',
+      markAdd: 'Mark a region',
+      markAddTitle: 'Draft a region from the keyboard: arrows move it, Shift+arrows resize it, Enter adds its note, Esc drops it',
+      markKeys: 'Arrows: move the region \u00b7 Shift+arrows: resize it \u00b7 Enter: add its note \u00b7 Esc: drop it'
     },
     es: {
       none: 'Sin responder todavía.',
@@ -194,7 +197,10 @@
       markNote: 'Nota para esta marca',
       markSave: 'Guardar',
       markDelete: 'Borrar marca',
-      markCancel: 'Cancelar'
+      markCancel: 'Cancelar',
+      markAdd: 'Marcar zona',
+      markAddTitle: 'Dibuja una zona con el teclado: las flechas la mueven, May\u00fas+flechas cambian su tama\u00f1o, Intro a\u00f1ade su nota, Esc la descarta',
+      markKeys: 'Flechas: mover la zona \u00b7 May\u00fas+flechas: cambiar su tama\u00f1o \u00b7 Intro: a\u00f1adir su nota \u00b7 Esc: descartarla'
     }
   };
   var L = STRINGS[(document.documentElement.lang || 'en').slice(0, 2).toLowerCase()] || STRINGS.en;
@@ -1479,6 +1485,15 @@
     range.title = L.cmpRange;
     range.setAttribute('aria-label', L.cmpRange);
     cmpWrap.appendChild(range);
+    /* Marks from the keyboard: this button drafts a region, the arrows shape
+     * it. It sits in the tools group because it takes the range's place — the
+     * range shows only with compare on, the button only with it off. */
+    var bMark = document.createElement('button');
+    bMark.type = 'button';
+    bMark.className = 'kit-zoom-mark';
+    bMark.textContent = L.markAdd;
+    bMark.title = L.markAddTitle;
+    cmpWrap.appendChild(bMark);
     head.appendChild(hRow);
     head.appendChild(hTile);
     head.appendChild(hWith);
@@ -1505,6 +1520,16 @@
     mlayer.className = 'kit-marks-layer';
     mlayer.title = L.markHint;
     stack.appendChild(mlayer);
+    /* The swipe handle: a line where the two captures meet. Placed over the
+     * current image like the mark layer (the image, not the stack, is what
+     * the clip's percentage is of) and drawn by components.css at
+     * --kit-swipe, so the slider moves it with no code of its own. */
+    var hlayer = document.createElement('div');
+    hlayer.className = 'kit-swipe-layer';
+    var handle = document.createElement('div');
+    handle.className = 'kit-swipe-handle';
+    hlayer.appendChild(handle);
+    stack.appendChild(hlayer);
     body.appendChild(stack);
     var keys = document.createElement('p');
     keys.className = 'kit-zoom-keys';
@@ -1533,6 +1558,8 @@
       img.setAttribute('src', src ? src.getAttribute('src') : '');
       img.setAttribute('alt', src ? (src.getAttribute('alt') || '') : '');
       hRow.textContent = (row && row.dataset.title) || '';
+      hRow.title = hRow.textContent;      /* a narrow header truncates it */
+      cancelDraft();
       hTile.textContent = fig.getAttribute('data-tile') || '';
       hCell.textContent = (row && row.dataset.id) || '';
       sib = sibling(fig);
@@ -1570,6 +1597,8 @@
       note.textContent = differ ? L.cmpSize(img.naturalWidth + 'x' + img.naturalHeight,
         other.naturalWidth + 'x' + other.naturalHeight) : '';
       hWith.textContent = on ? '\u2194 ' + sib.getAttribute('data-tile') : '';
+      if (on) cancelDraft();          /* marks are drawn with compare off */
+      placeOver(hlayer, img);
       /* A disabled control loses the focus to the body, outside the dialog,
        * and the arrows die with it: park the focus on the dialog first. */
       if (!sib && cmpBtns.indexOf(document.activeElement) !== -1) dlg.focus();
@@ -1613,6 +1642,7 @@
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
       /* show() ran while the dialog was closed, when the image had no box. */
       placeOver(mlayer, img);
+      placeOver(hlayer, img);
     }
 
     bSize.addEventListener('click', function () {
@@ -1623,6 +1653,7 @@
     /* Esc closes without a listener of its own; `close` fires for both paths,
      * so the focus return is written once. */
     dlg.addEventListener('close', function () {
+      cancelDraft();
       if (origin) origin.focus();
     });
 
@@ -1660,6 +1691,16 @@
     }
 
     dlg.addEventListener('keydown', function (ev) {
+      /* A region being drafted owns the arrows, Enter and Esc: moving it is
+       * what the reader is doing, and Esc drops the draft, not the dialog. */
+      if (draft) {
+        if (/^Arrow/.test(ev.key)) { ev.preventDefault(); nudge(ev.key, ev.shiftKey); return; }
+        /* Enter on a focused dialog button (Close, the size toggle, a compare
+         * mode) presses that button, as it does everywhere else; only Enter
+         * on the dialog itself — where startDraft parks the focus — saves. */
+        if (ev.key === 'Enter' && ev.target === dlg) { ev.preventDefault(); commitDraft(); return; }
+        if (ev.key === 'Escape') { ev.preventDefault(); cancelDraft(); return; }
+      }
       var moves = { ArrowLeft: [step, -1], ArrowRight: [step, 1],
                     ArrowUp: [stepRow, -1], ArrowDown: [stepRow, 1] };
       var m = moves[ev.key];
@@ -1690,6 +1731,69 @@
     var MARK_LINE = /^\[mark (\S+) (\d{1,3}(?:\.\d)?),(\d{1,3}(?:\.\d)?) (\d{1,3}(?:\.\d)?)x(\d{1,3}(?:\.\d)?)\](?: (.*))?$/;
 
     function marksBox(row) { return row.querySelector('textarea.kit-marks'); }
+
+    /* ---- the keyboard draft ----
+     * The Mark button puts a 20 x 20 region in the middle of the image;
+     * arrows move it one percent, Shift+arrows grow or shrink it one percent,
+     * both clamped inside the image and never under the 1 % the pointer path
+     * also refuses. Enter hands it to the same note dialog a drag does. */
+    var draft = null;                 /* { row, tile, box, x, y, w, h } */
+    function clampTo(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+    function drawDraft() {
+      draft.box.style.left = draft.x + '%';
+      draft.box.style.top = draft.y + '%';
+      draft.box.style.width = draft.w + '%';
+      draft.box.style.height = draft.h + '%';
+    }
+    function canMark(row) {
+      return !!row && !isDecided(row) && !!marksBox(row) && dlg.getAttribute('data-compare') === 'off';
+    }
+    function startDraft() {
+      if (!opener || pending || drag) return;
+      var row = opener.closest('.consult-item');
+      if (!canMark(row)) return;
+      cancelDraft();
+      var box = document.createElement('div');
+      box.className = 'kit-mark drawing';
+      mlayer.appendChild(box);
+      draft = { row: row, tile: opener.getAttribute('data-tile'), box: box, x: 40, y: 40, w: 20, h: 20 };
+      drawDraft();
+      keys.textContent = L.markKeys;
+      dlg.focus();                    /* the arrows reach the dialog, not a button */
+    }
+    function cancelDraft() {
+      if (!draft) return;
+      draft.box.remove();
+      draft = null;
+      keys.textContent = L.zoomKeys;
+    }
+    function nudge(key, resize) {
+      var dx = key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : 0;
+      var dy = key === 'ArrowUp' ? -1 : key === 'ArrowDown' ? 1 : 0;
+      if (resize) {
+        draft.w = clampTo(draft.w + dx, 1, 100 - draft.x);
+        draft.h = clampTo(draft.h + dy, 1, 100 - draft.y);
+      } else {
+        draft.x = clampTo(draft.x + dx, 0, 100 - draft.w);
+        draft.y = clampTo(draft.y + dy, 0, 100 - draft.h);
+      }
+      drawDraft();
+    }
+    function commitDraft() {
+      var d = draft;
+      draft = null;
+      keys.textContent = L.zoomKeys;
+      openNote({ row: d.row, index: null, box: d.box,
+                 mark: { tile: d.tile, x: d.x, y: d.y, w: d.w, h: d.h, note: '' } });
+    }
+    bMark.addEventListener('click', startDraft);
+    /* A real Esc never reaches here during a draft: the keydown above cancels
+     * it, and a cancelled keydown starts no close request (test-gallery-keys.sh
+     * proves it with a trusted key). This covers a close request that arrives
+     * with no keydown the page sees. */
+    dlg.addEventListener('cancel', function (ev) {
+      if (draft) { ev.preventDefault(); cancelDraft(); }
+    });
 
     function readMarks(row) {
       var ta = marksBox(row);
@@ -1746,7 +1850,7 @@
 
     var ro = window.ResizeObserver ? new ResizeObserver(function (entries) {
       entries.forEach(function (e) {
-        if (e.target === img || e.target === stack) placeOver(mlayer, img);
+        if (e.target === img || e.target === stack) { placeOver(mlayer, img); placeOver(hlayer, img); }
         else placeTile(e.target.closest('figure') || e.target);
       });
     }) : null;
@@ -1775,6 +1879,10 @@
       var row = opener.closest('.consult-item');
       var tile = opener.getAttribute('data-tile');
       mlayer.classList.toggle('readonly', isDecided(row) || !marksBox(row));
+      /* Parked first: a disabled button drops the focus out of the dialog. */
+      var noMark = isDecided(row) || !marksBox(row);
+      if (noMark && document.activeElement === bMark) dlg.focus();
+      bMark.disabled = noMark;
       drawBoxes(mlayer, readMarks(row).filter(function (k) { return k.tile === tile; }));
       placeOver(mlayer, img);
     }
@@ -1858,6 +1966,7 @@
     var drag = null;
     mlayer.addEventListener('pointerdown', function (ev) {
       if (ev.button !== 0 || !opener || pending) return;
+      cancelDraft();
       var row = opener.closest('.consult-item');
       if (isDecided(row) || !marksBox(row) || dlg.getAttribute('data-compare') !== 'off') return;
       ev.preventDefault();
@@ -1994,7 +2103,7 @@
           btns.forEach(function (b) {
             b.setAttribute('aria-pressed', b.dataset.value === value ? 'true' : 'false');
           });
-          if (persist) galStore(gid, f.key, value);
+          if (persist && gid) galStore(gid, f.key, value);
         }
         f.opts.forEach(function (o) {
           var b = document.createElement('button');
@@ -2006,7 +2115,10 @@
           btns.push(b);
           wrap.appendChild(b);
         });
-        var was = saved[gid] && saved[gid][f.key];
+        /* A block with no id has no identity across visits: every such block
+         * would share the empty key, so a filter set on one came back on the
+         * others. Its filter lasts the visit. */
+        var was = gid && saved[gid] && saved[gid][f.key];
         /* An unknown stored value would hide by a rule no button can undo. */
         var known = f.opts.some(function (o) { return o[0] === was; });
         apply(known ? was : 'both', false);

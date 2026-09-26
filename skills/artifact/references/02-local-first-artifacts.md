@@ -1408,16 +1408,22 @@ writes no content.)
           {"cell": "no-permission", "notApplicable": "reason text"}]}
 ```
 
-Item ids are `<gallery>-<cell>` and stay stable across rounds. The block carries
-`data-tiles`; the checker fails a row with a missing or duplicated tile, a figure with no
+Item ids are `<gallery>-<cell>` and stay stable across rounds. Every tile is a PNG under
+`--root`: the generator refuses a path with no file behind it and one that is not a PNG, and
+writes each capture's own `width` and `height` on its `<img>`, so a lazy image reserves its
+box before it loads. The block carries `data-tiles`; the checker fails a row with a missing or duplicated tile, a figure with no
 `data-tile`, an id that is not two or more slugs, or a not-applicable row with no reason.
 
 **What the reader gets** (composer, no dependency): a zoom `<dialog>` on any tile (fit or
 native size, arrows walk the row and the rows, Esc returns focus to the tile that opened
-it); per-block mode/viewport filters, remembered and never pasted; light/dark compare in
-the dialog (2-up, swipe, onion skin; 2-up when the pair differs in size); region marks
-drawn on the zoomed image as percentage rectangles with a note each, shown on the grid
-tile too.
+it; under 640 px the header is two lines); per-block mode/viewport filters, never pasted,
+remembered per block id (a block with no id keeps its filter for the visit only), and a
+filter that leaves one tile per row gives it the whole row; light/dark compare in the
+dialog (2-up, swipe with a visible handle at the split, onion skin; 2-up when the pair
+differs in size); region marks drawn on the zoomed image as percentage rectangles with a
+note each, shown on the grid tile too — by dragging, or from the keyboard with the
+dialog's Mark button (arrows move the region, Shift+arrows resize it, Enter adds its
+note, Esc drops it).
 
 **Paste contract.** Each row pastes like any item, marks last:
 
@@ -1432,7 +1438,10 @@ tile too.
 ```
 
 `gallery-reply.sh <reply.md>` turns the copied block into
-`{rows: [{id, gallery, cell, verdict, asks, provisional, notes, marks}], other}`. Feed it
+`{rows: [{id, gallery, cell, verdict, asks, provisional, notes, marks}], other}`. A mark's
+tile is any one-token name — the matrix is the page's, and the paste does not carry it —
+unless `--tiles "<the block's data-tiles>"` is passed, which refuses a mark on any other tile
+by its line. Feed it
 the block alone: text after the paste cannot be told from notes, and trailing text after a
 row's marks is refused.
 

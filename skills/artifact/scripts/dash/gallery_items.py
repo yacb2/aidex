@@ -14,9 +14,13 @@ project's own board avoids on purpose, and a second copy of the cell list in
 the kit would drift the first time a state is added.
 
 The output is DETERMINISTIC: row order is the document's, tile order is the
-document's `tiles` list, and nothing here reads the clock, the filesystem or
-the environment. Two runs on one JSON are byte-identical, which is what makes
-a re-generated round a diff of what actually changed.
+document's `tiles` list, and nothing here reads the clock or the environment.
+The one filesystem read is each tile's PNG header: a tile with no file behind
+it is refused (the page used to show the reader a broken image and pass), and
+the capture's width and height go on the <img>, so a lazy image reserves its
+box before it loads. Two runs on one JSON and one set of captures are
+byte-identical, which is what makes a re-generated round a diff of what
+actually changed.
 
 Images are linked, never inlined: `src="file://<root>/<path>"`. `--root` is the
 absolute checkout the paths are relative to, so the same JSON serves a worktree
@@ -33,6 +37,7 @@ import html
 import json
 import os
 import re
+import struct
 import sys
 
 LANGS = ("es", "en")
@@ -124,6 +129,31 @@ def check_path(value, cell, tile):
             "repo root — --root is what makes it a URL, and a path that "
             "ignores it pins the page to one machine or points outside the "
             "checkout" % (cell, tile, value))
+
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def png_size(root, value, cell, tile):
+    """(width, height) of the tile's capture, read from its IHDR chunk."""
+    # `render` strips the root's trailing slash, so `--root /` arrives as "":
+    # joined as is, the tile would be read relative to the working directory.
+    full = os.path.join(root or "/", value)
+    try:
+        with open(full, "rb") as fh:
+            head = fh.read(24)
+    except OSError:
+        die("row '%s': tile '%s' has no file at %s — a missing capture shows "
+            "the reader a broken image where the screenshot should be"
+            % (cell, tile, full))
+    if len(head) < 24 or head[:8] != PNG_SIGNATURE or head[12:16] != b"IHDR":
+        die("row '%s': tile '%s' (%s) is not a PNG — its width and height are "
+            "read from the PNG header" % (cell, tile, full))
+    width, height = struct.unpack(">II", head[16:24])
+    if not width or not height:
+        die("row '%s': tile '%s' (%s) declares a %dx%d image — there is no "
+            "capture to show" % (cell, tile, full, width, height))
+    return width, height
 
 
 def load(path):
@@ -225,11 +255,14 @@ def render(doc, root, group_id, group_title, lang):
         else:
             add('    <div class="gal">')
             for tile in tiles:
-                url = "file://%s/%s" % (root, str(row_tiles[tile]).lstrip("/"))
+                path = str(row_tiles[tile]).lstrip("/")
+                width, height = png_size(root, path, cell, tile)
+                url = "file://%s/%s" % (root, path)
                 add('      <figure data-tile="%s"><img src="%s" alt="%s"'
-                    ' loading="lazy"><figcaption>%s</figcaption></figure>'
+                    ' width="%d" height="%d" loading="lazy">'
+                    '<figcaption>%s</figcaption></figure>'
                     % (e(tile), e(url), e("%s · %s" % (title, tile)),
-                       e(tile_label(tile, lang))))
+                       width, height, e(tile_label(tile, lang))))
             add('    </div>')
         add('    <div class="opts one">')
         for label, text in VERDICTS[lang]:

@@ -54,10 +54,13 @@ fi
 #     flushes localStorage to the profile, and the restore phases depend on it.
 #   - perl's setpgrp makes Chrome a process-group leader, so the kill takes
 #     its helper children down too.
+# CHROME_WINDOW=<w>,<h> in the environment sets the window, for the cells that
+# measure a layout at a given width (the headless default is 800x600).
 chrome_dump() {  # <outfile> <url> <seconds>
   : > "$1"
   perl -e 'setpgrp(0,0); exec @ARGV' \
     "$CHROME" --headless=new --disable-gpu --no-first-run --disable-extensions \
+              ${CHROME_WINDOW:+--window-size=$CHROME_WINDOW} \
               --user-data-dir="$TMP/profile" --dump-dom "$2" > "$1" 2>/dev/null &
   local pid=$! i
   for ((i = 0; i < 2 * $3; i++)); do
@@ -1476,6 +1479,9 @@ window.addEventListener('load', function () {
     document.title = 'GKEY|OPEN=' + (dlg && dlg.open ? '1' : '0')
       + '|CELL=' + hcell() + '|TILE=' + htile();
   } else if (q.indexOf('phase=gfilter') !== -1) {
+    /* Two columns before any filter, or the lone-tile cell below would pass
+       on a grid that was one column anyway. */
+    var twoCol = fig('audit-empty', 'light-desktop').offsetTop === fig('audit-empty', 'dark-desktop').offsetTop ? '1' : '0';
     var r = document.querySelector('[data-id="audit-with-data"] input[data-label="Approved"]');
     r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
     var ta = document.querySelector('[data-id="audit-with-data"] textarea');
@@ -1502,6 +1508,10 @@ window.addEventListener('load', function () {
     var mobFig = fig('audit-empty', 'light-mobile');
     var deskHid = getComputedStyle(deskFig).display;
     var mobVis = getComputedStyle(mobFig).display !== 'none' ? '1' : '0';
+    /* Light and mobile together leave ONE tile per row: it takes the row, not
+       the left half of a grid whose right half is empty. */
+    var gridE = mobFig.parentNode;
+    var lone = mobFig.getBoundingClientRect().width >= gridE.clientWidth - 1 ? 'full' : 'half:' + Math.round(mobFig.getBoundingClientRect().width) + '/' + gridE.clientWidth;
     /* Filters are a viewing aid, never a change of what is being judged: the
        arrows still reach a hidden tile. */
     lightFig.click();
@@ -1518,6 +1528,7 @@ window.addEventListener('load', function () {
       + '|MODE=' + g.getAttribute('data-mode') + '|VIEW=' + g.getAttribute('data-viewport')
       + '|DARKHID=' + darkHid + '|LIGHTVIS=' + lightVis
       + '|DESKHID=' + deskHid + '|MOBVIS=' + mobVis + '|SPACEDHID=' + spacedHid
+      + '|TWOCOL=' + twoCol + '|LONE=' + lone + '|IW=' + window.innerWidth
       + '|STORED=' + storedMode
       + '|PRESSED=' + document.querySelectorAll('#E .kit-galbar button[aria-pressed="true"]').length
       + '|BARS=' + document.querySelectorAll('.kit-galbar').length
@@ -1786,9 +1797,97 @@ window.addEventListener('load', function () {
       var nOpen = ndlg() && ndlg().open ? '1' : '0';
       var after = mta('audit-with-data') ? mta('audit-with-data').value : 'none';
       dlg.querySelector('.kit-zoom-close').click();
-      document.title = 'GMDECIDED|SAME=' + (before === after ? '1' : '0')
+      fig('audit-with-data', 'light-desktop').click();
+      var mbD = dlg.querySelector('.kit-zoom-mark');
+      var mbDs = mbD ? (mbD.disabled ? 'disabled' : 'enabled') : 'none';
+      if (mbD) mbD.click();
+      var dDraft = dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length;
+      dlg.querySelector('.kit-zoom-close').click();
+      document.title = 'GMDECIDED|SAME=' + (before === after ? '1' : '0') + '|MBD=' + mbDs + '|DDRAFT=' + dDraft
         + '|NOTE=' + nOpen + '|TILE=' + tileMarks('audit-with-data', 'light-desktop')
         + '|VAL=' + after.replace(/[|<>\n]/g, ' ');
+    } else if (q.indexOf('phase=gmkey') !== -1) {
+      /* KEYBOARD MARKS. The Mark button drafts a region in the middle of the
+         image; arrows move it, Shift+arrows resize it, Enter asks for its note,
+         Esc drops the draft and leaves the dialog open. Keys go to whatever
+         holds the focus, as a real key does. */
+      var chanK = mta('audit-with-data');
+      var skey = function (k, shift) {
+        (document.activeElement || document.body).dispatchEvent(
+          new KeyboardEvent('keydown', { key: k, shiftKey: !!shift, bubbles: true, cancelable: true }));
+      };
+      var times = function (n, k, shift) { for (var i = 0; i < n; i++) skey(k, shift); };
+      var drafting = function () { return dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length; };
+      fig('audit-with-data', 'light-desktop').click();
+      var mb = dlg.querySelector('.kit-zoom-mark');
+      var mbState = mb ? (mb.disabled ? 'disabled' : 'enabled') : 'none';
+      if (mb) mb.click();
+      var drafts = drafting();
+      times(5, 'ArrowRight'); times(3, 'ArrowDown', true);
+      var stillTile = htile();
+      skey('Enter');
+      var kOpen = ndlg().open ? '1' : '0';
+      note('kbd', 'save');
+      var kOne = chanK.value;
+      var aeK = document.activeElement;
+      var kFocus = dlg.contains(aeK) ? 'in' : 'out:' + (aeK ? aeK.tagName : 'none');
+      skey('ArrowRight'); var kWalk = htile(); skey('ArrowLeft');
+      /* Clamped: grown past the right edge, then pushed against it. */
+      if (mb) mb.click();
+      times(100, 'ArrowRight', true); times(10, 'ArrowRight');
+      skey('Enter'); note('edge', 'save');
+      var kEdge = chanK.value.split('\n')[1] || '';
+      /* Esc during a draft, and Enter on a focused dialog button, are the
+         browser's default actions: a synthetic key never starts them, so
+         test-gallery-keys.sh owns both with trusted key presses. */
+      /* The SWIPE HANDLE: a visible line where the two captures meet, on the
+         image (not the dialog), and only in swipe mode. */
+      dlg.querySelector('.kit-zoom-cmp[data-value="swipe"]').click();
+      var mbCmp = mb ? (getComputedStyle(mb).display === 'none' || mb.disabled ? 'off' : 'on') : 'none';
+      var rngK = dlg.querySelector('input.kit-zoom-range');
+      var hd = dlg.querySelector('.kit-swipe-handle');
+      var imK = dlg.querySelector('.kit-compare img:not(.kit-zoom-other)');
+      var handleAt = function () {
+        /* No layout box: the handle or its layer is display:none. */
+        if (!hd || !hd.getClientRects().length) return 'hidden';
+        var hr = hd.getBoundingClientRect(), ir = imK.getBoundingClientRect();
+        var want = ir.left + ir.width * rngK.value / 100;
+        var mid = hr.left + hr.width / 2;
+        return Math.abs(mid - want) <= 1.5 && hr.height >= ir.height - 1 && hr.width >= 2
+          ? 'line' : 'off:' + Math.round(mid) + '/' + Math.round(want) + '/' + Math.round(hr.height) + 'x' + Math.round(hr.width);
+      };
+      rngK.value = '25'; rngK.dispatchEvent(new Event('input', { bubbles: true }));
+      var h25 = handleAt();
+      rngK.value = '75'; rngK.dispatchEvent(new Event('input', { bubbles: true }));
+      var h75 = handleAt();
+      dlg.querySelector('.kit-zoom-cmp[data-value="onion"]').click();
+      var hOn = handleAt();
+      dlg.querySelector('.kit-zoom-cmp[data-value="off"]').click();
+      var hOff = handleAt();
+      dlg.querySelector('.kit-zoom-close').click();
+      document.title = 'GMKEY|MB=' + mbState + '|DRAFT=' + drafts + '|STILL=' + stillTile
+        + '|KOPEN=' + kOpen + '|ONE=' + kOne.replace(/[|<>\n]/g, ' ') + '|KFOCUS=' + kFocus
+        + '|KWALK=' + kWalk + '|EDGE=' + kEdge.replace(/[|<>\n]/g, ' ') 
+        + '|MBCMP=' + mbCmp + '|H25=' + h25 + '|H75=' + h75 + '|HON=' + hOn + '|HOFF=' + hOff;
+    } else if (q.indexOf('phase=gmnarrow') !== -1) {
+      /* The zoom header at 500 px: two lines at most, compare on or off, and
+         nothing wider than the dialog. Two lines is measured, not guessed:
+         twice a button's height plus the header's own gap, padding and rule. */
+      fig('audit-with-data', 'light-desktop').click();
+      var hdN = dlg.querySelector('.kit-zoom-head');
+      var fits = function () {
+        var cs = getComputedStyle(hdN);
+        var bh = dlg.querySelector('.kit-zoom-close').offsetHeight;
+        var limit = 2 * bh + (parseFloat(cs.rowGap) || 0) + parseFloat(cs.paddingTop)
+          + parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth) + 1;
+        var wide = hdN.scrollWidth > hdN.clientWidth || dlg.scrollWidth > dlg.clientWidth;
+        return (hdN.offsetHeight <= limit && !wide ? 'fits' : 'over') + ':' + hdN.offsetHeight + '/' + Math.round(limit) + (wide ? '/wide' : '');
+      };
+      var nOff = fits();
+      dlg.querySelector('.kit-zoom-cmp[data-value="swipe"]').click();
+      var nSwipe = fits();
+      dlg.querySelector('.kit-zoom-close').click();
+      document.title = 'GMNARROW|W=' + window.innerWidth + '|OFF=' + nOff + '|SWIPE=' + nSwipe;
     } else {
       /* Identity first: a row with no marks pastes exactly what Phase 3 did,
          with the hidden textarea already in place. */
@@ -1851,6 +1950,16 @@ window.addEventListener('load', function () {
         + '|DLG=' + inDlg2 + '|FOCUSIN=' + focusIn + '|WALKED=' + walked
         + '|LYCMP=' + lyDisp + '|CMPDRAW=' + cmpDraw + '|TILE=' + tileN
         + '|PASTE=' + withMarks.replace(/[|<>\n]/g, ' ');
+    }
+  } else if (q.indexOf('phase=gun') !== -1) {
+    /* Two blocks with no id: each keeps its own filter. */
+    var gs = document.querySelectorAll('.consult-group');
+    if (q.indexOf('phase=gunset') !== -1) {
+      var b0 = gs[0].querySelector('.kit-galbar button[data-value="light"]');
+      if (b0) b0.click();
+      document.title = 'GUNSET|N=' + gs.length + '|M0=' + gs[0].getAttribute('data-mode') + '|M1=' + gs[1].getAttribute('data-mode');
+    } else {
+      document.title = 'GUNGET|M0=' + gs[0].getAttribute('data-mode') + '|M1=' + gs[1].getAttribute('data-mode');
     }
   } else if (q.indexOf('phase=grecall') !== -1) {
     var g2 = document.getElementById('E');
@@ -1925,7 +2034,7 @@ tg="$(grun 'phase=gkey')"
   || fail "Enter opened the wrong tile: $tg"
 
 rm -rf "$TMP/profile"
-tg="$(grun 'phase=gfilter')"
+tg="$(CHROME_WINDOW=1280,900 grun 'phase=gfilter')"
 [[ "$tg" == *GFILTER* ]] || fail "the gallery filter phase did not run: $tg"
 [[ "$tg" == *"BAR=1"* && "$tg" == *"BARS=1"* ]] \
   || fail "no filter toolbar was injected on the block that declares a matrix: $tg"
@@ -1954,6 +2063,10 @@ tg="$(grun 'phase=gfilter')"
   || fail "the row's verdict and notes did not reach the paste, so the identity assertion above proves nothing: $tg"
 [[ "$tg" == *"REACHED=dark-desktop"* ]] \
   || fail "the arrows skipped a filtered-out tile — a filter is a viewing aid, not a change to what is being judged: $tg"
+[[ "$tg" == *"TWOCOL=1"* ]] \
+  || fail "the grid was not two columns at 1280 px before filtering, so the lone-tile cell proves nothing: $tg"
+[[ "$tg" == *"LONE=full"* ]] \
+  || fail "a filter that leaves one tile per row left it in half a two-column grid, the other half empty: $tg"
 
 # A decided row is folded out of view by the composer; the arrows must not open
 # it from the row above (the kit's collapse contract: open questions stay in view).
@@ -1978,6 +2091,23 @@ tg="$(grun 'phase=grecall')"
   || fail "the restored filter is not reflected in the toolbar, so the reader cannot see what is hidden: $tg"
 [[ "$tg" == *"PASTE=## E · The matrix  ### audit-with-data · audit · with-data  - Approved  la fila se ve bien"* ]] \
   || fail "a restored filter changed what the page pastes: $tg"
+
+# Blocks with no id share no filter: before, both were stored under the empty
+# key, so filtering the first block hid the tiles of the second on the next visit.
+perl -0pe 's{<section class="consult-group" id="E" data-id="E" data-title="The matrix"}{<section class="consult-group" data-title="The matrix"}; s{  <!-- The not-applicable row}{  </section>\n  <section class="consult-group" data-title="Second matrix" data-tiles="light-desktop dark-desktop light-mobile dark-mobile">\n    <div class="sec-head"><h2>Second matrix</h2></div><p>The rows the second block reviews.</p>\n  <!-- The not-applicable row}' \
+  "$TMP/gbody.html" > "$TMP/gbody-unnamed.html"
+GPAGE_U="$TMP/reports/gallery-unnamed.html"
+bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_U" < "$TMP/gbody-unnamed.html" > "$TMP/gwrap-u.log" 2>&1 \
+  || fail "the unnamed-blocks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-u.log" | head -4)"
+rm -rf "$TMP/profile"
+chrome_dump "$TMP/gdom-u.html" "file://$GPAGE_U?phase=gunset" 45 || true
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-u.html" | head -1)"
+[[ "$tg" == *"GUNSET|N=2|M0=light|M1=both"* ]] \
+  || fail "the unnamed-blocks probe did not filter the first block alone: $tg"
+chrome_dump "$TMP/gdom-u.html" "file://$GPAGE_U?phase=gunget" 45 || true
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-u.html" | head -1)"
+[[ "$tg" == *"GUNGET"* && "$tg" == *"M1=both"* ]] \
+  || fail "a filter set on one block with no id came back on another block with no id (one shared empty key): $tg"
 
 # ---- the COMPARE control (plan 2026-09-22, Phase 3) ----
 # The other mode of the same viewport, in 2-up, swipe or onion skin. The slider
@@ -2162,6 +2292,36 @@ tg="$(mrun "$GPAGE_MD" 'phase=gmdecided')"
   || fail "a mark was drawn on a decided row: $tg"
 [[ "$tg" == *"TILE=1"* && "$tg" == *"VAL=[mark light-desktop 10.0,10.0 20.0x20.0] recorded"* ]] \
   || fail "the marks a decided row carries in the page are not shown on its tile: $tg"
+[[ "$tg" == *"MBD=disabled"* && "$tg" == *"DDRAFT=0"* ]] \
+  || fail "the keyboard Mark button drafts a region on a decided row: $tg"
+
+# ---- KEYBOARD MARKS and the SWIPE HANDLE (plan 2026-09-26 ui-contract, Phase 4) ----
+rm -rf "$TMP/profile"
+tg="$(mrun "$GPAGE_M" 'phase=gmkey')"
+[[ "$tg" == *GMKEY* ]] || fail "the keyboard marks phase did not run: $tg"
+[[ "$tg" == *"MB=enabled"* && "$tg" == *"DRAFT=1"* ]] \
+  || fail "the dialog has no enabled Mark button, or it drafts no region — marks are pointer-only: $tg"
+[[ "$tg" == *"STILL=light-desktop"* ]] \
+  || fail "the arrows walked the tiles while a region was being drafted, instead of moving it: $tg"
+[[ "$tg" == *"KOPEN=1"* && "$tg" == *"ONE=[mark light-desktop 45.0,40.0 20.0x23.0] kbd|"* ]] \
+  || fail "arrows and Shift+arrows did not move and resize the draft, or Enter did not ask for its note and store the contract line: $tg"
+[[ "$tg" == *"KFOCUS=in"* && "$tg" == *"KWALK=dark-desktop"* ]] \
+  || fail "after a keyboard mark the focus left the dialog or the arrows stopped walking the tiles: $tg"
+[[ "$tg" == *"EDGE=[mark light-desktop 40.0,40.0 60.0x20.0] edge"* ]] \
+  || fail "a keyboard draft grew or moved past the image's right edge: $tg"
+[[ "$tg" == *"MBCMP=off"* ]] \
+  || fail "the Mark button is offered with compare on, where no mark can be drawn: $tg"
+[[ "$tg" == *"H25=line"* && "$tg" == *"H75=line"* ]] \
+  || fail "swipe mode shows no handle on the image where the two captures meet: $tg"
+[[ "$tg" == *"HON=hidden"* && "$tg" == *"HOFF=hidden"* ]] \
+  || fail "the swipe handle shows outside swipe mode: $tg"
+
+# ---- the zoom header at 500 px wide -----------------------------------------
+rm -rf "$TMP/profile"
+tg="$(CHROME_WINDOW=500,900 mrun "$GPAGE_M" 'phase=gmnarrow')"
+[[ "$tg" == *"GMNARROW|W=500"* ]] || fail "the narrow header phase did not run at 500 px: $tg"
+[[ "$tg" == *"OFF=fits"* && "$tg" == *"SWIPE=fits"* ]] \
+  || fail "the zoom header takes more than two lines at 500 px (or is wider than the dialog): $tg"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

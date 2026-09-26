@@ -410,15 +410,25 @@ try:
                       "notApplicable": "El rol siempre tiene el permiso."}]}
     with open(os.path.join(tmp, "rows.json"), "w", encoding="utf-8") as fh:
         json.dump(rows, fh)
+
+    # gallery_items opens every tile (a missing capture is refused, the PNG
+    # header gives the <img> its width and height), so each root is real.
+    def captures(root):
+        for rel in ("shots/ld/audit-with-data.png", "shots/dm/audit-with-data.png"):
+            os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
+            subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
+                            os.path.join(root, rel), "16", "9"], check=True)
+    checkout = os.path.realpath(os.path.join(tmp, "checkout"))
+    captures(checkout)
     gal = holds("gallery: one consult-item per row, the matrix on the block",
                 '::: gallery {#E title="Galería audit" rows="rows.json" '
-                'root="/abs/checkout"}\n:::',
+                'root="%s"}\n:::' % checkout,
                 '<section class="consult-group" id="E" data-id="E" '
                 'data-title="Galería audit" data-tiles="light-desktop dark-mobile">',
                 '<section class="consult-item consult-gallery" '
                 'data-id="audit-with-data" data-title="audit · with-data">',
                 '<figure data-tile="light-desktop"><img '
-                'src="file:///abs/checkout/shots/ld/audit-with-data.png"',
+                'src="file://%s/shots/ld/audit-with-data.png"' % checkout,
                 '<p class="gal-na">El rol siempre tiene el permiso.</p>',
                 base_dir=tmp)
     check("gallery: rows= is relative to the SPEC, not to the cwd", bool(gal))
@@ -436,6 +446,7 @@ try:
         json.dump(rows, fh)
     gitrc = subprocess.run(["git", "init", "-q", repo],
                            capture_output=True, text=True).returncode
+    captures(repo)
     GAL_SPEC = ('::: gallery {#E title="Galería audit" rows="rows.json"}\n:::')
     if gitrc == 0:
         real = os.path.realpath(repo)
@@ -446,8 +457,8 @@ try:
         check("gallery: no tile is resolved against the spec's own directory",
               ".context/specs/shots" not in html, html)
         holds("gallery: an explicit root= still overrides the default",
-              '::: gallery {#E title="G" rows="rows.json" root="/abs/checkout"}\n:::',
-              'src="file:///abs/checkout/shots/ld/audit-with-data.png"',
+              '::: gallery {#E title="G" rows="rows.json" root="%s"}\n:::' % checkout,
+              'src="file://%s/shots/ld/audit-with-data.png"' % checkout,
               base_dir=specdir)
     else:
         fail("gallery: `git init` failed in the temp dir, so the checkout-root "

@@ -62,6 +62,39 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/clean.html" 2>&1)"; rc=$?
   && ok "--shots writes clean-1280.png and clean-390.png" || bad "--shots did not write both screenshots"
 [[ "$(grep -c '^{' <<<"$out")" -eq 2 ]] && ok "one JSON line per width" || bad "expected 2 JSON lines: $out"
 
+echo "== a gallery consultation, built the normal route =="
+# Rows JSON -> gallery-items.sh -> body -> wrap-report.sh, over real PNGs at the
+# sizes a project captures (1600x900 desktop, 390x844 phone), written here so no
+# binary is committed. What it guards is the kit's gallery layout itself: the
+# two-column grid, the phone cap, the filter toolbar and the not-applicable line,
+# none of which any other fixture draws.
+GROOT="$TMP/gallery-root"
+for cell in with-data empty; do
+  for t in light-desktop dark-desktop; do
+    mkdir -p "$GROOT/shots/$t" && python3 "$HERE/png_fixture.py" "$GROOT/shots/$t/audit-$cell.png" 1600 900
+  done
+  for t in light-mobile dark-mobile; do
+    mkdir -p "$GROOT/shots/$t" && python3 "$HERE/png_fixture.py" "$GROOT/shots/$t/audit-$cell.png" 390 844
+  done
+done
+if bash "$SCRIPTS/gallery-items.sh" "$FIX/gallery/rows.json" --root "$GROOT" \
+     --group-id E --group-title "Galería audit" > "$TMP/gallery-group.html" 2>"$TMP/gallery-gen.err"; then
+  ok "generated the gallery block from rows.json"
+else
+  bad "gallery-items.sh refused the fixture: $(cat "$TMP/gallery-gen.err")"
+fi
+python3 - "$FIX/gallery/frame.html" "$TMP/gallery-group.html" "$TMP/gallery-body.html" <<'PY'
+import sys
+frame, group = (open(p, encoding="utf-8").read() for p in sys.argv[1:3])
+open(sys.argv[3], "w", encoding="utf-8").write(frame.replace("<!-- GALLERY -->", group))
+PY
+( cd "$TMP" && bash "$SCRIPTS/wrap-report.sh" --title "Galería" --lang es --in "$TMP/gallery-body.html" --out "$TMP/gallery.html" ) >/dev/null 2>&1 \
+  && ok "wrapped the gallery consultation (contract OK)" || bad "wrap-report failed on the gallery consultation"
+out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/gallery.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "the gallery consultation is clean at 1280 and 390 px" || bad "gallery exit $rc: $out"
+[[ -s "$TMP/shots/gallery-1280.png" && -s "$TMP/shots/gallery-390.png" ]] \
+  && ok "--shots writes gallery-1280.png and gallery-390.png" || bad "no gallery screenshots"
+
 echo "== a chart built from a spec: the F-shape data =="
 # Four bands x three series, -36.23 .. +272.87: the chart whose arm-B build cut
 # its tick labels at the svg edge. Built by spec_build.py (a kit-wrapped page),

@@ -48,7 +48,7 @@ one row is the paste's defect, and a traceback — or
 half a JSON document — would hide which line it was.
 
 Usage:
-  gallery-reply.sh [<reply.md>]     (no argument or `-`: read stdin)
+  gallery-reply.sh [--tiles "<t1> <t2> ..."] [<reply.md>]   (no file or `-`: stdin)
 """
 
 import argparse
@@ -57,8 +57,6 @@ import re
 import sys
 
 from gallery_items import VERDICTS
-
-TILES = ("light-desktop", "dark-desktop", "light-mobile", "dark-mobile")
 
 NUM = r"(\d{1,3}\.\d)"
 MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
@@ -80,15 +78,19 @@ def die(msg):
     raise SystemExit(2)
 
 
-def parse_mark(line, n):
+def parse_mark(line, n, tiles=None):
     m = MARK.match(line)
     if not m:
         die("line %d: %r does not match the mark contract "
             "'[mark <tile> x,y wxh] note' (numbers with one decimal)"
             % (n, line))
+    # The tile is any one token unless the caller passes the page's own list
+    # (`--tiles`, the block's data-tiles): the paste does not carry the
+    # matrix, and the composer only writes a name one of the figures has.
     tile, raw, note = m.group(1), m.group(2, 3, 4, 5), m.group(6) or ""
-    if tile not in TILES:
-        die("line %d: tile '%s' is not one of %s" % (n, tile, " ".join(TILES)))
+    if tiles is not None and tile not in tiles:
+        die("line %d: tile '%s' is not one of the page's tiles (%s)"
+            % (n, tile, " ".join(tiles)))
     x, y, w, h = (float(v) for v in raw)
     for name, v in zip("xywh", (x, y, w, h)):
         if v > 100:
@@ -140,7 +142,7 @@ def parse_answer(ident, para):
     return {"verdict": verdict, "asks": asks, "provisional": provisional}
 
 
-def parse_row(ident, gallery, cell, body):
+def parse_row(ident, gallery, cell, body, tiles=None):
     body = trim(body)
     first = 0
     while first < len(body) and body[first][1].strip():
@@ -154,7 +156,7 @@ def parse_row(ident, gallery, cell, body):
     for n, line in body:
         if line.startswith("[mark "):
             in_marks = True
-            marks.append(parse_mark(line, n))
+            marks.append(parse_mark(line, n, tiles))
         elif in_marks:
             if line.strip():
                 die("line %d: %r comes after the marks of row '%s' — marks "
@@ -169,7 +171,7 @@ def parse_row(ident, gallery, cell, body):
             "marks": marks}
 
 
-def parse(text):
+def parse(text, tiles=None):
     items, cur = [], None
     for n, line in enumerate(text.splitlines(), 1):
         if line.startswith("### "):
@@ -184,7 +186,7 @@ def parse(text):
     for it in items:
         key = gallery_key(it["id"], it["title"])
         if key:
-            rows.append(parse_row(it["id"], key[0], key[1], it["body"]))
+            rows.append(parse_row(it["id"], key[0], key[1], it["body"], tiles))
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})
@@ -200,6 +202,10 @@ def main(argv):
                     "copy button produced, nothing added before or after.")
     ap.add_argument("reply", nargs="?", default="-", metavar="<reply.md>",
                     help="the copied reply (default: stdin)")
+    ap.add_argument("--tiles", metavar='"<t1> <t2> ..."',
+                    help="the page's tile names (the block's data-tiles); a "
+                         "mark on any other tile is refused. Without it, any "
+                         "one-token tile name is read")
     args = ap.parse_args(argv)
     try:
         if args.reply == "-":
@@ -211,7 +217,7 @@ def main(argv):
         die("no such reply file: %s" % args.reply)
     except UnicodeDecodeError:
         die("%s is not UTF-8 text" % args.reply)
-    sys.stdout.write(json.dumps(parse(text), ensure_ascii=False, indent=2)
+    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None), ensure_ascii=False, indent=2)
                      + "\n")
     return 0
 
