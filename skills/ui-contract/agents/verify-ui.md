@@ -52,7 +52,10 @@ directory, and the result is not this gallery's evidence.
    ` meta=<k>/<m>` when the run printed a meta-suite count. `<N>` is the phase you were
    given (drop `phase <N> · ` for a visual bugfix), `<n>` the passed total across every
    runner project, `<f>` the failed, flaky, errored, timed-out and did-not-run cells
-   added together. Print the real numbers even when they fail: the grammar and every
+   added together. A skip is none of those only when the spec itself declares it for that
+   runner project (a `test.skip` whose condition names the project, e.g. a mobile-only
+   cell on desktop): leave it out of `<f>` and list each one, with the spec line that
+   declares it, under point 1. Any other skip counts in `<f>`. Print the real numbers even when they fail: the grammar and every
    other rule of that line live in `skills/plan-exec/scripts/check-ui-evidence.sh`'s
    header, and a failing line is refused there, not rounded here.
 3. **The contact-sheet path(s)**, exactly as the composer printed them.
