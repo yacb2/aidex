@@ -246,6 +246,12 @@ it grows its own copy. What is plan-specific:
   reviewer covers which scope. **Exit 3 is an empty scope, never a passing review.**
 - **Where the evidence goes.** The Execution log in the plan's `00-index.md` takes the
   `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
+- **A UI phase does not close on prose.** Before the commit, run
+  `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh <plan file> <phase>`
+  (the single-file plan, or `00-index.md`). It owns which phase counts as UI and the
+  three `ui-*` Execution-log lines "verified" needs; a non-UI plan exits 0 untouched.
+  **Exit 1 or 2 keeps the phase open** — record the missing part (verify-ui, the owner's
+  verdict, the predicate review), never the phase as done.
 - **Deferrals** use `register-item.sh --origin plan --plan <this plan>`
   ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md)).
 - **Which model runs which step** — orchestrate, implement, and do the mechanical work
