@@ -46,6 +46,7 @@ check() {  # <regex> <tool> <why>
 check 'load the .?artifact-design.? skill|invoke the .?[a-z-]+.? skill'  Skill 'invoking another skill'
 check 'write the sibling HTML|write the .?\.html|hand-generate'          Write 'writing an HTML file directly'
 check 'render\.sh|shell out|run the'                                     Bash  'running a script'
+check 'launch the .?artifact-grader.? agent'                               Agent 'launching the grader agent'
 
 # ---------- the declared set must not drift into the opposite failure ----------
 # Over-declaring is its own defect: allowed-tools is the skill's stated blast radius, and a
@@ -55,6 +56,7 @@ for t in $DECLARED; do
     Bash|Read|Glob|Grep) continue ;;   # baseline read/render surface
     Skill) grep -qiE 'skill' <<<"$BODY" || fail "allowed-tools declares 'Skill' but the body never instructs invoking one" ;;
     Write) grep -qiE 'write|generate|hand-roll' <<<"$BODY" || fail "allowed-tools declares 'Write' but the body never instructs writing a file" ;;
+    Agent) grep -qiE 'launch the .?[a-z-]+.? agent' <<<"$BODY" || fail "allowed-tools declares 'Agent' but the body never instructs launching one" ;;
     *) fail "allowed-tools declares '$t', which no instruction in the body accounts for — narrow it or justify it in the body" ;;
   esac
 done
