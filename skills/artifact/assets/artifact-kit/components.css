@@ -221,7 +221,12 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    The image keeps the paper behind it: a screenshot with transparent edges (a
    rounded-corner shell is the usual case) shows the page through them, and on
    a dark page a light-mode capture then bleeds. */
-.gal { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin: 0.2rem 0 0.3rem; }
+/* Two columns at most, and auto-fit collapses a column no tile fills: a filter
+   that leaves one tile per row (light + mobile) gives that tile the row
+   instead of the left half of a grid whose right half is empty. The minimum
+   sits just under half so exactly two tracks fit. */
+.gal { display: grid; grid-template-columns: repeat(auto-fit, minmax(calc(50% - 0.4rem), 1fr));
+       gap: 0.6rem; margin: 0.2rem 0 0.3rem; }
 .gal figure { margin: 0; }
 .gal img { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 4px;
            background: var(--paper); }
@@ -275,6 +280,23 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
                                   border: 1px solid var(--rule); border-radius: 4px;
                                   background: var(--paper); color: var(--ink); }
 .kit-zoom-size[aria-pressed="true"], .kit-zoom-cmp[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.kit-zoom-mark { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer; white-space: nowrap;
+                 border: 1px solid var(--rule); border-radius: 4px;
+                 background: var(--paper); color: var(--ink); }
+.kit-zoom-mark:disabled { cursor: default; opacity: 0.5; }
+/* The Mark button and the range take turns: marks are drawn with compare off,
+   the range only means something with it on. */
+.kit-zoom:not([data-compare="off"]) .kit-zoom-mark { display: none; }
+/* Under 640px the header is two lines: the row (truncated, its full text in
+   the title), the tile, the size and Close; then the tools. The cell id
+   repeats the row, the sibling's name repeats the compare mode, and the
+   group's label repeats its buttons, so the three go. At 500px wide the
+   header was four lines (160px with the range showing) over the capture. */
+@media (max-width: 640px) {
+  .kit-zoom-row { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kit-zoom-cell, .kit-zoom-with, .kit-zoom-cmpgroup > .kit-gallabel { display: none; }
+  .kit-zoom-cmpgroup { order: 1; flex: 1 1 100%; margin-left: 0; }
+}
 .kit-zoom-body { padding: 0.7rem; }
 /* The UA caps the dialog at 100% - 2em - 6px, so 90vw alone overflows it on a
    narrow screen; the height leaves room for the header and the keys line. */
@@ -294,6 +316,18 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 .kit-zoom[data-compare="2up"] .kit-zoom-other { grid-area: 1 / 2; }
 .kit-zoom[data-compare="2up"]:not(.native) img { max-width: min(44vw, 100%); }
 .kit-zoom[data-compare="swipe"] .kit-zoom-other { clip-path: inset(0 0 0 var(--kit-swipe)); }
+/* The swipe HANDLE: the line where the two captures meet, with a grip, so the
+   split reads as a split and not as a seam in one screenshot. The layer sits
+   over the current image (placed by the composer); the line follows the same
+   --kit-swipe the clip uses. It takes no pointer: the range is the control. */
+.kit-swipe-layer { position: absolute; pointer-events: none; display: none; }
+.kit-zoom[data-compare="swipe"] .kit-swipe-layer { display: block; }
+.kit-swipe-handle { position: absolute; top: 0; bottom: 0; left: var(--kit-swipe, 50%); width: 2px;
+                    transform: translateX(-50%); background: var(--accent);
+                    box-shadow: 0 0 0 1px var(--paper); }
+.kit-swipe-handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 14px; height: 14px;
+                           transform: translate(-50%, -50%); border-radius: 50%;
+                           background: var(--accent); box-shadow: 0 0 0 2px var(--paper); }
 .kit-zoom[data-compare="onion"] .kit-zoom-other { opacity: var(--kit-onion); }
 .kit-zoom[data-compare="swipe"] .kit-zoom-range,
 .kit-zoom[data-compare="onion"] .kit-zoom-range { display: inline-block; flex: 1 1 5rem;

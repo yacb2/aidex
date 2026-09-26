@@ -162,10 +162,30 @@ bash "$PARSE" "$TMP/edge.txt" > "$TMP/edge.json" 2> "$TMP/edge.err"
 expect_json "$TMP/edge.json" 'd["rows"][0]["marks"][0] == {"tile": "dark-mobile", "x": 33.3, "y": 0.0, "w": 66.7, "h": 100.0, "note": "flush"}' \
   "a mark flush against the right and bottom edges is accepted"
 
-echo "== refusals: RED controls, one mutated line each =="
+# The matrix is the project's, not the parser's: a block that declares a tablet
+# viewport pastes marks on `light-tablet`, and the composer only ever writes a
+# tile name the page's own figures carry. A parser that knew four names
+# refused every other matrix's marks.
+mutate 9 '[mark light-tablet 12.5,34.0 40.0x10.5] tablet' "$TMP/tablet.txt"
+bash "$PARSE" "$TMP/tablet.txt" > "$TMP/tablet.json" 2> "$TMP/tablet.err" \
+  || fail "a mark on a tile outside light/dark x desktop/mobile was refused: $(cat "$TMP/tablet.err")"
+expect_json "$TMP/tablet.json" 'd["rows"][0]["marks"][0]["tile"] == "light-tablet"' \
+  "a mark on any tile the page declares is read, not only the four of the default matrix"
 
-mutate 9 '[mark light-tablet 12.5,34.0 40.0x10.5] x' "$TMP/bad-tile.txt"
-refuse "$TMP/bad-tile.txt" 9 "light-tablet" "a tile outside the four"
+# …and with the page's own tile list (--tiles, the block's data-tiles), a name
+# outside it is refused on its line: a hand-edited paste with a typo is caught.
+mutate 9 '[mark light-dekstop 12.5,34.0 40.0x10.5] typo' "$TMP/typo.txt"
+refuse_tiles_rc=0
+bash "$PARSE" --tiles "light-desktop light-tablet" "$TMP/typo.txt" > "$TMP/typo.out" 2> "$TMP/typo.err" || refuse_tiles_rc=$?
+[[ "$refuse_tiles_rc" == 2 ]] && grep -q "line 9" "$TMP/typo.err" && grep -q "light-dekstop" "$TMP/typo.err" && [[ ! -s "$TMP/typo.out" ]] \
+  && ok "--tiles refuses a mark on a tile the page does not declare, naming the line" \
+  || fail "--tiles did not refuse light-dekstop on line 9 (exit $refuse_tiles_rc): $(cat "$TMP/typo.err")"
+bash "$PARSE" --tiles "light-desktop light-tablet" "$TMP/tablet.txt" > "$TMP/tablet2.json" 2> "$TMP/tablet2.err" \
+  || fail "--tiles refused a declared tile: $(cat "$TMP/tablet2.err")"
+expect_json "$TMP/tablet2.json" 'd["rows"][0]["marks"][0]["tile"] == "light-tablet"' \
+  "--tiles accepts a mark on a tile it lists"
+
+echo "== refusals: RED controls, one mutated line each =="
 
 mutate 10 '[mark light-desktop 0.0,101.0 25.0x25.0] x' "$TMP/bad-range.txt"
 refuse "$TMP/bad-range.txt" 10 "0-100" "a number above 100"

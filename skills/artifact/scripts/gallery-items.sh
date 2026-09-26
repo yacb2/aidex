@@ -12,7 +12,9 @@
 # check-artifact.sh already understand. Output goes to stdout: paste it into the
 # page's body sidecar (or hand it to artifact-item.sh put) and wrap as usual.
 #
-# Output is deterministic. Exit 2 with one plain line on a malformed document.
+# Output is deterministic. Each tile's PNG header is read for its width and
+# height. Exit 2 with one plain line on a malformed document, a tile path with
+# no file under --root, or a tile that is not a PNG.
 
 set -euo pipefail
 

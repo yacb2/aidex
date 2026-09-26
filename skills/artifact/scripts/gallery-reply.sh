@@ -4,7 +4,8 @@
 # `other`. Thin wrapper; the logic lives in dash/gallery_reply.py.
 #
 # Usage:
-#   gallery-reply.sh [<reply.md>]     # no argument or `-`: read stdin
+#   gallery-reply.sh [--tiles "<t1> <t2> ..."] [<reply.md>]   # no file or `-`: stdin
+#   --tiles: the block's data-tiles; a mark on any other tile is refused
 #   gallery-reply.sh --help
 #
 # The input is exactly the block the page's copy button produced: text added

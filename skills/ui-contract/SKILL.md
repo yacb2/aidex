@@ -117,7 +117,8 @@ same kind of work:
 Before spawning either, **read the harness contract**:
 `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/01-harness-contract.md` — it names
 what the project must already expose (the harness module and its matrix validation, the
-runner invocation, the four light/dark x desktop/mobile projects, where baselines live,
+meta-suite that proves every predicate can fail, the runner invocation, the four
+light/dark x desktop/mobile projects, where baselines live,
 how a known defect is registered, the contact-sheet script, who owns the lint allowlist)
 and the limits the gate is known not to cover. Skipping it means briefing an agent on a
 harness that may not be there, and the failure arrives as a confusing run instead of a
@@ -142,10 +143,15 @@ sessions. What each part is:
    board (one HTML file over the committed baselines) or the composed image stays the
    developer's lens while building, not the owner's review. The owner is the final
    reviewer — never the model.
-2. **The gate's closing line, from a run with NO snapshot update.** A run that rewrote
-   its own baselines proves the code agrees with itself. A baseline that genuinely must
-   move is *reported*, with which cells moved and why, and moved in a separate, named act.
-3. **A reviewer pass on the harness predicates themselves.**
+2. **The gate's closing line, from a run with NO snapshot update**, including the
+   meta-suite's count as a **bare `meta: N/N`**. `meta: 0/0` means the predicates were
+   never proven in that run, and a count labelled filtered or skipped is not a gate run
+   (harness contract § 1b). A run that rewrote its own baselines proves the code agrees
+   with itself. A baseline that genuinely must move is *reported*, with which cells moved
+   and why, and moved in a separate, named act.
+3. **A reviewer pass on the harness predicates themselves** — and the meta-suite as the
+   standing form of it: every predicate has a seeded defect it must catch, run before the
+   galleries.
 
 Part 3 is this chain's own finding, not a formality. Phases 0, 4 and 5 of the boilerplate
 plan each shipped a vacuous check under a fully green gate: known-defect entries left
@@ -154,7 +160,8 @@ silently skipped landmarks it could not find (comparing a set with a hole in it 
 calling the page stable), an overflow check that fell back to an element that can never
 be too wide, and a some-per-glob rot guard that passed while nothing matched. Each was
 green. **A new guard needs a RED control shown** — make it fail on purpose once, and
-record that it did.
+record that it did. In a harness with a meta-suite that control is a new meta row, kept:
+a RED shown once and thrown away proves the guard once, a row proves it on every run.
 
 **Whether a phase closes is not decided here.**
 `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh` owns it: which phase
@@ -169,7 +176,11 @@ header is the grammar to write, and verify-ui prints the `ui-gate:` line ready-m
   fleet and does not propagate; the harness does. An app writes its own gallery against
   the shared harness rather than copying a pattern page.
 - **Never run the gate with a snapshot update to make it green.** That is the one action
-  that converts the whole mechanism into a rubber stamp.
+  that converts the whole mechanism into a rubber stamp. (It also skips the meta-suite's
+  pixel rows, so its closing count is labelled "skipped" — not a gate run.)
+- **A sideways scroller is a defect unless the page says otherwise.** Mark the ones meant
+  to scroll with the harness's opt-in (`data-scroll-x="intended"` in the shipped tree);
+  never mark one to make a run green.
 - **Pixel baselines only on gallery pages built from fixtures**, never on live-data
   pages — that is what keeps the comparison deterministic.
 - **A dev-only route can ship to production.** Guard the gallery route on a dev-only

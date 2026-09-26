@@ -215,10 +215,10 @@
     <h3><span class="consult-id">audit-with-data</span>audit · with-data</h3>
     <p>This row's cells, read from the committed baseline. Mark the verdict and, if it needs changes, say which in the row's notes.</p>
     <div class="gal">
-      <figure data-tile="light-desktop"><img src="file:///abs/repo/root/shots/light-desktop/audit-with-data.png" alt="audit · with-data · light-desktop" loading="lazy"><figcaption>light · desktop</figcaption></figure>
-      <figure data-tile="dark-desktop"><img src="file:///abs/repo/root/shots/dark-desktop/audit-with-data.png" alt="audit · with-data · dark-desktop" loading="lazy"><figcaption>dark · desktop</figcaption></figure>
-      <figure data-tile="light-mobile"><img src="file:///abs/repo/root/shots/light-mobile/audit-with-data.png" alt="audit · with-data · light-mobile" loading="lazy"><figcaption>light · mobile</figcaption></figure>
-      <figure data-tile="dark-mobile"><img src="file:///abs/repo/root/shots/dark-mobile/audit-with-data.png" alt="audit · with-data · dark-mobile" loading="lazy"><figcaption>dark · mobile</figcaption></figure>
+      <figure data-tile="light-desktop"><img src="file:///abs/repo/root/shots/light-desktop/audit-with-data.png" alt="audit · with-data · light-desktop" width="1600" height="900" loading="lazy"><figcaption>light · desktop</figcaption></figure>
+      <figure data-tile="dark-desktop"><img src="file:///abs/repo/root/shots/dark-desktop/audit-with-data.png" alt="audit · with-data · dark-desktop" width="1600" height="900" loading="lazy"><figcaption>dark · desktop</figcaption></figure>
+      <figure data-tile="light-mobile"><img src="file:///abs/repo/root/shots/light-mobile/audit-with-data.png" alt="audit · with-data · light-mobile" width="390" height="844" loading="lazy"><figcaption>light · mobile</figcaption></figure>
+      <figure data-tile="dark-mobile"><img src="file:///abs/repo/root/shots/dark-mobile/audit-with-data.png" alt="audit · with-data · dark-mobile" width="390" height="844" loading="lazy"><figcaption>dark · mobile</figcaption></figure>
     </div>
     <div class="opts one">
       <label><input type="radio" name="audit-with-data" data-label="Approved"><span>Approved: these cells stand as the baseline</span></label>

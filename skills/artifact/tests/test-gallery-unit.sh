@@ -30,29 +30,41 @@ failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 ok()   { printf '  ok: %s\n' "$*"; }
 
-ROOT="/abs/checkout"
+ROOT="$TMP/checkout"
 TILES='light-desktop dark-desktop light-mobile dark-mobile'
 
 # --- the fixture rows document ------------------------------------------------
-# Paths are fictional on purpose: neither the generator nor the checker opens an
-# image, and a test that needed a real screenshot tree could only run in the one
-# worktree that has one.
+# The generator opens every tile (it refuses a missing one and writes the
+# capture's own width and height on the <img>), so the checkout is real: tiny
+# PNGs written here, at a desktop and a phone aspect. The names carry no
+# platform suffix — Playwright's `-darwin` is the project's naming, and a
+# fixture that copied it read as if the kit depended on it.
+png() {  # png <path under ROOT> <width> <height>
+  mkdir -p "$(dirname "$ROOT/$1")"
+  python3 "$SKILL/tests/png_fixture.py" "$ROOT/$1" "$2" "$3"
+}
+for cell in with-data empty; do
+  png "shots/light-desktop/audit-$cell.png" 160 90
+  png "shots/dark-desktop/audit-$cell.png" 160 90
+  png "shots/light-mobile/audit-$cell.png" 39 84
+  png "shots/dark-mobile/audit-$cell.png" 39 84
+done
 cat > "$TMP/rows.json" <<'JSON'
 {
  "gallery": "audit",
- "shots_dir": "frontend/tests/demo/__screenshots__",
+ "shots_dir": "shots",
  "tiles": ["light-desktop", "dark-desktop", "light-mobile", "dark-mobile"],
  "rows": [
   {"cell": "with-data",
-   "tiles": {"light-desktop": "frontend/tests/demo/__screenshots__/light-desktop/audit-with-data-darwin.png",
-             "dark-desktop": "frontend/tests/demo/__screenshots__/dark-desktop/audit-with-data-darwin.png",
-             "light-mobile": "frontend/tests/demo/__screenshots__/light-mobile/audit-with-data-darwin.png",
-             "dark-mobile": "frontend/tests/demo/__screenshots__/dark-mobile/audit-with-data-darwin.png"}},
+   "tiles": {"light-desktop": "shots/light-desktop/audit-with-data.png",
+             "dark-desktop": "shots/dark-desktop/audit-with-data.png",
+             "light-mobile": "shots/light-mobile/audit-with-data.png",
+             "dark-mobile": "shots/dark-mobile/audit-with-data.png"}},
   {"cell": "empty",
-   "tiles": {"light-desktop": "frontend/tests/demo/__screenshots__/light-desktop/audit-empty-darwin.png",
-             "dark-desktop": "frontend/tests/demo/__screenshots__/dark-desktop/audit-empty-darwin.png",
-             "light-mobile": "frontend/tests/demo/__screenshots__/light-mobile/audit-empty-darwin.png",
-             "dark-mobile": "frontend/tests/demo/__screenshots__/dark-mobile/audit-empty-darwin.png"}},
+   "tiles": {"light-desktop": "shots/light-desktop/audit-empty.png",
+             "dark-desktop": "shots/dark-desktop/audit-empty.png",
+             "light-mobile": "shots/light-mobile/audit-empty.png",
+             "dark-mobile": "shots/dark-mobile/audit-empty.png"}},
   {"cell": "no-permission",
    "notApplicable": "Every role that reaches this screen holds the permission, so the state is unreachable in the demo."}
  ]
@@ -107,8 +119,11 @@ tiles_seen="$(sed -n '/data-id="audit-with-data"/,/<\/section>/p' "$TMP/group.ht
 [[ "$tiles_seen" == "light-desktop dark-desktop light-mobile dark-mobile " ]] \
   && ok "four figures, in the document's tile order" \
   || fail "the tiles are not the declared four in order: '$tiles_seen'"
-grep -q '<figure data-tile="light-mobile"><img src="file:///abs/checkout/frontend/tests/demo/__screenshots__/light-mobile/audit-with-data-darwin.png" alt="audit · with-data · light-mobile" loading="lazy"><figcaption>claro · móvil</figcaption></figure>' "$TMP/group.html" \
-  && ok "the figure is a file:// img under --root, with alt and loading=lazy" \
+# width and height are the capture's own pixels: a lazy image with no size
+# reserves no box, so the page jumps as each one loads (DevTools flags every
+# one of them) and the rail's current-section marker drifts with it.
+grep -qF "<figure data-tile=\"light-mobile\"><img src=\"file://$ROOT/shots/light-mobile/audit-with-data.png\" alt=\"audit · with-data · light-mobile\" width=\"39\" height=\"84\" loading=\"lazy\"><figcaption>claro · móvil</figcaption></figure>" "$TMP/group.html" \
+  && ok "the figure is a file:// img under --root, with alt, its own width and height, and loading=lazy" \
   || fail "the figure is not the declared shape: $(grep -m1 light-mobile "$TMP/group.html")"
 [[ "$(grep -c 'src="file://' "$TMP/group.html")" == 8 ]] \
   && ok "two tiled rows x four tiles = eight images, and the N/A row has none" \
@@ -203,6 +218,38 @@ rc=$?
 [[ "$rc" == 2 ]] && grep -q 'must be an absolute path' "$TMP/rel.err" \
   && ok "a relative --root is refused" \
   || fail "a relative --root was accepted (exit $rc): $(cat "$TMP/rel.err")"
+# A tile path with no file behind it: the page used to build, pass the contract
+# and show the reader a broken image where the screenshot should be — a row
+# nobody can judge, looking like a capture that failed rather than a bad path.
+refuse "a tile path with no file under --root" \
+  '{"gallery":"audit","tiles":["light-desktop"],"rows":[{"cell":"x","tiles":{"light-desktop":"shots/light-desktop/audit-gone.png"}}]}' \
+  "row 'x'.*tile 'light-desktop'.*no file.*shots/light-desktop/audit-gone.png"
+# The width and height come from the PNG header, so a tile that is not a PNG is
+# named rather than given a size nobody read.
+printf 'not an image' > "$ROOT/shots/fake.png"
+# --root / used to strip to "" and the tile was read relative to the CWD: a
+# capture present only there was accepted, with the size of an unrelated file.
+mkdir -p "$TMP/cwd/zz-cwd-only"
+python3 "$SKILL/tests/png_fixture.py" "$TMP/cwd/zz-cwd-only/t.png" 4 4
+( cd "$TMP/cwd" && bash "$GEN" <(printf '%s' '{"gallery":"audit","tiles":["light-desktop"],"rows":[{"cell":"x","tiles":{"light-desktop":"zz-cwd-only/t.png"}}]}') \
+    --root / --group-id E --group-title T ) > "$TMP/rs.out" 2> "$TMP/rs.err"
+rc=$?
+[[ "$rc" == 2 ]] && grep -q "no file at /zz-cwd-only/t.png" "$TMP/rs.err" && [[ ! -s "$TMP/rs.out" ]] \
+  && ok "--root / reads the tile under /, never relative to the working directory" \
+  || fail "--root / resolved the tile against the cwd (exit $rc): $(cat "$TMP/rs.err")"
+# A PNG header that declares 0x0 is no capture: width="0" height="0" hides it.
+python3 "$SKILL/tests/png_fixture.py" "$ROOT/shots/zero.png" 1 1
+python3 - "$ROOT/shots/zero.png" <<'PY'
+import struct, sys
+p = sys.argv[1]; b = bytearray(open(p, "rb").read())
+b[16:24] = struct.pack(">II", 0, 0); open(p, "wb").write(bytes(b))
+PY
+refuse "a PNG whose header declares 0x0" \
+  '{"gallery":"audit","tiles":["light-desktop"],"rows":[{"cell":"x","tiles":{"light-desktop":"shots/zero.png"}}]}' \
+  "row 'x'.*tile 'light-desktop'.*0x0"
+refuse "a tile that is not a PNG" \
+  '{"gallery":"audit","tiles":["light-desktop"],"rows":[{"cell":"x","tiles":{"light-desktop":"shots/fake.png"}}]}' \
+  "row 'x'.*tile 'light-desktop'.*not a PNG"
 
 # --- the generated block, wrapped and checked ---------------------------------
 # The end of the generator's contract is not its own output but a PAGE: the
