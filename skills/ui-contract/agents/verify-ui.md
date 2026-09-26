@@ -46,7 +46,15 @@ directory, and the result is not this gallery's evidence.
 
 1. **Per runner project** (light-desktop, dark-desktop, light-mobile, dark-mobile, or
    whatever this project names them): pass/fail and the counts.
-2. **The gate's closing line(s), verbatim.** Copied, not summarised.
+2. **The gate's closing line(s), verbatim.** Copied, not summarised. Then the same run
+   as the one Execution-log line the evidence gate reads, ready to paste:
+   `ui-gate: phase <N> · no-snapshot-update · passed=<n> failed=<f>` — plus
+   ` meta=<k>/<m>` when the run printed a meta-suite count. `<N>` is the phase you were
+   given (drop `phase <N> · ` for a visual bugfix), `<n>` the passed total across every
+   runner project, `<f>` the failed, flaky, errored, timed-out and did-not-run cells
+   added together. Print the real numbers even when they fail: the grammar and every
+   other rule of that line live in `skills/plan-exec/scripts/check-ui-evidence.sh`'s
+   header, and a failing line is refused there, not rounded here.
 3. **The contact-sheet path(s)**, exactly as the composer printed them.
 4. **Every failing cell**, with the assertion message the run printed and which check
    produced it (pixel diff · overflow · layout · contrast · console error).

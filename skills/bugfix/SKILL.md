@@ -64,7 +64,8 @@ The bug-fix workflow is these nine steps — the agent table and prose below key
    human-visible and skipping is right; it is recorded as
    `human-verification: skipped — <reason>` and never left absent, because absent reads
    the same as forgotten. For a visual/CSS-only bug this step is not optional —
-   it is the only verification there is (see the exception below).
+   it is the only verification there is, and it closes on the UI evidence gate
+   (see the exception below).
 
 ## Agent Configuration
 
@@ -125,3 +126,11 @@ When a bug is purely visual (CSS layout, spacing, colors) and cannot be tested p
 3. Fix it
 4. Write a smoke test if any aspect is testable (e.g., component renders, class is applied)
 5. Commit with clear description of what was visually broken
+6. **Before it merges, run the UI evidence gate on step 9's proof file:**
+   `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh --visual .context/proofs/<slug>/human-verification.md`.
+   The script owns the three `ui-*` lines "verified" needs (the owner's verdict on the
+   before/after review page, the gate's closing line from a run with no snapshot update,
+   the predicate review) and what each must say to pass; `/ui-contract` owns how to
+   produce them. A project with no gallery harness records
+   `ui-evidence: skipped — no gallery harness in this project` there instead. Exit 1 or 2
+   means the visual fix is not verified — never report it fixed on the smoke test alone.

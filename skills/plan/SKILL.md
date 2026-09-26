@@ -128,6 +128,11 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
      executor get this wrong without it?"). Small plans collapse to Goal +
      acceptance + phase list + gates. Soft budgets: single-file ≤ 8 KB, phase
      file ≤ 6 KB (Execution log excluded).
+   - **A plan that touches a screen** carries a `## UI contract` section from
+     `/ui-contract` (in `00-index.md` when multi-file) — that heading is what makes
+     `plan-exec` hold its phases to the UI evidence gate. A heading or a bold lead-in
+     that NAMES the section ("UI contract" in a title's first words) marks the plan UI;
+     a mention in prose does not. The rule lives in the check script's header.
    **Decompose by vertical slices first** (each phase a thin end-to-end piece of
    behavior across layers), not by layer — slices are independently testable and let
    the executor parallelize. Reserve layer-ordering for genuine ordering constraints,

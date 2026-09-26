@@ -63,8 +63,10 @@ the route itself is unauthenticated"), and the harness refuses a blank one at ru
 
 ## Step 3 — Write the plan's UI-contract section
 
-Four items, in this order. Nothing here is optional; an item with no answer is written as
-the open question it is.
+Under the heading `## UI contract`, in the plan file (a modular plan's `00-index.md`) —
+that heading is what makes the plan's phases UI phases for the evidence gate below. Four
+items, in this order. Nothing here is optional; an item with no answer is written as the
+open question it is.
 
 1. **Level** — 1, 2 or 3, with the one sentence that justifies it.
 2. **Reference screen** — the existing screen this one is modelled on, named by path or
@@ -85,7 +87,9 @@ The plan then carries these phases, in this order, each one closing on its own e
 
 1. **Skeleton of the real page** — the route and the page built from the real components
    against fixture data, no API call behind it. No logic to correct yet, so every layout
-   correction is cheap.
+   correction is cheap. Its Execution log records
+   `ui-evidence: phase <n> · skipped — skeleton only, owner review pending in phase <n+1>`,
+   because the owner's verdict is the next phase's evidence.
 2. **Review of the skeleton** — the skeleton is rendered as gallery cells and the owner
    rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired. The
    owner's verdict on the layout closes this phase; a rejected layout goes back to phase 1
@@ -128,7 +132,7 @@ same picture are one cell and a false claim of coverage.
 
 The word on its own is not a claim. A model looking at its own screenshots has already
 asserted "verified in light and dark" in this corpus and been disproved in three
-sessions. All three parts, or the phase does not close:
+sessions. What each part is:
 
 1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
    consultation page (`/aidex:artifact`, § Gallery rows): the project emits its rows JSON
@@ -151,6 +155,13 @@ calling the page stable), an overflow check that fell back to an element that ca
 be too wide, and a some-per-glob rot guard that passed while nothing matched. Each was
 green. **A new guard needs a RED control shown** — make it fail on purpose once, and
 record that it did.
+
+**Whether a phase closes is not decided here.**
+`${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh` owns it: which phase
+is UI, the three `ui-*` lines the Execution log must carry — an exact grammar, anything
+else fails — and the recorded skip for a phase that renders no screen. plan-exec runs it
+at the between-phase checkpoint and bugfix runs it (`--visual`) on a visual fix; its
+header is the grammar to write, and verify-ui prints the `ui-gate:` line ready-made.
 
 ## Gotchas
 
