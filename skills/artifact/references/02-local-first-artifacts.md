@@ -16,7 +16,7 @@ pointing into its section.
 - **Route A** — the request maps to a deterministic board → run the renderer, open. Done.
 - **Route S** — a NEW page, or a new round of a page that already has a `.spec.md`:
   write/edit the `.spec.md`, build it with `spec_build.py … -o <page>.html --check`, use
-  the verbs for edits. Never write HTML. This is the default (d3).
+  the verbs for edits. Never write HTML. This is the default (d3). Then the quality loop.
 - **Route B** — a page that already exists as HTML with no `.spec.md`. It stays here and
   is not migrated. Everything below §0 is this route:
   1. Intake questionnaire (§0), answered before any markup — existing page for this
@@ -29,8 +29,12 @@ pointing into its section.
   5. Wrap and verify in one step (§5):
      `wrap-report.sh --title "<t>" --out <sibling-of-anchor>.html` — fix anything it
      reports; never hand over a failing file. It also NOTEs neighbours that drifted.
+     Then the quality loop.
   6. Link the page from its anchor, set `artifact-anchor`, state the absolute path in
      the reply, `open` it (§6-7).
+- **The quality loop** — both routes, before anything is handed over:
+  `render-probe.sh --shots`, then the `artifact-grader` agent, fix and repeat until it
+  scores 9, at most 3 rounds (§ The quality loop).
 - **Consultation?** §8 on top: stable ids never renumbered, a notes box on every item,
   the general-notes item last, the composer with both bars, a visual or a declared
   `none:` reason — and the ledger updated every iteration, before the reply.
@@ -325,7 +329,54 @@ cell, the column and the value rewritten with a point.
 The contract, the anchor, the sibling path, the publish policy and the consultation
 rules of §8 are all unchanged — the spec is a way of WRITING the page, not a different
 page. `wrap-report.sh` is still what wraps it (`spec_build.py` calls it over stdin), the
-check is still the gate, and the reply still states the absolute path.
+check is still the gate, and the reply still states the absolute path. A page that passes
+the build goes through § The quality loop below before it is opened or handed over.
+
+---
+
+## The quality loop — both routes end here
+
+`check-artifact` reads source; it passed all 18 pages of the 2026-09-24 A/B, including
+the ones the owner scored 2 of 5. What the reader sees is judged by two more steps, in
+order, on every new or revised page of Route S and Route B (not Route A: a board is a
+script's output with no request to answer):
+
+| Step | Command | Passes when |
+|---|---|---|
+| 1. Build and contract | `spec_build.py <n>.spec.md -o <n>.html --check` (S) or `wrap-report.sh --out <n>.html` (B) | the check is OK |
+| 2. Render probe | `bash "${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/render-probe.sh" --shots "${TMPDIR:-/tmp}/aidex-shots/<n>" <n>.html` | exit 0 |
+| 3. Grade | the `artifact-grader` agent (`aidex:artifact-grader` from the plugin) | `SCORE` 9 or more |
+
+**Step 2, by exit code.** `0` clean, go to step 3. `1` one line per defect (text over
+text, svg text outside its svg, a spill or cut, a fixed control over body text, sideways
+scroll): fix each in the spec (or the body on Route B), rebuild, re-probe. `2` usage
+error: the command is wrong, fix it. `3` Playwright or its Chromium is missing: **the loop
+stops here**. Print the install command the probe gave, say in the reply that the page
+was not probed or graded, and open it only as unchecked. It is never read as clean: a gate
+that passes because it could not look is the defect it exists to catch. `4` the probe
+crashed; its stderr names the cause. Stop and report it the same way.
+
+The shots go to a scratch directory, never beside the page: `<n>-1280.png` and
+`<n>-390.png` under `.context/` would be picked up as page assets and outlive the round.
+
+**Step 3, the handoff.** Launch the grader with exactly three things: the user's request
+in their words, the absolute paths of the two shots, and the absolute path of
+`references/05-visual-review.md`. Never the spec, the HTML or your own notes: a builder
+that explains its page to the grader is grading it itself. The grader returns the
+rubric's `SCORE` block.
+
+**The rounds.** A round is steps 1 to 3 once. The verdict table of `05-visual-review.md`
+says what to do with the score: 9-10 hand over; 7-8 apply the `FIXES` list in its order;
+0-6 rebuild the section the deductions name rather than patching it. **At most 3 rounds.**
+A page still under 9 after the third is handed over with the grader's last deductions in
+the reply, one line per rubric line that lost points — never silently, never as "done".
+A page whose probe still fails after round 3 is handed over the same way, with the probe's
+lines instead.
+
+**A builder that cannot launch an agent** (a subagent: `artifact-sonnet` has no Agent
+tool, and subagents do not nest) runs steps 1 and 2 and stops there. Its reply carries the
+two shot paths and the probe's last line; the session that launched it runs step 3 and,
+under 9, sends the `FIXES` back as the next brief. The three-round cap counts across both.
 
 ---
 
@@ -990,7 +1041,7 @@ anchor (§3.2 of `00-global.md`).
 
 ### 7. Open it locally
 
-`open <file>`.
+`open <file>` — after § The quality loop, never before it.
 
 ### 7b. Width, measure and tables (kit v9, one width since v19)
 

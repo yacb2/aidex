@@ -3,7 +3,8 @@ name: artifact
 description: 'Use when the user wants an HTML artifact — a report, a consultation page, a dashboard, any interactive page, or even a quick throwaway page just to try it — built from the discussion or from `.context/` content and opened locally: "create an artifact for X", "make me an HTML report", "let''s discuss this in an artifact", "render X as HTML", "a simple artifact, just to test". Sub-action: the deterministic `.context/` boards — backlog, plans progress, audit inventory, coverage matrix — render from a script at ~0 tokens. Always this skill, never the built-in Artifact publish tool: /aidex:artifact writes and opens the page locally and never publishes unless explicitly asked. Not for: authoring markdown content, which stays canon with its owning skill (/aidex:plan, /aidex:backlog, /aidex:audit).'
 argument-hint: "[backlog | plans [slug] | audit <methodology> | coverage]"
 disable-model-invocation: false
-allowed-tools: Bash Read Glob Grep Write Skill
+allowed-tools: Bash Read Glob Grep Write Skill Agent
+model-policy: per-stage
 ---
 
 # artifact — local-first HTML artifacts and `.context/` board renders
@@ -49,7 +50,8 @@ sibling-path and publish-gated conventions (see
 never hand-roll an unstyled page: load the `artifact-design` skill, then write a
 page SPEC and build it (§ Spec-first below). For a page that already exists as
 HTML with no spec beside it, start from `assets/artifact-kit/skeleton.html` and
-write the sibling HTML instead. Either way, open it locally.**
+write the sibling HTML instead. Either way, run the quality loop (§ Spec-first),
+then open it locally.**
 
 A consultation about screenshots (a UI proposal, a state gallery) carries them as
 gallery rows: `scripts/gallery-items.sh` turns the project's rows JSON into items
@@ -96,6 +98,26 @@ spec inlines SVG.
 The how-to, with worked examples, is `references/02-local-first-artifacts.md`
 § Route S; the syntax is `references/03-spec-grammar.md` and the closed set of
 block types is `references/04-block-vocabulary.md`.
+
+### The quality loop: no page is handed over before it
+
+Both routes end here, after the build (`spec_build.py --check`, or `wrap-report.sh --out`
+on the HTML route) has passed `check-artifact`:
+
+1. `bash "${CLAUDE_SKILL_DIR}/scripts/render-probe.sh" --shots <dir> <page>.html` — fix
+   every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
+   install command it gave, and hand nothing over as checked. Never skip the probe.
+2. Launch the `artifact-grader` agent with the request, the two shots
+   (`<name>-1280.png`, `<name>-390.png`) and the path of `references/05-visual-review.md`.
+3. Score 9 or more: hand over. Under 9: fix the defects its FIXES list names, then run
+   the loop again — **at most 3 rounds**. Still under 9 after the third: hand over with
+   the grader's remaining deductions stated in the reply, never silently.
+
+`model-policy: per-stage`: the grader pins its own model (`agents/artifact-grader.md`,
+opus); nothing is passed on the call.
+
+Exit codes, where the shots go and what a subagent that cannot launch the grader does:
+`references/02-local-first-artifacts.md` § The quality loop.
 
 ## Render-per-index rule
 
