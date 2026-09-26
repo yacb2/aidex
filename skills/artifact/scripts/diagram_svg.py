@@ -171,8 +171,7 @@ def svg(lay, cls=""):
         # 0.25 em below it (13.65 units at FS): every glyph box stays inside
         # the rect and apart from the next.
         rows = [(ln, dl.FS, "") for ln in b.lines]
-        if b.sub:
-            rows.append((b.sub, dl.SUB_FS, ' class="mut"'))
+        rows += [(sl, dl.SUB_FS, ' class="mut"') for sl in b.sub_lines]
         y = b.cy + 0.35 * dl.FS - (len(rows) - 1) * dl.LINE_H / 2.0
         for text, size, cls in rows:
             out.append('  <text%s x="%s" y="%s" text-anchor="middle" '

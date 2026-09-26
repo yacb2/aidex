@@ -181,7 +181,7 @@ class Box(object):
     # `sub` is the second, smaller, muted line (`name: Label | sub`), "" when
     # absent. `decision` is a label ending in `?`: drawn as a rounded box.
     __slots__ = ("name", "label", "sub", "decision", "line", "lane", "w", "h",
-                 "x", "y", "tone", "lines")
+                 "x", "y", "tone", "lines", "sub_lines")
 
     def __init__(self, name, label, line, lane, sub=""):
         self.name, self.label, self.line, self.lane = name, label, line, lane
@@ -193,6 +193,7 @@ class Box(object):
         # The label as drawn, one entry per line: a `tb` drawing wraps a label
         # too wide for 390 px (`_fit_tb`); everything else draws it whole.
         self.lines = [label]
+        self.sub_lines = [sub] if sub else []
 
     @property
     def cx(self):
@@ -686,28 +687,48 @@ def _layout_lr(boxes, arrows, by_name, rank):
     return routes
 
 
-def _fit_tb(boxes, limit):
-    """Wrap each label so its box is at most `limit` wide, at spaces only.
+def _wrap(text, width, limit):
+    """`text` as lines broken at runs of spaces (U+0020 only), each
+    `width(line)` at most `limit` if a line can be: greedy, a word wider than
+    `limit` stays whole on its own line. Everything but a broken run of
+    spaces is kept byte for byte: a no-break space or a tab holds."""
+    if limit is None or width(text) <= limit:
+        return [text]
+    parts = re.split(r"( +)", text)
+    lines = [parts[0]]
+    for gap, w in zip(parts[1::2], parts[2::2]):
+        cand = lines[-1] + gap + w
+        if width(cand) <= limit:
+            lines[-1] = cand
+        else:
+            lines.append(w)
+    return lines
 
-    A word wider than `limit` stays whole on its line: the label is never cut
-    inside a word, and a box is never narrower than its widest line. `None`
-    draws every label on one line. The box grows LINE_H per extra line.
+
+def _fit_tb(boxes, limit):
+    """Wrap each label and sublabel so its box is at most `limit` wide.
+
+    Each is wrapped on its own, by the same greedy rule: a sublabel too wide
+    for `limit` wraps too, instead of forcing its label one word per line to
+    make room it can never give. A word wider than `limit` stays whole on its
+    line — the text is never cut inside a word — and it holds the box that
+    wide, so neither text is wrapped narrower than that word. `None` draws
+    each on one line. The box grows LINE_H per extra line.
     """
     for b in boxes:
-        words = b.label.split()
-        lines = [b.label]
-        if limit is not None and box_width(b.label, b.sub, b.decision) > limit:
-            lines = [words[0]]
-            for w in words[1:]:
-                cand = lines[-1] + " " + w
-                if box_width(cand, b.sub, b.decision) <= limit:
-                    lines[-1] = cand
-                else:
-                    lines.append(w)
-        base = b.h - LINE_H * (len(b.lines) - 1)
-        b.lines = lines
-        b.w = max(box_width(ln, b.sub, b.decision) for ln in lines)
-        b.h = base + LINE_H * (len(lines) - 1)
+        lw = lambda t: box_width(t, "", b.decision)
+        sw = lambda t: box_width("", t, b.decision)
+        extra = len(b.lines) - 1 + len(b.sub_lines) - (1 if b.sub else 0)
+        base = b.h - LINE_H * extra
+        room = limit
+        if limit is not None:
+            room = max([limit] + [lw(w) for w in b.label.split(" ")]
+                       + [sw(w) for w in b.sub.split(" ")])
+        b.lines = _wrap(b.label, lw, room)
+        b.sub_lines = _wrap(b.sub, sw, room) if b.sub else []
+        b.w = max([lw(ln) for ln in b.lines] + [sw(sl) for sl in b.sub_lines])
+        extra = len(b.lines) - 1 + len(b.sub_lines) - (1 if b.sub else 0)
+        b.h = base + LINE_H * extra
 
 
 def _place_tb(boxes):
