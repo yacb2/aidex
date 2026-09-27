@@ -177,6 +177,72 @@ rc="$(run "$TMP/no-general.html")"
 [[ "$rc" == "1" ]] || fail "9. a consultation with no general-notes item passed (or the check was satisfied by components.css)"
 grep -qi 'consult-notes' "$TMP/out" || fail "9. the failure does not name the missing general-notes item"
 
+# ---- 9c. BL-457: the general-notes item is the LAST consult item -----------
+# A codefilm page shipped its notes between the first block and the decisions.
+# The invariant is last CONSULT ITEM, not last block: reference sections after
+# the questions are the contract (consult-shape), so one after the notes passes.
+mkpage "$TMP/notes-mid.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+  <h3>Pick one</h3><textarea></textarea>
+</section>
+$gclose
+$notesitem
+<section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"More\"><div class=\"sec-head\"><h2>More</h2></div>
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Pick again\">
+  <h3>Pick again</h3><textarea></textarea>
+</section>
+$gclose
+$bars
+$composer"
+rc="$(run "$TMP/notes-mid.html")"
+[[ "$rc" == "1" ]] || fail "9c. a general-notes item followed by a block passed: $(cat "$TMP/out")"
+grep -q "FAIL \[consult-shape\].*notes.*'G2'" "$TMP/out" || fail "9c. the failure does not name the block after the notes: $(cat "$TMP/out")"
+
+mkpage "$TMP/notes-then-ref.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+  <h3>Pick one</h3><textarea></textarea>
+</section>
+$gclose
+$notesitem
+<section id=\"ref\"><h2>Reference</h2><p>Material read after the questions.</p></section>
+$bars
+$composer"
+rc="$(run "$TMP/notes-then-ref.html")"
+[[ "$rc" == "0" ]] || fail "9c. a reference section after the notes item was refused: $(cat "$TMP/out")"
+
+# The notes item inside the last block, before that block's remaining item.
+mkpage "$TMP/notes-in-group.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+  <h3>Pick one</h3><textarea></textarea>
+</section>
+$notesitem
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Pick again\">
+  <h3>Pick again</h3><textarea></textarea>
+</section>
+$gclose
+$bars
+$composer"
+rc="$(run "$TMP/notes-in-group.html")"
+[[ "$rc" == "1" ]] || fail "9c. an item after the notes inside the same block passed: $(cat "$TMP/out")"
+grep -q "FAIL \[consult-shape\].*notes.*'Q2'" "$TMP/out" || fail "9c. the failure does not name the item after the notes: $(cat "$TMP/out")"
+
+# The notes item is the class TOKEN consult-notes: `consult-notes-hint` is not it.
+mkpage "$TMP/notes-hint.html" "$visual
+$gopen
+<p class=\"consult-notes-hint\">Anything else goes in the general notes.</p>
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+  <h3>Pick one</h3><textarea></textarea>
+</section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/notes-hint.html")"
+[[ "$rc" == "0" ]] || fail "9c. a consult-notes-hint class was read as the notes item: $(cat "$TMP/out")"
+
 # ---- 7. the template ships the full component set ------------------------
 # ---- 8. BL-198: an id in the ledger AND still LIVE in the question set fails --
 # The ledger is the only declaration of decidedness the page carries as prose,
