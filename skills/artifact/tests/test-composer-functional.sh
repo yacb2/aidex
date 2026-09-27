@@ -2323,5 +2323,117 @@ tg="$(CHROME_WINDOW=500,900 mrun "$GPAGE_M" 'phase=gmnarrow')"
 [[ "$tg" == *"OFF=fits"* && "$tg" == *"SWIPE=fits"* ]] \
   || fail "the zoom header takes more than two lines at 500 px (or is wider than the dialog): $tg"
 
+# ---- the BEFORE/AFTER review row (rows contract, 2026-09-27) ----
+# A review block declares `before after`: the compare pairs the two halves of
+# the row (the owner's main comparison is antes/propuesto, not light/dark), and
+# the mode/viewport toolbar, meaningless on that block, is not injected at all.
+cat > "$TMP/gbody-pair.html" <<HTML
+<meta name="consult-visual" content="none: a gallery probe, nothing to draw">
+<div class="page"><main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Pair probe</h1></header>
+<section class="consult-group" id="R" data-id="R" data-title="Review" data-tiles="before after">
+  <div class="sec-head"><h2>Review</h2></div>
+  <section class="consult-item consult-gallery" data-id="audit-empty-light-desktop" data-title="audit &middot; empty &middot; light-desktop" data-variant="light-desktop">
+    <h3><span class="consult-id">audit-empty-light-desktop</span>audit &middot; empty &middot; light-desktop</h3>
+    <p>Before and proposed.</p>
+    <div class="gal">
+      <figure data-tile="before"><img src="$PX" alt="empty before"><figcaption>antes</figcaption></figure>
+      <figure data-tile="after"><img src="$PX" alt="empty after"><figcaption>propuesto</figcaption></figure>
+    </div>
+    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <p class="fieldlabel">Notas</p><textarea></textarea>
+  </section>
+  <section class="consult-item consult-gallery" data-id="audit-new-light-desktop" data-title="audit &middot; new &middot; light-desktop" data-variant="light-desktop" data-tiles="after">
+    <h3><span class="consult-id">audit-new-light-desktop</span>audit &middot; new &middot; light-desktop</h3>
+    <p>New screen.</p>
+    <div class="gal"><figure data-tile="after"><img src="$PX" alt="new after"><figcaption>pantalla nueva</figcaption></figure></div>
+    <div class="opts one"><label><input type="radio" name="audit-new-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <p class="fieldlabel">Notas</p><textarea></textarea>
+  </section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas"><h3>Notas</h3><textarea></textarea></section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</main><aside class="rail"><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>
+window.addEventListener('load', function () {
+  var dlg = document.querySelector('dialog.kit-zoom');
+  var fig = function (row, t) { return document.querySelector('[data-id="' + row + '"] figure[data-tile="' + t + '"]'); };
+  var cmp = function (v) { return dlg.querySelector('.kit-zoom-cmp[data-value="' + v + '"]'); };
+  fig('audit-empty-light-desktop', 'before').click();
+  cmp('2up').click();
+  var pair = dlg.getAttribute('data-compare') + '/' + dlg.querySelector('img.kit-zoom-other').getAttribute('alt');
+  dlg.close();
+  fig('audit-new-light-desktop', 'after').click();
+  var lone = cmp('2up').disabled ? 'disabled' : 'enabled';
+  document.title = 'GPAIR|BARS=' + document.querySelectorAll('.kit-galbar').length
+    + '|PAIR=' + pair + '|LONE=' + lone;
+});
+</script>
+HTML
+GPAGE_P="$TMP/reports/gallery-pair.html"
+bash "$WRAP" --title "pair" --lang es --out "$GPAGE_P" < "$TMP/gbody-pair.html" > "$TMP/gwrap-p.log" 2>&1 \
+  || fail "the pair probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-p.log" | head -4)"
+rm -rf "$TMP/profile"
+chrome_dump "$TMP/gdom-p.html" "file://$GPAGE_P" 45 || true
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-p.html" | head -1)"
+[[ "$tg" == *GPAIR* ]] || fail "the pair probe did not run: $tg"
+[[ "$tg" == *"PAIR=2up/empty after"* ]] \
+  || fail "compare on a before tile did not pair it with the row's after: $tg"
+[[ "$tg" == *"LONE=disabled"* ]] \
+  || fail "a new-screen row's lone capture offers a compare it has nothing for: $tg"
+[[ "$tg" == *"BARS=0"* ]] \
+  || fail "a before/after review block got the light/dark filter toolbar: $tg"
+
+# ---- a SAMPLE row asks nothing, so it is not counted (BL-466) ----
+# A gallery row with no verdict group by design illustrates; counting it made
+# a page whose one real question was answered read "1 de 2 · en blanco: …".
+cat > "$TMP/gbody-sample.html" <<HTML
+<meta name="consult-visual" content="none: a gallery probe, nothing to draw">
+<div class="page"><main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Sample probe</h1></header>
+<section class="consult-group" id="R" data-id="R" data-title="Review" data-tiles="before after">
+  <div class="sec-head"><h2>Review</h2></div>
+  <section class="consult-item consult-gallery" data-id="audit-empty-light-desktop" data-title="audit &middot; empty &middot; light-desktop" data-variant="light-desktop">
+    <h3><span class="consult-id">audit-empty-light-desktop</span>audit &middot; empty &middot; light-desktop</h3>
+    <p>Before and proposed.</p>
+    <div class="gal">
+      <figure data-tile="before"><img src="$PX" alt="empty before"><figcaption>antes</figcaption></figure>
+      <figure data-tile="after"><img src="$PX" alt="empty after"><figcaption>propuesto</figcaption></figure>
+    </div>
+    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <p class="fieldlabel">Notas</p><textarea></textarea>
+  </section>
+  <section class="consult-item consult-gallery" data-id="audit-loaded-light-desktop-sample" data-title="audit &middot; loaded &middot; light-desktop" data-variant="light-desktop">
+    <h3><span class="consult-id">audit-loaded-light-desktop-sample</span>audit &middot; loaded &middot; light-desktop</h3>
+    <p>A sample.</p>
+    <div class="gal">
+      <figure data-tile="before"><img src="$PX" alt="loaded before"><figcaption>antes</figcaption></figure>
+      <figure data-tile="after"><img src="$PX" alt="loaded after"><figcaption>propuesto</figcaption></figure>
+    </div>
+    <p class="fieldlabel">Notas</p><textarea></textarea>
+  </section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas"><h3>Notas</h3><textarea></textarea></section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</main><aside class="rail"><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>
+window.addEventListener('load', function () {
+  var r = document.querySelector('[data-id="audit-empty-light-desktop"] input[data-label="Aprobada"]');
+  r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true }));
+  document.title = 'GSAMPLE|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ');
+});
+</script>
+HTML
+GPAGE_S="$TMP/reports/gallery-sample.html"
+bash "$WRAP" --title "sample" --lang es --out "$GPAGE_S" < "$TMP/gbody-sample.html" > "$TMP/gwrap-s.log" 2>&1 \
+  || fail "the sample probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-s.log" | head -4)"
+rm -rf "$TMP/profile"
+chrome_dump "$TMP/gdom-s.html" "file://$GPAGE_S" 45 || true
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-s.html" | head -1)"
+[[ "$tg" == *"GSAMPLE|STATUS=1 de 1 respondidas"* ]] \
+  || fail "a sample row (no verdict by design) was counted as a question: $tg"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

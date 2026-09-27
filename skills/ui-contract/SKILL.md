@@ -54,6 +54,20 @@ blank cell is a state nobody decided about.
 | Modal or panel | open · submitting · error |
 
 Cross each state with light/dark and desktop/mobile wherever the screen is responsive.
+
+**In the same round, ask which variants the owner reviews.** The harness still captures
+every configured variant; this only narrows what the owner looks at. Defaults, which the
+owner may change:
+
+| Variant | The owner reviews it when |
+|---|---|
+| light-desktop | always |
+| dark | the screen is new, or the change touches colours or tokens |
+| mobile | the app has a responsive layout AND the change touches layout |
+
+An app with no responsive layout has no mobile variant: it is neither reviewed nor
+captured. A cell in a variant nobody chose still reaches the owner if it changes without
+being part of the change — as a row marked unrequested, never as a gate summary.
 **Light and dark are the only two modes this contract renders**, also in a project that
 ships more themes (the boilerplate allows several): the gate compares two modes per cell,
 and a third theme is reviewed by hand when it is introduced, never as extra baselines.
@@ -64,7 +78,7 @@ the route itself is unauthenticated"), and the harness refuses a blank one at ru
 ## Step 3 — Write the plan's UI-contract section
 
 Under the heading `## UI contract`, in the plan file (a modular plan's `00-index.md`) —
-that heading is what makes the plan's phases UI phases for the evidence gate below. Four
+that heading is what makes the plan's phases UI phases for the evidence gate below. Five
 items, in this order. Nothing here is optional; an item with no answer is written as the
 open question it is.
 
@@ -75,6 +89,9 @@ open question it is.
    every genuinely new one. A new component that duplicates an existing primitive is the
    finding, not the plan.
 4. **State matrix** — the pattern's full table from Step 2, every cell filled.
+5. **Review variants** — the variants the owner chose in Step 2 and the cells this change
+   declares. At review time they go to the rows emitter as `--variants`, `--changed` and
+   `--actual-dir` (the run's output directory); harness contract § 6.
 
 ## Step 3b — A layout that departs from its reference: skeleton first
 
@@ -137,8 +154,11 @@ sessions. What each part is:
 
 1. **The review surface's path.** The owner reviews the gallery as gallery rows in a
    consultation page (`/aidex:artifact`, § Gallery rows): the project emits its rows JSON
-   (`--rows-json`), the kit turns them into items with zoom, light/dark compare, region
-   marks and a verdict per row, and the pasted reply parses back with `gallery-reply.sh`.
+   (`--rows-json` with item 5's variants and cells), the kit turns each row into a
+   before/proposed pair (one capture for a new screen) with zoom, compare, region marks
+   and one answer, plus a row per unrequested change, and the pasted reply parses back
+   with `gallery-reply.sh`. The page shows no gate output; an empty rows list (everything
+   matched) means no gallery block on the page.
    That page's path is written down, with the owner's verdict per row. The generated
    board (one HTML file over the committed baselines) or the composed image stays the
    developer's lens while building, not the owner's review. The owner is the final

@@ -16,7 +16,7 @@ await page.goto('file://' + process.argv[2]);
 const state = () => page.evaluate(() => {
   const dlg = document.querySelector('dialog.kit-zoom');
   const note = document.querySelector('dialog.kit-mark-note');
-  const ta = document.querySelector('[data-id="audit-with-data"] textarea.kit-marks');
+  const ta = document.querySelector('[data-id="audit-with-data-light-desktop"] textarea.kit-marks');
   const d = dlg.querySelector('.kit-marks-layer .kit-mark.drawing');
   return { zoom: dlg.open, note: note.open,
            drafts: dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length,
@@ -25,7 +25,7 @@ const state = () => page.evaluate(() => {
 });
 const out = {};
 
-await page.click('[data-id="audit-with-data"] figure[data-tile="light-desktop"]');
+await page.click('[data-id="audit-with-data-light-desktop"] figure[data-tile="before"]');
 await page.click('.kit-zoom-mark');
 await page.keyboard.press('ArrowRight');
 out.arrow = await state();                 // the draft moved, the tile did not

@@ -66,17 +66,17 @@ echo "== a gallery consultation, built the normal route =="
 # Rows JSON -> gallery-items.sh -> body -> wrap-report.sh, over real PNGs at the
 # sizes a project captures (1600x900 desktop, 390x844 phone), written here so no
 # binary is committed. What it guards is the kit's gallery layout itself: the
-# two-column grid, the phone cap, the filter toolbar and the not-applicable line,
-# none of which any other fixture draws.
+# before/after pair, the new-screen single capture, the phone cap on a mobile
+# variant and the unrequested marker, none of which any other fixture draws.
 GROOT="$TMP/gallery-root"
-for cell in with-data empty; do
+for d in shots actual; do for cell in with-data empty; do
   for t in light-desktop dark-desktop; do
-    mkdir -p "$GROOT/shots/$t" && python3 "$HERE/png_fixture.py" "$GROOT/shots/$t/audit-$cell.png" 1600 900
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 1600 900
   done
   for t in light-mobile dark-mobile; do
-    mkdir -p "$GROOT/shots/$t" && python3 "$HERE/png_fixture.py" "$GROOT/shots/$t/audit-$cell.png" 390 844
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 390 844
   done
-done
+done; done
 if bash "$SCRIPTS/gallery-items.sh" "$FIX/gallery/rows.json" --root "$GROOT" \
      --group-id E --group-title "Galería audit" > "$TMP/gallery-group.html" 2>"$TMP/gallery-gen.err"; then
   ok "generated the gallery block from rows.json"

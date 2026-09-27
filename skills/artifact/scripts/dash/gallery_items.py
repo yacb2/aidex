@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
-"""gallery_items.py — a rows JSON becomes one consult-group of gallery items.
+"""gallery_items.py — a rows JSON becomes one consult-group of review rows.
 
-A gallery row is ONE screen state seen in every tile the matrix declares
-(light/dark x desktop/mobile). The project owns the matrix and emits it as rows
-JSON (`gallery_board.py --rows-json` in dashboard_template); this script turns
-that document into markup the kit already understands — `consult-item
-consult-gallery` sections with an `.opts one` verdict group and a notes
-textarea, so `composer.js` pastes them like any other item and every existing
-rule in check_artifact.py keeps applying.
+A review row is ONE screen state in ONE variant (`light-desktop`, …), shown as
+the pair the owner rules on: "before" (the committed baseline) and "after" (the
+run's proposed render). A state whose screen is new has no baseline, so its row
+shows the one capture, labelled as new. The project owns which rows exist and
+emits them as rows JSON (`gallery_board.py --rows-json` in dashboard_template):
+the variants the owner chose to review, plus every cell that changed without
+being asked for (`kind: "unrequested"`). This script turns that document into
+markup the kit already understands — `consult-item consult-gallery` sections
+with an `.opts one` verdict group and a notes textarea, so `composer.js` pastes
+them like any other item and every rule in check_artifact.py keeps applying.
 
-Neither side re-declares the other's matrix. That duplication is what the
-project's own board avoids on purpose, and a second copy of the cell list in
-the kit would drift the first time a state is added.
+Nothing about the gate is written on the page: no summary, no check output.
+An unrequested change reaches the owner as a row, and when there is none the
+page says nothing about checks at all.
 
-The output is DETERMINISTIC: row order is the document's, tile order is the
-document's `tiles` list, and nothing here reads the clock or the environment.
-The one filesystem read is each tile's PNG header: a tile with no file behind
-it is refused (the page used to show the reader a broken image and pass), and
-the capture's width and height go on the <img>, so a lazy image reserves its
-box before it loads. Two runs on one JSON and one set of captures are
-byte-identical, which is what makes a re-generated round a diff of what
-actually changed.
+The output is DETERMINISTIC: row order is the document's, and nothing here
+reads the clock or the environment. The one filesystem read is each capture's
+PNG header: a capture with no file behind it is refused, and its width and
+height go on the <img>, so a lazy image reserves its box before it loads.
 
 Images are linked, never inlined: `src="file://<root>/<path>"`. `--root` is the
-absolute checkout the paths are relative to, so the same JSON serves a worktree
-and a clone. Copying the baselines next to the page is a separate step at
-close-out (decision D2), not this script's business.
+absolute checkout the paths are relative to. Copying the captures next to the
+page is a separate step at close-out (decision D2), not this script's business.
 
 Usage:
   gallery-items.sh <rows.json> --root <abs repo root> \
@@ -42,36 +40,65 @@ import sys
 
 LANGS = ("es", "en")
 
-# What a tile name says, in the page's language. A tile is `<mode>-<viewport>`;
-# anything that does not split into two known words is captioned with its own
-# name rather than guessed at — a wrong caption on a screenshot is worse than a
-# technical one.
+# The two tiles of a row, in reading order. English tokens on purpose: they are
+# the `data-tile` the checker, the composer's arrows and compare, and a pasted
+# mark (`[mark after …]`) all key on, whatever the page's language. What the
+# reader sees is the caption below.
+TILES = ("before", "after")
+TILE_WORDS = {"es": {"before": "antes", "after": "propuesto",
+                     "new": "pantalla nueva"},
+              "en": {"before": "before", "after": "proposed",
+                     "new": "new screen"}}
+
+# What a variant name says, in the page's language. A variant is
+# `<mode>-<viewport>`; anything that does not split into two known words is
+# shown as its own name rather than guessed at.
 MODE_WORDS = {"es": {"light": "claro", "dark": "oscuro"},
               "en": {"light": "light", "dark": "dark"}}
 VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil"},
               "en": {"desktop": "desktop", "mobile": "mobile"}}
 
+# `review` is a row the owner chose (a declared change in a chosen variant);
+# `unrequested` is a cell that moved without being in the change set; `sample`
+# illustrates and asks nothing, so it carries no verdict (BL-466).
+KINDS = ("review", "unrequested", "sample")
+
 VERDICTS = {
-    "es": [("Aprobada", "Aprobada: las celdas quedan como baseline"),
+    "es": [("Aprobada", "Aprobada: lo propuesto queda como baseline"),
            ("Necesita cambios", "Necesita cambios (di cuáles en las notas)"),
            ("No puedo juzgarla así", "No puedo juzgarla con esta captura")],
-    "en": [("Approved", "Approved: these cells stand as the baseline"),
+    "en": [("Approved", "Approved: the proposed capture becomes the baseline"),
            ("Needs changes", "Needs changes (say which in the notes)"),
            ("Cannot judge", "Cannot judge it from this capture")],
 }
 
 INTRO = {
-    "es": ("Las celdas de esta fila, leídas del baseline. Marca el veredicto "
-           "y, si necesita cambios, di cuáles en las notas de esta fila."),
-    "en": ("This row's cells, read from the committed baseline. Mark the "
-           "verdict and, if it needs changes, say which in the row's notes."),
+    "es": {"pair": "%s: antes y propuesto. Marca tu respuesta y, si necesita "
+                   "cambios, di cuáles en las notas de esta fila.",
+           "new": "%s: la pantalla es nueva, así que no hay antes. Marca tu "
+                  "respuesta y, si necesita cambios, di cuáles en las notas "
+                  "de esta fila.",
+           "sample": "%s: una muestra, no hay nada que aprobar.",
+           "na": "Este estado no se puede mostrar, por el motivo de abajo. "
+                 "Marca tu respuesta."},
+    "en": {"pair": "%s: before and proposed. Mark your answer and, if it "
+                   "needs changes, say which in the row's notes.",
+           "new": "%s: the screen is new, so there is no before. Mark your "
+                  "answer and, if it needs changes, say which in the row's "
+                  "notes.",
+           "sample": "%s: a sample, nothing to approve.",
+           "na": "This state cannot be shown, for the reason below. Mark "
+                 "your answer."},
 }
 
+FLAG = {"es": "cambió sin que lo pidieras", "en": "changed without you asking"}
+ALSO = {"es": "también en: ", "en": "also in: "}
+
 NOTES_LABEL = {"es": "Notas sobre esta fila", "en": "Notes on this row"}
-NOTES_PLACEHOLDER = {"es": "Qué cambiar y en qué celda…",
-                     "en": "What to change, and in which cell…"}
+NOTES_PLACEHOLDER = {"es": "Qué cambiar…", "en": "What to change…"}
 
 ROW_ID = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)+$")
+SLUG = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 # The block's id becomes an HTML `id`, a `data-id` and the anchor the rail links
 # to. Anything else is either unaddressable or, quoted into the attribute, the
 # author's own markup.
@@ -89,28 +116,24 @@ def e(s):
     return html.escape(str(s), quote=True)
 
 
-def tile_label(tile, lang):
-    parts = tile.split("-")
+def variant_label(variant, lang):
+    parts = variant.split("-")
     if len(parts) == 2:
         mode = MODE_WORDS[lang].get(parts[0])
         view = VIEW_WORDS[lang].get(parts[1])
         if mode and view:
             return mode + " · " + view
-    return tile
+    return variant
 
 
-def check_tile_name(name, where):
-    """A tile name is one token. `data-tiles` on the block is a SPACE-SEPARATED
-    list, so a name with a space in it declares two tiles the checker then
-    cannot find, and the row it came from is reported missing a tile that
-    exists."""
-    if not isinstance(name, str):
-        die("%s: every tile name must be a string, not %s"
-            % (where, type(name).__name__))
-    if not name.strip() or name.split() != [name]:
-        die("%s: the tile name %r contains whitespace — data-tiles on the "
-            "block is a space-separated list, so a name with a space in it is "
-            "two tiles no row can satisfy" % (where, name))
+def row_id(gallery, cell, variant, kind):
+    """`<gallery>-<cell>-<variant>`, plus `-<kind>` for a row that is not a
+    review. Derived from names only, so a row keeps its id across rounds and
+    an answer stays attached to the question it was given for; an unrequested
+    change is a different question from a requested one, so it is a different
+    id."""
+    ident = "%s-%s-%s" % (gallery, cell, variant)
+    return ident if kind == "review" else ident + "-" + kind
 
 
 def check_path(value, cell, tile):
@@ -119,40 +142,40 @@ def check_path(value, cell, tile):
     one machine; a `..` climbs out of the checkout, and the page then shows
     whatever is up there."""
     if not isinstance(value, str):
-        die("row '%s': the path for tile '%s' must be a string, not %s"
+        die("row '%s': the '%s' path must be a string, not %s"
             % (cell, tile, type(value).__name__))
     if not value.strip():
-        die("row '%s' has an empty path for tile '%s'" % (cell, tile))
+        die("row '%s' has an empty '%s' path" % (cell, tile))
     if value.startswith("/") or os.path.isabs(value) \
             or ".." in value.replace("\\", "/").split("/"):
-        die("row '%s': the path for tile '%s' (%r) must be relative to the "
-            "repo root — --root is what makes it a URL, and a path that "
-            "ignores it pins the page to one machine or points outside the "
-            "checkout" % (cell, tile, value))
+        die("row '%s': the '%s' path (%r) must be relative to the repo root "
+            "— --root is what makes it a URL, and a path that ignores it pins "
+            "the page to one machine or points outside the checkout"
+            % (cell, tile, value))
 
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def png_size(root, value, cell, tile):
-    """(width, height) of the tile's capture, read from its IHDR chunk."""
+    """(width, height) of the capture, read from its IHDR chunk."""
     # `render` strips the root's trailing slash, so `--root /` arrives as "":
-    # joined as is, the tile would be read relative to the working directory.
+    # joined as is, the capture would be read relative to the working directory.
     full = os.path.join(root or "/", value)
     try:
         with open(full, "rb") as fh:
             head = fh.read(24)
     except OSError:
-        die("row '%s': tile '%s' has no file at %s — a missing capture shows "
-            "the reader a broken image where the screenshot should be"
+        die("row '%s': '%s' has no file at %s — a missing capture shows the "
+            "reader a broken image where the screenshot should be"
             % (cell, tile, full))
     if len(head) < 24 or head[:8] != PNG_SIGNATURE or head[12:16] != b"IHDR":
-        die("row '%s': tile '%s' (%s) is not a PNG — its width and height are "
+        die("row '%s': '%s' (%s) is not a PNG — its width and height are "
             "read from the PNG header" % (cell, tile, full))
     width, height = struct.unpack(">II", head[16:24])
     if not width or not height:
-        die("row '%s': tile '%s' (%s) declares a %dx%d image — there is no "
-            "capture to show" % (cell, tile, full, width, height))
+        die("row '%s': '%s' (%s) declares a %dx%d image — there is no capture "
+            "to show" % (cell, tile, full, width, height))
     return width, height
 
 
@@ -167,111 +190,200 @@ def load(path):
     if not isinstance(doc, dict):
         die("the rows document must be a JSON object, not %s"
             % type(doc).__name__)
-    for key in ("gallery", "tiles", "rows"):
+    for key in ("gallery", "variants", "rows"):
         if key not in doc:
             die("the rows document has no '%s' key" % key)
-    if not isinstance(doc["tiles"], list) or not doc["tiles"]:
-        die("'tiles' must be a non-empty list of tile names")
-    for t in doc["tiles"]:
-        check_tile_name(t, "'tiles'")
-    if len(set(doc["tiles"])) != len(doc["tiles"]):
-        die("'tiles' names the same tile twice: %s" % " ".join(doc["tiles"]))
+    if not isinstance(doc["gallery"], str) or not SLUG.match(doc["gallery"]):
+        die("'gallery' must be a lowercase slug, not %r" % (doc["gallery"],))
+    v = doc["variants"]
+    if not isinstance(v, list) or not v \
+            or not all(isinstance(x, str) and SLUG.match(x) for x in v):
+        die("'variants' must be a non-empty list of variant names "
+            "(lowercase slugs), not %r" % (v,))
+    if len(set(v)) != len(v):
+        die("'variants' names the same variant twice: %s" % " ".join(v))
+    # An empty list is D2's "everything matches": render() prints nothing.
     if not isinstance(doc["rows"], list):
         die("'rows' must be a list")
     return doc
 
 
-def check_row(row, tiles, n):
-    """Every refusal a row can earn, named by cell rather than by index."""
+def check_row(row, variants, n):
+    """Every refusal a row can earn, named by cell rather than by index.
+    Returns (cell, variant, kind, before|None, after); a not-applicable row
+    returns (cell, None, None, None, reason)."""
     if not isinstance(row, dict):
         die("row %d is not an object" % n)
     cell = row.get("cell")
-    if not cell:
-        die("row %d has no 'cell' key" % n)
-    has_tiles, has_na = "tiles" in row, "notApplicable" in row
-    if has_tiles and has_na:
-        # Both is not a richer row, it is two contradictory claims: the reader
-        # would be asked to judge screenshots of a state declared unreachable.
-        die("row '%s' carries both 'tiles' and 'notApplicable' — a row is "
-            "either shown in every tile or not applicable, never both" % cell)
-    if not has_tiles and not has_na:
-        die("row '%s' has neither 'tiles' nor 'notApplicable'" % cell)
-    if has_na:
-        # `str()` would turn null or false into a non-empty "reason", so the
-        # same isinstance guard the tile paths carry applies here.
-        if not isinstance(row["notApplicable"], str):
-            die("row '%s': 'notApplicable' must be a string (the reason)"
-                % cell)
-        if not row["notApplicable"].strip():
-            die("row '%s' is notApplicable with an empty reason" % cell)
-        return cell, None, row["notApplicable"].strip()
-    if not isinstance(row["tiles"], dict):
-        die("row '%s': 'tiles' must be an object of tile -> path" % cell)
-    for t in row["tiles"]:
-        check_tile_name(t, "row '%s'" % cell)
-    unknown = [t for t in row["tiles"] if t not in tiles]
-    if unknown:
-        # Sorted so the message is the same whatever the JSON's key order was.
-        die("row '%s' names tile(s) the document does not declare: %s "
-            "(declared: %s)" % (cell, " ".join(sorted(unknown)),
-                                " ".join(tiles)))
-    missing = [t for t in tiles if t not in row["tiles"]]
-    if missing:
-        die("row '%s' has no path for tile(s) %s — every declared tile is "
-            "shown or the row is notApplicable"
-            % (cell, " ".join(missing)))
-    for t in tiles:
-        check_path(row["tiles"][t], cell, t)
-    return cell, row["tiles"], None
+    if not isinstance(cell, str) or not SLUG.match(cell):
+        die("row %d: 'cell' must be a lowercase slug, not %r" % (n, cell))
+    # A declared cell the screen cannot reach: the emitter sends its reason
+    # instead of captures, and the row asks the owner to accept that.
+    if "notApplicable" in row:
+        reason = row["notApplicable"]
+        if not isinstance(reason, str) or not reason.strip():
+            die("row '%s': 'notApplicable' must be a non-empty string (the "
+                "reason)" % cell)
+        if "before" in row or "after" in row:
+            die("row '%s' carries both captures and 'notApplicable' — a row "
+                "is either shown or not applicable, never both" % cell)
+        return cell, None, None, None, reason.strip()
+    variant = row.get("variant")
+    if not isinstance(variant, str) or not SLUG.match(variant):
+        die("row '%s': 'variant' must be a lowercase slug, not %r"
+            % (cell, variant))
+    kind = row.get("kind")
+    if kind not in KINDS:
+        die("row '%s': 'kind' is %r, not one of %s"
+            % (cell, kind, ", ".join(KINDS)))
+    # A review row is a variant the owner chose; an unrequested one may be any
+    # variant the harness captured — that is the point of it.
+    if kind == "review" and variant not in variants:
+        die("row '%s' is a review row in variant '%s', which is not one of "
+            "the chosen variants (%s)" % (cell, variant, " ".join(variants)))
+    # `also`: the other variants where an unrequested cell changed too. One
+    # row per unrequested change, so the owner answers it once.
+    if "also" in row:
+        also = row["also"]
+        if kind != "unrequested":
+            die("row '%s': 'also' is only for an unrequested row, not a %s "
+                "row" % (cell, kind))
+        if not isinstance(also, list) or not also \
+                or not all(isinstance(x, str) and SLUG.match(x) for x in also):
+            die("row '%s': 'also' must be a non-empty list of variant names "
+                "(lowercase slugs), not %r" % (cell, also))
+        if variant in also:
+            die("row '%s': 'also' names the row's own variant '%s'"
+                % (cell, variant))
+        twice = sorted({x for x in also if also.count(x) > 1})
+        if twice:
+            die("row '%s': 'also' names %s twice" % (cell, " ".join(twice)))
+    if "after" not in row:
+        die("row '%s' (%s) has no 'after' capture" % (cell, variant))
+    check_path(row["after"], cell, "after")
+    # Absent is the one way to say "new screen". A present-but-empty `before`
+    # is a baseline the emitter lost, and showing it as new would hide that.
+    before = row.get("before")
+    if "before" in row:
+        check_path(before, cell, "before")
+    return cell, variant, kind, before, row["after"]
+
+
+def figure(root, path, tile, caption, cell, alt):
+    path = path.lstrip("/")
+    width, height = png_size(root, path, cell, tile)
+    return ('      <figure data-tile="%s"><img src="%s" alt="%s" width="%d"'
+            ' height="%d" loading="lazy"><figcaption>%s</figcaption></figure>'
+            % (e(tile), e("file://%s/%s" % (root, path)), e(alt), width,
+               height, e(caption)))
+
+
+def verdicts(ident, lang):
+    out = ['    <div class="opts one">']
+    for label, text in VERDICTS[lang]:
+        out.append('      <label><input type="radio" name="%s"'
+                   ' data-label="%s"><span>%s</span></label>'
+                   % (e(ident), e(label), e(text)))
+    out.append('    </div>')
+    return out
+
+
+def notes(lang):
+    return ['    <p class="fieldlabel">%s</p>' % e(NOTES_LABEL[lang]),
+            '    <textarea placeholder="%s"></textarea>'
+            % e(NOTES_PLACEHOLDER[lang])]
+
+
+def na_row(gallery, cell, reason, lang):
+    """`<gallery>-<cell>-not-applicable`, titled `<gallery> · <cell>`: a
+    not-applicable cell has no variant. The suffix keeps the id apart from the
+    old light/dark matrix's `<gallery>-<cell>`, whose verdicts were given on
+    four captures, not on a reason."""
+    ident = "%s-%s-not-applicable" % (gallery, cell)
+    title = "%s · %s" % (gallery, cell)
+    return "\n".join(
+        ['  <section class="consult-item consult-gallery" data-id="%s"'
+         ' data-title="%s">' % (e(ident), e(title)),
+         '    <h3><span class="consult-id">%s</span>%s</h3>'
+         % (e(ident), e(title)),
+         '    <p>%s</p>' % e(INTRO[lang]["na"]),
+         '    <p class="gal-na">%s</p>' % e(reason)]
+        + verdicts(ident, lang) + notes(lang) + ['  </section>'])
 
 
 def render(doc, root, group_id, group_title, lang):
+    """The block, or "" for an empty `rows`: when every capture matches its
+    baseline (D2) the owner's page carries no gallery block and no text about
+    it — not an empty heading, not a "nothing changed" line."""
+    if not doc["rows"]:
+        return ""
     gallery = doc["gallery"]
-    tiles = list(doc["tiles"])
+    variants = list(doc["variants"])
+    words = TILE_WORDS[lang]
     root = root.rstrip("/")
     out = []
     add = out.append
     add('<section class="consult-group" id="%s" data-id="%s" data-title="%s"'
         ' data-tiles="%s">' % (e(group_id), e(group_id), e(group_title),
-                               e(" ".join(tiles))))
+                               " ".join(TILES)))
     add('  <div class="sec-head">')
     add('    <h2>%s</h2>' % e(group_title))
     add('  </div>')
+    seen, unrequested = {}, {}
     for n, row in enumerate(doc["rows"], 1):
-        cell, row_tiles, reason = check_row(row, tiles, n)
-        ident = "%s-%s" % (gallery, cell)
+        cell, variant, kind, before, after = check_row(row, variants, n)
+        # One cell in one variant is one question: a second row for it (the
+        # same cell both requested and unrequested) is two answers to it.
+        if (cell, variant) in seen:
+            die("rows %d and %d are both cell '%s' in variant '%s'"
+                % (seen[(cell, variant)], n, cell, variant))
+        seen[(cell, variant)] = n
+        if kind == "unrequested":
+            if cell in unrequested:
+                die("rows %d and %d: cell '%s' has two unrequested rows — one "
+                    "row per unrequested change, its other variants in 'also'"
+                    % (unrequested[cell], n, cell))
+            unrequested[cell] = n
+        if kind is None:
+            add(na_row(gallery, cell, after, lang))
+            continue
+        ident = row_id(gallery, cell, variant, kind)
         if not ROW_ID.match(ident):
-            die("row id '%s' is not two or more lowercase slugs joined by "
-                "hyphens — that shape is what keeps a row answerable across "
-                "rounds" % ident)
-        title = "%s · %s" % (gallery, cell)
+            die("row id '%s' is not lowercase slugs joined by hyphens" % ident)
+        title = "%s · %s · %s" % (gallery, cell, variant)
+        # A new screen shows one capture, so the row narrows the block's
+        # matrix to that tile; the checker holds it to exactly that.
+        narrow = '' if before is not None else ' data-tiles="after"'
         add('  <section class="consult-item consult-gallery" data-id="%s"'
-            ' data-title="%s">' % (e(ident), e(title)))
+            ' data-title="%s" data-variant="%s"%s>'
+            % (e(ident), e(title), e(variant), narrow))
         add('    <h3><span class="consult-id">%s</span>%s</h3>'
             % (e(ident), e(title)))
-        add('    <p>%s</p>' % e(INTRO[lang]))
-        if reason is not None:
-            add('    <p class="gal-na">%s</p>' % e(reason))
+        if kind == "unrequested":
+            flag = FLAG[lang]
+            if row.get("also"):
+                flag += " · " + ALSO[lang] + ", ".join(
+                    variant_label(v, lang) for v in row["also"])
+            add('    <p class="gal-flag">%s</p>' % e(flag))
+        shape = "sample" if kind == "sample" else \
+            ("pair" if before is not None else "new")
+        label = variant_label(variant, lang)
+        add('    <p>%s</p>' % e(INTRO[lang][shape]
+                               % (label[:1].upper() + label[1:])))
+        add('    <div class="gal">')
+        alt = "%s · %%s" % title
+        if before is not None:
+            add(figure(root, before, "before", words["before"], cell,
+                       alt % words["before"]))
+            add(figure(root, after, "after", words["after"], cell,
+                       alt % words["after"]))
         else:
-            add('    <div class="gal">')
-            for tile in tiles:
-                path = str(row_tiles[tile]).lstrip("/")
-                width, height = png_size(root, path, cell, tile)
-                url = "file://%s/%s" % (root, path)
-                add('      <figure data-tile="%s"><img src="%s" alt="%s"'
-                    ' width="%d" height="%d" loading="lazy">'
-                    '<figcaption>%s</figcaption></figure>'
-                    % (e(tile), e(url), e("%s · %s" % (title, tile)),
-                       width, height, e(tile_label(tile, lang))))
-            add('    </div>')
-        add('    <div class="opts one">')
-        for label, text in VERDICTS[lang]:
-            add('      <label><input type="radio" name="%s" data-label="%s">'
-                '<span>%s</span></label>' % (e(ident), e(label), e(text)))
+            add(figure(root, after, "after", words["new"], cell,
+                       alt % words["new"]))
         add('    </div>')
-        add('    <p class="fieldlabel">%s</p>' % e(NOTES_LABEL[lang]))
-        add('    <textarea placeholder="%s"></textarea>'
-            % e(NOTES_PLACEHOLDER[lang]))
+        if kind != "sample":
+            out.extend(verdicts(ident, lang))
+        out.extend(notes(lang))
         add('  </section>')
     add('</section>')
     return "\n".join(out) + "\n"
@@ -281,7 +393,7 @@ def main(argv):
     ap = argparse.ArgumentParser(
         prog="gallery-items.sh",
         description="Turn a gallery rows JSON into one consult-group of "
-                    "gallery review items.")
+                    "before/proposed review rows.")
     ap.add_argument("rows", metavar="<rows.json>",
                     help="the rows document the project emits")
     ap.add_argument("--root", required=True, metavar="<abs repo root>",

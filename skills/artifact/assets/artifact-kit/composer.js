@@ -97,8 +97,8 @@
       cmp2up: '2-up',
       cmpSwipe: 'Swipe',
       cmpOnion: 'Onion skin',
-      cmpTitle: 'Compare this tile with the other mode of the same viewport',
-      cmpNone: 'This row has no tile in the other mode of this viewport',
+      cmpTitle: 'Compare this tile with its pair: before and proposed, or the other mode of the same viewport',
+      cmpNone: 'This tile has no pair in this row to compare against',
       cmpRange: 'Right: more of this tile · left: more of the other mode',
       cmpSize: function (a, b) { return 'The two captures differ in size (' + a + ' against ' + b + '): shown side by side.'; },
       markHint: 'Drag to mark a region · click a mark to edit or delete it',
@@ -189,8 +189,8 @@
       cmp2up: 'Lado a lado',
       cmpSwipe: 'Deslizar',
       cmpOnion: 'Superponer',
-      cmpTitle: 'Compara este tile con el otro modo de la misma pantalla',
-      cmpNone: 'Esta fila no tiene el tile del otro modo en esta pantalla',
+      cmpTitle: 'Compara este tile con su par: antes y propuesto, o el otro modo de la misma pantalla',
+      cmpNone: 'Este tile no tiene par en esta fila con el que compararse',
       cmpRange: 'Derecha: m\u00e1s de este tile \u00b7 izquierda: m\u00e1s del otro modo',
       cmpSize: function (a, b) { return 'Las dos capturas tienen tama\u00f1os distintos (' + a + ' frente a ' + b + '): se muestran lado a lado.'; },
       markHint: 'Arrastra para marcar una zona \u00b7 haz clic en una marca para editarla o borrarla',
@@ -691,7 +691,12 @@
         if (links[i]) links[i].classList.add('done');
         return;
       }
-      var notes = el.classList.contains('consult-notes');
+      /* A gallery SAMPLE (a row with no verdict group, by design — BL-466)
+       * asks nothing either: counting it reported "1 de 2 · falta <sample>"
+       * on a page whose one question was answered. It leaves the counts the
+       * same way the general notes do; its notes still travel in the paste. */
+      var notes = el.classList.contains('consult-notes')
+        || (isGalleryRow(el) && !el.querySelector('.opts'));
       markProvisional(el);
       var body = readItem(el);
       el.classList.toggle('has-answer', !!body);
@@ -1571,14 +1576,19 @@
       drawDialog();
     }
 
-    /* The other mode of the same viewport (`light-desktop` <-> `dark-desktop`),
-     * looked up among ALL the row's figures: a filter hides tiles, not data. */
+    /* The tile to compare against, looked up among ALL the row's figures (a
+     * filter hides tiles, not data): on a review row the other half of the
+     * before/after pair, on a matrix row the other mode of the same viewport
+     * (`light-desktop` <-> `dark-desktop`). */
+    var PAIR = { before: 'after', after: 'before' };
     function sibling(fig) {
       var name = fig.getAttribute('data-tile') || '';
       var m = /^(light|dark)-/.exec(name);
-      if (!m) return null;
-      var f = tileFigure(fig.closest('.consult-item'),
-        (m[1] === 'light' ? 'dark-' : 'light-') + name.slice(m[0].length));
+      var other = PAIR.hasOwnProperty(name) ? PAIR[name]
+        : m ? (m[1] === 'light' ? 'dark-' : 'light-') + name.slice(m[0].length)
+        : null;
+      if (!other) return null;
+      var f = tileFigure(fig.closest('.consult-item'), other);
       return f && f.querySelector('img') ? f : null;
     }
 
@@ -2086,6 +2096,9 @@
     var saved = galState();
     groups.forEach(function (g) {
       if (g.querySelector('.kit-galbar')) return;
+      /* Mode and viewport filters mean something only on a light/dark matrix;
+       * a before/after review block gets no toolbar at all. */
+      if (!/(^|\s)(light|dark)-/.test(g.getAttribute('data-tiles') || '')) return;
       var gid = g.dataset.id || g.id || '';
       var bar = document.createElement('div');
       bar.className = 'kit-galbar';

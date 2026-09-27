@@ -1,19 +1,14 @@
 {
- "gallery": "audit",
- "shots_dir": "shots",
- "tiles": ["light-desktop", "dark-desktop", "light-mobile", "dark-mobile"],
+ "gallery": "audit", "variants": ["light-desktop", "light-mobile"],
+ "shots_dir": "shots", "actual_dir": "actual",
  "rows": [
-  {"cell": "with-data",
-   "tiles": {"light-desktop": "shots/light-desktop/audit-with-data.png",
-             "dark-desktop": "shots/dark-desktop/audit-with-data.png",
-             "light-mobile": "shots/light-mobile/audit-with-data.png",
-             "dark-mobile": "shots/dark-mobile/audit-with-data.png"}},
-  {"cell": "empty",
-   "tiles": {"light-desktop": "shots/light-desktop/audit-empty.png",
-             "dark-desktop": "shots/dark-desktop/audit-empty.png",
-             "light-mobile": "shots/light-mobile/audit-empty.png",
-             "dark-mobile": "shots/dark-mobile/audit-empty.png"}},
-  {"cell": "no-permission",
-   "notApplicable": "Todo rol que llega a esta pantalla tiene el permiso, así que el estado no se alcanza en la demo."}
+  {"cell": "with-data", "variant": "light-desktop", "kind": "review",
+   "before": "shots/light-desktop/audit-with-data.png", "after": "actual/light-desktop/audit-with-data.png"},
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "after": "actual/light-desktop/audit-empty.png"},
+  {"cell": "with-data", "variant": "light-mobile", "kind": "review",
+   "before": "shots/light-mobile/audit-with-data.png", "after": "actual/light-mobile/audit-with-data.png"},
+  {"cell": "empty", "variant": "dark-mobile", "kind": "unrequested",
+   "before": "shots/dark-mobile/audit-empty.png", "after": "actual/dark-mobile/audit-empty.png"}
  ]
 }

@@ -193,13 +193,19 @@ Every property below holds for it unchanged; detect which one the project has an
 that one's path.
 
 **The owner's review surface is a consultation page, not the board** (ADR, fourth
-amendment of 2026-09-23). The board script also prints the matrix as rows JSON,
-`--rows-json <gallery>`: gallery, tiles, and per row either a path per tile (relative to
-the repo root) or a `notApplicable` reason, deterministic and refusing a declared cell
-with no baseline like the board does. The artifact kit's `gallery-items.sh` turns that
-document into consultation items (`/aidex:artifact`, reference
-`02-local-first-artifacts.md` § Gallery rows). The board and the image remain the
-developer's lens while building.
+amendment of 2026-09-23; rows reshaped by the 2026-09-27 consultation, D1-D3). The board
+script also prints the owner's review rows as JSON — in the shipped tree
+`--rows-json <gallery> --variants <v,v> --changed <cell,cell> --actual-dir <run output>`,
+the variants and cells being item 5 of the plan's UI-contract section. One row per
+declared cell in each chosen variant, as `before` (the baseline the run compared against,
+absent for a new screen) and `after` (the run's render), plus one `unrequested` row per
+undeclared cell that rendered differently in ANY variant, the other variants where it
+changed listed in `also`; a declared cell that is not applicable comes as its reason. Paths are relative to the repo root, the
+output is deterministic, and a declared cell with no baseline is refused like the board
+does. An empty `rows` (everything matched) means no gallery block on the page. The
+artifact kit's `gallery-items.sh` turns that document into consultation items
+(`/aidex:artifact`, `04-block-vocabulary.md` § `gallery` pins the shape). The board and
+the image remain the developer's lens while building.
 
 A small composer script turns one gallery's baselines into a single image: rows are the
 matrix cells, columns the four projects.

@@ -37,7 +37,7 @@ PY
 
 # row <body, printf-escaped> <out>: one gallery row with that body.
 row() {
-  printf '### audit-with-data · audit · with-data\n\n'"$1" > "$2"
+  printf '### audit-with-data-light-desktop · audit · with-data · light-desktop\n\n'"$1" > "$2"
 }
 
 # parsed <body> <python expression over `r`, the row> <label>
@@ -82,7 +82,7 @@ rc=$?
 [[ "$rc" == 0 ]] && ok "the real paste parses" \
   || fail "the real paste was refused (exit $rc): $(cat "$TMP/real.err")"
 
-expect_json "$TMP/real.json" 'd == {"rows": [{"id": "audit-with-data", "gallery": "audit", "cell": "with-data", "verdict": "Needs changes", "notes": "la fila se ve bien", "asks": [], "provisional": False, "marks": [{"tile": "light-desktop", "x": 12.5, "y": 34.0, "w": 40.0, "h": 10.5, "note": "the breadcrumb wraps under the title"}, {"tile": "light-desktop", "x": 0.0, "y": 0.0, "w": 25.0, "h": 25.0, "note": "the logo is cut"}]}], "other": []}' \
+expect_json "$TMP/real.json" 'd == {"rows": [{"id": "audit-with-data-light-desktop", "gallery": "audit", "cell": "with-data", "variant": "light-desktop", "kind": "review", "verdict": "Needs changes", "notes": "la fila se ve bien", "asks": [], "provisional": False, "marks": [{"tile": "after", "x": 12.5, "y": 34.0, "w": 40.0, "h": 10.5, "note": "the breadcrumb wraps under the title"}, {"tile": "after", "x": 0.0, "y": 0.0, "w": 25.0, "h": 25.0, "note": "the logo is cut"}]}], "other": []}' \
   "the real paste is exactly one row with its verdict, notes and two marks"
 
 bash "$PARSE" < "$FIX" > "$TMP/stdin.json" 2>/dev/null
@@ -94,17 +94,39 @@ echo "== what is and is not a row =="
 
 # The row is recognised by its heading, never by its marks: an approved row is
 # the common case and it carries none.
-{ cat "$FIX"; printf '\n\n### audit-empty · audit · empty\n\n- Approved'; } > "$TMP/approved.txt"
+{ cat "$FIX"; printf '\n\n### audit-empty-light-desktop · audit · empty · light-desktop\n\n- Approved'; } > "$TMP/approved.txt"
 bash "$PARSE" "$TMP/approved.txt" > "$TMP/approved.json" 2>/dev/null
-expect_json "$TMP/approved.json" 'len(d["rows"]) == 2 and d["rows"][1] == {"id": "audit-empty", "gallery": "audit", "cell": "empty", "verdict": "Approved", "notes": "", "asks": [], "provisional": False, "marks": []}' \
+expect_json "$TMP/approved.json" 'len(d["rows"]) == 2 and d["rows"][1] == {"id": "audit-empty-light-desktop", "gallery": "audit", "cell": "empty", "variant": "light-desktop", "kind": "review", "verdict": "Approved", "notes": "", "asks": [], "provisional": False, "marks": []}' \
   "an approved row with no marks is still a row"
+
+# The kind rides on the id, never on the visible title: an unrequested change
+# and a sample are rows of their own, one answer each (or none, for a sample).
+{ cat "$FIX"; printf '\n\n### audit-loaded-dark-mobile-unrequested · audit · loaded · dark-mobile\n\n- Necesita cambios\n\nrevierte esto\n\n### audit-empty-light-desktop-sample · audit · empty · light-desktop\n\nsolo mirando'; } > "$TMP/kinds.txt"
+bash "$PARSE" "$TMP/kinds.txt" > "$TMP/kinds.json" 2>/dev/null
+expect_json "$TMP/kinds.json" 'len(d["rows"]) == 3 and d["rows"][1] == {"id": "audit-loaded-dark-mobile-unrequested", "gallery": "audit", "cell": "loaded", "variant": "dark-mobile", "kind": "unrequested", "verdict": "Necesita cambios", "notes": "revierte esto", "asks": [], "provisional": False, "marks": []} and d["rows"][2]["kind"] == "sample" and d["rows"][2]["verdict"] == "" and d["rows"][2]["notes"] == "solo mirando"' \
+  "an unrequested row parses with its kind and its one answer; a sample with none"
+
+# A not-applicable row has no variant: its heading is the two names and its id
+# ends in -not-applicable, and it parses as a row of that kind.
+{ cat "$FIX"; printf '\n\n### audit-no-permission-not-applicable · audit · no-permission\n\n- Aprobada'; } > "$TMP/na.txt"
+bash "$PARSE" "$TMP/na.txt" > "$TMP/na.json" 2>/dev/null
+expect_json "$TMP/na.json" 'len(d["rows"]) == 2 and d["rows"][1] == {"id": "audit-no-permission-not-applicable", "gallery": "audit", "cell": "no-permission", "variant": "", "kind": "not-applicable", "verdict": "Aprobada", "notes": "", "asks": [], "provisional": False, "marks": []}' \
+  "a not-applicable row parses with kind not-applicable and an empty variant"
+
+# A reply pasted from a page of the OLD light/dark matrix (id <gallery>-<cell>,
+# title <gallery> · <cell>) is refused on its line, never read as a
+# not-applicable row: its verdict was given on four tiles, not on a reason.
+{ cat "$FIX"; printf '\n\n### audit-with-data · audit · with-data\n\n- Approved'; } > "$TMP/old.txt"
+# The fixture has no trailing newline: its last line is wc -l + 1, the blank
+# line follows, then the heading.
+refuse "$TMP/old.txt" "$(( $(wc -l < "$FIX") + 3 ))" "old light/dark" "a row heading from an old light/dark page"
 
 # A consultation item, the general-notes item, and a decoy whose title has the
 # `a · b` shape but whose id is not `a-b`: all three land in `other`, untouched.
-{ cat "$FIX"; printf '\n\n## G1 · Decisions\n\n### Q1 · Which one?\n\n- Option A\n\nbecause [mark this] is not a mark here\n\n### X9 · audit · with-data\n\n- Approved\n\n### notes · Notas generales\n\ntodo bien'; } > "$TMP/other.txt"
+{ cat "$FIX"; printf '\n\n## G1 · Decisions\n\n### Q1 · Which one?\n\n- Option A\n\nbecause [mark this] is not a mark here\n\n### X9 · audit · with-data · light-desktop\n\n- Approved\n\n### audit-with-data-light-desktop-regression · audit · with-data · light-desktop\n\n- Approved\n\n### notes · Notas generales\n\ntodo bien'; } > "$TMP/other.txt"
 bash "$PARSE" "$TMP/other.txt" > "$TMP/other.json" 2> "$TMP/other.err"
-expect_json "$TMP/other.json" 'len(d["rows"]) == 1 and d["other"] == [{"id": "Q1", "title": "Which one?", "body": "- Option A\n\nbecause [mark this] is not a mark here"}, {"id": "X9", "title": "audit · with-data", "body": "- Approved"}, {"id": "notes", "title": "Notas generales", "body": "todo bien"}]' \
-  "non-gallery items land in other with id, title and raw body"
+expect_json "$TMP/other.json" 'len(d["rows"]) == 1 and d["other"] == [{"id": "Q1", "title": "Which one?", "body": "- Option A\n\nbecause [mark this] is not a mark here"}, {"id": "X9", "title": "audit · with-data · light-desktop", "body": "- Approved"}, {"id": "audit-with-data-light-desktop-regression", "title": "audit · with-data · light-desktop", "body": "- Approved"}, {"id": "notes", "title": "Notas generales", "body": "todo bien"}]' \
+  "non-gallery items and an unknown kind land in other with id, title and raw body"
 
 echo "== the answer block =="
 
@@ -176,11 +198,11 @@ expect_json "$TMP/tablet.json" 'd["rows"][0]["marks"][0]["tile"] == "light-table
 # outside it is refused on its line: a hand-edited paste with a typo is caught.
 mutate 9 '[mark light-dekstop 12.5,34.0 40.0x10.5] typo' "$TMP/typo.txt"
 refuse_tiles_rc=0
-bash "$PARSE" --tiles "light-desktop light-tablet" "$TMP/typo.txt" > "$TMP/typo.out" 2> "$TMP/typo.err" || refuse_tiles_rc=$?
+bash "$PARSE" --tiles "after light-tablet" "$TMP/typo.txt" > "$TMP/typo.out" 2> "$TMP/typo.err" || refuse_tiles_rc=$?
 [[ "$refuse_tiles_rc" == 2 ]] && grep -q "line 9" "$TMP/typo.err" && grep -q "light-dekstop" "$TMP/typo.err" && [[ ! -s "$TMP/typo.out" ]] \
   && ok "--tiles refuses a mark on a tile the page does not declare, naming the line" \
   || fail "--tiles did not refuse light-dekstop on line 9 (exit $refuse_tiles_rc): $(cat "$TMP/typo.err")"
-bash "$PARSE" --tiles "light-desktop light-tablet" "$TMP/tablet.txt" > "$TMP/tablet2.json" 2> "$TMP/tablet2.err" \
+bash "$PARSE" --tiles "after light-tablet" "$TMP/tablet.txt" > "$TMP/tablet2.json" 2> "$TMP/tablet2.err" \
   || fail "--tiles refused a declared tile: $(cat "$TMP/tablet2.err")"
 expect_json "$TMP/tablet2.json" 'd["rows"][0]["marks"][0]["tile"] == "light-tablet"' \
   "--tiles accepts a mark on a tile it lists"
@@ -224,10 +246,10 @@ grep -q "exactly the block" "$TMP/help.out" \
 # not hide the row: read as plain utf-8, `\ufeff### ...` is not a heading.
 { printf '\xef\xbb\xbf'; tail -n +3 "$FIX"; } > "$TMP/bom.txt"
 bash "$PARSE" "$TMP/bom.txt" > "$TMP/bom.json" 2> "$TMP/bom.err"
-expect_json "$TMP/bom.json" 'len(d["rows"]) == 1 and d["rows"][0]["id"] == "audit-with-data"' \
+expect_json "$TMP/bom.json" 'len(d["rows"]) == 1 and d["rows"][0]["id"] == "audit-with-data-light-desktop"' \
   "a BOM before the first ### still yields the row (file)"
 bash "$PARSE" < "$TMP/bom.txt" > "$TMP/bom-stdin.json" 2> "$TMP/bom.err"
-expect_json "$TMP/bom-stdin.json" 'len(d["rows"]) == 1 and d["rows"][0]["id"] == "audit-with-data"' \
+expect_json "$TMP/bom-stdin.json" 'len(d["rows"]) == 1 and d["rows"][0]["id"] == "audit-with-data-light-desktop"' \
   "a BOM before the first ### still yields the row (stdin)"
 
 echo
