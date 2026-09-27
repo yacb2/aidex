@@ -161,5 +161,50 @@ echo "$err_h" | grep -q 'WARNING: no baseline' \
 [[ -e "$WS/.context" ]] && fail "(h) sweep --out must not touch the target workspace"
 rm -rf "$WS" "$OUT"
 
+# ---------------------------------------------------------------------------
+# (i) a src glob matching no tracked file is a map error (BL-453): one dead
+#     module is reported and the sweep still runs; every module dead is a map
+#     the sweep cannot read — exit 2 naming the map, never an all-"ok" table
+# ---------------------------------------------------------------------------
+WS="$(bash "$FIXTURE")"
+MAPI="$WS/.context/audits/test-coverage/module-map.json"
+kill_src() { python3 - "$MAPI" "$@" <<'PYDEAD'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for mod in m["modules"]:
+    if mod["id"] in sys.argv[2:]:
+        mod["src"] = ["gone/" + g for g in mod["src"]]
+json.dump(m, open(sys.argv[1], "w"), indent=2)
+PYDEAD
+}
+kill_src people
+err_i="$(python3 "$SWEEP" "$WS" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 0 ]] || fail "(i) one dead module must not stop the sweep (got $rc): $err_i"
+[[ "$err_i" == *"module people: src globs match no tracked file"* ]] \
+  || fail "(i) a module whose src matches nothing must be reported: $err_i"
+kill_src billing
+out_i="$(python3 "$SWEEP" "$WS" 2>/dev/null)"; rc=$?
+err_i="$(python3 "$SWEEP" "$WS" 2>&1 >/dev/null)"
+[[ $rc -eq 2 ]] || fail "(i) a map with every module dead must exit 2 (got $rc)"
+[[ "$err_i" == *"$MAPI"* ]] || fail "(i) the refusal must name the map: $err_i"
+echo "$out_i" | grep -q 'COVERAGE SWEEP' && fail "(i) a dead map must not print a table: $out_i"
+rm -rf "$WS"
+# a declared repo no module's src reaches (every frontend glob dead, billing
+# still live in backend) is refused the same way, naming the map and the repo
+WS="$(bash "$FIXTURE")"
+MAPI="$WS/.context/audits/test-coverage/module-map.json"
+python3 - "$MAPI" <<'PYFE'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for mod in m["modules"]:
+    mod["src"] = ["gone/" + g if g.startswith("frontend/") else g for g in mod["src"]]
+json.dump(m, open(sys.argv[1], "w"), indent=2)
+PYFE
+err_i="$(python3 "$SWEEP" "$WS" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 2 ]] || fail "(i) a repo no module's src reaches must exit 2 (got $rc): $err_i"
+[[ "$err_i" == *"$MAPI"* && "$err_i" == *"repo frontend"* ]] \
+  || fail "(i) the per-repo refusal must name the map and the repo: $err_i"
+rm -rf "$WS"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — coverage-sweep drift: no-drift baseline, flagged RE-RUN, no-matrix warning, --since override, multi-repo sum, CLI hygiene, open-ended test kinds"

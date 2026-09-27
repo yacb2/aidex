@@ -187,6 +187,8 @@ if [[ -f "$COV_MAP" && -f "$AUDIT_SCRIPTS/coverage-matrix.sh" ]]; then
   COV_FAIL=""
   COV_OUT="$(bash "$AUDIT_SCRIPTS/coverage-matrix.sh" "$ROOT" 2>&1)" \
     || COV_FAIL+="    coverage-matrix.sh: ${COV_OUT##*$'\n'}"$'\n'
+  # A dead module is a MAP ERROR line on an rc-0 run (BL-478): never swallow it.
+  grep '^MAP ERROR' <<<"$COV_OUT" | sed 's/^/    /' >&2 || true
   IDX_OUT="$( (cd "$ROOT" && bash "$AUDIT_SCRIPTS/reindex-audits.sh") 2>&1)" \
     || COV_FAIL+="    reindex-audits.sh: ${IDX_OUT##*$'\n'}"$'\n'
   if [[ -z "$COV_FAIL" ]]; then

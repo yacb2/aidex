@@ -218,6 +218,7 @@ def main():
     try:
         m = lib.load_map(root, out_override)
         files = lib.list_files(root, m["repos"])
+        lib.check_src_reach(root, m, files, out_override)
     except SystemExit as e:
         print(e.code, file=sys.stderr)
         sys.exit(2)  # could not run — distinct from 0 (ran) and from drift elsewhere
