@@ -603,6 +603,15 @@ dejo para otra ronda"**, which pastes **`[not-now]`**. It is answer-side, a radi
 with answering. A deferred question is not a blank: the count stops nagging, the item is
 carried as open in the next page's ledger and is not redrawn until asked for.
 
+**The reply is saved before the next round is built (BL-475).** The marks live in the
+reader's browser and in the paste, never on disk, so the session that receives a paste
+writes it verbatim to `.aidex-artifact-prev/<stem>.reply.md` beside the page, before
+briefing the rewrite. `check-artifact --prev` (every wrap with a baseline) then FAILS an
+item that paste marks `[show-me]` if the new round carries no figure, image or diagram
+inside that item, and WARNS when no reply newer than the baseline exists. Answering a
+`[show-me]` means a figure (`figure-opus`) or a screenshot (`verify-browser-opus`),
+never a longer paragraph.
+
 The markers are never translated — the labels the reader sees are, the tokens are not — and
 they are what says WHICH items to rewrite and WHICH WAY, so the next round rewrites exactly
 those, in that direction, and leaves the rest alone.

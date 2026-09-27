@@ -31,6 +31,10 @@ Checks (per file):
                the same claim, and no id disappears — a closed claim stays on
                the page; only a page declaring `consult-surfaces: none` (the
                closed-page exit) may drop ids (BL-396)
+  consult-show-me with --prev: an item the saved reply
+               (`.aidex-artifact-prev/<stem>.reply.md`) marks `[show-me]` carries a
+               figure, image or diagram this round; with no current reply it only
+               WARNS (BL-475)
   svg-contrast figure text below 4.5:1 against what it is painted on, in either
                theme (BL-330). The one check with two severities: it FAILS a
                named file — the wrap — and only WARNS in `--census`, because a
@@ -2834,6 +2838,54 @@ def check_consultation(path, text, flat):
     return fails
 
 
+
+# BL-475: a `[show-me]` ask is answered with a different instrument, never more
+# prose (02-local-first-artifacts.md, the asks table). The reader's marks live in
+# browser storage and in the paste, never on disk, so the session saves the paste
+# verbatim as `.aidex-artifact-prev/<stem>.reply.md` and this reads it. An ask is
+# the line `- [show-me]` under `### <id> · <title>`, exactly as composer.js pastes
+# it; the token typed inside a note is prose, not an ask.
+REPLY_ITEM = re.compile(r"^### (\S+) · ", re.M)
+SHOW_ME_LINE = re.compile(r"^- \[show-me\]\s*$", re.M)
+VISUAL_TAG = re.compile(r"<(?:svg|img|canvas|figure)\b", re.I)
+
+
+def check_show_me(new_path):
+    """(fails, warns) for the round built at new_path. A reply older than the
+    baseline belongs to a past round and is not enforced; with no current reply
+    the check cannot run, and says so instead of passing silently."""
+    name = os.path.basename(new_path)
+    text = open(new_path, encoding="utf-8", errors="replace").read()
+    bodies = dict(consult_item_bodies(text))
+    if not bodies:
+        return [], []
+    prev_dir = os.path.join(os.path.dirname(os.path.abspath(new_path)),
+                            ".aidex-artifact-prev")
+    reply = os.path.join(prev_dir, os.path.splitext(name)[0] + ".reply.md")
+    baseline = os.path.join(prev_dir, name)
+    if (not os.path.isfile(reply) or (os.path.isfile(baseline) and
+            os.path.getmtime(reply) < os.path.getmtime(baseline))):
+        return [], [("consult-show-me", name,
+                     f"no reply saved for this round ({os.path.relpath(reply)} "
+                     f"is missing or older than the baseline) — save the "
+                     f"reader's paste there verbatim so [show-me] asks are "
+                     f"checked")]
+    paste = open(reply, encoding="utf-8", errors="replace").read()
+    heads = list(REPLY_ITEM.finditer(paste))
+    fails = []
+    for k, h in enumerate(heads):
+        end = heads[k + 1].start() if k + 1 < len(heads) else len(paste)
+        ident = h.group(1)
+        if (SHOW_ME_LINE.search(paste, h.end(), end) and ident in bodies
+                and not VISUAL_TAG.search(bodies[ident])):
+            fails.append(("consult-show-me", name,
+                          f"{ident} was marked [show-me] and this round answers "
+                          f"it with no figure, image or diagram inside the item "
+                          f"— the ask is for a different instrument (a mockup, a "
+                          f"diagram, a before/after, an example), not more prose"))
+    return fails, []
+
+
 def check_prev(new_path, prev_path):
     """Requirement 1 across regenerations: an id kept between two versions
     still names the same claim, and no id disappears. A SHIFT is an id whose
@@ -3223,6 +3275,9 @@ def main(argv):
     if prev is not None:
         prev_fails, prev_notes = check_prev(files[0], prev)
         failures.extend(prev_fails)
+        show_fails, show_warns = check_show_me(files[0])
+        failures.extend(show_fails)
+        warnings.extend(show_warns)
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")

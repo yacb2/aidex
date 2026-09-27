@@ -1225,5 +1225,60 @@ bash "$CHECK" --census "$TMP/census" > "$TMP/out" 2>&1
 grep -q 'WARN' "$TMP/out" \
   && fail "10. --census printed a warning — noise on a page nobody is editing: $(cat "$TMP/out")"
 
+# ---- 11. a [show-me] ask is answered with a visual, not prose (BL-475) ------
+# The reader's marks live in browser storage and in the paste, never on disk, so
+# the round's reply is saved verbatim beside the baseline and the check reads it.
+# Found on dashboard_template_ws's 2026-09-27 barrida page: items marked
+# [show-me] came back as prose rewrites and the page passed.
+R="$TMP/rounds"; mkdir -p "$R/.aidex-artifact-prev"
+showitem() {  # $1 = extra markup inside Q1
+  mkpage "$2" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"The first claim\">
+  <h3>Q1</h3><p>What happens today, explained again.</p>$1<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"Q2\" data-title=\"The second claim\">
+  <h3>Q2</h3><textarea></textarea></section>
+$gclose
+$notesitem
+$bars
+$composer"
+}
+showitem '' "$R/.aidex-artifact-prev/page.html"
+sleep 1
+cat > "$R/.aidex-artifact-prev/page.reply.md" <<'MD'
+## G1 · The context
+### Q1 · The first claim
+
+- [show-me]
+
+no entiendo qué cambia
+### Q2 · The second claim
+
+- Yes
+
+it says [show-me] in prose, which is not an ask
+MD
+
+showitem '' "$R/page.html"
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "1" ]] || fail "11a. a [show-me] item rewritten as prose passed: $(cat "$TMP/out")"
+grep -q 'FAIL \[consult-show-me\].*Q1' "$TMP/out" || fail "11a. the failure does not name the item: $(cat "$TMP/out")"
+grep -q 'FAIL \[consult-show-me\].*Q2' "$TMP/out" && fail "11a. [show-me] typed in the notes was read as an ask: $(cat "$TMP/out")"
+
+showitem '<figure><svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg></figure>' "$R/page.html"
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "0" ]] || fail "11b. a [show-me] item answered with a figure failed: $(cat "$TMP/out")"
+
+touch -t 202001010000 "$R/.aidex-artifact-prev/page.reply.md"
+showitem '' "$R/page.html"
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "0" ]] || fail "11c. a reply older than the baseline (a past round's) was enforced: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-show-me\]' "$TMP/out" || fail "11c. a stale reply was not reported: $(cat "$TMP/out")"
+
+rm "$R/.aidex-artifact-prev/page.reply.md"
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "0" ]] || fail "11d. a round with no saved reply failed: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-show-me\]' "$TMP/out" || fail "11d. a round with no saved reply said nothing: $(cat "$TMP/out")"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"
