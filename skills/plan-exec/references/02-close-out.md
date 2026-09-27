@@ -9,6 +9,12 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
 > close-out. `git merge` into the trunk is **class 2** — pre-authorizable at Orient,
 > never assumed mid-run — because it ends the review window this plan's work still
 > needs. Finish, leave the branch **ready to merge**, and say so in the final summary.
+> **The merge owns the cleanup the close-out cannot do.** A worktree kept for review
+> outlives the run, and nothing else removes it: the final summary names the command,
+> `/aidex:worktree down <slug> --delete-branch` (or `git worktree remove` plus
+> `git branch -d` for an `EnterWorktree` checkout), and whoever merges runs it right
+> after the merge. `branch -d` refuses an unmerged branch, so running it early is safe.
+> Seen 2026-09-27: `feat/testing-canon` and its worktree survived the merge (df21cec).
 > Rule and rationale: `../../conventions/references/autonomy-conventions.md` § Integrating a branch is not a commit.
 
 5. **Tear down isolation** if a worktree was entered at Orient: `ExitWorktree`
