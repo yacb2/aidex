@@ -77,7 +77,7 @@ for d in shots actual; do for cell in with-data empty; do
     mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 390 844
   done
 done; done
-if bash "$SCRIPTS/gallery-items.sh" "$FIX/gallery/rows.json" --root "$GROOT" \
+if bash "$SCRIPTS/gallery-items.sh" "$FIX/gallery/rows.json" --root "$GROOT" --page "$TMP/gallery.html" \
      --group-id E --group-title "Galería audit" > "$TMP/gallery-group.html" 2>"$TMP/gallery-gen.err"; then
   ok "generated the gallery block from rows.json"
 else

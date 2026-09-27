@@ -1392,8 +1392,8 @@ into items, the items go into the body sidecar, and the page is wrapped as usual
 ```bash
 python3 _scripts/gallery_board.py --rows-json audit > /tmp/audit.json      # the project
 bash ${CLAUDE_PLUGIN_ROOT}/skills/artifact/scripts/gallery-items.sh /tmp/audit.json \
-    --root <abs repo root> --group-id E --group-title "Galería audit" --lang es
-# paste the printed consult-group into the .body sidecar, then wrap-report.sh as always
+    --root <abs repo root> --page <out.html> --group-id E --group-title "Galería audit" --lang es
+# paste the printed consult-group into the .body sidecar, then wrap-report.sh --out <out.html>
 ```
 
 The wrap's contract is content in, page out. A generator inside it would make the sidecar a
@@ -1467,11 +1467,15 @@ row's marks is refused.
   would need a body comparison the round was designed not to depend on. Refresh the kit
   when a round is due anyway, not between rounds.
 
-**Images: linked while open, copied at close (D2).** `gallery-items.sh` writes
-`file://<root>/<path>` and never inlines. While the consultation is open the baselines stay
-where the project keeps them, so a re-capture shows up on the next wrap. When it closes,
-copy the files into `<page>-assets/` next to the page and point the `src` there, or the
-record breaks the day the worktree comes down.
+**Images: copied next to the page at build (BL-474).** `gallery-items.sh --page
+<out.html>` (and `spec_build.py -o`) copies every capture to
+`<page-stem>-assets/gallery/<sha256[:16]>.png` and links the copy by relative path; nothing
+is inlined. `--page` must be the path `wrap-report.sh --out` writes, or the relative links
+point beside another file. The captures usually live where the runner wipes them
+(`test-results/`), and the page no longer depends on them. A re-capture is a new file name,
+so it shows up on the next build as a new question. A rebuild after the sources are gone is
+refused ("has no file at …") and leaves the built page and its copies untouched; nothing is
+copied until every row has passed, and old copies are never pruned.
 
 ### What is checked, and how
 

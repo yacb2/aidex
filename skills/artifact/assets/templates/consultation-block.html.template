@@ -186,7 +186,7 @@
      template knows the shape exists and what the rules on it are, not so it
      can be copied by hand:
 
-       gallery-items.sh rows.json --root <abs repo root> \
+       gallery-items.sh rows.json --root <abs repo root> --page <out.html> \
            --group-id E --group-title "…" [--lang es|en]
 
      Rules check-artifact.sh enforces:

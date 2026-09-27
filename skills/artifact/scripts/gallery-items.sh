@@ -3,7 +3,7 @@
 # items. Thin wrapper; the logic lives in dash/gallery_items.py.
 #
 # Usage:
-#   gallery-items.sh <rows.json> --root <abs repo root> \
+#   gallery-items.sh <rows.json> --root <abs repo root> --page <out.html> \
 #       --group-id <id> --group-title <title> [--lang es|en]
 #
 # The project decides which rows exist and emits them (dashboard_template's
@@ -15,8 +15,11 @@
 # page's body sidecar (or hand it to artifact-item.sh put) and wrap as usual.
 #
 # Output is deterministic. Each capture's PNG header is read for its width and
-# height. Exit 2 with one plain line on a malformed document, a capture path
-# with no file under --root, or a capture that is not a PNG.
+# height, and each capture is copied beside --page (the path wrap-report.sh
+# --out will write) as <page-stem>-assets/gallery/<sha256[:16]>.png, which the
+# <img> links by relative path (BL-474). Exit 2 with one plain line, and
+# nothing copied, on a malformed document, a capture path with no file under
+# --root, or a capture that is not a PNG.
 
 set -euo pipefail
 

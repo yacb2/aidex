@@ -43,7 +43,7 @@ for d in shots actual; do for cell in with-data empty; do
     mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 100 200
   done
 done; done
-bash "$SCRIPTS/gallery-items.sh" "$FIX/rows.json" --root "$GROOT" --group-id E \
+bash "$SCRIPTS/gallery-items.sh" "$FIX/rows.json" --root "$GROOT" --page "$TMP/page.html" --group-id E \
   --group-title "Galería audit" > "$TMP/group.html" || { echo "FAIL: gallery-items.sh refused the fixture"; exit 1; }
 python3 - "$FIX/frame.html" "$TMP/group.html" "$TMP/body.html" <<'PY'
 import sys

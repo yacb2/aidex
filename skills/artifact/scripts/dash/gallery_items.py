@@ -21,22 +21,33 @@ reads the clock or the environment. The one filesystem read is each capture's
 PNG header: a capture with no file behind it is refused, and its width and
 height go on the <img>, so a lazy image reserves its box before it loads.
 
-Images are linked, never inlined: `src="file://<root>/<path>"`. `--root` is the
-absolute checkout the paths are relative to. Copying the captures next to the
-page is a separate step at close-out (decision D2), not this script's business.
+Images are copied, never inlined (BL-474). `--root` is the absolute checkout
+the paths are relative to, and `--page` the page the block is for: every capture
+is copied to `<page-stem>-assets/gallery/<sha256[:16]>.png` beside it and the
+<img> links that copy by relative path. The captures live where the project's
+runner wipes them (Playwright empties `test-results/` at the start of every
+run), so a page that linked them by `file://` showed broken images the day
+after it was built. The name is the content's hash: a rebuild of the same rows
+is byte-identical, and a re-capture is a new file, hence a new `src`, hence a
+new question. Nothing is copied until every row has passed, and a rebuild after
+the sources are gone is refused by the same "has no file" line as any missing
+capture — the page already built, and its copies, are left as they were.
 
 Usage:
-  gallery-items.sh <rows.json> --root <abs repo root> \
+  gallery-items.sh <rows.json> --root <abs repo root> --page <out.html> \
       --group-id <id> --group-title <title> [--lang es|en]
 """
 
 import argparse
+import hashlib
 import html
 import json
 import os
 import re
+import shutil
 import struct
 import sys
+import urllib.parse
 
 LANGS = ("es", "en")
 
@@ -269,13 +280,25 @@ def check_row(row, variants, n):
     return cell, variant, kind, before, row["after"]
 
 
-def figure(root, path, tile, caption, cell, alt):
+def figure(root, path, tile, caption, cell, alt, assets, copies):
+    """One tile. With a page, `assets` is the page-relative dir of the copies
+    and the src is the capture's copy there; the copy is only recorded in
+    `copies` (name -> source), and `render` makes it once every row has passed.
+    Without one (`assets` None: a body with nowhere to land) the src is the
+    capture's own `file://` URL."""
     path = path.lstrip("/")
     width, height = png_size(root, path, cell, tile)
+    full = os.path.join(root or "/", path)
+    if assets is None:
+        src = "file://%s/%s" % (root, path)
+    else:
+        with open(full, "rb") as fh:
+            name = hashlib.sha256(fh.read()).hexdigest()[:16] + ".png"
+        copies[name] = full
+        src = urllib.parse.quote("%s/%s" % (assets, name))
     return ('      <figure data-tile="%s"><img src="%s" alt="%s" width="%d"'
             ' height="%d" loading="lazy"><figcaption>%s</figcaption></figure>'
-            % (e(tile), e("file://%s/%s" % (root, path)), e(alt), width,
-               height, e(caption)))
+            % (e(tile), e(src), e(alt), width, height, e(caption)))
 
 
 def verdicts(ident, lang):
@@ -311,12 +334,19 @@ def na_row(gallery, cell, reason, lang):
         + verdicts(ident, lang) + notes(lang) + ['  </section>'])
 
 
-def render(doc, root, group_id, group_title, lang):
+def render(doc, root, group_id, group_title, lang, page=None):
     """The block, or "" for an empty `rows`: when every capture matches its
     baseline (D2) the owner's page carries no gallery block and no text about
-    it — not an empty heading, not a "nothing changed" line."""
+    it — not an empty heading, not a "nothing changed" line.
+
+    `page` is the path of the page the block goes into: every capture is copied
+    beside it (see the module docstring). None links the captures where they
+    are — only for a body that is not written as a page."""
     if not doc["rows"]:
         return ""
+    assets, copies = None, {}
+    if page is not None:
+        assets = os.path.splitext(os.path.basename(page))[0] + "-assets/gallery"
     gallery = doc["gallery"]
     variants = list(doc["variants"])
     words = TILE_WORDS[lang]
@@ -374,18 +404,25 @@ def render(doc, root, group_id, group_title, lang):
         alt = "%s · %%s" % title
         if before is not None:
             add(figure(root, before, "before", words["before"], cell,
-                       alt % words["before"]))
+                       alt % words["before"], assets, copies))
             add(figure(root, after, "after", words["after"], cell,
-                       alt % words["after"]))
+                       alt % words["after"], assets, copies))
         else:
             add(figure(root, after, "after", words["new"], cell,
-                       alt % words["new"]))
+                       alt % words["new"], assets, copies))
         add('    </div>')
         if kind != "sample":
             out.extend(verdicts(ident, lang))
         out.extend(notes(lang))
         add('  </section>')
     add('</section>')
+    if assets is not None:
+        dest = os.path.join(os.path.dirname(os.path.abspath(page)), assets)
+        os.makedirs(dest, exist_ok=True)
+        for name, full in sorted(copies.items()):
+            # Content-addressed: a file already there holds these bytes.
+            if not os.path.isfile(os.path.join(dest, name)):
+                shutil.copyfile(full, os.path.join(dest, name))
     return "\n".join(out) + "\n"
 
 
@@ -398,6 +435,9 @@ def main(argv):
                     help="the rows document the project emits")
     ap.add_argument("--root", required=True, metavar="<abs repo root>",
                     help="absolute checkout the row paths are relative to")
+    ap.add_argument("--page", required=True, metavar="<out.html>",
+                    help="the page the block goes into: the captures are "
+                         "copied beside it and linked from there")
     ap.add_argument("--group-id", required=True, metavar="<id>",
                     help="the block's id, stable across rounds")
     ap.add_argument("--group-title", required=True, metavar="<title>",
@@ -415,7 +455,7 @@ def main(argv):
             "built from a relative one resolves nowhere" % args.root)
     doc = load(args.rows)
     sys.stdout.write(render(doc, args.root, args.group_id, args.group_title,
-                            args.lang))
+                            args.lang, page=args.page))
     return 0
 
 
