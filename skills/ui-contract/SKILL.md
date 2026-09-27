@@ -14,8 +14,8 @@ contact sheet. Not a drawn mockup: a drawing cannot be checked against reality a
 things the real components cannot do.
 
 Canon: ADR `2026-09-21-ui-contract-state-galleries-and-evidence-gate` (as amended the
-same day: pattern galleries live in the boilerplate only; what propagates is the harness,
-the gate config and the style lint).
+same day: pattern galleries live only in the shared template a project's apps start from,
+where it has one; what propagates is the harness, the gate config and the style lint).
 
 ## When this fires
 
@@ -69,7 +69,7 @@ An app with no responsive layout has no mobile variant: it is neither reviewed n
 captured. A cell in a variant nobody chose still reaches the owner if it changes without
 being part of the change — as a row marked unrequested, never as a gate summary.
 **Light and dark are the only two modes this contract renders**, also in a project that
-ships more themes (the boilerplate allows several): the gate compares two modes per cell,
+ships more themes (a shared template may allow several): the gate compares two modes per cell,
 and a third theme is reviewed by hand when it is introduced, never as extra baselines.
 
 A not-applicable cell carries its reason in words ("this list has no permission gate —
@@ -117,7 +117,7 @@ The plan then carries these phases, in this order, each one closing on its own e
    regression guard for what the owner approved.
 
 Decided 2026-09-22 on the consultation `2026-09-21-ui-contract-consulta` (item B1): the
-alternatives — a throwaway page in the boilerplate, a drawn round, or the plain order —
+alternatives — a throwaway page in the shared template, a drawn round, or the plain order —
 either rebuild a copy, are not verifiable, or make every layout correction touch logic.
 
 ## Step 4 — Build the gallery, then run the gate
@@ -173,9 +173,10 @@ sessions. What each part is:
    standing form of it: every predicate has a seeded defect it must catch, run before the
    galleries.
 
-Part 3 is this chain's own finding, not a formality. Phases 0, 4 and 5 of the boilerplate
-plan each shipped a vacuous check under a fully green gate: known-defect entries left
-unscoped (a defect measured in one project excused in all 44 cells), a layout check that
+Part 3 is this chain's own finding, not a formality. Phases 0, 4 and 5 of the plan
+that built this contract into a shared template each shipped a vacuous check under a
+fully green gate: known-defect entries left unscoped (a defect measured in one project
+excused in all 44 cells), a layout check that
 silently skipped landmarks it could not find (comparing a set with a hole in it and
 calling the page stable), an overflow check that fell back to an element that can never
 be too wide, and a some-per-glob rot guard that passed while nothing matched. Each was
@@ -192,9 +193,9 @@ header is the grammar to write, and verify-ui prints the `ui-gate:` line ready-m
 
 ## Gotchas
 
-- **A gallery page is not a demo page.** Demo/preview tooling is boilerplate-only in this
-  fleet and does not propagate; the harness does. An app writes its own gallery against
-  the shared harness rather than copying a pattern page.
+- **A gallery page is not a demo page.** Demo/preview tooling lives only in the shared
+  template, where a project has one, and does not propagate; the harness does. An app
+  writes its own gallery against the shared harness rather than copying a pattern page.
 - **Never run the gate with a snapshot update to make it green.** That is the one action
   that converts the whole mechanism into a rubber stamp. (It also skips the meta-suite's
   pixel rows, so its closing count is labelled "skipped" — not a gate run.)
@@ -205,6 +206,6 @@ header is the grammar to write, and verify-ui prints the `ui-gate:` line ready-m
   pages — that is what keeps the comparison deterministic.
 - **A dev-only route can ship to production.** Guard the gallery route on a dev-only
   build flag and assert in a production build that the route is gone; found missing in
-  the boilerplate, where the demo routes shipped to every authenticated user.
+  a shared template, where the demo routes shipped to every authenticated user.
 - **The gate does not judge taste.** It catches overflow, contrast, layout churn and
   pixel drift. Whether the screen is *good* is the owner's call on the review surface.

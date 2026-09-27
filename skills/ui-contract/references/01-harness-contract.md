@@ -244,8 +244,8 @@ The **allowlist is project-owned and never synced**. Consequences the agents mus
 
 ## Limits the gate is known NOT to cover
 
-Stated by the boilerplate's own Execution log so nobody reads a green run as wider than
-it is. Repeat these to the owner when reporting a pass.
+Stated up front so nobody reads a green run as wider than it is; a project that adopts
+the harness copies this table into its own record and edits the rows its setup changes. Repeat these to the owner when reporting a pass.
 
 | Limit | What it means |
 |---|---|

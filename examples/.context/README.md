@@ -22,15 +22,13 @@ Front-matter minimum on every artifact: `title`, `status`, `created`, `updated`
 
 ```bash
 # Validate the tree (0 violations expected; run from the repo root)
-python3 skills/aidex-conventions/scripts/validate.py examples/.context
-# ...or, once aidex is installed:
-python3 ~/.aidex/skills/aidex-conventions/scripts/validate.py examples/.context
+python3 skills/conventions/scripts/validate.py examples/.context
 
 # Render the backlog board to a self-contained HTML page (from inside examples/)
-~/.aidex/skills/aidex-dash/scripts/render.sh backlog
+../skills/artifact/scripts/render.sh backlog
 
 # Register a backlog item (from inside examples/; the id and 00-index.md are generated)
-~/.aidex/skills/aidex-backlog/scripts/register-item.sh --origin manual --title "Add room photos" --priority P2
+../skills/backlog/scripts/register-item.sh --origin manual --title "Add room photos" --priority P2
 ```
 
 Scripts find the nearest `.context/` above the working directory, so run the

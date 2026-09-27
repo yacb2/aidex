@@ -26,7 +26,9 @@ Checks (per file):
   consult      a page the reader must ANSWER carries the §8 shape
   consult-shape every decision inside a block (`.consult-group`), every block
                with a decision, nothing but blocks between the first block and
-               the general notes, only header/figure/ledger before them (BL-247)
+               the general notes, only header/figure/ledger before them (BL-247),
+               and no block or item after the general notes — reference
+               sections may follow them (BL-457)
   consult-ids  with --prev: an id kept between two regenerations still names
                the same claim, and no id disappears — a closed claim stays on
                the page; only a page declaring `consult-surfaces: none` (the
@@ -2595,10 +2597,28 @@ def check_shape(path, text):
                    f"decisions need it, or after the questions if it is "
                    f"reference material")
 
+    # The general-notes item closes the question set (BL-457): no block and no
+    # item after it. Reference sections after it stay allowed — they carry no
+    # data-id and no consult-group class. The class TOKEN, never the word:
+    # `\bconsult-notes\b` also matches `consult-notes-hint`.
+    notes_m = next((m for m in NOTES_OPEN.finditer(text)
+                    if "consult-notes" in _class_tokens(m.group(0))), None)
+    if notes_m:
+        after = notes_m.end() + len(_subtree(text, notes_m.group(1), notes_m.end()))
+        nxt = [m for m in (ITEM_OPEN.search(text, after), GROUP_OPEN.search(text, after))
+               if m]
+        if nxt:
+            m = min(nxt, key=lambda m: m.start())
+            ident = (_tag_attr(m.group(0), "data-id") or _tag_attr(m.group(0), "id")
+                     or "?")
+            report(f"the general-notes item is followed by '{ident}' — the "
+                   f"notes close the question set and are the last consult "
+                   f"item; move them after '{ident}' (reference material may "
+                   f"still follow them)")
+
     if not groups:
         return fails
     first = min(s for _, s, _, _ in groups)
-    notes_m = NOTES_OPEN.search(text)
     end = notes_m.start() if notes_m else len(text)
 
     # Nothing but blocks between the first block and the general notes.
@@ -2757,8 +2777,8 @@ def check_consultation(path, text, flat):
                    f"(This sees only items the ledger names; one decided and "
                    f"never written there is invisible to any check.)")
 
-    # ...and the page carries the general-notes item, always last, always
-    # present. Matched inside a class ATTRIBUTE, never as the bare word:
+    # ...and the page carries the general-notes item, always present (that it
+    # is the last consult item is check_shape's rule, BL-457). Matched inside a class ATTRIBUTE, never as the bare word:
     # components.css DEFINES `.consult-notes` and is injected into every page,
     # so an unanchored match would be answered by the stylesheet on a page that
     # carries no such item — the lie-by-omission this contract exists to

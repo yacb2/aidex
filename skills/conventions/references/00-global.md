@@ -4,6 +4,13 @@ Single source of truth for every artifact type under `.context/`. Per-type docs 
 
 These rules are the materialization of ADRs D-01 through D-07. Each section links to the ADR that justifies it.
 
+**aidex ships no policy from its owner's fleet.** A procedure that governs the owner's own
+projects (how they release, version or sync) belongs to the project or shared skill that
+owns those projects, never to this canon or to any aidex skill. The owner's projects may
+appear only as illustration: never as the sole evidence for a rule, never as a private
+path a reader must resolve. A stack named here (a framework, a boilerplate, a test
+runner) is an example of where a rule applies, never a requirement for applying it.
+
 ---
 
 ## 1. Naming & dates (D-01)
@@ -386,7 +393,7 @@ One path prefix per line, relative to `.context/` (a leading `.context/` is tole
 
 Filenames, **not links**: these ADRs live in the aidex repo's own `.context/decisions/`,
 which is gitignored, so a relative link resolves for nobody but the maintainer — from an
-installed `${CLAUDE_PLUGIN_ROOT}/skills/…` it pointed at `~/.aidex/.context/`, which does not exist, and
+installed `${CLAUDE_PLUGIN_ROOT}/skills/…` it pointed at `${CLAUDE_PLUGIN_ROOT}/.context/`, which does not exist, and
 all seven links were dead for every installed user (deep audit 2026-07-25). Look these up
 by filename in the aidex repo. Every `D-NN` cited anywhere in this suite must appear here.
 

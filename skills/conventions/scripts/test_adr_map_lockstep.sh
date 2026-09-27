@@ -7,7 +7,7 @@
 #      who looks up D-11 and finds nothing guesses (comm cited D-11 where D-04 governs).
 #   2. DEAD LINKS FOR EVERY INSTALLED USER — the rows linked
 #      `../../../.context/decisions/…`, but `.context/` is gitignored (0 tracked files) and
-#      from an installed `${CLAUDE_PLUGIN_ROOT}/skills/…` that path resolves to `~/.aidex/.context/`,
+#      from an installed `${CLAUDE_PLUGIN_ROOT}/skills/…` that path resolves to `${CLAUDE_PLUGIN_ROOT}/.context/`,
 #      which does not exist. All 7 links were dead for everyone but the maintainer.
 #   3. STALE ROW — D-06 pointed at a `-deferred.md` file that does not exist, and its label
 #      still said "deferred" for a decision that had been made.

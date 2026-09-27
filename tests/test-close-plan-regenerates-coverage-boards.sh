@@ -11,7 +11,9 @@
 #             audits/00-index.md freshly generated and says so; (b) without one it
 #             touches nothing under audits/ and prints no coverage line; (c) when the
 #             regeneration fails (invalid map) the plan is STILL archived and the
-#             failure is reported on stderr instead of swallowed.
+#             failure is reported on stderr instead of swallowed; (d) a module
+#             whose src matches nothing (coverage-matrix exits 0 with a MAP ERROR
+#             line) still regenerates the boards AND surfaces that line (BL-478).
 #   DOES NOT — judge the boards' content; coverage_matrix.py has its own tests.
 #
 # Run with: bash tests/test-close-plan-regenerates-coverage-boards.sh
@@ -72,5 +74,18 @@ grep -q "coverage boards NOT regenerated" <<<"$ERR_C" || fail "(c) failure not r
 grep -q "coverage-matrix.sh:" <<<"$ERR_C" || fail "(c) report does not name the failing step: $ERR_C"
 [[ ! -f "$C/.context/audits/test-coverage/coverage-matrix.md" ]] || fail "(c) a matrix was written from a broken map"
 
-if [[ $failures -eq 0 ]]; then echo "PASS: close-plan regenerates coverage boards (3 cases)"; exit 0; fi
+# (d) one dead module in a two-module map: the boards regenerate (rc 0 from the
+# matrix) but its MAP ERROR line must reach the user, not be swallowed (BL-478)
+D="$TMP/d"; project "$D"; map "$D" '{"version": 2, "repos": [{"name": "app", "path": "."}],
+ "modules": [{"id": "thing", "src": ["app/thing.py"], "tests": {"unit": ["app/test_thing.py"]}},
+             {"id": "ghost", "src": ["gone/*.py"], "tests": {}}]}'
+ERR_D="$( (cd "$D" && NO_COLOR=1 bash "$CLOSE" 2026-01-01-a-plan) 2>&1 >/dev/null )"; RC_D=$?
+[[ $RC_D -eq 0 ]] || fail "(d) close-plan exited $RC_D: $ERR_D"
+[[ -f "$D/.context/audits/test-coverage/coverage-matrix.md" ]] || fail "(d) coverage-matrix.md not generated"
+grep -q "coverage boards regenerated" <<<"$ERR_D" || fail "(d) regeneration not announced: $ERR_D"
+grep -q "MAP ERROR: module ghost: src globs match no tracked file" <<<"$ERR_D" \
+  || fail "(d) the dead module's MAP ERROR line was swallowed: $ERR_D"
+grep -q "MAP ERROR: module thing" <<<"$ERR_D" && fail "(d) a live module was reported: $ERR_D"
+
+if [[ $failures -eq 0 ]]; then echo "PASS: close-plan regenerates coverage boards (4 cases)"; exit 0; fi
 echo "$failures failure(s)"; exit 1
