@@ -203,10 +203,8 @@ def md_units(text):
     units, opened, fence = [], [], None
     off = pos
     for ln in text[pos:].split("\n"):
-        fm = md_body.FENCE.match(ln)
-        if fm and (fence is None or fm.group(1) == fence):
-            fence = fm.group(1) if fence is None else None
-        elif fence is None and ln.startswith("## "):
+        before, fence = fence, md_body.fence_state(ln, fence)
+        if before is None and fence is None and ln.startswith("## "):
             if opened:
                 opened[-1][2] = off
             opened.append([ln[3:].strip(), off, None])

@@ -72,6 +72,34 @@ HEADING = re.compile(r"^#{1,6}\s")
 # 2026-09-08). The marker must be bare and alone on its line — a line with prose
 # after it, or text before it, is content.
 FENCE = re.compile(r"^\s*(```|~~~)\s*([A-Za-z0-9_+-]*)\s*$")
+# What CLOSES an open fence is narrower than what opens one, by CommonMark: the
+# opener's marker character, at least as long, at most 3 spaces deeper than the
+# OPENER, and nothing after it. Reusing FENCE as the closer closed a block on a
+# 4-space-indented marker or on a marker carrying an info string, so the next bare
+# fence line OPENED a block and swallowed the real headings after it (BL-477
+# review). The indent is relative to the opener, not to column 0, because this
+# subset has no list containers: a fence nested in a list item opens at the item's
+# indent and closes at it, and a column-0 cap left every such block unclosed.
+# Every tracker goes through `fence_closes` / `fence_state`, never FENCE, to close.
+CLOSER = re.compile(r"^([ \t]*)(`{3,}|~{3,})[ \t]*$")
+
+
+def fence_closes(line, opener):
+    """True when `line` closes the fence whose OPENING line is `opener`."""
+    c, o = CLOSER.match(line), FENCE.match(opener)
+    if not c:
+        return False
+    indent = len(opener) - len(opener.lstrip())
+    return (c.group(2)[0] == o.group(1)[0] and len(c.group(2)) >= len(o.group(1))
+            and len(c.group(1)) <= indent + 3)
+
+
+def fence_state(line, opener):
+    """The open fence's opening line after `line`, given the one before it
+    (None: outside any fence)."""
+    if opener is None:
+        return line if FENCE.match(line) else None
+    return None if fence_closes(line, opener) else opener
 # A bracketed inline span, `[text]{.pill .high}` — Pandoc's span syntax, the
 # inline half of the `:::` fence grammar the page spec borrows
 # (references/03-spec-grammar.md § Provenance). It exists for the two inline
@@ -308,12 +336,11 @@ def _blocks(lines):
             # becomes markup. An unclosed fence takes the rest of the run rather than
             # falling back to paragraphs — degrade, never drop.
             opener = FENCE.match(ln)
-            marker, lang = opener.group(1), opener.group(2)
+            lang = opener.group(2)
             i += 1
             code = []
             while i < len(lines):
-                closer = FENCE.match(lines[i])
-                if closer and closer.group(1) == marker:
+                if fence_closes(lines[i], ln):
                     break
                 code.append(lines[i])
                 i += 1
@@ -399,14 +426,11 @@ def render(md_text, title=""):
     md_title, pre, sections, cur = "", [], [], None
     # Tracking the open fence is not an optimisation: a command that echoes markdown
     # ("grep '## '") would otherwise open a section from inside a code block and split it
-    # in half. The MARKER is remembered, not a boolean — see FENCE above.
-    fence_marker = None
+    # in half. The OPENING LINE is remembered, not a boolean — see CLOSER above.
+    fence_open = None
     for ln in lines:
-        m = FENCE.match(ln)
-        if m and (fence_marker is None or m.group(1) == fence_marker):
-            fence_marker = m.group(1) if fence_marker is None else None
-            (cur["body"] if cur is not None else pre).append(ln)
-        elif fence_marker is not None:
+        before, fence_open = fence_open, fence_state(ln, fence_open)
+        if before is not None or fence_open is not None:
             (cur["body"] if cur is not None else pre).append(ln)
         elif ln.startswith("# ") and not md_title and cur is None:
             md_title = ln[2:].strip()
@@ -440,8 +464,12 @@ def render(md_text, title=""):
         out.append(f'<section id="{esc(_slug(sec["h2"], n, seen))}">')
         out.append(f'<div class="sec-head"><h2>{_inline(sec["h2"])}</h2></div>')
         run = []
+        # The same fence tracking as the splitter above: a `### ` line inside a
+        # code block is data, and peeling it split the block in two (BL-477).
+        fence_open = None
         for ln in sec["body"]:
-            if ln.startswith("### "):
+            before, fence_open = fence_open, fence_state(ln, fence_open)
+            if before is None and fence_open is None and ln.startswith("### "):
                 out += _blocks(run)
                 run = []
                 out.append(f"<h3>{_inline(ln[4:].strip())}</h3>")

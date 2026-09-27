@@ -353,6 +353,17 @@ def emit_section(node, ctx):
     return "\n".join(out)
 
 
+def _unfenced(lines):
+    """Each prose line paired with whether it sits OUTSIDE a ``` / ~~~ fence,
+    by `md_body.fence_state`. The masthead's `# ` title scan
+    read a `# install` comment inside a fenced command as a second title
+    (BL-477)."""
+    fence = None
+    for ln in lines:
+        before, fence = fence, md_body.fence_state(ln, fence)
+        yield ln, before is None and fence is None
+
+
 @emitter("masthead")
 def emit_masthead(node, ctx):
     a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang"},
@@ -383,8 +394,8 @@ def emit_masthead(node, ctx):
             stripped.append((kind, payload))
             continue
         rest = []
-        for ln in payload:
-            if ln.startswith("# "):
+        for ln, outside in _unfenced(payload):
+            if outside and ln.startswith("# "):
                 if title:
                     raise SpecBuildError(
                         node.line,
@@ -460,7 +471,7 @@ def emit_group(node, ctx):
     return "\n".join(out)
 
 
-def _split_options(lines):
+def _split_options(lines, line):
     """`(before, options, after)` — the first top-level `-` list of a body.
 
     An item's options are a bullet list and nothing else: a numbered list stays
@@ -469,7 +480,7 @@ def _split_options(lines):
     options. Continuation lines follow `md_body`'s rule — indented, folded into
     the item above — because the two must agree about where an option ends.
 
-    A ``` / ~~~ CODE FENCE is tracked, with `md_body.FENCE` itself and not a
+    A ``` / ~~~ CODE FENCE is tracked, with `md_body.fence_state` and not a
     second copy of that regex (the same borrowing `spec_parser.CODE_FENCE`
     does). Without it this was the third line-scanner over one text and the only
     one blind to fences: an item that pasted a `git log` run above its options
@@ -482,14 +493,9 @@ def _split_options(lines):
     i, fence = 0, None
     while i < len(lines):
         ln = lines[i]
-        fm = md_body.FENCE.match(ln)
-        if fence is not None:
-            if fm and fm.group(1) == fence:
-                fence = None
-        elif fm:
-            fence = fm.group(1)
-        elif md_body.MARKER.match(ln) and not md_body.ORDERED.match(ln) \
-                and not ln[:1].isspace():
+        before, fence = fence, md_body.fence_state(ln, fence)
+        if before is None and fence is None and md_body.MARKER.match(ln) \
+                and not md_body.ORDERED.match(ln) and not ln[:1].isspace():
             break
         i += 1
     else:
@@ -499,10 +505,19 @@ def _split_options(lines):
         cur = lines[i]
         if md_body.MARKER.match(cur) and not cur[:1].isspace():
             opts.append(md_body.MARKER.sub("", cur, count=1).strip())
+        elif opts and cur[:1].isspace() and md_body.FENCE.match(cur):
+            # Folded, the fence put backticks in the option's data-label; split
+            # there, every later option fell out as a plain <li> no one can
+            # select, and check-artifact passes both (BL-477 review).
+            raise SpecBuildError(
+                line, "an option cannot carry a code block (%r under option %r); "
+                "put the code in the item body, before or after the options"
+                % (cur.strip(), opts[-1]))
         elif (opts and cur.strip() and cur[:1].isspace()
               and not cur.lstrip().startswith("|")
               and not md_body.HEADING.match(cur.lstrip())):
-            # The same three guards `md_body`'s list branch carries. They have
+            # The same guards `md_body`'s list branch carries (its fourth, the
+            # fence, is the refusal above). They have
             # to agree: a line this folded into an option and that one did not
             # would leave the text in the page twice, or in neither.
             opts[-1] += " " + cur.strip()
@@ -593,7 +608,7 @@ def emit_item(node, ctx):
         if seen:
             tail.append(("prose", payload))
             continue
-        before, found, after = _split_options(payload)
+        before, found, after = _split_options(payload, node.line)
         if found:
             seen = True
             head.append(("prose", before))
@@ -1266,11 +1281,8 @@ def _refuse_links(spec_text):
     """
     fence = None
     for n, ln in enumerate(spec_text.split("\n"), 1):
-        fm = md_body.FENCE.match(ln)
-        if fm and (fence is None or fm.group(1) == fence):
-            fence = None if fence else fm.group(1)
-            continue
-        if fence:
+        before, fence = fence, md_body.fence_state(ln, fence)
+        if before is not None or fence is not None:
             continue
         for target in md_body.refused_links(ln):
             raise SpecBuildError(
@@ -1357,8 +1369,8 @@ def page_title(spec_text):
             for kind, payload in _segments(node, ASIDES):
                 if kind != "prose":
                     continue
-                for ln in payload:
-                    if ln.startswith("# "):
+                for ln, outside in _unfenced(payload):
+                    if outside and ln.startswith("# "):
                         return ln[2:].strip()
     return ""
 

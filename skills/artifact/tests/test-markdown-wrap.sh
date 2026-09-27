@@ -281,6 +281,38 @@ still inside the block
 ## A heading that must survive
 
 after.
+
+```bash
+### not a subheading, a line of the output
+## nor a section
+```
+
+## Last
+
+```diff
++ a
+    ```
+```
+
+### Real heading
+
+Text.
+
+## Info
+
+```
+```bash
+inside
+```
+
+### Also real
+
+1. Step one:
+      ```ts
+      nested()
+      ```
+
+### After the nested fence
 MD
 
 bash "$WRAP" --title "Mixed" --lang en --in "$TMP/mixed.md" --out "$TMP/mixed.html" >/dev/null 2>&1 \
@@ -289,11 +321,30 @@ python3 - "$TMP/mixed.html" <<'PY' || fail 'a bare tilde line inside a backtick-
 import re, sys
 html = open(sys.argv[1]).read()
 blocks = re.findall(r"<pre><code[^>]*>(.*?)</code></pre>", html, re.S)
-assert len(blocks) == 1, f"expected ONE code block, got {len(blocks)}"
+assert len(blocks) == 5, f"expected FIVE code blocks, got {len(blocks)}: {blocks!r}"
 assert "still inside the block" in blocks[0], "the block was cut at the tilde line"
 assert 'id="sec-a-heading-that-must-survive"' in html, "the heading after the block was swallowed"
+# BL-477: a '### ' or '## ' line inside a block that sits IN a section is data too.
+# The section splitter tracked fences, the per-section h3 peel did not: it emitted
+# an empty <pre>, an <h3> from the command output, and a second empty <pre>.
+assert blocks[1] == "### not a subheading, a line of the output\n## nor a section", \
+    f"the fenced block inside a section was split: {blocks!r}"
+assert 'id="sec-last"' in html, "the section after the in-section block was swallowed"
+# A closer is the opener's marker char, as long or longer, at most 3 spaces in and
+# nothing after it (CommonMark). The shared rule closed on a 4-space-indented marker
+# and on a marker carrying an info string, so the next bare fence line OPENED a block
+# and swallowed the real h3 after it.
+# The indent cap is relative to the OPENER: a fence nested in a list item opens
+# and closes at the item's indent (the sweep's 6-space `ts` blocks). A column-0 cap
+# left those unclosed and swallowed every heading after them.
+assert blocks[2:] == ["+ a\n    ```", "```bash\ninside", "      nested()"], \
+    f"fence closed early or never: {blocks[2:]!r}"
+h3s = re.findall(r"<h3>(.*?)</h3>", html)
+assert h3s == ["Real heading", "Also real", "After the nested fence"], f"h3s: {h3s!r}"
 PY
 ok 'a bare tilde line inside a backtick-fenced block is data, and the heading after survives'
+ok 'a heading line inside a fenced block in a section stays in the block (BL-477)'
+ok 'an indented or info-string fence line is content, not a closer'
 
 # A fence GLUED to the line before it (no blank line) opens a block too (BL-476). The
 # paragraph arm's continuation loop and the list arm's indented-continuation loop both

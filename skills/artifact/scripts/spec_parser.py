@@ -323,6 +323,7 @@ def parse(spec_text):
     stack = []          # [(BlockNode, opening line_no)]
     prose = None        # the prose node currently being filled, or None
     code_marker = None  # the open ``` / ~~~ marker, or None
+    code_open = None    # its opening line, which the closer is measured against
     code_line = 0
 
     def body():
@@ -338,7 +339,7 @@ def parse(spec_text):
             # Inside a code fence every line is literal content, `:::` included.
             # That is what lets a spec document this grammar, or paste a shell
             # run that echoes `:::`, without the example opening a block.
-            if cm and cm.group(1) == code_marker:
+            if md_body.fence_closes(raw, code_open):
                 code_marker = None
             if prose is None:
                 prose = BlockNode(n, "prose")
@@ -346,7 +347,7 @@ def parse(spec_text):
             prose.raw_body.append(raw)
             continue
         if cm:
-            code_marker, code_line = cm.group(1), n
+            code_marker, code_open, code_line = cm.group(1), raw, n
             if prose is None:
                 prose = BlockNode(n, "prose")
                 body().append(prose)
