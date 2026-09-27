@@ -260,8 +260,8 @@ attr rules do not reach, and it is the `item` builder — not the tokenizer — 
   <section class="consult-item consult-gallery" data-id="checkout-empty-light-desktop"
            data-title="checkout · empty · light-desktop" data-variant="light-desktop">
     <div class="gal">
-      <figure data-tile="before"><img src="file:///…/shots/…png" …><figcaption>antes</figcaption></figure>
-      <figure data-tile="after"><img src="file:///…/actual/…png" …><figcaption>propuesto</figcaption></figure>
+      <figure data-tile="before"><img src="page-assets/gallery/3f9a…png" …><figcaption>antes</figcaption></figure>
+      <figure data-tile="after"><img src="page-assets/gallery/b01c…png" …><figcaption>propuesto</figcaption></figure>
 ```
 
 ```
@@ -314,6 +314,18 @@ in (`git rev-parse --show-toplevel`), and `root="…"` overrides it for a rows d
 whose paths are relative to something else. Outside a checkout the block is refused and
 names the attr, rather than emitting captures that point nowhere: a missing image is
 something no contract check can see.
+
+**The captures are copied at build, next to the page (BL-474).** `spec_build.py -o
+<page>.html` copies every capture the rows name to `<page-stem>-assets/gallery/`, named by
+the first 16 hex of its SHA-256, and the `<img>` links the copy by relative path. The
+sources usually sit where the project's runner wipes them (Playwright empties
+`test-results/` at the start of every run); the page does not depend on them once built.
+Same rows, same names, so a rebuild is byte-identical; a re-capture is a new name, hence a
+new question. A rebuild after the sources are gone is **refused** with the usual "has no
+file at …" line, and the page already built and its copies stay as they were — the build
+never reuses an old copy for a capture it cannot read. Old copies are never pruned. Without
+`-o` (the body to stdout) there is no page to copy beside, and the captures stay linked by
+`file://`.
 
 ### `ledger` — `aidex_ws/.context/reports/2026-09-08-lo-que-queda-del-backlog.html`
 

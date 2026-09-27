@@ -45,9 +45,11 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
@@ -875,6 +877,70 @@ try:
     for ident in ("G1", "Q1", "Q2", "notes"):
         check("the WRAPPED page still carries id %r byte-exactly" % ident,
               ('data-id="%s"' % ident) in page)
+
+    print()
+    print("== a gallery page outlives its captures (BL-474) ==")
+    # The captures a rows document points at live in the project's
+    # `test-results/`, which Playwright wipes at the start of every run. A page
+    # that linked them by `file://<root>/<path>` showed broken images on both
+    # halves the day after it was built, with the contract green, because no
+    # checker stats a linked image. Asserted the way the reader meets it: build,
+    # wipe the sources, and every <img> must still resolve to a file.
+    galroot = os.path.join(tmp, "galroot")
+    # Four DIFFERENT captures (sizes), so four copies: identical fixtures would
+    # let every <img> point at one file and still "resolve".
+    for n, rel in enumerate(("shots/ld/audit-with-data.png",
+                             "actual/ld/audit-with-data.png",
+                             "shots/dm/audit-loaded.png",
+                             "actual/dm/audit-loaded.png"), 1):
+        os.makedirs(os.path.dirname(os.path.join(galroot, rel)), exist_ok=True)
+        subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
+                        os.path.join(galroot, rel), str(10 + n), "9"], check=True)
+    gspec = os.path.join(tmp, "gal.spec.md")
+    with open(gspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {visual="none: the screenshots are the '
+                 'evidence"}\n# Revisión audit\n\nDos filas.\n:::\n\n'
+                 '::: gallery {#E title="Galería audit" rows="rows.json" '
+                 'root="%s"}\n:::\n\n::: notes {title="Notas"}\n:::\n'
+                 % galroot)
+    gout = os.path.join(tmp, "reports", "gal.html")
+
+    def imgs(path):
+        return re.findall(r'<img src="([^"]*)"[^>]* width="(\d+)"',
+                          open(path, encoding="utf-8").read())
+
+    def target(src):
+        if src.startswith("file://"):
+            return src[len("file://"):]
+        return os.path.join(os.path.dirname(gout), urllib.parse.unquote(src))
+
+    def gbuild():
+        return subprocess.run([sys.executable, BUILD, gspec, "-o", gout,
+                               "--check"], capture_output=True, text=True)
+    r = gbuild()
+    check("a gallery page builds and passes the contract", r.returncode == 0,
+          r.stdout + r.stderr)
+    first = imgs(gout)
+    r = gbuild()
+    check("a rebuild of the same rows links the same copies (content names)",
+          r.returncode == 0 and imgs(gout) == first, r.stdout + r.stderr)
+    shutil.rmtree(galroot)
+    gone = [s for s, _ in first if not os.path.isfile(target(s))]
+    check("every <img> still resolves after the source captures are wiped",
+          len(first) == 4 and not gone, "broken: %r" % gone)
+    wrong = [s for s, w in first if os.path.isfile(target(s))
+             and struct.unpack(">I", open(target(s), "rb").read()[16:20])[0]
+             != int(w)]
+    check("...each to the copy of ITS capture (four tiles, four files)",
+          not wrong and len({s for s, _ in first}) == 4, "wrong: %r" % wrong)
+    before = open(gout, "rb").read()
+    r = gbuild()
+    check("a rebuild after the sources are gone is refused, naming the "
+          "missing file", r.returncode == 1 and "has no file at %s" % galroot
+          in r.stderr, r.stdout + r.stderr)
+    check("...and leaves the page it would have replaced untouched",
+          open(gout, "rb").read() == before
+          and all(os.path.isfile(target(s)) for s, _ in first))
 
     print()
     print("== no built page ever ships a NUL byte ==")

@@ -142,14 +142,17 @@ class BuildContext:
 
     `base_dir` is the spec file's directory — a `rows=` path is relative to the
     spec, never to the cwd, because the same spec must build from anywhere.
+    `page` is the page being built (`-o`), where a gallery copies its captures;
+    None for a body that is not written as a page (BL-474).
     """
 
-    def __init__(self, lang="es", base_dir="."):
+    def __init__(self, lang="es", base_dir=".", page=None):
         if lang not in LANGS:
             raise SpecBuildError(0, "unknown page language %r (known: %s)"
                                  % (lang, ", ".join(LANGS)))
         self.lang = lang
         self.base_dir = os.path.abspath(base_dir)
+        self.page = page
         self.s = STRINGS[lang]
 
 
@@ -713,7 +716,7 @@ def emit_gallery(node, ctx):
         with contextlib.redirect_stderr(err):
             doc = gallery_items.load(rows)
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
-                                        a["title"], lang)
+                                        a["title"], lang, page=ctx.page)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(
@@ -1289,14 +1292,14 @@ def _refuse_title_links(tree):
                 "body" % (node.block_type, title))
 
 
-def build(spec_text, lang=None, base_dir="."):
+def build(spec_text, lang=None, base_dir=".", page=None):
     """The spec as an artifact-kit page BODY (no doctype, no head).
 
     Deterministic: same text in, byte-identical HTML out. Wrapping the body into
     a document is `wrap-report.sh`'s job and is where the build stamp lives.
     """
     lang = spec_lang(spec_text) or lang or "es"
-    ctx = BuildContext(lang=lang, base_dir=base_dir)
+    ctx = BuildContext(lang=lang, base_dir=base_dir, page=page)
     tree = parse(spec_text)
     _refuse_links(spec_text)
     _refuse_title_links(tree)
@@ -1396,7 +1399,8 @@ def main(argv):
     try:
         lang = spec_lang(spec_text) or args.lang or "es"
         body = build(spec_text, lang=lang,
-                     base_dir=os.path.dirname(os.path.abspath(args.spec)))
+                     base_dir=os.path.dirname(os.path.abspath(args.spec)),
+                     page=args.out)
         title = args.title or page_title(spec_text)
     except (SpecSyntaxError, SpecBuildError) as exc:
         sys.stderr.write("%s:%d: %s\n" % (args.spec, exc.line, exc.message))

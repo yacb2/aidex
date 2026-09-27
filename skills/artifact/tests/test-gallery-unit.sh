@@ -31,6 +31,9 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 ok()   { printf '  ok: %s\n' "$*"; }
 
 ROOT="$TMP/repo"
+# The page every generated block is for: the captures are copied beside it,
+# into $TMP/page-assets/gallery/ (BL-474).
+PAGE="$TMP/page.html"
 TILES='light-desktop dark-desktop light-mobile dark-mobile'
 
 # --- the fixture rows document ------------------------------------------------
@@ -64,7 +67,7 @@ cat > "$TMP/rows.json" <<'JSON'
 }
 JSON
 
-gen() { bash "$GEN" "$TMP/rows.json" --root "$ROOT" \
+gen() { bash "$GEN" "$TMP/rows.json" --root "$ROOT" --page "$PAGE" \
           --group-id E --group-title "Revisión audit" "$@"; }
 item() { sed -n "/data-id=\"$1\"/,/<\/section>/p" "$2"; }
 
@@ -106,7 +109,7 @@ d["rows"].insert(0, {"cell": "error", "variant": "light-desktop", "kind": "revie
                      "after": "actual/light-desktop/audit-new-state.png"})
 json.dump(d, open(sys.argv[2], "w"))
 PY
-bash "$GEN" "$TMP/rows-reordered.json" --root "$ROOT" --group-id E --group-title T > "$TMP/reord.html" 2>/dev/null
+bash "$GEN" "$TMP/rows-reordered.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/reord.html" 2>/dev/null
 [[ "$(item audit-empty-light-desktop "$TMP/reord.html")" == "$(item audit-empty-light-desktop "$TMP/group.html")" ]] \
   && ok "a row keeps its id and its markup when rows are added and reordered around it" \
   || fail "the empty row changed when the document around it did"
@@ -122,8 +125,10 @@ grep -q 'data-tiles=' <<<"$pair" \
 [[ "$(grep -o 'figure data-tile="[a-z]*"' <<<"$pair" | tr '\n' ' ')" == 'figure data-tile="before" figure data-tile="after" ' ]] \
   && ok "the pair is two figures, before then after" \
   || fail "the pair is not before then after: $(grep -o 'figure data-tile="[a-z]*"' <<<"$pair")"
-grep -qF "<figure data-tile=\"before\"><img src=\"file://$ROOT/shots/light-desktop/audit-empty.png\" alt=\"audit · empty · light-desktop · antes\" width=\"160\" height=\"90\" loading=\"lazy\"><figcaption>antes</figcaption></figure>" <<<"$pair" \
-  && grep -qF "<figure data-tile=\"after\"><img src=\"file://$ROOT/actual/light-desktop/audit-empty.png\"" <<<"$pair" \
+# Each src is the capture's copy beside the page, named by its content (BL-474).
+copy() { printf 'page-assets/gallery/%s.png' "$(shasum -a 256 "$ROOT/$1" | cut -c1-16)"; }
+grep -qF "<figure data-tile=\"before\"><img src=\"$(copy shots/light-desktop/audit-empty.png)\" alt=\"audit · empty · light-desktop · antes\" width=\"160\" height=\"90\" loading=\"lazy\"><figcaption>antes</figcaption></figure>" <<<"$pair" \
+  && grep -qF "<figure data-tile=\"after\"><img src=\"$(copy actual/light-desktop/audit-empty.png)\"" <<<"$pair" \
   && grep -qF '<figcaption>propuesto</figcaption>' <<<"$pair" \
   && ok "before is the baseline labelled 'antes', after the run's render labelled 'propuesto', each with its own size" \
   || fail "the pair's figures are not the declared shape: $(grep figure <<<"$pair")"
@@ -159,12 +164,12 @@ import json, sys
 d = json.load(open(sys.argv[1])); d["rows"][2]["also"] = ["dark-desktop", "light-mobile"]
 json.dump(d, open(sys.argv[2], "w"))
 PY
-bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --group-id E --group-title T > "$TMP/also.html" 2>"$TMP/also.err"
+bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/also.html" 2>"$TMP/also.err"
 grep -qF '<p class="gal-flag">cambió sin que lo pidieras · también en: oscuro · escritorio, claro · móvil</p>' "$TMP/also.html" \
   && [[ -n "$(item audit-loaded-dark-mobile-unrequested "$TMP/also.html")" ]] \
   && ok "also adds 'también en: <variants>' to the marker, and the row id stays <gallery>-<cell>-<variant>-unrequested" \
   || fail "the also variants are not on the marker: $(grep gal-flag "$TMP/also.html") $(cat "$TMP/also.err")"
-bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --group-id E --group-title T --lang en 2>/dev/null \
+bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en 2>/dev/null \
   | grep -qF '<p class="gal-flag">changed without you asking · also in: dark · desktop, light · mobile</p>' \
   && ok "…and 'also in: …' in English" \
   || fail "the English marker does not carry 'also in'"
@@ -178,7 +183,7 @@ import json, sys
 d = json.load(open(sys.argv[1])); d["rows"] = [r for r in d["rows"] if r["kind"] == "review"]
 json.dump(d, open(sys.argv[2], "w"))
 PY
-bash "$GEN" "$TMP/rows-clean.json" --root "$ROOT" --group-id E --group-title "Revisión audit" > "$TMP/clean.html"
+bash "$GEN" "$TMP/rows-clean.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title "Revisión audit" > "$TMP/clean.html"
 grep -qiE 'gate|check|comprobaci|meta:|passed|pasó|sin que lo pidieras' "$TMP/clean.html" \
   && fail "a page with no unrequested row still says something about checks: $(grep -iE 'gate|check|comprobaci|meta:|passed|pasó|pidieras' "$TMP/clean.html")" \
   || ok "with no unrequested row, nothing on the block is about checks"
@@ -204,7 +209,7 @@ import json, sys
 d = json.load(open(sys.argv[1])); d["rows"][0]["kind"] = "sample"
 json.dump(d, open(sys.argv[2], "w"))
 PY
-bash "$GEN" "$TMP/rows-sample.json" --root "$ROOT" --group-id E --group-title T > "$TMP/sample.html" 2>"$TMP/sample.err"
+bash "$GEN" "$TMP/rows-sample.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/sample.html" 2>"$TMP/sample.err"
 smp="$(item audit-empty-light-desktop-sample "$TMP/sample.html")"
 [[ -n "$smp" && "$(grep -c '<figure' <<<"$smp")" == 2 ]] && ! grep -q 'type="radio"' <<<"$smp" \
   && ok "a sample row shows the pair and carries no verdict radios" \
@@ -219,7 +224,7 @@ d = json.load(open(sys.argv[1]))
 d["rows"].append({"cell": "no-permission", "notApplicable": "Every role that reaches this screen holds the permission."})
 json.dump(d, open(sys.argv[2], "w"))
 PY
-bash "$GEN" "$TMP/rows-na.json" --root "$ROOT" --group-id E --group-title T > "$TMP/na.html" 2>"$TMP/na.err"
+bash "$GEN" "$TMP/rows-na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/na.html" 2>"$TMP/na.err"
 na="$(item audit-no-permission-not-applicable "$TMP/na.html")"
 grep -q 'data-id="audit-no-permission-not-applicable" data-title="audit · no-permission">' <<<"$na" \
   && grep -q '<p class="gal-na">Every role that reaches this screen holds the permission.</p>' <<<"$na" \
@@ -246,13 +251,15 @@ grep -qE 'Aprobada|antes|propuesto|pidieras' "$TMP/group-en.html" \
 echo "== the generator: what it refuses =="
 refuse() {  # refuse <label> <json> <pattern>
   printf '%s' "$2" > "$TMP/bad.json"
-  bash "$GEN" "$TMP/bad.json" --root "$ROOT" --group-id E --group-title T \
+  rm -rf "$TMP/refused-assets"
+  bash "$GEN" "$TMP/bad.json" --root "$ROOT" --page "$TMP/refused.html" --group-id E --group-title T \
     > "$TMP/bad.out" 2> "$TMP/bad.err"
   local rc=$?
   [[ "$rc" == 2 ]] || { fail "$1: expected exit 2, got $rc"; return; }
   grep -q "$3" "$TMP/bad.err" || { fail "$1: expected '$3' in: $(cat "$TMP/bad.err")"; return; }
   grep -qi 'Traceback' "$TMP/bad.err" && { fail "$1: refused with a traceback"; return; }
   [[ -s "$TMP/bad.out" ]] && { fail "$1: printed markup while refusing"; return; }
+  [[ -e "$TMP/refused-assets" ]] && { fail "$1: copied captures while refusing"; return; }
   ok "$1"
 }
 A='"after":"actual/light-desktop/audit-empty.png"'
@@ -264,7 +271,7 @@ refuse "the old matrix shape (no variants)" \
 # D2: when every capture matches, the emitter prints `rows: []`. That is not a
 # malformed document: the page carries no gallery block and says nothing.
 printf '%s' "{$V,\"rows\":[]}" > "$TMP/empty.json"
-bash "$GEN" "$TMP/empty.json" --root "$ROOT" --group-id E --group-title T \
+bash "$GEN" "$TMP/empty.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T \
   > "$TMP/empty.out" 2> "$TMP/empty.err"
 rc=$?
 [[ "$rc" == 0 && ! -s "$TMP/empty.out" && ! -s "$TMP/empty.err" ]] \
@@ -314,7 +321,7 @@ refuse "a variant named twice" \
   "{\"gallery\":\"audit\",\"variants\":[\"light-desktop\",\"light-desktop\"],\"rows\":[]}" "same variant twice"
 # --root must be absolute: a file:// URL built from a relative path resolves
 # nowhere, and the page renders broken images that look like missing captures.
-bash "$GEN" "$TMP/rows.json" --root ../elsewhere --group-id E --group-title T \
+bash "$GEN" "$TMP/rows.json" --root ../elsewhere --page "$PAGE" --group-id E --group-title T \
   > "$TMP/rel.out" 2> "$TMP/rel.err"
 rc=$?
 [[ "$rc" == 2 ]] && grep -q 'must be an absolute path' "$TMP/rel.err" \
@@ -323,12 +330,15 @@ rc=$?
 refuse "a capture path with no file under --root" \
   "{$V,\"rows\":[{\"cell\":\"x\",\"variant\":\"light-desktop\",\"kind\":\"review\",\"after\":\"actual/light-desktop/audit-gone.png\"}]}" \
   "row 'x'.*'after' has no file.*actual/light-desktop/audit-gone.png"
+refuse "a missing capture after a good row (nothing is copied for the good one)" \
+  "{$V,\"rows\":[{\"cell\":\"ok\",\"variant\":\"light-desktop\",\"kind\":\"review\",$A},{\"cell\":\"x\",\"variant\":\"light-desktop\",\"kind\":\"review\",\"after\":\"actual/light-desktop/audit-gone.png\"}]}" \
+  "row 'x'.*'after' has no file"
 printf 'not an image' > "$ROOT/shots/fake.png"
 # --root / used to strip to "" and the capture was read relative to the CWD.
 mkdir -p "$TMP/cwd/zz-cwd-only"
 python3 "$SKILL/tests/png_fixture.py" "$TMP/cwd/zz-cwd-only/t.png" 4 4
 ( cd "$TMP/cwd" && bash "$GEN" <(printf '%s' "{$V,\"rows\":[{\"cell\":\"x\",\"variant\":\"light-desktop\",\"kind\":\"review\",\"after\":\"zz-cwd-only/t.png\"}]}") \
-    --root / --group-id E --group-title T ) > "$TMP/rs.out" 2> "$TMP/rs.err"
+    --root / --page "$PAGE" --group-id E --group-title T ) > "$TMP/rs.out" 2> "$TMP/rs.err"
 rc=$?
 [[ "$rc" == 2 ]] && grep -q "no file at /zz-cwd-only/t.png" "$TMP/rs.err" && [[ ! -s "$TMP/rs.out" ]] \
   && ok "--root / reads the capture under /, never relative to the working directory" \
@@ -351,7 +361,7 @@ refuse "an absolute capture path" \
 refuse "a capture path that climbs out of the root" \
   "{$V,\"rows\":[{\"cell\":\"x\",\"variant\":\"light-desktop\",\"kind\":\"review\",\"after\":\"../../elsewhere/a.png\"}]}" \
   "relative to the repo root"
-bash "$GEN" "$TMP/rows.json" --root "$ROOT" --group-id 'E"><script>' --group-title T \
+bash "$GEN" "$TMP/rows.json" --root "$ROOT" --page "$PAGE" --group-id 'E"><script>' --group-title T \
   > "$TMP/gid.out" 2> "$TMP/gid.err"
 rc=$?
 [[ "$rc" == 2 ]] && grep -q 'group-id' "$TMP/gid.err" \
@@ -381,6 +391,19 @@ rc=$?
 [[ "$rc" == 0 ]] && grep -q 'artifact contract OK' "$TMP/wrap.out" \
   && ok "a page built from the generated block passes check-artifact.sh" \
   || fail "the generated page failed the contract (exit $rc): $(cat "$TMP/wrap.out")"
+
+# BL-474: the captures live where the project's runner wipes them. The page
+# must not care: with the sources gone, every <img> still resolves beside it.
+mv "$ROOT" "$ROOT.wiped"
+srcs="$(grep -o '<img src="[^"]*"' "$TMP/page.html" | sed 's/<img src="//; s/"$//')"
+broken=""
+while IFS= read -r src; do
+  [[ -f "$TMP/$src" ]] || broken="$broken $src"
+done <<<"$srcs"
+[[ -n "$srcs" && -z "$broken" ]] \
+  && ok "every <img> on the page still resolves after the source captures are wiped" \
+  || fail "the page lost its images with the captures:${broken:- (no <img> at all)}"
+mv "$ROOT.wiped" "$ROOT"
 
 # --- the RED controls: one per rule the check adds ----------------------------
 # Each fixture is the passing page with ONE thing wrong. The assertion is the
