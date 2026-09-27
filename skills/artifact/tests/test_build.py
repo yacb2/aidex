@@ -279,6 +279,17 @@ try:
           '<input type="radio" name="Q1" data-label="No, uno cambia el resultado">')
     holds("item: the notes box is injected on every item, never optional",
           ITEM, '<p class="fieldlabel">Notas sobre esto</p>', "<textarea ")
+    # BL-468: an item with no option list points at options that do not
+    # exist when it gets the options placeholder, and one marked `free=yes`
+    # carries the flag check-artifact reads to leave it unwarned.
+    OPEN_ITEM = ('::: group {#G1 title="T"}\n'
+                 '::: item {#H1 title="t" free=yes}\n¿Qué opinas?\n:::\n:::\n')
+    open_item = holds("item: an optionless item gets the free-answer placeholder",
+                      OPEN_ITEM, 'data-free>', '<textarea placeholder="Tu respuesta…">')
+    check("item: ...and never the one that names options",
+          "opciones" not in open_item, open_item)
+    holds("item: an item WITH options keeps the options placeholder",
+          ITEM, '<textarea placeholder="Lo que las opciones no cubren…">')
     # The marker is `{recommended}` and the emitted flag is `data-recommended`,
     # so the old needle `"recommended)"` was punctuation the grammar cannot
     # produce: it held for every spec an author could write. The needle is the

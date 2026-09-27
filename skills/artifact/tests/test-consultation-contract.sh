@@ -367,6 +367,43 @@ grep -q 'WARN \[consult-rec\].*Q2' "$TMP/out" \
 grep -q 'WARN \[consult-rec\].*Q1' "$TMP/out" \
   && fail "10. BL-245: an ordinary data-label was reported as carrying a recommendation: $(cat "$TMP/out")"
 
+# ---- 10a. a consult item with no options (BL-468) ------------------------
+# Findings H1-H5 shipped as bare textareas while Q1-Q5 asked the same decisions
+# with options: the reader answered each one twice. An optionless item is a
+# warning unless it declares itself free-text (data-free) or is settled.
+mkpage "$TMP/warn-free.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"H1\" data-title=\"Finding with no options\">
+  <h3>Finding with no options</h3>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"H2\" data-title=\"Declared free\" data-free>
+  <h3>Declared free</h3>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"H3\" data-title=\"Settled\" data-decided=\"answered in H9\">
+  <h3>Settled</h3>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"With options\">
+  <h3>With options</h3>
+  <div class=\"opts one\">
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
+  </div>
+  <textarea></textarea>
+</section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/warn-free.html")"
+[[ "$rc" == "0" ]] \
+  || fail "10a. the optionless-item warning changed the exit code: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-free\].*H1' "$TMP/out" \
+  || fail "10a. BL-468: an item with no options was not reported: $(cat "$TMP/out")"
+grep -Eq 'WARN \[consult-free\].*(H2|H3|Q1|G1|notes)' "$TMP/out" \
+  && fail "10a. BL-468: a free, settled, optioned, group or notes item was reported: $(cat "$TMP/out")"
+
 # ---- 10b. facts written as a paragraph, inside an ITEM (BL-270) ---------
 # BL-269 scoped the rule to the block context; one day later the same shape
 # shipped inside an item body (Q15: ~20 skills across three layers, 9 <code>

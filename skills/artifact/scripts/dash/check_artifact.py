@@ -1976,6 +1976,25 @@ def warn_file(path):
                           f'checkbox groups: class="opts"), so these render '
                           f"with no grid, no hover and the hints inline"))
 
+    # BL-468: a consult item with no options makes the reader answer a
+    # decision as prose, and the page that shipped it asked the same decisions
+    # again with options further down. Free-text items say so (data-free);
+    # settled ones (data-decided) and the general-notes item are exempt.
+    for m in ITEM_OPEN.finditer(text):
+        tag = m.group(0)
+        if (not re.search(r'class\s*=\s*["\'][^"\']*\bconsult-item\b', tag, re.I)
+                or re.search(r'\bconsult-notes\b|\bdata-(free|decided)\b', tag, re.I)):
+            continue
+        ident = next(g for g in m.groups()[1:] if g is not None)
+        body = _subtree(text, m.group(1), m.end())
+        if not re.search(r'<input\b[^>]*\btype\s*=\s*["\']?(radio|checkbox)|<select\b',
+                         body, re.I):
+            warns.append(("consult-free", name,
+                          f"item '{ident}' has no options — a decision is "
+                          f"answered as prose. Put its options on it (never "
+                          f"in a separate item asking it again), or mark it "
+                          f"free-text: `free=yes` in a spec, data-free in HTML"))
+
     for ident, body in bodies:
         try:
             ids = independent_checkbox_ids(body)

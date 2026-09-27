@@ -82,6 +82,7 @@ STRINGS = {
     "es": {
         "item_notes": "Notas sobre esto",
         "item_placeholder": "Lo que las opciones no cubren…",
+        "item_open_placeholder": "Tu respuesta…",
         "notes_label": "Lo que no encaja arriba",
         "notes_placeholder": "Lo que sea…",
         "copy": "Copiar mis respuestas",
@@ -89,6 +90,7 @@ STRINGS = {
     "en": {
         "item_notes": "Notes on this one",
         "item_placeholder": "Anything the options do not cover…",
+        "item_open_placeholder": "Your answer…",
         "notes_label": "Anything that does not fit above",
         "notes_placeholder": "Whatever it is…",
         "copy": "Copy my answers",
@@ -573,7 +575,8 @@ def _segments(node, nests, carries="prose"):
 
 @emitter("item")
 def emit_item(node, ctx):
-    a = _attrs(node, {"title", "decided"}, required=("title",), need_id=True)
+    a = _attrs(node, {"title", "decided", "free"}, required=("title",),
+               need_id=True)
     segments = _segments(node, ASIDES + FIGURE_BLOCKS,
                          "prose, its options, a figure")
     # The option list is the FIRST one in the body, wherever it sits, and the
@@ -620,6 +623,8 @@ def emit_item(node, ctx):
     if decided:
         flag = (" data-decided" if decided in ("yes", "true")
                 else ' data-decided="%s"' % esc(decided))
+    if a.get("free", "").strip() in ("yes", "true"):
+        flag += " data-free"
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
            % (_classes("consult-item", node), esc(node.id), esc(a["title"]),
               flag)]
@@ -645,8 +650,10 @@ def emit_item(node, ctx):
     # qualify it loses everything the options do not cover, and check-artifact
     # fails an item without one.
     out.append('  <p class="fieldlabel">%s</p>' % esc(ctx.s["item_notes"]))
+    # An optionless item's placeholder must not point at options (BL-468).
     out.append('  <textarea placeholder="%s"></textarea>'
-               % esc(ctx.s["item_placeholder"]))
+               % esc(ctx.s["item_placeholder" if opts else
+                           "item_open_placeholder"]))
     out.append("</section>")
     return "\n".join(out)
 
