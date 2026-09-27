@@ -4,8 +4,8 @@
 # command, it never runs one.
 #
 # Four checks, the ones a PLUGIN install can still get wrong. The five the plugin
-# manager now owns (version, commit drift, legacy ~/.aidex/, manifest, symlinked
-# entries) and the rules check (rules retired with the installer) are not ported.
+# manager now owns (version, commit drift, the legacy pre-plugin install dir,
+# manifest, symlinked entries) and the rules check (rules retired with the installer) are not ported.
 #
 #   1. stray skill copies shadowing the plugin's
 #   2. exec bits on skill scripts and on the hooks hooks.json wires

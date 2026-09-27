@@ -15,7 +15,7 @@
     "expected_behavior": "Should launch memory-auditor and suggest cleanup"
   },
   {
-    "query": "Creo que tengo symlinks rotos en .claude/skills/. Ayer eliminé un skill de ~/.aidex/ y no sé si los links quedaron colgando.",
+    "query": "Creo que tengo symlinks rotos en .claude/skills/. Ayer eliminé un skill de mi carpeta de skills y no sé si los links quedaron colgando.",
     "should_trigger": true,
     "expected_behavior": "Should launch symlink-checker to find broken links. STATIVE-UNDER-FIRE: pure first-person stative narrative ('Creo que...', 'no sé si...', zero imperative). The aidex description explicitly lists 'creo que tengo symlinks rotos' so the intent is genuine and it stays should_trigger=true, but per skill-conventions.md stative phrasings under-fire by matcher design; a miss is matcher-legitimate, not a description bug; excluded from the adjusted-recall denominator in the run doc."
   },
