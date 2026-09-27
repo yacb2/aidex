@@ -295,6 +295,39 @@ assert 'id="sec-a-heading-that-must-survive"' in html, "the heading after the bl
 PY
 ok 'a bare tilde line inside a backtick-fenced block is data, and the heading after survives'
 
+# A fence GLUED to the line before it (no blank line) opens a block too (BL-476). The
+# paragraph arm's continuation loop and the list arm's indented-continuation loop both
+# stopped on a table row, a marker and a heading but not on a fence, so the fence lines
+# were joined into the <p>/<li> and CODE paired backticks across the markers. Found on
+# a consultation spec: a bold-label line directly followed by a ```python block.
+cat > "$TMP/glued.md" <<'MD'
+# Glued fences
+
+**What happens today.**
+```python
+x = 1  # **not bold**
+```
+
+- an item
+  ```bash
+  ls -la
+  ```
+MD
+
+bash "$WRAP" --title "Glued" --lang en --in "$TMP/glued.md" --out "$TMP/glued.html" >/dev/null 2>&1 \
+  || fail 'the glued-fence report did not wrap'
+python3 - "$TMP/glued.html" >"$TMP/glued.out" 2>&1 <<'PY' \
+  && ok 'a fence glued to a paragraph or a list item opens its own code block' \
+  || fail "a fence glued to a paragraph or list line was swallowed into it: $(tail -1 "$TMP/glued.out")"
+import re, sys
+html = open(sys.argv[1]).read()
+main = re.search(r"<main[^>]*>(.*?)</main>", html, re.S).group(1)
+blocks = re.findall(r"<pre><code[^>]*>(.*?)</code></pre>", main, re.S)
+assert blocks == ["x = 1  # **not bold**", "  ls -la"], f"code blocks: {blocks!r}"
+assert main.count("`") == 0, f"{main.count('`')} backtick(s) leaked into <main>"
+assert "<strong>What happens today.</strong></p>" in main, "the label paragraph did not close before the fence"
+PY
+
 [[ $failures -eq 0 ]] && ok "a prose checklist renders as a list, keeps every heading, and gets an h1"
 
 # ---------- links on the markdown route (Phase 5 review, 2026-09-25) ----------

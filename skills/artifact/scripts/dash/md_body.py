@@ -341,7 +341,8 @@ def _blocks(lines):
                     items.append(MARKER.sub("", cur, count=1).strip())
                 elif (items and cur.strip() and cur[:1].isspace()
                       and not cur.lstrip().startswith("|")
-                      and not HEADING.match(cur.lstrip())):
+                      and not HEADING.match(cur.lstrip())
+                      and not FENCE.match(cur)):
                     items[-1] += " " + cur.strip()
                 else:
                     break
@@ -361,7 +362,8 @@ def _blocks(lines):
             while i < len(lines) and lines[i].strip() \
                     and not lines[i].lstrip().startswith("|") \
                     and not MARKER.match(lines[i]) \
-                    and not HEADING.match(lines[i]):
+                    and not HEADING.match(lines[i]) \
+                    and not FENCE.match(lines[i]):
                 para.append(lines[i].strip())
                 i += 1
             # Reached only on a non-blank line no branch above claimed, so the loop
