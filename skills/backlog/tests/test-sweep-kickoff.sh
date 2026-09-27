@@ -106,6 +106,12 @@ bash "$SCRIPTS/sweep-kickoff.sh" --title "cycle" --slug cycle >/dev/null 2>"$TMP
 # --origin sweep (Task 4.4)
 S="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title "found mid-sweep" --worklist "$WL" --no-index 2>/dev/null)"
 [[ -f "$S" && "$(fm "$S" origin)" == "sweep" && "$(fm "$S" origin_ref)" == "worklist/$(basename "$WL")" ]] && ok "--origin sweep --worklist writes origin_ref worklist/<file>" || bad "origin sweep: $(fm "$S" origin) $(fm "$S" origin_ref)"
+# BL-479: the registration must also land in the run's queue as an emergent item — the
+# report reads only the queue, so an item that is merely registered is invisible to it
+SID="$(idof "$S")"
+grep -qE "^[0-9]+\. \[ \] $SID .*<!-- ref: backlog --> <!-- emergent -->" "$WL" \
+  && ok "--origin sweep --worklist appends the item to the queue as emergent" \
+  || bad "$SID not appended to the queue: $(grep -nE '^[0-9]+\. ' "$WL" | tail -2)"
 S2="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title "no worklist yet" --no-index 2>/dev/null)"
 [[ -f "$S2" && "$(fm "$S2" origin_ref)" == "" ]] && ok "--origin sweep without --worklist is accepted (empty ref)" || bad "origin sweep bare"
 bash "$SCRIPTS/register-item.sh" --origin bogus --title x --no-index >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "--origin bogus exits 2" || bad "bogus origin accepted"
