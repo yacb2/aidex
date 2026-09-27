@@ -37,6 +37,38 @@ def profile_module_map(root):
     return None
 
 
+def map_path(root, coverage_dir=None):
+    """Where load_map reads the module map from (precedence in load_map)."""
+    from_profile = None if coverage_dir else profile_module_map(root)
+    return from_profile or os.path.join(coverage_dir or os.path.join(
+        root, ".context", "audits", "test-coverage"), "module-map.json")
+
+
+def check_src_reach(root, m, files, coverage_dir=None):
+    """A module whose src matches no tracked file is a map error, not an
+    untested module (BL-453): aidex_ws's map lost its repo prefix at a split and
+    every module read 0 src files — NO TESTS everywhere, sweep all "ok", exit 0,
+    for ten days. One dead module is reported on stderr; a map where every
+    module is dead is refused, naming the map."""
+    dead = [mod["id"] for mod in m["modules"]
+            if not any(src_matches(f, mod) for f in files)]
+    if dead and len(dead) == len(m["modules"]):
+        sys.exit(f"ERROR: module-map {map_path(root, coverage_dir)}: no module's src "
+                 "globs match a tracked file — are the globs relative to the workspace root?")
+    # Per repo: a declared repo no module's src reaches is the same prefix loss
+    # scoped to one repo of a multi-repo map — every module can stay alive
+    # through its other repos while this one reads as untested forever.
+    live = {repo_for(f, m["repos"])["name"] for f in files
+            if any(src_matches(f, mod) for mod in m["modules"])}
+    for repo in m["repos"]:
+        if m["modules"] and repo["name"] not in live:
+            sys.exit(f"ERROR: module-map {map_path(root, coverage_dir)}: repo {repo['name']}: "
+                     "no module's src globs match a tracked file in it — are the globs "
+                     "relative to the workspace root?")
+    for mod_id in dead:
+        print(f"MAP ERROR: module {mod_id}: src globs match no tracked file", file=sys.stderr)
+
+
 def load_map(root, coverage_dir=None):
     """coverage_dir overrides <root>/.context/audits/test-coverage — the
     read-only mode (BL-204): map read from, and outputs written to, a
@@ -45,9 +77,7 @@ def load_map(root, coverage_dir=None):
     Precedence: an explicit coverage_dir (BL-204 points the tooling outside the
     workspace on purpose), then the profile's module_map (BL-366), then the
     canonical location."""
-    from_profile = None if coverage_dir else profile_module_map(root)
-    path = from_profile or os.path.join(coverage_dir or os.path.join(
-        root, ".context", "audits", "test-coverage"), "module-map.json")
+    path = map_path(root, coverage_dir)
     if not os.path.isfile(path):
         sys.exit(f"ERROR: no module-map at {path} — run the test-coverage playbook first")
     try:

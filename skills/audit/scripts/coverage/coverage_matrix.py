@@ -232,6 +232,7 @@ def find_unmapped_test_files(files, mapped_test_files):
 def build_matrix(root, coverage_dir=None):
     m = lib.load_map(root, coverage_dir)
     files = lib.list_files(root, m["repos"])
+    lib.check_src_reach(root, m, files, coverage_dir)
 
     spec_index = e2e_spec_index(root, files, m["modules"])
 

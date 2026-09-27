@@ -257,6 +257,59 @@ python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS3" >/dev/null 2>&1 \
   && fail "a string unmapped_ok must be rejected, not iterated per character"
 rm -rf "$WS3"
 
+# --- a src glob that matches no tracked file is a map error (BL-453) ---------
+# aidex_ws's map lost its repo prefix at a split: every module read 0 src files,
+# the matrix said NO TESTS everywhere and exited 0 for ten days. One dead module
+# is reported; a declared repo no module's src reaches, or a map where EVERY
+# module is dead, is refused, naming the map.
+# kill_src <map> <repo-prefix|""> <module-id>... prefixes `gone/` to those
+# modules' src globs (only the ones under <repo-prefix>/ when one is given).
+kill_src() { python3 - "$@" <<'PYDEAD'
+import json, sys
+path, repo, ids = sys.argv[1], sys.argv[2], sys.argv[3:]
+m = json.load(open(path))
+for mod in m["modules"]:
+    if mod["id"] in ids:
+        mod["src"] = ["gone/" + g if not repo or g.startswith(repo + "/") else g
+                      for g in mod["src"]]
+json.dump(m, open(path, "w"), indent=2)
+PYDEAD
+}
+WS4="$(bash "$TESTS_DIR/fixtures/coverage-workspace.sh")"
+MAP4="$WS4/.context/audits/test-coverage/module-map.json"
+kill_src "$MAP4" "" people
+err4="$(python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS4" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 0 ]] || fail "one dead module must not refuse the whole map (got $rc): $err4"
+[[ "$err4" == *"module people: src globs match no tracked file"* ]] \
+  || fail "a module whose src matches nothing must be reported: $err4"
+[[ "$err4" == *"module billing"* ]] && fail "a live module must not be reported: $err4"
+kill_src "$MAP4" "" billing
+rm -f "$WS4/.context/audits/test-coverage/coverage-matrix."*
+err4="$(python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS4" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -ne 0 ]] || fail "a map where no module's src matches a tracked file must exit non-zero"
+[[ "$err4" == *"$MAP4"* ]] || fail "the refusal must name the map: $err4"
+[[ -e "$WS4/.context/audits/test-coverage/coverage-matrix.md" ]] \
+  && fail "a refused map must not write a matrix"
+rm -rf "$WS4"
+# per repo: every frontend src glob dead while billing still lives in backend —
+# no module is dead, but a declared repo is reached by no module's src
+WS4="$(bash "$TESTS_DIR/fixtures/coverage-workspace.sh")"
+MAP4="$WS4/.context/audits/test-coverage/module-map.json"
+kill_src "$MAP4" frontend billing people
+err4="$(python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS4" 2>&1 >/dev/null)"; rc=$?
+[[ $rc -eq 1 ]] || fail "a repo no module's src reaches must exit 1 (got $rc): $err4"
+[[ "$err4" == *"$MAP4"* && "$err4" == *"repo frontend"* ]] \
+  || fail "the per-repo refusal must name the map and the repo: $err4"
+# pinned: a map with no modules is not refused (the all-dead check needs one)
+python3 - "$MAP4" <<'PYEMPTY'
+import json, sys
+m = json.load(open(sys.argv[1])); m["modules"] = []
+json.dump(m, open(sys.argv[1], "w"), indent=2)
+PYEMPTY
+python3 "$SCRIPTS_DIR/coverage/coverage_matrix.py" "$WS4" >/dev/null 2>&1; rc=$?
+[[ $rc -eq 0 ]] || fail "an empty modules list currently exits 0 (got $rc)"
+rm -rf "$WS4"
+
 # --- --out: read the map from, and write outputs to, an external dir --------
 # BL-204: a read-only field run against a workspace you may not write into.
 WS2="$(bash "$TESTS_DIR/fixtures/coverage-workspace.sh")"
