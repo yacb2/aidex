@@ -1380,9 +1380,11 @@ deciding.
 ### Gallery rows: screenshots the reader rules on, one row per screen state
 
 When the consultation is about UI — a proposal, a state gallery, baselines to accept — the
-screenshots are the questions. A **gallery row** is one screen state seen in every tile of
-the project's matrix (light/dark x desktop/mobile), with a verdict, a notes box and region
-marks. The project owns the matrix; the kit owns the markup. Neither re-declares the other.
+screenshots are the questions. A **gallery row** is one screen state in one variant the
+owner chose, shown as the pair **before** (the committed baseline) / **proposed** (the run's
+render), or as the one capture of a new screen, with one answer, a notes box and region
+marks. A cell that changed without being asked for is a row of its own, marked as such. The
+project decides which rows exist; the kit owns the markup. Neither re-declares the other.
 
 **Two steps, never folded into the wrap.** The project emits the rows, the kit turns them
 into items, the items go into the body sidecar, and the page is wrapped as usual:
@@ -1399,28 +1401,35 @@ derived file, and a re-capture could no longer be reviewed as a diff of the body
 does stamp `data-decided-round` on decided items; that annotates tags already there, it
 writes no content.)
 
-**Rows contract** (what `--rows-json` prints; deterministic, paths relative to `--root`):
+**Rows contract** (what `--rows-json` prints; deterministic, paths relative to `--root`;
+the shape and every refusal: `04-block-vocabulary.md` § `gallery`):
 
 ```json
-{"gallery": "audit", "shots_dir": "frontend/tests/demo/__screenshots__",
- "tiles": ["light-desktop", "dark-desktop", "light-mobile", "dark-mobile"],
- "rows": [{"cell": "with-data", "tiles": {"light-desktop": "<path>.png", "...": "..."}},
-          {"cell": "no-permission", "notApplicable": "reason text"}]}
+{"gallery": "audit", "variants": ["light-desktop"], "shots_dir": "<rel>", "actual_dir": "<rel>",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review", "before": "<rel>", "after": "<rel>"},
+  {"cell": "new-state", "variant": "light-desktop", "kind": "review", "after": "<rel>"},
+  {"cell": "loaded", "variant": "dark-mobile", "kind": "unrequested", "before": "<rel>", "after": "<rel>"}
+ ]}
 ```
 
-Item ids are `<gallery>-<cell>` and stay stable across rounds. Every tile is a PNG under
-`--root`: the generator refuses a path with no file behind it and one that is not a PNG, and
-writes each capture's own `width` and `height` on its `<img>`, so a lazy image reserves its
-box before it loads. The block carries `data-tiles`; the checker fails a row with a missing or duplicated tile, a figure with no
-`data-tile`, an id that is not two or more slugs, or a not-applicable row with no reason.
+Item ids are `<gallery>-<cell>-<variant>` (`-unrequested` / `-sample` appended for those
+kinds; a `{"cell", "notApplicable": reason}` row is `<gallery>-<cell>-not-applicable`) and stay stable
+across rounds. Every capture is a PNG under `--root`: the generator
+refuses a path with no file behind it and one that is not a PNG, and writes each capture's
+own `width` and `height` on its `<img>`, so a lazy image reserves its box before it loads.
+The block carries `data-tiles="before after"`; a new-screen row narrows it to
+`data-tiles="after"`. The checker fails a row with a missing or duplicated tile, a row whose
+own `data-tiles` is anything but that one narrowing, a figure with no `data-tile`, an id that is not two or more slugs,
+or a not-applicable row with no reason. The page carries no gate output: an unrequested
+change reaches the owner as a row, and with none there is nothing about checks at all.
 
 **What the reader gets** (composer, no dependency): a zoom `<dialog>` on any tile (fit or
 native size, arrows walk the row and the rows, Esc returns focus to the tile that opened
-it; under 640 px the header is two lines); per-block mode/viewport filters, never pasted,
-remembered per block id (a block with no id keeps its filter for the visit only), and a
-filter that leaves one tile per row gives it the whole row; light/dark compare in the
-dialog (2-up, swipe with a visible handle at the split, onion skin; 2-up when the pair
-differs in size); region marks drawn on the zoomed image as percentage rectangles with a
+it; under 640 px the header is two lines); before/proposed compare in the dialog (2-up,
+swipe with a visible handle at the split, onion skin; 2-up when the pair differs in size) —
+on a hand-written light/dark matrix the same control compares the two modes, and only such a
+block gets the mode/viewport filters (never pasted, remembered per block id); region marks drawn on the zoomed image as percentage rectangles with a
 note each, shown on the grid tile too — by dragging, or from the keyboard with the
 dialog's Mark button (arrows move the region, Shift+arrows resize it, Enter adds its
 note, Esc drops it).
@@ -1428,17 +1437,19 @@ note, Esc drops it).
 **Paste contract.** Each row pastes like any item, marks last:
 
 ```
-### audit-with-data · audit · with-data
+### audit-empty-light-desktop · audit · empty · light-desktop
 
 - Necesita cambios
 
 <notes>
 
-[mark light-mobile 1.7,0.2 33.0x5.6] el breadcrumb se parte bajo el título
+[mark after 1.7,0.2 33.0x5.6] el breadcrumb se parte bajo el título
 ```
 
 `gallery-reply.sh <reply.md>` turns the copied block into
-`{rows: [{id, gallery, cell, verdict, asks, provisional, notes, marks}], other}`. A mark's
+`{rows: [{id, gallery, cell, variant, kind, verdict, asks, provisional, notes, marks}], other}`
+(`kind` read off the id suffix, `variant` "" on a not-applicable row; a row pasted from an old
+light/dark page, id `<gallery>-<cell>`, is refused on its line). A mark's
 tile is any one-token name — the matrix is the page's, and the paste does not carry it —
 unless `--tiles "<the block's data-tiles>"` is passed, which refuses a mark on any other tile
 by its line. Feed it
@@ -1447,8 +1458,8 @@ row's marks is refused.
 
 **What drops an answer, by design.**
 
-- A row's question fingerprint covers its tile `src` list: a re-capture is a new question,
-  so the row's stored answer is dropped. Upgrading a page to this kit drops each gallery
+- A row's question fingerprint covers its capture `src` list: a re-capture is a new
+  question, so the row's stored answer is dropped. Upgrading a page to this kit drops each gallery
   row's unsent answer once, for the same reason.
 - Every passing wrap is a new round, body changed or not (`round_meta` in
   `wrap_report.py`). A re-wrap that only refreshes the kit therefore blanks the answers the

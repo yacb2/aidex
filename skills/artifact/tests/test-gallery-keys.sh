@@ -35,14 +35,14 @@ if [[ -z "$module" ]] || ! command -v node >/dev/null 2>&1; then
 fi
 
 GROOT="$TMP/root"
-for cell in with-data empty; do
+for d in shots actual; do for cell in with-data empty; do
   for t in light-desktop dark-desktop; do
-    mkdir -p "$GROOT/shots/$t" && python3 "$HERE/png_fixture.py" "$GROOT/shots/$t/audit-$cell.png" 400 200
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 400 200
   done
   for t in light-mobile dark-mobile; do
-    mkdir -p "$GROOT/shots/$t" && python3 "$HERE/png_fixture.py" "$GROOT/shots/$t/audit-$cell.png" 100 200
+    mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 100 200
   done
-done
+done; done
 bash "$SCRIPTS/gallery-items.sh" "$FIX/rows.json" --root "$GROOT" --group-id E \
   --group-title "Galería audit" > "$TMP/group.html" || { echo "FAIL: gallery-items.sh refused the fixture"; exit 1; }
 python3 - "$FIX/frame.html" "$TMP/group.html" "$TMP/body.html" <<'PY'
@@ -59,7 +59,7 @@ check() {  # check <python expression over d> <label>
   if python3 -c 'import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if eval(sys.argv[2]) else 1)' "$json" "$1" 2>/dev/null
   then ok "$2"; else fail "$2: $json"; fi
 }
-check 'd["arrow"]["drafts"] == 1 and d["arrow"]["left"] == "41%" and d["arrow"]["tile"] == "light-desktop"' \
+check 'd["arrow"]["drafts"] == 1 and d["arrow"]["left"] == "41%" and d["arrow"]["tile"] == "before"' \
   "a real ArrowRight moves the draft one percent and does not walk the tile"
 check 'd["esc"]["zoom"] and d["esc"]["drafts"] == 0 and d["esc"]["marks"] == ""' \
   "a real Esc during a draft drops the draft and leaves the dialog open"

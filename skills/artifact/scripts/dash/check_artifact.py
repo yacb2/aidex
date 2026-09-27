@@ -619,6 +619,22 @@ def gallery_findings(text):
                        f"counts as a cell no row can show, so a missing tile "
                        f"passes as present")
             continue
+        # A row may declare its own `data-tiles` for ONE case only: a new
+        # screen has no baseline, so in a `before after` block its row shows
+        # `after` alone. Any other row-level list — a widening, a repeat, or
+        # another subset — is a verdict on part of the row passed off as the
+        # whole. Whitespace-only declares nothing (the block's list holds).
+        own = (_tag_attr(m.group(0), "data-tiles") or "").split()
+        if own and own != tiles:
+            if own == ["after"] and sorted(tiles) == ["after", "before"]:
+                tiles = own
+            else:
+                out.append(f"gallery item '{ident}' declares data-tiles="
+                           f"\"{' '.join(own)}\" in a block of "
+                           f"\"{' '.join(tiles)}\" — the only narrowing a row "
+                           f"may make is a new screen: \"after\" alone in a "
+                           f"\"before after\" block")
+                continue
         found = [next(g for g in fm.groups() if g is not None).strip()
                  for fm in FIGURE_TILE.finditer(body)]
         reasons = []
@@ -656,7 +672,7 @@ def gallery_findings(text):
 
         unknown = [t for t in found if t not in tiles]
         if unknown:
-            out.append(f"gallery item '{ident}' shows tile(s) the block does "
+            out.append(f"gallery item '{ident}' shows tile(s) its matrix does "
                        f"not declare: {' '.join(sorted(set(unknown)))} "
                        f"(declared: {' '.join(tiles)}) — a tile outside the "
                        f"matrix is a cell no other row has, so the rows stop "

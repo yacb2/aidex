@@ -178,68 +178,69 @@
 
 <!-- A GALLERY BLOCK — GENERATED, NEVER HAND-WRITTEN.
 
-     A UI proposal is reviewed one screen state at a time: a row is one state
-     seen in every tile of the matrix (light/dark x desktop/mobile), with its
-     own verdict and its own notes. The block below is what
-     `scripts/gallery-items.sh` prints; it is here so a reader of this template
-     knows the shape exists and what the rules on it are, not so it can be
-     copied by hand. Copy it by hand and the ids stop being the project's cell
-     names, the tile list stops matching the project's matrix, and the two
-     drift the first time a state is added — which is the whole reason the
-     matrix is declared once, in the project, and emitted as rows JSON:
+     A UI proposal is reviewed one screen state at a time, in the variants the
+     owner chose: a row is one state in one variant, shown as the pair before
+     (the committed baseline) / proposed (the run's render), with its own answer
+     and its own notes. The block below is what `scripts/gallery-items.sh`
+     prints from the project's rows JSON; it is here so a reader of this
+     template knows the shape exists and what the rules on it are, not so it
+     can be copied by hand:
 
        gallery-items.sh rows.json --root <abs repo root> \
            --group-id E --group-title "…" [--lang es|en]
 
-     Two attributes carry rules check-artifact.sh enforces:
+     Rules check-artifact.sh enforces:
 
-     `data-tiles` on the BLOCK names the matrix every row in it must show. Each
-     row carries exactly those tiles, each once, as `<figure data-tile="…">`
-     — a row missing its dark-mobile cell is a verdict given on three quarters
-     of the evidence, and every other rule on the page passes it.
+     `data-tiles` on the BLOCK names the tiles every row in it must show —
+     `before after`. A new screen has no baseline, so its row narrows that to
+     `data-tiles="after"` and shows the one capture. That is the only
+     row-level list the checker accepts.
 
-     `data-id` on the ITEM is `<gallery>-<cell>`: the project's own names, so
-     the id is stable across rounds without anyone maintaining a counter.
+     `data-id` on the ITEM is `<gallery>-<cell>-<variant>` (`-unrequested` for a
+     cell that changed outside the requested set): names only, so the id is
+     stable across rounds without anyone maintaining a counter.
 
-     The row a screen cannot reach carries one `<p class="gal-na">` with the
-     reason INSTEAD of the grid — never both, never neither.
+     An unrequested row carries one `<p class="gal-flag">` saying so. Nothing
+     else about the gate appears on the page.
 
      Everything else is an ordinary item: an `.opts one` verdict group and a
      notes textarea, so composer.js pastes it unchanged. No option is marked
      `data-recommended` — the session has not seen the screenshots. -->
-<section class="consult-group" id="E" data-id="E" data-title="Gallery audit, one row per state" data-tiles="light-desktop dark-desktop light-mobile dark-mobile">
+<section class="consult-group" id="E" data-id="E" data-title="Review of the audit screen" data-tiles="before after">
   <div class="sec-head">
-    <h2>Gallery audit, one row per state</h2>
+    <h2>Review of the audit screen</h2>
   </div>
-  <section class="consult-item consult-gallery" data-id="audit-with-data" data-title="audit · with-data">
-    <h3><span class="consult-id">audit-with-data</span>audit · with-data</h3>
-    <p>This row's cells, read from the committed baseline. Mark the verdict and, if it needs changes, say which in the row's notes.</p>
+  <section class="consult-item consult-gallery" data-id="audit-empty-light-desktop" data-title="audit · empty · light-desktop" data-variant="light-desktop">
+    <h3><span class="consult-id">audit-empty-light-desktop</span>audit · empty · light-desktop</h3>
+    <p>Light · desktop: before and proposed. Mark your answer and, if it needs changes, say which in the row's notes.</p>
     <div class="gal">
-      <figure data-tile="light-desktop"><img src="file:///abs/repo/root/shots/light-desktop/audit-with-data.png" alt="audit · with-data · light-desktop" width="1600" height="900" loading="lazy"><figcaption>light · desktop</figcaption></figure>
-      <figure data-tile="dark-desktop"><img src="file:///abs/repo/root/shots/dark-desktop/audit-with-data.png" alt="audit · with-data · dark-desktop" width="1600" height="900" loading="lazy"><figcaption>dark · desktop</figcaption></figure>
-      <figure data-tile="light-mobile"><img src="file:///abs/repo/root/shots/light-mobile/audit-with-data.png" alt="audit · with-data · light-mobile" width="390" height="844" loading="lazy"><figcaption>light · mobile</figcaption></figure>
-      <figure data-tile="dark-mobile"><img src="file:///abs/repo/root/shots/dark-mobile/audit-with-data.png" alt="audit · with-data · dark-mobile" width="390" height="844" loading="lazy"><figcaption>dark · mobile</figcaption></figure>
+      <figure data-tile="before"><img src="file:///abs/repo/root/shots/light-desktop/audit-empty.png" alt="audit · empty · light-desktop · before" width="1600" height="900" loading="lazy"><figcaption>before</figcaption></figure>
+      <figure data-tile="after"><img src="file:///abs/repo/root/actual/light-desktop/audit-empty.png" alt="audit · empty · light-desktop · proposed" width="1600" height="900" loading="lazy"><figcaption>proposed</figcaption></figure>
     </div>
     <div class="opts one">
-      <label><input type="radio" name="audit-with-data" data-label="Approved"><span>Approved: these cells stand as the baseline</span></label>
-      <label><input type="radio" name="audit-with-data" data-label="Needs changes"><span>Needs changes (say which in the notes)</span></label>
-      <label><input type="radio" name="audit-with-data" data-label="Cannot judge"><span>Cannot judge it from this capture</span></label>
+      <label><input type="radio" name="audit-empty-light-desktop" data-label="Approved"><span>Approved: the proposed capture becomes the baseline</span></label>
+      <label><input type="radio" name="audit-empty-light-desktop" data-label="Needs changes"><span>Needs changes (say which in the notes)</span></label>
+      <label><input type="radio" name="audit-empty-light-desktop" data-label="Cannot judge"><span>Cannot judge it from this capture</span></label>
     </div>
     <p class="fieldlabel">Notes on this row</p>
-    <textarea placeholder="What to change, and in which cell&hellip;"></textarea>
+    <textarea placeholder="What to change&hellip;"></textarea>
   </section>
-  <!-- The not-applicable row: the reason instead of the grid. -->
-  <section class="consult-item consult-gallery" data-id="audit-no-permission" data-title="audit · no-permission">
-    <h3><span class="consult-id">audit-no-permission</span>audit · no-permission</h3>
-    <p>This row's cells, read from the committed baseline. Mark the verdict and, if it needs changes, say which in the row's notes.</p>
-    <p class="gal-na">The role that reaches this screen always has the permission, so the state is unreachable in the demo.</p>
+  <!-- An unrequested change: the same pair, marked. -->
+  <section class="consult-item consult-gallery" data-id="audit-loaded-dark-mobile-unrequested" data-title="audit · loaded · dark-mobile" data-variant="dark-mobile">
+    <h3><span class="consult-id">audit-loaded-dark-mobile-unrequested</span>audit · loaded · dark-mobile</h3>
+    <p class="gal-flag">changed without you asking</p>
+    <p>Dark · mobile: before and proposed. Mark your answer and, if it needs changes, say which in the row's notes.</p>
+    <div class="gal">
+      <figure data-tile="before"><img src="file:///abs/repo/root/shots/dark-mobile/audit-loaded.png" alt="audit · loaded · dark-mobile · before" width="390" height="844" loading="lazy"><figcaption>before</figcaption></figure>
+      <figure data-tile="after"><img src="file:///abs/repo/root/actual/dark-mobile/audit-loaded.png" alt="audit · loaded · dark-mobile · proposed" width="390" height="844" loading="lazy"><figcaption>proposed</figcaption></figure>
+    </div>
     <div class="opts one">
-      <label><input type="radio" name="audit-no-permission" data-label="Approved"><span>Approved: these cells stand as the baseline</span></label>
-      <label><input type="radio" name="audit-no-permission" data-label="Needs changes"><span>Needs changes (say which in the notes)</span></label>
-      <label><input type="radio" name="audit-no-permission" data-label="Cannot judge"><span>Cannot judge it from this capture</span></label>
+      <label><input type="radio" name="audit-loaded-dark-mobile-unrequested" data-label="Approved"><span>Approved: the proposed capture becomes the baseline</span></label>
+      <label><input type="radio" name="audit-loaded-dark-mobile-unrequested" data-label="Needs changes"><span>Needs changes (say which in the notes)</span></label>
+      <label><input type="radio" name="audit-loaded-dark-mobile-unrequested" data-label="Cannot judge"><span>Cannot judge it from this capture</span></label>
     </div>
     <p class="fieldlabel">Notes on this row</p>
-    <textarea placeholder="What to change, and in which cell&hellip;"></textarea>
+    <textarea placeholder="What to change&hellip;"></textarea>
   </section>
 </section>
 <!-- end of the generated gallery block -->

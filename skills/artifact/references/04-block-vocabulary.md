@@ -36,7 +36,7 @@ the list — every candidate clears both.
 | `group` | kit class, 118 pages | A titled section that carries the context one or more decisions come from. The `id` is the rail anchor and the paste key. | Prose + nested blocks. `#id` (e.g. `#G1`), `title`, `heading`, `eyebrow`. |
 | `item` | kit class, 165 pages | One decision: a question, its options, a notes field. The unit the verbs `add-item` / `decide` operate on. | Prose, an option list, an optional nested `note`/`callout` and an optional figure block (`figure`, `chart`, `graph`, `diagram`) that illustrates this decision, each in the position it was written. `#id` (e.g. `#Q1`), `title`, `decided`. |
 | `notes` | kit class, 153 pages | The general-notes item — where an answer that fits no question goes. Exactly one per consultation; `check-artifact` fails a page without it. | No body. `title` only. |
-| `gallery` | 1 page (unit shipped) | A screenshot-state gallery: one row per screen state, every tile of the matrix, a verdict group and per-row notes. Built by `scripts/dash/gallery_items.py` from a rows JSON. | No prose body. `rows` (path to the rows JSON, relative to the SPEC), `#id`, `title`, `lang`, `root`. |
+| `gallery` | 1 page (unit shipped) | A UI review: one row per screen state in one variant, shown as the pair before (baseline) / proposed (the run's render) — or the one capture of a new screen — with one answer and notes per row; a cell that changed outside the requested set is its own row, marked as unrequested. Built by `scripts/dash/gallery_items.py` from a rows JSON. | No prose body. `rows` (path to the rows JSON, relative to the SPEC), `#id`, `title`, `lang`, `root`. |
 | `ledger` | kit class, 146 pages | The decided-ledger: what earlier rounds settled, so a later round does not re-ask it. | A list of `- key — text` rows. A row with no ` — ` is a row with no key and ships as a `.v` cell alone. No attrs. |
 | `verdict` | 17 / 19 pages | The scoreboard strip at the top of a comparison: N cells, one flagged as the winner, each a figure plus a one-line caption. | A list or table of cells. `win` names the winning cell. |
 | `num` | 12 / 19 pages | A numeric table cell or column — right-aligned, `tabular-nums`. Not a block an author writes twice; it is the column marker a data table carries. | **Not a fence.** Mark the column right-aligned in the pipe table's separator row (`\|---:\|`); `md_body` emits `th.num`/`td.num`. |
@@ -256,9 +256,12 @@ attr rules do not reach, and it is the `item` builder — not the tokenizer — 
 ### `gallery` — `scripts/dash/gallery_items.py`, rows JSON in
 
 ```html
-<section class="consult-item consult-gallery" data-id="checkout-empty" data-title="checkout · empty">
-  <div class="gal">
-    <figure data-tile="light-desktop"><img src="file:///…/light-desktop.png" …></figure>
+<section class="consult-group" id="G2" … data-tiles="before after">
+  <section class="consult-item consult-gallery" data-id="checkout-empty-light-desktop"
+           data-title="checkout · empty · light-desktop" data-variant="light-desktop">
+    <div class="gal">
+      <figure data-tile="before"><img src="file:///…/shots/…png" …><figcaption>antes</figcaption></figure>
+      <figure data-tile="after"><img src="file:///…/actual/…png" …><figcaption>propuesto</figcaption></figure>
 ```
 
 ```
@@ -266,14 +269,50 @@ attr rules do not reach, and it is the `item` builder — not the tokenizer — 
 :::
 ```
 
+**The rows document** is what the project's emitter prints (`gallery_board.py --rows-json`
+in dashboard_template), and the kit reads nothing else:
+
+```json
+{"gallery": "audit", "variants": ["light-desktop"], "shots_dir": "<rel>", "actual_dir": "<rel>",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review", "before": "<rel>", "after": "<rel>"},
+  {"cell": "new-state", "variant": "light-desktop", "kind": "review", "after": "<rel>"},
+  {"cell": "loaded", "variant": "dark-mobile", "kind": "unrequested", "before": "<rel>", "after": "<rel>",
+   "also": ["dark-desktop"]}
+ ]}
+```
+
+| Row | What the page shows |
+|---|---|
+| `before` and `after` | the pair, labelled antes / propuesto (before / proposed); click enlarges, and the zoom dialog compares the two halves |
+| no `before` key | the one capture, labelled as a new screen; the row declares `data-tiles="after"` |
+| `kind: "unrequested"` | the same pair plus the line "cambió sin que lo pidieras" (changed without you asking); one row per changed cell, and its optional `also` (the other variants where that cell changed, harness order) adds "también en: …" / "also in: …" to that line |
+| `kind: "sample"` | the pair with no verdict radios — it illustrates, it asks nothing |
+| `{"cell", "notApplicable": reason}` (no variant, no captures) | a declared cell the screen cannot reach: its reason in a `.gal-na` instead of the pair, with one answer; id and title are `<gallery>-<cell>-not-applicable` / `<gallery> · <cell>` |
+
+Every row but a sample carries one answer (three verdicts) and a notes box. The row id is
+`<gallery>-<cell>-<variant>`, with `-<kind>` appended for a non-review row, so it stays
+stable across rounds. Nothing about the gate is written on the page: with no unrequested
+row, the owner reads nothing about checks. An empty `rows` (everything matched) prints
+nothing: the page has no gallery block at all.
+
+Refused (exit 2, one line): a missing `variants` or `rows` key (the old `tiles` matrix shape
+is gone), a `rows` that is not a list, an unknown or missing `kind`, a review row in a variant not in
+`variants` (an unrequested row may be in any), a row with no `after`, a `before` that is
+present but null or empty (a lost baseline is not a new screen), one cell in one variant
+twice, a second unrequested row for one cell, an `also` that is on a non-unrequested row,
+empty, repeats a variant, names the row's own variant or a non-slug, a not-applicable row
+with a blank reason or with captures too, a name that is not
+a lowercase slug, and every capture-path defect below.
+
 The two paths are relative to **different** things, and that asymmetry is the block's one
 trap. `rows=` is relative to the **spec file**, so the same spec builds from any working
-directory. The tile paths *inside* that rows document are relative to the **checkout
+directory. The capture paths *inside* that rows document are relative to the **checkout
 root**, because `gallery_items.py` refuses an absolute one — a page pinned to one machine
 is the failure it is guarding. So the builder defaults `root` to the checkout the spec is
 in (`git rev-parse --show-toplevel`), and `root="…"` overrides it for a rows document
 whose paths are relative to something else. Outside a checkout the block is refused and
-names the attr, rather than emitting tiles that point nowhere: a missing image is
+names the attr, rather than emitting captures that point nowhere: a missing image is
 something no contract check can see.
 
 ### `ledger` — `aidex_ws/.context/reports/2026-09-08-lo-que-queda-del-backlog.html`

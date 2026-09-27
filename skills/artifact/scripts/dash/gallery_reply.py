@@ -13,10 +13,14 @@ in composer.js), nothing before or after it:
 
   [mark <tile> x,y wxh] note  (one line per region mark, always last)
 
-A GALLERY ROW is an item whose heading title is `<gallery> · <cell>` and whose
-id is `<gallery>-<cell>` — exactly what gallery_items.py writes. It is
-recognised by that heading, never by carrying marks: an approved row has none
-and is still a row. Every other item goes to `other` untouched (id, title, raw
+A GALLERY ROW is an item whose heading title is `<gallery> · <cell> ·
+<variant>` and whose id is `<gallery>-<cell>-<variant>`, with `-<kind>` added
+for a row that is not a review (`-unrequested`, `-sample`); a not-applicable
+row is `<gallery> · <cell>` / `<gallery>-<cell>-not-applicable` (kind
+`not-applicable`, variant "") — exactly what gallery_items.py writes. A row of
+the old light/dark matrix (`<gallery> · <cell>` / `<gallery>-<cell>`) is
+refused on its line. It is recognised by that heading, never by carrying
+marks: an approved row has none and is still a row. Every other item goes to `other` untouched (id, title, raw
 body), so a reply mixing gallery rows and ordinary questions loses nothing.
 
 A row's body splits in three, in the order readItem pastes it:
@@ -56,7 +60,7 @@ import json
 import re
 import sys
 
-from gallery_items import VERDICTS
+from gallery_items import KINDS, VERDICTS, row_id
 
 NUM = r"(\d{1,3}\.\d)"
 MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
@@ -112,10 +116,25 @@ def trim(lines):
     return lines
 
 
-def gallery_key(ident, title):
+def gallery_key(ident, title, n):
+    """(gallery, cell, variant, kind) when the heading is a gallery row's."""
     parts = title.split(" · ")
-    if len(parts) == 2 and all(parts) and ident == "%s-%s" % tuple(parts):
-        return parts
+    if len(parts) == 2 and all(parts):
+        # A not-applicable row has no variant; its id carries the suffix.
+        if ident == "%s-%s-not-applicable" % tuple(parts):
+            return parts + ["", "not-applicable"]
+        # `<gallery>-<cell>` alone is the OLD light/dark matrix row: its
+        # verdict was given on four captures, and reading it as a row of this
+        # contract would mislabel it.
+        if ident == "%s-%s" % tuple(parts):
+            die("line %d: row '%s' comes from an old light/dark matrix page "
+                "(id <gallery>-<cell>) — re-emit the rows and answer the "
+                "rebuilt page" % (n, ident))
+    if len(parts) != 3 or not all(parts):
+        return None
+    for kind in KINDS:
+        if ident == row_id(*parts, kind):
+            return parts + [kind]
     return None
 
 
@@ -142,7 +161,8 @@ def parse_answer(ident, para):
     return {"verdict": verdict, "asks": asks, "provisional": provisional}
 
 
-def parse_row(ident, gallery, cell, body, tiles=None):
+def parse_row(ident, key, body, tiles=None):
+    gallery, cell, variant, kind = key
     body = trim(body)
     first = 0
     while first < len(body) and body[first][1].strip():
@@ -165,6 +185,7 @@ def parse_row(ident, gallery, cell, body, tiles=None):
         else:
             notes.append((n, line))
     return {"id": ident, "gallery": gallery, "cell": cell,
+            "variant": variant, "kind": kind,
             "verdict": answer["verdict"],
             "notes": "\n".join(l for _, l in trim(notes)),
             "asks": answer["asks"], "provisional": answer["provisional"],
@@ -176,7 +197,8 @@ def parse(text, tiles=None):
     for n, line in enumerate(text.splitlines(), 1):
         if line.startswith("### "):
             ident, _, title = line[4:].partition(" · ")
-            cur = {"id": ident.strip(), "title": title.strip(), "body": []}
+            cur = {"id": ident.strip(), "title": title.strip(), "body": [],
+                   "line": n}
             items.append(cur)
         elif line.startswith("## "):
             cur = None
@@ -184,9 +206,9 @@ def parse(text, tiles=None):
             cur["body"].append((n, line))
     rows, other = [], []
     for it in items:
-        key = gallery_key(it["id"], it["title"])
+        key = gallery_key(it["id"], it["title"], it["line"])
         if key:
-            rows.append(parse_row(it["id"], key[0], key[1], it["body"], tiles))
+            rows.append(parse_row(it["id"], key, it["body"], tiles))
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})
