@@ -271,6 +271,9 @@ grep -q 'svg text in' <<<"$out" && bad "the default run judged svg families: $(g
 out="$(bash "$PROBE" --contract text-style-drift "$TMP/style-drift.html" 2>&1)"
 grep -qE '^DEFECT style-drift\.html @390px text-style-drift: .*svg text in "helvetica, sans-serif"' <<<"$out" \
   && ok "--contract text-style-drift names the Helvetica family" || bad "no Helvetica family line under --contract: $(grep '^DEFECT' <<<"$out")"
+# a kit rule scoped with :where() (`.chip:where(:not(svg *))`, kit 27) still declares its class's size
+grep -qE '^DEFECT style-drift\.html @1280px text-style-drift: p\.chip .*\.chip declares 0\.66rem' <<<"$out" \
+  && ok "--contract text-style-drift holds .chip to its :where()-scoped kit size" || bad "no .chip line under --contract: $(grep '^DEFECT' <<<"$out")"
 # each scheme is judged on its own: the light-only chip is never reported in dark
 out="$(bash "$PROBE" --contract figure-text-contrast "$TMP/figure-contrast.html" 2>&1)"
 [[ "$(grep -c '"fallaclaro chip" [0-9.]*:1 in the light scheme' <<<"$out")" -eq 2 && "$(grep -c '"fallaclaro chip" .* in the dark scheme' <<<"$out")" -eq 0 ]] \

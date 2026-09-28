@@ -5,7 +5,9 @@
      under --contract text-style-drift: the default run leaves svg families out).
      "nestedfix" is a paragraph INSIDE a div.note that the same box rule reaches; the
      "inheritfix" note has a rule of its own (`.ifx`, a clamp() the probe cannot resolve)
-     that loses to `.driftfix p`, so it exempts nothing. -->
+     that loses to `.driftfix p`, so it exempts nothing. "chipfix" is a `.chip` the same
+     rule reaches: the kit writes `.chip:where(:not(svg *))` since kit 27, and that rule
+     must still count as the class's declared size. -->
 <style>
 .driftfix p { font-size: 1.1rem; }
 .ifx { font-size: clamp(10px, 1vw, 14px); }
@@ -17,6 +19,7 @@
   <p>Texto del cuerpo, que sí toma el tamaño de la caja.</p>
   <p class="note">Una nota que pierde su tamaño declarado.</p>
   <div class="note"><p>nestedfix: un párrafo dentro de la nota, alcanzado por la regla de la caja.</p></div>
+  <p class="chip">chipfix</p>
   <p class="note ifx">inheritfix: su propia regla no resuelve a un tamaño y además pierde.</p>
 </div>
 <figure>

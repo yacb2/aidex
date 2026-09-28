@@ -162,16 +162,22 @@ const contract = ({ classes, scheme, svgFamily }) => {
   if (want('text-style-drift')) {
     // (a) Every class the kit's components sheet gives a font-size in a single-class rule
     // (`.fieldlabel { font-size: 0.72rem }`), read from the page's own kit, so a page is
-    // held to the kit it was written with. Rules inside a matching media query count.
+    // held to the kit it was written with. Rules inside a matching media query count. A
+    // `:where()` filter on it (kit 27's `.chip:where(:not(svg *))`) adds no specificity
+    // and keeps the rule single-class.
     const rulesOf = sheet => { const acc = []; const walk = rs => { for (const r of rs) {
       if (r instanceof CSSMediaRule) { if (matchMedia(r.conditionText).matches) walk(r.cssRules); }
       else if (r instanceof CSSStyleRule) acc.push(r); } };
       try { walk(sheet.cssRules); } catch { /* a cross-origin sheet cannot be read */ } return acc; };
+    // Selector lists split at top-level commas only (`:is(a, b)` stays whole).
+    const parts = sel => { const out = []; let d = 0, cur = '';
+      for (const ch of sel) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(cur.trim()); cur = ''; } else cur += ch; }
+      out.push(cur.trim()); return out.filter(Boolean); };
     const kit = [...document.styleSheets].find(s => /artifact-kit\W+components/.test((s.ownerNode && s.ownerNode.textContent || '').slice(0, 300)));
     const declared = new Map();   // class -> the kit rule that declares its size
     if (kit) for (const r of rulesOf(kit)) {
       if (!r.style.fontSize) continue;
-      for (const sel of r.selectorText.split(',')) { const m = sel.trim().match(/^\.(-?[_a-zA-Z][\w-]*)$/); if (m) declared.set(m[1], r); }
+      for (const sel of parts(r.selectorText)) { const m = sel.replace(/:where\((?:[^()]|\([^()]*\))*\)/g, '').match(/^\.(-?[_a-zA-Z][\w-]*)$/); if (m) declared.set(m[1], r); }
     }
     const resolve = (v, el) => {
       const m = String(v).trim().match(/^(-?[\d.]+)(px|rem|em|%)$/); if (!m) return null;
@@ -181,10 +187,6 @@ const contract = ({ classes, scheme, svgFamily }) => {
       const parent = parseFloat(getComputedStyle(el.parentElement || document.documentElement).fontSize);
       return m[2] === 'em' ? n * parent : n * parent / 100;
     };
-    // Selector lists split at top-level commas only (`:is(a, b)` stays whole).
-    const parts = sel => { const out = []; let d = 0, cur = '';
-      for (const ch of sel) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(cur.trim()); cur = ''; } else cur += ch; }
-      out.push(cur.trim()); return out.filter(Boolean); };
     // Specificity [ids, classes, types] of one complex selector: :where() counts nothing,
     // :is()/:not()/:has() count their most specific argument.
     const spec = sel => {
