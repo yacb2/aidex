@@ -25,7 +25,7 @@ Create and manage consistent, machine-readable entries in `.context/backlog/` wi
 | `/aidex:backlog --origin sweep [--worklist <file>]` | same | Discovered mid-sweep: registered, judged against the kickoff criteria, appended to the queue — never asked |
 | `/aidex:backlog sweep --title "<run>" [--size XS,S] [--include\|--exclude BL-NNN] [--dry-run]` | [scripts/sweep-kickoff.sh](scripts/sweep-kickoff.sh) | **The sweep kickoff**: partition → cluster-ordered work-list (`mode: sweep`, publish never) → the NEEDS-DECISION list for one consultation artifact. See [Sweep run mode](#sweep-run-mode-aidex-backlog-sweep) |
 | `bash scripts/sweep-gate.sh [--only <leg>] [--json]` | [scripts/sweep-gate.sh](scripts/sweep-gate.sh) | **The boundary gate**, from `testing-profile.md`'s `*_suite_cmd`/`build_cmd` (a profile pinning only `suite_cmd` binds that one leg): raw exit + spec count per leg; a countless leg is FAIL, never PASS; a detached E2E leg is printed, not run (`--from-log` scores it). Not `sweep.sh`, the D-10 archiver |
-| `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk as the work-list's companion (`worklists/_archive/<worklist>-report.md`), anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics. Writes `<report>.html` beside it (artifact kit); close-out opens that page once. With a non-`en` profile `language:` it also leaves `_tmp/sweep-report/<report>.<lang>.md` and prints a `translate:` line — stage 6 translates the quoted rows and wraps it over the page (BL-382) |
+| `bash scripts/sweep-report.sh <worklist>` | [scripts/sweep-report.sh](scripts/sweep-report.sh) | **The run's one artifact**, generated from disk as the work-list's companion (`worklists/_archive/<worklist>-report.md`), anchored `worklist/<file>`: closed items + rows, the owner rows aggregated, NEEDS-DECISION unchanged, deferrals, emergent growth (flagged > 25 %), gate rows verbatim, metrics. Writes only the markdown; the page is built from it right away through `/aidex:artifact` Route S. A page that asks (needs-decision, unanswered owner rows) opens before `worklist-close.sh` and the run waits for the answers; one that asks nothing opens once after the close (policy stage 6) |
 | `python3 scripts/define-check.py [--json] [BL-NNN …]` | [scripts/define-check.py](scripts/define-check.py) | Read-only: open items below the definition contract, what each lacks, what the body already tells a script. Exit 1 while any is underdefined |
 | `bash scripts/define-item.sh <BL-id> [--estimate] [--surface] [--verify] [--touches] [--depends]` | [scripts/define-item.sh](scripts/define-item.sh) | The writer: a definition verdict INTO the item (`triage.sh` stays read-only) |
 | `/aidex:backlog --list` | same | List open entries grouped by priority (P0 → P3 + Blocked) |
@@ -114,7 +114,8 @@ proof rows → `close-item --sweep`, which refuses without them; the **checkpoin
 [`checkpoint-conventions.md`](../conventions/references/checkpoint-conventions.md)**,
 not restated here — its handoff seed additionally carries the work-list path, the item
 just closed, what ran with which exit codes, and what is ungated; `sweep-gate.sh` once at
-the boundary; `sweep-report.sh` + `worklist-close.sh` at close-out, branch left ready,
+the boundary; `sweep-report.sh`, the Route S page (opened before `worklist-close.sh` when it asks
+anything, after it when it asks nothing) at close-out, branch left ready,
 merge **asked**. Size is the wrong gate: the entry gate is Acceptance — an item with no
 acceptance criteria is not small, it is undefined.
 

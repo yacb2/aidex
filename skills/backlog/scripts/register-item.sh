@@ -1283,6 +1283,20 @@ if [[ $SET_TOUCHES -eq 1 || $SET_DEPENDS -eq 1 ]]; then
   fi
 fi
 
+# --origin sweep --worklist: append the item to the run's queue (class b, emergent). The
+# report reads only the queue, so an item that was registered but never appended was
+# invisible to it — counted as 0 emergent and missing from the closed list (BL-479).
+# Only an ACTIVE work-list is appended to; stdout stays the entry path alone.
+if [[ "$ORIGIN" == "sweep" && -n "$WORKLIST" ]]; then
+  if [[ -f "$ROOT/.context/worklists/$WL_FILE" ]]; then
+    bash "$REG_DIR/../../conventions/scripts/worklist-advance.sh" "$ROOT/.context/worklists/$WL_FILE" \
+      --append "backlog:$ITEM_ID — $TITLE" >/dev/null \
+      || warn "warning: $ITEM_ID was registered but NOT appended to worklist/$WL_FILE — append it with worklist-advance.sh --append"
+  else
+    warn "warning: worklist/$WL_FILE is not an active work-list — $ITEM_ID was not appended to any queue"
+  fi
+fi
+
 # The marker STAYS: it is the repo-global record that this number is spent. The entry
 # carries the id too, but only on this checkout's branch (BL-239).
 ok "Backlog entry created"

@@ -21,6 +21,8 @@ Checks (per file):
   siblings     no .css/.js dropped next to it — the artifact IS the file
   double-wrap  one kit envelope per document: two stamps or two composer.js
                mean an already-wrapped page was fed back in as a body (BL-414)
+  rec-leak     a literal `{recommended}` in the visible text, outside <code>,
+               <pre> and <textarea> — spec syntax the builder did not read (BL-481)
   layout       a kit page keeps its content inside .page / .main (BL-177),
                and every table inside a scrolling wrapper
   consult      a page the reader must ANSWER carries the §8 shape
@@ -202,6 +204,7 @@ def visible_source(text):
     return strip_html_comments(strip_script_style(text))
 
 
+RECOMMENDED_MARK = "{recommended}"
 RAW_LINK = re.compile(r"\[[^\]<>\n]+\]\([^()\s<>]+(?:\([^()\s<>]*\)[^()\s<>]*)?\)")
 
 
@@ -2259,6 +2262,16 @@ def check_file(path):
                            f"as text — write it as <a href>, or in a spec as "
                            f"[text](target) with a relative, #fragment or "
                            f"https: target, which the builder renders")
+
+    # --- rec-leak: the option marker shipped to the reader as text ------------
+    # `{recommended}` is spec syntax the builder turns into data-recommended;
+    # seen as text it is a marker the builder did not read (BL-481: 8 options
+    # on one page, mid-line). Quoted in <code>/<pre>/<textarea>, it is not.
+    if RECOMMENDED_MARK in re.sub(r"<[^>]+>", " ", unquoted):
+        report("rec-leak", "the page shows a literal {recommended} as text — "
+                           "the builder did not read it, so no option carries "
+                           "data-recommended. Put the marker on the option line "
+                           "in the spec, or data-recommended on the input")
 
     # --- self: one file, no network -------------------------------------------
     if re.search(r'<link[^>]+rel=["\']?stylesheet', flat, re.I):

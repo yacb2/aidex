@@ -160,6 +160,14 @@ La consulta de hoy: qué escribe el agente cuando la página cambia.
 - Sí, `---:` es markdown estándar {recommended}
 - No, un atributo nuevo
 :::
+
+::: item {#Q3 title="Bloques a documentar" select=many}
+¿Qué bloques entran en la referencia?
+
+- Tabla {recommended}
+- Figura {recommended}
+- Galería — solo si hay capturas
+:::
 :::
 
 ::: callout
@@ -314,6 +322,46 @@ try:
           "{recommended}" not in no_hint, no_hint)
     check("item: ...and it did become data-recommended",
           'data-label="Sí, cerrar" data-recommended' in no_hint, no_hint)
+    # BL-481: the marker BEFORE the hint, and on a wrapped option whose last
+    # line is not the marker's. Only the end-of-line shape was read, so both of
+    # these shipped `{recommended}` as text with no data-recommended, past a
+    # green --check (8 options on a real page, 2026-09-27).
+    ITEM_MID = ('::: group {#G1 title="T"}\n'
+                '::: item {#Q1 title="t"}\n?\n\n'
+                "- Cerrar {recommended} — los ajustes son menores\n"
+                "- Seguir {recommended}\n  — con un salto de línea\n"
+                "- No\n:::\n:::\n")
+    holds("item: {recommended} before the hint is still the recommendation",
+          ITEM_MID,
+          '<input type="radio" name="Q1" data-label="Cerrar" data-recommended>'
+          '<span>Cerrar <span class="hint">los ajustes son menores</span></span>',
+          '<input type="radio" name="Q1" data-label="Seguir" data-recommended>'
+          '<span>Seguir <span class="hint">con un salto de línea</span></span>',
+          '<input type="radio" name="Q1" data-label="No"><span>')
+    check("item: ...and the marker never reaches the page",
+          "{recommended}" not in BUILT[-1][1], BUILT[-1][1])
+    # BL-454: a question whose answer is a SET. Only radios could be built, so
+    # "which of these four go to the queue" let the reader tick one.
+    MANY = ('::: group {#G1 title="T"}\n'
+            '::: item {#Q1 title="t" select=many}\n?\n\n'
+            "- Uno {recommended}\n- Dos {recommended} — con pista\n- Tres\n"
+            ":::\n:::\n")
+    many = holds("item: select=many builds a checkbox group in `.opts`",
+                 MANY, '<div class="opts">',
+                 '<input type="checkbox" name="Q1" data-label="Uno" '
+                 'data-recommended><span>Uno</span>',
+                 '<input type="checkbox" name="Q1" data-label="Dos" '
+                 'data-recommended><span>Dos <span class="hint">con pista',
+                 '<input type="checkbox" name="Q1" data-label="Tres"><span>')
+    check("item: ...and no radio and no `.opts one` in a many item",
+          'type="radio"' not in many and "opts one" not in many, many)
+    holds("item: select=one is the default spelled out: radios",
+          MANY.replace("select=many", "select=one"),
+          '<div class="opts one">', '<input type="radio" name="Q1" data-label="Uno"')
+    rejects("item: an unknown select= value is refused, naming the line",
+            '::: group {#G1 title="T"}\n\n'
+            '::: item {#Q1 title="t" select=several}\n?\n\n- A\n:::\n:::\n',
+            3, "select")
     # `data-label` is what the composer pastes into the reply, so the markup
     # punctuation an author wrote for the PAGE is stripped from it (PLAIN).
     # Nothing asserted this: every other data-label case here is
@@ -883,6 +931,23 @@ try:
                                          "<code>[R1](R1.html)</code>"))
     check("a raw link shown as <code> is not flagged — that is the author "
           "quoting the syntax", r.returncode == 0, r.stdout + r.stderr)
+    # BL-481: the net for the option marker. The pre-fix shape is what the
+    # builder emitted for `- 5 {recommended} — excelente`: the marker as text
+    # in the label, no data-recommended.
+    leaked = linked.replace(
+        '<input type="radio" name="R1" data-label="5"><span>5 ',
+        '<input type="radio" name="R1" data-label="5 {recommended}">'
+        '<span>5 {recommended} ')
+    check("(the leaked shape carries the literal marker)",
+          "{recommended}" in leaked and leaked != linked)
+    r = contract("leaked", leaked)
+    check("check-artifact FAILS a page that shows a literal {recommended}",
+          r.returncode != 0 and "[rec-leak]" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
+    r = contract("rec-coded", linked.replace(
+        "Abre <a", "Escribe <code>{recommended}</code> y abre <a"))
+    check("a {recommended} shown as <code> is not flagged — the author "
+          "quoting the marker", r.returncode == 0, r.stdout + r.stderr)
 
     print()
     print("== the built page passes check-artifact.sh, unmodified ==")
@@ -899,7 +964,7 @@ try:
     check("...and prints no WARN either", "WARN" not in (r.stdout + r.stderr),
           r.stdout + r.stderr)
     page = open(out, encoding="utf-8").read()
-    for ident in ("G1", "Q1", "Q2", "notes"):
+    for ident in ("G1", "Q1", "Q2", "Q3", "notes"):
         check("the WRAPPED page still carries id %r byte-exactly" % ident,
               ('data-id="%s"' % ident) in page)
 

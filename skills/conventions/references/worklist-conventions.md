@@ -76,8 +76,10 @@ The work-list is the mechanism for the autonomy canon's three-class model
 
 - **(a) Ordering of known items** → lives in `## Queue`, fixed once at the survey.
   **Never** asked mid-run.
-- **(b) Emergent discovered work** → appended to `## Deferred / emergent` via
-  `worklist-advance.sh --append` and continued. **Not** asked.
+- **(b) Emergent discovered work** → appended to `## Deferred / emergent` and
+  continued. **Not** asked. A backlog item registered with `register-item.sh --origin
+  sweep --worklist` is appended by that call; `worklist-advance.sh --append` is for
+  anything else, never a second time for the same id.
 - **(c) Emergent decision** (options the work itself revealed) → the one legitimate
   mid-run interrupt. Rare; bias to allow it — trapping a real fork is worse.
 

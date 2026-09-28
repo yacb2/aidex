@@ -34,9 +34,11 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
    a decision list belongs in the artifact where the answers stay. A consultation that
    lands mid-sweep stalls the chain for as long as the answer takes. **Its language is
    the profile's** (`artifact-style.md` `language:`, no `--lang`): it is addressed to the
-   reader, not a record of work done. Only the close-out report and
-   `human-verification.md` take `--lang en` by D-04 (BL-371); the English rule for
-   backlog ENTRIES in `backlog/SKILL.md` does not reach this page.
+   reader, not a record of work done. The English rule for backlog ENTRIES in
+   `backlog/SKILL.md` does not reach this page. Every `--exclude` is recorded in the
+   work-list's Needs decision block (repeatable or a comma list, `BL-NNN:<reason>` per
+   element; an id in no partition list exits 2), so
+   an item pulled here reaches the close-out report and its page.
 5. Gate policy fixed once: `publish: never`, `destructive: deny`, and **merge is class 2
    per `skills/conventions/references/autonomy-conventions.md`** — asked by default, grantable at the kickoff, never assumed
    mid-run. `sweep-kickoff.sh --merge preauthorized` records the grant into
@@ -119,7 +121,7 @@ is invisible.
 *Prose — discovered work: absorb once, then defer.* An XS/S defect found while working an
 item is absorbed into the same commit when it is in the same file or the same behaviour.
 Beyond that — a second discovery, or anything M or larger — `register-item.sh --origin
-sweep --worklist <file>`, appended to the queue (`worklist-advance.sh --append`, class b),
+sweep --worklist <file>`, which appends it to the queue itself (class b, emergent; BL-479 — never append it again by hand),
 continued, never asked. Growth past 25 % of the kickoff queue is **reported**, not
 surfaced as a question.
 
@@ -160,38 +162,34 @@ spelled out in Stage 3 (BL-363).
    `worklist/<file>`; `research/` is for investigations, not for what a run did —
    owner, 2026-08-27): closed items with commits and rows, the parked items, the owner
    rows aggregated, NEEDS-DECISION unchanged and unattempted, deferrals and mid-flight
-   skips, emergent growth, the gate rows verbatim, and the per-sweep metrics.
+   skips, emergent growth, the gate rows verbatim (only runs inside the work-list's
+   window, created to close — BL-480), and the per-sweep metrics.
 
-   It writes the page too — `<report>.html` beside the markdown, through the artifact
-   kit, named on stderr as `page: <path>`. The markdown stays the canon; the page is
-   what a person reads. Handing over the `.md` alone is what made the owner ask for the
-   artifact after a run that had already written one (BL-345).
-
-   **The page follows the profile's `language:`; the `.md` does not** (BL-382). The
-   page carries the owner rows and the needs-decision list — addressed to the reader,
-   so BL-371's distinction puts it in the profile's language — while the markdown is a
-   `.context/` record and stays English (D-04). No script can bridge that: ~95 % of
-   the body is quotation, and localizing every generator string still measured 22
-   Spanish vs 553 English stopwords on a real report, a `lang` FAIL. So when the
-   profile is not `en`, `sweep-report.sh` writes the English page as the fallback
-   AND prints a `translate:` line naming the source it left under
-   `_tmp/sweep-report/<report>.<lang>.md` — the same report with headings and prose
-   already in that language. **This step is the model's:** translate the quoted rows
-   of that source (titles, verification and owner rows, needs-decision lines; ids,
-   commits and gate rows stay verbatim), then wrap it over the same page with the
-   command the line gives (`wrap-report.sh --lang <lang> --in <translated> --out
-   <page>`). It costs a few thousand tokens per close-out against a sweep's hundreds
-   of thousands, and it is the one way a page in the profile's language exists
-   without a non-English `.md` in `.context/`. Never write the translation into
-   `.context/`. A `translate:` line that goes unanswered leaves the English page
-   standing, which is the fallback, not the contract.
-2. `worklist-close.sh` — refuses while an owner row is unanswered or a deferral is
-   unreconciled; `--force` records the override. The closed list archives.
-3. **Open the page — once, here, and nowhere earlier.** `skills/artifact/references/02-local-first-artifacts.md`
-   gate 2 opens an artifact exactly once, when it is final, and the report is not final
-   until step 2 has archived the closed list. `open <report>.html`, and cite that path
-   in the run's summary rather than the `.md`. Never publish it (gate 3).
-4. The branch is left **ready to merge**. Whether the merge happens here is
+   It writes only that markdown and prints the page step on stderr (`page: build with
+   /aidex:artifact (Route S) -> <report>.spec.md -> <report>.html`).
+2. **Build the page from it, right away, through `/aidex:artifact` Route S** — beside the
+   markdown, in the profile's `language:` (`artifact-style.md`). **The page is the
+   model's:** every NEEDS-DECISION line and every unanswered owner row becomes a consult
+   `item` that explains before it asks, each option with its consequence and exactly one
+   `{recommended}`; closed items, gate rows and metrics are plain sections. The page
+   speaks the profile's language while the markdown stays an English `.context/` record
+   (D-04) — no script can bridge that, and a wrapped static page showed the open
+   questions as text nobody could answer, so the owner had to ask for a second page by
+   hand (BL-345, BL-382, BL-482).
+3. **If the page asks anything** (a NEEDS-DECISION item or an unanswered owner row), open
+   it now — once, **before `worklist-close.sh`**, which refuses while an owner row is
+   unanswered — and stop: the run says it waits for the answers and ends the turn. When
+   they come, apply them to the items: an owner row's **proof cell** records the owner's
+   answer (then `close-item.sh --sweep` again for a parked item), a NEEDS-DECISION item
+   gets its decision applied (defined, deferred, dropped, or queued for the next run).
+   Then `worklist-close.sh`, `sweep-report.sh` again, and rebuild the page as the **next
+   round** of the same spec (`spec_verbs.py new-round`), opened once for that turn.
+4. **If the page asks nothing**, today's order holds: `worklist-close.sh` — `--force`
+   records an override; the closed list archives — then open the page **once**,
+   `open <report>.html`, per `skills/artifact/references/02-local-first-artifacts.md`
+   gate 2 (an artifact opens once, when final). Either way cite the `.html` in the run's
+   summary rather than the `.md`, and never publish it (gate 3).
+5. The branch is left **ready to merge**. Whether the merge happens here is
    `gate-policy.merge` in the work-list, not a rule of this document: `ask` (the default,
    and what an absent key means) leaves it for the owner; `preauthorized` merges once the
    boundary gate has passed and the whole-branch review is clean, and says so in the report.

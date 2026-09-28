@@ -41,10 +41,18 @@ bash "$CONV/worklist-advance.sh" "$WL" >/dev/null 2>&1        # ticks C (parked 
 E="$(reg --title "emergent one")"; EID="$(idof "$E")"
 bash "$CONV/worklist-advance.sh" "$WL" --append "backlog:$EID — emergent one" >/dev/null 2>&1
 bash "$CONV/worklist-advance.sh" "$WL" --append "inline:loose end, carry to the next sweep" >/dev/null 2>&1
-# a gate history with one re-run of the frontend leg
+# a gate history with one re-run of the frontend leg inside the work-list's window (it was
+# created today), plus an earlier sweep's run and a run after now — BL-480: both sit
+# outside the window and must count nowhere (the 2026-09-27 report listed 19 old runs)
+# the in-window stamps come from the work-list's own created: date — a date computed
+# here could fall on the next day when the run crosses midnight
+WLC="$(sed -n 's/^created: *//p' "$WL" | head -1)"
 mkdir -p .context/proofs/sweep-gate
-printf '[{"leg":"backend","exit":"0","count":"10","secs":"7"},{"leg":"frontend","exit":"1","count":"9","secs":"5"},{"verdict":"FAIL","legs":2,"failed":1,"pending":0,"at":"2026-08-27T10:00:00"}]\n' > .context/proofs/sweep-gate/gate-history.jsonl
-printf '[{"leg":"frontend","exit":"0","count":"10","secs":"6"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2026-08-27T10:05:00"}]\n' >> .context/proofs/sweep-gate/gate-history.jsonl
+GH=.context/proofs/sweep-gate/gate-history.jsonl
+printf '[{"leg":"oldsweep","exit":"0","count":"50","secs":"999"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2020-01-01T10:00:00"}]\n' > $GH
+printf '[{"leg":"backend","exit":"0","count":"10","secs":"7"},{"leg":"frontend","exit":"1","count":"9","secs":"5"},{"verdict":"FAIL","legs":2,"failed":1,"pending":0,"at":"%sT00:00:01"}]\n' "$WLC" >> $GH
+printf '[{"leg":"frontend","exit":"0","count":"10","secs":"6"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%sT00:00:02"}]\n' "$WLC" >> $GH
+printf '[{"leg":"future","exit":"0","count":"50","secs":"555"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2099-01-01T10:00:00"}]\n' >> $GH
 
 OUT="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>/dev/null)"; RC=$?
 [[ $RC -eq 0 && -f "$OUT" && "$OUT" == "$P/.context/worklists/_archive/$(basename "$WL" .md)-report.md" ]] && ok "report is the work-list's companion: worklists/_archive/<worklist>-report.md" || bad "report: rc=$RC $OUT"
@@ -67,6 +75,30 @@ grep -q "| commits (from \`commits:\`) | 2 |" "$OUT" && ok "commit count" || bad
 grep -q "| gate runs / legs re-run | 2 / 1 |" "$OUT" && ok "gate runs 2, frontend leg re-run once" || bad "gate: $(grep 'gate runs' "$OUT")"
 grep -q "| time in boundary-gate suites | 18 s |" "$OUT" && ok "gate seconds summed (7+5+6)" || bad "gate secs: $(grep 'boundary-gate suites' "$OUT")"
 grep -q "leg=frontend exit=1 count=9 secs=5" "$OUT" && grep -q "verdict \*\*PASS\*\*" "$OUT" && ok "gate rows verbatim, both runs" || bad "gate rows"
+! grep -q "leg=oldsweep\|leg=future" "$OUT" && ok "BL-480: runs before the work-list's created date or after now are not this sweep's" || bad "out-of-window gate rows: $(grep 'leg=' "$OUT")"
+# the empty window says so, and names no older run
+cp $GH "$TMP/gh.keep"; grep -v "\"at\":\"$WLC" "$TMP/gh.keep" > $GH
+RE="$(bash "$SCRIPTS/sweep-report.sh" report-run --print 2>/dev/null)"
+grep -q "^_no gate run recorded for this sweep" <<<"$RE" && ! grep -q "leg=" <<<"$RE" && grep -q "| gate runs / legs re-run | 0 / 0 |" <<<"$RE" \
+  && ok "BL-480: only out-of-window runs -> no gate rows and 'no gate run recorded for this sweep'" || bad "empty window: $(grep -A3 'Boundary gate' <<<"$RE") $(grep 'gate runs' <<<"$RE")"
+# the window's upper edge: a RUNNING work-list reaches to now, whatever its updated:
+# says; a CLOSED one ends at its updated: date. One gate run today, two work-lists whose
+# dates sit in the past.
+day() { python3 -c 'import datetime,sys; print(datetime.date.today() - datetime.timedelta(days=int(sys.argv[1])))' "$1"; }
+NOW_AT="$(date +%Y-%m-%dT%H:%M:%S)"
+printf '[{"leg":"today","exit":"0","count":"3","secs":"4"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%s"}]\n' "$NOW_AT" > $GH
+winwl() { local f=".context/worklists/$1.md"
+  printf -- '---\ntitle: "%s"\nstatus: %s\ncreated: %s\nupdated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$1" "$2" "$3" "$4" > "$f"; printf '%s\n' "$f"; }
+RUNWL="$(winwl window-running doing "$(day 2)" "$(day 2)")"
+RW="$(bash "$SCRIPTS/sweep-report.sh" "$RUNWL" --print 2>/dev/null)"
+grep -q "leg=today exit=0" <<<"$RW" && grep -q "| gate runs / legs re-run | 1 / 0 |" <<<"$RW" \
+  && ok "BL-480: a running work-list (created and updated two days ago) counts today's gate run — its window reaches now" || bad "running window: $(grep -A3 'Boundary gate' <<<"$RW")"
+CLWL="$(winwl window-closed done "$(day 2)" "$(day 1)")"
+CW="$(bash "$SCRIPTS/sweep-report.sh" "$CLWL" --print 2>/dev/null)"
+! grep -q "leg=today" <<<"$CW" && grep -q "^_no gate run recorded for this sweep" <<<"$CW" \
+  && ok "BL-480: a closed work-list (updated yesterday) does not count today's gate run" || bad "closed window: $(grep -A3 'Boundary gate' <<<"$CW")"
+rm -f "$RUNWL" "$CLWL"
+cp "$TMP/gh.keep" $GH
 grep -q "$EID: not reached" "$OUT" && ok "the appended emergent item that was never worked is reported as not reached" || bad "emergent skip: $(grep "$EID" "$OUT")"
 # the companion survives the work-list's own archive, next to it
 bash "$CONV/worklist-close.sh" "$WL" --force >/dev/null 2>&1
@@ -107,86 +139,24 @@ K="$(reg --title "parked with commit" --estimate XS)"; KID="$(idof "$K")"; accep
 bash "$SCRIPTS/close-item.sh" "$KID" --sweep --commit "$SHA1" --no-index >/dev/null 2>&1
 grep -q "^awaiting: owner$" "$K" && grep -q "^commits: \"$SHA1\"$" "$K" && ok "parked item carries awaiting: owner AND commits: <sha>" || bad "parked commits: $(grep -E '^(awaiting|commits)' "$K")"
 
-# BL-345: the report is also a PAGE. Close-out used to hand over an .md and the
-# reader asked for the artifact every time; the wrap is now part of writing it.
+# BL-482: the page is the model's, built through /aidex:artifact Route S so every open
+# question is a consult item. The script wraps nothing (BL-345's wrap showed the owner
+# rows as text, never asked) and leaves no translate source (BL-382's step): it writes
+# the English markdown and names the next step on stderr.
+printf -- '- language: es\n' > .context/artifact-style.md
 MD="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>"$TMP/rep.err")"
 ERR="$(cat "$TMP/rep.err")"
-[[ "$MD" == *.md && -s "$MD" ]] && ok "stdout is still exactly one path, the markdown canon" || bad "stdout: $MD"
-PAGE="$(sed -n 's/^page: //p' <<<"$ERR" | head -1)"
-if [[ -s "$PAGE" && "$PAGE" == "${MD%.md}.html" ]]; then
-  ok "a .html page is written beside the report and named on stderr"
-else
-  bad "no .html companion beside the report: [$ERR]"
-fi
-# Non-empty input, at the page: a queued item's id must be IN the page, so a wrap
-# of an empty or half-rendered report cannot pass this as green.
-if [[ -s "$PAGE" ]] && grep -q "$AID" "$PAGE"; then
-  ok "the page carries a queued item's id ($AID) — it saw real input"
-else
-  bad "the page does not carry $AID"
-fi
-CHK="$SCRIPTS/../../artifact/scripts/check-artifact.sh"
-if [[ -s "$PAGE" ]]; then
-  bash "$CHK" "$PAGE" > "$TMP/chk.out" 2>&1
-  [[ $? -eq 0 ]] && ok "the page passes check-artifact.sh" || bad "check-artifact.sh on the page: $(cat "$TMP/chk.out")"
-fi
-# --print stays a preview: it writes nothing at all, page included.
-# Guarded on a NON-EMPTY path first. With the wrap regressed, PAGE is the empty
-# string, `rm -f ""` succeeds and `[[ ! -e "" ]]` is true — so this cell used to
-# report ok in exactly the regime it exists to catch.
-rm -f "$PAGE"
-bash "$SCRIPTS/sweep-report.sh" report-run --print >/dev/null 2>&1
-if [[ -z "$PAGE" ]]; then
-  bad "--print: no page path to assert against (the wrap never named one), so this cell would pass vacuously"
-elif [[ ! -e "$PAGE" ]]; then
-  ok "--print writes no page"
-else
-  bad "--print wrote $PAGE"
-fi
-
-# BL-382: the page is what the owner reads and it carries the owner rows and the
-# needs-decision list, so it belongs in the profile's `language:` — but ~95 % of
-# its body is `.context/` quotation, so no script can write it there. With a
-# non-en profile the script keeps the English page as the fallback, writes the
-# translation SOURCE (generator prose already localized) under _tmp/, never
-# .context/ (D-04), and names the stage-6 step on stderr. Wrapping that source
-# over the page is the step, and it passes the lang gate.
-printf -- '- language: es\n' > .context/artifact-style.md
-MD2="$(bash "$SCRIPTS/sweep-report.sh" report-run 2>"$TMP/rep2.err")"
-PAGE2="$(sed -n 's/^page: //p' "$TMP/rep2.err" | head -1)"
-SRC2="$P/_tmp/sweep-report/$(basename "${MD2%.md}").es.md"
-grep -q '^## Owner rows — what only the owner can judge' "$MD2" && ok "language: es — the .md keeps its English headings (D-04)" || bad "the .md drifted from English: $(grep '^## ' "$MD2" | head -3)"
-[[ -s "$PAGE2" ]] && grep -q '<html[^>]*lang="en"' "$PAGE2" && ok "language: es — the English page is still written as the fallback" || bad "fallback page: $(grep -o '<html[^>]*>' "$PAGE2" 2>/dev/null) [$(cat "$TMP/rep2.err")]"
-if [[ -s "$SRC2" ]] && grep -q '^## Filas del owner' "$SRC2" && grep -q "$AID" "$SRC2" && ! grep -rq 'Filas del owner' .context/; then
-  ok "language: es — the translation source is under _tmp/ with the generator's prose in es, and nothing es lands in .context/"
-else
-  bad "translation source: $(ls "$SRC2" 2>&1) $(grep -c 'Filas del owner' "$SRC2" 2>/dev/null)"
-fi
-grep -q "^translate: .*$SRC2 .*--lang es .*--out $PAGE2" "$TMP/rep2.err" && ok "language: es — stderr names the stage-6 step: source, --lang es, the same page" || bad "no translate line: $(cat "$TMP/rep2.err")"
-T2="$(sed -n 's/^title: *"\{0,1\}\(.*[^"]\)"\{0,1\} *$/\1/p' "$SRC2" | head -1)"
-if bash "$SCRIPTS/../../artifact/scripts/wrap-report.sh" --title "$T2" --lang es --in "$SRC2" --out "$PAGE2" >"$TMP/wrap2.out" 2>&1 && grep -q '<html[^>]*lang="es"' "$PAGE2" && grep -q 'Filas del owner' "$PAGE2"; then
-  ok "language: es — wrapping the source over the page yields lang=\"es\" and passes the contract (lang gate included)"
-else
-  bad "wrap of the es source: $(cat "$TMP/wrap2.out")"
-fi
+[[ "$MD" == *.md && -s "$MD" && "$(wc -l <<<"$MD")" -eq 1 ]] && ok "stdout is still exactly one path, the markdown canon" || bad "stdout: $MD"
+[[ ! -e "${MD%.md}.html" ]] && ok "no .html is wrapped beside the report" || bad "a page was wrapped: ${MD%.md}.html"
+[[ ! -d "$P/_tmp/sweep-report" ]] && ! grep -q '^translate:' <<<"$ERR" && ok "no translate source and no translate: line" || bad "translate step still written: $(ls "$P/_tmp/sweep-report" 2>&1) $ERR"
+grep -qF "page: build with /aidex:artifact (Route S) -> ${MD%.md}.spec.md -> ${MD%.md}.html" <<<"$ERR" \
+  && ok "stderr names the page step: Route S, the .spec.md and .html beside the report" || bad "no page next-step line: [$ERR]"
+grep -q '^## Owner rows — what only the owner can judge' "$MD" && ok "language: es — the .md keeps its English headings (D-04)" || bad "the .md drifted from English: $(grep '^## ' "$MD" | head -3)"
 rm -f .context/artifact-style.md
-bash "$SCRIPTS/sweep-report.sh" report-run >/dev/null 2>"$TMP/rep4.err"
-if ! grep -q '^translate:' "$TMP/rep4.err" && grep -q '<html[^>]*lang="en"' "$PAGE2"; then
-  ok "no profile — no translate line, the page is the English record as before"
-else
-  bad "no profile: $(grep -c '^translate:' "$TMP/rep4.err") translate line(s), $(grep -o '<html[^>]*>' "$PAGE2")"
-fi
-rm -f "$PAGE2"
 
-# A non-.md --out has no page: the wrap converts a .md INPUT only, so wrapping the
-# report at `<out>.html` would carry the raw markdown as page content and fail the
-# contract. The report still gets written; the page is declined out loud.
+# a non-.md --out still writes the report, and nothing beside it
 TXT="$TMP/report-run.txt"
 bash "$SCRIPTS/sweep-report.sh" report-run --out "$TXT" 2>"$TMP/txt.err" >/dev/null
-if [[ -s "$TXT" && ! -e "$TXT.html" && ! -e "${TXT%.md}.html" ]] && grep -q "not a .md path" "$TMP/txt.err"; then
-  ok "a non-.md --out writes the report and declines the page, with a note"
-else
-  bad "non-.md --out: report=$(wc -c <"$TXT" 2>/dev/null) page=$(ls "$TXT.html" 2>/dev/null) err=$(cat "$TMP/txt.err")"
-fi
+[[ -s "$TXT" && ! -e "$TXT.html" ]] && ok "a non-.md --out writes the report and no page" || bad "non-.md --out: report=$(wc -c <"$TXT" 2>/dev/null) err=$(cat "$TMP/txt.err")"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
