@@ -30,8 +30,14 @@ trap 'rm -rf "$TMP"' EXIT
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
+# $AIDEX_CHROME wins; then chrome-headless-shell, which is not an .app bundle, so
+# its launches do not register with LaunchServices and flicker the Dock the way
+# every Google Chrome.app launch does, even headless (BL-465); then Chrome.app.
 CHROME=""
-for c in "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+for c in "${AIDEX_CHROME:-}" \
+         "$(command -v chrome-headless-shell 2>/dev/null || true)" \
+         "$(ls -d "$HOME"/.cache/puppeteer/chrome-headless-shell/*/chrome-headless-shell-*/chrome-headless-shell 2>/dev/null | tail -1)" \
+         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
          "$(command -v google-chrome 2>/dev/null || true)" \
          "$(command -v chromium 2>/dev/null || true)"; do
   [[ -n "$c" && -x "$c" ]] && { CHROME="$c"; break; }
@@ -40,6 +46,10 @@ if [[ -z "$CHROME" ]]; then
   echo "SKIP: no Chrome/Chromium binary found — the composer functional test DID NOT RUN"
   exit 0
 fi
+# Chrome.app's new headless gives its default window a 756x469 viewport; the
+# shell gives 800x600, and the cells were written against the former (at 600 px
+# tall the BL-326 spy cell reads BOTTOM=#Q2). Same default viewport on both.
+[[ "$(basename "$CHROME")" == chrome-headless-shell ]] && CHROME_WINDOW="${CHROME_WINDOW:-756,469}"
 
 # Dump a URL's post-script DOM into a file. The shape here is load-bearing,
 # learned the expensive way:
