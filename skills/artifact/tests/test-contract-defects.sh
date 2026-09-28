@@ -251,6 +251,9 @@ page proj/.context/reports/es es '<main><p>Informe.</p></main>'
 passes $C proj/.context/reports/es "lang=es under a language: es profile passes"
 page proj/.context/reports/es-419 es-419 '<main><p>Informe.</p></main>'
 passes $C proj/.context/reports/es-419 "a regional subtag of the profile language passes"
+# The primary subtag is read with page_lang, as the other two lang classes read it.
+page proj/.context/reports/es_ES es_ES '<main><p>Informe.</p></main>'
+passes $C proj/.context/reports/es_ES "lang=es_ES under a language: es profile passes"
 page proj/.context/proofs/human-verification en '<main><p>Record.</p></main>'
 passes $C proj/.context/proofs/human-verification "human-verification.* stays exempt (owner question)"
 page noprof en '<main><p>Report.</p></main>'

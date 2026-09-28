@@ -653,10 +653,10 @@ def check_lang_follows_profile(path, html_text):
     want = wrap_report.profile_language(ctx)
     if not want:
         return []
-    html = next((n for n in parse(html_text).root.walk() if n.tag == "html"), None)
-    got = ((html.attrs.get("lang") if html else "") or "").strip()
-    if got.split("-")[0].lower() == want.split("-")[0].lower():
+    html, lang = page_lang(parse(html_text).root)
+    if lang == want.split("-")[0].lower():   # LANG_FIELD never captures "_"
         return []
+    got = ((html.attrs.get("lang") if html else "") or "").strip()
     return [("lang-follows-profile", html.line if html else 1,
              "<html lang=\"%s\"> but %s/artifact-style.md declares language: %s"
              % (got, ctx, want))]
