@@ -234,9 +234,12 @@ the built page by name, and `wrap-report.sh --out` runs it before the page lands
 See `03-spec-grammar.md` § Nesting.
 
 Two things to read carefully here. `decided=yes` is an ordinary keyed attr — the grammar
-has **no bare flags**, so `{… decided}` alone is malformed. And the `{recommended}` at the
-end of an option line is *not* an attr group: it sits in the block's prose body, where the
+has **no bare flags**, so `{… decided}` alone is malformed. And the `{recommended}` on an
+option line is *not* an attr group: it sits in the block's prose body, where the
 attr rules do not reach, and it is the `item` builder — not the tokenizer — that reads it.
+Its place is the end of the line, but it is read anywhere on the option (before the
+` — ` hint, on a wrapped first line) and removed from the text; `check-artifact`
+fails a page that still shows it (`rec-leak`, BL-481).
 
 ### `notes` — same page
 

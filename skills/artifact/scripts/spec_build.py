@@ -103,6 +103,7 @@ STRINGS = {
 # what travels in the reply.
 HINT_SEP = " — "
 RECOMMENDED = "{recommended}"
+REC_MARK = re.compile(r"\s*" + re.escape(RECOMMENDED) + r"\s*")
 # What `data-label` carries is TEXT: the composer copies that attribute into the
 # reply, so a backtick or a `**` written for the page's own rendering would
 # travel into the paste as punctuation the reader never wrote. Backticks and
@@ -529,10 +530,11 @@ def _split_options(lines, line):
 
 def _option(text):
     """`(label, hint, recommended)` from one option line."""
-    rec = False
-    if text.rstrip().endswith(RECOMMENDED):
-        rec = True
-        text = text.rstrip()[:-len(RECOMMENDED)].rstrip()
+    # The marker is honoured wherever it sits on the option, not only at the
+    # end: `label {recommended} — hint`, or on a wrapped option's first line,
+    # used to ship it as text with no data-recommended (BL-481).
+    rec = RECOMMENDED in text
+    text = REC_MARK.sub(" ", text).strip()
     label, _, hint = text.partition(HINT_SEP)
     return label.strip(), hint.strip(), rec
 
