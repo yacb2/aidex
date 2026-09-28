@@ -468,9 +468,9 @@
   // any block (the general notes) follow after a separator.
   var links = new Array(items.length);
   /* Every id the composer assigns goes through here. An item's anchor is its
-   * data-id, unless another element already holds that id (the block's own id,
-   * an authored anchor, a nested block given its data-id below, a second item
-   * with the same data-id): then the first free `<id>-<n>`. The kit's own
+   * dataset.id, unless another element already holds that id (the block's own id,
+   * an authored anchor, a nested block given its dataset.id below, a second item
+   * with the same dataset.id): then the first free `<id>-<n>`. The kit's own
    * chrome (sec-decided, consult-restored, kit-theme) yields the same way to an
    * author who used the name first. A page never carries one id twice, and the
    * rail links to the id the element really got, so the link still lands on
