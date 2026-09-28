@@ -160,6 +160,14 @@ La consulta de hoy: qué escribe el agente cuando la página cambia.
 - Sí, `---:` es markdown estándar {recommended}
 - No, un atributo nuevo
 :::
+
+::: item {#Q3 title="Bloques a documentar" select=many}
+¿Qué bloques entran en la referencia?
+
+- Tabla {recommended}
+- Figura {recommended}
+- Galería — solo si hay capturas
+:::
 :::
 
 ::: callout
@@ -332,6 +340,28 @@ try:
           '<input type="radio" name="Q1" data-label="No"><span>')
     check("item: ...and the marker never reaches the page",
           "{recommended}" not in BUILT[-1][1], BUILT[-1][1])
+    # BL-454: a question whose answer is a SET. Only radios could be built, so
+    # "which of these four go to the queue" let the reader tick one.
+    MANY = ('::: group {#G1 title="T"}\n'
+            '::: item {#Q1 title="t" select=many}\n?\n\n'
+            "- Uno {recommended}\n- Dos {recommended} — con pista\n- Tres\n"
+            ":::\n:::\n")
+    many = holds("item: select=many builds a checkbox group in `.opts`",
+                 MANY, '<div class="opts">',
+                 '<input type="checkbox" name="Q1" data-label="Uno" '
+                 'data-recommended><span>Uno</span>',
+                 '<input type="checkbox" name="Q1" data-label="Dos" '
+                 'data-recommended><span>Dos <span class="hint">con pista',
+                 '<input type="checkbox" name="Q1" data-label="Tres"><span>')
+    check("item: ...and no radio and no `.opts one` in a many item",
+          'type="radio"' not in many and "opts one" not in many, many)
+    holds("item: select=one is the default spelled out: radios",
+          MANY.replace("select=many", "select=one"),
+          '<div class="opts one">', '<input type="radio" name="Q1" data-label="Uno"')
+    rejects("item: an unknown select= value is refused, naming the line",
+            '::: group {#G1 title="T"}\n\n'
+            '::: item {#Q1 title="t" select=several}\n?\n\n- A\n:::\n:::\n',
+            3, "select")
     # `data-label` is what the composer pastes into the reply, so the markup
     # punctuation an author wrote for the PAGE is stripped from it (PLAIN).
     # Nothing asserted this: every other data-label case here is
@@ -934,7 +964,7 @@ try:
     check("...and prints no WARN either", "WARN" not in (r.stdout + r.stderr),
           r.stdout + r.stderr)
     page = open(out, encoding="utf-8").read()
-    for ident in ("G1", "Q1", "Q2", "notes"):
+    for ident in ("G1", "Q1", "Q2", "Q3", "notes"):
         check("the WRAPPED page still carries id %r byte-exactly" % ident,
               ('data-id="%s"' % ident) in page)
 

@@ -34,7 +34,7 @@ the list — every candidate clears both.
 | `masthead` | 12 / 12 pages | The page's opening block: eyebrow line, `h1`, standfirst, byline. One per page, first. | Prose and an optional nested `note`/`callout`, in the position it was written. `title`, `eyebrow`, `byline`; the first paragraph of the masthead's OWN prose becomes the standfirst. The title is written ONCE — `title="…"` or a `# ` line, never both. `lang="es"` / `lang="en"` declares the PAGE's language and wins over `--lang` (2 of the 30 sampled pages are English; without it they build into `<html lang="es">` and fail the contract's `lang` rule). `visual="none: why"` is the page's visual declaration. |
 | `section` | 19 / 30 sampled pages, 106 occurrences | A page section that is NOT a decision block: an id'd `<section>` with a `.sec-head` (eyebrow + `h2`) and a body. What the visual section, the ledger section and the reference sections of a report are. | Prose + nested blocks. `#id` (required — it is the rail's anchor, never a `data-id`), `heading` (required), `eyebrow`. |
 | `group` | kit class, 118 pages | A titled section that carries the context one or more decisions come from. The `id` is the rail anchor and the paste key. | Prose + nested blocks. `#id` (e.g. `#G1`), `title`, `heading`, `eyebrow`. |
-| `item` | kit class, 165 pages | One decision: a question, its options, a notes field. The unit the verbs `add-item` / `decide` operate on. | Prose, an option list, an optional nested `note`/`callout` and an optional figure block (`figure`, `chart`, `graph`, `diagram`) that illustrates this decision, each in the position it was written. A finding that needs a decision carries its options here, never in a separate item asking it again (BL-468). `#id` (e.g. `#Q1`), `title`, `decided`, `free` (`free=yes`: a deliberately optionless item, placeholder "Tu respuesta…"). |
+| `item` | kit class, 165 pages | One decision: a question, its options, a notes field. The unit the verbs `add-item` / `decide` operate on. | Prose, an option list, an optional nested `note`/`callout` and an optional figure block (`figure`, `chart`, `graph`, `diagram`) that illustrates this decision, each in the position it was written. A finding that needs a decision carries its options here, never in a separate item asking it again (BL-468). `#id` (e.g. `#Q1`), `title`, `decided`, `free` (`free=yes`: a deliberately optionless item, placeholder "Tu respuesta…"), `select` (`one`, the default: radios; `many`: checkboxes, for a question whose answer is a set — BL-454). |
 | `notes` | kit class, 153 pages | The general-notes item — where an answer that fits no question goes. Exactly one per consultation, and the last consult item; `check-artifact` fails a page without it and one where a block or item follows it (reference sections may follow it, BL-457). | No body. `title` only. |
 | `gallery` | 1 page (unit shipped) | A UI review: one row per screen state in one variant, shown as the pair before (baseline) / proposed (the run's render) — or the one capture of a new screen — with one answer and notes per row; a cell that changed outside the requested set is its own row, marked as unrequested. Built by `scripts/dash/gallery_items.py` from a rows JSON. | No prose body. `rows` (path to the rows JSON, relative to the SPEC), `#id`, `title`, `lang`, `root`. |
 | `ledger` | kit class, 146 pages | The decided-ledger: what earlier rounds settled, so a later round does not re-ask it. | A list of `- key — text` rows. A row with no ` — ` is a row with no key and ships as a `.v` cell alone. No attrs. |
@@ -240,6 +240,33 @@ attr rules do not reach, and it is the `item` builder — not the tokenizer — 
 Its place is the end of the line, but it is read anywhere on the option (before the
 ` — ` hint, on a wrapped first line) and removed from the text; `check-artifact`
 fails a page that still shows it (`rec-leak`, BL-481).
+
+**One choice or a set: `select=`.** An item's options are radios by default
+(`select=one`). A question whose answer is a SET — "which of these four films go to
+the publishing queue?" — writes `select=many`: the options become checkboxes
+(`<div class="opts">`, no `one`), the reply lists every ticked option in page order,
+and the item is unanswered only while none is ticked. More than one option may carry
+`{recommended}` there. Any other value is refused with the fence's line.
+
+```
+::: item {#Q3 title="Cola de publicación" select=many}
+¿Qué películas entran en la cola?
+
+- La primera {recommended}
+- La segunda {recommended}
+- La tercera — solo si llega el máster
+:::
+```
+
+`select=many` is not a way to fold several decisions into one item. "A verdict on
+each of four films" is four independent decisions, each with its own options and its
+own notes: four items (a `group` keeps them together). The test is whether the
+options are facets of one answer or answers to different questions; a checkbox group
+whose options each name a tracked id is the second shape, and `check-artifact` warns
+on it (`consult-independent`, BL-375). The escapes the kit appends keep their
+meaning: "Otra" is one more member of the set and combines with the ticked options;
+"Todavía no" defers the question, so ticking it releases the options and ticking an
+option releases it.
 
 ### `notes` — same page
 
