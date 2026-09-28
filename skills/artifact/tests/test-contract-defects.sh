@@ -320,13 +320,14 @@ echo "== KIT_STRINGS lockstep: every kit chrome string is in contract_defects ==
 # ui-string-language judges a page by KIT_STRINGS, a copy kept in the module on
 # purpose. A string added to the kit's chrome and not to that copy is a label the
 # class can no longer see in the wrong language. Sources: composer.js's CHROME
-# keys (the labels it relabels) in STRINGS.en/.es, spec_build.STRINGS and
-# gallery_items' notes box.
+# keys (the labels it relabels) in STRINGS.en/.es, spec_build.STRINGS,
+# gallery_items' notes box and md_body.RAILHEAD (the rail heading every builder
+# writes).
 missing="$(python3 - "$HERE/.." <<'PY'
 import os, re, sys
 root = sys.argv[1]
 sys.path[:0] = [os.path.join(root, "scripts"), os.path.join(root, "scripts", "dash")]
-import contract_defects, gallery_items, spec_build
+import contract_defects, gallery_items, md_body, spec_build
 js = open(os.path.join(root, "assets", "artifact-kit", "composer.js"), encoding="utf-8").read()
 keys = re.findall(r"\[\s*'[^']*',\s*'(?:text|placeholder)',\s*'(\w+)'\s*\]", js)
 body = js[js.index("var STRINGS = {"):]
@@ -338,6 +339,7 @@ for lang in ("en", "es"):
         want.append((lang, "composer.js %s.%s" % (lang, k), m.group(1) if m else None))
 for lang, table in spec_build.STRINGS.items():
     want += [(lang, "spec_build %s.%s" % (lang, k), v) for k, v in table.items()]
+want += [(lang, "md_body RAILHEAD.%s" % lang, v) for lang, v in md_body.RAILHEAD.items()]
 for name in ("NOTES_LABEL", "NOTES_PLACEHOLDER"):
     want += [(lang, "gallery_items %s.%s" % (name, lang), v)
              for lang, v in getattr(gallery_items, name).items()]

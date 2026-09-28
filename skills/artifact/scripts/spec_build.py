@@ -61,6 +61,7 @@ sys.path.insert(0, os.path.join(HERE, "dash"))
 
 import chart_svg                                # noqa: E402
 import check_artifact                           # noqa: E402
+import contract_defects                         # noqa: E402
 import diagram_layout                           # noqa: E402
 import diagram_svg                              # noqa: E402
 import gallery_items                            # noqa: E402
@@ -528,6 +529,15 @@ def _split_options(lines, line):
     return before, opts, lines[i:]
 
 
+def has_options(node):
+    """Whether an `item` node offers options, read the way `emit_item` reads
+    them (the first top-level `-` list of its prose, code fences tracked). For
+    `spec_verbs.decide`, which must not record `yes` on an item with options.
+    Raises SpecBuildError on a body `_split_options` refuses."""
+    return any(_split_options(list(c.raw_body), node.line)[1]
+               for c in node.children if c.block_type == "prose")
+
+
 def _option(text):
     """`(label, hint, recommended)` from one option line."""
     # The marker is honoured wherever it sits on the option, not only at the
@@ -646,11 +656,32 @@ def emit_item(node, ctx):
     else:
         question = md_body._inline(a["title"])
 
+    # `decided=yes` is a FLAG, and the composer's fold shows the checked option
+    # as the verdict: a bare `data-decided` with nothing checked folds to the
+    # title alone, and `data-decided="yes"` folds to a bare "yes" (LOOP-006
+    # decided-item-without-verdict). So the flag checks the option the author
+    # recommended; any other value is the verdict line itself.
     decided = a.get("decided", "").strip()
-    flag = ""
-    if decided:
-        flag = (" data-decided" if decided in ("yes", "true")
-                else ' data-decided="%s"' % esc(decided))
+    flag, check_recommended = "", False
+    if decided.lower() in contract_defects.NOT_A_VERDICT:
+        flag, check_recommended = " data-decided", True
+        recommended = sum(1 for t in opts if _option(t)[2])
+        if not recommended:
+            raise SpecBuildError(
+                node.line, "`item` decided=%s has no option marked "
+                "{recommended} to check, so the page would show no verdict: mark "
+                "the option that won, or write the verdict itself as "
+                "decided=\"…\"" % decided)
+        # One radio group holds one checked input: the parser keeps the last,
+        # and the fold would show it as the verdict with no one having chosen.
+        if recommended > 1 and select == "one":
+            raise SpecBuildError(
+                node.line, "`item` decided=%s marks more than one option "
+                "{recommended} on a select=one item, so it cannot say which one "
+                "won: keep the marker on the winner, or write the verdict itself "
+                "as decided=\"…\"" % decided)
+    elif decided:
+        flag = ' data-decided="%s"' % esc(decided)
     if a.get("free", "").strip() in ("yes", "true"):
         flag += " data-free"
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
@@ -670,10 +701,11 @@ def emit_item(node, ctx):
             if hint:
                 span += ' <span class="hint">%s</span>' % md_body._inline(hint)
             out.append('    <label><input type="%s" name="%s" '
-                       'data-label="%s"%s><span>%s</span></label>'
+                       'data-label="%s"%s%s><span>%s</span></label>'
                        % ("checkbox" if many else "radio",
                           esc(node.id), esc(PLAIN.sub("", label)),
-                          " data-recommended" if rec else "", span))
+                          " data-recommended" if rec else "",
+                          " checked" if rec and check_recommended else "", span))
         out.append("  </div>")
     out.extend("  " + p for p in render(tail))
     # The notes box is not optional on any item: a closed choice with nowhere to
@@ -1213,7 +1245,56 @@ def emit_node(node, ctx, parent=None):
             "unknown block type %r (known: %s)"
             % (node.block_type, ", ".join(sorted(EMITTERS))))
     _check_parent(node, parent)
-    return EMITTERS[node.block_type](node, ctx)
+    html = EMITTERS[node.block_type](node, ctx)
+    # LOOP-006 decision 3: a block the page contract fails as mixed content (a
+    # paragraph with `contract_defects.FACTS_MIN` code tokens or clauses, file
+    # paths listed in a sentence, prose in a code block) is refused here, by
+    # contract_defects' own rule run on what this block EMITS — after the
+    # promotions (a one-paragraph note unwrapped, an item's first paragraph
+    # made its <h3>) — so the builder refuses exactly what the check fails on
+    # the built page. A child is emitted, and refused, before its parent.
+    found = contract_defects.check_mixed_content_types("", html)
+    if found:
+        raise SpecBuildError(_offending_line(node, html, found[0][1]),
+                             "mixed-content-types: %s" % found[0][2])
+    return html
+
+
+def _offending_line(node, html, html_line):
+    """The spec line of the paragraph behind a mixed-content finding.
+
+    The finding names a line of the EMITTED html; the element it points at
+    opens there, each rendered block starting its own line (a wrapper's
+    opening tag may precede the first). Each blank-line-separated run of the
+    node's own prose (the node itself when it is prose, else its prose
+    children; a code fence is never split) is rendered alone, and the first
+    whose rendering sits there — first line on that html line, the rest
+    right after it — is the offender. None matches (a promoted block, a finding in
+    an emitter's own markup): the block's line.
+    """
+    lines = html.split("\n")[html_line - 1:]
+    target, after = lines[0], "\n".join(lines[1:])
+    runs = [node] if node.block_type == "prose" else [
+        c for c in node.children if c.block_type == "prose"]
+    for run in runs:
+        start, chunk, fence = 0, [], None
+        for i, ln in enumerate(run.raw_body + [""]):
+            before, fence = fence, md_body.fence_state(ln, fence)
+            if not ln.strip() and before is None and fence is None:
+                # The whole rendering must sit there: its first line on the
+                # finding's line, the rest right after it. A first line alone
+                # is ambiguous — `<pre><code>ls -la` opens two code blocks.
+                first, _, rest = md_body.fragment(
+                    "\n".join(chunk)).partition("\n")
+                if chunk and first.strip() and first.strip() in target \
+                        and after.startswith(rest):
+                    return run.line + start
+                chunk = []
+                continue
+            if not chunk:
+                start = i
+            chunk.append(ln)
+    return node.line
 
 
 def emit_children(node, ctx):
@@ -1249,6 +1330,30 @@ def _walk(nodes):
         yield node
         for sub in _walk(node.children):
             yield sub
+
+
+def _refuse_item_id_collisions(tree):
+    """Refuse an item id that another block of the spec also carries.
+
+    composer.js gives every consult item `id = data-id` at run time (:471)
+    while a group or section keeps its own `id`, so a shared value leaves two
+    elements with one id and the rail link lands on the first (LOOP-006
+    group-item-id-collision). The source shows no duplicate, so no check on the
+    page can see it before the composer runs; the spec is where it is written.
+    """
+    first = {}
+    for node in _walk(tree):
+        ident = node.id or ("notes" if node.block_type == "notes" else "")
+        if not ident:
+            continue
+        prev = first.setdefault(ident, node)
+        if prev is not node and ("item" in (prev.block_type, node.block_type)
+                                 or "notes" in (prev.block_type, node.block_type)):
+            raise SpecBuildError(
+                node.line, "id #%s is taken by the `%s` at line %d and again by "
+                "this `%s`: the composer gives every item its id at run time, so "
+                "the two collide on the page — rename one"
+                % (ident, prev.block_type, prev.line, node.block_type))
 
 
 # What makes a page a consultation: an item, the general-notes item, or a
@@ -1327,6 +1432,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     tree = parse(spec_text)
     _refuse_links(spec_text)
     _refuse_title_links(tree)
+    _refuse_item_id_collisions(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))
 
     head = []
@@ -1351,7 +1457,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
         out.append("</div>")
     out.append("</main>")
     out.append('<aside class="rail">')
-    out.append('  <p class="railhead">Contents</p>')
+    out.append('  <p class="railhead">%s</p>' % esc(md_body.railhead(ctx.lang)))
     out.append('  <nav class="raillist" id="raillist"></nav>')
     if answerable:
         out.append('  <div class="consult-bar">')

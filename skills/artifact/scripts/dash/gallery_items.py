@@ -281,21 +281,23 @@ def check_row(row, variants, n):
 
 
 def figure(root, path, tile, caption, cell, alt, assets, copies):
-    """One tile. With a page, `assets` is the page-relative dir of the copies
-    and the src is the capture's copy there; the copy is only recorded in
-    `copies` (name -> source), and `render` makes it once every row has passed.
-    Without one (`assets` None: a body with nowhere to land) the src is the
-    capture's own `file://` URL."""
+    """One tile. `assets` is the page-relative dir of the copies and the src is
+    the capture's copy there; the copy is only recorded in `copies` (name ->
+    source), and `render` makes it once every row has passed. Without a page
+    (`assets` None) there is nowhere to copy to, and a `file://` src pins the
+    page to this machine and to captures the next run wipes (LOOP-006
+    img-src-portable), so the tile is refused."""
     path = path.lstrip("/")
     width, height = png_size(root, path, cell, tile)
     full = os.path.join(root or "/", path)
     if assets is None:
-        src = "file://%s/%s" % (root, path)
-    else:
-        with open(full, "rb") as fh:
-            name = hashlib.sha256(fh.read()).hexdigest()[:16] + ".png"
-        copies[name] = full
-        src = urllib.parse.quote("%s/%s" % (assets, name))
+        die("row '%s': a gallery needs the page it goes into, to copy its "
+            "captures beside it: build with -o <out.html> (gallery-items.sh "
+            "--page)" % cell)
+    with open(full, "rb") as fh:
+        name = hashlib.sha256(fh.read()).hexdigest()[:16] + ".png"
+    copies[name] = full
+    src = urllib.parse.quote("%s/%s" % (assets, name))
     return ('      <figure data-tile="%s"><img src="%s" alt="%s" width="%d"'
             ' height="%d" loading="lazy"><figcaption>%s</figcaption></figure>'
             % (e(tile), e(src), e(alt), width, height, e(caption)))
@@ -340,8 +342,8 @@ def render(doc, root, group_id, group_title, lang, page=None):
     it — not an empty heading, not a "nothing changed" line.
 
     `page` is the path of the page the block goes into: every capture is copied
-    beside it (see the module docstring). None links the captures where they
-    are — only for a body that is not written as a page."""
+    beside it (see the module docstring). None is refused at the first tile:
+    a capture linked where it is breaks on this page's next reader."""
     if not doc["rows"]:
         return ""
     assets, copies = None, {}

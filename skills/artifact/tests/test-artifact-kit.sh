@@ -191,6 +191,24 @@ out="$(bash "$WRAP" --title "Kit smoke" --in "$TMP/body.html" --out "$OUT" 2>&1)
 grep -q 'artifact contract OK' <<<"$out" \
   || fail "the wrapped skeleton does not pass the artifact contract: $out"
 
+# The skeleton's rail heading is the kit's, and the wrap writes it in the page's
+# language: a copied skeleton wrapped --lang es read "Contents" to a reader with
+# no JS (LOOP-006 ui-string-language).
+# A Spanish read page carrying the skeleton's own rail, verbatim.
+{
+  printf '<div class="page">\n<main class="main">\n<h1>Informe de la semana</h1>\n'
+  printf '<p>Este es el informe de la semana, con las decisiones que se tomaron y por qué se tomaron, para que todo quede escrito.</p>\n</main>\n'
+  sed -n '/^<aside class="rail">/,/^<\/aside>/p' "$KIT/skeleton.html" | sed '/consult-bar/,/<\/div>/d'
+  printf '</div>\n'
+} > "$TMP/es-body.html"
+grep -q 'class="railhead"' "$TMP/es-body.html" || fail "could not lift the rail out of skeleton.html"
+bash "$WRAP" --title "Kit es" --lang es --in "$TMP/es-body.html" \
+     --out "$TMP/reports/kit-es.html" >/dev/null 2>&1
+grep -q '<p class="railhead">Contenido</p>' "$TMP/reports/kit-es.html" \
+  || fail "the skeleton wrapped --lang es keeps an English rail heading: $(grep -o '<p class="railhead">[^<]*' "$TMP/reports/kit-es.html")"
+grep -q '<p class="railhead">Contents</p>' "$OUT" \
+  || fail "the skeleton wrapped with no language lost its English rail heading"
+
 # The kit is injected, never linked: the page must stand alone offline.
 [[ -f "$OUT" ]] && {
   grep -qiE '<link[^>]+stylesheet|<script[^>]+src=' "$OUT" \

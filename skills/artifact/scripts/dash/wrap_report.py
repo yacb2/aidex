@@ -30,6 +30,10 @@ LEADING_STYLE = re.compile(r"\A\s*((?:<style\b[^>]*>.*?</style>\s*)+)", re.S | r
 # `- language: es` in the project style profile. A FIELD, not prose: the prose
 # form sat in the template for weeks and nothing could read it.
 LANG_FIELD = re.compile(r"^\s*[-*]?\s*language\s*:\s*([A-Za-z][A-Za-z0-9-]*)", re.M)
+# The `## Language` section's body, up to the next `#`/`##` heading: where the
+# field is declared (profile_language).
+LANG_SECTION = re.compile(r"^##[ \t]+Language[ \t]*$(.*?)(?=^#{1,2}[ \t]|\Z)",
+                          re.M | re.S | re.I)
 # A profile that NAMES a language in prose but declares no `language:` field is
 # the one failure mode the BL-279 page check cannot see: the wrapper falls to
 # "en", the body is written in English to match, and page and <html lang> agree,
@@ -413,11 +417,18 @@ def profile_language(ctx):
     Scope is ARTIFACTS. `.context/` stays English (D-04) whatever this says, and
     `communications/` keep the language they arrived in — this field only decides
     what a report a human reads is written in.
+
+    The declaration is the field inside `## Language`, wherever that section
+    sits (last in some profiles, near the top in others): a line elsewhere that
+    happens to read `- language: xx` (a worked example, a note about another
+    surface) is not it. With no such section, or none in it, the first field in
+    the file is. conventions/scripts/validate.py carries a copy of this reader.
     """
     text = _profile_text(ctx)
     if not text:
         return None
-    m = LANG_FIELD.search(text)
+    sec = LANG_SECTION.search(text)
+    m = (sec and LANG_FIELD.search(sec.group(1))) or LANG_FIELD.search(text)
     return m.group(1) if m else None
 
 
@@ -486,11 +497,13 @@ def _warn_prose_only_language(ctx):
 
 
 
-RAIL_ASIDE = ('<aside class="rail">\n  <p class="railhead">Contents</p>\n'
-              '  <nav class="raillist" id="raillist"></nav>\n</aside>')
+def rail_aside(lang):
+    return ('<aside class="rail">\n  <p class="railhead">%s</p>\n'
+            '  <nav class="raillist" id="raillist"></nav>\n</aside>'
+            % esc(md_body.railhead(lang)))
 
 
-def inject_rail(body):
+def inject_rail(body, lang="en"):
     """Add the skeleton's rail aside after </main> when the body has none.
 
     md_body emits it for markdown; the .html body path relied on the author
@@ -499,8 +512,24 @@ def inject_rail(body):
     wrapped page carries, so injecting it is never wrong on a kit page.
     """
     if re.search(r'id=["\']raillist["\']', body) or "</main>" not in body:
-        return body
-    return body.replace("</main>", "</main>\n" + RAIL_ASIDE, 1)
+        return localize_railhead(body, lang)
+    return body.replace("</main>", "</main>\n" + rail_aside(lang), 1)
+
+
+# A rail heading that is one of the KIT's own (md_body.RAILHEAD, in any
+# language), as skeleton.html ships it: an author's own heading does not match.
+KIT_RAILHEAD = re.compile(
+    r'(<p class="railhead">)(%s)(</p>)'
+    % "|".join(re.escape(v) for v in md_body.RAILHEAD.values()))
+
+
+def localize_railhead(body, lang):
+    """The kit's rail heading in an authored rail, rewritten in the page's
+    language. The HTML route copies skeleton.html, whose heading is English; a
+    reader with no JS (a static snapshot) saw "Contents" on a Spanish page
+    (LOOP-006 ui-string-language)."""
+    return KIT_RAILHEAD.sub(lambda m: m.group(1) + esc(md_body.railhead(lang))
+                            + m.group(3), body)
 
 
 # --- when this page was built (BL-439, audit finding USAGE-29) ---------------
@@ -827,13 +856,6 @@ def main():
     # What the author wrote, before any rendering: this is what the body sidecar
     # keeps, so a markdown report is revised as markdown.
     raw, raw_is_md = content, bool(args.infile and args.infile.lower().endswith(".md"))
-    if raw_is_md:
-        content = md_body.render(content, args.title)
-    if re.search(r"<!doctype\s+html", content, re.I):
-        print("ERROR: content already has a doctype — pass page content only, "
-              "not a full document", file=sys.stderr)
-        return 2
-
     # The style profile is looked up from where the artifact LANDS, not from the
     # cwd: a report is a sibling of its anchor and can be written into a project
     # the run is not standing in.
@@ -856,8 +878,15 @@ def main():
               f'done takes --lang en by D-04. Wrapping as lang="{args.lang}".',
               file=sys.stderr)
 
+    # After the language is known: the rendered rail is headed in it.
+    if raw_is_md:
+        content = md_body.render(content, args.title, lang)
+    if re.search(r"<!doctype\s+html", content, re.I):
+        print("ERROR: content already has a doctype — pass page content only, "
+              "not a full document", file=sys.stderr)
+        return 2
     head_extra, body = split_head_style(content)
-    body = inject_rail(body)
+    body = inject_rail(body, lang)
     # Before the kit is injected: the composer script and the kit CSS both spell
     # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
     this_round = next_round(args.outfile)

@@ -57,11 +57,13 @@ SCRIPTS = os.path.join(SKILL, "scripts")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "dash"))
 
+import contract_defects                          # noqa: E402
 import spec_build                                 # noqa: E402
 from spec_build import SpecBuildError, build      # noqa: E402
 from spec_parser import SpecSyntaxError           # noqa: E402
 
 BUILD = os.path.join(SCRIPTS, "spec_build.py")
+CONTRACT = os.path.join(SCRIPTS, "dash", "contract_defects.py")
 CHECK = os.path.join(SCRIPTS, "check-artifact.sh")
 
 failures = []
@@ -101,10 +103,10 @@ def holds(label, spec, *needles, **kw):
     return html
 
 
-def rejects(label, spec, line, needle=""):
+def rejects(label, spec, line, needle="", **kw):
     """The spec builds to nothing and the refusal names `line`."""
     try:
-        build(spec)
+        build(spec, **kw)
     except SpecBuildError as exc:
         if exc.line != line:
             fail("%s: reported line %d, expected %d (%s)"
@@ -289,13 +291,48 @@ try:
           '<section class="consult-item" data-id="Q1" data-title="Short name" data-decided>',
           '<h3><span class="consult-id">Q1</span>¿La pregunta, preguntada?</h3>')
     holds("item: the option list becomes `.opts one` with data-label and a hint",
-          ITEM,
+          ITEM.replace(" decided=yes", ""),
           '<div class="opts one">',
           '<input type="radio" name="Q1" data-label="Sí, cerrar" data-recommended>',
           '<span>Sí, cerrar <span class="hint">los doce ajustes son menores</span></span>',
           '<input type="radio" name="Q1" data-label="No, uno cambia el resultado">')
     holds("item: the notes box is injected on every item, never optional",
           ITEM, '<p class="fieldlabel">Notas sobre esto</p>', "<textarea ")
+    # LOOP-006 decided-item-without-verdict: `decided=yes` shipped a bare
+    # `data-decided` with nothing checked, and the composer's fold showed the
+    # title alone. "yes" is a flag, not a verdict: the option that won is the
+    # one the author recommended, and it carries `checked`.
+    decided_item = holds("item: decided=yes checks the recommended option",
+                         ITEM, 'data-label="Sí, cerrar" data-recommended checked>')
+    check("item: ...and only that one",
+          decided_item.count(" checked") == 1, decided_item)
+    for flag in ("YES", "true", "1"):
+        holds("item: decided=%s is the same flag, never a data-decided=\"%s\" "
+              "verdict" % (flag, flag), ITEM.replace("decided=yes", 'decided="%s"' % flag),
+              'data-title="Short name" data-decided>',
+              'data-recommended checked>')
+    rejects("item: decided=yes with no {recommended} option is refused",
+            ITEM.replace(" {recommended}", ""), 2,
+            "no option marked {recommended}")
+    # Two checked radios in one name group: the parser keeps the last, and the
+    # fold shows that one as the verdict with nothing on the page saying so.
+    rejects("item: decided=yes on a select=one item with two {recommended} "
+            "options is refused",
+            ITEM.replace("- No, uno cambia el resultado",
+                         "- No, uno cambia el resultado {recommended}"), 2,
+            "more than one")
+    holds("item: ...while select=many checks every recommended option",
+          ITEM.replace("decided=yes", "decided=yes select=many").replace(
+              "- No, uno cambia el resultado",
+              "- No, uno cambia el resultado {recommended}"),
+          'data-label="Sí, cerrar" data-recommended checked>',
+          'data-label="No, uno cambia el resultado" data-recommended checked>')
+    holds("item: a decided=\"<verdict>\" keeps its value and checks nothing",
+          ITEM.replace("decided=yes", 'decided="Sí, en dos pasos"'),
+          'data-decided="Sí, en dos pasos"')
+    check("item: ...no option is pre-checked by a written verdict",
+          " checked" not in build(ITEM.replace("decided=yes",
+                                               'decided="Sí, en dos pasos"')))
     # BL-468: an item with no option list points at options that do not
     # exist when it gets the options placeholder, and one marked `free=yes`
     # carries the flag check-artifact reads to leave it unwarned.
@@ -501,14 +538,19 @@ try:
 
     # gallery_items opens every tile (a missing capture is refused, the PNG
     # header gives the <img> its width and height), so each root is real.
-    def captures(root):
+    def captures(root, width):
         for rel in ("shots/ld/audit-with-data.png", "actual/ld/audit-with-data.png",
                     "shots/dm/audit-loaded.png", "actual/dm/audit-loaded.png"):
             os.makedirs(os.path.dirname(os.path.join(root, rel)), exist_ok=True)
             subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
-                            os.path.join(root, rel), "16", "9"], check=True)
+                            os.path.join(root, rel), str(width), "9"], check=True)
+    # Each root's captures have their own width, so the <img width> says which
+    # root a tile was read from: the src names a content-addressed copy.
     checkout = os.path.realpath(os.path.join(tmp, "checkout"))
-    captures(checkout)
+    captures(checkout, 16)
+    galpage = os.path.join(tmp, "galpages", "gal.html")
+    FIRST_TILE = ('<figure data-tile="before"><img '
+                  'src="gal-assets/gallery/')
     gal = holds("gallery: one consult-item per row, the pair on the block",
                 '::: gallery {#E title="Galería audit" rows="rows.json" '
                 'root="%s"}\n:::' % checkout,
@@ -517,12 +559,18 @@ try:
                 '<section class="consult-item consult-gallery" '
                 'data-id="audit-with-data-light-desktop" '
                 'data-title="audit · with-data · light-desktop"',
-                '<figure data-tile="before"><img '
-                'src="file://%s/shots/ld/audit-with-data.png"' % checkout,
+                FIRST_TILE, 'width="16"',
                 'data-id="audit-loaded-dark-mobile-unrequested"',
                 '<p class="gal-flag">cambió sin que lo pidieras</p>',
-                base_dir=tmp)
+                base_dir=tmp, page=galpage)
     check("gallery: rows= is relative to the SPEC, not to the cwd", bool(gal))
+    # LOOP-006 img-src-portable: a body built with no page to land beside
+    # linked every capture by file://, which pins the page to this machine and
+    # to captures Playwright wipes. There is nowhere to copy them, so the
+    # gallery is refused and the author is told to build with -o.
+    rejects("gallery: a body with no page to copy the captures beside is refused",
+            '::: gallery {#E title="G" rows="rows.json" root="%s"}\n:::'
+            % checkout, 1, "build with -o", base_dir=tmp)
 
     # `root` defaults to the CHECKOUT ROOT, not to the spec's directory. The
     # rows document's tile paths are relative to the checkout (gallery_items
@@ -537,20 +585,17 @@ try:
         json.dump(rows, fh)
     gitrc = subprocess.run(["git", "init", "-q", repo],
                            capture_output=True, text=True).returncode
-    captures(repo)
+    captures(repo, 17)
     GAL_SPEC = ('::: gallery {#E title="Galería audit" rows="rows.json"}\n:::')
     if gitrc == 0:
-        real = os.path.realpath(repo)
         html = holds("gallery: root defaults to the CHECKOUT root, not the "
-                     "spec's directory", GAL_SPEC,
-                     'src="file://%s/shots/ld/audit-with-data.png"' % real,
-                     base_dir=specdir)
+                     "spec's directory", GAL_SPEC, FIRST_TILE, 'width="17"',
+                     base_dir=specdir, page=galpage)
         check("gallery: no tile is resolved against the spec's own directory",
               ".context/specs/shots" not in html, html)
         holds("gallery: an explicit root= still overrides the default",
               '::: gallery {#E title="G" rows="rows.json" root="%s"}\n:::' % checkout,
-              'src="file://%s/shots/ld/audit-with-data.png"' % checkout,
-              base_dir=specdir)
+              FIRST_TILE, 'width="16"', base_dir=specdir, page=galpage)
     else:
         fail("gallery: `git init` failed in the temp dir, so the checkout-root "
              "default could not be exercised")
@@ -602,6 +647,23 @@ try:
                  % (label, type(exc).__name__, exc))
         else:
             fail("%s: built without a word" % label)
+
+    print()
+    print("== an item's id is unique in the spec (group-item-id-collision) ==")
+    # composer.js gives every item `id = data-id` at run time; a group or block
+    # carrying the same id leaves two elements with it, and the rail link lands
+    # on the group. Invisible on the source, so the builder refuses it.
+    W1_ITEM = '::: item {#W1 title="t"}\n?\n\n- A {recommended}\n- B\n:::\n'
+    rejects("a group whose id is its item's id is refused, naming both lines",
+            '::: group {#W1 title="T"}\n%s:::\n' % W1_ITEM, 2, "line 1")
+    rejects("a section whose id is an item's id is refused",
+            '::: section {#W1 heading="H"}\n:::\n\n::: group {#G1 title="T"}\n'
+            '%s:::\n' % W1_ITEM, 5, "line 1")
+    rejects("two items sharing an id are refused",
+            '::: group {#G1 title="T"}\n%s\n%s:::\n' % (W1_ITEM, W1_ITEM), 9,
+            "line 2")
+    holds("distinct ids build", '::: group {#G1 title="T"}\n%s:::\n' % W1_ITEM,
+          'data-id="W1"')
 
     print()
     print("== the builder's half of the two-layer split ==")
@@ -1100,6 +1162,95 @@ try:
           and os.path.exists(en_out)
           and '<html lang="en">' in open(en_out, encoding="utf-8").read(),
           r.stdout + r.stderr)
+
+    print()
+    print("== the rail and the prose follow the page contract (LOOP-006) ==")
+    # ui-string-language: the railhead was "Contents" on every page, so a
+    # Spanish page read without JS (a static snapshot) showed English chrome.
+    NOTES_ONLY = "::: masthead\n# T\n\nS\n:::\n::: notes {title=\"n\"}\n:::\n"
+    holds("an es page's rail is headed \"Contenido\"", NOTES_ONLY,
+          '<p class="railhead">Contenido</p>', lang="es")
+    holds("an en page's rail is headed \"Contents\"", NOTES_ONLY,
+          '<p class="railhead">Contents</p>', lang="en")
+    # mixed-content-types: a paragraph carrying FACTS_MIN <code> tokens is a
+    # list or a table written as a sentence. The threshold is contract_defects',
+    # read from there, so the builder and the check cannot drift apart.
+    dense = "Toca " + ", ".join("`v%d`" % i
+                                for i in range(contract_defects.FACTS_MIN)) + "."
+    rejects("a paragraph with FACTS_MIN code tokens is refused",
+            "Intro.\n\n%s\n" % dense, 3, "a list or a table")
+    rejects("...inside an item too, naming the paragraph's own line",
+            '::: group {#G1 title="T"}\n::: item {#Q1 title="t"}\n?\n\n%s\n\n'
+            "- A {recommended}\n- B\n:::\n:::\n" % dense, 5, "a list or a table")
+    rejects("...and inside a note, below an intro paragraph",
+            "Antes.\n\n::: note\nIntro.\n\n%s\n:::\n" % dense, 6,
+            "a list or a table")
+    # Two code blocks opening on the same line: the refusal names the one that
+    # holds the prose, not the first whose opening line matches.
+    PROSE_PRE = ("```\nls -la\nThis is the first long sentence. Here comes "
+                 "the second long sentence. And this is the third long "
+                 "sentence.\n```\n")
+    rejects("a code block of prose after a look-alike one names its own line",
+            "Intro.\n\n```\nls -la\necho ok\n```\n\n" + PROSE_PRE, 8,
+            "prose sentences")
+    holds("a paragraph with one token fewer builds",
+          "Toca %s.\n" % ", ".join(
+              "`v%d`" % i for i in range(contract_defects.FACTS_MIN - 1)),
+          "<code>v0</code>")
+    holds("the same tokens as a list build", "::: note\n%s\n:::\n"
+          % "\n".join("- `v%d`" % i for i in range(contract_defects.FACTS_MIN)),
+          "<li><code>v0</code></li>")
+
+    # No drift between the builder and the check: for each shape, the builder
+    # refuses exactly when contract_defects fails the page it would have
+    # built. The page is built with the builder's refusal switched off, so the
+    # comparison is against what the author would really have shipped —
+    # including the promotions (a one-paragraph note is unwrapped into the
+    # div, an item's first paragraph becomes its <h3>).
+    DRIFT = [
+        ("a dense paragraph", "Intro.\n\n%s\n" % dense),
+        ("a dense one-paragraph note", "::: note\n%s\n:::\n" % dense),
+        ("a dense two-paragraph note", "::: note\nIntro.\n\n%s\n:::\n" % dense),
+        ("a dense item question", '::: group {#G1 title="T"}\n'
+         '::: item {#Q1 title="t"}\n%s\n\n- A {recommended}\n- B\n:::\n:::\n'
+         % dense),
+        ("a dense masthead standfirst", "::: masthead\n# T\n\n%s\n:::\n" % dense),
+        ("a code block of prose", "Intro.\n\n" + PROSE_PRE),
+        ("a dense paragraph after an item's options", '::: group {#G1 title="T"}\n'
+         '::: item {#Q1 title="t"}\n?\n\n- A {recommended}\n- B\n\n%s\n:::\n:::\n'
+         % dense),
+    ]
+    real_check = spec_build.contract_defects.check_mixed_content_types
+    for label, spec in DRIFT:
+        # Only the mixed-content refusal counts: a spec refused for any other
+        # reason would read as agreement with a page that fails.
+        try:
+            build(spec)
+            refused = False
+        except SpecBuildError as exc:
+            if not exc.message.startswith("mixed-content-types:"):
+                fail("%s: refused for another reason (%s)" % (label, exc.message))
+                continue
+            refused = True
+        spec_build.contract_defects.check_mixed_content_types = \
+            lambda path, html: []
+        try:
+            page = build(spec)
+        except SpecBuildError as exc:
+            fail("%s: the page cannot be built even without the refusal (%s)"
+                 % (label, exc.message))
+            continue
+        finally:
+            spec_build.contract_defects.check_mixed_content_types = real_check
+        fails_page = bool(real_check("", page))
+        check("builder and check agree on %s (refused=%s, page fails=%s)"
+              % (label, refused, fails_page), refused == fails_page)
+    # The boundary: the built page itself, read by the contract checks.
+    r = subprocess.run([sys.executable, CONTRACT, out], capture_output=True,
+                       text=True)
+    check("the wrapped fixture page (PAGE, built to page.html) passes every "
+          "contract_defects source check",
+          r.returncode == 0, r.stdout + r.stderr)
 
     print()
     print("== the registration seam Phases 2 and 6 plug into ==")

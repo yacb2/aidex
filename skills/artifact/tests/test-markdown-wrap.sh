@@ -395,6 +395,14 @@ La [fuente](http://example.com/a) y [yo](mailto:a@b.c).
 [[ $rc -eq 0 ]] && ok "a .md with http: and mailto: links wraps (rc 0)" || fail "a .md with http:/mailto: links: wrap rc $rc"
 [[ "$(grep -o 'href="http://example.com/a"\|href="mailto:a@b.c"' "$TMP/links/ok.html" 2>/dev/null | wc -l | tr -d ' ')" -eq 2 ]] \
   && ok "…with both hrefs" || fail "the http:/mailto: hrefs are missing"
+# The rail md_body renders is headed in the page's language, not always "Contents"
+# (LOOP-006 ui-string-language: a static snapshot shows it as written).
+grep -q '<p class="railhead">Contenido</p>' "$TMP/links/ok.html" \
+  && ok "a .md wrapped --lang es gets a rail headed Contenido" \
+  || fail "the rendered rail of an es page is not headed Contenido: $(grep -o '<p class="railhead">[^<]*' "$TMP/links/ok.html")"
+grep -q '<p class="railhead">Contents</p>' "$TMP/report.html" \
+  && ok "…and a .md wrapped --lang en keeps Contents" \
+  || fail "the rendered rail of an en page is not headed Contents"
 printf '# Enlaces
 
 No [x](javascript:alert(1)) aqui.

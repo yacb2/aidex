@@ -1027,6 +1027,20 @@ grep -q '<html lang="es"' "$LANGP/.context/reports/c.html" \
   && ok "the profile's language: is applied without --lang" \
   || bad "the language: field is not load-bearing"
 
+# The profile's `## Language` section is its last one: an earlier line shaped like
+# the field (a worked example in another section) is not the declaration (LOOP-006).
+printf '## Layout\n\n- language: en (the code blocks)\n\n## Language\n\n- language: es\n' \
+  > "$LANGP/.context/artifact-style.md"
+printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --out "$LANGP/.context/reports/c2.html" >/dev/null 2>&1
+grep -q '<html lang="es"' "$LANGP/.context/reports/c2.html" \
+  && ok "the language: field inside ## Language wins over an earlier field-shaped line" \
+  || bad "an earlier language: line won over the ## Language section: $(grep -o '<html lang="[a-z]*"' "$LANGP/.context/reports/c2.html")"
+# …and the railhead the wrap injects is in that language (ui-string-language).
+grep -q '<p class="railhead">Contenido</p>' "$LANGP/.context/reports/c2.html" \
+  && ok "the injected rail is headed in the page's language" \
+  || bad "the injected rail is not headed Contenido on an es page: $(grep -o '<p class="railhead">[^<]*' "$LANGP/.context/reports/c2.html")"
+printf '## Language\n\n- language: es\n' > "$LANGP/.context/artifact-style.md"
+
 printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang fr --out "$LANGP/.context/reports/d.html" >/dev/null 2>&1
 grep -q '<html lang="fr"' "$LANGP/.context/reports/d.html" \
   && ok "an explicit --lang wins over the profile" || bad "--lang was overridden by the profile"

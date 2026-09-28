@@ -81,6 +81,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(HERE, "dash"))
 
 import check_artifact                                       # noqa: E402
+import contract_defects                                     # noqa: E402
 import md_body                                              # noqa: E402
 import spec_build                                           # noqa: E402
 import spec_parser                                          # noqa: E402
@@ -367,9 +368,24 @@ def decide(spec_text, item_id, verdict):
                         "an item carries a decision"
                         % (item_id, node.block_type, node.line))
     if not verdict.strip():
-        raise VerbError("an empty verdict for #%s — pass `yes` for a plain "
-                        "decision, or the text that says what was decided"
+        raise VerbError("an empty verdict for #%s — pass the chosen option's "
+                        "label, or the text that says what was decided"
                         % item_id)
+    # On an item with options, `yes` makes the builder check the {recommended}
+    # option: the author's advice, not what the reader chose. The verdict is
+    # the chosen option's label (LOOP-006 review).
+    if verdict.strip().lower() in contract_defects.NOT_A_VERDICT:
+        try:
+            offers = spec_build.has_options(node)
+        except SpecBuildError as exc:
+            raise VerbError("#%s cannot be read (line %d: %s)"
+                            % (item_id, exc.line, exc.message))
+        if offers:
+            raise VerbError(
+                "#%s has options, and %r would record its {recommended} option "
+                "as the verdict whatever the reader chose — pass the chosen "
+                "option's label as the verdict (e.g. --verdict \"<label>\")"
+                % (item_id, verdict.strip()))
 
     lines = _split(spec_text)
     i = node.line - 1
@@ -574,8 +590,15 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
 
     new = transform(old)
     base_dir = os.path.dirname(os.path.abspath(spec_path))
+    out = out or default_out(spec_path)
+    # The body is built for a page, because a gallery copies its captures
+    # beside the page it goes into and refuses a body with none. The page is
+    # named like the real one (the copies' folder is `<stem>-assets`) but sits
+    # in a temp dir: a refusal here must leave nothing behind.
     try:
-        spec_build.build(new, lang=lang, base_dir=base_dir)
+        with tempfile.TemporaryDirectory(prefix="spec-verbs-check-") as scratch:
+            spec_build.build(new, lang=lang, base_dir=base_dir,
+                             page=os.path.join(scratch, os.path.basename(out)))
         title = spec_build.page_title(new)
     except (SpecSyntaxError, SpecBuildError) as exc:
         raise VerbError(
@@ -586,7 +609,6 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
             "%s has no masthead title, so the page it builds has no <title> — "
             "nothing was written" % spec_path)
 
-    out = out or default_out(spec_path)
     if os.path.abspath(out) == os.path.abspath(spec_path):
         raise VerbError("--out %s is the spec itself" % out)
 
@@ -660,7 +682,10 @@ def main(argv):
     d = common(subs.add_parser("decide", help="record an item's verdict"))
     d.add_argument("--id", required=True, dest="ident", metavar="<#id>")
     d.add_argument("--verdict", required=True,
-                   help="`yes` for a plain decision, or the verdict text")
+                   help="the chosen option's label, or the text that says "
+                        "what was decided. `yes` is refused on an item with "
+                        "options (it would record the recommended option, not "
+                        "the reader's) and fails the build on one without")
 
     common(subs.add_parser(
         "new-round", help="sync the ledger to the decided items and rebuild"))
