@@ -842,6 +842,14 @@ try:
             1, "names no cell")
     rejects("a body on a block that takes none",
             '::: notes {title="N"}\ntexto\n:::', 1, "takes no body")
+    # An aside is a framed box: with no body it rendered as an empty bordered
+    # bar (`<div class="note"></div>`) above the options of every item that
+    # carried one, and the build still exited 0.
+    rejects("an empty `note` inside an item is refused at ITS line",
+            '::: item {#D2 title="X"}\nQuestion text?\n\n::: note\n:::\n\n'
+            "- A {recommended}\n- B\n:::\n", 4, "empty")
+    rejects("an empty `callout` is refused, blank lines are not a body",
+            "::: callout\n\n:::\n", 1, "empty")
     # The line number a REFUSAL carries is the spec's, not the rendered page's:
     # the author edits the spec.
     # `prose` is the type the tokenizer gives a fence-less run, which also made

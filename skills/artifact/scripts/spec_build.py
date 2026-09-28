@@ -254,6 +254,18 @@ def _refuse_prose_fence(node):
         "line and its closing `:::`; the body stays exactly where it is")
 
 
+def _refuse_empty_aside(node):
+    """A `note` or `callout` with no body. Raised, never rendered.
+
+    Both are framed boxes, so an empty one is not nothing on the page: it is a
+    bordered bar with nothing in it — above the options of every item that
+    carried one, on the consultation that found it — and the build exited 0.
+    """
+    raise SpecBuildError(
+        node.line, "`%s` is empty — an aside with no body renders as an empty "
+        "framed box: write what it says, or delete the fence" % node.block_type)
+
+
 def _no_children(node):
     for child in node.children:
         if child.block_type == "prose" and child.authored:
@@ -892,9 +904,11 @@ def emit_verdict(node, ctx):
 @emitter("callout")
 def emit_callout(node, ctx):
     _attrs(node, set(), forbid_id=True)
+    lines = _prose_lines(node)
+    if not any(ln.strip() for ln in lines):
+        _refuse_empty_aside(node)
     return '<div class="%s">\n%s\n</div>' % (
-        _classes("callout", node),
-        md_body.fragment("\n".join(_prose_lines(node))))
+        _classes("callout", node), md_body.fragment("\n".join(lines)))
 
 
 def _data_lines(node):
@@ -1202,8 +1216,12 @@ def emit_note(node, ctx):
     # it rather than the first, and folding them into one says the author wrote
     # one frame where they drew two.
     _attrs(node, set(), forbid_id=True)
+    segments = _segments(node, ASIDES)
+    if not any(kind == "block" or any(ln.strip() for ln in payload)
+               for kind, payload in segments):
+        _refuse_empty_aside(node)
     parts = []
-    for kind, payload in _segments(node, ASIDES):
+    for kind, payload in segments:
         if kind == "block":
             parts.append(emit_node(payload, ctx, parent="note"))
         else:
