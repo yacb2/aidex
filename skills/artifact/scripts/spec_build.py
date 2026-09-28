@@ -491,8 +491,8 @@ def _split_options(lines, line):
 
     An item's options are a bullet list and nothing else: a numbered list stays
     prose (it is a sequence, not a choice), and only the FIRST list is read as
-    the option group so an item may still show a list of evidence below its
-    options. Continuation lines follow `md_body`'s rule — indented, folded into
+    the option group; a second `-` list is refused by `_refuse_second_list`,
+    which walks the body with this function. Continuation lines follow `md_body`'s rule — indented, folded into
     the item above — because the two must agree about where an option ends.
 
     A ``` / ~~~ CODE FENCE is tracked, with `md_body.fence_state` and not a
@@ -549,6 +549,36 @@ def has_options(node):
     Raises SpecBuildError on a body `_split_options` refuses."""
     return any(_split_options(list(c.raw_body), node.line)[1]
                for c in node.children if c.block_type == "prose")
+
+
+def _refuse_second_list(node):
+    """Refuse an item body with a second top-level `-` list, at that list's line.
+
+    Only the first list is read as the options, so an explanation list written
+    above the real options became the radio buttons and the real options became
+    prose — their `{recommended}` shipped as literal text, or `decided=yes` was
+    refused for the wrong reason. Which list the author meant is not readable
+    from the source, so the build asks instead of guessing.
+    """
+    first = None
+    for child in node.children:
+        if child.block_type != "prose":
+            continue
+        rest, at = list(child.raw_body), child.line
+        while True:
+            before, opts, after = _split_options(rest, node.line)
+            if not opts:
+                break
+            if first is not None:
+                raise SpecBuildError(
+                    at + len(before), "`item` has a second `-` list and only the "
+                    "first is its options (line %d)%s: number the explanation "
+                    "list (`1.`) or move it into a `note`"
+                    % (first, ", so the {recommended} here is never read"
+                       if any(RECOMMENDED in t for t in opts) else ""))
+            first = at + len(before)
+            at += len(rest) - len(after)
+            rest = after
 
 
 def _option(text):
@@ -628,8 +658,16 @@ def emit_item(node, ctx):
         raise SpecBuildError(
             node.line, "`item` select=%r is not a value (it takes: one, many)"
             % select)
+    # The composer prefixes the id, so the reply would read it twice;
+    # contract_defects owns the predicate (item-title-repeats-id).
+    if contract_defects.title_repeats_id(node.id, a["title"]):
+        raise SpecBuildError(
+            node.line, "`item` title=%r repeats its id %s: the composer "
+            "prefixes the id already, so drop it from the title"
+            % (a["title"], node.id))
     segments = _segments(node, ASIDES + FIGURE_BLOCKS,
                          "prose, its options, a figure")
+    _refuse_second_list(node)
     # The option list is the FIRST one in the body, wherever it sits, and the
     # segments before and after it keep their order around it.
     head, opts, tail = [], [], []

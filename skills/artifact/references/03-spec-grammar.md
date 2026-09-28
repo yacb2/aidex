@@ -657,7 +657,8 @@ Graphviz version is written in a comment inside the `<figure>`.
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder
-reads it (the tokenizer only sees prose). One option per `- ` line; ` — ` splits the
+reads it (the tokenizer only sees prose). A second `-` list is refused at its line:
+number an explanation list (`1.`) or move it into a `note`. One option per `- ` line; ` — ` splits the
 label from its hint; `{recommended}` anywhere on the line marks it. The keyed attr
 `select=` decides what kind of list it is:
 

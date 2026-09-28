@@ -197,6 +197,9 @@ you get it wrong:
   body. Both on one masthead is refused, not resolved.
 - **`{recommended}` is not an attr.** It sits at the end of an option line, inside the
   block's prose, and the `item` builder reads it there.
+- **An item's first `-` list is its options, and a second one is refused** at its line:
+  number an explanation list (`1.`) or move it into a `note`. An item title that repeats
+  its id (`title="X1 — …"` on `#X1`) is refused at the fence (`item-title-repeats-id`).
 - **`decided=yes` is an ordinary keyed attr.** The grammar has no bare flags, so
   `{… decided}` alone is malformed. On an item with options, `decided=yes` (or
   `true`/`1`) checks the option marked `{recommended}`, because the fold shows the
