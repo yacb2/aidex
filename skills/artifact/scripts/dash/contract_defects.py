@@ -15,8 +15,9 @@ decision-item-without-options
     many radio/checkbox inputs, or a <select> with that many <option>s, counted
     on the item's OWN subtree (a nested consult item's options answer the nested
     item). Exempt: the general-notes item (`consult-notes`), a settled item
-    (`data-decided`, the exact attribute; `data-decided-round` alone is not one)
-    and an OPEN ANSWER marked `data-free` whose value is not "no"/"false" — the
+    (`data-decided`, the exact attribute; `data-decided-round` alone is not one),
+    a gallery SAMPLE row — exactly what composer.js:707-712 leaves uncounted
+    (BL-466): a gallery row with no `.opts` group — and an OPEN ANSWER marked `data-free` whose value is not "no"/"false" — the
     marker the spec route already writes for `free=yes` (spec_build.py). Also
     fails on a literal `{recommended}` in any attribute value (data-label is
     what the composer copies) or in visible text outside <code>/<pre> (inside
@@ -85,7 +86,8 @@ lang-follows-profile
     lang fails too. The project and the field are read by wrap_report's own
     find_context_dir/profile_language, so the verdict depends on WHERE the page
     sits. Close-out reports under `/worklists/_archive/` are not exempt (BL-382);
-    `human-verification.*` pages are, pending an owner ruling. No profile, or no
+    `human-verification.*` pages are, the one page English by D-04 (owner
+    ruling, LOOP-006: no wrap flag switches this class off). No profile, or no
     `language:` field: not judged.
 
 decided-section-anchor
@@ -263,10 +265,23 @@ def option_count(item):
     return max(inputs, select)
 
 
+def _gallery_sample(item):
+    """composer.js:707-712 (BL-466): a gallery row with no `.opts` group is a
+    SAMPLE that asks nothing, counted nowhere like the notes item. Same
+    predicate as the composer: isGalleryRow (composer.js:1433: class
+    `consult-gallery`, or a `.gal` / `figure[data-tile]` anywhere in the
+    subtree) and no `.opts` anywhere in the subtree (querySelector)."""
+    sub = list(item.walk())
+    gallery = "consult-gallery" in item.classes() or any(
+        "gal" in d.classes() or (d.tag == "figure" and "data-tile" in d.attrs)
+        for d in sub)
+    return gallery and not any("opts" in d.classes() for d in sub)
+
+
 def check_decision_item_without_options(path, html_text):
     b, out, slug = parse(html_text), [], "decision-item-without-options"
     for n in b.root.walk():
-        if not (_is_item(n) and "data-id" in n.attrs):
+        if not (_is_item(n) and "data-id" in n.attrs) or _gallery_sample(n):
             continue
         free = n.attrs.get("data-free")
         if "data-decided" in n.attrs or (
@@ -589,7 +604,7 @@ def check_item_title_repeats_id(path, html_text):
 
 # --- 8. lang-follows-profile ----------------------------------------------------
 
-LANG_EXEMPT_PREFIX = "human-verification."     # owner question, LOOP-006 STATE
+LANG_EXEMPT_PREFIX = "human-verification."     # D-04, owner ruling LOOP-006
 _CONTEXT_DIRS = {}                             # page directory -> .context or None
 
 

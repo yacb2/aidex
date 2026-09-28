@@ -61,6 +61,16 @@ got="$(changed "$A" "$(item Q1 'The first question')$(item Q2 'The second questi
 got="$(changed "$A" "$(item Q2 'The second question')$(item Q1 'The first question')")"
 [[ -z "$got" ]] || fail "a MOVED item reports '$got' — same id, same question, new position"
 
+# The wrap writes kit field labels in the page's language (localize_chrome), so a
+# page wrapped before that carries "Notes on this one" where the next wrap writes
+# "Notas sobre esta". The question is the same: composer.js questionHash puts a
+# translated label back into English before hashing, and so does question_of.
+ES_OLD='<section class="consult-item" data-id="Q1" data-title="T"><h3>¿Seguimos?</h3><p class="fieldlabel">Notes on this one</p><textarea></textarea></section>'
+got="$(changed "$ES_OLD" "${ES_OLD/Notes on this one/Notas sobre esta}")"
+[[ -z "$got" ]] || fail "a kit label localised by the wrap reports '$got' as a changed question"
+got="$(changed "$ES_OLD" "${ES_OLD/Notes on this one/Mis propias notas}")"
+[[ "$got" == "Q1" ]] || fail "an author's own label change reports '$got', expected 'Q1'"
+
 got="$(changed "$A" "$A$(item Q3 'A question that is new')")"
 [[ -z "$got" ]] || fail "an ADDED id reports '$got' — it has no previous question to differ from"
 

@@ -1348,6 +1348,19 @@ $composer"
 rc="$(run "$TMP/svg-oklch-bg.html")"
 grep -q "\[svg-contrast\].*'dark slate on a light oklch wrapper'" "$TMP/out" \
   && fail "10o. an oklch() wrapper background was not read, so the label was judged on the page ground: $(cat "$TMP/out")"
+# ...and with a trailing `!important`, which the whole-value parse read as part
+# of the colour, so the wrapper was skipped again (review, LOOP-006).
+mkpage "$TMP/svg-oklch-imp.html" "<style>figure.cell .okbox { background: oklch(0.2 0.02 250) !important }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"okbox\"><svg id=\"fig-oi\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"oi\">
+  <style>#fig-oi text { font-size: 12px }</style>
+  <text x=\"10\" y=\"40\" fill=\"#FFFFFF\">white on a dark oklch wrapper marked important</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/svg-oklch-imp.html")"
+grep -q "\[svg-contrast\].*'white on a dark oklch wrapper marked important'" "$TMP/out" \
+  && fail "10o. an oklch() !important wrapper background was not read, so the label was judged on the page ground: $(cat "$TMP/out")"
 python3 - "$SKILL/scripts/dash" <<'PY' || fail "10o. oklch() does not convert to the sRGB the browser paints"
 import sys; sys.path.insert(0, sys.argv[1]); import check_artifact as ca
 # Reference values: what Chromium paints on a canvas for each (±1 per channel);

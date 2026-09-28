@@ -1135,7 +1135,8 @@ def svg_literal_colour(v):
     contrast check must not invent the half of a pair it cannot see."""
     if not v:
         return None
-    v = v.strip().strip('"\'')
+    # A CSS declaration may end in `!important`: priority, not part of the colour.
+    v = re.sub(r'\s*!\s*important\s*$', '', v.strip(), flags=re.I).strip('"\'')
     low = v.lower()
     if low in SVG_NAMED:
         v = SVG_NAMED[low]
@@ -2251,9 +2252,8 @@ def h2s_outside_id_sections(flat):
     return p.orphans
 
 
-def check_file(path, skip=()):
-    """Every violation in one file, as (check, name, message) tuples. `skip`
-    names contract classes not judged on this run (see `--lang-chosen`)."""
+def check_file(path):
+    """Every violation in one file, as (check, name, message) tuples."""
     fails = []
 
     def report(check, msg, name=None):
@@ -2464,8 +2464,7 @@ def check_file(path, skip=()):
     # warning used to live here as a second copy); this only reports its
     # findings, one FAIL per finding, keyed by the class slug.
     try:
-        slugs = [c for c in contract_defects.CHECKS if c not in skip]
-        for slug, line, msg in contract_defects.findings(path, slugs):
+        for slug, line, msg in contract_defects.findings(path):
             report(slug, f"line {line}: {msg}")
     except Exception as e:                          # noqa: BLE001 — fail closed
         report("contract", f"the contract-defects scan did not run ({e})")
@@ -3313,7 +3312,6 @@ def run_census(arg):
 
 def main(argv):
     prev = None
-    skip = ()
     census = False
     census_arg = None
     files = []
@@ -3325,12 +3323,6 @@ def main(argv):
                 print("ERROR: --prev needs a file", file=sys.stderr)
                 return 2
             prev = args.pop(0)
-        elif a == "--lang-chosen":
-            # PENDING THE OWNER'S RULING (LOOP-006, interim 2026-09-28): the wrap
-            # passes this for a record page (wrap_report._is_record), which takes
-            # an explicit --lang by D-04, and it skips lang-follows-profile for
-            # this run only. A standalone check and the census still judge it.
-            skip = ("lang-follows-profile",)
         elif a == "--census":
             census = True
             if args and not args[0].startswith("--"):
@@ -3359,7 +3351,7 @@ def main(argv):
 
     failures, warnings = [], []
     for f in files:
-        failures.extend(check_file(f, skip))
+        failures.extend(check_file(f))
         try:
             warnings.extend(warn_file(f))
         except Exception as e:                      # noqa: BLE001 — advisory

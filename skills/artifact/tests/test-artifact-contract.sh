@@ -226,10 +226,12 @@ t = open(sys.argv[1], encoding="utf-8").read()
 # The template ships BLOCKS to paste into skeleton.html, so the fixture supplies
 # the layout container the skeleton would have. Without it the page is judged
 # full-bleed (BL-177) and "the template fails nothing else" stops being about
-# the template.
+# the template. The template's own rail goes after </main>, where it says it lives.
+t = re.sub(r"\A\s*<!--.*?-->\s*", "", t, flags=re.S)
+blocks, rail = t.split('<aside class="rail">', 1)
 print('<div class="page"><main class="main">')
-print(re.sub(r"\A\s*<!--.*?-->\s*", "", t, flags=re.S))
-print('</main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>')
+print(blocks)
+print('</main><aside class="rail">' + rail + '</div>')
 PY
 # The shipped template must satisfy every check EXCEPT the one that is, by
 # definition, an author's decision about a specific subject.
@@ -387,9 +389,10 @@ done
 # this suite now rejects. It has to count them.
 mk noviz.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}
 :root[data-theme=\"dark\"] .consult-bar{background:#101619}</style>
-<section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Ctx\"><h2>Ctx</h2><section class=\"consult-item\" data-id=\"c1\" data-title=\"T\"><textarea></textarea></section></section>
+<main><section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Ctx\"><h2>Ctx</h2><section class=\"consult-item\" data-id=\"c1\" data-title=\"T\" data-free><textarea></textarea></section></section>
 <section class=\"consult-item consult-notes\" data-id=\"notes\" data-title=\"General notes\"><textarea></textarea></section>
-<button id=\"consult-copy\"></button><span id=\"consult-status\"></span>
+<button id=\"consult-copy-end\"></button></main>
+<aside class=\"rail\"><div class=\"consult-bar\"><button id=\"consult-copy\"></button><span id=\"consult-status\"></span></div></aside>
 <script>
 document.getElementById('consult-copy').addEventListener('click', function () {
   var blank = [];
@@ -829,7 +832,7 @@ out="$(bash "$CHECK" "$TMP/ent-diff.html" --prev "$TMP/ent-old.html" 2>&1)"
 # fixture: the `lang` check reads the body's own prose, so a page that merely
 # relabels <html lang> is a different defect and would mask this one.
 TR_ITEM='<section class="consult-item" data-id="c2" data-title="%s"><h3>%s</h3>
-<div class="opts one"><label><input type="radio" name="c2" data-label="A"><span>A</span></label></div>
+<div class="opts one"><label><input type="radio" name="c2" data-label="A"><span>A</span></label><label><input type="radio" name="c2" data-label="B"><span>B</span></label></div>
 <p class="fieldlabel">Notes on this one</p><textarea></textarea></section>'
 tr_page() {  # tr_page <lang> <title> <prose> <out>
   printf '<meta name="consult-visual" content="none: %s">\n<div class="page"><main class="main">
@@ -837,8 +840,9 @@ tr_page() {  # tr_page <lang> <title> <prose> <out>
 <section class="consult-group" id="G1" data-id="G1" data-title="%s"><div class="sec-head"><h2>%s</h2></div><p>%s</p>
 '"$TR_ITEM"'</section>
 <section class="consult-item consult-notes" data-id="notes" data-title="%s"><h3>%s</h3><textarea></textarea></section>
-<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>
-</section></main></div>\n' "$3" "$2" "$3" "$2" "$2" "$3" "$4" "$4" "$5" "$5" \
+<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>
+</section></main><aside class="rail"><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>\n' "$3" "$2" "$3" "$2" "$2" "$3" "$4" "$4" "$5" "$5" \
     | bash "$WRAP" --title "$2" --lang "$1" --out "$6" >/dev/null 2>&1
 }
 EN_PROSE='This is the question we are asking about the site and about the people who will use it; there is nothing else in it.'
@@ -994,9 +998,9 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
 [[ "$err" == *"NOTE:"* && "$err" == *"language: es"* && "$err" == *"--lang en"* ]] \
   && ok "BL-371: --lang en against a profile declaring es prints a NOTE naming both" \
   || bad "BL-371: --lang contradicting the profile was accepted in silence: $err"
-grep -q '<html lang="en">' "$CONTRAP/.context/reports/a.html" \
-  && ok "and the explicit --lang still wins (a note, not a refusal)" \
-  || bad "BL-371: the note changed the outcome instead of naming it"
+[[ ! -f "$CONTRAP/.context/reports/a.html" ]] \
+  && ok "and the page is refused, not written (LOOP-006: every page follows the profile)" \
+  || bad "a page wrapped --lang en against a language: es profile was written"
 # The negative: agreeing with the profile must stay silent, or the note is noise on
 # every correct call.
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
@@ -1005,14 +1009,14 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
   && ok "BL-371: --lang agreeing with the profile stays silent" \
   || bad "BL-371: the note fired on an agreeing --lang: $err"
 
-# A close-out report under worklists/_archive/ is English by D-04 whatever the
-# profile says (a wrap of that record passes --lang en on purpose) — no note there.
+# A close-out report under worklists/_archive/ follows the profile too (BL-382,
+# BL-482): only human-verification.* takes --lang en (test-contract-defects.sh).
 mkdir -p "$CONTRAP/.context/worklists/_archive"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
         --out "$CONTRAP/.context/worklists/_archive/x-report.html" 2>&1 >/dev/null)"
-[[ "$err" != *"contradicts"* ]] \
-  && ok "BL-371: a record under worklists/_archive/ takes --lang en without a note" \
-  || bad "BL-371: the contradiction note fired on a close-out report: $err"
+[[ "$err" == *"contradicts"* && ! -f "$CONTRAP/.context/worklists/_archive/x-report.html" ]] \
+  && ok "a close-out record under worklists/_archive/ with --lang en is noted and refused" \
+  || bad "a close-out record kept --lang en against the profile: $err"
 
 grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" && pwd -P)/artifact-style.md.template" \
   && ok "the style template carries a parseable language: field" \
@@ -1042,8 +1046,9 @@ grep -q '<p class="railhead">Contenido</p>' "$LANGP/.context/reports/c2.html" \
 printf '## Language\n\n- language: es\n' > "$LANGP/.context/artifact-style.md"
 
 printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang fr --out "$LANGP/.context/reports/d.html" >/dev/null 2>&1
-grep -q '<html lang="fr"' "$LANGP/.context/reports/d.html" \
-  && ok "an explicit --lang wins over the profile" || bad "--lang was overridden by the profile"
+[[ ! -f "$LANGP/.context/reports/d.html" ]] \
+  && ok "an explicit --lang against the profile is refused, not silently applied" \
+  || bad "--lang fr against a language: es profile was written as $(grep -o '<html lang="[a-z]*"' "$LANGP/.context/reports/d.html")"
 
 # A profile that names its language in PROSE and declares no `language:` field is
 # the one case the BL-279 page check cannot see: the wrapper falls to "en", the

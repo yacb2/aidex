@@ -966,7 +966,7 @@ try:
               'lo que se pidió.\n:::\n\n'
               '::: group {#GR title="Informe" heading="R1: informe"}\n'
               "**Lo que se pidió:** un informe de la nota.\n\n"
-              '::: item {#R1 title="R1"}\nAbre [R1](R1.html) y puntúala.\n\n'
+              '::: item {#R1 title="Utilidad del informe"}\nAbre [R1](R1.html) y puntúala.\n\n'
               "- 1 — no sirve\n- 5 — excelente\n:::\n:::\n\n"
               '::: notes {title="Comentario general"}\n:::\n')
     linked = build(review)
@@ -993,7 +993,8 @@ try:
                                          "<code>[R1](R1.html)</code>"))
     check("a raw link shown as <code> is not flagged — that is the author "
           "quoting the syntax", r.returncode == 0, r.stdout + r.stderr)
-    # BL-481: the net for the option marker. The pre-fix shape is what the
+    # BL-481: the net for the option marker (contract_defects owns it now,
+    # under decision-item-without-options, LOOP-006). The pre-fix shape is what the
     # builder emitted for `- 5 {recommended} — excelente`: the marker as text
     # in the label, no data-recommended.
     leaked = linked.replace(
@@ -1004,7 +1005,8 @@ try:
           "{recommended}" in leaked and leaked != linked)
     r = contract("leaked", leaked)
     check("check-artifact FAILS a page that shows a literal {recommended}",
-          r.returncode != 0 and "[rec-leak]" in r.stdout + r.stderr,
+          r.returncode != 0 and "[decision-item-without-options]" in r.stdout
+          and "literal {recommended}" in r.stdout + r.stderr,
           r.stdout + r.stderr)
     r = contract("rec-coded", linked.replace(
         "Abre <a", "Escribe <code>{recommended}</code> y abre <a"))

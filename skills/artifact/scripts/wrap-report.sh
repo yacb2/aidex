@@ -26,8 +26,9 @@
 # An `--in` file ending in `.md` is rendered from markdown first (dash/md_body.py):
 # the close-out case, where a run already wrote a durable report and only the page
 # is missing. Content on stdin is always page markup — a pipe has no name to read
-# the intent from. Pass `--lang` explicitly for a `.context/` report: its body is
-# English by D-04 whatever the project's artifact language is.
+# the intent from. Every page follows the profile's language; only a
+# `human-verification.*` page takes `--lang en` (D-04), and an explicit `--lang`
+# that contradicts the profile anywhere else is refused (LOOP-006).
 #
 # For a `.md` input `--title` is also the fallback `<h1>`, used when the markdown
 # carries no `# ` line of its own — `human-verification.md` is that shape, and

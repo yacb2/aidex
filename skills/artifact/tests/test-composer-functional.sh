@@ -119,7 +119,7 @@ PAGE="$TMP/reports/consult.html"
 # id's data-title changes, so a session cannot signal "same claim, new question"
 # through either.
 write_body() {  # write_body <q1-question-sentence> [decided-attr]
-# $2, when given, is `data-decided` and it is stamped on Q1 AND Q2 — the page
+# $2, when given, is `data-decided="<verdict>"`, stamped on Q1 AND Q2 — the page
 # BL-331 taught the checker to accept and BL-341 found the composer had never
 # been taught: every question settled, so collect()'s denominator is 0.
 local dec="${2:-}"
@@ -137,7 +137,7 @@ $gopen
       <label><input type="radio" name="Q0" data-label="La opcion elegida" checked><span>La opci&oacute;n elegida</span></label>
       <label><input type="radio" name="Q0" data-label="La opcion descartada"><span>La opci&oacute;n descartada</span></label>
     </div>
-    <p class="fieldlabel">Notas sobre esta</p>
+    <p class="fieldlabel">Notes on this one</p>
     <textarea></textarea>
   </section>
   <section class="consult-item" data-id="Q1" data-title="The probed question" $dec>
@@ -149,7 +149,7 @@ $gopen
     <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
-  <section class="consult-item" data-id="Q2" data-title="The untouched question" $dec>
+  <section class="consult-item" data-id="Q2" data-title="The untouched question" data-free $dec>
     <h3><span class="consult-id">Q2</span>This question never changes</h3>
     <p class="fieldlabel">Write freely</p>
     <div contenteditable="true"></div>
@@ -1026,7 +1026,8 @@ t="$(run 'phase=verify')"
 # so a fix that hid the bar would trade one wrong page for another. Both halves
 # are asserted, in both of the kit's languages.
 rm -rf "$TMP/profile"
-write_body "$Q1_V1" 'data-decided'
+# A settled item carries its verdict (decided-item-without-verdict, LOOP-006).
+write_body "$Q1_V1" 'data-decided="Resuelta en la ronda anterior"'
 wrap_page es
 td="$(run 'phase=alldecided')"
 [[ "$td" == *ALLDECIDED* ]] || fail "the all-decided phase did not run: $td"
@@ -1162,14 +1163,14 @@ cat > "$TMP/sbody.html" <<'HTML'
     <p class="fieldlabel">Notas sobre esta</p>
     <textarea></textarea>
   </section>
-  <section class="consult-item" data-id="S2" data-title="The value surface">
+  <section class="consult-item" data-id="S2" data-title="The value surface" data-free>
     <h3><span class="consult-id">S2</span>What value</h3>
     <p class="fieldlabel">El valor</p>
     <input type="text">
     <p class="fieldlabel">Notas sobre esta</p>
     <textarea></textarea>
   </section>
-  <section class="consult-item" data-id="S3" data-title="The prose surface">
+  <section class="consult-item" data-id="S3" data-title="The prose surface" data-free>
     <h3><span class="consult-id">S3</span>Write what you think</h3>
     <p class="fieldlabel">Write freely</p>
     <div contenteditable="true"></div>
@@ -2350,14 +2351,14 @@ cat > "$TMP/gbody-pair.html" <<HTML
       <figure data-tile="before"><img src="$PX" alt="empty before"><figcaption>antes</figcaption></figure>
       <figure data-tile="after"><img src="$PX" alt="empty after"><figcaption>propuesto</figcaption></figure>
     </div>
-    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label><label><input type="radio" name="audit-empty-light-desktop" data-label="Necesita cambios"><span>Necesita cambios</span></label></div>
     <p class="fieldlabel">Notas</p><textarea></textarea>
   </section>
   <section class="consult-item consult-gallery" data-id="audit-new-light-desktop" data-title="audit &middot; new &middot; light-desktop" data-variant="light-desktop" data-tiles="after">
     <h3><span class="consult-id">audit-new-light-desktop</span>audit &middot; new &middot; light-desktop</h3>
     <p>New screen.</p>
     <div class="gal"><figure data-tile="after"><img src="$PX" alt="new after"><figcaption>pantalla nueva</figcaption></figure></div>
-    <div class="opts one"><label><input type="radio" name="audit-new-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <div class="opts one"><label><input type="radio" name="audit-new-light-desktop" data-label="Aprobada"><span>Aprobada</span></label><label><input type="radio" name="audit-new-light-desktop" data-label="Necesita cambios"><span>Necesita cambios</span></label></div>
     <p class="fieldlabel">Notas</p><textarea></textarea>
   </section>
 </section>
@@ -2411,7 +2412,7 @@ cat > "$TMP/gbody-sample.html" <<HTML
       <figure data-tile="before"><img src="$PX" alt="empty before"><figcaption>antes</figcaption></figure>
       <figure data-tile="after"><img src="$PX" alt="empty after"><figcaption>propuesto</figcaption></figure>
     </div>
-    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label><label><input type="radio" name="audit-empty-light-desktop" data-label="Necesita cambios"><span>Necesita cambios</span></label></div>
     <p class="fieldlabel">Notas</p><textarea></textarea>
   </section>
   <section class="consult-item consult-gallery" data-id="audit-loaded-light-desktop-sample" data-title="audit &middot; loaded &middot; light-desktop" data-variant="light-desktop">

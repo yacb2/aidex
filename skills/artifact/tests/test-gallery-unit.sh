@@ -420,18 +420,18 @@ mkpage() {  # mkpage <out> <body>
     printf ':root[data-theme="dark"] .consult-bar { background: #111; }\n'
     printf '</style>\n</head>\n<body>\n<div class="page"><main class="main">\n'
     printf '%s\n' "$2"
-    printf '</main><aside class="rail"><nav class="raillist" id="raillist"></nav></aside></div>\n'
+    printf '</main><aside class="rail"><nav class="raillist" id="raillist"></nav>%s</aside></div>\n' "$railbar"
     printf '<script>var blank = 0;</script>\n</body>\n</html>\n'
   } > "$1"
 }
 
 figure() {  # figure <tile>
-  printf '<figure data-tile="%s"><img src="file:///abs/checkout/shots/%s.png" alt="audit · with-data · %s" loading="lazy"><figcaption>%s</figcaption></figure>' \
+  printf '<figure data-tile="%s"><img src="page-assets/gallery/%s.png" alt="audit · with-data · %s" loading="lazy"><figcaption>%s</figcaption></figure>' \
     "$1" "$1" "$1" "$1"
 }
 galrow() {  # galrow <id> <inner-html>
-  printf '<section class="consult-item consult-gallery" data-id="%s" data-title="audit row"><h3><span class="consult-id">%s</span>audit row</h3><p>The cells of this row.</p>%s<div class="opts one"><label><input type="radio" name="%s" data-label="Approved"><span>Approved</span></label></div><p class="fieldlabel">Notes on this row</p><textarea></textarea></section>' \
-    "$1" "$1" "$2" "$1"
+  printf '<section class="consult-item consult-gallery" data-id="%s" data-title="audit row"><h3><span class="consult-id">%s</span>audit row</h3><p>The cells of this row.</p>%s<div class="opts one"><label><input type="radio" name="%s" data-label="Approved"><span>Approved</span></label><label><input type="radio" name="%s" data-label="Needs changes"><span>Needs changes</span></label></div><p class="fieldlabel">Notes on this row</p><textarea></textarea></section>' \
+    "$1" "$1" "$2" "$1" "$1"
 }
 block() {  # block <data-tiles-attr> <items>
   printf '<section class="consult-group" id="E" data-id="E" data-title="The audit gallery"%s><div class="sec-head"><h2>The audit gallery</h2></div><p>The state matrix this block reviews, one row per screen state.</p>%s</section>' \
@@ -439,7 +439,8 @@ block() {  # block <data-tiles-attr> <items>
 }
 header='<header><p class="eyebrow">FIXTURE</p><h1>Claim</h1><p class="standfirst">The thesis.</p></header>'
 notes='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
-bars='<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>'
+bars='<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>'
+railbar='<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>'
 tiles_attr=' data-tiles="light-desktop dark-desktop light-mobile dark-mobile"'
 all_four="$(figure light-desktop)$(figure dark-desktop)$(figure light-mobile)$(figure dark-mobile)"
 
@@ -510,7 +511,7 @@ rc="$(run "$TMP/na-ok.html")"
 # (10) a page with no gallery item at all reports nothing here. The rule is
 #      unconditional in check_file, so this is the cell that keeps it from
 #      judging every ordinary consultation item.
-plain='<section class="consult-item" data-id="q1" data-title="An ordinary item"><h3>An ordinary item</h3><div class="opts one"><label><input type="radio" name="q1" data-label="Yes"><span>Yes</span></label></div><p class="fieldlabel">Notes</p><textarea></textarea></section>'
+plain='<section class="consult-item" data-id="q1" data-title="An ordinary item"><h3>An ordinary item</h3><div class="opts one"><label><input type="radio" name="q1" data-label="Yes"><span>Yes</span></label><label><input type="radio" name="q1" data-label="No"><span>No</span></label></div><p class="fieldlabel">Notes</p><textarea></textarea></section>'
 mkpage "$TMP/plain.html" "<meta name=\"consult-visual\" content=\"none: fixtures have no shape to draw\">$header$(block "" "$plain")$notes$bars"
 rc="$(run "$TMP/plain.html")"
 [[ "$rc" == 0 ]] && ok "an ordinary consultation item is untouched by the gallery rules" \
@@ -551,8 +552,8 @@ echo "== the adversarial round =="
 # `<figure data-tile>` and no `consult-gallery`, and the whole battery went
 # silent on it. A gallery item is what a gallery item LOOKS like.
 plain_gal() {  # plain_gal <id> <inner>
-  printf '<section class="consult-item" data-id="%s" data-title="audit row"><h3><span class="consult-id">%s</span>audit row</h3><p>The cells of this row.</p>%s<div class="opts one"><label><input type="radio" name="%s" data-label="Approved"><span>Approved</span></label></div><p class="fieldlabel">Notes on this row</p><textarea></textarea></section>' \
-    "$1" "$1" "$2" "$1"
+  printf '<section class="consult-item" data-id="%s" data-title="audit row"><h3><span class="consult-id">%s</span>audit row</h3><p>The cells of this row.</p>%s<div class="opts one"><label><input type="radio" name="%s" data-label="Approved"><span>Approved</span></label><label><input type="radio" name="%s" data-label="Needs changes"><span>Needs changes</span></label></div><p class="fieldlabel">Notes on this row</p><textarea></textarea></section>' \
+    "$1" "$1" "$2" "$1" "$1"
 }
 page "$TMP/f1-handmade.html" "$(block "$tiles_attr" "$(plain_gal audit-with-data "<div class=\"gal\">$(figure light-desktop)$(figure dark-desktop)$(figure light-mobile)</div>")")"
 rc="$(run "$TMP/f1-handmade.html")"; red "F1 a hand-made row with no consult-gallery class is still judged" \
@@ -649,9 +650,9 @@ echo "== a row that narrows its block's matrix (new screen: after alone) =="
 # a RED control: widening, a narrowed row that still shows the tile it dropped,
 # and a pair row that drops "before" without saying so.
 pair_attr=' data-tiles="before after"'
-pfig() { printf '<figure data-tile="%s"><img src="file:///abs/repo/%s.png" alt="%s"><figcaption>%s</figcaption></figure>' "$1" "$1" "$1" "$1"; }
+pfig() { printf '<figure data-tile="%s"><img src="page-assets/gallery/%s.png" alt="%s"><figcaption>%s</figcaption></figure>' "$1" "$1" "$1" "$1"; }
 nrow() {  # nrow <item-attrs> <inner>
-  printf '<section class="consult-item consult-gallery" data-id="audit-new-state-light-desktop" data-title="audit row"%s><h3>audit row</h3><p>The capture.</p>%s<div class="opts one"><label><input type="radio" name="audit-new-state-light-desktop" data-label="Approved"><span>Approved</span></label></div><p class="fieldlabel">Notes on this row</p><textarea></textarea></section>' \
+  printf '<section class="consult-item consult-gallery" data-id="audit-new-state-light-desktop" data-title="audit row"%s><h3>audit row</h3><p>The capture.</p>%s<div class="opts one"><label><input type="radio" name="audit-new-state-light-desktop" data-label="Approved"><span>Approved</span></label><label><input type="radio" name="audit-new-state-light-desktop" data-label="Needs changes"><span>Needs changes</span></label></div><p class="fieldlabel">Notes on this row</p><textarea></textarea></section>' \
     "$1" "$2"
 }
 page "$TMP/n1.html" "$(block "$pair_attr" "$(nrow ' data-tiles="after"' "<div class=\"gal\">$(pfig after)</div>")")"

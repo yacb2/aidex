@@ -68,6 +68,16 @@ page c1-exempt es '<section class="consult-item" data-id="Q1" data-free><textare
 passes $C c1-exempt "data-free, data-decided and the notes item are exempt"
 page c1-free-no es '<section class="consult-item" data-id="Q1" data-free="no"><textarea></textarea></section>'
 fails $C c1-free-no "data-free=\"no\" does not exempt"
+# A gallery SAMPLE asks nothing (BL-466): composer.js counts no gallery row
+# without an .opts group, so neither does the class. A gallery row WITH an .opts
+# group is a question like any other and still needs two options.
+FIG='<div class="gal"><figure data-tile="after"><img src="a.png" alt="a"></figure></div>'
+page c1-sample es "<section class=\"consult-item consult-gallery\" data-id=\"audit-x-sample\">$FIG<textarea></textarea></section>"
+passes $C c1-sample "a gallery sample row (no .opts, BL-466) is not a question"
+page c1-sample-tile es "<section class=\"consult-item\" data-id=\"audit-y-sample\"><figure data-tile=\"after\"><img src=\"a.png\" alt=\"a\"></figure><textarea></textarea></section>"
+passes $C c1-sample-tile "a row that is a gallery row by its figure[data-tile] alone is judged the same"
+page c1-gal-one es "<section class=\"consult-item consult-gallery\" data-id=\"audit-z\">$FIG$ONE_RADIO<textarea></textarea></section>"
+fails $C c1-gal-one "a gallery pair row with one radio still fails"
 page c1-free-false es '<section class="consult-item" data-id="Q1" data-free="false"><textarea></textarea></section>'
 fails $C c1-free-false "data-free=\"false\" does not exempt"
 page c1-round es '<section class="consult-item" data-id="Q1" data-decided-round="2"><textarea></textarea></section>'
@@ -339,8 +349,8 @@ echo "== KIT_STRINGS lockstep: every kit chrome string is in contract_defects ==
 # purpose. A string added to the kit's chrome and not to that copy is a label the
 # class can no longer see in the wrong language. Sources: composer.js's CHROME
 # keys (the labels it relabels) in STRINGS.en/.es, spec_build.STRINGS,
-# gallery_items' notes box and md_body.RAILHEAD (the rail heading every builder
-# writes).
+# gallery_items' notes box and md_body.CHROME (the chrome the wrap localises),
+# which must also carry exactly composer.js's value for each of its keys.
 missing="$(python3 - "$HERE/.." <<'PY'
 import os, re, sys
 root = sys.argv[1]
@@ -355,9 +365,13 @@ for lang in ("en", "es"):
     for k in keys:
         m = re.search(r"\n\s*%s: '((?:[^'\\]|\\.)*)'" % k, block)
         want.append((lang, "composer.js %s.%s" % (lang, k), m.group(1) if m else None))
+        mine = md_body.CHROME.get(k, {}).get(lang)
+        if m and mine != re.sub(r"\\u([0-9a-fA-F]{4})", lambda u: chr(int(u.group(1), 16)), m.group(1)):
+            print("md_body CHROME.%s.%s = %r differs from composer.js" % (k, lang, mine))
 for lang, table in spec_build.STRINGS.items():
     want += [(lang, "spec_build %s.%s" % (lang, k), v) for k, v in table.items()]
-want += [(lang, "md_body RAILHEAD.%s" % lang, v) for lang, v in md_body.RAILHEAD.items()]
+want += [(lang, "md_body CHROME.%s.%s" % (k, lang), v)
+         for k, t in md_body.CHROME.items() for lang, v in t.items()]
 for name in ("NOTES_LABEL", "NOTES_PLACEHOLDER"):
     want += [(lang, "gallery_items %s.%s" % (name, lang), v)
              for lang, v in getattr(gallery_items, name).items()]
@@ -444,13 +458,12 @@ printf '%s\n' "$cout" | grep -q 'WARN \[decision-item-without-options\] ' \
   && ok "the census warns a contract finding instead of failing it" \
   || bad "the census did not demote the contract class to a warning: $cout"
 
-echo "== lang-follows-profile at build time: only a record keeps an explicit --lang =="
-# Interim ruling pending the owner: the wrap skips lang-follows-profile only for
-# the two record classes that are English by D-04 whatever the profile says
-# (wrap_report._is_record: a close-out under worklists/_archive/, and
-# human-verification.*). Keyed on the record, not on --lang, because spec_build
-# and spec_verbs forward --lang on every build. The standalone check and the
-# census still judge every page.
+echo "== lang-follows-profile at build time: only human-verification.* keeps --lang en =="
+# Owner ruling (LOOP-006 Phase C): an explicit --lang that contradicts the
+# profile is refused on every page but human-verification.*, the one page English
+# by D-04 (the class exempts it by name). A close-out record under
+# worklists/_archive/ follows the profile (BL-382, BL-482): no flag switches the
+# check off at wrap time.
 LP="$TMP/langproj"; mkdir -p "$LP/.context/reports" "$LP/.context/worklists/_archive"
 printf -- '- language: es\n' > "$LP/.context/artifact-style.md"
 EN_BODY='<div class="page"><main class="main"><h1>Report</h1><p>An English report on purpose, with enough words to read as English prose for the checker.</p></main></div>'
@@ -462,13 +475,15 @@ printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "Engli
 REC="$LP/.context/worklists/_archive/sweep-report.html"
 printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "English" --lang en \
   --out "$REC" >"$TMP/wrap.out" 2>&1; wrc=$?
-[[ $wrc -eq 0 ]] && ! grep -q 'lang-follows-profile' "$TMP/wrap.out" \
-  && ok "a close-out record keeps its --lang en" \
-  || bad "the record's --lang was refused (rc=$wrc): $(cat "$TMP/wrap.out")"
-bash "$HERE/../scripts/check-artifact.sh" "$REC" >"$TMP/chk.out" 2>&1
-[[ $? -eq 1 ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/chk.out" \
-  && ok "the standalone check still reports lang-follows-profile on the record" \
-  || bad "the standalone check lost lang-follows-profile: $(cat "$TMP/chk.out")"
+[[ $wrc -ne 0 && ! -f "$REC" ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/wrap.out" \
+  && ok "a close-out record under worklists/_archive/ with --lang en is refused" \
+  || bad "the close-out record kept --lang en against the profile (rc=$wrc): $(cat "$TMP/wrap.out")"
+HV="$LP/.context/reports/human-verification.html"
+printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "English" --lang en \
+  --out "$HV" >"$TMP/wrap.out" 2>&1; wrc=$?
+[[ $wrc -eq 0 ]] && ! grep -q 'lang-follows-profile\|NOTE: --lang' "$TMP/wrap.out" \
+  && ok "human-verification.* keeps its --lang en, with no note" \
+  || bad "human-verification's --lang en was refused or noted (rc=$wrc): $(cat "$TMP/wrap.out")"
 # The spec route forwards --lang es by default: lang-follows-profile must still run.
 SP="$TMP/specproj"; mkdir -p "$SP/.context/reports"
 printf -- '- language: en\n' > "$SP/.context/artifact-style.md"

@@ -190,6 +190,29 @@ out="$(bash "$WRAP" --title "Kit smoke" --in "$TMP/body.html" --out "$OUT" 2>&1)
 [[ "$rc" -eq 0 ]] || fail "wrapping the skeleton failed (exit $rc): $out"
 grep -q 'artifact contract OK' <<<"$out" \
   || fail "the wrapped skeleton does not pass the artifact contract: $out"
+# The same skeleton under lang="es": every English kit label it ships (buttons,
+# field labels, placeholders) is written in the page's language by the wrap, or
+# the blocking ui-string-language class refuses the page (LOOP-006). Wrapped to
+# stdout and judged by that one class: the skeleton's prose is English, which the
+# `lang` gate would rightly refuse under es.
+bash "$WRAP" --title "Kit es" --lang es --in "$TMP/body.html" > "$TMP/kit-es-chrome.html" 2>/dev/null \
+  || fail "the skeleton did not wrap --lang es to stdout"
+# Non-vacuous: the page is there and carries the Spanish kit strings the class
+# would otherwise pass for want of any chrome at all.
+for s in 'id="consult-copy">Copiar mis respuestas<' '<p class="fieldlabel">Notas sobre esta</p>' \
+         'placeholder="Cualquier cosa que las opciones no cubran…"' '<p class="railhead">Contenido</p>'; do
+  grep -qF "$s" "$TMP/kit-es-chrome.html" || fail "the skeleton wrapped --lang es lacks $s"
+done
+out="$(python3 "$SKILL/scripts/dash/contract_defects.py" --class ui-string-language \
+       "$TMP/kit-es-chrome.html" 2>&1)" \
+  || fail "the skeleton wrapped --lang es keeps English kit strings: $out"
+# Only the English defaults are translated, as composer.js does: a Spanish kit
+# label on an en page is the author's own and is left as written.
+printf '<div class="page"><main class="main"><p class="fieldlabel">Notas sobre esta</p><textarea placeholder="Lo que sea…"></textarea></main></div>\n' \
+  | bash "$WRAP" --title "Kit en" --lang en > "$TMP/kit-en-own.html" 2>/dev/null
+grep -qF '<p class="fieldlabel">Notas sobre esta</p>' "$TMP/kit-en-own.html" \
+  && grep -qF 'placeholder="Lo que sea…"' "$TMP/kit-en-own.html" \
+  || fail "the wrap translated a non-English label on an en page: $(grep -o 'fieldlabel">[^<]*' "$TMP/kit-en-own.html")"
 
 # The skeleton's rail heading is the kit's, and the wrap writes it in the page's
 # language: a copied skeleton wrapped --lang es read "Contents" to a reader with

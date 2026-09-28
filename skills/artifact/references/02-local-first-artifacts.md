@@ -961,18 +961,16 @@ mode — measured at 2 of 4 field reports before this existed.
 renders the markdown into the kit's page structure first (`dash/md_body.py`), which is
 the close-out case: a run's durable record — `worklists/_archive/<worklist>-report.md`,
 `.context/proofs/<slug>/human-verification.md` — is already written and only the page is
-missing. Pass `--lang` explicitly there: a `.context/` report's body is English by D-04
-whatever the project's artifact language is, and the profile would otherwise stamp the
-other one over it. Content on stdin is always page markup; only a named `.md` converts.
+missing. Content on stdin is always page markup; only a named `.md` converts.
 
-**The exception is for records, not for every page under `.context/`.** A consultation
-— a kickoff page, any page addressed TO the reader asking them to decide — follows the
-profile like any other artifact, even when it lands in `.context/reports/`. D-04 governs
-what is written *about* work done; a message to the reader is written in the reader's
-language. Only `<worklist>-report.md` and `human-verification.md` take `--lang en`.
-`wrap_report.py` prints a NOTE when an explicit `--lang` contradicts a declared profile
-(BL-371) — a wrong choice is otherwise invisible, because the `lang` gate compares the
-body with the declaration and an English body under `lang="en"` agrees with itself.
+**Every page follows the profile but one.** `human-verification.*` is English by D-04
+whatever the project's artifact language is, so its wrap passes `--lang en`, and it is the
+only page that may. Everything else — a consultation, a kickoff page, a close-out record
+under `worklists/_archive/` (BL-382, BL-482) — is written in the profile's language, even
+when it lands under `.context/`. An explicit `--lang` that contradicts a declared profile
+prints a NOTE (BL-371) and the wrap is refused by `lang-follows-profile` (LOOP-006): a
+wrong choice is otherwise invisible, because the `lang` gate compares the body with the
+declaration and an English body under `lang="en"` agrees with itself.
 
 **Use `--out`, not a shell redirect.** With `--out` the command writes the file *and*
 verifies the artifact contract on it, exiting non-zero if it fails — so wrapping and
@@ -1532,6 +1530,7 @@ exempts nothing, same rule as the visual declaration.
 |---|---|
 | `consult` | reply boxes without a `data-id` / `data-title`, an item without free text, duplicate ids, no general-notes item, no `#consult-copy` button, no `#consult-status`, no blank-count in the composer, no visual and no declared reason, or no `:root[data-theme="dark"]` rule for `.consult-bar`. Closed controls that only filter a read are exempted by a declared `consult-surfaces` reason (above) |
 | `consult-ids` | an id kept between two versions now names a different claim |
+| `decision-item-without-options` | a `.consult-item` with fewer than two radio, checkbox or select options, not `data-decided`, not `data-free` — a decision then gets answered as prose, and the page that shipped it asked the same decisions again with options elsewhere. Give it its options, or mark it an open answer with `data-free` (`free=yes` in a spec). Was the `consult-free` warning (BL-468); one owner now, `dash/contract_defects.py`, like the page's other source classes (LOOP-006) |
 | `rail` | a kit page inside `.page`/`.main` with no `#raillist`, or an `<h2>` outside any id'd `<section>` — composer.js builds the index at load from `.main > section[id]`, so either way the reader opens a page with a missing or partial index (D4, 2026-09-13: two delegated pages shipped so). `wrap-report.sh` injects the aside after `</main>` when the body has none |
 
 **The findings below are WARNINGS, not violations.** They print as `WARN [check]`, never change
@@ -1544,7 +1543,6 @@ on a page nobody is editing is noise no one can clear.
 |---|---|
 | `consult-opts` | an item's radio/checkbox sits outside any `.opts` wrapper — the kit styles options nowhere else, so they render unstyled and the contract passes anyway |
 | `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
-| `consult-free` | a `.consult-item` with no radio, checkbox or select, not `data-decided`, not `data-free`. A decision is then answered as prose, and the page that shipped it asked the same decisions again with options elsewhere. Put the options on the item, or mark it `free=yes` (BL-468) |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
 | `consult-order` | a block's last item is followed, before the block ends, by a figure, img, svg, video, table, canvas or a `<p>@@VIDEO …@@</p>` marker (a project post-build step turns those into `<video>`) — the answer box renders above the material it asks about (§8.4, BL-463). Cleared by moving the evidence above its item |

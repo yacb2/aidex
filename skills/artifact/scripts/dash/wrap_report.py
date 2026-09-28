@@ -399,16 +399,11 @@ def _profile_text(ctx):
         return None
 
 
-def _is_record(outfile):
-    """The two page classes that are English by D-04 whatever the profile says:
-    a run's close-out report under worklists/_archive/ and human-verification.md.
-    The contradiction NOTE (BL-371) is for a page addressed to the reader; firing
-    it on the one call that is right by construction is noise at every close-out."""
-    if not outfile:
-        return False
-    path = os.path.abspath(outfile).replace(os.sep, "/")
-    return ("/worklists/_archive/" in path
-            or os.path.basename(path).startswith("human-verification."))
+def _takes_english(outfile):
+    """human-verification.* is the one page English by D-04 whatever the profile
+    says (contract_defects exempts it from lang-follows-profile too). A close-out
+    record under worklists/_archive/ follows the profile (BL-382, BL-482)."""
+    return bool(outfile) and os.path.basename(outfile).startswith("human-verification.")
 
 
 def profile_language(ctx):
@@ -512,24 +507,63 @@ def inject_rail(body, lang="en"):
     wrapped page carries, so injecting it is never wrong on a kit page.
     """
     if re.search(r'id=["\']raillist["\']', body) or "</main>" not in body:
-        return localize_railhead(body, lang)
+        return body
     return body.replace("</main>", "</main>\n" + rail_aside(lang), 1)
 
 
-# A rail heading that is one of the KIT's own (md_body.RAILHEAD, in any
-# language), as skeleton.html ships it: an author's own heading does not match.
-KIT_RAILHEAD = re.compile(
-    r'(<p class="railhead">)(%s)(</p>)'
-    % "|".join(re.escape(v) for v in md_body.RAILHEAD.values()))
+# Where each md_body.CHROME string sits on a kit page: the opening tag of a text
+# label, or the textarea whose placeholder it is. Mirrors composer.js CHROME.
+_LABEL = r'<[a-z]+\b[^>]*\bclass="fieldlabel"[^>]*>'
+CHROME_SITES = (
+    ("copy", "text", r'<button\b[^>]*\bid="consult-copy(?:-end)?"[^>]*>'),
+    ("contents", "text", r'<p class="railhead">'),
+    ("notes", "text", _LABEL), ("choice", "text", _LABEL),
+    ("value", "text", _LABEL), ("general", "text", _LABEL),
+    ("notesPh", "placeholder", None), ("listPh", "placeholder", None),
+    ("valuePh", "placeholder", None), ("generalPh", "placeholder", None),
+)
 
 
-def localize_railhead(body, lang):
-    """The kit's rail heading in an authored rail, rewritten in the page's
-    language. The HTML route copies skeleton.html, whose heading is English; a
-    reader with no JS (a static snapshot) saw "Contents" on a Spanish page
-    (LOOP-006 ui-string-language)."""
-    return KIT_RAILHEAD.sub(lambda m: m.group(1) + esc(md_body.railhead(lang))
-                            + m.group(3), body)
+def _kit_value(v):
+    """A kit string as the source may spell it: the ellipsis raw or as an entity."""
+    return re.escape(v).replace("…", "(?:…|&hellip;|&#8230;)")
+
+
+def _chrome_sub(body, target, sources, kinds=("text", "placeholder")):
+    """Every CHROME site whose text is the `sources` languages' kit string,
+    rewritten as the `target` language's."""
+    for key, kind, opening in CHROME_SITES:
+        if kind not in kinds:
+            continue
+        values = "|".join(_kit_value(md_body.CHROME[key][l]) for l in sources
+                          if l in md_body.CHROME[key])
+        if not values:
+            continue
+        if kind == "text":
+            pat = r"(%s)(\s*(?:%s)\s*)(</)" % (opening, values)
+        else:
+            pat = r'(<textarea\b[^>]*?\bplaceholder=")(%s)(")' % values
+        body = re.sub(pat, lambda m: m.group(1) + esc(md_body.chrome(key, target))
+                      + m.group(3), body)
+    return body
+
+
+def localize_chrome(body, lang):
+    """The kit's English chrome defaults (md_body.CHROME), as skeleton.html and
+    the consultation template ship them, rewritten in the page's language. The
+    HTML route copies English defaults; a reader with no JS (a static snapshot)
+    saw them on a Spanish page (LOOP-006 ui-string-language). Only the exact
+    English defaults are translated, as composer.js:306-316 does; an author's
+    own label, in any language, stays."""
+    return _chrome_sub(body, lang, ["en"])
+
+
+def chrome_to_english(body):
+    """The inverse on the text sites, for comparing questions: a translated kit
+    label put back into English, as composer.js questionHash does before it
+    hashes (:868-872)."""
+    others = sorted({l for t in md_body.CHROME.values() for l in t} - {"en"})
+    return _chrome_sub(body, "en", others, kinds=("text",))
 
 
 # --- when this page was built (BL-439, audit finding USAGE-29) ---------------
@@ -654,14 +688,15 @@ def insert_built_line(body, text):
 # its clone: the controls the kit INJECTS are dropped, every `[contenteditable]`
 # subtree is emptied (its text is the reader's own typing, not the question), and
 # what is left is taken the way `textContent` takes it — tags vanish, they do
-# not become spaces — with whitespace collapsed. Three steps of that function
+# not become spaces — with whitespace collapsed. Two steps of that function
 # are deliberately not mirrored, and none of them can invent a difference this
 # does not have:
 #   - the FNV hash: the normalised text is compared directly, so there is no
 #     collision to worry about either;
-#   - the `.fieldlabel` re-translation, which the browser applies to a label the
-#     FILE always stores in English — on disk there is nothing to put back;
 #   - `<option>` text is kept, exactly as the composer keeps it.
+# Its `.fieldlabel` re-translation IS mirrored (`chrome_to_english`): the wrap
+# writes kit labels in the page's language since LOOP-006, and without it every
+# re-wrap of an older page would report every question as changed.
 # A class is matched as a whole token and `contenteditable` as an attribute
 # NAME: `\b` is satisfied by a hyphen, the trap `ATTR_DECIDED` records above.
 CONSULT_ITEM_OPEN = re.compile(
@@ -696,7 +731,7 @@ def question_texts(text):
     import check_artifact as ca
 
     def question_of(body):
-        body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+        body = chrome_to_english(re.sub(r"<!--.*?-->", "", body, flags=re.S))
         kept, pos = [], 0
         for m in QUESTION_DROP.finditer(body):
             if m.start() < pos:
@@ -866,16 +901,14 @@ def main():
     if args.lang is None and profile_lang is None:
         _warn_prose_only_language(ctx)
     elif (args.lang and profile_lang and args.lang != profile_lang
-          and not _is_record(args.outfile)):
-        # BL-371: the symmetric blind spot. An explicit --lang wins, but a silent
-        # override is how a consultation reached its reader in the wrong language:
-        # check-artifact's lang gate cannot see it (an English body under lang="en"
-        # agrees with itself). Name the contradiction; do not refuse it -- a
-        # `.context/` record of work done is English by D-04 whatever the profile says.
+          and not _takes_english(args.outfile)):
+        # BL-371: an explicit --lang that contradicts the profile. The check that
+        # runs on --out refuses it (lang-follows-profile); this names why first,
+        # and says so on stdout wraps too, which that check never sees.
         print(f'NOTE: --lang {args.lang} contradicts {ctx}/artifact-style.md, which '
-              f'declares `language: {profile_lang}`. A page addressed to the reader '
-              f'(a consultation) follows the profile; only a record of work already '
-              f'done takes --lang en by D-04. Wrapping as lang="{args.lang}".',
+              f'declares `language: {profile_lang}`. Every page follows the '
+              f'profile; only a human-verification.* page takes --lang en by D-04. '
+              f'Wrapping as lang="{args.lang}", which check-artifact refuses.',
               file=sys.stderr)
 
     # After the language is known: the rendered rail is headed in it.
@@ -886,7 +919,7 @@ def main():
               "not a full document", file=sys.stderr)
         return 2
     head_extra, body = split_head_style(content)
-    body = inject_rail(body, lang)
+    body = localize_chrome(inject_rail(body, lang), lang)
     # Before the kit is injected: the composer script and the kit CSS both spell
     # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
     this_round = next_round(args.outfile)
@@ -1096,13 +1129,6 @@ def main():
     prev_for_check = baseline if os.path.isfile(baseline) else prev_snapshot
     if prev_for_check:
         cmd += ["--prev", prev_for_check]
-    if _is_record(args.outfile):
-        # Pending the owner's ruling (LOOP-006, interim): a record (a close-out
-        # under worklists/_archive/, human-verification.*) is English by D-04 and
-        # takes an explicit --lang, so this wrap skips lang-follows-profile. Keyed
-        # on the record, never on --lang: spec_build and spec_verbs forward --lang
-        # on every build, which would switch the check off for every spec page.
-        cmd += ["--lang-chosen"]
     rc = None
     try:
         rc = 1 if checker_missing else subprocess.run(cmd).returncode
