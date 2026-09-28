@@ -10,11 +10,8 @@
 # repo carries is synthetic: these mini-pages and one kit-built good.html per
 # class under fixtures/defect-classes/.
 #
-# XFAIL: a good.html the CURRENT kit cannot build clean, printed by name. It is
-# admitted for ONE finding shape only (the English railhead "Contents" on an es
-# page); any other finding on a good page is a FAIL. Once Phase C fixes the kit
-# and the good pages are rebuilt, the same cells print ok and the xfail count
-# drops to 0.
+# Each good.html is built from its good.spec.md by spec_build.py on the current
+# kit (style/script bodies emptied, line count kept); any finding on it is a FAIL.
 #
 # Run with: bash skills/artifact/tests/test-contract-defects.sh
 
@@ -24,7 +21,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CD="$HERE/../scripts/dash/contract_defects.py"
 GOOD="$HERE/fixtures/defect-classes"
 
-PASS=0 FAIL=0 XFAIL=0
+PASS=0 FAIL=0
 ok()  { printf '  ok: %s\n' "$1"; PASS=$((PASS + 1)); }
 bad() { printf '  FAIL: %s\n' "$1" >&2; FAIL=$((FAIL + 1)); }
 
@@ -389,21 +386,11 @@ PY
   || bad "KIT_STRINGS out of lockstep (rc=$rc): $missing"
 
 echo "== good.html: every class clean on each class's kit-built page =="
-# The one finding shape the current kit is known to produce on an es page: the
-# railhead "Contents" (spec_build.py:1342, md_body.py:483, wrap_report.py:489).
-# Any OTHER finding on a good page is a FAIL.
-KIT_XFAIL_TAG='ui-string-language: kit writes Contents on es'
 for dir in "$GOOD"/*/; do
   slug="$(basename "$dir")"
   out="$(python3 "$CD" "$dir/good.html" 2>&1)"; rc=$?
-  other="$(printf '%s\n' "$out" | grep '^FAIL' | grep -v '\[ui-string-language\].*"Contents" is en on a lang="es" page')"
-  if [[ $rc -eq 0 ]]; then
-    ok "$slug/good.html passes every source check"
-  elif [[ -z "$other" ]]; then
-    printf '  XFAIL %s (%s/good.html)\n' "$KIT_XFAIL_TAG" "$slug"; XFAIL=$((XFAIL + 1))
-  else
-    bad "$slug/good.html: $other"
-  fi
+  [[ $rc -eq 0 ]] && ok "$slug/good.html passes every source check" \
+    || bad "$slug/good.html (rc=$rc): $(printf '%s\n' "$out" | grep '^FAIL')"
 done
 # the class-1 good page must exercise its rule: an options item and an open answer
 g1="$GOOD/decision-item-without-options/good.html"
@@ -615,5 +602,5 @@ out="$(gate "$FULL")"; rc=$?
   && ok "a registry missing a class reads 14/15 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
 
 echo
-echo "passed: $PASS  failed: $FAIL  xfail: $XFAIL"
+echo "passed: $PASS  failed: $FAIL"
 [[ $FAIL -eq 0 ]]
