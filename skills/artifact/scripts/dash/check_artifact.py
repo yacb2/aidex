@@ -1337,11 +1337,13 @@ def _svg_embed_selector(sel):
     return ' '.join(sel.split())
 
 
-def _svg_embed_css(css, where, rules, key=None):
+def _svg_embed_css(css, where, rules, key=None, root_id=None):
     """`(violations, css_out)` for CSS a figure carries — its <style>
     (`rules`) or a `style=""` value. `css_out` is what the page gets: the
     declarations that were checked, and (with `key`) every selector scoped
-    under `svg[data-embed="key"]`.
+    under `svg[data-embed="key"]`. A selector whose first compound is the
+    root itself (`svg`, or `#root_id`) joins that scope as one compound: the
+    root is not its own descendant.
 
     First refused by SHAPE (second security pass): a backslash (a CSS escape
     can spell anything), an unclosed comment, any @-rule, `</`, a function not
@@ -1383,10 +1385,18 @@ def _svg_embed_css(css, where, rules, key=None):
                 out.append(f"{where} selector {sel.strip()!r} — only type, "
                            f".class and #id, joined by a space or '>'")
             else:
+                head = re.match(r'[^\s>]+', norm).group(0)
+                typ = re.match(r'[A-Za-z][\w-]*', head)
+                typ = typ.group(0) if typ else ''
+                at_root = bool(key) and (typ == 'svg' or not typ and root_id
+                                         in re.findall(r'#([\w-]+)', head))
+                if at_root:
+                    norm = norm[len(typ):]
                 if key:
                     norm = re.sub(r'#([A-Za-z_-][\w-]*)', lambda m: '#'
                                   + _svg_embed_id(m.group(1), key), norm)
-                good.append(scope + norm)
+                good.append(scope.rstrip() + norm if at_root
+                            else scope + norm)
         why, decl_out = _svg_embed_decls(decls, f"{where} {sels.strip()}")
         out += why
         if key:
@@ -1499,8 +1509,10 @@ def _svg_embed_check(el, out):
         _svg_embed_check(child, out)
 
 
-def _svg_embed_write(el, out, key, root=False):
+def _svg_embed_write(el, out, key, root=False, root_id=None):
     local = _svg_embed_name(el.tag)[0]
+    if root:
+        root_id = (el.get('id') or '').strip() or None
     out.append('<' + local)
     if root:
         out.append(' data-embed="%s"' % key)
@@ -1525,11 +1537,12 @@ def _svg_embed_write(el, out, key, root=False):
         # '<' and no '&' (refused above): raw text reads the same to an HTML
         # tokenizer (raw text or data state) and to XML.
         out.append('>' + _svg_embed_css(el.text or '', '', rules=True,
-                                        key=key)[1] + '</style>')
+                                        key=key, root_id=root_id)[1]
+                   + '</style>')
         return
     out.append('>' + _html.escape(el.text or '', quote=True))
     for child in el:
-        _svg_embed_write(child, out, key)
+        _svg_embed_write(child, out, key, root_id=root_id)
         out.append(_html.escape(child.tail or '', quote=True))
     out.append('</%s>' % local)
 
