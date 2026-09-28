@@ -98,6 +98,32 @@ assert sys.argv[2] in ids and sys.argv[3] not in ids and not d["review"], ids' "
 
 # the small-sweep-3 work-list is still `doing` and now holds every item (BL-250); close it
 sed -i.bak 's/^status: doing/status: done/' .context/worklists/*small-sweep-3*.md && rm -f .context/worklists/*.bak
+
+# BL-482: --exclude is "a decision the regex could not see", so the pulled item belongs
+# under Needs decision — it was dropped, and the report said "none recorded at kickoff"
+# for a sweep that had pulled eight. The optional `:reason` suffix is carried as written.
+WLX="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Exclude run" --slug exclude-run --exclude "$AID" --exclude "$CID:waits on the lane redesign" 2>/dev/null | tail -1)"
+NDX="$(awk '/^## Needs decision \(kickoff\)/{f=1;next} /^## /{f=0} f' "$WLX" 2>/dev/null)"
+grep -q "^- $AID — alpha gap lane   <!-- reason: pulled at kickoff (--exclude) -->$" <<<"$NDX" \
+  && ok "an --exclude item is recorded under Needs decision, marked pulled at kickoff" || bad "--exclude not under Needs decision: [$NDX]"
+grep -q "^- $CID — charlie gap lane hover   <!-- reason: pulled at kickoff (--exclude): waits on the lane redesign -->$" <<<"$NDX" \
+  && ok "--exclude BL-NNN:<reason> carries the reason into Needs decision" || bad "--exclude reason: [$NDX]"
+grep -qE "^[0-9]+\. \[ \] .*\b($AID|$CID)\b" "$WLX" && bad "an --exclude item was still queued" || ok "--exclude BL-NNN:<reason> still pulls the item from the queue"
+sed -i.bak 's/^status: doing/status: done/' "$WLX" && rm -f "$WLX.bak"
+# a comma list is several ids, each with its own reason; a repeat is one line; a reason
+# cannot close the HTML comment it is written into
+WLY="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Exclude list" --slug exclude-list --exclude "$AID,$CID:held --> until Friday, maybe later" --exclude "$AID" 2>/dev/null | tail -1)"
+NDY="$(awk '/^## Needs decision \(kickoff\)/{f=1;next} /^## /{f=0} f' "$WLY" 2>/dev/null)"
+[[ "$(grep -c "^- $AID — alpha gap lane   <!-- reason: pulled at kickoff (--exclude) -->$" <<<"$NDY")" -eq 1 ]] \
+  && ok "--exclude A,B: the first id gets its own titled line, once despite the repeat" || bad "comma/repeat: [$NDY]"
+grep -q "^- $CID — charlie gap lane hover   <!-- reason: pulled at kickoff (--exclude): held --&gt; until Friday, maybe later -->$" <<<"$NDY" \
+  && ok "--exclude A,B:reason: the second id carries its reason, commas kept and --> escaped" || bad "comma reason/escape: [$NDY]"
+grep -qE "^[0-9]+\. \[ \] .*\b($AID|$CID)\b" "$WLY" && bad "a comma-listed --exclude item was still queued" || ok "every id of a comma list is pulled from the queue"
+sed -i.bak 's/^status: doing/status: done/' "$WLY" && rm -f "$WLY.bak"
+# an id in no partition list is a typo: refuse, never write an untitled line
+bash "$SCRIPTS/sweep-kickoff.sh" --title "Exclude typo" --slug exclude-typo --exclude "BL-99999" >/dev/null 2>"$TMP/typo.err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "BL-99999" "$TMP/typo.err" && ! ls .context/worklists/*exclude-typo* >/dev/null 2>&1 \
+  && ok "--exclude of an unknown id exits 2 naming it, and writes no work-list" || bad "unknown --exclude: rc=$RC $(cat "$TMP/typo.err")"
 # a depends cycle cannot be ordered: exit 2, no work-list
 bash "$SCRIPTS/define-item.sh" "$DID" --depends "$BID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/sweep-kickoff.sh" --title "cycle" --slug cycle >/dev/null 2>"$TMP/err"; RC=$?

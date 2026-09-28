@@ -66,7 +66,9 @@ The file carries three parts:
 ## Verdict            <who looked, on what date, and what they said>
 ```
 
-Either shape is **wrapped into a page at close-out and opened once** — `wrap-report.sh
+A sweep's page is built from its report through `/aidex:artifact` Route S, each unanswered
+owner row a consult item (`sweep-execution-policy.md` stage 6, BL-482). The
+`human-verification.md` shape is **wrapped into a page at close-out and opened once** — `wrap-report.sh
 --title "<the page title>" --lang en --in <the .md> --out <the .html>`, then `open`,
 last, per `skills/artifact/references/02-local-first-artifacts.md` gate 2 (never published, gate 3).
 
@@ -80,7 +82,7 @@ and those are English by D-04, while `--lang` defaults to the project's
 `<html lang="es">` over an English body and `check-artifact.sh` fails it (`lang`, BL-279).
 Measured in aidex on 2026-09-08 — the same command minus `--lang` failed with
 `<html lang="es"> but the body reads en (17 Spanish vs 1329 English stopwords)`.
-`sweep-report.sh` passes `--lang en` for exactly this reason. The markdown stays the canon and the `proof_links`
+The markdown stays the canon and the `proof_links`
 target; the page is the medium the reader actually reads. This is not a nicety: a session
 that handed over `human-verification.md` was asked for "the artifact" on the very next
 turn, and that class — summarise the run you just finished — was the second most common

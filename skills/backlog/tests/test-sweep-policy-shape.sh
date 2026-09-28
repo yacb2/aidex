@@ -56,6 +56,19 @@ done
 for alt in "Per-item always" "Whole-branch only" "Large fan-out per item"; do
   grep -q "^- \*\*$alt\*\*" "$POLICY" || err "refuted alternative missing: $alt"
 done
+# stage 6 order (BL-482): the page is built right after the markdown report. A page that
+# ASKS is opened before worklist-close.sh — which refuses while an owner row is
+# unanswered — and the run stops for the answers, applies them, closes, rebuilds the page
+# as the next round. A page that asks nothing keeps close-then-open-once.
+sec6="$(awk '/^## Stage 6 /{f=1;next} /^## /{f=0} f' "$POLICY" | tr '\n' ' ' | tr -s ' ')"
+steps6="$(awk '/^## Stage 6 /{f=1;next} /^## |^### /{f=0} f' "$POLICY" | grep -E '^[0-9]+\. ')"
+build_n="$(grep -n 'Route S' <<<"$steps6" | head -1 | cut -d: -f1)"
+close_n="$(grep -n 'worklist-close.sh' <<<"$steps6" | head -1 | cut -d: -f1)"
+[ -n "$build_n" ] && [ -n "$close_n" ] && [ "$build_n" -lt "$close_n" ] \
+  || err "stage 6 does not build the page (Route S) as a step before the first worklist-close.sh step"
+for k in "asks anything" "before \`worklist-close.sh\`" "waits for the answers" "proof cell" "next round" "asks nothing"; do
+  case "$sec6" in *"$k"*) ;; *) err "stage 6 order: missing \"$k\" (ask branch opens before close and stops; no-ask branch closes then opens)" ;; esac
+done
 # the rules a script now refuses are NOT restated as imperatives: "grep the output for a
 # spec count" was the 08-26 rule; the gate does it, the policy must only point
 case "$flat" in *"grep the output for a spec count"*) err "policy restates the spec-count rule the gate enforces" ;; esac
