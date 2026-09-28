@@ -1,0 +1,51 @@
+<!-- render-probe fixture: the passing cells of the three render contract classes. Clean
+     in the default run and under each --contract slug.
+     text-style-drift: a consult item carrying the kit's own .fieldlabel, .note and .ex
+     paragraphs (each must keep its declared size; `.consult-item p` used to win), the
+     paragraphs of a two-paragraph div.note (they inherit the note's size), and
+     svg text in the kit stacks, one by presentation attribute, one by var(--mono).
+     figure-text-contrast: ink on an accent tint at fill-opacity 0.16 (clean once
+     composited), white on an oklch() fill, and a label over a gradient (unmeasured,
+     never a failure), and body ink with a paper halo (`paint-order: stroke`) on the
+     accent: the halo is its background. svg-label-outside-its-box: a label that fits its box. -->
+<style>
+#cpfix .okbox { fill: oklch(0.35 0.08 160); }
+#cpfix .oktext { fill: #FFFFFF; }
+</style>
+<div class="page">
+<main class="main">
+<h1>Contrato de render, casos limpios</h1>
+<section class="consult-group" id="G1" data-id="G1" data-title="Tamaños">
+<div class="sec-head"><h2>Tamaños</h2></div>
+<section class="consult-item" data-id="Q1" data-title="Tamaños del kit" data-free>
+  <h3><span class="consult-id">Q1</span>¿Conservan su tamaño las clases del kit?</h3>
+  <p>Texto del cuerpo del item, que sí toma el tamaño del item.</p>
+  <p class="note">Una nota del kit dentro del item.</p>
+  <p class="ex">Un ejemplo del kit dentro del item.</p>
+  <div class="note"><p>Primer párrafo de una nota de dos.</p><p>Segundo párrafo de la misma nota.</p></div>
+  <p class="fieldlabel">Notas sobre esto</p>
+  <textarea placeholder="Tu respuesta…"></textarea>
+</section>
+</section>
+<figure>
+<svg id="cpfix" viewBox="0 0 600 170" width="600" role="img" aria-label="Casos limpios">
+  <defs><linearGradient id="cp-grad"><stop offset="0" stop-color="#1E5F4B"/><stop offset="1" stop-color="#F3F5F1"/></linearGradient></defs>
+  <rect x="10" y="10" width="180" height="40" fill="var(--accent)" fill-opacity="0.16"/>
+  <text x="20" y="35" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="13">tinte del acento</text>
+  <rect class="okbox" x="210" y="10" width="180" height="40"/>
+  <text class="oktext" x="220" y="35" style="font-family: var(--mono)" font-size="13">blanco en oklch</text>
+  <rect x="410" y="10" width="180" height="40" fill="url(#cp-grad)"/>
+  <text x="420" y="35" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="13">sobre un degradado</text>
+  <rect x="10" y="70" width="300" height="40" fill="none" stroke="currentColor"/>
+  <text x="20" y="95" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="13">una etiqueta que cabe en su caja</text>
+  <rect x="10" y="120" width="300" height="40" fill="#1E5F4B"/>
+  <text x="20" y="145" fill="currentColor" stroke="var(--paper)" stroke-width="4" paint-order="stroke" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="13">tinta con halo sobre el acento</text>
+</svg>
+<figcaption>Casos que el contrato de render deja pasar.</figcaption>
+</figure>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3><span class="consult-id">notes</span>Notas generales</h3><p class="fieldlabel">Lo que no encaja arriba</p><textarea placeholder="Lo que sea…"></textarea></section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar mis respuestas</button><span class="consult-status" id="consult-status-end"></span></div>
+</main>
+<aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar mis respuestas</button><span class="consult-status" id="consult-status"></span></div></aside>
+</div>

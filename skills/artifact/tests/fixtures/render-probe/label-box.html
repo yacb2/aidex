@@ -1,0 +1,19 @@
+<!-- render-probe fixture: svg-label-outside-its-box. The label is centred inside its
+     120-unit rect and runs well past its right side (the static svg-text estimate
+     absorbs overflows of this size; only the rendered box shows it). "anchorfix" starts in a
+     60-unit rect and is more than twice as wide, so its centre lies outside the rect:
+     the box is found from the text's anchor (its start), not from its centre. -->
+<div class="page">
+<main class="main">
+<h1>Etiqueta fuera de su caja</h1>
+<figure>
+<svg viewBox="0 0 400 110" width="400" role="img" aria-label="Etiqueta larga">
+  <rect x="10" y="10" width="120" height="36" fill="none" stroke="currentColor"/>
+  <text x="16" y="33" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="14">cajafix etiqueta larga</text>
+  <rect x="10" y="60" width="60" height="36" fill="none" stroke="currentColor"/>
+  <text x="16" y="83" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif" font-size="14">anchorfix, más del doble de su caja</text>
+</svg>
+<figcaption>Una etiqueta más ancha que su caja.</figcaption>
+</figure>
+</main>
+</div>

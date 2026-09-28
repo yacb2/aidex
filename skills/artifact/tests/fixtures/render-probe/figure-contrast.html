@@ -1,0 +1,30 @@
+<!-- render-probe fixture: figure-text-contrast, one failure per scheme. "fallaclaro" is
+     the chip shape of a real page: the figure's own `text { fill: currentColor }` rule
+     beats the attribute fill="#FFFFFF", so body ink is painted on the accent chip; in the
+     light scheme that is dark on dark green. "fallaoscuro" is body ink on a fixed light
+     chip: dark on light paper, light on light in the dark scheme. Its chip is an oklch()
+     fill, so the failure is only seen when the browser converts the colour. The figure sits in
+     a collapsed <details>, as a decided item folds its body: it is measured opened.
+     "usefix" is the light-only chip again, drawn by <use> of a rect in <defs>. -->
+<style>
+#fcfix text { fill: currentColor; }
+</style>
+<div class="page">
+<main class="main">
+<h1>Contraste en figuras</h1>
+<details><summary>La figura</summary>
+<figure>
+<svg id="fcfix" viewBox="0 0 400 160" width="400" role="img" aria-label="Contraste bajo">
+  <rect x="10" y="10" width="200" height="36" rx="4" fill="#1E5F4B"/>
+  <text x="20" y="33" fill="#FFFFFF" font-size="13">fallaclaro chip</text>
+  <rect x="10" y="60" width="200" height="36" rx="4" fill="oklch(0.93 0.01 130)"/>
+  <text x="20" y="83" font-size="13">fallaoscuro chip</text>
+  <defs><rect id="fcfix-chip" width="200" height="36" rx="4" fill="#1E5F4B"/></defs>
+  <use href="#fcfix-chip" x="10" y="110"/>
+  <text x="20" y="133" font-size="13">usefix chip</text>
+</svg>
+<figcaption>Dos etiquetas con contraste bajo, una por esquema.</figcaption>
+</figure>
+</details>
+</main>
+</div>
