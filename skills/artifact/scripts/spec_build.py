@@ -1133,7 +1133,7 @@ def emit_figure(node, ctx):
     """`::: figure {#id src="rel/path.svg" title="…"}` — a drawing from a file.
 
     The third rung of the figure ladder: what neither a closed block (`chart`,
-    `diagram`) nor an engine can draw — a hand SVG from figure-opus, a
+    `diagram`) nor an engine can draw — a hand SVG from figure-sonnet, a
     screenshot — enters the page here, still on the spec route. An `.svg` is
     INLINED, after `check_artifact.svg_embed_violations` (the owner of the rules;
     no copy lives here) finds nothing to refuse; a `.png`/`.jpg` becomes an

@@ -102,7 +102,7 @@ The list is closed — an unknown type is refused by name with the known set pri
 | `chart` | yes | bars, lines or stacked bars drawn from data rows (rung 1) | `type` |
 | `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle (rung 1) | `shape` |
 | `graph` | yes | boxes and edges in DOT, laid out by Graphviz with the kit classes (rung 2) | — |
-| `figure` | yes | a drawing from a file: figure-opus's SVG or a screenshot (rung 3) | `src` |
+| `figure` | yes | a drawing from a file: figure-sonnet's SVG or a screenshot (rung 3) | `src` |
 | `prose` | **no** | a run of markdown outside any fence — the implicit default | — |
 | `num` | **no** | a right-aligned numeric column: mark it `\|---:\|` in the table | — |
 | `pill` | **no** | an inline status tag: `[confianza alta]{.pill .high}` | — |
@@ -292,7 +292,7 @@ highest rung that carries the figure's meaning without loss**:
 | 3 | `figure` | what neither can draw: a screen mockup, a screenshot, a grid of text cells, an illustration | a drawn settings screen with its three states |
 
 Drop a rung only when the one above loses something the page relies on, and say what in
-the caption's neighbourhood, not silently. A rung-3 drawing is figure-opus's job: it
+the caption's neighbourhood, not silently. A rung-3 drawing is figure-sonnet's job: it
 writes an `.svg` that passes the `figure` block's rules (strict XML, allowlisted
 elements, kit classes and `currentColor`, no literal colour) and returns its path; the
 spec embeds it with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
@@ -628,7 +628,7 @@ writes it verbatim to `.aidex-artifact-prev/<stem>.reply.md` beside the page, be
 briefing the rewrite. `check-artifact --prev` (every wrap with a baseline) then FAILS an
 item that paste marks `[show-me]` if the new round carries no figure, image or diagram
 inside that item, and WARNS when no reply newer than the baseline exists. Answering a
-`[show-me]` means a figure (`figure-opus`) or a screenshot (`verify-browser-opus`),
+`[show-me]` means a figure (`figure-sonnet`) or a screenshot (`verify-browser-opus`),
 never a longer paragraph.
 
 The markers are never translated — the labels the reader sees are, the tokens are not — and

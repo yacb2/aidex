@@ -106,7 +106,7 @@ it never lands, whichever route wrote it. Its thirteen page-contract classes
 
 Figures are blocks too, chosen by one ladder — the highest rung that carries the
 meaning: (1) `chart` / `diagram`, closed stdlib blocks; (2) `graph`, DOT through
-Graphviz; (3) `figure`, a file — figure-opus's SVG or a screenshot. The table with one
+Graphviz; (3) `figure`, a file — figure-sonnet's SVG or a screenshot. The table with one
 example per rung is `references/02-local-first-artifacts.md` § The figure ladder. No
 spec inlines SVG.
 

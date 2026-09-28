@@ -565,7 +565,7 @@ one there and falls back to black, which is invisible in dark mode).
 :::
 ```
 
-The third rung of the figure ladder: a hand SVG (figure-opus's) or a screenshot enters
+The third rung of the figure ladder: a hand SVG (figure-sonnet's) or a screenshot enters
 the page here, still on the spec route. It has **no body** — the drawing is the file.
 
 - `src` is **relative to the spec file**, never to the cwd, so the same spec builds from
@@ -600,7 +600,7 @@ named character reference such as `&middot;` (inline SVG copied out of a page ca
 them) is read as its character.
 
 A file that breaks a rule is **refused, never repaired**: a builder that rewrote a colour
-would ship a drawing its author never saw. Fix the file (figure-opus draws with
+would ship a drawing its author never saw. Fix the file (figure-sonnet draws with
 `currentColor` and the kit's classes), or keep the drawing off the page.
 
 `SpecBuildError` at the **fence's** line, for: no `src`, an absolute `src`, an extension
