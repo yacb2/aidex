@@ -430,6 +430,19 @@ def run(tmp):
     check("every selector is rewritten under the figure's own root",
           out is not None and "<style>%s rect.a > text#e%s-t, %s g .b{" % (scope, key, scope)
           in out and "%s text{font-family:var(--mono)}" % scope in out, repr(out))
+    # A selector keyed on the ROOT (its own id, as the canon asks, or `svg`)
+    # must scope to the root as one compound: under a descendant combinator the
+    # root is not its own descendant and every rule was silently dropped.
+    rsrc = ('<svg id="fig-hp"><style>#fig-hp text{fill:currentColor} '
+            'svg#fig-hp > .p, svg .q, g#fig-hp .r{fill:none}</style>'
+            '<text>x</text></svg>')
+    rkey = hashlib.sha256(rsrc.encode("utf-8")).hexdigest()[:8]
+    _, rout = check_artifact.svg_embed_sanitize(rsrc)
+    rscope = 'svg[data-embed="%s"]' % rkey
+    check("a selector on the root's own id or `svg` scopes to the root itself",
+          rout is not None and "<style>%s#e%s-fig-hp text{" % (rscope, rkey) in rout
+          and "%s#e%s-fig-hp > .p, %s .q, %s g#e%s-fig-hp .r{"
+          % (rscope, rkey, rscope, rscope, rkey) in rout, repr(rout))
     check("style= keeps its allowed declarations",
           out is not None and 'style="fill:var(--s1);font-weight:600;' in out, repr(out))
 

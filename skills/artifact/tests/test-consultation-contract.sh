@@ -48,7 +48,9 @@ mkpage() {
 notesitem='<section class="consult-item consult-notes" data-id="notes" data-title="General notes"><h3>General notes</h3><textarea></textarea></section>'
 gopen='<section class="consult-group" id="G1" data-id="G1" data-title="The context"><div class="sec-head"><h2>The context</h2></div><p>What the decisions below share.</p>'
 gclose='</section>'
-bars='<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>'
+# The copy controls where the page contract puts them (copy-control-placement,
+# blocking since LOOP-006): one in the rail's .consult-bar, one at the end of <main>.
+bars='<main><div class="endbar"><button type="button" id="consult-copy-end">Copy</button></div></main><aside class="rail"><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside>'
 visual='<meta name="consult-visual" content="none: the subject is a single number, so there is no shape to draw">'
 # The WHOLE kit, exactly as wrap-report.sh injects it. Inlining the composer
 # alone would have missed the real defect: a comment in components.css spelled
@@ -81,7 +83,7 @@ rc="$(run "$TMP/radios.html")"
 # ---- 2. an item with no reply surface at all fails ------------------------
 mkpage "$TMP/empty-item.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
   <h3>Pick one</h3>
   <p>Nothing to answer with.</p>
 </section>
@@ -121,7 +123,7 @@ grep -qiE 'data-id|consult-copy' "$TMP/out" || fail "5. the failure names neithe
 # ---- 6. --prev still catches an id reused for a different claim -----------
 mkpage "$TMP/prev.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"The first claim\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"The first claim\">
   <h3>Q1</h3><textarea></textarea></section>
 $gclose
 $notesitem
@@ -129,7 +131,7 @@ $bars
 $composer"
 mkpage "$TMP/now.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"A completely different claim\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"A completely different claim\">
   <h3>Q1</h3><textarea></textarea></section>
 $gclose
 $notesitem
@@ -167,7 +169,7 @@ grep -qi 'Q1' "$TMP/out" || fail "8. the failure does not name the item that has
 # off the markup, not off the injected stylesheet, or it passes every page.
 mkpage "$TMP/no-general.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
   <h3>Pick one</h3><textarea></textarea>
 </section>
 $gclose
@@ -183,13 +185,13 @@ grep -qi 'consult-notes' "$TMP/out" || fail "9. the failure does not name the mi
 # the questions are the contract (consult-shape), so one after the notes passes.
 mkpage "$TMP/notes-mid.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
   <h3>Pick one</h3><textarea></textarea>
 </section>
 $gclose
 $notesitem
 <section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"More\"><div class=\"sec-head\"><h2>More</h2></div>
-<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Pick again\">
+<section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"Pick again\">
   <h3>Pick again</h3><textarea></textarea>
 </section>
 $gclose
@@ -201,7 +203,7 @@ grep -q "FAIL \[consult-shape\].*notes.*'G2'" "$TMP/out" || fail "9c. the failur
 
 mkpage "$TMP/notes-then-ref.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
   <h3>Pick one</h3><textarea></textarea>
 </section>
 $gclose
@@ -215,11 +217,11 @@ rc="$(run "$TMP/notes-then-ref.html")"
 # The notes item inside the last block, before that block's remaining item.
 mkpage "$TMP/notes-in-group.html" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
   <h3>Pick one</h3><textarea></textarea>
 </section>
 $notesitem
-<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Pick again\">
+<section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"Pick again\">
   <h3>Pick again</h3><textarea></textarea>
 </section>
 $gclose
@@ -233,7 +235,7 @@ grep -q "FAIL \[consult-shape\].*notes.*'Q2'" "$TMP/out" || fail "9c. the failur
 mkpage "$TMP/notes-hint.html" "$visual
 $gopen
 <p class=\"consult-notes-hint\">Anything else goes in the general notes.</p>
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Pick one\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Pick one\">
   <h3>Pick one</h3><textarea></textarea>
 </section>
 $gclose
@@ -251,7 +253,9 @@ rc="$(run "$TMP/notes-hint.html")"
 # obligation half-done — it is the reference's DEFAULT shape.
 ledger_ok='<div class="ledger"><div><span class="k">c1</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
 ledger_bad='<div class="ledger"><div><span class="k">c1 &middot; BL-265</span><span class="v"><b>Done.</b> Settled last round.</span></div></div>'
-item() { printf '<section class="consult-item" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
+# An optionless item is a declared open answer (data-free): the page contract
+# fails one that is not (decision-item-without-options, LOOP-006).
+item() { printf '<section class="consult-item" data-id="%s" data-title="A question" data-free><h3>A question</h3><textarea></textarea></section>' "$1"; }
 
 mkpage "$TMP/ledger-clean.html" "$visual
 $ledger_ok
@@ -318,7 +322,8 @@ rc="$(run "$TMP/ledger-numbered.html")"
 # had not been told, and it FAILED the shape its own reference names the default
 # — which forced a real page to hand-roll a `.settled` section the kit does not
 # define, in breach of gate 1.
-decided() { printf '<section class="consult-item" data-decided data-id="%s" data-title="A question"><h3>A question</h3><p><b>Decided:</b> the first option won.</p><textarea></textarea></section>' "$1"; }
+# The verdict in data-decided, where the fold shows it (decided-item-without-verdict).
+decided() { printf '<section class="consult-item" data-decided="the first option won" data-id="%s" data-title="A question"><h3>A question</h3><textarea></textarea></section>' "$1"; }
 
 mkpage "$TMP/ledger-decided.html" "$visual
 $ledger_bad
@@ -354,6 +359,13 @@ grep -qi 'decided but still asked' "$TMP/out" \
   || fail "8b. BL-359: with data-decided removed the page stopped failing — the still-asked rule was dropped, not narrowed: $(cat "$TMP/out")"
 [[ "$rc" == "1" ]] \
   || fail "8b. BL-359: the live item named in the ledger did not fail the wrap: $(cat "$TMP/out")"
+# LOOP-006 decided-item-without-verdict: the advice is the fix, so it names the
+# verdict's real place. "State the verdict in its body" produced the defect:
+# the fold hides the body and shows the title alone.
+grep -q 'decided but still asked.*data-decided="<the verdict>"' "$TMP/out" \
+  || fail "8b. the still-asked message does not point at data-decided=\"<verdict>\": $(cat "$TMP/out")"
+grep -qi 'verdict in its body' "$TMP/out" \
+  && fail "8b. the still-asked message still tells the author to put the verdict in the body: $(cat "$TMP/out")"
 
 # ---- 8c. BL-421: the STAMP is not the mark ----------------------------------
 # `data-decided-round` is written next to `data-decided`, never instead of it —
@@ -407,6 +419,7 @@ $gopen
   <h3>Wrapped right</h3>
   <div class=\"opts one\">
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
   <textarea></textarea>
 </section>
@@ -414,6 +427,7 @@ $gopen
   <h3>Hand-rolled wrapper</h3>
   <div class=\"consult-options\">
     <label><input type=\"radio\" name=\"Q2\" data-label=\"B (recomendada)\"><span>B</span></label>
+    <label><input type=\"radio\" name=\"Q2\" data-label=\"C\"><span>C</span></label>
   </div>
   <textarea></textarea>
 </section>
@@ -433,10 +447,12 @@ grep -q 'WARN \[consult-rec\].*Q2' "$TMP/out" \
 grep -q 'WARN \[consult-rec\].*Q1' "$TMP/out" \
   && fail "10. BL-245: an ordinary data-label was reported as carrying a recommendation: $(cat "$TMP/out")"
 
-# ---- 10a. a consult item with no options (BL-468) ------------------------
+# ---- 10a. a consult item with no options (BL-468, LOOP-006) ---------------
 # Findings H1-H5 shipped as bare textareas while Q1-Q5 asked the same decisions
-# with options: the reader answered each one twice. An optionless item is a
-# warning unless it declares itself free-text (data-free) or is settled.
+# with options: the reader answered each one twice. BL-468 made that a warning;
+# LOOP-006 made it a FAILURE owned by contract_defects.py
+# (decision-item-without-options, at least two options), which check-artifact
+# calls instead of keeping its own copy. Exempt: data-free, settled, notes.
 mkpage "$TMP/warn-free.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"H1\" data-title=\"Finding with no options\">
@@ -455,6 +471,7 @@ $gopen
   <h3>With options</h3>
   <div class=\"opts one\">
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label>
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
   </div>
   <textarea></textarea>
 </section>
@@ -463,12 +480,38 @@ $notesitem
 $bars
 $composer"
 rc="$(run "$TMP/warn-free.html")"
-[[ "$rc" == "0" ]] \
-  || fail "10a. the optionless-item warning changed the exit code: $(cat "$TMP/out")"
-grep -q 'WARN \[consult-free\].*H1' "$TMP/out" \
-  || fail "10a. BL-468: an item with no options was not reported: $(cat "$TMP/out")"
-grep -Eq 'WARN \[consult-free\].*(H2|H3|Q1|G1|notes)' "$TMP/out" \
+[[ "$rc" == "1" ]] \
+  || fail "10a. an item with no options did not fail the wrap: $(cat "$TMP/out")"
+grep -q "FAIL \[decision-item-without-options\] warn-free.html: line [0-9]*: item 'H1'" "$TMP/out" \
+  || fail "10a. BL-468: an item with no options was not reported as a FAIL with its line: $(cat "$TMP/out")"
+grep -Eq "\[decision-item-without-options\].*'(H2|H3|Q1|G1|notes)'" "$TMP/out" \
   && fail "10a. BL-468: a free, settled, optioned, group or notes item was reported: $(cat "$TMP/out")"
+grep -q 'consult-free' "$TMP/out" \
+  && fail "10a. the BL-468 copy still runs beside contract_defects — two owners of one rule: $(cat "$TMP/out")"
+
+# ---- 10a3. a literal {recommended} has one owner (LOOP-006) ----------------
+# contract_defects' decision-item-without-options reports the leaked marker;
+# check-artifact's own rec-leak copy (BL-481) is gone, so one leak is one FAIL.
+mkpage "$TMP/rec-leak.html" "$visual
+$gopen
+<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Leaked\">
+  <h3>Leaked</h3>
+  <div class=\"opts one\">
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A {recommended}</span></label>
+    <label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label>
+  </div>
+  <p>Quoted, it is not a leak: <code>{recommended}</code>.</p>
+  <textarea></textarea>
+</section>
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/rec-leak.html")"
+[[ "$rc" == "1" ]] || fail "10a3. a leaked {recommended} did not fail the wrap: $(cat "$TMP/out")"
+[[ "$(grep -c '{recommended}' "$TMP/out")" == "1" ]] \
+  && grep -q "FAIL \[decision-item-without-options\].*literal {recommended} shows as page text" "$TMP/out" \
+  || fail "10a3. one leak is not exactly one decision-item-without-options FAIL: $(cat "$TMP/out")"
 
 # ---- 10b. facts written as a paragraph, inside an ITEM (BL-270) ---------
 # BL-269 scoped the rule to the block context; one day later the same shape
@@ -479,14 +522,19 @@ grep -Eq 'WARN \[consult-free\].*(H2|H3|Q1|G1|notes)' "$TMP/out" \
 mkpage "$TMP/warn-facts.html" "$visual
 <section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"The context\"><div class=\"sec-head\"><h2>The context</h2></div>
 <p>Four things happened: the map grew; the index moved; the hint changed; the gate closed.</p>
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Dense\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"Dense\">
   <h3>Dense</h3>
   <p>The boilerplate suite takes <code>a</code>, <code>b</code>, <code>c</code> and <code>d</code>; myskills keeps <code>e</code>.</p>
   <textarea></textarea>
 </section>
-<section class=\"consult-item\" data-id=\"Q2\" data-title=\"Plain\">
+<section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"Plain\">
   <h3>Plain</h3>
   <p>One explanatory paragraph that names <code>one</code> thing and says why it matters, at length; nothing else.</p>
+  <textarea></textarea>
+</section>
+<section class=\"consult-item\" data-id=\"Q3\" data-free data-title=\"Code semicolons\">
+  <h3>Code semicolons</h3>
+  <p>The hook runs <code>a; b; c; d</code> once per session.</p>
   <textarea></textarea>
 </section>
 $gclose
@@ -494,16 +542,26 @@ $notesitem
 $bars
 $composer"
 rc="$(run "$TMP/warn-facts.html")"
-[[ "$rc" == "0" ]] \
-  || fail "10b. consult-facts changed the exit code — it is a warning: $(cat "$TMP/out")"
-grep -q "WARN \[consult-facts\].*'Q1' carries a paragraph with 5 <code> tokens" "$TMP/out" \
-  || fail "10b. BL-270: the code-dense item paragraph was not reported: $(cat "$TMP/out")"
-grep -q "WARN \[consult-facts\].*'G1' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
-  || fail "10b. BL-270: the clause-dense block context was not reported: $(cat "$TMP/out")"
+# The same paragraph is also mixed-content-types (a), which LOOP-006 made
+# blocking on every paragraph of the page: the shape now fails the wrap.
+[[ "$rc" == "1" ]] \
+  || fail "10b. a code-dense paragraph did not fail the wrap: $(cat "$TMP/out")"
+grep -q "FAIL \[mixed-content-types\].*5 <code> tokens" "$TMP/out" \
+  || fail "10b. the code-dense paragraph was not a mixed-content-types FAIL: $(cat "$TMP/out")"
+grep -q "FAIL \[mixed-content-types\].*4 semicolon-separated clauses" "$TMP/out" \
+  || fail "10b. BL-270: the clause-dense block context was not a mixed-content-types FAIL: $(cat "$TMP/out")"
+# One owner per finding: where mixed-content-types FAILs a paragraph, the
+# consult-facts WARN on it is a second report of the same thing and is dropped.
+grep -Eq "WARN \[consult-facts\].*'(Q1|G1)'" "$TMP/out" \
+  && fail "10b. consult-facts still warns a paragraph mixed-content-types already fails: $(cat "$TMP/out")"
+# What the FAIL does not cover stays a warning: semicolons inside <code> are
+# code to mixed-content-types, and still clauses to consult-facts.
+grep -q "WARN \[consult-facts\].*'Q3' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
+  || fail "10b. the paragraph only consult-facts sees lost its warning: $(cat "$TMP/out")"
+grep -q "\[mixed-content-types\].*a; b; c; d\|\[mixed-content-types\].*The hook runs" "$TMP/out" \
+  && fail "10b. semicolons inside <code> were counted as clauses by mixed-content-types: $(cat "$TMP/out")"
 grep -q "WARN \[consult-facts\].*'Q2'" "$TMP/out" \
   && fail "10b. an explanatory paragraph was reported — the proxy is too wide: $(cat "$TMP/out")"
-[[ "$(grep -c "WARN \[consult-facts\].*'G1'" "$TMP/out")" == "1" ]] \
-  || fail "10b. the item paragraph was reported again under its block: $(cat "$TMP/out")"
 
 # The declared affordance is the thing the warning points AT, so it must be
 # silent: a page that complied and still got warned teaches authors to ignore it.
@@ -564,7 +622,7 @@ $surfaces
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Still open\">
   <h3>Still open</h3>
-  <div class=\"opts one\"><label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label></div>
+  <div class=\"opts one\"><label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label></div>
 </section>
 $gclose
 $bars
@@ -585,10 +643,10 @@ mkpage "$TMP/warn-entities.html" "$visual
 <div class=\"page\"><main class=\"main\">
 <section class=\"consult-group\" id=\"G9\" data-id=\"G9\" data-title=\"Acentos\">
 <div class=\"sec-head\"><h2>Acentos</h2></div>
-<section class=\"consult-item\" data-id=\"e1\" data-title=\"Una sola clausula\">
+<section class=\"consult-item\" data-id=\"e1\" data-free data-title=\"Una sola clausula\">
   <h3><span class=\"consult-id\">e1</span>Una sola clausula</h3>
   <p>La p&aacute;gina se public&oacute; en espa&ntilde;ol con acentos codificados; eso es todo.</p>
-  <p class=\"fieldlabel\">Notas sobre esta</p><textarea></textarea>
+  <p class=\"fieldlabel\">Notes on this one</p><textarea></textarea>
 </section>
 </section>
 $notesitem
@@ -611,16 +669,16 @@ grep -q "WARN \[consult-facts\]" "$TMP/out" \
 mkpage "$TMP/warn-order.html" "$visual
 <section class=\"consult-group\" id=\"G1\" data-id=\"G1\" data-title=\"Videos\"><div class=\"sec-head\"><h2>Videos</h2></div>
 <p>What both films share.</p>
-<section class=\"consult-item\" data-id=\"V1\" data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"V1\" data-free data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
 <p>F1 before and after:</p>
 <p>@@VIDEO a.mp4|F1 before@@</p>
 </section>
 <section class=\"consult-group\" id=\"G2\" data-id=\"G2\" data-title=\"Numbers\"><div class=\"sec-head\"><h2>Numbers</h2></div>
-<section class=\"consult-item\" data-id=\"T1\" data-title=\"Pick\"><h3>Pick</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"T1\" data-free data-title=\"Pick\"><h3>Pick</h3><textarea></textarea></section>
 <div class=\"tw\"><table><tr><td>x</td></tr></table></div>
 </section>
 <section class=\"consult-group\" id=\"G3\" data-id=\"G3\" data-title=\"Frames\"><div class=\"sec-head\"><h2>Frames</h2></div>
-<section class=\"consult-item\" data-id=\"F1\" data-title=\"Look\"><h3>Look</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"F1\" data-free data-title=\"Look\"><h3>Look</h3><textarea></textarea></section>
 <video src=\"b.mp4\" controls></video>
 </section>
 $notesitem
@@ -638,9 +696,9 @@ mkpage "$TMP/order-clean.html" "$visual
 <p>What both films share.</p>
 <div class=\"tw\"><table><tr><td>x</td></tr></table></div>
 <p>@@VIDEO a.mp4|F1 before@@</p>
-<section class=\"consult-item\" data-id=\"V1\" data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"V1\" data-free data-title=\"Approve F1\"><h3>Approve F1</h3><textarea></textarea></section>
 <video src=\"b.mp4\" controls></video>
-<section class=\"consult-item\" data-id=\"V2\" data-title=\"Approve F2\"><h3>Approve F2</h3><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"V2\" data-free data-title=\"Approve F2\"><h3>Approve F2</h3><textarea></textarea></section>
 <p>A closing sentence is prose, not evidence.</p>
 <p><svg width=\"8\" height=\"8\"></svg> an inline legend swatch is decoration, not evidence.</p>
 </section>
@@ -1257,6 +1315,70 @@ grep -q "\[svg-contrast\].*'has its own rule'" "$TMP/out" \
 grep -qE "FAIL \[svg-contrast\].*measured 2 text node\(s\).* 0 unmeasurable" "$TMP/out" \
   || fail "10n. BL-355: the two labels were not both measured as literal colours: $(cat "$TMP/out")"
 
+# ---- 10o. LOOP-006: an oklch() rect is a literal colour, and the label is judged
+# against it. The parser read only hex, rgb() and a few names, so an oklch() box
+# was skipped and white text drawn on a dark oklch() box was judged against the
+# light page ground: a false FAIL on a pair the browser shows at ~9:1. The light
+# box is the control in the other direction: parsing must measure, not excuse.
+mkpage "$TMP/svg-oklch.html" "<div class=\"page\"><main class=\"main\">
+<figure><svg id=\"fig-o\" viewBox=\"0 0 400 200\" role=\"img\" aria-label=\"o\">
+  <style>#fig-o text { font-size: 12px }</style>
+  <rect x=\"0\" y=\"20\" width=\"300\" height=\"40\" fill=\"oklch(0.35 0.08 160)\"/>
+  <text x=\"10\" y=\"45\" fill=\"#FFFFFF\">white on a dark oklch box</text>
+  <rect x=\"0\" y=\"120\" width=\"300\" height=\"40\" fill=\"oklch(93% 0.01 130deg)\"/>
+  <text x=\"10\" y=\"145\" fill=\"#FFFFFF\">white on a light oklch box</text>
+</svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/svg-oklch.html")"
+grep -q "\[svg-contrast\].*'white on a dark oklch box'" "$TMP/out" \
+  && fail "10o. white text on a dark oklch() rect was reported — the rect's colour was not read: $(cat "$TMP/out")"
+grep -q "FAIL \[svg-contrast\].*'white on a light oklch box'.*against the rect it sits on" "$TMP/out" \
+  || fail "10o. white text on a light oklch() rect was not reported against that rect: $(cat "$TMP/out")"
+# ...and an oklch() BACKGROUND on the figure's wrapper is the box the label sits
+# on, exactly as a hex one is (10f): dark slate on a light oklch wrapper passes.
+mkpage "$TMP/svg-oklch-bg.html" "<style>figure.cell .okbox { background: oklch(0.97 0.01 130) }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"okbox\"><svg id=\"fig-ob\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"ob\">
+  <style>#fig-ob text { font-size: 12px }</style>
+  <text x=\"10\" y=\"40\" fill=\"#1F2937\">dark slate on a light oklch wrapper</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/svg-oklch-bg.html")"
+grep -q "\[svg-contrast\].*'dark slate on a light oklch wrapper'" "$TMP/out" \
+  && fail "10o. an oklch() wrapper background was not read, so the label was judged on the page ground: $(cat "$TMP/out")"
+# ...and with a trailing `!important`, which the whole-value parse read as part
+# of the colour, so the wrapper was skipped again (review, LOOP-006).
+mkpage "$TMP/svg-oklch-imp.html" "<style>figure.cell .okbox { background: oklch(0.2 0.02 250) !important }</style>
+<div class=\"page\"><main class=\"main\">
+<figure class=\"cell\"><div class=\"okbox\"><svg id=\"fig-oi\" viewBox=\"0 0 400 100\" role=\"img\" aria-label=\"oi\">
+  <style>#fig-oi text { font-size: 12px }</style>
+  <text x=\"10\" y=\"40\" fill=\"#FFFFFF\">white on a dark oklch wrapper marked important</text>
+</svg></div></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/svg-oklch-imp.html")"
+grep -q "\[svg-contrast\].*'white on a dark oklch wrapper marked important'" "$TMP/out" \
+  && fail "10o. an oklch() !important wrapper background was not read, so the label was judged on the page ground: $(cat "$TMP/out")"
+python3 - "$SKILL/scripts/dash" <<'PY' || fail "10o. oklch() does not convert to the sRGB the browser paints"
+import sys; sys.path.insert(0, sys.argv[1]); import check_artifact as ca
+# Reference values: what Chromium paints on a canvas for each (±1 per channel);
+# the last is out of the sRGB gamut and Chromium clips it per channel.
+for src, want in (("oklch(0.35 0.08 160)", (0, 71, 44)),
+                  ("oklch(93% 0.01 130deg)", (230, 233, 226)),
+                  ("oklch(0.5 0.4 264)", (21, 0, 255)),
+                  ("oklch(1 0 0)", (255, 255, 255)), ("oklch(0 0 0)", (0, 0, 0)),
+                  ("oklch(0.628 0.2577 29.23)", (255, 0, 0)),
+                  ("oklch(62.8% 64.4% 29.23deg / 0.5)", (255, 0, 0))):
+    got = ca.svg_literal_colour(src)
+    assert got and all(abs(g - w) <= 1 for g, w in zip(got, want)), (src, got, want)
+# Malformed numbers are not a colour: None (unmeasured), never an exception.
+for src in ("oklch(0.5. 0.1 30)", "oklch(. 0.1 30)", "oklch(0.5 0.1 3.0.0)"):
+    got = ca.svg_literal_colour(src)
+    assert got is None, (src, got)
+PY
+
 
 
 # The first cut read every label without a font-size attribute as 16 px and
@@ -1300,9 +1422,9 @@ R="$TMP/rounds"; mkdir -p "$R/.aidex-artifact-prev"
 showitem() {  # $1 = extra markup inside Q1
   mkpage "$2" "$visual
 $gopen
-<section class=\"consult-item\" data-id=\"Q1\" data-title=\"The first claim\">
+<section class=\"consult-item\" data-id=\"Q1\" data-free data-title=\"The first claim\">
   <h3>Q1</h3><p>What happens today, explained again.</p>$1<textarea></textarea></section>
-<section class=\"consult-item\" data-id=\"Q2\" data-title=\"The second claim\">
+<section class=\"consult-item\" data-id=\"Q2\" data-free data-title=\"The second claim\">
   <h3>Q2</h3><textarea></textarea></section>
 $gclose
 $notesitem

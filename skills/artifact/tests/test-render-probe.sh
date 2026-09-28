@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # test-render-probe.sh — render-probe.sh fails each defect fixture with the right
 # class and names the element, passes the clean one, writes both screenshots, keeps
-# its two exemptions honest in both directions (consult-bar), exits 3 with the install
+# its two exemptions honest in both directions (consult-bar), runs each render contract
+# class (--contract) on a failing and a passing fixture, exits 3 with the install
 # command when Playwright or its Chromium cannot be found, and exits 4 (not 1, not 0)
 # when the probe itself crashes.
 #
@@ -115,6 +116,23 @@ echo "== a chart whose names have no space to break at =="
 out="$(bash "$PROBE" "$TMP/chart-long-word.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "the long-word chart is clean at 1280 and 390 px" || bad "chart-long-word exit $rc: $out"
 
+echo "== a path with no space to break at, in three kit boxes =="
+# A code path inside an item's h3 and inside the {recommended} option spilled at
+# 390 px, and inside a verdict caption (small) at 1280 px: only p and li could
+# break a word anywhere. Built by spec_build.py, so the probe sees today's kit.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/long-token.spec.md" -o "$TMP/long-token.html" ) >/dev/null 2>&1 \
+  && ok "built long-token from its spec" || bad "spec_build.py failed on long-token.spec.md"
+out="$(bash "$PROBE" "$TMP/long-token.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "the long-token page is clean at 1280 and 390 px" || bad "long-token exit $rc"
+while read -r width elem; do
+  hit="$(grep -E "^DEFECT long-token\.html @${width}px content-spills: $elem " <<<"$out" || true)"
+  [[ -z "$hit" ]] && ok "no $elem spill at ${width}px" || bad "$hit"
+done <<'EOF'
+390 h3
+390 div.opts
+1280 small
+EOF
+
 echo "== the kit's own rows pass clean (must-pass, Phase 5) =="
 # kit-rows.html is B-R-2's key/value ledger, the same ledger at 390 px, long
 # unbreakable paths in a list and in prose, and a page taller than the viewport.
@@ -213,7 +231,77 @@ cut-and-spill content-cut div.cutfix 1280
 cut-and-spill content-spills div.nwfix 1280
 consult-bar text-overlap span.b1 390
 consult-bar text-overlap p.railhead 1280
+style-drift text-style-drift p.note 1280
+style-drift text-style-drift "nestedfix 1280
+style-drift text-style-drift "inheritfix 1280
+figure-contrast figure-text-contrast "fallaclaro 1280
+figure-contrast figure-text-contrast "fallaoscuro 390
+label-box svg-label-outside-its-box "cajafix 1280
+label-box svg-label-outside-its-box "anchorfix 1280
+figure-contrast figure-text-contrast "usefix 1280
 EOF
+
+echo "== the render contract classes (--contract) =="
+# contract-pass holds the passing cell of each class: the kit's own .fieldlabel, .note
+# and .ex inside a consult item (the kit's `.consult-item p` made all three 15.2 px
+# until 2026-09-28), kit-stack svg families, an accent tint at fill-opacity 0.16, an
+# oklch fill, a gradient and a label that fits its box.
+out="$(bash "$PROBE" "$TMP/contract-pass.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "contract-pass is clean in the default run" || bad "contract-pass exit $rc: $(grep '^DEFECT' <<<"$out")"
+grep -q '"unmeasured":' <<<"$out" && ok "text over a gradient is counted as unmeasured" || bad "no unmeasured count for the gradient label: $out"
+# <fixture> <slug> <expected exit>: each failing fixture fails its own class only
+while read -r fx slug want; do
+  out="$(bash "$PROBE" --contract "$slug" "$TMP/$fx.html" 2>&1)"; rc=$?
+  [[ $rc -eq $want ]] && ok "--contract $slug on $fx exits $want" || bad "--contract $slug on $fx exit $rc, expected $want: $(grep '^DEFECT' <<<"$out")"
+  if [[ $want -eq 1 ]]; then
+    others="$(grep '^DEFECT' <<<"$out" | grep -v " $slug: " || true)"
+    [[ -z "$others" ]] && ok "--contract $slug reports only $slug" || bad "--contract $slug reported: $others"
+  fi
+  # the gate reads one last line, CONTRACT <slug> findings=<n>, n = the DEFECT lines
+  n="$(grep -c '^DEFECT' <<<"$out")"
+  [[ "$(grep -c '^CONTRACT ' <<<"$out")" -eq 1 && "$(tail -n 1 <<<"$out")" == "CONTRACT $slug findings=$n" ]] \
+    && ok "--contract $slug on $fx ends with 'CONTRACT $slug findings=$n'" || bad "--contract $slug on $fx: no single final CONTRACT line for $n finding(s): $(tail -n 2 <<<"$out")"
+done <<'EOF'
+contract-pass text-style-drift 0
+contract-pass figure-text-contrast 0
+contract-pass svg-label-outside-its-box 0
+style-drift text-style-drift 1
+style-drift figure-text-contrast 0
+figure-contrast figure-text-contrast 1
+figure-contrast svg-label-outside-its-box 0
+label-box svg-label-outside-its-box 1
+label-box text-style-drift 0
+drift-onpurpose text-style-drift 0
+image-under figure-text-contrast 0
+EOF
+# sizes set on purpose (inline, a page rule restating the class, a scoped `.x .note`)
+out="$(bash "$PROBE" "$TMP/drift-onpurpose.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "drift-onpurpose is clean in the default run" || bad "drift-onpurpose exit $rc: $(grep '^DEFECT' <<<"$out")"
+# a label over an <image> is unmeasured (both schemes), not measured against the page
+out="$(bash "$PROBE" "$TMP/image-under.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && grep -q '"width":1280,.*"unmeasured":2' <<<"$out" \
+  && ok "a label over an <image> is counted unmeasured in both schemes" || bad "image-under exit $rc: $(grep '"width":1280' <<<"$out")"
+# svg families are judged under --contract text-style-drift only, until the owner rules
+# on author font overrides; the default run leaves them out
+out="$(bash "$PROBE" "$TMP/style-drift.html" 2>&1)"
+grep -q 'svg text in' <<<"$out" && bad "the default run judged svg families: $(grep 'svg text in' <<<"$out")" || ok "the default run leaves svg families out"
+out="$(bash "$PROBE" --contract text-style-drift "$TMP/style-drift.html" 2>&1)"
+grep -qE '^DEFECT style-drift\.html @390px text-style-drift: .*svg text in "helvetica, sans-serif"' <<<"$out" \
+  && ok "--contract text-style-drift names the Helvetica family" || bad "no Helvetica family line under --contract: $(grep '^DEFECT' <<<"$out")"
+# a kit rule scoped with :where() (`.chip:where(:not(svg *))`, kit 27) still declares its class's size
+grep -qE '^DEFECT style-drift\.html @1280px text-style-drift: p\.chip .*\.chip declares 0\.66rem' <<<"$out" \
+  && ok "--contract text-style-drift holds .chip to its :where()-scoped kit size" || bad "no .chip line under --contract: $(grep '^DEFECT' <<<"$out")"
+# each scheme is judged on its own: the light-only chip is never reported in dark
+out="$(bash "$PROBE" --contract figure-text-contrast "$TMP/figure-contrast.html" 2>&1)"
+[[ "$(grep -c '"fallaclaro chip" [0-9.]*:1 in the light scheme' <<<"$out")" -eq 2 && "$(grep -c '"fallaclaro chip" .* in the dark scheme' <<<"$out")" -eq 0 ]] \
+  && ok "the light-only chip fails in the light scheme only" || bad "fallaclaro lines: $(grep fallaclaro <<<"$out")"
+[[ "$(grep -c '"fallaoscuro chip" [0-9.]*:1 in the dark scheme' <<<"$out")" -eq 2 && "$(grep -c '"fallaoscuro chip" .* in the light scheme' <<<"$out")" -eq 0 ]] \
+  && ok "the dark-only oklch chip fails in the dark scheme only" || bad "fallaoscuro lines: $(grep fallaoscuro <<<"$out")"
+out="$(bash "$PROBE" --contract text-style-drift "$TMP/crash.html" 2>&1)"; rc=$?
+[[ $rc -eq 4 ]] && ok "a crash under --contract exits 4" || bad "--contract crash exit $rc, expected 4: $out"
+grep -q '^CONTRACT ' <<<"$out" && bad "a crash under --contract printed a CONTRACT line: $out" || ok "a crash under --contract prints no CONTRACT line"
+bash "$PROBE" --contract no-such-class "$TMP/clean.html" >/dev/null 2>&1; rc=$?
+[[ $rc -eq 2 ]] && ok "an unknown --contract slug exits 2" || bad "unknown slug exit $rc, expected 2"
 
 echo "== the consultation bar exemption does not hide body text only =="
 # At 390 the body runs under the bottom-pinned bar; the only 390 overlap allowed is the

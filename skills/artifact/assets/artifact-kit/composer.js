@@ -426,7 +426,7 @@
     if (!units.length) return;
 
     var sec = document.createElement('section');
-    sec.id = 'sec-decided';
+    claimId(sec, 'sec-decided');
     sec.className = 'decided';
     var head = document.createElement('div');
     head.className = 'sec-head';
@@ -467,8 +467,21 @@
   // below, never a second entry for the same context elsewhere. Items outside
   // any block (the general notes) follow after a separator.
   var links = new Array(items.length);
+  /* Every id the composer assigns goes through here. An item's anchor is its
+   * dataset.id, unless another element already holds that id (the block's own id,
+   * an authored anchor, a nested block given its dataset.id below, a second item
+   * with the same dataset.id): then the first free `<id>-<n>`. The kit's own
+   * chrome (sec-decided, consult-restored, kit-theme) yields the same way to an
+   * author who used the name first. A page never carries one id twice, and the
+   * rail links to the id the element really got, so the link still lands on
+   * it. A declaration, so the chrome built above this line can call it. */
+  function claimId(el, want) {
+    var id = want, n = 2, held;
+    while ((held = document.getElementById(id)) && held !== el) id = want + '-' + n++;
+    el.id = id;
+  }
   function itemLink(el) {
-    el.id = el.dataset.id;
+    claimId(el, el.dataset.id);
     var i = items.indexOf(el);
     if (!list) return;
     /* A decided item folded in place gets no entry (BL-380): its block is the
@@ -477,14 +490,14 @@
      * which collect() already tolerates. */
     if (isDecided(el) && el.closest('.consult-group')) return;
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
-    var a = railLink(cls, '#' + el.dataset.id, el.dataset.id, el.dataset.title || '');
+    var a = railLink(cls, '#' + el.id, el.dataset.id, el.dataset.title || '');
     list.appendChild(a);
     links[i] = a;
   }
   if (list) {
     function groupEntry(sec) {
       var h = sec.querySelector('h2, h3');
-      if (!sec.id) sec.id = sec.dataset.id || '';
+      if (!sec.id && sec.dataset.id) claimId(sec, sec.dataset.id);
       list.appendChild(railLink('railitem sec grp', '#' + sec.id, '', h ? h.textContent : (sec.dataset.title || '')));
       sec.querySelectorAll('.consult-item').forEach(itemLink);
     }
@@ -510,7 +523,7 @@
     }
     loose.forEach(itemLink);
   } else {
-    items.forEach(function (el) { el.id = el.dataset.id; });
+    items.forEach(function (el) { claimId(el, el.dataset.id); });
   }
 
   /* Where the reader IS. The rail had a `.done` state driven by answers and
@@ -962,7 +975,7 @@
     if (!main) return;
     var note = document.createElement('div');
     note.className = 'note';
-    note.id = 'consult-restored';
+    claimId(note, 'consult-restored');
     note.setAttribute('role', 'status');
     note.appendChild(document.createTextNode(
       L.restored(n) + (stale ? L.stale(stale) : '')
@@ -1365,7 +1378,7 @@
     var b = document.createElement('button');
     b.type = 'button';
     b.className = 'kit-theme';
-    b.id = 'kit-theme';
+    claimId(b, 'kit-theme');
     b.title = L.themeTitle;
     function label() {
       // Names the DESTINATION, not the state: "Verdict names the action".

@@ -2,7 +2,7 @@
 # Tres diagramas desde el spec
 
 Las tres formas que dibuja `::: diagram`, escritas como cajas y flechas y no como
-`<rect>` a mano. Es la prueba de integración de la fase: esta página se construye
+rectángulos SVG a mano. Es la prueba de integración de la fase: esta página se construye
 entera y pasa `check-artifact` sin un solo aviso `svg-text`.
 :::
 
@@ -50,7 +50,10 @@ w -> p
 :::
 
 ::: note
-Ni un hex en el emisor: las cajas son `acc`, las flechas hacia adelante `mut` y la de
-vuelta `flg`, y todo se pinta con `currentColor` — `components.css` define esos tres
-colores y el tema los resuelve.
+Ni un hex en el emisor: todo se pinta con `currentColor`, y `components.css` define
+los tres colores que el tema resuelve.
+
+- las cajas: `acc`
+- las flechas hacia adelante: `mut`
+- la flecha de vuelta: `flg`
 :::

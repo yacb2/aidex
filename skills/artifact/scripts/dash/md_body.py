@@ -42,6 +42,42 @@ import re
 from _shell import esc
 
 FM = re.compile(r"\A---\n.*?\n---\n?", re.S)
+# The kit's static chrome, per page language: the one table the builders read
+# for it (this module's `render`, `wrap_report.inject_rail`/`localize_chrome`,
+# `spec_build.build`). Keys and values are composer.js's CHROME keys in its
+# STRINGS.en/.es, in lockstep with it and with contract_defects.KIT_STRINGS
+# (test-contract-defects.sh). A page read without JS (a static snapshot) shows
+# this text as written, so the wrap writes it in the page's language at build
+# time instead of leaving it to composer.js's relabel (LOOP-006
+# ui-string-language).
+CHROME = {
+    "copy": {"en": "Copy my answers", "es": "Copiar mis respuestas"},
+    "contents": {"en": "Contents", "es": "Contenido"},
+    "notes": {"en": "Notes on this one", "es": "Notas sobre esta"},
+    "choice": {"en": "The choice", "es": "La elección"},
+    "value": {"en": "The value", "es": "El valor"},
+    "general": {"en": "Anything that does not fit above",
+                "es": "Cualquier cosa que no encaje arriba"},
+    "notesPh": {"en": "Anything the options do not cover…",
+                "es": "Cualquier cosa que las opciones no cubran…"},
+    "listPh": {"en": "Anything the list does not cover…",
+               "es": "Cualquier cosa que la lista no cubra…"},
+    "valuePh": {"en": "Anything the value alone does not say…",
+                "es": "Cualquier cosa que el valor por sí solo no diga…"},
+    "generalPh": {"en": "Whatever it is…", "es": "Lo que sea…"},
+}
+
+
+def chrome(key, lang):
+    """Kit string `key` for `lang` (a BCP-47 tag); English for a language the
+    kit has no strings for, like the composer."""
+    return CHROME[key].get((lang or "en")[:2].lower(), CHROME[key]["en"])
+
+
+def railhead(lang):
+    """The rail heading for `lang`."""
+    return chrome("contents", lang)
+
 # The OPENING backtick may not be escaped. The escape pass runs after this one
 # (a backslash inside a code span is literal, per CommonMark), so without this
 # guard `` \`0013\` `` still opened a span and shipped `\<code>0013</code>\.` —
@@ -413,13 +449,14 @@ def _slug(text, n, seen):
     return base if seen[base] == 1 else f"{base}-{seen[base]}"
 
 
-def render(md_text, title=""):
+def render(md_text, title="", lang="en"):
     """The markdown as an artifact-kit page body (no doctype, no head).
 
     `title` is the fallback h1, for a report whose markdown carries no `# ` line.
     `human-verification.md` is exactly that shape and rendered headless — no on-page
     heading at all, and an empty rail — while the caller had the document title in
-    hand the whole time. A `# ` in the markdown still wins over it.
+    hand the whole time. A `# ` in the markdown still wins over it. `lang` is the
+    page's language, which the rail heading is written in.
     """
     lines = FM.sub("", md_text).split("\n")
 
@@ -480,7 +517,7 @@ def render(md_text, title=""):
 
     out += ["</main>",
             '<aside class="rail">',
-            '<p class="railhead">Contents</p>',
+            f'<p class="railhead">{esc(railhead(lang))}</p>',
             '<nav class="raillist" id="raillist"></nav>',
             "</aside>",
             "</div>"]

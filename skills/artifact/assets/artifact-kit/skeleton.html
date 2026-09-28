@@ -11,9 +11,15 @@
 
      Two things the artifact contract checks that are easy to break by tidying:
        - the rail bar's ids are `consult-copy` / `consult-status`; the end bar's
-         are the same with `-end`. They are not interchangeable.
-       - every consultation item needs a stable id, a title and at least one
-         reply surface, and the three counts must agree. Add items by copying a
+         are the same with `-end`. They are not interchangeable: exactly one
+         `consult-copy` inside `aside.rail .consult-bar`, exactly one
+         `consult-copy-end` inside <main>, neither hidden.
+       - every consultation item needs a stable `data-id` that no other element
+         uses as its `id` (a group and an item both "W1" send #W1 links to the
+         group), a `data-title` that does not repeat the id, a notes box, and at
+         least two options — or `data-free` for an open answer, or a
+         `data-decided` carrying its verdict (the chosen label as the value, or
+         the chosen option checked). Add items by copying a
          whole block, never by adding a lone reply box.
 
      Every item carries a notes box on top of whatever it asks with, and the
@@ -30,9 +36,9 @@
      that listed twelve skills with counts and verdicts in one paragraph was
      returned unread (BL-269); the next day an item body did the same with
      twenty skills across three layers (BL-270). The paragraph states the
-     finding; the rows carry the facts. `check-artifact.sh` warns
-     (`consult-facts`) on a paragraph with four or more <code> tokens or
-     semicolon-joined clauses; the rewrite clears it, a waiver cannot.
+     finding; the rows carry the facts. `check-artifact.sh` fails
+     (`mixed-content-types`) any paragraph with four or more <code> tokens or
+     semicolon-joined clauses; the rewrite clears it.
 
      Every table goes inside <div class="tw">, which is checked too. A table is
      the one element the page cannot cap — max-width will not take it below its
@@ -155,6 +161,10 @@
 
   <section class="consult-item" data-id="Q2" data-title="A second decision from the same context">
     <h3><span class="consult-id">Q2</span>The second question this context raises</h3>
+    <div class="opts one">
+      <label><input type="radio" name="Q2" data-label="Keep it" data-recommended><span>Keep it <span class="hint">Why this is the recommendation.</span></span></label>
+      <label><input type="radio" name="Q2" data-label="Change it"><span>Change it <span class="hint">What it buys, and what it costs.</span></span></label>
+    </div>
     <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>

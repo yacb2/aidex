@@ -340,6 +340,10 @@ HTML_TAG_RE = re.compile(r"<[^>]+>")
 # exactly as the writer does or it silences the wrong set. A field, not prose — the
 # profile's own body says "language, favicon, tone" and must not match.
 ARTIFACT_LANG_FIELD = re.compile(r"^\s*[-*]?\s*language\s*:\s*([A-Za-z][A-Za-z0-9-]*)", re.M)
+# Copy of artifact's `LANG_SECTION`: the field is read inside `## Language`
+# first, and only without one from the whole file — the writer's predicate.
+ARTIFACT_LANG_SECTION = re.compile(r"^##[ \t]+Language[ \t]*$(.*?)(?=^#{1,2}[ \t]|\Z)",
+                                   re.M | re.S | re.I)
 
 # Languages `check_body_language` can actually detect. The profile silences only what
 # it authorises: declaring `fr` does not make a Spanish page acceptable, and declaring
@@ -360,7 +364,9 @@ def declared_artifact_language(context_dir: Path) -> str | None:
         # The profile is an optimisation, not a contract: an unreadable one falls
         # back to "nothing declared" rather than aborting the run.
         return None
-    m = ARTIFACT_LANG_FIELD.search(text)
+    sec = ARTIFACT_LANG_SECTION.search(text)
+    m = ((sec and ARTIFACT_LANG_FIELD.search(sec.group(1)))
+         or ARTIFACT_LANG_FIELD.search(text))
     return m.group(1).lower() if m else None
 
 

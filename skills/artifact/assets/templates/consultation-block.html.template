@@ -164,8 +164,10 @@
   <textarea placeholder="Anything the list does not cover…"></textarea>
 </section>
 
-<!-- Short text, for a value rather than an opinion: a name, a number, a path. -->
-<section class="consult-item" data-id="c4" data-title="A single value">
+<!-- Short text, for a value rather than an opinion: a name, a number, a path.
+     An item with no options is an OPEN ANSWER and says so with `data-free`;
+     without it the page is refused as a decision with nothing to choose from. -->
+<section class="consult-item" data-id="c4" data-title="A single value" data-free>
   <h3><span class="consult-id">c4</span>A single value</h3>
   <p class="fieldlabel">The value</p>
   <input type="text" placeholder="e.g. 15rem">
@@ -196,6 +198,10 @@
      `data-tiles="after"` and shows the one capture. That is the only
      row-level list the checker accepts.
 
+     Each tile's `src` is a copy beside the page (`<page-stem>-assets/gallery/
+     <sha256[:16]>.png`), never a `file://` path: the runner wipes its captures,
+     and a page pinned to them shows broken images the next day (BL-474).
+
      `data-id` on the ITEM is `<gallery>-<cell>-<variant>` (`-unrequested` for a
      cell that changed outside the requested set): names only, so the id is
      stable across rounds without anyone maintaining a counter.
@@ -214,8 +220,8 @@
     <h3><span class="consult-id">audit-empty-light-desktop</span>audit · empty · light-desktop</h3>
     <p>Light · desktop: before and proposed. Mark your answer and, if it needs changes, say which in the row's notes.</p>
     <div class="gal">
-      <figure data-tile="before"><img src="file:///abs/repo/root/shots/light-desktop/audit-empty.png" alt="audit · empty · light-desktop · before" width="1600" height="900" loading="lazy"><figcaption>before</figcaption></figure>
-      <figure data-tile="after"><img src="file:///abs/repo/root/actual/light-desktop/audit-empty.png" alt="audit · empty · light-desktop · proposed" width="1600" height="900" loading="lazy"><figcaption>proposed</figcaption></figure>
+      <figure data-tile="before"><img src="review-assets/gallery/3f2a9c1d4e5b6a70.png" alt="audit · empty · light-desktop · before" width="1600" height="900" loading="lazy"><figcaption>before</figcaption></figure>
+      <figure data-tile="after"><img src="review-assets/gallery/8c41d07e92b5f316.png" alt="audit · empty · light-desktop · proposed" width="1600" height="900" loading="lazy"><figcaption>proposed</figcaption></figure>
     </div>
     <div class="opts one">
       <label><input type="radio" name="audit-empty-light-desktop" data-label="Approved"><span>Approved: the proposed capture becomes the baseline</span></label>
@@ -231,8 +237,8 @@
     <p class="gal-flag">changed without you asking</p>
     <p>Dark · mobile: before and proposed. Mark your answer and, if it needs changes, say which in the row's notes.</p>
     <div class="gal">
-      <figure data-tile="before"><img src="file:///abs/repo/root/shots/dark-mobile/audit-loaded.png" alt="audit · loaded · dark-mobile · before" width="390" height="844" loading="lazy"><figcaption>before</figcaption></figure>
-      <figure data-tile="after"><img src="file:///abs/repo/root/actual/dark-mobile/audit-loaded.png" alt="audit · loaded · dark-mobile · proposed" width="390" height="844" loading="lazy"><figcaption>proposed</figcaption></figure>
+      <figure data-tile="before"><img src="review-assets/gallery/b27e5a0913cf48d6.png" alt="audit · loaded · dark-mobile · before" width="390" height="844" loading="lazy"><figcaption>before</figcaption></figure>
+      <figure data-tile="after"><img src="review-assets/gallery/05d9e63a7f12bc84.png" alt="audit · loaded · dark-mobile · proposed" width="390" height="844" loading="lazy"><figcaption>proposed</figcaption></figure>
     </div>
     <div class="opts one">
       <label><input type="radio" name="audit-loaded-dark-mobile-unrequested" data-label="Approved"><span>Approved: the proposed capture becomes the baseline</span></label>
@@ -266,8 +272,14 @@
 </div>
 
 <!-- …and this one lives inside the page's <aside class="rail">, after the
-     <nav class="raillist" id="raillist"></nav> the composer fills in. -->
-<div class="consult-bar">
-  <button type="button" id="consult-copy">Copy my answers</button>
-  <span class="consult-status" id="consult-status"></span>
-</div>
+     <nav class="raillist" id="raillist"></nav> the composer fills in. The rail
+     goes after </main>, as in skeleton.html; a copy button anywhere else leaves
+     the rail with none, and the check refuses it. -->
+<aside class="rail">
+  <p class="railhead">Contents</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy">Copy my answers</button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>

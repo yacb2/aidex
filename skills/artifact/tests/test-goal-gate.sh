@@ -980,6 +980,104 @@ CENSUSPY
 [ $? -eq 0 ] || bad "the figure census count"
 
 echo
+echo "== the id sequence: the consult contract's group and notes ids may be added =="
+# Owner ruling 2026-09-28: the consult contract wins over the goal gate. A spec
+# rewritten to put its items in a group and add the general-notes item keeps
+# every original id in order; only those two kinds of id may appear on top.
+# Layer: unit on corpus_diff.compare_body — the judge is a function of two
+# bodies, no build and no browser needed.
+python3 - "$HERE" "$tmp" <<'IDSPY'
+import os, sys
+sys.path.insert(0, sys.argv[1])
+import corpus_diff
+tmp = sys.argv[2]
+fails = []
+
+ORIG = ('<main><section class="consult-item" data-id="a"><h3>Uno</h3></section>'
+        '<section class="consult-item" data-id="b"><h3>Dos</h3></section></main>')
+page = os.path.join(tmp, "ids-orig.html")
+with open(page, "w", encoding="utf-8") as fh:
+    fh.write(ORIG)
+
+A = '<section class="consult-item" data-id="a"><h3>Uno</h3></section>'
+B = '<section class="consult-item" data-id="b"><h3>Dos</h3></section>'
+NOTES = ('<section class="consult-item consult-notes" data-id="notes" '
+         'data-title="Notas generales"><h3><span class="consult-id">notes</span>'
+         'Notas generales</h3><textarea></textarea></section>')
+
+
+def group(inner, gid="g", head=""):
+    h = '<div class="sec-head"><h2>%s</h2></div>' % head if head else ""
+    return ('<section class="consult-group" id="%s" data-id="%s">%s%s</section>'
+            % (gid, gid, h, inner))
+
+
+def case(label, body, expect, needle="", orig=None):
+    target = page
+    if orig is not None:
+        target = os.path.join(tmp, "ids-orig-2.html")
+        with open(target, "w", encoding="utf-8") as fh:
+            fh.write("<main>%s</main>" % orig)
+    ok, problems = corpus_diff.compare_body("<main>%s</main>" % body, target)
+    if ok != expect or (needle and not any(needle in p for p in problems)):
+        fails.append(label)
+        print("FAIL: %s -> %r" % (label, problems))
+    else:
+        print("  ok: " + label)
+
+
+case("the identical sequence is clean", A + B, True)
+case("an added group id around the original items is clean", group(A + B), True)
+case("an added notes item is clean, its title included", A + B + NOTES, True)
+case("groups and notes together are clean", group(A) + group(B, "h") + NOTES, True)
+case("reordered original ids fail", B + A, False, "ids differ")
+case("reordered original ids inside an added group still fail", group(B + A), False,
+     "ids differ")
+case("a missing original id fails", A, False, "ids differ")
+case("an added item id that is neither group nor notes fails",
+     A + B + '<section class="consult-item" data-id="c"></section>', False,
+     "ids differ")
+case("an added group's heading is still compared as visible text",
+     group(A + B, head="Consulta"), False, "visible text differs")
+case("two added notes items fail: only one is the contract's",
+     A + B + NOTES + NOTES.replace('"notes"', '"notes2"'), False, "ids differ")
+case("a notes item the original already had is still compared",
+     A + B + NOTES.replace("Notas generales", "Otra cosa"), False,
+     "visible text differs", orig=A + B + NOTES)
+
+# Option text (owner ruling 2026-09-28, extension): inside a consult option's
+# label only, the " — " label/hint separator and the badge word the kit now
+# draws itself ("Recomendada") are not compared. Everything else in the label is.
+OLD_OPT = ('<label class="opt"><input type="radio" name="q" value="a">'
+           '<span class="opt-name">Uno</span><span class="rec">Recomendada</span> '
+           '<span class="opt-note">— el detalle — con guion</span></label>'
+           '<label class="opt"><input type="radio" name="q" value="b">'
+           '<span class="opt-name">Dos</span> <span class="opt-note">— otro</span></label>')
+
+
+def opt(label, hint, rec=False):
+    return ('<label><input type="radio" name="q" data-label="%s"%s><span>%s '
+            '<span class="hint">%s</span></span></label>'
+            % (label, " data-recommended" if rec else "", label, hint))
+
+
+BUILT_OPTS = opt("Uno", "el detalle — con guion", True) + opt("Dos", "otro")
+case("an option's separator and badge word match the built {recommended} option",
+     BUILT_OPTS, True, orig=OLD_OPT)
+case("the badge word outside an option is still text",
+     "<p>Uno es la opción.</p>", False, "visible text differs",
+     orig="<p>Uno es la opción. Recomendada</p>")
+case("a dash outside an option is still text",
+     "<p>Uno el detalle</p>", False, "visible text differs",
+     orig="<p>Uno — el detalle</p>")
+case("a hint word changed inside an option still fails",
+     opt("Uno", "el detalle — sin guion", True) + opt("Dos", "otro"), False,
+     "visible text differs", orig=OLD_OPT)
+sys.exit(1 if fails else 0)
+IDSPY
+[ $? -eq 0 ] || bad "the id-sequence rule"
+
+echo
 echo "== the frozen sample itself (test_corpus_sample.py) =="
 sample_out="$(python3 "$HERE/test_corpus_sample.py" 2>&1)"
 rc=$?

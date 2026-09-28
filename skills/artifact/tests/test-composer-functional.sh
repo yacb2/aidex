@@ -119,7 +119,7 @@ PAGE="$TMP/reports/consult.html"
 # id's data-title changes, so a session cannot signal "same claim, new question"
 # through either.
 write_body() {  # write_body <q1-question-sentence> [decided-attr]
-# $2, when given, is `data-decided` and it is stamped on Q1 AND Q2 — the page
+# $2, when given, is `data-decided="<verdict>"`, stamped on Q1 AND Q2 — the page
 # BL-331 taught the checker to accept and BL-341 found the composer had never
 # been taught: every question settled, so collect()'s denominator is 0.
 local dec="${2:-}"
@@ -137,7 +137,7 @@ $gopen
       <label><input type="radio" name="Q0" data-label="La opcion elegida" checked><span>La opci&oacute;n elegida</span></label>
       <label><input type="radio" name="Q0" data-label="La opcion descartada"><span>La opci&oacute;n descartada</span></label>
     </div>
-    <p class="fieldlabel">Notas sobre esta</p>
+    <p class="fieldlabel">Notes on this one</p>
     <textarea></textarea>
   </section>
   <section class="consult-item" data-id="Q1" data-title="The probed question" $dec>
@@ -149,7 +149,7 @@ $gopen
     <p class="fieldlabel">Notes on this one</p>
     <textarea placeholder="Anything the options do not cover&hellip;"></textarea>
   </section>
-  <section class="consult-item" data-id="Q2" data-title="The untouched question" $dec>
+  <section class="consult-item" data-id="Q2" data-title="The untouched question" data-free $dec>
     <h3><span class="consult-id">Q2</span>This question never changes</h3>
     <p class="fieldlabel">Write freely</p>
     <div contenteditable="true"></div>
@@ -1026,7 +1026,8 @@ t="$(run 'phase=verify')"
 # so a fix that hid the bar would trade one wrong page for another. Both halves
 # are asserted, in both of the kit's languages.
 rm -rf "$TMP/profile"
-write_body "$Q1_V1" 'data-decided'
+# A settled item carries its verdict (decided-item-without-verdict, LOOP-006).
+write_body "$Q1_V1" 'data-decided="Resuelta en la ronda anterior"'
 wrap_page es
 td="$(run 'phase=alldecided')"
 [[ "$td" == *ALLDECIDED* ]] || fail "the all-decided phase did not run: $td"
@@ -1162,14 +1163,14 @@ cat > "$TMP/sbody.html" <<'HTML'
     <p class="fieldlabel">Notas sobre esta</p>
     <textarea></textarea>
   </section>
-  <section class="consult-item" data-id="S2" data-title="The value surface">
+  <section class="consult-item" data-id="S2" data-title="The value surface" data-free>
     <h3><span class="consult-id">S2</span>What value</h3>
     <p class="fieldlabel">El valor</p>
     <input type="text">
     <p class="fieldlabel">Notas sobre esta</p>
     <textarea></textarea>
   </section>
-  <section class="consult-item" data-id="S3" data-title="The prose surface">
+  <section class="consult-item" data-id="S3" data-title="The prose surface" data-free>
     <h3><span class="consult-id">S3</span>Write what you think</h3>
     <p class="fieldlabel">Write freely</p>
     <div contenteditable="true"></div>
@@ -2350,14 +2351,14 @@ cat > "$TMP/gbody-pair.html" <<HTML
       <figure data-tile="before"><img src="$PX" alt="empty before"><figcaption>antes</figcaption></figure>
       <figure data-tile="after"><img src="$PX" alt="empty after"><figcaption>propuesto</figcaption></figure>
     </div>
-    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label><label><input type="radio" name="audit-empty-light-desktop" data-label="Necesita cambios"><span>Necesita cambios</span></label></div>
     <p class="fieldlabel">Notas</p><textarea></textarea>
   </section>
   <section class="consult-item consult-gallery" data-id="audit-new-light-desktop" data-title="audit &middot; new &middot; light-desktop" data-variant="light-desktop" data-tiles="after">
     <h3><span class="consult-id">audit-new-light-desktop</span>audit &middot; new &middot; light-desktop</h3>
     <p>New screen.</p>
     <div class="gal"><figure data-tile="after"><img src="$PX" alt="new after"><figcaption>pantalla nueva</figcaption></figure></div>
-    <div class="opts one"><label><input type="radio" name="audit-new-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <div class="opts one"><label><input type="radio" name="audit-new-light-desktop" data-label="Aprobada"><span>Aprobada</span></label><label><input type="radio" name="audit-new-light-desktop" data-label="Necesita cambios"><span>Necesita cambios</span></label></div>
     <p class="fieldlabel">Notas</p><textarea></textarea>
   </section>
 </section>
@@ -2411,7 +2412,7 @@ cat > "$TMP/gbody-sample.html" <<HTML
       <figure data-tile="before"><img src="$PX" alt="empty before"><figcaption>antes</figcaption></figure>
       <figure data-tile="after"><img src="$PX" alt="empty after"><figcaption>propuesto</figcaption></figure>
     </div>
-    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label></div>
+    <div class="opts one"><label><input type="radio" name="audit-empty-light-desktop" data-label="Aprobada"><span>Aprobada</span></label><label><input type="radio" name="audit-empty-light-desktop" data-label="Necesita cambios"><span>Necesita cambios</span></label></div>
     <p class="fieldlabel">Notas</p><textarea></textarea>
   </section>
   <section class="consult-item consult-gallery" data-id="audit-loaded-light-desktop-sample" data-title="audit &middot; loaded &middot; light-desktop" data-variant="light-desktop">
@@ -2532,6 +2533,209 @@ tm="$(grep -oE '<title>[^<]*</title>' "$TMP/mdom.html" | head -1)"
   || fail "BL-454: checking an option did not release 'Todavía no' in a many item: $tm"
 [[ "$tm" == *"STATUS=Sin responder"* ]] \
   || fail "BL-454: a many item with every box unticked is not blank again: $tm"
+
+# ---- LOOP-006 group-item-id-collision: the composer never makes an id twice ----
+# It gives every item its data-id as an id at run time, and its own chrome three
+# fixed ids (sec-decided, consult-restored, kit-theme). Ways that id can already
+# be taken: a block's own id (W1), any authored anchor (W4 and the three kit
+# ids), and a block nested in a container section that has only a data-id,
+# which the rail gives it as an id before its items (W3; invisible to every
+# source check). The page is assembled with the kit inlined rather than
+# wrapped: the source checks refuse these shapes, and this cell is about the
+# composer's answer to them. Two pages, with and without a rail, because the
+# two item-id paths are separate code. With a rail, the settled block W5 is
+# moved into the Decided section and gets no id: the fold is its way in (BL-373). Each page loads twice on one profile:
+# ?fill types into W2 so the second load restores it and draws the banner.
+kit="$SKILL/assets/artifact-kit"
+ids_page() {  # ids_page <out> <rail-markup>
+  { printf '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>ids</title><style>\n'
+    cat "$kit/tokens.css" "$kit/components.css"
+    printf '</style></head><body>\n'
+    cat <<HTML
+<div class="page"><main class="main">
+<header><h1>Ids</h1><p id="W4">An authored anchor.</p><p id="sec-decided">x</p><p id="consult-restored">x</p><p id="kit-theme">x</p></header>
+<section class="consult-group" id="W1" data-id="W1" data-title="Block one"><div class="sec-head"><h2>Block one</h2></div>
+  <section class="consult-item" data-id="W1" data-title="Same as its block"><h3>One</h3><textarea></textarea></section>
+  <section class="consult-item" data-id="W4" data-title="Same as an anchor"><h3>Four</h3><textarea></textarea></section>
+</section>
+<section class="consult-group" id="G2" data-id="G2" data-title="Block two"><div class="sec-head"><h2>Block two</h2></div>
+  <section class="consult-item" data-id="W2" data-title="Typed and restored"><h3>Two</h3><textarea></textarea></section>
+</section>
+<section class="consult-group" id="G5" data-id="G5" data-title="Settled block"><div class="sec-head"><h2>Settled block</h2></div>
+  <section class="consult-item" data-id="W5" data-title="Decided" data-decided><h3>Five</h3>
+    <div class="opts one"><label><input type="radio" name="W5" data-label="A" checked><span>A</span></label><label><input type="radio" name="W5" data-label="B"><span>B</span></label></div></section>
+</section>
+<section id="sec-b"><div class="sec-head"><h2>Container</h2></div>
+  <section class="consult-group" data-id="W3" data-title="Nested block"><h3>Nested block</h3>
+    <section class="consult-item" data-id="W3" data-title="Same as its nested block"><h3>Three</h3><textarea></textarea></section>
+  </section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notes"><h3>Notes</h3><textarea></textarea></section>
+</main>$2</div>
+<script>
+window.addEventListener('load', function () {
+  if (location.search.indexOf('fill') !== -1) {
+    var ta = document.querySelector('[data-id="W2"] textarea');
+    ta.value = 'kept'; ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.title = 'FILLED'; return;
+  }
+  var seen = {}, dup = [];
+  [].forEach.call(document.querySelectorAll('[id]'), function (e) {
+    if (seen[e.id] && dup.indexOf(e.id) === -1) dup.push(e.id); seen[e.id] = 1;
+  });
+  var land = [].map.call(document.querySelectorAll('.consult-item:not([data-decided])'), function (el) {
+    var a = [].filter.call(document.querySelectorAll('#raillist .railitem'), function (x) {
+      var r = x.querySelector('.rid'); return r && r.textContent === el.dataset.id;
+    })[0];
+    var t = a && document.getElementById(a.getAttribute('href').slice(1));
+    return el.dataset.id + ':' + (a ? (t === el ? 'ok' : 'miss') : 'nolink');
+  });
+  var ids = [].map.call(document.querySelectorAll('.consult-item'), function (e) { return e.dataset.id + '=' + e.id; });
+  /* The authored holders keep their ids, and the kit's own chrome exists, so
+   * an empty DUP is not an absent banner or theme button passing for a fix. */
+  var kept = ['W1', 'W4', 'sec-decided', 'consult-restored', 'kit-theme'].map(function (i) {
+    var e = document.getElementById(i); return i + ':' + (e ? e.tagName + (e.classList.contains('consult-group') ? '.grp' : '') : 'none');
+  });
+  var chrome = [document.querySelector('section.decided'), document.querySelector('.note[role="status"]'),
+                document.querySelector('button.kit-theme')].map(function (e) { return e ? '1' : '0'; });
+  document.title = 'IDS|DUP=' + dup.join(',') + '|LAND=' + land.join(',') + '|IDS=' + ids.join(',')
+    + '|KEPT=' + kept.join(',') + '|CHROME=' + chrome.join('');
+});
+</script>
+HTML
+    printf '<script>\n'; cat "$kit/composer.js"; printf '</script>\n</body></html>\n'
+  } > "$1"
+}
+ids_run() {  # ids_run <page> — fill on a fresh profile, then the measured load
+  rm -rf "$TMP/profile"
+  chrome_dump "$TMP/idom.html" "file://$1?fill" 45 || true
+  chrome_dump "$TMP/idom.html" "file://$1" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/idom.html" | head -1
+}
+ids_page "$TMP/reports/ids.html" '<aside class="rail"><p class="railhead">Contents</p><nav class="raillist" id="raillist"></nav></aside>'
+ids_page "$TMP/reports/ids-norail.html" ''
+kept='|KEPT=W1:SECTION.grp,W4:P,sec-decided:P,consult-restored:P,kit-theme:P|CHROME=111<'
+ti="$(ids_run "$TMP/reports/ids.html")"
+[[ "$ti" == *"IDS|DUP=|"* ]] \
+  || fail "group-item-id-collision: the composer gave two elements one id (a block's id, an authored anchor, a nested block's data-id or a kit id taken again): $ti"
+[[ "$ti" == *"|LAND=W1:ok,W4:ok,W2:ok,W3:ok,notes:ok|"* ]] \
+  || fail "group-item-id-collision: an item's rail link does not land on the item: $ti"
+[[ "$ti" == *"|IDS=W5=,W1=W1-2,W4=W4-2,W2=W2,W3=W3-2,notes=notes|"* ]] \
+  || fail "group-item-id-collision: an item did not get its data-id, or the first free suffix when that was taken: $ti"
+[[ "$ti" == *"$kept"* ]] \
+  || fail "group-item-id-collision: an authored holder lost its id, or the kit chrome was not drawn: $ti"
+ti="$(ids_run "$TMP/reports/ids-norail.html")"
+[[ "$ti" == *"IDS|DUP=|"* ]] \
+  || fail "group-item-id-collision: with no rail, the composer gave two elements one id: $ti"
+[[ "$ti" == *"|IDS=W5=W5,W1=W1-2,W4=W4-2,W2=W2,W3=W3,notes=notes|"* ]] \
+  || fail "group-item-id-collision: with no rail, an item did not get its data-id or the first free suffix: $ti"
+[[ "$ti" == *"$kept"* ]] \
+  || fail "group-item-id-collision: with no rail, an authored holder lost its id, or the kit chrome was not drawn: $ti"
+rm -rf "$TMP/profile"
+
+# ---- LOOP-006 text-style-drift: item prose is one size wherever it sits -----
+# A paragraph directly in an item, one inside a wrapper div and a list item
+# read at one size; a div.note's paragraph keeps the note's size and the field
+# label its own. Before kit 27 only a DIRECT child p took the item size (15.2
+# px) and a wrapped one fell back to the body's 17 px. Kit CSS only: the
+# cascade decides this, the composer has no part in it.
+{ printf '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>prose</title><style>\n'
+  cat "$kit/tokens.css" "$kit/components.css"
+  cat <<'HTML'
+</style></head><body><div class="page"><main class="main">
+<section class="consult-item" data-id="P1" data-title="Prose">
+  <p id="p-direct">Direct.</p>
+  <div class="ctx"><p id="p-wrapped">Wrapped.</p></div>
+  <ul><li id="p-li">Listed.</li></ul>
+  <div class="note"><p id="p-note">In a note.</p></div>
+  <p class="fieldlabel" id="p-label">Label</p>
+</section></main></div>
+<script>
+window.addEventListener('load', function () {
+  document.title = 'PROSE|' + ['p-direct', 'p-wrapped', 'p-li', 'p-note', 'p-label'].map(function (i) {
+    return i + '=' + getComputedStyle(document.getElementById(i)).fontSize;
+  }).join(',');
+});
+</script></body></html>
+HTML
+} > "$TMP/reports/prose.html"
+chrome_dump "$TMP/pdom.html" "file://$TMP/reports/prose.html" 45 || true
+tp="$(grep -oE '<title>[^<]*</title>' "$TMP/pdom.html" | head -1)"
+[[ "$tp" == *"PROSE|p-direct=15.2px,p-wrapped=15.2px,p-li=15.2px,p-note=13.12px,p-label=11.52px<"* ]] \
+  || fail "text-style-drift: item prose is not one size wherever it sits (or a note/label lost its own size): $tp"
+rm -rf "$TMP/profile"
+
+# ---- no kit class reaches an author's SVG <text> ----------------------------
+# An author's figure names its labels with words the kit also uses (`note`,
+# `mono`, `eyebrow`...). A kit class rule beats the label's own presentation
+# attributes (font-size="12", fill="currentColor"), so before kit 29 such a
+# label was hidden (consult-clear, kit-swipe-layer), recoloured, resized or
+# re-set in another face. Each class a kit selector names gets one <text>,
+# compared by computed style with a classless twin, in both themes, in a
+# figure and in a figure inside an item. The list is read from the kit's own
+# rules, so a new class is covered the day it is written; the classes the kit
+# styles ON PURPOSE inside an svg (`figure svg .acc`) are its figure
+# vocabulary and are left out. `display` is compared as drawn / not drawn:
+# flex or grid on an svg text changes nothing.
+{ printf '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>svgclass</title><style>\n'
+  cat "$kit/tokens.css" "$kit/components.css"
+  cat <<'HTML'
+</style></head><body><div class="page"><main class="main">
+<figure><svg id="svg-top" viewBox="0 0 400 40" width="400"></svg></figure>
+<section class="consult-item" data-id="S1" data-title="Svg"><figure><svg id="svg-item" viewBox="0 0 400 40" width="400"></svg></figure></section>
+</main></div>
+<script>
+window.addEventListener('load', function () {
+  var cls = /\.-?[_a-zA-Z][-_a-zA-Z0-9]*/g, all = {}, svgVocab = {};
+  (function walk(rules) {
+    Array.prototype.forEach.call(rules, function (r) {
+      if (r.cssRules && !r.selectorText) return walk(r.cssRules);
+      if (!r.selectorText) return;
+      r.selectorText.split(',').forEach(function (part) {
+        var inSvg = /\bsvg\b/.test(part.replace(/:not\(svg \*\)/g, ''));
+        (part.match(cls) || []).forEach(function (c) { all[c.slice(1)] = 1; if (inSvg) svgVocab[c.slice(1)] = 1; });
+      });
+    });
+  })(document.styleSheets[0].cssRules);
+  var names = Object.keys(all).filter(function (n) { return !svgVocab[n]; }).sort();
+  var props = ['display', 'visibility', 'opacity', 'font-family', 'font-size', 'font-weight',
+               'font-style', 'text-transform', 'letter-spacing', 'fill', 'stroke'];
+  var NS = 'http://www.w3.org/2000/svg', bad = [];
+  function label(svg, c) {
+    var e = document.createElementNS(NS, 'text');
+    e.setAttribute('x', '4'); e.setAttribute('y', '20'); e.setAttribute('font-size', '12');
+    e.setAttribute('fill', 'currentColor'); if (c) e.setAttribute('class', c);
+    e.textContent = 'label'; svg.appendChild(e); return e;
+  }
+  function style(e) {
+    var s = getComputedStyle(e);
+    return props.map(function (p) {
+      var v = s.getPropertyValue(p);
+      return p + ':' + (p === 'display' ? (v === 'none' ? 'none' : 'drawn') : v);
+    });
+  }
+  ['light', 'dark'].forEach(function (theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    ['svg-top', 'svg-item'].forEach(function (host) {
+      var svg = document.getElementById(host), base = style(label(svg, ''));
+      names.forEach(function (n) {
+        var got = style(label(svg, n)), diff = got.filter(function (v, i) { return v !== base[i]; });
+        if (diff.length) bad.push(theme + ' ' + host + ' .' + n + ' {' + diff.join('; ') + '}');
+      });
+    });
+  });
+  document.title = 'SVGCLASS|' + names.length + '|' + (bad.join(' ') || 'none') + '|';
+});
+</script></body></html>
+HTML
+} > "$TMP/reports/svgclass.html"
+chrome_dump "$TMP/svdom.html" "file://$TMP/reports/svgclass.html" 45 || true
+ts="$(grep -oE '<title>[^<]*</title>' "$TMP/svdom.html" | head -1)"
+[[ "$ts" =~ SVGCLASS\|([0-9]+)\| && ${BASH_REMATCH[1]} -ge 50 ]] \
+  || fail "svg-class-leak: the kit's class list was not read (fewer than 50 classes): $ts"
+[[ "$ts" == *"|none|"* ]] \
+  || fail "svg-class-leak: a kit class restyles an author's svg <text> of the same name: $ts"
+rm -rf "$TMP/profile"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

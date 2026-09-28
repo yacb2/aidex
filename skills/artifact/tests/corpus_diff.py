@@ -6,7 +6,12 @@ Usage:
     python3 corpus_diff.py --quiet <spec.md> <original>  # exit status only
 
 Exit 0 when the conversion is clean: the `data-id` sequence is IDENTICAL and
-the visible-text token sequence is IDENTICAL. Exit 1 otherwise, with the first
+the visible-text token sequence is IDENTICAL. One allowance (owner ruling
+2026-09-28, the consult contract wins): a group id or the general-notes item
+that only the build has is not counted, the notes item's title with it, as long
+as every original id keeps its order. Inside an option's label the " — "
+separator the builder leaves implicit and the kit's badge word are read in one
+canonical form (`corpus_html.py`). Exit 1 otherwise, with the first
 divergence printed in context — a conversion is never eyeballed, so the failure
 has to say which word drifted and where.
 
@@ -59,7 +64,8 @@ def compare_body(body, page_path):
 
     problems = []
 
-    wi, gi = corpus_html.ids(want), corpus_html.ids(got)
+    wi = corpus_html.ids(want)
+    gi = corpus_html.ids(got, skip=_contract_additions(got, set(wi)))
     if wi != gi:
         problems.append("ids differ\n  original: %s\n  built:    %s\n%s"
                         % (wi, gi, _unified(wi, gi, "id")))
@@ -70,6 +76,31 @@ def compare_body(body, page_path):
                         % (len(wt), len(gt), _first_divergence(wt, gt)))
 
     return not problems, problems
+
+
+def _contract_additions(got, original_ids):
+    """The consult contract's own blocks that the build added: the group
+    nodes whose id the page never had (returned, so their id is skipped), and
+    the general-notes item likewise (detached from `got`, its title with it) —
+    one notes item at most: a second one is an added id like any other.
+
+    Owner ruling 2026-09-28: the consult contract wins over this judge. A page
+    rewritten to put its items in groups and give the reader a notes box is
+    still the same page when every ORIGINAL id keeps its order — the caller's
+    comparison still fails any other added, missing or reordered id. A group's
+    heading is not exempt: it is compared as visible text like any heading.
+    """
+    groups, notes_done = [], False
+    for node in list(got.walk()):
+        ident = node.attrs.get("data-id")
+        if ident is None or ident in original_ids:
+            continue
+        if node.has("consult-notes") and not notes_done:   # a page has ONE
+            node.parent.children.remove(node)
+            notes_done = True
+        elif node.has("consult-group"):
+            groups.append(node)
+    return groups
 
 
 def _unified(a, b, label):

@@ -143,6 +143,11 @@ La consulta de hoy: qué escribe el agente cuando la página cambia.
 :::
 '''
 
+# The verdict a verb records on an item WITH options: the chosen option's label.
+# `yes` there would ship the author's {recommended} option as the verdict
+# whatever the reader chose, so the verb refuses it (below).
+V = "Fences"
+
 LEDGERED = PAGE.replace(
     "::: group {#G1",
     "::: ledger\n- d1 — **Hecho.** La gramática vive en `03-spec-grammar.md`.\n"
@@ -190,32 +195,41 @@ refuses("add-item refuses a group id that is an ITEM's",
 
 print()
 print("== decide: the attr, and only the attr ==")
-one = decide(PAGE, "Q1", "yes")
+one = decide(PAGE, "Q1", V)
 check("the verdict lands as `decided=` on the item's own fence, and the "
       "author's spacing inside the braces is left where it was",
-      '::: item {#Q1   title="Fences o YAML"    decided="yes"}' in one, one)
+      '::: item {#Q1   title="Fences o YAML"    decided="Fences"}' in one, one)
 added, removed = diff_shape(PAGE, one)
 check("decide changes exactly one line", (added, removed) == (1, 1),
       "%d added, %d removed" % (added, removed))
 check("no other fence gains a verdict",
-      one.replace('decided="yes"', "", 1).count("decided") == 1)
+      one.replace('decided="Fences"', "", 1).count("decided") == 1)
 check("decide is idempotent for the same verdict — byte-identical spec",
-      decide(one, "Q1", "yes") == one)
+      decide(one, "Q1", V) == one)
 two = decide(one, "Q1", "no, se reabre")
 check("a DIFFERENT verdict overwrites (the `owner-changed` case)",
-      'decided="no, se reabre"' in two and 'decided="yes"' not in two, two)
+      'decided="no, se reabre"' in two and 'decided="Fences"' not in two, two)
 check("...and still changes exactly one line", diff_shape(one, two) == (1, 1))
 check("an existing bare verdict is replaced in place, not appended",
       decide(PAGE, "Q2", "no").count("decided") == 1
       and 'decided="no"' in decide(PAGE, "Q2", "no"))
 refuses("decide refuses an id the spec does not carry",
-        lambda: decide(PAGE, "Q9", "yes"), "#Q9")
+        lambda: decide(PAGE, "Q9", V), "#Q9")
 refuses("...and lists the items it does carry",
-        lambda: decide(PAGE, "Q9", "yes"), "#Q1")
+        lambda: decide(PAGE, "Q9", V), "#Q1")
 refuses("decide refuses a block that is not an item",
-        lambda: decide(PAGE, "G1", "yes"), "is a `group` block")
+        lambda: decide(PAGE, "G1", V), "is a `group` block")
 refuses("...and an empty verdict", lambda: decide(PAGE, "Q1", "  "),
         "empty verdict")
+# `decided=yes` makes the builder check the {recommended} option, which is the
+# author's advice, not the reader's answer: recorded by a verb after a round,
+# it would ship the recommendation as the verdict whatever the reader chose.
+for flag in ("yes", "TRUE", "1", " yes "):
+    refuses("decide refuses %r on an item with options" % flag,
+            lambda flag=flag: decide(PAGE, "Q1", flag),
+            "pass the chosen option's label")
+check("...and records a label verdict on the same item",
+      'decided="Fences de Pandoc"' in decide(PAGE, "Q1", "Fences de Pandoc"))
 
 print()
 print("== new-round: the ledger, keyed by id ==")
@@ -229,7 +243,7 @@ check("new-round only ADDS lines", removed == 0 and added == 4,
 check("new-round is idempotent — a key already in the ledger is not written "
       "twice", new_round(rnd) == rnd)
 check("a spec with nothing decided comes back byte-identical",
-      new_round(decide(PAGE, "Q2", "yes").replace(' decided="yes"', ""))
+      new_round(decide(PAGE, "Q2", V).replace(' decided="Fences"', ""))
       == PAGE.replace(" decided=yes", ""))
 existing = new_round(LEDGERED)
 check("an existing ledger is APPENDED to, its own rows untouched",
@@ -342,7 +356,7 @@ check("new-round injects none either, ledger or no ledger",
       and not lf_only(new_round(LEDGERED.replace("\n", "\r\n"))),
       str(lf_only(new_round(CRLF))))
 check("...and decide still changes exactly one line on a CRLF spec",
-      diff_shape(CRLF, decide(CRLF, "Q1", "yes")) == (1, 1))
+      diff_shape(CRLF, decide(CRLF, "Q1", V)) == (1, 1))
 
 print()
 print("== decide, with `decided` anywhere in the attr group ==")
@@ -367,10 +381,10 @@ check("...and each of the three changes exactly one line",
 print()
 print("== the trailing newline is the author's too ==")
 check("a spec with no final newline keeps none",
-      not decide(PAGE.rstrip("\n"), "Q1", "yes").endswith("\n"))
+      not decide(PAGE.rstrip("\n"), "Q1", V).endswith("\n"))
 check("a spec with one keeps exactly one",
-      decide(PAGE, "Q1", "yes").endswith(":::\n")
-      and not decide(PAGE, "Q1", "yes").endswith(":::\n\n"))
+      decide(PAGE, "Q1", V).endswith(":::\n")
+      and not decide(PAGE, "Q1", V).endswith(":::\n\n"))
 
 print()
 print("== the file half: refuse without writing, or write and rebuild ==")
@@ -416,9 +430,9 @@ try:
 
     spec = fresh("cli-decide")
     page = os.path.join(os.path.dirname(spec), "page.html")
-    r = run("decide", spec, "--id", "Q1", "--verdict", "yes")
+    r = run("decide", spec, "--id", "Q1", "--verdict", V)
     check("decide exits 0", r.returncode == 0, r.stdout + r.stderr)
-    check("...the SPEC records the verdict", 'decided="yes"' in read(spec))
+    check("...the SPEC records the verdict", 'decided="Fences"' in read(spec))
     built = read(page)
     check("...and the PAGE marks the item decided, bare as the kit reads it",
           re.search(r'<section class="consult-item" data-id="Q1"[^>]*'
@@ -450,7 +464,7 @@ try:
               "--title", "Ruta de figuras", "--body", "¿Qué renderizador?",
               "--option", "Uno propio de stdlib {recommended}",
               "--option", "El de la librería"), "add-item"),
-            (("decide", spec, "--id", "Q1", "--verdict", "yes"), "decide"),
+            (("decide", spec, "--id", "Q1", "--verdict", V), "decide"),
             (("new-round", spec), "new-round")):
         r = run(*argv)
         check("%s rebuilds the page" % label, r.returncode == 0,
@@ -473,13 +487,13 @@ try:
           r.stdout + r.stderr)
     spec_bytes, page_bytes = read(spec, "rb"), read(page, "rb")
     for argv, label, needle in (
-            (("decide", spec, "--id", "Q9", "--verdict", "yes"),
+            (("decide", spec, "--id", "Q9", "--verdict", V),
              "decide on a missing id", "#Q9"),
             (("add-item", spec, "--group", "G9", "--id", "Q3",
               "--title", "x"), "add-item into a missing group", "#G9"),
             (("add-item", spec, "--group", "G1", "--id", "Q2",
               "--title", "x"), "add-item with an id already used", "#Q2"),
-            (("decide", spec, "--id", "G1", "--verdict", "yes"),
+            (("decide", spec, "--id", "G1", "--verdict", V),
              "decide on a block that is not an item", "#G1"),
             # The one refusal that comes from the BUILD and not from the id
             # lookup: the spec parses, and `emit_item` then refuses an option
@@ -528,9 +542,9 @@ try:
     # ...and the spec is not wedged: the edit that REPAIRS the contract passes
     # the same gate and is written. A gate that refused this too would have
     # traded a wedge for a dead end.
-    r = run("decide", spec, "--id", "Q2", "--verdict", "yes")
+    r = run("decide", spec, "--id", "Q2", "--verdict", V)
     check("the repairing edit is accepted — the spec is refused, not frozen",
-          r.returncode == 0 and 'decided="yes"' in read(spec),
+          r.returncode == 0 and 'decided="Fences"' in read(spec),
           r.stdout + r.stderr)
 
     print()
@@ -542,7 +556,7 @@ try:
     ro_bytes = read(ro, "rb")
     os.chmod(os.path.dirname(ro), 0o555)
     try:
-        r = run("decide", ro, "--id", "Q1", "--verdict", "yes")
+        r = run("decide", ro, "--id", "Q1", "--verdict", V)
         check("a spec in a read-only directory is a refusal, not a traceback",
               r.returncode == 1 and "Traceback" not in r.stderr, r.stderr)
         check("...and the refusal names the file it could not write",
@@ -558,13 +572,13 @@ try:
     os.makedirs(link_dir)
     link = os.path.join(link_dir, "page.spec.md")
     os.symlink(real, link)
-    r = run("decide", link, "--id", "Q1", "--verdict", "yes")
+    r = run("decide", link, "--id", "Q1", "--verdict", V)
     check("the verb edits a symlinked spec", r.returncode == 0,
           r.stdout + r.stderr)
     check("...the path is still a symlink — `os.replace` did not fork the file",
           os.path.islink(link), str(os.listdir(link_dir)))
     check("...and what changed is the file the link names",
-          'decided="yes"' in read(real))
+          'decided="Fences"' in read(real))
 
     # --- no verb writes HTML -------------------------------------------------
     print()
@@ -572,7 +586,7 @@ try:
     # Both runs start from a page that does not exist, so both are round 1 and
     # the only difference left is the clock in the build stamp.
     a_spec = fresh("nohtml-verb")
-    r = run("decide", a_spec, "--id", "Q1", "--verdict", "yes")
+    r = run("decide", a_spec, "--id", "Q1", "--verdict", V)
     check("the verb rebuilt its page", r.returncode == 0, r.stdout + r.stderr)
     b_spec = fresh("nohtml-plain")
     shutil.copyfile(a_spec, b_spec)
@@ -625,27 +639,55 @@ try:
                       and n.value.id == "spec_build"})
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
-          touched == ["HINT_SEP", "LANGS", "build", "main", "page_title"],
+          touched == ["HINT_SEP", "LANGS", "build", "has_options", "main",
+                     "page_title"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
           writes == ["tmp"], str(writes))
 
     print()
+    print("== a verb on a spec with a gallery ==")
+    # A gallery copies its captures beside the page it goes into and refuses a
+    # body with no page (img-src-portable). The verb's pre-check built with no
+    # page, so every verb on a gallery spec died before writing anything.
+    gspec = fresh("gallery", PAGE.replace(
+        '::: notes {title="Notas generales"}',
+        '::: gallery {#E title="Galería" rows="rows.json" root="caps"}\n:::\n\n'
+        '::: notes {title="Notas generales"}', 1))
+    gdir = os.path.dirname(gspec)
+    rel = "shots/ld/audit-with-data.png"
+    os.makedirs(os.path.join(gdir, "caps", "shots", "ld"))
+    subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
+                    os.path.join(gdir, "caps", rel), "16", "9"], check=True)
+    with open(os.path.join(gdir, "rows.json"), "w", encoding="utf-8") as fh:
+        fh.write('{"gallery": "audit", "variants": ["light-desktop"], "rows": '
+                 '[{"cell": "with-data", "variant": "light-desktop", '
+                 '"kind": "review", "after": "%s"}]}' % rel)
+    try:
+        gout = spec_verbs.decide_file(gspec, "Q1", V)
+        check("decide on a gallery spec returns the page it rebuilt",
+              gout == os.path.join(gdir, "page.html"), gout)
+        check("...whose tiles link the copies beside it",
+              'src="page-assets/gallery/' in read(gout))
+    except (VerbError, spec_verbs.BuildFailed) as exc:
+        fail("decide on a gallery spec was refused: %s" % exc)
+
+    print()
     print("== the CLI's own edges ==")
     r = run("decide", os.path.join(tmp, "missing.spec.md"), "--id", "Q1",
-            "--verdict", "yes")
+            "--verdict", V)
     check("a spec that is not there is a refusal, not a traceback",
           r.returncode == 1 and "cannot read the spec" in r.stderr, r.stderr)
     bad = fresh("unparseable", "prosa\n\n::: item {#a #b}\n:::\n")
-    r = run("decide", bad, "--id", "Q1", "--verdict", "yes")
+    r = run("decide", bad, "--id", "Q1", "--verdict", V)
     check("a spec that does not parse is refused with its line",
           r.returncode == 1 and "line 3" in r.stderr, r.stderr)
     r = run()
     check("no verb prints the usage and exits 2", r.returncode == 2)
     spec = fresh("outflag")
     elsewhere = os.path.join(tmp, "outflag", "otra.html")
-    r = run("decide", spec, "--id", "Q1", "--verdict", "yes",
+    r = run("decide", spec, "--id", "Q1", "--verdict", V,
             "--out", elsewhere)
     check("--out chooses the page", r.returncode == 0
           and os.path.isfile(elsewhere), r.stdout + r.stderr)
@@ -653,7 +695,7 @@ try:
     check("--out pointed at the spec itself is refused",
           r.returncode == 1 and "is the spec itself" in r.stderr, r.stderr)
     check("...and the spec was not written first",
-          'decided="yes"' in read(spec))
+          'decided="Fences"' in read(spec))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

@@ -79,7 +79,13 @@ SINCE = {
     "gallery": "2026-09-22",       # the gallery row, plan phase 1
     "raw-link": "2026-09-25",      # a4dcc72, artifact-quality phase 5
     "rec-leak": "2026-09-27",      # BL-481
+    "contract": "2026-09-28",      # contract_defects blocking in check-artifact, LOOP-006
 }
+# contract_defects' classes report under their own slugs, blocking since the same
+# merge; read from the module, so a class added there is dated here without a copy.
+sys.path.insert(0, os.path.join(os.path.dirname(CHECKER), "dash"))
+import contract_defects  # noqa: E402
+SINCE.update(dict.fromkeys(contract_defects.CHECKS, SINCE["contract"]))
 
 
 def page_date(path):
@@ -161,6 +167,10 @@ def census_advisory(checker):
     mod = os.path.join(os.path.dirname(os.path.abspath(checker)), "dash",
                        "check_artifact.py")
     try:
+        # check_artifact imports its sibling contract_defects by name, which a
+        # script run finds on sys.path[0]; a module loaded from a path does not.
+        if os.path.dirname(mod) not in sys.path:
+            sys.path.insert(0, os.path.dirname(mod))
         spec = importlib.util.spec_from_file_location("check_artifact_for_reader", mod)
         m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(m)

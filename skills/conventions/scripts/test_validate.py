@@ -1417,6 +1417,43 @@ def run(fixture: str) -> dict:
     )
     return json.loads(res.stdout)
 
+def check_artifact_lang_lockstep(failures: list[str]) -> None:
+    """validate.py's `declared_artifact_language` is a COPY of artifact's
+    `wrap_report.profile_language` (the writer of `<html lang>`), so both must
+    read one profile the same way. The declaration is the `language:` inside
+    `## Language`, wherever that section sits: last in aidex_ws's profile, near
+    the top in asset_lab_ws's and dashboard_template_ws's, where a later example
+    line may read `- language: en` (LOOP-006)."""
+    import tempfile
+    v = _load_validator()
+    sys.path.insert(0, str(SCRIPT_DIR.parent.parent / "artifact" / "scripts" / "dash"))
+    import wrap_report
+    shapes = {
+        "section last, an earlier field-shaped line":
+            "# P\n\n## Layout\n\n- language: en (the code blocks)\n\n"
+            "## Language\n\n- language: es\n",
+        "section first, a later example line":
+            "# P\n\n## Language\n\n- language: es\n\nArtifacts in Spanish.\n\n"
+            "## Identity\n\nAn English project would write:\n\n- language: en\n",
+        "no section, one field":
+            "# P\n\n- language: es\n",
+        "a section with no field, the field later":
+            "# P\n\n## Language\n\nSpanish, see below.\n\n## Identity\n\n"
+            "- language: es\n",
+    }
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        ctx.mkdir()
+        for name, text in shapes.items():
+            (ctx / "artifact-style.md").write_text(text, encoding="utf-8")
+            got_v = v.declared_artifact_language(ctx)
+            got_w = wrap_report.profile_language(str(ctx))
+            if got_v != "es" or (got_w or "").lower() != got_v:
+                failures.append(f"artifact language lockstep ({name}): validate.py "
+                                f"read {got_v!r}, wrap_report read {got_w!r}; both "
+                                f"must read 'es'")
+
+
 def main() -> int:
     failures: list[str] = []
 
@@ -1469,6 +1506,7 @@ def main() -> int:
     check_baseline_key_granularity(failures)
     check_waived_is_not_resolved(failures)
     check_html_body_language(failures)
+    check_artifact_lang_lockstep(failures)
     check_artifact_anchor_unit(failures)
     check_artifact_style_language(failures)
     check_external_crossrefs(failures)

@@ -31,7 +31,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--serif);
    its own lower half until the page bottom drags the container up. Measured on
    a 37-entry page: 1284px of rail in a 900px viewport, 384px unreachable.
    Symmetric breathing room top and bottom is why it is 2 x `top`. */
-.rail { position: sticky; top: 2rem; max-height: calc(100vh - 2 * 2rem);
+.rail:where(:not(svg *)) { position: sticky; top: 2rem; max-height: calc(100vh - 2 * 2rem);
         display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
 
 h1, h2, h3 { font-family: var(--serif); text-wrap: balance; margin: 0; font-weight: 600; }
@@ -40,16 +40,16 @@ h2 { font-size: 1.5rem; line-height: 1.22; margin-top: 0.2rem; }
 h3 { font-size: 1.12rem; line-height: 1.3; color: var(--ink); }
 p { margin: 0; }
 
-.eyebrow { font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
+.eyebrow:where(:not(svg *)) { font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
            letter-spacing: 0.14em; color: var(--muted); margin: 0; }
-.standfirst { font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
+.standfirst:where(:not(svg *)) { font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
 
 .main > header { display: flex; flex-direction: column; gap: 0.9rem; padding-bottom: 2rem; border-bottom: 1px solid var(--rule); }
 .main > section { display: flex; flex-direction: column; gap: 1rem; padding: 2.4rem 0; border-bottom: 1px solid var(--rule); }
 .main > section:last-of-type { border-bottom: none; }
 .sec-head { display: flex; flex-direction: column; gap: 0.35rem; }
 
-code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code, .mono:where(:not(svg *)) { font-family: var(--mono); font-size: 0.86em; }
 code { background: var(--paper-sunk); padding: 0.08em 0.32em; border-radius: 2px; }
 pre { font-family: var(--mono); font-size: 0.78rem; line-height: 1.6; background: var(--paper-sunk);
       border: 1px solid var(--rule); padding: 0.9rem 1rem; overflow-x: auto; margin: 0; }
@@ -96,14 +96,17 @@ ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; ga
 /* A path is one unbreakable word (`~/.claude/aidex/delegation/*.tsv`), and at 390 px
    it ran past the column and scrolled the whole page sideways (R1, R6 of the
    2026-09-24 A/B set). `anywhere`, not `break-word`: a `li` is a flex item of the
-   `ul` above, and only `anywhere` lowers the min-content width a flex item keeps. */
-p, li { overflow-wrap: anywhere; }
+   `ul` above, and only `anywhere` lowers the min-content width a flex item keeps.
+   An item's h3, an option label (its text is a flex item of the label) and a
+   verdict cell's caption carry the same inline `code` paths and spilled the
+   same way (kit 28). */
+p, li, h3, .opts label, .verdict > div { overflow-wrap: anywhere; }
 li::marker { color: var(--muted); }
 
-.note { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
+.note:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
         background: var(--paper-sunk); border-left: 2px solid var(--accent-dim); padding: 0.75rem 0.95rem; }
 .note.warn { border-left-color: var(--flag); }
-.ex { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
+.ex:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
       border-left: 2px solid var(--rule); padding-left: 0.8rem; }
 .ex b { color: var(--ink); font-weight: 600; }
 
@@ -129,21 +132,29 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    the distinction the vocabulary draws is invisible. Sized off the sans stack
    and the sunk paper rather than a tint of the accent: the accent is a
    FOREGROUND colour in both themes (the same reason `.kit-tag` is transparent),
-   and a filled tag loses its own text in one of them. */
-.pill, .chip { font-family: var(--sans); font-weight: 600; white-space: nowrap;
+   and a filled tag loses its own text in one of them.
+   Never inside an svg (`:where(:not(svg *))`, which adds no specificity): an
+   author's figure names its own labels `chip` too, and kit 22-26 painted such a
+   `<text class="chip">` --ink-soft on the author's dark chip, 1.08:1 in the
+   light scheme, and resized it past its box. Since kit 29 every kit class rule
+   that sets a text property (display, font, colour, case, spacing) carries the
+   same filter: a class rule beats a label's own font-size= and fill= attributes,
+   so `<text class="note">` was recoloured and `consult-clear` hid it. */
+.pill:where(:not(svg *)), .chip:where(:not(svg *)) {
+               font-family: var(--sans); font-weight: 600; white-space: nowrap;
                background: var(--paper-sunk); border: 1px solid var(--rule);
                color: var(--ink-soft); vertical-align: 0.06em; }
-.pill { font-size: 0.74rem; letter-spacing: 0.02em; padding: 0.08em 0.42em; border-radius: 3px; }
-.chip { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+.pill:where(:not(svg *)) { font-size: 0.74rem; letter-spacing: 0.02em; padding: 0.08em 0.42em; border-radius: 3px; }
+.chip:where(:not(svg *)) { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
         padding: 0.1em 0.5em; border-radius: 999px; }
 /* The tones, written by the corpus as the SECOND class of the span
    (`pill high`, `chip chip-kill`) and by `tone=` in a spec. Scoped to their
    own tag, so a word this common cannot restyle anything else on the page. */
-.pill.high { color: var(--accent); border-color: var(--accent-dim); }
-.pill.info { color: var(--ink-soft); border-color: var(--rule); }
-.pill.warn, .chip.warn { color: var(--flag); border-color: var(--flag); }
-.chip.chip-kill, .chip.kill { color: var(--flag); border-color: var(--flag); }
-.chip.ok, .pill.ok { color: var(--accent); border-color: var(--accent-dim); }
+.pill.high:where(:not(svg *)) { color: var(--accent); border-color: var(--accent-dim); }
+.pill.info:where(:not(svg *)) { color: var(--ink-soft); border-color: var(--rule); }
+.pill.warn:where(:not(svg *)), .chip.warn:where(:not(svg *)) { color: var(--flag); border-color: var(--flag); }
+.chip.chip-kill:where(:not(svg *)), .chip.kill:where(:not(svg *)) { color: var(--flag); border-color: var(--flag); }
+.chip.ok:where(:not(svg *)), .pill.ok:where(:not(svg *)) { color: var(--accent); border-color: var(--accent-dim); }
 
 /* The framed aside: the paragraph the page does not want skimmed past. Louder
    than `.note`, which is its quieter sibling and already styled — with no rule
@@ -160,7 +171,7 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    `.win` computed identically to its neighbours and the scoreboard had no
    score. The figure is the large numeral, the label its line, the caption the
    small print under both. */
-.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+.verdict:where(:not(svg *)) { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
            gap: 0.6rem; font-family: var(--sans); }
 .verdict > div { border: 1px solid var(--rule); border-radius: 4px; background: var(--paper-sunk);
                  padding: 0.7rem 0.9rem; color: var(--ink-soft); font-size: 0.85rem; line-height: 1.4; }
@@ -192,18 +203,26 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    rule down the left: `.main > section` owns the section box (a left rule was
    overridden to padding 0 and drew glued to the text), and the block already
    reads from its accent eyebrow, its h2 and the section separator. */
-.consult-group > .sec-head .eyebrow { color: var(--accent); }
+.consult-group > .sec-head .eyebrow:where(:not(svg *)) { color: var(--accent); }
 .consult-group > .consult-item { margin-top: 0.25rem; }
 /* The general-notes item sits directly under .main once the blocks are the
    sections, so `.main > section` would strip its inner padding and stretch it
    with section padding. It keeps the item box; the end bar follows it. */
 .main > section.consult-item { padding: 1.1rem 1.25rem; margin-top: 2.4rem; }
 .main > .endbar { margin: 1rem 0 2.4rem; }
-.consult-item { border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem;
+.consult-item:where(:not(svg *)) { border: 1px solid var(--rule); border-radius: 4px; padding: 1.1rem 1.25rem;
                 display: flex; flex-direction: column; gap: 0.7rem; scroll-margin-top: 2rem; }
 .consult-item > h3 { margin: 0; font-size: 1.05rem; }
-.consult-id { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-right: .5rem; }
-.consult-item p { font-size: 0.95rem; }
+.consult-id:where(:not(svg *)) { font-family: var(--mono); font-size: .8rem; color: var(--muted); margin-right: .5rem; }
+/* Item prose is one size wherever it sits, so the size is the ITEM's and its
+   text inherits it: a paragraph in a wrapper div or a list item reads like a
+   direct one (kit 26's `:where(.consult-item) > p` left those at the body's
+   17 px next to 15.2 px). Anything with a size of its own keeps it (.fieldlabel,
+   .note and the paragraphs a div.note passes its size to, .ex, option labels,
+   tables), and :where() leaves the rule at no specificity, so a class on the
+   item itself wins too. `.consult-item p` (0,1,1), before kit 26, beat all of
+   them. */
+:where(.consult-item):where(:not(svg *)) { font-size: 0.95rem; }
 
 /* A GALLERY ROW: one screen state, one figure per tile of the row's matrix —
    before/after for a review row generated by scripts/gallery-items.sh from the
@@ -239,12 +258,12 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* A before/after review row names its variant on the ROW, not on the tiles. */
 .consult-gallery[data-variant$="-mobile"] .gal img { max-width: 220px; margin: 0 auto; display: block; }
 /* An unrequested change: the one line that tells the owner why the row is here. */
-.gal-flag { font-family: var(--sans); font-size: 0.85rem; font-weight: 600; color: var(--flag);
+.gal-flag:where(:not(svg *)) { font-family: var(--sans); font-size: 0.85rem; font-weight: 600; color: var(--flag);
             margin: 0; }
 .gal figcaption { font-size: 0.72rem; text-align: center; }
 /* The row that does not apply: the reason IS the row's content, so it reads as
    a statement rather than as a missing image. */
-.gal-na { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
+.gal-na:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; color: var(--ink-soft);
           border-left: 2px solid var(--rule); padding-left: 0.8rem; margin: 0.2rem 0 0.3rem; }
 /* One column below 700px: two tiles side by side on a phone are two thumbnails
    nobody can judge, and judging is the whole point of the row. */
@@ -273,26 +292,26 @@ dialog.kit-zoom { padding: 0; overflow: auto; outline: none;
                   border: 1px solid var(--rule); border-radius: 6px;
                   background: var(--paper); color: var(--ink); }
 dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
-.kit-zoom-head { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap;
+.kit-zoom-head:where(:not(svg *)) { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap;
                  align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem;
                  border-bottom: 1px solid var(--rule); background: var(--paper);
                  font-family: var(--sans); font-size: 0.8rem; }
-.kit-zoom-row { font-weight: 600; }
-.kit-zoom-tile, .kit-zoom-with, .kit-zoom-cell { font-family: var(--mono); color: var(--muted); font-size: 0.74rem; }
+.kit-zoom-row:where(:not(svg *)) { font-weight: 600; }
+.kit-zoom-tile:where(:not(svg *)), .kit-zoom-with:where(:not(svg *)), .kit-zoom-cell:where(:not(svg *)) { font-family: var(--mono); color: var(--muted); font-size: 0.74rem; }
 .kit-zoom-cmpgroup { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center;
                       gap: 0.25rem; min-width: 0; }
 .kit-zoom-cmp { white-space: nowrap; }
-.kit-zoom-size, .kit-zoom-close, .kit-zoom-cmp { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+.kit-zoom-size:where(:not(svg *)), .kit-zoom-close:where(:not(svg *)), .kit-zoom-cmp:where(:not(svg *)) { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
                                   border: 1px solid var(--rule); border-radius: 4px;
                                   background: var(--paper); color: var(--ink); }
-.kit-zoom-size[aria-pressed="true"], .kit-zoom-cmp[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-.kit-zoom-mark { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer; white-space: nowrap;
+.kit-zoom-size[aria-pressed="true"]:where(:not(svg *)), .kit-zoom-cmp[aria-pressed="true"]:where(:not(svg *)) { border-color: var(--accent); color: var(--accent); }
+.kit-zoom-mark:where(:not(svg *)) { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer; white-space: nowrap;
                  border: 1px solid var(--rule); border-radius: 4px;
                  background: var(--paper); color: var(--ink); }
-.kit-zoom-mark:disabled { cursor: default; opacity: 0.5; }
+.kit-zoom-mark:disabled:where(:not(svg *)) { cursor: default; opacity: 0.5; }
 /* The Mark button and the range take turns: marks are drawn with compare off,
    the range only means something with it on. */
-.kit-zoom:not([data-compare="off"]) .kit-zoom-mark { display: none; }
+.kit-zoom:not([data-compare="off"]) .kit-zoom-mark:where(:not(svg *)) { display: none; }
 /* Under 640px the header is two lines: the row (truncated, its full text in
    the title), the tile, the size and Close; then the tools. The cell id
    repeats the row, the sibling's name repeats the compare mode, and the
@@ -300,7 +319,7 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
    header was four lines (160px with the range showing) over the capture. */
 @media (max-width: 640px) {
   .kit-zoom-row { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .kit-zoom-cell, .kit-zoom-with, .kit-zoom-cmpgroup > .kit-gallabel { display: none; }
+  .kit-zoom-cell:where(:not(svg *)), .kit-zoom-with:where(:not(svg *)), .kit-zoom-cmpgroup > .kit-gallabel:where(:not(svg *)) { display: none; }
   .kit-zoom-cmpgroup { order: 1; flex: 1 1 100%; margin-left: 0; }
 }
 .kit-zoom-body { padding: 0.7rem; }
@@ -309,7 +328,7 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 .kit-zoom img { display: block; margin: 0 auto; max-width: min(90vw, 100%); max-height: calc(90vh - 6rem);
                 width: auto; height: auto; background: var(--paper); }
 .kit-zoom.native img { max-width: none; max-height: none; }
-.kit-zoom-note { margin: 0; padding: 0.4rem 0.7rem 0; font-family: var(--sans); font-size: 0.78rem; }
+.kit-zoom-note:where(:not(svg *)) { margin: 0; padding: 0.4rem 0.7rem 0; font-family: var(--sans); font-size: 0.78rem; }
 
 /* COMPARE (GitHub's image-diff modes). Both images sit in ONE grid cell, the
    sibling on top; 2-up gives each its own column. The slider writes two
@@ -326,8 +345,8 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
    split reads as a split and not as a seam in one screenshot. The layer sits
    over the current image (placed by the composer); the line follows the same
    --kit-swipe the clip uses. It takes no pointer: the range is the control. */
-.kit-swipe-layer { position: absolute; pointer-events: none; display: none; }
-.kit-zoom[data-compare="swipe"] .kit-swipe-layer { display: block; }
+.kit-swipe-layer:where(:not(svg *)) { position: absolute; pointer-events: none; display: none; }
+.kit-zoom[data-compare="swipe"] .kit-swipe-layer:where(:not(svg *)) { display: block; }
 .kit-swipe-handle { position: absolute; top: 0; bottom: 0; left: var(--kit-swipe, 50%); width: 2px;
                     transform: translateX(-50%); background: var(--accent);
                     box-shadow: 0 0 0 1px var(--paper); }
@@ -365,21 +384,21 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 .kit-mark-acts button { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
                         border: 1px solid var(--rule); border-radius: 4px;
                         background: var(--paper); color: var(--ink); }
-.kit-zoom-keys { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);
+.kit-zoom-keys:where(:not(svg *)) { margin: 0; padding: 0.3rem 0.7rem 0.6rem; font-family: var(--sans);
                  font-size: 0.72rem; color: var(--muted); }
 
 /* The per-block filter toolbar, injected by the composer on every block that
    declares a matrix. It sets one attribute on the block and the four rules
    below do the hiding — the tiles stay in the markup, so what the copy button
    composes is the same text whether or not anything is filtered. */
-.kit-galbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem;
+.kit-galbar:where(:not(svg *)) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.9rem;
               font-family: var(--sans); font-size: 0.78rem; margin: 0.1rem 0 0.7rem; }
 .kit-galgroup { display: flex; align-items: center; gap: 0.25rem; }
-.kit-gallabel { color: var(--muted); margin-right: 0.15rem; }
-.kit-galopt { font: inherit; padding: 0.1rem 0.55rem; cursor: pointer;
+.kit-gallabel:where(:not(svg *)) { color: var(--muted); margin-right: 0.15rem; }
+.kit-galopt:where(:not(svg *)) { font: inherit; padding: 0.1rem 0.55rem; cursor: pointer;
               border: 1px solid var(--rule); border-radius: 4px;
               background: var(--paper); color: var(--ink); }
-.kit-galopt[aria-pressed="true"] { background: var(--accent); border-color: var(--accent);
+.kit-galopt[aria-pressed="true"]:where(:not(svg *)) { background: var(--accent); border-color: var(--accent);
                                    color: var(--paper); }
 /* Keyed off the tile NAME, like the mobile cap above: a matrix that adds a
    viewport filters by naming its tiles `<mode>-<viewport>`, and nothing here
@@ -408,12 +427,12 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    one explicitly advised against. `background: transparent` rather than a tint,
    because the accent is a foreground colour in both themes and a filled pill
    loses its own text in one of them. */
-.kit-tag { font-family: var(--sans); font-size: 0.62rem; font-weight: 600;
+.kit-tag:where(:not(svg *)) { font-family: var(--sans); font-size: 0.62rem; font-weight: 600;
            text-transform: uppercase; letter-spacing: 0.09em; white-space: nowrap;
            padding: 0.08rem 0.36rem; border-radius: 3px; margin-left: 0.45rem;
            vertical-align: 0.06em; background: transparent; }
-.kit-tag.rec { color: var(--accent); border: 1px solid var(--accent-dim); }
-.kit-tag.no  { color: var(--muted);  border: 1px dashed var(--muted); }
+.kit-tag.rec:where(:not(svg *)) { color: var(--accent); border: 1px solid var(--accent-dim); }
+.kit-tag.no:where(:not(svg *))  { color: var(--muted);  border: 1px dashed var(--muted); }
 .opts label:has(input[data-recommended]) { background: var(--paper-sunk); }
 .opts label:has(input[data-recommended="no"]) { background: none; }
 /* The injected "other" choice (BL-268): last in its group, set off by a rule so
@@ -435,7 +454,7 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 /* An empty reply box on a settled item carries no record and cannot be typed
    into, so it is a dead control, not history. It is hidden with its label; one
    that HAS text stays, because then it is part of what was answered. */
-.consult-item[data-decided]:has(textarea:placeholder-shown) .fieldlabel,
+.consult-item[data-decided]:has(textarea:placeholder-shown) .fieldlabel:where(:not(svg *)),
 .consult-item[data-decided] textarea:placeholder-shown { display: none; }
 
 /* The "not now" choice (BL-381) closes the option group after "other" and
@@ -445,10 +464,10 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 /* The ask row (kit v18, BL-381; seven chips since v19): a second surface under
    the answer, one line of chips with a lead-in. Deliberately lighter than the
    two v16 radios it replaces — no hint lines; each chip carries a title. */
-.kit-ask { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; align-items: baseline;
+.kit-ask:where(:not(svg *)) { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; align-items: baseline;
            margin-top: 0.55rem; padding-top: 0.5rem; border-top: 1px dashed var(--rule);
            font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
-.kit-ask-lead { color: var(--ink-soft); }
+.kit-ask-lead:where(:not(svg *)) { color: var(--ink-soft); }
 .kit-ask label { display: inline-flex; align-items: baseline; gap: 0.3rem; cursor: pointer;
                  padding: 0.1rem 0.3rem; border-radius: 3px; white-space: nowrap; }
 .kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
@@ -467,7 +486,7 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 /* The provisional line (kit v19): shown on an item that has BOTH a chosen
    option and an ask, which is not a decision. Quiet, one line, under the ask
    row it belongs to — it reports a state the reader created, it does not warn. */
-.kit-provisional { margin: 0.45rem 0 0; font-family: var(--sans); font-size: 0.78rem;
+.kit-provisional:where(:not(svg *)) { margin: 0.45rem 0 0; font-family: var(--sans); font-size: 0.78rem;
                    line-height: 1.5; color: var(--ink-soft);
                    border-left: 2px solid var(--accent-dim); padding-left: 0.6rem; }
 
@@ -480,23 +499,23 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    and drawn as a quiet link rather than a button: it is a recovery affordance,
    not one of the two answers the item is asking for. */
 .fieldrow { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
-.consult-clear { display: none; }
-.consult-item.has-answer .consult-clear { display: inline; }
-.consult-clear { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
+.consult-clear:where(:not(svg *)) { display: none; }
+.consult-item.has-answer .consult-clear:where(:not(svg *)) { display: inline; }
+.consult-clear:where(:not(svg *)) { align-self: flex-end; background: none; border: none; padding: 0.1rem 0.2rem;
                  font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase;
                  letter-spacing: 0.09em; color: var(--muted); cursor: pointer; }
-.consult-clear:hover { color: var(--flag); text-decoration: underline; }
+.consult-clear:hover:where(:not(svg *)) { color: var(--flag); text-decoration: underline; }
 /* Every box, not only the ones inside an item: a textarea defaults to
    `resize: both`, and the horizontal handle offers an axis the layout has no
    room for — dragging it wider lays the box over the rail and whatever sits
    beside it. Vertical is the only direction with anywhere to go. */
 textarea { resize: vertical; }
-.fieldlabel { font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.fieldlabel:where(:not(svg *)) { font-family: var(--sans); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
 .consult-notes { border-color: var(--accent-dim); background: var(--paper-sunk); }
 
 /* The rail carries the section index as well as the questions: on a page with
    no questions it is still the table of contents, which is why it stays. */
-.railhead { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
+.railhead:where(:not(svg *)) { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
 /* The LIST scrolls, not the whole rail: the copy bar below it is the reason the
    rail exists on a consultation, and giving `.rail` the overflow would scroll
    that button out of a box the reader cannot scroll past. `min-height: 0` is
@@ -506,20 +525,20 @@ textarea { resize: vertical; }
 .raillist { display: flex; flex-direction: column; gap: 0.1rem;
             min-height: 0; overflow-y: auto; overscroll-behavior: contain;
             scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
-.railitem { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.32rem 0.5rem;
+.railitem:where(:not(svg *)) { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.32rem 0.5rem;
             border-radius: 4px; text-decoration: none; color: var(--ink-soft); font-size: 0.82rem; line-height: 1.4; }
 .railitem:hover { background: var(--paper-sunk); }
 /* Where the reader IS. `aria-current` rather than a class: it is the semantic
    the assistive layer already reads, so one declaration serves both, and a
    scrollable rail without it only moves the hunt inside the box. */
-.railitem[aria-current] { background: var(--paper-sunk); color: var(--ink);
+.railitem[aria-current]:where(:not(svg *)) { background: var(--paper-sunk); color: var(--ink);
                           box-shadow: inset 2px 0 0 var(--accent); }
 .railitem .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; border: 1px solid var(--muted); flex: none; transform: translateY(0.05rem); }
 .railitem.done .dot { background: var(--accent); border-color: var(--accent); }
-.railitem.done { color: var(--ink); }
+.railitem.done:where(:not(svg *)) { color: var(--ink); }
 .railitem .rid { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); }
-.railitem.sec { color: var(--muted); }
-.railitem.sec.grp { color: var(--ink-soft); margin-top: 0.3rem; }
+.railitem.sec:where(:not(svg *)) { color: var(--muted); }
+.railitem.sec.grp:where(:not(svg *)) { color: var(--ink-soft); margin-top: 0.3rem; }
 .railitem.sub { padding-left: 1.4rem; }
 .railitem.sec .dot { border: none; background: none; }
 .railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
@@ -528,7 +547,7 @@ textarea { resize: vertical; }
    the one whose viewer shows the file as a static snapshot with no script. At
    the foot of the rail, in the chrome register, so it is found where the reader
    already looks for what the page IS rather than for what it says. */
-.railbuilt { margin: 0.6rem 0 0; font-family: var(--sans); font-size: 0.7rem;
+.railbuilt:where(:not(svg *)) { margin: 0.6rem 0 0; font-family: var(--sans); font-size: 0.7rem;
              letter-spacing: 0.03em; color: var(--muted); }
 
 /* Two copy bars, one status. The rail bar carries the bare consult-copy and
@@ -546,7 +565,7 @@ textarea { resize: vertical; }
                padding-top: 0.8rem; border-top: 1px solid var(--rule); background: var(--paper); }
 .consult-bar button { font-family: var(--sans); font-size: 0.85rem; padding: .5rem .9rem; border-radius: 4px;
                       border: 1px solid var(--rule); cursor: pointer; color: inherit; background: var(--paper-sunk); width: 100%; }
-.consult-status { font-size: .78rem; line-height: 1.45; color: var(--ink-soft); }
+.consult-status:where(:not(svg *)) { font-size: .78rem; line-height: 1.45; color: var(--ink-soft); }
 /* Recorded regression, and a contract check: with only the media query above, an
    explicitly-toggled dark page keeps the light sticky bar and the blank-count
    status lands at 1.31:1, which is the one element that says what is still
@@ -579,11 +598,11 @@ textarea { resize: vertical; }
      of the viewport over the content, and a line the reader cannot dismiss is
      not worth the strip it costs on a phone. The <meta> stays in the head at
      every width, so the page still carries the answer. */
-  .rail .railhead, .rail .raillist, .rail .railsep, .rail .railbuilt { display: none; }
+  .rail .railhead:where(:not(svg *)), .rail .raillist, .rail .railsep, .rail .railbuilt:where(:not(svg *)) { display: none; }
   /* A READ page's rail has nothing left to show here, and an empty strip pinned
      to the viewport bottom still hid a line of whatever scrolled under it (a
      figure heading's second line at 390 px on F2, F3 and F5, 2026-09-25). */
-  .rail:not(:has(.consult-bar)) { display: none; }
+  .rail:not(:has(.consult-bar)):where(:not(svg *)) { display: none; }
   .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .consult-bar button { width: auto; }
 }
@@ -603,23 +622,23 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
    cost is that it scrolls away with the page, which is fine for chrome the reader
    uses once. Sized as a quiet pill rather than a button. A page with no `.page`
    gets it at the end of the body, in the flow. */
-.kit-theme { display: block; margin: 0.5rem auto 2rem;
+.kit-theme:where(:not(svg *)) { display: block; margin: 0.5rem auto 2rem;
              font-family: var(--sans); font-size: 0.7rem; text-transform: uppercase;
              letter-spacing: 0.09em; color: var(--muted); cursor: pointer;
              background: var(--paper); border: 1px solid var(--rule);
              border-radius: 999px; padding: 0.3rem 0.7rem; }
 .page > .kit-theme { position: absolute; top: 1rem; right: 0; margin: 0; }
-.kit-theme:hover { color: var(--ink); border-color: var(--muted); }
+.kit-theme:hover:where(:not(svg *)) { color: var(--ink); border-color: var(--muted); }
 .kit-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media print { .kit-theme { display: none; } }
+@media print { .kit-theme:where(:not(svg *)) { display: none; } }
 
 /* Decided questions, collapsed out of the flow (kit v17, BL-373). The section
    and every <details> in it are built by composer.js, never by an author: a
    page that hand-rolls this shape is the gate-1 violation the feature exists
    to remove. Hidden, not deleted — the summary carries the verdict and one
    click reopens the reasoning. */
-.decided > .sec-head .eyebrow { color: var(--muted); }
-.decided-hint { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55;
+.decided > .sec-head .eyebrow:where(:not(svg *)) { color: var(--muted); }
+.decided-hint:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55;
                 color: var(--muted); margin: 0 0 0.9rem; }
 .decided-unit { border: 1px solid var(--rule); background: var(--paper-sunk);
                 margin-bottom: -1px; }
@@ -632,10 +651,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .decided-unit[open] > summary::before { content: '\2212'; }
 .decided-unit > summary:hover { background: var(--paper); }
 .decided-unit > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.decided-verdict { color: var(--ink-soft); }
+.decided-verdict:where(:not(svg *)) { color: var(--ink-soft); }
 /* The moved node keeps its own markup; only the box around it changes, so the
    item reads as a record rather than as a question still on the page. */
-.decided-unit > .consult-item,
+.decided-unit > .consult-item:where(:not(svg *)),
 .decided-unit > .consult-group { background: var(--paper); border-top: 1px solid var(--rule);
                                  margin: 0; padding: 0.9rem; opacity: 0.85; }
 /* Folded IN PLACE inside a block that still has open items (kit v18, BL-380):

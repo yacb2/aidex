@@ -112,19 +112,29 @@ else
   fail "a <script> in the report body reached the page as markup (or vanished entirely)"
 fi
 
-# ---------- --lang wins over the project profile (BL-279) --------------------
-# The report body is `.context/` English (D-04) even in a project whose artifacts
-# are Spanish, so the close-out passes --lang en explicitly. If the profile could
-# win, the page would be stamped lang="es" over an English body and fail `lang`.
-mkdir -p "$TMP/proj/.context"
+# ---------- --lang en wins over the profile on human-verification only (BL-279) --
+# human-verification.md is `.context/` English (D-04) even in a project whose
+# artifacts are Spanish, so its wrap passes --lang en explicitly; if the profile
+# won, the page would be stamped lang="es" over an English body and fail `lang`.
+# Owner ruling (LOOP-006): that page is the only one. A close-out record under
+# worklists/_archive/ follows the profile (BL-382, BL-482), so the same wrap there
+# fails lang-follows-profile.
+mkdir -p "$TMP/proj/.context/worklists/_archive"
 : > "$TMP/proj/.context/.aidex-root"
 printf -- '- language: es\n' > "$TMP/proj/.context/artifact-style.md"
 cp "$TMP/report.md" "$TMP/proj/report.md"
+HV="$TMP/proj/.context/human-verification.html"
 bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \
-     --out "$TMP/proj/.context/report.html" >/dev/null 2>&1
-grep -q '<html lang="en"' "$TMP/proj/.context/report.html" \
-  && ok "--lang en overrides an artifact-style.md that says es" \
-  || fail "--lang did not override the profile language: $(grep -o '<html lang="[a-z]*"' "$TMP/proj/.context/report.html" | head -1)"
+     --out "$HV" >/dev/null 2>&1
+grep -q '<html lang="en"' "$HV" \
+  && ok "--lang en overrides an artifact-style.md that says es on human-verification" \
+  || fail "--lang did not override the profile language on human-verification: $(grep -o '<html lang="[a-z]*"' "$HV" | head -1)"
+REC="$TMP/proj/.context/worklists/_archive/report.html"
+bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \
+     --out "$REC" > "$TMP/lang-page.out" 2>&1
+grep -q 'FAIL \[lang-follows-profile\]' "$TMP/lang-page.out" && [[ ! -e "$REC" ]] \
+  && ok "the same --lang en on a close-out record is refused by lang-follows-profile" \
+  || fail "a close-out record kept --lang en against the profile: $(cat "$TMP/lang-page.out")"
 
 # ---------- the OTHER producer: prose, not a script -------------------------
 # `human-verification.md` is written by the session, and it is the shape that found
@@ -395,6 +405,14 @@ La [fuente](http://example.com/a) y [yo](mailto:a@b.c).
 [[ $rc -eq 0 ]] && ok "a .md with http: and mailto: links wraps (rc 0)" || fail "a .md with http:/mailto: links: wrap rc $rc"
 [[ "$(grep -o 'href="http://example.com/a"\|href="mailto:a@b.c"' "$TMP/links/ok.html" 2>/dev/null | wc -l | tr -d ' ')" -eq 2 ]] \
   && ok "…with both hrefs" || fail "the http:/mailto: hrefs are missing"
+# The rail md_body renders is headed in the page's language, not always "Contents"
+# (LOOP-006 ui-string-language: a static snapshot shows it as written).
+grep -q '<p class="railhead">Contenido</p>' "$TMP/links/ok.html" \
+  && ok "a .md wrapped --lang es gets a rail headed Contenido" \
+  || fail "the rendered rail of an es page is not headed Contenido: $(grep -o '<p class="railhead">[^<]*' "$TMP/links/ok.html")"
+grep -q '<p class="railhead">Contents</p>' "$TMP/report.html" \
+  && ok "…and a .md wrapped --lang en keeps Contents" \
+  || fail "the rendered rail of an en page is not headed Contents"
 printf '# Enlaces
 
 No [x](javascript:alert(1)) aqui.

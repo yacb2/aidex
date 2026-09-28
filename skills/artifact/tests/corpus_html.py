@@ -190,6 +190,59 @@ def figures_dropped(node):
     return n
 
 
+# Inside a consult option's label ONLY (owner ruling 2026-09-28, the consult
+# contract wins): the builder writes `label <span class="hint">hint</span>`
+# where older pages wrote the separator as text, `label — hint`, and the kit
+# draws the recommended badge itself where older pages carried its word as text
+# (composer.js `rec`). So an option label is read in one canonical form: a
+# `.hint` gets the " — " separator in front unless it already starts with one,
+# and one badge word is taken out. Nothing outside an option label is
+# normalised. Whether an option is the recommended one is NOT compared: a spec
+# marks a decided item's chosen option `{recommended}` to check it, where the
+# original page checked it without the attribute (siguientes-pasos q1), and the
+# grammar has no other spelling for that.
+OPTION_SEP = "\u2014"
+BADGE_WORDS = {"Recomendada", "Recommended"}
+
+
+def _option_input(node):
+    """The radio/checkbox a `<label>` wraps, or None: that is an option."""
+    if node.tag != "label":
+        return None
+    return next((n for n in node.walk() if n.tag == "input"
+                 and n.attrs.get("type") in ("radio", "checkbox")), None)
+
+
+def _collect_option(node, out):
+    for child in node.children:
+        if child.tag == "#text":
+            out.append(child.text)
+            continue
+        if _dropped(child):
+            continue
+        out.append(" ")
+        if child.has("hint"):
+            inner = []
+            _collect(child, inner)
+            hint = html.unescape("".join(inner)).strip()
+            if hint and not hint.startswith(OPTION_SEP):
+                out.append(OPTION_SEP + " ")
+            out.append(hint)
+        else:
+            _collect_option(child, out)
+        out.append(" ")
+
+
+def _option_tokens(label):
+    sub = []
+    _collect_option(label, sub)
+    words = html.unescape("".join(sub)).split()
+    badge = next((w for w in words if w in BADGE_WORDS), None)
+    if badge:
+        words.remove(badge)
+    return words
+
+
 def _collect(node, out):
     for child in node.children:
         if child.tag == "#text":
@@ -198,7 +251,10 @@ def _collect(node, out):
         if _dropped(child):
             continue
         out.append(" ")
-        _collect(child, out)
+        if _option_input(child) is not None:
+            out.append(" ".join(_option_tokens(child)))
+        else:
+            _collect(child, out)
         out.append(" ")
 
 
@@ -213,12 +269,13 @@ def tokens(node):
     return visible_text(node).split()
 
 
-def ids(node):
+def ids(node, skip=()):
     """Every block/item id the region declares, in document order.
 
     `data-id` is the kit's own addressing attribute — the rail anchor, the paste
     key, and what `check_artifact.py`'s consult-shape rules read. A dropped
     subtree's ids go with it (there are none: no chrome carries a `data-id`).
+    A node in `skip` keeps its subtree's ids and loses only its own.
     """
     out = []
 
@@ -226,7 +283,7 @@ def ids(node):
         for child in el.children:
             if child.tag == "#text" or _dropped(child):
                 continue
-            if "data-id" in child.attrs:
+            if "data-id" in child.attrs and child not in skip:
                 out.append(child.attrs["data-id"])
             rec(child)
 

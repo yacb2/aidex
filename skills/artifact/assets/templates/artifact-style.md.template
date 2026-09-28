@@ -67,9 +67,12 @@ the first fence here becomes the project's real palette.
 
 - language: en
 
-Read as a field, not as prose: `wrap-report.sh` parses the first `language:`
-line in this file and uses it as the document's `<html lang>` when no explicit
-`--lang` is passed. Precedence is `--lang` > this field > `en`.
+Read as a field, not as prose: `wrap-report.sh` parses the `language:` line
+inside this `## Language` section (without the section, the first `language:`
+line in the file) and uses it as the document's `<html lang>` when no explicit
+`--lang` is passed. Precedence is `--lang` > this field > `en`, and only a
+`human-verification.*` page (English by D-04) passes a `--lang` that contradicts it:
+`check-artifact` fails any other page whose `<html lang>` is not this field.
 
 Scope is ARTIFACTS only. `.context/` stays English (D-04) whatever this says —
 it is a historical record and is cheaper to search in one language — and

@@ -173,6 +173,17 @@ PY
 [[ "$unmapped" == "defect|no since date" ]] \
   && ok "a check absent from the since-map is a defect, and says so" \
   || bad "unmapped verdict: $unmapped"
+# contract_defects' classes report under their own slugs (LOOP-006), dated with
+# the check merge; a page older than that predates them.
+cls="$(python3 - "$FACETS/read_artifacts.py" <<'PY'
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("ra", sys.argv[1]); ra = importlib.util.module_from_spec(spec); spec.loader.exec_module(ra)
+print(*ra.verdict("lang-follows-profile", "2026-09-10"), sep="|")
+PY
+)"
+[[ "$cls" == "predates-rule|since 2026-09-28" ]] \
+  && ok "a contract_defects class slug carries its since date" \
+  || bad "lang-follows-profile verdict: $cls"
 grep -Fq 'fail [rail] undated defect (since 2026-09-14): ' <<<"$out" \
   && ok "rail carries its since date" || bad "rail line missing: $out"
 
@@ -272,13 +283,14 @@ grep -Eq '^round 5: .*2026-02-05-real-shape\.html \(v18, [0-9]+/[0-9]+ questions
   || bad "real-shape line wrong: $out"
 
 # (f) F1 again, from the kit's OWN skeleton through the real wrapper: the shape the
-# fixtures above imitate, with the composer and the kit CSS really injected.
+# fixtures above imitate, with the composer and the kit CSS really injected. A
+# decided item carries its verdict (decided-item-without-verdict, LOOP-006).
 KITDIR="$HERE/../../artifact"
 mkdir -p "$B/kit_ws/.context/reports"
 {
   printf '<style>\n'; cat "$KITDIR/assets/artifact-kit/tokens.css"; printf '</style>\n'
   printf '<style>\n'; cat "$KITDIR/assets/artifact-kit/components.css"; printf '</style>\n'
-  sed -E 's|<section class="consult-item" data-id="(Q1\|Q2)"|<section class="consult-item" data-decided data-id="\1"|' \
+  sed -E 's|<section class="consult-item" data-id="(Q1\|Q2)"|<section class="consult-item" data-decided="Keep it" data-id="\1"|' \
     "$KITDIR/assets/artifact-kit/skeleton.html"
 } > "$B/kitbody.html"
 kout="$(bash "$KITDIR/scripts/wrap-report.sh" --title "Kit decided" --in "$B/kitbody.html" \
