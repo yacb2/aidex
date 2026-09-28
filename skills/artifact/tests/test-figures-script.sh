@@ -18,7 +18,21 @@ set -uo pipefail
 SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 CANON="$SKILL/references/02-local-first-artifacts.md"
 TMP="$(mktemp -d /tmp/figscript-XXXXXX)"
-trap 'rm -rf "$TMP"' EXIT
+# Chrome runs under setpgrp (below), so it leads its own process group and does
+# not die with this script: the trap kills that group on any exit, and a run
+# killed with SIGKILL (no trap runs) is swept by the next start instead, which
+# kills every Chrome re-parented to launchd that still holds a figscript profile
+# and removes its dir. A concurrent run's Chrome is never ppid 1 (BL-495).
+CHROME_PID=""
+trap '[[ -n "$CHROME_PID" ]] && kill -9 -- "-$CHROME_PID" 2>/dev/null; rm -rf "$TMP"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+while read -r p dir; do
+  kill -9 -- "-$p" "$p" 2>/dev/null
+  rm -rf "$dir"
+done < <(ps -axo pid=,ppid=,command= \
+           | awk '$2 == 1 && match($0, /--user-data-dir=\/tmp\/figscript-[^\/ ]+/) {
+                    print $1, substr($0, RSTART + 16, RLENGTH - 16) }')
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
@@ -99,6 +113,7 @@ perl -e 'setpgrp(0,0); exec @ARGV' \
             --user-data-dir="$TMP/profile" --dump-dom "file://$TMP/page.html" \
   > "$TMP/dom.html" 2>/dev/null &
 pid=$!
+CHROME_PID=$pid
 for ((i = 0; i < 60; i++)); do
   kill -0 "$pid" 2>/dev/null || break
   grep -q '</html>' "$TMP/dom.html" 2>/dev/null && break
@@ -108,6 +123,7 @@ kill -TERM -- "-$pid" 2>/dev/null
 sleep 1
 kill -9 -- "-$pid" 2>/dev/null
 wait "$pid" 2>/dev/null
+CHROME_PID=""
 t="$(grep -oE '<title>[^<]*</title>' "$TMP/dom.html" | head -1)"
 [[ "$t" == *FIG* ]] || { fail "the script never ran: $t"; echo "$failures failure(s)"; exit 1; }
 [[ "$t" == *THREW* ]] && fail "the canon's script threw: $t"

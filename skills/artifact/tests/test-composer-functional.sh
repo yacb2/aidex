@@ -26,7 +26,21 @@ WRAP="$SKILL/scripts/wrap-report.sh"
 # The load-bearing defence against Chrome's flaky teardown is chrome_dump
 # below, not the path.
 TMP="$(mktemp -d /tmp/composer-fn-XXXXXX)"
-trap 'rm -rf "$TMP"' EXIT
+# Chrome runs under setpgrp (below), so it leads its own process group and does
+# not die with this script: the trap kills that group on any exit, and a run
+# killed with SIGKILL (no trap runs) is swept by the next start instead, which
+# kills every Chrome re-parented to launchd that still holds a composer-fn profile
+# and removes its dir. A concurrent run's Chrome is never ppid 1 (BL-495).
+CHROME_PID=""
+trap '[[ -n "$CHROME_PID" ]] && kill -9 -- "-$CHROME_PID" 2>/dev/null; rm -rf "$TMP"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+while read -r p dir; do
+  kill -9 -- "-$p" "$p" 2>/dev/null
+  rm -rf "$dir"
+done < <(ps -axo pid=,ppid=,command= \
+           | awk '$2 == 1 && match($0, /--user-data-dir=\/tmp\/composer-fn-[^\/ ]+/) {
+                    print $1, substr($0, RSTART + 16, RLENGTH - 16) }')
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 
@@ -72,14 +86,15 @@ chrome_dump() {  # <outfile> <url> <seconds>
     "$CHROME" --headless=new --disable-gpu --no-first-run --disable-extensions \
               ${CHROME_WINDOW:+--window-size=$CHROME_WINDOW} \
               --user-data-dir="$TMP/profile" --dump-dom "$2" > "$1" 2>/dev/null &
-  local pid=$! i
+  CHROME_PID=$!
+  local pid=$CHROME_PID i
   for ((i = 0; i < 2 * $3; i++)); do
-    kill -0 "$pid" 2>/dev/null || { wait "$pid" 2>/dev/null; return 0; }
+    kill -0 "$pid" 2>/dev/null || { wait "$pid" 2>/dev/null; CHROME_PID=""; return 0; }
     grep -q '</html>' "$1" 2>/dev/null && break
     sleep 0.5
   done
   for ((i = 0; i < 10; i++)); do            # grace: it may still exit cleanly
-    kill -0 "$pid" 2>/dev/null || { wait "$pid" 2>/dev/null; return 0; }
+    kill -0 "$pid" 2>/dev/null || { wait "$pid" 2>/dev/null; CHROME_PID=""; return 0; }
     sleep 0.5
   done
   kill -TERM -- "-$pid" 2>/dev/null         # graceful: lets the profile flush
@@ -89,6 +104,7 @@ chrome_dump() {  # <outfile> <url> <seconds>
   done
   kill -9 -- "-$pid" 2>/dev/null
   wait "$pid" 2>/dev/null
+  CHROME_PID=""
   return 0
 }
 
