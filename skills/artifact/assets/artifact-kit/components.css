@@ -390,7 +390,7 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 .consult-group[data-viewport="desktop"] figure[data-tile$="-mobile"] { display: none; }
 .consult-group[data-viewport="mobile"] figure[data-tile$="-desktop"] { display: none; }
 
-.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 0.1rem 1.5rem; }
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr)); gap: 0.1rem 1.5rem; }
 .opts.one { grid-template-columns: 1fr; }
 .opts label { display: flex; gap: 0.6rem; align-items: flex-start; font-family: var(--sans);
               font-size: 0.88rem; line-height: 1.45; padding: 0.4rem 0.5rem; border-radius: 4px; cursor: pointer; }
