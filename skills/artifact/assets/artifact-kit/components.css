@@ -99,8 +99,9 @@ ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; ga
    `ul` above, and only `anywhere` lowers the min-content width a flex item keeps.
    An item's h3, an option label (its text is a flex item of the label) and a
    verdict cell's caption carry the same inline `code` paths and spilled the
-   same way (kit 28). */
-p, li, h3, .opts label, .verdict > div { overflow-wrap: anywhere; }
+   same way (kit 28), and so did the page h1 and a group or section h2 at 390 px
+   (kit 30). */
+p, li, h1, h2, h3, .opts label, .verdict > div { overflow-wrap: anywhere; }
 li::marker { color: var(--muted); }
 
 .note:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);

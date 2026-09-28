@@ -1073,6 +1073,21 @@ case("a dash outside an option is still text",
 case("a hint word changed inside an option still fails",
      opt("Uno", "el detalle — sin guion", True) + opt("Dos", "otro"), False,
      "visible text differs", orig=OLD_OPT)
+
+# corpus_html.BADGE_WORDS is a hand copy of the kit's `rec` strings, one per
+# language: a language added to the composer, or a word changed there, would
+# leave the old badge word in every converted option label as text.
+import re
+import corpus_html
+with open(os.path.join(sys.argv[1], "..", "assets", "artifact-kit", "composer.js"),
+          encoding="utf-8") as fh:
+    kit_rec = set(re.findall(r"^\s*rec: '([^']+)',$", fh.read(), re.M))
+if kit_rec and kit_rec == corpus_html.BADGE_WORDS:
+    print("  ok: BADGE_WORDS is the composer's rec words")
+else:
+    fails.append("badge lockstep")
+    print("FAIL: BADGE_WORDS %s != composer.js rec %s"
+          % (sorted(corpus_html.BADGE_WORDS), sorted(kit_rec)))
 sys.exit(1 if fails else 0)
 IDSPY
 [ $? -eq 0 ] || bad "the id-sequence rule"

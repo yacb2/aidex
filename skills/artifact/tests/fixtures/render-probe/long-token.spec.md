@@ -1,8 +1,9 @@
 ::: masthead {eyebrow="Fixture render-probe · tokens sin espacio" visual="none: probe fixture, nothing to draw"}
-# Un token largo no se sale de su caja
+# Un token largo no se sale de su caja: `skills/artifact/assets/artifact-kit/components.css`
 
-Tres construcciones del kit con una ruta que no tiene dónde partirse: el título de un
-item, una opción recomendada y el pie de una celda del veredicto.
+Cada construcción del kit con una ruta que no tiene dónde partirse: el título de la
+página, de un grupo, de una sección y de un item, una opción recomendada, el pie de una
+celda del veredicto, una celda de tabla, un callout y una nota.
 :::
 
 ::: verdict {win="Ruta A"}
@@ -15,7 +16,7 @@ item, una opción recomendada y el pie de una celda del veredicto.
 | 9 | Ruta E | turnos · 300k |
 :::
 
-::: group {#G1 title="Rutas largas"}
+::: group {#G1 title="Rutas largas en `skills/artifact/assets/artifact-kit/components.css`"}
 ::: item {#Q1 title="¿Qué ruta?"}
 ¿Tocamos `skills/artifact/scripts/render-probe.mjs` o el kit?
 
@@ -25,4 +26,18 @@ item, una opción recomendada y el pie de una celda del veredicto.
 :::
 
 ::: notes {title="Notas generales"}
+:::
+
+::: section {#R1 heading="Referencia: `skills/artifact/assets/artifact-kit/components.css`"}
+| ruta | uso |
+|---|---|
+| `skills/artifact/assets/artifact-kit/components.css` | el kit |
+
+::: callout
+El kit vive en `skills/artifact/assets/artifact-kit/components.css`.
+:::
+
+::: note
+La sonda vive en `skills/artifact/scripts/render-probe.mjs`.
+:::
 :::

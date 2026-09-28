@@ -116,10 +116,13 @@ echo "== a chart whose names have no space to break at =="
 out="$(bash "$PROBE" "$TMP/chart-long-word.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "the long-word chart is clean at 1280 and 390 px" || bad "chart-long-word exit $rc: $out"
 
-echo "== a path with no space to break at, in three kit boxes =="
+echo "== a path with no space to break at, in every kit box that carries prose =="
 # A code path inside an item's h3 and inside the {recommended} option spilled at
 # 390 px, and inside a verdict caption (small) at 1280 px: only p and li could
-# break a word anywhere. Built by spec_build.py, so the probe sees today's kit.
+# break a word anywhere. The page h1 and the group/section h2 spilled the same way
+# at 390 px (kit 30). The table cell, the callout and the bare-text div.note did
+# not spill when this was written; their cells guard them. Built by spec_build.py,
+# so the probe sees today's kit.
 ( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/long-token.spec.md" -o "$TMP/long-token.html" ) >/dev/null 2>&1 \
   && ok "built long-token from its spec" || bad "spec_build.py failed on long-token.spec.md"
 out="$(bash "$PROBE" "$TMP/long-token.html" 2>&1)"; rc=$?
@@ -131,6 +134,16 @@ done <<'EOF'
 390 h3
 390 div.opts
 1280 small
+390 h1
+1280 h1
+390 h2
+1280 h2
+390 td
+1280 td
+390 div.callout
+1280 div.callout
+390 div.note
+1280 div.note
 EOF
 
 echo "== the kit's own rows pass clean (must-pass, Phase 5) =="

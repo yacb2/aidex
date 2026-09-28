@@ -194,8 +194,8 @@ def figures_dropped(node):
 # contract wins): the builder writes `label <span class="hint">hint</span>`
 # where older pages wrote the separator as text, `label — hint`, and the kit
 # draws the recommended badge itself where older pages carried its word as text
-# (composer.js `rec`). So an option label is read in one canonical form: a
-# `.hint` gets the " — " separator in front unless it already starts with one,
+# (composer.js `rec`; test-goal-gate.sh holds BADGE_WORDS to it). So an option
+# label is read in one canonical form: a `.hint` gets the " — " separator in front unless it already starts with one,
 # and one badge word is taken out. Nothing outside an option label is
 # normalised. Whether an option is the recommended one is NOT compared: a spec
 # marks a decided item's chosen option `{recommended}` to check it, where the
