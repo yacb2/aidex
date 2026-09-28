@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-contract-defects.sh — unit cells for scripts/dash/contract_defects.py (the
-# twelve LOOP-006 source classes) and the shape of defect-gate.sh's output.
+# thirteen source classes) and the shape of defect-gate.sh's output.
 #
 # Layer: unit, on source. Each class is decided by the script reading markup, so a
 # mini-page per verdict is the lowest layer that sees the rule; no browser.
@@ -341,6 +341,69 @@ fails $C c12-other "an item data-id equal to another element's id fails"
 page c12-self es "<section class=\"consult-item\" id=\"Q1\" data-id=\"Q1\">$RADIO</section>"
 passes $C c12-self "an item's own id equal to its data-id is not a collision"
 
+echo "== body-language-follows-lang =="
+C=body-language-follows-lang
+# Each paragraph is 45+ prose words, so two of them clear LANG_WORDS_MIN (80) and one does not.
+ES_P='<p>Este informe resume lo que se midió durante la semana y lo que queda pendiente para la siguiente ronda. La mayoría de las páginas ya siguen el contrato, pero todavía hay dos casos que no se pueden cerrar sin una decisión del equipo, porque cada uno cambia la forma en que se construyen los documentos.</p>'
+EN_P='<p>This report sums up what was measured during the week and what is still pending for the next round. Most of the pages already follow the contract, but there are still two cases that cannot be closed without a decision from the team, because each one changes the way the documents are built.</p>'
+page c13-es-on-en en "<main>$ES_P$ES_P</main>"
+fails $C c13-es-on-en "Spanish prose under lang=en fails"
+page c13-en-on-es es "<main>$EN_P$EN_P</main>"
+fails $C c13-en-on-es "English prose under lang=es fails (the reverse)"
+page c13-en en "<main>$EN_P$EN_P</main>"
+passes $C c13-en "English prose under lang=en passes"
+page c13-es es-419 "<main>$ES_P$ES_P</main>"
+passes $C c13-es "Spanish prose under lang=es-419 passes (primary subtag)"
+page c13-short en "<main>$ES_P</main>"
+passes $C c13-short "a page under 80 prose words is not judged"
+rep() { local o="" i; for ((i = 0; i < $1; i++)); do o+="$2 "; done; printf '%s' "$o"; }   # rep N TEXT
+# Each exclusion guarded on its own: English that would hold 75%+ of the function
+# words if it were read as prose, next to two Spanish paragraphs, under lang=es.
+CODE_PRE='<pre># the check reads the page and reports what it finds
+# it is run on every page that is wrapped, and on the census</pre>'
+page c13-pre es "<main>$ES_P$(rep 20 "$CODE_PRE")$ES_P</main>"
+passes $C c13-pre "English comments in <pre> are not prose"
+page c13-code es "<main>$ES_P<p>Ver $(rep 40 '<code>the list of the things in it</code>')</p>$ES_P</main>"
+passes $C c13-code "English inside inline <code> (no pre) is not prose"
+page c13-ident es "<main>$ES_P<p>$(rep 30 'is_open on-the-fly the/path it.is')</p>$ES_P</main>"
+passes $C c13-ident "identifiers glued by _ - / . (is_open, on-the-fly, the/path, it.is) are not words"
+page c13-hidden es "<main>$ES_P<div hidden>$(rep 8 "$EN_P")</div>$ES_P</main>"
+passes $C c13-hidden "a hidden element is not prose"
+page c13-nav es "<main>$ES_P<nav>$(rep 8 "$EN_P")</nav>$ES_P</main>"
+passes $C c13-nav "a nav is not prose"
+page c13-chrome es "<main>$ES_P$(rep 8 "<div class=\"fieldlabel\">$EN_P</div>")$ES_P</main>"
+passes $C c13-chrome "the kit chrome (a .fieldlabel) is not prose"
+page c13-quote es "<main>$ES_P<blockquote lang=\"en\">$(rep 8 "$EN_P")</blockquote>$ES_P</main>"
+passes $C c13-quote "an English quotation marked with its own lang is not the page's prose"
+# Proper names carry function words ("Calle de Alcalá", "Gone with the Wind"):
+# a noun-heavy page must not be decided by them.
+page c13-streets en "<main><p>Streets visited this week, each with their district:</p><table>$(rep 30 '<tr><td>Calle de Alcalá</td><td>Madrid Centro Norte</td></tr>')</table></main>"
+passes $C c13-streets "an English page listing Spanish street names passes"
+TITLES='The Lord of the Rings|Gone with the Wind|Raiders of the Lost Ark|Once Upon a Time in the West|The Good, the Bad and the Ugly|Some Like It Hot|The Silence of the Lambs|Dances with Wolves|Butch Cassidy and the Sundance Kid|The Wizard of Oz|Rebel Without a Cause|Planet of the Apes|North by Northwest|Night of the Living Dead|The Bridge on the River Kwai|Invasion of the Body Snatchers|Crouching Tiger, Hidden Dragon|The Man Who Shot Liberty Valance'
+page c13-films es "<main><h2>Películas vistas</h2><ul><li>${TITLES//|/</li><li>}</li></ul></main>"
+passes $C c13-films "a Spanish page listing English film titles passes"
+# Boundaries, all lower-case so no word reads as a name: the word floor (80), the
+# function-word floor (25) and the share (0.75) each fail AT the constant.
+page c13-w80 en "<main><p>$(rep 30 'casa de') $(rep 20 casa)</p></main>"
+fails $C c13-w80 "exactly 80 prose words, all Spanish function words, under lang=en fails"
+page c13-w79 en "<main><p>$(rep 30 'casa de') $(rep 19 casa)</p></main>"
+passes $C c13-w79 "79 prose words is not judged"
+page c13-f25 en "<main><p>$(rep 25 'casa de') $(rep 40 casa)</p></main>"
+fails $C c13-f25 "exactly 25 function words, all Spanish, under lang=en fails"
+page c13-f24 en "<main><p>$(rep 24 'casa de') $(rep 42 casa)</p></main>"
+passes $C c13-f24 "24 function words is not judged"
+page c13-s75 en "<main><p>$(rep 30 'casa de') $(rep 10 'house the') $(rep 20 casa)</p></main>"
+fails $C c13-s75 "a Spanish share of exactly 0.75 (30 of 40) under lang=en fails"
+page c13-s72 en "<main><p>$(rep 29 'casa de') $(rep 11 'house the') $(rep 20 casa)</p></main>"
+passes $C c13-s72 "a Spanish share of 0.725 (29 of 40) passes"
+# The primary subtag is read the same way here as in ui-string-language: es_ES is es.
+page c13-es_ES es_ES "<main>$EN_P$EN_P</main>"
+fails $C c13-es_ES "English prose under lang=es_ES fails"
+page c13-es_ES-ok es_ES "<main>$ES_P$ES_P</main>"
+passes $C c13-es_ES-ok "Spanish prose under lang=es_ES passes"
+page c5-es_ES es_ES '<button id="consult-copy">Copy my answers</button>'
+fails ui-string-language c5-es_ES "ui-string-language reads lang=es_ES as es too"
+
 echo "== KIT_STRINGS lockstep: every kit chrome string is in contract_defects =="
 # ui-string-language judges a page by KIT_STRINGS, a copy kept in the module on
 # purpose. A string added to the kit's chrome and not to that copy is a label the
@@ -601,8 +664,8 @@ cp "$TMP/c4-ok.html" "$REG/copy-control-placement/original.html"     # not red
 cp "$TMP/c4-ok.html" "$REG/no-such-class/original.html"              # no check
 corpus clean refused
 out="$(gate "$REG")"; rc=$?
-# N = 12 source checks + 3 render classes + 1 folder with no check
-want=$'classes: 2/16\nred: 1/16\ngreen: 1/16\ncorpus: 2/3'
+# N = 13 source checks + 3 render classes + 1 folder with no check
+want=$'classes: 2/17\nred: 1/17\ngreen: 1/17\ncorpus: 2/3'
 [[ "$out" == "$want" ]] && ok "N is the union of the source checks, the render classes and the registry folders" \
   || bad "gate output was: $(printf '%q' "$out")"
 [[ $rc -ne 0 ]] && ok "the gate exits non-zero while a count is short" || bad "gate exited 0 on short counts"
@@ -618,6 +681,7 @@ for pair in "decision-item-without-options c1-free" "decision-page-not-interacti
             "decided-item-without-verdict c6-bare" "item-title-repeats-id c7-rep" \
             "lang-follows-profile proj/.context/reports/es" "decided-section-anchor c9-bare" \
             "img-src-portable c10-bad" "unique-dom-ids c11-dup" "group-item-id-collision c12-id" \
+            "body-language-follows-lang c13-es-on-en" \
             "text-style-drift clean" "figure-text-contrast clean" "svg-label-outside-its-box clean"; do
   set -- $pair; mkdir -p "$FULL/$1"; cp "$TMP/$2.html" "$FULL/$1/original.html"
   cp "$TMP/clean.html" "$FULL/$1/rebuilt.html"
@@ -625,34 +689,34 @@ done
 cp "$TMP/c1-rec.html" "$FULL/decision-item-without-options/original-2.html"
 corpus clean
 out="$(gate "$FULL")"; rc=$?
-[[ "$out" == $'classes: 15/15\nred: 15/15\ngreen: 15/15\ncorpus: 16/16' && $rc -eq 0 ]] \
+[[ "$out" == $'classes: 16/16\nred: 16/16\ngreen: 16/16\ncorpus: 17/17' && $rc -eq 0 ]] \
   && ok "the gate exits 0 when every count is full" || bad "full registry: rc=$rc $(printf '%q' "$out")"
 
 out="$(gate "$FULL" probe-nomarker)"
-[[ "$(sed -n 2p <<<"$out")" == "red: 12/15" ]] \
+[[ "$(sed -n 2p <<<"$out")" == "red: 13/16" ]] \
   && ok "a probe exiting 1 without its CONTRACT line is not red" || bad "no marker: $(printf '%q' "$out")"
 out="$(gate "$FULL" probe-silent0)"
-[[ "$(sed -n 3p <<<"$out")" == "green: 12/15" ]] \
+[[ "$(sed -n 3p <<<"$out")" == "green: 13/16" ]] \
   && ok "a probe exiting 0 without its CONTRACT line is not green" || bad "silent 0: $(printf '%q' "$out")"
 
 cp "$TMP/c4-ok.html" "$FULL/decision-item-without-options/original-2.html"
 out="$(gate "$FULL" | sed -n 2p)"
-[[ "$out" == "red: 14/15" ]] && ok "a class is red only when every original fails" || bad "second original not red: $out"
+[[ "$out" == "red: 15/16" ]] && ok "a class is red only when every original fails" || bad "second original not red: $out"
 cp "$TMP/c1-rec.html" "$FULL/decision-item-without-options/original-2.html"
 
 : > "$FULL/mixed-content-types/rebuilt.html"
 out="$(gate "$FULL" | sed -n 3p)"
-[[ "$out" == "green: 14/15" ]] && ok "a 0-byte rebuilt.html is never green" || bad "empty rebuilt: $out"
+[[ "$out" == "green: 15/16" ]] && ok "a 0-byte rebuilt.html is never green" || bad "empty rebuilt: $out"
 page nomain es '<p>Sin estructura.</p>'
 cp "$TMP/nomain.html" "$FULL/mixed-content-types/rebuilt.html"
 out="$(gate "$FULL" | sed -n 3p)"
-[[ "$out" == "green: 14/15" ]] && ok "a rebuilt.html with no <main> is never green" || bad "no-main rebuilt: $out"
+[[ "$out" == "green: 15/16" ]] && ok "a rebuilt.html with no <main> is never green" || bad "no-main rebuilt: $out"
 cp "$TMP/clean.html" "$FULL/mixed-content-types/rebuilt.html"
 
 rm -rf "$FULL/ui-string-language"
 out="$(gate "$FULL")"; rc=$?
-[[ "$(printf '%s\n' "$out" | head -1)" == "classes: 14/15" && $rc -ne 0 ]] \
-  && ok "a registry missing a class reads 14/15 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
+[[ "$(printf '%s\n' "$out" | head -1)" == "classes: 15/16" && $rc -ne 0 ]] \
+  && ok "a registry missing a class reads 15/16 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
 
 echo
 echo "passed: $PASS  failed: $FAIL"
