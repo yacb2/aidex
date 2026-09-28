@@ -654,6 +654,23 @@ Deterministic for a given Graphviz: the same spec builds byte-identical output, 
 Graphviz `id=` and `<title>` is dropped (so two graphs on one page share no id), and the
 Graphviz version is written in a comment inside the `<figure>`.
 
+## An `item`'s option list: one choice or a set
+
+The first markdown list in an `item` body is its option list, and the `item` builder
+reads it (the tokenizer only sees prose). One option per `- ` line; ` — ` splits the
+label from its hint; `{recommended}` anywhere on the line marks it. The keyed attr
+`select=` decides what kind of list it is:
+
+| `select=` | Renders | Reply | Use it for |
+|---|---|---|---|
+| `one` (default, or absent) | radios, `.opts one` | the one ticked option | one decision among alternatives |
+| `many` | checkboxes, `.opts` | every ticked option, in page order | one question whose answer is a set |
+
+Any other value is a builder error with the fence's line
+(`` line 3: `item` select='several' is not a value (it takes: one, many) ``). Several
+independent decisions are several items, never one `select=many` item — see
+`04-block-vocabulary.md` § item.
+
 ## What counts as malformed
 
 Every case below is a hard error: the tokenizer raises with the **1-based line number**,

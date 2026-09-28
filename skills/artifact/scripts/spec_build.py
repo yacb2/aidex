@@ -595,8 +595,16 @@ def _segments(node, nests, carries="prose"):
 
 @emitter("item")
 def emit_item(node, ctx):
-    a = _attrs(node, {"title", "decided", "free"}, required=("title",),
-               need_id=True)
+    a = _attrs(node, {"title", "decided", "free", "select"},
+               required=("title",), need_id=True)
+    # `select=many` is a question whose answer is a SET (BL-454): checkboxes,
+    # the kit's `.opts` without `one`. Anything else but `one` is a typo that
+    # would otherwise ship radios silently.
+    select = a.get("select", "one").strip()
+    if select not in ("one", "many"):
+        raise SpecBuildError(
+            node.line, "`item` select=%r is not a value (it takes: one, many)"
+            % select)
     segments = _segments(node, ASIDES + FIGURE_BLOCKS,
                          "prose, its options, a figure")
     # The option list is the FIRST one in the body, wherever it sits, and the
@@ -652,7 +660,8 @@ def emit_item(node, ctx):
                % (esc(node.id), question))
     out.extend("  " + p for p in parts)
     if opts:
-        out.append('  <div class="opts one">')
+        many = select == "many"
+        out.append('  <div class="opts">' if many else '  <div class="opts one">')
         for text in opts:
             label, hint, rec = _option(text)
             if not label:
@@ -660,9 +669,10 @@ def emit_item(node, ctx):
             span = md_body._inline(label)
             if hint:
                 span += ' <span class="hint">%s</span>' % md_body._inline(hint)
-            out.append('    <label><input type="radio" name="%s" '
+            out.append('    <label><input type="%s" name="%s" '
                        'data-label="%s"%s><span>%s</span></label>'
-                       % (esc(node.id), esc(PLAIN.sub("", label)),
+                       % ("checkbox" if many else "radio",
+                          esc(node.id), esc(PLAIN.sub("", label)),
                           " data-recommended" if rec else "", span))
         out.append("  </div>")
     out.extend("  " + p for p in render(tail))

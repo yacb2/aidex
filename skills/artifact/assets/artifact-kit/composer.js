@@ -1185,6 +1185,28 @@
     });
   }
 
+  /* "Not now" stays exclusive in a CHECKBOX group too (BL-454). A radio group
+   * gets that from the browser; a `select=many` group would otherwise let a
+   * reader defer the question and answer it at once. So ticking not-now
+   * releases every other mark of its group, and ticking any other mark releases
+   * not-now. "Other" is an answer like the rest, so it combines with them.
+   * Registered before the page's own change handler, which then sees the
+   * settled state. */
+  function exclusiveNotNow() {
+    document.addEventListener('change', function (ev) {
+      var t = ev.target;
+      if (!t || t.type !== 'checkbox' || !t.checked) return;
+      var g = t.closest ? t.closest('.opts') : null;
+      if (!g) return;
+      var deferring = (t.dataset.label || t.value || '') === NOT_NOW;
+      g.querySelectorAll('input[type="checkbox"]:checked').forEach(function (i) {
+        if (i === t) return;
+        var nn = (i.dataset.label || i.value || '') === NOT_NOW;
+        if (deferring || nn) i.checked = false;
+      });
+    });
+  }
+
   /* Per-item clear. Radios cannot be un-selected by clicking them again and a
    * textarea has to be emptied by hand, so with persistence a wrong click
    * survived every reload and the only recovery was editing the markdown the
@@ -2158,6 +2180,7 @@
     addAskRows();
     sealDecided();
     releasableRadios();
+    exclusiveNotNow();
     var recovered = restore();
     redrawMarks();
     /* Shown when anything was DROPPED too, not only when something was

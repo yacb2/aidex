@@ -2435,5 +2435,93 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-s.html" | head -1)"
 [[ "$tg" == *"GSAMPLE|STATUS=1 de 1 respondidas"* ]] \
   || fail "a sample row (no verdict by design) was counted as a question: $tg"
 
+# ---- BL-454: a select=many item, built from a SPEC, pastes every checked option
+# Only radios could be built, so "which of these go to the queue" let the reader
+# tick one. The page is built by spec_build.py, the route an author takes, so
+# this proves the chain spec -> checkboxes -> composed reply end to end.
+cat > "$TMP/many.spec.md" <<'SPEC'
+::: masthead {eyebrow="PROBE" visual="none: a multi-select probe, nothing to draw"}
+# Multi-select probe
+
+Which films go to the queue.
+:::
+
+::: group {#G1 title="Cola"}
+Una sola pregunta cuya respuesta es un conjunto.
+
+::: item {#Q1 title="Cola de publicación" select=many}
+¿Qué películas entran en la cola?
+
+- Uno {recommended}
+- Dos
+- Tres
+:::
+:::
+
+::: notes {title="Notas"}
+:::
+SPEC
+python3 "$SKILL/scripts/spec_build.py" "$TMP/many.spec.md" > "$TMP/mbody.html" 2> "$TMP/mbuild.log" \
+  || fail "BL-454: the select=many spec did not build: $(head -3 "$TMP/mbuild.log")"
+cat >> "$TMP/mbody.html" <<'HTML'
+<script>
+window.addEventListener('load', function () {
+  function pick(label, on) {
+    var i = document.querySelector('[data-id="Q1"] .opts input[data-label="' + label + '"]');
+    if (!i) return;
+    i.checked = on; i.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  function state() {
+    return [].map.call(document.querySelectorAll('[data-id="Q1"] .opts input:checked'),
+      function (i) { return i.getAttribute('data-label'); }).join('+') || '-';
+  }
+  function copy() {
+    var cap = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true,
+      value: { writeText: function (x) { cap = x; return Promise.resolve(); } } });
+    document.getElementById('consult-copy').click();
+    return cap;
+  }
+  var types = [].map.call(document.querySelectorAll('[data-id="Q1"] .opts input'),
+    function (i) { return i.type; });
+  pick('Tres', true); pick('Uno', true);
+  var paste = copy();
+  var order = paste.indexOf('- Uno') !== -1 && paste.indexOf('- Uno') < paste.indexOf('- Tres');
+  pick('Otra — lo explico en las notas', true);
+  var withOther = state();
+  pick('[not-now]', true);
+  var afterNotNow = state();
+  pick('Dos', true);
+  var afterDos = state();
+  pick('Dos', false);
+  document.title = 'MANY|TYPES=' + types.join(',')
+    + '|ORDER=' + (order ? '1' : '0')
+    + '|OTHER=' + withOther + '|NOTNOW=' + afterNotNow + '|DOS=' + afterDos
+    + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ')
+    + '|PASTE=' + paste.replace(/[|<>\n]/g, ' ');
+});
+</script>
+HTML
+MPAGE="$TMP/reports/many.html"
+bash "$WRAP" --title "many" --lang es --out "$MPAGE" < "$TMP/mbody.html" > "$TMP/mwrap.log" 2>&1 \
+  || fail "BL-454: the select=many probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/mwrap.log" | head -4)"
+rm -rf "$TMP/profile"
+chrome_dump "$TMP/mdom.html" "file://$MPAGE" 45 || true
+tm="$(grep -oE '<title>[^<]*</title>' "$TMP/mdom.html" | head -1)"
+[[ "$tm" == *"MANY|"* ]] || fail "BL-454: the multi-select phase did not run: $tm"
+[[ "$tm" == *"TYPES=checkbox,checkbox,checkbox,checkbox,checkbox"* ]] \
+  || fail "BL-454: a select=many item's options (and the injected Otra / Todavía no) are not all checkboxes: $tm"
+[[ "$tm" == *"- Uno"*"- Tres"* && "$tm" == *"ORDER=1"* ]] \
+  || fail "BL-454: the copied reply does not list BOTH checked options, in page order: $tm"
+[[ "$tm" == *"PASTE="*"- Dos"* ]] && fail "BL-454: an unchecked option reached the paste: $tm"
+[[ "$tm" == *"OTHER=Uno+Tres+Otra — lo explico en las notas|"* ]] \
+  || fail "BL-454: 'Otra' does not combine with the checked options of a many item: $tm"
+[[ "$tm" == *"NOTNOW=[not-now]|"* ]] \
+  || fail "BL-454: 'Todavía no' did not release the answers of a many item (deferring is exclusive with answering): $tm"
+[[ "$tm" == *"DOS=Dos|"* ]] \
+  || fail "BL-454: checking an option did not release 'Todavía no' in a many item: $tm"
+[[ "$tm" == *"STATUS=Sin responder"* ]] \
+  || fail "BL-454: a many item with every box unticked is not blank again: $tm"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
-echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
+echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
