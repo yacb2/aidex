@@ -1091,6 +1091,68 @@ def check_body_language(type_name: str, path: Path, text: str,
                        f"stopwords) — knowledge artifacts are English (D-04); communications/ are exempt")
     return None
 
+# ---------- No-emoji check (BL-483) ----------
+
+# Unicode 15.1 Emoji_Presentation=Yes (emoji-data.txt): the codepoints that render as
+# emoji by default. Any other character becomes an emoji only when followed by U+FE0F
+# (VARIATION SELECTOR-16), which EMOJI_RE matches as "<char><FE0F>". So the text-style
+# pictographs real .context/ prose uses as typography pass on their own -- a diagram's
+# arrowhead U+25B6, U+26A0, U+23ED, U+2194 -- as do plain arrows, box drawing and dashes.
+# A ZWJ sequence always contains one of these codepoints, so U+200D needs no rule.
+EMOJI_PRESENTATION_RANGES = (
+    (0x231A, 0x231B), (0x23E9, 0x23EC), (0x23F0, 0x23F0), (0x23F3, 0x23F3),
+    (0x25FD, 0x25FE), (0x2614, 0x2615), (0x2648, 0x2653), (0x267F, 0x267F),
+    (0x2693, 0x2693), (0x26A1, 0x26A1), (0x26AA, 0x26AB), (0x26BD, 0x26BE),
+    (0x26C4, 0x26C5), (0x26CE, 0x26CE), (0x26D4, 0x26D4), (0x26EA, 0x26EA),
+    (0x26F2, 0x26F3), (0x26F5, 0x26F5), (0x26FA, 0x26FA), (0x26FD, 0x26FD),
+    (0x2705, 0x2705), (0x270A, 0x270B), (0x2728, 0x2728), (0x274C, 0x274C),
+    (0x274E, 0x274E), (0x2753, 0x2755), (0x2757, 0x2757), (0x2795, 0x2797),
+    (0x27B0, 0x27B0), (0x27BF, 0x27BF), (0x2B1B, 0x2B1C), (0x2B50, 0x2B50),
+    (0x2B55, 0x2B55), (0x1F004, 0x1F004), (0x1F0CF, 0x1F0CF), (0x1F18E, 0x1F18E),
+    (0x1F191, 0x1F19A), (0x1F1E6, 0x1F1FF), (0x1F201, 0x1F201), (0x1F21A, 0x1F21A),
+    (0x1F22F, 0x1F22F), (0x1F232, 0x1F236), (0x1F238, 0x1F23A), (0x1F250, 0x1F251),
+    (0x1F300, 0x1F320), (0x1F32D, 0x1F335), (0x1F337, 0x1F37C), (0x1F37E, 0x1F393),
+    (0x1F3A0, 0x1F3CA), (0x1F3CF, 0x1F3D3), (0x1F3E0, 0x1F3F0), (0x1F3F4, 0x1F3F4),
+    (0x1F3F8, 0x1F43E), (0x1F440, 0x1F440), (0x1F442, 0x1F4FC), (0x1F4FF, 0x1F53D),
+    (0x1F54B, 0x1F54E), (0x1F550, 0x1F567), (0x1F57A, 0x1F57A), (0x1F595, 0x1F596),
+    (0x1F5A4, 0x1F5A4), (0x1F5FB, 0x1F64F), (0x1F680, 0x1F6C5), (0x1F6CC, 0x1F6CC),
+    (0x1F6D0, 0x1F6D2), (0x1F6D5, 0x1F6D7), (0x1F6DC, 0x1F6DF), (0x1F6EB, 0x1F6EC),
+    (0x1F6F4, 0x1F6FC), (0x1F7E0, 0x1F7EB), (0x1F7F0, 0x1F7F0), (0x1F90C, 0x1F93A),
+    (0x1F93C, 0x1F945), (0x1F947, 0x1F9FF), (0x1FA70, 0x1FA7C), (0x1FA80, 0x1FA88),
+    (0x1FA90, 0x1FABD), (0x1FABF, 0x1FAC5), (0x1FACE, 0x1FADB), (0x1FAE0, 0x1FAE8),
+    (0x1FAF0, 0x1FAF8),
+)
+EMOJI_RE = re.compile(
+    "[" + "".join(f"\\U{a:08x}-\\U{b:08x}" for a, b in EMOJI_PRESENTATION_RANGES) + "]"
+    "|.\ufe0f")
+FENCE_RE = re.compile(r"^ {0,3}(```|~~~)")
+INLINE_CODE_RE = re.compile(r"(`+).*?\1")
+
+def check_no_emoji(type_name: str, path: Path, text: str) -> list[Finding]:
+    """The owner's "no emojis anywhere" (BL-445 move 1), one finding per line.
+    Code is skipped: an emoji inside an inline code span or a fenced block is a
+    mention (a grep pattern, a quoted marker), not decoration. communications/ are
+    exempt: a received message is a verbatim capture, and like the D-04 language
+    exemption, the only fix a violation could demand would destroy what the file
+    exists to carry."""
+    if type_name == "communications":
+        return []
+    findings: list[Finding] = []
+    in_fence = False
+    for n, line in enumerate(text.splitlines(), 1):
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = EMOJI_RE.search(INLINE_CODE_RE.sub("", line))
+        if m:
+            findings.append(Finding(type_name, str(path), "emoji-codepoint", "violation",
+                                    f"line {n}: emoji U+{ord(m.group(0)[0]):04X} — "
+                                    f"no emojis in .context/ artifacts; use a plain text label"))
+    return findings
+
+
 # ---------- Audit layout canonical-form checks (BL-047) ----------
 
 def check_audit_folders(context_dir: Path) -> list[Finding]:
@@ -1522,6 +1584,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
             lf = check_body_language(type_name, path, text)
             if lf:
                 file_findings.append(lf)
+            file_findings.extend(check_no_emoji(type_name, path, text))
             af = check_archive_status_open(type_name, path, fm)
             if af:
                 file_findings.append(af)

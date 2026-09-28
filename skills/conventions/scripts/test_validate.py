@@ -1092,6 +1092,48 @@ def check_backlog_placeholder_body_unit(failures: list[str]) -> None:
         failures.append("placeholder-body unit: archived entry warned (should be exempt)")
 
 
+def _violations_of(ctx: Path, rule: str) -> list[dict]:
+    res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                         capture_output=True, text=True)
+    return [v for v in json.loads(res.stdout)["violations"] if v["rule"] == rule]
+
+
+def check_no_emoji(failures: list[str]) -> None:
+    """BL-483: an emoji that renders as emoji (Emoji_Presentation=Yes, or any
+    codepoint followed by U+FE0F) in .context/ markdown prose is a violation naming
+    file and line. Text-style pictographs (a diagram's arrowhead U+25B6, U+26A0 alone),
+    arrows, box drawing and dashes pass, and so does any emoji inside an inline code
+    span or a fenced block, where it is a mention rather than decoration."""
+    import shutil
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        shutil.copytree(FIXTURES / "good" / ".context", ctx)
+        note = ctx / "research" / "2026-06-01-emoji-probe.md"
+        head = ("---\ntitle: Emoji probe\nstatus: done\ncreated: 2026-06-01\n"
+                "updated: 2026-06-01\n---\n\n# Emoji probe\n\n")
+        note.write_text(head + "Plain line.\nShipped \u2705 today.\n", encoding="utf-8")
+        hits = _violations_of(ctx, "emoji-codepoint")
+        if not any(h["file"].endswith("2026-06-01-emoji-probe.md") and "line 11" in h["message"]
+                   and "U+2705" in h["message"] for h in hits):
+            failures.append(f"no-emoji: U+2705 in prose on line 11 was not reported with "
+                            f"file:line (got {hits!r})")
+        cells = (
+            ("removing the emoji", "Plain line.\nShipped today.\n", False),
+            ("typographic arrows / box drawing / dash",
+             "A \u2192 B, A \u2194 B, and \u2500\u2500 box \u2014 dash.\n", False),
+            ("U+2705 inside an inline code span", "The marker `\u2705 done` is banned.\n", False),
+            ("U+2705 inside a fenced block",
+             "Pattern:\n\n```\ngrep -n '\u2705\\|\u274c' file\n```\n", False),
+            ("a text-style arrowhead U+25B6 alone", "a \u2500\u2500\u25b6 b\n", False),
+            ("U+26A0 followed by U+FE0F", "Warning \u26a0\ufe0f here.\n", True),
+        )
+        for label, body, want in cells:
+            note.write_text(head + body, encoding="utf-8")
+            got = bool(_violations_of(ctx, "emoji-codepoint"))
+            if got != want:
+                failures.append(f"no-emoji: {label} -> flagged={got}, expected {want}")
+
+
 def check_references_root_unit(failures: list[str]) -> None:
     """references/ is evergreen and takes no dated file at its root. A flat dated file
     there is research's spike shape in the wrong folder: the ISO name used to pass
@@ -1446,6 +1488,7 @@ def main() -> int:
     check_waiver_moved_path(failures)
     check_comm_paste_safe_unit(failures)
     check_comm_direction_and_legacy_unit(failures)
+    check_no_emoji(failures)
 
     if failures:
         print("FAIL")
