@@ -52,7 +52,8 @@ copy-control-placement
 ui-string-language
     The static text of the kit's chrome (`#consult-copy`, `#consult-copy-end`,
     `.railhead`, `.fieldlabel`, `.consult-status`, textarea placeholders) must
-    not be a kit string of the OTHER language than `<html lang>` (es/en only).
+    not be a kit string of the OTHER language than `<html lang>` (es/en only;
+    the primary subtag, read by page_lang: "es_ES" and "es-419" are es).
     Pages with no lang or another lang are skipped; the label is the element's
     own text (child counters dropped), whitespace collapsed. Judged on the
     source: the composer relabels exact English defaults at run
@@ -124,6 +125,31 @@ group-item-id-collision
     it (the group yields). A data-id-only group anywhere else never gets an id. Two
     items sharing a `data-id` are check-artifact's `duplicate ids` finding, not
     this class's. Invisible to unique-dom-ids on the source.
+
+body-language-follows-lang
+    The page's prose is in the language `<html lang>` names (es/en only, by
+    page_lang's primary subtag, as ui-string-language reads it; no
+    lang or another lang is not judged — a missing lang is lang-follows-profile's).
+    That class compares the attribute to the profile; this one compares the
+    body to the attribute, profile or not. A stopword count over the visible
+    prose: each word is looked up in two lists of function words that belong to
+    ONE language only (STOPWORDS). Not prose: <code>, <pre>, <kbd>, <samp>,
+    <var>, <svg>, <math>, form controls, <nav>, the kit chrome that
+    ui-string-language reads, a `hidden` element, any element with its own
+    `lang` (a quotation marked as another language), and a token glued to
+    `_`, `/`, `-`, `#`, `@`, a digit or a `.x` suffix (an identifier). Not
+    counted: a function word inside a proper name or a title ("Calle de
+    Alcalá", "Gone with the Wind") — a capitalised one followed by a
+    capitalised word, or a lower-case one whose nearest other words on both
+    sides are capitalised. Judged only from LANG_WORDS_MIN (80) prose words AND
+    LANG_FUNCTION_MIN (25) function words counted, so a noun-heavy page (a
+    table of names) is not decided by a handful; fails when the other language
+    holds LANG_DOMINANCE (75%) or more of them, each bound inclusive. Census
+    2026-09-28 over 179 report pages: 164 over the word floor, the fewest
+    function words among them 162 (so the 25 floor skipped none), the highest
+    wrong-language share 5.4%, and every judged page flipped to the other lang
+    failed. Not frozen on a shipped page: no page in that census had the
+    defect, so the registry has no original for it yet.
 """
 
 import argparse
@@ -519,10 +545,17 @@ CHROME_IDS = ("consult-copy", "consult-copy-end")
 CHROME_CLASSES = ("railhead", "fieldlabel", "consult-status")
 
 
+def page_lang(root):
+    """(the <html> node or None, the primary subtag of its lang, lower-cased):
+    "es-419", "es_ES" and "ES" are all "es"; no lang is ""."""
+    html = next((n for n in root.walk() if n.tag == "html"), None)
+    raw = ((html.attrs.get("lang") if html else "") or "").strip()
+    return html, re.split(r"[-_]", raw)[0].lower()
+
+
 def check_ui_string_language(path, html_text):
     b, out = parse(html_text), []
-    html = next((n for n in b.root.walk() if n.tag == "html"), None)
-    lang = ((html.attrs.get("lang") if html else "") or "")[:2].lower()
+    html, lang = page_lang(b.root)
     if lang not in KIT_STRINGS:          # no lang, or one the kit has no strings for
         return out
     other = "es" if lang == "en" else "en"
@@ -774,6 +807,104 @@ def check_group_item_id_collision(path, html_text):
     return out
 
 
+# --- 13. body-language-follows-lang --------------------------------------------
+
+# Function words only, each in ONE language: a word both languages write ("a",
+# "no", "me", "he", "son", "sin", "con", "la", "come") is in neither list.
+STOPWORDS = {
+    "en": frozenset("""the and of to in is are was were be been that this these
+        those it its for on with as by from at or but not which what when where
+        who how why will would can could should have has had an they their them
+        there than then so if into about also only just more most other such
+        each any all our your we you do does did doesn't don't isn't it's
+        because while after before over under between""".split()),
+    "es": frozenset("""el los las de del que y en un una unos unas por para es
+        está están se lo al como más pero sus su este esta estos estas esto
+        ese esa eso sobre también ya hay cuando porque muy qué cómo donde
+        dónde cada todo todos toda todas entre sino aunque ni ser fue han
+        ha tiene tienen puede pueden hace hacer sólo tras
+        desde hasta según nos les le""".split()),
+}
+LANG_WORDS_MIN = 80        # prose words before a page is judged at all
+LANG_FUNCTION_MIN = 25     # function words counted before a page is judged at all
+LANG_DOMINANCE = 0.75      # the other language's share of function words to fail
+LANG_SKIP_TAGS = {"code", "pre", "kbd", "samp", "var", "svg", "math", "textarea",
+                  "template", "select", "option", "nav", "head"}
+PROSE_WORD = re.compile(r"(?<![\w./#@-])[^\W\d_]+(?:'[^\W\d_]+)?(?![\w/#@-]|\.\w)")
+FUNCTION_WORDS = STOPWORDS["en"] | STOPWORDS["es"]
+
+
+def prose_runs(root):
+    """The page's visible prose: one list of words (case kept) per text node.
+    Skipped subtrees: code and its kin, svg, form controls, nav, the kit chrome
+    labels, anything `hidden`, and any element carrying its own `lang` (a
+    quotation the page marks as another language). A token glued to `_`, `/`,
+    `-`, `.x`, `#`, `@` or a digit is an identifier, not a word."""
+    out = []
+
+    def visit(n):
+        for c in n.children:
+            if isinstance(c, Node):
+                if (c.tag in RAW or c.tag in LANG_SKIP_TAGS or "hidden" in c.attrs
+                        or ("lang" in c.attrs and c.tag != "html")
+                        or c.attrs.get("id") in CHROME_IDS
+                        or c.classes() & set(CHROME_CLASSES)):
+                    continue
+                visit(c)
+            else:
+                out.append(PROSE_WORD.findall(c[1]))
+    visit(root)
+    return out
+
+
+def _in_name(run, i):
+    """Whether the function word run[i] is part of a proper name or a title
+    ("Calle de Alcalá", "Gone with the Wind", "The Lord of the Rings"): a
+    capitalised one followed by a capitalised word, or a lower-case one whose
+    nearest words on both sides that are not lower-case function words are
+    capitalised."""
+    def cap(w):
+        return w[0].isupper()
+
+    def lower_fn(w):
+        return not cap(w) and w.lower() in FUNCTION_WORDS
+    if cap(run[i]):
+        return i + 1 < len(run) and cap(run[i + 1])
+    prev = next((w for w in reversed(run[:i]) if not lower_fn(w)), None)
+    nxt = next((w for w in run[i + 1:] if not lower_fn(w)), None)
+    return bool(prev and nxt and cap(prev) and cap(nxt))
+
+
+def function_word_hits(runs):
+    """Function words per language, those inside a name left out."""
+    hits = {k: 0 for k in STOPWORDS}
+    for run in runs:
+        for i, w in enumerate(run):
+            k = next((k for k, v in STOPWORDS.items() if w.lower() in v), None)
+            if k and not _in_name(run, i):
+                hits[k] += 1
+    return hits
+
+
+def check_body_language_follows_lang(path, html_text):
+    html, lang = page_lang(parse(html_text).root)
+    if lang not in STOPWORDS:            # no lang, or one this class cannot read
+        return []
+    runs = prose_runs(html)
+    words = sum(len(r) for r in runs)
+    if words < LANG_WORDS_MIN:
+        return []
+    hits = function_word_hits(runs)
+    other = "es" if lang == "en" else "en"
+    total = hits["en"] + hits["es"]
+    if total < LANG_FUNCTION_MIN or hits[other] / total < LANG_DOMINANCE:
+        return []
+    return [("body-language-follows-lang", html.line,
+             "<html lang=\"%s\"> but the prose reads %s: %d of %d function words "
+             "are %s (%d prose words)" % (html.attrs.get("lang"), other,
+                                           hits[other], total, other, words))]
+
+
 CHECKS = {
     "decision-item-without-options": check_decision_item_without_options,
     "decision-page-not-interactive": check_decision_page_not_interactive,
@@ -787,6 +918,7 @@ CHECKS = {
     "img-src-portable": check_img_src_portable,
     "unique-dom-ids": check_unique_dom_ids,
     "group-item-id-collision": check_group_item_id_collision,
+    "body-language-follows-lang": check_body_language_follows_lang,
 }
 
 

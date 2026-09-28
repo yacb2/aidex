@@ -1005,7 +1005,7 @@ tables on any page carrying the kit — plus the consultation shape of § 8 when
 and the page-contract classes below. Fix what it reports; never open or hand over a file that fails
 it.
 
-**The page-contract classes.** `dash/contract_defects.py` owns twelve source rules, each
+**The page-contract classes.** `dash/contract_defects.py` owns thirteen source rules, twelve
 frozen on a page that shipped the defect (LOOP-006); `check-artifact` prints one
 `FAIL [<class>] line <n>: …` per finding. They fail the page being wrapped or checked, and
 only warn in `--census`: a page built by an older kit is red on them by construction. The
@@ -1026,6 +1026,7 @@ exact rule of each is the module's docstring; run one alone with
 | `img-src-portable` | an `<img>` `src`/`srcset` is `file:` or an absolute filesystem path | a `data:` URI or a page-relative copy |
 | `unique-dom-ids` | an `id` appears twice, inline-SVG ids included | prefix each figure's SVG ids with the figure's own id |
 | `group-item-id-collision` | an element's `id` equals a consult item's `data-id` (a group and an item both `W1`): every hand-written `#W1` link opens the other element | a distinct id per group and item; the spec builder refuses the pair |
+| `body-language-follows-lang` | 75% or more of the function words in the prose are of the other language than `<html lang>` (es/en); judged from 80 prose words and 25 function words, function words inside a proper name or title ("Calle de Alcalá") not counted, with code, `pre`, `svg`, `nav`, kit chrome and any element with its own `lang` left out | write the page in the language it declares, or set `--lang` / the masthead `lang=` to the one it is written in; mark a quotation in the other language with its own `lang` |
 
 The three rendered classes (`text-style-drift`, `figure-text-contrast`,
 `svg-label-outside-its-box`) are measured in the browser by `render-probe.sh`
