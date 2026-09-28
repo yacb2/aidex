@@ -56,6 +56,64 @@ ui-string-language
     source: the composer relabels exact English defaults at run
     time, so a JS-less read, a copy of the source, or an older composer shows
     what this reads.
+
+decided-item-without-verdict
+    A `.consult-item` carrying `data-decided` must carry the verdict its fold
+    shows, read the way composer.js decidedSummary/decidedLine read it: a
+    non-blank `data-decided` value, or anywhere in its subtree (nested items
+    included, as querySelectorAll walks them) a `checked` radio/checkbox whose
+    label (data-label, else value, else "on") is non-blank, or an explicitly
+    `selected` <option> whose value (value attribute, else its text) is
+    non-empty — a selected placeholder `value=""` is no verdict. Two rules are
+    deliberately STRICTER than the runtime: a select's implicit first option
+    is not a verdict (the source does not say it was chosen), and a
+    `data-decided` of "yes"/"true"/"1" (any case) is not one either — the fold
+    would show a bare "yes". A verdict only in the item's prose is hidden by
+    the fold.
+
+item-title-repeats-id
+    A consult item's `data-title` must not equal its `data-id` nor start with
+    it followed by a separator (" · ", ":", " - ", a space, a "." not followed
+    by a digit), compared case-insensitively: the composer already prefixes
+    the id, so the reply reads "M1 · M1 · …". "M10 …" and "M1.2 …" under id M1
+    are different tokens and pass.
+
+lang-follows-profile
+    A page under a project whose `.context/artifact-style.md` declares
+    `language: X` carries `<html lang>` whose primary subtag is X; a missing
+    lang fails too. The project and the field are read by wrap_report's own
+    find_context_dir/profile_language, so the verdict depends on WHERE the page
+    sits. Close-out reports under `/worklists/_archive/` are not exempt (BL-382);
+    `human-verification.*` pages are, pending an owner ruling. No profile, or no
+    `language:` field: not judged.
+
+decided-section-anchor
+    Mirrors composer.js collapseDecided: a decided item outside any
+    `.consult-group`, or a group whose every consult item is decided, is a unit
+    the composer moves into the collapsed "decided" section. A page with at
+    least one such unit has an element `#sec-ledger` or a <header> whose parent
+    carries class `main`: the section goes after that anchor, and without one
+    it is appended at the end of `.main`, after the general notes. A decided
+    item in a half-open group folds in place and needs no anchor.
+
+img-src-portable
+    No <img> `src` or `srcset` candidate with the `file:` scheme or an absolute
+    filesystem path (a leading "/" that is not "//", a drive letter, a UNC
+    `\\\\server\\` path). Images are data: URIs or page-relative copies.
+
+unique-dom-ids
+    Every non-empty `id` value appears once in the document, inline-SVG ids
+    included (a marker id repeated across two figures sends the second
+    figure's url(#…) to the first).
+
+group-item-id-collision
+    The ids the composer creates at run time must not collide: it sets every
+    consult item's id to its `data-id` (composer.js:471); a group keeps its own
+    `id` (:487 only reaches `.main > section[id]`, so a group with a `data-id`
+    and no `id` never gets one). Fails when two items share a `data-id`, or
+    when any element's `id` — a group's included — equals an item's `data-id`
+    (the item's own id excepted).
+    Invisible to unique-dom-ids on the source.
 """
 
 import argparse
@@ -461,12 +519,205 @@ def check_ui_string_language(path, html_text):
     return out
 
 
+# --- 6. decided-item-without-verdict --------------------------------------------
+
+NOT_A_VERDICT = ("yes", "true", "1")      # stricter than the runtime, on purpose
+
+
+def _has_verdict(item):
+    v = (item.attrs.get("data-decided") or "").strip()
+    if v:
+        return v.lower() not in NOT_A_VERDICT
+    for d in item.walk():                     # composer.js:346, the whole subtree
+        if d.tag == "input" and (d.attrs.get("type") or "").lower() in OPTION_INPUT \
+                and "checked" in d.attrs:
+            label = d.attrs.get("data-label") or d.attrs.get("value", "on")
+            if label.strip():
+                return True
+        if d.tag == "option" and "selected" in d.attrs:
+            value = d.attrs["value"] if "value" in d.attrs else d.text()
+            if value.strip():
+                return True
+    return False
+
+
+def check_decided_item_without_verdict(path, html_text):
+    out = []
+    for n in parse(html_text).root.walk():
+        if "consult-item" in n.classes() and "data-decided" in n.attrs \
+                and not _has_verdict(n):
+            out.append(("decided-item-without-verdict", n.line,
+                        "item '%s' is decided but carries no verdict: its fold "
+                        "shows the title alone. Put the verdict in data-decided=\"…\" "
+                        "or check the chosen option" % n.attrs.get("data-id", "?")))
+    return out
+
+
+# --- 7. item-title-repeats-id ---------------------------------------------------
+
+def title_repeats_id(ident, title):
+    ident, title = ident.strip(), title.strip()
+    if not ident or not title.casefold().startswith(ident.casefold()):
+        return False
+    rest = title[len(ident):]
+    if not rest:
+        return True
+    if rest[0].isalnum() or (rest[0] == "." and rest[1:2].isdigit()):
+        return False                          # M10, M1.2: another token
+    return True
+
+
+def check_item_title_repeats_id(path, html_text):
+    out = []
+    for n in parse(html_text).root.walk():
+        if _is_item(n) and title_repeats_id(n.attrs.get("data-id") or "",
+                                            n.attrs.get("data-title") or ""):
+            out.append(("item-title-repeats-id", n.line,
+                        "item '%s' has data-title \"%s\": the composer prefixes "
+                        "the id already, so the reply reads the id twice"
+                        % (n.attrs["data-id"], _norm(n.attrs["data-title"])[:60])))
+    return out
+
+
+# --- 8. lang-follows-profile ----------------------------------------------------
+
+LANG_EXEMPT_PREFIX = "human-verification."     # owner question, LOOP-006 STATE
+
+
+def check_lang_follows_profile(path, html_text):
+    import os
+    import wrap_report                   # the profile's one reader (find + field)
+    if os.path.basename(path).startswith(LANG_EXEMPT_PREFIX):
+        return []
+    ctx = wrap_report.find_context_dir(os.path.dirname(os.path.abspath(path)))
+    want = wrap_report.profile_language(ctx)
+    if not want:
+        return []
+    html = next((n for n in parse(html_text).root.walk() if n.tag == "html"), None)
+    got = ((html.attrs.get("lang") if html else "") or "").strip()
+    if got.split("-")[0].lower() == want.split("-")[0].lower():
+        return []
+    return [("lang-follows-profile", html.line if html else 1,
+             "<html lang=\"%s\"> but %s/artifact-style.md declares language: %s"
+             % (got, ctx, want))]
+
+
+# --- 9. decided-section-anchor --------------------------------------------------
+
+def _group(n):
+    return next((a for a in n.ancestors() if "consult-group" in a.classes()), None)
+
+
+def check_decided_section_anchor(path, html_text):
+    nodes = list(parse(html_text).root.walk())
+    items = [n for n in nodes if "consult-item" in n.classes()]
+    decided = []                       # composer.js collapseDecided's units
+    for n in items:
+        if "data-decided" not in n.attrs:
+            continue
+        g = _group(n)
+        if g is None or all("data-decided" in d.attrs for d in g.walk()
+                            if "consult-item" in d.classes()):
+            decided.append(n)
+    if not decided or any(
+            n.attrs.get("id") == "sec-ledger"
+            or (n.tag == "header" and n.parent is not None
+                and "main" in n.parent.classes())
+            for n in nodes):
+        return []
+    return [("decided-section-anchor", decided[0].line,
+             "%d decided item(s) and no anchor for their section: neither "
+             "#sec-ledger nor a <header> directly under .main, so the composer "
+             "appends the settled questions after the general notes" % len(decided))]
+
+
+# --- 10. img-src-portable -------------------------------------------------------
+
+NOT_PORTABLE = re.compile(r"^(?:file:|/(?!/)|[A-Za-z]:[\\/]|\\\\)", re.I)
+
+
+def check_img_src_portable(path, html_text):
+    out = []
+    for n in parse(html_text).root.walk():
+        if n.tag != "img":
+            continue
+        urls = [("src", (n.attrs.get("src") or "").strip())]
+        urls += [("srcset", c.split()[0]) for c in (n.attrs.get("srcset") or "").split(",")
+                 if c.strip()]
+        for attr, url in urls:
+            if NOT_PORTABLE.match(url):
+                out.append(("img-src-portable", n.line,
+                            "<img %s=\"%s\"> points at this machine's filesystem: "
+                            "inline it as a data: URI or copy it beside the page"
+                            % (attr, url[:80])))
+    return out
+
+
+# --- 11. unique-dom-ids ---------------------------------------------------------
+
+def check_unique_dom_ids(path, html_text):
+    seen, out = {}, []
+    for n in parse(html_text).root.walk():
+        ident = n.attrs.get("id")
+        if not ident:
+            continue
+        if ident in seen:
+            if seen[ident] is not None:
+                out.append(("unique-dom-ids", n.line,
+                            "id \"%s\" is used again (first on line %d): "
+                            "getElementById and url(#…) resolve to the first"
+                            % (ident[:60], seen[ident])))
+                seen[ident] = None               # one finding per value
+        else:
+            seen[ident] = n.line
+    return out
+
+
+# --- 12. group-item-id-collision ------------------------------------------------
+
+def check_group_item_id_collision(path, html_text):
+    """The ids composer.js assigns at run time, checked for collisions."""
+    nodes = list(parse(html_text).root.walk())
+    slug, out = "group-item-id-collision", []
+    items = {}                                       # data-id -> first item
+    for n in nodes:
+        if "consult-item" in n.classes() and "consult-group" not in n.classes() \
+                and n.attrs.get("data-id"):
+            ident = n.attrs["data-id"]
+            if ident in items:
+                out.append((slug, n.line, "two consult items use data-id \"%s\" "
+                            "(first on line %d): the composer gives both that id"
+                            % (ident, items[ident].line)))
+            else:
+                items[ident] = n
+    for n in nodes:
+        if n in items.values() or ("consult-item" in n.classes()
+                                   and "consult-group" not in n.classes()):
+            continue
+        if "consult-group" in n.classes():
+            ident, what = n.attrs.get("id"), "consult-group"   # never its data-id
+        else:
+            ident, what = n.attrs.get("id"), "<%s id>" % n.tag
+        if ident and ident in items:
+            out.append((slug, n.line, "%s and consult-item both use \"%s\": the "
+                        "composer gives the item that id, so its rail link and "
+                        "reply land on the first of the two" % (what, ident)))
+    return out
+
+
 CHECKS = {
     "decision-item-without-options": check_decision_item_without_options,
     "decision-page-not-interactive": check_decision_page_not_interactive,
     "mixed-content-types": check_mixed_content_types,
     "copy-control-placement": check_copy_control_placement,
     "ui-string-language": check_ui_string_language,
+    "decided-item-without-verdict": check_decided_item_without_verdict,
+    "item-title-repeats-id": check_item_title_repeats_id,
+    "lang-follows-profile": check_lang_follows_profile,
+    "decided-section-anchor": check_decided_section_anchor,
+    "img-src-portable": check_img_src_portable,
+    "unique-dom-ids": check_unique_dom_ids,
+    "group-item-id-collision": check_group_item_id_collision,
 }
 
 
