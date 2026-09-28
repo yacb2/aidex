@@ -304,13 +304,31 @@ C=group-item-id-collision
 page c12-id es "<section class=\"consult-group\" id=\"W1\"><h2>Bloque</h2><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section>"
 fails $C c12-id "a group id equal to an item data-id fails"
 page c12-dataid es "<section class=\"consult-group\" data-id=\"W1\"><h2>Bloque</h2></section><section class=\"consult-item\" data-id=\"W1\">$RADIO</section>"
-passes $C c12-dataid "a data-id-only group gets no id at run time (composer.js:487 reads .main > section[id]), so it cannot collide"
+passes $C c12-dataid "a data-id-only group outside any container section gets no id at run time, so it cannot collide"
+# composer.js groupEntry claims a data-id-only group's data-id as its id when the
+# group sits inside a container section (.main > section[id]); it runs before the
+# group's items, so the item is the one that yields to <id>-2.
+page c12-nested es "<main class=\"main\"><section id=\"S1\"><h2>Contenedor</h2><section class=\"consult-group\" data-id=\"W1\"><h3>Bloque</h3><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section></section></main>"
+fails $C c12-nested "a data-id-only group inside a container section takes that id at run time and collides"
+page c12-nested-id es "<main class=\"main\"><section id=\"S1\"><h2>Contenedor</h2><section class=\"consult-group\" id=\"G1\" data-id=\"W1\"><h3>Bloque</h3><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section></section></main>"
+passes $C c12-nested-id "a nested group with its own id keeps it, so its data-id cannot collide"
+page c12-nested-noid es "<main class=\"main\"><section><h2>Sin id</h2><section class=\"consult-group\" data-id=\"W1\"><h3>Bloque</h3><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section></section></main>"
+passes $C c12-nested-noid "a container section with no id is not indexed, so its group gets no id"
+# Mirrors kit 27 exactly (composer.js:504-515): a container without an h2 is not
+# walked, a group the composer moves into the decided section gets no entry, and
+# an item that claimed the id before the group reached it keeps it.
+page c12-nested-noh2 es "<main class=\"main\"><section id=\"S1\"><section class=\"consult-group\" data-id=\"W1\"><h3>Bloque</h3><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section></section></main>"
+passes $C c12-nested-noh2 "a container section with no h2 is not walked, so its group gets no id"
+page c12-nested-after es "<main class=\"main\"><section class=\"consult-group\" id=\"G0\"><h2>Antes</h2><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section><section id=\"S1\"><h2>Contenedor</h2><section class=\"consult-group\" data-id=\"W1\"><h3>Bloque</h3><section class=\"consult-item\" data-id=\"Q2\">$RADIO</section></section></section></main>"
+passes $C c12-nested-after "an item that claimed the id before the nested group keeps it; the group yields"
+page c12-nested-decided es "<main class=\"main\"><section id=\"S1\"><h2>Contenedor</h2><section class=\"consult-group\" data-id=\"W1\"><h3>Bloque</h3><section class=\"consult-item\" data-id=\"W1\" data-decided=\"Sí\">$RADIO</section></section></section></main>"
+passes $C c12-nested-decided "a nested group whose every item is decided moves to the decided section and gets no id"
 page c12-ok es "<section class=\"consult-group\" id=\"G1\" data-id=\"G1\"><h2>Bloque</h2><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section>"
 passes $C c12-ok "distinct group and item ids pass"
 page c12-eff es "<section class=\"consult-group\" id=\"G1\" data-id=\"W1\"><h2>Bloque</h2><section class=\"consult-item\" data-id=\"W1\">$RADIO</section></section>"
 passes $C c12-eff "a group with an id is keyed by that id, not its data-id (composer.js:487)"
 page c12-items es "<section class=\"consult-item\" data-id=\"Q1\">$RADIO</section><section class=\"consult-item\" data-id=\"Q1\">$RADIO</section>"
-fails $C c12-items "two items sharing a data-id fail"
+passes $C c12-items "two items sharing a data-id are check-artifact's duplicate-ids finding, not this class's"
 page c12-other es "<div id=\"Q1\">Contexto</div><section class=\"consult-item\" data-id=\"Q1\">$RADIO</section>"
 fails $C c12-other "an item data-id equal to another element's id fails"
 page c12-self es "<section class=\"consult-item\" id=\"Q1\" data-id=\"Q1\">$RADIO</section>"
@@ -378,6 +396,87 @@ g1="$GOOD/decision-item-without-options/good.html"
 grep -q 'data-free' "$g1" && grep -q 'type="radio"' "$g1" \
   && ok "the class-1 good page carries a data-free item and an options item" \
   || bad "the class-1 good page does not exercise the rule"
+
+echo "== check-artifact carries every finding as a blocking FAIL =="
+# Layer: the CLI, because the wiring is the contract: check_artifact.check_file
+# calls contract_defects instead of keeping copies, so on every mini-page above
+# each (class, line) finding must come out of check-artifact as its own FAIL
+# line — none dropped, none invented — and a page with one exits 1.
+wiring="$(python3 - "$HERE/../scripts" "$TMP" <<'PY'
+import os, re, subprocess, sys
+scripts, tmp = sys.argv[1], sys.argv[2]
+sys.path.insert(0, os.path.join(scripts, "dash"))
+import contract_defects as cd
+pages = sorted(os.path.join(d, f) for d, _, fs in os.walk(tmp)   # .context too
+               for f in fs if f.endswith(".html"))
+classes, bad = set(), []
+for p in pages:
+    want = sorted((s, l) for s, l, _ in cd.findings(p))
+    r = subprocess.run(["bash", os.path.join(scripts, "check-artifact.sh"), p],
+                       capture_output=True, text=True)
+    got = sorted((m.group(1), int(m.group(2))) for m in re.finditer(
+        r"^  FAIL \[([\w-]+)\] [^:]+: line (\d+): ", r.stdout, re.M)
+        if m.group(1) in cd.CHECKS)
+    if got != want or (want and r.returncode != 1):
+        bad.append("%s: rc=%d want %s got %s" % (os.path.basename(p), r.returncode, want, got))
+    classes.update(s for s, _ in want)
+missing = sorted(set(cd.CHECKS) - classes)
+print("pages=%d classes=%d" % (len(pages), len(classes)))
+for line in bad + (["no mini-page fails " + ", ".join(missing)] if missing else []):
+    print(line)
+PY
+)"
+if [[ "$(printf '%s\n' "$wiring" | wc -l | tr -d ' ')" == "1" ]]; then
+  ok "check-artifact FAILs exactly the contract_defects findings ($wiring)"
+else
+  bad "check-artifact and contract_defects disagree: $wiring"
+fi
+
+echo "== census: the contract classes warn, the page being written fails =="
+# Ruling 2026-09-28: a page nobody is editing was built by an older kit and is red
+# by construction, so --census reports the classes as WARN (CENSUS_ADVISORY) and
+# exits 0 on them; check-artifact on the named page stays blocking (cell above).
+CEN="$TMP/census-root"; mkdir -p "$CEN/.context/reports"
+cp "$TMP/c1-free.html" "$CEN/.context/reports/old.html"
+cout="$(python3 "$HERE/../scripts/dash/check_artifact.py" --census "$CEN" 2>&1)"; crc=$?
+printf '%s\n' "$cout" | grep -q 'WARN \[decision-item-without-options\] ' \
+  && ! printf '%s\n' "$cout" | grep -q 'FAIL \[decision-item-without-options\]' \
+  && ok "the census warns a contract finding instead of failing it" \
+  || bad "the census did not demote the contract class to a warning: $cout"
+
+echo "== lang-follows-profile at build time: only a record keeps an explicit --lang =="
+# Interim ruling pending the owner: the wrap skips lang-follows-profile only for
+# the two record classes that are English by D-04 whatever the profile says
+# (wrap_report._is_record: a close-out under worklists/_archive/, and
+# human-verification.*). Keyed on the record, not on --lang, because spec_build
+# and spec_verbs forward --lang on every build. The standalone check and the
+# census still judge every page.
+LP="$TMP/langproj"; mkdir -p "$LP/.context/reports" "$LP/.context/worklists/_archive"
+printf -- '- language: es\n' > "$LP/.context/artifact-style.md"
+EN_BODY='<div class="page"><main class="main"><h1>Report</h1><p>An English report on purpose, with enough words to read as English prose for the checker.</p></main></div>'
+printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "English" --lang en \
+  --out "$LP/.context/reports/en.html" >"$TMP/wrap.out" 2>&1; wrc=$?
+[[ $wrc -ne 0 ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/wrap.out" \
+  && ok "--lang en on a page under a language: es profile is refused" \
+  || bad "a normal page kept --lang against the profile (rc=$wrc): $(cat "$TMP/wrap.out")"
+REC="$LP/.context/worklists/_archive/sweep-report.html"
+printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "English" --lang en \
+  --out "$REC" >"$TMP/wrap.out" 2>&1; wrc=$?
+[[ $wrc -eq 0 ]] && ! grep -q 'lang-follows-profile' "$TMP/wrap.out" \
+  && ok "a close-out record keeps its --lang en" \
+  || bad "the record's --lang was refused (rc=$wrc): $(cat "$TMP/wrap.out")"
+bash "$HERE/../scripts/check-artifact.sh" "$REC" >"$TMP/chk.out" 2>&1
+[[ $? -eq 1 ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/chk.out" \
+  && ok "the standalone check still reports lang-follows-profile on the record" \
+  || bad "the standalone check lost lang-follows-profile: $(cat "$TMP/chk.out")"
+# The spec route forwards --lang es by default: lang-follows-profile must still run.
+SP="$TMP/specproj"; mkdir -p "$SP/.context/reports"
+printf -- '- language: en\n' > "$SP/.context/artifact-style.md"
+printf '::: masthead {eyebrow="Prueba" byline="aidex"}\n# Una página\n\nUna página escrita en español, con suficientes palabras para leerse como prosa.\n:::\n\nEl cuerpo sigue en español.\n' > "$SP/p.spec.md"
+python3 "$HERE/../scripts/spec_build.py" "$SP/p.spec.md" -o "$SP/.context/reports/p.html" >"$TMP/sb.out" 2>&1; src=$?
+[[ $src -ne 0 ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/sb.out" \
+  && ok "a spec build whose lang contradicts the profile fails lang-follows-profile" \
+  || bad "the spec build skipped lang-follows-profile (rc=$src): $(cat "$TMP/sb.out")"
 
 echo "== defect-gate.sh =="
 # The render classes and the corpus's render-probe run go through

@@ -62,11 +62,11 @@ cat > "$TMP/body.html" <<'HTML'
 <section class="consult-group" id="G1" data-id="G1" data-title="The block">
   <div class="sec-head"><h2>The block</h2></div>
   <p>Shared context for both decisions.</p>
-  <section class="consult-item" data-id="c1" data-title="First claim">
+  <section class="consult-item" data-id="c1" data-free data-title="First claim">
     <h3>The first question</h3>
     <textarea placeholder="Notes"></textarea>
   </section>
-  <section class="consult-item" data-id="c2" data-title="Segunda afirmación">
+  <section class="consult-item" data-id="c2" data-free data-title="Segunda afirmación">
     <h3>¿La segunda pregunta, con acentos?</h3>
     <p>Aquí hay una decisión más: ¿qué pasa con la configuración?</p>
     <textarea placeholder="Notas"></textarea>
@@ -77,7 +77,7 @@ cat > "$TMP/body.html" <<'HTML'
   <textarea></textarea>
 </section>
 <div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>
-<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div>
+<aside class="rail"><div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside>
 <section id="sec-ref"><div class="sec-head"><h2>Where the figures come from</h2></div><p>Measured.</p></section>
 </main><aside class="rail"><p class="railhead">Contents</p>
 <nav class="raillist" id="raillist"></nav></aside></div>
@@ -125,7 +125,7 @@ cp "$PREV/page.html.body" "$TMP/before.body"
 # its own `<`, so the first line carries no indentation and the closing tag keeps
 # the one it had.
 cat > "$TMP/c1-new.html" <<'HTML'
-<section class="consult-item" data-id="c1" data-title="First claim">
+<section class="consult-item" data-id="c1" data-free data-title="First claim">
     <h3>The first question, asked better</h3>
     <p>Qué existe hoy: dos archivos, uno de ellos vacío.</p>
     <textarea placeholder="Notes"></textarea>
@@ -161,7 +161,7 @@ insert_item() { # insert_item <src> <dst> <id> <title>
 import sys
 src, dst, iid, title = sys.argv[1:5]
 t = open(src, encoding="utf-8").read()
-item = ('  <section class="consult-item" data-id="%s" data-title="%s">\n'
+item = ('  <section class="consult-item" data-id="%s" data-free data-title="%s">\n'
         '    <h3>A question added this round</h3>\n'
         '    <textarea></textarea>\n'
         '  </section>\n') % (iid, title)

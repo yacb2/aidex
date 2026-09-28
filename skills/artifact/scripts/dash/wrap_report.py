@@ -1096,6 +1096,13 @@ def main():
     prev_for_check = baseline if os.path.isfile(baseline) else prev_snapshot
     if prev_for_check:
         cmd += ["--prev", prev_for_check]
+    if _is_record(args.outfile):
+        # Pending the owner's ruling (LOOP-006, interim): a record (a close-out
+        # under worklists/_archive/, human-verification.*) is English by D-04 and
+        # takes an explicit --lang, so this wrap skips lang-follows-profile. Keyed
+        # on the record, never on --lang: spec_build and spec_verbs forward --lang
+        # on every build, which would switch the check off for every spec page.
+        cmd += ["--lang-chosen"]
     rc = None
     try:
         rc = 1 if checker_missing else subprocess.run(cmd).returncode
