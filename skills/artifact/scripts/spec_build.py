@@ -67,6 +67,7 @@ import diagram_svg                              # noqa: E402
 import gallery_items                            # noqa: E402
 import graph_svg                                # noqa: E402
 import md_body                                  # noqa: E402
+import wrap_report                              # noqa: E402
 from spec_parser import SpecSyntaxError, parse   # noqa: E402,F401
 
 esc = md_body.esc
@@ -1509,7 +1510,8 @@ def main(argv):
                         "against a pipe (BL-126)")
     p.add_argument("--lang", default=None, choices=LANGS,
                    help="the page's language when the masthead does not "
-                        "declare one with lang=\u2026 (default: es). A "
+                        "declare one with lang=\u2026 (default: the project "
+                        "profile's language, else es). A "
                         "declaration wins: the language is the page's, not the "
                         "command's")
     p.add_argument("--title", default=None,
@@ -1527,7 +1529,13 @@ def main(argv):
         return 2
 
     try:
-        lang = spec_lang(spec_text) or args.lang or "es"
+        # A silent spec follows the profile the wrap and lang-follows-profile
+        # read, looked up from where the page lands (as the wrap does).
+        # Only the primary subtag, as lang-follows-profile compares it.
+        profile = (wrap_report.profile_language(wrap_report.find_context_dir(
+            os.path.dirname(os.path.abspath(args.out))
+            if args.out else os.getcwd())) or "").split("-")[0].lower()
+        lang = spec_lang(spec_text) or args.lang or profile or "es"
         body = build(spec_text, lang=lang,
                      base_dir=os.path.dirname(os.path.abspath(args.spec)),
                      page=args.out)
