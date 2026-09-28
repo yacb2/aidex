@@ -1006,7 +1006,7 @@ err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang es \
   || bad "BL-371: the note fired on an agreeing --lang: $err"
 
 # A close-out report under worklists/_archive/ is English by D-04 whatever the
-# profile says (sweep-report.sh passes --lang en on purpose) — no note there.
+# profile says (a wrap of that record passes --lang en on purpose) — no note there.
 mkdir -p "$CONTRAP/.context/worklists/_archive"
 err="$(printf '%s\n' "$GOODB" | bash "$WRAP" --title "T" --lang en \
         --out "$CONTRAP/.context/worklists/_archive/x-report.html" 2>&1 >/dev/null)"
