@@ -1,0 +1,29 @@
+<!-- render-probe fixture: text-style-drift, both halves. (a) a descendant rule reaching a
+     paragraph by tag (`.driftfix p`, specificity 0,1,1) beats the kit's single-class
+     `.note` (0,1,0), the same shape as the kit's own `.consult-item p` did. (b) an svg
+     label in Helvetica, which is none of the kit's --sans, --mono or --serif stacks (only
+     under --contract text-style-drift: the default run leaves svg families out).
+     "nestedfix" is a paragraph INSIDE a div.note that the same box rule reaches; the
+     "inheritfix" note has a rule of its own (`.ifx`, a clamp() the probe cannot resolve)
+     that loses to `.driftfix p`, so it exempts nothing. -->
+<style>
+.driftfix p { font-size: 1.1rem; }
+.ifx { font-size: clamp(10px, 1vw, 14px); }
+</style>
+<div class="page">
+<main class="main">
+<h1>Deriva de estilo</h1>
+<div class="driftfix">
+  <p>Texto del cuerpo, que sí toma el tamaño de la caja.</p>
+  <p class="note">Una nota que pierde su tamaño declarado.</p>
+  <div class="note"><p>nestedfix: un párrafo dentro de la nota, alcanzado por la regla de la caja.</p></div>
+  <p class="note ifx">inheritfix: su propia regla no resuelve a un tamaño y además pierde.</p>
+</div>
+<figure>
+<svg viewBox="0 0 400 60" width="400" role="img" aria-label="Etiqueta fuera del kit">
+  <text x="10" y="35" fill="currentColor" font-family="Helvetica, sans-serif" font-size="14">etiqueta en Helvetica</text>
+</svg>
+<figcaption>Una etiqueta con una familia ajena al kit.</figcaption>
+</figure>
+</main>
+</div>

@@ -3,15 +3,22 @@
 # check-artifact reads source; this loads the page headless (Playwright Chromium,
 # 1280 and 390 px) and fails on what the reader sees: text over text, svg text
 # outside its svg, content spilling out of or cut by its box, a fixed control over
-# body text, horizontal page scroll. The checks live in render-probe.mjs.
+# body text, horizontal page scroll; and the three render contract classes
+# (text-style-drift, figure-text-contrast in both schemes, svg-label-outside-its-box).
+# text-style-drift's svg font-family half runs only under --contract text-style-drift:
+# it stays out of the default run until the owner answers whether author font
+# overrides in figures are allowed (no canon forbids them yet).
+# The checks live in render-probe.mjs.
 #
 # Playwright is resolved from $AIDEX_PLAYWRIGHT_DIR (a directory holding
 # node_modules/playwright), then from the global npm root. Neither having it is a
 # failure with the install command, never a skip: a gate that passes because it
 # could not look is the defect it exists to catch.
 #
-# Usage: render-probe.sh [--shots <dir>] <page.html>...
-#   --shots <dir>  also write <name>-1280.png and <name>-390.png, full page
+# Usage: render-probe.sh [--shots <dir>] [--contract <slug>] <page.html>...
+#   --shots <dir>      also write <name>-1280.png and <name>-390.png, full page
+#   --contract <slug>  run only that contract class; the last stdout line is
+#                      `CONTRACT <slug> findings=<n>` (absent on a crash)
 # Exit 0 = clean. Exit 1 = at least one defect (each printed). Exit 2 = usage error.
 # Exit 3 = Playwright or its Chromium missing (the install command is printed).
 # Exit 4 = the probe crashed (any other launch error, a page that failed to load, an

@@ -1,0 +1,16 @@
+<!-- render-probe fixture: text-style-drift, sizes set on purpose (must stay clean).
+     A .note with an inline size, a page rule `.note { .. }` that restates the class
+     (same specificity as the kit's, later, so it wins), and a scoped `.x .note { .. }`.
+     Each names the element's own class or is inline, so none is drift. -->
+<style>
+.note { font-size: 0.9rem; }
+.opfix .note { font-size: 1rem; }
+</style>
+<div class="page">
+<main class="main">
+<h1>Tamaños puestos a propósito</h1>
+<p class="note" style="font-size: 1.05rem">Una nota con su tamaño en línea.</p>
+<p class="note">Una nota con la regla de página que repite la clase.</p>
+<div class="opfix"><p class="note">Una nota con una regla acotada a su caja.</p></div>
+</main>
+</div>
