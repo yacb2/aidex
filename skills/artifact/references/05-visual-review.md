@@ -9,6 +9,23 @@ The grader is the `artifact-grader` agent. It sees the request and two full-page
 (1280 px and 390 px, from `render-probe.sh --shots`), and nothing else: not the spec, not
 the HTML, not the builder's reasoning. A builder who grades its own page approves it.
 
+## What the probe already measured
+
+`render-probe.sh` runs before the grader and fails on geometry (text over text, svg text
+outside its svg, a spill or cut, a fixed control over text, sideways scroll) and on the
+three rendered contract classes: `text-style-drift` (a kit class rendering at another
+font size than it declares), `figure-text-contrast` (svg text under 4.5:1, light and
+dark scheme) and `svg-label-outside-its-box`. A page reaches the grader clean of those,
+so the rubric grades what no measurement decides.
+
+`render-probe.sh --contract <class>` runs that one class alone, without the geometry
+checks, and ends with one line `CONTRACT <class> findings=<n>` (the defect gate reads it;
+a crash exits 4 without it). It adds one check the default run leaves out:
+`--contract text-style-drift` also fails an svg text whose font family is not the kit's
+`--sans`, `--mono` or `--serif` stack. That half stays out of the default probe until the
+owner rules whether an author's font override inside a figure is allowed; until then,
+line 3 below is where a figure in a foreign font loses its point.
+
 ## The ten points
 
 | # | Line | pts | What costs points |
