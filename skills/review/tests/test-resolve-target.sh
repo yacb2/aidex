@@ -7,7 +7,10 @@
 # and the oversize refusal gets one because a whole-app run is exactly where a sample
 # would otherwise be reported as coverage.
 
-set -uo pipefail
+# No pipefail: every cell reads `producer | grep -q`, and grep -q exits on the first
+# match. A producer still writing then dies of SIGPIPE (141), and pipefail turned that
+# into a failed cell under load (resolver PIPESTATUS "141 0", 23 of 2,400 loaded runs).
+set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 RESOLVER="$SCRIPT_DIR/../scripts/resolve-review-target.sh"
