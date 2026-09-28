@@ -10,7 +10,9 @@
 #   --size      estimates admitted (default XS,S) — `sweep-eligible.py --size`
 #   --include   a REVIEW-tier item the run has READ and judged runnable (§1b: a signal says
 #               where to look, not what a sentence means; the read is the kickoff's job)
-#   --exclude   an ELIGIBLE item the kickoff pulls (a decision the regex could not see)
+#   --exclude   an ELIGIBLE item the kickoff pulls (a decision the regex could not see);
+#               repeatable or a comma list, `BL-NNN:<reason>` per element. Recorded under
+#               Needs decision (BL-482); an id in no partition list exits 2
 #   --dry-run   print the queue and the lists; write no work-list
 #   --json      machine form of the same (for the consultation artifact)
 #
@@ -59,7 +61,35 @@ PART="$(cd "$ROOT" && python3 "$SCRIPT_DIR/sweep-eligible.py" --size "$SIZE" --j
 
 # Ordering is pure data work and lives in sweep-order.py (union-find over `touches:`,
 # Kahn over `depends:`, MERGE pairs from `merge:BL-NNN`).
-INC="$(IFS=,; echo "${INCLUDE[*]:-}")"; EXC="$(IFS=,; echo "${EXCLUDE[*]:-}")"
+# --exclude is a decision the regex could not see, so each one lands under Needs decision
+# — dropping it made the report say "none recorded at kickoff" for a sweep that had
+# pulled eight (BL-482). Parsed once here: line 1 is the id list for the ordering, the
+# rest are the Needs-decision lines. A comma starts a new element only before `BL-<n>`,
+# so a reason keeps its commas. An id no partition list knows is a typo: exit 2.
+EXC_PARSED="$(printf '%s' "$PART" | python3 -c '
+import json, re, sys
+d = json.load(sys.stdin)
+titles = {i["id"]: i.get("title", "") for k in ("eligible", "review", "needs_decision") for i in d.get(k, [])}
+listed = {i["id"] for i in d["needs_decision"]}
+ids, lines = [], []
+for arg in sys.argv[1:]:
+    for e in re.split(r",\s*(?=BL-\d+\b)", arg):
+        bl, _, why = e.strip().partition(":")
+        if not bl or bl in ids:
+            continue
+        if bl not in titles:
+            sys.exit("sweep-kickoff: --exclude %s is in no partition list (not open, or outside --size)" % bl)
+        ids.append(bl)
+        if bl in listed:
+            continue  # already listed with the reason the partition gave
+        why = why.strip().replace("-->", "--&gt;")
+        lines.append("- %s — %s   <!-- reason: pulled at kickoff (--exclude)%s -->"
+                     % (bl, titles[bl].replace("\n", " "), ": " + why if why else ""))
+print(",".join(ids))
+print("\n".join(lines))
+' ${EXCLUDE[@]+"${EXCLUDE[@]}"})" || exit 2
+EXC="$(head -1 <<<"$EXC_PARSED")"; EXC_NEEDS="$(tail -n +2 <<<"$EXC_PARSED")"
+INC="$(IFS=,; echo "${INCLUDE[*]:-}")"
 ORDER="$(printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --include "$INC" --exclude "$EXC")"
 [[ $JSON -eq 1 ]] && { printf '%s\n' "$ORDER"; exit 0; }
 
@@ -95,6 +125,8 @@ NEEDS="$(printf '%s' "$PART" | python3 -c '
 import json, sys
 for i in json.load(sys.stdin)["needs_decision"]:
     print("- %s — %s   <!-- reason: %s -->" % (i["id"], i["title"].replace("\n", " "), i["reason"]))')"
+[[ -n "$EXC_NEEDS" ]] && NEEDS="${NEEDS:+$NEEDS
+}$EXC_NEEDS"
 python3 - "$WL" "$N" "$NEEDS" <<'PY2'
 import sys
 path, n, needs = sys.argv[1], sys.argv[2], sys.argv[3]

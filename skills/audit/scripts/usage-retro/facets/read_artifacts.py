@@ -78,6 +78,7 @@ SINCE = {
     "double-wrap": "2026-09-20",   # c5f20ee
     "gallery": "2026-09-22",       # the gallery row, plan phase 1
     "raw-link": "2026-09-25",      # a4dcc72, artifact-quality phase 5
+    "rec-leak": "2026-09-27",      # BL-481
 }
 
 

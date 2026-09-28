@@ -140,7 +140,7 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/diagram-flow.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "diagram-flow exits 0 at 1280 and 390" || bad "diagram-flow exit $rc: $out"
 [[ -s "$TMP/shots/diagram-flow-1280.png" && -s "$TMP/shots/diagram-flow-390.png" ]] \
   && ok "--shots writes both diagram-flow screenshots" || bad "no diagram-flow screenshots"
-module="$AIDEX_PLAYWRIGHT_DIR/node_modules/playwright"
+module="${AIDEX_PLAYWRIGHT_DIR:-}/node_modules/playwright"
 [[ -f "$module/package.json" ]] || module="$g/playwright"
 sizes="$(PW="$module" node -e '
 const { chromium } = require(process.env.PW);
