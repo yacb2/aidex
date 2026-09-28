@@ -21,8 +21,6 @@ Checks (per file):
   siblings     no .css/.js dropped next to it — the artifact IS the file
   double-wrap  one kit envelope per document: two stamps or two composer.js
                mean an already-wrapped page was fed back in as a body (BL-414)
-  rec-leak     a literal `{recommended}` in the visible text, outside <code>,
-               <pre> and <textarea> — spec syntax the builder did not read (BL-481)
   layout       a kit page keeps its content inside .page / .main (BL-177),
                and every table inside a scrolling wrapper
   consult      a page the reader must ANSWER carries the §8 shape
@@ -44,6 +42,11 @@ Checks (per file):
                named file — the wrap — and only WARNS in `--census`, because a
                page being written must not ship unreadable text while the same
                finding on a page nobody is editing is noise no one can clear.
+  <class>      one FAIL per finding of contract_defects.py's source classes
+               (decision-item-without-options, mixed-content-types,
+               copy-control-placement, ...; LOOP-006), keyed by the class slug
+               and prefixed with the line. That module owns every rule; this
+               only reports it, on every page and in `--census` too
 
 Warnings (`WARN [check]`) are a SECOND channel and deliberately not a third
 severity of the first. They report a shape that renders badly or reads wrong
@@ -204,7 +207,6 @@ def visible_source(text):
     return strip_html_comments(strip_script_style(text))
 
 
-RECOMMENDED_MARK = "{recommended}"
 RAW_LINK = re.compile(r"\[[^\]<>\n]+\]\([^()\s<>]+(?:\([^()\s<>]*\)[^()\s<>]*)?\)")
 
 
@@ -750,7 +752,8 @@ P_FIELDLABEL = re.compile(r'\bclass\s*=\s*["\x27][^"\x27]*\bfieldlabel\b', re.I)
 
 def facts_paragraphs(body):
     """[(codes, clauses, excerpt)] for every paragraph of `body` that carries
-    FACTS_MIN or more <code> tokens or semicolon-separated clauses."""
+    FACTS_MIN or more semicolon-separated clauses only by counting those inside
+    <code>: every other dense paragraph is mixed-content-types' FAIL."""
     own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
     out = []
     for m in P_BLOCK.finditer(own):
@@ -768,7 +771,15 @@ def facts_paragraphs(body):
         # encoding. Tags are stripped first, or an attribute's own `;` counts.
         prose = _html.unescape(re.sub(r'<[^>]+>', ' ', inner))
         clauses = prose.count(';') + 1 if ';' in prose else 1
-        if codes >= FACTS_MIN or clauses >= FACTS_MIN:
+        # contract_defects' mixed-content-types FAILS the same paragraph when
+        # it has FACTS_MIN <code> tokens or clauses counted OUTSIDE <code>;
+        # that one owns it (LOOP-006). What is left here is the shape only this
+        # warning counts: semicolons inside <code>.
+        bare = _html.unescape(re.sub(r'<[^>]+>', ' ', re.sub(
+            r'<code\b[^>]*>.*?</code\s*>', ' ', inner, flags=re.I | re.S)))
+        if codes >= FACTS_MIN or bare.count(';') + 1 >= FACTS_MIN:
+            continue
+        if clauses >= FACTS_MIN:
             excerpt = ' '.join(prose.split())
             out.append((codes, clauses, excerpt[:60]))
     return out
@@ -1137,7 +1148,47 @@ def svg_literal_colour(v):
     m = SVG_RGB.match(v)
     if m:
         return tuple(min(255, int(g)) for g in m.groups())
+    m = SVG_OKLCH.match(v)
+    if m:
+        return _oklch_to_srgb(*m.groups())
     return None
+
+
+# oklch(L C H [/ A]): a literal colour like hex, so a box painted with it is a
+# background the label is judged against (LOOP-006). Unread, the box was skipped
+# and its label judged against the page ground instead: a false FAIL. Alpha is
+# ignored, as it is for rgba(); `none` reads as 0, as CSS says.
+_NUM = r'(?:\d+(?:\.\d*)?|\.\d+)'    # a CSS number: never "0.5." nor "."
+SVG_OKLCH = re.compile(
+    r'^oklch\(\s*(none|' + _NUM + r'%?)[\s,]+(none|' + _NUM + r'%?)[\s,]+'
+    r'(none|' + _NUM + r')(deg|rad|grad|turn)?\s*(?:/\s*(?:none|' + _NUM
+    + r'%?)\s*)?\)$', re.I)
+_HUE_UNIT = {'deg': 1.0, 'grad': 0.9, 'rad': 180 / 3.141592653589793, 'turn': 360.0}
+
+
+def _oklch_to_srgb(L, C, H, unit):
+    """CSS Color 4: OKLCH -> OKLab -> linear sRGB -> sRGB, clipped per channel
+    the way Chromium paints an out-of-gamut colour."""
+    import math
+
+    def num(s, pct_scale):
+        if s.lower() == 'none':
+            return 0.0
+        return float(s[:-1]) / 100 * pct_scale if s.endswith('%') else float(s)
+    lig, chroma = min(1.0, num(L, 1.0)), num(C, 0.4)      # CSS clamps L to [0, 1]
+    hue = math.radians(num(H, 0) * _HUE_UNIT[(unit or 'deg').lower()])
+    a, b = chroma * math.cos(hue), chroma * math.sin(hue)
+    l_ = (lig + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (lig - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (lig - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    lin = (4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+           -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+           -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_)
+
+    def enc(x):
+        x = min(1.0, max(0.0, x))
+        return 12.92 * x if x <= 0.0031308 else 1.055 * x ** (1 / 2.4) - 0.055
+    return tuple(round(enc(x) * 255) for x in lin)
 
 
 # --- svg-embed: what a figure FILE may carry into a page ----------------------
@@ -1725,7 +1776,12 @@ def page_backgrounds(text):
     for block in SVG_STYLE_BLOCK.finditer(strip_html_comments(text)):
         for rule in SVG_CSS_RULE.finditer(strip_css_comments(block.group(1))):
             m = CSS_BG.search(rule.group(2))
-            colour = svg_literal_colour(m.group(1).split()[0]) if m else None
+            # The whole value first: `oklch(0.97 0.01 130)` has spaces inside,
+            # so its first word alone is no colour. Then the first word, for
+            # the `#fff url(...)` shorthand.
+            val = m.group(1).strip() if m else ''
+            colour = (svg_literal_colour(val) or svg_literal_colour(val.split()[0])
+                      if val else None)
             if colour is None:
                 continue
             for sel in rule.group(1).split(','):
@@ -1985,25 +2041,6 @@ def warn_file(path):
                           f'checkbox groups: class="opts"), so these render '
                           f"with no grid, no hover and the hints inline"))
 
-    # BL-468: a consult item with no options makes the reader answer a
-    # decision as prose, and the page that shipped it asked the same decisions
-    # again with options further down. Free-text items say so (data-free);
-    # settled ones (data-decided) and the general-notes item are exempt.
-    for m in ITEM_OPEN.finditer(text):
-        tag = m.group(0)
-        if (not re.search(r'class\s*=\s*["\'][^"\']*\bconsult-item\b', tag, re.I)
-                or re.search(r'\bconsult-notes\b|\bdata-(free|decided)\b', tag, re.I)):
-            continue
-        ident = next(g for g in m.groups()[1:] if g is not None)
-        body = _subtree(text, m.group(1), m.end())
-        if not re.search(r'<input\b[^>]*\btype\s*=\s*["\']?(radio|checkbox)|<select\b',
-                         body, re.I):
-            warns.append(("consult-free", name,
-                          f"item '{ident}' has no options — a decision is "
-                          f"answered as prose. Put its options on it (never "
-                          f"in a separate item asking it again), or mark it "
-                          f"free-text: `free=yes` in a spec, data-free in HTML"))
-
     for ident, body in bodies:
         try:
             ids = independent_checkbox_ids(body)
@@ -2152,8 +2189,12 @@ def svg_contrast_reports(text, name):
     return fails, warns
 
 
-# Checks that FAIL a named file but only WARN in the census. One entry today.
-CENSUS_ADVISORY = ("svg-contrast",)
+# Checks that FAIL a named file but only WARN in the census. svg-contrast, and
+# contract_defects' classes (ruling 2026-09-28, LOOP-006): a page nobody is
+# editing was built by an older kit and is red on them by construction, so the
+# census reports them and the page being written or wrapped is what they block.
+import contract_defects                             # noqa: E402 — same directory
+CENSUS_ADVISORY = ("svg-contrast", "contract") + tuple(contract_defects.CHECKS)
 
 
 
@@ -2210,8 +2251,9 @@ def h2s_outside_id_sections(flat):
     return p.orphans
 
 
-def check_file(path):
-    """Every violation in one file, as (check, name, message) tuples."""
+def check_file(path, skip=()):
+    """Every violation in one file, as (check, name, message) tuples. `skip`
+    names contract classes not judged on this run (see `--lang-chosen`)."""
     fails = []
 
     def report(check, msg, name=None):
@@ -2263,15 +2305,11 @@ def check_file(path):
                            f"[text](target) with a relative, #fragment or "
                            f"https: target, which the builder renders")
 
-    # --- rec-leak: the option marker shipped to the reader as text ------------
-    # `{recommended}` is spec syntax the builder turns into data-recommended;
-    # seen as text it is a marker the builder did not read (BL-481: 8 options
-    # on one page, mid-line). Quoted in <code>/<pre>/<textarea>, it is not.
-    if RECOMMENDED_MARK in re.sub(r"<[^>]+>", " ", unquoted):
-        report("rec-leak", "the page shows a literal {recommended} as text — "
-                           "the builder did not read it, so no option carries "
-                           "data-recommended. Put the marker on the option line "
-                           "in the spec, or data-recommended on the input")
+    # rec-leak (BL-481) lived here until LOOP-006: a literal `{recommended}` is
+    # now contract_defects' decision-item-without-options finding (below), one
+    # owner per rule. Its <textarea> exemption was not ported: it was inherited
+    # from raw-link's `unquoted` (a4dcc72), not decided for the marker — a
+    # prefilled reply box holding the marker is pasted back as the leak.
 
     # --- self: one file, no network -------------------------------------------
     if re.search(r'<link[^>]+rel=["\']?stylesheet', flat, re.I):
@@ -2420,6 +2458,17 @@ def check_file(path):
             report("gallery", msg)
     except Exception as e:                          # noqa: BLE001 — fail closed
         report("gallery", f"the gallery-row scan did not run ({e})")
+
+    # --- the page contract: contract_defects.py's source classes (LOOP-006) ---
+    # That module is the ONE owner of each rule (BL-468's optionless-item
+    # warning used to live here as a second copy); this only reports its
+    # findings, one FAIL per finding, keyed by the class slug.
+    try:
+        slugs = [c for c in contract_defects.CHECKS if c not in skip]
+        for slug, line, msg in contract_defects.findings(path, slugs):
+            report(slug, f"line {line}: {msg}")
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        report("contract", f"the contract-defects scan did not run ({e})")
 
     # Colour, last, and on EVERY page — a read's figures are read too. A page
     # whose figure text nobody can see does not ship. Failing here rather than
@@ -2784,9 +2833,11 @@ def check_consultation(path, text, flat):
         if still_asked:
             report("consult", f"decided but still asked ({' '.join(still_asked)}"
                    f") — the ledger records these as settled while the question "
-                   f"set still asks them live. Either mark the item "
-                   f"`data-decided` and state the verdict in its body (the "
-                   f"default: the page keeps the reasoning), or remove it. "
+                   f"set still asks them live. Either mark the item decided "
+                   f"WITH its verdict — data-decided=\"<the verdict>\" or the "
+                   f"chosen option `checked` (a spec: decided=<the verdict>); "
+                   f"prose in its body is folded away with it — (the default: "
+                   f"the page keeps the reasoning), or remove it. "
                    f"(This sees only items the ledger names; one decided and "
                    f"never written there is invisible to any check.)")
 
@@ -3210,7 +3261,10 @@ def sweep_directory(dirpath, exclude=(), context_dir=None, project_root=None):
                 or os.path.realpath(p) in excluded):
             continue
         rel = os.path.relpath(os.path.realpath(p), base)
-        failures.extend((c, rel, m) for c, _, m in check_file(p))
+        # A neighbour is a page nobody is editing: like the census, the sweep
+        # does not report the contract classes on it (ruling 2026-09-28).
+        failures.extend((c, rel, m) for c, _, m in check_file(p)
+                        if c != "contract" and c not in contract_defects.CHECKS)
     if context_dir:
         return split_waived(failures, context_dir, base)
     return failures, 0
@@ -3259,6 +3313,7 @@ def run_census(arg):
 
 def main(argv):
     prev = None
+    skip = ()
     census = False
     census_arg = None
     files = []
@@ -3270,6 +3325,12 @@ def main(argv):
                 print("ERROR: --prev needs a file", file=sys.stderr)
                 return 2
             prev = args.pop(0)
+        elif a == "--lang-chosen":
+            # PENDING THE OWNER'S RULING (LOOP-006, interim 2026-09-28): the wrap
+            # passes this for a record page (wrap_report._is_record), which takes
+            # an explicit --lang by D-04, and it skips lang-follows-profile for
+            # this run only. A standalone check and the census still judge it.
+            skip = ("lang-follows-profile",)
         elif a == "--census":
             census = True
             if args and not args[0].startswith("--"):
@@ -3298,7 +3359,7 @@ def main(argv):
 
     failures, warnings = [], []
     for f in files:
-        failures.extend(check_file(f))
+        failures.extend(check_file(f, skip))
         try:
             warnings.extend(warn_file(f))
         except Exception as e:                      # noqa: BLE001 — advisory

@@ -8,8 +8,9 @@ workspace). Each takes (path, html_text) and returns [(slug, line, message)].
 Classes and the exact rule each one enforces:
 
 decision-item-without-options
-    The single owner of the item rule (check_artifact's BL-468 `consult-free`
-    warning is replaced by a call here in Phase C). An element with class
+    The single owner of the item rule and of the leaked-marker rule:
+    check_artifact's BL-468 `consult-free` warning and its BL-481 `rec-leak`
+    check were replaced by a call here (LOOP-006 Phase C). An element with class
     `consult-item` and a `data-id` must offer at least OPTIONS_MIN options: that
     many radio/checkbox inputs, or a <select> with that many <option>s, counted
     on the item's OWN subtree (a nested consult item's options answer the nested
@@ -107,13 +108,20 @@ unique-dom-ids
     figure's url(#…) to the first).
 
 group-item-id-collision
-    The ids the composer creates at run time must not collide: it sets every
-    consult item's id to its `data-id` (composer.js:471); a group keeps its own
-    `id` (:487 only reaches `.main > section[id]`, so a group with a `data-id`
-    and no `id` never gets one). Fails when two items share a `data-id`, or
-    when any element's `id` — a group's included — equals an item's `data-id`
-    (the item's own id excepted).
-    Invisible to unique-dom-ids on the source.
+    An element whose id equals a consult item's `data-id` (the item's own id
+    excepted). composer.js (kit 27) gives every item an id through claimId: its
+    `data-id`, or the first free `<id>-<n>` when another element already holds
+    it. The rail links to the id the item really got, so the rail still lands on
+    the item; what breaks is every hand-written `#<id>` link — a reply, a note,
+    another page — which opens the other element instead. The ids that exist
+    before the items claim theirs: every authored `id`, a group's included, and
+    the `data-id` that groupEntry claims for a `.consult-group` with no id of
+    its own, replayed in the composer's order: `.main > section[id]` in
+    document order, a non-group section only if it holds an h2, a group moved
+    into the decided section never, and an item that claimed the id first keeps
+    it (the group yields). A data-id-only group anywhere else never gets an id. Two
+    items sharing a `data-id` are check-artifact's `duplicate ids` finding, not
+    this class's. Invisible to unique-dom-ids on the source.
 """
 
 import argparse
@@ -582,6 +590,7 @@ def check_item_title_repeats_id(path, html_text):
 # --- 8. lang-follows-profile ----------------------------------------------------
 
 LANG_EXEMPT_PREFIX = "human-verification."     # owner question, LOOP-006 STATE
+_CONTEXT_DIRS = {}                             # page directory -> .context or None
 
 
 def check_lang_follows_profile(path, html_text):
@@ -589,7 +598,10 @@ def check_lang_follows_profile(path, html_text):
     import wrap_report                   # the profile's one reader (find + field)
     if os.path.basename(path).startswith(LANG_EXEMPT_PREFIX):
         return []
-    ctx = wrap_report.find_context_dir(os.path.dirname(os.path.abspath(path)))
+    here = os.path.dirname(os.path.abspath(path))
+    if here not in _CONTEXT_DIRS:        # one bash spawn per directory, not per page
+        _CONTEXT_DIRS[here] = wrap_report.find_context_dir(here)
+    ctx = _CONTEXT_DIRS[here]
     want = wrap_report.profile_language(ctx)
     if not want:
         return []
@@ -675,33 +687,75 @@ def check_unique_dom_ids(path, html_text):
 
 # --- 12. group-item-id-collision ------------------------------------------------
 
+def _moved_to_decided(group):
+    """composer.js collapseDecided moves a group whose every consult item is
+    decided into the decided section (same test as decided-section-anchor)."""
+    its = [d for d in group.walk() if "consult-item" in d.classes()]
+    return bool(its) and all("data-decided" in d.attrs for d in its)
+
+
+def _runtime_group_ids(nodes):
+    """{group node: the data-id composer.js groupEntry claims for it}, replayed
+    in the composer's own order (kit 27, composer.js:498-515). It walks
+    `.main > section[id]` in document order: a group there is entered at once;
+    any other section needs an h2 and then enters every `.consult-group` inside
+    it. Entering a group with no id and a data-id claims that data-id unless an
+    item already took it; then the group's items claim theirs. A group moved
+    into the decided section is never entered."""
+    claimed, out = set(), {}
+
+    def enter(g):
+        ident = g.attrs.get("data-id")
+        if not g.attrs.get("id") and ident and ident not in claimed:
+            out[g] = ident
+            claimed.add(ident)
+        for d in g.walk():
+            if "consult-item" in d.classes() and d.attrs.get("data-id"):
+                claimed.add(d.attrs["data-id"])
+
+    for m in nodes:
+        if "main" not in m.classes():
+            continue
+        for sec in m.children:
+            if not (isinstance(sec, Node) and sec.tag == "section" and "id" in sec.attrs):
+                continue
+            if "consult-group" in sec.classes():
+                if not _moved_to_decided(sec):
+                    enter(sec)
+                continue
+            if not any(d.tag == "h2" for d in sec.walk()):
+                continue
+            for g in sec.walk():
+                if "consult-group" in g.classes() and not _moved_to_decided(g):
+                    enter(g)
+    return out
+
+
 def check_group_item_id_collision(path, html_text):
-    """The ids composer.js assigns at run time, checked for collisions."""
+    """Ids that exist before composer.js assigns item ids, checked against the
+    items' data-ids."""
     nodes = list(parse(html_text).root.walk())
     slug, out = "group-item-id-collision", []
+    runtime = _runtime_group_ids(nodes)
     items = {}                                       # data-id -> first item
     for n in nodes:
-        if "consult-item" in n.classes() and "consult-group" not in n.classes() \
-                and n.attrs.get("data-id"):
-            ident = n.attrs["data-id"]
-            if ident in items:
-                out.append((slug, n.line, "two consult items use data-id \"%s\" "
-                            "(first on line %d): the composer gives both that id"
-                            % (ident, items[ident].line)))
-            else:
-                items[ident] = n
+        if ("consult-item" in n.classes() and "consult-group" not in n.classes()
+                and n.attrs.get("data-id")):
+            items.setdefault(n.attrs["data-id"], n)
     for n in nodes:
-        if n in items.values() or ("consult-item" in n.classes()
-                                   and "consult-group" not in n.classes()):
-            continue
+        if "consult-item" in n.classes() and "consult-group" not in n.classes():
+            continue                                 # an item's own id: its own
         if "consult-group" in n.classes():
-            ident, what = n.attrs.get("id"), "consult-group"   # never its data-id
+            ident = n.attrs.get("id") or runtime.get(n)
+            what = "consult-group"
         else:
             ident, what = n.attrs.get("id"), "<%s id>" % n.tag
         if ident and ident in items:
             out.append((slug, n.line, "%s and consult-item both use \"%s\": the "
-                        "composer gives the item that id, so its rail link and "
-                        "reply land on the first of the two" % (what, ident)))
+                        "item yields and gets \"%s-2\", so a hand-written #%s link "
+                        "(a reply, a note, another page) opens the %s instead of "
+                        "the item. Rename one of them"
+                        % (what, ident, ident, ident, what)))
     return out
 
 
