@@ -314,6 +314,24 @@ try:
           "{recommended}" not in no_hint, no_hint)
     check("item: ...and it did become data-recommended",
           'data-label="Sí, cerrar" data-recommended' in no_hint, no_hint)
+    # BL-481: the marker BEFORE the hint, and on a wrapped option whose last
+    # line is not the marker's. Only the end-of-line shape was read, so both of
+    # these shipped `{recommended}` as text with no data-recommended, past a
+    # green --check (8 options on a real page, 2026-09-27).
+    ITEM_MID = ('::: group {#G1 title="T"}\n'
+                '::: item {#Q1 title="t"}\n?\n\n'
+                "- Cerrar {recommended} — los ajustes son menores\n"
+                "- Seguir {recommended}\n  — con un salto de línea\n"
+                "- No\n:::\n:::\n")
+    holds("item: {recommended} before the hint is still the recommendation",
+          ITEM_MID,
+          '<input type="radio" name="Q1" data-label="Cerrar" data-recommended>'
+          '<span>Cerrar <span class="hint">los ajustes son menores</span></span>',
+          '<input type="radio" name="Q1" data-label="Seguir" data-recommended>'
+          '<span>Seguir <span class="hint">con un salto de línea</span></span>',
+          '<input type="radio" name="Q1" data-label="No"><span>')
+    check("item: ...and the marker never reaches the page",
+          "{recommended}" not in BUILT[-1][1], BUILT[-1][1])
     # `data-label` is what the composer pastes into the reply, so the markup
     # punctuation an author wrote for the PAGE is stripped from it (PLAIN).
     # Nothing asserted this: every other data-label case here is
@@ -883,6 +901,23 @@ try:
                                          "<code>[R1](R1.html)</code>"))
     check("a raw link shown as <code> is not flagged — that is the author "
           "quoting the syntax", r.returncode == 0, r.stdout + r.stderr)
+    # BL-481: the net for the option marker. The pre-fix shape is what the
+    # builder emitted for `- 5 {recommended} — excelente`: the marker as text
+    # in the label, no data-recommended.
+    leaked = linked.replace(
+        '<input type="radio" name="R1" data-label="5"><span>5 ',
+        '<input type="radio" name="R1" data-label="5 {recommended}">'
+        '<span>5 {recommended} ')
+    check("(the leaked shape carries the literal marker)",
+          "{recommended}" in leaked and leaked != linked)
+    r = contract("leaked", leaked)
+    check("check-artifact FAILS a page that shows a literal {recommended}",
+          r.returncode != 0 and "[rec-leak]" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
+    r = contract("rec-coded", linked.replace(
+        "Abre <a", "Escribe <code>{recommended}</code> y abre <a"))
+    check("a {recommended} shown as <code> is not flagged — the author "
+          "quoting the marker", r.returncode == 0, r.stdout + r.stderr)
 
     print()
     print("== the built page passes check-artifact.sh, unmodified ==")
