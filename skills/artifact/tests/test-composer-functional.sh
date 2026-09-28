@@ -2665,5 +2665,77 @@ tp="$(grep -oE '<title>[^<]*</title>' "$TMP/pdom.html" | head -1)"
   || fail "text-style-drift: item prose is not one size wherever it sits (or a note/label lost its own size): $tp"
 rm -rf "$TMP/profile"
 
+# ---- no kit class reaches an author's SVG <text> ----------------------------
+# An author's figure names its labels with words the kit also uses (`note`,
+# `mono`, `eyebrow`...). A kit class rule beats the label's own presentation
+# attributes (font-size="12", fill="currentColor"), so before kit 29 such a
+# label was hidden (consult-clear, kit-swipe-layer), recoloured, resized or
+# re-set in another face. Each class a kit selector names gets one <text>,
+# compared by computed style with a classless twin, in both themes, in a
+# figure and in a figure inside an item. The list is read from the kit's own
+# rules, so a new class is covered the day it is written; the classes the kit
+# styles ON PURPOSE inside an svg (`figure svg .acc`) are its figure
+# vocabulary and are left out. `display` is compared as drawn / not drawn:
+# flex or grid on an svg text changes nothing.
+{ printf '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>svgclass</title><style>\n'
+  cat "$kit/tokens.css" "$kit/components.css"
+  cat <<'HTML'
+</style></head><body><div class="page"><main class="main">
+<figure><svg id="svg-top" viewBox="0 0 400 40" width="400"></svg></figure>
+<section class="consult-item" data-id="S1" data-title="Svg"><figure><svg id="svg-item" viewBox="0 0 400 40" width="400"></svg></figure></section>
+</main></div>
+<script>
+window.addEventListener('load', function () {
+  var cls = /\.-?[_a-zA-Z][-_a-zA-Z0-9]*/g, all = {}, svgVocab = {};
+  (function walk(rules) {
+    Array.prototype.forEach.call(rules, function (r) {
+      if (r.cssRules && !r.selectorText) return walk(r.cssRules);
+      if (!r.selectorText) return;
+      r.selectorText.split(',').forEach(function (part) {
+        var inSvg = /\bsvg\b/.test(part.replace(/:not\(svg \*\)/g, ''));
+        (part.match(cls) || []).forEach(function (c) { all[c.slice(1)] = 1; if (inSvg) svgVocab[c.slice(1)] = 1; });
+      });
+    });
+  })(document.styleSheets[0].cssRules);
+  var names = Object.keys(all).filter(function (n) { return !svgVocab[n]; }).sort();
+  var props = ['display', 'visibility', 'opacity', 'font-family', 'font-size', 'font-weight',
+               'font-style', 'text-transform', 'letter-spacing', 'fill', 'stroke'];
+  var NS = 'http://www.w3.org/2000/svg', bad = [];
+  function label(svg, c) {
+    var e = document.createElementNS(NS, 'text');
+    e.setAttribute('x', '4'); e.setAttribute('y', '20'); e.setAttribute('font-size', '12');
+    e.setAttribute('fill', 'currentColor'); if (c) e.setAttribute('class', c);
+    e.textContent = 'label'; svg.appendChild(e); return e;
+  }
+  function style(e) {
+    var s = getComputedStyle(e);
+    return props.map(function (p) {
+      var v = s.getPropertyValue(p);
+      return p + ':' + (p === 'display' ? (v === 'none' ? 'none' : 'drawn') : v);
+    });
+  }
+  ['light', 'dark'].forEach(function (theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    ['svg-top', 'svg-item'].forEach(function (host) {
+      var svg = document.getElementById(host), base = style(label(svg, ''));
+      names.forEach(function (n) {
+        var got = style(label(svg, n)), diff = got.filter(function (v, i) { return v !== base[i]; });
+        if (diff.length) bad.push(theme + ' ' + host + ' .' + n + ' {' + diff.join('; ') + '}');
+      });
+    });
+  });
+  document.title = 'SVGCLASS|' + names.length + '|' + (bad.join(' ') || 'none') + '|';
+});
+</script></body></html>
+HTML
+} > "$TMP/reports/svgclass.html"
+chrome_dump "$TMP/svdom.html" "file://$TMP/reports/svgclass.html" 45 || true
+ts="$(grep -oE '<title>[^<]*</title>' "$TMP/svdom.html" | head -1)"
+[[ "$ts" =~ SVGCLASS\|([0-9]+)\| && ${BASH_REMATCH[1]} -ge 50 ]] \
+  || fail "svg-class-leak: the kit's class list was not read (fewer than 50 classes): $ts"
+[[ "$ts" == *"|none|"* ]] \
+  || fail "svg-class-leak: a kit class restyles an author's svg <text> of the same name: $ts"
+rm -rf "$TMP/profile"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

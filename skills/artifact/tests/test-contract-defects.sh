@@ -471,11 +471,12 @@ printf '%s\n' "$EN_BODY" | bash "$HERE/../scripts/wrap-report.sh" --title "Engli
 [[ $wrc -eq 0 ]] && ! grep -q 'lang-follows-profile\|NOTE: --lang' "$TMP/wrap.out" \
   && ok "human-verification.* keeps its --lang en, with no note" \
   || bad "human-verification's --lang en was refused or noted (rc=$wrc): $(cat "$TMP/wrap.out")"
-# The spec route forwards --lang es by default: lang-follows-profile must still run.
+# A silent spec follows the profile; an explicit --lang es that contradicts it
+# must still meet lang-follows-profile on the spec route.
 SP="$TMP/specproj"; mkdir -p "$SP/.context/reports"
 printf -- '- language: en\n' > "$SP/.context/artifact-style.md"
 printf '::: masthead {eyebrow="Prueba" byline="aidex"}\n# Una página\n\nUna página escrita en español, con suficientes palabras para leerse como prosa.\n:::\n\nEl cuerpo sigue en español.\n' > "$SP/p.spec.md"
-python3 "$HERE/../scripts/spec_build.py" "$SP/p.spec.md" -o "$SP/.context/reports/p.html" >"$TMP/sb.out" 2>&1; src=$?
+python3 "$HERE/../scripts/spec_build.py" "$SP/p.spec.md" --lang es -o "$SP/.context/reports/p.html" >"$TMP/sb.out" 2>&1; src=$?
 [[ $src -ne 0 ]] && grep -q 'FAIL \[lang-follows-profile\]' "$TMP/sb.out" \
   && ok "a spec build whose lang contradicts the profile fails lang-follows-profile" \
   || bad "the spec build skipped lang-follows-profile (rc=$src): $(cat "$TMP/sb.out")"

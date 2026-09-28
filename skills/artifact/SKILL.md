@@ -60,8 +60,10 @@ before the wrap, `scripts/gallery-reply.sh` parses the pasted reply back
 
 Per-project design tokens live in `.context/artifact-style.md` (template:
 `assets/templates/artifact-style.md.template`), including a `language:` field
-that `wrap-report.sh` reads as the artifact's `<html lang>` — artifacts only;
-`.context/` stays English (D-04).
+in its `## Language` section that `wrap-report.sh` reads as the artifact's
+`<html lang>` — artifacts only; `.context/` stays English (D-04). Every page
+follows it, close-outs included; only a `human-verification.*` page takes
+`--lang en` (`lang-follows-profile` fails any other contradiction).
 
 ## Spec-first
 
@@ -77,6 +79,17 @@ Edits to a page on this route go through the verbs
 (`scripts/spec_verbs.py add-item | decide | new-round`), which rewrite the spec and
 rebuild the page. The built HTML is an output; it is regenerated, never hand-edited.
 
+Three refusals a first spec usually meets (`references/02-local-first-artifacts.md`
+§ Worked example):
+
+- `decided=yes` on an item with options checks its `{recommended}` option; with none
+  marked, or two on `select=one`, the build refuses. Write `decided="<chosen label>"`.
+  The `decide` verb refuses `yes` on such an item outright.
+- A paragraph dense with code (four or more `code` tokens or `;` clauses, a run of file
+  paths in a sentence) is refused as `mixed-content-types`, naming its spec line: write
+  it as a list or a table.
+- The masthead's `lang=` must match the profile's language.
+
 The boundary is exact:
 
 | The page | What you write |
@@ -87,7 +100,9 @@ The boundary is exact:
 
 The HTML-body route is not removed and no existing page is converted as a side
 effect of touching it. `check-artifact` is the net either way — a page that fails
-it never lands, whichever route wrote it.
+it never lands, whichever route wrote it. Its twelve page-contract classes
+(`scripts/dash/contract_defects.py`), each with its authoring fix, are tabled in
+`references/02-local-first-artifacts.md` § 5 Read what the contract check said.
 
 Figures are blocks too, chosen by one ladder — the highest rung that carries the
 meaning: (1) `chart` / `diagram`, closed stdlib blocks; (2) `graph`, DOT through

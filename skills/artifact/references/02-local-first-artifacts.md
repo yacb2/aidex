@@ -172,7 +172,8 @@ It prints the page path and the check's last line. On a spec error it prints
 page BODY goes to stdout, which is how you look at a build without landing a file;
 `--check` needs `-o`, because the contract cannot be checked against a pipe.
 
-Five things this example is carrying, each of which costs a rebuild if you get it wrong:
+Six things, five of them carried by this example, each of which costs a rebuild if
+you get it wrong:
 
 - **`visual=` on the masthead is REQUIRED on a consultation page.** A page with
   questions that carries no `<svg>`, `<img>` or `<canvas>` and no `visual=` fails the
@@ -187,14 +188,28 @@ Five things this example is carrying, each of which costs a rebuild if you get i
     reason` are refused by name.
   - Nothing at all — only on a READ page, one with no reply surface at all (no
     `item`, no `notes`). The consultation rules, this one included, do not look at it.
-- **`lang="es"` on the masthead is the PAGE's language** and wins over `--lang`. Set it.
-  An English page without it builds into `<html lang="es">` and fails the contract.
+- **`lang="es"` on the masthead is the PAGE's language** and wins over `--lang`. Set it
+  to the project profile's language (`## Language` in `.context/artifact-style.md`): a
+  masthead or `--lang` that contradicts the profile fails `lang-follows-profile`. Only a
+  `human-verification.*` page is English against the profile (D-04). An English page
+  without `lang=` builds into `<html lang="es">` and fails the contract.
 - **The title is written once** — either `title="…"` on the fence or a `# ` line in the
   body. Both on one masthead is refused, not resolved.
 - **`{recommended}` is not an attr.** It sits at the end of an option line, inside the
   block's prose, and the `item` builder reads it there.
 - **`decided=yes` is an ordinary keyed attr.** The grammar has no bare flags, so
-  `{… decided}` alone is malformed.
+  `{… decided}` alone is malformed. On an item with options, `decided=yes` (or
+  `true`/`1`) checks the option marked `{recommended}`, because the fold shows the
+  checked option as the verdict. The build refuses it when no option is marked, and
+  when two are marked on a `select=one` item; write `decided="<the chosen label>"`
+  instead. The `decide` verb refuses `--verdict yes` on an item with options for the
+  same reason: it would record the recommendation, not what the reader chose.
+- **A paragraph dense with code is refused.** Four or more `code` tokens or
+  `;`-separated clauses in one paragraph, three or more file paths joined in a
+  sentence, or three prose sentences inside a code block: the build stops with
+  `<spec>:<line>: mixed-content-types: …`, the line being that paragraph's. Write the
+  facts as a list or a table. The builder refuses exactly what the contract fails on
+  the built page (§ 5, the page-contract classes).
 
 ### The ordering trap the contract enforces
 
@@ -231,7 +246,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" add-item <name>.spec.md \
 **`decide`** — records a verdict as `decided="…"` on the item's fence, rewriting that one
 attr span and leaving the other bytes of the line alone. Idempotent for the same verdict;
 a different verdict overwrites, because a reader revising an earlier answer is one of the
-four documented round labels.
+four documented round labels. The verdict is the chosen option's label: `yes` is refused on an
+item with options (§ Worked example, `decided=yes`).
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" decide <name>.spec.md \
@@ -349,7 +365,7 @@ script's output with no request to answer):
 
 **Step 2, by exit code.** `0` clean, go to step 3. `1` one line per defect (text over
 text, svg text outside its svg, a spill or cut, a fixed control over body text, sideways
-scroll): fix each in the spec (or the body on Route B), rebuild, re-probe. `2` usage
+scroll, or one of the three rendered contract classes in `05-visual-review.md`): fix each in the spec (or the body on Route B), rebuild, re-probe. `2` usage
 error: the command is wrong, fix it. `3` Playwright or its Chromium is missing: **the loop
 stops here**. Print the install command the probe gave, say in the reply that the page
 was not probed or graded, and open it only as unchecked. It is never read as clean: a gate
@@ -893,7 +909,8 @@ The profile also carries the artifact's **language** as a field:
 ```
 
 `wrap-report.sh` reads it and uses it as `<html lang>`; precedence is `--lang` > this
-field > `en`. The scope is artifacts only — `.context/` stays English (D-04) and
+field > `en`, and only a `human-verification.*` page may pass a `--lang` that contradicts
+it (below). The scope is artifacts only — `.context/` stays English (D-04) and
 `communications/` keep the language they arrived in, so this is configured once per
 project instead of restated per request.
 
@@ -982,10 +999,37 @@ prints a NOTE saying the contract went unverified.
 `--out` already ran it. It checks doctype, charset, viewport, title, dark mode, **the body's language against
 `<html lang>`** (`lang`: an English page under a Spanish profile got the composer's
 Spanish chrome on top of English prose — the profile's `language:` decides, and the body
-follows it, or `--lang` is passed on purpose), no
+follows it; only a `human-verification.*` page passes `--lang en` against it), no
 external CSS/JS/fonts/images, no sibling assets, the kit's layout container and wrapped
-tables on any page carrying the kit — plus the consultation shape of § 8 when the page has reply boxes. Fix what it reports; never open or hand over a file that fails
+tables on any page carrying the kit — plus the consultation shape of § 8 when the page has reply boxes,
+and the page-contract classes below. Fix what it reports; never open or hand over a file that fails
 it.
+
+**The page-contract classes.** `dash/contract_defects.py` owns twelve source rules, each
+frozen on a page that shipped the defect (LOOP-006); `check-artifact` prints one
+`FAIL [<class>] line <n>: …` per finding. They fail the page being wrapped or checked, and
+only warn in `--census`: a page built by an older kit is red on them by construction. The
+exact rule of each is the module's docstring; run one alone with
+`python3 scripts/dash/contract_defects.py --class <class> <page>.html`.
+
+| Class | Fails when | The authoring fix |
+|---|---|---|
+| `decision-item-without-options` | an item offers fewer than two options, or a literal `{recommended}` reaches an attribute or visible text | options, or an open answer; § 8 What is checked |
+| `decision-page-not-interactive` | an `h1`-`h4` names a pending decision ("Decide…", "decisiones pendientes"), with no item before the next heading of its level | put the decision under it as an `item`, or reword a heading that asks nothing |
+| `mixed-content-types` | a paragraph with four or more `code` tokens or `;` clauses, three or more file paths joined in a sentence, or a code block holding three prose sentences | a list or a table; prose out of the code block. The spec builder refuses the same paragraph by its line |
+| `copy-control-placement` | a page with items lacks exactly one `#consult-copy` in `aside.rail .consult-bar` and one `#consult-copy-end` in `<main>`, or hides one | keep the skeleton's two bars where they are; the spec route writes them |
+| `ui-string-language` | a kit chrome label (copy buttons, rail head, field labels, status, placeholders) is the kit string of the other language than `<html lang>` | wrap with the current `wrap-report.sh`, which writes the chrome in the page's language |
+| `decided-item-without-verdict` | a `data-decided` item carries no verdict: the value is empty or `yes`/`true`/`1`, and no option is checked | `decided="<the chosen label>"`, or check the chosen option |
+| `item-title-repeats-id` | `data-title` equals the item's id or starts with it ("M1 · M1 · …" in the reply) | drop the id from the title; the composer prefixes it |
+| `lang-follows-profile` | `<html lang>` is missing or differs from the profile's `language:`; `human-verification.*` is exempt | write the page in the profile's language; drop the contradicting `--lang` or masthead `lang=` |
+| `decided-section-anchor` | a decided item outside any group, or a fully decided group, with no `#sec-ledger` and no `<header>` in `.main` for the folded section to follow | keep the skeleton's `<header>` (or a ledger) in `.main` |
+| `img-src-portable` | an `<img>` `src`/`srcset` is `file:` or an absolute filesystem path | a `data:` URI or a page-relative copy |
+| `unique-dom-ids` | an `id` appears twice, inline-SVG ids included | prefix each figure's SVG ids with the figure's own id |
+| `group-item-id-collision` | an element's `id` equals a consult item's `data-id` (a group and an item both `W1`): every hand-written `#W1` link opens the other element | a distinct id per group and item; the spec builder refuses the pair |
+
+The three rendered classes (`text-style-drift`, `figure-text-contrast`,
+`svg-label-outside-its-box`) are measured in the browser by `render-probe.sh`
+(`references/05-visual-review.md` § What the probe already measured).
 
 **A failing wrap does not land.** `--out` is rolled back to the version that was there
 before it — byte for byte — and is simply not created when the wrap was the first at that

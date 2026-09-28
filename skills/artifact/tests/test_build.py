@@ -1164,6 +1164,27 @@ try:
           and os.path.exists(en_out)
           and '<html lang="en">' in open(en_out, encoding="utf-8").read(),
           r.stdout + r.stderr)
+    # A spec with no masthead lang= and no --lang follows the project's
+    # profile, the same reader the wrap and lang-follows-profile use: a hard
+    # "es" default built an en-profile page as lang="es" and failed --check.
+    enproj = os.path.join(tmp, "enproj")
+    os.makedirs(os.path.join(enproj, ".context"))
+    with open(os.path.join(enproj, ".context", "artifact-style.md"), "w",
+              encoding="utf-8") as fh:
+        fh.write("# Style\n\n## Language\n\n- language: en\n")
+    silent_spec = os.path.join(enproj, "silent.spec.md")
+    with open(silent_spec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {visual="none: a format decision has no shape '
+                 'to draw"}\n# An English page\n\nThe body is in English, and '
+                 "so is the page.\n:::\n\n"
+                 '::: notes {title="General notes"}\n:::\n')
+    silent_out = os.path.join(enproj, "silent.html")
+    r = subprocess.run([sys.executable, BUILD, silent_spec, "-o", silent_out,
+                        "--check"], capture_output=True, text=True)
+    check("a spec silent on lang follows the en profile and passes --check",
+          r.returncode == 0 and os.path.exists(silent_out)
+          and '<html lang="en">' in open(silent_out, encoding="utf-8").read(),
+          r.stdout + r.stderr)
 
     print()
     print("== the rail and the prose follow the page contract (LOOP-006) ==")

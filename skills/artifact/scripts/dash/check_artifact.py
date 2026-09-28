@@ -46,7 +46,8 @@ Checks (per file):
                (decision-item-without-options, mixed-content-types,
                copy-control-placement, ...; LOOP-006), keyed by the class slug
                and prefixed with the line. That module owns every rule; this
-               only reports it, on every page and in `--census` too
+               only reports it on every page, and only WARNS in `--census`
+               (CENSUS_ADVISORY)
 
 Warnings (`WARN [check]`) are a SECOND channel and deliberately not a third
 severity of the first. They report a shape that renders badly or reads wrong
