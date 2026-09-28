@@ -96,8 +96,11 @@ ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; ga
 /* A path is one unbreakable word (`~/.claude/aidex/delegation/*.tsv`), and at 390 px
    it ran past the column and scrolled the whole page sideways (R1, R6 of the
    2026-09-24 A/B set). `anywhere`, not `break-word`: a `li` is a flex item of the
-   `ul` above, and only `anywhere` lowers the min-content width a flex item keeps. */
-p, li { overflow-wrap: anywhere; }
+   `ul` above, and only `anywhere` lowers the min-content width a flex item keeps.
+   An item's h3, an option label (its text is a flex item of the label) and a
+   verdict cell's caption carry the same inline `code` paths and spilled the
+   same way (kit 28). */
+p, li, h3, .opts label, .verdict > div { overflow-wrap: anywhere; }
 li::marker { color: var(--muted); }
 
 .note { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);

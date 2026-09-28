@@ -116,6 +116,23 @@ echo "== a chart whose names have no space to break at =="
 out="$(bash "$PROBE" "$TMP/chart-long-word.html" 2>&1)"; rc=$?
 [[ $rc -eq 0 ]] && ok "the long-word chart is clean at 1280 and 390 px" || bad "chart-long-word exit $rc: $out"
 
+echo "== a path with no space to break at, in three kit boxes =="
+# A code path inside an item's h3 and inside the {recommended} option spilled at
+# 390 px, and inside a verdict caption (small) at 1280 px: only p and li could
+# break a word anywhere. Built by spec_build.py, so the probe sees today's kit.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/long-token.spec.md" -o "$TMP/long-token.html" ) >/dev/null 2>&1 \
+  && ok "built long-token from its spec" || bad "spec_build.py failed on long-token.spec.md"
+out="$(bash "$PROBE" "$TMP/long-token.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "the long-token page is clean at 1280 and 390 px" || bad "long-token exit $rc"
+while read -r width elem; do
+  hit="$(grep -E "^DEFECT long-token\.html @${width}px content-spills: $elem " <<<"$out" || true)"
+  [[ -z "$hit" ]] && ok "no $elem spill at ${width}px" || bad "$hit"
+done <<'EOF'
+390 h3
+390 div.opts
+1280 small
+EOF
+
 echo "== the kit's own rows pass clean (must-pass, Phase 5) =="
 # kit-rows.html is B-R-2's key/value ledger, the same ledger at 390 px, long
 # unbreakable paths in a list and in prose, and a page taller than the viewport.
