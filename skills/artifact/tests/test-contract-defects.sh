@@ -507,9 +507,23 @@ printf 'A short report with one paragraph.\n\n## Findings\n\nNothing to decide h
 bash "$HERE/../scripts/wrap-report.sh" --title "Clean page" --lang en --in "$TMP/clean.md" \
   --out "$TMP/clean.html" >/dev/null 2>&1 || bad "wrap-report could not build the clean page"
 
-CORP="$TMP/corpus"; mkdir -p "$CORP"
-corpus() {   # corpus PAGE... (paths relative to $TMP)
-  local rows="" p; for p in "$@"; do rows+="${rows:+, }{\"path\": \"$p\"}"; done
+# The corpus line judges each corpus spec BUILT on the current kit, never the
+# original page (STATE :71: old-kit pages stay red by construction). A corpus
+# here is a corpus-sample.json plus corpus-specs/<project>__<page>.spec.md.
+SPECS="$TMP/specs"; mkdir -p "$SPECS"
+printf '::: masthead {eyebrow="Test" lang=en}\n# Clean page\n\nA short report with one paragraph.\n:::\n\n## Findings\n\nNothing to decide here.\n' \
+  > "$SPECS/clean.spec.md"
+# The builder refuses it: an item outside any group, and no notes item.
+printf '::: masthead {eyebrow="Test" lang=en}\n# Loose item\n\nOne question with no block around it.\n:::\n\n::: item {#q1 title="Pick one"}\nWhich?\n\n- **A.** This\n- **B.** That\n:::\n' \
+  > "$SPECS/refused.spec.md"
+CORP="$TMP/corpus"
+corpus() {   # corpus [PROJ/]SPEC... -> rows PROJ/<SPEC>.html, specs PROJ__<SPEC>.spec.md (PROJ: cproj)
+  local rows="" s p; rm -rf "$CORP"; mkdir -p "$CORP/corpus-specs"
+  for s in "$@"; do
+    p=cproj; [[ "$s" == */* ]] && { p="${s%%/*}"; s="${s#*/}"; }
+    rows+="${rows:+, }{\"path\": \"$p/$s.html\"}"
+    [[ -f "$SPECS/$s.spec.md" ]] && cp "$SPECS/$s.spec.md" "$CORP/corpus-specs/${p}__$s.spec.md"
+  done
   printf '{"root": "%s", "pages": [%s]}\n' "$TMP" "$rows" > "$CORP/corpus-sample.json"
 }
 gate() {   # gate REGISTRY [PROBE] — stdout only
@@ -517,27 +531,65 @@ gate() {   # gate REGISTRY [PROBE] — stdout only
     AIDEX_SPEC_CORPUS="$CORP" bash "$HERE/defect-gate.sh" 2>/dev/null
 }
 
-corpus clean.html
+corpus clean
 out="$(gate "")"; rc=$?
 [[ "$(printf '%s\n' "$out" | head -1)" == "classes: 0/unknown" && $rc -ne 0 ]] \
   && ok "an unset registry reads classes: 0/unknown and fails" || bad "unset registry: rc=$rc $(printf '%q' "$out")"
 
-echo "-- the corpus line: full by default, source only on request"
+echo "-- the corpus line: specs built on the current kit, full by default, source only on request"
 [[ "$(gate "" | tail -1)" == "corpus: 1/1" ]] \
-  && ok "a page clean on every gate is clean by default" || bad "clean page: $(gate "" | tail -1)"
+  && ok "a spec that builds clean on every gate is clean by default" || bad "clean spec: $(gate "" | tail -1)"
+mkdir -p "$TMP/cproj"; cp "$TMP/c4-ok.html" "$TMP/cproj/clean.html"    # a dirty ORIGINAL at the sampled path
+[[ "$(gate "" | tail -1)" == "corpus: 1/1" ]] \
+  && ok "the gate judges the built spec, not the original page" || bad "read the original: $(gate "" | tail -1)"
+rm -rf "$TMP/cproj"
 [[ "$(gate "" probe-dirty | tail -1)" == "corpus: 0/1" ]] \
-  && ok "the default holds a corpus page to every render class" || bad "dirty render: $(gate "" probe-dirty | tail -1)"
+  && ok "the default holds a built page to every render class" || bad "dirty render: $(gate "" probe-dirty | tail -1)"
 [[ "$(AIDEX_CORPUS_FAST=1 gate "" probe-dirty | tail -1)" == "corpus: 1/1 (source only)" ]] \
   && ok "AIDEX_CORPUS_FAST=1 reads source checks only and says so" || bad "fast: $(AIDEX_CORPUS_FAST=1 gate "" probe-dirty | tail -1)"
-[[ "$(AIDEX_PROBE_TIMEOUT=1 gate "" probe-slow | tail -1)" == "corpus: 0/1" ]] \
-  && ok "a probe past its timeout is an error, not clean" || bad "slow probe: $(AIDEX_PROBE_TIMEOUT=1 gate "" probe-slow | tail -1)"
-corpus c4-ok.html                   # clean on source, not a contract-valid page
-[[ "$(gate "" | tail -1)" == "corpus: 0/1" && "$(AIDEX_CORPUS_FAST=1 gate "" | tail -1)" == "corpus: 1/1 (source only)" ]] \
-  && ok "the default runs check-artifact on corpus pages; the fast path does not" || bad "c4-ok default/fast"
+err="$(AIDEX_PROBE_TIMEOUT=1 AIDEX_RENDER_PROBE="$TMP/probe-slow.sh" AIDEX_DEFECT_REGISTRY= \
+  AIDEX_SPEC_CORPUS="$CORP" bash "$HERE/defect-gate.sh" --verbose 2>&1)"
+grep -q "^corpus: 0/1$" <<<"$err" && grep -q "cproj__clean.spec.md: render-probe timeout" <<<"$err" \
+  && ok "a probe past its timeout is an error, not clean — and the probe is what timed out" \
+  || bad "slow probe: $(printf '%q' "$err")"
+# The page is built in a tree mirroring its project's profile, so that profile judges it: an
+# en page in an es-profile project is refused by the wrap (lang-follows-profile).
+mkdir -p "$TMP/esproj/.context"; printf -- '- language: es\n' > "$TMP/esproj/.context/artifact-style.md"
+corpus esproj/clean
+err="$(AIDEX_RENDER_PROBE="$TMP/probe-ok.sh" AIDEX_DEFECT_REGISTRY= AIDEX_SPEC_CORPUS="$CORP" \
+  bash "$HERE/defect-gate.sh" --verbose 2>&1)"
+grep -q "^corpus: 0/1$" <<<"$err" && grep -q "esproj__clean.spec.md: build refused: FAIL \[lang-follows-profile\]" <<<"$err" \
+  && ok "a spec is built under a copy of its project's profile: that profile judges its lang" \
+  || bad "profile not seen: $(printf '%q' "$err")"
+[[ "$(ls -A "$TMP/esproj/.context")" == "artifact-style.md" ]] \
+  && ok "a run writes nothing into the project's .context/" || bad "project written: $(ls -A "$TMP/esproj/.context")"
+corpus clean
+corpus refused
+[[ "$(gate "" | tail -1)" == "corpus: 0/1" && "$(AIDEX_CORPUS_FAST=1 gate "" | tail -1)" == "corpus: 0/1 (source only)" ]] \
+  && ok "a spec the builder refuses is a failing page, full and fast alike" || bad "refused: $(gate "" | tail -1)"
 err="$(AIDEX_RENDER_PROBE="$TMP/probe-ok.sh" AIDEX_DEFECT_REGISTRY= AIDEX_SPEC_CORPUS="$CORP" \
   bash "$HERE/defect-gate.sh" --verbose 2>&1 >/dev/null)"
-grep -q "c4-ok.html: check-artifact rc=1" <<<"$err" && ! grep -q "render-probe rc=" <<<"$err" \
-  && ok "--verbose names the gate a page failed (check-artifact rc=1)" || bad "verbose: $(printf '%q' "$err")"
+grep -q "cproj__refused.spec.md: build refused: FAIL \[consult-shape\]" <<<"$err" \
+  && ok "--verbose names the refused spec and the builder's first reason" || bad "verbose refusal: $(printf '%q' "$err")"
+corpus clean nospec
+[[ "$(gate "" | tail -1)" == "corpus: 1/2" ]] \
+  && ok "a sampled page with no spec counts in T and is not clean" || bad "no spec: $(gate "" | tail -1)"
+err="$(AIDEX_RENDER_PROBE="$TMP/probe-dirty.sh" AIDEX_DEFECT_REGISTRY= AIDEX_SPEC_CORPUS="$CORP" \
+  bash "$HERE/defect-gate.sh" --verbose 2>&1 >/dev/null)"
+grep -q "cproj__nospec.spec.md: no spec" <<<"$err" && grep -q "cproj__clean.spec.md: text-style-drift (finding)" <<<"$err" \
+  && ok "--verbose names a missing spec, and the render class a built page failed" || bad "verbose: $(printf '%q' "$err")"
+
+# A rebuilt.html is judged as it sits, check-artifact included (the fast path skips it).
+RB="$TMP/rbreg"; mkdir -p "$RB/ui-string-language"
+cp "$TMP/c5-en-on-es.html" "$RB/ui-string-language/original.html"
+cp "$TMP/c4-ok.html" "$RB/ui-string-language/rebuilt.html"
+corpus
+[[ "$(gate "$RB" | tail -1)" == "corpus: 0/1" && "$(AIDEX_CORPUS_FAST=1 gate "$RB" | tail -1)" == "corpus: 1/1 (source only)" ]] \
+  && ok "a rebuilt page gets check-artifact by default; the fast path skips it" || bad "rebuilt c4-ok default/fast"
+err="$(AIDEX_RENDER_PROBE="$TMP/probe-ok.sh" AIDEX_DEFECT_REGISTRY="$RB" AIDEX_SPEC_CORPUS="$CORP" \
+  bash "$HERE/defect-gate.sh" --verbose 2>&1 >/dev/null)"
+grep -q "rebuilt.html: check-artifact rc=1" <<<"$err" \
+  && ok "--verbose names the gate a rebuilt page failed (check-artifact rc=1)" || bad "verbose rebuilt: $(printf '%q' "$err")"
 
 echo "-- the registry"
 REG="$TMP/reg"
@@ -546,7 +598,7 @@ cp "$TMP/c5-en-on-es.html" "$REG/ui-string-language/original.html"
 cp "$TMP/clean.html" "$REG/ui-string-language/rebuilt.html"
 cp "$TMP/c4-ok.html" "$REG/copy-control-placement/original.html"     # not red
 cp "$TMP/c4-ok.html" "$REG/no-such-class/original.html"              # no check
-corpus clean.html c4-main.html
+corpus clean refused
 out="$(gate "$REG")"; rc=$?
 # N = 12 source checks + 3 render classes + 1 folder with no check
 want=$'classes: 2/16\nred: 1/16\ngreen: 1/16\ncorpus: 2/3'
@@ -570,7 +622,7 @@ for pair in "decision-item-without-options c1-free" "decision-page-not-interacti
   cp "$TMP/clean.html" "$FULL/$1/rebuilt.html"
 done
 cp "$TMP/c1-rec.html" "$FULL/decision-item-without-options/original-2.html"
-corpus clean.html
+corpus clean
 out="$(gate "$FULL")"; rc=$?
 [[ "$out" == $'classes: 15/15\nred: 15/15\ngreen: 15/15\ncorpus: 16/16' && $rc -eq 0 ]] \
   && ok "the gate exits 0 when every count is full" || bad "full registry: rc=$rc $(printf '%q' "$out")"

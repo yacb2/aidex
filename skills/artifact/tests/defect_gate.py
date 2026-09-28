@@ -13,6 +13,18 @@
                    corpus-sample.json) plus every rebuilt.html that exists;
                    C = those clean on every gate (below)
 
+A corpus page is judged as its spec BUILDS on the current kit, never as the
+original page sits on disk (old-kit pages stay red by construction; LOOP-006
+ruling, STATE :71): each `corpus-specs/<project>__<page>.spec.md` (goal-gate's
+naming rule) goes through `spec_build.py -o` into a fresh temp tree that mirrors
+the sampled project's context (its `.context/artifact-style.md` copied in, the
+page under `.context/reports/`), so the project's profile judges the page as it
+judges the original while nothing is written into the project; the landed page
+is judged there and the whole tree removed. A spec the builder refuses — the wrap's contract
+check included — or a sampled page with no spec is a failing page, full and
+fast alike, with the refusal (its first FAIL line) or `no spec` as the reason.
+A registry rebuilt.html is judged as it sits.
+
 A render class is judged by the rendered page, not the source:
 `render-probe.sh --contract SLUG PAGE` (render-probe.mjs behind it). Red needs
 exit 1 AND a stdout line `CONTRACT <slug> findings=<n>` with n >= 1; green needs
@@ -36,27 +48,34 @@ lives outside this repo, wherever AIDEX_DEFECT_REGISTRY points (one folder per
 class: original.html [, original-2.html …], class.md, later rebuilt.html).
 Unset, or not a directory: `classes/red/green: 0/unknown` and exit 1. The
 corpus unset reads `corpus: 0/unknown`, never 0/0. `--verbose` lists every
-failing page on stderr with what it failed (`<slug>`, `check-artifact rc=N`,
-`render-probe rc=N`, `<render slug> (no answer)`).
+failing page on stderr — the spec's file name, or the rebuilt page's path — with
+what it failed, first reason first (`build refused: FAIL [...] …`, `no spec`,
+`<slug>`, `check-artifact rc=N`, `render-probe rc=N`, `<render slug> (finding)`
+or `(no answer)`).
 """
 
 import glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts", "dash"))
 
 import contract_defects                                     # noqa: E402
+import goal_gate                                            # noqa: E402
 
 MIN_CLASSES = 4          # the loop spec's floor: N >= 4
 SCRIPTS = os.path.join(os.path.dirname(HERE), "scripts")
 PROBE = os.environ.get("AIDEX_RENDER_PROBE") or os.path.join(SCRIPTS, "render-probe.sh")
 TIMEOUT = float(os.environ.get("AIDEX_PROBE_TIMEOUT") or 60)     # seconds per page
+BUILD_TIMEOUT = 300      # one spec_build.py run; not the probe's bound
 CHECK_ARTIFACT = os.path.join(SCRIPTS, "check-artifact.sh")
+SPEC_BUILD = os.path.join(SCRIPTS, "spec_build.py")
 # Classes decided on the rendered page by render-probe's `--contract SLUG`.
 RENDER = ("text-style-drift", "figure-text-contrast", "svg-label-outside-its-box")
 
@@ -105,15 +124,59 @@ def corpus_failures(page, fast, every):
     return out
 
 
-def corpus_pages():
-    """[abs path] of the goal-gate sample, or None when it cannot be read."""
+def corpus_specs():
+    """[(abs spec path, abs project dir)] of the goal-gate sample, one per
+    sampled page, or None when the sample cannot be read. The spec is named by
+    goal-gate's own rule; a page whose spec is missing keeps its slot (it is
+    judged `no spec`). The project is the sample row's first path segment under
+    the sample's root — where the original page sits, and whose profile judges
+    it."""
     corpus = os.environ.get("AIDEX_SPEC_CORPUS", "")
     sample = os.path.join(corpus, "corpus-sample.json") if corpus else ""
     if not sample or not os.path.isfile(sample):
         return None
     data = json.load(open(sample, encoding="utf-8"))
     root = os.path.expanduser(data["root"])
-    return [os.path.join(root, p["path"]) for p in data["pages"]]
+    return [(os.path.join(corpus, "corpus-specs", goal_gate.spec_name(p["path"])),
+             os.path.join(root, p["path"].split("/", 1)[0]))
+            for p in data["pages"]]
+
+
+def build_dir(project):
+    """(temp tree, reports dir) for one build: a fresh tree that MIRRORS the
+    project's context — `<tmp>/<project>/.context/artifact-style.md` copied from
+    the sampled project when it has one, the page landing in
+    `<tmp>/<project>/.context/reports/` — so the wrap and check-artifact read the
+    page's own profile (lang-follows-profile, the wrap's --lang refusal) while
+    nothing is ever written into the project itself. One tree per spec."""
+    tree = tempfile.mkdtemp(prefix="defect-gate-")
+    ctx = os.path.join(tree, os.path.basename(project), ".context")
+    reports = os.path.join(ctx, "reports")
+    os.makedirs(reports)
+    style = os.path.join(project, ".context", "artifact-style.md")
+    if os.path.isfile(style):
+        shutil.copyfile(style, os.path.join(ctx, "artifact-style.md"))
+    return tree, reports
+
+
+def build_spec(spec, outdir):
+    """(page, None) when spec_build.py lands the page on the current kit, else
+    (None, reason): the builder's first FAIL line, or its first line."""
+    if not os.path.isfile(spec):
+        return None, "no spec"
+    page = os.path.join(outdir, os.path.basename(spec)[:-len(".spec.md")] + ".html")
+    try:
+        r = subprocess.run([sys.executable, SPEC_BUILD, spec, "-o", page],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           text=True, timeout=BUILD_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return None, "build refused: timeout"
+    if r.returncode == 0 and os.path.isfile(page):
+        return page, None
+    lines = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+    first = next((ln for ln in lines if ln.startswith("FAIL")),
+                 lines[0] if lines else "rc=%d" % r.returncode)
+    return None, "build refused: " + first
 
 
 def is_page(path):
@@ -172,29 +235,40 @@ def main(argv):
         lines = ["classes: 0/unknown", "red: 0/unknown", "green: 0/unknown"]
         reg_ok, rebuilt = False, []
 
-    pages = corpus_pages()
-    if pages is None:
+    specs = corpus_specs()
+    if specs is None:
         print("defect-gate: AIDEX_SPEC_CORPUS unset or without "
               "corpus-sample.json — the corpus was not measured", file=sys.stderr)
         lines.append("corpus: 0/unknown")
         corpus_ok = False
     else:
-        pages += rebuilt
         fast = os.environ.get("AIDEX_CORPUS_FAST") == "1"
         clean = 0
-        for page in pages:
-            if not (is_page(page) if page in rebuilt else os.path.isfile(page)):
-                if verbose:
-                    print("  not a page: %s" % page, file=sys.stderr)
-                continue
-            failed = corpus_failures(page, fast, verbose)
+        for item in specs + [(p, None) for p in rebuilt]:
+            path, project = item
+            outdir = None
+            try:
+                if project is None:                  # a registry rebuilt.html
+                    page, name = path, path
+                    failed = None if is_page(page) else ["not a page"]
+                else:
+                    name = os.path.basename(path)
+                    outdir, reports = build_dir(project)
+                    page, why = build_spec(path, reports)
+                    failed = [why] if why else None
+                if failed is None:
+                    failed = corpus_failures(page, fast, verbose)
+            finally:
+                if outdir:
+                    shutil.rmtree(outdir, ignore_errors=True)
             if not failed:
                 clean += 1
             elif verbose:
-                print("  %s: %s" % (page, ", ".join(failed)), file=sys.stderr)
-        lines.append("corpus: %d/%d%s" % (clean, len(pages),
+                print("  %s: %s" % (name, ", ".join(failed)), file=sys.stderr)
+        total = len(specs) + len(rebuilt)
+        lines.append("corpus: %d/%d%s" % (clean, total,
                                           " (source only)" if fast else ""))
-        corpus_ok = clean == len(pages)
+        corpus_ok = clean == total
 
     print("\n".join(lines))
     return 0 if (reg_ok and corpus_ok) else 1
