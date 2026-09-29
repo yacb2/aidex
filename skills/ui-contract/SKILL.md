@@ -1,12 +1,15 @@
 ---
 name: ui-contract
-description: 'Use when work touches what a screen looks like — a plan that adds or changes a screen, a UI phase about to close, a visual defect (misaligned, overflowing, dark mode wrong, spacing off), or a claim that something "looks right" with no image behind it. Fires on "what should this screen look like", "show me every state of this list", "which states am I missing", "empty and error states too", "check it in light and dark", "prove the layout is fixed", "I need a mockup of this screen". Not for: judging a running product''s usability or accessibility and registering findings (/aidex:audit); choosing which test layer a behaviour belongs in (/aidex:coverage); rendering `.context/` boards as HTML pages (/aidex:artifact); writing the implementation plan itself (/aidex:plan, which asks this skill for its UI-contract section).'
+description: 'Use when work touches what a screen looks like — a plan that adds or changes a screen, a UI phase about to close, a visual defect (misaligned, overflowing, dark mode wrong, spacing off), or a claim that something "looks right" with no image behind it. Fires on "what should this screen look like", "show me every state of this list", "which states am I missing", "empty and error states too", "check it in light and dark", "prove the layout is fixed", "I need a mockup of this screen". Not for: judging a running product''s usability or accessibility and registering findings (/aidex:audit); choosing which test layer a behaviour belongs in (/aidex:coverage); rendering `.context/` boards as HTML pages (/aidex:artifact); writing the implementation plan itself (/aidex:plan, which asks this skill for its UI-contract section). Experimental since 1.3.0: proven on its own harness, not yet on a real feature.'
 disable-model-invocation: false
 allowed-tools: Bash Read Write Edit Grep Glob Agent
 model-policy: per-stage
 ---
 
 # UI contract
+
+> **Experimental (1.3.0).** The harness, gate and review surface pass their own suites, but
+> the mechanism has not yet run on a real feature. Say so to the user before relying on it.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
 components** against fixture data — one entry per state-matrix cell — reviewed through a
