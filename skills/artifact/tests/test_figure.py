@@ -123,8 +123,9 @@ def run(tmp):
     print("== embed ==")
     html = build('Antes.\n\n::: figure {#f1 .wide src="figures/a.svg" '
                  'title="Un <título> & más"}\n:::\n', base_dir=tmp)
-    check("an svg is re-serialised inside one <figure> (a plain one, unchanged)",
-          '<figure id="f1" class="wide">\n' + embedded(SVG + "\n")[:-1]
+    # BL-511: the wrapper is capped at the viewBox width (40), the drawing kept.
+    check("an svg is re-serialised inside one <figure> capped at its viewBox width",
+          '<figure id="f1" class="wide" style="max-width:40px">\n' + embedded(SVG + "\n")[:-1]
           + "\n<figcaption>" in html,
           html)
     check("the caption is escaped text, not markup",
@@ -584,9 +585,20 @@ def run(tmp):
           '<!-- <svgx> is not the root --><svg viewBox="0 0 2 2"><rect/></svg>\n')
     html = build('::: figure {src="figures/comment-first.svg"}\n:::\n', base_dir=tmp)
     check("the root is found past a leading comment, and only it is inlined",
-          '<figure>\n<svg data-embed="%s" viewBox="0 0 2 2"><rect/></svg>\n</figure>'
+          '<figure style="max-width:2px">\n<svg data-embed="%s" viewBox="0 0 2 2">'
+          '<rect/></svg>\n</figure>'
           % hashlib.sha256(b'<!-- <svgx> is not the root --><svg viewBox="0 0 2 2">'
                            b'<rect/></svg>\n').hexdigest()[:8] in html, html)
+    # BL-511: no usable viewBox width, no cap — the browser does not scale such a
+    # drawing, so there is nothing to hold back, and a bad number must not reach CSS.
+    for name, root in (("no viewBox", "<svg>"),
+                       ("a NaN width", '<svg viewBox="0 0 nan 10">'),
+                       ("three numbers", '<svg viewBox="0 0 360">'),
+                       ("a zero width", '<svg viewBox="0 0 0 10">')):
+        write(tmp, "figures/nocap.svg", root + "<rect/></svg>\n")
+        html = build('::: figure {src="figures/nocap.svg"}\n:::\n', base_dir=tmp)
+        check("%s: the <figure> carries no max-width" % name,
+              "<figure>\n<svg data-embed=" in html and "max-width" not in html, html)
     write(tmp, "figures/svgx.svg", '<svgx></svgx>\n')
     refused("<svgx> is not an <svg> root",
             pre + '::: figure {src="figures/svgx.svg"}\n:::\n', tmp, 3,

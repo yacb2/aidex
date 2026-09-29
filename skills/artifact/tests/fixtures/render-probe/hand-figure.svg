@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 200" role="img" aria-label="Un externo confinado pide crear una voz y recibe 403" style="font-family: system-ui, sans-serif; font-size: 13px">
+<g fill="currentColor" text-anchor="middle">
+<rect x="20" y="10" width="320" height="50" rx="6" fill="none" stroke="currentColor"/>
+<text x="180" y="40">Externo confinado</text>
+<line x1="180" y1="60" x2="180" y2="130" stroke="currentColor"/>
+<rect class="flg" x="20" y="130" width="320" height="50" rx="6" fill="none" stroke="currentColor" stroke-width="2"/>
+<text x="180" y="160">403 al crear voz</text>
+</g>
+</svg>

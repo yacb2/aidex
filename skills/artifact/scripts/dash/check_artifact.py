@@ -91,6 +91,9 @@ a census warning on a page nobody is editing is noise no one can clear.
                ±5 %); labels under a rotate/scale/matrix transform are skipped
                rather than guessed. Runs on every page, not only consultations
                (BL-310)
+  figure-tall  an svg inside a <figure> whose viewBox is over 500 units tall:
+               at its own size it fills most of a laptop screen (BL-511). Static,
+               on the intrinsic height; every page
 
 Exit 0 = every file passes. Exit 1 = at least one violation (each printed).
 Exit 2 = usage error.
@@ -2069,6 +2072,42 @@ def svg_text_findings(text):
     return out
 
 
+# BL-511: a figure's svg taller than this, in viewBox units, fills most of a
+# laptop screen at its own size. The owner's 4-box hand chain was 600. Engine
+# figures are judged alike and do cross it when they stack boxes in one column:
+# a 7-box `diagram` row lays out 508 tall (chart stays <= 416 in the fixtures).
+FIGURE_TALL = 500
+FIGURE_TALL_BLOCK = re.compile(r'<figure\b([^>]*)>(.*?)</figure>', re.S | re.I)
+
+
+def figure_tall_findings(text):
+    """Messages for every <figure> whose root <svg> (its first; a nested svg is
+    part of the drawing, not the figure) has a viewBox taller than
+    FIGURE_TALL."""
+    out = []
+    body = strip_html_comments(strip_script_style(text))
+    for n, f in enumerate(FIGURE_TALL_BLOCK.finditer(body), 1):
+        ident = _svg_attrs(f.group(1)).get('id')
+        m = re.search(r'<svg\b([^>]*)>', f.group(2), re.I)
+        if not m:
+            continue
+        vb = _svg_attrs(m.group(1)).get('viewbox') or ''
+        try:
+            vh = float(re.split(r'[\s,]+', vb.strip())[3])
+        except (IndexError, ValueError):
+            continue
+        if vh > FIGURE_TALL:
+            out.append(f"figure {'#' + ident if ident else n}: its svg is "
+                       f"{vh:.0f} units tall (viewBox {vb.strip()}), over "
+                       f"{FIGURE_TALL} — at its own size it fills most of a "
+                       f"laptop screen and the reader scrolls inside one "
+                       f"drawing. Redraw it shorter (fewer boxes per column, "
+                       f"or a wider layout; fewer lines per box, tighter "
+                       f"padding) or split it; cleared by the drawing, not by "
+                       f"a waiver")
+    return out
+
+
 def warn_file(path):
     """Non-fatal findings as (check, name, message). Exit-neutral and never
     waived — see the module docstring for why they are a separate channel."""
@@ -2092,6 +2131,8 @@ def warn_file(path):
             warns.append(("svg-scope", name, msg))
     except Exception:                               # noqa: BLE001 — advisory
         pass
+    for msg in figure_tall_findings(text):
+        warns.append(("figure-tall", name, msg))
     # The below-floor findings are FAILURES and live in check_file (v15); what
     # comes back here is only "nothing could be measured".
     warns.extend(svg_contrast_reports(text, name)[1])
