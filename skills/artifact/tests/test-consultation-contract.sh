@@ -888,8 +888,9 @@ grep -q "'subagente fresco, tools:\[…\]'" "$TMP/out" \
 # four-box chain (viewBox 360x600) made the reader scroll inside one drawing.
 # Static, on the intrinsic viewBox height of the figure's ROOT svg: over 500 units
 # warns. The 600- and 652-unit hand figures of the owner's page go over; so do
-# engine figures that stack many boxes in one column (a 7-box `diagram` row lays
-# out 508 tall), which is why the advice names columns and layouts, not hand work.
+# engine figures that stack many boxes in one column (a 7-box `diagram` row forced
+# `dir=tb` lays out 508 tall; unforced it wraps into rows since BL-515), which is why
+# the advice names columns and layouts, not hand work.
 mkpage "$TMP/warn-tall.html" "<div class=\"page\"><main class=\"main\">
 <figure id=\"alta\"><svg viewBox=\"0 0 360 600\" role=\"img\" aria-label=\"tall\"><rect x=\"10\" y=\"10\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\"/></svg></figure>
 <figure id=\"baja\"><svg viewBox=\"0 0 360 500\" role=\"img\" aria-label=\"short\"><rect x=\"10\" y=\"10\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\"/></svg></figure>
@@ -906,7 +907,7 @@ grep -q "WARN \[figure-tall\].*#n:" "$TMP/out" \
   && fail "10c3. a nested svg's viewBox (900) was judged as the figure's (200): $(cat "$TMP/out")"
 # An engine figure: a 7-box `diagram` row, built by the real spec_build.py.
 { printf '::: masthead {eyebrow="x" byline="aidex"}\n# Siete cajas\n\nUna fila larga.\n:::\n\n'
-  printf '::: diagram {#siete shape=row title="Siete pasos"}\n'
+  printf '::: diagram {#siete shape=row dir=tb title="Siete pasos"}\n'
   for i in 1 2 3 4 5 6 7; do printf 'b%d: Paso %d\n' "$i" "$i"; done
   for i in 1 2 3 4 5 6; do printf 'b%d -> b%d\n' "$i" "$((i + 1))"; done
   printf ':::\n'; } > "$TMP/siete.spec.md"
