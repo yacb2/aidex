@@ -669,3 +669,20 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
    the same unit, sitting where the block's order put the item, so it takes an
    item's slot and the open siblings keep their spacing around it. */
 .consult-group > .decided-unit.inplace { margin-top: 0.25rem; margin-bottom: 0; }
+
+/* Gallery rows, task 3.1 of the ui-contract hardening (BL-466, BL-516). */
+/* What to look at on this row: one line, set off from the intro. */
+.gal-look:where(:not(svg *)) { font-family: var(--sans); font-size: 0.88rem; margin: 0.2rem 0; }
+/* A visible zoom label on every tile once the composer has made it a button.
+   Drawn from data-zoom (localised text set by composer.js), so a tap on touch
+   reads the same as a click and nothing depends on a hover title. */
+.gal figure[role="button"]::after { content: attr(data-zoom); position: absolute; top: 0.35rem; right: 0.35rem;
+  font-family: var(--sans); font-size: 0.72rem; line-height: 1; padding: 0.3rem 0.5rem; border-radius: 3px;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--rule); pointer-events: none; }
+/* The answer of a gallery row is a verdict and a note: extra options sit in a
+   closed <details>, in the same option group so they paste like any other. */
+.opts details.opts-more { grid-column: 1 / -1; }
+.opts-more > summary, .kit-ask-more > summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.kit-ask-more .kit-ask-lead { display: none; }
+/* A folded group that holds a mark says so on its summary. */
+.opts-more:has(input:checked) > summary, .kit-ask-more:has(input:checked) > summary { color: var(--ink); font-weight: 600; }

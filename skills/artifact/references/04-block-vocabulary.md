@@ -321,8 +321,11 @@ in dashboard_template), and the kit reads nothing else:
 | `kind: "unrequested"` | the same pair plus the line "cambió sin que lo pidieras" (changed without you asking); one row per changed cell, and its optional `also` (the other variants where that cell changed, harness order) adds "también en: …" / "also in: …" to that line |
 | `kind: "sample"` | the pair with no verdict radios — it illustrates, it asks nothing |
 | `{"cell", "notApplicable": reason}` (no variant, no captures) | a declared cell the screen cannot reach: its reason in a `.gal-na` instead of the pair, with one answer; id and title are `<gallery>-<cell>-not-applicable` / `<gallery> · <cell>` |
+| `kind: "alternatives"` | with a top-level `"alternatives": [{"id", "label"}, …]`: one row per cell showing every declared variant (`"captures": {id: path}`), captioned with the labels, one which-one radio; the block's `data-tiles` are the ids, so a document that declares them holds no before/after rows |
+| `"look": text` | what to look at on this row; required through the spec route, shown as the "Qué mirar" line |
+| `"dropped": reason` / `"decided": verdict` | the row left the question set (no captures needed, reason in `.gal-na`, `data-dropped`) / was settled (captures kept); both fold as decided
 
-Every row but a sample carries one answer (three verdicts) and a notes box. The row id is
+Every row but a sample carries one answer (two verdicts visible, the third and the composer's extras collapsed) and a notes box. The row id is
 `<gallery>-<cell>-<variant>`, with `-<kind>` appended for a non-review row, so it stays
 stable across rounds. Nothing about the gate is written on the page: with no unrequested
 row, the owner reads nothing about checks. An empty `rows` (everything matched) prints

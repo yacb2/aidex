@@ -55,7 +55,7 @@ then open it locally.**
 
 A consultation about screenshots (a UI proposal, a state gallery) carries them as
 gallery rows: `scripts/gallery-items.sh` turns the project's rows JSON into items
-before the wrap, `scripts/gallery-reply.sh` parses the pasted reply back
+before the wrap, `scripts/gallery-reply.sh` parses the pasted reply back (`--rows <rows.json>` when a row is an alternatives row)
 (`references/02-local-first-artifacts.md` § Gallery rows).
 
 **On receiving a consultation reply — a paste, or the reader's own chat text,

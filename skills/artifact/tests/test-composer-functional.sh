@@ -2824,5 +2824,173 @@ ts="$(grep -oE '<title>[^<]*</title>' "$TMP/svdom.html" | head -1)"
   || fail "svg-class-leak: a kit class restyles an author's svg <text> of the same name: $ts"
 rm -rf "$TMP/profile"
 
+# ---- an ALTERNATIVES row: visible zoom label, compact answer (BL-466, BL-516) ----
+# Built by the real generator, so the markup under test is the markup shipped.
+# Three things only a browser decides: the tile shows a zoom WORD without hover
+# (CSS ::after from data-zoom, so a tap reads the same as a click); the row's
+# extra options (the generator's "none of them" and the composer's injected
+# Other / Not now / ask chips) sit in CLOSED <details>; and a mark made inside
+# one still pastes, restores after a reload and opens the details it sits in.
+ALT_ROOT="$TMP/altroot"
+mkdir -p "$ALT_ROOT/shots"
+python3 "$SKILL/tests/png_fixture.py" "$ALT_ROOT/shots/a.png" 16 9
+python3 "$SKILL/tests/png_fixture.py" "$ALT_ROOT/shots/d.png" 16 9
+cat > "$TMP/alt-rows.json" <<'JSON'
+{"gallery": "skel", "variants": ["light-desktop"],
+ "alternatives": [{"id": "a", "label": "Esqueleto A"}, {"id": "drawer", "label": "Con cajón"}],
+ "rows": [{"cell": "list", "variant": "light-desktop", "kind": "alternatives", "look": "El botón de crear",
+           "captures": {"a": "shots/a.png", "drawer": "shots/d.png"}}]}
+JSON
+GPAGE_A="$TMP/reports/gallery-alt.html"
+{
+  cat <<'HTML'
+<meta name="consult-visual" content="none: a gallery probe, nothing to draw">
+<div class="page"><main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Alternatives probe</h1></header>
+HTML
+  bash "$SKILL/scripts/gallery-items.sh" "$TMP/alt-rows.json" --root "$ALT_ROOT" --page "$GPAGE_A" \
+    --group-id S --group-title "Esqueletos" --lang es
+  cat <<'HTML'
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas"><h3>Notas</h3><textarea></textarea></section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</main><aside class="rail"><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>
+window.addEventListener('load', function () {
+  var ROW = 'skel-list-light-desktop-alternatives';
+  var row = document.querySelector('[data-id="' + ROW + '"]');
+  var dlg = document.querySelector('dialog.kit-zoom');
+  var paste = function () {
+    var cap = '';
+    Object.defineProperty(navigator, 'clipboard', { configurable: true,
+      value: { writeText: function (s) { cap = s; return Promise.resolve(); } } });
+    document.getElementById('consult-copy').click();
+    return cap.replace(/[|<>\n]/g, ' ');
+  };
+  var dets = function () { return [].map.call(row.querySelectorAll('details'), function (d) { return d.className.split(' ')[0] + ':' + (d.open ? 'open' : 'closed'); }).join(','); };
+  var q = location.search;
+  if (q.indexOf('phase=aset') !== -1) {
+    var f = row.querySelector('figure[data-tile="drawer"]');
+    var lab = getComputedStyle(f, '::after').content;
+    var vis = row.querySelector('details.opts-more').open ? 'open' : 'closed';
+    var otherIn = row.querySelectorAll('details.opts-more .kit-other, details.opts-more .kit-notnow').length;
+    var askIn = row.querySelectorAll('details.kit-ask-more .kit-ask').length;
+    var before = dets();
+    var none = row.querySelector('details.opts-more input[data-label="Ninguna"]');
+    none.checked = true; none.dispatchEvent(new Event('change', { bubbles: true }));
+    var after = dets();
+    document.title = 'GALTSET|LABEL=' + lab + '|DETS=' + before + '|OTHERIN=' + otherIn + '|ASKIN=' + askIn
+      + '|OPENED=' + after + '|PASTE=' + paste();
+  } else if (q.indexOf('phase=aget') !== -1) {
+    document.title = 'GALTGET|DETS=' + dets() + '|SUMW=' + getComputedStyle(row.querySelector('details.opts-more > summary')).fontWeight
+      + '|PASTE=' + paste();
+  } else if (q.indexOf('phase=azoom') !== -1) {
+    row.querySelector('figure[data-tile="a"]').click();
+    var t0 = dlg.querySelector('.kit-zoom-tile').textContent;
+    dlg.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    var t1 = dlg.querySelector('.kit-zoom-tile').textContent;
+    var cmpOff = [].every.call(dlg.querySelectorAll('.kit-zoom-cmp'), function (b) { return b.disabled; }) ? 'disabled' : 'enabled';
+    dlg.querySelector('.kit-zoom-close').click();
+    document.title = 'GALTZOOM|T0=' + t0 + '|T1=' + t1 + '|CMP=' + cmpOff;
+  }
+});
+</script>
+HTML
+} > "$TMP/gbody-alt.html"
+bash "$WRAP" --title "alt" --lang es --out "$GPAGE_A" < "$TMP/gbody-alt.html" > "$TMP/gwrap-a.log" 2>&1 \
+  || fail "the alternatives probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-a.log" | head -4)"
+arun() { chrome_dump "$TMP/gdom-a.html" "file://$GPAGE_A?$1" 45 || true; grep -oE '<title>[^<]*</title>' "$TMP/gdom-a.html" | head -1; }
+rm -rf "$TMP/profile"
+tg="$(arun 'phase=aset')"
+[[ "$tg" == *GALTSET* ]] || fail "the alternatives phase did not run: $tg"
+[[ "$tg" == *'LABEL="Ampliar"'* ]] \
+  || fail "a tile shows no visible zoom word without hover (::after content of data-zoom): $tg"
+[[ "$tg" == *"DETS=opts-more:closed,kit-more:closed|"* ]] \
+  || fail "the row's extra options are not exactly two closed details (the generator's and the ask row's): $tg"
+[[ "$tg" == *"OTHERIN=2"* && "$tg" == *"ASKIN=1"* ]] \
+  || fail "the injected Other / Not now (2) and the ask row (1) are not inside the row's <details>: $tg"
+[[ "$tg" == *"OPENED=opts-more:open,"* ]] \
+  || fail "ticking an option inside the closed details did not open it: $tg"
+[[ "$tg" == *"- Ninguna"* ]] \
+  || fail "a mark made inside the collapsed details is missing from the paste: $tg"
+tg="$(arun 'phase=aget')"
+[[ "$tg" == *"SUMW=600"* ]] \
+  || fail "a folded group holding a mark does not say so on its summary: $tg"
+[[ "$tg" == *"DETS=opts-more:open,"* && "$tg" == *"- Ninguna"* ]] \
+  || fail "the mark inside the details did not survive a reload (restored, its details open): $tg"
+rm -rf "$TMP/profile"
+tg="$(arun 'phase=azoom')"
+[[ "$tg" == *"T0=a"* && "$tg" == *"T1=drawer"* ]] \
+  || fail "the zoom walk does not follow the alternatives' own tiles: $tg"
+[[ "$tg" == *"CMP=disabled"* ]] \
+  || fail "compare is offered on alternatives, which have no before/after pair: $tg"
+rm -rf "$TMP/profile"
+
+# ---- a gallery row written BEFORE the generator folded its third verdict keeps its answer ----
+# The question fingerprint must not move when the row gains the generator's
+# <details> and its summary word (kit 33): a reader's unsent answer stored
+# against the flat row has to restore onto the folded one.
+cat > "$TMP/fp-rows.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "rows": [{"cell": "empty", "variant": "light-desktop", "kind": "review",
+           "before": "shots/a.png", "after": "shots/d.png"}]}
+JSON
+fp_page() {  # fp_page <out> <folded 0|1>: the row is the generator's own markup
+  bash "$SKILL/scripts/gallery-items.sh" "$TMP/fp-rows.json" --root "$ALT_ROOT" --page "$TMP/reports/fp.html" \
+    --group-id R --group-title Review --lang es > "$TMP/fp-group.html" 2>/dev/null \
+    || fail "the generator refused the fingerprint fixture"
+  # Both pages link the SAME copies (fp-assets/): the capture src is part of the fingerprint.
+  # The flat shape is what the generator wrote before kit 33: no <details>, no summary.
+  [[ "$2" == 1 ]] || python3 - "$TMP/fp-group.html" <<'PY'
+import re, sys
+p = sys.argv[1]; t = open(p, encoding="utf-8").read()
+t = re.sub(r'<details class="opts-more"><summary>[^<]*</summary>', '', t).replace('</details>', '')
+open(p, 'w', encoding="utf-8").write(t)
+PY
+  cat > "$TMP/fp-body.html" <<HTML
+<meta name="consult-visual" content="none: a fingerprint probe, nothing to draw">
+<div class="page"><main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Fingerprint probe</h1></header>
+$(cat "$TMP/fp-group.html")
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas"><h3>Notas</h3><textarea></textarea></section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</main><aside class="rail"><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>
+window.addEventListener('load', function () {
+  var q = location.search, KEY = 'aidex-kit-answers:' + location.pathname;
+  var row = document.querySelector('[data-id="audit-empty-light-desktop"]');
+  var ta = row.querySelector('textarea:not(.kit-marks)');
+  if (q.indexOf('phase=fpset') !== -1) {
+    ta.value = 'typed before the fold'; ta.dispatchEvent(new Event('input', { bubbles: true }));
+    var st = JSON.parse(localStorage.getItem(KEY) || '{}')['audit-empty-light-desktop'] || {};
+    document.title = 'FPSET|H=' + st.h;
+  } else if (q.indexOf('phase=fpseed') !== -1) {
+    var h = q.match(/h=([0-9a-z]+)/)[1], o = {};
+    o['audit-empty-light-desktop'] = { m: [], a: ['typed before the fold'], h: h };
+    localStorage.setItem(KEY, JSON.stringify(o));
+    document.title = 'FPSEED|DONE';
+  } else if (q.indexOf('phase=fpget') !== -1) {
+    document.title = 'FPGET|VAL=' + ta.value;
+  }
+});
+</script>
+HTML
+  bash "$WRAP" --title "fp" --lang es --out "$1" < "$TMP/fp-body.html" > "$TMP/fp-wrap.log" 2>&1 \
+    || fail "the fingerprint probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/fp-wrap.log" | head -4)"
+}
+FP_FLAT="$TMP/reports/fp-flat.html"; FP_FOLD="$TMP/reports/fp-fold.html"
+fp_page "$FP_FLAT" 0; fp_page "$FP_FOLD" 1
+fprun() { chrome_dump "$TMP/fp.dom" "file://$1?$2" 45 || true; grep -oE '<title>[^<]*</title>' "$TMP/fp.dom" | head -1; }
+rm -rf "$TMP/profile"
+tg="$(fprun "$FP_FLAT" 'phase=fpset')"
+fph="$(sed -nE 's/.*FPSET\|H=([0-9a-z]+).*/\1/p' <<<"$tg")"
+[[ -n "$fph" ]] || fail "the flat row stored no fingerprint: $tg"
+fprun "$FP_FOLD" "phase=fpseed&h=$fph" > /dev/null
+tg="$(fprun "$FP_FOLD" 'phase=fpget')"
+[[ "$tg" == *"FPGET|VAL=typed before the fold"* ]] \
+  || fail "an answer stored against the flat row was dropped once the row folded its third verdict (the fingerprint moved): $tg"
+rm -rf "$TMP/profile"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"

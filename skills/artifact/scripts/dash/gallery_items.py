@@ -72,7 +72,10 @@ VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil"},
 # `review` is a row the owner chose (a declared change in a chosen variant);
 # `unrequested` is a cell that moved without being in the change set; `sample`
 # illustrates and asks nothing, so it carries no verdict (BL-466).
-KINDS = ("review", "unrequested", "sample")
+# `alternatives` is N labelled variants of one cell (a skeleton review): the
+# labels come from the rows document, so nothing says "before" of a state that
+# has no before (BL-516).
+KINDS = ("review", "unrequested", "sample", "alternatives")
 
 VERDICTS = {
     "es": [("Aprobada", "Aprobada: lo propuesto queda como baseline"),
@@ -90,6 +93,8 @@ INTRO = {
                   "respuesta y, si necesita cambios, di cuáles en las notas "
                   "de esta fila.",
            "sample": "%s: una muestra, no hay nada que aprobar.",
+           "alt": "%s: variantes de esta celda. Elige una y, si quieres "
+                  "matizar, di por qué en las notas de esta fila.",
            "na": "Este estado no se puede mostrar, por el motivo de abajo. "
                  "Marca tu respuesta."},
     "en": {"pair": "%s: before and proposed. Mark your answer and, if it "
@@ -98,9 +103,27 @@ INTRO = {
                   "answer and, if it needs changes, say which in the row's "
                   "notes.",
            "sample": "%s: a sample, nothing to approve.",
+           "alt": "%s: variants of this cell. Pick one and, if you want to "
+                  "qualify it, say why in the row's notes.",
            "na": "This state cannot be shown, for the reason below. Mark "
                  "your answer."},
 }
+
+# Verdicts past this many stay behind a <summary>: the row asks verdict + note.
+VISIBLE_VERDICTS = 2
+MORE = {"es": "Más opciones", "en": "More options"}
+NONE_OF_THEM = {"es": ("Ninguna", "Ninguna me convence (di qué falta en las notas)"),
+                "en": ("None of them", "None of them works (say what is missing in the notes)")}
+# The kit's injected "Other" option (L.other in composer.js, both languages):
+# a copy, because the source is JavaScript. A label that equals it, or the
+# none-of-them label, would make two radios paste the same line.
+OTHER = ("Other — see my notes", "Otra — lo explico en las notas")
+MARKER_LABEL = re.compile(r"^\[[a-z-]+\]$")
+# On a not-applicable row of an alternatives document nothing is "proposed".
+NA_AGREE = {"es": "De acuerdo: la celda no aplica",
+            "en": "Agreed: the cell does not apply"}
+LOOK_LABEL = {"es": "Qué mirar", "en": "What to look at"}
+DROPPED_WORD = {"es": "Descartada", "en": "Dropped"}
 
 FLAG = {"es": "cambió sin que lo pidieras", "en": "changed without you asking"}
 ALSO = {"es": "también en: ", "en": "also in: "}
@@ -216,13 +239,50 @@ def load(path):
     # An empty list is D2's "everything matches": render() prints nothing.
     if not isinstance(doc["rows"], list):
         die("'rows' must be a list")
+    if "alternatives" in doc:
+        alts = doc["alternatives"]
+        if not isinstance(alts, list) or len(alts) < 2:
+            die("'alternatives' must list at least two variants, each "
+                "{\"id\": slug, \"label\": text}, not %r" % (alts,))
+        for a in alts:
+            if not isinstance(a, dict) or not isinstance(a.get("id"), str) \
+                    or not SLUG.match(a["id"]) \
+                    or not isinstance(a.get("label"), str) \
+                    or not a["label"].strip():
+                die("every alternative is {\"id\": slug, \"label\": text}, "
+                    "not %r" % (a,))
+            a["label"] = a["label"].strip()
+            if a["id"] in TILES:
+                die("alternative id '%s' is a before/after tile name — the "
+                    "composer's compare keys on it, so name the variant "
+                    "something else" % a["id"])
+        reserved = {x.casefold() for pair in NONE_OF_THEM.values()
+                    for x in pair[:1]} | {x.casefold() for x in OTHER}
+        seen_labels = set()
+        for a in alts:
+            low = a["label"].casefold()
+            if a["label"].casefold() in reserved:
+                die("alternative label %r is reserved (the none-of-them and "
+                    "Other choices paste under it)" % a["label"])
+            if MARKER_LABEL.match(a["label"]):
+                die("alternative label %r looks like a marker ([question], "
+                    "[not-now]…): the reply parser reads those as asks"
+                    % a["label"])
+            if low in seen_labels:
+                die("the same label twice: %r (labels are compared "
+                    "case-insensitively)" % a["label"])
+            seen_labels.add(low)
+        ids = [a["id"] for a in alts]
+        if len(set(ids)) != len(ids):
+            die("'alternatives' names the same id twice: %s" % " ".join(ids))
     return doc
 
 
-def check_row(row, variants, n):
+def check_row(row, variants, n, alts=None, require_look=False):
     """Every refusal a row can earn, named by cell rather than by index.
-    Returns (cell, variant, kind, before|None, after); a not-applicable row
-    returns (cell, None, None, None, reason)."""
+    Returns a dict: `cell` and `kind` always; `variant`, `before`, `after`,
+    `captures` (alternatives), `look`, `decided`, `dropped` as the row has
+    them. A not-applicable row has kind None and its reason in `after`."""
     if not isinstance(row, dict):
         die("row %d is not an object" % n)
     cell = row.get("cell")
@@ -238,7 +298,22 @@ def check_row(row, variants, n):
         if "before" in row or "after" in row:
             die("row '%s' carries both captures and 'notApplicable' — a row "
                 "is either shown or not applicable, never both" % cell)
-        return cell, None, None, None, reason.strip()
+        out = {"cell": cell, "kind": None, "after": reason.strip()}
+        if "dropped" in row:
+            gone = row["dropped"]
+            if not isinstance(gone, str) or not gone.strip():
+                die("row '%s': 'dropped' must be a non-empty string (why it "
+                    "left the question set)" % cell)
+            if "decided" in row:
+                die("row '%s' is both dropped and decided — it left the "
+                    "question set or it was settled, not both" % cell)
+            out["dropped"] = gone.strip()
+        elif "decided" in row:
+            if not isinstance(row["decided"], str) or not row["decided"].strip():
+                die("row '%s': 'decided' must be a non-empty string (the "
+                    "verdict)" % cell)
+            out["decided"] = row["decided"].strip()
+        return out
     variant = row.get("variant")
     if not isinstance(variant, str) or not SLUG.match(variant):
         die("row '%s': 'variant' must be a lowercase slug, not %r"
@@ -247,11 +322,67 @@ def check_row(row, variants, n):
     if kind not in KINDS:
         die("row '%s': 'kind' is %r, not one of %s"
             % (cell, kind, ", ".join(KINDS)))
+    # A dropped row left the question set: its id, title and kind stay so the
+    # answer history keeps a home, and the reason takes the place of the
+    # captures (which are often gone by then).
+    if "dropped" in row:
+        reason = row["dropped"]
+        if not isinstance(reason, str) or not reason.strip():
+            die("row '%s': 'dropped' must be a non-empty string (why it left "
+                "the question set)" % cell)
+        if "decided" in row:
+            die("row '%s' is both dropped and decided — it left the "
+                "question set or it was settled, not both" % cell)
+        return {"cell": cell, "variant": variant, "kind": kind,
+                "dropped": reason.strip()}
     # A review row is a variant the owner chose; an unrequested one may be any
     # variant the harness captured — that is the point of it.
     if kind == "review" and variant not in variants:
         die("row '%s' is a review row in variant '%s', which is not one of "
             "the chosen variants (%s)" % (cell, variant, " ".join(variants)))
+    out = {"cell": cell, "variant": variant, "kind": kind}
+    if "decided" in row:
+        if not isinstance(row["decided"], str) or not row["decided"].strip():
+            die("row '%s': 'decided' must be a non-empty string (the "
+                "verdict)" % cell)
+        out["decided"] = row["decided"].strip()
+    # What the owner should look at on THIS row (BL-516: a cell with no stated
+    # reason could not be judged). The spec route requires it; the CLI, which
+    # existing project emitters feed, only shows it when present.
+    look = row.get("look")
+    if look is not None and (not isinstance(look, str) or not look.strip()):
+        die("row '%s': 'look' must be a non-empty string" % cell)
+    if look is None and require_look:
+        die("row '%s' has no 'look' line — say in one sentence what the "
+            "reader should look at in this cell (rows JSON key \"look\")"
+            % cell)
+    if look is not None:
+        out["look"] = look.strip()
+    if alts is not None and kind != "alternatives":
+        die("row '%s' is a %s row in a document that declares 'alternatives' "
+            "— every row of that document is an alternatives row (or dropped "
+            "or not applicable), because the block's tiles are the "
+            "alternatives" % (cell, kind))
+    if kind == "alternatives":
+        if alts is None:
+            die("row '%s' is an alternatives row but the document declares no "
+                "'alternatives' (the labels are declared once, at the top)"
+                % cell)
+        caps = row.get("captures")
+        if not isinstance(caps, dict):
+            die("row '%s': an alternatives row needs 'captures', an object "
+                "{alternative id: path}" % cell)
+        for a in alts:
+            if a["id"] not in caps:
+                die("row '%s' has no capture for '%s' — every alternative is "
+                    "shown in every row" % (cell, a["id"]))
+            check_path(caps[a["id"]], cell, a["id"])
+        extra = sorted(set(caps) - {a["id"] for a in alts})
+        if extra:
+            die("row '%s' has a capture for '%s', which is not a declared "
+                "alternative" % (cell, extra[0]))
+        out["captures"] = caps
+        return out
     # `also`: the other variants where an unrequested cell changed too. One
     # row per unrequested change, so the owner answers it once.
     if "also" in row:
@@ -274,10 +405,11 @@ def check_row(row, variants, n):
     check_path(row["after"], cell, "after")
     # Absent is the one way to say "new screen". A present-but-empty `before`
     # is a baseline the emitter lost, and showing it as new would hide that.
-    before = row.get("before")
     if "before" in row:
-        check_path(before, cell, "before")
-    return cell, variant, kind, before, row["after"]
+        check_path(row["before"], cell, "before")
+    out["before"] = row.get("before")
+    out["after"] = row["after"]
+    return out
 
 
 def figure(root, path, tile, caption, cell, alt, assets, copies):
@@ -303,14 +435,32 @@ def figure(root, path, tile, caption, cell, alt, assets, copies):
             % (e(tile), e(src), e(alt), width, height, e(caption)))
 
 
-def verdicts(ident, lang):
+def radio(ident, label, text):
+    return ('<label><input type="radio" name="%s" data-label="%s">'
+            '<span>%s</span></label>' % (e(ident), e(label), e(text)))
+
+
+def options(ident, lang, choices, visible=VISIBLE_VERDICTS):
+    """One which-one group. Only the first VISIBLE_VERDICTS choices show; the
+    rest sit inside a closed <details> in the same `.opts` group, so the row
+    asks verdict + note by default (BL-516) and the radios still share one
+    name and paste like any other."""
     out = ['    <div class="opts one">']
-    for label, text in VERDICTS[lang]:
-        out.append('      <label><input type="radio" name="%s"'
-                   ' data-label="%s"><span>%s</span></label>'
-                   % (e(ident), e(label), e(text)))
+    for label, text in choices[:visible]:
+        out.append('      ' + radio(ident, label, text))
+    rest = choices[visible:]
+    if rest:
+        out.append('      <details class="opts-more"><summary>%s</summary>'
+                   % e(MORE[lang]))
+        for label, text in rest:
+            out.append('        ' + radio(ident, label, text))
+        out.append('      </details>')
     out.append('    </div>')
     return out
+
+
+def verdicts(ident, lang):
+    return options(ident, lang, VERDICTS[lang])
 
 
 def notes(lang):
@@ -319,31 +469,49 @@ def notes(lang):
             % e(NOTES_PLACEHOLDER[lang])]
 
 
-def na_row(gallery, cell, reason, lang):
+def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
+           decided=None):
     """`<gallery>-<cell>-not-applicable`, titled `<gallery> · <cell>`: a
     not-applicable cell has no variant. The suffix keeps the id apart from the
     old light/dark matrix's `<gallery>-<cell>`, whose verdicts were given on
     four captures, not on a reason."""
     ident = "%s-%s-not-applicable" % (gallery, cell)
     title = "%s · %s" % (gallery, cell)
+    if dropped is not None:
+        return "\n".join(
+            ['  <section class="consult-item consult-gallery" data-id="%s"'
+             ' data-title="%s" data-decided="%s" data-dropped="%s">'
+             % (e(ident), e(title), e(DROPPED_WORD[lang] + ": " + dropped),
+                e(dropped)),
+             '    <h3><span class="consult-id">%s</span>%s</h3>'
+             % (e(ident), e(title)),
+             '    <p class="gal-na">%s</p>' % e(dropped)]
+            + notes(lang) + ['  </section>'])
+    choices = list(VERDICTS[lang])
+    if alts:
+        choices[0] = (choices[0][0], NA_AGREE[lang])
+    settled = ' data-decided="%s"' % e(decided) if decided else ''
     return "\n".join(
         ['  <section class="consult-item consult-gallery" data-id="%s"'
-         ' data-title="%s">' % (e(ident), e(title)),
+         ' data-title="%s"%s>' % (e(ident), e(title), settled),
          '    <h3><span class="consult-id">%s</span>%s</h3>'
          % (e(ident), e(title)),
          '    <p>%s</p>' % e(INTRO[lang]["na"]),
          '    <p class="gal-na">%s</p>' % e(reason)]
-        + verdicts(ident, lang) + notes(lang) + ['  </section>'])
+        + options(ident, lang, choices) + notes(lang) + ['  </section>'])
 
 
-def render(doc, root, group_id, group_title, lang, page=None):
+def render(doc, root, group_id, group_title, lang, page=None,
+           require_look=False):
     """The block, or "" for an empty `rows`: when every capture matches its
     baseline (D2) the owner's page carries no gallery block and no text about
     it — not an empty heading, not a "nothing changed" line.
 
     `page` is the path of the page the block goes into: every capture is copied
     beside it (see the module docstring). None is refused at the first tile:
-    a capture linked where it is breaks on this page's next reader."""
+    a capture linked where it is breaks on this page's next reader.
+    `require_look` refuses a row with no "what to look at" line (the spec
+    route sets it)."""
     if not doc["rows"]:
         return ""
     assets, copies = None, {}
@@ -351,44 +519,82 @@ def render(doc, root, group_id, group_title, lang, page=None):
         assets = os.path.splitext(os.path.basename(page))[0] + "-assets/gallery"
     gallery = doc["gallery"]
     variants = list(doc["variants"])
+    alts = doc.get("alternatives")
+    tiles = [a["id"] for a in alts] if alts else list(TILES)
     words = TILE_WORDS[lang]
     root = root.rstrip("/")
     out = []
     add = out.append
     add('<section class="consult-group" id="%s" data-id="%s" data-title="%s"'
         ' data-tiles="%s">' % (e(group_id), e(group_id), e(group_title),
-                               " ".join(TILES)))
+                               " ".join(tiles)))
     add('  <div class="sec-head">')
     add('    <h2>%s</h2>' % e(group_title))
     add('  </div>')
-    seen, unrequested = {}, {}
+    seen, unrequested, ids = {}, {}, {}
     for n, row in enumerate(doc["rows"], 1):
-        cell, variant, kind, before, after = check_row(row, variants, n)
+        r = check_row(row, variants, n, alts, require_look)
+        cell, variant, kind = r["cell"], r.get("variant"), r["kind"]
+        before, after = r.get("before"), r.get("after")
         # One cell in one variant is one question: a second row for it (the
-        # same cell both requested and unrequested) is two answers to it.
-        if (cell, variant) in seen:
-            die("rows %d and %d are both cell '%s' in variant '%s'"
-                % (seen[(cell, variant)], n, cell, variant))
-        seen[(cell, variant)] = n
-        if kind == "unrequested":
+        # same cell both requested and unrequested) is two answers to it. A
+        # dropped row asks nothing, so it can sit beside the row that replaced
+        # it (a review row retired for alternatives of the same cell).
+        live = "dropped" not in r
+        if live:
+            if (cell, variant) in seen:
+                die("rows %d and %d are both cell '%s' in variant '%s'"
+                    % (seen[(cell, variant)], n, cell, variant))
+            seen[(cell, variant)] = n
+        if kind == "unrequested" and live:
             if cell in unrequested:
                 die("rows %d and %d: cell '%s' has two unrequested rows — one "
                     "row per unrequested change, its other variants in 'also'"
                     % (unrequested[cell], n, cell))
             unrequested[cell] = n
         if kind is None:
-            add(na_row(gallery, cell, after, lang))
+            na_id = "%s-%s-not-applicable" % (gallery, cell)
+            if na_id in ids:
+                die("rows %d and %d are both cell '%s' not applicable — one "
+                    "row per cell, dropped or not (they share the id '%s')"
+                    % (ids[na_id], n, cell, na_id))
+            ids[na_id] = n
+            add(na_row(gallery, cell, after, lang, alts=bool(alts),
+                       dropped=r.get("dropped"), decided=r.get("decided")))
             continue
         ident = row_id(gallery, cell, variant, kind)
         if not ROW_ID.match(ident):
             die("row id '%s' is not lowercase slugs joined by hyphens" % ident)
+        if ident in ids:
+            die("rows %d and %d both produce the row id '%s' — a dropped row "
+                "and a live one of the same kind share an id"
+                % (ids[ident], n, ident))
+        ids[ident] = n
         title = "%s · %s · %s" % (gallery, cell, variant)
+        # A dropped row is out of the question set: same id, title and kind as
+        # when it was asked, the reason where the tiles were, and a decided
+        # mark so the composer folds it and counts it nowhere.
+        if "dropped" in r:
+            reason = r["dropped"]
+            add('  <section class="consult-item consult-gallery" data-id="%s"'
+                ' data-title="%s" data-variant="%s" data-decided="%s"'
+                ' data-dropped="%s">'
+                % (e(ident), e(title), e(variant),
+                   e(DROPPED_WORD[lang] + ": " + reason), e(reason)))
+            add('    <h3><span class="consult-id">%s</span>%s</h3>'
+                % (e(ident), e(title)))
+            add('    <p class="gal-na">%s</p>' % e(reason))
+            out.extend(notes(lang))
+            add('  </section>')
+            continue
         # A new screen shows one capture, so the row narrows the block's
         # matrix to that tile; the checker holds it to exactly that.
-        narrow = '' if before is not None else ' data-tiles="after"'
+        narrow = '' if kind == "alternatives" or before is not None \
+            else ' data-tiles="after"'
+        settled = ' data-decided="%s"' % e(r["decided"]) if "decided" in r else ''
         add('  <section class="consult-item consult-gallery" data-id="%s"'
-            ' data-title="%s" data-variant="%s"%s>'
-            % (e(ident), e(title), e(variant), narrow))
+            ' data-title="%s" data-variant="%s"%s%s>'
+            % (e(ident), e(title), e(variant), narrow, settled))
         add('    <h3><span class="consult-id">%s</span>%s</h3>'
             % (e(ident), e(title)))
         if kind == "unrequested":
@@ -397,14 +603,22 @@ def render(doc, root, group_id, group_title, lang, page=None):
                 flag += " · " + ALSO[lang] + ", ".join(
                     variant_label(v, lang) for v in row["also"])
             add('    <p class="gal-flag">%s</p>' % e(flag))
-        shape = "sample" if kind == "sample" else \
+        shape = "alt" if kind == "alternatives" else \
+            "sample" if kind == "sample" else \
             ("pair" if before is not None else "new")
         label = variant_label(variant, lang)
         add('    <p>%s</p>' % e(INTRO[lang][shape]
                                % (label[:1].upper() + label[1:])))
+        if "look" in r:
+            add('    <p class="gal-look"><strong>%s:</strong> %s</p>'
+                % (e(LOOK_LABEL[lang]), e(r["look"])))
         add('    <div class="gal">')
         alt = "%s · %%s" % title
-        if before is not None:
+        if kind == "alternatives":
+            for a in alts:
+                add(figure(root, r["captures"][a["id"]], a["id"], a["label"],
+                           cell, alt % a["label"], assets, copies))
+        elif before is not None:
             add(figure(root, before, "before", words["before"], cell,
                        alt % words["before"], assets, copies))
             add(figure(root, after, "after", words["after"], cell,
@@ -413,7 +627,12 @@ def render(doc, root, group_id, group_title, lang, page=None):
             add(figure(root, after, "after", words["new"], cell,
                        alt % words["new"], assets, copies))
         add('    </div>')
-        if kind != "sample":
+        if kind == "alternatives":
+            choices = [(a["label"], a["label"]) for a in alts]
+            choices.append(NONE_OF_THEM[lang])
+            # Peer choices are all visible; only "none of them" collapses.
+            out.extend(options(ident, lang, choices, visible=len(alts)))
+        elif kind != "sample":
             out.extend(verdicts(ident, lang))
         out.extend(notes(lang))
         add('  </section>')

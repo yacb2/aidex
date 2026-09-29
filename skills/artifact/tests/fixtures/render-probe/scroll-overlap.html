@@ -1,0 +1,22 @@
+<!-- render-probe fixture: text-overlap between two texts INSIDE the same scroller, past
+     its edge. A scroller hides what lies past its edge only from what is outside it (the
+     rail entries below the list's edge are not over the copy bar, long-rail.spec.md);
+     scrolled to, the two texts inside it are drawn over each other, so the overlap is a
+     defect. Vertical: a 60 px box that scrolls on y. Horizontal: a .tw table wrapper
+     (overflow-x: auto) 240 px wide holding a 900 px row, the overlap at its far end. -->
+<style>
+.sovbox { height: 60px; overflow: auto; width: 240px; }
+.sovbox p { margin: 0; }
+.sovbox .sovfar { margin-top: 200px; }
+.sovbox .sovfix { margin: -1.4em 0 0 4px; }
+.tw.sohbox { width: 240px; }
+.sohrow { width: 900px; white-space: nowrap; position: relative; height: 2rem; }
+.sohrow span { position: absolute; top: 0; }
+.sohrow .sohfar { left: 700px; }
+.sohrow .sohfix { left: 704px; }
+</style>
+<div class="page"><main class="main">
+<h1>Textos dentro de un scroll</h1>
+<div class="sovbox"><p>Primer texto visible</p><p class="sovfar">Texto de la fila larga</p><p class="sovfix">Otro texto encima</p></div>
+<div class="tw sohbox"><div class="sohrow"><span>Inicio de la fila</span><span class="sohfar">Celda del final</span><span class="sohfix">Celda encima</span></div></div>
+</main></div>

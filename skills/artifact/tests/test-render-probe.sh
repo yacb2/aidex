@@ -146,6 +146,27 @@ done <<'EOF'
 1280 div.note
 EOF
 
+echo "== rail entries scrolled out of the index are not over the copy bar (BL-522.4) =="
+# 24 items: at 1280x900 the rail's list scrolls inside its box, and the entries
+# below its edge sit, unseen, under "Copiar mis respuestas" and the build line.
+# The probe reported them as text-overlap (asset_lab BL-011: "Encontrado de paso"
+# over the copy button at y=796); the screenshot shows the list clipped cleanly.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/long-rail.spec.md" -o "$TMP/long-rail.html" ) >/dev/null 2>&1 \
+  && ok "built long-rail from its spec" || bad "spec_build.py failed on long-rail.spec.md"
+module="${AIDEX_PLAYWRIGHT_DIR:-}/node_modules/playwright"
+[[ -f "$module/package.json" ]] || module="$g/playwright"
+scrolls="$(PW="$module" node -e '
+const { chromium } = require(process.env.PW);
+(async () => {
+  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+  await p.goto("file://" + process.argv[1]);
+  console.log(await p.evaluate(() => { const l = document.querySelector(".rail .raillist"); return l.scrollHeight > l.clientHeight + 100; }));
+  await b.close();
+})();' "$TMP/long-rail.html" 2>&1)"
+[[ "$scrolls" == true ]] && ok "the fixture's rail list scrolls at 1280x900 (precondition)" || bad "the rail list does not scroll: $scrolls"
+out="$(bash "$PROBE" "$TMP/long-rail.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "long-rail is clean at 1280 and 390 px" || bad "long-rail exit $rc: $(grep '^DEFECT' <<<"$out")"
+
 echo "== the kit's own rows pass clean (must-pass, Phase 5) =="
 # kit-rows.html is B-R-2's key/value ledger, the same ledger at 390 px, long
 # unbreakable paths in a list and in prose, and a page taller than the viewport.
@@ -320,6 +341,12 @@ cut-and-spill content-cut div.cutfix 1280
 cut-and-spill content-spills div.nwfix 1280
 consult-bar text-overlap span.b1 390
 consult-bar text-overlap p.railhead 1280
+scroll-overlap text-overlap p.sovfix 1280
+scroll-overlap text-overlap span.sohfix 390
+clip-escape text-overlap span.escfix 1280
+clip-escape text-overlap p.insfix 1280
+clip-escape text-overlap p.contfix 1280
+clip-escape fixed-over-text span.lblclipfix 1280
 style-drift text-style-drift p.note 1280
 style-drift text-style-drift "nestedfix 1280
 style-drift text-style-drift "inheritfix 1280

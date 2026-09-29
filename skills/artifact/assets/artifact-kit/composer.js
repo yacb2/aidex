@@ -82,6 +82,8 @@
       decidedCount: function (n) { return n + (n === 1 ? ' question already settled' : ' questions already settled'); },
       decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.',
       zoomOpen: 'Open this tile at full size',
+      zoomLabel: 'Enlarge',
+      moreOptions: 'More options',
       zoomNative: 'Native size (1:1)',
       zoomFit: 'Fit to the window',
       zoomSizeTitle: 'Switch between fitting the window and the capture’s own pixels',
@@ -178,6 +180,8 @@
       decidedCount: function (n) { return n + (n === 1 ? ' pregunta ya resuelta' : ' preguntas ya resueltas'); },
       decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.',
       zoomOpen: 'Abre este tile a tama\u00f1o completo',
+      zoomLabel: 'Ampliar',
+      moreOptions: 'M\u00e1s opciones',
       zoomNative: 'Tama\u00f1o original (1:1)',
       zoomFit: 'Ajustar a la ventana',
       zoomSizeTitle: 'Alterna entre ajustar a la ventana y los p\u00edxeles propios de la captura',
@@ -886,7 +890,11 @@
      * the item, so leaving it in would change every fingerprint the moment the
      * kit gained these controls, and every answer stored by a reader mid-thread
      * would read as "the question changed" and be dropped on the upgrade. */
-    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-provisional, .kit-marks-tile').forEach(function (c) { c.remove(); });
+    clone.querySelectorAll('.kit-tag, .consult-clear, .kit-other, .kit-notnow, .kit-ask, .kit-more, .kit-provisional, .kit-marks-tile').forEach(function (c) { c.remove(); });
+    /* The generator's own <details> keeps its radios in the question (a row
+     * built before it existed hashed them flat), but its summary word is chrome:
+     * left in, every stored gallery answer would read as a changed question. */
+    clone.querySelectorAll('details.opts-more > summary').forEach(function (c) { c.remove(); });
     /* Chrome this file TRANSLATES is put back into English before hashing
      * (BL-280). `.fieldlabel` sits inside the item, so localising it moves the
      * fingerprint, and every answer a reader stored while the labels were still
@@ -1057,6 +1065,21 @@
         if (g.querySelector('.kit-other, input[data-other]')) return;
         var first = g.querySelector('input[type="radio"], input[type="checkbox"]');
         if (!first) return;
+        /* A gallery row asks verdict + note by default (BL-516): the injected
+         * exits go inside the row's own <details> (the generator writes one),
+         * or one made here for a row written by hand. */
+        var host = g;
+        if (isGalleryRow(el)) {
+          host = g.querySelector('details.opts-more');
+          if (!host) {
+            host = document.createElement('details');
+            host.className = 'opts-more kit-more';
+            var sum = document.createElement('summary');
+            sum.textContent = L.moreOptions;
+            host.appendChild(sum);
+            g.appendChild(host);
+          }
+        }
         var lab = document.createElement('label');
         lab.className = 'kit-other';
         var input = document.createElement('input');
@@ -1071,7 +1094,7 @@
         text.appendChild(hint);
         lab.appendChild(input);
         lab.appendChild(text);
-        g.appendChild(lab);
+        host.appendChild(lab);
         /* "Not now" (BL-381), the last choice of the group. Answer-side, so it
          * is one of the answers and exclusive with them: deferring a question
          * is not compatible with answering it, and a deferred question is not
@@ -1091,7 +1114,7 @@
         nnt.appendChild(nnh);
         nn.appendChild(nni);
         nn.appendChild(nnt);
-        g.appendChild(nn);
+        host.appendChild(nn);
       });
     });
   }
@@ -1179,13 +1202,24 @@
       });
       /* After the LAST option group when there is one — below the answer, as
        * a second surface — else before the first field label, else at the end. */
+      /* A gallery row folds the row into a <details>: the reader's job there
+       * is a verdict and a note, and the nine chips are a second form. */
+      var put = row;
+      if (isGalleryRow(el)) {
+        put = document.createElement('details');
+        put.className = 'kit-more kit-ask-more';
+        var asum = document.createElement('summary');
+        asum.textContent = L.askLabel;   /* the row's own lead is hidden in CSS */
+        put.appendChild(asum);
+        put.appendChild(row);
+      }
       var groups = el.querySelectorAll('.opts');
       var anchor = groups.length ? groups[groups.length - 1] : null;
-      if (anchor) anchor.parentNode.insertBefore(row, anchor.nextSibling);
+      if (anchor) anchor.parentNode.insertBefore(put, anchor.nextSibling);
       else {
         var label = el.querySelector('.fieldlabel');
-        if (label) label.parentNode.insertBefore(row, label);
-        else el.appendChild(row);
+        if (label) label.parentNode.insertBefore(put, label);
+        else el.appendChild(put);
       }
     });
   }
@@ -1203,6 +1237,8 @@
       node.className = 'kit-provisional';
       node.textContent = L.provisional;
       var row = el.querySelector('.kit-ask');
+      var folded = row && row.closest('details.kit-more');
+      if (folded) row = folded;
       if (row) row.parentNode.insertBefore(node, row.nextSibling);
       else el.appendChild(node);
     } else if (!want && node) {
@@ -1461,6 +1497,14 @@
    * per-item Clear, the two writers of a marks textarea that are not the
    * mark layer itself. */
   var redrawMarks = function () {};
+
+  /* A closed <details> of extra options never hides a mark the reader made:
+   * a restored or ticked input inside one opens it (it is never closed here). */
+  function openFilledMore() {
+    [].forEach.call(document.querySelectorAll('details.opts-more, details.kit-more'), function (d) {
+      if (d.querySelector('input:checked')) d.open = true;
+    });
+  }
 
   /* By SHAPE, like the checker (`gallery_findings`): the rows written by hand
    * before the generator existed carry the grid and not the class, and a
@@ -2119,6 +2163,10 @@
         fig.setAttribute('role', 'button');
         fig.setAttribute('tabindex', '0');
         fig.setAttribute('title', L.zoomOpen);
+        /* The visible affordance (BL-466): components.css draws this word on the
+         * tile with ::after, so it is an attribute and never text in the row
+         * (the question fingerprint hashes text) and a tap works as a click. */
+        fig.setAttribute('data-zoom', L.zoomLabel);
         fig.addEventListener('click', function (ev) {
           /* The round-5 prototype wrapped each tile in an anchor that opened
            * the file in a new tab, and pages carrying that markup are still on
@@ -2230,6 +2278,7 @@
     releasableRadios();
     exclusiveNotNow();
     var recovered = restore();
+    openFilledMore();
     redrawMarks();
     /* Shown when anything was DROPPED too, not only when something was
      * recovered: an answer the reader typed is missing from the page, and the
@@ -2240,7 +2289,7 @@
     markRecommendations();
     addClearControls();
     document.addEventListener('input', function () { refresh(); save(); });
-    document.addEventListener('change', function () { refresh(); save(); });
+    document.addEventListener('change', function () { openFilledMore(); refresh(); save(); });
     refresh();
     buttons.forEach(function (b) { b.addEventListener('click', copy); });
   }

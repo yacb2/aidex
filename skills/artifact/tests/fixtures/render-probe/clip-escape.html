@@ -1,0 +1,32 @@
+<!-- render-probe fixture: what a clipping ancestor does NOT hide (BL-522.4). Four
+     defects that must stay visible to the probe:
+     1. an absolute text escaping an overflow:hidden STATIC parent (its containing block
+        is .page, above the clip) drawn over the paragraph below -> text-overlap;
+     2. two texts overlapping in the visible part of a scroll box -> text-overlap;
+     3. two texts overlapping inside a display:contents wrapper that declares
+        overflow:hidden (contents has no box, so it clips nothing) -> text-overlap;
+     4. a label hanging out of a 0-height fixed strip that sits inside an overflow:hidden
+        parent: a fixed box escapes every clip -> fixed-over-text. -->
+<style>
+.escbox { height: 20px; overflow: hidden; }
+.escfix { position: absolute; margin-top: 26px; }
+.insbox { height: 60px; overflow: auto; width: 240px; }
+.insbox p { margin: 0; }
+.insbox .insfix { margin: -1.4em 0 0 4px; }
+.contbox { display: contents; overflow: hidden; }
+.contbox .contfix { margin-top: -1.4em; margin-left: 4px; }
+.clipbox { height: 1px; overflow: hidden; }
+.stripfix { position: fixed; top: 4.2rem; left: 3rem; height: 0; }
+.stripfix span { background: var(--paper-sunk); }
+</style>
+<div class="page"><main class="main">
+<h1>Recortes que no esconden</h1>
+<div class="escbox">Arriba del recorte<span class="escfix">Escapa del recorte</span></div>
+<p>Texto debajo del que escapa, en una línea larga del cuerpo de la página.</p>
+<div class="insbox"><p>Primer texto visible</p><p class="insfix">Segundo texto encima</p></div>
+<div class="contbox"><p>Texto en un contenedor sin caja</p><p class="contfix">Texto encima sin caja</p></div>
+<p>Primer párrafo del cuerpo, que queda debajo de la etiqueta fija mientras la página se lee.</p>
+<p>Segundo párrafo del cuerpo, que queda debajo de la etiqueta fija mientras la página se lee.</p>
+<p>Tercer párrafo del cuerpo, que queda debajo de la etiqueta fija mientras la página se lee.</p>
+<div class="clipbox"><div class="stripfix"><span class="lblclipfix">Etiqueta fija</span></div></div>
+</main></div>
