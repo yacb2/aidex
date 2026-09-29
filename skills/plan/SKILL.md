@@ -87,7 +87,12 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
 2. Synthesize the answers into a **one-paragraph shared design concept** and have the user
    **ratify it** before you write phases. If the request is already unambiguous and the
    recommended answers all stand, a single "confirm this concept?" round is enough.
-3. Skip Step 0 only for a trivial, already-fully-specified plan — and say you're skipping it, and why.
+3. **A decided `ui-contract.md` is ratification.** When the request names a
+   `ui-contract.md` (or the consultation that wrote one, `/ui-contract` Step 0), read it
+   first: its level, reference screen, components, state matrix and variants are already
+   ratified, so ask only what is still open, and carry the file into the plan's
+   `## UI contract` section rather than re-asking it.
+4. Skip Step 0 only for a trivial, already-fully-specified plan — and say you're skipping it, and why.
 
 ## Workflow
 
@@ -135,6 +140,9 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
      `plan-exec` hold its phases to the UI evidence gate. A heading or a bold lead-in
      that NAMES the section ("UI contract" in a title's first words) marks the plan UI;
      a mention in prose does not. The rule lives in the check script's header.
+     **A UI plan orders skeleton, review, then primitives**: the skeleton of the real page
+     and the owner's review of it come before any shared primitive is built, then the
+     gallery and gate, then the wiring (`/ui-contract` Step 3b owns the shape).
    **Decompose by vertical slices first** (each phase a thin end-to-end piece of
    behavior across layers), not by layer — slices are independently testable and let
    the executor parallelize. Reserve layer-ordering for genuine ordering constraints,

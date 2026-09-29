@@ -28,6 +28,30 @@ per cell. What it must guarantee:
   catch a missing cell at compile time (an exhaustive record over the state union), but
   the test runner does not type-check specs — so the module also refuses, at run time, a
   matrix with a missing cell and a not-applicable cell whose reason is blank.
+- **`ready` is specific to the state.** It is the locator whose visibility means "this cell
+  rendered", so it must not be able to resolve in a neighbouring state: a submitting cell
+  whose `ready` is also present in the plain open state gets a baseline for a state that
+  was never applied. The harness refuses a `ready` visible before the cell's action ran,
+  or another cell's `ready` visible in this cell's final state. A cell with no element of
+  its own is declared not applicable, with its reason.
+- **Every matrix clause is proved by something.** The plan's state matrix carries a
+  **"proved by"** column: a pixel (the cell), an assertion, or a unit test id. A clause
+  that lives out of the picture (an action disabled inside a closed menu) never reaches a
+  pixel, and deleting the code that implements it keeps the whole gate green; the column
+  makes that gap visible before the gate runs. Give the same column to the reviewer's
+  brief on a gallery spec.
+- **Overlays have a runner.** Modal, panel, menu and confirm cells run through the
+  overlay runner, which keeps the list and form runners' order (open, check, shoot); a
+  hand-assembled cell in that order is a second copy to keep in step. Same rule for a
+  not-applicable cell: a reason.
+- **A public page has a mode.** A page outside the app shell (login, invitation accept)
+  declares it, its layout and overflow checks use the page's own roots, and the harness
+  asserts the shell is absent, so the declaration cannot be a way out of the checks.
+- **A toast-only state is declared, not skipped.** The toaster is removed before the shot
+  on purpose. A state whose only signal is a toast is either declared not applicable with
+  the reason "accepted design: toast only", or recorded as a defect finding. The harness
+  can picture one when the cell asks (the toaster stays in and is held open); that is an
+  opt-in per cell.
 - **Per cell it drives one screenshot baseline plus deterministic checks**: horizontal
   overflow, a layout-stability sample, and an accessibility contrast pass.
 - **Horizontal overflow scans every scroller on the page**, not only the shell's scroll
@@ -87,7 +111,7 @@ Read it before reading anything else:
 | The line reads | It means |
 |---|---|
 | `meta: N/N`, bare | every pinned row ran, none skipped — a gate run |
-| `meta: 0/0` and "did not run" | the meta project did not run at all (dependencies skipped, or only non-gallery specs selected) — not a gate run |
+| `meta: 0/0` and "did not run" | the meta project did not run at all (`--no-deps`, dependencies skipped, or only non-gallery specs selected) — not a gate run |
 | a count labelled "filtered" | fewer rows than pinned ran (a grep, a last-failed or line filter) — not a gate run |
 | a count labelled "skipped" | rows were skipped, typically the pixel rows under a snapshot update — not a gate run |
 | a count asking to update the pin | the suite declares more rows than the reporter pins — bump the pin |
@@ -95,6 +119,14 @@ Read it before reading anything else:
 Only the bare form is part 2 of "verified". The count covers the browser predicates; a
 predicate that is not a browser verdict (the style-lint allowlist's rot guard) is proven
 by its own unit suite instead, and the count does not include it.
+
+## 1c. Flakes: a fix needs a named cause
+
+A cold first run can fail on timing (a login timeout on the first server start, a cell
+that passes 4 of 5). **A flake fix needs a named cause, or three clean runs**; changing a
+locator until it passes, with no cause, is neither. The harness warms the dev server before
+the first cell and one retry absorbs a host hiccup; the closing line prints the retries
+(`retries: N`), so a green run that retried is visible. Read it beside `meta:`.
 
 ## 2. The runner invocation — ALWAYS with a spec path
 
@@ -104,6 +136,19 @@ E2E environment (one rendering environment is the whole premise of a pixel basel
 **Detect the entry point** — the project's testing profile, its package scripts, or its
 E2E wrapper script. In the shipped tree it is a `--demo` flag on the repo's E2E script
 that swaps in the gallery config and forwards every remaining argument.
+
+**One gate invocation for all the galleries of the change.** The gallery projects depend
+on the meta project, which runs once per invocation: pass every gallery spec in the same
+call, not one call per gallery (six galleries, six meta runs). A project filter narrows
+the run to the runner projects the change reviews or captures (in the shipped tree
+`--projects light-desktop`); the meta project still runs, once, as a dependency.
+
+## 2b. Iterating versus the closing run
+
+The meta-suite is the slow part of one invocation. While iterating, skip it with
+Playwright's `--no-deps`: the closing line then reads `meta: 0/0` and "did not run", and
+the run is labelled **"not a gate run"** in the Execution log. Only the closing evidence
+run omits `--no-deps` and reports the bare `meta: N/N`.
 
 **Always pass a spec path.** With no path, the mode also runs everything else that lives
 in that test directory — in the shipped tree, a demo tour recording. A path matching no
@@ -123,7 +168,8 @@ colour mode in its metadata and its own viewport. Properties that matter:
 - Any non-gallery spec in the same directory runs in a **separate, baseline-less**
   project. Without that split, every cell gets a fifth copy with nothing to compare.
 - The four gallery projects **depend on the meta-suite's project** (§ 1b), so it runs
-  first and a red predicate stops the galleries.
+  first and a red predicate stops the galleries. The meta project in turn depends on a
+  one-page `vite-warmup` project, so a cold Vite is paid before the first cell.
 - In a project with no gallery spec yet, the four projects select nothing and the run is
   clean — adopting the config costs nothing before the first gallery exists. The
   meta-suite still runs whenever its path, or any gallery's, is passed.
@@ -202,7 +248,13 @@ absent for a new screen) and `after` (the run's render), plus one `unrequested` 
 undeclared cell that rendered differently in ANY variant, the other variants where it
 changed listed in `also`; a declared cell that is not applicable comes as its reason. Paths are relative to the repo root, the
 output is deterministic, and a declared cell with no baseline is refused like the board
-does. An empty `rows` (everything matched) means no gallery block on the page. The
+does. A NEW screen has no baseline and no `before`: the emitter takes a `--new` cell list
+(refused for a cell that already has a baseline) and reads baselines only for the chosen
+variants. Every shown row carries a `look` line (one sentence: what to look at in this
+picture); the artifact kit refuses a page without it, so an emitter that does not write it
+gets it added before the page is built. For alternatives (N labelled variants of one cell)
+the rows document declares them once and the reply parses back with `--rows` (SKILL.md,
+"Verified" part 1). An empty `rows` (everything matched) means no gallery block on the page. The
 artifact kit's `gallery-items.sh` turns that document into consultation items
 (`/aidex:artifact`, `04-block-vocabulary.md` § `gallery` pins the shape). The board and
 the image remain the developer's lens while building.
