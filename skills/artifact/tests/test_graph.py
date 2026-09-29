@@ -125,6 +125,11 @@ else:
     check("one <figure>, one <svg>, one caption",
           html.count("<figure") == 1 and html.count("<svg") == 1
           and "<figcaption>Un grafo</figcaption>" in html, html)
+    root = svg.split(">", 1)[0]
+    ratio = (float(re.search(r"max-width:([\d.]+)px", root).group(1))
+             / float(re.search(r'viewBox="\S+ \S+ (\S+) \S+"', root).group(1)))
+    check("a graph is shown at most 1.2x its viewBox width, its own cap (BL-513; "
+          "the diagram's is 1x) (%.3f)" % ratio, abs(ratio - 1.2) < 0.001)
     check("the Graphviz version is in the figure's comment",
           re.search(r"<!-- graph: graphviz \S+ -->", html) is not None)
     check("DOT's class= reaches the SVG (node acc, node mut, edge flg)",

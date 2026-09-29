@@ -15,7 +15,7 @@
  * running text, so the wider line is the lesser cost; if it ever reads long,
  * raise the body size, never re-add a second width. `test-artifact-kit.sh`
  * fails on any max-width inside the column. Two drawings are the exceptions,
- * both capped by the builder inline, never here: a `diagram` svg at 1.2x its
+ * both capped by the builder inline, never here: a `diagram` svg at 1x its
  * viewBox width, and a hand `figure` block's wrapper at its viewBox width (BL-511),
  * so neither is blown up past the size it was drawn at. */
 

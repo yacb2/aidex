@@ -54,9 +54,33 @@ try:
     check("beta: the reason is shown", "No expresable todavía: wireframe: "
           "razón sintética de prueba" in html)
     check("beta: no engine figure", 'id="beta-eng"' not in html)
+    h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.S)
+    check("the H1 states the finding, counted from the manifest (1 of 2)",
+          h1 is not None and "El motor dibuja 1 de 2 figuras" in h1.group(1),
+          h1.group(1) if h1 else "no h1")
+    check("the count line for one says it in the singular",
+          '">1 no es expresable todavía. Cada sección' in html)
     check("the handoff prints the page and the rubric, no shots without a probe",
           page in r.stdout and "05-visual-review.md" in r.stdout
           and "shot:" not in r.stdout, r.stdout)
+
+    print("== order and plural: wireframes last, set order kept within a group ==")
+    ordd = os.path.join(tmp, "ord")
+    shutil.copytree(FIXTURE, ordd)
+    shutil.copytree(os.path.join(ordd, "beta"), os.path.join(ordd, "gamma"))
+    shutil.copytree(os.path.join(ordd, "alfa"), os.path.join(ordd, "delta"))
+    with open(os.path.join(ordd, "set.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("id\tkind\tsource\nbeta\twireframe\tx\ngamma\twireframe\tx\n"
+                 "alfa\tpipeline\tx\ndelta\ttree\tx\n")
+    r = run(ordd, os.path.join(tmp, "ord-out"))
+    oh = open(os.path.join(tmp, "ord-out", "reference-set.html"),
+              encoding="utf-8").read() if r.returncode == 0 else ""
+    at = [oh.find('id="s-%s"' % i) for i in ("alfa", "delta", "beta", "gamma")]
+    check("drawable entries come first, wireframes after, manifest order inside "
+          "each group", r.returncode == 0 and -1 not in at and at == sorted(at),
+          str(at) + r.stderr)
+    check("the count line for two says it in the plural",
+          '">2 no son expresables todavía. Cada sección' in oh)
 
     print("== a manifest entry with no directory ==")
     bad = os.path.join(tmp, "bad")

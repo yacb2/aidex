@@ -508,7 +508,13 @@ d -> s
 
 `dir` (`row` only) is `lr` (ranks left to right) or `tb` (one box per line, top to
 bottom, in declaration order). Unset, it is `lr` when that drawing fits the page's 720
-units and `tb` otherwise. An `lr` drawing wider than 320 units also gets a `tb` twin,
+units; when it does not, the columns wrap into as many `lr` rows as the page needs, each
+row read left to right and the next one under it, with an arrow that crosses to another
+row going out by the gap after its box, along the space between the two rows and in by
+the gap before its target (no box lies in either, so it never passes through one; a
+backward arrow is the same in `flg`). `tb` only when even one column per row is over the
+page. An explicit `dir=lr` stays ONE row however wide, and `dir=tb` one box per line: the
+author forced them. An `lr` drawing wider than 320 units also gets a `tb` twin,
 and the figure shows the twin at 48rem and under: the kit stretches a figure to its
 column, and at 390 px a wide flow would draw its text under 11 px. A `tb` drawing is
 narrowed toward those 320 units by wrapping a long label and a long sublabel, each on its
@@ -531,7 +537,7 @@ b1: Escribir las cajas
 drawn in the kit's `--sans` token (`style="font-family:var(--sans)"` on the root), and
 the width is the larger of `chart_svg._text_width` (0.62 em per character, East-Asian
 Wide and Fullwidth ones counted twice) and `check_artifact`'s own proportional estimate,
-counting **characters**, never bytes. The root also carries a `max-width` of 1.2 px per
+counting **characters**, never bytes. The root also carries a `max-width` of 1 px per
 unit, so a short row is never stretched past body size. Nothing is ever clipped: a
 drawing wider than its column scales down as one figure, and a single box wider than
 the page is refused instead.
@@ -791,8 +797,8 @@ is `fill="currentColor"`, and the labels are drawn in the kit's `--mono` stack â
 build passes `fontname=monospace` as the default, so Graphviz sizes each box with a
 monospace advance.
 
-A graph is shown at **most 1.2x its viewBox width**, the same cap as `diagram`
-(`MAX_SCALE`, BL-513): the builder writes `style="max-width:<1.2 x width>px"` on the
+A graph is shown at **most 1.2x its viewBox width** (`graph_svg.GRAPH_SCALE`, BL-513;
+a `diagram` is capped at 1x, `MAX_SCALE`): the builder writes `style="max-width:<1.2 x width>px"` on the
 graph's root `<svg>` (not on the `<figure>`, so the caption keeps the column), and it
 still shrinks to the column at 390. The kit's `figure svg { width: 100% }` had stretched
 a 62-wide vertical chain to the whole column (14.3x at 1280).

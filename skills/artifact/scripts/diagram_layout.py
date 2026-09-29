@@ -43,7 +43,9 @@ previous one, or further when a box pointing FORWARD at it (declared earlier)
 is further on. Two consecutive boxes that one box points at share a rank — a
 branch, stacked in one column; nothing else is stacked.
 `lr` places ranks left to right and is the default when that drawing fits the
-page (`MAX_BOX_W`); otherwise `tb`, one box per line in declaration order.
+page (`MAX_BOX_W`); otherwise the columns wrap into `lr` rows (`_wrap_lr`, cross
+arrows in `_layout_lr`), and only when one column alone is over the page, `tb`,
+one box per line in declaration order.
 A wide `lr` drawing also gets a `tb` twin for narrow screens (`drawings()`):
 the kit stretches a figure to its column, and a 700-unit flow in a 294 px
 column draws 13-unit text at 5 px.
@@ -52,6 +54,7 @@ Everything is refused, or laid out. Nothing is silently clipped.
 """
 
 import copy
+import itertools
 import math
 import os
 import re
@@ -117,9 +120,11 @@ DEC_X = 12.0
 VGAP = 14.0            # between two boxes stacked in one `lr` column
 TB_GAP = 28.0          # between two boxes of a `tb` drawing: the arrow corridor
 # A drawing is shown at most this many px per viewBox unit (a max-width on the
-# root): 13-unit labels at 15.6 px, under the kit's 17 px body. Without it the
-# kit's `figure svg { width: 100% }` blew a short row up to twice body size.
-MAX_SCALE = 1.2
+# root): 13-unit labels at 13 px, the size a hand figure's text is drawn at (its
+# viewBox is its display width). Without it the kit's `figure svg { width: 100% }`
+# blew a short row up to twice body size; at 1.2 the engine's text read 15.6 px
+# beside the page's 13 px hand figures (BL-515 phase 4).
+MAX_SCALE = 1.0
 # A drawing at most this wide keeps 12-unit sublabels at 11 px in the kit's
 # 294 px column at 390 (294 * 12 / 11); a wider `lr` gets a `tb` twin.
 NARROW_W = 320.0
@@ -909,8 +914,40 @@ def _lanes(runs, step):
     return out
 
 
-def _layout_lr(boxes, arrows, by_name, rank):
+# A cross arrow's ports are the ones its ROLE already owns in a band: a forward
+# arrow leaves the right face and enters the left face PORT above the middle
+# (a skip's side ports), a backward one leaves the left face and enters the right
+# face PORT below it. A cross arrow then shares a port only with an arrow of
+# the same role at the same box (a fan out or in), and never sits within 3.5
+# units of a port another role owns.
+def _cross_route(s, d, forward, xo, xi, ys, chan):
+    """A cross arrow of a wrapped row: `xo` the track it leaves by, `xi` the one
+    it arrives by, `ys` the y of each corridor leg it runs along (one, or two
+    when `chan` is the x of the channel that carries it past a whole band).
+
+    Forward: out of the source's right face, into the target's left face.
+    Backward: out of the source's left face, into the target's right face, in
+    `flg`."""
+    if forward:
+        p0, p1 = (s.x + s.w, s.cy - PORT), (d.x, d.cy - PORT)
+    else:
+        p0, p1 = (s.x, s.cy + PORT), (d.x + d.w, d.cy + PORT)
+    pts = [p0, (xo, p0[1]), (xo, ys[0])]
+    if chan is not None:
+        pts += [(chan, ys[0]), (chan, ys[1]), (xi, ys[1])]
+    else:
+        pts += [(xi, ys[0])]
+    pts += [(xi, p1[1]), p1]
+    return Route(pts, _tip(pts[-2], pts[-1]), "mut" if forward else "flg")
+
+
+def _layout_lr(boxes, arrows, by_name, rank, cuts=()):
     """A `row` left to right: ranks as columns, then one route per arrow.
+
+    `cuts` are the column indexes that start a new ROW of the drawing: the
+    columns are then laid out left to right in bands, each band flush left and
+    the next one below it (see § Wrapped rows below). Empty: one band, the
+    drawing this function has always made.
 
     Placement: a column is as wide as its WIDEST box and its boxes take that
     width, stacked and centred on y=0, so every face of a column is flush with
@@ -939,12 +976,30 @@ def _layout_lr(boxes, arrows, by_name, rank):
 
     One track per arrow in a gap, one lane per arrow above or below
     (`_lanes`): two arrows that share no box share no stretch of line.
+
+    Wrapped rows. Each band is drawn as above, from its own arrows. An arrow
+    whose two ends sit in different bands (a CROSS arrow) leaves by the gap
+    track after its source's column (or, backward, before it) and arrives by
+    the gap track before its target's column (after it), exactly like a detour,
+    and runs between the two along the CORRIDOR under the upper band, where
+    the bands hold no box. A gap holds no box, so the vertical stretch in it is
+    clear; when it must pass a whole band it runs in a channel right of
+    everything (forward) or left of everything (backward), which holds no box
+    either. That is why the rows read left to right with a return arrow rather
+    than boustrophedon: the reading order of every row stays the same, and the
+    return arrow needs nothing but a corridor and gap tracks, which exist.
     """
     cols = []
     for b in boxes:
         if rank[b.name] == len(cols):
             cols.append([])
         cols[rank[b.name]].append(b)
+    band, nb_ = [], 0
+    for r in range(len(cols)):
+        if r in cuts:
+            nb_ += 1
+        band.append(nb_)
+    bands = nb_ + 1
     top = {c[0].name for c in cols}
     bottom = {c[-1].name for c in cols}
     order = {b.name: i for i, b in enumerate(boxes)}
@@ -956,7 +1011,10 @@ def _layout_lr(boxes, arrows, by_name, rank):
     for a in arrows:
         s, d = by_name[a.src], by_name[a.dst]
         rs, rd = rank[a.src], rank[a.dst]
-        if rd == rs + 1:
+        if band[rs] != band[rd]:
+            need.append(((rs, 0), (rd - 1, 1)) if rd > rs
+                        else ((rs - 1, 1), (rd, 0)))
+        elif rd == rs + 1:
             need.append((None, None))
         elif rd == rs:
             need.append(((rs, 0), None))
@@ -980,12 +1038,12 @@ def _layout_lr(boxes, arrows, by_name, rank):
 
     x = 0.0
     for r, col in enumerate(cols):
+        if r in cuts:
+            x = 0.0
         cw = max(b.w for b in col)
-        y = -(sum(b.h for b in col) + VGAP * (len(col) - 1)) / 2.0
         for b in col:
             b.w = cw
-            b.x, b.y = x, y
-            y += b.h + VGAP
+            b.x = x
         n = count.get((r, 0), 0) + count.get((r, 1), 0)
         x += cw + max(GAP, 2 * TRACK0 + (n - 1) * LANE if n else 0.0)
     left = [c[0].x for c in cols]
@@ -996,6 +1054,97 @@ def _layout_lr(boxes, arrows, by_name, rank):
         if half == 0:
             return right[g] + TRACK0 + k * LANE
         return left[g + 1] - TRACK0 - k * LANE
+
+    # Bands, top to bottom. A band is as tall as its tallest column, and the
+    # corridor under it holds, from the top: its own below-lanes, the cross
+    # arrows' lanes, the next band's above-lanes. Reserved from the arrow
+    # counts, since the lanes themselves are placed once the boxes are.
+    cross = [i for i, a in enumerate(arrows)
+             if band[rank[a.src]] != band[rank[a.dst]]]
+    chan_r = chan_l = None
+    corridor = {}
+    if cross:
+        # Two bands are flush left, so the gap tracks of one can land on the
+        # x of another's, and a cross arrow's vertical runs the corridor between
+        # them. A band that would put a cross track within LANE / 2 of an
+        # earlier band's moves right by the smallest whole number of units
+        # that clears it (usually none).
+        ends = [(band[rank[a.src]], track(slot[i][0]))
+                for i, a in enumerate(arrows) if i in cross] + [
+                (band[rank[a.dst]], track(slot[i][1]))
+                for i, a in enumerate(arrows) if i in cross]
+        shifts, placed = [], []
+        for bi in range(bands):
+            mine = [x for bb, x in ends if bb == bi]
+            d = 0.0
+            while any(abs(x + d - u) < LANE / 2.0 for x in mine
+                      for u in placed):
+                d += 1.0
+            shifts.append(d)
+            placed += [x + d for x in mine]
+        for b in boxes:
+            b.x += shifts[band[rank[b.name]]]
+        left[:] = [c[0].x for c in cols]
+        right[:] = [c[0].x + c[0].w for c in cols]
+        xs_ = [b.x for b in boxes] + [b.x + b.w for b in boxes]
+        for pair in slot:
+            xs_ += [track(g_k) for g_k in pair if g_k]
+        chan_r, chan_l = max(xs_) + DETOUR, min(xs_) - DETOUR
+        runs = {}
+        nr = nl = 0
+        for i in cross:
+            a = arrows[i]
+            fwd = rank[a.dst] > rank[a.src]
+            bs, bd = band[rank[a.src]], band[rank[a.dst]]
+            xo, xi = track(slot[i][0]), track(slot[i][1])
+            if fwd and bd == bs + 1:
+                legs = [(bs, xo, xi)]
+            elif fwd:
+                xr = chan_r + nr * LANE
+                nr += 1
+                legs = [(bs, xo, xr), (bd - 1, xr, xi)]
+            elif bd == bs - 1:
+                legs = [(bd, xo, xi)]
+            else:
+                xl = chan_l - nl * LANE
+                nl += 1
+                legs = [(bs - 1, xo, xl), (bd, xl, xi)]
+            corridor[i] = legs
+            for k, (c, u, v) in enumerate(legs):
+                runs.setdefault(c, []).append(((i, k), min(u, v), max(u, v), 0.0))
+    n_below = [0] * bands
+    n_above = [0] * bands
+    for a in arrows:
+        rs, rd = rank[a.src], rank[a.dst]
+        if band[rs] == band[rd]:
+            if rd > rs + 1:
+                n_above[band[rs]] += 1
+            elif rd < rs:
+                n_below[band[rs]] += 1
+    cross_y = {}
+    cross_lane = {}
+    next_top = 0.0
+    for bi in range(bands):
+        cols_b = [c for r, c in enumerate(cols) if band[r] == bi]
+        heights = [sum(b.h for b in c) + VGAP * (len(c) - 1) for c in cols_b]
+        hb = max(heights)
+        centre = 0.0 if bi == 0 else next_top + hb / 2.0
+        for c, hc in zip(cols_b, heights):
+            y = centre - hc / 2.0
+            for b in c:
+                b.y = y
+                y += b.h + VGAP
+        if bi == bands - 1:
+            break
+        bottom = centre + hb / 2.0
+        lo = bottom + (DETOUR + (n_below[bi] - 1) * LANE if n_below[bi] else 0.0)
+        lanes_ = _lanes(runs.get(bi, []) if cross else [], LANE)
+        cross_lane.update(lanes_)
+        cross_y[bi] = lo + DETOUR
+        last = cross_y[bi] + max(lanes_.values()) if lanes_ else lo
+        next_top = max(last + DETOUR, bottom + 2 * DETOUR)
+        if n_above[bi + 1]:
+            next_top += DETOUR + (n_above[bi + 1] - 1) * LANE
 
     # The end stubs of each detour, before its lane is known: [(x, y)] from
     # the port to the foot of the vertical that reaches the lane.
@@ -1028,6 +1177,13 @@ def _layout_lr(boxes, arrows, by_name, rank):
     for i, a in enumerate(arrows):
         s, d = by_name[a.src], by_name[a.dst]
         rs, rd = rank[a.src], rank[a.dst]
+        if i in corridor:
+            routes.append(_cross_route(
+                s, d, rd > rs, track(slot[i][0]), track(slot[i][1]),
+                [cross_y[c] + cross_lane[(i, k)]
+                 for k, (c, _u, _v) in enumerate(corridor[i])],
+                corridor[i][0][2] if len(corridor[i]) == 2 else None))
+            continue
         if rd == rs + 1:
             p0, p1 = (s.x + s.w, s.cy), (d.x, d.cy)
             if p0[1] == p1[1]:
@@ -1048,6 +1204,50 @@ def _layout_lr(boxes, arrows, by_name, rank):
             tone = "mut" if rd > rs else "flg"
         routes.append(Route(pts, _tip(pts[-2], pts[-1]), tone))
     return routes
+
+
+def _balance(cw, rows):
+    """The cut of the columns (widths `cw`) into `rows` rows whose widest row is
+    the narrowest: the greedy cut fills each row and leaves the remainder alone
+    (4 + 1), this one evens them out (3 + 2). At most 8 columns, so every cut is
+    tried; of equal ones the fuller upper rows win (3 + 2, not 2 + 3), so it is deterministic."""
+    def widest(cuts):
+        edges = (0,) + cuts + (len(cw),)
+        return max(sum(cw[a:b]) + GAP * (b - a - 1)
+                   for a, b in zip(edges, edges[1:]))
+    best = min(itertools.combinations(range(1, len(cw)), rows - 1), key=lambda c: (widest(c), tuple(-i for i in c)))
+    return set(best)
+
+
+def _wrap_lr(boxes, arrows, by_name, rank):
+    """A `row` too wide for the page, laid out lr in as many rows as it needs.
+
+    The columns are cut greedily to a width budget; the drawing is then placed
+    for real (`_layout_lr` with the cuts) and measured, since the tracks and
+    channels the cross arrows need are only known then. Each pass that is still
+    over MAX_BOX_W tightens the budget by the excess, down to one column per
+    row. Returns `(routes, cuts)`: the drawing may still be wider than the page
+    when one column alone is (the caller then falls back to `tb`)."""
+    ncols = max(rank.values()) + 1
+    cw = [max(b.w for b in boxes if rank[b.name] == r) for r in range(ncols)]
+    floor = max(cw)
+    limit = MAX_BOX_W - 2 * MARGIN
+    while True:
+        cuts, x = set(), None
+        for r in range(ncols):
+            if x is not None and x + GAP + cw[r] <= limit:
+                x += GAP + cw[r]
+            else:
+                if x is not None:
+                    cuts.add(r)
+                x = cw[r]
+        cuts = _balance(cw, len(cuts) + 1)
+        routes = _layout_lr(boxes, arrows, by_name, rank, cuts)
+        x0, _y0, x1, _y1 = _bounds(boxes, routes, [], None)
+        width = (x1 - x0) + 2 * MARGIN
+        if width <= MAX_BOX_W or limit <= floor:
+            return routes, cuts
+        limit = max(floor, limit - max(width - MAX_BOX_W, 1.0))
 
 
 def _wrap(text, width, limit):
@@ -1630,7 +1830,10 @@ def layout(shape, boxes, arrows, titles, direction=None):
             direction = "top-down"
     elif shape == "row":
         rank = _ranks(boxes, arrows)
-        routes = _layout_lr(boxes, arrows, by_name, rank)
+        if direction == "wrap":
+            routes, _cuts = _wrap_lr(boxes, arrows, by_name, rank)
+        else:
+            routes = _layout_lr(boxes, arrows, by_name, rank)
         direction = "lr"
     elif shape == "before-after":
         lanes = [[b for b in boxes if b.lane == 0],
@@ -1666,8 +1869,9 @@ def layout(shape, boxes, arrows, titles, direction=None):
 def drawings(shape, boxes, arrows, titles, direction=None):
     """`(main, narrow)`: the drawing a page shows, and its twin for 390 px.
 
-    A `row` with no `direction` is `lr` when that drawing fits the page and
-    `tb` otherwise. `narrow` is a `tb` drawing when the main one is an `lr`
+    A `row` with no `direction` is `lr` when that drawing fits the page, `lr`
+    wrapped into rows when it does not, and `tb` when even one column per row
+    is over the page. `narrow` is a `tb` drawing when the main one is an `lr`
     wider than NARROW_W, so small screens reflow instead of shrinking the text
     under 11 px; None otherwise (every other shape, a forced `tb`, a row
     narrow enough already).
@@ -1706,7 +1910,11 @@ def drawings(shape, boxes, arrows, titles, direction=None):
     if SHAPE_ALIASES[shape] != "row":
         return main, None
     if direction is None and main.view[2] > MAX_BOX_W:
-        main = layout(shape, boxes, arrows, titles, "tb")
+        # Too wide for one row: rows of columns, each left to right. `tb`
+        # only when even one column per row is over the page.
+        wrapped = layout(shape, boxes, arrows, titles, "wrap")
+        main = (wrapped if wrapped.view[2] <= MAX_BOX_W
+                else layout(shape, boxes, arrows, titles, "tb"))
     if main.dir == "lr" and main.view[2] > NARROW_W:
         return main, layout(shape, boxes, arrows, titles, "tb")
     return main, None

@@ -242,7 +242,7 @@ awk -v a="$w1280" 'BEGIN { exit !(a >= 359 && a <= 360.5) }' \
 awk -v a="$w390" -v c="$col390" 'BEGIN { exit !(a > 0 && a <= c) }' \
   && ok "the figure fits the ${col390} px column at 390 (${w390} px)" || bad "the figure is ${w390} px wide in a ${col390} px column at 390 ($fig)"
 
-echo "== a graph is drawn at most at diagram's 1.2x its viewBox width (BL-513) =="
+echo "== a graph is drawn at most at 1.2x its viewBox width (BL-513) =="
 # The kit's `figure svg { width: 100% }` stretched a Graphviz graph to the 888 px
 # column at 1280: a 62x404 vertical chain rendered 888 px wide, 14.3x, some 5,800 px
 # tall. #cadena must render between 1.0x and 1.2x its viewBox width at 1280; #fila,

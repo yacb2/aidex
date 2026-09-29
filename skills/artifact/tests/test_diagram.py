@@ -46,6 +46,7 @@ Six groups:
 Stdlib only, no runner: `python3 test_diagram.py`, prints OK, exits 0.
 """
 import html as _html
+import itertools
 import math
 import os
 import re
@@ -687,6 +688,17 @@ try:
           all('font-family:var(--sans)' in s.split(">", 1)[0] for s in svgs))
     check("...and never grows past MAX_SCALE (a max-width on the root)",
           all(re.search(r'max-width:[\d.]+px', s.split(">", 1)[0]) for s in svgs))
+    # Hand figures draw at display size (13 px text, 1 unit = 1 CSS px, capped
+    # at their viewBox width). An engine figure scaled up shows 13-unit text
+    # bigger than the page's own figures: BL-515 phase 4, 15.6 px vs 13.
+    ratios = []
+    for s in svgs:
+        root = s.split(">", 1)[0]
+        cap = float(re.search(r'max-width:([\d.]+)px', root).group(1))
+        vw = float(re.search(r'viewBox="\S+ \S+ (\S+) \S+"', root).group(1))
+        ratios.append(cap / vw)
+    check("...and shows at most 1 CSS px per viewBox unit, like a hand figure "
+          "(ratios %s)" % ratios, all(r <= 1.0 + 1e-9 for r in ratios))
     check("the sublabel is a second, smaller, muted line inside its box",
           re.search(r'<text class="mut"[^>]*font-size="%s"[^>]*>en partes<'
                     % ds._num(dl.SUB_FS), svgs[0]) is not None, svgs[0])
@@ -701,8 +713,12 @@ try:
                             for i in range(6)])
     lw, ln = dl.drawings("row", *dl.parse_body(
         [(i + 2, x) for i, x in enumerate(long_f.split("\n")[1:-1])], "row"))
-    check("a flow too wide for the page is drawn top to bottom, alone",
-          lw.dir == "tb" and ln is None, "dir=%s" % lw.dir)
+    lb = by_name(lw)
+    check("a flow too wide for the page wraps into rows, each left to right, "
+          "instead of one tall column (dir=%s, %.0f wide)" % (lw.dir, lw.view[2]),
+          lw.dir == "lr" and lw.view[2] <= dl.MAX_BOX_W
+          and 1 < len({round(b.y) for b in lb.values()}) < len(lb)
+          and ln is not None and ln.dir == "tb")
     short = build(fence("row", "a: uno", "b: dos", "a -> b"))
     check("a flow narrow enough for 390 needs no second drawing",
           len(re.findall(r"<svg\b", short)) == 1 and "<style>" not in short)
@@ -950,7 +966,7 @@ try:
     sub_body = ("a: Delegar al agente | una segunda linea bastante larga "
                 "para esta caja", "b: Firmar el contrato con el cliente",
                 "c: Archivar", "a -> b", "b -> c")
-    sub_ = dl.drawings("row", *parsed(*sub_body))[0]
+    sub_ = dl.drawings("row", *parsed(*sub_body), direction="tb")[0]
     check("a long sublabel: the tb drawing keeps text at 11 px or more at "
           "390 (%.0f wide)" % sub_.view[2],
           sub_.dir == "tb" and legible(sub_))
@@ -1060,6 +1076,201 @@ try:
           % len(bad_rows), not bad_rows, str(bad_rows[:3]))
     check("random sweep: no tb text is wrapped when it fits its box whole "
           "(%d needless)" % len(bad_wrap), not bad_wrap, str(bad_wrap[:3]))
+    # A `row` too wide for the page wraps into rows (dir unset). Layer: the
+    # layout, seeded random rows, since a wrap that is only right for a chain
+    # is the failure (P3 has a skip arrow across rows). Properties: every drawing
+    # within the page, more than one row, no overlap, no leg through a box, no
+    # shared port or stretch, reading order (row, then x) kept, deterministic.
+    def rows_of(L):
+        spans = sorted((b.y, b.y + b.h) for b in L.boxes)
+        rows_, cur = [], None
+        for lo, hi in spans:
+            # boxes stacked in one column are VGAP apart, two rows at least
+            # a corridor (2 * DETOUR)
+            if cur is not None and lo < cur[1] + 2 * dl.DETOUR - 1e-9:
+                cur[1] = max(cur[1], hi)
+            else:
+                cur = [lo, hi]
+                rows_.append(cur)
+        return rows_
+
+    def row_index(L, b):
+        return [i for i, r in enumerate(rows_of(L))
+                if r[0] - 1e-9 <= b.y and b.y + b.h <= r[1] + 1e-9][0]
+
+    # Reviewer's minimal input: d->a and e->c once ran on one vertical at x=286.4.
+    L = drawn(*(["%s: %s" % (x, x.upper() * 26) for x in "abcd"] + ["e: E"]
+                + ["a -> b", "b -> c", "c -> d", "d -> e", "d -> a", "e -> c"]))
+    check("wrapped: two cross arrows that share no box never share a stretch "
+          "(named case)", L.dir == "lr" and not merged(L, [
+              dl.Arrow(x.split(" -> ")[0], x.split(" -> ")[1], 0) for x in
+              ["a -> b", "b -> c", "c -> d", "d -> e", "d -> a", "e -> c"]]),
+          str(L.dir))
+    def doubled(L, arrows):
+        # parallel axis-aligned legs of two arrows that share no box, running
+        # side by side over more than 1 unit, closer than LANE / 2: one
+        # doubled line to the eye
+        out, R = [], L.routes
+        for i in range(len(R)):
+            for j in range(i + 1, len(R)):
+                a, b = arrows[i], arrows[j]
+                fan = a.src == b.src or a.dst == b.dst
+                if len(R[i].points) == 3 or len(R[j].points) == 3:
+                    continue
+                for p, q in zip(R[i].points, R[i].points[1:]):
+                    for u, v in zip(R[j].points, R[j].points[1:]):
+                        for ax in (0, 1):
+                            o = 1 - ax
+                            if not (p[o] == q[o] and u[o] == v[o]):
+                                continue
+                            lo = max(min(p[ax], q[ax]), min(u[ax], v[ax]))
+                            hi = min(max(p[ax], q[ax]), max(u[ax], v[ax]))
+                            gap = abs(p[o] - u[o])
+                            if fan and gap < 1e-9:
+                                continue      # a fan out of one port
+                            if hi - lo > 1 and gap < dl.LANE / 2 - 1e-9:
+                                out.append((a.src + a.dst, b.src + b.dst,
+                                            round(abs(p[o] - u[o]), 1)))
+        return out
+
+    wrng = _random.Random(20260929)
+    w_over, w_page, w_rows, w_ovl, w_in, w_merge, w_order, w_det = (
+        [], [], [], [], [], [], [], [])
+    w_dbl, w_all = [], []
+    wrapped_n, spanned_n = 0, 0
+    for _ in range(900):
+        n = wrng.randint(4, 8)
+        names = [chr(97 + i) for i in range(n)]
+        edges = set()
+        for i in range(n - 1):
+            if wrng.random() < 0.75:
+                edges.add((names[i], names[i + 1]))
+        for _k in range(wrng.randint(0, 6)):
+            edges.add(tuple(wrng.sample(names, 2)))
+        body = ["%s: %s%s" % (x, " ".join(x.upper() * wrng.randint(2, 14)
+                                          for _w in range(wrng.randint(1, 2))),
+                              " | " + " ".join(wrng.choice(WORDS) for _w in
+                                               range(wrng.randint(1, 4)))
+                              if wrng.random() < 0.3 else "")
+                for x in names] + ["%s -> %s" % e for e in sorted(edges)]
+        boxes_, arrows_, titles_ = parsed(*body)
+        flat = dl.layout("row", boxes_, arrows_, titles_, "lr")
+        if flat.view[2] <= dl.MAX_BOX_W:
+            continue
+        wrapped_n += 1
+        L = dl.drawings("row", boxes_, arrows_, titles_)[0]
+        L2 = dl.drawings("row", boxes_, arrows_, titles_)[0]
+        tag = " ; ".join(body)
+        if [r.points for r in L.routes] != [r.points for r in L2.routes]:
+            w_det.append(tag)
+        if L.dir != "lr" or L.view[2] > dl.MAX_BOX_W:
+            w_page.append((L.dir, round(L.view[2]), tag))
+            continue
+        if len(rows_of(L)) < 2:
+            w_rows.append(tag)
+        bl = L.boxes
+        if any(a.x < b.x + b.w - 1e-9 and b.x < a.x + a.w - 1e-9
+               and a.y < b.y + b.h - 1e-9 and b.y < a.y + a.h - 1e-9
+               for i, a in enumerate(bl) for b in bl[i + 1:]):
+            w_ovl.append(tag)
+        if entered(L):
+            w_in.append((entered(L)[:2], tag))
+        if merged(L, arrows_):
+            w_merge.append((merged(L, arrows_)[:2], tag))
+        if doubled(L, arrows_):
+            w_dbl.append((doubled(L, arrows_)[:2], tag))
+        keys = [(row_index(L, b), b.x) for b in bl]
+        if any(k1 > k2 for k1, k2 in zip(keys, keys[1:])):
+            w_order.append(tag)
+        w_all.append((tag, L))
+        by_ = by_name(L)
+        spanned_n += any(row_index(L, by_[a.src]) != row_index(L, by_[a.dst])
+                         for a in arrows_)
+    check("wrap sweep: enough rows really wrapped (%d of 900, %d with an arrow "
+          "across rows)" % (wrapped_n, spanned_n),
+          wrapped_n >= 450 and spanned_n >= 300)
+    check("wrap sweep: every wrapped drawing is lr and within the page (%d out)"
+          % len(w_page), not w_page, str(w_page[:3]))
+    check("wrap sweep: every one has more than one row (%d single)" % len(w_rows),
+          not w_rows, str(w_rows[:2]))
+    check("wrap sweep: no two boxes overlap (%d)" % len(w_ovl), not w_ovl,
+          str(w_ovl[:2]))
+    check("wrap sweep: no leg enters a box it does not join (%d)" % len(w_in),
+          not w_in, str(w_in[:2]))
+    check("wrap sweep: no shared port or stretch between unrelated arrows (%d)"
+          % len(w_merge), not w_merge, str(w_merge[:2]))
+    check("wrap sweep: parallel legs of unrelated arrows are at least LANE / 2 "
+          "apart (%d doubled)" % len(w_dbl), not w_dbl, str(w_dbl[:3]))
+    check("wrap sweep: reading order is kept, row then left to right (%d)"
+          % len(w_order), not w_order, str(w_order[:2]))
+    check("wrap sweep: deterministic (%d differ)" % len(w_det), not w_det,
+          str(w_det[:2]))
+    # The cut is balanced: fewest rows, then the narrowest widest row. Synthetic
+    # five-step flow shaped like the reference set's P2 (733 flat): the
+    # greedy cut left the last box alone on row 2 (4 + 1).
+    p2 = drawn("p: Plan", "i: Implementar | codigo + pruebas",
+               "v: Verificar | revisar-cambios",
+               "s: Suite completa | nada corre solo", "c: Commit local | listo",
+               "p -> i", "i -> v", "v -> s", "s -> c")
+    p2b = by_name(p2)
+    check("a five-box flow just over the page wraps 3 + 2, not 4 + 1",
+          [sorted(n for n in p2b if row_index(p2, p2b[n]) == r)
+           for r in range(2)] == [["i", "p", "v"], ["c", "s"]],
+          str({n: (round(b.x), round(b.y)) for n, b in p2b.items()}))
+    w_unbal = []
+    for tag, L in w_all:
+        rws = {}
+        for b in L.boxes:
+            rws.setdefault(row_index(L, b), {})[round(b.x, 1)] = b.w
+        flat_ = [w for r in sorted(rws) for _x, w in sorted(rws[r].items())]
+        sizes = [len(rws[r]) for r in sorted(rws)]
+        k = len(sizes)
+
+        def widest(sz):
+            i, out = 0, 0.0
+            for m in sz:
+                out = max(out, sum(flat_[i:i + m]) + dl.GAP * (m - 1))
+                i += m
+            return out
+        best = min(widest([b - a for a, b in zip((0,) + c, c + (len(flat_),))])
+                   for c in itertools.combinations(range(1, len(flat_)), k - 1))
+        if widest(sizes) > best + 1e-6:
+            w_unbal.append((sizes, tag))
+    check("wrap sweep: the widest row is the narrowest any cut into that many "
+          "rows gives (%d unbalanced)" % len(w_unbal), not w_unbal,
+          str(w_unbal[:2]))
+    # A compare whose panel A body is a row too wide to sit beside panel B: the
+    # row wraps inside its frame (BL-515 phase 4 review).
+    cbody = (["panel row Opción A"] + ["%s: %s" % (x, x.upper() * 20) for x in "abcd"]
+             + ["a -> b", "b -> c", "c -> d", "outcome Ana edita", "recommended",
+                "panel tree Opción B", "r: " + "R" * 40, "s: " + "S" * 40,
+                "r -> s", "outcome Ana borra"])
+    cm, ct = dl.drawings("compare", *dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(cbody)], "compare"))
+    cb = cm.boxes
+    inside = all(any(f[0] <= b.x and b.x + b.w <= f[0] + f[2]
+                     and f[1] <= b.y and b.y + b.h <= f[1] + f[3]
+                     for f in [p.frame for p in cm.panels]) for b in cb)
+    fa, fb = cm.panels[0].frame, cm.panels[1].frame
+    check("compare with a wrapped row body: within the page (%.0f), twin "
+          "narrower, no box overlap, every box in a frame, frames apart"
+          % cm.view[2],
+          cm.view[2] <= dl.MAX_BOX_W and ct is not None
+          and ct.view[2] < cm.view[2] and inside
+          and not any(a.x < b.x + b.w and b.x < a.x + a.w
+                      and a.y < b.y + b.h and b.y < a.y + a.h
+                      for i, a in enumerate(cb) for b in cb[i + 1:])
+          and (fa[0] + fa[2] <= fb[0] or fa[1] + fa[3] <= fb[1]))
+    forced = dl.drawings("row", *parsed(*(
+        ["b%d: una etiqueta bastante larga %d" % (i, i) for i in range(6)])),
+        direction="lr")[0]
+    check("dir=lr stays one row however wide (%.0f wide)" % forced.view[2],
+          forced.view[2] > dl.MAX_BOX_W and len(rows_of(forced)) == 1)
+    huge = dl.drawings("row", *parsed("a: " + "x" * 88, "b: B",
+                                      "a -> b"))[0]
+    check("a row with one box wider than a row can hold (%.0f) keeps the tb "
+          "drawing" % dl.box_width("x" * 88), huge.dir == "tb")
+
     # A literal bar in a label is `\|`.
     b = dl.parse_body([(2, "x: a \\| b")], "row")[0][0]
     check("`\\|` is a literal bar, not a sublabel",

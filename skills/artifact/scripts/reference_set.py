@@ -83,13 +83,19 @@ def main(argv):
         sys.stderr.write(__doc__)
         return 2
     set_dir, out_dir = argv
-    rows = read_manifest(set_dir)
+    # What the engine can draw first, the wireframes (a different route) last;
+    # the manifest's order holds inside each group (sorted() is stable).
+    rows = sorted(read_manifest(set_dir), key=lambda r: r[1] == "wireframe")
     os.makedirs(os.path.join(out_dir, "figures"), exist_ok=True)
     drawn = sum(os.path.isfile(os.path.join(set_dir, r[0], "engine.diagram")) for r in rows)
-    spec = ['::: masthead {title="Conjunto de referencia de figuras" eyebrow="Motor de diagramas"}',
-            "El motor dibuja %d de %d figuras; %d no son expresables todavía. Cada "
-            "sección pone la figura hecha a mano junto a lo que el motor dibuja hoy."
-            % (drawn, len(rows), len(rows) - drawn),
+    # The H1 is the finding, counted from the manifest; the line under it says
+    # what the rest are and how a section reads.
+    spec = ['::: masthead {title="El motor dibuja %d de %d figuras de referencia" '
+            'eyebrow="Motor de diagramas"}' % (drawn, len(rows)),
+            "%s todavía. Cada sección pone la figura hecha a mano junto a lo "
+            "que el motor dibuja hoy."
+            % ("1 no es expresable" if len(rows) - drawn == 1
+               else "%d no son expresables" % (len(rows) - drawn)),
             ":::", ""]
     for ident, kind, _source in rows:
         spec += section(set_dir, out_dir, ident, kind)
