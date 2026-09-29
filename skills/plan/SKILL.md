@@ -21,8 +21,10 @@ the mode outright ("plan this as scoped", "/aidex:plan full"). Canon:
 
 The discriminator is **not size** — it is whether more than one viable design exists and
 whether choosing wrong is expensive. Delegate the investigation to a **subagent**
-(`Explore` or `general-purpose`, `model-policy: inherit-session` — a repo read at the
-session's own depth, deliberately not pinned): it may read as much of the repo as it
+(a read-only lookup agent: your roster's own lookup agent when one is registered, otherwise
+`Explore`; never an unrestricted `general-purpose`, which carries the full tool schema for
+a read; `model-policy: inherit-session` — a repo read at the session's own depth,
+deliberately not pinned): it may read as much of the repo as it
 needs, but its output contract is fixed — the five signals with their evidence, plus one recommended
 outcome. No design sketches, no architectural alternatives. If it cannot decide from what
 it read, the outcome is already `research`.
