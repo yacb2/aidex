@@ -58,6 +58,17 @@ gallery rows: `scripts/gallery-items.sh` turns the project's rows JSON into item
 before the wrap, `scripts/gallery-reply.sh` parses the pasted reply back
 (`references/02-local-first-artifacts.md` § Gallery rows).
 
+**On receiving a consultation reply — a paste, or the reader's own chat text,
+saved the same way — run `scripts/save-reply.sh <page.html> [<reply-file>|-]`
+FIRST, before briefing the rewrite.** It saves the reply and a snapshot of the
+page as the reader answered it, then prints one DUTY line per marked item;
+paste that list into the rewrite brief verbatim. A `[show-me]` duty is
+fulfilled by launching `figure-sonnet` or `verify-browser-opus` BEFORE the page
+brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
+that does not carry out a printed duty — no bypass
+(`references/02-local-first-artifacts.md` § "The reply is saved before the
+next round is built (BL-475)").
+
 Per-project design tokens live in `.context/artifact-style.md` (template:
 `assets/templates/artifact-style.md.template`), including a `language:` field
 in its `## Language` section that `wrap-report.sh` reads as the artifact's
@@ -123,7 +134,9 @@ on the HTML route) has passed `check-artifact`:
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
 2. Launch the `artifact-grader` agent with the request, the two shots
-   (`<name>-1280.png`, `<name>-390.png`) and the path of `references/05-visual-review.md`.
+   (`<name>-1280.png`, `<name>-390.png`), the path of `references/05-visual-review.md`, and
+   — for a consultation round built over a reply — the DUTIES list `save-reply.sh` printed:
+   the grader scores each one met/not-met alongside the rubric.
 3. Score 9 or more: hand over. Under 9: fix the defects its FIXES list names, then run
    the loop again — **at most 3 rounds**. Still under 9 after the third: hand over with
    the grader's remaining deductions stated in the reply, never silently.

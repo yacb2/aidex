@@ -593,15 +593,29 @@ chips since kit v19) under its answer: one line, "Antes de responder necesito…
 seven checkboxes. Ticking any of them pastes a fixed marker as a mark under that item's
 id, and **which** markers is the whole point:
 
-| Marker | What it asks for | What the rewrite owes |
-|---|---|---|
-| **`[explain-state]`** | What exists today | The files by name, the current value printed from the tree, what is already there and what is not. This is the gap almost every time — it is the assumption the reader is objecting to. |
-| **`[explain-options]`** | What the alternatives are | Each option's consequence and its cost, including the cost of the one being recommended. Never a defence of the recommendation. |
-| **`[explain-why]`** | The reason or the risk the item claims | The evidence for the claim, stated as a claim: "no entiendo cuál es el peligro de borrar facturas" is answered with what breaks and how it was measured, not with the recommendation again. |
-| **`[explain-simpler]`** | The same explanation, plainer | Shorter and in fewer terms — the one ask about the FORM of the explanation rather than about a piece missing from it. Not more text: the item is already too dense, so answering it with an expansion is answering the opposite ask. |
-| **`[question]`** | Something no chip names | The reader's own question, typed in that item's notes box (ticking the chip focuses it). Answer THAT question in the next round, first, before re-explaining anything around it. |
-| **`[reframe]`** | The item is asking the wrong thing | **Re-frame the item, never just re-explain it.** Every other marker assumes the question is the right one; this one says it is not. The notes say why. The next round returns a DIFFERENT question — re-scoped, split, or dropped — and says in one line what changed and why. An item that comes back re-explained under the same framing has not been answered. |
-| **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, worked examples. Not more prose: the reader has said prose is not the shape that will land. |
+| Marker | What it asks for | What the rewrite owes | Gate |
+|---|---|---|---|
+| **`[explain-state]`** | What exists today | The files by name, the current value printed from the tree, what is already there and what is not. This is the gap almost every time — it is the assumption the reader is objecting to. | `check_marker_duties`: the item's body must differ from the answered snapshot |
+| **`[explain-options]`** | What the alternatives are | Each option's consequence and its cost, including the cost of the one being recommended. Never a defence of the recommendation. | `check_marker_duties`: body must differ |
+| **`[explain-why]`** | The reason or the risk the item claims | The evidence for the claim, stated as a claim: "no entiendo cuál es el peligro de borrar facturas" is answered with what breaks and how it was measured, not with the recommendation again. | `check_marker_duties`: body must differ |
+| **`[explain-simpler]`** | The same explanation, plainer | Shorter and in fewer terms — the one ask about the FORM of the explanation rather than about a piece missing from it. Not more text: the item is already too dense, so answering it with an expansion is answering the opposite ask. | `check_marker_duties`: word count must be lower than the answered snapshot |
+| **`[question]`** | Something no chip names | The reader's own question, typed in that item's notes box (ticking the chip focuses it). Answer THAT question in the next round, first, before re-explaining anything around it. | `check_marker_duties`: body must differ |
+| **`[reframe]`** | The item is asking the wrong thing | **Re-frame the item, never just re-explain it.** Every other marker assumes the question is the right one; this one says it is not. The notes say why. The next round returns a DIFFERENT question — re-scoped, split, or dropped — and says in one line what changed and why. An item that comes back re-explained under the same framing has not been answered. | `check_marker_duties`: the item's question fingerprint (`changed_questions`'s) must differ from the answered snapshot |
+| **`[show-me]`** | A different instrument | A mockup, a diagram, a before/after, worked examples. Not more prose: the reader has said prose is not the shape that will land. | `check_marker_duties`: a figure, image, svg or diagram inside the item |
+| **`[more-examples]`** | More worked examples, not a longer explanation | More visuals, tables or example blocks than the last round carried — never the same shape stretched longer. | `check_marker_duties`: visual+table+example count must be higher than the answered snapshot |
+| **`[page-defect]`** | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. | none — a page defect is not a re-ask |
+
+A `[not-now]` deferral (below) carries no re-ask duty either: the item leaves the round and is carried open on the ledger until the reader brings it back.
+
+**3+ markers stacked on one item is not a bigger version of any one of them — it
+is the ceiling, and it means "rewrite from the situation," never "answer each
+marker."** `check_marker_duties` gates a stacked item on exactly that: a figure
+inside it AND a body that differs from the answered snapshot, and nothing else
+— answering the individual markers one by one still fails. `[page-defect]` and
+`[not-now]` do not count toward the 3+: neither is a gap in the explanation, so
+an item carrying `[show-me]`, `[page-defect]` and `[not-now]` together is ONE
+real ask, not a stack, and `[page-defect]` keeps printing its own duty line
+even beside a stack that does collapse.
 
 **`[explain-term: X]` is RETIRED (kit v19).** The census of 333 answered items
 (`.context/research/2026-09-20-consultation-reply-census.md`) found **0** uses of it
@@ -622,14 +636,55 @@ dejo para otra ronda"**, which pastes **`[not-now]`**. It is answer-side, a radi
 with answering. A deferred question is not a blank: the count stops nagging, the item is
 carried as open in the next page's ledger and is not redrawn until asked for.
 
-**The reply is saved before the next round is built (BL-475).** The marks live in the
-reader's browser and in the paste, never on disk, so the session that receives a paste
-writes it verbatim to `.aidex-artifact-prev/<stem>.reply.md` beside the page, before
-briefing the rewrite. `check-artifact --prev` (every wrap with a baseline) then FAILS an
-item that paste marks `[show-me]` if the new round carries no figure, image or diagram
-inside that item, and WARNS when no reply newer than the baseline exists. Answering a
-`[show-me]` means a figure (`figure-sonnet`) or a screenshot (`verify-browser-opus`),
-never a longer paragraph.
+**The reply is saved before the next round is built (BL-475), and every marker's
+duty is enforced against a FIXED snapshot, never the moving contract baseline
+(BL-504).** The marks live in the reader's browser and in the paste, never on
+disk, so the session that receives a paste — or the reader's own chat text,
+saved the same way, no bypass — runs `scripts/save-reply.sh <page.html>
+[<reply-file>|-]` before briefing the rewrite. It writes the paste verbatim to
+`.aidex-artifact-prev/<stem>.reply.md` AND snapshots the page exactly as the
+reader answered it to `.aidex-artifact-prev/<stem>.answered.html`, then prints
+one DUTY line per marked item (the Gate column above) — paste that list into
+the brief.
+
+`.aidex-artifact-prev/<stem>.html`, the contract baseline `consult-ids` uses for
+id stability, is advanced on **every** passing wrap, by design. A check keyed to
+it — or to a reply-vs-baseline mtime — stops enforcing the moment a session
+re-wraps the page for any other reason (a contract fix, the visual grader's own
+pass) before the reader ever sees the round: that is exactly how a round shipped
+7 `[show-me]` items and 0 figures (2026-09-29, echo_lab owner-questions round
+2). `check_marker_duties` in `dash/check_artifact.py` never reads that file: it
+reads `.answered.html`, which nothing but `save-reply.sh` ever touches, so a
+duty is enforced on **every** wrap of the page — the first, the fifth, after the
+baseline has moved any number of times — until a newer reply replaces it. With
+no reply saved at all, the check cannot run and WARNS instead of passing
+silently. Answering a `[show-me]` means a figure (`figure-sonnet`) or a
+screenshot (`verify-browser-opus`), launched BEFORE the page brief, never a
+longer paragraph.
+
+An item decided in the round being checked (`data-decided`) is exempt from its
+own marked duty — it left the question set, so nothing about it is being
+re-asked.
+
+A duty never expires by being overwritten, and a second `save-reply.sh` cannot
+be used to escape one. If a previous reply exists and the page on disk does
+not yet meet every duty that reply named, a new paste is **appended** to
+`reply.md` under a `<!-- reply saved <iso time> -->` separator and
+`answered.html` is **left untouched** — the union of every mark the id has
+ever carried, across every appended block, is what the next check reads.
+Only once the page on disk satisfies every outstanding duty does a fresh
+reply **replace** `reply.md` and re-snapshot `answered.html`: that is a
+delivered round, not an unanswered one waved through by an unrelated
+follow-up.
+
+**What this does NOT do: it never makes the check-artifact gate itself into
+"a new round cannot be built without a saved reply."** `consult-round`
+currently counts wraps, not reader rounds — every passing wrap advances it by
+one whether or not the reader ever saw that round — so a hard refusal on
+"later round, no reply" would misfire on the first ordinary re-wrap of any
+page. That is BL-507 (`consult-round counts wraps, not reader rounds`), a
+separate, harder fix to `wrap_report.next_round`'s round-counting semantics,
+deliberately not implemented here.
 
 The markers are never translated — the labels the reader sees are, the tokens are not — and
 they are what says WHICH items to rewrite and WHICH WAY, so the next round rewrites exactly

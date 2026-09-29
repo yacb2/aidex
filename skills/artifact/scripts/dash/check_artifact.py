@@ -33,10 +33,15 @@ Checks (per file):
                the same claim, and no id disappears — a closed claim stays on
                the page; only a page declaring `consult-surfaces: none` (the
                closed-page exit) may drop ids (BL-396)
-  consult-show-me with --prev: an item the saved reply
-               (`.aidex-artifact-prev/<stem>.reply.md`) marks `[show-me]` carries a
-               figure, image or diagram this round; with no current reply it only
-               WARNS (BL-475)
+  consult-marker-duties with --prev: every ask marker a saved reply
+               (`.aidex-artifact-prev/<stem>.reply.md`) puts on an item owes a
+               checkable duty (02-local-first-artifacts.md, the asks table's Gate
+               column), judged against `.aidex-artifact-prev/<stem>.answered.html`
+               (`save-reply.sh`'s snapshot of the page as the reader answered it) —
+               never against the contract baseline, which is advanced on every
+               passing wrap and so cannot be what a round's duties are judged
+               against (BL-475, BL-504). With no reply/answered snapshot saved for
+               the page at all it only WARNS.
   svg-contrast figure text below 4.5:1 against what it is painted on, in either
                theme (BL-330). The one check with two severities: it FAILS a
                named file — the wrap — and only WARNS in `--census`, because a
@@ -2936,21 +2941,128 @@ def check_consultation(path, text, flat):
 
 
 
-# BL-475: a `[show-me]` ask is answered with a different instrument, never more
-# prose (02-local-first-artifacts.md, the asks table). The reader's marks live in
-# browser storage and in the paste, never on disk, so the session saves the paste
-# verbatim as `.aidex-artifact-prev/<stem>.reply.md` and this reads it. An ask is
-# the line `- [show-me]` under `### <id> · <title>`, exactly as composer.js pastes
-# it; the token typed inside a note is prose, not an ask.
+# BL-504: every ask marker owes a checkable duty, judged against the page the
+# reader actually answered — never against `.aidex-artifact-prev/<stem>.html`,
+# which BL-475's `[show-me]` rule used and which is advanced on EVERY passing
+# wrap (for id stability). A round shipped 7 [show-me] items and 0 figures
+# because the first re-wrap inside the round (the visual grader's own fixes)
+# already moved that baseline, so the mtime-vs-baseline test this replaces
+# silently downgraded to a WARN before the reader ever saw the round.
+#
+# `save-reply.sh` (dash/save_reply.py) is the only writer of both files below:
+# it snapshots the page being answered to `.aidex-artifact-prev/<stem>.answered.html`
+# and the paste to `.aidex-artifact-prev/<stem>.reply.md`, at the moment the
+# reply comes in — never touched by a wrap. So there is no mtime test here: once
+# a reply is saved, EVERY later wrap of the page is judged against that same
+# answered snapshot, until a newer reply replaces it.
 REPLY_ITEM = re.compile(r"^### (\S+) · ", re.M)
-SHOW_ME_LINE = re.compile(r"^- \[show-me\]\s*$", re.M)
+# Generic — every marker in the 02-local-first-artifacts.md asks table pastes
+# this shape (composer.js `readItem`/`markLabel`): `- [token]` on its own line.
+ASK_LINE = re.compile(r"^- \[([a-z][a-z-]*)\]\s*$", re.M)
 VISUAL_TAG = re.compile(r"<(?:svg|img|canvas|figure)\b", re.I)
+FIGURE_BLOCK = re.compile(r"<figure\b[^>]*>.*?</figure\s*>", re.I | re.S)
+BARE_VISUAL = re.compile(r"<(?:svg|img|canvas)\b", re.I)
+EXAMPLE_BLOCK = re.compile(r'<table\b|class=["\'][^"\']*\bexample\b', re.I)
+NORMALIZE_PUNCT = re.compile(r"[^\w\s]", re.U)
+
+# What the next round OWES for each marker (02-local-first-artifacts.md, the
+# asks table's "Gate" column). Printed by save-reply.sh, one line per marked
+# item, and referenced in the check failures below so the two never drift.
+MARKER_DUTIES = {
+    "show-me": ("a figure, image or diagram inside the item — launch "
+                "figure-sonnet or verify-browser-opus BEFORE the page brief, "
+                "never more prose"),
+    "more-examples": ("more visuals, tables or example blocks than the last "
+                       "round carried"),
+    "explain-simpler": "fewer words than the last round — cut, never expand",
+    "reframe": ("a DIFFERENT question, not the same one re-explained — split "
+                "it or drop it, and say in one line what changed"),
+    "explain-state": ("the files by name and the current value printed from "
+                       "the tree"),
+    "explain-options": ("each option's consequence and cost, not a defence "
+                         "of the recommendation"),
+    "explain-why": "the evidence for the claim, not the recommendation again",
+    "question": "the reader's own question, answered in the notes, first",
+    "page-defect": "fix the page defect in place without re-asking",
+    "not-now": "carry it open on the ledger; do not redraw it",
+}
+STACKED_DUTY = ("rewrite from the concrete situation with a figure; do not "
+                "answer marker by marker")
+# Markers whose duty is only judged by the item's normalised body changing —
+# an ask answered with the identical item is the one shape every one of them
+# fails the same way.
+BODY_CHANGE_MARKERS = {"explain-state", "explain-options", "explain-why", "question"}
+# `page-defect` and `not-now` are never a REASON to ask marker-by-marker: they
+# report a defect in the page itself or a deferral, neither is a gap in the
+# EXPLANATION, so neither counts toward the 3+ stack ceiling (review finding 2,
+# 2026-09-29) and `page-defect` always gets its own printed duty even beside a
+# stack that collapses the rest.
+NO_STACK_MARKERS = {"page-defect", "not-now"}
+# `page-defect` and `not-now` carry no per-item CHECK at all: neither of the
+# `if markset & ...` branches below names them, and that omission IS the rule.
 
 
-def check_show_me(new_path):
-    """(fails, warns) for the round built at new_path. A reply older than the
-    baseline belongs to a past round and is not enforced; with no current reply
-    the check cannot run, and says so instead of passing silently."""
+def marker_duties_of(reply_text):
+    """[(id, [marker, ...])], each list the UNION of every mark that id has
+    ever carried across the whole text, in first-seen order — not per block.
+
+    A saved reply can hold more than one `### <id> · ...` block for the same
+    id: `save_reply.save_reply` APPENDS a follow-up under a
+    `<!-- reply saved ... -->` separator rather than replacing the file while
+    a duty is still outstanding (BL-504 finding 1), so an id's marks must be
+    read from the ENTIRE accumulated text, never from the block nearest the
+    end — a later block that happens to mark fewer things must not silently
+    drop what an earlier block asked for."""
+    order = []
+    marks_by_id = {}
+    heads = list(REPLY_ITEM.finditer(reply_text))
+    for k, h in enumerate(heads):
+        end = heads[k + 1].start() if k + 1 < len(heads) else len(reply_text)
+        ident = h.group(1)
+        marks = ASK_LINE.findall(reply_text, h.end(), end)
+        if not marks:
+            continue
+        if ident not in marks_by_id:
+            marks_by_id[ident] = []
+            order.append(ident)
+        for m in marks:
+            if m not in marks_by_id[ident]:
+                marks_by_id[ident].append(m)
+    return [(i, marks_by_id[i]) for i in order]
+
+
+def _example_count(body):
+    """Visuals + tables + example blocks inside one item's body HTML, with
+    comments/script/style stripped first (a commented-out example, or the
+    literal string "example" sitting in a `<style>`/`<script>` block, is not
+    a worked example the reader can see) — the instrument `[more-examples]`
+    asks for more of. A `<figure>` wrapping its own `<svg>`/`<img>`/`<canvas>`
+    counts ONCE: re-wrapping the SAME image in a `<figure>` must not look like
+    a second example (review finding 3, 2026-09-29)."""
+    clean = strip_html_comments(strip_script_style(body))
+    figures = FIGURE_BLOCK.findall(clean)
+    remainder = FIGURE_BLOCK.sub(" ", clean)
+    return (len(figures) + len(BARE_VISUAL.findall(remainder))
+            + len(EXAMPLE_BLOCK.findall(remainder)))
+
+
+def _reframe_key(text):
+    """A STRICTER fingerprint than the plain body-changed comparison every
+    other marker uses: lower-cased, with punctuation removed — a comma added
+    or a capital changed is still the SAME question, and `[reframe]` demands
+    a genuinely different one, never a copy-edit of the old one (review
+    finding 4, 2026-09-29)."""
+    return re.sub(r"\s+", " ", NORMALIZE_PUNCT.sub("", text.casefold())).strip()
+
+
+def check_marker_duties(new_path):
+    """(fails, warns) for the round built at new_path, one FAIL per item whose
+    marked duty the new round does not carry out, judged against
+    `.aidex-artifact-prev/<stem>.answered.html` (save_reply.marker_duties_of
+    reads the paste; save-reply.sh writes both files). With no reply saved for
+    this page at all, the check cannot run and says so instead of passing
+    silently. An item decided in the new round (data-decided) is exempt — it
+    left the question set, so nothing about it is being re-asked."""
     name = os.path.basename(new_path)
     text = open(new_path, encoding="utf-8", errors="replace").read()
     bodies = dict(consult_item_bodies(text))
@@ -2958,29 +3070,100 @@ def check_show_me(new_path):
         return [], []
     prev_dir = os.path.join(os.path.dirname(os.path.abspath(new_path)),
                             ".aidex-artifact-prev")
-    reply = os.path.join(prev_dir, os.path.splitext(name)[0] + ".reply.md")
-    baseline = os.path.join(prev_dir, name)
-    if (not os.path.isfile(reply) or (os.path.isfile(baseline) and
-            os.path.getmtime(reply) < os.path.getmtime(baseline))):
-        return [], [("consult-show-me", name,
-                     f"no reply saved for this round ({os.path.relpath(reply)} "
-                     f"is missing or older than the baseline) — save the "
-                     f"reader's paste there verbatim so [show-me] asks are "
-                     f"checked")]
+    stem = os.path.splitext(name)[0]
+    reply = os.path.join(prev_dir, stem + ".reply.md")
+    answered = os.path.join(prev_dir, stem + ".answered.html")
+    if not os.path.isfile(reply) or not os.path.isfile(answered):
+        return [], [("consult-marker-duties", name,
+                     f"no reply saved for this page ({os.path.relpath(reply)} "
+                     f"or {os.path.relpath(answered)} is missing) — run "
+                     f"save-reply.sh with the reader's paste before rewriting, "
+                     f"so every marked item is checked")]
     paste = open(reply, encoding="utf-8", errors="replace").read()
-    heads = list(REPLY_ITEM.finditer(paste))
-    fails = []
-    for k, h in enumerate(heads):
-        end = heads[k + 1].start() if k + 1 < len(heads) else len(paste)
-        ident = h.group(1)
-        if (SHOW_ME_LINE.search(paste, h.end(), end) and ident in bodies
-                and not VISUAL_TAG.search(bodies[ident])):
-            fails.append(("consult-show-me", name,
-                          f"{ident} was marked [show-me] and this round answers "
-                          f"it with no figure, image or diagram inside the item "
-                          f"— the ask is for a different instrument (a mockup, a "
-                          f"diagram, a before/after, an example), not more prose"))
-    return fails, []
+    answered_text = open(answered, encoding="utf-8", errors="replace").read()
+    answered_bodies = dict(consult_item_bodies(answered_text))
+    decided_now = decided_ids(text)
+    try:
+        import wrap_report
+        new_texts = wrap_report.question_texts(text)
+        answered_texts = wrap_report.question_texts(answered_text)
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        return [("consult-marker-duties", name,
+                 f"the item-text scan did not run ({e})")], []
+
+    fails, warns = [], []
+    for ident, marks in marker_duties_of(paste):
+        if ident in decided_now:
+            continue
+        if ident not in bodies or ident not in answered_bodies:
+            where = "the new page" if ident not in bodies else "the answered snapshot"
+            warns.append(("consult-marker-duties", name,
+                f"the reply marks {ident}, which is not in {where} — the "
+                f"reply may have been saved against the wrong page"))
+            continue
+        new_body, old_body = bodies[ident], answered_bodies[ident]
+        new_txt, old_txt = new_texts.get(ident, ""), answered_texts.get(ident, "")
+        markset = set(marks)
+        # `page-defect`/`not-now` report a page defect or a deferral, neither
+        # a gap in the explanation, so neither counts toward the 3+ ceiling
+        # (review finding 2) — only the REAL asks stack.
+        stack_eligible = markset - NO_STACK_MARKERS
+        stacked = len(stack_eligible) >= 3
+        if stacked or "show-me" in markset:
+            if not VISUAL_TAG.search(new_body):
+                fails.append(("consult-marker-duties", name,
+                    f"{ident} was marked [show-me]"
+                    f"{' among 3+ stacked asks' if stacked else ''} and this "
+                    f"round answers it with no figure, image or diagram inside "
+                    f"the item — the ask is for a different instrument (a "
+                    f"mockup, a diagram, a before/after, an example), not more "
+                    f"prose"))
+        if stacked:
+            if new_txt == old_txt:
+                fails.append(("consult-marker-duties", name,
+                    f"{ident} carries 3+ stacked asks ({', '.join(sorted(stack_eligible))}) "
+                    f"and this round is not rewritten — {STACKED_DUTY}"))
+            continue                       # stacked overrides the per-marker rules
+        if "more-examples" in markset:
+            if _example_count(new_body) <= _example_count(old_body):
+                fails.append(("consult-marker-duties", name,
+                    f"{ident} was marked [more-examples] and this round "
+                    f"carries no more visuals, tables or example blocks than "
+                    f"the last one"))
+        if "explain-simpler" in markset:
+            if len(new_txt.split()) >= len(old_txt.split()):
+                fails.append(("consult-marker-duties", name,
+                    f"{ident} was marked [explain-simpler] and this round is "
+                    f"not shorter than the last one — explain plainer, not "
+                    f"longer"))
+        if "reframe" in markset:
+            # Stricter than the explain-* comparison below: a punctuation- or
+            # case-only edit is still the SAME question (review finding 4).
+            if _reframe_key(new_txt) == _reframe_key(old_txt):
+                fails.append(("consult-marker-duties", name,
+                    f"{ident} was marked [reframe] and this round asks the "
+                    f"same question (a copy-edit is not a reframe) — reframe "
+                    f"it into a different question, never just re-explain it"))
+        body_marks = markset & BODY_CHANGE_MARKERS
+        if body_marks and new_txt == old_txt:
+            which = ", ".join(f"[{m}]" for m in sorted(body_marks))
+            fails.append(("consult-marker-duties", name,
+                f"{ident} was marked {which} and this round answers it with "
+                f"the identical item — the ask was for what is missing, not a "
+                f"re-render of the same text"))
+    return fails, warns
+
+
+def decided_ids(text):
+    """The `data-id`s of items carrying `data-decided` (BL-359's own mark). An
+    item decided in the round being checked left the question set, so a
+    marker duty against it is answered and exempt (BL-504)."""
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        if ITEM_DECIDED.search(m.group(0)):
+            ident = next(g for g in m.groups()[1:] if g is not None)
+            out.add(ident)
+    return out
 
 
 def check_prev(new_path, prev_path):
@@ -3375,9 +3558,9 @@ def main(argv):
     if prev is not None:
         prev_fails, prev_notes = check_prev(files[0], prev)
         failures.extend(prev_fails)
-        show_fails, show_warns = check_show_me(files[0])
-        failures.extend(show_fails)
-        warnings.extend(show_warns)
+        duty_fails, duty_warns = check_marker_duties(files[0])
+        failures.extend(duty_fails)
+        warnings.extend(duty_warns)
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")

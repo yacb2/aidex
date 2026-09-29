@@ -1413,11 +1413,15 @@ bash "$CHECK" --census "$TMP/census" > "$TMP/out" 2>&1
 grep -q 'WARN' "$TMP/out" \
   && fail "10. --census printed a warning — noise on a page nobody is editing: $(cat "$TMP/out")"
 
-# ---- 11. a [show-me] ask is answered with a visual, not prose (BL-475) ------
+# ---- 11. a [show-me] ask is answered with a visual, not prose (BL-475/BL-504) --
 # The reader's marks live in browser storage and in the paste, never on disk, so
-# the round's reply is saved verbatim beside the baseline and the check reads it.
-# Found on dashboard_template_ws's 2026-09-27 barrida page: items marked
-# [show-me] came back as prose rewrites and the page passed.
+# the round's reply is saved verbatim beside the baseline and the check reads it —
+# against `.answered.html` (save-reply.sh's fixed snapshot of what the reader saw),
+# never against the moving `.aidex-artifact-prev/<page>.html` contract baseline,
+# which is advanced on every passing wrap. Found on dashboard_template_ws's
+# 2026-09-27 barrida page: items marked [show-me] came back as prose rewrites and
+# the page passed because that moving baseline had already been overwritten by an
+# earlier re-wrap inside the same round.
 R="$TMP/rounds"; mkdir -p "$R/.aidex-artifact-prev"
 showitem() {  # $1 = extra markup inside Q1
   mkpage "$2" "$visual
@@ -1431,8 +1435,10 @@ $notesitem
 $bars
 $composer"
 }
+# The ANSWERED snapshot is the page the reader saw — the baseline plays no part
+# in this check any more, so it is written here too but never read by it.
 showitem '' "$R/.aidex-artifact-prev/page.html"
-sleep 1
+showitem '' "$R/.aidex-artifact-prev/page.answered.html"
 cat > "$R/.aidex-artifact-prev/page.reply.md" <<'MD'
 ## G1 · The context
 ### Q1 · The first claim
@@ -1450,23 +1456,53 @@ MD
 showitem '' "$R/page.html"
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "1" ]] || fail "11a. a [show-me] item rewritten as prose passed: $(cat "$TMP/out")"
-grep -q 'FAIL \[consult-show-me\].*Q1' "$TMP/out" || fail "11a. the failure does not name the item: $(cat "$TMP/out")"
-grep -q 'FAIL \[consult-show-me\].*Q2' "$TMP/out" && fail "11a. [show-me] typed in the notes was read as an ask: $(cat "$TMP/out")"
+grep -q 'FAIL \[consult-marker-duties\].*Q1' "$TMP/out" || fail "11a. the failure does not name the item: $(cat "$TMP/out")"
+grep -q 'FAIL \[consult-marker-duties\].*Q2' "$TMP/out" && fail "11a. [show-me] typed in the notes was read as an ask: $(cat "$TMP/out")"
 
 showitem '<figure><svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg></figure>' "$R/page.html"
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "0" ]] || fail "11b. a [show-me] item answered with a figure failed: $(cat "$TMP/out")"
 
-touch -t 202001010000 "$R/.aidex-artifact-prev/page.reply.md"
+# 11c. BL-504: the moving baseline is overwritten — as a real wrap would do —
+# and the check still fails, because it is keyed to .answered.html, not to it.
+showitem '' "$R/.aidex-artifact-prev/page.html"
 showitem '' "$R/page.html"
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
-[[ "$rc" == "0" ]] || fail "11c. a reply older than the baseline (a past round's) was enforced: $(cat "$TMP/out")"
-grep -q 'WARN \[consult-show-me\]' "$TMP/out" || fail "11c. a stale reply was not reported: $(cat "$TMP/out")"
+[[ "$rc" == "1" ]] || fail "11c. BL-504: a second wrap, after the moving baseline advanced, was no longer enforced: $(cat "$TMP/out")"
+grep -q 'FAIL \[consult-marker-duties\].*Q1' "$TMP/out" || fail "11c. the failure does not name the item after the baseline moved: $(cat "$TMP/out")"
 
-rm "$R/.aidex-artifact-prev/page.reply.md"
+# 11d. with no reply/answered snapshot ever saved, the check cannot run at all —
+# WARN, not a silent pass, and not a FAIL either (there is nothing to compare).
+rm "$R/.aidex-artifact-prev/page.reply.md" "$R/.aidex-artifact-prev/page.answered.html"
+showitem '' "$R/page.html"
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
-[[ "$rc" == "0" ]] || fail "11d. a round with no saved reply failed: $(cat "$TMP/out")"
-grep -q 'WARN \[consult-show-me\]' "$TMP/out" || fail "11d. a round with no saved reply said nothing: $(cat "$TMP/out")"
+[[ "$rc" == "0" ]] || fail "11d. a page that was never answered failed the wrap: $(cat "$TMP/out")"
+grep -q 'WARN \[consult-marker-duties\]' "$TMP/out" || fail "11d. a page with no saved reply said nothing: $(cat "$TMP/out")"
+
+# 11e. BL-504 restores this row explicitly: a reply saved for round N, with
+# no NEWER reply since, does not expire — there is no mtime test any more
+# (the old check_show_me had one; check_marker_duties never reads a
+# timestamp at all). An old `reply.md`/`answered.html`, however old on
+# disk, is enforced exactly the same as a freshly-saved one, for as long as
+# nothing newer replaces it. A hard "a new round needs its own saved reply"
+# gate is a SEPARATE, harder property (BL-507, not implemented here — see
+# 02-local-first-artifacts.md).
+showitem '' "$R/.aidex-artifact-prev/page.html"
+showitem '' "$R/.aidex-artifact-prev/page.answered.html"
+cat > "$R/.aidex-artifact-prev/page.reply.md" <<'MD'
+### Q1 · The first claim
+
+- [show-me]
+
+no entiendo qué cambia
+MD
+touch -t 202001010000 "$R/.aidex-artifact-prev/page.reply.md" \
+                      "$R/.aidex-artifact-prev/page.answered.html"
+showitem '' "$R/page.html"                    # still no figure on Q1
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "1" ]] || fail "11e. a reply from 2020, with nothing newer, was NOT enforced: $(cat "$TMP/out")"
+grep -q 'FAIL \[consult-marker-duties\].*Q1' "$TMP/out" \
+  || fail "11e. the stale-but-only reply's failure does not name the item: $(cat "$TMP/out")"
 
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — the consultation contract counts items, accepts any reply surface, leaves a read alone, and warns without failing"

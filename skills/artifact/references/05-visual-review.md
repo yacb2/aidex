@@ -69,6 +69,19 @@ FIXES
 - <most important fix first, concrete: which figure, which element, what to change>
 ```
 
+**When the handoff carries a DUTIES list (BL-504, `save-reply.sh`'s output over a
+consultation round built from a reply)**, add one more block, one line per duty in the
+same order, judged from the screenshots the same way as every other line — met only
+when you can point at what satisfies it:
+
+```
+DUTIES
+<id> [<marker>] met|not-met <what you saw, or what is still missing>
+```
+
+A `not-met` duty caps the SCORE at 8 regardless of the rubric total: a page that reads
+well but leaves an owed duty unpaid is a `fix`, never a `hand over`.
+
 ## Two calibration anchors
 
 Both come from the 2026-09-24 blind review (`aidex_ws/.context/experiments/2026-09-24-artifact-route-ab/`),
