@@ -1135,6 +1135,12 @@ def emit_diagram(node, ctx):
             node.line,
             "`diagram` declares no box — an arrow needs two boxes and a "
             "picture needs one")
+    if len(boxes) > diagram_layout.MAX_BOXES:
+        raise SpecBuildError(
+            node.line,
+            "diagram has %d boxes, the cap is %d: split it into two figures "
+            "— a picture past that is read box by box and not at a glance"
+            % (len(boxes), diagram_layout.MAX_BOXES))
     if diagram_layout.SHAPE_ALIASES[shape] == "cycle" and len(boxes) < 2:
         raise SpecBuildError(
             node.line,

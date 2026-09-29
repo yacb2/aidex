@@ -438,6 +438,9 @@ recommends this hand-rolled grid for the shapes the corpus actually draws and Gr
 as the fallback for anything needing real graph layout — the `graph` block below, an
 optional dependency.
 
+A diagram holds at most **8 boxes** (`MAX_BOXES`). A ninth fails at the fence's line
+with "split it into two figures": past that a picture is read box by box, not at a glance.
+
 Three line kinds. Blank lines are ignored anywhere.
 
 | Line | Means |

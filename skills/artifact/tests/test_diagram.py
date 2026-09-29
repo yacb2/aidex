@@ -314,7 +314,7 @@ try:
           gaps and all(abs(g - dl.GAP) < 1e-9 for g in gaps) and dl.GAP > 0,
           str(gaps))
     check("...and the gap is wider than the arrowhead drawn in it",
-          dl.GAP > ds.HEAD_L * 2, "%s vs %s" % (dl.GAP, ds.HEAD_L))
+          dl.GAP > ds.HEAD_L, "%s vs %s" % (dl.GAP, ds.HEAD_L))
 
     fwd = lay("row", "a: uno", "b: dos", "a -> b")
     check("an adjacent forward arrow is a straight segment across the gap",
@@ -540,8 +540,11 @@ try:
     # The one label the layout will not draw: `figure svg { width: 100% }`
     # scales the viewBox to the page, so a box wider than the page has no
     # readable size left. Everything SHORTER is laid out and scaled, never cut.
-    fits = "L" * 85
-    over = "L" * 86
+    n_fit = 1
+    while dl.text_width("L" * (n_fit + 1)) + 2 * dl.PAD_X <= dl.MAX_BOX_W:
+        n_fit += 1
+    fits = "L" * n_fit
+    over = "L" * (n_fit + 1)
     check("the refusal boundary is where a box outgrows the page",
           dl.text_width(fits) + 2 * dl.PAD_X <= dl.MAX_BOX_W
           < dl.text_width(over) + 2 * dl.PAD_X,
@@ -586,8 +589,12 @@ try:
     # canvas: one character, a wide CJK run, an accented Spanish word, the
     # widest label that fits, and punctuation the checker's own proportional
     # table treats as narrow.
+    # The widest run of W the page still takes: the edge, not a safe number.
+    n_w = 1
+    while dl.text_width("W" * (n_w + 1)) + 2 * dl.PAD_X <= dl.MAX_BOX_W:
+        n_w += 1
     hard = fence("row", "a: x", "b: 日本語のラベル", "c: Corrección",
-                 "d: " + "W" * 60, "e: i.l|!;:'", "a -> b", "b -> c",
+                 "d: " + "W" * n_w, "e: i.l|!;:'", "a -> b", "b -> c",
                  "c -> d", "d -> e", "e -> a")
     html = build(hard)
     BUILT.append(("the hard-label row", html))
@@ -1189,6 +1196,143 @@ try:
         except Exception as exc:                    # noqa: BLE001
             fail("%s: raised %s, which no caller catches (%s)"
                  % (label, type(exc).__name__, exc))
+    print()
+    print("== Phase 2 (diagram engine): measured widths, Excalidraw values, cap ==")
+    import diagram_widths as dw
+    # Layer: unit. The width decision and the cap are pure functions of the
+    # label / the box count, so they are asserted on numbers, not on pixels.
+    PIN_T = 634   # SF Pro at opsz 17, the widest T of the stack
+    sample = "Prefilter | Ñandú ¿Qué?"
+    want = sum(dw.GLYPH_WIDTHS[c] for c in sample) * dl.FS / 1000.0
+    got = dl.text_width(sample)
+    check("text_width is the per-character table sum when that is above the "
+          "checker's floor (%.2f vs %.2f)" % (got, want),
+          abs(got - want) < 1e-6
+          and got >= check_artifact.svg_text_width(sample, dl.FS),
+          "%r" % got)
+    for ch in "áéíóúñüÁÉÍÓÚÑÜ¿¡—·→…":
+        if ch not in dw.GLYPH_WIDTHS:
+            fail("the width table has no entry for %r" % ch)
+    for acc, plain in (("áéíóúñü", "aeiounu"), ("ÁÉÍÓÚÑÜ", "AEIOUNU"),
+                       ("Inspección más rápida", "Inspeccion mas rapida")):
+        check("an accented label is not narrower than its plain form: %r" % acc,
+              dl.text_width(acc) >= dl.text_width(plain) - 1e-9)
+    check("an unknown character falls back to the estimate, never to zero",
+          dl.text_width("\u0416") >= check_artifact.svg_text_width("\u0416", dl.FS)
+          and dl.text_width("\u0416") > 0)
+    for label in ("MMMM", "Corpus de prompts humanos", "iiii llll", "¿Cómo?"):
+        check("text_width never returns less than the checker's floor: %r" % label,
+              dl.text_width(label) >= check_artifact.svg_text_width(label, dl.FS))
+
+    print("-- Excalidraw architect-mode values (asserted on what is drawn) --")
+    k = dl.FS / 20.0                       # Excalidraw's 20 px default font
+    L = lay("row", "a: uno", "b: dos", "a -> b")
+    svg = svg_of(ds.figure(L))
+    rect = re.search(r"<rect [^>]*>", svg).group(0)
+    check("box stroke is Excalidraw's medium width 2 scaled by FS/20 (%s)" % rect,
+          abs(fnum(rect, "stroke-width") - 2 * k) < 0.01)
+    check("corner radius is 0.25 of the box's short side",
+          abs(fnum(rect, "rx") - 0.25 * L.boxes[0].h) < 0.01)
+
+    def heads_of(html):
+        """Every arrowhead `(tip, arm_a, arm_b)`: each route path is followed
+        by its head path, so the heads are every second path."""
+        paths = re.findall(r'<path class="[a-z]+" d="([^"]*)" fill="none"', html)
+        out = []
+        for d in paths[1::2]:
+            m = re.match(r"M ([-\d.]+),([-\d.]+) L ([-\d.]+),([-\d.]+) "
+                         r"L ([-\d.]+),([-\d.]+)$", d)
+            out.append(None if not m else
+                       tuple((float(m.group(i)), float(m.group(i + 1)))
+                             for i in (3, 1, 5)))
+        return out
+
+    h = heads_of(svg)[0]
+    check("the arrowhead is an open two-stroke arrow (no closed triangle)",
+          h is not None and ' Z' not in svg.split("<rect")[0])
+    arm = math.hypot(h[1][0] - h[0][0], h[1][1] - h[0][1])
+    check("a straight arrow across the 32-unit gap has a head of half the "
+          "gap (%.2f)" % arm, abs(arm - dl.GAP / 2.0) < 0.01)
+    ang = math.degrees(math.atan2(h[1][1] - h[0][1], h[1][0] - h[0][0])
+                       - math.atan2(h[2][1] - h[0][1], h[2][0] - h[0][0]))
+    ang = abs((ang + 180.0) % 360.0 - 180.0)
+    check("the two arms open 40 degrees (Excalidraw's 20 each side of the "
+          "shaft): %.1f" % ang, abs(ang - 40.0) < 0.1)
+    big = lay("row", "a: uno", "b: dos", "c: tres", "a -> b", "b -> c")
+    check("no head is drawn longer than Excalidraw's 25 scaled by FS/20",
+          all(math.hypot(x[1][0] - x[0][0], x[1][1] - x[0][1]) <= 25 * k + 1e-6
+              for x in heads_of(ds.svg(big))))
+
+    # A curved route is a quadratic: its control point can sit a hair from the
+    # tip, so the head must be sized off the curve, not control-to-tip.
+    ring = lay("cycle", "a: Uno dos tres cuatro cinco seis", "b: x",
+               "c: \u00bfSigue?", "d: x", "e: \u00bfSigue?",
+               "a -> b", "b -> c", "c -> d", "d -> e", "e -> a")
+    arms = [math.hypot(x[1][0] - x[0][0], x[1][1] - x[0][1])
+            for x in heads_of(ds.svg(ring))]
+    check("every head on a ring with a near-degenerate control point keeps "
+          "its length (shortest %.2f)" % min(arms), min(arms) >= 7.0,
+          str(arms))
+    import random
+    rnd = random.Random(7)
+    words = ["x", "\u00bfSigue?", "Uno dos tres cuatro", "Corto", "W" * 6,
+             "Inspecci\u00f3n m\u00e1s r\u00e1pida"]
+    worst = 99.0
+    for _ in range(60):
+        n = rnd.randint(3, 8)
+        body = ["b%d: %s" % (i, rnd.choice(words)) for i in range(n)]
+        body += ["b%d -> b%d" % (i, (i + 1) % n) for i in range(n)]
+        if rnd.random() < 0.5:
+            body.append("b0 -> b%d" % rnd.randint(2, n - 2 if n > 3 else 2))
+        try:
+            R = lay("cycle", *body)
+        except SpecSyntaxError:
+            continue
+        for x in heads_of(ds.svg(R)):
+            worst = min(worst, math.hypot(x[1][0] - x[0][0], x[1][1] - x[0][1]))
+    check("over 60 random rings of 3-8 boxes no head is shorter than 7 "
+          "(shortest %.2f)" % worst, worst >= 7.0 - 1e-6)
+
+    # Excalidraw's ADAPTIVE radius: 0.25 of the short side up to a cutoff of
+    # 128 px, then a fixed 32 px; scaled here by FS/20 (cutoff 83.2, cap 20.8).
+    tb = lay("row", "a: " + "palabra " * 11 + "| " + "palabra " * 11,
+             "b: Corto", "c: \u00bfSigue?", "a -> b", "b -> c")
+    tbl = dl.layout("row", [copy_b for copy_b in tb.boxes],
+                    [dl.Arrow("a", "b", 0), dl.Arrow("b", "c", 0)], [], "tb")
+    tsvg = ds.svg(tbl)
+    rxs = [(fnum(r, "rx"), fnum(r, "height")) for r in re.findall(r"<rect [^>]*>", tsvg)]
+    dec = [rx for rx, hh in rxs][-1]
+    plain = [rx for rx, hh in rxs][:-1]
+    check("a tall wrapped box's corner radius stops at Excalidraw's fixed 32 "
+          "scaled (20.8): %s" % plain,
+          max(hh for _r, hh in rxs) > 83.2 and all(rx <= 20.8 + 1e-6 for rx in plain),
+          str(rxs))
+    check("...and stays below the decision's round end (%s)" % dec,
+          all(rx < dec for rx in plain), str(rxs))
+
+    print("-- derived table pins --")
+    check("a pinned width from the derivation: T is 0.634 em, SF Pro at "
+          "opsz 17 (the widest of the stack)",
+          dw.GLYPH_WIDTHS["T"] == PIN_T, str(dw.GLYPH_WIDTHS["T"]))
+    for ch in "\u2191\u2193\u2194\u21d2\u2713\u2260\u221e":
+        check("the width table covers %r" % ch, ch in dw.GLYPH_WIDTHS)
+
+    print("-- density cap --")
+    check("the cap is 8 boxes", getattr(dl, "MAX_BOXES", None) == 8,
+          str(getattr(dl, "MAX_BOXES", None)))
+    cap = getattr(dl, "MAX_BOXES", 8)
+
+    def _boxes(n):
+        body = ["b%d: Paso %d" % (i, i) for i in range(n)]
+        return body + ["b%d -> b%d" % (i, i + 1) for i in range(n - 1)]
+
+    holds("a diagram of exactly the cap boxes is drawn", fence("row", *_boxes(cap)),
+          "<svg")
+    rejects("a diagram of cap+1 boxes is refused at the fence's line, asking "
+            "to split the figure",
+            "intro\n\n" + fence("row", *_boxes(cap + 1)), 3,
+            "diagram has %d boxes, the cap is %d: split it into two figures"
+            % (cap + 1, cap), SpecBuildError)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

@@ -26,17 +26,15 @@ warnings.
 
 Labels are drawn in the kit's SANS stack (artifact-quality Phase 4: the
 monospace labels read as forced, at twice the body size). A proportional font
-has no exact table, so `text_width` is the LARGER of two estimates:
-
-  * `chart_svg._text_width` — the generous 0.62 em per character the chart
-    legend already uses (shared, not forked), with an East-Asian Wide or
-    Fullwidth character counted twice (1.24 em: those glyphs are a full em);
-  * `check_artifact.svg_text_width` — the checker's own proportional table.
-
-The second term is what makes the box never narrower than the checker
-measures its label (`MMMM` is 0.85 em there), and the first is what keeps it
-generous against the real font. It counts CHARACTERS, never bytes: `señor` is
-6 bytes and 5 characters.
+has no single table, so `text_width` sums a PER-CHARACTER table holding the
+widest advance across the stack's real fonts (SF Pro, Segoe UI, Roboto, DejaVu
+Sans, Liberation Sans: `diagram_widths.py`, derived by
+`derive_glyph_widths.py`), and takes the LARGER of that and
+`check_artifact.svg_text_width`, the checker's own estimate (`MMMM` is 0.85 em
+there): a box is never narrower than the checker measures its label. A
+character outside the table falls back to `chart_svg._text_width`'s generous
+0.62 em, doubled for an East-Asian Wide or Fullwidth one. It counts
+CHARACTERS, never bytes: `señor` is 6 bytes and 5 characters.
 
 Direction (`row` only)
 ----------------------
@@ -66,6 +64,7 @@ sys.path.insert(0, os.path.join(_HERE, "dash"))
 from spec_parser import SpecSyntaxError            # noqa: E402
 from chart_svg import _text_width                  # noqa: E402
 from check_artifact import svg_text_width          # noqa: E402
+from diagram_widths import GLYPH_WIDTHS            # noqa: E402
 
 # --- the shape vocabulary ----------------------------------------------------
 # `pipeline` is a spelling of `row`, not a fourth shape: the corpus writes both
@@ -126,8 +125,9 @@ ARC = 34.0             # how far a before-after's curved arrow bows out
 # that could be confused share one (`_lanes`).
 DETOUR = 16.0          # the first lane's distance from the boxes it clears
 LANE = 8.0             # between two lanes, and between two tracks in a gap
-TRACK0 = 14.0          # a gap track's distance from the face it serves: more
-                       # than an arrowhead (HEAD_L 9), so a head fits its stub
+TRACK0 = 14.0          # a gap track's distance from the face it serves: the
+                       # head is capped at half its last segment (`diagram_svg.
+                       # _head`), so a head always fits its stub
 SEP = 24.0             # two detours closer than this along their run take two
                        # lanes: more than the 2 * PORT_X between one box's
                        # in-port and out-port, so an arrow into a box and one
@@ -142,6 +142,12 @@ MIN_BOX_W = 72.0       # a one-character label still gets a box an arrow can
 # `figure svg { width: 100% }` scales it down, so the label is refused rather
 # than drawn at 3 px. 720 is chart_svg.W, the same page width.
 MAX_BOX_W = 720.0
+# The density cap: more boxes than this and the picture stops being read at a
+# glance. Set from the reference set (`.context/proofs/consult-diagram-engine/
+# reference-set/`): its 7 `engine.diagram` files hold 4, 4, 8, 5, 8, 5, 8 boxes,
+# so 8 admits every figure the set draws and refuses the next one up. Refused
+# at the fence's line by `spec_build.emit_diagram`.
+MAX_BOXES = 8
 
 
 def columns(label):
@@ -160,11 +166,25 @@ def columns(label):
 
 
 def text_width(label, size=FS):
-    """The label's rendered width in viewBox units: never below the checker's."""
-    wide = "".join(ch for ch in label
-                   if unicodedata.east_asian_width(ch) in ("W", "F"))
-    return max(_text_width(label + wide, float(size)),
-               svg_text_width(label, float(size)))
+    """The label's rendered width in viewBox units: never below the checker's.
+
+    Per character, the widest advance any font of the `--sans` stack gives it
+    (`diagram_widths.GLYPH_WIDTHS`, 1/1000 em, derived by
+    `derive_glyph_widths.py`). A character the table lacks falls back to the
+    generous 0.62 em estimate the chart legend uses (`chart_svg._text_width`),
+    twice that for an East-Asian Wide or Fullwidth one. The result is floored
+    at `check_artifact.svg_text_width`, so a box is never narrower than the
+    checker measures its label.
+    """
+    em = 0.0
+    for ch in label:
+        w = GLYPH_WIDTHS.get(ch)
+        if w is not None:
+            em += w / 1000.0
+        else:
+            em += _text_width(ch, 1.0) * (
+                2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1)
+    return max(em * float(size), svg_text_width(label, float(size)))
 
 
 def box_width(label, sub="", decision=False):

@@ -66,10 +66,38 @@ sys.path.insert(0, _HERE)
 from _shell import esc                             # noqa: E402
 import diagram_layout as dl                        # noqa: E402
 
-HEAD_L = 9.0           # the arrowhead, from its tip back along the line
-HEAD_A = 0.38          # half its opening, in radians
-CORNER = 3.0           # the box's corner radius
-STROKE = 1.5
+# --- Excalidraw architect-mode values ---------------------------------------
+# Read from github.com/excalidraw/excalidraw (master, 2026-09-29): "architect"
+# is roughness 0 (`ROUGHNESS.architect`, constants.ts:470), so there is no
+# wobble here, and colour stays the kit's classes. Excalidraw's numbers are in
+# its canvas pixels with a 20 px default font; this drawing's label is FS
+# (13 units), so every LENGTH is scaled by FS / EX_FONT_SIZE. Angles and
+# ratios are not.
+EX_FONT_SIZE = 20          # constants.ts:226 DEFAULT_FONT_SIZE
+EX_STROKE_WIDTH = 2        # constants.ts:487 STROKE_WIDTH.medium, the default
+                           # (DEFAULT_ELEMENT_STROKE_WIDTH_KEY, :515); thin 1,
+                           # bold 4
+EX_RADIUS_RATIO = 0.25     # constants.ts:446 DEFAULT_PROPORTIONAL_RADIUS; used
+                           # while the short side is <= 128 (getCornerRadius,
+                           # element/src/utils.ts:528), where the fixed 32 px
+                           # (DEFAULT_ADAPTIVE_RADIUS, :448) takes over
+EX_ADAPTIVE_RADIUS = 32    # constants.ts:448 DEFAULT_ADAPTIVE_RADIUS, the fixed
+                           # radius past the cutoff (ROUNDNESS.ADAPTIVE_RADIUS,
+                           # :465-466)
+EX_ARROWHEAD_SIZE = 25     # element/src/bounds.ts:717 getArrowheadSize("arrow")
+EX_ARROWHEAD_ANGLE = 20    # degrees, bounds.ts:738 getArrowheadAngle("arrow"):
+                           # each arm leaves the tip this far off the shaft
+EX_HEAD_MAX_FRACTION = 0.5  # bounds.ts:834 lengthMultiplier: a head is at most
+                           # half the last segment (0.25 for a diamond)
+# Not constants, only cited: opacity is constants.ts:533 (100) with
+# backgroundColor "transparent" (:528), so a box is `fill="none"` and no opacity
+# is emitted. BOUND_TEXT_PADDING is constants.ts:424 (5): NOT adopted, because
+# it assumes text measured in the one font it is drawn in, and here
+# `diagram_layout.PAD_X` (14) is also the margin the svg-text checker uses.
+SCALE = dl.FS / EX_FONT_SIZE
+HEAD_L = EX_ARROWHEAD_SIZE * SCALE     # 16.25
+HEAD_A = math.radians(EX_ARROWHEAD_ANGLE)
+STROKE = EX_STROKE_WIDTH * SCALE       # 1.3
 # `graph_svg.py` still draws in the monospace stack and reads it from here.
 # Byte-for-byte the `--mono` stack of `tokens.css`; the two are checked against
 # each other by `test_diagram.py`, so this copy cannot drift silently.
@@ -107,21 +135,40 @@ def _path(points):
     return d
 
 
-def _head(x, y, angle, tone):
-    """The arrowhead as a filled triangle, pointing along `angle`.
+def _last_len(points):
+    """The length the head is measured against: the last straight leg, or for
+    a quadratic (whose middle point is a CONTROL point, possibly a hair from
+    the tip) the chord from its start to its tip."""
+    tip = points[-1]
+    ref = points[0] if len(points) == 3 else points[-2]
+    return math.hypot(tip[0] - ref[0], tip[1] - ref[1])
 
-    It is drawn BACKWARD from the tip, so it never reaches past the point the
-    layout put it at and cannot push anything out of the viewBox.
+
+def _corner(w, h):
+    """Excalidraw's ADAPTIVE_RADIUS (constants.ts:459-466): 0.25 of the short
+    side up to a cutoff of 32 / 0.25 = 128 px, then a fixed 32 px; both scaled
+    by FS / EX_FONT_SIZE."""
+    side = min(w, h)
+    cutoff = EX_ADAPTIVE_RADIUS * SCALE / EX_RADIUS_RATIO
+    return side * EX_RADIUS_RATIO if side <= cutoff else EX_ADAPTIVE_RADIUS * SCALE
+
+
+def _head(x, y, angle, tone, seg):
+    """Excalidraw's open arrowhead: two strokes from the tip, along `angle`.
+
+    `seg` is the length of the arrow's last segment; the head is at most half
+    of it, as Excalidraw scales a head down on a short segment. It is drawn
+    BACKWARD from the tip, so it never reaches past the point the layout put
+    it at and cannot push anything out of the viewBox.
     """
+    size = min(HEAD_L, EX_HEAD_MAX_FRACTION * seg)
     back = angle + math.pi
-    a = (x + HEAD_L * math.cos(back - HEAD_A),
-         y + HEAD_L * math.sin(back - HEAD_A))
-    b = (x + HEAD_L * math.cos(back + HEAD_A),
-         y + HEAD_L * math.sin(back + HEAD_A))
-    return ('  <path class="%s" d="M %s,%s L %s,%s L %s,%s Z" '
-            'fill="currentColor"/>'
-            % (tone, _num(x), _num(y), _num(a[0]), _num(a[1]),
-               _num(b[0]), _num(b[1])))
+    a = (x + size * math.cos(back - HEAD_A), y + size * math.sin(back - HEAD_A))
+    b = (x + size * math.cos(back + HEAD_A), y + size * math.sin(back + HEAD_A))
+    return ('  <path class="%s" d="M %s,%s L %s,%s L %s,%s" fill="none" '
+            'stroke="currentColor" stroke-width="%s"/>'
+            % (tone, _num(a[0]), _num(a[1]), _num(x), _num(y),
+               _num(b[0]), _num(b[1]), _num(STROKE)))
 
 
 def svg(lay, cls=""):
@@ -152,7 +199,7 @@ def svg(lay, cls=""):
                    'stroke-width="%s"/>' % (r.tone, _path(r.points),
                                             _num(STROKE)))
         tip = r.points[-1]
-        out.append(_head(tip[0], tip[1], r.angle, r.tone))
+        out.append(_head(tip[0], tip[1], r.angle, r.tone, _last_len(r.points)))
 
     for b in lay.boxes:
         # A decision is a rounded box: its ends are half circles, of a
@@ -163,7 +210,7 @@ def svg(lay, cls=""):
                    'stroke-width="%s"/>'
                    % (b.tone, _num(b.x), _num(b.y), _num(b.w), _num(b.h),
                       _num(min(b.h, dl.SUB_BOX_H) / 2.0 if b.decision
-                           else CORNER), _num(STROKE)))
+                           else _corner(b.w, b.h)), _num(STROKE)))
         # The label's lines, then the sublabel, as one block LINE_H apart and
         # centred on the box's middle; a lone line's baseline sits 0.35 em
         # below the middle, where a cap-height glyph reads as centred.
