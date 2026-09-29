@@ -160,6 +160,89 @@ row "skip fails: 'Skipped' capitalised" 1 "" "" -- \
 row "skip fails: next to evidence for the same phase" 1 "skip" "" -- \
   "$(plan "$(slot)" "$UI" "$K — backend-only phase, no screen" "$G passed=41 failed=3")" 3
 
+# ================= pending-owner (BL-522.11): queue a page, block nothing, never the last phase =================
+# Fixture: a 5-phase plan whose Overview table is the only place the script can learn the final
+# phase and what each phase touches. $2 overrides phase 4's description.
+pplan() {
+  local d4="${2:-Wire the toolbar}"
+  plan "$1" "$UI"$'\n\n## Phases Overview\n\n| Phase | File | Description |\n|---|---|---|\n| 1 | - | Skeleton |\n| 2 | - | Table |\n| 3 | - | Rows |\n| 4 | '"${L4:+[04.md](04.md) }"'| '"$d4"$' |\n| 5 | - | Close |' "${@:3}"
+}
+PG() { printf -- '- ui-gate: phase %s · no-snapshot-update · passed=44 failed=0\n- ui-predicates: phase %s · reviewer: review-diff-opus · PASS' "$1" "$1"; }
+PEND='- ui-surface: phase 3 · pending-owner · r/g.html · cells: row-2,row-5'
+APP4='- ui-surface: phase 4 · r/h.html · owner: approved'
+pl() { local f; f="$(pplan "$(slot)" "$1" "${@:2}")"; printf '%s' "$f"; }   # pl <d4> <log lines...>
+row "pending: accepted on a non-final phase" 0 "pending-owner" "" -- \
+  "$(pl '' "$PEND" "$(PG 3 | sed -n 1p)" "$(PG 3 | sed -n 2p)")" 3
+row "pending: refused on the final phase" 1 "final phase (5)" "" -- \
+  "$(pl '' '- ui-surface: phase 5 · pending-owner · r/g.html · cells: row-2' "$(PG 5 | sed -n 1p)" "$(PG 5 | sed -n 2p)")" 5
+row "pending: still needs the gate and predicates lines" 1 "part 2" "part 1|part 3" -- \
+  "$(pl '' "$PEND" "$(PG 3 | sed -n 2p)")" 3
+row "pending: refused when the plan has no Overview table (final phase not provable)" 1 "Phases Overview" "" -- \
+  "$(plan "$(slot)" "$UI" "$PEND" "$GATE" "$PREDS")" 3
+row "pending: refused for a phase that is not a row of the table" 1 "not a row" "" -- \
+  "$(pl '' '- ui-surface: phase 9 · pending-owner · r/g.html · cells: a' "$(PG 9 | sed -n 1p)" "$(PG 9 | sed -n 2p)")" 9
+for v in 'pending-owner · r/g.html' 'pending-owner · r/g.html · cells:' 'pending-owner · r/g.html · cells: ' \
+         'pending-owner · r/g.html · cells: row-2, row-5' 'pending-owner · r/g.html · cells: row-2,' \
+         'pending-owner · r/g.html · cells: ,row-2' 'pending-owner · r/g.html · cells: row-2,,row-5' \
+         'pending-owner · r/g.html · cells: -row' 'pending-owner · r/g.html · cells: row 2' \
+         'pending-owner · cells: row-2 · r/g.html' 'pending-owner · · cells: row-2' 'pending-owner · r/g · cells: row-2' \
+         'pending-owner · <page>.html · cells: row-2' 'Pending-owner · r/g.html · cells: row-2' \
+         'pending · r/g.html · cells: row-2' 'pending-owner · r/g.html · cells: row-2 · owner: approved' \
+         'pending-owner · r/g.html · cells: row-2.' 'pending-owner · r/g.html · owner: pending-owner'; do
+  row "pending fails: '$v'" 1 "part 1" "part 2|part 3" -- \
+    "$(pl '' "- ui-surface: phase 3 · $v" "$(PG 3 | sed -n 1p)" "$(PG 3 | sed -n 2p)")" 3
+done
+# The script does NOT judge whether a later phase touches the open page's cells: ids are local to one
+# gallery, so a phase saying "empty, error" beside an open page on `empty` passes (no text predicate).
+PEND8="- ui-surface: phase 3 · pending-owner · r/g.html · cells: open-8,open-1,empty,loading,error"
+P3="$(PG 3 | sed -n 1p)"; P3B="$(PG 3 | sed -n 2p)"
+row "no touch predicate: a non-final phase naming the open ids passes beside an open page" 0 "" "" -- \
+  "$(pl 'Empty and error states of another gallery: empty, error, loading' "$PEND8" "$P3" "$P3B" "$APP4" "$(PG 4)")" 4
+# the final phase (phase 5) cannot close while a page is open
+F5='- ui-surface: phase 5 · r/f.html · owner: approved'
+row "final: a valid full record with a page open fails, naming the path and phase" 1 "r/g.html" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" "$F5" "$(PG 5)")" 5
+row "final: a skip with a page open fails, naming the path" 1 "r/g.html" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-evidence: phase 5 · skipped — backend only, no screen rendered')" 5
+row "final: an approval of another page does not free it" 1 "r/g.html" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-surface: phase 4 · r/other.html · owner: approved' "$F5" "$(PG 5)")" 5
+row "final: an invalid verdict for the page does not free it" 1 "r/g.html" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-surface: phase 4 · r/g.html · owner: approved 4/12' "$F5" "$(PG 5)")" 5
+row "final: every open page is named" 1 "r/two.html" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-surface: phase 4 · pending-owner · r/two.html · cells: a' "$F5" "$(PG 5)")" 5
+row "final: a page closed by a later verdict (same path, any phase) lets it pass" 0 "" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-surface: phase 4 · r/g.html · owner: 9/10' "$F5" "$(PG 5)")" 5
+row "final: a skip passes once the page is closed" 0 "skipped" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-surface: phase 4 · r/g.html · owner: approved' '- ui-evidence: phase 5 · skipped — backend only, no screen rendered')" 5
+row "final: no open page, no change" 0 "" "" -- "$(pl '' "$P3" "$P3B" "$F5" "$(PG 5)")" 5
+row "non-final: a skip beside an open page still passes" 0 "skipped" "" -- \
+  "$(pl '' "$PEND" "$P3" "$P3B" '- ui-evidence: phase 4 · skipped — backend only, no screen rendered')" 4
+# a trailing non-phase row (no digit in the first column) never becomes the final phase
+ptot() { local f; f="$(pl "$@")"; printf '| Total | - | 5 phases |\n' >> "$f"; printf '%s' "$f"; }
+row "total row: the real last phase stays final (open page fails there)" 1 "r/g.html" "" -- \
+  "$(ptot '' "$PEND" "$P3" "$P3B" "$F5" "$(PG 5)")" 5
+row "total row: pending on the real last phase is refused" 1 "r/g.html" "" -- \
+  "$(ptot '' '- ui-surface: phase 5 · pending-owner · r/g.html · cells: a' "$(PG 5 | sed -n 1p)" "$(PG 5 | sed -n 2p)")" 5
+row "total row: pending on phase 4 is accepted (Total is not a phase)" 0 "pending-owner" "" -- \
+  "$(ptot '' '- ui-surface: phase 4 · pending-owner · r/g.html · cells: a' "$(PG 4 | sed -n 1p)" "$(PG 4 | sed -n 2p)")" 4
+row "part 1 message quotes the full pending line" 1 "ui-surface: phase 3 · pending-owner · <path>.html · cells: <id>[,<id>...]" "" -- \
+  "$(pl '' '- ui-surface: phase 3 · pending-owner · r/g.html' "$P3" "$P3B")" 3
+# closing on a mid phase
+row "close: phase 3 itself passes once approved after pending" 0 "" "" -- \
+  "$(pl '' "$PEND" '- ui-surface: phase 3 · r/g.html · owner: approved' "$P3" "$P3B")" 3
+# the final-summary listing
+row "list: an open page is listed with its phase, path and cells" 0 "pending-owner: phase 3 · r/g.html · cells: row-2,row-5" "" -- \
+  --pending "$(pl '' "$PEND")"
+row "list: a page closed by a later verdict is not listed" 0 "no pending-owner pages" "pending-owner: phase" -- \
+  --pending "$(pl '' "$PEND" '- ui-surface: phase 3 · r/g.html · owner: approved')"
+row "list: a rejection leaves the page open" 0 "pending-owner: phase 3 · r/g.html" "" -- \
+  --pending "$(pl '' "$PEND" '- ui-surface: phase 3 · r/g.html · owner: rejected')"
+row "list: a new pending line for the same phase replaces the old one" 0 "cells: row-9" "row-2" -- \
+  --pending "$(pl '' "$PEND" '- ui-surface: phase 3 · pending-owner · r/g.html · cells: row-9')"
+row "list: a verdict for another page closes nothing" 0 "pending-owner: phase 3" "" -- \
+  --pending "$(pl '' "$PEND" '- ui-surface: phase 4 · r/other.html · owner: approved')"
+row "list: a non-UI plan lists nothing" 0 "not a UI plan" "" -- --pending "$(plan "$(slot)" '' "$PEND")"
+
 # ================= which plan is UI: the SECTION, never a mention =================
 # A marker is (a) a heading whose text has "ui contract" within its first four words, or
 # (b) a line that starts, after an optional list marker, with a bold span beginning
@@ -212,6 +295,10 @@ row "visual: the last surface line wins" 0 "" "" -- --visual "$(vis '- ui-surfac
 row "visual: a label quoted in prose is not a record" 1 "part 1" "$NOT1" -- \
   --visual "$(vis 'The old log said ui-surface: r.html · owner: approved but that was wrong' "$VG" "$VP")"
 row "visual: failing gate" 1 "part 2" "$NOT2" -- --visual "$(vis "$VS" '- ui-gate: no-snapshot-update · passed=42 failed=2' "$VP")"
+row "visual: the part 1 message does not offer pending-owner" 1 "part 1" "pending-owner ·" -- \
+  --visual "$(vis '- ui-surface: r.html · owner: rejected' "$VG" "$VP")"
+row "pending: refused in a visual bugfix" 1 "visual bugfix" "" -- \
+  --visual "$(vis '- ui-surface: pending-owner · r/g.html · cells: row-2' "$VG" "$VP")"
 row "visual: skip for a missing harness" 0 "skipped" "" -- --visual "$(vis '- ui-evidence: skipped — no gallery harness in this project')"
 for r in 'it was a tiny spacing fix' 'nothing changed in the harness' 'no gallery harnesses were touched' 'no-gallery harness here'; do
   row "visual: skip fails: '$r'" 1 "skip" "" -- --visual "$(vis "- ui-evidence: skipped — $r")"

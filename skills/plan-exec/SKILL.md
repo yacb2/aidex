@@ -176,7 +176,9 @@ For each phase in order:
    surrounding code still matches, and check for sibling call-sites/branches
    the plan did not enumerate. The phase's acceptance criteria and gate are
    the contract; the plan's code is illustrative except inside a **Contract**
-   block (exact signatures/shapes/DDL), which is binding.
+   block (exact signatures/shapes/DDL), which is binding. A shared-component
+   primitive gets one real-framework test per merge-dependent behaviour (attrs/class
+   fallthrough, slot defaults), named required in the impl brief.
 2. Run the verification step the plan declares (tests, type-check, build,
    manual check). If none is declared, run the minimum that proves the change
    works (relevant test suite + type-check). **Iterate on the selection, not the
@@ -248,10 +250,9 @@ it grows its own copy. What is plan-specific:
   `review: <verdict> · <n> findings · scope=<scope> anchor=<anchor>` line before the commit.
 - **A UI phase does not close on prose.** Before the commit, run
   `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh <plan file> <phase>`
-  (the single-file plan, or `00-index.md`). It owns which phase counts as UI and the
-  three `ui-*` Execution-log lines "verified" needs; a non-UI plan exits 0 untouched.
-  **Exit 1 or 2 keeps the phase open** — record the missing part (verify-ui, the owner's
-  verdict, the predicate review), never the phase as done.
+  (the plan or its `00-index.md`). It owns which phase is UI and the `ui-*` lines
+  "verified" needs; non-UI exits 0. **Exit 1 or 2 keeps the phase open.**
+  An unattended run may queue a non-final phase's page as `pending-owner` (script header); the last phase fails while any is open.
 - **Deferrals** use `register-item.sh --origin plan --plan <this plan>`
   ([`references/03-deferring-emergent-work.md`](references/03-deferring-emergent-work.md)).
 - **Which model runs which step** — orchestrate, implement, and do the mechanical work
@@ -281,6 +282,7 @@ After the last phase:
    `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/references/02-close-out.md`
    **and follow it step by step** — each step has a guard and an ordering that
    matter, and doing them from memory is how a worktree survives its plan.
+   Summary lists open `pending-owner` pages.
 
 ## Per-project adjustments
 
