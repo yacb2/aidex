@@ -1632,7 +1632,7 @@ def _layout_tree(boxes, arrows):
     return _route_top_down(arrows, {b.name: b for b in boxes})
 
 
-def _layout_outline(boxes, arrows):
+def _layout_outline(boxes, arrows, budget=NARROW_W):
     """The stacked drawing: one box per row in preorder, each level INDENT to
     the right of its parent, an edge leaving its parent's left strip by a
     spine and turning into the child's left face. It is what a tree becomes
@@ -1650,7 +1650,7 @@ def _layout_outline(boxes, arrows):
     # The room left for a label after the indent, never under 120: a deep chain
     # is wrapped to a readable box and drawn wider than NARROW_W instead of a
     # word a line.
-    room = max(120.0, NARROW_W - 2 * MARGIN - deepest * INDENT)
+    room = max(120.0, budget - 2 * MARGIN - deepest * INDENT)
     # A locked box grows by LOCK_RESERVE after wrapping, so its label is
     # wrapped that much narrower; a badge pill starts BADGE_OUT right of the box
     # and is wrapped to end inside the same room.
@@ -1738,7 +1738,9 @@ def _layout_compare(panels, mode):
     Stacked, each frame is as tall as its own content."""
     bodies = []
     for p in panels:
-        main, twin = drawings(p.kind, p.boxes, p.arrows, [])
+        main, twin = drawings(p.kind, p.boxes, p.arrows, [],
+                              budget=(NARROW_W - 2 * PANEL_PAD
+                                      if mode == "narrow" else NARROW_W))
         lay = main
         if twin is not None and (mode in ("narrow", "side-narrow")
                                  or main.view[2] - 2 * MARGIN
@@ -1782,7 +1784,7 @@ def _layout_compare(panels, mode):
                   "side" if side else "stack", panels)
 
 
-def layout(shape, boxes, arrows, titles, direction=None):
+def layout(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
     """A placed `Layout`. Everything `diagram_svg` draws is decided here.
 
     The two `ValueError`s are the caller's to prevent, and the emitter does:
@@ -1821,7 +1823,7 @@ def layout(shape, boxes, arrows, titles, direction=None):
             _place_tb(boxes)
             routes = _route_tb(boxes, arrows, by_name)
             x0, _y0, x1, _y1 = _bounds(boxes, routes, [], None)
-            over = (x1 - x0) + 2 * MARGIN - NARROW_W
+            over = (x1 - x0) + 2 * MARGIN - budget
             widest = max(b.w for b in boxes)
             if over <= 1e-9 or widest == prev:
                 break
@@ -1830,7 +1832,7 @@ def layout(shape, boxes, arrows, titles, direction=None):
         # The outline wraps its labels (`_fit_tb`), which sets each box's own
         # height: `outline` is the one direction that does not use `h` alone.
         if direction == "outline":
-            routes = _layout_outline(boxes, arrows)
+            routes = _layout_outline(boxes, arrows, budget)
         else:
             routes = _layout_tree(boxes, arrows)
             direction = "top-down"
@@ -1853,7 +1855,7 @@ def layout(shape, boxes, arrows, titles, direction=None):
         while True:
             _fit_tb(boxes, limit)
             widest = max(b.w for b in boxes)
-            over = max(widest, title_w) + 2 * MARGIN - NARROW_W
+            over = max(widest, title_w) + 2 * MARGIN - budget
             if over <= 1e-9 or widest == prev:
                 break
             prev, limit = widest, widest - over
@@ -1902,7 +1904,7 @@ def layout(shape, boxes, arrows, titles, direction=None):
                   direction if shape in ("row", "tree") else None)
 
 
-def drawings(shape, boxes, arrows, titles, direction=None):
+def drawings(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
     """`(main, narrow)`: the drawing a page shows, and its twin for 390 px.
 
     A `row` with no `direction` is `lr` when that drawing fits the page, `lr`
@@ -1937,19 +1939,19 @@ def drawings(shape, boxes, arrows, titles, direction=None):
         # outline as a twin for 390 px when the top-down one is wider than a
         # phone's column keeps readable.
         if main.view[2] > MAX_BOX_W:
-            return layout(shape, boxes, arrows, titles, "outline"), None
-        if main.view[2] > NARROW_W:
+            return layout(shape, boxes, arrows, titles, "outline", budget), None
+        if main.view[2] > budget:
             # Only when the twin is the narrower of the two: a phone shows the
             # one that scales up, and a wrapped outline can come out wider
             # than a top-down tree that is only just over NARROW_W.
-            twin = layout(shape, boxes, arrows, titles, "outline")
+            twin = layout(shape, boxes, arrows, titles, "outline", budget)
             return main, (twin if twin.view[2] < main.view[2] else None)
         return main, None
     if SHAPE_ALIASES[shape] == "before-after":
         # Its 390 px twin, only when it is the narrower of the two: a title
         # wider than a phone's column holds the twin as wide as it is.
-        if main.view[2] > NARROW_W:
-            twin = layout(shape, boxes, arrows, titles, "tb")
+        if main.view[2] > budget:
+            twin = layout(shape, boxes, arrows, titles, "tb", budget)
             return main, (twin if twin.view[2] < main.view[2] else None)
         return main, None
     if SHAPE_ALIASES[shape] != "row":
@@ -1959,9 +1961,9 @@ def drawings(shape, boxes, arrows, titles, direction=None):
         # only when even one column per row is over the page.
         wrapped = layout(shape, boxes, arrows, titles, "wrap")
         main = (wrapped if wrapped.view[2] <= MAX_BOX_W
-                else layout(shape, boxes, arrows, titles, "tb"))
-    if main.dir == "lr" and main.view[2] > NARROW_W:
-        return main, layout(shape, boxes, arrows, titles, "tb")
+                else layout(shape, boxes, arrows, titles, "tb", budget))
+    if main.dir == "lr" and main.view[2] > budget:
+        return main, layout(shape, boxes, arrows, titles, "tb", budget)
     return main, None
 
 

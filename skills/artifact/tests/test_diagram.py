@@ -2150,6 +2150,24 @@ try:
     check("a compare and its twin pass the real svg-text checker",
           not findings(hd), "\n".join(map(str, findings(hd))))
 
+    # BL-527: the 390 px twin is laid out to a budget that leaves room for the
+    # panel frame, so the whole twin (frame included) is at most NARROW_W wide.
+    D5RV = ["panel tree Opción A (así funciona hoy)", "root: Proyecto Serie X",
+            "e1: Producción Ep. 1", "root -> e1",
+            "badge e1: Realizador Luis: acceso solo a Ep. 1", "lock root",
+            "outcome Guardar da error: sin acceso al proyecto (candado)",
+            "recommended",
+            "panel tree Opción B", "root2: Proyecto Serie X",
+            "f1: Producción Ep. 1", "f2: Otras producciones",
+            "root2 -> f1", "root2 -> f2",
+            "badge f1: Realizador Luis: acceso solo a Ep. 1", "flg f2",
+            "outcome Luis cambia la voz de todo el proyecto (en alerta)"]
+    _m5, n5 = cpair(D5RV)
+    check("BL-527: a compare twin is at most NARROW_W wide, frames included "
+          "(the D5RV body)",
+          n5 is not None and n5.view[2] <= dl.NARROW_W + 1e-6,
+          str(n5 and n5.view))
+
     # Property test: seeded random compare figures up to the cap.
     import random
     rng = random.Random(20260930)
@@ -2269,6 +2287,21 @@ try:
             bad.append("case %d: side by side wider than the page" % case)
         if dn is not None and not dn.view[2] < dm.view[2]:
             bad.append("case %d: the twin is not narrower" % case)
+        if dn is not None:
+            # BL-527: the twin, frames included, fits NARROW_W whenever every
+            # body wraps to the narrow budget and no title or outcome word is
+            # wider than the frame's inside.
+            bud = dl.NARROW_W - 2 * dl.PANEL_PAD
+            inside = bud - 2 * dl.MARGIN
+            def narrowest(q):
+                m, t = dl.drawings(q.kind, q.boxes, q.arrows, [], budget=bud)
+                return (t or m).view[2]
+            wrappable = all(narrowest(q) <= bud + 1e-6 for q in panels)
+            fits = (max(dl.text_width(q.title, dl.FS) for q in panels) <= inside
+                    and max(dl._widest_word(q.outcome) for q in panels) <= inside)
+            if wrappable and fits and dn.view[2] > dl.NARROW_W + 1e-6:
+                bad.append("case %d: the twin is %.1f wide, over NARROW_W"
+                           % (case, dn.view[2]))
         if len(bad) > 12:
             break
     check("200 seeded random compare figures (a tree or a row per panel, up to "
