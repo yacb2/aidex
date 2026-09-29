@@ -1333,6 +1333,272 @@ try:
             "intro\n\n" + fence("row", *_boxes(cap + 1)), 3,
             "diagram has %d boxes, the cap is %d: split it into two figures"
             % (cap + 1, cap), SpecBuildError)
+
+    # === THE `tree` SHAPE ====================================================
+    # Layer: unit. The decision (where each box goes, which line is refused) is
+    # in `diagram_layout` and is asserted on the placed model, not on pixels;
+    # the render-probe pass over the reference set owns what a browser shows.
+    def tree(*body):
+        return fence("tree", *body)
+
+    D5 = ["root: Proyecto Serie X", "e1: Producción Ep. 1",
+          "e2: Producción Ep. 2", "root -> e1", "root -> e2",
+          "badge e1: PM Ana: acceso aquí", "lock root", "acc root", "flg e2"]
+    h = holds("a tree with a badge, a lock and both tones is drawn",
+              tree(*D5), 'class="acc"', 'class="flg"', "PM Ana: acceso aquí",
+              'style="fill:var(--paper)"', " A 3,3 ")
+    check("a tree box the author did not tone is `mut`, so acc/flg mean something",
+          'class="mut" x=' in h)
+    check("a tree passes the real svg-text checker: no label leaves its rect",
+          not findings(h), "\n".join(findings(h)))
+    check("a badge is text and a lock is a glyph: no emoji, no icon font",
+          not re.search("[\U0001F300-\U0001FAFF\u2600-\u27BF]", h)
+          and "font-family:var(--sans)" in h)
+
+    L = lay("tree", *D5)
+    bx = by_name(L)
+    px, py, pw, ph = bx["e1"].pill
+    check("the badge pill straddles its box's top edge, and its text centre is "
+          "outside the box rect (else the checker reads it as the box's label)",
+          py < bx["e1"].y < py + ph and py + ph / 2 < bx["e1"].y,
+          "pill %r, box y %r" % (bx["e1"].pill, bx["e1"].y))
+    check("a badge is not a box: 3 boxes in the layout, the cap counts 3",
+          len(L.boxes) == 3)
+    r_ = bx["root"]
+    check("a lock takes the box's right-hand strip: the label ends left of the "
+          "glyph and the glyph is inside the box",
+          r_.lock and r_.cx + r_.text_dx + dl.text_width(r_.label) / 2
+          < r_.lock_at[0] and r_.lock_at[0] + dl.LOCK_W < r_.x + r_.w,
+          "%r" % (r_.lock_at,))
+    holds("8 boxes and badges on all of them are within the cap (badges are "
+          "not boxes)",
+          tree(*(["r: Raíz"] + ["c%d: Hoja %d" % (i, i) for i in range(7)]
+                 + ["r -> c%d" % i for i in range(7)]
+                 + ["badge r: uno"] + ["badge c%d: nota" % i for i in range(7)])),
+          "<svg")
+    rejects("a tree of 9 boxes is refused at the fence's line, like every shape",
+            tree(*(["r: Raíz"] + ["c%d: Hoja %d" % (i, i) for i in range(8)]
+                   + ["r -> c%d" % i for i in range(8)])), 1,
+            "diagram has 9 boxes, the cap is 8", SpecBuildError)
+
+    # Refusals: each at the line the author edits (fence = line 1).
+    rejects("a box with two parents is refused at the SECOND arrow into it",
+            tree("a: A", "b: B", "c: C", "a -> c", "b -> c"), 6,
+            "already has the parent `a`")
+    rejects("a cycle is refused at its last-declared arrow",
+            tree("a: A", "b: B", "c: C", "a -> b", "b -> c", "c -> a"), 7,
+            "`c -> a` closes a cycle")
+    rejects("a cycle apart from the root is refused too",
+            tree("r: R", "a: A", "b: B", "r -> a", "b -> b2", "b2: B2",
+                 "b2 -> b"), 8, "closes a cycle")
+    rejects("two roots (a forest) are refused at the second root's line",
+            tree("a: A", "b: B", "c: C", "a -> b"), 4,
+            "has no parent and neither has `a` — a tree has one root")
+    rejects("a forest blames the root with NO children, not the tree's root",
+            tree("x: X", "r: R", "c: C", "r -> c"), 2,
+            "box `x` has no parent")
+    rejects("a mark word does not steal an arrow line: `lock -> b -> c` keeps "
+            "the one-arrow-per-line message",
+            fence("row", "a: A", "lock -> b -> c"), 3, "one arrow per line")
+    rejects("a badge on an unknown box is refused at the badge's line",
+            tree("a: A", "badge zzz: hola"), 3,
+            "`badge zzz` names a box no line declares")
+    rejects("a lock on an unknown box is refused at the lock's line",
+            tree("a: A", "lock zzz"), 3, "`lock zzz` names a box no line declares")
+    rejects("a second badge on one box is refused at the second",
+            tree("a: A", "badge a: uno", "badge a: dos"), 4,
+            "already has a badge on line 3")
+    rejects("a second tone on one box is refused at the second",
+            tree("a: A", "acc a", "flg a"), 4, "one box takes one tone")
+    rejects("a badge with no text is refused",
+            tree("a: A", "badge a:"), 3, "no text after the colon")
+    rejects("a badge with no colon is refused",
+            tree("a: A", "badge a hola"), 3, "no box name before a colon")
+    rejects("a tone line with anything after the name is refused",
+            tree("a: A", "acc a extra"), 3, "one declared box's name")
+    rejects("a mark line in a row is refused: it is a `tree` line",
+            fence("row", "a: A", "lock a"), 3, "`lock` is a `tree` line")
+    rejects("a control character in a badge is refused",
+            tree("a: A", "badge a: x\x01y"), 3, "control character")
+    holds("`badge: x` is still a box called badge, `lock -> x` still an arrow",
+          tree("badge: Insignia", "lock: Candado", "badge -> lock"), "<svg")
+
+    # The layout, on the placed model.
+    W = lay("tree", "a: Uno", "a1: Dos", "a2: Tres", "b: Cuatro",
+            "a -> a1", "a -> a2", "a -> b")
+    wb = by_name(W)
+    check("a parent is centred over its first and last child",
+          abs(wb["a"].cx - (wb["a1"].cx + wb["b"].cx) / 2) < 1e-6)
+    C = lay("tree", "r: Raíz", "a: A", "b: B", "a1: A1", "a2: A2", "a3: A3",
+            "r -> a", "r -> b", "a -> a1", "a -> a2", "a -> a3")
+    cb = by_name(C)
+    check("subtrees are as compact as the contours allow: a leaf sibling clears "
+          "its neighbour by SIB_GAP, not by the neighbour's whole subtree",
+          abs(cb["b"].x - (cb["a"].x + cb["a"].w) - dl.SIB_GAP) < 1e-6,
+          "gap %r" % (cb["b"].x - cb["a"].x - cb["a"].w))
+    check("the badge is part of its box's footprint: the neighbour clears the "
+          "pill, not just the box",
+          by_name(lay("tree", "r: R", "a: A", "b: B", "r -> a", "r -> b",
+                      "badge a: una nota larga"))["b"].x
+          >= by_name(lay("tree", "r: R", "a: A", "b: B", "r -> a", "r -> b",
+                         "badge a: una nota larga"))["a"].pill[0]
+          + dl.badge_w("una nota larga") + dl.SIB_GAP - 1e-6)
+
+    # Which drawing: top-down when it fits, the outline when it does not.
+    def which(*body):
+        b, a, t = dl.parse_body([(i + 2, l) for i, l in enumerate(body)], "tree")
+        m, n = dl.drawings("tree", b, a, t)
+        return m.dir, n.dir if n else None, m.view[2]
+    check("a small tree is top-down with no twin",
+          which("a: A", "b: B", "a -> b")[:2] == ("top-down", None))
+    check("a top-down tree wider than a phone gets the outline as its twin",
+          which(*D5)[:2] == ("top-down", "outline"))
+    STAR = (["r: Raíz"] + ["c%d: Hoja número %d" % (i, i) for i in range(7)]
+            + ["r -> c%d" % i for i in range(7)])
+    m_dir, n_dir, m_w = which(*STAR)
+    check("a tree wider than the page is stacked as the outline, and is then "
+          "narrow (no twin, at most NARROW_W)",
+          m_dir == "outline" and n_dir is None and m_w <= dl.NARROW_W + 1e-6,
+          "%r %r %r" % (m_dir, n_dir, m_w))
+    LONG = "Realizador Luis con acceso solo a un episodio"
+    REPROS = [
+        ["r: Raíz", "a: A", "r -> a", "badge a: " + LONG],
+        ["r: Raíz", "a: A", "b: B", "c: C", "r2: R2", "r -> a", "a -> b",
+         "b -> c", "r -> r2", "badge c: " + LONG],
+        ["n0: Proyecto con un nombre bastante largo, de verdad"]
+        + ["n%d: N%d" % (i, i) for i in range(1, 8)]
+        + ["n%d -> n%d" % (i, i + 1) for i in range(7)],
+        STAR + ["lock c%d" % i for i in range(4)],
+    ]
+    for k, body in enumerate(REPROS):
+        b_, a_, t_ = dl.parse_body([(i + 2, l) for i, l in enumerate(body)], "tree")
+        m_, n_ = dl.drawings("tree", b_, a_, t_)
+        check("repro %d: the narrow twin is never wider than the drawing it "
+              "replaces (twin %s, main %.1f)"
+              % (k, n_ and round(n_.view[2], 1), m_.view[2]),
+              n_ is None or n_.view[2] < m_.view[2])
+        if m_.dir == "outline":
+            check("repro %d: a stacked main drawing fits the narrow width"
+                  % k, m_.view[2] <= dl.NARROW_W + 1e-6, "%.1f" % m_.view[2])
+    holds("a tree too wide for the page builds (stacked), never refused",
+          tree(*STAR), "<svg")
+
+    # Property test: seeded random trees up to the cap, both drawings.
+    import random
+    rng = random.Random(20260929)
+    WORDS = ["Raíz", "Proyecto Serie X", "Producción Ep. 1", "acceso", "PM",
+             "una etiqueta bastante más larga de lo normal", "Ñandú", "x",
+             "Realizador Luis con acceso solo a un episodio"]
+
+    def seg_hits(p, q, r):
+        """Does the axis-aligned segment p-q enter rect r's interior?"""
+        e = 1e-6
+        return (max(p[0], q[0]) > r[0] + e and min(p[0], q[0]) < r[2] - e
+                and max(p[1], q[1]) > r[1] + e and min(p[1], q[1]) < r[3] - e)
+
+    def foot(b):
+        x0, y0, x1, y1 = b.x, b.y, b.x + b.w, b.y + b.h
+        if b.pill:
+            x0, y0 = min(x0, b.pill[0]), min(y0, b.pill[1])
+            x1, y1 = max(x1, b.pill[0] + b.pill[2]), max(y1, b.pill[1] + b.pill[3])
+        return (x0, y0, x1, y1)
+
+    bad = []
+    for case in range(300):
+        n = rng.randint(1, dl.MAX_BOXES)
+        body = ["n%d: %s" % (i, rng.choice(WORDS)) + (
+            " | %s" % rng.choice(WORDS) if rng.random() < .3 else "")
+            for i in range(n)]
+        arrows = ["n%d -> n%d" % (rng.randrange(i), i) for i in range(1, n)]
+        rng.shuffle(arrows)
+        marks = []
+        for i in range(n):
+            if rng.random() < .35:
+                marks.append("badge n%d: %s" % (i, rng.choice(WORDS + [LONG])))
+            if rng.random() < .3:
+                marks.append("lock n%d" % i)
+            if rng.random() < .3:
+                marks.append("%s n%d" % (rng.choice(["acc", "flg"]), i))
+        rows = [(i + 2, l) for i, l in enumerate(body + arrows + marks)]
+        boxes, arrs, titles = dl.parse_body(rows, "tree")
+        for mode in (None, "outline"):
+            L1 = dl.layout("tree", boxes, arrs, titles, mode)
+            L2 = dl.layout("tree", boxes, arrs, titles, mode)
+            tag = "case %d %s" % (case, mode or "top-down")
+            if ds.svg(L1) != ds.svg(L2):
+                bad.append(tag + ": not deterministic")
+            fs = [foot(b) for b in L1.boxes]
+            for i in range(len(fs)):
+                for j in range(i + 1, len(fs)):
+                    a_, b_ = fs[i], fs[j]
+                    if (min(a_[2], b_[2]) - max(a_[0], b_[0]) > 1e-6
+                            and min(a_[3], b_[3]) - max(a_[1], b_[1]) > 1e-6):
+                        bad.append("%s: %s and %s overlap"
+                                   % (tag, L1.boxes[i].name, L1.boxes[j].name))
+            nm = {b.name: b for b in L1.boxes}
+            for ar, rt in zip(arrs, L1.routes):
+                for p, q in zip(rt.points, rt.points[1:]):
+                    if abs(p[0] - q[0]) > 1e-6 and abs(p[1] - q[1]) > 1e-6:
+                        bad.append("%s: %s -> %s has a slanted leg" % (tag, ar.src, ar.dst))
+                    for b in L1.boxes:
+                        if b.name not in (ar.src, ar.dst) and seg_hits(p, q, foot(b)):
+                            bad.append("%s: %s -> %s crosses %s"
+                                       % (tag, ar.src, ar.dst, b.name))
+                    for b in L1.boxes:
+                        if b.pill and seg_hits(p, q, (b.pill[0] - 3, b.pill[1] - 3,
+                                                      b.pill[0] + b.pill[2] + 3,
+                                                      b.pill[1] + b.pill[3] + 3)):
+                            bad.append("%s: %s -> %s runs into the pill of %s"
+                                       % (tag, ar.src, ar.dst, b.name))
+                # the head: two arms from the tip, as diagram_svg draws them; a pill
+                # stays 10 units clear of it (an arrowhead read as covered by
+                # the badge, grader 2026-09-29)
+                tip, ang = rt.points[-1], rt.angle
+                seg = ds._last_len(rt.points)
+                size = min(ds.HEAD_L, ds.EX_HEAD_MAX_FRACTION * seg)
+                for sgn in (-1, 1):
+                    arm = (tip[0] + size * math.cos(ang + math.pi + sgn * ds.HEAD_A),
+                           tip[1] + size * math.sin(ang + math.pi + sgn * ds.HEAD_A))
+                    for b in L1.boxes:
+                        if b.pill and seg_hits(arm, tip, (
+                                b.pill[0] - 10, b.pill[1] - 10,
+                                b.pill[0] + b.pill[2] + 10, b.pill[1] + b.pill[3] + 10)):
+                            bad.append("%s: the head of %s -> %s touches the pill "
+                                       "of %s" % (tag, ar.src, ar.dst, b.name))
+            x0, y0, vw, vh = L1.view
+            for b in L1.boxes:
+                f = foot(b)
+                if (f[0] < x0 - 1e-6 or f[2] > x0 + vw + 1e-6
+                        or f[1] < y0 - 1e-6 or f[3] > y0 + vh + 1e-6):
+                    bad.append("%s: %s leaves the viewBox" % (tag, b.name))
+            dm, dn = dl.drawings("tree", boxes, arrs, titles)
+            if dn is not None and not dn.view[2] < dm.view[2]:
+                bad.append("case %d: the twin (%.1f) is not narrower than the "
+                           "drawing (%.1f)" % (case, dn.view[2], dm.view[2]))
+            par = {ar.dst: ar.src for ar in arrs}
+            depth = 0
+            for nm_ in par:
+                d_, cur = 0, nm_
+                while cur in par:
+                    cur, d_ = par[cur], d_ + 1
+                depth = max(depth, d_)
+            if dn is not None and depth <= 3 and dn.view[2] > dl.NARROW_W + 1e-6:
+                bad.append("case %d: a twin of depth %d is %.1f wide, over %d"
+                           % (case, depth, dn.view[2], dl.NARROW_W))
+            if mode is None:
+                kids = {}
+                for ar in arrs:
+                    kids.setdefault(ar.src, []).append(nm[ar.dst])
+                for name, ks in kids.items():
+                    if abs(nm[name].cx - (ks[0].cx + ks[-1].cx) / 2) > 1e-6:
+                        bad.append("%s: %s is not centred over its children" % (tag, name))
+            if len(bad) > 12:
+                break
+    check("300 seeded random trees up to the cap, top-down and outline: no "
+          "two footprints (box + badge) overlap, no edge crosses a box or a "
+          "badge pill, every leg is axis-aligned, a parent is centred over its "
+          "children, nothing leaves the viewBox, the output is deterministic",
+          not bad, "\n".join(bad[:12]))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

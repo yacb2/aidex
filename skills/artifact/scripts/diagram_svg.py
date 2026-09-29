@@ -171,6 +171,20 @@ def _head(x, y, angle, tone, seg):
                _num(b[0]), _num(b[1]), _num(STROKE)))
 
 
+def _lock(b):
+    """The lock glyph of a locked box, from two primitives and no icon font:
+    a filled body and an open shackle over it, in the box's own kit class."""
+    x, y = b.lock_at
+    w, h = dl.LOCK_W, dl.LOCK_H
+    return ('  <g class="%s" fill="none" stroke="currentColor" '
+            'stroke-width="%s"><rect x="%s" y="%s" width="%s" height="%s" '
+            'rx="1.5" fill="currentColor"/><path d="M %s,%s L %s,%s A 3,3 0 0 1 '
+            '%s,%s L %s,%s"/></g>'
+            % (b.tone, _num(STROKE), _num(x), _num(y), _num(w), _num(h),
+               _num(x + 2), _num(y), _num(x + 2), _num(y - 3),
+               _num(x + w - 2), _num(y - 3), _num(x + w - 2), _num(y)))
+
+
 def svg(lay, cls=""):
     """One `<svg>` element for a placed `diagram_layout.Layout`."""
     vx, vy, vw, vh = lay.view
@@ -223,8 +237,33 @@ def svg(lay, cls=""):
         for text, size, cls in rows:
             out.append('  <text%s x="%s" y="%s" text-anchor="middle" '
                        'font-size="%s" fill="currentColor">%s</text>'
-                       % (cls, _num(b.cx), _num(y), _num(size), esc(text)))
+                       % (cls, _num(b.cx + b.text_dx), _num(y), _num(size),
+                          esc(text)))
             y += dl.LINE_H
+        if b.lock_at:
+            out.append(_lock(b))
+
+    # A badge is drawn AFTER every box: its pill overlaps its box's top border
+    # and is filled with the page ground (`style`, which resolves a custom
+    # property where a presentation attribute does not) so the border does not
+    # run through the text. Always `acc`: it marks who or what is attached here.
+    for b in lay.boxes:
+        if b.pill:
+            px, py, pw, ph = b.pill
+            out.append('  <rect class="acc" x="%s" y="%s" width="%s" height="%s" '
+                       'rx="%s" style="fill:var(--paper)" stroke="currentColor" '
+                       'stroke-width="%s"/>'
+                       % (_num(px), _num(py), _num(pw), _num(ph),
+                          _num(ph / 2.0), _num(STROKE)))
+            # The lines are centred as one block, the way a box's are.
+            y = py + ph / 2.0 + 0.35 * dl.SUB_FS - (
+                len(b.badge_lines) - 1) * dl.BADGE_LINE / 2.0
+            for text in b.badge_lines:
+                out.append('  <text x="%s" y="%s" text-anchor="middle" '
+                           'font-size="%s" fill="currentColor">%s</text>'
+                           % (_num(px + pw / 2.0), _num(y), _num(dl.SUB_FS),
+                              esc(text)))
+                y += dl.BADGE_LINE
 
     out.append("</svg>")
     return "\n".join(out)

@@ -432,7 +432,7 @@ sees a prose run, and the rules below are read by the BUILDER
 same `SpecSyntaxError`, carrying the line **inside** the fence.
 
 `shape` is required and has no default — `row` (or its spelling `pipeline`),
-`before-after`, `cycle`. There is no fourth, on purpose: the deterministic-diagrams
+`before-after`, `cycle`, `tree`. The set is closed, on purpose: the deterministic-diagrams
 prior-art note (`.context/research/2026-09-23-deterministic-diagrams-prior-art.md`)
 recommends this hand-rolled grid for the shapes the corpus actually draws and Graphviz
 as the fallback for anything needing real graph layout — the `graph` block below, an
@@ -563,6 +563,69 @@ is an arrow that goes **backward** — the retry, the edge that runs against a r
 shape is painted `currentColor` so `components.css` themes it; there is no hex anywhere
 in the emitter, and no `var()` in a presentation attribute (the browser does not resolve
 one there and falls back to black, which is invisible in dark mode).
+
+## The `tree` shape: parents, children and marks
+
+`shape=tree` draws one root and its descendants. Boxes are the same `name: Label | sub`
+lines. A **parent-child line is `parent -> child`**, the arrow the other shapes already
+use: a model writing a figure has one edge syntax to remember, the arrow points the way
+the picture reads (down), and an indented outline was rejected because indentation is
+invisible to the tokenizer's `name:` rule and a wrong indent would silently re-parent a
+box. Children are drawn left to right in the order their arrows are written.
+
+Four **mark lines** follow the boxes (a mark may also come before its box; the name is
+checked once every box is known). Each starts with a reserved first word and a space, so
+`badge: x` is still a box named `badge` and `lock -> x` is still an arrow.
+
+| Line | Means |
+|---|---|
+| `badge name: text` | a pill on the box's **top edge**, 24 units right of the middle (clear of the incoming edge and its arrowhead, which it never covers), in `acc`, over a page-ground fill so the border does not run through it. It is not a box: it never counts for the cap, and it is part of its box's footprint, so a neighbour clears the pill and not only the box |
+| `lock name` | a lock glyph (a filled body and an open shackle, two primitives, no icon font, no emoji) in a strip the box grows by on its right; the label moves left to leave it |
+| `acc name` / `flg name` | paints the box in that kit class. An untoned tree box is `mut` (muted border, normal text), so `acc` (the recommended thing) and `flg` (the affected thing) stand out |
+
+A box takes one badge, one lock and one tone. `badge` text follows the first colon after
+the name, so it may hold colons (`badge e1: PM Ana: acceso aquí`).
+
+```
+::: diagram {#d5pm shape=tree title="PM con acceso a una sola producción"}
+root: Proyecto Serie X
+e1: Producción Ep. 1
+e2: Producción Ep. 2
+root -> e1
+root -> e2
+badge e1: PM Ana: acceso aquí
+lock root
+acc root
+flg e2
+:::
+```
+
+**Layout.** Top-down, by the Buchheim-Walker algorithm (Buchheim, Juenger, Leipert,
+"Improving Walker's Algorithm to Run in Linear Time", Graph Drawing 2002; the linear-time
+Reingold-Tilford): a parent is centred over its first and last child and each subtree is
+pushed against its left neighbour only as far as the two contours force. Edges are
+orthogonal: down from the parent, along a run between the two levels, down into the child's
+top middle, drawn with the same stroke, arrowhead and corner radius as every shape.
+
+**Width.** A top-down tree wider than 320 units also gets a twin for 390 px, when the twin is the narrower of the two, shown at 48rem
+and under, like a `row`. The twin (and the main drawing, when the top-down one is wider
+than the page's 720) is the **outline**: one box per row in preorder, each level 44 units
+right of its parent, an edge leaving its parent by a spine on the left and turning into the
+child's left face, long labels wrapped at spaces. A tree is never refused for width; it is
+stacked, because a tree that fits nowhere has a shape worth keeping and a narrow drawing of
+it is still a tree.
+
+| Rule | Refused example | What the message says |
+|---|---|---|
+| A box has one parent | `a -> c` then `b -> c`, refused at the second | the parent it already has; a shape with two is a graph (`::: graph`) |
+| No cycle | `a -> b`, `b -> a` | the arrow that closes it (the last-declared of the ring), and to use `shape=cycle` |
+| One root | two boxes with no parent | refused at the line of the one WITHOUT children (the first root that has children is the tree's): join it under a box, or draw two figures |
+| A mark names a declared box | `badge zzz: x` | the boxes that do exist, at the mark's line |
+| A mark is written once per kind | two badges, or `acc` and `flg`, on one box | the line of the first |
+| A badge has a box and text | `badge a:` | which of the two is missing |
+| A mark is a `tree` line | `lock a` in a `row` | that `lock` is reserved to the tree shape |
+
+The cap of 8 boxes applies to a tree; badges are not boxes and do not count.
 
 ## The `figure` block: a drawing from a file
 

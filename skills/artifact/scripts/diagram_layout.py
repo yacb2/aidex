@@ -71,7 +71,8 @@ from diagram_widths import GLYPH_WIDTHS            # noqa: E402
 # words for the same picture. Resolved once, here, so nothing downstream carries
 # two names for one layout.
 SHAPE_ALIASES = {"row": "row", "pipeline": "row",
-                 "before-after": "before-after", "cycle": "cycle"}
+                 "before-after": "before-after", "cycle": "cycle",
+                 "tree": "tree"}
 SHAPES = tuple(SHAPE_ALIASES)
 
 NAME = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -92,6 +93,11 @@ LANE_LINE = re.compile(r"^lane(?![A-Za-z0-9_-])\s*:?\s*(.*)$")
 # "everything is refused, or laid out", and a silent strip would draw a label
 # the author did not write.
 CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+# A `tree` mark line: `badge name: text`, `lock name`, `acc name`, `flg name`.
+# Read AFTER the box and arrow rules, so `badge: x` stays a box named badge and
+# `lock -> x` stays an arrow; only a first word followed by a space is a mark.
+MARK_LINE = re.compile(r"^(badge|lock|acc|flg)\s+(\S.*)$")
+BADGE_REST = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
 
 # --- geometry, in viewBox units ----------------------------------------------
 FS = 13.0              # the box label
@@ -149,6 +155,32 @@ MAX_BOX_W = 720.0
 # at the fence's line by `spec_build.emit_diagram`.
 MAX_BOXES = 8
 
+# --- the `tree` shape, in viewBox units ---------------------------------------
+LEVEL_GAP = 56.0       # between one level's bottom faces and the next's tops
+BUS = 16.0             # an edge's horizontal run, below its parent's bottom face:
+                       # the last leg is then LEVEL_GAP - BUS = 40, so the head
+                       # (capped at half of it) is drawn at its full 16.25
+SIB_GAP = 24.0         # between two neighbouring footprints on one level
+BADGE_H = 18.0
+BADGE_PAD = 8.0        # inside a badge pill, each side
+BADGE_UP = 12.0        # a pill's top edge above its box's top edge: the pill
+                       # straddles the border, 12 above and 6 below, so its text
+                       # centre is OUTSIDE the box rect (the svg-text checker
+                       # would otherwise read the badge as a label of the box)
+BADGE_INSET = 24.0     # top-down: the pill starts this far right of the box's
+                       # middle: the arrowhead there is 5.6 wide either side, so
+                       # the pill clears it by 18 and never covers it
+BADGE_LINE = 14.0      # a wrapped badge's line step (outline only)
+BADGE_OUT = 12.0       # outline: the pill starts this far right of the box's left
+LOCK_W = 10.0          # the lock glyph: a body LOCK_W x LOCK_H and a shackle
+LOCK_H = 8.0
+LOCK_RESERVE = 20.0    # what a locked box grows by, and its label moves left by
+                       # half of: the glyph sits in the right-hand strip
+INDENT = 44.0          # outline: one level's step right
+SPINE = 16.0           # outline: the spine's distance from its parent's left face;
+                       # the last leg is INDENT - SPINE = 28, head 14
+OUT_GAP = 28.0         # outline: between two rows (a pill needs 12 of it)
+
 
 def columns(label):
     """The label's width in monospace COLUMNS.
@@ -200,8 +232,13 @@ class Box(object):
     # else, so deciding it twice is what would let the two disagree.
     # `sub` is the second, smaller, muted line (`name: Label | sub`), "" when
     # absent. `decision` is a label ending in `?`: drawn as a rounded box.
+    # A `tree` box may also carry a `badge` (text, drawn as a pill on its top
+    # edge: `pill` is that pill's (x, y, w, h) once placed), a `lock` (a glyph
+    # in its right-hand strip: `lock_at` is the body's top-left corner) and
+    # `text_dx`, how far its label sits left of the middle to leave the strip.
     __slots__ = ("name", "label", "sub", "decision", "line", "lane", "w", "h",
-                 "x", "y", "tone", "lines", "sub_lines")
+                 "x", "y", "tone", "lines", "sub_lines", "badge", "lock",
+                 "pill", "badge_lines", "lock_at", "text_dx")
 
     def __init__(self, name, label, line, lane, sub=""):
         self.name, self.label, self.line, self.lane = name, label, line, lane
@@ -214,6 +251,9 @@ class Box(object):
         # too wide for 390 px (`_fit_tb`); everything else draws it whole.
         self.lines = [label]
         self.sub_lines = [sub] if sub else []
+        self.badge, self.lock = "", False
+        self.pill, self.lock_at, self.text_dx = None, None, 0.0
+        self.badge_lines = []
 
     @property
     def cx(self):
@@ -282,6 +322,7 @@ def parse_body(rows, shape):
     boxes, arrows, titles = [], [], []
     by_name = {}
     seen_arrow = set()
+    marks = []                                     # tree: (kind, name, text, line)
     lane = None
 
     for n, raw in rows:
@@ -376,6 +417,14 @@ def parse_body(rows, shape):
             arrows.append(Arrow(src, dst, n))
             continue
 
+        m = MARK_LINE.match(line)
+        if m and m.group(1) != "badge" and "->" in line:
+            m = None                # `lock -> b -> c` is a botched arrow line
+        if m:
+            marks.append(_parse_mark(n, shape, m.group(1), m.group(2).strip(),
+                                     marks))
+            continue
+
         if "->" in line:
             raise SpecSyntaxError(
                 n, "%r is not an arrow — one arrow per line, `A -> B`, and "
@@ -384,9 +433,14 @@ def parse_body(rows, shape):
         raise SpecSyntaxError(
             n, "%r is neither a box nor an arrow — a box is `name: Label`, an "
                "arrow is `A -> B`%s" % (line, ", and a lane is `lane Title`"
-                                        if shape == "before-after" else ""))
+                                        if shape == "before-after" else
+                                        ", and a tree also has `badge`, `lock`, "
+                                        "`acc` and `flg` lines"
+                                        if shape == "tree" else ""))
 
     _check_refs(boxes, arrows, by_name)
+    if shape == "tree":
+        _check_tree(boxes, arrows, by_name, marks)
     if shape == "before-after":
         if len(titles) < 2:
             raise SpecSyntaxError(
@@ -400,6 +454,130 @@ def parse_body(rows, shape):
                 "nothing" % titles[1])
         _check_lanes(boxes, arrows, by_name)
     return boxes, arrows, titles
+
+
+def _parse_mark(n, shape, kind, rest, marks):
+    """One `tree` mark line as `(kind, name, text, line)`; refused elsewhere.
+
+    `badge name: text` attaches a pill to a box; `lock name` puts a lock glyph
+    in it; `acc name` / `flg name` paint it in that kit class. A box takes each
+    kind once: a second badge would sit on the first, and two tones would leave
+    the picture to say which one wins. Whether `name` is a declared box is
+    checked once every box is known (`_check_tree`), at THIS line.
+    """
+    if shape != "tree":
+        raise SpecSyntaxError(
+            n, "`%s` is a `tree` line — shape=%r draws no marks on its boxes "
+               "(`%s` is a reserved first word here, so a box cannot be "
+               "written `%s name`)" % (kind, shape, kind, kind))
+    text = ""
+    if kind == "badge":
+        m = BADGE_REST.match(rest)
+        if not m or not m.group(2).strip():
+            raise SpecSyntaxError(
+                n, "a badge is `badge name: text` — the box it sits on, a "
+                   "colon, and what it says; %r has %s" % (
+                       rest, "no text after the colon" if m else
+                       "no box name before a colon"))
+        name, text = m.group(1), m.group(2).strip()
+        _check_control(n, "the badge on `%s`" % name, text)
+        if badge_w(text) > MAX_BOX_W:
+            raise SpecSyntaxError(
+                n, "the badge on `%s` needs a %d-unit pill and the page is %d "
+                   "wide — shorten it" % (name, round(badge_w(text)),
+                                          int(MAX_BOX_W)))
+    else:
+        if not NAME.match(rest):
+            raise SpecSyntaxError(
+                n, "`%s %s` — a `%s` line is `%s name`, one declared box's "
+                   "name and nothing after it" % (kind, rest, kind, kind))
+        name = rest
+    tone = kind in ("acc", "flg")
+    for k, nm, _t, ln in marks:
+        if nm == name and (k == kind or (tone and k in ("acc", "flg"))):
+            raise SpecSyntaxError(
+                n, "box `%s` already has %s on line %d — %s" % (
+                    name, "a %s" % k if k in ("badge", "lock") else
+                    "the tone `%s`" % k, ln,
+                    "a second one would be drawn on the first" if k == kind
+                    else "one box takes one tone"))
+    return kind, name, text, n
+
+
+def _check_tree(boxes, arrows, by_name, marks):
+    """Everything a `tree` needs that a line alone cannot show, then the marks
+    applied to their boxes. Each refusal names the line the author edits.
+
+    An arrow is `parent -> child`. A box with two parents is refused at the
+    SECOND arrow into it: that is a graph, and `::: graph` draws it. A cycle is
+    refused at its last-declared arrow. A forest (two boxes with no parent) is
+    refused at the second root's declaration: a tree has one root, and two
+    trees are two figures. Marks naming an undeclared box are refused at the
+    mark's line, with the boxes that do exist.
+    """
+    parent, line_of = {}, {}
+    for a in arrows:
+        if a.dst in parent:
+            raise SpecSyntaxError(
+                a.line, "box `%s` already has the parent `%s` (line %d) and "
+                        "this arrow gives it a second, `%s` — a tree box has "
+                        "one parent; a shape with two is a graph (`::: graph`)"
+                        % (a.dst, parent[a.dst], line_of[(parent[a.dst], a.dst)],
+                           a.src))
+        parent[a.dst] = a.src
+        line_of[(a.src, a.dst)] = a.line
+    for b in boxes:
+        seen, cur = [], b.name
+        while cur in parent and cur not in seen:
+            seen.append(cur)
+            cur = parent[cur]
+        if cur in seen:
+            ring = seen[seen.index(cur):]
+            last = max((line_of[(parent[x], x)], x) for x in ring)
+            raise SpecSyntaxError(
+                last[0], "`%s -> %s` closes a cycle (%s) — a tree has no "
+                         "arrow back up; write a loop as shape=cycle"
+                         % (parent[last[1]], last[1],
+                            " -> ".join(list(reversed(ring)) + [ring[-1]])))
+    roots = [b for b in boxes if b.name not in parent]
+    if len(roots) > 1:
+        # The tree's root is the first one that has children; the stray is the
+        # first other root, so `x: X` above `r: R` is blamed, not `r`.
+        has_kids = {a.src for a in arrows}
+        main = next((r for r in roots if r.name in has_kids), roots[0])
+        stray = next(r for r in roots if r is not main)
+        raise SpecSyntaxError(
+            stray.line, "box `%s` has no parent and neither has `%s` — a "
+                        "tree has one root; join it under a box, or draw "
+                        "the two trees as two figures"
+                        % (stray.name, main.name))
+    known = ", ".join("`%s`" % b.name for b in boxes)
+    for kind, name, text, n in marks:
+        if name not in by_name:
+            raise SpecSyntaxError(
+                n, "`%s %s` names a box no line declares — the boxes are: %s"
+                   % (kind, name, known))
+    for b in boxes:
+        b.tone = "mut"
+    for kind, name, text, n in marks:
+        b = by_name[name]
+        if kind == "badge":
+            b.badge = text
+        elif kind == "lock":
+            b.lock = True
+            b.w += LOCK_RESERVE
+            if b.w > MAX_BOX_W:
+                raise SpecSyntaxError(
+                    n, "box `%s` needs a %d-unit box with its lock and the "
+                       "page is %d wide — shorten the label"
+                       % (name, round(b.w), int(MAX_BOX_W)))
+        else:
+            b.tone = kind
+
+
+def badge_w(text):
+    """A badge pill's width."""
+    return text_width(text, SUB_FS) + 2 * BADGE_PAD
 
 
 def _check_control(n, what, text):
@@ -895,11 +1073,259 @@ def _route_cycle(boxes, arrows, by_name, radius):
     return routes
 
 
+# --- the `tree` shape --------------------------------------------------------
+# Top-down placement is the Buchheim-Walker algorithm: C. Buchheim, M. Juenger,
+# S. Leipert, "Improving Walker's Algorithm to Run in Linear Time", Graph
+# Drawing 2002 (LNCS 2528), itself Reingold-Tilford (1981) with Walker's (1990)
+# n-ary extension. A parent is centred over its first and last child, and each
+# subtree is pushed against its left neighbour only as far as the two CONTOURS
+# force, so subtrees are as compact as the tree allows; the threads and the
+# `change`/`shift` bookkeeping keep it linear. The one departure from the
+# paper's unit-width nodes: a node has a FOOTPRINT, `l` left and `r` right of
+# its middle (the box's half-width, and to the right the badge pill too), and
+# two neighbours are kept `l + r + SIB_GAP` apart instead of one `distance`.
+class _TN(object):
+    __slots__ = ("box", "parent", "children", "i", "mod", "shift", "change",
+                 "thread", "ancestor", "x", "l", "r")
+
+    def __init__(self, box, parent, i):
+        self.box, self.parent, self.i = box, parent, i
+        self.children = []
+        self.mod = self.shift = self.change = 0.0
+        self.thread, self.ancestor, self.x = None, self, 0.0
+        self.l = box.w / 2.0
+        self.r = max(box.w / 2.0, BADGE_INSET + badge_w(box.badge)
+                     if box.badge else 0.0)
+
+    def left(self):
+        return self.thread or (self.children[0] if self.children else None)
+
+    def right(self):
+        return self.thread or (self.children[-1] if self.children else None)
+
+    def lbrother(self):
+        return self.parent.children[self.i - 1] if self.parent and self.i else None
+
+    def lmost(self):
+        return self.parent.children[0] if self.parent and self.i else None
+
+
+def _sep(a, b):
+    return a.r + b.l + SIB_GAP
+
+
+def _tree_nodes(boxes, arrows):
+    """The root `_TN`, the children of each box taken in arrow order."""
+    by_name = {b.name: b for b in boxes}
+    kids = {b.name: [] for b in boxes}
+    has_parent = set()
+    for a in arrows:
+        kids[a.src].append(a.dst)
+        has_parent.add(a.dst)
+    root = [b for b in boxes if b.name not in has_parent][0]
+
+    def make(box, parent, i):
+        node = _TN(box, parent, i)
+        node.children = [make(by_name[k], node, j)
+                         for j, k in enumerate(kids[box.name])]
+        return node
+    return make(root, None, 0)
+
+
+def _firstwalk(v):
+    if not v.children:
+        w = v.lbrother()
+        v.x = w.x + _sep(w, v) if w else 0.0
+        return
+    default = v.children[0]
+    for w in v.children:
+        _firstwalk(w)
+        default = _apportion(w, default)
+    _execute_shifts(v)
+    mid = (v.children[0].x + v.children[-1].x) / 2.0
+    w = v.lbrother()
+    if w:
+        v.x = w.x + _sep(w, v)
+        v.mod = v.x - mid
+    else:
+        v.x = mid
+
+
+def _apportion(v, default):
+    w = v.lbrother()
+    if w is None:
+        return default
+    vir = vor = v
+    vil, vol = w, v.lmost()
+    sir = sor = v.mod
+    sil, sol = vil.mod, vol.mod
+    while vil.right() and vir.left():
+        vil, vir = vil.right(), vir.left()
+        vol, vor = vol.left(), vor.right()
+        vor.ancestor = v
+        shift = (vil.x + sil) - (vir.x + sir) + _sep(vil, vir)
+        if shift > 0:
+            a = vil.ancestor if vil.ancestor.parent is v.parent else default
+            n = v.i - a.i
+            v.change -= shift / n
+            v.shift += shift
+            a.change += shift / n
+            v.x += shift
+            v.mod += shift
+            sir += shift
+            sor += shift
+        sil += vil.mod
+        sir += vir.mod
+        sol += vol.mod
+        sor += vor.mod
+    if vil.right() and not vor.right():
+        vor.thread = vil.right()
+        vor.mod += sil - sor
+    else:
+        if vir.left() and not vol.left():
+            vol.thread = vir.left()
+            vol.mod += sir - sol
+        default = v
+    return default
+
+
+def _execute_shifts(v):
+    shift = change = 0.0
+    for w in reversed(v.children):
+        w.x += shift
+        w.mod += shift
+        change += w.change
+        shift += w.shift + change
+
+
+def _secondwalk(v, m, depth, out):
+    out.append((v, v.x + m, depth))
+    for w in v.children:
+        _secondwalk(w, m + v.mod, depth + 1, out)
+
+
+def _place_pill(b, x, limit=None):
+    """The badge pill of `b`, its left edge at `x`, straddling the top edge.
+
+    The bottom edge is always 6 below the box's top edge; a badge wrapped to
+    several lines (`limit`, the pill's widest width; the outline's) grows UP,
+    so it never reaches the box's own label."""
+    if b.badge:
+        b.badge_lines = _wrap(
+            b.badge, lambda t: text_width(t, SUB_FS) + 2 * BADGE_PAD, limit)
+        h = BADGE_H + (len(b.badge_lines) - 1) * BADGE_LINE
+        w = max(text_width(t, SUB_FS) for t in b.badge_lines) + 2 * BADGE_PAD
+        b.pill = (x, b.y + (BADGE_H - BADGE_UP) - h, w, h)
+
+
+def _place_marks(b):
+    """The pill's text sits where the box's label would; a lock moves the
+    label left and takes the right-hand strip."""
+    if b.lock:
+        b.text_dx = -LOCK_RESERVE / 2.0
+        b.lock_at = (b.x + b.w - 12.0 - LOCK_W, b.cy - LOCK_H / 2.0 + 1.0)
+
+
+def _route_top_down(arrows, by_name):
+    """One route per parent -> child arrow, in arrow order: down out of the
+    parent's bottom middle, along a run BUS below it, down into the child's top
+    middle. Straight when the two middles line up. The run is between two
+    levels, where no box is, and each edge arrives at its child's middle, left
+    of the badge pill."""
+    routes = []
+    for ar in arrows:
+        a, b = by_name[ar.src], by_name[ar.dst]
+        if abs(a.cx - b.cx) < 1e-9:
+            pts = [(a.cx, a.y + a.h), (b.cx, b.y)]
+        else:
+            yb = a.y + a.h + BUS
+            pts = [(a.cx, a.y + a.h), (a.cx, yb), (b.cx, yb), (b.cx, b.y)]
+        routes.append(Route(pts, _tip(pts[-2], pts[-1]), "mut"))
+    return routes
+
+
+def _layout_tree(boxes, arrows):
+    """Top-down: Buchheim-Walker, then y by depth. Returns the routes."""
+    root = _tree_nodes(boxes, arrows)
+    _firstwalk(root)
+    placed = []
+    _secondwalk(root, 0.0, 0, placed)
+    left = min(x - v.l for v, x, _d in placed)
+    h = boxes[0].h
+    for v, x, depth in placed:
+        b = v.box
+        b.x = x - left - b.w / 2.0
+        b.y = depth * (h + LEVEL_GAP)
+        _place_pill(b, b.cx + BADGE_INSET)
+        _place_marks(b)
+    return _route_top_down(arrows, {b.name: b for b in boxes})
+
+
+def _layout_outline(boxes, arrows):
+    """The stacked drawing: one box per row in preorder, each level INDENT to
+    the right of its parent, an edge leaving its parent's left strip by a
+    spine and turning into the child's left face. It is what a tree becomes
+    when the top-down drawing is wider than the page (or a phone): its width is
+    the depth times INDENT plus one box, not the sum of the widest level."""
+    root = _tree_nodes(boxes, arrows)
+    order = []
+
+    def walk(v, d):
+        order.append((v, d))
+        for w in v.children:
+            walk(w, d + 1)
+    walk(root, 0)
+    deepest = max(d for _v, d in order)
+    # The room left for a label after the indent, never under 120: a deep chain
+    # is wrapped to a readable box and drawn wider than NARROW_W instead of a
+    # word a line.
+    room = max(120.0, NARROW_W - 2 * MARGIN - deepest * INDENT)
+    # A locked box grows by LOCK_RESERVE after wrapping, so its label is
+    # wrapped that much narrower; a badge pill starts BADGE_OUT right of the box
+    # and is wrapped to end inside the same room.
+    _fit_tb([v.box for v, _d in order],
+            room - (LOCK_RESERVE if any(v.box.lock for v, _d in order) else 0.0))
+    y = 0.0
+    for i, (v, d) in enumerate(order):
+        b = v.box
+        if b.lock:
+            b.w += LOCK_RESERVE
+        b.x = d * INDENT
+        if b.badge:
+            # Placed at the row's own y first to learn how tall the pill is,
+            # then the row is moved down by what the pill grows above it.
+            b.y = 0.0
+            _place_pill(b, b.x + BADGE_OUT, room - BADGE_OUT)
+            up = (len(b.badge_lines) - 1) * BADGE_LINE
+        else:
+            up = 0.0
+        if i:
+            y += OUT_GAP + up
+        b.y = y
+        _place_pill(b, b.x + BADGE_OUT, room - BADGE_OUT)
+        y += b.h
+        _place_marks(b)
+    routes = []
+    by_name = {b.name: b for b in boxes}
+    for ar in arrows:
+        a, b = by_name[ar.src], by_name[ar.dst]
+        sx = a.x + SPINE
+        # Four points, the second collinear: a 3-point route is a quadratic to
+        # `diagram_svg._path`, and this elbow is a right angle.
+        pts = [(sx, a.y + a.h), (sx, (a.y + a.h + b.cy) / 2.0),
+               (sx, b.cy), (b.x, b.cy)]
+        routes.append(Route(pts, _tip(pts[-2], pts[-1]), "mut"))
+    return routes
+
+
 def _bounds(boxes, routes, titles, divider):
     xs, ys = [], []
     for b in boxes:
         xs += [b.x, b.x + b.w]
         ys += [b.y, b.y + b.h]
+        if b.pill:
+            xs += [b.pill[0], b.pill[0] + b.pill[2]]
+            ys += [b.pill[1], b.pill[1] + b.pill[3]]
     for r in routes:
         for px, py in r.points:
             xs.append(px)
@@ -956,6 +1382,14 @@ def layout(shape, boxes, arrows, titles, direction=None):
             if over <= 1e-9 or widest == prev:
                 break
             prev, limit = widest, widest - over
+    elif shape == "tree":
+        # The outline wraps its labels (`_fit_tb`), which sets each box's own
+        # height: `outline` is the one direction that does not use `h` alone.
+        if direction == "outline":
+            routes = _layout_outline(boxes, arrows)
+        else:
+            routes = _layout_tree(boxes, arrows)
+            direction = "top-down"
     elif shape == "row":
         rank = _ranks(boxes, arrows)
         routes = _layout_lr(boxes, arrows, by_name, rank)
@@ -988,7 +1422,7 @@ def layout(shape, boxes, arrows, titles, direction=None):
     view = (x0 - MARGIN, y0 - MARGIN,
             (x1 - x0) + 2 * MARGIN, (y1 - y0) + 2 * MARGIN)
     return Layout(shape, boxes, routes, placed_titles, divider, view,
-                  direction if shape == "row" else None)
+                  direction if shape in ("row", "tree") else None)
 
 
 def drawings(shape, boxes, arrows, titles, direction=None):
@@ -1001,6 +1435,20 @@ def drawings(shape, boxes, arrows, titles, direction=None):
     narrow enough already).
     """
     main = layout(shape, boxes, arrows, titles, direction)
+    if SHAPE_ALIASES[shape] == "tree":
+        # The same rule as a `row`, with the outline for `tb`: the top-down
+        # drawing when it fits the page, the outline when it does not, and the
+        # outline as a twin for 390 px when the top-down one is wider than a
+        # phone's column keeps readable.
+        if main.view[2] > MAX_BOX_W:
+            return layout(shape, boxes, arrows, titles, "outline"), None
+        if main.view[2] > NARROW_W:
+            # Only when the twin is the narrower of the two: a phone shows the
+            # one that scales up, and a wrapped outline can come out wider
+            # than a top-down tree that is only just over NARROW_W.
+            twin = layout(shape, boxes, arrows, titles, "outline")
+            return main, (twin if twin.view[2] < main.view[2] else None)
+        return main, None
     if SHAPE_ALIASES[shape] != "row":
         return main, None
     if direction is None and main.view[2] > MAX_BOX_W:

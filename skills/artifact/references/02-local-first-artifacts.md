@@ -100,7 +100,7 @@ The list is closed — an unknown type is refused by name with the known set pri
 | `callout` | yes | a framed aside the reader must not skim past; an empty one is refused | — |
 | `note` | yes | the quieter aside; `{.warn}` is its one class; an empty one is refused (it renders as an empty framed bar) | — |
 | `chart` | yes | bars, lines or stacked bars drawn from data rows (rung 1) | `type` |
-| `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle (rung 1) | `shape` |
+| `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle, tree (rung 1) | `shape` |
 | `graph` | yes | boxes and edges in DOT, laid out by Graphviz with the kit classes (rung 2) | — |
 | `figure` | yes | a drawing from a file: figure-sonnet's SVG or a screenshot (rung 3) | `src` |
 | `prose` | **no** | a run of markdown outside any fence — the implicit default | — |
