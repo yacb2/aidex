@@ -710,6 +710,77 @@ rc="$(run "$TMP/order-clean.html")"
 grep -q "WARN \[consult-order\]" "$TMP/out" \
   && fail "10b3. evidence placed before each item was reported: $(cat "$TMP/out")"
 
+# ---- 10b4. BL-503: an item whose FIRST sentence cites an internal id (BL-/M095
+# style id, backticked path, HTTP verb, "fila N", "gate N") reached the owner
+# as document reconciliation, not as a product situation; 7 of 11 items on one
+# page came back as "explain". The lead must be plain prose; ids go on a
+# trailing "Fuente:" line. WARN only (exit 0). Boundary: only the first
+# sentence of the lead paragraph counts; an id later in the lead, or on a
+# Fuente: line, must stay silent.
+idem() {  # id, lead paragraph html, [second paragraph html]
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-free data-title=\"T %s\"><h3>T %s</h3><p>%s</p>%s<textarea></textarea></section>' "$1" "$1" "$1" "$2" "${3:+<p>$3</p>}"
+}
+mkpage "$TMP/lead-ids.html" "$visual
+$gopen
+$(idem A1 'Decision M095 says that the manager cannot delete the project.')
+$(idem A2 'Today <code>backend/api/voices.py</code> returns 200 to the manager.')
+$(idem A3 'GET on the profile returns 200 for the manager.')
+$(idem A4 'According to fila 170 the manager cannot delete projects.')
+$(idem A5 'The gate 3 says the manager cannot delete projects.')
+$(idem A6 'Ana, a manager, opens the project and presses Delete. Today the button does not appear (BL-503, GET /x).' 'Fuente: ADR fila 170, M095, <code>a/b.py</code>, gate 3.')
+$(idem A7 'Ana, a manager, opens the project and does not see the Delete button.')
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/lead-ids.html")"
+[[ "$rc" == "0" ]] || fail "10b4. consult-lead-id changed the exit code — it is a warning: $(cat "$TMP/out")"
+for id in A1 A2 A3 A4 A5; do
+  grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
+    || fail "10b4. BL-503: an id in the first sentence of $id was not reported: $(cat "$TMP/out")"
+done
+for id in A6 A7; do
+  grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
+    && fail "10b4. BL-503: $id has a prose lead (ids only after it or on Fuente:) and must not warn: $(cat "$TMP/out")"
+done
+
+# 10b4 review round: skipped paragraphs, fieldlabel, sentence split, same-page
+# ids, block contexts, gate/gates.
+fl='<p class="fieldlabel">'
+rawitem() {  # id, inner html (paragraphs)
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-free data-title=\"T %s\"><h3>T %s</h3>%s<textarea></textarea></section>' "$1" "$1" "$1" "$2"
+}
+mkpage "$TMP/lead-ids2.html" "$visual
+$gopen
+$(rawitem C1 '<p>Fuente: M095.</p><p>BL-4 says the manager cannot delete.</p>')
+$(rawitem C2 '<p>Fuente: M095, gate 3.</p>')
+$(rawitem C3 '<p></p><p>BL-4 says the manager cannot delete.</p>')
+$(rawitem C4 "$fl"'Notes on BL-4</p><p>Ana, a manager, opens the project and sees no Delete button.</p>')
+$(rawitem C5 '<p>Mr. Lopez sees BL-4 today.</p>')
+$(rawitem C6 '<p>For example, e.g. BL-12 shows up.</p>')
+$(rawitem C7 '<p>Ana opens the project. Then BL-4 applies.</p>')
+$(rawitem C8 '<p>It depends on your answer to Q2.</p>')
+$(rawitem C9 '<p>It depends on your answer to Q9.</p>')
+$(rawitem C10 '<p>The gates 3 and 4 say the manager cannot delete.</p>')
+$(rawitem Q2 '<p>Ana, a manager, opens the project and sees no Delete button.</p>')
+$gclose
+<section class=\"consult-group\" id=\"G7\" data-id=\"G7\" data-title=\"Ctx\"><div class=\"sec-head\"><h2>Ctx</h2></div><p>M095 and BL-4 frame everything below.</p>
+$(rawitem D1 '<p>Ana, a manager, opens the project and sees no Delete button.</p>')
+</section>
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/lead-ids2.html")"
+[[ "$rc" == "0" ]] || fail "10b4b. consult-lead-id changed the exit code: $(cat "$TMP/out")"
+for id in C1 C3 C5 C6 C9 C10; do
+  grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
+    || fail "10b4b. $id should have warned: $(cat "$TMP/out")"
+done
+for id in C2 C4 C7 C8 D1 G7; do
+  grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
+    && fail "10b4b. $id must not warn: $(cat "$TMP/out")"
+done
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact

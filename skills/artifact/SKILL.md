@@ -69,6 +69,12 @@ that does not carry out a printed duty — no bypass
 (`references/02-local-first-artifacts.md` § "The reply is saved before the
 next round is built (BL-475)").
 
+A consultation brief carries, per item, a situation lead written by the main session
+(a named role, screen, action, what happens today), options stated as what that person
+sees or can do, ids only on a trailing `Fuente:` line, and a "decidido, corrígeme si
+no" block for reversible decisions that carry a recommendation. `artifact-sonnet` lays
+that out; the contract is `references/02-local-first-artifacts.md` § 8 (BL-503).
+
 Per-project design tokens live in `.context/artifact-style.md` (template:
 `assets/templates/artifact-style.md.template`), including a `language:` field
 in its `## Language` section that `wrap-report.sh` reads as the artifact's
