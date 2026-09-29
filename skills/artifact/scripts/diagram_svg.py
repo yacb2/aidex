@@ -200,6 +200,27 @@ def svg(lay, cls=""):
                    'stroke-dasharray="4 4"/>'
                    % (_num(dx0), _num(dy), _num(dx1), _num(dy)))
 
+    # A compare's frames, first, so bodies and arrows are painted over them.
+    # The recommended panel is `acc` in its frame, title and outcome; the other
+    # keeps a `mut` frame and plain text, so the accent means one thing.
+    for p in lay.panels:
+        fx, fy, fw, fh = p.frame
+        tone = "acc" if p.recommended else "mut"
+        tcls = ' class="acc"' if p.recommended else ""
+        out.append('  <rect class="%s" x="%s" y="%s" width="%s" height="%s" '
+                   'rx="%s" fill="none" stroke="currentColor" '
+                   'stroke-width="%s"/>'
+                   % (tone, _num(fx), _num(fy), _num(fw), _num(fh),
+                      _num(_corner(fw, fh)), _num(STROKE)))
+        out.append('  <text%s x="%s" y="%s" font-size="%s" '
+                   'fill="currentColor">%s</text>'
+                   % (tcls, _num(p.title_at[0]), _num(p.title_at[1]),
+                      _num(dl.FS), esc(p.title)))
+        for text, tx, ty in p.outcome_lines:
+            out.append('  <text%s x="%s" y="%s" font-size="%s" '
+                       'fill="currentColor">%s</text>'
+                       % (tcls, _num(tx), _num(ty), _num(dl.FS), esc(text)))
+
     for text, tx, ty in lay.titles:
         out.append('  <text class="mut" x="%s" y="%s" font-size="%s" '
                    'fill="currentColor">%s</text>'
@@ -250,10 +271,13 @@ def svg(lay, cls=""):
     for b in lay.boxes:
         if b.pill:
             px, py, pw, ph = b.pill
-            out.append('  <rect class="acc" x="%s" y="%s" width="%s" height="%s" '
+            # Inside a compare the accent is the recommended panel's alone.
+            pt = ("acc" if not lay.panels or lay.panels[b.lane].recommended
+                  else "mut")
+            out.append('  <rect class="%s" x="%s" y="%s" width="%s" height="%s" '
                        'rx="%s" style="fill:var(--paper)" stroke="currentColor" '
                        'stroke-width="%s"/>'
-                       % (_num(px), _num(py), _num(pw), _num(ph),
+                       % (pt, _num(px), _num(py), _num(pw), _num(ph),
                           _num(ph / 2.0), _num(STROKE)))
             # The lines are centred as one block, the way a box's are.
             y = py + ph / 2.0 + 0.35 * dl.SUB_FS - (

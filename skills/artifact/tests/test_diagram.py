@@ -1599,6 +1599,317 @@ try:
           "badge pill, every leg is axis-aligned, a parent is centred over its "
           "children, nothing leaves the viewBox, the output is deterministic",
           not bad, "\n".join(bad[:12]))
+    # === THE `compare` SHAPE =================================================
+    # Layer: unit. What decides a compare is the layout module (panel frames,
+    # baselines, the two drawings) and the parser's refusals, so both are
+    # asserted on the placed layout and on the fence, plus one build through the
+    # real svg-text checker. No browser: nothing here depends on one.
+    print("== the compare shape ==")
+
+    def cmp_(*body):
+        return fence("compare", *body)
+
+    A = ["panel tree Opción A", "r: Raíz", "a: Hijo", "r -> a",
+         "outcome Resultado A", "recommended"]
+    B = ["panel row Opción B", "x: Uno", "y: Dos", "x -> y",
+         "outcome Resultado B"]
+    h = holds("a compare with a tree and a row panel is drawn",
+              cmp_(*(A + B)), 'class="acc"', "Opción A", "Resultado B")
+    check("a compare passes the real svg-text checker",
+          not findings(h), "\n".join(map(str, findings(h))))
+    D5 = ["panel tree Opción A", "root: Proyecto Serie X",
+          "e1: Producción Ep. 1", "e2: Producción Ep. 2", "root -> e1",
+          "root -> e2", "badge e1: PM Ana: acceso aquí", "lock root",
+          "outcome Ana edita Ep. 1; Serie X queda con candado", "recommended",
+          "panel tree Opción B", "r2: Proyecto Serie X", "f1: Producción Ep. 1",
+          "f2: Producción Ep. 2", "r2 -> f1", "r2 -> f2", "flg f2",
+          "outcome Ana puede editar Serie X y Ep. 2"]
+    h = holds("lock, flg and badge marks work inside a panel's tree",
+              cmp_(*D5), "PM Ana: acceso aquí", 'class="flg"')
+    # The accent belongs to the recommended panel: every `acc` element of the
+    # grammar doc's own example (a badge in BOTH panels) lies inside its frame.
+    DOC = [l for l in D5]
+    DOC.insert(DOC.index("flg f2"), "badge f1: PM Ana: acceso aquí")
+    hd_ = holds("the doc example (a badge in both panels) builds", cmp_(*DOC))
+    LD = dl.drawings("compare", *dl.parse_body(
+        [(i + 2, l) for i, l in enumerate(DOC)], "compare"))[0]
+    fa = LD.panels[0].frame
+    acc_bad = []
+    for el in re.findall(r'<(?:rect|text|path|g)\b[^>]*class="acc"[^>]*>(?:[^<]*)',
+                         svg_of(hd_)):
+        if el.startswith("<rect"):
+            bb = (fnum(el, "x"), fnum(el, "y"), fnum(el, "x") + fnum(el, "width"),
+                  fnum(el, "y") + fnum(el, "height"))
+        elif el.startswith("<text"):
+            tx, ty = fnum(el, "x"), fnum(el, "y")
+            w_ = dl.text_width(_html.unescape(el.split(">", 1)[1]), dl.FS)
+            bb = (tx, ty - dl.FS, tx + w_, ty)
+        else:
+            continue
+        if not (bb[0] >= fa[0] - 1e-6 and bb[1] >= fa[1] - 1e-6
+                and bb[2] <= fa[0] + fa[2] + 1e-6 and bb[3] <= fa[1] + fa[3] + 1e-6):
+            acc_bad.append(el[:80])
+    check("every acc element lies inside the recommended panel's frame (a "
+          "badge in the other panel is not accent)", not acc_bad,
+          "\n".join(acc_bad))
+    L = dl.build("compare", [(i + 2, l) for i, l in enumerate(D5)])
+    check("a compare reports which panel is recommended",
+          [p.recommended for p in L.panels] == [True, False])
+
+    rejects("a compare with one panel is refused at that panel's line",
+            cmp_(*A), 2, "needs two `panel` lines and this body has 1")
+    rejects("a third panel is refused at its own line",
+            cmp_(*(A + B + ["panel row C", "z: Z", "outcome z"])), 13,
+            "3rd `panel`")
+    rejects("two recommended panels are refused at the second, naming the first",
+            cmp_(*(A + B + ["recommended"])), 13,
+            "already `recommended` (line 7)")
+    rejects("recommended twice in one panel is refused",
+            cmp_(*(A + ["recommended"] + B)), 8, "already `recommended`")
+    rejects("the cap counts boxes across both panels, at the fence's line",
+            cmp_(*(["panel row A"] + ["a%d: A%d" % (i, i) for i in range(5)]
+                   + ["outcome ok", "panel row B"]
+                   + ["b%d: B%d" % (i, i) for i in range(4)] + ["outcome ok"])),
+            1, "9 boxes, the cap is 8", SpecBuildError)
+    holds("8 boxes across both panels is at the cap and builds",
+          cmp_(*(["panel row A"] + ["a%d: A%d" % (i, i) for i in range(4)]
+                 + ["outcome ok", "panel row B"]
+                 + ["b%d: B%d" % (i, i) for i in range(4)] + ["outcome ok"])),
+          "<svg")
+    rejects("a panel without an outcome is refused at its panel line",
+            cmp_(*(A + B[:-1])), 8, "has no `outcome` line")
+    rejects("an outcome with no text is refused", cmp_(*(A[:-2] + ["outcome"] + B)),
+            6, "no text")
+    rejects("a second outcome in a panel is refused",
+            cmp_(*(A + ["outcome otra"] + B)), 8, "already has an `outcome`")
+    rejects("an unknown key inside a panel is refused at its line",
+            cmp_(*(A[:5] + ["color rojo"] + A[5:] + B)), 7,
+            "neither a box nor an arrow")
+    rejects("a line above the first panel is refused",
+            cmp_(*(["r: Raíz"] + A + B)), 2, "above the first `panel` line")
+    rejects("`recommended` above the first panel is refused",
+            cmp_(*(["recommended"] + A + B)), 2, "above the first `panel` line")
+    rejects("a panel with no body shape is refused",
+            cmp_(*(["panel Opción A", "r: R", "outcome x"] + B)), 2,
+            "no body shape")
+    rejects("a panel with no title is refused",
+            cmp_(*(["panel tree", "r: R", "outcome x"] + B)), 2, "no title")
+    rejects("a panel with no boxes is refused at its panel line",
+            cmp_(*(["panel tree Opción A", "outcome x"] + B)), 2, "no boxes")
+    rejects("`lock` in a row panel is refused at its line, as in a row",
+            cmp_(*(B[:3] + ["lock x"] + B[3:] + A)), 5, "`lock` is a `tree` line")
+    rejects("a tree refusal inside a panel keeps the author's line",
+            cmp_(*(["panel tree A", "a: A", "b: B", "c: C", "a -> c", "b -> c",
+                    "outcome x"] + B)), 7, "already has the parent")
+    rejects("dir= on a compare is refused, it places its panels itself",
+            "::: diagram {shape=compare dir=lr}\n%s\n:::" % "\n".join(A + B),
+            1, "`row` attribute", SpecBuildError)
+
+    rejects("`acc` on a tree box of a non-recommended panel is refused",
+            cmp_(*(A + ["panel tree C", "p: P", "q: Q", "p -> q", "acc q",
+                        "outcome ok"])), 12, "recommended panel")
+    rejects("an arrow in panel B naming a box of panel A is refused at its line "
+            "(box names are scoped per panel)",
+            cmp_(*(A + B[:4] + ["x -> r"] + B[4:])), 12,
+            "which no line declares")
+
+    # F1: an outcome word wider than the panel's content widens the panel.
+    LONGW = "skills/artifact/references/03-spec-grammar.md#compare-shape"
+    hl = holds("an outcome with one long word builds and passes the checker",
+               cmp_("panel row A", "x: Uno", "outcome ver " + LONGW,
+                    "panel row B", "y: Dos", "outcome ok"))
+    check("an outcome with one long word: 0 svg-text findings, main and twin",
+          not findings(hl), "\n".join(map(str, findings(hl))))
+    bl_, al_, pl_ = dl.parse_body([(i + 2, l) for i, l in enumerate(
+        ["panel row A", "x: Uno", "outcome ver " + LONGW,
+         "panel row B", "y: Dos", "outcome ok"])], "compare")
+    edge = []
+    for mode_ in ("side", "side-narrow", "stack", "narrow"):
+        Lw = dl.layout("compare", bl_, al_, pl_, mode_)
+        for p_ in Lw.panels:
+            for t_, tx_, _ty in p_.outcome_lines:
+                if tx_ + dl.text_width(t_, dl.FS) > p_.frame[0] + p_.frame[2] + 1e-6:
+                    edge.append("%s: %r leaves its frame" % (mode_, t_))
+    check("a long outcome word stays inside its frame in every mode",
+          not edge, "\n".join(edge))
+
+    # F4: a title's limit is the width that keeps the drawing inside 720.
+    lim = dl.MAX_BOX_W - 2 * (dl.PANEL_PAD + dl.MARGIN)
+    n_ok = 1
+    while dl.text_width("W" * (n_ok + 1), dl.FS) <= lim:
+        n_ok += 1
+    holds("a panel title just under the limit builds",
+          cmp_("panel row " + "W" * n_ok, "x: Uno", "outcome ok",
+               "panel row B", "y: Dos", "outcome ok"), "<svg")
+    rejects("a panel title just over the limit is refused at its panel line",
+            cmp_("panel row " + "W" * (n_ok + 1), "x: Uno", "outcome ok",
+                 "panel row B", "y: Dos", "outcome ok"), 2, "shorten it")
+    rejects("an outcome word wider than the limit is refused at its line",
+            cmp_("panel row A", "x: Uno", "outcome " + "W" * (n_ok + 1),
+                 "panel row B", "y: Dos", "outcome ok"), 4, "shorten it")
+
+    # Wide bodies: side by side when it fits 720, otherwise A above B.
+    def cpair(body):
+        b_, a_, p_ = dl.parse_body([(i + 2, l) for i, l in enumerate(body)],
+                                   "compare")
+        return dl.drawings("compare", b_, a_, p_)
+    m_, n_ = cpair(A + B)
+    check("a small compare is side by side, in one row; its twin, if any, is stacked",
+          m_.dir == "side" and (n_ is None or n_.dir == "stack")
+          and m_.panels[0].frame[1] == m_.panels[1].frame[1]
+          and m_.panels[1].frame[0] > m_.panels[0].frame[0], str(m_.view))
+    m_, n_ = cpair(D5)
+    check("two badged 3-box trees (the D5PM shape) are side by side, each "
+          "body in its narrow drawing, once the top-down ones do not fit",
+          m_.dir == "side" and m_.view[2] <= dl.MAX_BOX_W, "%s %s" % (m_.dir, m_.view))
+    check("a compare wider than a phone gets a stacked twin for 390 px, only "
+          "when it is the narrower",
+          n_ is not None and n_.dir == "stack" and n_.view[2] < m_.view[2],
+          str(n_ and n_.view))
+    WIDE = ["panel row A", "a1: " + "W" * 30, "a2: " + "W" * 30, "a1 -> a2",
+            "outcome ok", "panel row B", "b1: " + "W" * 30, "b2: " + "W" * 30,
+            "b1 -> b2", "outcome ok"]
+    m2_, n2_ = cpair(WIDE)
+    check("bodies too wide for two frames in 720 even narrow are stacked, A "
+          "above B, and the stack is at most the page wide",
+          m2_.dir == "stack" and m2_.view[2] <= dl.MAX_BOX_W
+          and m2_.panels[1].frame[1] > m2_.panels[0].frame[1] + m2_.panels[0].frame[3],
+          "%s %s" % (m2_.dir, str(m2_.view)))
+    hd = holds("the twin pair is emitted as two svgs with the swap rule",
+               cmp_(*D5), "dg-wide", "dg-narrow")
+    check("a compare and its twin pass the real svg-text checker",
+          not findings(hd), "\n".join(map(str, findings(hd))))
+
+    # Property test: seeded random compare figures up to the cap.
+    import random
+    rng = random.Random(20260930)
+    CW = ["Raíz", "Proyecto Serie X", "Producción Ep. 1", "PM", "x",
+          "una etiqueta bastante más larga de lo normal", "Ñandú"]
+    OUTS = ["Ana edita Ep. 1", "Resultado corto", "ver " + "W" * 24 + "/" + "M" * 12,
+            "Una frase de resultado bastante larga que tiene que partirse en "
+            "varias líneas dentro del marco de su panel para leerse bien",
+            "x"]
+
+    def cseg_hits(p, q, r):
+        e = 1e-6
+        return (max(p[0], q[0]) > r[0] + e and min(p[0], q[0]) < r[2] - e
+                and max(p[1], q[1]) > r[1] + e and min(p[1], q[1]) < r[3] - e)
+
+    def cfoot(b):
+        x0, y0, x1, y1 = b.x, b.y, b.x + b.w, b.y + b.h
+        if b.pill:
+            x0, y0 = min(x0, b.pill[0]), min(y0, b.pill[1])
+            x1, y1 = max(x1, b.pill[0] + b.pill[2]), max(y1, b.pill[1] + b.pill[3])
+        return (x0, y0, x1, y1)
+
+    def panel_lines(kind, n, tag, rec):
+        body = ["panel %s Opción %s" % (kind, rng.choice(CW)[:12] or tag)]
+        body += ["%s%d: %s" % (tag, i, rng.choice(CW)) for i in range(n)]
+        if kind == "tree":
+            body += ["%s%d -> %s%d" % (tag, rng.randrange(i), tag, i)
+                     for i in range(1, n)]
+            for i in range(n):
+                if rng.random() < .3:
+                    body.append("badge %s%d: %s" % (tag, i, rng.choice(CW)))
+                if rng.random() < .3:
+                    body.append("lock %s%d" % (tag, i))
+                if rng.random() < .3:
+                    body.append("%s %s%d" % (rng.choice(["acc", "flg"] if rec
+                                                         else ["flg"]), tag, i))
+        else:
+            body += ["%s%d -> %s%d" % (tag, i - 1, tag, i) for i in range(1, n)]
+        body.append("outcome " + rng.choice(OUTS))
+        return body
+
+    bad = []
+    for case in range(200):
+        n1 = rng.randint(1, dl.MAX_BOXES - 1)
+        n2 = rng.randint(1, dl.MAX_BOXES - n1)
+        rec = rng.random() < .5
+        body = panel_lines(rng.choice(["tree", "row"]), n1, "a", rec)
+        if rec:
+            body.append("recommended")
+        body += panel_lines(rng.choice(["tree", "row"]), n2, "b", False)
+        rows = [(i + 2, l) for i, l in enumerate(body)]
+        boxes, arrs, panels = dl.parse_body(rows, "compare")
+        for mode in ("side", "side-narrow", "stack", "narrow"):
+            tag = "case %d %s" % (case, mode)
+            L1 = dl.layout("compare", boxes, arrs, panels, mode)
+            L2 = dl.layout("compare", boxes, arrs, panels, mode)
+            if ds.svg(L1) != ds.svg(L2):
+                bad.append(tag + ": not deterministic")
+            fs = [cfoot(b) for b in L1.boxes]
+            for i in range(len(fs)):
+                for j in range(i + 1, len(fs)):
+                    a_, b_ = fs[i], fs[j]
+                    if (min(a_[2], b_[2]) - max(a_[0], b_[0]) > 1e-6
+                            and min(a_[3], b_[3]) - max(a_[1], b_[1]) > 1e-6):
+                        bad.append("%s: boxes %d and %d overlap" % (tag, i, j))
+            per = {}
+            for b in L1.boxes:
+                per.setdefault(b.lane, []).append(b)
+            fr = [p.frame for p in L1.panels]
+            for k, b_list in per.items():
+                f = fr[k]
+                for b in b_list:
+                    ft = cfoot(b)
+                    if (ft[0] < f[0] + 1e-6 or ft[2] > f[0] + f[2] - 1e-6
+                            or ft[1] < f[1] + 1e-6 or ft[3] > f[1] + f[3] - 1e-6):
+                        bad.append("%s: a box leaves its panel's frame" % tag)
+            # edge through a box: the same legs test as the trees, over every
+            # box of every panel; the route's own ends are outside the shrunk
+            # footprints so a touch of the source or target is not a hit
+            for r in L1.routes:
+                for p_, q_ in zip(r.points, r.points[1:]):
+                    for b in L1.boxes:
+                        if cseg_hits(p_, q_, (b.x + 0.5, b.y + 0.5,
+                                              b.x + b.w - 0.5, b.y + b.h - 0.5)):
+                            bad.append("%s: an edge runs through a box" % tag)
+            for i in range(2):
+                for j in range(i + 1, 2):
+                    a_, b_ = fr[i], fr[j]
+                    if (min(a_[0] + a_[2], b_[0] + b_[2]) - max(a_[0], b_[0]) > 1e-6
+                            and min(a_[1] + a_[3], b_[1] + b_[3])
+                            - max(a_[1], b_[1]) > 1e-6):
+                        bad.append("%s: the two panels overlap" % tag)
+            x0, y0, vw, vh = L1.view
+            for f in fr:
+                if (f[0] < x0 or f[1] < y0 or f[0] + f[2] > x0 + vw
+                        or f[1] + f[3] > y0 + vh):
+                    bad.append("%s: a frame leaves the viewBox" % tag)
+            if abs(fr[0][2] - fr[1][2]) > 1e-6:
+                bad.append("%s: the two frames differ in width" % tag)
+            P0, P1 = L1.panels
+            if mode.startswith("side"):
+                if not (abs(P0.title_at[1] - P1.title_at[1]) < 1e-6
+                        and abs(P0.outcome_lines[0][2] - P1.outcome_lines[0][2]) < 1e-6
+                        and abs(fr[0][1] - fr[1][1]) < 1e-6
+                        and abs(fr[0][3] - fr[1][3]) < 1e-6):
+                    bad.append("%s: titles, outcome lines or frames not aligned" % tag)
+            else:
+                if not (P1.frame[1] > P0.frame[1] + P0.frame[3]
+                        and abs(P0.frame[0] - P1.frame[0]) < 1e-6):
+                    bad.append("%s: not stacked A over B" % tag)
+            for p in L1.panels:
+                for t, tx, ty in p.outcome_lines:
+                    if tx + dl.text_width(t, dl.FS) > p.frame[0] + p.frame[2] + 1e-6:
+                        bad.append("%s: an outcome line leaves its frame" % tag)
+        dm, dn = dl.drawings("compare", boxes, arrs, panels)
+        if dm.dir == "side" and dm.view[2] > dl.MAX_BOX_W + 1e-6:
+            bad.append("case %d: side by side wider than the page" % case)
+        if dn is not None and not dn.view[2] < dm.view[2]:
+            bad.append("case %d: the twin is not narrower" % case)
+        if len(bad) > 12:
+            break
+    check("200 seeded random compare figures (a tree or a row per panel, up to "
+          "the cap across both): no two box footprints overlap, every box "
+          "stays in its panel's frame, no edge runs through a box, the frames "
+          "never overlap, both frames are as wide, side by side the titles, "
+          "the outcome lines and the frames align, stacked A is above B, "
+          "outcome lines stay in the frame, nothing leaves the viewBox, the "
+          "output is deterministic, the twin is narrower",
+          not bad, "\n".join(bad[:12]))
+
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

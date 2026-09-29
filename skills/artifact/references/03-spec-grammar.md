@@ -432,7 +432,7 @@ sees a prose run, and the rules below are read by the BUILDER
 same `SpecSyntaxError`, carrying the line **inside** the fence.
 
 `shape` is required and has no default — `row` (or its spelling `pipeline`),
-`before-after`, `cycle`, `tree`. The set is closed, on purpose: the deterministic-diagrams
+`before-after`, `cycle`, `tree`, `compare`. The set is closed, on purpose: the deterministic-diagrams
 prior-art note (`.context/research/2026-09-23-deterministic-diagrams-prior-art.md`)
 recommends this hand-rolled grid for the shapes the corpus actually draws and Graphviz
 as the fallback for anything needing real graph layout — the `graph` block below, an
@@ -626,6 +626,79 @@ it is still a tree.
 | A mark is a `tree` line | `lock a` in a `row` | that `lock` is reserved to the tree shape |
 
 The cap of 8 boxes applies to a tree; badges are not boxes and do not count.
+
+## The `compare` shape: option A and option B
+
+`shape=compare` draws two framed panels, the option and what it leads to, for the
+comparison every `[show-me]` item makes. A panel is its title, a body written exactly as
+a `tree` or a `row` body, and one outcome line. Three lines are new, each starting with a
+reserved first word; every other line belongs to the panel it sits under. Read after the
+box and arrow rules, so `outcome: x` is still a box named `outcome`.
+
+| Line | Means |
+|---|---|
+| `panel tree Title` / `panel row Title` | opens a panel: its body shape, then the option's title. Exactly two, and nothing may come before the first |
+| `outcome text` | the panel's outcome sentence, wrapped inside its frame. One per panel, and required: it is where the reader learns what the option leads to and what a lock (`lock`) or a flagged box (`flg`) means, so no legend is drawn |
+| `recommended` | the panel is drawn in `acc`: its frame, its title, its outcome and the pills of its badges. At most one panel; none is fine. In a panel that is not `recommended`, a badge pill is `mut` and an `acc name` mark is refused: the accent belongs to the recommended panel (mark what is affected with `flg`) |
+
+Inside a `tree` panel the tree's own lines work unchanged (`a -> b`, `badge`, `lock`,
+`acc`, `flg`); a `row` panel takes boxes and arrows only. Box names are per panel, so both
+sides may use the same names. A tree's boxes are `mut` and a row's are drawn `mut` too
+here, so the accent belongs to the recommended panel alone.
+
+```
+::: diagram {#d5pm shape=compare title="PM con acceso a una sola producción"}
+panel tree Opción A (recomendada)
+root: Proyecto Serie X
+e1: Producción Ep. 1
+e2: Producción Ep. 2
+root -> e1
+root -> e2
+badge e1: PM Ana: acceso aquí
+lock root
+outcome Ana edita Ep. 1; Serie X queda con candado
+recommended
+panel tree Opción B
+root: Proyecto Serie X
+e1: Producción Ep. 1
+e2: Producción Ep. 2
+root -> e1
+root -> e2
+badge e1: PM Ana: acceso aquí
+flg e2
+outcome Ana puede editar Serie X y Ep. 2 (en alerta)
+:::
+```
+
+**Layout.** Each body is laid out by its own shape and only moved. Both frames get the
+same width (the widest content of either, at least 200 units). Side by side they share
+one top, one height and three baselines: the titles at one y, the bodies top-aligned, the
+outcome's first line at one y under the taller body, even when the bodies differ in height.
+The two panels sit **side by side when that drawing fits the page's 720 units**; when it does
+not, they are tried side by side again with each body in its own narrow drawing (a tree's
+outline, a row's `tb`); only when that is still wider than 720 is **A stacked above B**, each
+frame as tall as its own content. A drawing wider than 320
+units also gets a twin for 390 px, shown at 48rem and under, when the twin is the narrower
+of the two: A above B, with each body's own narrow drawing (a tree's outline, a row's `tb`).
+A body is taken from its narrow drawing in the stacked one too when its top-down drawing is
+wider than the room a frame leaves. A compare is never refused for width.
+
+The cap of 8 boxes counts the boxes of **both** panels; badges are not boxes.
+
+| Rule | Refused example | What the message says |
+|---|---|---|
+| Two panels | one `panel`, or a third | refused at the third's line, or at the only one's: option A against option B |
+| Every line is under a panel | a box, or `outcome`, before the first `panel` | the line, and that it belongs to a panel |
+| A panel has a body shape and a title | `panel Opción A`, `panel tree` | which of the two is missing |
+| A panel has boxes | a `panel` with only an `outcome` | refused at the panel line |
+| A panel has one outcome, with text | none, two, or a bare `outcome` | refused at the panel line (none) or the line (two, empty) |
+| A title or an outcome word fits a frame | a title, or one unbreakable word, wider than 664 units (720 less two frames' padding and margin) | refused at its line: shorten it. A shorter long word only widens both frames |
+| Every arrow names a box of its own panel | `x -> r` in panel B, `r` declared in A | the boxes of that panel do not include it |
+| At most one panel is `recommended` | `recommended` in both, or twice in one | the line of the first |
+| `acc` belongs to the recommended panel | `acc x` in a panel without `recommended` | refused at the mark's line |
+| Marks belong to a tree body | `lock x` in a `row` panel | that `lock` is reserved to the tree shape |
+| A body is a valid tree or row | two parents, a cycle, a forest | the tree and row refusals, at the author's line |
+| `dir=` is a `row` attribute | `dir=lr` on a compare | refused at the fence |
 
 ## The `figure` block: a drawing from a file
 

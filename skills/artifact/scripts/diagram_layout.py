@@ -72,7 +72,7 @@ from diagram_widths import GLYPH_WIDTHS            # noqa: E402
 # two names for one layout.
 SHAPE_ALIASES = {"row": "row", "pipeline": "row",
                  "before-after": "before-after", "cycle": "cycle",
-                 "tree": "tree"}
+                 "tree": "tree", "compare": "compare"}
 SHAPES = tuple(SHAPE_ALIASES)
 
 NAME = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -98,6 +98,10 @@ CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 # `lock -> x` stays an arrow; only a first word followed by a space is a mark.
 MARK_LINE = re.compile(r"^(badge|lock|acc|flg)\s+(\S.*)$")
 BADGE_REST = re.compile(r"^([A-Za-z0-9_-]+)\s*:\s*(.*)$")
+# A `compare` line: `panel tree Title`, `outcome text`, `recommended`. Read only
+# AFTER the box and arrow rules, like the tree marks, so `outcome: x` is still a
+# box named outcome; only a first word followed by a space (or nothing) counts.
+PANEL_LINE = re.compile(r"^(panel|outcome|recommended)(?![A-Za-z0-9_-])\s*(.*)$")
 
 # --- geometry, in viewBox units ----------------------------------------------
 FS = 13.0              # the box label
@@ -180,6 +184,13 @@ INDENT = 44.0          # outline: one level's step right
 SPINE = 16.0           # outline: the spine's distance from its parent's left face;
                        # the last leg is INDENT - SPINE = 28, head 14
 OUT_GAP = 28.0         # outline: between two rows (a pill needs 12 of it)
+PANEL_PAD = 12.0       # compare: inside a panel frame, each side
+PANEL_GAP = 20.0       # compare: between the two frames, side by side or stacked
+MIN_PANEL_W = 200.0    # compare: the narrowest content a panel gets, so an
+                       # outcome sentence never wraps to a word a line
+PANEL_TEXT_MAX = MAX_BOX_W - 2 * (PANEL_PAD + MARGIN)  # the widest title or
+                       # outcome word a frame can hold inside the page's 720
+PANEL_BODY_GAP = 12.0  # compare: title to body, and body to outcome
 
 
 def columns(label):
@@ -286,10 +297,30 @@ class Route(object):
         self.points, self.angle, self.tone = points, angle, tone
 
 
-class Layout(object):
-    __slots__ = ("shape", "boxes", "routes", "titles", "divider", "view", "dir")
+class Panel(object):
+    """One side of a `compare`: its option `title`, its body (`kind` is `tree`
+    or `row`, `boxes` and `arrows` as `parse_body` reads them), its `outcome`
+    sentence and whether it is the `recommended` one. `frame` (x, y, w, h),
+    `title_at` (x, baseline y) and `outcome_lines` [(text, x, baseline y)] are
+    set once the panel is placed."""
 
-    def __init__(self, shape, boxes, routes, titles, divider, view, dir=None):
+    __slots__ = ("kind", "title", "outcome", "recommended", "line", "boxes",
+                 "arrows", "frame", "title_at", "outcome_lines", "rec_line")
+
+    def __init__(self, kind, title, line):
+        self.kind, self.title, self.line = kind, title, line
+        self.outcome, self.recommended, self.rec_line = "", False, 0
+        self.boxes, self.arrows = [], []
+        self.frame, self.title_at, self.outcome_lines = None, None, []
+
+
+class Layout(object):
+    __slots__ = ("shape", "boxes", "routes", "titles", "divider", "view", "dir",
+                 "panels")
+
+    def __init__(self, shape, boxes, routes, titles, divider, view, dir=None,
+                 panels=()):
+        self.panels = list(panels)
         self.shape = shape          # the resolved shape
         self.dir = dir              # "lr" or "tb" for a `row`, else None
         self.boxes = boxes          # [Box], placed
@@ -319,6 +350,8 @@ def parse_body(rows, shape):
     ambiguity. An arrow name cannot contain a colon, so nothing is lost.
     """
     shape = SHAPE_ALIASES[shape]
+    if shape == "compare":
+        return _parse_compare(rows)
     boxes, arrows, titles = [], [], []
     by_name = {}
     seen_arrow = set()
@@ -454,6 +487,138 @@ def parse_body(rows, shape):
                 "nothing" % titles[1])
         _check_lanes(boxes, arrows, by_name)
     return boxes, arrows, titles
+
+
+def _widest_word(text):
+    """The widest run between spaces of `text`, the part `_wrap` cannot break."""
+    return max(text_width(w, FS) for w in text.split(" "))
+
+
+def _parse_compare(rows):
+    """`(boxes, arrows, panels)` from a `compare` body.
+
+    Three line kinds of its own, and every other line belongs to the panel it
+    sits under, written exactly as a `tree` or a `row` body:
+
+      `panel tree Title`   opens a panel (`row` for a row body). Exactly two.
+      `outcome text`       the panel's outcome sentence. One per panel.
+      `recommended`        the panel drawn in `acc`. At most one panel.
+
+    Each panel's own lines go to `parse_body` under its body shape with their
+    real line numbers, so every tree and row refusal still names the author's
+    line. `boxes` and `arrows` are the panels' together (the fence counts them
+    against the cap); each `Box.lane` is its panel's index.
+    """
+    panels, cur, cur_rows = [], None, []
+
+    def close():
+        if cur is None:
+            return
+        if not any(BOX_LINE.match(l.strip()) for _n, l in cur_rows):
+            raise SpecSyntaxError(
+                cur.line, "panel %r has no boxes — a panel draws a %s, so "
+                          "write its `name: Label` lines under the `panel` line"
+                          % (cur.title, cur.kind))
+        if not cur.outcome:
+            raise SpecSyntaxError(
+                cur.line, "panel %r has no `outcome` line — the outcome is "
+                          "where the reader learns what the option leads to, "
+                          "and what a lock or a flagged box means" % cur.title)
+        if cur.kind == "tree" and not cur.recommended:
+            for n_, l_ in cur_rows:
+                m_ = MARK_LINE.match(l_.strip())
+                if m_ and m_.group(1) == "acc" and "->" not in l_:
+                    raise SpecSyntaxError(
+                        n_, "`acc` in panel %r, which is not `recommended` — "
+                            "the accent belongs to the recommended panel; mark "
+                            "what is affected with `flg`, or add `recommended` "
+                            "to this panel" % cur.title)
+        cur.boxes, cur.arrows, _t = parse_body(cur_rows, cur.kind)
+        for b in cur.boxes:
+            b.lane = len(panels) - 1
+            if cur.kind == "row":
+                b.tone = "mut"       # a row's boxes default to `acc`, which a
+                                     # compare keeps for the recommended panel
+
+    for n, raw in rows:
+        line = raw.strip()
+        if not line:
+            continue
+        m = None if (BOX_LINE.match(line) or ARROW_LINE.match(line)) \
+            else PANEL_LINE.match(line)
+        if m is None:
+            if cur is None:
+                raise SpecSyntaxError(
+                    n, "%r sits above the first `panel` line — every line of "
+                       "a `compare` belongs to one of its two panels" % line)
+            cur_rows.append((n, raw))
+            continue
+        word, rest = m.group(1), m.group(2).strip()
+        if word == "panel":
+            close()
+            if len(panels) == 2:
+                raise SpecSyntaxError(
+                    n, "this is the 3rd `panel` and `compare` has exactly two "
+                       "— option A against option B; a third option is "
+                       "another figure")
+            kind, _sp, title = rest.partition(" ")
+            title = title.strip()
+            if kind not in ("tree", "row") or not title:
+                raise SpecSyntaxError(
+                    n, "a panel is `panel tree Title` or `panel row Title` — "
+                       "the body shape, then the option's title; %r has %s"
+                       % (rest, "no title" if kind in ("tree", "row")
+                          else "no body shape (tree or row) first"))
+            _check_control(n, "this panel title", title)
+            if text_width(title, FS) > PANEL_TEXT_MAX:
+                raise SpecSyntaxError(
+                    n, "this panel title is wider than the %d units a frame "
+                       "can hold on the page's %d — shorten it"
+                    % (int(PANEL_TEXT_MAX), int(MAX_BOX_W)))
+            cur, cur_rows = Panel(kind, title, n), []
+            panels.append(cur)
+        elif cur is None:
+            raise SpecSyntaxError(
+                n, "`%s` sits above the first `panel` line — it belongs to a "
+                   "panel" % word)
+        elif word == "outcome":
+            if cur.outcome:
+                raise SpecSyntaxError(
+                    n, "panel %r already has an `outcome` — one sentence per "
+                       "panel" % cur.title)
+            if not rest:
+                raise SpecSyntaxError(
+                    n, "this `outcome` has no text — write the sentence after "
+                       "the word")
+            _check_control(n, "the outcome of %r" % cur.title, rest)
+            if _widest_word(rest) > PANEL_TEXT_MAX:
+                raise SpecSyntaxError(
+                    n, "one word of this outcome is wider than the %d units a "
+                       "frame can hold on the page's %d — shorten it"
+                    % (int(PANEL_TEXT_MAX), int(MAX_BOX_W)))
+            cur.outcome = rest
+        else:
+            if rest:
+                raise SpecSyntaxError(
+                    n, "`recommended` stands alone on its line, %r follows it"
+                       % rest)
+            others = [p for p in panels if p.recommended]
+            if cur.recommended or others:
+                raise SpecSyntaxError(
+                    n, "panel %r is already `recommended` (line %d) — at most "
+                       "one option is the recommended one"
+                       % ((others or [cur])[0].title,
+                          (others or [cur])[0].rec_line))
+            cur.recommended, cur.rec_line = True, n
+    close()
+    if len(panels) != 2:
+        raise SpecSyntaxError(
+            panels[0].line if panels else (rows[0][0] if rows else 0),
+            "`compare` needs two `panel` lines and this body has %d — the "
+            "shape IS option A against option B" % len(panels))
+    boxes = [b for p in panels for b in p.boxes]
+    arrows = [a for p in panels for a in p.arrows]
+    return boxes, arrows, panels
 
 
 def _parse_mark(n, shape, kind, rest, marks):
@@ -1343,6 +1508,74 @@ def _bounds(boxes, routes, titles, divider):
     return min(xs), min(ys), max(xs), max(ys)
 
 
+def _shift(lay, dx, dy):
+    """Move a placed body by (dx, dy), in place: boxes, pills, locks, routes."""
+    for b in lay.boxes:
+        b.x, b.y = b.x + dx, b.y + dy
+        if b.pill:
+            b.pill = (b.pill[0] + dx, b.pill[1] + dy, b.pill[2], b.pill[3])
+        if b.lock_at:
+            b.lock_at = (b.lock_at[0] + dx, b.lock_at[1] + dy)
+    for r in lay.routes:
+        r.points = [(x + dx, y + dy) for x, y in r.points]
+
+
+def _layout_compare(panels, mode):
+    """Two framed panels, side by side (`side`) or A above B (`stack`, and
+    `narrow`, which also takes each body's own 390 px twin).
+
+    A panel is its title, its body (a tree or a row, laid out by that shape's
+    own layout and only moved), and its outcome, top to bottom. Both frames get
+    the same width, the widest content of either. Side by side they also get
+    the same height and the same three baselines: titles at one y, bodies
+    top-aligned, the outcome's first line at one y under the taller body.
+    Stacked, each frame is as tall as its own content."""
+    bodies = []
+    for p in panels:
+        main, twin = drawings(p.kind, p.boxes, p.arrows, [])
+        lay = main
+        if twin is not None and (mode in ("narrow", "side-narrow")
+                                 or main.view[2] - 2 * MARGIN
+                                 > MAX_BOX_W - 2 * (PANEL_PAD + MARGIN)):
+            lay = twin
+        bodies.append(lay)
+    cw = [lay.view[2] - 2 * MARGIN for lay in bodies]
+    ch = [lay.view[3] - 2 * MARGIN for lay in bodies]
+    inner = max([MIN_PANEL_W] + cw + [text_width(p.title, FS) for p in panels]
+                + [_widest_word(p.outcome) for p in panels])
+    fw = inner + 2 * PANEL_PAD
+    ow = lambda t: text_width(t, FS)
+    out_lines = [_wrap(p.outcome, ow, inner) for p in panels]
+    title_h = PANEL_PAD + FS
+    side = mode in ("side", "side-narrow")
+    y = 0.0
+    frames = []
+    for i, p in enumerate(panels):
+        x = i * (fw + PANEL_GAP) if side else 0.0
+        top = 0.0 if side else y
+        body_h = max(ch) if side else ch[i]
+        n_out = max(len(o) for o in out_lines) if side else len(out_lines[i])
+        by = top + title_h + PANEL_BODY_GAP
+        oy = by + body_h + PANEL_BODY_GAP
+        p.title_at = (x + PANEL_PAD, top + PANEL_PAD + 0.8 * FS)
+        _shift(bodies[i], x + PANEL_PAD + (inner - cw[i]) / 2.0
+               - (bodies[i].view[0] + MARGIN),
+               by - (bodies[i].view[1] + MARGIN))
+        p.outcome_lines = [(t, x + PANEL_PAD, oy + 0.8 * FS + k * LINE_H)
+                           for k, t in enumerate(out_lines[i])]
+        h = oy + 0.8 * FS + (n_out - 1) * LINE_H + 0.25 * FS + PANEL_PAD - top
+        p.frame = (x, top, fw, h)
+        frames.append(p.frame)
+        y = top + h + PANEL_GAP
+    x1 = max(f[0] + f[2] for f in frames)
+    y1 = max(f[1] + f[3] for f in frames)
+    boxes = [b for lay in bodies for b in lay.boxes]
+    routes = [r for lay in bodies for r in lay.routes]
+    view = (-MARGIN, -MARGIN, x1 + 2 * MARGIN, y1 + 2 * MARGIN)
+    return Layout("compare", boxes, routes, [], None, view,
+                  "side" if side else "stack", panels)
+
+
 def layout(shape, boxes, arrows, titles, direction=None):
     """A placed `Layout`. Everything `diagram_svg` draws is decided here.
 
@@ -1353,6 +1586,11 @@ def layout(shape, boxes, arrows, titles, direction=None):
     Same division of labour as `chart_svg.svg()`.
     """
     shape = SHAPE_ALIASES[shape]
+    if shape == "compare":
+        # The panels carry their own boxes and arrows, and are placed on
+        # copies: `drawings()` lays a compare out up to three times.
+        panels = [copy.copy(p) for p in titles]
+        return _layout_compare(panels, direction or "side")
     if not boxes:
         raise ValueError("a diagram needs at least one box")
     if shape == "cycle" and len(boxes) < 2:
@@ -1434,6 +1672,22 @@ def drawings(shape, boxes, arrows, titles, direction=None):
     under 11 px; None otherwise (every other shape, a forced `tb`, a row
     narrow enough already).
     """
+    if SHAPE_ALIASES[shape] == "compare":
+        # Side by side when that fits the page's 720, first with the bodies'
+        # main drawings and then with their narrow ones; otherwise A above B. The
+        # 390 px twin is A above B with each body's own narrow drawing, shown
+        # only when it is the narrower of the two, like a tree's.
+        main = layout(shape, boxes, arrows, titles, "side")
+        if main.view[2] > MAX_BOX_W:
+            # Side by side is the goal: before stacking, try it with each
+            # body's narrow drawing (a tree's outline, a row's tb).
+            main = layout(shape, boxes, arrows, titles, "side-narrow")
+        if main.view[2] > MAX_BOX_W:
+            main = layout(shape, boxes, arrows, titles, "stack")
+        if main.view[2] > NARROW_W:
+            twin = layout(shape, boxes, arrows, titles, "narrow")
+            return main, (twin if twin.view[2] < main.view[2] else None)
+        return main, None
     main = layout(shape, boxes, arrows, titles, direction)
     if SHAPE_ALIASES[shape] == "tree":
         # The same rule as a `row`, with the outline for `tb`: the top-down
