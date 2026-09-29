@@ -63,7 +63,7 @@ saved the same way — run `scripts/save-reply.sh <page.html> [<reply-file>|-]`
 FIRST, before briefing the rewrite.** It saves the reply and a snapshot of the
 page as the reader answered it, then prints one DUTY line per marked item;
 paste that list into the rewrite brief verbatim. Pass `--new-round` to the FIRST
-`wrap-report.sh` of a round opened over a reply (only the first; later wraps of that
+build (`spec_build.py` or `wrap-report.sh`) of a round opened over a reply (only the first; later wraps of that
 round, including a delegated `--building` build's, omit it): it fails, naming
 `save-reply.sh`, if no reply was saved. A `[show-me]` duty is
 fulfilled by launching `figure-sonnet` or `verify-browser-opus` BEFORE the page

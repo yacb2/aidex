@@ -1618,6 +1618,10 @@ def main(argv):
                         "command's")
     p.add_argument("--title", default=None,
                    help="the document title. Default: the masthead's")
+    p.add_argument("--new-round", action="store_true",
+                   help="passed to wrap-report.sh: this build opens a new reader "
+                        "round, refused unless save-reply.sh saved the reply to "
+                        "the open one (BL-507). Needs -o")
     args = p.parse_args(argv)
 
     try:
@@ -1658,7 +1662,8 @@ def main(argv):
     # for the window of the wrap, and the wrap keeps the author's source itself
     # (`<baseline>.body`). Content on stdin is page markup, which is what this is.
     rc = subprocess.run(["bash", WRAP, "--title", title, "--lang", lang,
-                         "--out", args.out],
+                         "--out", args.out]
+                        + (["--new-round"] if args.new_round else []),
                         input=body.encode("utf-8")).returncode
     if rc != 0:
         return rc

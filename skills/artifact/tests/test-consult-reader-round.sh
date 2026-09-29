@@ -105,4 +105,37 @@ bash "$WRAP" --title Consultation --lang en --in "$KIT/skeleton.html" --out "$FP
   && ok "(c) the first round needs no reply, even declared" \
   || fail "(c) a first wrap with --new-round was refused or is not round 1"
 
+# (d) The spec route: pages are built with spec_build.py, which runs the wrap
+# itself, so --new-round must reach the wrap through it (echo_lab replay,
+# 2026-09-29: spec_build.py refused the flag as an unknown argument).
+BUILD="$SKILL/scripts/spec_build.py"
+SP="$TMP/reports/s.spec.md"
+cat > "$SP" <<'SPEC'
+::: masthead {lang="en" visual="none: consultation"}
+# Spec route
+:::
+
+::: group {#G1 title="One"}
+::: item {#Q1 title="Pick"}
+Ana opens the project and sees no Delete button.
+
+- Allow it {recommended}
+- Keep it
+:::
+:::
+
+::: notes {title="Anything else"}
+:::
+SPEC
+SPG="$TMP/reports/s.html"
+python3 "$BUILD" "$SP" -o "$SPG" >/dev/null 2>&1 || fail "(d) the first spec build failed"
+out="$(python3 "$BUILD" "$SP" -o "$SPG" --new-round 2>&1)"; rc=$?
+[[ $rc -ne 0 && "$out" == *save-reply.sh* ]] \
+  && ok "(d) spec_build --new-round with no saved reply is refused, naming save-reply.sh" \
+  || fail "(d) spec_build --new-round with no saved reply exited $rc: $out"
+printf 'Q1: fine as is\n' | bash "$SAVE" "$SPG" - >/dev/null 2>&1
+python3 "$BUILD" "$SP" -o "$SPG" --new-round >/dev/null 2>&1 && [[ "$(round_of "$SPG")" == "2" ]] \
+  && ok "(d) spec_build --new-round over a saved reply opens round 2" \
+  || fail "(d) spec_build --new-round over a saved reply did not open round 2 (got '$(round_of "$SPG")')"
+
 [[ $failures -eq 0 ]] && echo "PASS: consult reader round" || { echo "FAILED: $failures"; exit 1; }
