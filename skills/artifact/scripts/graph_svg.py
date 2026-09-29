@@ -18,7 +18,8 @@ What this module does to Graphviz's SVG, and nothing else:
   * keeps only the `<svg>` element: the XML declaration, the doctype and every
     comment go (the version is kept, in the figure's own comment);
   * the root keeps its `viewBox` and loses `width`/`height`, like `chart` and
-    `diagram` — `components.css` sizes a figure's svg;
+    `diagram` — `components.css` sizes a figure's svg — and, like `diagram`,
+    gets an inline `max-width` of `MAX_SCALE` px per viewBox unit (BL-513);
   * the white background polygon goes, and so does every `id=` and `<title>`:
     ids like `node1` repeat across two graphs on one page, and a `<title>`
     is the DOT node NAME, not its label;
@@ -159,6 +160,13 @@ def clean(raw):
     svg = ('<svg viewBox="%s" xmlns="http://www.w3.org/2000/svg" role="img">'
            % vb.group(1)) + svg.split(">", 1)[1]
     root = _vet(svg)
+    # BL-513: the kit's `figure svg { width: 100% }` stretched a 62x404 chain
+    # to the 888 px column (14.3x). Capped as `diagram` caps itself, at
+    # MAX_SCALE px per unit, on the root and AFTER the vetting, which refuses
+    # a `style=` from the DOT. On the svg, not the <figure>: the caption keeps
+    # the column. Graphviz writes the viewBox as four numbers, even for `{}`.
+    vw = float(vb.group(1).split()[2])
+    root.set("style", "max-width:%spx" % diagram_svg._num(vw * dl.MAX_SCALE))
     # BL-451: the page gets the vetted TREE, re-serialised — never Graphviz's
     # bytes, which an HTML parser can read differently from the XML parse.
     out = []
