@@ -1,0 +1,6 @@
+shape=row
+uno: Paso uno
+dos: Paso dos
+tre: Paso tres
+uno -> dos
+dos -> tre
