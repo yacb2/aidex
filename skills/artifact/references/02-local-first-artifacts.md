@@ -542,8 +542,8 @@ SAME path. Concretely:
   **A `--building` build shows ONE round** — the one the page was at when the build
   started, held in the lock — because the reader sees none of the intermediate wraps and
   a delegated build that wrapped three times otherwise handed him `· round 3` for a page
-  he had never seen. The `consult-round` meta keeps counting wraps either way: the
-  composer reads it to know which answers were already sent.
+  he had never seen. Since BL-507 the `consult-round` meta is the reader's round
+  (below), so it holds still across those wraps too.
 - **A DELEGATED build locks the page until it hands back.** An agent revising a page
   wraps every step with `wrap-report.sh --building ... --out <page>` and ends the build
   once with `wrap-report.sh --done --out <page>`; between the two,
@@ -677,14 +677,15 @@ reply **replace** `reply.md` and re-snapshot `answered.html`: that is a
 delivered round, not an unanswered one waved through by an unrelated
 follow-up.
 
-**What this does NOT do: it never makes the check-artifact gate itself into
-"a new round cannot be built without a saved reply."** `consult-round`
-currently counts wraps, not reader rounds — every passing wrap advances it by
-one whether or not the reader ever saw that round — so a hard refusal on
-"later round, no reply" would misfire on the first ordinary re-wrap of any
-page. That is BL-507 (`consult-round counts wraps, not reader rounds`), a
-separate, harder fix to `wrap_report.next_round`'s round-counting semantics,
-deliberately not implemented here.
+**A new round needs the saved reply (BL-507).** On a page with a consult surface,
+`consult-round` is the reader's round: it advances only once `save-reply.sh` has
+snapshotted the page at (or past) the current round, and re-wraps of an unanswered round
+keep their number. `wrap-report.sh --new-round` means "this wrap must advance the reader round": on a
+consult page it FAILS (page untouched), naming both `save-reply.sh` and dropping the flag,
+whenever the current round is open, i.e. a page exists and its round has no saved reply. Pass
+it to the FIRST wrap of a round opened over a reply; later wraps of that round, including a
+delegated `--building` build's, omit it. A page with no
+consult surface has no reader rounds and keeps counting wraps.
 
 The markers are never translated — the labels the reader sees are, the tokens are not — and
 they are what says WHICH items to rewrite and WHICH WAY, so the next round rewrites exactly
@@ -1348,7 +1349,8 @@ and acted on — round after round, until the reader deleted it by hand or re-se
 Observed with an "explain this one better" request that restored into its box after the
 explanation had been written into the page.
 
-`wrap-report.sh` stamps `<meta name="consult-round">` on each regeneration, counted from
+`wrap-report.sh` stamps `<meta name="consult-round">` on each regeneration (the reader's
+round since BL-507: it advances only after `save-reply.sh`), counted from
 the stored **baseline** (`.aidex-artifact-prev/`), never from the file on disk — a failing
 wrap does not advance the baseline, so counting from disk would
 increment across a round the reader never saw. The composer then applies one rule:
@@ -1571,11 +1573,11 @@ row's marks is refused.
 - A row's question fingerprint covers its capture `src` list: a re-capture is a new
   question, so the row's stored answer is dropped. Upgrading a page to this kit drops each gallery
   row's unsent answer once, for the same reason.
-- Every passing wrap is a new round, body changed or not (`round_meta` in
-  `wrap_report.py`). A re-wrap that only refreshes the kit therefore blanks the answers the
-  reader already SENT. Accepted: the session holds those answers, and counting "changed"
-  would need a body comparison the round was designed not to depend on. Refresh the kit
-  when a round is due anyway, not between rounds.
+- On a page with no consult surface, every passing wrap is a new round, body changed or
+  not (`round_meta` in `wrap_report.py`). On a consult page a round is the reader's round
+  (BL-507): a re-wrap keeps its number and the answers the reader already SENT stay
+  restorable until `save-reply.sh` has recorded the reply and the next wrap opens the next
+  round. Refresh the kit when a round is due anyway, not between rounds.
 
 **Images: copied next to the page at build (BL-474).** `gallery-items.sh --page
 <out.html>` (and `spec_build.py -o`) copies every capture to

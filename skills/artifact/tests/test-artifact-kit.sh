@@ -462,6 +462,11 @@ DPG="$DEC/.context/reports/d.html"
 stamp_of() {  # file id
   sed -nE 's/.*data-id="'"$2"'"[^>]*data-decided-round="([0-9]+)".*/\1/p' "$1" | head -1
 }
+# BL-507: `consult-round` is the READER's round, so each round of this probe is
+# opened by saving the reply to the one before it. The expected numbers below are
+# unchanged: they were "wrap 2, wrap 3" and are now "reader round 2, 3" (one wrap
+# each), which is what the decided-round stamp is meant to record.
+answer() { printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$DPG" - >/dev/null 2>&1; }
 decided_body() {  # verdict -> a skeleton page whose Q1 is decided
   sed 's|<section class="consult-item" data-id="Q1"|<section class="consult-item" data-decided="'"$1"'" data-id="Q1"|' \
     "$TMP/body.html" > "$TMP/dbody.html"
@@ -474,6 +479,7 @@ grep -q 'data-decided-round' "$DPG" \
   && fail "an item with no decision was stamped with a round"
 
 decided_body "we keep it"
+answer
 out="$(bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" 2>&1)" \
   || fail "round 2 of the decided probe failed to wrap: $out"
 [[ "$(stamp_of "$DPG" Q1)" == "2" ]] \
@@ -481,12 +487,14 @@ out="$(bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" 
 [[ -z "$(stamp_of "$DPG" Q2)" ]] \
   || fail "an undecided item was stamped with a round (got '$(stamp_of "$DPG" Q2)')"
 
+answer
 bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
   || fail "round 3 of the decided probe failed to wrap"
 [[ "$(round_of "$DPG")" == "3" && "$(stamp_of "$DPG" Q1)" == "2" ]] \
   || fail "the item decided in round 2 was re-stamped when the page moved on (round '$(round_of "$DPG")', stamp '$(stamp_of "$DPG" Q1)')"
 
 decided_body "no, the other one"
+answer
 bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
   || fail "round 4 of the decided probe failed to wrap"
 [[ "$(stamp_of "$DPG" Q1)" == "4" ]] \
@@ -498,6 +506,7 @@ bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/n
 # It stays unstamped, and the reader says `unknown`.
 BASE="$DEC/.context/reports/.aidex-artifact-prev/d.html"
 [[ -f "$BASE" ]] || fail "the decided probe left no baseline to age"
+answer
 sed -i.bak -E 's/ data-decided-round="[0-9]+"//g' "$BASE" && rm -f "$BASE.bak"
 bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
   || fail "round 5 of the decided probe failed to wrap"
@@ -506,6 +515,7 @@ bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/n
 # ...and the migration case is only the unchanged one: the same page with a new
 # verdict is decided NOW, and says so.
 decided_body "a third answer"
+answer
 bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
   || fail "round 6 of the decided probe failed to wrap"
 [[ "$(stamp_of "$DPG" Q1)" == "6" ]] \

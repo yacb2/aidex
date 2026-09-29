@@ -638,6 +638,16 @@ wrap_page() {  # wrap_page [lang] — the page's language, es unless a caller sa
     || { fail "the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | head -4)"; echo "1 failure(s)"; exit 1; }
 }
 
+# BL-507: `consult-round` is the READER's round. A re-wrap stays in the same round
+# until save-reply.sh has recorded the answer to it, so a fixture that means "a new
+# round arrives" saves a reply first. Before BL-507 every wrap was a new round; the
+# cells below that mean a new round call this, and their expectations are unchanged.
+wrap_next_round() {
+  printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$PAGE" - >/dev/null 2>&1 \
+    || fail "save-reply.sh failed on the probe page"
+  wrap_page "$@"
+}
+
 Q1_V1='Pick and qualify'
 Q1_V2='Pick and qualify — and say which constraint decides it'
 
@@ -797,7 +807,7 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
   || fail "BL-241: a sent answer did not survive a RELOAD in its own round — the discriminant is the round, not the send: $t"
 
-wrap_page                                   # same content, new round
+wrap_next_round                             # same content, new round
 t="$(run 'phase=verify')"
 [[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
   && fail "BL-241: an answer already sent came back in the next round: $t"
@@ -828,7 +838,7 @@ t="$(run 'phase=downgrade')"
 [[ "$t" == *DOWNGRADED* ]] || fail "the downgrade phase did not run: $t"
 [[ "$t" == *'"r"'* || "$t" == *'"x"'* ]] \
   && fail "the downgraded entry still carries a round or sent key — it is not a v6 entry: $t"
-wrap_page                                   # a new round arrives with the upgrade
+wrap_next_round                             # a new round arrives with the upgrade
 t="$(run 'phase=verify')"
 [[ "$t" == *"RESTORED=persisted-answer-123"* ]] \
   || fail "a pre-round answer set was blanked by the upgrade: $t"
@@ -989,7 +999,7 @@ excount="$(printf '%s' "$t" | sed -nE 's/.*EXCOUNT=([0-9]+).*/\1/p')"
 t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* && "$t" == *"QKEPT=1"* ]] \
   || fail "BL-381: the asks did not survive a reload in their own round: $t"
-wrap_page                                   # same content, new round
+wrap_next_round                             # same content, new round
 t="$(run 'phase=verify')"
 [[ "$t" == *"EXKEPT=1"* ]] \
   && fail "BL-325: an explain request already sent came back in the next round — the reader would re-send a request the session has already answered: $t"

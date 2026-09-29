@@ -15,13 +15,9 @@
 # FIXED file (`.answered.html`) nothing else ever touches, and every marker
 # check (`check_marker_duties` in dash/check_artifact.py) reads THAT — never
 # the baseline, never an mtime, so it is enforced on every wrap of the page
-# until a newer reply replaces it. (A second guard — refusing to BUILD a new
-# round at all with no reply on disk for the one being left behind — was
-# scoped out; see the BL-504 report for why: `consult-round` currently
-# advances on every passing wrap regardless of whether the reader ever saw
-# it, so "round" and "wrap count" are the same number today and a hard
-# refusal on that discriminant would misfire on ordinary same-round
-# iteration, exactly the workflow test-question-changed-note.sh exercises.)
+# until a newer reply replaces it. (The second guard, refusing a new round with no
+# saved reply, landed with BL-507: `consult-round` is now the reader's round, see
+# test-consult-reader-round.sh.)
 set -uo pipefail
 
 SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
