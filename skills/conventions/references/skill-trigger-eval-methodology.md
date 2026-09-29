@@ -646,6 +646,22 @@ a testing layer for a stack that doesn't exist" — then declined to invoke. Tha
 never safe is quoting any of these figures as the recall a user experiences. Every
 `RESULTS.md` states this limit.
 
+## 11a. Native output evals: cases are human-judged hard, and every baseline is read for headroom and noise (2026-09-29)
+
+Sampling rule for native output evals (the §9 output instrument), from
+`.context/research/2026-09-29-claude-dev-automating-eval-design-and-hillclimbing.md`:
+
+1. **A case is added because a human judged it hard**, with the reason written on the case
+   (the `human-judged` reason field), never because the current model fails it. Cases
+   picked by present failure go stale as the model improves and bias the set toward one model.
+2. **After a baseline of N repetitions, check every case set** for headroom (a case that
+   passes every repetition adds nothing and is a candidate to replace) and for a suspect
+   grader or impossible task (a case that fails every repetition is read by a human before
+   it counts).
+3. **The noise floor is the spread of those N repetitions.** A change smaller than it is
+   not acted on; §6 says why one run is not a point estimate.
+4. **Small sets give a direction, not a significance claim.** §10 applies unchanged.
+
 ## 12. The six modular siblings: structural pass, 2026-09-01
 
 The trigger-eval campaign was scoped to the monolith before decomposition, so the six
