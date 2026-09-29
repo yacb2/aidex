@@ -456,6 +456,8 @@ for (const f of files) for (const width of [1280, 390]) {
         for (const x of await page.evaluate(check)) if (x.kind === 'fixed-over-text' && !seen.has(x.a + '|' + x.b)) { seen.add(x.a + '|' + x.b); d.push(x); }
       }
       if (shots) {
+        // instant scrolling and no snapping: a smooth-scroll or snap page would move mid-capture
+        await page.addStyleTag({ content: 'html,body{scroll-behavior:auto !important;scroll-snap-type:none !important}' });
         await page.evaluate(() => scrollTo(0, 0));
         const base = path.basename(f, path.extname(f));
         const full = path.join(shots, `${base}-${width}.png`);
@@ -489,7 +491,13 @@ for (const f of files) for (const width of [1280, 390]) {
         for (const [k, y] of ys.entries()) {
           const h = Math.min(VIEW_H, geo.H - y);
           const file = path.join(shots, `${base}-${width}-t${String(k + 1).padStart(2, '0')}.png`);
-          await page.screenshot({ path: file, fullPage: true, clip: { x: 0, y, width, height: h } });
+          // Each tile is the viewport scrolled to y, not a clip of the scroll-0 full-page capture:
+          // that capture draws a fixed bar once, over the first screen, and a sticky rail on t01
+          // only, and the grader scored both as defects (BL-528). y never exceeds the page's
+          // maximum scroll (H - VIEW_H), so scrollTo lands exactly; a page shorter than the
+          // viewport has y = 0 and is clipped to its own height.
+          await page.evaluate(y => scrollTo(0, y), y); await page.waitForTimeout(100);
+          await page.screenshot({ path: file, clip: { x: 0, y: 0, width, height: h } });
           written.push(file); man.written.push(path.basename(file));
           tiles.push({ file: path.basename(file), y, height: h,
             ids: geo.items.filter(it => it.top < y + h && it.bottom > y).map(it => it.id) });

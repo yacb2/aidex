@@ -384,7 +384,7 @@ crashed; its stderr names the cause. Stop and report it the same way.
 The shots go to a scratch directory, never beside the page: `<n>-1280.png` and
 `<n>-390.png` under `.context/` would be picked up as page assets and outlive the round.
 Per width the probe also writes viewport-height tiles `<n>-<width>-t01.png`, ... (each
-900 px tall, consecutive tiles overlapping by 100 px, the last pinned to the page bottom: a tall page's full-page shot is downscaled past legibility)
+900 px tall, consecutive tiles overlapping by 100 px, the last pinned to the page bottom: a tall page's full-page shot is downscaled past legibility; each is the viewport scrolled to the tile's y, so a fixed bar or sticky rail sits on every tile where a scrolled reader sees it)
 and `<n>-shots.json`: tiles in order, the `data-id` item ids each tile holds, the ids in page
 order, and the files written this run under one run stamp (stdout repeats them as `SHOT`
 lines). A stale tile of an earlier build is deleted first.

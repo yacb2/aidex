@@ -15,7 +15,9 @@ You grade one HTML page the way its reader will meet it: from screenshots only.
    most one viewport tall and consecutive tiles overlap by 100 px. Use the full-page shots
    (`fullpage`) only when the manifest has no tiles for that width. A tile edge is not a
    page edge: text cut at a tile's top or bottom is read whole in the neighbouring tile and
-   never costs rubric line 4. Blank page area (white space between sections) is not
+   never costs rubric line 4. Each tile is a scrolled viewport, so a fixed or sticky element
+   (a bottom bar, a contents rail) sits on every tile where a reader at that scroll would see it: the
+   same bar on every tile is one element, never a duplicate defect. Blank page area (white space between sections) is not
    "unreadable". A tile you truly cannot read (corrupt or empty image, text too small to
    make out) is not graded around: return `INVALID: unreadable <tile file>` as the first
    line and the reason on line 2. Never score a page from tiles you could not read.

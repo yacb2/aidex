@@ -503,6 +503,75 @@ PY
 chk="$(python3 "$TMP/chk-two.py" "$TMP/two-shots")"
 [[ "$chk" == ok ]] && ok "stride 800: tiles touching only a or only b carry one id, the middle one both; an 1801 px page has no sliver" || bad "two-item / 1801 tiles: $chk"
 
+echo "== fixed and sticky elements sit where a reader scrolled to the tile sees them =="
+# A 3,000 px page with a fixed magenta bar along the bottom of the viewport and a sticky cyan
+# rail down the left edge. Tiles clipped out of one scroll-0 capture draw both only on t01;
+# tiles taken by scrolling draw both on every tile, the bar in the bottom band and nowhere else.
+{
+  printf '<!doctype html><html><body style="margin:0">\n'
+  printf '<div id="bar" style="position:fixed;left:0;right:0;bottom:0;height:60px;background:#ff00ff"></div>\n'
+  printf '<div style="display:flex"><div id="rail" style="position:sticky;top:0;align-self:flex-start;flex:none;width:40px;height:300px;background:#00ffff"></div><div style="flex:1">'
+  for n in $(seq 20); do
+    printf '<div style="height:150px;font:32px monospace">fixrow-%03d-unique</div>' "$n"
+  done
+  printf '</div></div></body></html>\n'
+} > "$TMP/fixed.html"
+bash "$PROBE" --shots "$TMP/fixed-shots" "$TMP/fixed.html" >/dev/null 2>&1
+cat > "$TMP/chk-fixed.py" <<'PY'
+import json, os, sys, zlib, struct, hashlib
+d = sys.argv[1]
+m = json.load(open(os.path.join(d, "fixed-shots.json")))
+
+def decode(path):
+    b = open(path, "rb").read()
+    pos, idat, w, h, ct = 8, b"", 0, 0, 0
+    while pos < len(b):
+        n, typ = struct.unpack(">I4s", b[pos:pos + 8]); body = b[pos + 8:pos + 8 + n]; pos += 12 + n
+        if typ == b"IHDR": w, h, depth, ct = struct.unpack(">IIBB", body[:10])
+        elif typ == b"IDAT": idat += body
+    bpp = {2: 3, 6: 4}[ct]
+    raw = zlib.decompress(idat); stride = w * bpp; rows = []; prev = bytearray(stride); i = 0
+    for _ in range(h):
+        f = raw[i]; line = bytearray(raw[i + 1:i + 1 + stride]); i += 1 + stride
+        for x in range(stride):
+            a = line[x - bpp] if x >= bpp else 0; c = prev[x - bpp] if x >= bpp else 0; u = prev[x]
+            if f == 1: line[x] = (line[x] + a) & 255
+            elif f == 2: line[x] = (line[x] + u) & 255
+            elif f == 3: line[x] = (line[x] + (a + u) // 2) & 255
+            elif f == 4:
+                pa, pb, pc = abs(u - c), abs(a - c), abs(a + u - 2 * c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc else u if pb <= pc else c)) & 255
+        rows.append(line); prev = line
+    return lambda x, y: tuple(rows[y][x * bpp:x * bpp + 3])
+
+MAGENTA, CYAN = (255, 0, 255), (0, 255, 255)
+for w in ("1280", "390"):
+    W = m["widths"][w]; tiles = W["tiles"]; hashes = set()
+    if len(tiles) < 3: print(f"{w}: only {len(tiles)} tiles"); sys.exit()
+    for t in tiles:
+        p = os.path.join(d, t["file"]); px = decode(p); h = t["height"]
+        hashes.add(hashlib.sha256(open(p, "rb").read()).hexdigest())
+        if px(int(w) // 2, h - 30) != MAGENTA: print(f"{t['file']}: no fixed bar in the bottom band"); sys.exit()
+        if px(int(w) // 2, h // 2) == MAGENTA: print(f"{t['file']}: fixed bar drawn mid-tile"); sys.exit()
+        if px(20, 150) != CYAN: print(f"{t['file']}: no sticky rail"); sys.exit()
+    if len(hashes) != len(tiles): print(f"{w}: {len(tiles)} tiles but {len(hashes)} distinct images"); sys.exit()
+print("ok")
+PY
+chk="$(python3 "$TMP/chk-fixed.py" "$TMP/fixed-shots" 2>&1 | tail -3)"
+[[ "$chk" == ok ]] && ok "the fixed bar is in the bottom band and the sticky rail in every tile, at both widths, and the tiles still differ" || bad "fixed/sticky tiles: $chk"
+
+echo "== reference-set.sh hands the grader the manifest and the run stamp =="
+# The handoff is behaviour, so it is run: the set builds, the probe shoots it, and the last
+# lines name a manifest that parses with tiles per width and a SHOTS run stamp (exit 1 = the
+# probe found defects in the page, which is a score for a reference set, not a failure).
+out="$(bash "$SCRIPTS/reference-set.sh" "$HERE/fixtures/reference-set" "$TMP/refset-out" 2>/dev/null)"; rc=$?
+mf="$(sed -n 's/^manifest: //p' <<<"$out")"
+[[ $rc -eq 0 && -n "$mf" && "$mf" == "$TMP/refset-out/reference-set-shots.json" ]] \
+  && python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["widths"]["1280"]["tiles"] else 1)' "$mf" 2>/dev/null \
+  && grep -q '^SHOTS run=' <<<"$out" \
+  && ok "reference-set.sh prints a manifest with 1280 tiles and a SHOTS run stamp" \
+  || bad "reference-set handoff (rc $rc): $(grep -v '^SHOT ' <<<"$out" | tail -5)"
+
 echo "== the consultation bar exemption does not hide body text only =="
 # At 390 the body runs under the bottom-pinned bar; the only 390 overlap allowed is the
 # pair drawn inside the bar. Verified load-bearing: without the exemption, body
