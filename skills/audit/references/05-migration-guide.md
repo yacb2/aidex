@@ -30,7 +30,7 @@ candidates / ambiguous / plans, and prints the steps below for you to carry out:
 2. **Scaffold the methodology** if it does not exist yet — `/aidex:audit new <type> <slug>`, so the target exists with its three boards (delete the scaffolded run if you only wanted the boards). Never create the directory by hand: an empty methodology is three missing-board violations.
 3. **Move** each accepted candidate — `git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>` (D-02 groups runs by methodology; D-01 dates them ISO).
 4. **Rename** `issues.md` or similar to `findings.md` inside the moved folder.
-5. **Seed the inventory** — with many candidates, invoke the `inventory-seeder` agent with the methodology and the list of moved folders; it generates the rows for `00-inventory.md`.
+5. **Seed the inventory** — with many candidates, launch the agent `subagent_type: aidex:inventory-seeder` with the methodology and the list of moved folders; it generates the rows for `00-inventory.md`.
 6. **Changelog entry** — record the migration in `<methodology>/00-changelog.md`, with date and list of migrated folders.
 7. **Reindex** — `/aidex:audit reindex`, from the migrated project; a manual move does not touch the roll-up.
 8. **Validate** — `/aidex:audit validate`. Issues are reported, not blocking.

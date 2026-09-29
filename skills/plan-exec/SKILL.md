@@ -55,11 +55,11 @@ The operative rule here:
   instead of taking it. Both were observed as phase-close reports the user answered with
   a bare "continue".
 - **On an ambiguous fork you cannot cleanly classify — consult the
-  durability-arbiter before stopping.** Read
-  [`../conventions/agents/durability-arbiter.md`](../conventions/agents/durability-arbiter.md)
-  and pass it to the Agent tool as the prompt (`model: sonnet`, `effort: high`, read-only
-  — `model-policy: per-stage`, so the gate's depth is pinned rather than inherited from
-  the run it is judging), with the
+  durability-arbiter before stopping.** Launch it with the Agent tool as
+  `subagent_type: aidex:durability-arbiter` (definition:
+  [`../../agents/durability-arbiter.md`](../../agents/durability-arbiter.md); its own
+  `model: sonnet` / `effort: high`, read-only — `model-policy: per-stage`, so the gate's
+  depth is pinned rather than inherited from the run it is judging), giving it the
   situation + the run's autonomy surface + the phase's proof (verification output,
   commit SHA). Follow its `CONTINUE` / `ASK` / `STOP` verdict; batch any `ASK` to the
   end. If it errors or returns nothing, apply the rule above and **proceed — never

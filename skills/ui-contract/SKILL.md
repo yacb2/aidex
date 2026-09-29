@@ -126,13 +126,14 @@ either rebuild a copy, are not verifiable, or make every layout correction touch
 ## Step 4 — Build the gallery, then run the gate
 
 Two agents, one each, and this skill's `model-policy: per-stage` — each spawn pins its
-own model and effort in its `agents/*.md` definition, because the two halves are not the
+own model and effort in its plugin-level `agents/<name>.md` definition (launched as
+`subagent_type: aidex:<name>`, never by pasting the file as a prompt), because the two halves are not the
 same kind of work:
 
 | Agent | Model / effort | What it does |
 |---|---|---|
-| `gallery-builder` | opus / high | writes the gallery: real components, fixtures, one declared cell per matrix state. A gallery is code whose correctness no gate checks. |
-| `verify-ui` | sonnet / low | runs the gate and reports what it printed. It runs commands and reads paths; it writes no code. |
+| `aidex:gallery-builder` | opus / high | writes the gallery: real components, fixtures, one declared cell per matrix state. A gallery is code whose correctness no gate checks. |
+| `aidex:verify-ui` | sonnet / low | runs the gate and reports what it printed. It runs commands and reads paths; it writes no code. |
 
 Before spawning either, **read the harness contract**:
 `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/01-harness-contract.md` — it names

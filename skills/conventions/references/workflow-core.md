@@ -231,7 +231,7 @@ covers both.
 
 **Why it is a backtick-free rendering, not `durability-arbiter.md` byte-for-byte.** The
 interactive (Stop-hook) host reads
-[`../agents/durability-arbiter.md`](../agents/durability-arbiter.md) directly. The batch host
+[`../../../agents/durability-arbiter.md`](../../../agents/durability-arbiter.md) directly. The batch host
 must hold the prompt as a **JS template literal**, and any backtick (or the agent doc's ```json
 fence) would terminate that literal — so the markdown agent doc cannot be embedded byte-identically
 under the no-`import` constraint. The block below is therefore a faithful, backtick-free rendering
