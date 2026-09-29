@@ -24,7 +24,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-AGENT="$SCRIPT_DIR/../agents/context-auditor.md"
+AGENT="$SCRIPT_DIR/../../../agents/context-auditor.md"
 
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }

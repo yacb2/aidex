@@ -34,6 +34,7 @@ err() { echo "FAIL: $*" >&2; fail=1; }
 # symlinked skill would walk straight back into the repo and prove nothing.
 cp -R "$REPO/skills" "$TMP/skills"
 cp -R "$REPO/hooks" "$TMP/hooks"
+cp -R "$REPO/agents" "$TMP/agents"   # plugin-level agent definitions (guard 7 walks them)
 
 # What install.sh writes — the authoritative aidex-owned inventory, at the path
 # install.sh actually writes it to (`$STATE_DIR/manifest`, i.e. <root>/aidex/manifest).
@@ -66,13 +67,12 @@ fi
 long_desc="$(printf 'x%.0s' $(seq 950))"
 
 # ---- 1. a foreign skill is out of scope -----------------------------------
-# Two violations the guard is right about in kind and wrong to report here: an
-# agent with no `effort`, and a description over the 900-char budget.
-mkdir -p "$TMP/skills/foreign-skill/agents"
+# A violation the guard is right about in kind and wrong to report here: a description
+# over the 900-char budget.
+mkdir -p "$TMP/skills/foreign-skill"
 printf -- '---\nname: foreign-skill\ndescription: %s\n---\n\nBody.\n' \
   "$long_desc" > "$TMP/skills/foreign-skill/SKILL.md"
-printf -- '---\nname: foreign-agent\nmodel: sonnet\n---\n\nBody.\n' \
-  > "$TMP/skills/foreign-skill/agents/foreign-agent.md"
+# (No foreign skill-local agent fixture: guard 7 walks the plugin-level agents/, never skills/*/agents/.)
 
 out="$(python3 "$TMP/$GUARD_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 0 ]; then
@@ -85,9 +85,8 @@ fi
 # ---- 2. the rule still bites on aidex's own files -------------------------
 # Same defect, this time in a skill the manifest claims. Scoping the guard must
 # not turn it into a check that cannot fail.
-mkdir -p "$TMP/skills/plan/agents"
 printf -- '---\nname: probe-agent\nmodel: sonnet\n---\n\nBody.\n' \
-  > "$TMP/skills/plan/agents/probe-agent.md"
+  > "$TMP/agents/probe-agent.md"
 
 out="$(python3 "$TMP/$GUARD_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then

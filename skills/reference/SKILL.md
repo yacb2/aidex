@@ -136,13 +136,11 @@ worse than no check, so `- [ ]` boxes are banned there. Cover every layer the mo
 
 | Agent | Model | Role |
 |---|---|---|
-| [reference-refuter](agents/reference-refuter.md) | sonnet / high | Attacks the module's claims; returns a verdict per claim |
+| [reference-refuter](../../agents/reference-refuter.md) | sonnet / high | Attacks the module's claims; returns a verdict per claim |
 
-Spawn it with the Agent tool: point a subagent at that definition file, tell it to read the file
-and adopt the role exactly including its output format, and give it the module path plus the
-project root. `model-policy: per-stage` — the refuter's `sonnet` / `high` above is the pin,
-not the session's inherited depth. Skill `agents/` definitions are **not** auto-registered as agent types, so naming
-the file is what makes this step happen rather than get skipped.
+Spawn it with the Agent tool as `subagent_type: aidex:reference-refuter`, and give it the module
+path plus the project root. `model-policy: per-stage` — the refuter's `sonnet` / `high` above is
+pinned by its definition, not the session's inherited depth.
 
 **Spawn it rather than self-assessing.** You assigned the ledger labels; the sweep that reasons a
 correction into falseness is the same one that re-reads it and finds it sound. And never close on

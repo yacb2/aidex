@@ -298,8 +298,8 @@ cat <<EOF
   3. For each candidate you accept, move it into that methodology, ISO-dated:
        git mv .context/plans/<name> .context/audits/<methodology>/YYYY-MM-DD-<slug>
   4. Rename any "issues.md" or similar to "findings.md" inside the moved folder.
-  5. If you have many candidates, invoke Claude with the inventory-seeder agent:
-       Read $SKILL_ROOT/agents/inventory-seeder.md
+  5. If you have many candidates, launch the inventory-seeder agent
+       (Agent tool, subagent_type: aidex:inventory-seeder):
        Provide it the methodology and the list of moved folders; it will generate
        rows for audits/<methodology>/00-inventory.md.
   6. Add an entry to .context/audits/<methodology>/00-changelog.md recording the

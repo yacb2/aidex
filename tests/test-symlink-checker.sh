@@ -22,7 +22,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-AGENT="$REPO_ROOT/skills/aidex/agents/symlink-checker.md"
+AGENT="$REPO_ROOT/agents/symlink-checker.md"
 failures=0
 fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 

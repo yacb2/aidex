@@ -314,7 +314,7 @@ on link integrity:
 
 Two additions that are not the author's to self-assess:
 
-- **Run the refuter** (`agents/reference-refuter.md`). Closing on your own labels is the failure
+- **Run the refuter** (`subagent_type: aidex:reference-refuter`). Closing on your own labels is the failure
   the ledger cannot catch, because you assigned the labels.
 - **Re-read your own corrections.** A correct sentence was changed into a false one during one
   sweep, because the correction was *reasoned* rather than *looked up*. A correction is a new

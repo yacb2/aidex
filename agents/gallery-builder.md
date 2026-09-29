@@ -1,6 +1,6 @@
 ---
 name: gallery-builder
-description: Builds one state gallery for a screen — the project's real components against fixture data, one declared cell per state-matrix cell, each cell a distinct render. Writes the gallery page and its spec against the existing harness; never invents a second harness, and never commits.
+description: Launched by /aidex:ui-contract; not for direct use. Builds one state gallery for a screen — the project's real components against fixture data, one declared cell per state-matrix cell, each cell a distinct render. Writes the gallery page and its spec against the existing harness; never invents a second harness, and never commits.
 model: opus
 effort: high
 tools: Bash, Read, Edit, Write, Grep, Glob

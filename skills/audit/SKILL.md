@@ -153,8 +153,8 @@ the defaulting in the audit brief —
 > mid-sweep interruption**.
 >
 > **`model-policy: per-stage`.** Every agent this skill spawns carries its own model
-> and effort — the `agents/*.md` definitions declare theirs, the arbiter consult pins
-> `sonnet`/`high`, and the fan-out script assigns per stage. Nothing here inherits the
+> and effort — the plugin-level `agents/*.md` definitions declare theirs (the arbiter consult
+> included), and the fan-out script assigns per stage. Nothing here inherits the
 > spawning session's by omission.
 >
 > The fan-out form ships as
@@ -187,8 +187,8 @@ the defaulting in the audit brief —
 > **Don't pause at the escalate gate.** When net-new findings exist, escalating the
 > confirmed ones to backlog is the mandated next step — not an "escalate, or triage
 > yourself?" question. If a specific finding is genuinely ambiguous to escalate,
-> consult the [durability-arbiter](../conventions/agents/durability-arbiter.md)
-> (Agent tool, `model: sonnet`, `effort: high`, read-only) per finding and batch any `ASK` to the
+> consult the [durability-arbiter](../../agents/durability-arbiter.md)
+> (Agent tool, `subagent_type: aidex:durability-arbiter`, read-only) per finding and batch any `ASK` to the
 > end — never stall the whole sweep on one finding.
 >
 > **Isolation.** An audit is read-mostly — usually no worktree. The
@@ -249,7 +249,7 @@ suggestion to run it (Phase 6).
 
 | Agent | Model | Purpose |
 |---|---|---|
-| [inventory-seeder](agents/inventory-seeder.md) | sonnet | Reads scattered findings from legacy folders and generates INVENTORY rows in canonical format. |
+| [inventory-seeder](../../agents/inventory-seeder.md) (`aidex:inventory-seeder`) | sonnet | Reads scattered findings from legacy folders and generates INVENTORY rows in canonical format. |
 
 Scripts delegate to this agent when needed. Direct use is also fine during manual migration work. Candidate detection is not an agent — `migrate-audit.sh` scores folders deterministically.
 

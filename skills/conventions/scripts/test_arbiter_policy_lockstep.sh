@@ -18,7 +18,7 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 CANON="${1:-$REPO_ROOT/skills/conventions/references/workflow-core.md}"
-AGENT="${2:-$REPO_ROOT/skills/conventions/agents/durability-arbiter.md}"
+AGENT="${2:-$REPO_ROOT/agents/durability-arbiter.md}"
 
 [ -f "$CANON" ] || { echo "FAIL: canon not found: $CANON" >&2; exit 1; }
 [ -f "$AGENT" ] || { echo "FAIL: agent doc not found: $AGENT" >&2; exit 1; }
