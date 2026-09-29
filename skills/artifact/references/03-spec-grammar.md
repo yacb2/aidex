@@ -184,6 +184,12 @@ any number:
   int/bool is the builder's, per block type.
 - Text is carried **raw**. Escaping for HTML happens at build time (`_shell.esc`), once,
   as it already does everywhere else in this skill. A `<` in an attr value is data.
+- **No HTML entities, in attrs or prose.** `&quot;`, `&amp;`, `&lt;`, `&gt;`, `&apos;`,
+  `&#NN;` and `&#xHH;` are refused by the builder with the spec line, the entity and what
+  to write instead: `\"` inside a quoted attr, the character itself in prose. Escaping
+  happens once, so an entity would reach the reader as its own letters (echo_lab_ws,
+  2026-09-29: a group heading showed `&quot;es-419&quot;`). A bare `&` (`R&D`, `Q&A`) is
+  text, and an entity inside a code span or a code fence is code.
 
 ## Nesting
 
@@ -693,6 +699,7 @@ silently drops input.
 | A quoted value whose closing `"` never arrives | `::: item {title="abc}`, `::: item {title="abc\"}` |
 | Text running straight on after a quoted value | `::: item {title="abc\\"x}` |
 | An attr item that is none of the three kinds | `::: item {big}` |
+| An HTML entity in an attr value or in prose (the builder's refusal, not the tokenizer's; code spans and fences exempt) | `heading="&quot;x&quot;"` (write `\"x\"`), `a &lt; b` (write `a < b`) |
 
 Not malformed, on purpose: an **unknown block type**, an **unknown attr key**, and a
 **missing required attr**. They tokenize; the builder rejects them.

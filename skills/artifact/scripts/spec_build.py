@@ -50,6 +50,7 @@ else. Everything about a row or a box is over there.
 import argparse
 import base64
 import contextlib
+import html as htmllib
 import io
 import os
 import re
@@ -1466,6 +1467,33 @@ def _refuse_links(spec_text):
                 "backslash escape in the target are refused)" % target)
 
 
+# An HTML entity the author typed. Text is escaped for the page once, at build
+# time, so `&quot;` would reach the reader as the six characters `&quot;`
+# (echo_lab_ws 84edd64, a group heading). A bare `&` (R&D, Q&A) is not one.
+ENTITY = re.compile(r"&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#[xX][0-9A-Fa-f]+);")
+
+
+def _refuse_entities(spec_text):
+    """Refuse an HTML entity in an attr value or in prose, naming its line and
+    what to write instead; code spans and code fences are code and keep it."""
+    fence = None
+    for n, ln in enumerate(spec_text.split("\n"), 1):
+        before, fence = fence, md_body.fence_state(ln, fence)
+        if before is not None or fence is not None:
+            continue
+        m = next((e for e in ENTITY.finditer(md_body.CODE.sub(" ", ln))
+                  if htmllib.unescape(e.group(0)) != e.group(0)), None)
+        if m:
+            char = htmllib.unescape(m.group(0))
+            in_attr = ln.lstrip().startswith(":::")
+            instead = "\\\"" if in_attr and char == '"' else char
+            raise SpecBuildError(
+                n, "HTML entity %r is refused: the spec is escaped for the "
+                "page once, so the reader would see %r literally. Write `%s` "
+                "instead%s" % (m.group(0), m.group(0), instead,
+                               " (inside a quoted attr)" if in_attr else ""))
+
+
 def _refuse_title_links(tree):
     """A `[x](y)` in `title=` is refused: the title also reaches the rail and a
     decided item's <summary> as `data-title`, raw, where no link is rendered."""
@@ -1488,6 +1516,7 @@ def build(spec_text, lang=None, base_dir=".", page=None):
     ctx = BuildContext(lang=lang, base_dir=base_dir, page=page)
     tree = parse(spec_text)
     _refuse_links(spec_text)
+    _refuse_entities(spec_text)
     _refuse_title_links(tree)
     _refuse_item_id_collisions(tree)
     answerable = any(n.block_type in ANSWERABLE for n in _walk(tree))

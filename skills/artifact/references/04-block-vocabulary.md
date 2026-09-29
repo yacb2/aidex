@@ -29,6 +29,8 @@ the list — every candidate clears both.
 
 ## The types
 
+A quoted attr value writes a double quote as `\"` (`heading="¿\"es-419\" o no?"`); an HTML entity such as `&quot;` or `&amp;` is refused, in attrs and prose alike (`03-spec-grammar.md` § Values and quoting).
+
 | Type | Corpus (Q8 / recount) | Purpose | Body and key attrs |
 |---|---|---|---|
 | `masthead` | 12 / 12 pages | The page's opening block: eyebrow line, `h1`, standfirst, byline. One per page, first. | Prose and an optional nested `note`/`callout`, in the position it was written. `title`, `eyebrow`, `byline`; the first paragraph of the masthead's OWN prose becomes the standfirst. The title is written ONCE — `title="…"` or a `# ` line, never both. `lang="es"` / `lang="en"` declares the PAGE's language and wins over `--lang` (2 of the 30 sampled pages are English; without it they build into `<html lang="es">` and fail the contract's `lang` rule). `visual="none: why"` is the page's visual declaration. |

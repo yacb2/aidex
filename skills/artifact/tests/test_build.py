@@ -967,6 +967,41 @@ try:
     rejects("a refused link in an attr is refused at the fence line",
             '::: section {#s1 heading="Ver [x](data:,a)"}\nx\n:::\n', 1,
             "data:")
+
+    print()
+    print("== an HTML entity in a spec is refused, with its line (03 § Attrs) ==")
+    # echo_lab_ws 84edd64: `heading="¿&quot;es-419&quot; o …?"` built, and the
+    # reader saw a literal `&quot;` — text is escaped once, so an entity is data.
+    rejects("the echo_lab heading: &quot; in an attr names `\\\"`",
+            '::: group {#G5 title="d6 · Etiquetas" '
+            'heading="¿&quot;es-419&quot; o el nombre completo?"}\n'
+            '::: item {#D6 title="T"}\n?\n\n- a\n- b\n:::\n:::\n', 1, '\\"')
+    rejects("&quot; in title= is refused", '::: group {#G1 title="a &quot;b&quot;"}\n'
+            '::: item {#Q1 title="T"}\n?\n\n- a\n- b\n:::\n:::\n', 1, "&quot;")
+    rejects("&amp; in eyebrow= is refused, naming the literal character",
+            '::: masthead {eyebrow="R &amp; D"}\n# T\n:::\n', 1, "`&`")
+    rejects("an entity in prose names its own line and the literal character",
+            "uno\n\nBody &quot;es-419&quot; y más.\n", 3, '`"`')
+    for ent, char in (("&lt;", "<"), ("&gt;", ">"), ("&apos;", "'"),
+                      ("&#34;", '"'), ("&#x22;", '"'), ("&#X27;", "'")):
+        rejects("%s in prose is refused" % ent, "a %s b\n" % ent, 1,
+                "`%s`" % char)
+    rejects("the paragraph the `;` lint miscounted is an entity refusal now",
+            "Body &quot;es-419&quot; &amp; &lt;b&gt;\n", 1, "entity")
+    for ent, char in (("&nbsp;", "\u00a0"), ("&mdash;", "\u2014")):
+        rejects("named entity %s beyond the markup five is refused" % ent,
+                "a %s b\n" % ent, 1, "entity")
+    holds("&word; that decodes to nothing stays legal", "AT&T; ok",
+          "AT&amp;T; ok")
+    holds("a bare & stays legal (R&D, Q&A)", "R&D y Q&A, & más.",
+          "R&amp;D y Q&amp;A, &amp; más.")
+    holds("an entity inside a code span is code",
+          "Escribe `&quot;` así.", "<code>&amp;quot;</code>")
+    holds("an entity inside a code fence is code",
+          "```\na &amp; b\n```\n", "a &amp;amp; b")
+    holds("`\\\"` is the spelling: the heading shows a quote",
+          '::: section {#s1 heading="¿\\"es-419\\" o no?"}\nx\n:::\n',
+          "¿&quot;es-419&quot; o no?")
     import md_body                                  # noqa: E402
     for bad in ("javascript:alert(1)", "\x01javascript:alert(1)",
                 "java\tscript:x", "data:text/html,x", "vbscript:x",
