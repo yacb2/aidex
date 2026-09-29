@@ -1,9 +1,8 @@
 ---
 name: context-cost-analyzer
-description: Reads the measured context snapshot (/context + /skill-doctor via claude -p) and cross-references it with MEMORY.md, CLAUDE.md, skills and plugins to produce a priority-ordered list of token savings
+description: Launched by /aidex:aidex context; not for direct use. Reads the measured context snapshot (/context + /skill-doctor via claude -p) and cross-references it with MEMORY.md, CLAUDE.md, skills and plugins to produce a priority-ordered list of token savings.
 model: haiku
 tools: Read, Grep, Glob, Bash
-effort: low
 context: fork
 user-invocable: false
 ---

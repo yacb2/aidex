@@ -307,9 +307,15 @@ by the skill's BODY, because the declaration is not the use:
 `Task*` tools are an unrelated tracking family; 7b rejects `Task` in `allowed-tools` so
 the suite cannot show a reader two contradictory examples.
 
-## Agents (`skills/<skill>/agents/*.md`)
+## Agents (`agents/*.md`, plugin level)
 
-**Declare `model` AND `effort`. Both, always** — enforced by
+Agents live in the plugin-level `agents/` directory, flat, and are launched by type
+(`subagent_type: aidex:<name>`). A skill-local `skills/<skill>/agents/*.md` is NOT registered
+by Claude Code, so its `model`/`effort`/`tools` would be ignored when pasted as a prompt;
+`tests/test-agent-registration.sh` fails on one. Each description says which skill launches
+it and that it is not for direct use. A `haiku` agent declares no `effort:` (the loader drops it).
+
+**Declare `model` AND `effort`. Both, always (except `effort` on `haiku`)** — enforced by
 `scripts/test_registry_lockstep.py` check 7.
 
 `model` alone is half a decision. On an effort-capable model an absent `effort:` is not a

@@ -225,8 +225,16 @@ done
 # assertion is that it embeds none and reads the target board's header instead.
 # ---------------------------------------------------------------------------
 echo "== agent row contract =="
-AGENTS="$(cd "$SCRIPTS/../agents" && pwd -P)"
-for ag in "$AGENTS"/*.md; do
+# Only inventory-seeder writes rows; the other plugin agents legitimately mention CHANGELOG.md.
+# A missing file must fail loudly: an empty glob here once made these checks pass vacuously.
+SEEDER="$SCRIPTS/../../../agents/inventory-seeder.md"
+if [[ ! -f "$SEEDER" ]]; then
+  check "agents/inventory-seeder.md exists at the plugin level" 'false'
+  SEEDERS=()
+else
+  SEEDERS=("$SEEDER")
+fi
+for ag in "${SEEDERS[@]}"; do
   name="$(basename "$ag" .md)"
   EMBED="$(grep -n '^| *ID *|' "$ag")"
   check "$name: embeds no row shape of its own" '[[ -z "$EMBED" ]]'

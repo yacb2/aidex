@@ -111,7 +111,7 @@ nothing. Sample the modules covering critical areas and read them against this c
 Anything that fails depth is a `gap`, not coverage.
 
 **The strongest depth instrument is not this checklist.** Spawn
-`reference/agents/reference-refuter.md` against the sampled modules: it attacks claims
+the `aidex:reference-refuter` agent (`agents/reference-refuter.md`) against the sampled modules: it attacks claims
 rather than reviewing them, with the burden of proof inverted. Use the checklist when you
 need a cheap pass over many modules, the refuter when a module matters.
 

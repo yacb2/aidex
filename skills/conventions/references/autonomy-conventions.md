@@ -198,8 +198,8 @@ safe?", not merely "is it in the allow-set?".
    ASK is also an `OPEN OWED` delta (see *A deferral must outlive its run*).
 
 The arbiter prompt lives at
-[`../agents/durability-arbiter.md`](../agents/durability-arbiter.md); consuming skills
-spawn it via the Agent tool with that prompt. It is consulted by the **main-loop
+[`../../../agents/durability-arbiter.md`](../../../agents/durability-arbiter.md); consuming skills
+launch it via the Agent tool as `subagent_type: aidex:durability-arbiter`. It is consulted by the **main-loop
 executor** — where the stop-to-ask decision actually happens — not by short-lived leaf
 subagents.
 

@@ -143,7 +143,7 @@ on the HTML route) has passed `check-artifact`:
 1. `bash "${CLAUDE_SKILL_DIR}/scripts/render-probe.sh" --shots <dir> <page>.html` — fix
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
-2. Launch the `artifact-grader` agent with the request, the absolute path of the manifest
+2. Launch the `artifact-grader` agent (`subagent_type: aidex:artifact-grader`) with the request, the absolute path of the manifest
    (`<name>-shots.json`, which lists the viewport-height tiles and the item ids each
    holds) instead of the two full-page shots, the list of files the probe printed as
    written this run (`SHOT <path>` lines, one run stamp), the path of
