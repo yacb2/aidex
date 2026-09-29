@@ -85,8 +85,11 @@ def main(argv):
     set_dir, out_dir = argv
     rows = read_manifest(set_dir)
     os.makedirs(os.path.join(out_dir, "figures"), exist_ok=True)
+    drawn = sum(os.path.isfile(os.path.join(set_dir, r[0], "engine.diagram")) for r in rows)
     spec = ['::: masthead {title="Conjunto de referencia de figuras" eyebrow="Motor de diagramas"}',
-            "Cada sección pone la figura hecha a mano junto a lo que el motor dibuja hoy.",
+            "El motor dibuja %d de %d figuras; %d no son expresables todavía. Cada "
+            "sección pone la figura hecha a mano junto a lo que el motor dibuja hoy."
+            % (drawn, len(rows), len(rows) - drawn),
             ":::", ""]
     for ident, kind, _source in rows:
         spec += section(set_dir, out_dir, ident, kind)
