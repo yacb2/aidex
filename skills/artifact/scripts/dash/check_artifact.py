@@ -831,10 +831,17 @@ def lead_id_finding(body, item_ids=frozenset()):
     to reach the first real lead. An id that is the data-id of an item on the
     same page (a cross-reference such as "your answer to Q2") is not internal."""
     own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
-    for m in P_BLOCK.finditer(own):
-        if P_FIELDLABEL.search(m.group(1)):
+    # A spec-built item carries its first paragraph as the <h3> question, after
+    # the consult-id badge: that h3 IS the lead. A hand-written h3 without the
+    # badge is a title, and the lead is the first paragraph below it.
+    h3 = re.search(r'<h3\b[^>]*>\s*<span class="consult-id">.*?</span>(.*?)</h3\s*>',
+                   own, re.I | re.S)
+    blocks = ([('', h3.group(1))] if h3
+              else [m.groups() for m in P_BLOCK.finditer(own)])
+    for attrs, raw in blocks:
+        if P_FIELDLABEL.search(attrs):
             continue
-        inner = re.sub(r'<code\b[^>]*>(.*?)</code\s*>', r'`\1`', m.group(2),
+        inner = re.sub(r'<code\b[^>]*>(.*?)</code\s*>', r'`\1`', raw,
                        flags=re.I | re.S)
         prose = ' '.join(_html.unescape(re.sub(r'<[^>]+>', ' ', inner)).split())
         if not prose or FUENTE_LEAD.match(prose):

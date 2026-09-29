@@ -781,6 +781,43 @@ for id in C2 C4 C7 C8 D1 G7; do
     && fail "10b4b. $id must not warn: $(cat "$TMP/out")"
 done
 
+# 10b4c. The same check on a page built from a spec: the builder turns an item's
+# first paragraph into its <h3> question, so a lead read only from <p> never
+# fired on the main route (echo_lab round 1 replay, 2026-09-29: 0 WARNs on a page
+# whose leads opened with "La fila M095", "`GET /voices/profiles/`", "Gate 3").
+cat > "$TMP/built-lead.spec.md" <<'SPEC'
+::: masthead {lang="en" visual="none: consultation"}
+# Built leads
+:::
+
+::: group {#G1 title="Leads"}
+::: item {#E1 title="Id lead"}
+Row M095 gets a 403 when it mutes a track.
+
+- Allow it {recommended}
+- Keep the 403
+:::
+
+::: item {#E2 title="Prose lead"}
+Ana, an observer, mutes a track and gets an error. Fuente: M095.
+
+- Allow it {recommended}
+- Keep the error
+:::
+:::
+
+::: notes {title="Anything else"}
+:::
+SPEC
+( cd "$TMP" && python3 "$SKILL/scripts/spec_build.py" "$TMP/built-lead.spec.md" -o "$TMP/built-lead.html" ) >/dev/null 2>&1 \
+  || fail "10b4c. spec_build failed on the lead fixture"
+rc="$(run "$TMP/built-lead.html")"
+[[ "$rc" == "0" ]] || fail "10b4c. consult-lead-id changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[consult-lead-id\].*'E1'" "$TMP/out" \
+  || fail "10b4c. a built item whose question opens with M095 did not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-lead-id\].*'E2'" "$TMP/out" \
+  && fail "10b4c. a built item with a prose question must not warn: $(cat "$TMP/out")"
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact
