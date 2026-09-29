@@ -242,6 +242,51 @@ awk -v a="$w1280" 'BEGIN { exit !(a >= 359 && a <= 360.5) }' \
 awk -v a="$w390" -v c="$col390" 'BEGIN { exit !(a > 0 && a <= c) }' \
   && ok "the figure fits the ${col390} px column at 390 (${w390} px)" || bad "the figure is ${w390} px wide in a ${col390} px column at 390 ($fig)"
 
+echo "== a graph is drawn at most at diagram's 1.2x its viewBox width (BL-513) =="
+# The kit's `figure svg { width: 100% }` stretched a Graphviz graph to the 888 px
+# column at 1280: a 62x404 vertical chain rendered 888 px wide, 14.3x, some 5,800 px
+# tall. #cadena must render between 1.0x and 1.2x its viewBox width at 1280; #fila,
+# wider than the 390 column can hold at 1.2x, must still shrink to exactly the column.
+if ! command -v dot >/dev/null 2>&1; then
+  echo "  SKIP: no Graphviz \`dot\` on PATH, the graph cases need it"
+else
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/graph-scale.spec.md" -o "$TMP/graph-scale.html" ) >/dev/null 2>&1 \
+  && ok "built graph-scale from its spec" || bad "spec_build failed on graph-scale.spec.md"
+out="$(bash "$PROBE" "$TMP/graph-scale.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "graph-scale exits 0 at 1280 and 390" || bad "graph-scale exit $rc: $out"
+gr="$(PW="$module" node -e '
+const { chromium } = require(process.env.PW);
+(async () => {
+  const b = await chromium.launch();
+  for (const width of [1280, 390]) {
+    const p = await b.newPage({ viewport: { width, height: 900 } });
+    await p.goto("file://" + process.argv[1]);
+    console.log(width, await p.evaluate(() => {
+      const col = document.querySelector(".main").clientWidth;
+      return [col].concat(["cadena", "fila"].map(id => {
+        const s = document.querySelector("figure#" + id + " svg");
+        const w = s.getBoundingClientRect().width;
+        return w.toFixed(1) + ":" + (w / s.viewBox.baseVal.width).toFixed(2);
+      })).join(" ");
+    }));
+  }
+  await b.close();
+})();' "$TMP/graph-scale.html" 2>&1)"
+read -r _ gcol1280 chain1280 row1280 <<<"$(grep '^1280 ' <<<"$gr")"
+read -r _ gcol390 chain390 row390 <<<"$(grep '^390 ' <<<"$gr")"
+for g in "cadena:$chain1280" "fila:$row1280"; do
+  IFS=: read -r id w k <<<"$g"
+  awk -v k="$k" 'BEGIN { exit !(k >= 1 && k <= 1.21) }' \
+    && ok "#$id renders at ${k}x its viewBox width at 1280 (${w} px in a ${gcol1280} px column)" \
+    || bad "#$id renders at ${k}x its viewBox width at 1280 (${w} px in a ${gcol1280} px column): over diagram's 1.2x cap ($gr)"
+done
+wc390="${chain390%%:*}" wr390="${row390%%:*}"
+awk -v a="$wc390" -v c="$gcol390" 'BEGIN { exit !(a > 0 && a <= c) }' \
+  && ok "#cadena fits the ${gcol390} px column at 390 (${wc390} px)" || bad "#cadena is ${wc390} px wide in a ${gcol390} px column at 390 ($gr)"
+awk -v a="$wr390" -v c="$gcol390" 'BEGIN { d = a - c; exit !(d >= -1 && d <= 1) }' \
+  && ok "#fila shrinks to the ${gcol390} px column at 390 (${wr390} px)" || bad "#fila is ${wr390} px wide in a ${gcol390} px column at 390, not shrunk to it ($gr)"
+fi
+
 echo "== crash and missing browser =="
 # A page that breaks the measuring code: getComputedStyle is gone, so evaluate throws.
 printf '<!doctype html><title>x</title><p>x</p><script>window.getComputedStyle = null</script>' > "$TMP/crash.html"

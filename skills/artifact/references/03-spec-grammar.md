@@ -652,6 +652,12 @@ is `fill="currentColor"`, and the labels are drawn in the kit's `--mono` stack â
 build passes `fontname=monospace` as the default, so Graphviz sizes each box with a
 monospace advance.
 
+A graph is shown at **most 1.2x its viewBox width**, the same cap as `diagram`
+(`MAX_SCALE`, BL-513): the builder writes `style="max-width:<1.2 x width>px"` on the
+graph's root `<svg>` (not on the `<figure>`, so the caption keeps the column), and it
+still shrinks to the column at 390. The kit's `figure svg { width: 100% }` had stretched
+a 62-wide vertical chain to the whole column (14.3x at 1280).
+
 | Refused, at the fence's line | Why |
 |---|---|
 | an empty body | a graph with nothing in it has nothing to draw |
