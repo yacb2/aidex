@@ -51,6 +51,12 @@ there is at least 672 px, where a 720-unit drawing still draws 12-unit
 sublabels at 11 px. The rule lives HERE, not in `components.css`, only because
 the kit is another phase's file; it is `SWAP_CSS` and moves there verbatim.
 
+A wrapped `row` that fits the widest column in one row (`diagram_layout.one_row`)
+adds a third svg, `dg-full`, first: the figure becomes a size container and
+`full_css` shows it in place of `dg-wide` while the figure is at least its width.
+A container query, not a media query, because the column's width depends on
+the rail and the page cap, not on the viewport alone (BL-525).
+
 Every label reaching the SVG goes through `esc()`, once, at the point of
 emission — `_shell.esc` is `html.escape(quote=True)`. A box label is DATA and
 must not be able to close an attribute or open an element.
@@ -293,7 +299,17 @@ def svg(lay, cls=""):
     return "\n".join(out)
 
 
-def figure(lay, title="", classes="", ident="", narrow=None):
+def full_css(width):
+    """The rule that shows a `dg-full` drawing `width` wide instead of the
+    wrapped one, only while the figure holds it at 1x (BL-525). Keyed by the
+    width's class, so two such figures on one page never toggle each other."""
+    k = "dg-w%d" % width
+    return ("figure svg.dg-full{display:none}"
+            "@container (min-width: %dpx){figure svg.%s{display:block}"
+            "figure svg.%s~svg.dg-wide{display:none}}" % (width, k, k))
+
+
+def figure(lay, title="", classes="", ident="", narrow=None, full=None):
     """The whole block: the kit's `<figure>`, the diagram, and its caption.
 
     Identical plumbing to `chart_svg.figure`, including the one thing that is
@@ -307,11 +323,18 @@ def figure(lay, title="", classes="", ident="", narrow=None):
         head += ' id="%s"' % esc(ident)
     if classes:
         head += ' class="%s"' % esc(classes)
+    if full is not None:
+        # The figure is the container its own width is queried on.
+        head += ' style="container-type:inline-size"'
     if narrow is None:
         out = [head + ">", svg(lay)]
     else:
         out = [head + ">", "<style>%s</style>" % SWAP_CSS,
                svg(lay, "dg-wide"), svg(narrow, "dg-narrow")]
+    if full is not None:
+        width = int(math.ceil(full.view[2] * dl.MAX_SCALE))
+        out[1:1] = ["<style>%s</style>" % full_css(width),
+                    svg(full, "dg-full dg-w%d" % width)]
     if title:
         out.append("<figcaption>%s</figcaption>" % esc(title))
     out.append("</figure>")

@@ -157,6 +157,12 @@ MIN_BOX_W = 72.0       # a one-character label still gets a box an arrow can
 # `figure svg { width: 100% }` scales it down, so the label is refused rather
 # than drawn at 3 px. 720 is chart_svg.W, the same page width.
 MAX_BOX_W = 720.0
+# The widest the kit's content column ever gets: `.page` at its 78rem cap less
+# the 15rem rail and the 3.5rem gap (`components.css`), 59.5rem. The column is
+# 632 px at a 1024 viewport and 888 at 1280, so a row wider than MAX_BOX_W but
+# no wider than this ships its one-row drawing too, shown only where the
+# figure is that wide (`one_row`, `diagram_svg.figure`; BL-525).
+COL_MAX = 952.0
 # The density cap: more boxes than this and the picture stops being read at a
 # glance. Set from the reference set (`.context/proofs/consult-diagram-engine/
 # reference-set/`): its 7 `engine.diagram` files hold 4, 4, 8, 5, 8, 5, 8 boxes,
@@ -1918,6 +1924,17 @@ def drawings(shape, boxes, arrows, titles, direction=None):
     if main.dir == "lr" and main.view[2] > NARROW_W:
         return main, layout(shape, boxes, arrows, titles, "tb")
     return main, None
+
+
+def one_row(shape, boxes, arrows, titles, direction=None):
+    """The `lr` drawing of a `row` that `drawings()` wrapped although the
+    widest column holds it (over MAX_BOX_W, at most COL_MAX); None otherwise.
+    A forced `direction` is the author's and gets no alternative."""
+    if SHAPE_ALIASES[shape] != "row" or direction is not None:
+        return None
+    lay = layout(shape, boxes, arrows, titles, None)
+    return (lay if lay.dir == "lr" and MAX_BOX_W < lay.view[2] <= COL_MAX
+            else None)
 
 
 def build(shape, rows):

@@ -513,7 +513,10 @@ row read left to right and the next one under it, with an arrow that crosses to 
 row going out by the gap after its box, along the space between the two rows and in by
 the gap before its target (no box lies in either, so it never passes through one; a
 backward arrow is the same in `flg`). `tb` only when even one column per row is over the
-page. An explicit `dir=lr` stays ONE row however wide, and `dir=tb` one box per line: the
+page. A wrapped row whose one-row drawing is at most 952 units (the widest the kit's
+column gets, 59.5rem) ships that drawing too, shown in place of the wrapped one whenever
+the figure itself is that wide (a container query on the figure: 888 px at a 1280
+viewport, 632 at 1024). An explicit `dir=lr` stays ONE row however wide, and `dir=tb` one box per line: the
 author forced them. An `lr` drawing wider than 320 units also gets a `tb` twin,
 and the figure shows the twin at 48rem and under: the kit stretches a figure to its
 column, and at 390 px a wide flow would draw its text under 11 px. A `tb` drawing is

@@ -719,6 +719,53 @@ try:
           lw.dir == "lr" and lw.view[2] <= dl.MAX_BOX_W
           and 1 < len({round(b.y) for b in lb.values()}) < len(lb)
           and ln is not None and ln.dir == "tb")
+    # BL-525: the column is not 720 but 632 to 952 by viewport (888 at 1280),
+    # so a row over 720 that fits the widest column also ships its one-row
+    # drawing, shown only when the figure's own width holds it (a container
+    # query, not a viewport guess). Over 952 there is no column it fits.
+    mid_f = fence("row", *["m%d: paso número %d" % (i, i) for i in range(6)],
+                  *["m%d -> m%d" % (i, i + 1) for i in range(5)])
+    mid_rows = [(i + 2, x) for i, x in enumerate(mid_f.split("\n")[1:-1])]
+    mid_one = dl.one_row("row", *dl.parse_body(mid_rows, "row"))
+    mid_main = dl.drawings("row", *dl.parse_body(mid_rows, "row"))[0]
+    check("a row between 720 and the widest column (952) keeps its one-row "
+          "drawing (%s)" % (mid_one and "%.0f wide" % mid_one.view[2]),
+          mid_one is not None and mid_one.dir == "lr"
+          and dl.MAX_BOX_W < mid_one.view[2] <= dl.COL_MAX
+          and len({round(b.y) for b in mid_one.boxes}) == 1
+          and mid_main.view[2] <= dl.MAX_BOX_W)
+    mid_html = build(mid_f)
+    mid_svgs = re.findall(r"<svg\b.*?</svg>", mid_html, re.S)
+    full_w = mid_one.view[2] if mid_one else 0
+    check("...built as three drawings: one row, wrapped, and the 390 twin",
+          len(mid_svgs) == 3 and 'dg-full' in mid_svgs[0].split(">", 1)[0]
+          and 'dg-wide' in mid_svgs[1].split(">", 1)[0]
+          and 'dg-narrow' in mid_svgs[2].split(">", 1)[0],
+          str([s[:90] for s in mid_svgs]))
+    check("...the one row shows exactly when the figure is as wide as it",
+          re.search(r'<figure[^>]*style="container-type:inline-size"',
+                    mid_html) is not None
+          and re.search(r"@container \(min-width: *%dpx\)" % math.ceil(full_w),
+                        mid_html) is not None, mid_html[:600])
+    check("...in place of the wrapped one, never beside it",
+          re.search(r"@container[^{]*\{(?:[^{}]*\{[^{}]*\})*?[^{}]*"
+                    r"svg\.dg-w%d~svg\.dg-wide\{display:none\}"
+                    % math.ceil(full_w), mid_html)
+          is not None, mid_html[:600])
+    check("...and the one row is hidden by default",
+          re.search(r"svg\.dg-full[^{]*\{display:none\}", mid_html) is not None,
+          mid_html[:600])
+    got = findings(mid_html)
+    check("...no svg-text finding on any of the three", not got, "\n".join(got))
+    check("a row over the widest column has no one-row drawing",
+          dl.one_row("row", *dl.parse_body(
+              [(i + 2, x) for i, x in enumerate(long_f.split("\n")[1:-1])],
+              "row")) is None if lw.view[2] <= dl.MAX_BOX_W else True)
+    check("...nor does a row that already fits 720, nor a forced dir",
+          dl.one_row("row", *dl.parse_body([(2, "a: uno"), (3, "b: dos")],
+                                           "row")) is None
+          and dl.one_row("row", *dl.parse_body(mid_rows, "row"),
+                         direction="lr") is None)
     short = build(fence("row", "a: uno", "b: dos", "a -> b"))
     check("a flow narrow enough for 390 needs no second drawing",
           len(re.findall(r"<svg\b", short)) == 1 and "<style>" not in short)

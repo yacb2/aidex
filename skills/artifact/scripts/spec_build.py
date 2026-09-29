@@ -1157,10 +1157,11 @@ def emit_diagram(node, ctx):
                        "its boxes one way only" % shape)
     lay, narrow = diagram_layout.drawings(shape, boxes, arrows, titles,
                                           direction)
+    full = diagram_layout.one_row(shape, boxes, arrows, titles, direction)
     return diagram_svg.figure(lay,
                               title=a.get("title", "").strip(),
                               classes=" ".join(node.classes),
-                              ident=node.id or "", narrow=narrow)
+                              ident=node.id or "", narrow=narrow, full=full)
 
 
 # The file types a `figure` embeds, and the MIME type of the raster ones.
