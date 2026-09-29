@@ -226,7 +226,7 @@ sys.exit(0 if r['verdict'] == '' and r['notes'] == '- Con cajón' else 1)" \
 
 # The page's own labels decide what an answer is: bullets typed as notes on an
 # UNANSWERED alternatives row are notes, never a fabricated verdict, and never
-# a refusal that hides the rows after them.
+# a refusal that hides the rows after them (r9 below adds a stderr warning).
 printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- el botón arriba\n- el cajón más estrecho\n\n### Q1 · Cuál\n\n- A\n' > "$TMP/r3.txt"
 bash "$REPLY" --rows "$TMP/alt.json" "$TMP/r3.txt" > "$TMP/r3.json" 2> "$TMP/r3.err"; rc=$?
 python3 - "$TMP/r3.json" $rc <<'PY' && ok "two note bullets on an unanswered alternatives row stay notes; Q1 after it still parses" || fail "bullets on an unanswered row: rc $rc $(cat "$TMP/r3.err")"
@@ -440,6 +440,16 @@ bash "$REPLY" --rows "$TMP/alt.json" "$TMP/r8.txt" 2>/dev/null | python3 -c "
 import json, sys
 sys.exit(0 if json.load(sys.stdin)['rows'][0]['verdict'].startswith('Otra') else 1)" \
   && ok "the Other choice is still an answer on an alternatives row" || fail "Other lost on an alternatives row"
+printf '### skel-list-light-desktop-alternatives · skel · list · light-desktop\n\n- Con cajón antiguo\n' > "$TMP/r9.txt"
+bash "$REPLY" --rows "$TMP/alt.json" "$TMP/r9.txt" > "$TMP/r9.out" 2> "$TMP/r9.err"; rc=$?
+python3 - "$TMP/r9.out" "$rc" "$TMP/r9.err" <<'PY' && ok "a bullet that is no label of the rows document stays a note and warns on stderr" || fail "stale bullet: rc $rc, stderr: $(cat "$TMP/r9.err")"
+import json, sys
+assert sys.argv[2] == "0", "exit " + sys.argv[2]
+r = json.load(open(sys.argv[1]))["rows"][0]
+assert r["verdict"] == "" and r["notes"] == "- Con cajón antiguo", r
+err = open(sys.argv[3]).read()
+assert 'warning: row skel-list-light-desktop-alternatives: "Con cajón antiguo" is not a label of the --rows document; kept as a note (stale --rows?)' in err, err
+PY
 
 if [[ $failures -gt 0 ]]; then echo "FAILED: $failures"; exit 1; fi
 echo "ok: gallery alternatives, compact answer, look, sample, reply, dropped and ordering"

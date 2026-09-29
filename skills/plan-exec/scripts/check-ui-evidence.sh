@@ -67,8 +67,10 @@
 #     phase. On the final phase this script FAILS while ANY pending page is open (naming each
 #     by path and pending phase), whatever else that phase records: a pending line, a skip,
 #     or an approval of another page. The plan cannot close with a page the owner has not
-#     judged. A plan with no such table, or a phase not in it, cannot prove it is not final,
-#     so pending-owner is refused there too.
+#     judged. A plan with no such table, or a phase not in it (a last row like `**5**` or
+#     `Deploy` matches nothing), cannot prove it is not final, so pending-owner is refused
+#     there too and the open-page check also runs for such a phase (fail closed), naming the
+#     pages queued by OTHER phases.
 #   - THIS SCRIPT DOES NOT CHECK WHETHER A LATER PHASE TOUCHES THE PENDING CELLS. Cell ids are
 #     local to one gallery (`empty`, `error` repeat everywhere), so no text match can answer
 #     it. Whether the next phase leaves those cells alone is the orchestrator's judgement
@@ -198,12 +200,16 @@ s="$(record surface)"; g="$(record gate)"; p="$(record predicates)"; k="$(record
 
 # ---- the final phase never closes with a page still open ----
 if [ "$visual" -eq 0 ]; then
-  last="$(phase_rows | tail -n 1 | cut -f1)"
-  if [ -n "$last" ] && [ "$last" = "$phase" ]; then
+  rows="$(phase_rows | cut -f1)"; last="$(tail -n 1 <<<"$rows")"
+  # fail closed: a phase that is not a matched row (`**5**`, `Deploy`) may be the real last one
+  if [ "$last" = "$phase" ] || ! grep -qxF -- "$phase" <<<"$rows"; then
     open="$(open_pending)"
+    # a page this phase itself queues is judged by part 1 (pending-owner), which refuses a non-row phase
+    [ "$last" = "$phase" ] || open="$(awk -F'\t' -v p="$phase" '$1 != p' <<<"$open")"
     if [ -n "$open" ]; then
       while IFS=$'\t' read -r pp ppath pcells; do
-        miss "the final phase ($phase) cannot close while the page $ppath (pending since phase $pp) is open — get the owner's verdict on it first"
+        if [ "$last" = "$phase" ]; then who="the final phase ($phase)"; else who="phase $phase (not a row of the Phases Overview, so it may be the final phase)"; fi
+        miss "$who cannot close while the page $ppath (pending since phase $pp) is open — get the owner's verdict on it first"
       done <<<"$open"
       exit 1
     fi

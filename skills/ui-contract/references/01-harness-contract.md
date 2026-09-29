@@ -251,7 +251,8 @@ output is deterministic, and a declared cell with no baseline is refused like th
 does. A NEW screen has no baseline and no `before`: the emitter takes a `--new` cell list
 (refused for a cell that already has a baseline) and reads baselines only for the chosen
 variants. Every shown row carries a `look` line (one sentence: what to look at in this
-picture); the artifact kit refuses a page without it, so an emitter that does not write it
+picture); the spec route (`::: gallery rows=`) refuses a shown row without it, while
+`gallery-items.sh` alone renders the row and exits 0, so an emitter that does not write it
 gets it added before the page is built. For alternatives (N labelled variants of one cell)
 the rows document declares them once and the reply parses back with `--rows` (SKILL.md,
 "Verified" part 1). An empty `rows` (everything matched) means no gallery block on the page. The
@@ -271,10 +272,10 @@ matrix cells, columns the four projects.
   That path is what the Execution log records and what the word "verified" points at.
 - Desktop tiles are scaled down and mobile tiles stay native: a desktop frame squeezed to
   a mobile column is unreadable evidence.
-- In the shipped tree the composer hardcodes its galleries, their cell lists and the four
-  project names, pinned to the harness sources by a lockstep test — so it describes that
-  project's matrix and nothing else, and it is **not** shared infrastructure. A project
-  adopting it copies and edits the two lists.
+- `gallery_board.py` and `gallery_contact_sheet.py` are tracked shared infrastructure since
+  boilerplate migration 140: they read the fork's own gallery matrix (cells,
+  not-applicable reasons, `look` lines) from its `frontend/tests/demo/*-gallery.demo.spec.ts`,
+  so a project adopting them edits no list, it keeps its specs. They need `uv` and `pillow`.
 
 ## 7. Who owns the style-lint allowlist
 

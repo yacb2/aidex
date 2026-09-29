@@ -218,13 +218,22 @@ row "final: no open page, no change" 0 "" "" -- "$(pl '' "$P3" "$P3B" "$F5" "$(P
 row "non-final: a skip beside an open page still passes" 0 "skipped" "" -- \
   "$(pl '' "$PEND" "$P3" "$P3B" '- ui-evidence: phase 4 · skipped — backend only, no screen rendered')" 4
 # a trailing non-phase row (no digit in the first column) never becomes the final phase
-ptot() { local f; f="$(pl "$@")"; printf '| Total | - | 5 phases |\n' >> "$f"; printf '%s' "$f"; }
+# the extra row goes INTO the Phases Overview table, right after the Close row (appending lands in the log)
+addrow() { awk -v r="$2" '{print} /^\| 5 \| - \| Close \|$/{print r}' "$1" > "$1.t" && mv "$1.t" "$1"; }
+ptot() { local f; f="$(pl "$@")"; addrow "$f" '| Total | - | 5 phases |'; printf '%s' "$f"; }
 row "total row: the real last phase stays final (open page fails there)" 1 "r/g.html" "" -- \
   "$(ptot '' "$PEND" "$P3" "$P3B" "$F5" "$(PG 5)")" 5
 row "total row: pending on the real last phase is refused" 1 "r/g.html" "" -- \
   "$(ptot '' '- ui-surface: phase 5 · pending-owner · r/g.html · cells: a' "$(PG 5 | sed -n 1p)" "$(PG 5 | sed -n 2p)")" 5
 row "total row: pending on phase 4 is accepted (Total is not a phase)" 0 "pending-owner" "" -- \
   "$(ptot '' '- ui-surface: phase 4 · pending-owner · r/g.html · cells: a' "$(PG 4 | sed -n 1p)" "$(PG 4 | sed -n 2p)")" 4
+# a last row whose first column is not a bare id (`**5**`, `Deploy`) is the real last phase: fail closed
+pbold() { local f; f="$(pl "$@")"; sed -i.bak 's/^| 5 | - | Close |$/| **5** | - | Close |/' "$f"; rm -f "$f.bak"; printf '%s' "$f"; }
+row "fail closed: a bold last row '**5**' is still final (skip with a page open fails)" 1 "r/g.html" "" -- \
+  "$(pbold '' "$PEND" "$P3" "$P3B" '- ui-evidence: phase 5 · skipped — backend only, no screen rendered')" 5
+pdeploy() { local f; f="$(pl "$@")"; addrow "$f" '| Deploy | - | Ship |'; printf '%s' "$f"; }
+row "fail closed: a '| Deploy |' last row checked as phase Deploy is final" 1 "r/g.html" "" -- \
+  "$(pdeploy '' "$PEND" "$P3" "$P3B" '- ui-evidence: phase Deploy · skipped — backend only, no screen rendered')" Deploy
 row "part 1 message quotes the full pending line" 1 "ui-surface: phase 3 · pending-owner · <path>.html · cells: <id>[,<id>...]" "" -- \
   "$(pl '' '- ui-surface: phase 3 · pending-owner · r/g.html' "$P3" "$P3B")" 3
 # closing on a mid phase

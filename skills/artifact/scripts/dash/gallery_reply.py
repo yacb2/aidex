@@ -159,6 +159,10 @@ def parse_answer(ident, para, extra=(), alt=False):
                     % (n, ident, verdict, verdict_line, label))
             verdict, verdict_line = label, n
         else:
+            if alt and label not in ANSWERS:
+                sys.stderr.write('warning: row %s: "%s" is not a label of the '
+                                 '--rows document; kept as a note (stale '
+                                 '--rows?)\n' % (ident, label))
             return None
     return {"verdict": verdict, "asks": asks, "provisional": provisional}
 

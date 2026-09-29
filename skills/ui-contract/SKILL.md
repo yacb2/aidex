@@ -39,9 +39,11 @@ line and stop.
 
 **Check the harness first, before any plan or discussion.** Detect what the project
 exposes against `references/01-harness-contract.md`. Present: continue. Absent: say so in
-one line, and route a boilerplate fork to its ui-contract harness migration (140; it needs
-entry 132 applied first) or say the harness is missing and stop. Nothing below is briefed
-on a harness that may not be there.
+one line, and route a boilerplate fork to its ui-contract harness migration
+(`ui-contract-harness-overlay-runner-one-gate-call-and-spec-derived-gallery-scripts`, number
+140 at the time of writing; it needs entry 132 applied first) or say the harness is missing.
+Without a harness the gallery and the gate stop; the design discussion and `ui-contract.md`
+still proceed. Nothing below is briefed on a harness that may not be there.
 
 **The design discussion is a ui-contract step, not a free chat.** When the screen is not
 decided yet, hold it as a consultation (`/aidex:artifact`) in this skill's vocabulary:
@@ -81,8 +83,9 @@ Cross each state with light/dark and desktop/mobile wherever the screen is respo
 **Variants are asked at the first gallery review, not here.** Once a gallery exists the
 owner sees what each variant looks like; asked before, the question is abstract and gets
 re-asked. Default: **one colour mode** (light-desktop), reviewed. Each other variant takes
-one of three explicit values, and the harness reads that value so the plan text and the
-spec cannot diverge:
+one of three explicit values, and each lands in one place: reviewed goes to the board's
+`--variants` list, out of scope means the run is not made for that variant (the reason stays in the plan), and
+captured-only needs nothing (the default capture):
 
 | Value | Meaning |
 |---|---|
@@ -160,8 +163,9 @@ component is built for a layout, and an unapproved layout makes it rework.
 5. **Wire** — the API behind the approved layout, with the gallery's baselines as the
    regression guard for what the owner approved.
 
-A UI phase that runs while an owner page is still open, and touches none of that page's
-cells, logs `ui-surface: pending-owner` instead of blocking; the final UI phase cannot.
+The phase whose owner page is still open may log `ui-surface: pending-owner · <its page> ·
+cells: ...` so the next phase proceeds, if the next phase touches none of those cells;
+never the skeleton review (Step 3b.2) nor the final phase.
 The grammar is owned by `check-ui-evidence.sh` (see the closing paragraph of the next
 section), and plan-exec's summary lists the pending pages.
 
@@ -213,7 +217,8 @@ sessions. What each part is:
    and one answer, plus a row per unrequested change, and the pasted reply parses back
    with `gallery-reply.sh`, which takes `--rows <rows.json>` (once per gallery) whenever
    the page has an alternatives row, or the reply is refused. Every shown row carries a
-   `look` line, or the page does not build. The page shows no gate output; an empty rows list (everything
+   `look` line: the spec route (`::: gallery rows=`) refuses a shown row without it, while
+   `gallery-items.sh` alone only shows the gap. The page shows no gate output; an empty rows list (everything
    matched) means no gallery block on the page.
    That page's path is written down, with the owner's verdict per row. The generated
    board (one HTML file over the committed baselines) or the composed image stays the
