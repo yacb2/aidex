@@ -74,6 +74,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                or more `<code>` tokens or semicolon-separated clauses — the shape
                of "N things with their state and verdict" written as prose, which
                the reader returns unread; rows, not a paragraph (BL-269, BL-270)
+  consult-lead-id the FIRST sentence of an item's lead paragraph cites an internal
+               id: a BL-/M095-style id, a backticked path, an HTTP verb, "fila N"
+               or "gate N". The lead is the product situation in plain language;
+               ids go on a trailing "Fuente:" line (BL-503)
   consult-order a block whose last item is followed by evidence (figure, img,
                svg, video, table, canvas, a `@@VIDEO` marker paragraph) before
                the block ends — the answer box rendered above the material it
@@ -789,6 +793,57 @@ def facts_paragraphs(body):
             excerpt = ' '.join(prose.split())
             out.append((codes, clauses, excerpt[:60]))
     return out
+
+
+# The internal-id lead (BL-503). Only the FIRST sentence of the item's first
+# non-label paragraph counts: an id later in the lead, or on a "Fuente:" line,
+# is exactly where the canon puts it. A paragraph that starts with "Fuente:" is
+# the source line, not a lead.
+LEAD_ID_PATTERNS = (
+    ("an id", re.compile(r'\b(?:[A-Z]{1,5}-\d+|[A-Z]\d{1,4})\b')),
+    ("a backticked path", re.compile(r'`[^`]*/[^`]*`')),
+    ("an HTTP verb", re.compile(r'\b(?:GET|POST|PATCH|PUT|DELETE)\b')),
+    ("a fila/gate number", re.compile(r'\b(?:filas?|gates?)\s+\d+', re.I)),
+)
+# A sentence ends at .!? plus whitespace and a capital or an inverted mark, so
+# "Sr. Lopez" and "e.g. BL-12" are split back together via LEAD_ABBREV.
+SENTENCE_END = re.compile(r'[.!?]\s+(?=[A-ZÁÉÍÓÚÑ\u00bf\u00a1])')
+LEAD_ABBREV = {"sr", "sra", "srta", "dr", "dra", "mr", "mrs", "ms", "e.g", "i.e",
+               "etc", "vs", "p.ej", "ej", "fig", "no", "núm", "num"}
+FUENTE_LEAD = re.compile(r'^\s*(?:fuente|source)s?\s*:', re.I)
+
+
+def _first_sentence(prose):
+    for m in SENTENCE_END.finditer(prose):
+        word = prose[:m.start()].split()[-1:] or [""]
+        if word[0].lower().strip("([\"'") in LEAD_ABBREV and prose[m.start()] == ".":
+            continue
+        return prose[:m.start() + 1]
+    return prose
+
+
+def lead_id_finding(body, item_ids=frozenset()):
+    """(kind, first_sentence) when the lead's first sentence cites an internal
+    id, else None. Skips fieldlabels, empty paragraphs and "Fuente:" paragraphs
+    to reach the first real lead. An id that is the data-id of an item on the
+    same page (a cross-reference such as "your answer to Q2") is not internal."""
+    own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
+    for m in P_BLOCK.finditer(own):
+        if P_FIELDLABEL.search(m.group(1)):
+            continue
+        inner = re.sub(r'<code\b[^>]*>(.*?)</code\s*>', r'`\1`', m.group(2),
+                       flags=re.I | re.S)
+        prose = ' '.join(_html.unescape(re.sub(r'<[^>]+>', ' ', inner)).split())
+        if not prose or FUENTE_LEAD.match(prose):
+            continue
+        sentence = _first_sentence(prose)
+        for kind, rx in LEAD_ID_PATTERNS:
+            hits = [h for h in rx.findall(sentence)
+                    if not (kind == "an id" and h in item_ids)]
+            if hits:
+                return kind, sentence
+        return None
+    return None
 
 
 # The item-before-its-evidence shape (BL-463). §8.4 orders a unit as evidence ->
@@ -2104,6 +2159,26 @@ def warn_file(path):
                           f"paragraph (§8.4, BL-269/BL-270). Rewrite it as "
                           f"rows; this warning is cleared by the rewrite, not "
                           f"by a waiver"))
+
+    # Items only: a block's context also carries a data-id and is no item lead.
+    item_ids = {next(g for g in m.groups()[1:] if g is not None)
+                for m in ITEM_OPEN.finditer(text)
+                if re.search(r'\bconsult-item\b', m.group(0))}
+    for ident, body in bodies:
+        if ident not in item_ids:
+            continue
+        try:
+            lead = lead_id_finding(body, item_ids)
+        except Exception:                           # noqa: BLE001 — advisory
+            continue
+        if lead:
+            kind, sentence = lead
+            warns.append(("consult-lead-id", name,
+                          f"'{ident}' opens with {kind} (\"{sentence[:70]}\") — "
+                          f"the lead is the product situation in plain language "
+                          f"(who, which screen, what they do, what happens today); "
+                          f"internal ids go on a trailing \"Fuente:\" line "
+                          f"(§8.4, BL-503). Cleared by the rewrite, not by a waiver"))
 
     try:
         trailing = trailing_evidence(text)

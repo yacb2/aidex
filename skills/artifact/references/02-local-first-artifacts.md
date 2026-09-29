@@ -1308,6 +1308,39 @@ messages and the tests; § 8.4 is the block shape.
    page, which is exactly what happened for all ten items of one round. `check-artifact.sh`
    warns (`consult-rec`) when it finds it there.
 
+   **An item's lead is the product situation, not the document trail (BL-503).** The
+   first sentence names a concrete person in a concrete place: a role, a screen, what
+   that person does, and what happens today ("Ana, PM of a production, opens a project
+   and presses Delete; today the button is missing"). Internal ids (ADR rows, matrix
+   ids, endpoints, gates, `BL-` numbers) never open an item: they go on a trailing
+   `Fuente:` line. Each option states what that person sees or can do if it is chosen,
+   not the rule behind it. When the options differ on screen, the item carries an
+   example or a figure. Measured 2026-09-29 (`.context/research/2026-09-29-consult-answerability/`):
+   14 % of 1,526 answered items came back not understood; fewer than 10 % of options said
+   what the user would see. `check-artifact.sh` warns (`consult-lead-id`) when the first
+   sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an
+   HTTP verb, "fila N" or "gate N"; only that first sentence counts, and all of it is
+   checked, not only the text before the id; an id that is the `data-id` of another item on
+   the same page ("your answer to Q2") is a cross-reference and does not warn; a `Fuente:` line
+   never warns, and the warning is cleared by the rewrite, not by a waiver.
+
+   **Triage before asking (BL-503).** Before the brief lists items, sort the open
+   decisions: one that is reversible in minutes and carries a recommendation is
+   DECIDED, not asked. It goes in a block titled "decidido, corrígeme si no" (one line
+   each: the situation, what was chosen, why) and the reader only corrects. Only the
+   rest become items.
+
+   **An item that comes back with 3+ ask markers is rewritten, not patched.** Three or
+   more of `[explain-state]`, `[explain-options]`, `[explain-simpler]`, `[explain-why]`,
+   `[show-me]` on one item mean "I cannot start". Rewrite it from the situation (see the
+   lead rule above) with a figure; do not answer it marker by marker.
+
+   **Who writes the situation lines (decided 2026-09-29, BL-503).** The main session,
+   which holds the conversation, writes each item's situation lead and option outcomes in
+   the brief. `artifact-sonnet` lays the page out and receives this contract as a
+   checklist; it does not invent the situation. Its effort is unchanged here: BL-500 owns
+   effort measurement.
+
    **What is machine-checked is the SHAPE, not the quality — and that split is
    deliberate.** `check-artifact.sh` fails (`consult-shape`) an item outside any
    block, a block with no decision, a prose section between blocks, and a prose
@@ -1648,6 +1681,7 @@ on a page nobody is editing is noise no one can clear.
 | `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
+| `consult-lead-id` | the first sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an HTTP verb, "fila N" or "gate N" (§8.4, BL-503). The lead is the product situation; ids go on a `Fuente:` line. Cleared by the rewrite, never by a waiver |
 | `consult-order` | a block's last item is followed, before the block ends, by a figure, img, svg, video, table, canvas or a `<p>@@VIDEO …@@</p>` marker (a project post-build step turns those into `<video>`) — the answer box renders above the material it asks about (§8.4, BL-463). Cleared by moving the evidence above its item |
 | `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
 | `svg-scope` | a bare element selector inside an embedded `<style>` — it is a stylesheet in the page, so it paints every matching node in the document (BL-330). Cleared by scoping it to the figure's id, never by a waiver |
