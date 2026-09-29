@@ -80,6 +80,18 @@ Steps 1-4 of the final phase stay in `SKILL.md`; these are steps 5-9.
    contradicts the ledger's design, and the observed losses were in-text deferrals, not
    `OPEN OWED` rows.
 
+   **List the pages still waiting for the owner.** Run
+   `${CLAUDE_PLUGIN_ROOT}/skills/plan-exec/scripts/check-ui-evidence.sh --pending <plan file>`
+   and copy its `pending-owner: phase <N> · <path> · cells: <ids>` lines into the final
+   summary, or write `no pending-owner pages`. A page queued by an unattended run is a review
+   the owner still owes; a summary that omits it reads as a plan whose UI was all approved.
+   A later verdict line naming the same path, under any phase number, closes a page (the
+   script applies that rule); write it under the phase that queued the page, since a
+   skipped phase refuses ui-* lines beside its skip. The final phase already fails while any page is open, so at
+   close-out this listing is informational; its use is mid-run status for the owner. The
+   script never checks whether a later phase touched the queued cells: the `cells:` list is
+   the orchestrator's declaration, and the owner reads it here.
+
 9. **Notify completion.** If `~/.claude/scripts/notify.sh` exists and is executable,
    run it with a short completion message (e.g.
    `bash "$HOME/.claude/scripts/notify.sh" "plan-exec: <plan slug> complete"`). This
