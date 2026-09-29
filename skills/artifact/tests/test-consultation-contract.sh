@@ -836,6 +836,38 @@ grep -q "WARN \[svg-text\].*'crea 14k (49k sin restringir); modelo barato'.*past
 grep -q "'subagente fresco, tools:\[…\]'" "$TMP/out" \
   && fail "10c2. a label that fits its box (156 px in 188) was reported: $(cat "$TMP/out")"
 
+# ---- 10c3. BL-511: a figure drawn taller than a screen. A hand figure of a
+# four-box chain (viewBox 360x600) made the reader scroll inside one drawing.
+# Static, on the intrinsic viewBox height of the figure's ROOT svg: over 500 units
+# warns. The 600- and 652-unit hand figures of the owner's page go over; so do
+# engine figures that stack many boxes in one column (a 7-box `diagram` row lays
+# out 508 tall), which is why the advice names columns and layouts, not hand work.
+mkpage "$TMP/warn-tall.html" "<div class=\"page\"><main class=\"main\">
+<figure id=\"alta\"><svg viewBox=\"0 0 360 600\" role=\"img\" aria-label=\"tall\"><rect x=\"10\" y=\"10\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\"/></svg></figure>
+<figure id=\"baja\"><svg viewBox=\"0 0 360 500\" role=\"img\" aria-label=\"short\"><rect x=\"10\" y=\"10\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\"/></svg></figure>
+<figure id=\"n\"><svg viewBox=\"0 0 800 200\" role=\"img\" aria-label=\"nested\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 10 900\"/></svg></figure>
+</main></div>
+$composer"
+rc="$(run "$TMP/warn-tall.html")"
+[[ "$rc" == "0" ]] || fail "10c3. figure-tall changed the exit code — it is a warning: $(cat "$TMP/out")"
+grep -q "WARN \[figure-tall\].*alta.*600" "$TMP/out" \
+  || fail "10c3. BL-511: a 600-unit-tall figure was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[figure-tall\].*baja" "$TMP/out" \
+  && fail "10c3. a figure at the 500-unit threshold was reported: $(cat "$TMP/out")"
+grep -q "WARN \[figure-tall\].*#n:" "$TMP/out" \
+  && fail "10c3. a nested svg's viewBox (900) was judged as the figure's (200): $(cat "$TMP/out")"
+# An engine figure: a 7-box `diagram` row, built by the real spec_build.py.
+{ printf '::: masthead {eyebrow="x" byline="aidex"}\n# Siete cajas\n\nUna fila larga.\n:::\n\n'
+  printf '::: diagram {#siete shape=row title="Siete pasos"}\n'
+  for i in 1 2 3 4 5 6 7; do printf 'b%d: Paso %d\n' "$i" "$i"; done
+  for i in 1 2 3 4 5 6; do printf 'b%d -> b%d\n' "$i" "$((i + 1))"; done
+  printf ':::\n'; } > "$TMP/siete.spec.md"
+( cd "$TMP" && python3 "$SKILL/scripts/spec_build.py" "$TMP/siete.spec.md" -o "$TMP/siete.html" ) >/dev/null 2>&1 \
+  || fail "10c3. spec_build failed on the 7-box diagram"
+rc="$(run "$TMP/siete.html")"
+grep -q "WARN \[figure-tall\].*#siete:.*fewer boxes per column, or a wider layout" "$TMP/out" \
+  || fail "10c3. a 7-box diagram (508 units) did not warn with advice that fits an engine figure: $(cat "$TMP/out")"
+
 # ---- 10d. BL-330: an embedded <style> is a stylesheet in the PAGE, and the
 # text nobody measured. Reported by the owner on a bench page: "los textos que
 # están en un azul no se leen prácticamente". One figure's own

@@ -211,6 +211,37 @@ awk -v a="$tall1280" 'BEGIN { exit !(a <= 610) }' \
 [[ "$sans1280" == true && "$sans390" == true ]] \
   && ok "every diagram label resolves to the kit's sans font" || bad "a diagram label is in a monospace font ($sizes)"
 
+echo "== a hand figure built from a spec is never drawn wider than its viewBox (BL-511) =="
+# A 360-wide hand SVG with no width= attribute, the shape figure-sonnet ships. The
+# kit's `figure svg { width: 100% }` stretched it to the 888 px column at 1280, about
+# 2.5x, so 13 px text read near 32 px. The drawing must render at its own 360 px at
+# 1280 (not a collapsed sliver either) and still shrink into the column at 390.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/hand-figure.spec.md" -o "$TMP/hand-figure.html" ) >/dev/null 2>&1 \
+  && ok "built hand-figure from its spec" || bad "spec_build failed on hand-figure.spec.md"
+out="$(bash "$PROBE" "$TMP/hand-figure.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "hand-figure exits 0 at 1280 and 390" || bad "hand-figure exit $rc: $out"
+fig="$(PW="$module" node -e '
+const { chromium } = require(process.env.PW);
+(async () => {
+  const b = await chromium.launch();
+  for (const width of [1280, 390]) {
+    const p = await b.newPage({ viewport: { width, height: 900 } });
+    await p.goto("file://" + process.argv[1]);
+    console.log(width, await p.evaluate(() => {
+      const s = document.querySelector("figure#mano svg");
+      return [s.getBoundingClientRect().width.toFixed(1), document.querySelector(".main").clientWidth].join(" ");
+    }));
+  }
+  await b.close();
+})();' "$TMP/hand-figure.html" 2>&1)"
+read -r _ w1280 col1280 <<<"$(grep '^1280 ' <<<"$fig")"
+read -r _ w390 col390 <<<"$(grep '^390 ' <<<"$fig")"
+awk -v a="$w1280" 'BEGIN { exit !(a >= 359 && a <= 360.5) }' \
+  && ok "the 360-wide figure renders at its own width at 1280 (${w1280} px in a ${col1280} px column)" \
+  || bad "the 360-wide figure renders ${w1280} px wide at 1280 (column ${col1280} px): scaled, not drawn at its size ($fig)"
+awk -v a="$w390" -v c="$col390" 'BEGIN { exit !(a > 0 && a <= c) }' \
+  && ok "the figure fits the ${col390} px column at 390 (${w390} px)" || bad "the figure is ${w390} px wide in a ${col390} px column at 390 ($fig)"
+
 echo "== crash and missing browser =="
 # A page that breaks the measuring code: getComputedStyle is gone, so evaluate throws.
 printf '<!doctype html><title>x</title><p>x</p><script>window.getComputedStyle = null</script>' > "$TMP/crash.html"

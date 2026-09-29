@@ -583,6 +583,14 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   inline SVG carries its own text.
 - `title` is the `<figcaption>`, as on `chart` and `diagram`. `#id` and classes land on
   the `<figure>`.
+- An `.svg` is **never shown wider than its viewBox** (BL-511): the builder reads the
+  root's viewBox width and writes `style="max-width:<width>px"` on the `<figure>`, so a
+  360-wide drawing shows at 360 px on a wide screen and still shrinks to the column at
+  390. The kit's `figure svg { width: 100% }` had stretched it to the whole column (2.5x
+  at 1280). The drawing itself stays byte for byte; a root with no viewBox, or one that
+  is not four numbers with a positive width, gets no cap. So author at display size, with
+  text at about 12-14 units. check-artifact WARNs (`figure-tall`) on any figure whose
+  root viewBox is over 500 units tall.
 
 An `.svg` is checked before it is inlined, by `check_artifact.svg_embed_sanitize` —
 the rules live there and the builder keeps no copy. It is an **allowlist over a real

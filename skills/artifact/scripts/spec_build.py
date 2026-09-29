@@ -1164,6 +1164,7 @@ def emit_figure(node, ctx):
             node.line, "`figure` src=%r: no such file (looked in %s)"
             % (src, ctx.base_dir))
     alt = a.get("alt", "").strip()
+    cap = ""
     if ext == ".svg":
         if alt:
             raise SpecBuildError(
@@ -1187,6 +1188,22 @@ def emit_figure(node, ctx):
                 % (src, "; ".join(why)))
         # `drawing` is the PARSED tree re-serialised, never a slice of the
         # file: what the browser reads is exactly what was checked.
+        # BL-511: the kit's `figure svg { width: 100% }` stretched a 360-wide
+        # drawing to the whole column (2.5x at 1280, 13 px text read ~32 px).
+        # The wrapper is capped at the viewBox width, so the drawing shows at
+        # most at the size it was authored and still shrinks at 390. The cap
+        # is on the <figure>, never on the drawing, which stays byte for byte.
+        vb = check_artifact._svg_attrs(drawing.split(">", 1)[0]).get("viewbox")
+        # A viewBox is four numbers or the browser ignores it (and then does
+        # not scale the drawing), so anything else gets no cap.
+        parts = re.split(r"[\s,]+", (vb or "").strip())
+        try:
+            vw = float(parts[2]) if len(parts) == 4 else 0.0
+        except ValueError:
+            vw = 0.0
+        if 0 < vw < float("inf"):
+            cap = ' style="max-width:%spx"' % (
+                "%.2f" % vw).rstrip("0").rstrip(".")
     else:
         if not alt:
             raise SpecBuildError(
@@ -1206,7 +1223,7 @@ def emit_figure(node, ctx):
         head += ' id="%s"' % esc(node.id)
     if node.classes:
         head += ' class="%s"' % esc(" ".join(node.classes))
-    out = [head + ">", drawing]
+    out = [head + cap + ">", drawing]
     title = a.get("title", "").strip()
     if title:
         out.append("<figcaption>%s</figcaption>" % esc(title))
