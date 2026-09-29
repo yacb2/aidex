@@ -34,7 +34,11 @@ body { background: var(--paper); color: var(--ink); font-family: var(--serif);
 .rail:where(:not(svg *)) { position: sticky; top: 2rem; max-height: calc(100vh - 2 * 2rem);
         display: flex; flex-direction: column; gap: 0.9rem; font-family: var(--sans); }
 
-h1, h2, h3 { font-family: var(--serif); text-wrap: balance; margin: 0; font-weight: 600; }
+/* `pretty`, not `balance` (BL-506): balance evens out line lengths, so a
+   two-line heading broke at half the column (49 % on a real consultation h2)
+   while the item boxes under it filled it; pretty fills the first line and
+   only keeps the last one from being a single word. */
+h1, h2, h3 { font-family: var(--serif); text-wrap: pretty; margin: 0; font-weight: 600; }
 h1 { font-size: 2.6rem; line-height: 1.1; letter-spacing: -0.015em; }
 h2 { font-size: 1.5rem; line-height: 1.22; margin-top: 0.2rem; }
 h3 { font-size: 1.12rem; line-height: 1.3; color: var(--ink); }
