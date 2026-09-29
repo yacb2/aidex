@@ -73,12 +73,12 @@ This skill uses specialized agents for parallel investigation:
 
 | Agent | Model | Purpose | When |
 |-------|-------|---------|------|
-| `bug-investigator` | Sonnet | Trace root cause through code | Step 1 |
-| `test-scout` | Sonnet | Find related tests and patterns | Step 1 |
-| `regression-checker` | Sonnet | Verify no regressions after fix | Step 6 |
+| `aidex:bug-investigator` | Sonnet | Trace root cause through code | Step 1 |
+| `aidex:test-scout` | Sonnet | Find related tests and patterns | Step 1 |
+| `aidex:regression-checker` | Sonnet | Verify no regressions after fix | Step 6 |
 | Main session | Opus | Write test, write fix, decisions | Steps 2-5, 7-9 |
 
-Agent definitions: `agents/` directory in this skill folder.
+Agent definitions: `../../agents/` (plugin level), launched by type: `subagent_type: aidex:bug-investigator`, `aidex:test-scout`, `aidex:regression-checker`. Model and effort come from each definition.
 
 ## Test Type Decision Guide
 

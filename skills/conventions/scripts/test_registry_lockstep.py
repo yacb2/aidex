@@ -14,7 +14,7 @@ actually mentions it:
   2. 00-global.md §9 optional block   ⊇ OPTIONAL_TYPES
   3. 00-global.md §5 archive list     ⊇ TYPES_WITH_ARCHIVE
   4. 00-global.md §3 cross-ref prefixes ⊇ CROSSREF prefixes
-  5. aidex orchestrator (SKILL.md + agents/context-auditor.md) mentions every
+  5. aidex orchestrator (SKILL.md + agents/context-auditor.md at the plugin level) mentions every
      TYPES + OPTIONAL_TYPES name
   6. every per-type canon still declares its auto-generated index do-not-hand-edit
      (backlog / plans / audits)
@@ -30,8 +30,9 @@ this test's "in sync" as covering it.
 SCOPE — every skills/* walk below goes through _owned_skills(), never the raw root.
 Installed, that root also holds the user's own skills, which this repo does not ship
 and has no standing to judge (BL-115).
-  7. every skills/*/agents/*.md declares BOTH model and effort (an absent effort
-     silently inherits the spawning session's — see the check for the probe)
+  7. every agents/*.md declares model, and effort unless it is haiku (which must declare
+     none: the loader drops it); an absent effort elsewhere silently inherits the spawning
+     session's — see the check for the probe. Named exemptions: EFFORT_EXEMPT.
   7b. every skill that fans out — by DECLARING Workflow/Agent in allowed-tools, or by
      mandating one in its BODY — declares a `model-policy:` AND states it in the body,
      and a body mandate not covered by the declaration is reported as its own failure.
@@ -48,14 +49,7 @@ and has no standing to judge (BL-115).
      prefix, or the bare orchestrator `aidex` itself. FAILS. Two bundled skills
      lost the prefix once (a9da52b) and it was restored by hand, by the user
      noticing (BL-225).
- 10. WARNING, never a failure: an agent declaring the weakest model together
-     with reasoning effort above `low`. That pair is the `memory-auditor` shape
-     (53d97ba: moved off haiku after the user asked why a judgment-heavy agent
-     ran on the weaker model). Enforcement limit, stated so nobody reads more
-     into a clean run than it means: the warning is silenced by writing
-     `effort: low`, and nothing here can tell a genuinely mechanical scan from
-     one whose effort was quietly lowered to buy silence. It is advisory for
-     exactly that reason — a hard failure would just be answered that way.
+ 10. RETIRED 2026-09-29: the haiku-above-low warning; guard 7 now forbids effort on haiku.
 
 Adding a new artifact type? Update validate.py AND every file above, or this
 test fails loudly. Run with:
@@ -76,7 +70,7 @@ SKILLS_DIR = SCRIPT_DIR.parent.parent
 GLOBAL_CANON = SCRIPT_DIR.parent / "references" / "00-global.md"
 AIDEX_FILES = [
     SKILLS_DIR / "aidex" / "SKILL.md",
-    SKILLS_DIR / "aidex" / "agents" / "context-auditor.md",
+    SKILLS_DIR.parent / "agents" / "context-auditor.md",
 ]
 
 
@@ -149,7 +143,6 @@ def _model_policy_failures(rel: str, head: str, body: str) -> list[str]:
 # avoidance, so a second `aidex-` prefix on the directory would only be noise.
 NAMESPACE_ROOT = "aidex"
 WEAK_MODEL = "haiku"
-MECHANICAL_EFFORT = "low"
 
 
 def _name_prefix_failures(pairs: list[tuple[str, str]]) -> list[str]:
@@ -178,21 +171,28 @@ def _name_prefix_failures(pairs: list[tuple[str, str]]) -> list[str]:
     return out
 
 
-def _weak_model_warnings(agents: list[tuple[str, str, str]]) -> list[str]:
-    """Guard 10. (rel, model, effort) triples -> advisory lines, never failures.
+# Agents allowed to declare no effort, each with its reason (guard 7).
+EFFORT_EXEMPT = {
+    "artifact-grader": "calibrated (34ffb28) with no declared effort; owner sets the value "
+                       "on recalibration",
+}
+VALID_EFFORT = {"low", "medium", "high", "xhigh", "max"}
 
-    The signal is the agent's OWN declaration disagreeing with itself: effort
-    above `low` says the work needs reasoning depth, and the weakest model is
-    where that depth is least available. Judged on effort rather than on the
-    agent's name — `symlink-checker` and `freshness-checker` are genuinely
-    mechanical, and a name regex would flag them alongside `conventions-auditor`.
-    """
-    return [
-        f"{rel} runs on {WEAK_MODEL} at effort '{effort}' — effort above "
-        f"'{MECHANICAL_EFFORT}' says the work needs judgment; re-verify the model"
-        for rel, model, effort in agents
-        if model == WEAK_MODEL and effort and effort != MECHANICAL_EFFORT
-    ]
+
+def _effort_failures(name: str, model: str, effort: str) -> list[str]:
+    """Guard 7 rule for one agent: haiku declares NO effort (the loader drops it); every
+    other model declares a valid one, unless named in EFFORT_EXEMPT."""
+    if model == WEAK_MODEL:
+        return [f"{name} is haiku and declares effort '{effort}' — the loader drops it; "
+                f"remove the line"] if effort else []
+    if name in EFFORT_EXEMPT:
+        return []
+    if not effort:
+        return [f"{name} declares no effort — it would inherit the spawning "
+                f"session's effort; pick one explicitly"]
+    if effort not in VALID_EFFORT:
+        return [f"{name} has effort '{effort}'; valid: {', '.join(sorted(VALID_EFFORT))}"]
+    return []
 
 
 def _owned_skills() -> list[Path]:
@@ -341,36 +341,33 @@ def main() -> int:
     # `low` parent. So an undeclared agent's reasoning depth is set by its caller, which
     # for a safety gate like durability-arbiter is the caller deciding how carefully its
     # own stop gets judged. Declaring model without effort is half a decision.
+    # Since 2026-09-29 the definitions live at the plugin-level agents/ (registered as
+    # `aidex:<name>`); a skill-local skills/*/agents/ is not registered by Claude Code.
     agent_files = sorted(
-        p for d in owned for p in d.glob("agents/*.md")
+        p for p in (SKILLS_DIR.parent / "agents").glob("*.md")
         if not p.name.endswith(".eval.md")
     )
     if not agent_files:
-        failures.append("no subagent definitions found under skills/*/agents/ — "
+        failures.append("no subagent definitions found under agents/ — "
                         "this guard is looking in the wrong place")
-    valid_effort = {"low", "medium", "high", "xhigh", "max"}
     declared_agents: list[tuple[str, str, str]] = []
     for path in agent_files:
         fm = path.read_text(encoding="utf-8").split("---")
         head = fm[1] if len(fm) > 2 else ""
-        rel = path.relative_to(SKILLS_DIR)
+        rel = path.relative_to(SKILLS_DIR.parent)
         model = re.search(r"^model:\s*(\S+)", head, re.M)
         effort = re.search(r"^effort:\s*(\S+)", head, re.M)
         if not model:
             failures.append(f"{rel} declares no model")
-        if not effort:
-            failures.append(f"{rel} declares no effort — it would inherit the spawning "
-                            f"session's effort; pick one explicitly")
-        elif effort.group(1) not in valid_effort:
-            failures.append(f"{rel} has effort '{effort.group(1)}'; valid: "
-                            f"{', '.join(sorted(valid_effort))}")
+        failures.extend(_effort_failures(
+            path.stem, model.group(1) if model else "", effort.group(1) if effort else ""))
         declared_agents.append((str(rel),
                                 model.group(1) if model else "",
                                 effort.group(1) if effort else ""))
 
     # 7b. Every skill that fans out must declare a model policy.
     #
-    # Guard 7 above only walks skills/*/agents/*.md. A skill whose finder and verifier
+    # Guard 7 above only walks agents/*.md. A skill whose finder and verifier
     # prompts live inline in a Workflow script has no agents/ directory, so guard 7
     # passes over it without ever looking — vacuously, which is the same shape as the
     # cell that "covered" the dangling cross-repo link while never entering its window.
@@ -654,20 +651,20 @@ def main() -> int:
         failures.append("the name-prefix guard rejects the orchestrator or a valid "
                         "short-named skill")
 
-    # 10. Weak model on judgment-shaped work — advisory, see the docstring.
-    warnings = _weak_model_warnings(declared_agents)
-    if not _weak_model_warnings([("probe/agents/x.md", WEAK_MODEL, "medium")]):
-        failures.append("the weak-model guard passed haiku at effort 'medium'")
-    if _weak_model_warnings([("probe/agents/y.md", WEAK_MODEL, MECHANICAL_EFFORT),
-                             ("probe/agents/z.md", "sonnet", "high")]):
-        failures.append("the weak-model guard fires on a mechanical haiku agent or on "
-                        "a stronger model")
+    # 10. RETIRED 2026-09-29 (was a haiku-with-effort-above-low warning). Guard 7 now fails any
+    # haiku agent that declares `effort:`, so the pair can no longer exist. Note: context-auditor
+    # and skills-auditor did judgment work at haiku/medium before 2026-09-29; the owner's decision
+    # on their model is pending, and nothing here flags it any more.
 
-    if warnings:
-        print(f"WARN — {len(warnings)} agent(s) on {WEAK_MODEL} above effort "
-              f"'{MECHANICAL_EFFORT}' (advisory, does not fail):")
-        for w in warnings:
-            print(f"  {w}")
+    # 7 probes: the effort rule itself must be able to fail.
+    if not _effort_failures("p", "haiku", "low"):
+        failures.append("guard 7 passed a haiku agent that declares effort")
+    if not _effort_failures("p", "sonnet", ""):
+        failures.append("guard 7 passed a sonnet agent with no effort")
+    if _effort_failures("p", "haiku", "") or _effort_failures("p", "sonnet", "high"):
+        failures.append("guard 7 rejects a valid agent")
+    if _effort_failures("artifact-grader", "opus", ""):
+        failures.append("guard 7 rejects the named exemption")
 
     if failures:
         print("FAIL")

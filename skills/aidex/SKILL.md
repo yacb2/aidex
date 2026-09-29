@@ -47,7 +47,7 @@ Audits the memory **files** in `~/.claude/projects/<slug>/memory/`, not just the
 `~/.claude/projects/<slug>/memory/MEMORY.md` index. Three forms, on `$ARGUMENTS`:
 
 - **bare** — `scripts/memory-sweep.py` for the mechanical half, then
-  [`memory-auditor`](agents/memory-auditor.md) per project for the reading half.
+  [`memory-auditor`](../../agents/memory-auditor.md) per project for the reading half.
   Report only.
 - **`<project>`** — scoped: `--project=<slug>`. The `=` is required; every slug starts
   with `-`, which argparse reads as a flag.
@@ -150,28 +150,22 @@ Build a quick inventory of what exists and its size. This determines which agent
 
 Launch every applicable agent in a single message with multiple Agent tool calls, each with `run_in_background: true`, so they execute in parallel.
 
-Read each agent's instructions from `${CLAUDE_PLUGIN_ROOT}/skills/aidex/agents/` and pass them as the prompt. Include the project path in each prompt.
+Launch each agent by type, `subagent_type: aidex:<name>` (definitions in the plugin-level `agents/`), and include the project path in each prompt.
 
 | Subagent | Launches when | Model | Effort | Tools |
 |----------|--------------|-------|--------|-------|
-| [context-auditor](agents/context-auditor.md) | `.context/` exists | haiku | medium | Read, Glob, Grep, Bash |
-| [conventions-auditor](agents/conventions-auditor.md) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` is installed | haiku | low | Read, Bash |
-| [skills-auditor](agents/skills-auditor.md) | `.claude/skills/` exists | haiku | medium | Read, Glob, Grep |
-| [symlink-checker](agents/symlink-checker.md) | Any symlinks found | haiku | low | Read, Glob, Bash |
-| [memory-auditor](agents/memory-auditor.md) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
-| [freshness-checker](agents/freshness-checker.md) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | low | Read, Glob, Grep, Bash, WebFetch |
-| [plugin-auditor](agents/plugin-auditor.md) | `~/.claude/plugins/installed_plugins.json` exists | haiku | low | Read, Glob, Grep, Bash |
-| [context-cost-analyzer](agents/context-cost-analyzer.md) | `/aidex:aidex context` — after `scripts/context-snapshot.py` has written the snapshot | haiku | low | Read, Glob, Grep, Bash |
+| [context-auditor](../../agents/context-auditor.md) (`aidex:context-auditor`) | `.context/` exists | haiku | — | Read, Glob, Grep, Bash |
+| [conventions-auditor](../../agents/conventions-auditor.md) (`aidex:conventions-auditor`) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` is installed | haiku | — | Read, Bash |
+| [skills-auditor](../../agents/skills-auditor.md) (`aidex:skills-auditor`) | `.claude/skills/` exists | haiku | — | Read, Glob, Grep |
+| [symlink-checker](../../agents/symlink-checker.md) (`aidex:symlink-checker`) | Any symlinks found | haiku | — | Read, Glob, Bash |
+| [memory-auditor](../../agents/memory-auditor.md) (`aidex:memory-auditor`) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
+| [freshness-checker](../../agents/freshness-checker.md) (`aidex:freshness-checker`) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | — | Read, Glob, Grep, Bash, WebFetch |
+| [plugin-auditor](../../agents/plugin-auditor.md) (`aidex:plugin-auditor`) | `~/.claude/plugins/installed_plugins.json` exists | haiku | — | Read, Glob, Grep, Bash |
+| [context-cost-analyzer](../../agents/context-cost-analyzer.md) (`aidex:context-cost-analyzer`) | `/aidex:aidex context` — after `scripts/context-snapshot.py` has written the snapshot | haiku | — | Read, Glob, Grep, Bash |
 
-**Model, effort and tools are set here, not in the agent files.** These agents are launched
-by reading their `.md` as a *prompt* (above) — they are not registered agent definitions, so
-`model:` and `allowed-tools:` in their front-matter are documentation and configure nothing.
-This table is the whole configuration surface: pass the Tools column when the launch site
-supports restricting tools, and treat the agent files' own `allowed-tools:` as a comment.
-Effort follows the suite heuristic
-([workflow-spec conventions](../workflow/references/01-workflow-spec-conventions.md)):
-mechanical existence/parse checks → `low`; judgment over content quality or compliance →
-`medium`.
+**Model, effort and tools are set in each agent's own definition** (`agents/<name>.md`), which
+Claude Code applies because the agent is launched by registered type. The Model / Effort / Tools
+columns above mirror those files for reading; change them in the definition, not here. The table was the declared contract before agents were registered, so the definitions were aligned to it (conventions-auditor `Read, Bash`; skills-auditor `Read, Glob, Grep`, no `Skill`). A haiku agent carries no `effort:` (the loader drops it), hence the dash. Effort for the others follows the suite heuristic ([workflow-spec conventions](../workflow/references/01-workflow-spec-conventions.md)): mechanical existence/parse checks → `low`; judgment over content quality or compliance → `medium`.
 
 **Wait for ALL launched agents to complete before proceeding to Phase 2.**
 

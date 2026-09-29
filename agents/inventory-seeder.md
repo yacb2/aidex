@@ -1,9 +1,9 @@
 ---
 name: inventory-seeder
-description: Read scattered findings from legacy audit folders and generate canonical 00-inventory.md rows. Used by /aidex:audit migrate after folders have been moved.
+description: Launched by /aidex:audit migrate; not for direct use. Read scattered findings from legacy audit folders and generate canonical 00-inventory.md rows. Used by /aidex:audit migrate after folders have been moved.
 model: sonnet
 effort: medium
-tools: Read Write Edit Glob Grep
+tools: Read, Write, Edit, Glob, Grep
 ---
 
 # Inventory Seeder
@@ -61,7 +61,7 @@ When multiple runs list the same finding:
 
 Write only the base vocabulary — `open` · `doing` · `done` · `dropped`. Legacy statuses
 (`closed`, `triaged`, `in-progress`) are read from legacy text and never written back
-(`references/03-lifecycle.md`).
+(`${CLAUDE_PLUGIN_ROOT}/skills/audit/references/03-lifecycle.md`).
 
 - If any run says "fixed" / "closed" / "resolved" → `done`
 - If any run says "dropped" / "wontfix" → `dropped`

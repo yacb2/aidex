@@ -146,9 +146,9 @@ condition without interrupting the user:
   legitimate mid-run interrupt — rare; preserve it. The goal is removing the *avoidable*
   "what next?" questions, not reaching zero.
 - **Ambiguous consent point not in the ask-set → consult the durability-arbiter, do not
-  deadlock.** Read
-  [`../conventions/agents/durability-arbiter.md`](../conventions/agents/durability-arbiter.md),
-  pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the spec's
+  deadlock.** Launch
+  [`aidex:durability-arbiter`](../../agents/durability-arbiter.md) with the Agent tool
+  (`subagent_type: aidex:durability-arbiter`; its definition pins `sonnet`/`high`, read-only) with the situation + the spec's
   autonomy surface + proof, follow its verdict, batch any `ASK` to the end. If it errors,
   apply the rule above and proceed — never block on it. `model-policy: per-stage` is what
   that pin expresses, and it is the same policy the spec's per-agent model table sets for

@@ -143,7 +143,7 @@ on the HTML route) has passed `check-artifact`:
 1. `bash "${CLAUDE_SKILL_DIR}/scripts/render-probe.sh" --shots <dir> <page>.html` — fix
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
-2. Launch the `artifact-grader` agent with the request, the two shots
+2. Launch the `artifact-grader` agent (`subagent_type: aidex:artifact-grader`) with the request, the two shots
    (`<name>-1280.png`, `<name>-390.png`), the path of `references/05-visual-review.md`, and
    — for a consultation round built over a reply — the DUTIES list `save-reply.sh` printed:
    the grader scores each one met/not-met alongside the rubric.

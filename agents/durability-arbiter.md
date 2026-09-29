@@ -1,6 +1,6 @@
 ---
 name: durability-arbiter
-description: Consulted by a running executor at an ambiguous would-stop boundary to decide CONTINUE / ASK / STOP, so the run keeps going autonomously instead of interrupting the user. Plays the user's standing posture with criterion. Read-only and fast.
+description: Launched by /aidex:plan-exec, /aidex:backlog and /aidex:audit at an ambiguous would-stop boundary; not for direct use. Consulted by a running executor at an ambiguous would-stop boundary to decide CONTINUE / ASK / STOP, so the run keeps going autonomously instead of interrupting the user. Plays the user's standing posture with criterion. Read-only and fast.
 model: sonnet
 tools: Read, Grep, Glob
 effort: high
@@ -90,7 +90,7 @@ you need to confirm a proof claim — nothing else.
 > **batch** host (the `Workflow` assets) can't `import` it and can't embed its backticks/```json
 > fence in a JS template literal, so it carries a backtick-free rendering of the decision policy
 > above, single-sourced in
-> [`../references/workflow-core.md`](../references/workflow-core.md) ("Canonical ARBITER block")
+> [`../skills/conventions/references/workflow-core.md`](../skills/conventions/references/workflow-core.md) ("Canonical ARBITER block")
 > and drift-locked across the assets. **If you change the decision policy here, update that block
 > in lockstep** (the JSON output schema may legitimately differ between the two hosts).
 > `test_arbiter_policy_lockstep.sh` guards this: it fails if either host drops one of the five

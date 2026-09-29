@@ -1,9 +1,8 @@
 ---
 name: context-auditor
-description: Audits .context/ project content (references, docs, plans, issues, roadmap, requests, decisions, audits) for structural compliance
+description: Launched by /aidex:aidex audit; not for direct use. Audits .context/ project content (references, docs, plans, issues, roadmap, requests, decisions, audits) for structural compliance.
 model: haiku
 tools: Read, Grep, Glob, Bash
-effort: medium
 context: fork
 user-invocable: false
 ---

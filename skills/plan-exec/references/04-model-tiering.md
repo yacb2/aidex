@@ -23,7 +23,7 @@ Default to one workflow per phase with this tiering.
 An agent definition without a `model:` line runs on the model of the session that spawns
 it. Measured on the Work Hours chain (2026-09-12): links orchestrated by Fable ran their
 subagents on Fable, and Opus-by-inheritance was the de facto default while Sonnet was
-used 22 times in the whole chain. So every `agents/*.md` sets `model:` explicitly,
+used 22 times in the whole chain. So every plugin-level `agents/*.md` sets `model:` explicitly,
 `sonnet` or `haiku` unless this reference justifies more; `tests/test-agents-set-model.sh`
 fails on any definition that omits it (BL-403).
 

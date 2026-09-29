@@ -91,9 +91,9 @@ That is the transition to `doing` and, for `type: bug`, the route into RED→GRE
 When asked to **work or sweep the backlog autonomously**, resolve every safe + additive
 item to completion before stopping. Do not halt with "the rest needs your decision":
 classify each open item first, and for any you would otherwise pause on, **consult the
-[durability-arbiter](../conventions/agents/durability-arbiter.md)** (Agent tool,
-`model: sonnet`, `effort: high`, read-only — `model-policy: per-stage`, so the gate's
-depth is pinned here and never inherited from the run asking to be judged) — pass the item + the standing autonomy surface + proof the
+[durability-arbiter](../../agents/durability-arbiter.md)** (Agent tool,
+`subagent_type: aidex:durability-arbiter`; its definition pins `sonnet` / `high`, read-only —
+`model-policy: per-stage`, so the gate's depth is never inherited from the run asking to be judged) — pass the item + the standing autonomy surface + proof the
 fix is safe. Implement the ones it returns `CONTINUE` for (commit per item; deps and
 additive migrations are not gated), and **batch the `ASK`/`STOP` ones into a single
 end-of-run list** — never stop the sweep on the first item that needs you. If the arbiter

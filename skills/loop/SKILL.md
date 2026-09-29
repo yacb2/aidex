@@ -140,9 +140,9 @@ condition or turn cap **without interrupting the user**:
   log** what you decided — not to stop. You may investigate, read the DB, and take
   a backup without asking when it gives confidence to continue.
 - **Ambiguous consent point not in the declared ask-set → consult the
-  durability-arbiter, do not deadlock.** Read
-  [`../conventions/agents/durability-arbiter.md`](../conventions/agents/durability-arbiter.md),
-  pass it to the Agent tool (`model: sonnet`, `effort: high`, read-only) with the situation + the
+  durability-arbiter, do not deadlock.** Definition:
+  [`../../agents/durability-arbiter.md`](../../agents/durability-arbiter.md);
+  launch it with the Agent tool as `subagent_type: aidex:durability-arbiter` (its definition pins `sonnet`/`high`, read-only) with the situation + the
   spec's autonomy surface + proof, and follow its verdict; batch any `ASK` to the
   end. If it errors, apply the rule above and proceed — never block on it.
   `model-policy: per-stage` — that pin is the policy: the gate's depth is set here,
