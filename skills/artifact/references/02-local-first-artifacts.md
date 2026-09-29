@@ -383,12 +383,21 @@ crashed; its stderr names the cause. Stop and report it the same way.
 
 The shots go to a scratch directory, never beside the page: `<n>-1280.png` and
 `<n>-390.png` under `.context/` would be picked up as page assets and outlive the round.
+Per width the probe also writes viewport-height tiles `<n>-<width>-t01.png`, ... (each
+900 px tall, consecutive tiles overlapping by 100 px, the last pinned to the page bottom: a tall page's full-page shot is downscaled past legibility)
+and `<n>-shots.json`: tiles in order, the `data-id` item ids each tile holds, the ids in page
+order, and the files written this run under one run stamp (stdout repeats them as `SHOT`
+lines). A stale tile of an earlier build is deleted first.
 
-**Step 3, the handoff.** Launch the grader with exactly three things: the user's request
-in their words, the absolute paths of the two shots, and the absolute path of
-`references/05-visual-review.md`. Never the spec, the HTML or your own notes: a builder
+**Step 3, the handoff.** Launch the grader with exactly these things: the user's request
+in their words, the absolute path of the manifest `<n>-shots.json` (not the two full-page
+shots), the files the probe printed as written this run (the caller records them before
+launching, so the grader can refuse a stale tile), the absolute path of
+`references/05-visual-review.md`, and for a round built over a reply the DUTIES list,
+which the grader maps to items by id. Never the spec, the HTML or your own notes: a builder
 that explains its page to the grader is grading it itself. The grader returns the
-rubric's `SCORE` block.
+rubric's `SCORE` block, or `INVALID: <kind> <file>` (unreadable, missing, stale): that is no
+score. Caller: fix the cause (re-run the probe, pass the right regenerated-files list) and re-launch; this counts as a round. If the third round is INVALID, hand over saying that no valid grade was obtained, and why.
 
 **The rounds.** A round is steps 1 to 3 once. The verdict table of `05-visual-review.md`
 says what to do with the score: 9-10 hand over; 7-8 apply the `FIXES` list in its order;
@@ -400,7 +409,7 @@ lines instead.
 
 **A builder that cannot launch an agent** (a subagent: `artifact-sonnet` has no Agent
 tool, and subagents do not nest) runs steps 1 and 2 and stops there. Its reply carries the
-two shot paths and the probe's last line; the session that launched it runs step 3 and,
+manifest path, the `SHOT` lines and the probe's last line; the session that launched it runs step 3 and,
 under 9, sends the `FIXES` back as the next brief. The three-round cap counts across both.
 
 ---

@@ -419,6 +419,90 @@ grep -q '^CONTRACT ' <<<"$out" && bad "a crash under --contract printed a CONTRA
 bash "$PROBE" --contract no-such-class "$TMP/clean.html" >/dev/null 2>&1; rc=$?
 [[ $rc -eq 2 ]] && ok "an unknown --contract slug exits 2" || bad "unknown slug exit $rc, expected 2"
 
+echo "== tiles and manifest on a tall page =="
+# 3 items x 30 rows x 150 px = 13,500 px of bare HTML (the probe needs a page that loads,
+# not a passing consultation), items in the order q-b, q-a, q-c (page order, not
+# alphabetical). Each row carries a unique label so every tile's pixels differ: a clip
+# that ignored its y would hash every tile alike.
+{
+  printf '<!doctype html><html><body style="margin:0">\n'
+  n=0
+  for id in q-b q-a q-c; do
+    printf '<section data-id="%s"><h2>%s</h2>' "$id" "$id"
+    for _ in $(seq 30); do
+      n=$((n + 1))
+      printf '<div style="height:150px;font:32px monospace">row-%03d-unique</div>' "$n"
+    done
+    printf '</section>\n'
+  done
+  printf '</body></html>\n'
+} > "$TMP/tall.html"
+# A tile of an earlier, taller build must be gone after this run. The grader only reads
+# tiles the manifest lists, so a leftover is harmless to it; the deletion is kept as hygiene
+# and this is its only check.
+mkdir -p "$TMP/tall-shots" && : > "$TMP/tall-shots/tall-1280-t99.png"
+out="$(bash "$PROBE" --shots "$TMP/tall-shots" "$TMP/tall.html" 2>&1)"
+man="$TMP/tall-shots/tall-shots.json"
+[[ -s "$man" ]] && ok "--shots writes tall-shots.json" || bad "no manifest: $out"
+[[ ! -e "$TMP/tall-shots/tall-1280-t99.png" ]] && ok "a stale tile of an earlier build is deleted" || bad "stale tile kept"
+chk="$(python3 - "$man" "$TMP/tall-shots" <<'PY'
+import json, struct, sys, os, hashlib
+m = json.load(open(sys.argv[1])); d = sys.argv[2]
+vh = m["viewport_height"]
+for w in ("1280", "390"):
+    W = m["widths"][w]
+    if W["page_height"] < 13000: print(f"page_height {w} only {W['page_height']}"); sys.exit()
+    hashes = set()
+    for t in W["tiles"]:
+        p = os.path.join(d, t["file"])
+        with open(p, "rb") as f:
+            f.seek(16); wd, ht = struct.unpack(">II", f.read(8))
+        if ht != vh or ht != t["height"]:
+            print(f"tile {t['file']} height {ht} (manifest {t['height']}, want {vh})"); sys.exit()
+        hashes.add(hashlib.sha256(open(p, "rb").read()).hexdigest())
+    ys = [t["y"] for t in W["tiles"]]
+    if ys[0] != 0 or ys[-1] != W["page_height"] - vh: print(f"tiles do not span the page: {ys[0]}..{ys[-1]}"); sys.exit()
+    if any(b - a > vh - 100 or b <= a for a, b in zip(ys, ys[1:])): print(f"gaps or no progress: {ys}"); sys.exit()
+    if len(hashes) != len(W["tiles"]): print(f"{w}: {len(W['tiles'])} tiles but {len(hashes)} distinct images"); sys.exit()
+    if not any("q-a" in t["ids"] for t in W["tiles"]): print("q-a in no tile"); sys.exit()
+if m["ids"] != ["q-b", "q-a", "q-c"]: print("ids", m["ids"]); sys.exit()
+print("ok")
+PY
+)"
+[[ "$chk" == ok ]] && ok "tiles span a 13,500 px page, each a full viewport, overlapping, all distinct, ids in page order" || bad "tall page manifest: $chk"
+grep -q '^SHOTS run=' <<<"$out" && grep -q "^SHOT .*tall-shots.json$" <<<"$out" \
+  && ok "the probe prints the run stamp and the files it wrote" || bad "no SHOTS lines: $out"
+python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1]))["ids"]==[] else 1)' "$TMP/shots/clean-shots.json" \
+  && ok "a page with no items has an empty id list" || bad "clean manifest: $(cat "$TMP/shots/clean-shots.json" 2>&1)"
+
+# Two items exactly one viewport each, and a 1801 px page (the sliver case: [900,900,1]
+# with a naive stride). Stride is 800, the last tile pinned to H-900.
+printf '<!doctype html><html><body style="margin:0"><div data-id="a" style="height:900px">a</div><div data-id="b" style="height:900px">b</div></body></html>\n' > "$TMP/two.html"
+printf '<!doctype html><html><body style="margin:0"><div style="height:1801px">x</div></body></html>\n' > "$TMP/h1801.html"
+bash "$PROBE" --shots "$TMP/two-shots" "$TMP/two.html" >/dev/null 2>&1
+bash "$PROBE" --shots "$TMP/two-shots" "$TMP/h1801.html" >/dev/null 2>&1
+cat > "$TMP/chk-two.py" <<'PY'
+import json, sys, os
+d = sys.argv[1]
+m = json.load(open(os.path.join(d, "two-shots.json")))
+# H=1800: tiles at y 0, 800, 900. [0,900) holds a; [800,1700) both; [900,1800) b only.
+want = [(0, ["a"]), (800, ["a", "b"]), (900, ["b"])]
+for w in ("1280", "390"):
+    W = m["widths"][w]
+    got = [(t["y"], t["ids"]) for t in W["tiles"]]
+    if W["page_height"] != 1800 or got != want or any(t["height"] != 900 for t in W["tiles"]):
+        print(f"{w}: height {W['page_height']} tiles {got}"); sys.exit()
+h = json.load(open(os.path.join(d, "h1801-shots.json")))
+for w in ("1280", "390"):
+    W = h["widths"][w]
+    hs = [t["height"] for t in W["tiles"]]
+    if W["page_height"] != 1801 or [t["y"] for t in W["tiles"]] != [0, 800, 901] or min(hs) < 900:
+        print(f"1801 @{w}: {[(t['y'], t['height']) for t in W['tiles']]}"); sys.exit()
+print("ok")
+PY
+chk="$(python3 "$TMP/chk-two.py" "$TMP/two-shots")"
+[[ "$chk" == ok ]] && ok "stride 800: tiles touching only a or only b carry one id, the middle one both; an 1801 px page has no sliver" || bad "two-item / 1801 tiles: $chk"
+
 echo "== the consultation bar exemption does not hide body text only =="
 # At 390 the body runs under the bottom-pinned bar; the only 390 overlap allowed is the
 # pair drawn inside the bar. Verified load-bearing: without the exemption, body

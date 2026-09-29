@@ -9,7 +9,9 @@ The final message must name an html file written inside the working project (und
 (a score out of 10), or, if the score stayed under 9 after the rounds, name the remaining
 deductions. A message that says the render probe could not run because Playwright is
 missing, and names the install command, also passes: the loop stopping there is the
-correct behaviour.
+correct behaviour. So does a message that says the grader returned INVALID (no valid
+grade obtained, in the third round) and names why, or that the score is unavailable for that
+reason.
 
 It fails if no html file is named, if the page was published to a URL without being
 asked, or if the message presents the page as finished with no word about the probe or

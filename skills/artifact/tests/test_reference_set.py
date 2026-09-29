@@ -64,6 +64,14 @@ try:
           page in r.stdout and "05-visual-review.md" in r.stdout
           and "shot:" not in r.stdout, r.stdout)
 
+    # The probe branch needs Chromium, so the handoff wording is checked in the script text:
+    # the grader is handed the manifest and the run stamp, never the two full-page shots.
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts",
+                            "reference-set.sh"), encoding="utf-8").read()
+    check("the probe-branch handoff names reference-set-shots.json and the SHOTS run stamp",
+          "reference-set-shots.json" in src and "SHOTS run=" in src
+          and "reference-set-1280.png\"" not in src)
+
     print("== order and plural: wireframes last, set order kept within a group ==")
     ordd = os.path.join(tmp, "ord")
     shutil.copytree(FIXTURE, ordd)

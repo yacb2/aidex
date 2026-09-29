@@ -143,10 +143,18 @@ on the HTML route) has passed `check-artifact`:
 1. `bash "${CLAUDE_SKILL_DIR}/scripts/render-probe.sh" --shots <dir> <page>.html` — fix
    every defect it prints and rebuild. Exit 3 means Playwright is missing: stop, print the
    install command it gave, and hand nothing over as checked. Never skip the probe.
-2. Launch the `artifact-grader` agent with the request, the two shots
-   (`<name>-1280.png`, `<name>-390.png`), the path of `references/05-visual-review.md`, and
-   — for a consultation round built over a reply — the DUTIES list `save-reply.sh` printed:
-   the grader scores each one met/not-met alongside the rubric.
+2. Launch the `artifact-grader` agent with the request, the absolute path of the manifest
+   (`<name>-shots.json`, which lists the viewport-height tiles and the item ids each
+   holds) instead of the two full-page shots, the list of files the probe printed as
+   written this run (`SHOT <path>` lines, one run stamp), the path of
+   `references/05-visual-review.md`, and — for a consultation round built over a reply —
+   the DUTIES list `save-reply.sh` printed: the grader maps each duty to its item by id and
+   scores it met/not-met alongside the rubric. A delegate builds, probes and returns the
+   shot paths and the manifest; the main session launches the grader (a subagent cannot
+   launch agents). `INVALID: <kind> <file>` (unreadable, missing, stale) is no score: fix the
+   cause (re-run the probe, pass the right regenerated-files list) and re-launch; it counts
+   as a round. If the third round is INVALID, hand over saying no valid grade was obtained,
+   and why.
 3. Score 9 or more: hand over. Under 9: fix the defects its FIXES list names, then run
    the loop again — **at most 3 rounds**. Still under 9 after the third: hand over with
    the grader's remaining deductions stated in the reply, never silently.

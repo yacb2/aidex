@@ -425,6 +425,12 @@ catch (e) {
 }
 if (shots) fs.mkdirSync(shots, { recursive: true });
 const report = [];
+// --shots bookkeeping: one run stamp for every file written this run, and one manifest
+// per page (tiles per width, item ids in page order) so the grader reads tiles by id.
+const runStamp = new Date().toISOString();
+const VIEW_H = 900;
+const manifests = new Map();
+const written = [];
 let current = '';
 try {
 for (const f of files) for (const width of [1280, 390]) {
@@ -437,7 +443,7 @@ for (const f of files) for (const width of [1280, 390]) {
     const geometry = !only && scheme === 'dark';
     const classes = CONTRACT.filter(k => (!only || k === only) && (scheme === 'dark' || k === 'figure-text-contrast'));
     if (!geometry && !classes.length) continue;
-    const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: scheme });
+    const page = await browser.newPage({ viewport: { width, height: VIEW_H }, colorScheme: scheme });
     await page.goto('file://' + path.resolve(f)); await page.waitForTimeout(400);
     if (classes.length) { const c = await page.evaluate(contract, { classes, scheme, svgFamily: only === 'text-style-drift' }); d.push(...c.out); unmeasured += c.unmeasured; }
     if (geometry) {
@@ -451,7 +457,44 @@ for (const f of files) for (const width of [1280, 390]) {
       }
       if (shots) {
         await page.evaluate(() => scrollTo(0, 0));
-        await page.screenshot({ path: path.join(shots, `${path.basename(f, path.extname(f))}-${width}.png`), fullPage: true });
+        const base = path.basename(f, path.extname(f));
+        const full = path.join(shots, `${base}-${width}.png`);
+        await page.screenshot({ path: full, fullPage: true });
+        written.push(full);
+        // Viewport-height tiles (a tall page's full-page shot is downscaled past legibility),
+        // each tagged with the item ids (data-id) whose box meets it. A stale tile from an
+        // earlier, taller build of the same page is removed first.
+        const tilePat = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-${width}-t\\d+\\.png$`);
+        for (const old of fs.readdirSync(shots)) if (tilePat.test(old)) fs.rmSync(path.join(shots, old));
+        const geo = await page.evaluate(() => {
+          const seen = new Map();
+          for (const el of document.querySelectorAll('[data-id]')) {
+            const id = el.getAttribute('data-id');
+            if (seen.has(id)) continue;
+            const r = el.getBoundingClientRect();
+            if (!r.width || !r.height) continue;
+            seen.set(id, { id, top: Math.floor(r.top + scrollY), bottom: Math.ceil(r.bottom + scrollY) });
+          }
+          return { H: document.documentElement.scrollHeight, items: [...seen.values()] };
+        });
+        if (!manifests.has(f)) manifests.set(f, { page: base, run: runStamp, viewport_height: VIEW_H, ids: geo.items.map(it => it.id), widths: {}, written: [] });
+        const man = manifests.get(f);
+        man.written.push(path.basename(full));
+        // Tiles overlap (stride VIEW_H - 100) so a line cut at one tile's edge is whole in the
+        // next; the last tile is pinned to H - VIEW_H so none is a thin sliver. A page no
+        // taller than the viewport is one tile of its own height.
+        const ys = [0];
+        while (ys[ys.length - 1] + VIEW_H < geo.H) ys.push(Math.min(ys[ys.length - 1] + VIEW_H - 100, geo.H - VIEW_H));
+        const tiles = [];
+        for (const [k, y] of ys.entries()) {
+          const h = Math.min(VIEW_H, geo.H - y);
+          const file = path.join(shots, `${base}-${width}-t${String(k + 1).padStart(2, '0')}.png`);
+          await page.screenshot({ path: file, fullPage: true, clip: { x: 0, y, width, height: h } });
+          written.push(file); man.written.push(path.basename(file));
+          tiles.push({ file: path.basename(file), y, height: h,
+            ids: geo.items.filter(it => it.top < y + h && it.bottom > y).map(it => it.id) });
+        }
+        man.widths[width] = { fullpage: path.basename(full), page_height: geo.H, tiles };
       }
     }
     await page.close();
@@ -466,6 +509,17 @@ await browser.close();
   console.error(`render-probe: CRASH on ${current}: ${String(e && e.message || e).split('\n')[0]}`);
   await browser.close().catch(() => {});
   process.exit(4);
+}
+
+if (shots) {
+  for (const [, m] of manifests) {
+    const mf = path.join(shots, `${m.page}-shots.json`);
+    written.push(mf);
+    m.written.push(path.basename(mf));
+    fs.writeFileSync(mf, JSON.stringify(m, null, 2) + '\n');
+  }
+  console.log(`SHOTS run=${runStamp} files=${written.length}`);
+  for (const w of written) console.log(`SHOT ${path.resolve(w)}`);
 }
 
 const total = report.reduce((n, r) => n + r.d.length, 0);
