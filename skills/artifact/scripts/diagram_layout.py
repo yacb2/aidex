@@ -1855,7 +1855,11 @@ def layout(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
         while True:
             _fit_tb(boxes, limit)
             widest = max(b.w for b in boxes)
-            over = max(widest, title_w) + 2 * MARGIN - budget
+            # A title wider than the budget cannot be wrapped: the target is
+            # then the title's own width, or `over` would never reach 0 and
+            # every label would be squeezed to one word per line.
+            over = (max(widest, title_w) + 2 * MARGIN
+                    - max(budget, title_w + 2 * MARGIN))
             if over <= 1e-9 or widest == prev:
                 break
             prev, limit = widest, widest - over
@@ -1972,6 +1976,12 @@ def one_row(shape, boxes, arrows, titles, direction=None):
     widest column holds it (over MAX_BOX_W, at most COL_MAX); None otherwise.
     A forced `direction` is the author's and gets no alternative."""
     if SHAPE_ALIASES[shape] != "row" or direction is not None:
+        return None
+    # Only when the wrapped lr drawing is `drawings()`'s main: a wrapped
+    # attempt still over MAX_BOX_W falls back to `tb`, and no one-row drawing
+    # may sit beside that.
+    main = drawings(shape, boxes, arrows, titles)[0]
+    if main.dir != "lr" or main.view[2] > MAX_BOX_W:
         return None
     lay = layout(shape, boxes, arrows, titles, None)
     return (lay if lay.dir == "lr" and MAX_BOX_W < lay.view[2] <= COL_MAX

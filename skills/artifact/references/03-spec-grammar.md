@@ -693,7 +693,9 @@ outline, a row's `tb`); only when that is still wider than 720 is **A stacked ab
 frame as tall as its own content. A drawing wider than 320
 units also gets a twin for 390 px, shown at 48rem and under, when the twin is the narrower
 of the two: A above B, with each body's own narrow drawing (a tree's outline, a row's `tb`). Each body is laid out to 296 units (320 less the frame's two paddings), so the whole twin,
-frames included, stays within 320 unless a word or a title is wider than that.
+frames included, stays within 320 unless a word or a title is wider than that, a
+tree is too deep for the room, or a tree's outline is not narrower than its top-down
+drawing.
 A body is taken from its narrow drawing in the stacked one too when its top-down drawing is
 wider than the room a frame leaves. A compare is never refused for width.
 

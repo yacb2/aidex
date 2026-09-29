@@ -301,12 +301,14 @@ def svg(lay, cls=""):
 
 def full_css(width):
     """The rule that shows a `dg-full` drawing `width` wide instead of the
-    wrapped one, only while the figure holds it at 1x (BL-525). Keyed by the
-    width's class, so two such figures on one page never toggle each other."""
+    wrapped one, only while the figure holds it at 1x (BL-525). The hide and
+    the show both name the width's class, so they have equal specificity and
+    the show, later in the rule, wins for ITS figure; another figure's hide
+    (a different width class) can never match this one's drawing."""
     k = "dg-w%d" % width
-    return ("figure svg.dg-full{display:none}"
-            "@container (min-width: %dpx){figure svg.%s{display:block}"
-            "figure svg.%s~svg.dg-wide{display:none}}" % (width, k, k))
+    return ("figure svg.dg-full.%s{display:none}"
+            "@container (min-width: %dpx){figure svg.dg-full.%s{display:block}"
+            "figure svg.%s~svg.dg-wide{display:none}}" % (k, width, k, k))
 
 
 def figure(lay, title="", classes="", ident="", narrow=None, full=None):

@@ -440,6 +440,38 @@ try:
           dl.drawings("before-after", *dl.parse_body(
               [(i + 2, x) for i, x in enumerate(one_word)], "before-after"))[1]
           is None)
+    # A lane title wider than the twin's room must not squeeze every label to
+    # one word per line: the twin is then as wide as the title, no wider.
+    lt_body = list(ba_body)
+    lt_body[4] = ("lane Después: generado desde el canon del proyecto, una vez "
+                  "por tema")
+    lt_parsed = dl.parse_body([(i + 2, x) for i, x in enumerate(lt_body)],
+                              "before-after")
+    lt_main, lt_twin = dl.drawings("before-after", *lt_parsed)
+    lt_titlew = max(dl.text_width(t, dl.TITLE_FS) for t in lt_parsed[2])
+    lt_wide = by_name(lt_main)
+    lt_keep = [n for n, b in lt_wide.items()
+               if b.w <= lt_titlew and len(b.lines) == 1]
+    check("a before-after whose lane title is wider than NARROW_W keeps a "
+          "one-line label one line in its twin (%d boxes, title %.0f wide)"
+          % (len(lt_keep), lt_titlew),
+          lt_titlew > dl.NARROW_W - 2 * dl.MARGIN and len(lt_keep) >= 2
+          and lt_twin is not None
+          and all(len(by_name(lt_twin)[n].lines) == 1 for n in lt_keep),
+          str({n: by_name(lt_twin)[n].lines for n in lt_keep}
+              if lt_twin else None))
+    # ...and a label wider than that title is still wrapped down to it.
+    lw_body = list(lt_body)
+    lw_body[6] = ("e: generado desde el canon del proyecto con una sola fuente "
+                  "de verdad para cada tema y cada página")
+    lw_parsed = dl.parse_body([(i + 2, x) for i, x in enumerate(lw_body)],
+                              "before-after")
+    lw_twin = dl.drawings("before-after", *lw_parsed)[1]
+    check("...a label wider than that title wraps, and the twin is as wide as "
+          "the title (%s)" % (lw_twin and "%.1f" % lw_twin.view[2]),
+          lw_twin is not None
+          and lw_twin.view[2] <= lt_titlew + 2 * dl.MARGIN + 1e-6
+          and len(by_name(lw_twin)["e"].lines) >= 2)
     # The twin's invariants over seeded random bodies: the layer is the layout.
     import random
     rng = random.Random(526)
@@ -863,15 +895,52 @@ try:
                     r"svg\.dg-w%d~svg\.dg-wide\{display:none\}"
                     % math.ceil(full_w), mid_html)
           is not None, mid_html[:600])
-    check("...and the one row is hidden by default",
-          re.search(r"svg\.dg-full[^{]*\{display:none\}", mid_html) is not None,
-          mid_html[:600])
+    # Which drawing shows at which column width is the cascade's call: owned by
+    # test-diagram-container-swap.sh in a real browser, not by selector text.
+    # B: `one_row` is the wrapped drawing's twin, never a drawing beside a `tb`
+    # main. A 99-char label wraps to a row still over 720, so `drawings()` falls
+    # back to `tb`; the one-row drawing must not ship beside it.
+    tbf = ["a: " + "el servicio de facturación valida cada pedido contra el "
+           "catálogo vigente del mes y el stock real de cada almacén"[:99],
+           "b: listo", "a -> b"]
+    tbf_rows = [(i + 2, x) for i, x in enumerate(tbf)]
+    tbf_main = dl.drawings("row", *dl.parse_body(tbf_rows, "row"))[0]
+    check("a row whose wrapped drawing falls back to tb has no one-row "
+          "drawing (main dir=%s)" % tbf_main.dir,
+          tbf_main.dir == "tb"
+          and dl.one_row("row", *dl.parse_body(tbf_rows, "row")) is None)
+    tbf_html = build(fence("row", *tbf))
+    tbf_svgs = re.findall(r"<svg\b[^>]*>", tbf_html)
+    check("...and in the built figure every svg carries dg-full, dg-wide or "
+          "dg-narrow whenever one carries dg-full",
+          "dg-full" not in tbf_html or all(
+              re.search(r'class="[^"]*\bdg-(full|wide|narrow)\b', t)
+              for t in tbf_svgs), str(tbf_svgs))
     got = findings(mid_html)
     check("...no svg-text finding on any of the three", not got, "\n".join(got))
-    check("a row over the widest column has no one-row drawing",
-          dl.one_row("row", *dl.parse_body(
-              [(i + 2, x) for i, x in enumerate(long_f.split("\n")[1:-1])],
-              "row")) is None if lw.view[2] <= dl.MAX_BOX_W else True)
+    long_rows = [(i + 2, x) for i, x in enumerate(long_f.split("\n")[1:-1])]
+    long_lr = dl.layout("row", *dl.parse_body(long_rows, "row"), None)
+    check("a row over the widest column has no one-row drawing (its one row "
+          "is %.0f wide)" % long_lr.view[2],
+          long_lr.view[2] > dl.COL_MAX
+          and dl.one_row("row", *dl.parse_body(long_rows, "row")) is None)
+
+    def col_rows(k):
+        # The six-step chain (948 wide) with k narrow characters on its last
+        # label: 951.8 at k=1 (under COL_MAX), 955.4 at k=2 (just over).
+        body = (["m%d: paso número %d" % (i, i) + ("i" * k if i == 5 else "")
+                 for i in range(6)]
+                + ["m%d -> m%d" % (i, i + 1) for i in range(5)])
+        return dl.parse_body([(i + 2, x) for i, x in enumerate(body)], "row")
+
+    w_under = dl.layout("row", *col_rows(1), None).view[2]
+    w_over = dl.layout("row", *col_rows(2), None).view[2]
+    check("the COL_MAX boundary: a row at %.1f (<= %.0f) gets a one-row "
+          "drawing, one at %.1f gets none"
+          % (w_under, dl.COL_MAX, w_over),
+          w_under <= dl.COL_MAX < w_over
+          and dl.one_row("row", *col_rows(1)) is not None
+          and dl.one_row("row", *col_rows(2)) is None)
     check("...nor does a row that already fits 720, nor a forced dir",
           dl.one_row("row", *dl.parse_body([(2, "a: uno"), (3, "b: dos")],
                                            "row")) is None
@@ -2163,10 +2232,30 @@ try:
             "badge f1: Realizador Luis: acceso solo a Ep. 1", "flg f2",
             "outcome Luis cambia la voz de todo el proyecto (en alerta)"]
     _m5, n5 = cpair(D5RV)
-    check("BL-527: a compare twin is at most NARROW_W wide, frames included "
+    check("BL-527: the compare twin is at most NARROW_W wide, frames included "
           "(the D5RV body)",
           n5 is not None and n5.view[2] <= dl.NARROW_W + 1e-6,
           str(n5 and n5.view))
+
+    # BL-527, the rows the D5RV body does not reach: a row panel's `tb` loop
+    # and twin threshold, and a tree panel's twin threshold, all take the
+    # frame-reduced budget. Each twin, frames included, is at most NARROW_W.
+    for label, body in (
+            ("a row panel whose only box is a long label",
+             ["panel row A", "a0: una etiqueta bastante más larga de lo "
+              "normal y algo", "outcome ok",
+              "panel row B", "b0: x", "outcome ok"]),
+            ("a row panel whose only box is a slightly shorter long label",
+             ["panel row A", "a0: una etiqueta bastante más larga de lo",
+              "outcome ok", "panel row B", "b0: x", "outcome ok"]),
+            ("a tree panel with two children under a long root",
+             ["panel tree A", "r: Proyecto Serie X", "c1: Producción Ep. 1",
+              "c2: Otras cosas", "r -> c1", "r -> c2", "outcome ok",
+              "panel tree B", "s: x", "outcome ok"])):
+        _mm, nn = cpair(body)
+        check("BL-527: %s has a compare twin within NARROW_W (%s)"
+              % (label, nn and "%.1f" % nn.view[2]),
+              nn is not None and nn.view[2] <= dl.NARROW_W + 1e-6)
 
     # Property test: seeded random compare figures up to the cap.
     import random
@@ -2310,7 +2399,10 @@ try:
           "never overlap, both frames are as wide, side by side the titles, "
           "the outcome lines and the frames align, stacked A is above B, "
           "outcome lines stay in the frame, nothing leaves the viewBox, the "
-          "output is deterministic, the twin is narrower",
+          "output is deterministic, the twin is narrower, and (BL-527) the "
+          "twin, frames included, is at most NARROW_W wide whenever every "
+          "body wraps to its narrow budget and no title or outcome word is "
+          "wider than the frame's inside",
           not bad, "\n".join(bad[:12]))
 
 finally:
