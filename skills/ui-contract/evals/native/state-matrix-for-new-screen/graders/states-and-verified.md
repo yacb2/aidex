@@ -21,7 +21,9 @@ The section must:
    AND give a reason in words.
 
 The final message must state that "verified" requires **all three** of:
-- the contact-sheet path (an image on disk, named by path);
+- the path of the consultation page where the owner reviewed the gallery rows, with the
+  owner's verdict per row (the owner reviews, never the model; a composed image or board
+  alone is the developer's lens and does not satisfy this part);
 - the gate's closing line from a run with **no snapshot update**;
 - a reviewer pass on the harness checks themselves (a green check that cannot fail is not
   evidence).
