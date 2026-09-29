@@ -33,9 +33,11 @@ Usage: save-reply.sh <page.html> [<reply-file>|-]
 import datetime
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_artifact as ca  # noqa: E402
+import wrap_report  # noqa: E402
 
 
 def _prev_dir(page_path):
@@ -118,6 +120,17 @@ def main(argv):
             reply_text = fh.read()
     if not reply_text.strip():
         print("ERROR: the reply is empty — nothing to save", file=sys.stderr)
+        return 2
+    lock = wrap_report.lock_path(page_path)
+    if os.path.exists(lock):
+        age = int(time.time() - os.path.getmtime(lock))
+        # The page on disk is the delegate's intermediate wrap, not what the reader
+        # answered; snapshotting it would skip a round (BL-507). No copy of the
+        # reader's version is kept, so refuse rather than guess.
+        print(f"ERROR: {lock} exists (age {age // 60} min {age % 60} s) — a build is still running, so {page_path} is "
+              f"not the page the reader answered. End the build first "
+              f"(wrap-report.sh --done --out {page_path}), then save the reply.",
+              file=sys.stderr)
         return 2
     duties, reply_path, answered_path, appended = save_reply(page_path, reply_text)
     if appended:

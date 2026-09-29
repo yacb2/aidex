@@ -180,10 +180,42 @@ def _baseline_path(outfile):
                         os.path.basename(out))
 
 
-def next_round(outfile):
+def _answered_path(outfile):
+    """The snapshot `save_reply.py` takes of the page the reader answered."""
+    stem = os.path.splitext(os.path.basename(outfile))[0]
+    return os.path.join(os.path.dirname(os.path.abspath(outfile)),
+                        ".aidex-artifact-prev", stem + ".answered.html")
+
+
+def _current_round(outfile):
+    base = _baseline_path(outfile)
+    ref = base if os.path.isfile(base) else os.path.abspath(outfile)
+    return (_round_of(ref) or 1) if os.path.isfile(ref) else 0
+
+
+def round_answered(outfile):
+    """True when the page's CURRENT round has a saved reply (BL-507).
+
+    The answered snapshot is a copy of the page as the reader answered it, so it
+    carries the round it answered; the baseline carries the round the reader has.
+    Snapshot round >= baseline round means that round was answered."""
+    base = _baseline_path(outfile)
+    ref = base if os.path.isfile(base) else os.path.abspath(outfile)
+    answered = _answered_path(outfile)
+    if not os.path.isfile(answered) or not os.path.isfile(ref):
+        return False
+    return (_round_of(answered) or 1) >= (_round_of(ref) or 1)
+
+
+def next_round(outfile, surface=True):
     """The round number the page about to be written is, or 0 when it is not a
     round of anything (no `--out`). See `round_meta` for why the BASELINE, and
-    not the file on disk, is what it counts from."""
+    not the file on disk, is what it counts from.
+
+    BL-507: on a page with a consult surface this is the READER's round, not the
+    wrap count. It advances only once save-reply.sh has recorded an answer to
+    the current round; a re-wrap of an unanswered round keeps its number. A page
+    with no consult surface has no reader rounds and keeps counting wraps."""
     if not outfile:
         return 0
     out = os.path.abspath(outfile)
@@ -194,10 +226,12 @@ def next_round(outfile):
         prev = _round_of(out) or 1
     else:
         prev = 0
+    if surface and prev and not round_answered(out):
+        return prev
     return prev + 1
 
 
-def round_meta(outfile):
+def round_meta(outfile, surface=True):
     """`<meta name="consult-round">` for the page about to be written.
 
     What it is for: the composer keeps typed answers in localStorage and used to
@@ -220,7 +254,7 @@ def round_meta(outfile):
     than a gap: without `--out` there is no thread to be a round of, and a page
     with no marker keeps the pre-round behaviour exactly.
     """
-    r = next_round(outfile)
+    r = next_round(outfile, surface)
     return f'<meta name="consult-round" content="{r}">' if r else ""
 
 
@@ -797,10 +831,9 @@ def held_round(outfile):
     he had never seen, on the one line whose whole job is to be trusted.
 
     So the lock carries the round the build STARTED at, and every wrap of that
-    build shows it. It is the DISPLAY only: `consult-round`, the baseline and
-    BL-421's `data-decided-round` keep counting wraps, because the composer
-    reads that number to decide which answers were already sent and holding it
-    back would restore a consumed answer into a new round.
+    build shows it. Since BL-507 `consult-round` is the reader's round and no
+    longer counts wraps on a consult page, so this hold is belt-and-braces there;
+    it still matters for a page that has no reply to wait for.
 
     A lock written before this existed carries no number: fall back to the
     wrap's own round rather than inventing one.
@@ -861,6 +894,9 @@ def main():
                         "lock beside the page so nobody opens it as final. End the build "
                         "with --done --out <page>. For a DELEGATED build; a session "
                         "wrapping its own page and opening it does not pass this")
+    p.add_argument("--new-round", action="store_true",
+                   help="assert this wrap opens a new reader round: refused, naming "
+                        "save-reply.sh, when the current round has no saved reply")
     p.add_argument("--done", action="store_true",
                    help="with --out and nothing else: the build is finished, remove the "
                         "lock. Wraps nothing")
@@ -922,7 +958,19 @@ def main():
     body = localize_chrome(inject_rail(body, lang), lang)
     # Before the kit is injected: the composer script and the kit CSS both spell
     # `data-decided`, and only the AUTHOR's markup carries items (`data-id`).
-    this_round = next_round(args.outfile)
+    surface = bool(CONSULT_ITEM.search(body))
+    this_round = next_round(args.outfile, surface)
+    if args.new_round and args.outfile and surface:
+        # "This wrap must advance the reader round": refused while the current
+        # round is open, i.e. a page exists and has no saved reply for it.
+        open_round = _current_round(args.outfile)
+        if open_round >= 1 and not round_answered(args.outfile):
+            print(f"ERROR: round {open_round} is already open and has no saved reply. "
+                  f"If this is a re-wrap of the round you are building, drop --new-round. "
+                  f"If the reader has answered round {open_round}, run "
+                  f"save-reply.sh {args.outfile} <reply-file> first, then wrap with "
+                  f"--new-round.", file=sys.stderr)
+            return 1
     body = stamp_decided_rounds(body, args.outfile, this_round)
     # One clock for the meta, the visible line and the line printed at the end,
     # so the three cannot disagree across a minute boundary.
@@ -941,7 +989,7 @@ def main():
     built_meta = (f'<meta name="artifact-built" '
                   f'content="{esc(now.strftime(BUILT_FORMAT))}">')
     head_extra = "\n".join(p for p in (kit_head(), built_meta,
-                                       round_meta(args.outfile),
+                                       round_meta(args.outfile, surface),
                                        profile_delta(ctx), head_extra) if p)
     body = "\n".join(p for p in (body, kit_script()) if p)
     doc = document(args.title, body, lang=lang,

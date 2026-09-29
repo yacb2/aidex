@@ -129,6 +129,9 @@ bash "$WRAP" --title "Consultation" --lang en --in "$KIT/skeleton.html" --out "$
 line="$(built_line "$CPAGE")"
 [[ "$line" =~ ^Built\ [0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}\ ·\ round\ 1$ ]] \
   || fail "round 1 of a consultation does not name its round in the built line: '$line'"
+# BL-507: round 2 is the reader's second round, so the reply to round 1 is saved
+# first (a bare re-wrap now stays round 1; the expected value is unchanged).
+printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$CPAGE" - >/dev/null 2>&1
 bash "$WRAP" --title "Consultation" --lang en --in "$KIT/skeleton.html" --out "$CPAGE" >/dev/null 2>&1
 line="$(built_line "$CPAGE")"
 [[ "$line" == *"· round 2" ]] \
@@ -165,20 +168,29 @@ NPAGE="$PROJ/.context/reports/build2.html"
 bash "$WRAP" --title "Consultation" --lang en --in "$KIT/skeleton.html" --out "$NPAGE" >/dev/null 2>&1
 [[ "$(built_line "$NPAGE")" == *"· round 1" ]] \
   || fail "the page the build starts from does not read round 1: '$(built_line "$NPAGE")'"
-for _ in 1 2 3; do
+# BL-507: the reader answered round 1 (save-reply.sh), so the build is round 2.
+printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$NPAGE" - >/dev/null 2>&1
+for i in 1 2 3; do
+  # save-reply while the build runs would snapshot the delegate's intermediate
+  # page, not the one the reader saw, and skip a round: it must be refused.
+  if [[ $i == 3 ]]; then
+    rout="$(printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$NPAGE" - 2>&1)"; rrc=$?
+    { [[ $rrc -ne 0 && "$rout" == *".building"* ]]; } \
+      || fail "save-reply during a running build was accepted or did not name the lock (rc $rrc): $rout"
+  fi
   bash "$WRAP" --building --title "Consultation" --lang en \
        --in "$KIT/skeleton.html" --out "$NPAGE" >/dev/null 2>&1
   [[ "$(built_line "$NPAGE")" == *"· round 2" ]] \
-    || fail "a build over a page at round 1 reads '$(built_line "$NPAGE")' — it is one round, not three"
+    || fail "a build over a page answered at round 1 reads '$(built_line "$NPAGE")' — it is one round, not three"
 done
 bash "$WRAP" --done --out "$NPAGE" >/dev/null 2>&1
-# The consult-round META is deliberately untouched: it counts wraps, the composer
-# reads it to decide what to restore, and BL-421 stamps decisions from it.
-python3 - "$NPAGE" <<'PY' || fail "the consult-round meta was held back too — only the DISPLAYED round is"
+# BL-507: the consult-round META is the reader's round too (was: counted wraps, so
+# >= 4 after this build); three wraps of one build read 2, same as the display.
+python3 - "$NPAGE" <<'PY' || fail "the consult-round meta of a one-round build is not the reader's round 2"
 import re, sys
 t = open(sys.argv[1], encoding="utf-8", errors="replace").read()
 m = re.search(r'<meta name="consult-round" content="(\d+)"', t)
-sys.exit(0 if m and int(m.group(1)) >= 4 else 1)
+sys.exit(0 if m and int(m.group(1)) == 2 else 1)
 PY
 
 # ---------- the label follows the page's language ----------------------------
