@@ -464,7 +464,8 @@ window.addEventListener('load', function () {
     var ask = function (m) { return row ? row.querySelector('input[data-label="' + m + '"]') : null; };
     var exState = ask('[explain-state]'), exOpts = ask('[explain-options]'),
         exWhy = ask('[explain-why]'), exSimpler = ask('[explain-simpler]'),
-        exQuestion = ask('[question]'), exReframe = ask('[reframe]'), exShow = ask('[show-me]');
+        exQuestion = ask('[question]'), exReframe = ask('[reframe]'), exShow = ask('[show-me]'),
+        exMore = ask('[more-examples]'), exDefect = ask('[page-defect]');
     var pre = document.querySelector('[data-id="Q1"] input[data-label="Option A"]');
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     /* An option AND asks: the item is PROVISIONAL, and the page has to say so
@@ -493,6 +494,44 @@ window.addEventListener('load', function () {
     if (pre) { pre.checked = false; pre.dispatchEvent(new Event('change', { bubbles: true })); }
     var provOff = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
     if (pre) { pre.checked = true; pre.dispatchEvent(new Event('change', { bubbles: true })); }
+    /* BL-505: [more-examples] combines like any other ask — ticked alone
+     * beside the chosen answer it makes the item provisional too. Isolated
+     * from exState/exWhy/exQuestion so the provisional count reflects ONLY
+     * more-examples, not a mix already proven above. */
+    [exState, exWhy, exQuestion].forEach(function (c) {
+      if (c) { c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    var provNoAsks = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
+    if (exMore) { exMore.checked = true; exMore.dispatchEvent(new Event('change', { bubbles: true })); }
+    var provWithMore = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
+    var mcap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { mcap = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    if (exMore) { exMore.checked = false; exMore.dispatchEvent(new Event('change', { bubbles: true })); }
+    /* [page-defect] must NOT make the answer provisional — it names a defect
+     * IN THE PAGE, not a gap in the question, so the answer stands. It focuses
+     * the notes box exactly like [question] does. */
+    /* Blur first: a synthetic .click() above may not have moved focus off the
+     * notes box, and a stale focus there would pass this check for free. */
+    document.activeElement.blur();
+    if (exDefect) { exDefect.checked = true; exDefect.dispatchEvent(new Event('change', { bubbles: true })); }
+    var provWithDefect = document.querySelectorAll('[data-id="Q1"] .kit-provisional').length;
+    var focusedDefect = document.activeElement === document.querySelector('[data-id="Q1"] textarea');
+    var dcap = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: function (s) { dcap = s; return Promise.resolve(); } }
+    });
+    document.getElementById('consult-copy').click();
+    if (exDefect) { exDefect.checked = false; exDefect.dispatchEvent(new Event('change', { bubbles: true })); }
+    /* Restore the state the rest of the scenario (the notNow paste checks
+     * below) expects. */
+    [exState, exWhy, exQuestion].forEach(function (c) {
+      if (c) { c.checked = true; c.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
     /* Now the answer side: "not now" is a radio in the group, so it releases
      * the answer, counts as a response and pastes its own marker. */
     var notNow = document.querySelector('[data-id="Q1"] .opts input[data-label="[not-now]"]');
@@ -505,11 +544,15 @@ window.addEventListener('load', function () {
     document.getElementById('consult-copy').click();
     var rowEl = row;
     document.title = 'EXPLAINED|ROW=' + (row ? '1' : '0')
-      + '|CHIPS=' + [exState, exOpts, exWhy, exSimpler, exQuestion, exReframe, exShow].filter(Boolean).length
+      + '|CHIPS=' + [exState, exOpts, exWhy, exSimpler, exQuestion, exReframe, exShow, exMore, exDefect].filter(Boolean).length
       + '|TERMCHIP=' + (row && row.querySelector('input[data-label="[explain-term]"]') ? '1' : '0')
       + '|TERMBOX=' + document.querySelectorAll('[data-id="Q1"] .kit-term').length
       + '|PROVBEFORE=' + provBefore + '|PROVON=' + provOn + '|PROVOFF=' + provOff
       + '|PROVTEXT=' + provText
+      + '|PROVNOASKS=' + provNoAsks + '|PROVWITHMORE=' + provWithMore + '|PROVWITHDEFECT=' + provWithDefect
+      + '|FOCUSDEFECT=' + (focusedDefect ? '1' : '0')
+      + '|MCAP=' + mcap.replace(/[|<>\n]/g, ' ')
+      + '|DCAP=' + dcap.replace(/[|<>\n]/g, ' ')
       + '|FOCUSNOTES=' + (focused ? '1' : '0')
       + '|CHIPTYPE=' + (exState ? exState.type : '')
       + '|CHIPINGROUP=' + (exState && exState.closest('.opts') ? '1' : '0')
@@ -868,8 +911,8 @@ t="$(run 'phase=explain')"
 [[ "$t" == *EXPLAINED* ]] || fail "the explain phase did not run: $t"
 [[ "$t" == *"ROW=1"* ]] \
   || fail "BL-381: no ask row was injected on the option item: $t"
-[[ "$t" == *"CHIPS=7"* ]] \
-  || fail "BL-381 + census 2026-09-20: the ask row does not carry the seven tagged asks (state, options, why, simpler, question, reframe, show-me): $t"
+[[ "$t" == *"CHIPS=9"* ]] \
+  || fail "BL-381 + census 2026-09-20 + BL-505: the ask row does not carry the nine tagged asks (state, options, why, simpler, question, reframe, show-me, more-examples, page-defect): $t"
 [[ "$t" == *"TERMCHIP=0"* && "$t" == *"TERMBOX=0"* ]] \
   || fail "census 2026-09-20: the 'what is X' chip (or its term box) is still injected — 0 uses in 333 answered items, replaced by [question]: $t"
 [[ "$t" == *"FOCUSNOTES=1"* ]] \
@@ -891,6 +934,24 @@ t="$(run 'phase=explain')"
   || fail "provisional: releasing the option left the provisional line behind — asks with no answer beside them leave the item plainly open: $t"
 [[ "$t" == *"PROVTEXT=Provisional"* ]] \
   || fail "provisional: the line on the item is not in the page's language, or does not name the state: $t"
+# BL-505: [more-examples] combines like any other ask — provisional on its own.
+[[ "$t" == *"PROVNOASKS=0"* ]] \
+  || fail "BL-505: the isolation setup left an ask ticked — the baseline for the more-examples/page-defect checks is not clean: $t"
+[[ "$t" == *"PROVWITHMORE=1"* ]] \
+  || fail "BL-505: [more-examples] ticked beside a chosen answer did not mark the item provisional — it must combine like every other ask: $t"
+[[ "$t" == *"MCAP="*"[more-examples]"* ]] \
+  || fail "BL-505: the copied reply does not carry the [more-examples] marker under the item: $t"
+# BL-505: [page-defect] must NOT make the answer provisional — it names a
+# defect in the PAGE, not a gap in the question.
+[[ "$t" == *"PROVWITHDEFECT=0"* ]] \
+  || fail "BL-505: [page-defect] ticked beside a chosen answer marked it provisional — a page defect does not put the answer in question: $t"
+[[ "$t" == *"FOCUSDEFECT=1"* ]] \
+  || fail "BL-505: ticking [page-defect] did not focus the notes box, where the reader describes what broke: $t"
+dcapfield="$(printf '%s' "$t" | sed -nE 's/.*\|DCAP=([^|]*)\|.*/\1/p')"
+[[ "$dcapfield" == *"[page-defect]"* ]] \
+  || fail "BL-505: the copied reply does not carry the [page-defect] marker under the item: $t"
+[[ "$dcapfield" == *"[provisional]"* ]] \
+  && fail "BL-505: the copied reply qualified the answer as [provisional] when only [page-defect] was ticked beside it: $dcapfield"
 [[ "$t" == *"EXNOGROUP=1"* ]] \
   || fail "BL-381: an item with no option group got no ask row — the row lives on the ITEM now, so the v15 cost is gone: $t"
 [[ "$t" == *"EXNOTES=0"* ]] \

@@ -474,7 +474,7 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
 .kit-ask label:hover { background: var(--paper-sunk); color: var(--ink); }
 .kit-ask label:has(input:checked) { color: var(--ink); }
 .kit-ask input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
-/* A phone is 21-24rem of usable width: seven chips wrap to three or four rows
+/* A phone is 21-24rem of usable width: nine chips wrap to three or four rows
    there, and each row has to stay tappable. The chips keep their size (a 0.82rem
    target is already the floor); what gives is the space between them and the
    lead-in, which takes a line of its own so no chip is orphaned beside it. */
