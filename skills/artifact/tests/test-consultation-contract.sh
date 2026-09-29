@@ -804,6 +804,13 @@ Ana, an observer, mutes a track and gets an error. Fuente: M095.
 - Allow it {recommended}
 - Keep the error
 :::
+
+::: item {#E3 title="Situation lead"}
+Row M095 gets a 403 when it mutes a track. Should an observer mute?
+
+- Allow it {recommended}
+- Keep the 403
+:::
 :::
 
 ::: notes {title="Anything else"}
@@ -817,6 +824,10 @@ grep -q "WARN \[consult-lead-id\].*'E1'" "$TMP/out" \
   || fail "10b4c. a built item whose question opens with M095 did not warn: $(cat "$TMP/out")"
 grep -q "WARN \[consult-lead-id\].*'E2'" "$TMP/out" \
   && fail "10b4c. a built item with a prose question must not warn: $(cat "$TMP/out")"
+# BL-514: the h3 now holds only the closing question; the lead is the
+# situation paragraph below it, and that is what the check must read.
+grep -q "WARN \[consult-lead-id\].*'E3'" "$TMP/out" \
+  || fail "10b4c. a situation lead opening with M095 above its question did not warn: $(cat "$TMP/out")"
 
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels

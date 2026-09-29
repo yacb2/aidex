@@ -290,6 +290,36 @@ try:
           ITEM,
           '<section class="consult-item" data-id="Q1" data-title="Short name" data-decided>',
           '<h3><span class="consult-id">Q1</span>¿La pregunta, preguntada?</h3>')
+    # BL-514: the consult contract makes the first paragraph a situation lead
+    # that ENDS in the question, and the whole lead used to become the bold h3.
+    # The h3 keeps only the closing question; the situation is body text.
+    h = holds("item: a situation lead leaves only its closing question in the h3",
+              ITEM.replace("¿La pregunta, preguntada?",
+                           "Ana, observadora, silencia una pista. Hoy recibe un "
+                           "error. ¿Debe poder hacerlo?"),
+              '<h3><span class="consult-id">Q1</span>¿Debe poder hacerlo?</h3>',
+              '<p class="consult-lead">Ana, observadora, silencia una pista. '
+              'Hoy recibe un error.</p>')
+    check("...and the situation reads between the question and the options",
+          -1 < h.find("</h3>") < h.find("consult-lead") < h.find('type="radio"'), h)
+    holds("item: a one-sentence lead stays whole in the h3",
+          ITEM.replace("¿La pregunta, preguntada?", "El Sr. López lo pidió."),
+          '<h3><span class="consult-id">Q1</span>El Sr. López lo pidió.</h3>')
+    holds("item: a situation with no closing question asks the title",
+          ITEM.replace("¿La pregunta, preguntada?",
+                       "Ana silencia una pista. Hoy recibe un error."),
+          '<h3><span class="consult-id">Q1</span>Short name</h3>',
+          '<p class="consult-lead">Ana silencia una pista. Hoy recibe un error.</p>')
+    holds("item: an abbreviation does not split the question",
+          ITEM.replace("¿La pregunta, preguntada?",
+                       "Hoy falla. ¿Lo cierra el Sr. López?"),
+          '<h3><span class="consult-id">Q1</span>¿Lo cierra el Sr. López?</h3>',
+          '<p class="consult-lead">Hoy falla.</p>')
+    holds("item: a run of closing questions stays together in the h3",
+          ITEM.replace("¿La pregunta, preguntada?",
+                       "Hoy falla. ¿Lo cerramos? ¿O esperamos?"),
+          '<h3><span class="consult-id">Q1</span>¿Lo cerramos? ¿O esperamos?</h3>',
+          '<p class="consult-lead">Hoy falla.</p>')
     holds("item: the option list becomes `.opts one` with data-label and a hint",
           ITEM.replace(" decided=yes", ""),
           '<div class="opts one">',

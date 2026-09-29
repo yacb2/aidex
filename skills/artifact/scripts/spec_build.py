@@ -647,6 +647,32 @@ def _segments(node, nests, carries="prose"):
     return out
 
 
+def _split_question(inline):
+    """(situation, heading) for an item's rendered first paragraph. One
+    sentence is the heading whole. Several sentences are a situation lead: the
+    closing run of `?` sentences is the heading, or None (ask the title) when
+    it does not close on a question. Sentence ends and abbreviations are
+    check_artifact's; a boundary inside a tag does not count."""
+    ends = []
+    for m in check_artifact.SENTENCE_END.finditer(inline):
+        before = inline[:m.start()]
+        if before.rfind("<") > before.rfind(">"):
+            continue
+        word = before.split()[-1:] or [""]
+        if (inline[m.start()] == "." and
+                word[0].lower().strip("([\"'") in check_artifact.LEAD_ABBREV):
+            continue
+        ends.append(m)
+    if not ends:
+        return "", inline
+    if not inline.rstrip().endswith("?"):
+        return inline, None
+    cut = [m for m in ends if inline[m.start()] != "?"]
+    if not cut:
+        return "", inline
+    return inline[:cut[-1].start() + 1], inline[cut[-1].end():]
+
+
 @emitter("item")
 def emit_item(node, ctx):
     a = _attrs(node, {"title", "decided", "free", "select"},
@@ -705,6 +731,13 @@ def emit_item(node, ctx):
     # else keeps it and asks its title instead.
     if parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
         question, parts = _unwrap_p(parts[0]), parts[1:]
+        # A situation lead (BL-514): only its closing question is the heading,
+        # or the title when it asks none; the situation is body text under it.
+        lead, question = _split_question(question)
+        if lead:
+            parts.insert(0, '<p class="consult-lead">%s</p>' % lead)
+        if question is None:
+            question = md_body._inline(a["title"])
     else:
         question = md_body._inline(a["title"])
 

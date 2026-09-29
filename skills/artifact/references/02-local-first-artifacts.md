@@ -1316,7 +1316,11 @@ messages and the tests; § 8.4 is the block shape.
    ids, endpoints, gates, `BL-` numbers) never open an item: they go on a trailing
    `Fuente:` line. Each option states what that person sees or can do if it is chosen,
    not the rule behind it. When the options differ on screen, the item carries an
-   example or a figure. Measured 2026-09-29 (`.context/research/2026-09-29-consult-answerability/`):
+   example or a figure. In a spec, write the situation and the question as ONE first
+   paragraph, situation first and the question last: the builder keeps the closing
+   question (one or more `?` sentences) as the item's heading and sets the situation
+   under it as body text (`.consult-lead`, BL-514), so keep the question to one short
+   sentence. A situation with no closing question is headed by the item's `title`. Measured 2026-09-29 (`.context/research/2026-09-29-consult-answerability/`):
    14 % of 1,526 answered items came back not understood; fewer than 10 % of options said
    what the user would see. `check-artifact.sh` warns (`consult-lead-id`) when the first
    sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an
