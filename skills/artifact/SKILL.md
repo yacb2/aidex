@@ -66,8 +66,8 @@ paste that list into the rewrite brief verbatim. Pass `--new-round` to the FIRST
 build (`spec_build.py` or `wrap-report.sh`) of a round opened over a reply (only the first; later wraps of that
 round, including a delegated `--building` build's, omit it): it fails, naming
 `save-reply.sh`, if no reply was saved. A `[show-me]` duty is
-fulfilled by launching `figure-sonnet` or `verify-browser-opus` BEFORE the page
-brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
+fulfilled by a `diagram` block (`tree`, `compare`) in the page brief, or by launching
+`figure-sonnet` (wireframes only) or `verify-browser-opus` BEFORE the page brief, never by writing more prose. `check-artifact --prev` then FAILS a wrap
 that does not carry out a printed duty — no bypass
 (`references/02-local-first-artifacts.md` § "The reply is saved before the
 next round is built (BL-475)").
@@ -126,9 +126,10 @@ it never lands, whichever route wrote it. Its thirteen page-contract classes
 
 Figures are blocks too, chosen by one ladder — the highest rung that carries the
 meaning: (1) `chart` / `diagram`, closed stdlib blocks; (2) `graph`, DOT through
-Graphviz; (3) `figure`, a file — figure-sonnet's SVG or a screenshot. The table with one
-example per rung is `references/02-local-first-artifacts.md` § The figure ladder. No
-spec inlines SVG.
+Graphviz; (3) `figure`, a file — figure-sonnet's SVG or a screenshot. A consult figure
+that shows a structure or compares options is a `diagram` (`tree`, `compare`); hand SVG
+is for wireframes only. The table with one example per rung is
+`references/02-local-first-artifacts.md` § The figure ladder. No spec inlines SVG.
 
 The how-to, with worked examples, is `references/02-local-first-artifacts.md`
 § Route S; the syntax is `references/03-spec-grammar.md` and the closed set of

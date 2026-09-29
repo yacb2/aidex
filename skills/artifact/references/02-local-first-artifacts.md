@@ -100,7 +100,7 @@ The list is closed — an unknown type is refused by name with the known set pri
 | `callout` | yes | a framed aside the reader must not skim past; an empty one is refused | — |
 | `note` | yes | the quieter aside; `{.warn}` is its one class; an empty one is refused (it renders as an empty framed bar) | — |
 | `chart` | yes | bars, lines or stacked bars drawn from data rows (rung 1) | `type` |
-| `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle, tree (rung 1) | `shape` |
+| `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle, tree, compare (rung 1) | `shape` |
 | `graph` | yes | boxes and edges in DOT, laid out by Graphviz with the kit classes (rung 2) | — |
 | `figure` | yes | a drawing from a file: figure-sonnet's SVG or a screenshot (rung 3) | `src` |
 | `prose` | **no** | a run of markdown outside any fence — the implicit default | — |
@@ -287,15 +287,21 @@ highest rung that carries the figure's meaning without loss**:
 
 | Rung | Block | It carries | Example |
 |---|---|---|---|
-| 1 | `chart`, `diagram` | data rows, or boxes and arrows in one of four closed shapes — stdlib, nothing to install | items closed per week as bars; a three-step pipeline |
+| 1 | `chart`, `diagram` | data rows, or boxes and arrows in one of the closed shapes (row, pipeline, before-after, cycle, tree, compare) — stdlib, nothing to install | items closed per week as bars; a three-step pipeline; option A vs B, each a tree with its outcome |
 | 2 | `graph` | any node-and-edge figure the closed shapes cannot lay out: a star, labelled or dashed edges, parallel lanes — DOT, laid out by Graphviz | a template at the centre with its derived projects on dashed spokes |
-| 3 | `figure` | what neither can draw: a screen mockup, a screenshot, a grid of text cells, an illustration | a drawn settings screen with its three states |
+| 3 | `figure` | what neither can draw: a screen mockup or wireframe, a screenshot, a grid of text cells, an illustration | a drawn settings screen with its three states |
 
 Drop a rung only when the one above loses something the page relies on, and say what in
 the caption's neighbourhood, not silently. A rung-3 drawing is figure-sonnet's job: it
 writes an `.svg` that passes the `figure` block's rules (strict XML, allowlisted
 elements, kit classes and `currentColor`, no literal colour) and returns its path; the
 spec embeds it with `::: figure {src="…" title="…"}`. Nobody inlines SVG in a spec.
+
+**A consult figure that shows a structure or compares options is a `diagram`**:
+`shape=tree` for one structure, `shape=compare` for option A vs B (each panel a tree
+or a row plus its outcome line, the recommended one in `acc`). Hand SVG (rung 3) is for
+screen wireframes and mockups only, and `graph` is not used for consult figures
+(BL-515: the owner dropped Graphviz from that path after a hand-vs-engine comparison).
 
 A figure that illustrates one decision goes INSIDE that `item`, where it was written;
 `masthead` and `note` do not nest one.
@@ -658,7 +664,8 @@ reads `.answered.html`, which nothing but `save-reply.sh` ever touches, so a
 duty is enforced on **every** wrap of the page — the first, the fifth, after the
 baseline has moved any number of times — until a newer reply replaces it. With
 no reply saved at all, the check cannot run and WARNS instead of passing
-silently. Answering a `[show-me]` means a figure (`figure-sonnet`) or a
+silently. Answering a `[show-me]` means a figure — a `diagram` block (`tree`,
+`compare`) written into the page brief, `figure-sonnet` only for a wireframe — or a
 screenshot (`verify-browser-opus`), launched BEFORE the page brief, never a
 longer paragraph.
 
