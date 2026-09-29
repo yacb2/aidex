@@ -525,6 +525,10 @@ own, onto more lines at spaces only. It is held to 320 when every box can get na
 enough; a single word too wide for the room its detour arrows leave is drawn whole, not
 cut, and the drawing is then wider than 320 and its text smaller at 390.
 
+A `before-after` wider than 320 units gets a twin too, shown at 48rem and under when it is
+the narrower of the two: each lane one box per line, lane A above the rule above lane B,
+labels wrapped toward 320 the same way (BL-526).
+
 ```
 ::: diagram {shape=before-after title="A mano contra el spec"}
 lane Antes: SVG a mano

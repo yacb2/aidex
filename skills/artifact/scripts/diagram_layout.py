@@ -1841,6 +1841,36 @@ def layout(shape, boxes, arrows, titles, direction=None):
         else:
             routes = _layout_lr(boxes, arrows, by_name, rank)
         direction = "lr"
+    elif shape == "before-after" and direction == "tb":
+        # The 390 px twin: each lane one box per line, A above the rule above
+        # B, every label wrapped toward NARROW_W the way a `tb` row's is. A
+        # lane's arrows join neighbours only (`_check_lanes`), so each is a
+        # straight drop. One axis for both lanes, so the titles share an edge.
+        lanes = [[b for b in boxes if b.lane == 0],
+                 [b for b in boxes if b.lane == 1]]
+        title_w = max(text_width(t, TITLE_FS) for t in titles)
+        limit, prev = None, None
+        while True:
+            _fit_tb(boxes, limit)
+            widest = max(b.w for b in boxes)
+            over = max(widest, title_w) + 2 * MARGIN - NARROW_W
+            if over <= 1e-9 or widest == prev:
+                break
+            prev, limit = widest, widest - over
+        axis = widest / 2.0
+        routes, y = [], 0.0
+        for k, run in enumerate(lanes):
+            _place_tb(run)
+            for b in run:
+                b.x, b.y = b.x + axis, b.y + y
+                b.tone = "mut" if k == 0 else "acc"
+            placed_titles.append((titles[k], 0.0, y - TITLE_DROP))
+            routes += _route_tb(run, [a for a in arrows
+                                      if by_name[a.src].lane == k], by_name)
+            bottom = run[-1].y + run[-1].h
+            if k == 0:
+                divider = (0.0, bottom + LANE_V / 2.0, max(widest, title_w))
+            y = bottom + LANE_V
     elif shape == "before-after":
         lanes = [[b for b in boxes if b.lane == 0],
                  [b for b in boxes if b.lane == 1]]
@@ -1879,8 +1909,10 @@ def drawings(shape, boxes, arrows, titles, direction=None):
     wrapped into rows when it does not, and `tb` when even one column per row
     is over the page. `narrow` is a `tb` drawing when the main one is an `lr`
     wider than NARROW_W, so small screens reflow instead of shrinking the text
-    under 11 px; None otherwise (every other shape, a forced `tb`, a row
-    narrow enough already).
+    under 11 px. A `before-after` wider than NARROW_W gets its `tb` twin (each
+    lane one box per line, A above B) when that is narrower; tree and compare
+    are described in their branches. None otherwise (a cycle, a forced `tb`,
+    anything narrow enough already).
     """
     if SHAPE_ALIASES[shape] == "compare":
         # Side by side when that fits the page's 720, first with the bodies'
@@ -1911,6 +1943,13 @@ def drawings(shape, boxes, arrows, titles, direction=None):
             # one that scales up, and a wrapped outline can come out wider
             # than a top-down tree that is only just over NARROW_W.
             twin = layout(shape, boxes, arrows, titles, "outline")
+            return main, (twin if twin.view[2] < main.view[2] else None)
+        return main, None
+    if SHAPE_ALIASES[shape] == "before-after":
+        # Its 390 px twin, only when it is the narrower of the two: a title
+        # wider than a phone's column holds the twin as wide as it is.
+        if main.view[2] > NARROW_W:
+            twin = layout(shape, boxes, arrows, titles, "tb")
             return main, (twin if twin.view[2] < main.view[2] else None)
         return main, None
     if SHAPE_ALIASES[shape] != "row":

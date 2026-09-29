@@ -400,6 +400,117 @@ try:
     holds("an arrow between two neighbours of one lane is drawn",
           fence("before-after", "lane A", "a: 1", "b: 2", "lane B", "c: 3",
                 "a -> b"), "<path")
+    # BL-526: a before-after wider than a phone keeps readable gets a 390 px
+    # twin, like a row's tb and a tree's outline: each lane one box per line,
+    # A above B, labels wrapped toward NARROW_W. Only when it is narrower.
+    ba_body = ["lane Antes", "a: bloques de texto sueltos", "b: copiados a mano",
+               "c: sin fuente única", "lane Después", "d: un bloque por tema",
+               "e: generado del canon", "a -> b", "b -> c", "d -> e"]
+    ba_main, ba_twin = dl.drawings("before-after", *dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(ba_body)], "before-after"))
+    check("a before-after wider than NARROW_W gets a 390 px twin, narrower "
+          "(%.0f -> %s)" % (ba_main.view[2],
+                            ba_twin and "%.0f" % ba_twin.view[2]),
+          ba_main.view[2] > dl.NARROW_W and ba_twin is not None
+          and ba_twin.view[2] < ba_main.view[2])
+    if ba_twin is not None:
+        check("...whose text reads at 11 px or more in the 390 column",
+              dl.SUB_FS * min(dl.MAX_SCALE, 294.0 / ba_twin.view[2]) >= 11)
+    ba_html = holds("...and the page carries both drawings with the swap rule",
+                    fence("before-after", *ba_body),
+                    'class="dg-wide"', 'class="dg-narrow"', "48rem")
+    got = findings(ba_html)
+    check("...no svg-text finding on either", not got, "\n".join(got))
+    check("a before-after narrow enough already has no twin",
+          dl.drawings("before-after", *dl.parse_body(
+              [(2, "lane A"), (3, "a: 1"), (4, "lane B"), (5, "b: 2")],
+              "before-after"))[1] is None)
+    long_body = ["lane Antes", "a: una etiqueta tan larga que en una sola línea "
+                 "no cabe en la columna de un teléfono", "lane Después", "b: corta"]
+    lm, lt = dl.drawings("before-after", *dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(long_body)], "before-after"))
+    check("...a label too long for 390 wraps into lines inside NARROW_W "
+          "(%s wide)" % (lt and "%.0f" % lt.view[2]),
+          lt is not None and lt.view[2] <= dl.NARROW_W
+          and len(by_name(lt)["a"].lines) > 1)
+    one_word = ["lane A", "a: Supercalifragilisticoespialidoso_extraordinario",
+                "lane B", "b: y"]
+    check("...and no twin when it could not be narrower (one unbreakable "
+          "word per lane)",
+          dl.drawings("before-after", *dl.parse_body(
+              [(i + 2, x) for i, x in enumerate(one_word)], "before-after"))[1]
+          is None)
+    # The twin's invariants over seeded random bodies: the layer is the layout.
+    import random
+    rng = random.Random(526)
+    words = ["medir", "el", "bloque", "copiado", "canon", "sin", "fuente",
+             "generado", "una", "sola", "vez", "por", "tema", "página"]
+    twins, bad = 0, []
+    for _ in range(300):
+        n0 = rng.randint(1, 4)
+        n1 = rng.randint(1, dl.MAX_BOXES - n0)
+        body = ["lane " + " ".join(rng.sample(words, rng.randint(1, 3)))]
+        names = []
+        for k, n in ((0, n0), (1, n1)):
+            if k:
+                body.append("lane " + " ".join(rng.sample(words,
+                                                          rng.randint(1, 3))))
+            lane = []
+            for i in range(n):
+                nm = "l%d_%d" % (k, i)
+                lab = " ".join(rng.sample(words, rng.randint(1, 4)))
+                if rng.random() < 0.3:
+                    lab += " | " + " ".join(rng.sample(words, rng.randint(1, 3)))
+                body.append("%s: %s" % (nm, lab))
+                lane.append(nm)
+            names.append(lane)
+        for lane in names:
+            for i in range(len(lane) - 1):
+                if rng.random() < 0.7:
+                    body.append("%s -> %s" % (lane[i], lane[i + 1]))
+        parsed = dl.parse_body([(i + 2, x) for i, x in enumerate(body)],
+                               "before-after")
+        m, t = dl.drawings("before-after", *parsed)
+        if m.view[2] <= dl.NARROW_W:
+            if t is not None:
+                bad.append(("twin under NARROW_W", body))
+            continue
+        if t is None:
+            continue
+        twins += 1
+        lanes = [[b for b in t.boxes if b.lane == k] for k in (0, 1)]
+        why = []
+        if t.view[2] >= m.view[2]:
+            why.append("not narrower")
+        for run in lanes:
+            if any(abs(p.cx - q.cx) > 1e-6 or p.y + p.h > q.y
+                   for p, q in zip(run, run[1:])):
+                why.append("lane not one box per line in order")
+        if not (max(b.y + b.h for b in lanes[0]) < t.divider[1]
+                < min(b.y for b in lanes[1])):
+            why.append("lanes not A above rule above B")
+        for (text, tx, ty), run in zip(t.titles, lanes):
+            if not ty < min(b.y for b in run):
+                why.append("title not above its lane")
+        if any(b.tone != ("mut" if b.lane == 0 else "acc") for b in t.boxes):
+            why.append("tone")
+        byn = by_name(t)
+        for r, a in zip(t.routes, parsed[1]):
+            s, d = byn[a.src], byn[a.dst]
+            if r.points != [(s.cx, s.y + s.h), (d.cx, d.y)]:
+                why.append("arrow %s->%s not a straight drop" % (a.src, a.dst))
+        vx, vy, vw, vh = t.view
+        if any(b.x < vx or b.y < vy or b.x + b.w > vx + vw
+               or b.y + b.h > vy + vh for b in t.boxes):
+            why.append("box outside the viewBox")
+        if len(t.routes) != len(parsed[1]):
+            why.append("arrow count")
+        if why:
+            bad.append((why, body))
+    check("before-after twin sweep: %d twins, every one narrower, lanes one "
+          "box per line A above the rule above B, titles above, tones kept, "
+          "straight drops, inside the viewBox (%d bad)" % (twins, len(bad)),
+          twins >= 100 and not bad, str(bad[:2]))
     # `lane` is reserved as a first word, but a NAME may start with it.
     holds("a box named `lane-1` is a box, not a lane",
           fence("row", "lane-1: uno"), ">uno<")
@@ -1404,8 +1515,9 @@ try:
     check("check-artifact.sh passes the built page on its own",
           r.returncode == 0, r.stdout + r.stderr)
     page = open(out, encoding="utf-8").read()
-    check("the page carries all three shapes (the row with its narrow twin)",
-          page.count("<svg ") == 4 and page.count('class="dg-narrow"') == 1,
+    check("the page carries all three shapes (the row and the before-after "
+          "with their narrow twins, BL-526)",
+          page.count("<svg ") == 5 and page.count('class="dg-narrow"') == 2,
           page[:200])
     check("...and the kit", "artifact-kit" in page)
     check("...and its ids survive byte-exactly",
