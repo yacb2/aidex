@@ -70,6 +70,10 @@
       askReframeTitle: 'The question itself is the wrong question. Say in the notes what it should be asking.',
       askShow: 'show me',
       askShowTitle: 'A mockup, a diagram, a before/after, worked examples \u2014 not more prose.',
+      askMore: 'more examples',
+      askMoreTitle: 'I already saw examples; I want more or different ones. The ones there stay.',
+      askDefect: 'the page is broken',
+      askDefectTitle: 'Something about the page looks or works wrong (broken text, something that does not load). Say it in the notes.',
       provisional: 'Provisional: you chose an option and asked for something as well. The next round answers the ask and keeps this question open, with that option already ticked.',
       toLight: 'Light',
       toDark: 'Dark',
@@ -162,6 +166,10 @@
       askReframeTitle: 'La pregunta en s\u00ed est\u00e1 mal planteada. Di en las notas qu\u00e9 deber\u00eda preguntar.',
       askShow: 'mu\u00e9stramelo',
       askShowTitle: 'Un mockup, un diagrama, un antes/despu\u00e9s, ejemplos concretos \u2014 no m\u00e1s prosa.',
+      askMore: 'm\u00e1s ejemplos',
+      askMoreTitle: 'Ya vi ejemplos; quiero m\u00e1s o distintos. Los que est\u00e1n se quedan.',
+      askDefect: 'la p\u00e1gina tiene un error',
+      askDefectTitle: 'Algo de la p\u00e1gina se ve o funciona mal (texto roto, algo que no carga). Dilo en las notas.',
       provisional: 'Provisional: elegiste una opci\u00f3n y adem\u00e1s pediste algo. La pr\u00f3xima ronda responde lo que pediste y deja esta pregunta abierta, con esa opci\u00f3n ya marcada.',
       toLight: 'Claro',
       toDark: 'Oscuro',
@@ -238,12 +246,24 @@
    * piece of it. `[show-examples]` was proposed with them and NOT built:
    * `[show-me]` already means "a mockup, a diagram, a before/after, an example",
    * so it would have been a second control for one meaning — its title now names
-   * examples explicitly instead. */
+   * examples explicitly instead.
+   *
+   * Two more (BL-505): `[more-examples]` is NOT the `[show-examples]` proposal
+   * above widened back in — `[show-me]` answers "I have no example yet", this
+   * answers "I have one and want more or different ones, the ones given stay",
+   * and its rewrite duty and its gate (the example count must grow) differ from
+   * show-me's, so widening would have lost that gate. `[page-defect]` names a
+   * defect IN THE PAGE ITSELF (broken text, something that fails to render) —
+   * no other chip says that, `[reframe]` says the QUESTION is wrong, which is a
+   * different claim and pulled in the wrong rewrite (a different question,
+   * rather than the same page fixed in place). */
   var EXPLAIN_WHY = '[explain-why]';
   var EXPLAIN_SIMPLER = '[explain-simpler]';
   var QUESTION = '[question]';
   var REFRAME = '[reframe]';
   var SHOW_ME = '[show-me]';
+  var MORE_EXAMPLES = '[more-examples]';
+  var PAGE_DEFECT = '[page-defect]';
   var NOT_NOW = '[not-now]';
   /* Not a chip and never ticked: a qualifier the composer appends to a chosen
    * option when an ask sits beside it. See isProvisional. */
@@ -634,7 +654,12 @@
    * ambiguity, on the surfaces the option group does not cover. What is NOT an
    * answer: free prose (`textarea`, `[contenteditable]`). It is what the item's
    * notes box is for, it qualifies an answer rather than being one, and an ask
-   * typed beside prose leaves the item plainly open — nothing to qualify. */
+   * typed beside prose leaves the item plainly open — nothing to qualify.
+   *
+   * `[page-defect]` (BL-505) is excluded from what makes an answer provisional:
+   * it reports a defect IN THE PAGE, not a gap in the question, so ticking it
+   * beside a chosen answer does not put that answer in question — the answer
+   * stands, only the rendering needs fixing. */
   function answerMarks(el) {
     return [].slice.call(el.querySelectorAll(
       '.opts input[type="radio"]:checked, .opts input[type="checkbox"]:checked'
@@ -650,9 +675,13 @@
     return [].slice.call(el.querySelectorAll('.kit-ask input[type="checkbox"]:checked'));
   }
 
+  function provisionalAskMarks(el) {
+    return askMarks(el).filter(function (i) { return (i.dataset.label || '') !== PAGE_DEFECT; });
+  }
+
   function isProvisional(el) {
     if (isDecided(el)) return false;
-    if (!askMarks(el).length) return false;
+    if (!provisionalAskMarks(el).length) return false;
     return answerMarks(el).length > 0 || answerValues(el).length > 0;
   }
 
@@ -1085,7 +1114,8 @@
    *
    * One line, not five: chips with a title each and no hint lines, because
    * the two v16 radios cost four lines per group and the whole complaint about
-   * these pages is their length. Seven chips since v19; at phone width the row
+   * these pages is their length. Seven chips since v19, nine since v20 (BL-505:
+   * `[more-examples]`, `[page-defect]`); at phone width the row
    * wraps, which components.css tightens rather than hides — a disclosed chip
    * costs the one thing the mining shows the reader lacks, seeing it exists.
    *
@@ -1101,7 +1131,9 @@
     [EXPLAIN_SIMPLER, 'askSimpler', 'askSimplerTitle'],
     [QUESTION, 'askQuestion', 'askQuestionTitle'],
     [REFRAME, 'askReframe', 'askReframeTitle'],
-    [SHOW_ME, 'askShow', 'askShowTitle']
+    [SHOW_ME, 'askShow', 'askShowTitle'],
+    [MORE_EXAMPLES, 'askMore', 'askMoreTitle'],
+    [PAGE_DEFECT, 'askDefect', 'askDefectTitle']
   ];
   function addAskRows() {
     items.forEach(function (el) {
@@ -1126,7 +1158,10 @@
          * replaces carried its own text box and was never used once in 333
          * answered items; the box the item already has is the one the reader
          * types in. */
-        if (spec[0] === QUESTION) {
+        /* `[page-defect]` (BL-505) names the page itself, not the question, but
+         * the words describing what broke have nowhere else to go either —
+         * same notes box, same focus rule as `[question]`. */
+        if (spec[0] === QUESTION || spec[0] === PAGE_DEFECT) {
           input.addEventListener('change', function () {
             if (!input.checked) return;
             /* The item's own notes box first, its free-prose box second, and
