@@ -80,6 +80,10 @@
       themeTitle: 'Switch this page between light and dark',
       decided: 'Decided',
       decidedCount: function (n) { return n + (n === 1 ? ' question already settled' : ' questions already settled'); },
+      dropped: 'Dropped',
+      droppedMark: ' (dropped)',
+      droppedHint: 'These questions left the set without an answer. Open one to re-read what it asked and why it was dropped.',
+      droppedCount: function (n) { return n + (n === 1 ? ' question dropped, never answered' : ' questions dropped, never answered'); },
       decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.',
       zoomOpen: 'Open this tile at full size',
       zoomLabel: 'Enlarge',
@@ -178,6 +182,10 @@
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
       decided: 'Decidido',
       decidedCount: function (n) { return n + (n === 1 ? ' pregunta ya resuelta' : ' preguntas ya resueltas'); },
+      dropped: 'Descartadas',
+      droppedMark: ' (descartada)',
+      droppedHint: 'Estas preguntas salieron del conjunto sin respuesta. Abre una para releer qu\u00e9 preguntaba y por qu\u00e9 se descart\u00f3.',
+      droppedCount: function (n) { return n + (n === 1 ? ' pregunta descartada, sin responder' : ' preguntas descartadas, sin responder'); },
       decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.',
       zoomOpen: 'Abre este tile a tama\u00f1o completo',
       zoomLabel: 'Ampliar',
@@ -383,7 +391,11 @@
     return v || decidedLine(el);
   }
 
-  var decidedSection = null;
+  var decidedSection = null, droppedSection = null;
+  /* A dropped item (data-dropped, BL-516.4) left the question set unanswered:
+   * it is folded like a decided one, but it is not a decision, so it is counted
+   * and headed apart from them (BL-532). */
+  function isDropped(el) { return el.hasAttribute('data-dropped'); }
   function collapseDecided() {
     var decided = items.filter(isDecided);
     if (!decided.length) return;
@@ -415,6 +427,11 @@
       }
       units.push({ node: el, group: false });
     });
+    units.forEach(function (u) {
+      u.dropped = u.group
+        ? [].slice.call(u.node.querySelectorAll('.consult-item')).every(isDropped)
+        : isDropped(u.node);
+    });
 
     function fold(u) {
       var d = document.createElement('details');
@@ -428,7 +445,9 @@
         var inner = [].slice.call(u.node.querySelectorAll('.consult-item'));
         k.textContent = u.node.dataset.id || u.node.id || '';
         v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
-          inner.map(function (el) { return el.dataset.id; }).join(', ');
+          inner.map(function (el) {
+            return el.dataset.id + (isDropped(el) ? L.droppedMark : '');
+          }).join(', ');
       } else {
         k.textContent = u.node.dataset.id || '';
         var line = decidedSummary(u.node);
@@ -449,38 +468,65 @@
 
     if (!units.length) return;
 
-    var sec = document.createElement('section');
-    claimId(sec, 'sec-decided');
-    sec.className = 'decided';
-    var head = document.createElement('div');
-    head.className = 'sec-head';
-    var eyebrow = document.createElement('p');
-    eyebrow.className = 'eyebrow';
-    eyebrow.textContent = L.decidedCount(decided.length);
-    var h2 = document.createElement('h2');
-    h2.textContent = L.decided;
-    head.appendChild(eyebrow);
-    head.appendChild(h2);
-    sec.appendChild(head);
-    var hint = document.createElement('p');
-    hint.className = 'decided-hint';
-    hint.textContent = L.decidedHint;
-    sec.appendChild(hint);
-
-    units.forEach(function (u) {
-      var d = fold(u);
-      d.appendChild(u.node);          /* MOVED, not copied and not deleted */
-      sec.appendChild(d);
-    });
+    function section(id, cls, eyebrowText, headText, hintText, list) {
+      var sec = document.createElement('section');
+      claimId(sec, id);
+      sec.className = cls;
+      var head = document.createElement('div');
+      head.className = 'sec-head';
+      var eyebrow = document.createElement('p');
+      eyebrow.className = 'eyebrow';
+      eyebrow.textContent = eyebrowText;
+      var h2 = document.createElement('h2');
+      h2.textContent = headText;
+      head.appendChild(eyebrow);
+      head.appendChild(h2);
+      sec.appendChild(head);
+      var hint = document.createElement('p');
+      hint.className = 'decided-hint';
+      hint.textContent = hintText;
+      sec.appendChild(hint);
+      list.forEach(function (u) {
+        var d = fold(u);
+        d.appendChild(u.node);          /* MOVED, not copied and not deleted */
+        sec.appendChild(d);
+      });
+      return sec;
+    }
 
     /* After the ledger when there is one, else after the header: the reader
      * meets what is settled before what is still being asked, and the open
      * blocks keep the run of the page to themselves. */
     var after = document.getElementById('sec-ledger') ||
                 document.querySelector('.main > header');
-    if (after && after.parentNode) after.parentNode.insertBefore(sec, after.nextSibling);
-    else (document.querySelector('.main') || document.body).appendChild(sec);
-    decidedSection = sec;
+    function place(sec) {
+      if (after && after.parentNode) after.parentNode.insertBefore(sec, after.nextSibling);
+      else (document.querySelector('.main') || document.body).appendChild(sec);
+      after = sec;
+    }
+    var settled = units.filter(function (u) { return !u.dropped; });
+    var gone = units.filter(function (u) { return u.dropped; });
+    /* Counts are what each section HOLDS: a dropped item inside a block that is
+     * otherwise decided stays in that block's unit, marked "(dropped)" in its
+     * summary, and is neither a decision nor counted as a dropped section item. */
+    function held(list) {
+      return list.reduce(function (n, u) {
+        return n + (u.group ? u.node.querySelectorAll('.consult-item').length : 1);
+      }, 0);
+    }
+    var mixedDropped = settled.reduce(function (n, u) {
+      return n + (u.group ? [].slice.call(u.node.querySelectorAll('.consult-item')).filter(isDropped).length : 0);
+    }, 0);
+    if (settled.length) {
+      place(decidedSection = section('sec-decided', 'decided',
+        L.decidedCount(held(settled) - mixedDropped),
+        L.decided, L.decidedHint, settled));
+    }
+    if (gone.length) {
+      place(droppedSection = section('sec-dropped', 'decided dropped',
+        L.droppedCount(held(gone)),
+        L.dropped, L.droppedHint, gone));
+    }
   }
   collapseDecided();
 
@@ -533,12 +579,13 @@
       /* The collapsed section gets ONE entry and stops there. Listing what it
        * holds would put every answered question back in the index the reader
        * asked to stop navigating (BL-373); the section itself is the way in. */
-      if (sec === decidedSection) return;
+      if (sec === decidedSection || sec === droppedSection) return;
       // Blocks wrapped in a container section still list under it.
       sec.querySelectorAll('.consult-group').forEach(groupEntry);
     });
     var loose = items.filter(function (el) {
-      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el));
+      return !el.closest('.consult-group') && !(decidedSection && decidedSection.contains(el)) &&
+             !(droppedSection && droppedSection.contains(el));
     });
     if (loose.length) {
       var sep = document.createElement('div');
@@ -579,6 +626,17 @@
       for (var i = 0; i < spy.length; i++) {
         if (spy[i].target.getBoundingClientRect().top > line) break;
         found = spy[i];
+      }
+      /* At the very bottom the last entry is current: a short last section
+       * never reaches the reading line, however far the reader scrolls. A page
+       * that does not scroll at all keeps the line rule (BL-488). */
+      var de = document.documentElement;
+      if (window.scrollY > 0 && window.scrollY + de.clientHeight >= de.scrollHeight - 2) {
+        /* The last section in the PAGE, which is not always the last rail
+         * entry: loose items are listed after the sections. */
+        found = spy.reduce(function (best, p) {
+          return p.target.getBoundingClientRect().top > best.target.getBoundingClientRect().top ? p : best;
+        });
       }
       if (found.link === current) return;
       if (current) current.removeAttribute('aria-current');

@@ -62,7 +62,8 @@ if [[ -z "$CHROME" ]]; then
 fi
 # Chrome.app's new headless gives its default window a 756x469 viewport; the
 # shell gives 800x600, and the cells were written against the former (at 600 px
-# tall the BL-326 spy cell reads BOTTOM=#Q2). Same default viewport on both.
+# tall the BL-326 spy cell read BOTTOM=#Q2 until BL-488; the spy cell now pins 1100x600
+# itself). Same default viewport on both.
 [[ "$(basename "$CHROME")" == chrome-headless-shell ]] && CHROME_WINDOW="${CHROME_WINDOW:-756,469}"
 
 # Dump a URL's post-script DOM into a file. The shape here is load-bearing,
@@ -184,6 +185,7 @@ $gclose
     <span class="consult-status" id="consult-status-end"></span>
   </div>
 </section>
+<section id="sec-ref"><div class="sec-head"><h2>Reference</h2></div><p>A short trailing section, after the general notes (BL-488).</p></section>
 </main>
 <aside class="rail">
   <p class="railhead">Contents</p>
@@ -240,7 +242,7 @@ window.addEventListener('load', function () {
     var atBottom = cur(), visAtBottom = vis();
     window.scrollTo(0, 0);
     window.dispatchEvent(new Event('scroll'));
-    document.title = 'SPY|TOP=' + atTop + '|BOTTOM=' + atBottom
+    document.title = 'SPY|RLDISP=' + getComputedStyle(rl).display + '|TOP=' + atTop + '|BOTTOM=' + atBottom
                    + '|VIS=' + visAtBottom + '|BACK=' + cur();
   } else if (q.indexOf('phase=seed-legacy') !== -1) {
     /* The v4 schema: marks plus ONE flat free-text list in fixed query order
@@ -675,7 +677,7 @@ t="$(run 'phase=verify')"
 # Q0 is a DECIDED item: it leaves the question set but stays in the rail, which
 # is the index of the page and not a list of what is still owed. Q0 is decided,
 # so since v18 (BL-380) it has no entry of its own: the block is the way in.
-[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,item:#notes"* ]] \
+[[ "$t" == *"RAIL_ORDER=sec:#sec-ask,G:#G1,sub:#Q1,sub:#Q2,sec:#sec-ref,item:#notes"* ]] \
   || fail "BL-247: the rail does not nest the block's items under the block (context once, decisions indented, loose notes after): $t"
 # The trap: a fingerprint over the item's RAW textContent would include this
 # text, so a plain reload with no regeneration would already fail to match.
@@ -686,11 +688,16 @@ t="$(run 'phase=verify')"
 # Its own variable, not $t: the assertions below this block read the title of
 # the `phase=verify` run above, so reusing $t here silently retargets five
 # localisation checks at this page instead.
-ts="$(run 'phase=spy')"
+# BL-488: a short trailing section never passes the reading line, so the cell scrolls to
+# the bottom at 1100x600 (rail visible, below 62rem the list is display:none) and expects
+# the LAST section in the page, not the last rail entry.
+ts="$(CHROME_WINDOW=1100,600 run 'phase=spy')"
+[[ "$ts" == *"RLDISP="* && "$ts" != *"RLDISP=none"* ]] \
+  || fail "BL-488: the rail list is not displayed at the spy window, so the cell would prove nothing: $ts"
 [[ "$ts" == *SPY* ]] || fail "the spy phase did not run: $ts"
 [[ "$ts" == *"TOP=#sec-ask"* ]] \
   || fail "BL-326: nothing was marked current at the top of the page: $ts"
-[[ "$ts" == *"BOTTOM=#notes"* ]] \
+[[ "$ts" == *"BOTTOM=#sec-ref"* ]] \
   || fail "BL-326: the current entry did not follow the page to its last section: $ts"
 # The half that makes the cap survivable: a marked entry the reader cannot see
 # inside a now-scrollable rail is the original complaint moved indoors.
@@ -698,6 +705,127 @@ ts="$(run 'phase=spy')"
   || fail "BL-326: the current entry was outside the rail's visible box: $ts"
 [[ "$ts" == *"BACK=#sec-ask"* ]] \
   || fail "BL-326: scrolling back up did not move the current entry back: $ts"
+
+# ---- BL-532 / BL-535 / BL-536: dropped items, one copy bar, the table's first column
+# One small page: a decided item, a DROPPED one (never answered), an open one, a
+# table whose second column is long prose, and both copy bars. Read at 390 px
+# (the phone layout, where the rail is a bottom bar and the end bar used to repeat it).
+NPAGE="$TMP/reports/narrow.html"
+cat > "$TMP/nbody.html" <<HTML
+<meta name="consult-visual" content="none: a layout probe, nothing to draw">
+<div class="page">
+<main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Narrow probe</h1></header>
+<section id="sec-ask">
+  <div class="sec-head"><h2>Questions</h2></div>
+<section class="consult-group" id="G1" data-id="G1" data-title="Uno"><div class="sec-head"><h2>Uno</h2></div><p>El contexto de la pregunta, en espa&ntilde;ol.</p>
+  <section class="consult-item" data-id="D1" data-title="Settled" data-decided="Option A">
+    <h3><span class="consult-id">D1</span>Pregunta ya resuelta de esta sonda</h3>
+    <div class="opts one"><label><input type="radio" name="D1" data-label="Option A" checked><span>Option A</span></label></div>
+    <p class="fieldlabel">Notas sobre esta</p><textarea></textarea>
+  </section>
+
+</section>
+<section class="consult-group" id="G2" data-id="G2" data-title="Dos"><div class="sec-head"><h2>Dos</h2></div><p>El contexto de la pregunta, en espa&ntilde;ol.</p>
+  <section class="consult-item" data-id="X1" data-title="Left the set" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica">
+    <h3><span class="consult-id">X1</span>Pregunta descartada de esta sonda</h3>
+    <p class="fieldlabel">Notas sobre esta</p><textarea></textarea>
+  </section>
+
+</section>
+<section class="consult-group" id="G4" data-id="G4" data-title="Cuatro"><div class="sec-head"><h2>Cuatro</h2></div><p>Un bloque con una decidida y una descartada.</p>
+  <section class="consult-item" data-id="D2" data-title="Settled two" data-decided="Option A">
+    <h3><span class="consult-id">D2</span>Segunda pregunta ya resuelta</h3>
+    <div class="opts one"><label><input type="radio" name="D2" data-label="Option A" checked><span>Option A</span></label></div>
+    <p class="fieldlabel">Notas sobre esta</p><textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="X2" data-title="Left two" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica">
+    <h3><span class="consult-id">X2</span>Segunda pregunta descartada</h3>
+    <p class="fieldlabel">Notas sobre esta</p><textarea></textarea>
+  </section>
+</section>
+<section class="consult-group" id="G3" data-id="G3" data-title="Tres"><div class="sec-head"><h2>Tres</h2></div><p>El contexto de la pregunta, en espa&ntilde;ol.</p>
+  <section class="consult-item" data-id="Q1" data-title="Open" data-free>
+    <h3><span class="consult-id">Q1</span>Pregunta abierta de esta sonda</h3>
+    <p class="fieldlabel">Escribe con libertad</p><div contenteditable="true"></div>
+  </section>
+
+</section>
+  <section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+    <h3><span class="consult-id">notes</span>Notas generales</h3>
+    <textarea></textarea>
+  </section>
+  <div class="tw"><table id="t-label">
+    <thead><tr><th>Rol</th><th>Por qu&eacute;</th></tr></thead>
+    <tbody><tr><td>Responsable de la entrega</td><td>El reporte de barridos toma la ventana por d&iacute;a natural, as&iacute; que dos barridos del mismo d&iacute;a se reclaman las corridas de prueba del otro; al terminar, cada corrida queda ligada a su lista de trabajo</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-id">
+    <thead><tr><th>Fuente</th><th>Tarea</th></tr></thead>
+    <tbody><tr><td>BL-489</td><td>El reporte de barridos toma la ventana por d&iacute;a natural, as&iacute; que dos barridos del mismo d&iacute;a se reclaman las corridas de prueba del otro; al terminar, cada corrida queda ligada a su lista de trabajo</td></tr></tbody>
+  </table></div>
+  <div class="endbar">
+    <button type="button" id="consult-copy-end">Copiar mis respuestas</button>
+    <span class="consult-status" id="consult-status-end"></span>
+  </div>
+</section>
+</main>
+<aside class="rail">
+  <p class="railhead">Contenido</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy">Copiar mis respuestas</button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>
+</div>
+<script>
+window.addEventListener('load', function () {
+  var shown = function (el) {
+    return !!el && getComputedStyle(el).display !== 'none' && el.getClientRects().length > 0;
+  };
+  var txt = function (sel) { var e = document.querySelector(sel); return e ? e.textContent.replace(/[|]/g, '/') : 'none'; };
+  var w = function (sel) { var e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().width) : -1; };
+  document.title = 'NARROW|W=' + window.innerWidth
+    + '|BARS=' + ['consult-copy', 'consult-copy-end'].filter(function (i) { return shown(document.getElementById(i)); }).length
+    + '|L1=' + w('#t-label td:first-child') + '|L2=' + w('#t-label td:last-child') + '|I1=' + w('#t-id td:first-child')
+    + '|DEC=' + txt('#sec-decided .eyebrow')
+    + '|DECH=' + txt('#sec-decided h2')
+    + '|DEC_HAS_X1=' + (document.querySelector('#sec-decided [data-id="X1"]') ? 1 : 0)
+    + '|DRP=' + txt('#sec-dropped .eyebrow')
+    + '|DRPH=' + txt('#sec-dropped h2')
+    + '|DRPN=' + document.querySelectorAll('#sec-dropped .consult-item').length
+    + '|DRPHINT=' + txt('#sec-dropped .decided-hint')
+    + '|MIX=' + [].map.call(document.querySelectorAll('#sec-decided summary'), function (d) { return d.textContent.replace(/[|]/g, '/'); }).join(';')
+    + '|DRP_HAS_X1=' + (document.querySelector('#sec-dropped [data-id="X1"]') ? 1 : 0)
+    + '|RAIL=' + [].map.call(document.querySelectorAll('#raillist .railitem.sec'), function (a) { return a.textContent.trim(); }).join(',');
+});
+</script>
+HTML
+bash "$WRAP" --title "narrow" --lang es --out "$NPAGE" < "$TMP/nbody.html" > "$TMP/nwrap.log" 2>&1 \
+  || fail "the narrow probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/nwrap.log" | head -4)"
+CHROME_WINDOW=390,900 chrome_dump "$TMP/ndom.html" "file://$NPAGE" 45 || true
+tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | head -1)"
+[[ "$tn" == *"NARROW|W=390|"* ]] || fail "the narrow phase did not run at 390 px: $tn"
+# BL-532: a dropped item is counted and headed apart from the decided ones.
+[[ "$tn" == *"|DEC=2 preguntas ya resueltas|DECH=Decidido|DEC_HAS_X1=0|"* ]] \
+  || fail "BL-532: a dropped item was counted or filed as decided: $tn"
+[[ "$tn" == *"|DRP=1 pregunta descartada, sin responder|DRPH=Descartadas|DRPN=1|"* && "$tn" == *"|DRP_HAS_X1=1|"* ]] \
+  || fail "BL-532: a dropped item was not shown as dropped, or the count is not what the section holds: $tn"
+[[ "$tn" == *"|DRPHINT=Estas preguntas salieron del conjunto"* ]] \
+  || fail "BL-532: the dropped section reuses the decided hint instead of saying the questions left the set: $tn"
+[[ "$tn" == *"X2 (descartada)"* ]] \
+  || fail "BL-532: a dropped item inside a mixed block is filed under the decided section with no dropped marker: $tn"
+[[ "$tn" == *"RAIL="*"Descartadas"* ]] \
+  || fail "BL-532: the rail has no entry for the dropped section: $tn"
+[[ "$tn" == *"|BARS=1|"* ]] \
+  || fail "BL-535: at 390 px the copy bar is not shown exactly once: $tn"
+l1="$(sed -nE 's/.*\|L1=([0-9]+)\|.*/\1/p' <<<"$tn")"
+l2="$(sed -nE 's/.*\|L2=([0-9]+)\|.*/\1/p' <<<"$tn")"
+i1="$(sed -nE 's/.*\|I1=([0-9]+)\|.*/\1/p' <<<"$tn")"
+[[ -n "$l1" && "$l1" -ge 100 && -n "$l2" && "$l2" -ge 180 ]] \
+  || fail "BL-536: at 390 px a short label column (${l1:-?}px) or the prose beside it (${l2:-?}px) is squeezed (want >= 100 and >= 180): $tn"
+[[ -n "$i1" && "$i1" -le 80 ]] \
+  || fail "BL-536: at 390 px an id column is ${i1:-?}px wide, it should stay narrow (want <= 80: the id plus cell padding): $tn"
 
 # ---- the chrome speaks the page's language ----------------------------------
 [[ "$t" == *"BTN=Copiar mis respuestas"* ]] \
@@ -1131,8 +1259,8 @@ td="$(run 'phase=alldecided')"
 # pass on a bar of zero height.
 [[ "$td" == *"BARH=1"* ]] \
   || fail "BL-341: the copy bar was hidden on an all-decided page — the notes box is no longer sendable: $td"
-[[ "$td" == *"ENDH=1"* ]] \
-  || fail "BL-341: the end-of-page copy bar was hidden on an all-decided page: $td"
+[[ "$td" == *"ENDH=0"* ]] \
+  || fail "BL-341/BL-535: below 62rem the rail bar is the sticky bottom bar, so the end bar must not repeat it (exactly one copy bar): $td"
 
 # BL-373 — a settled question is HIDDEN, never removed, and stops being navigated.
 #

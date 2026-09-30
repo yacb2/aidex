@@ -880,6 +880,7 @@ What the composer does, and none of it is written by an author:
 | Where it goes | One `section#sec-decided`, inserted after the ledger (or after the header when there is none), each unit inside a `<details>` whose summary carries the id, the title and the option that won |
 | The verdict line | Derived from the checked options. `data-decided="<one line>"` overrides it, for an outcome that is not any single option |
 | The rail | One entry for the section, never one per settled question — the index is the other half of "navegar sobre cosas ya respondidas". A block still open keeps its entry and lists only its OPEN items under it; a decided item folded in place has none, the block is the way in |
+| Dropped items | An item with `data-dropped` (spec `dropped="reason"`, BL-516.4) left the question set unanswered, so it is never counted as decided: its unit goes to its own `section#sec-dropped` (heading "Descartadas" / "Dropped", its own count and hint), right after `#sec-decided`, with one rail entry of its own. A dropped item inside a block whose other items are decided stays in that block's unit, marked "(descartada)" in the summary, and is not counted as a decision |
 
 The node is **moved**, never copied or deleted, so the static file is unchanged: the same
 markup parses the same way, `check_artifact.py` needs no rule of its own, and BL-359's fix

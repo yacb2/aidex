@@ -486,6 +486,12 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    target is already the floor); what gives is the space between them and the
    lead-in, which takes a line of its own so no chip is orphaned beside it. */
 @media (max-width: 34rem) {
+  /* A table with a long prose column squeezed its other columns on a phone: the
+     first one shrank to the width of its longest word. A floor on the TABLE
+     leaves each column to size itself (an id stays an id, a label keeps its
+     room) and the table scrolls inside .tw once the floor is wider than the
+     screen (BL-536). */
+  .tw > table:where(:not(svg *)) { min-width: 30rem; }
   .kit-ask { gap: 0.25rem 0.5rem; }
   .kit-ask-lead { flex-basis: 100%; }
   .kit-ask label { padding: 0.25rem 0.3rem; }
@@ -593,6 +599,12 @@ textarea { resize: vertical; }
           border: 1px solid var(--accent-dim); border-radius: 4px; padding: 0.9rem 1.1rem; background: var(--paper-sunk); }
 .endbar button { font-family: var(--sans); font-size: 0.9rem; padding: .55rem 1.1rem; border-radius: 4px;
                  border: 1px solid var(--accent-dim); cursor: pointer; color: inherit; background: var(--paper); }
+
+/* Where the rail is the sticky bottom bar (the 62rem breakpoint below), it is
+   always in view, so the end bar would be a second copy of the same button and
+   status (BL-535). Above it the rail is a sidebar the reader may have scrolled
+   past, and the end bar stays. After the .endbar rule: same specificity. */
+@media (max-width: 62rem) { .endbar:where(:not(svg *)) { display: none; } }
 
 @media (max-width: 62rem) {
   .page { grid-template-columns: 1fr; gap: 0; }
