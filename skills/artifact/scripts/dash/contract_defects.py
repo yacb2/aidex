@@ -263,6 +263,7 @@ def _is_item(n):
 
 OPTION_INPUT = ("radio", "checkbox")
 RECOMMENDED = "{recommended}"
+MARKERS = (RECOMMENDED, "{chosen}")      # both are builder-read option marks (BL-496)
 
 
 OPTIONS_MIN = 2          # one option is not a choice
@@ -322,18 +323,20 @@ def check_decision_item_without_options(path, html_text):
                         % (n.attrs["data-id"], k, OPTIONS_MIN)))
     for n in b.root.walk():
         for name, val in n.attrs.items():
-            if RECOMMENDED in (val or ""):
-                out.append((slug, n.line, "literal %s in the %s attribute: the "
-                            "builder did not read the marker" % (RECOMMENDED, name)))
+            for mark in MARKERS:
+                if mark in (val or ""):
+                    out.append((slug, n.line, "literal %s in the %s attribute: the "
+                                "builder did not read the marker" % (mark, name)))
     for line, text, parent in b.texts:
-        if RECOMMENDED not in text:
+        found = [m for m in MARKERS if m in text]
+        if not found:
             continue
         if parent.tag in ("code", "pre") or any(
                 a.tag in ("code", "pre") for a in parent.ancestors()):
             continue
         out.append((slug, line, "literal %s shows as page text: the builder did "
                     "not read the marker, so the option carries no "
-                    "data-recommended" % RECOMMENDED))
+                    "data-recommended or checked state" % found[0]))
     return out
 
 

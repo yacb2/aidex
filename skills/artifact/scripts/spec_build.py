@@ -106,7 +106,9 @@ STRINGS = {
 # what travels in the reply.
 HINT_SEP = " — "
 RECOMMENDED = "{recommended}"
-REC_MARK = re.compile(r"\s*" + re.escape(RECOMMENDED) + r"\s*")
+CHOSEN = "{chosen}"       # BL-496: a decided item's winning option, checked, not recommended
+REC_MARK = re.compile(r"\s*(?:" + re.escape(RECOMMENDED) + "|" + re.escape(CHOSEN)
+                      + r")\s*")
 # What `data-label` carries is TEXT: the composer copies that attribute into the
 # reply, so a backtick or a `**` written for the page's own rendering would
 # travel into the paste as punctuation the reader never wrote. Backticks and
@@ -382,7 +384,7 @@ def _unfenced(lines):
 
 @emitter("masthead")
 def emit_masthead(node, ctx):
-    a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang"},
+    a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang", "dropped-ids"},
                forbid_id=True)
     # A masthead may carry a framed aside, in the position it was written. One
     # sampled page opens with
@@ -543,6 +545,13 @@ def _split_options(lines, line):
     return before, opts, lines[i:]
 
 
+def chosen_labels(node):
+    """The labels of an `item`'s `{chosen}` options (for `spec_verbs.decide`)."""
+    return [_option(t)[0] for c in node.children if c.block_type == "prose"
+            for t in _split_options(list(c.raw_body), node.line)[1]
+            if _option(t)[3]]
+
+
 def has_options(node):
     """Whether an `item` node offers options, read the way `emit_item` reads
     them (the first top-level `-` list of its prose, code fences tracked). For
@@ -583,7 +592,7 @@ def _refuse_second_list(node):
 
 
 def _option(text):
-    """`(label, hint, recommended)` from one option line."""
+    """`(label, hint, recommended, chosen)` from one option line."""
     # The marker is honoured wherever it sits on the option, not only at the
     # end: `label {recommended} — hint`, or on a wrapped option's first line,
     # used to ship it as text with no data-recommended (BL-481).
@@ -591,10 +600,11 @@ def _option(text):
     # showing the syntax, which check_artifact also treats as quoting (BL-491).
     parts = re.split(r"((?<!\\)`[^`]+`)", text)
     rec = any(RECOMMENDED in p for p in parts[::2])
+    chosen = any(CHOSEN in p for p in parts[::2])
     text = "".join(p if i % 2 else REC_MARK.sub(" ", p)
                    for i, p in enumerate(parts)).strip()
     label, _, hint = text.partition(HINT_SEP)
-    return label.strip(), hint.strip(), rec
+    return label.strip(), hint.strip(), rec, chosen
 
 
 # The framed aside: what `item`, `masthead` and `note` may carry BESIDES their
@@ -771,10 +781,21 @@ def emit_item(node, ctx):
                 "question set or it was settled, not both")
         decided = gallery_items.DROPPED_WORD[ctx.lang] + ": " + reason
         flag = ' data-dropped="%s"' % esc(reason)
+    chosen_n = sum(1 for t in opts if _option(t)[3])
+    if chosen_n > 1 and select == "one":
+        raise SpecBuildError(
+            node.line, "`item` marks more than one option {chosen} on a "
+            "select=one item: it has one winner; keep the marker on it (only "
+            "select=many can choose several)")
+    if chosen_n and not a.get("decided", "").strip():
+        raise SpecBuildError(
+            node.line, "`item` marks an option {chosen} but is not decided: "
+            "{chosen} is the winner of a decided item (decided=yes), so add "
+            "decided or drop the marker")
     if decided.lower() in contract_defects.NOT_A_VERDICT:
         flag, check_recommended = " data-decided", True
         recommended = sum(1 for t in opts if _option(t)[2])
-        if not recommended:
+        if not recommended and not chosen_n:
             raise SpecBuildError(
                 node.line, "`item` decided=%s has no option marked "
                 "{recommended} to check, so the page would show no verdict: mark "
@@ -782,7 +803,7 @@ def emit_item(node, ctx):
                 "decided=\"…\"" % decided)
         # One radio group holds one checked input: the parser keeps the last,
         # and the fold would show it as the verdict with no one having chosen.
-        if recommended > 1 and select == "one":
+        if recommended > 1 and select == "one" and not chosen_n:
             raise SpecBuildError(
                 node.line, "`item` decided=%s marks more than one option "
                 "{recommended} on a select=one item, so it cannot say which one "
@@ -802,12 +823,12 @@ def emit_item(node, ctx):
         many = select == "many"
         out.append('  <div class="opts">' if many else '  <div class="opts one">')
         for text in opts:
-            label, hint, rec = _option(text)
+            label, hint, rec, chosen = _option(text)
             if not label:
                 raise SpecBuildError(node.line, "an option with no label")
-            if RECOMMENDED in label:      # only a backtick-quoted one survives
+            if RECOMMENDED in label or CHOSEN in label:   # only a quoted one survives
                 raise SpecBuildError(
-                    node.line, "option %r quotes `{recommended}` in its label, "
+                    node.line, "option %r quotes `{recommended}` or `{chosen}` in its label, "
                     "and the label is data-label, which the reply copies: put "
                     "the quote in the hint (after ` — `) or the item body"
                     % label)
@@ -819,7 +840,9 @@ def emit_item(node, ctx):
                        % ("checkbox" if many else "radio",
                           esc(node.id), esc(PLAIN.sub("", label)),
                           " data-recommended" if rec else "",
-                          " checked" if rec and check_recommended else "", span))
+                          " checked" if (chosen if chosen_n
+                                         else rec and check_recommended) else "",
+                          span))
         out.append("  </div>")
     out.extend("  " + p for p in render(tail))
     # The notes box is not optional on any item: a closed choice with nowhere to
@@ -1615,6 +1638,19 @@ def build(spec_text, lang=None, base_dir=".", page=None):
             if visual:
                 head.append('<meta name="consult-visual" content="%s">'
                             % esc(visual))
+            # BL-533: the ids a new round took OFF the page, recorded so the
+            # id-stability check can tell a declared drop from a lost item.
+            gone = node.attrs.get("dropped-ids", "").split()
+            live = [i for i in gone if any(n.id == i for n in _walk(tree))]
+            if live:
+                raise SpecBuildError(
+                    node.line, "`masthead` dropped-ids lists %s, still in the "
+                    "spec: a dropped id is one the page no longer carries (an "
+                    "item that stays takes dropped=\"reason\" instead)"
+                    % ", ".join(live))
+            if gone:
+                head.append('<meta name="consult-dropped" content="%s">'
+                            % esc(" ".join(gone)))
 
     body = [emit_node(n, ctx) for n in tree if not _blank_prose(n)]
 

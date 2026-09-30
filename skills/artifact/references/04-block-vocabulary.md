@@ -245,6 +245,18 @@ backtick span, where it is the syntax quoted and stays literal (in the label it 
 refused, because the label is `data-label`; quote it in the hint or the body);
 `check-artifact` fails a page that still shows it (`rec-leak`, BL-481).
 
+**`{chosen}`: the option that won** (BL-496). `decided=yes` checks the `{recommended}`
+option, which cannot say "this won and it was not the recommendation". Mark the winner
+`{chosen}` instead: it is drawn checked and carries no `data-recommended`, so a
+`{recommended}` elsewhere on the item keeps its badge. Same placement and the same
+backtick rule as `{recommended}` (quoted in a hint it stays literal; in a label it is
+refused). Only on a decided item (`decided=yes` or `decided="verdict"`): on an
+undecided one the build refuses it. A `select=one` item takes at most one; a
+`select=many` item may mark several, each checked. When an item has any `{chosen}`,
+those options are the ones checked whatever else is recommended; `decided=yes` then
+needs no `{recommended}` at all. `spec_verbs.py decide` refuses a verdict that
+differs from the `{chosen}` label: move the marker to the new winner first.
+
 **One choice or a set: `select=`.** An item's options are radios by default
 (`select=one`). A question whose answer is a SET — "which of these four films go to
 the publishing queue?" — writes `select=many`: the options become checkboxes

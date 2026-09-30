@@ -407,6 +407,16 @@ PLACEHOLDER_REASON = re.compile(
     r'^(replace this|replace with|tbd|todo|fixme|xxx|why|the reason)\b', re.I)
 
 
+def dropped_declaration(text):
+    """The ids the page declares it took off (`consult-dropped` meta, BL-533):
+    written only by a spec's masthead `dropped-ids`, i.e. by an explicit drop."""
+    m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-dropped["\x27]?'
+                  r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
+                  text, re.I | re.S)
+    return set() if not m else set(
+        next(g for g in m.groups() if g is not None).split())
+
+
 def surfaces_declaration(text):
     """The consult-surfaces meta's `none:` reason, or "" when there is none.
     Same shape as consult-visual, and for the same reason: no checker can judge
@@ -3326,13 +3336,21 @@ def check_prev(new_path, prev_path):
     dropped = sorted(set(old) - set(new))
     if dropped:
         new_text = open(new_path, encoding="utf-8", errors="replace").read()
+        declared = dropped_declaration(new_text)
         if not surfaces_declaration(new_text):
             for i in dropped:
+                if i in declared:
+                    notes.append(("consult-ids", os.path.basename(new_path),
+                                  f'{i} ("{old[i]}") left the page, declared by '
+                                  f'consult-dropped; it is recorded, not lost'))
+                    continue
                 fails.append(("consult-ids", os.path.basename(new_path),
                               f'id dropped between rounds — {i} ("{old[i]}") '
                               f'was on the previous version and is not on this '
                               f'one. Ids are never removed: keep the item and '
-                              f'mark it decided or closed; only a page declaring '
+                              f'mark it decided or closed; a round that really '
+                              f'drops it says so (spec_verbs new-round --drop), '
+                              f'and a page declaring '
                               f'consult-surfaces: none may drop ids'))
     # BL-323: a TRANSLATION changes every title by definition, and that is not
     # the failure this check exists for. On a real 12-item page it produced 12

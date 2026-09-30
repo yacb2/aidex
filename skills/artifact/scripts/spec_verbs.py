@@ -252,6 +252,11 @@ def add_item(spec_text, group_id, item_id, title, body="", options=()):
         raise VerbError("%r is not a usable id — an id starts with a letter "
                         "and holds letters, digits, '-' and '_' only"
                         % item_id)
+    masthead = next((n for n in tree if n.block_type == "masthead"), None)
+    if masthead is not None and item_id in masthead.attrs.get(
+            "dropped-ids", "").split():
+        raise VerbError("%s was dropped in an earlier round; give the new item "
+                        "a new id" % item_id)
     ledger_ids = _ledger_ids(tree)
     clash = _by_id(tree, item_id)
     if clash is not None:
@@ -387,29 +392,81 @@ def decide(spec_text, item_id, verdict):
                 "option's label as the verdict (e.g. --verdict \"<label>\")"
                 % (item_id, verdict.strip()))
 
+    try:
+        chosen = spec_build.chosen_labels(node)
+    except SpecBuildError as exc:
+        raise VerbError("#%s cannot be read (line %d: %s)"
+                        % (item_id, exc.line, exc.message))
+    if chosen and verdict.strip() not in chosen + [", ".join(chosen)]:
+        raise VerbError(
+            "#%s carries {chosen} on %s, so deciding %r would leave the page "
+            "checking one option and naming another: move the {chosen} marker "
+            "to the new winner first" % (item_id, ", ".join(map(repr, chosen)),
+                                         verdict.strip()))
     lines = _split(spec_text)
-    i = node.line - 1
-    line = lines[i]
-    brace = line.find("{")
-    if brace < 0:                        # unreachable: `item` requires an #id
-        raise VerbError("the fence of #%s (line %d) carries no attr group"
-                        % (item_id, node.line))
-    spans = {}
-    _, _, _, end = spec_parser._parse_attrs(node.line, line, brace, spans)
-    if "decided" in spans:
-        lo, hi = spans["decided"]
-        new = line[:lo] + "decided=%s" % _quotable(verdict) + line[hi:]
-    else:
-        close = end - 1                  # the index of the closing '}'
-        pad = "" if (close and line[close - 1] in " \t") else " "
-        new = line[:close] + pad + "decided=%s" % _quotable(verdict) + line[close:]
-    if new == line:
+    if not _set_attr(lines, node, "decided", verdict):
         return spec_text
-    lines[i] = new
     return "\n".join(lines)
 
 
-def new_round(spec_text):
+def _set_attr(lines, node, name, value):
+    """Set `name=value` on `node`'s fence line, in place; False when unchanged."""
+    i = node.line - 1
+    line = lines[i]
+    brace = line.find("{")
+    if brace < 0:                        # `item` requires an #id; a masthead may not
+        pad = "" if line.endswith(" ") else " "
+        new = line + pad + "{%s=%s}" % (name, _quotable(value))
+    else:
+        spans = {}
+        _, _, _, end = spec_parser._parse_attrs(node.line, line, brace, spans)
+        if name in spans:
+            lo, hi = spans[name]
+            new = line[:lo] + "%s=%s" % (name, _quotable(value)) + line[hi:]
+        else:
+            close = end - 1              # the index of the closing '}'
+            pad = "" if (close and line[close - 1] in " \t") else " "
+            new = (line[:close] + pad + "%s=%s" % (name, _quotable(value))
+                   + line[close:])
+    if new == line:
+        return False
+    lines[i] = new
+    return True
+
+
+def new_round(spec_text, dropped=()):
+    """`_sync_ledger`, then record `dropped` ids on the masthead (BL-533).
+
+    `dropped` is the ids this round takes OFF the page: the author removed the
+    blocks from the spec, and the id-stability check refuses a disappearing id
+    unless the page declares it. Each must really be gone from the spec; one that
+    stays takes `dropped="reason"` on its item instead. Recorded once, kept by
+    later rounds. Not derived from the old page: a removal nobody declared is
+    still the BL-396 failure, and the rebuild still refuses it.
+    """
+    text = _sync_ledger(spec_text)
+    dropped = [i for i in (d.strip().lstrip("#") for d in dropped) if i]
+    if not dropped:
+        return text
+    tree = _parse(text, "the spec")
+    live = [i for i in dropped if _by_id(tree, i) is not None]
+    if live:
+        raise VerbError("--drop %s: still in the spec. A dropped id is one the "
+                        "page no longer carries; an item that stays is marked "
+                        "dropped=\"reason\" on its fence instead"
+                        % ", ".join("#" + i for i in live))
+    masthead = next((n for n in tree if n.block_type == "masthead"), None)
+    if masthead is None:
+        raise VerbError("the spec has no `masthead` to record the dropped ids on")
+    have = masthead.attrs.get("dropped-ids", "").split()
+    merged = have + [i for i in dict.fromkeys(dropped) if i not in have]
+    lines = _split(text)
+    if not _set_attr(lines, masthead, "dropped-ids", " ".join(merged)):
+        return text
+    return "\n".join(lines)
+
+
+def _sync_ledger(spec_text):
     """Sync the ledger to the decided items: one row per decision, keyed by id.
 
     IDEMPOTENT by construction. A row whose key is already in the ledger is left
@@ -677,8 +734,9 @@ def decide_many_file(spec_path, pairs, out=None, lang="es"):
     return apply_edit(spec_path, transform, out=out, lang=lang)
 
 
-def new_round_file(spec_path, out=None, lang="es"):
-    return apply_edit(spec_path, new_round, out=out, lang=lang)
+def new_round_file(spec_path, out=None, lang="es", dropped=()):
+    return apply_edit(spec_path, lambda text: new_round(text, dropped),
+                      out=out, lang=lang)
 
 
 # --- CLI ---------------------------------------------------------------------
@@ -715,8 +773,12 @@ def main(argv):
                         "options (it would record the recommended option, not "
                         "the reader's) and fails the build on one without")
 
-    common(subs.add_parser(
+    n = common(subs.add_parser(
         "new-round", help="sync the ledger to the decided items and rebuild"))
+    n.add_argument("--drop", action="append", default=[], dest="dropped",
+                   metavar="<#id>", help="an item this round removed from the "
+                   "spec; its id is recorded on the masthead so the page may "
+                   "lose it (repeat for several)")
 
     args = p.parse_args(argv)
     if not args.verb:
@@ -739,7 +801,8 @@ def main(argv):
                 [(i.lstrip("#"), v) for i, v in zip(args.ident, args.verdict)],
                 out=args.out, lang=args.lang)
         else:
-            out = new_round_file(args.spec, out=args.out, lang=args.lang)
+            out = new_round_file(args.spec, out=args.out, lang=args.lang,
+                                 dropped=[i.lstrip("#") for i in args.dropped])
     except VerbError as exc:
         sys.stderr.write("spec-verbs %s: %s\n" % (args.verb, exc))
         return 1

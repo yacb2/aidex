@@ -431,6 +431,41 @@ try:
             ITEM_QUOTED.replace('title="t"}', 'title="t" decided=yes}')
                        .replace(" {recommended} —", " —"),
             2, "no option marked {recommended}")
+    # BL-496: `{chosen}` checks a decided item's winning option WITHOUT calling it
+    # recommended. Same code-span rule as `{recommended}`.
+    CH = ('::: group {#G1 title="T"}\n'
+          '::: item {#Q1 title="t" decided=yes}\n?\n\n'
+          "- Uno {recommended}\n- Dos {chosen} — con pista\n- Tres\n"
+          ":::\n:::\n")
+    holds("item: decided=yes checks the {chosen} option, not the recommended one",
+                   CH, 'data-label="Dos" checked>', 'data-label="Uno" data-recommended>')
+    holds("item: decided=\"verdict\" also checks the {chosen} option",
+          CH.replace("decided=yes", 'decided="Dos"'),
+          'data-label="Dos" checked>', 'data-decided="Dos"')
+    rejects("item: {chosen} on an undecided item is refused",
+            CH.replace(" decided=yes", ""), 2, "{chosen}")
+    rejects("item: two {chosen} on a select=one item are refused",
+            CH.replace("- Tres", "- Tres {chosen}"), 2, "more than one")
+    many_ch = holds("item: select=many checks every {chosen} option and only those",
+                    CH.replace("decided=yes", "decided=yes select=many")
+                      .replace("- Tres", "- Tres {chosen}"),
+                    'data-label="Dos" checked>', 'data-label="Tres" checked>',
+                    'data-label="Uno" data-recommended>')
+    check("item: ...the recommended one is not checked once a {chosen} exists",
+          'data-label="Uno" data-recommended checked' not in many_ch, many_ch)
+    holds("item: decided=yes with only {chosen} (no {recommended}) builds",
+          CH.replace(" {recommended}", ""), 'data-label="Dos" checked>')
+    holds("item: a backtick-quoted {chosen} in a hint stays literal",
+          CH.replace("con pista", "con `{chosen}` citado"),
+          'data-label="Dos" checked>', "<code>{chosen}</code>")
+    rejects("item: a backtick-quoted {chosen} in a LABEL is refused",
+            CH.replace("Tres", "Tres `{chosen}`"), 2, "data-label")
+    # BL-533: masthead dropped-ids records ids the page no longer carries.
+    MAST = '::: masthead {title="T" dropped-ids="Q7 Q8"}\n:::\n\n'
+    holds("masthead: dropped-ids reaches the page as the consult-dropped meta",
+          MAST + CH, '<meta name="consult-dropped" content="Q7 Q8">')
+    rejects("masthead: dropped-ids naming an id still in the spec is refused",
+            MAST.replace("Q7", "Q1") + CH, 1, "still in the spec")
     qspec = os.path.join(tmp, "quoted.spec.md")
     with open(qspec, "w", encoding="utf-8") as fh:
         fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Quoted\n\nX\n:::\n\n'

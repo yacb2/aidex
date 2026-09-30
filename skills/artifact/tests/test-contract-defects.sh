@@ -91,6 +91,15 @@ fails $C c1-rec-attr "a literal {recommended} in data-label fails"
 page c1-rec-code es '<p>El marcador <code>{recommended}</code> va al final.</p><pre>- Sí {recommended}</pre>'
 passes $C c1-rec-code "{recommended} inside code or pre is a page about the marker"
 
+page c1-chosen es '<ul><li>Me sirve así {chosen}</li><li>No</li></ul>'
+fails $C c1-chosen "a literal {chosen} in page text fails"
+page c1-chosen-attr es '<section class="consult-item" data-id="Q1"><div class="opts one">
+<label><input type="radio" name="Q1" data-label="Sí {chosen}">Sí</label>
+<label><input type="radio" name="Q1" data-label="No">No</label></div></section>'
+fails $C c1-chosen-attr "a literal {chosen} in data-label fails"
+page c1-chosen-code es '<p>El marcador <code>{chosen}</code> va al final.</p><pre>- Sí {chosen}</pre>'
+passes $C c1-chosen-code "{chosen} inside code or pre is a page about the marker"
+
 echo "== decision-page-not-interactive =="
 C=decision-page-not-interactive
 page c2-empty es '<main><h2>Necesita decisión — sin cambios</h2><ul><li>BL-1</li></ul><h2>Métricas</h2>

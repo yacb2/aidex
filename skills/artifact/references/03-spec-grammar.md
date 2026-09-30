@@ -843,13 +843,23 @@ Three things of the grammar are worth stating here:
   set: its id stays, it folds like a decided item and reads `Descartada: <reason>` /
   `Dropped: <reason>`. An empty reason, or `dropped` together with `decided`, is refused.
 
+**Dropping items in a new round** (BL-533). A round that removes an item from the spec
+is refused by the id-stability check (`consult-ids`, BL-396) unless the page declares the
+drop. `spec_verbs.py new-round --drop <#id>` (repeatable) records the ids on the
+masthead as `dropped-ids="Q6 Q7"`, which builds `<meta name="consult-dropped">`; the
+check then notes those ids instead of failing. Every drop must be declared: an id left
+out still fails. An id that stays in the spec is an error there (use `dropped="reason"`
+on the item instead).
+
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder
 reads it (the tokenizer only sees prose). A second `-` list is refused at its line:
 number an explanation list (`1.`) or move it into a `note`. One option per `- ` line; ` — ` splits the
 label from its hint; `{recommended}` anywhere on the line marks it, except inside a
-backtick span (there it is the syntax quoted, and stays literal). The keyed attr
+backtick span (there it is the syntax quoted, and stays literal). `{chosen}` is the same
+marker for a decided item's winning option: checked, not recommended, at most one on a
+`select=one` item (several on `select=many`), refused on an undecided item (`04-block-vocabulary.md` § item). The keyed attr
 `select=` decides what kind of list it is:
 
 | `select=` | Renders | Reply | Use it for |

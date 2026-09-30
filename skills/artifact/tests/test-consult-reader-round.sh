@@ -138,4 +138,23 @@ python3 "$BUILD" "$SP" -o "$SPG" --new-round >/dev/null 2>&1 && [[ "$(round_of "
   && ok "(d) spec_build --new-round over a saved reply opens round 2" \
   || fail "(d) spec_build --new-round over a saved reply did not open round 2 (got '$(round_of "$SPG")')"
 
+# (e) BL-534 GUARD (never went red: the filer could not reproduce it and neither
+# could we on the real cola-barrido spec, whose meta and rail line both read 2).
+# The rail's "ronda N"/"round N" line and the consult-round meta are two
+# renderings of one fact; pin that they agree at every round of the page above
+# (round 4, a replied round, and the spec route in Spanish).
+shown_of() { sed -nE 's/.*class="railbuilt"[^>]*>[^<]*(round|ronda) ([0-9]+).*/\2/p' "$1" | head -1; }
+for pg in "$PG" "$BP" "$SPG"; do
+  [[ -n "$(shown_of "$pg")" && "$(shown_of "$pg")" == "$(round_of "$pg")" ]] \
+    && ok "(e) $(basename "$pg"): the rail round ($(shown_of "$pg")) equals consult-round" \
+    || fail "(e) $(basename "$pg"): rail round '$(shown_of "$pg")' != consult-round '$(round_of "$pg")'"
+done
+ES="$TMP/reports/es.spec.md"; sed 's/lang="en"/lang="es"/' "$SP" > "$ES"
+ESG="$TMP/reports/es.html"
+python3 "$BUILD" "$ES" -o "$ESG" >/dev/null 2>&1; printf 'Q1: bien\n' | bash "$SAVE" "$ESG" - >/dev/null 2>&1
+python3 "$BUILD" "$ES" -o "$ESG" --new-round >/dev/null 2>&1
+[[ "$(round_of "$ESG")" == "2" && "$(shown_of "$ESG")" == "2" ]] \
+  && ok "(e) a Spanish spec page reads ronda 2 in the rail and in consult-round" \
+  || fail "(e) es page: meta '$(round_of "$ESG")', rail '$(shown_of "$ESG")'"
+
 [[ $failures -eq 0 ]] && echo "PASS: consult reader round" || { echo "FAILED: $failures"; exit 1; }

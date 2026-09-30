@@ -676,8 +676,8 @@ try:
                       and n.value.id == "spec_build"})
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
-          touched == ["HINT_SEP", "LANGS", "build", "has_options", "main",
-                     "page_title"],
+          touched == ["HINT_SEP", "LANGS", "build", "chosen_labels",
+                     "has_options", "main", "page_title"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
     check("...and the only file it opens for writing is the spec's own temp",
@@ -793,6 +793,70 @@ try:
     check("a repeated --id in one call is refused, spec untouched",
           r.returncode == 2 and "repeats" in r.stderr and read(mspec) == before,
           r.stdout + r.stderr)
+    # --- a {chosen} option is the verdict: decide may not contradict it --------
+    CHOSEN_PAGE = PAGE.replace(
+        "- Fences de Pandoc — prosa con marcas mínimas {recommended}\n"
+        "- YAML anidado — estructura explícita",
+        "- Uno {recommended}\n- Dos {chosen}\n- Tres").replace(
+        '{#Q1   title="Fences o YAML"    }', '{#Q1 title="F" decided="Dos"}')
+    cspec = fresh("chosen-decide", CHOSEN_PAGE)
+    cbytes = read(cspec, "rb")
+    r = run("decide", cspec, "--id", "Q1", "--verdict", "Tres")
+    check("decide a verdict other than the {chosen} option is refused, spec "
+          "byte-identical",
+          r.returncode != 0 and "{chosen}" in r.stderr
+          and read(cspec, "rb") == cbytes, r.stdout + r.stderr)
+    r = run("decide", cspec, "--id", "Q1", "--verdict", "Dos")
+    check("...and the same label as the {chosen} option is accepted",
+          r.returncode == 0, r.stdout + r.stderr)
+
+    # --- BL-533: a new round may DROP items, and the drop is recorded ----------
+    print()
+    print("== new-round --drop: an item leaves the page, its id is recorded ==")
+    dspec = fresh("drop")
+    dpage = os.path.join(os.path.dirname(dspec), "page.html")
+    r = run("new-round", dspec)
+    check("the page exists before the drop (baseline taken)", r.returncode == 0,
+          r.stdout + r.stderr)
+    Q1_BLOCK = PAGE[PAGE.index("::: item {#Q1"):PAGE.index("::: item {#Q2")]
+    without_q1 = read(dspec).replace(Q1_BLOCK, "")
+    check("fixture: the edit removed Q1 from the spec", "#Q1" not in without_q1)
+    with open(dspec, "w", encoding="utf-8") as fh:
+        fh.write(without_q1)
+    r = run("new-round", dspec)
+    check("a removal nobody declared is still refused (BL-396), spec untouched",
+          r.returncode == 1 and "dropped between rounds" in r.stdout + r.stderr
+          and read(dspec) == without_q1, r.stdout + r.stderr)
+    r = run("new-round", dspec, "--drop", "Q9")
+    check("...and declaring a DIFFERENT id does not excuse it",
+          r.returncode == 1 and "dropped between rounds" in r.stdout + r.stderr
+          and "Q1" in r.stdout + r.stderr and read(dspec) == without_q1,
+          r.stdout + r.stderr)
+    r = run("new-round", dspec, "--drop", "Q1")
+    check("new-round --drop Q1 exits 0 on a spec whose next round removed Q1",
+          r.returncode == 0, r.stdout + r.stderr)
+    check("...the SPEC records it on the masthead",
+          'dropped-ids="Q1"' in read(dspec).split("\n", 1)[0], read(dspec)[:300])
+    built = read(dpage)
+    check("...and the PAGE carries the record and no longer the item",
+          '<meta name="consult-dropped" content="Q1">' in built
+          and 'data-id="Q1"' not in built, built[:600])
+    r = run("new-round", dspec, "--drop", "Q1")
+    check("...and repeating the drop is idempotent (the id is listed once)",
+          r.returncode == 0 and read(dspec).split("\n", 1)[0].count("Q1") == 1, r.stdout + r.stderr)
+    r = run("new-round", dspec, "--drop", "", "--drop", "#")
+    check("empty ids (\"\", \"#\") are ignored, not recorded",
+          r.returncode == 0 and 'dropped-ids="Q1"' in read(dspec).split("\n", 1)[0],
+          r.stdout + r.stderr)
+    before = read(dspec, "rb")
+    r = run("add-item", dspec, "--group", "G1", "--id", "Q1", "--title", "Otra")
+    check("re-adding a dropped id is refused, spec unchanged",
+          r.returncode == 1 and "dropped in an earlier round" in r.stderr
+          and read(dspec, "rb") == before, r.stdout + r.stderr)
+    r = run("new-round", fresh("drop-live"), "--drop", "Q1")
+    check("--drop of an id still in the spec is refused: use item dropped=",
+          r.returncode == 1 and "still" in r.stderr, r.stdout + r.stderr)
+
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
