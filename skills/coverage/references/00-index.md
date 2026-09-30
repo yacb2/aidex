@@ -12,7 +12,7 @@ ratchet in file 03 were added by the rollout plan's Phase 11
 (`.context/plans/2026-08-22-suite-speed-and-coverage-rollout/11-e2e-layer-and-layout.md`).
 File 05 was added by Phase 9
 (`.context/plans/2026-08-22-suite-speed-and-coverage-rollout/09-diff-cover.md`). File 06
-was added after the playbook's field test against `echo_lab_ws` on 2026-08-23.
+was added after the playbook's field test against a real project on 2026-08-23.
 
 **2026-08-31:** file 15 was added by the memory audit
 (`.context/plans/2026-08-31-memory-audit-skill-and-fleet-cleanup/`), from five feedback

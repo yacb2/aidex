@@ -97,7 +97,7 @@ diagnosing a single project by hand rather than trusting the sweep blind:
    grep -n "PASSWORD_HASHERS" backend/config/settings/test_e2e.py
    ```
    Expected: MD5 first. **Trap:** the assertion is "MD5 is first", never "MD5 is the
-   only one" — a second entry is not a violation. `work_hours_ws` deliberately keeps
+   only one" — a second entry is not a violation. a project may deliberately keep
    `PBKDF2PasswordHasher` second so cloned-database passwords still verify; a check
    asserting "MD5 is the only hasher" false-positives on it.
 3. **`vitest_include`** — does each `vitest.config.*` declare `coverage.include`?

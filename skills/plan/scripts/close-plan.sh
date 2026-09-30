@@ -175,7 +175,7 @@ REINDEX="$(dirname "${BASH_SOURCE[0]}")/reindex-plans.sh"
 
 # Coverage boards. A plan close is the exact moment the coverage numbers change,
 # and the boards under audits/test-coverage/ stayed stale until someone remembered
-# to regenerate them by hand (ns_backoffice BL-197 → BL-274). When the project runs
+# to regenerate them by hand (a real project went BL-197 → BL-274 stale). When the project runs
 # the test-coverage playbook (a module-map exists) regenerate coverage-matrix.md/.json
 # and the run-level audits index here, so the boards and the closing note land in
 # the same commit. No-op without a map. A failure is REPORTED, never swallowed and

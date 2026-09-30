@@ -329,7 +329,7 @@ git -C "$WS/svc" branch -D feat/gone >/dev/null 2>&1
 #
 #     CONTRACT CHANGE, BL-193 (2026-08-22). This asserted `rc == 0`: the branch
 #     was skipped with a warning and the run reported success, leaving a branch
-#     nobody would remember to remove. `echo_lab_ws-wt-editor-week` is that state
+#     nobody would remember to remove. a worktree created before `.wt-branch` existed is that state
 #     in the field. Refusing is now the contract, and 3 is deliberately not 1 —
 #     1 means the teardown FAILED and the worktree is still there, which is what
 #     case (e) exists to protect and is unchanged: there $DEST is already gone,
@@ -598,7 +598,7 @@ out="$(bash "$WT" up p4 2>&1)"; rc=$?
 
 # (d) the same service running, declared NOWHERE -> the running check fires.
 # Without this, WT_SERVICES_BY_HOOK is unfalsifiable: deleting the key would
-# break no test. In the field this is echo_lab's `worker`, whose `ai` profile
+# break no test. In the field this is a `worker` service whose `ai` profile
 # makes paid API calls if someone leaves it up.
 cp "$CONF_BASE" "$CONF"
 out="$(bash "$WT" up p4 2>&1)"; rc=$?
@@ -617,7 +617,7 @@ bash "$SNAP" diff "$BASE" >/dev/null 2>&1 \
 # --- 6. WT_ENV_RENDER: slot-dependent host env files are generated ----------
 #
 # The defect: worktree.sh generated the root .env for Compose and stopped, so the
-# HOST half's env file was hand-written per worktree. The two live echo_lab
+# HOST half's env file was hand-written per worktree. Two live
 # worktrees held two different versions, one missing the warning that keeps the
 # other working. Neither WT_LINKS nor WT_COPIES can supply it -- both carry the
 # main tree's ports.

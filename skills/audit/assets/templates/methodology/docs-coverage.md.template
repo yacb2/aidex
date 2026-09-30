@@ -172,6 +172,6 @@ The war stories this playbook is made of:
   list is a check that cannot fail; the fix is a command with its real output and a date. But
   converting them in bulk means writing outputs for documents nobody re-verified, which
   produces the same unfailable check wearing a command's clothes — worse, because it now looks
-  audited. 47 such blocks remained fleet-wide at the time of writing, 37 in the boilerplate;
+  audited. 47 such blocks remained fleet-wide at the time of writing, 37 in a single template project;
   that number falling on its own, one swept module at a time, is the healthy shape. A sudden
   drop to zero is the finding.

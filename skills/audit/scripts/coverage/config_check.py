@@ -51,7 +51,7 @@ import sys
 # Directories never descended into while looking for vitest.config.* or
 # package.json inside a project — vendored, generated, or explicitly archived
 # copies that would inflate or corrupt the per-project denominator (the
-# work_hours_ws trap: its own _archive/ carries two stale vitest.config.ts).
+# archive trap: a project's own _archive/ can carry stale vitest.config.ts).
 SKIP_DIRS = {
     "node_modules", "_archive", "dist", "build", "coverage", ".venv", "venv",
     "__pycache__", ".git", ".next", ".nuxt", "_sandbox", "_backups",
@@ -285,7 +285,7 @@ def check_coverage_provider(project_dir):
     """('n/a'|'present'|'absent', count, total). 'present' for a package
     requires BOTH a declared coverage.provider AND the @vitest/coverage-<provider>
     package it names as a dependency — a declaration with no installed
-    package (the ns_backoffice_ws trap), or with the wrong one (istanbul
+    package (the declared-but-not-installed trap), or with the wrong one (istanbul
     declared, coverage-v8 installed), reports 'absent' for that package,
     same as no declaration at all."""
     total = 0

@@ -97,7 +97,7 @@ workspace-root-relative).
   no module's globs but matching one of these are a *deliberate* scope-out.
   They are reported as a `scoped out: N` count (and `unmapped_scoped_out` in
   the JSON), never listed — so the unmapped list shows only new drift, not
-  the ~90% intentional rows that buried echo_lab's real signal.
+  the ~90% intentional rows that buried the real signal on a large project.
 - `modules[].has_surfaces` (JSON output) — emitted, read by nothing.
   Kept deliberately: the schema rule is "bump on key-set change", a bump makes
   every already-generated matrix unrenderable until regenerated, and spending

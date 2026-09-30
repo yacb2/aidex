@@ -343,7 +343,7 @@ find "$DEST" -type d -empty -delete 2>/dev/null
 
 # $DEST may itself be a linked worktree, not just a directory holding them: a
 # project whose ROOT repo owns .context/ gets a root checkout at $DEST so the
-# worktree has one (BL-259's shape; the 2026-08-28 echo_lab workaround did it by
+# worktree has one (BL-259's shape; the 2026-08-28 manual workaround did it by
 # hand). It is not in WT_PARTICIPANTS, so the loop above never saw it, and
 # `down` left a live worktree behind with its slot still claimed — freeing it
 # took a manual `git worktree remove`.

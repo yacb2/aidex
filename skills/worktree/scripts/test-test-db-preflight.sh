@@ -49,7 +49,7 @@ grep -qi 'clear' "$TMP/err" || fail "(b) must report clear: $(cat "$TMP/err")"
 # (c) database present WITH sessions -> BUSY (1), naming the count.
 #     This is the `is being accessed by other users` case: 12 in the corpus.
 : > "$LOG"; make_stub "1" "3"
-run --db test_echo_lab ; rc=$?
+run --db test_example ; rc=$?
 [[ $rc -eq 1 ]] || fail "(c) busy database should exit 1 (got $rc)"
 grep -qi 'BUSY' "$TMP/err" || fail "(c) must report BUSY: $(cat "$TMP/err")"
 grep -q '3 session' "$TMP/err" || fail "(c) must name the session count: $(cat "$TMP/err")"
@@ -59,7 +59,7 @@ grep -q '3 session' "$TMP/err" || fail "(c) must name the session count: $(cat "
 #     Collapsing it into BUSY would give the opposite advice ("wait for the
 #     other run") for a database no run is holding.
 : > "$LOG"; make_stub "1" "0"
-run --db test_echo_lab ; rc=$?
+run --db test_example ; rc=$?
 [[ $rc -eq 2 ]] || fail "(d) stale database should exit 2 (got $rc)"
 grep -qi 'STALE' "$TMP/err" || fail "(d) must report STALE: $(cat "$TMP/err")"
 grep -qi 'busy' "$TMP/err" && fail "(d) STALE must not also read as BUSY: $(cat "$TMP/err")"
@@ -81,7 +81,7 @@ grep -qi 'DROP DATABASE' "$LOG" \
 
 # A legitimate Postgres test-database name must still pass — not a blanket ban.
 : > "$LOG"; make_stub "" "0"
-run --db test_echo_lab_2 ; rc=$?
+run --db test_example_2 ; rc=$?
 [[ $rc -eq 0 ]] || fail "(f) a valid database name must not be rejected (got $rc)"
 
 if [[ $failures -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi

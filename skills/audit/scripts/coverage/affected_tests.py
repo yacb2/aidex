@@ -153,7 +153,7 @@ def colocated_tests(root, path, test_globs):
     """Changed workspace-relative file -> the test files that plainly name it.
 
     File-granularity selection (BL-212): at real module sizes the module tier
-    barely selects (echo_lab's `timeline` is 170 of 322 test files — mapping a
+    barely selects (on one large project a `timeline` module is 170 of 322 test files — mapping a
     diff to it recovers 16% of the wall clock where the one colocated file
     recovers 92%). The signal is deliberately the CHEAPEST one: a test file
     named after the changed file, in the same directory or its __tests__/ /

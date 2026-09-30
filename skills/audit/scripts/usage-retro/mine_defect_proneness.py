@@ -59,7 +59,7 @@ def is_production_code(fp):
 
 
 def collapse_worktree(path):
-    """~/Documents/projects/echo_lab_ws-wt-foo/backend/x.py -> echo_lab_ws/backend/x.py"""
+    """~/Documents/projects/myproj_ws-wt-foo/backend/x.py -> myproj_ws/backend/x.py"""
     marker = "/projects/"
     i = path.find(marker)
     rel = path[i + len(marker):] if i >= 0 else path.lstrip("/")

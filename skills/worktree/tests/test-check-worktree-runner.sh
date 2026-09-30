@@ -89,7 +89,7 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "timeout: a non-port number must not be a finding, got: $out"
 
 # --- 4. MENTIONING .env is not LOADING it -> still a FINDING ----------------
-# work_hours' global-setup names the file in an error message. The first draft
+# A project's global-setup can name the file in an error message. The first draft
 # of the exemption matched any occurrence of `.env` and let it through.
 p="$(mk_project mentions)"
 cat > "$p/frontend/tests/e2e-setup/test-config.ts" <<'TS'

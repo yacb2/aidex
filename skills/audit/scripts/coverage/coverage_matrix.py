@@ -248,7 +248,7 @@ def build_matrix(root, coverage_dir=None):
     unmapped = find_unmapped_test_files(files, all_mapped_test_files)
 
     # Deliberate scope-out (BL-205): files matching the map's top-level
-    # `unmapped_ok` globs are counted, not listed — ~90% of echo_lab's 280
+    # `unmapped_ok` globs are counted, not listed — ~90% of one large project's 280
     # "unmapped" rows were intentional, burying the real drift.
     ok_globs = m.get("unmapped_ok") or []
     scoped_out = [f for f in unmapped if lib.matches(f, ok_globs)]
@@ -394,7 +394,7 @@ def main():
 
     # A v1 map (routes as globs, or no routes at all) yields an empty route
     # board while the run still stamps coverage-matrix/2 and exits 0 — which is
-    # how echo_lab's board sat silently inert for a month. Say it out loud.
+    # how a project's board sat silently inert for a month. Say it out loud.
     if not any(r["routes_total"] for r in data["modules"]):
         print(
             "NOTE: no typed surfaces.routes in the map — route board suppressed. "

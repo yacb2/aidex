@@ -511,16 +511,16 @@ assert_services_declared() {
 #   running MUST cover WT_SERVICES ................ a declared service that never
 #     came up is the original symptom itself (a crash loop looks like this)
 #   running MUST NOT exceed WT_SERVICES u BY_HOOK . something profile-gated is up
-#     that nobody declared — e.g. echo_lab's `worker`, whose `ai` profile makes
+#     that nobody declared — e.g. a `worker` service whose `ai` profile makes
 #     paid API calls
 #
 # BY_HOOK is an ALLOWLIST, never a requirement. The plan that specified it
 # assumed `WT_POST_CMD` starts `backend-test`; it does not — the profile's
 # `./test-e2e.sh --setup-template` uses `docker compose run --rm backend`
 # throwaways, and `backend-test` is started later by the full E2E run (by
-# test-e2e.sh in echo_lab/work_hours, by Playwright's globalSetup in the other
-# three). Requiring BY_HOOK members to be running would fail every fresh create.
-# Field-checked 2026-08-21 on both live echo_lab worktrees: `ps --services`
+# a project's test-e2e.sh in some projects, by Playwright's globalSetup in
+# others). Requiring BY_HOOK members to be running would fail every fresh create.
+# Field-checked 2026-08-21 on two live worktrees: `ps --services`
 # lists `backend-test` with no --profile flag, so the allowlist has real work.
 assert_services_running() {
   local dir="$1" svc running allowed down="" extra=""
@@ -635,7 +635,7 @@ write_wt_env() {
 # it, and both carry the MAIN TREE's ports. The values are slot-dependent, which
 # is exactly why they ended up hand-written.
 #
-# The cost of hand-writing, field-observed 2026-08-21: the two live echo_lab
+# The cost of hand-writing, field-observed 2026-08-21: two live
 # worktrees held two DIFFERENT files. One documented that VITE_API_URL must be
 # absolute and name this slot's backend port -- a relative URL makes the Vite dev
 # server answer `/auth/login/` with index.html, so login silently never happens

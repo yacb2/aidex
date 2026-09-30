@@ -3,8 +3,8 @@
 # worktree that owns its own .context/ too (BL-259).
 #
 # WT_PARTICIPANTS entries are all sub-directories of the project root, so the root
-# repo itself could never participate. In echo_lab (root ops repo + backend +
-# frontend) the root owns `.context/`, so a worktree got NO `.context/` of its own:
+# repo itself could never participate. In a project with a root ops repo plus backend and
+# frontend repos the root owns `.context/`, so a worktree got NO `.context/` of its own:
 # `find_project_root` walked up past $DEST into the main checkout, and every backlog,
 # work-list and proof write from inside the worktree landed in `main`. The sweep of
 # 2026-08-28 had to copy `.context/` by hand before teardown.

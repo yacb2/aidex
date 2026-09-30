@@ -31,7 +31,7 @@ MAP="$WS/.context/audits/test-coverage/module-map.json"
 JSON="$WS/.context/audits/test-coverage/coverage-matrix.json"
 
 # --- co-located test scaffolding, committed as tracked source ---------------
-# The field case (echo_lab_ws, 2026-08-24): EditorPage/__fixtures__/*.ts sits
+# The field case (2026-08-24): EditorPage/__fixtures__/*.ts sits
 # under the module's own src tree, so the src glob swallows it.
 mkdir -p "$WS/frontend/src/billing/__fixtures__"
 cat > "$WS/frontend/src/billing/__fixtures__/formMocks.ts" <<'EOF'

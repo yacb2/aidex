@@ -64,8 +64,8 @@ grep -qi 'no slot' <<<"$out" \
 # `down --delete-branch` reads the branch from `<worktree>/.wt-branch`. When that
 # file is missing or empty it cannot identify the branch, skips the deletion and
 # reports SUCCESS -- leaving a branch nobody will remember to remove. Both states
-# are live: `echo_lab_ws-wt-editor-week` has NO `.wt-branch` (created 2026-08-15,
-# before the file existed), which is the case the item mis-recorded as empty.
+# occur: a worktree created before the `.wt-branch` file existed (2026-08-15)
+# has NO `.wt-branch`, which is the case the item mis-recorded as empty.
 #
 # What is NOT done here, deliberately: falling back to `git worktree list
 # --porcelain`. Measured 2026-08-22 -- after a checkout switches branches that
@@ -224,7 +224,7 @@ awk '/rbargs=\(remove --slug/,/MULTI" "\$\{rbargs\[@\]\}"/' "$S/worktree.sh" \
   || fail "rollback: its remove call must carry the same --copy args as down's"
 
 # --- BL-267. `down` removes a $DEST that is itself a root-repo checkout ------
-# The 2026-08-28 echo_lab workaround: the project's root owns .context/, so the
+# The 2026-08-28 workaround: a project whose root owns .context/, so the
 # worktree's $DEST was made a checkout of the root repo by hand. `down` builds
 # its removal list from WT_PARTICIPANTS ($DEST/<basename> per entry) and $DEST
 # itself is not in it, so the participants went and $DEST stayed a live

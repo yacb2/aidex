@@ -62,7 +62,7 @@ done
 # the process environment? Evaluated per DIRECTORY, not per file: the load
 # belongs in one shared module and the fallbacks live in another.
 #
-# The first draft matched any mention of `.env` and exempted work_hours, whose
+# The first draft matched any mention of `.env` and exempted a project whose
 # global-setup merely names the file in an error message. Mentioning a file is
 # not reading it. So: either the dotenv package, or a file that BOTH reads a
 # path ending in .env AND writes into process.env.

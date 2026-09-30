@@ -41,14 +41,14 @@
 #                       worse: there is nothing for an environment to override.
 #
 # The third of those patterns was added after the first two MISSED
-# `free_port 3424` in work_hours/dev.sh:279,306 — a project's own kill helper,
+# `free_port 3424` in a project's dev.sh — its own kill helper,
 # called with a literal. Matching only the shapes a specific script happens to
 # use is how a checker reports clean on a defect it was written to catch, so the
 # pattern is any identifier containing "port" called with a bare literal.
 #
 # The second shape is here because the first alone MISSES it. An earlier draft
-# of this check reported loom_lab and ns_backoffice clean; both embed the
-# literal directly in `lsof -ti :<port>` — loom_lab at six sites, on its start
+# of this check reported two real projects clean; both embed the
+# literal directly in `lsof -ti :<port>` — one at six sites, on its start
 # path. A rule that only inspects assignments reports "clean" on precisely the
 # projects where the defect is hardest to fix.
 #
@@ -136,12 +136,12 @@ scan_project() {
     # NEVER exempted by sources_slot_env, and that distinction is load-bearing.
     # Sourcing the worktree .env sets VARIABLES; it cannot touch a literal that
     # no variable stands in front of. Applying the exemption to this shape made
-    # work_hours/dev.sh report clean the moment Task 2.2 added its `.env` line,
+    # a real dev.sh report clean the moment Task 2.2 added its `.env` line,
     # while `free_port 3424` sat two hundred lines below, unchanged and still
     # killing whatever holds dev's Metro port.
     while IFS=: read -r line _; do
       [[ -z "$line" ]] && continue
-      # A COMMENT is not a call site. work_hours/dev.sh:255 documents Metro's
+      # A COMMENT is not a call site. A dev.sh can document Metro's
       # port in prose (`# \`expo start --port 3424\` in package.json`) and was
       # the check's one false positive before this line existed.
       sed -n "${line}p" "$f" | grep -qE '^[[:space:]]*#' && continue

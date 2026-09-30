@@ -93,7 +93,7 @@ grep -q 'inline-literal' <<<"$out" || fail "inline: must classify the shape, got
 grep -q '3911' <<<"$out" || fail "inline: must name the port, got: $out"
 
 # --- 4. a port literal in a COMMENT is not a call site -> CLEAN --------------
-# work_hours/dev.sh:255 documents Metro's port in prose. It was this check's one
+# A dev.sh can document Metro's port in prose. It was this check's one
 # false positive before comment lines were excluded.
 p="$(mk_project comment dev.sh)"
 cat > "$p/dev.sh" <<'SH'
@@ -135,7 +135,7 @@ out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "unlinked: a script outside WT_LINKS is out of scope, got: $out"
 
 # --- 7. a project's OWN kill helper, called with a literal -> FINDING --------
-# `free_port 3424` in work_hours/dev.sh:279,306. The check's first two patterns
+# A dev.sh can call `free_port 3424` (a project's own kill helper). The check's first two patterns
 # (`lsof -ti :N`, `--port N`) matched neither, so it reported clean on a call
 # site that does the same kill -9. Matching only the shapes one script happens
 # to use is how a checker misses the defect it was written for.
@@ -153,7 +153,7 @@ grep -q '3424' <<<"$out" || fail "helper: must name the port, got: $out"
 # --- 8. THE EXEMPTION IS SCOPED TO ASSIGNMENTS -> still a FINDING ------------
 # Sourcing the worktree .env sets VARIABLES. It cannot reach a literal that no
 # variable stands in front of. When the exemption covered the whole file,
-# work_hours/dev.sh went clean the moment Task 2.2 added its `.env` line, while
+# a dev.sh went clean the moment Task 2.2 added its `.env` line, while
 # `free_port 3424` sat two hundred lines below, unchanged and still lethal.
 p="$(mk_project scoped dev.sh)"
 cat > "$p/dev.sh" <<'SH'
@@ -239,7 +239,7 @@ grep -qi 'nothing was checked' <<<"$out" || fail "nolinks: must say it examined 
 # existing shapes: shape 1 skips the var because it is not in WT_PORT_VARS, and
 # shape 2 needs a bare literal and now sees a variable. The kill still lands on
 # the main tree's Metro, and the checker reports clean. Measured on
-# work_hours_ws and room_booking_ws 2026-08-23: both clean, both defective.
+# two real projects 2026-08-23: both clean, both defective.
 p="$(mk_project unsupplied dev.sh)"
 cat > "$p/dev.sh" <<'SH'
 #!/usr/bin/env bash
