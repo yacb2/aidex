@@ -322,7 +322,8 @@ row "visual: refused on an empty proof file" 2 "refused" "" -- --visual "$TMP/vi
 # workspace fails this until it is added below: the list is the claim, kept honest.
 # Skipped where the workspace is absent (the public repo ships without it).
 EXPECTED_UI='2026-09-26-ui-contract-9-of-10/00-index.md
-_archive/2026-09-21-ui-contract-skill-and-agents.md'
+_archive/2026-09-21-ui-contract-skill-and-agents.md
+_archive/2026-09-29-ui-contract-hardening/00-index.md'
 PLANS="${UI_EVIDENCE_PLANS_DIR:-$ROOT/../.context/plans}"
 if [ -d "$PLANS" ]; then
   swept=0; ui_found=""
