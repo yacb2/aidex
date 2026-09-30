@@ -71,13 +71,15 @@ step that must stay human-in-the-loop: defining scope and success criteria is th
 agent grading its own clarifying questions gets wrong, and it is exactly what the `plan-exec`
 promotion threshold excludes from batch execution (a `hitl-align` phase, see below).
 
-1. Ask **at most four** clarifying questions, **one at a time**, covering:
+1. Ask **at most four** clarifying questions, covering:
    - **Scope** — what is in, and the boundary of this work.
    - **Success criteria** — how we'll know each phase is done (prefer machine-checkable gates).
    - **Explicit non-goals** — what this plan will deliberately *not* do.
    - **Constraints** — stack, deadlines, compatibility, anything that can't change.
    Give each question a **recommended answer** to confirm or correct, so a well-scoped request
    resolves in one or two confirmations rather than an interrogation.
+   Ask questions whose answers do not depend on each other **in one round**; serialize only
+   when a later question's wording depends on an earlier answer (Pocock `grilling`).
    **Spend the four on leverage, not on coverage.** The four bullets are slots the plan
    must fill, not a questionnaire to walk: ask about whatever is genuinely ambiguous,
    prioritizing the answers that would change the design, and fill the settled slots
@@ -87,6 +89,10 @@ promotion threshold excludes from batch execution (a `hitl-align` phase, see bel
 2. Synthesize the answers into a **one-paragraph shared design concept** and have the user
    **ratify it** before you write phases. If the request is already unambiguous and the
    recommended answers all stand, a single "confirm this concept?" round is enough.
+   Closing the round is synthesis of what was already said: reflect it back, do not open a
+   new interview (Pocock `to-spec`). A resolved answer gets its own decision or reference
+   artifact only if it passes the three gates in `artifact/references/02-local-first-artifacts.md`
+   § 8.4; otherwise it stays in this paragraph.
 3. **A decided `ui-contract.md` is ratification.** When the request names a
    `ui-contract.md` (or the consultation that wrote one, `/ui-contract` Step 0), read it
    first: its level, reference screen, components, state matrix and variants are already

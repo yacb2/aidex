@@ -1286,6 +1286,16 @@ messages and the tests; § 8.4 is the block shape.
    label is the only record that can, and it is what decides whether a writer change is
    worth testing.
 
+   **A round with no fog left is closed, even with a reply pending.** When no open item
+   carries `brief-gap` or `new-question` and none still needs evidence, the writer flags
+   the round as closed instead of opening another on stale fog (Pocock wayfinder, stop
+   when charting surfaces no fog).
+
+   **Three gates decide whether a resolved item earns its own durable artifact** (a
+   decision or reference under `.context/`): it is hard to reverse, it is surprising
+   without context, and it is a real trade-off. All three, or it stays in the page or
+   plan that resolved it (Pocock `grill-with-docs`; corroborated by prose sources only).
+
    **The page around the blocks is fixed.** Before the first block: the header
    (title + standfirst, where the strongest claim lives — intake question 6), a
    figure section when the subject has a shape, and the ledger. Between blocks:

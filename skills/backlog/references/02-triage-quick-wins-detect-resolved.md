@@ -21,7 +21,7 @@ backlog is well-formed and answers only about order.
 1. `python3 scripts/detect-resolved.py` — the work-list: open items, and per item the code
    paths and commits its body cites. Items with no anchor are marked; they are not worth a
    subagent, because a reviewer would have nothing to open.
-2. Fan out **one read-only subagent per anchored item**. Give it the item's title,
+2. Fan out **one `aidex:backlog-reader` (`subagent_type`) per anchored item**. Give it the item's title,
    acceptance and anchors, and ask a single question: *does the current code satisfy this?*
    Require a **cited path or commit** in the answer — an unevidenced "looks done" is the
    thing this action exists to replace.
