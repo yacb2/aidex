@@ -116,7 +116,8 @@ else
   doing=()
   for f in "$WL_DIR"/*.md; do
     [[ -f "$f" && "$f" != *-report.md && "$f" != *-report.spec.md ]] || continue
-    [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{print $2; exit}' "$f")" == "doing" ]] && doing+=("$f")
+    # quotes stripped like validate-worklist.py: `status: "doing"` is valid front matter
+    [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{gsub(/^["\x27]|["\x27]$/,"",$2); print $2; exit}' "$f")" == "doing" ]] && doing+=("$f")
   done
   [[ ${#doing[@]} -eq 1 ]] && WL_STAMP="$(basename "${doing[0]}")"
 fi
@@ -216,7 +217,12 @@ for leg in "${LEGS[@]}"; do
     else
       printf '  cd %q && (%s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$ROOT" "$(cmd_of "$leg")" "$log" "$log" >&2
     fi
-    printf 'detached: then score it: sweep-gate.sh --only e2e --from-log %q\n' "$log" >&2
+    # the scoring run carries this run's work-list: with two running lists it could not
+    # detect one, and an unstamped PASS is claimed by every report of the day (BL-489).
+    # The STEM, not a path: resolve_worklist --with-archive still finds it after the list
+    # moved to _archive/ and through a symlinked worklists/ that the path check refuses.
+    printf 'detached: then score it: sweep-gate.sh --only e2e --from-log %q%s\n' "$log" \
+      "${WL_STAMP:+ --worklist $(printf '%q' "$(basename "$WL_STAMP" .md)")}" >&2
     emit_row "$leg" pending - -; PENDING=$((PENDING+1)); continue
   else
     # The raw exit of the command itself: NO pipeline at all. The first draft used

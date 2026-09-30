@@ -25,7 +25,7 @@ profile() {  # profile <extra front-matter lines...>
   { echo '---'; echo 'title: Testing profile'; echo 'status: open'; echo 'created: 2026-08-27'; echo 'updated: 2026-08-27'
     for l in "$@"; do echo "$l"; done; echo '---'; } > "$P/.context/testing-profile.md"
 }
-run() { ( cd "$P" && NO_COLOR=1 bash "$GATE" "$@" 2>"$TMP/err" ); }
+run() { ( cd "${RUN_DIR:-$P}" && NO_COLOR=1 bash "$GATE" "$@" 2>"$TMP/err" ); }  # RUN_DIR: run from a subdirectory
 
 echo "sweep-gate.sh:"
 
@@ -290,6 +290,11 @@ printf -- '---\nstatus: doing\n---\n' > "$P/.context/worklists/2026-09-30-only-o
 printf -- '---\nstatus: done\n---\n' > "$P/.context/worklists/2026-09-29-finished.md"
 appended
 [[ "$(stamp)" == "2026-09-30-only-one.md" ]] && ok "12 the sole running work-list is stamped by basename" || bad "12 auto stamp: [$(stamp)] $(tail -1 "$H")"
+# a quoted status is valid front matter (validate-worklist.py strips the quotes)
+printf -- '---\nstatus: "doing"\n---\n' > "$P/.context/worklists/2026-09-30-only-one.md"
+appended
+[[ "$(stamp)" == "2026-09-30-only-one.md" ]] && ok "12 a quoted status: \"doing\" is detected as running too" || bad "12 quoted status not detected: [$(stamp)]"
+printf -- '---\nstatus: doing\n---\n' > "$P/.context/worklists/2026-09-30-only-one.md"
 printf -- '---\nstatus: doing\n---\n' > "$P/.context/worklists/2026-09-30-second.md"
 appended
 [[ -z "$(stamp)" ]] && ok "12 two running work-lists -> ambiguous, no guess" || bad "12 guessed between two: [$(stamp)]"
@@ -318,6 +323,39 @@ run --worklist "$P/elsewhere.md" >/dev/null; RC=$?
 [[ $RC -eq 2 ]] && ok "12 --worklist <path> outside worklists/ exits 2" || bad "12 outside path accepted: rc=$RC"
 appended --worklist "$A/2026-09-29-third.md"
 [[ "$(stamp)" == "2026-09-29-third.md" ]] && ok "12 --worklist <path> under worklists/_archive/ is accepted" || bad "12 archived path: [$(stamp)]"
+# a detached leg is scored by a second run; with two running work-lists that run cannot
+# detect one, so the printed follow-up must carry the work-list this run was given. It is
+# run as printed, from a subdirectory, through `appended` (rc 0, exactly one new record).
+WLD="$P/.context/worklists"
+follow() { sed -n 's/^detached: then score it: sweep-gate\.sh //p' "$TMP/err"; }
+verdict() { tail -1 "$H" | python3 -c 'import json,sys; print(json.load(sys.stdin)[-1].get("verdict",""))'; }
+score_follow() {  # score_follow <cell>: finish the detached log, run the printed follow-up
+  FOLLOW="$(follow)"  # kept: the follow-up run rewrites $TMP/err
+  [[ -n "$FOLLOW" ]] || { bad "$1 no follow-up line printed: $(cat "$TMP/err")"; return 1; }
+  printf '  7 passed (2.0m)\nsweep-gate-exit=0\n' > "$P/_tmp/sweep-gate/e2e.log"
+  eval "set -- $FOLLOW"; RUN_DIR="$P/bin" appended "$@"
+}
+profile "e2e_suite_cmd: bin/e2" "e2e_detached: true"
+run --only e2e --worklist .context/worklists/2026-09-30-second.md >/dev/null
+score_follow 12 && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-second.md" ]] \
+  && ok "12 the printed --from-log follow-up appends a PASS stamped with the same work-list" \
+  || bad "12 follow-up [$FOLLOW]: verdict [$(verdict)] stamp [$(stamp)]"
+# (A) the auto-detected sole running list is carried too, as its stem
+printf -- '---\nstatus: done\n---\n' > "$WLD/2026-09-30-second.md"
+run --only e2e >/dev/null
+[[ "$(follow)" == *" --worklist 2026-09-30-only-one" ]] && ok "12 A the sole running work-list goes into the follow-up as its stem" \
+  || bad "12 A follow-up: [$(follow)]"
+# (B) no running list, no stamp -> no --worklist to carry
+printf -- '---\nstatus: done\n---\n' > "$WLD/2026-09-30-only-one.md"
+run --only e2e >/dev/null
+[[ -n "$(follow)" && "$(follow)" != *"--worklist"* ]] && ok "12 B no running work-list -> the follow-up carries no --worklist" \
+  || bad "12 B follow-up: [$(follow)]"
+# (C) the list is archived between launch and scoring: the follow-up still resolves it
+run --only e2e --worklist .context/worklists/2026-09-30-only-one.md >/dev/null
+mv "$WLD/2026-09-30-only-one.md" "$A/"
+score_follow "12 C" && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-only-one.md" ]] \
+  && ok "12 C a work-list archived before scoring still stamps the follow-up's PASS" \
+  || bad "12 C follow-up [$FOLLOW]: verdict [$(verdict)] stamp [$(stamp)]"
 
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1
