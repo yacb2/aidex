@@ -50,10 +50,9 @@ The operative rule here:
 - **Only stop for:** a `deny`-class destructive action (skip + document), an
   un-pre-authorized publish (surface at the end), or a genuine hard blocker you
   cannot resolve (missing credentials, truly unknowable intended behavior).
-- **A phase report is not a stop.** Put the phase's status note in the same message as
-  the next phase's first tool call, and never close a turn by announcing the next step
-  instead of taking it. Both were observed as phase-close reports the user answered with
-  a bare "continue".
+- **A phase report is not a stop.** Put the status note in the same message as the next
+  phase's first tool call; never close a turn by announcing the next step instead of
+  taking it (both drew a bare "continue" from the user).
 - **On an ambiguous fork you cannot cleanly classify — consult the
   durability-arbiter before stopping.** Launch it with the Agent tool as
   `subagent_type: aidex:durability-arbiter` (definition:
@@ -167,6 +166,9 @@ the phase tier map, and what happens when a phase fails its gate.
    [autonomy-conventions.md § When there is no interactive channel](../conventions/references/autonomy-conventions.md).
 
 ### 1. Execute each phase
+
+**Multi-file plan, interactive run:** phases go in waves, not one by one:
+[`references/05-launch-waves.md`](references/05-launch-waves.md).
 
 For each phase in order:
 
@@ -285,15 +287,12 @@ After the last phase:
 
 ## Per-project adjustments
 
-This skill ships stack-agnostic defaults. Projects often override them — detect
-the project's own conventions, don't assume:
+This skill ships stack-agnostic defaults; detect the project's own conventions:
 
 - **Review/commit/release commands.** Use the project's own slash commands or
-  helpers (look in `.claude/`, available commands, or CLAUDE.md). Do not assume
-  a specific command name exists.
-- **Stricter project rules.** Read the project's CLAUDE.md (and any project
-  memory) before the first phase — it may define test runners, commit style,
-  version-bump coupling, or release gates this skill cannot know about.
+  helpers (`.claude/`, CLAUDE.md); never assume a name.
+- **Stricter project rules.** Read the project's CLAUDE.md (and memory) before the
+  first phase — test runners, commit style, version bumps, release gates.
 
 If the project's CLAUDE.md or memory contradicts this skill, the project wins.
 
