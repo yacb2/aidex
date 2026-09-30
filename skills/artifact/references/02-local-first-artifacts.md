@@ -1336,7 +1336,21 @@ messages and the tests; § 8.4 is the block shape.
    paragraph, situation first and the question last: the builder keeps the closing
    question (one or more `?` sentences) as the item's heading and sets the situation
    under it as body text (`.consult-lead`, BL-514), so keep the question to one short
-   sentence. A situation with no closing question is headed by the item's `title`. Measured 2026-09-29 (`.context/research/2026-09-29-consult-answerability/`):
+   sentence. A situation with no closing question is headed by the item's `title`.
+
+   **The same rule for a question about work, not product (2026-09-30).** When the item
+   is about a backlog item, a tool, a hook, a run or a measurement, the "situation" is
+   what that thing is, why it exists and where it stands, in plain words, before the
+   question: "Hay una tarea abierta para instalar un hook, un script que Claude Code
+   ejecuta antes de cada llamada a un agente, que la rechazaría si no nombra un agente
+   del roster". Never a name alone ("galería nivel 2", "el ensayo de delegación") and
+   never a word that points outside the page ("eso", "lo anterior", "el objetivo", "la
+   lectura"): the reader may never have seen it or may not remember it, so every term
+   the question leans on is explained inside the item or dropped. Each option says what
+   changes for the reader if it is chosen (what gets done, what stays open, what it
+   costs). The test is a cold reader: someone who knows only this page can answer. On
+   2026-09-30 a backlog-sweep consultation passed the contract with 14 items built from
+   one-line classifier notes and came back as "¿aceptamos eso, qué es eso?". Measured 2026-09-29 (`.context/research/2026-09-29-consult-answerability/`):
    14 % of 1,526 answered items came back not understood; fewer than 10 % of options said
    what the user would see. `check-artifact.sh` warns (`consult-lead-id`) when the first
    sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an

@@ -73,8 +73,9 @@ that does not carry out a printed duty — no bypass
 next round is built (BL-475)").
 
 A consultation brief carries, per item, a situation lead written by the main session
-(a named role, screen, action, what happens today), options stated as what that person
-sees or can do, ids only on a trailing `Fuente:` line, and a "decidido, corrígeme si
+(a named role, screen, action, what happens today; for a question about work, what the
+thing is, why it exists and where it stands, with no term the page does not explain),
+options stated as what that person sees or can do, ids only on a trailing `Fuente:` line, and a "decidido, corrígeme si
 no" block for reversible decisions that carry a recommendation. `artifact-sonnet` lays
 that out; the contract is `references/02-local-first-artifacts.md` § 8 (BL-503).
 
