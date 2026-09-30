@@ -64,12 +64,12 @@ shape the skill writes is one workflow per `NN-<slug>.md` under the
 `testing_packs` is the one key that is a pointer rather than a value: a space-separated
 list of skill names, each installed at `${CLAUDE_PLUGIN_ROOT}/skills/<pack>/`. A pack carries what
 this skill deliberately does not — the test shapes, helpers, traps and E2E infrastructure
-of one framework as it is used in this fleet. The canon decides the layer, the selection
+of one framework. The canon decides the layer, the selection
 and the gate; the pack says what a test at that layer looks like in that framework.
 
-| Pack | Covers | Typical profile |
+| Example pack | Covers | Typical profile |
 |---|---|---|
-| `testing-django` | pytest + pytest-django + DRF shapes and traps | app backend |
+| a Django backend pack | pytest + pytest-django + DRF shapes and traps | app backend |
 | `testing-vue` | Vitest + Vue Test Utils + Pinia + MSW shapes and traps | app frontend |
 | `testing-playwright-app` | Playwright specs, helpers, seed generators and the disposable template-database environment (`test-e2e.sh` generator) | app E2E |
 | `testing-payload` | Payload CMS integration tests (Vitest, Local API) | website backend |

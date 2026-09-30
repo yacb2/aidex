@@ -24,11 +24,17 @@ Test-driven bug fixing methodology that ensures every fix includes a regression 
 The bug-fix workflow is these nine steps — the agent table and prose below key to their step numbers:
 
 1. Investigate root cause (don't guess)
+   Then **sweep for siblings**: grep the repo for the same defect shape (the same call,
+   pattern or missing guard), not only the reported instance. Every match is in scope unless
+   you can give a reason to exclude it.
 2. Write test that reproduces bug (must FAIL) — **read**
    `${CLAUDE_PLUGIN_ROOT}/skills/bugfix/references/test-patterns.md` **before choosing the
    test type**: it holds the signal→type decision matrix, the naming convention, the
    regression-test structure, and the cases where an automated test is the wrong call.
    The summary below is the first column of that matrix, not a substitute for it.
+   The RED set covers every in-scope sibling from step 1 (a table row each, at the owning
+   layer, not one test per scenario copy). Report a **sibling table**: each match as
+   `fixed` or `excluded — <reason>`; siblings are fixed in this change, not left as follow-up.
    Where the regression test goes and how many to write — one, at the owning layer — is
    `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md` § Bug regressions; read it with the matrix.
 3. Confirm test fails **for the right reason** — the failure message names the buggy behavior, not an import/syntax/setup error. Verify this before writing the fix.

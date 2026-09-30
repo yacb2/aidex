@@ -5,7 +5,7 @@ layers, built from what each tool's own documentation says it is for — not fro
 transcribed consultation artifact. Each layer names the tool, the primary source that
 defines its scope, and the question it is suited to answer.
 
-The tool column is illustrative — it names what this fleet's Django + Vue projects use, so the
+The tool column is illustrative — it names one example stack (Django + Vue), so the
 layers are concrete. The layer definitions and the rubric below are the doctrine; what a test
 at a given layer looks like in a given framework is the stack pack named by the project's
 `testing-profile.md` (`references/14-testing-profile.md`).
@@ -23,7 +23,7 @@ at a given layer looks like in a given framework is the stack pack named by the 
 
 - **Layer 1.** Django documentation, *Testing tools* — `django.test.TestCase` rolls its
   transaction back, `TransactionTestCase` truncates. The quote, URL and check date live in
-  the `testing-django` pack (`references/02-pytest-django-traps.md`); not duplicated here.
+  the stack pack for a Django backend, if the project has one; not duplicated here.
 - **Layer 2.** Django REST Framework documentation, *Testing* and *Schemas* — DRF ships
   `APIClient`/`APITestCase` for making authenticated requests against views in tests, and
   deprecates its built-in OpenAPI schema generation in favour of `drf-spectacular`. The

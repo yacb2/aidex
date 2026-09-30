@@ -20,7 +20,7 @@ average without being absurd.
    `vitest.config.*` this rollout touched emits `['text', 'html', 'lcov', 'cobertura']` —
    the existing reporters stay, `cobertura` is additive.
 3. `diff-cover` itself is a Python tool, and its version belongs pinned as a dev dependency
-   in a project's **backend** `pyproject.toml` (`[tool.poetry.group.dev.dependencies]`),
+   in a project's **backend** `pyproject.toml` (in the example stack, `[tool.poetry.group.dev.dependencies]`),
    the group that already carries `pytest-cov` and `factory-boy` — not because it runs
    against backend coverage (it does not; backend `diff-cover` is separately out of scope,
    see below), but because that group is where a project keeps its Python tooling. Pin it
