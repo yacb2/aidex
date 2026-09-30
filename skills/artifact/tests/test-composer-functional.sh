@@ -822,8 +822,12 @@ tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | head -1)"
 l1="$(sed -nE 's/.*\|L1=([0-9]+)\|.*/\1/p' <<<"$tn")"
 l2="$(sed -nE 's/.*\|L2=([0-9]+)\|.*/\1/p' <<<"$tn")"
 i1="$(sed -nE 's/.*\|I1=([0-9]+)\|.*/\1/p' <<<"$tn")"
-[[ -n "$l1" && "$l1" -ge 100 && -n "$l2" && "$l2" -ge 180 ]] \
-  || fail "BL-536: at 390 px a short label column (${l1:-?}px) or the prose beside it (${l2:-?}px) is squeezed (want >= 100 and >= 180): $tn"
+# L2 is the discriminating half: the table keeps its floor and scrolls inside
+# .tw, so the prose column is wider than it could be if the table were squeezed
+# onto a 390 px screen (measured 358 with the floor, 183 without it). L1 alone
+# does not tell the two apart (122 vs 109).
+[[ -n "$l1" && "$l1" -ge 100 && -n "$l2" && "$l2" -ge 300 ]] \
+  || fail "BL-536: at 390 px a short label column (${l1:-?}px) or the prose beside it (${l2:-?}px) is squeezed: the table lost its floor and was fitted to the screen instead of scrolling inside .tw (want >= 100 and >= 300): $tn"
 [[ -n "$i1" && "$i1" -le 80 ]] \
   || fail "BL-536: at 390 px an id column is ${i1:-?}px wide, it should stay narrow (want <= 80: the id plus cell padding): $tn"
 

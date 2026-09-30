@@ -397,12 +397,22 @@ def decide(spec_text, item_id, verdict):
     except SpecBuildError as exc:
         raise VerbError("#%s cannot be read (line %d: %s)"
                         % (item_id, exc.line, exc.message))
-    if chosen and verdict.strip() not in chosen + [", ".join(chosen)]:
+    # Compared in the plain form the page's data-label carries (and the
+    # reader's reply with it): `Use uv` is the option written `Use **uv**`.
+    plain = [spec_build.PLAIN.sub("", c) for c in chosen]
+    if chosen and (spec_build.PLAIN.sub("", verdict.strip())
+                   not in plain + [", ".join(plain)]):
         raise VerbError(
             "#%s carries {chosen} on %s, so deciding %r would leave the page "
             "checking one option and naming another: move the {chosen} marker "
             "to the new winner first" % (item_id, ", ".join(map(repr, chosen)),
                                          verdict.strip()))
+    # The same verdict in another spelling (`Dos` for a recorded `**Dos**`, or
+    # back) is already recorded: rewriting it would break idempotence and reset
+    # the round stamp, which compares the raw decided text.
+    if (spec_build.PLAIN.sub("", node.attrs.get("decided", "").strip())
+            == spec_build.PLAIN.sub("", verdict.strip())):
+        return spec_text
     lines = _split(spec_text)
     if not _set_attr(lines, node, "decided", verdict):
         return spec_text
@@ -791,14 +801,14 @@ def main(argv):
                                 args.ident.lstrip("#"), args.title, args.body,
                                 args.options, out=args.out, lang=args.lang)
         elif args.verb == "decide":
-            if len(set(args.ident)) != len(args.ident):
+            idents = [i.lstrip("#") for i in args.ident]
+            if len(set(idents)) != len(idents):
                 p.error("decide repeats an --id: one verdict per item per call")
-            if len(args.ident) != len(args.verdict):
+            if len(idents) != len(args.verdict):
                 p.error("decide needs one --verdict per --id (got %d and %d)"
-                        % (len(args.ident), len(args.verdict)))
+                        % (len(idents), len(args.verdict)))
             out = decide_many_file(
-                args.spec,
-                [(i.lstrip("#"), v) for i, v in zip(args.ident, args.verdict)],
+                args.spec, list(zip(idents, args.verdict)),
                 out=args.out, lang=args.lang)
         else:
             out = new_round_file(args.spec, out=args.out, lang=args.lang,

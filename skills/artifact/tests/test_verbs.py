@@ -676,7 +676,7 @@ try:
                       and n.value.id == "spec_build"})
     check("...and calls no emitter: the only spec_build names it touches are "
           "the ones a caller may",
-          touched == ["HINT_SEP", "LANGS", "build", "chosen_labels",
+          touched == ["HINT_SEP", "LANGS", "PLAIN", "build", "chosen_labels",
                      "has_options", "main", "page_title"],
           str(touched))
     writes = re.findall(r'open\(([^,]+), "w"', source)
@@ -793,11 +793,17 @@ try:
     check("a repeated --id in one call is refused, spec untouched",
           r.returncode == 2 and "repeats" in r.stderr and read(mspec) == before,
           r.stdout + r.stderr)
+    r = run("decide", mspec, "--id", "Q1", "--verdict", "A",
+            "--id", "#Q1", "--verdict", "B")
+    check("...and so is the same id written once with its `#`, spec untouched "
+          "(the guard compares ids, not argv spellings)",
+          r.returncode == 2 and "repeats" in r.stderr and read(mspec) == before,
+          r.stdout + r.stderr)
     # --- a {chosen} option is the verdict: decide may not contradict it --------
     CHOSEN_PAGE = PAGE.replace(
         "- Fences de Pandoc — prosa con marcas mínimas {recommended}\n"
         "- YAML anidado — estructura explícita",
-        "- Uno {recommended}\n- Dos {chosen}\n- Tres").replace(
+        "- Uno {recommended}\n- **Dos** {chosen}\n- Tres").replace(
         '{#Q1   title="Fences o YAML"    }', '{#Q1 title="F" decided="Dos"}')
     cspec = fresh("chosen-decide", CHOSEN_PAGE)
     cbytes = read(cspec, "rb")
@@ -806,9 +812,27 @@ try:
           "byte-identical",
           r.returncode != 0 and "{chosen}" in r.stderr
           and read(cspec, "rb") == cbytes, r.stdout + r.stderr)
+    # The option is `**Dos**` in the spec, but the page's data-label (and so the
+    # reader's reply) carries it as plain `Dos`: the plain form is the same option.
     r = run("decide", cspec, "--id", "Q1", "--verdict", "Dos")
-    check("...and the same label as the {chosen} option is accepted",
+    check("...and the same label as the {chosen} option is accepted, in the "
+          "plain form the page's data-label carries",
           r.returncode == 0, r.stdout + r.stderr)
+    # Same option, same verdict: decided="Dos" already records it, so the
+    # markdown spelling is a no-op, not a rewrite (idempotence, and the round
+    # stamp that compares the raw decided text).
+    r = run("decide", cspec, "--id", "Q1", "--verdict", "**Dos**")
+    check("...and in the spec's own markdown form, spec byte-identical",
+          r.returncode == 0 and read(cspec, "rb") == cbytes,
+          r.stdout + r.stderr)
+    mspec2 = fresh("chosen-decide-md", CHOSEN_PAGE.replace(
+        'decided="Dos"', 'decided="**Dos**"'))
+    mbytes = read(mspec2, "rb")
+    r = run("decide", mspec2, "--id", "Q1", "--verdict", "Dos")
+    check("...and the mirror: decided=\"**Dos**\" with the plain verdict Dos, "
+          "spec byte-identical",
+          r.returncode == 0 and read(mspec2, "rb") == mbytes,
+          r.stdout + r.stderr)
 
     # --- BL-533: a new round may DROP items, and the drop is recorded ----------
     print()
