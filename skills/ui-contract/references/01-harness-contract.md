@@ -38,8 +38,8 @@ per cell. What it must guarantee:
   **"proved by"** column: a pixel (the cell), an assertion, or a unit test id. A clause
   that lives out of the picture (an action disabled inside a closed menu) never reaches a
   pixel, and deleting the code that implements it keeps the whole gate green; the column
-  makes that gap visible before the gate runs. Give the same column to the reviewer's
-  brief on a gallery spec.
+  makes that gap visible before the gate runs. The reviewer's brief on a gallery spec
+  carries both: this column, and each cell's `ready` to check against the rule above.
 - **Overlays have a runner.** Modal, panel, menu and confirm cells run through the
   overlay runner, which keeps the list and form runners' order (open, check, shoot); a
   hand-assembled cell in that order is a second copy to keep in step. Same rule for a

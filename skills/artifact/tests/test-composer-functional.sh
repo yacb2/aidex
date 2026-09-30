@@ -1634,6 +1634,18 @@ window.addEventListener('load', function () {
       + '|SAME=' + (before === after ? '1' : '0')
       + '|REACHED=' + reached
       + '|PASTE=' + after.replace(/[|<>\n]/g, ' ');
+  } else if (q.indexOf('phase=gonecol') !== -1) {
+    /* BL-466: at a phone width a capture is only readable one per row, at the
+       row's full width. Every tile below the one before, none narrower. */
+    var gw = document.querySelector('[data-id="audit-with-data"] .gal').clientWidth;
+    var tops = [], narrow = 0;
+    [].forEach.call(document.querySelectorAll('[data-id="audit-with-data"] .gal figure'), function (f) {
+      tops.push(f.offsetTop);
+      if (f.offsetWidth < gw - 1) narrow++;
+    });
+    var stacked = tops.every(function (t, i) { return i === 0 || t > tops[i - 1]; });
+    document.title = 'GONECOL|W=' + window.innerWidth + '|N=' + tops.length
+      + '|STACKED=' + (stacked ? '1' : '0') + '|NARROW=' + narrow;
   } else if (q.indexOf('phase=gdecided') !== -1) {
     fig('audit-with-data', 'light-desktop').click();
     key('ArrowDown');
@@ -2080,6 +2092,14 @@ grun() {  # grun <query>
   chrome_dump "$TMP/gdom.html" "file://$GPAGE?$1" 45 || true
   grep -oE '<title>[^<]*</title>' "$TMP/gdom.html" | head -1
 }
+# Before any filter phase stores a mode or a viewport: a hidden tile would read
+# as a narrow one.
+rm -rf "$TMP/profile"
+tg="$(CHROME_WINDOW=390,900 grun 'phase=gonecol')"
+[[ "$tg" == *"GONECOL|W=390|N=4"* ]] || fail "the one-per-row phase did not run at 390 px on four tiles: $tg"
+[[ "$tg" == *"STACKED=1"* && "$tg" == *"NARROW=0"* ]] \
+  || fail "at 390 px the gallery tiles share a row or do not fill it — one per row at full width is the only readable layout (BL-466): $tg"
+
 rm -rf "$TMP/profile"
 tg="$(grun 'phase=gzoom')"
 [[ "$tg" == *GZOOM* ]] || fail "the gallery zoom phase did not run: $tg"
