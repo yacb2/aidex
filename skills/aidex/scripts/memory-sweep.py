@@ -155,7 +155,7 @@ def project_path_of(slug: str) -> str | None:
     """The working tree a memory directory's slug refers to, or None if it is gone.
 
     The slug is the project path with `/`, `_` and a leading `.` all flattened to `-`,
-    which is lossy in three directions at once: `echo-lab-ws` may be `echo_lab_ws`,
+    which is lossy in three directions at once: `my-app-ws` may be `my_app_ws`,
     `--claude` is `/.claude`, and `bindery-press` really does keep its dash. Decoding it
     by string rules guesses wrong — on 2026-08-31 that resolved
     `-Users-user--claude` to `/Users/user//claude`, an existing but wrong
@@ -369,8 +369,8 @@ def _git_repos(root: str) -> list[str]:
 def _sha_reachable(sha: str, roots: list[str]) -> bool:
     """True if the SHA resolves in any repo the memory could plausibly mean.
 
-    Cross-repo memories are normal — one memory in `aidex` legitimately cites commits in
-    loom, lexis and ph. Checking only the memory's own project made 374 of 429 memories
+    Cross-repo memories are normal — one memory in one project legitimately cites commits in
+    other projects. Checking only the memory's own project made 374 of 429 memories
     look like they cited phantom commits.
     """
     for r in roots:

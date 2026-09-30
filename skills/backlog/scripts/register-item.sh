@@ -272,9 +272,9 @@ scan_backlog_raw_ids() {
 # Report id integrity problems. Two failure modes, both from hand-authored entries
 # (this script never produces either — next_backlog_id always mints BL-NNN above
 # the highest it can see):
-#   1. Duplicate id — two pairs sat undetected in echo_lab for weeks (BL-186 and
+#   1. Duplicate id — two pairs sat undetected in one project for weeks (BL-186 and
 #      BL-193, found 2026-07-22).
-#   2. Nonconforming id — an id not matching ^BL-[0-9]{3}$ (ns_backoffice's
+#   2. Nonconforming id — an id not matching ^BL-[0-9]{3}$ (a project's
 #      hand-authored `BL-20260610` makes next_backlog_id mint `BL-20260611`,
 #      inflating the sequence). The digit-strip in scan_backlog_ids hides this
 #      from the duplicate check, so it needs its own raw-shape pass.

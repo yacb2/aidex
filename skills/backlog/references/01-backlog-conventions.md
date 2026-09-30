@@ -404,8 +404,8 @@ pair**:
 
 ```bash
 # Discovering a new cross-repo item (registers a fresh source stub + counterpart):
-bash scripts/register-item.sh --escalate-to /path/to/boilerplate \
-  --title "Host shared X in the boilerplate" --priority P2 --type improvement
+bash scripts/register-item.sh --escalate-to /path/to/template-repo \
+  --title "Host shared X in the shared template repo" --priority P2 --type improvement
 
 # Routing an item that already exists (stamp it instead of duplicating):
 bash scripts/register-item.sh --escalate-to /path/to/aidex \

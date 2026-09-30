@@ -25,7 +25,7 @@ project_root() {
   local start dir stop outermost=""
   start="$(pwd -P)"; stop="${HOME:-}"
   # The OUTERMOST .context ancestor, not the nearest: in a workspace whose root
-  # is not a repo (echo_lab_ws/ with backend/ and frontend/ as sibling repos,
+  # is not a repo (a workspace dir with backend/ and frontend/ as sibling repos,
   # each with its own .context), one run spans the repos and must have one
   # marker — the nearest-ancestor rule would give each subrepo its own.
   dir="$start"

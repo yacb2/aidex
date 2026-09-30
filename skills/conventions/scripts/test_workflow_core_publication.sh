@@ -127,7 +127,7 @@ async function main() {
     id: 'p-deny',
     gateCmd: 'true',
     implement: async () => ({ done: true, summary: 'work finished', proof: 'proofs/x.txt',
-                              pending_actions: ['drop database ns_backoffice'] }),
+                              pending_actions: ['drop database app_prod'] }),
   }
   const rDeny = await runPhase(phaseDeny, ctx)
   out.deny = {

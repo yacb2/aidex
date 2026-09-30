@@ -101,7 +101,7 @@ fi
 
 # 12. The size class bounds what the FINDERS READ, so it is computed on the source
 #     files, not on source+tests. A module is otherwise refused for being well tested:
-#     echo_lab's lab_timeline measured 15,394 LOC (oversize, 0 finders) against 7,270
+#     one project's timeline module measured 15,394 LOC (oversize, 0 finders) against 7,270
 #     LOC of source (large, 4 finders) — 8,124 of those lines were its own tests.
 #     `loc` keeps meaning the total; `source_loc` is the number the class comes from.
 mkdir -p "$TMP/tested/tests"
@@ -124,7 +124,7 @@ awk 'BEGIN { for (i = 0; i < 4000; i++) print "assert " i }' > "$TMP/tested/test
 
 # 14. A target that is ENTIRELY tests was named deliberately — excluding them would
 #     resolve it to zero files and report exit 3, which reads as "nothing to review"
-#     on a directory full of code. Measured against echo_lab: lab_timeline/tests is
+#     on a directory full of code. Measured against a real project: timeline/tests is
 #     46 files, all of them tests.
 mkdir -p "$TMP/onlytests"
 printf 'def test_a():\n    assert True\n' > "$TMP/onlytests/test_a.py"
@@ -186,7 +186,7 @@ printf 'def test_x():\n    pass\n' > "$TMP/part/tests/test_x.py"
 
 # 19. THE INVARIANT. A partition that loses files is a completeness claim that is
 #     false, which is the exact failure this skill exists to stop. Found by attacking
-#     the design: echo_lab's lab_timeline has tasks.py and urls.py sitting at the
+#     the design: one project's timeline module has tasks.py and urls.py sitting at the
 #     module root, and a naive by-subdirectory split drops them silently.
 #
 #     The relation is `parts >= whole`, not `=`: a part measured as a target in its
@@ -211,7 +211,7 @@ printf '%s\n' "$part_out" | grep -q '^part\.(root)\.files=2$' \
   || fail "the 2 root-level files are not reported as their own named part"
 
 # 21. Every part carries its own measurement, and a part that is STILL oversize is
-#     marked as needing another level. `pages/` in echo_lab's timeline is 12,712 LOC
+#     marked as needing another level. `pages/` in one project's timeline is 12,712 LOC
 #     of source — over the bound by 6% — so a depth-1 partition does not always
 #     converge, and a proposal whose failure mode is the same wall one level down
 #     would be no better than the wall.

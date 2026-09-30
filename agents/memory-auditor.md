@@ -14,8 +14,8 @@ You produce verdicts; the caller routes them.
 ## What you are auditing
 
 Memory lives at `~/.claude/projects/<slug>/memory/`. The slug is the project path with
-`/` and `_` turned into `-` — e.g. `-Users-me-Documents-projects-echo-lab-ws` is
-`/Users/me/Documents/projects/echo_lab_ws`. Try both the `_` and `-` variants and `ls`
+`/` and `_` turned into `-` — e.g. `-Users-me-Documents-projects-my-app-ws` is
+`/Users/me/Documents/projects/my_app_ws`. Try both the `_` and `-` variants and `ls`
 to confirm; measuring under the wrong slug reads zero and looks clean.
 
 - Every `*.md` in that directory except `MEMORY.md` is a **memory file** — one durable fact.

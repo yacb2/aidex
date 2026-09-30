@@ -167,7 +167,7 @@ Omitting it does not make the block inherit the mail client's font. Copying from
 puts *computed* styles on the clipboard, so an unstyled block arrives carrying the
 browser's own default — a serif face sitting above an Outlook signature and a quoted
 thread in the client's composing font. Stating the wrong font fails the same way: the
-echo_lab_ws draft of 2026-09-16 specified Calibri and landed visibly apart from the message
+one 2026-09-16 draft specified Calibri and landed visibly apart from the message
 written around it.
 
 The value is not a style choice. It tracks the **composing font of the sender's mail

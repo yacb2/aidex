@@ -225,7 +225,7 @@ ALL_FILES="$(collect_files)"
 # set they actually read. Two things follow, and they are not separable:
 #
 #   1. The reviewed set excludes tests by default, so the class is not inflated by
-#      them. echo_lab's lab_timeline measured 15,394 LOC — oversize, zero finders —
+#      them. one project's timeline module measured 15,394 LOC — oversize, zero finders —
 #      against 7,270 LOC of source, which is `large` with 4. A module was refused for
 #      being well tested, and its own tests were the largest thing in it.
 #   2. `--include-tests` puts them back in the reviewed set AND sizes on the total.
@@ -369,10 +369,10 @@ EOF
 # The invariant is the deliverable: every reviewed file lands in exactly one part, and
 # the parts sum to the whole. Without that, a partition is a completeness claim that is
 # false — which is the failure this whole skill exists to stop. It also has a concrete
-# victim: echo_lab's lab_timeline keeps tasks.py and urls.py at the module root, and a
+# victim: one project's timeline module keeps tasks.py and urls.py at the module root, and a
 # by-subdirectory split drops them silently. Hence the named `(root)` part.
 #
-# A part can still be oversize (echo_lab's pages/ is 12,712 LOC of source, over by 6%),
+# A part can still be oversize (one project's pages/ is 12,712 LOC of source, over by 6%),
 # so each carries needs_split. A proposal whose failure mode is the same wall one level
 # down would be no better than the wall.
 if [ "$PARTITION" -eq 1 ]; then

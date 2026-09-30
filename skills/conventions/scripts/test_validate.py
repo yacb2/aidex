@@ -677,7 +677,7 @@ def check_external_crossrefs(failures: list[str]) -> None:
     cross-repo `<repo>/BL-NNN` written by backlog's --escalate-to — are accepted
     on format alone. Local `<type>/…` refs stay resolvable, so typos in them still fail."""
     v = _load_validator()
-    for ref in ("echo_lab_ws/BL-206", "issue/GH-1234", "aidex/BL-70"):
+    for ref in ("app_ws/BL-206", "issue/GH-1234", "aidex/BL-70"):
         if not v.is_external_ref(ref):
             failures.append(f"external cross-ref: {ref!r} should be recognised as external")
     for ref in ("backlog/2026-01-01-x", "plan/BL-206", "FCM/APNs credentials",
@@ -688,7 +688,7 @@ def check_external_crossrefs(failures: list[str]) -> None:
     ctx = FIXTURES / "good" / ".context"
     def rules(fm: dict) -> list[str]:
         return [f.rule for f in v.check_crossrefs("backlog", Path("x.md"), fm, ctx)]
-    for fm in ({"escalated_to": "echo_lab_ws/BL-206"}, {"origin_ref": "issue/GH-1234"}):
+    for fm in ({"escalated_to": "app_ws/BL-206"}, {"origin_ref": "issue/GH-1234"}):
         if rules(fm):
             failures.append(f"external cross-ref: {fm} produced findings {rules(fm)}")
     if "cross-ref-target-missing" not in rules({"escalated_to": "plan/2099-12-31-nope"}):
@@ -697,15 +697,15 @@ def check_external_crossrefs(failures: list[str]) -> None:
     # BL-360: escalated_to fans out. Ten --escalate-to runs against one source used to
     # leave it pointing only at the tenth, so the field now holds a comma-separated
     # list and every element is validated independently.
-    fan = "echo_lab_ws/BL-206, lexis_ws/BL-12, work_hours_ws/BL-3"
+    fan = "app_ws/BL-206, api_ws/BL-12, web_ws/BL-3"
     if rules({"escalated_to": fan}):
         failures.append(f"fan-out cross-ref: a comma-separated list produced {rules({'escalated_to': fan})}")
     # Each element is judged on its own — a bad one in the middle is still caught, or
     # the split would be a way to smuggle a broken ref past the check.
-    mixed = "echo_lab_ws/BL-206, plan/2099-12-31-nope, lexis_ws/BL-12"
+    mixed = "app_ws/BL-206, plan/2099-12-31-nope, api_ws/BL-12"
     if "cross-ref-target-missing" not in rules({"escalated_to": mixed}):
         failures.append("fan-out cross-ref: a missing target inside a list must still fail")
-    if "cross-ref-format-invalid" not in rules({"escalated_to": "echo_lab_ws/BL-206, not a ref"}):
+    if "cross-ref-format-invalid" not in rules({"escalated_to": "app_ws/BL-206, not a ref"}):
         failures.append("fan-out cross-ref: a malformed element inside a list must still fail")
 
 
@@ -744,7 +744,7 @@ def check_artifact_anchor_unit(failures: list[str]) -> None:
     # An anchor is a cross-reference, so it inherits the cross-ref escapes verbatim:
     # external ids are format-only, and the pending sentinel warns rather than fails.
     for html in ('<meta name="artifact-anchor" content="issue/GH-1234">',
-                 '<meta name="artifact-anchor" content="echo_lab_ws/BL-206">'):
+                 '<meta name="artifact-anchor" content="app_ws/BL-206">'):
         if rules(html):
             failures.append(f"artifact-anchor: an external anchor was flagged {rules(html)} — "
                             f"externals are accepted on format alone, as in check_crossrefs")
@@ -1441,7 +1441,7 @@ def check_artifact_lang_lockstep(failures: list[str]) -> None:
     `wrap_report.profile_language` (the writer of `<html lang>`), so both must
     read one profile the same way. The declaration is the `language:` inside
     `## Language`, wherever that section sits: last in aidex_ws's profile, near
-    the top in asset_lab_ws's and dashboard_template_ws's, where a later example
+    the top in other projects' profiles, where a later example
     line may read `- language: en` (LOOP-006)."""
     import tempfile
     v = _load_validator()

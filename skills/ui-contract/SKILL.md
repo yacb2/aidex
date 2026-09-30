@@ -9,8 +9,8 @@ model-policy: per-stage
 # UI contract
 
 > **Experimental (1.3.0).** The mechanism has now run on three real features: the
-> user-invitations redesign (echo_lab_ws), the BL-011 Wonderland panel (asset_lab_ws) and
-> the harness adoption in dashboard_template_ws. Each run found mechanism defects as well as
+> user-invitations redesign, a game-style panel and
+> a harness adoption, each in a different project. Each run found mechanism defects as well as
 > product gaps, and all of them are fixed in this text. It has not run on a project whose
 > harness the owner did not shape. Say so to the user before relying on it.
 

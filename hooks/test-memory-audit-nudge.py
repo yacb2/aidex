@@ -165,7 +165,7 @@ print("== the slug is resolved forward from cwd, never decoded backwards ==")
 # `/`->`-` form does not exist on disk and only the `_`->`-` candidate resolves.
 # Decoding a directory name backwards is what resolved a slug to an existing but WRONG
 # directory on 2026-08-31; going forward and keeping the candidate that exists cannot.
-u_proj = os.path.join(HOME, "Documents", "projects", "echo_lab_ws")
+u_proj = os.path.join(HOME, "Documents", "projects", "my_app_ws")
 os.makedirs(u_proj, exist_ok=True)
 u_slug = u_proj.replace("_", "-").replace("/", "-")
 u_mem = os.path.join(HOME, ".claude", "projects", u_slug, "memory")

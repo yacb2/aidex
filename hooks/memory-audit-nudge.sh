@@ -26,7 +26,7 @@ SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // .sessionId // empty' 2>/d
 [ -n "$CWD" ] || exit 0
 
 # The slug is resolved FORWARD from cwd, never decoded backwards from a directory name.
-# Decoding is lossy in three directions at once — `echo-lab-ws` may be `echo_lab_ws`,
+# Decoding is lossy in three directions at once — `my-app-ws` may be `my_app_ws`,
 # `--claude` is `/.claude`, and `bindery-press` really does keep its dash — and on
 # 2026-08-31 guessing it wrong resolved a slug to an existing but WRONG directory, with
 # every check then reporting against it. Going forward from a path we already have, and

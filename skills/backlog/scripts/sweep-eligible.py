@@ -9,7 +9,7 @@ close it). Everything else is NEEDS-DECISION and belongs in the kickoff consulta
 not in the run; "underdefined" is answered by `/aidex:backlog define`, not by the
 sweep (owner's call 2026-08-27, Q8).
 
-Measured on echo_lab 2026-08-24 (research/2026-08-24-small-sweep-throughput-analysis):
+Measured on one project 2026-08-24 (research/2026-08-24-small-sweep-throughput-analysis):
 25% of a 79-item sweep carried no Acceptance, and the two worst rework items —
 four commits each, across two repos — were both in that group.
 

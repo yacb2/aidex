@@ -15,7 +15,7 @@ the project, so they can never collide with one.
 This exists because migrate-ids.sh cannot do it. That script skips any file that
 already has an id, and it feeds every id's digits into its max — so one legacy
 `BL-20260610` pushes the sequence into the millions and every id it then mints is
-nonconforming too (ns_backoffice would have minted BL-20260623, loom_lab
+nonconforming too (one project would have minted BL-20260623, another
 BL-202607056).
 
 Citation rewriting is boundary-anchored, so `BL-20260705` never matches inside
