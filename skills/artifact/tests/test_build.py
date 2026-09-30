@@ -407,6 +407,40 @@ try:
           '<input type="radio" name="Q1" data-label="No"><span>')
     check("item: ...and the marker never reaches the page",
           "{recommended}" not in BUILT[-1][1], BUILT[-1][1])
+    # BL-491/BL-537: a `{recommended}` quoted in backticks is the author showing
+    # the syntax (check_artifact exempts <code> for the same reason). In an
+    # option's HINT or the item body it stays literal and marks nothing. In the
+    # LABEL it would land in data-label, which the reply copies and the contract
+    # flags, so the builder refuses it there.
+    ITEM_QUOTED = ('::: group {#G1 title="T"}\n'
+                   '::: item {#Q1 title="t"}\n?\n\n'
+                   "- Con pista — y `{recommended}` en la pista\n"
+                   "- Real {recommended} — y `{recommended}` en la pista\n"
+                   "- Tercero\n:::\n:::\n")
+    quoted = holds("item: a backtick-quoted {recommended} in a hint stays literal",
+                   ITEM_QUOTED,
+                   '<input type="radio" name="Q1" data-label="Con pista">',
+                   '<input type="radio" name="Q1" data-label="Real" data-recommended>',
+                   '<code>{recommended}</code> en la pista')
+    check("item: ...and the quoted one did not mark its option",
+          'data-label="Con pista" data-recommended' not in quoted, quoted)
+    rejects("item: a backtick-quoted {recommended} in a LABEL is refused",
+            ITEM_QUOTED.replace("Con pista — y", "Con `{recommended}` al final —"),
+            2, "data-label")
+    rejects("item: decided=yes counts only the marker outside backticks",
+            ITEM_QUOTED.replace('title="t"}', 'title="t" decided=yes}')
+                       .replace(" {recommended} —", " —"),
+            2, "no option marked {recommended}")
+    qspec = os.path.join(tmp, "quoted.spec.md")
+    with open(qspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Quoted\n\nX\n:::\n\n'
+                 + ITEM_QUOTED + '\n::: notes {title="Notas"}\n:::\n')
+    r = subprocess.run([sys.executable, BUILD, qspec, "-o",
+                        os.path.join(tmp, "quoted.html"), "--check"],
+                       capture_output=True, text=True)
+    check("the hint-quoted page builds and passes check-artifact (--check)",
+          r.returncode == 0, r.stdout + r.stderr)
+
     # BL-454: a question whose answer is a SET. Only radios could be built, so
     # "which of these four go to the queue" let the reader tick one.
     MANY = ('::: group {#G1 title="T"}\n'
@@ -425,6 +459,18 @@ try:
     holds("item: select=one is the default spelled out: radios",
           MANY.replace("select=many", "select=one"),
           '<div class="opts one">', '<input type="radio" name="Q1" data-label="Uno"')
+    # BL-492c: select=many is a set of OPTIONS; with none it built a silent
+    # single-choice-less item (an open answer wearing the wrong attr).
+    rejects("item: select=many with no options is refused, naming the line",
+            '::: group {#G1 title="T"}\n'
+            '::: item {#Q1 title="t" select=many}\n?\n:::\n:::\n',
+            2, "select=many")
+    rejects("item: select=many free=yes with no options is refused too",
+            '::: group {#G1 title="T"}\n'
+            '::: item {#Q1 title="t" select=many free=yes}\n?\n:::\n:::\n',
+            2, "select=many")
+    holds("item: select=many free=yes WITH options still builds",
+          MANY.replace("select=many", "select=many free=yes"), "data-free>")
     rejects("item: an unknown select= value is refused, naming the line",
             '::: group {#G1 title="T"}\n\n'
             '::: item {#Q1 title="t" select=several}\n?\n\n- A\n:::\n:::\n',
@@ -1109,6 +1155,17 @@ try:
         "Abre <a", "Escribe <code>{recommended}</code> y abre <a"))
     check("a {recommended} shown as <code> is not flagged — the author "
           "quoting the marker", r.returncode == 0, r.stdout + r.stderr)
+    # BL-492b: the exemption is <code> and <pre>; a <textarea> is NOT exempt
+    # (a prefilled reply box holding the marker is pasted back as the leak).
+    r = contract("rec-pre", linked.replace(
+        "Abre <a", "<pre>{recommended}</pre> y abre <a"))
+    check("a {recommended} shown in <pre> is not flagged",
+          r.returncode == 0, r.stdout + r.stderr)
+    r = contract("rec-textarea", linked.replace(
+        "Abre <a", "<textarea>{recommended}</textarea> y abre <a"))
+    check("a {recommended} inside a <textarea> IS flagged",
+          r.returncode != 0 and "literal {recommended}" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
 
     print()
     print("== the built page passes check-artifact.sh, unmodified ==")

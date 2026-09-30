@@ -576,7 +576,7 @@ def _refuse_second_list(node):
                     "first is its options (line %d)%s: number the explanation "
                     "list (`1.`) or move it into a `note`"
                     % (first, ", so the {recommended} here is never read"
-                       if any(RECOMMENDED in t for t in opts) else ""))
+                       if any(_option(t)[2] for t in opts) else ""))
             first = at + len(before)
             at += len(rest) - len(after)
             rest = after
@@ -587,8 +587,12 @@ def _option(text):
     # The marker is honoured wherever it sits on the option, not only at the
     # end: `label {recommended} — hint`, or on a wrapped option's first line,
     # used to ship it as text with no data-recommended (BL-481).
-    rec = RECOMMENDED in text
-    text = REC_MARK.sub(" ", text).strip()
+    # Only outside backtick spans: a quoted `{recommended}` is the author
+    # showing the syntax, which check_artifact also treats as quoting (BL-491).
+    parts = re.split(r"((?<!\\)`[^`]+`)", text)
+    rec = any(RECOMMENDED in p for p in parts[::2])
+    text = "".join(p if i % 2 else REC_MARK.sub(" ", p)
+                   for i, p in enumerate(parts)).strip()
     label, _, hint = text.partition(HINT_SEP)
     return label.strip(), hint.strip(), rec
 
@@ -715,6 +719,10 @@ def emit_item(node, ctx):
                 tail.append(("prose", after))
         else:
             head.append(("prose", payload))
+    if select == "many" and not opts:
+        raise SpecBuildError(
+            node.line, "`item` select=many has no options to tick: list them "
+            "with `-`, or drop select=many (free=yes alone asks an open answer)")
     def render(segments, ctx=ctx):
         out = []
         for kind, payload in segments:
@@ -797,6 +805,12 @@ def emit_item(node, ctx):
             label, hint, rec = _option(text)
             if not label:
                 raise SpecBuildError(node.line, "an option with no label")
+            if RECOMMENDED in label:      # only a backtick-quoted one survives
+                raise SpecBuildError(
+                    node.line, "option %r quotes `{recommended}` in its label, "
+                    "and the label is data-label, which the reply copies: put "
+                    "the quote in the hint (after ` — `) or the item body"
+                    % label)
             span = md_body._inline(label)
             if hint:
                 span += ' <span class="hint">%s</span>' % md_body._inline(hint)

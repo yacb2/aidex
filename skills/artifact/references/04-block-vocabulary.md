@@ -240,8 +240,10 @@ has **no bare flags**, so `{… decided}` alone is malformed. And the `{recommen
 option line is *not* an attr group: it sits in the block's prose body, where the
 attr rules do not reach, and it is the `item` builder — not the tokenizer — that reads it.
 Its place is the end of the line, but it is read anywhere on the option (before the
-` — ` hint, on a wrapped first line) and removed from the text; `check-artifact`
-fails a page that still shows it (`rec-leak`, BL-481).
+` — ` hint, on a wrapped first line) and removed from the text, except inside a
+backtick span, where it is the syntax quoted and stays literal (in the label it is
+refused, because the label is `data-label`; quote it in the hint or the body);
+`check-artifact` fails a page that still shows it (`rec-leak`, BL-481).
 
 **One choice or a set: `select=`.** An item's options are radios by default
 (`select=one`). A question whose answer is a SET — "which of these four films go to

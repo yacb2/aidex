@@ -733,6 +733,66 @@ try:
           r.returncode == 1 and "is the spec itself" in r.stderr, r.stderr)
     check("...and the spec was not written first",
           'decided="Fences"' in read(spec))
+
+    print()
+    print("== decide: several --id/--verdict pairs in one call (BL-497) ==")
+    # One reader reply decides several items; one call records them all and
+    # rebuilds once, so the page moves one round and every item carries it.
+    more = "".join(
+        '\n::: item {#Q%d title="Item %d"}\n¿Pregunta %d?\n\n'
+        "- A {recommended}\n- B\n:::\n" % (n, n, n) for n in (3, 4))
+    multi_text = PAGE.replace(" decided=yes", "").replace(
+        "- No, un atributo nuevo\n:::\n:::",
+        "- No, un atributo nuevo\n:::\n" + more + ":::", 1)
+    mspec = fresh("multi", multi_text)
+    mdir = os.path.dirname(mspec)
+    mpage = os.path.join(mdir, "page.html")
+
+    def rounds(path):
+        html = read(path)
+        return (re.findall(r'<meta name="consult-round" content="(\d+)">', html),
+                re.findall(r'data-id="(Q\d)"[^>]*data-decided="[^"]*"'
+                           r'[^>]*data-decided-round="(\d+)"', html))
+
+    r = run("decide", mspec, "--id", "Q1", "--verdict", "A")
+    check("(setup) the first decide builds the page at round 1",
+          r.returncode == 0 and rounds(mpage)[0] == ["1"], r.stdout + r.stderr)
+    saved = subprocess.run(["bash", os.path.join(SCRIPTS, "save-reply.sh"),
+                            mpage, "-"], input="Q1: A\n", text=True,
+                           capture_output=True)
+    check("(setup) the reader's reply is saved", saved.returncode == 0,
+          saved.stdout + saved.stderr)
+    r = run("decide", mspec, "--id", "Q2", "--verdict", "No, un atributo nuevo",
+            "--id", "Q3", "--verdict", "A", "--id", "Q4", "--verdict", "B")
+    check("decide with three pairs exits 0", r.returncode == 0, r.stderr)
+    text = read(mspec)
+    check("...all three verdicts are in the spec, each on its own item",
+          'decided="No, un atributo nuevo"' in text
+          and re.search(r'#Q3[^}]*decided="A"', text)
+          and re.search(r'#Q4[^}]*decided="B"', text), text)
+    # The next two cells are GUARDS, not regressions: BL-507 gates the round on
+    # a saved reply, so separate calls would also read 2. They pin it stays so.
+    meta, stamps = rounds(mpage)
+    check("...the page moved exactly one round, to 2", meta == ["2"], str(meta))
+    check("...and Q2, Q3 and Q4 all carry data-decided-round=2",
+          sorted(q for q, n in stamps if n == "2") == ["Q2", "Q3", "Q4"],
+          str(stamps))
+    before = read(mspec)
+    r = run("decide", mspec, "--id", "Q1", "--id", "Q2", "--verdict", "A")
+    check("a --id with no matching --verdict is refused, spec untouched",
+          r.returncode == 2 and "one --verdict per --id" in r.stderr
+          and read(mspec) == before, r.stdout + r.stderr)
+    r = run("decide", mspec, "--id", "Q1", "--verdict", "B",
+            "--id", "Q9", "--verdict", "A")
+    check("one unknown id refuses the whole call, nothing written (Q1 is not "
+          "left at B)",
+          r.returncode == 1 and "#Q9" in r.stderr and read(mspec) == before,
+          r.stdout + r.stderr)
+    r = run("decide", mspec, "--id", "Q1", "--verdict", "A",
+            "--id", "Q1", "--verdict", "B")
+    check("a repeated --id in one call is refused, spec untouched",
+          r.returncode == 2 and "repeats" in r.stderr and read(mspec) == before,
+          r.stdout + r.stderr)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

@@ -2609,12 +2609,14 @@ window.addEventListener('load', function () {
   var withOther = state();
   pick('[not-now]', true);
   var afterNotNow = state();
+  var pasteNotNow = copy();
   pick('Dos', true);
   var afterDos = state();
   pick('Dos', false);
   document.title = 'MANY|TYPES=' + types.join(',')
     + '|ORDER=' + (order ? '1' : '0')
     + '|OTHER=' + withOther + '|NOTNOW=' + afterNotNow + '|DOS=' + afterDos
+    + '|PASTENN=' + pasteNotNow.replace(/[|<>\n]/g, ' ') + '|ENDNN'
     + '|STATUS=' + document.getElementById('consult-status').textContent.replace(/[|<>]/g, ' ')
     + '|PASTE=' + paste.replace(/[|<>\n]/g, ' ');
 });
@@ -2636,6 +2638,11 @@ tm="$(grep -oE '<title>[^<]*</title>' "$TMP/mdom.html" | head -1)"
   || fail "BL-454: 'Otra' does not combine with the checked options of a many item: $tm"
 [[ "$tm" == *"NOTNOW=[not-now]|"* ]] \
   || fail "BL-454: 'Todavía no' did not release the answers of a many item (deferring is exclusive with answering): $tm"
+# BL-492a: copy() above ran once, before [not-now] was ticked; the paste taken
+# AFTER it must carry Q1 as '- [not-now]' alone, none of the earlier ticks.
+pnn="${tm#*PASTENN=}"; pnn="${pnn%%|ENDNN*}"
+[[ "$pnn" == *"- [not-now]"* && "$pnn" != *"- Uno"* && "$pnn" != *"- Tres"* && "$pnn" != *"Otra"* ]] \
+  || fail "BL-492: after [not-now] the paste does not carry Q1 as '- [not-now]' alone: $pnn"
 [[ "$tm" == *"DOS=Dos|"* ]] \
   || fail "BL-454: checking an option did not release 'Todavía no' in a many item: $tm"
 [[ "$tm" == *"STATUS=Sin responder"* ]] \

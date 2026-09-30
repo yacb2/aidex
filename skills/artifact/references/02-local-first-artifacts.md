@@ -257,6 +257,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/spec_verbs.py" decide <name>.spec.md \
   --id Q1 --verdict "Fences"
 ```
 
+One reader reply that decides several items is ONE call: repeat the pair
+(`--id Q1 --verdict "…" --id Q2 --verdict "…"`). The page rebuilds once, and a refused pair
+refuses the whole call.
+
 **`new-round`** — syncs the ledger to the decided items, one row per decision keyed by id.
 Idempotent: a key already in the ledger is left untouched. It does **not** move a round
 counter — the round lives in `<meta name="consult-round">`, which the wrap derives from

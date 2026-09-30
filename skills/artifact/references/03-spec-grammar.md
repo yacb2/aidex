@@ -848,7 +848,8 @@ Three things of the grammar are worth stating here:
 The first markdown list in an `item` body is its option list, and the `item` builder
 reads it (the tokenizer only sees prose). A second `-` list is refused at its line:
 number an explanation list (`1.`) or move it into a `note`. One option per `- ` line; ` — ` splits the
-label from its hint; `{recommended}` anywhere on the line marks it. The keyed attr
+label from its hint; `{recommended}` anywhere on the line marks it, except inside a
+backtick span (there it is the syntax quoted, and stays literal). The keyed attr
 `select=` decides what kind of list it is:
 
 | `select=` | Renders | Reply | Use it for |
@@ -860,6 +861,8 @@ Any other value is a builder error with the fence's line
 (`` line 3: `item` select='several' is not a value (it takes: one, many) ``). Several
 independent decisions are several items, never one `select=many` item — see
 `04-block-vocabulary.md` § item.
+
+`select=many` with no options to tick is refused too (an open answer is `free=yes` alone).
 
 ## What counts as malformed
 

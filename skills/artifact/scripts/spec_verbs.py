@@ -663,8 +663,18 @@ def add_item_file(spec_path, group_id, item_id, title, body="", options=(),
 
 
 def decide_file(spec_path, item_id, verdict, out=None, lang="es"):
-    return apply_edit(spec_path, lambda text: decide(text, item_id, verdict),
-                      out=out, lang=lang)
+    return decide_many_file(spec_path, [(item_id, verdict)], out=out, lang=lang)
+
+
+def decide_many_file(spec_path, pairs, out=None, lang="es"):
+    """Record several `(id, verdict)` pairs, then rebuild ONCE: one reader reply
+    that decides N items is one round, not N (BL-497). One refused pair refuses
+    the whole call, nothing written."""
+    def transform(text):
+        for item_id, verdict in pairs:
+            text = decide(text, item_id, verdict)
+        return text
+    return apply_edit(spec_path, transform, out=out, lang=lang)
 
 
 def new_round_file(spec_path, out=None, lang="es"):
@@ -696,8 +706,10 @@ def main(argv):
                    help="one option line; repeat it")
 
     d = common(subs.add_parser("decide", help="record an item's verdict"))
-    d.add_argument("--id", required=True, dest="ident", metavar="<#id>")
-    d.add_argument("--verdict", required=True,
+    d.add_argument("--id", required=True, action="append", dest="ident",
+                   metavar="<#id>", help="repeat --id/--verdict to record "
+                   "several items from one reply; the page rebuilds once")
+    d.add_argument("--verdict", required=True, action="append",
                    help="the chosen option's label, or the text that says "
                         "what was decided. `yes` is refused on an item with "
                         "options (it would record the recommended option, not "
@@ -717,8 +729,15 @@ def main(argv):
                                 args.ident.lstrip("#"), args.title, args.body,
                                 args.options, out=args.out, lang=args.lang)
         elif args.verb == "decide":
-            out = decide_file(args.spec, args.ident.lstrip("#"), args.verdict,
-                              out=args.out, lang=args.lang)
+            if len(set(args.ident)) != len(args.ident):
+                p.error("decide repeats an --id: one verdict per item per call")
+            if len(args.ident) != len(args.verdict):
+                p.error("decide needs one --verdict per --id (got %d and %d)"
+                        % (len(args.ident), len(args.verdict)))
+            out = decide_many_file(
+                args.spec,
+                [(i.lstrip("#"), v) for i, v in zip(args.ident, args.verdict)],
+                out=args.out, lang=args.lang)
         else:
             out = new_round_file(args.spec, out=args.out, lang=args.lang)
     except VerbError as exc:
