@@ -4,7 +4,9 @@
 # `other`. Thin wrapper; the logic lives in dash/gallery_reply.py.
 #
 # Usage:
-#   gallery-reply.sh [--tiles "<t1> <t2> ..."] [<reply.md>]   # no file or `-`: stdin
+#   gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] [<reply.md>]   # no file or `-`: stdin
+#   --rows: the rows document the page was built from; REQUIRED when the reply holds an
+#           alternatives row (its labels are the spec's), repeat once per gallery
 #   --tiles: the block's data-tiles; a mark on any other tile is refused
 #   gallery-reply.sh --help
 #

@@ -8,8 +8,11 @@ model-policy: per-stage
 
 # UI contract
 
-> **Experimental (1.3.0).** The harness, gate and review surface pass their own suites, but
-> the mechanism has not yet run on a real feature. Say so to the user before relying on it.
+> **Experimental (1.3.0).** The mechanism has now run on three real features: the
+> user-invitations redesign (echo_lab_ws), the BL-011 Wonderland panel (asset_lab_ws) and
+> the harness adoption in dashboard_template_ws. Each run found mechanism defects as well as
+> product gaps, and all of them are fixed in this text. It has not run on a project whose
+> harness the owner did not shape. Say so to the user before relying on it.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
 components** against fixture data — one entry per state-matrix cell — reviewed through a
@@ -24,12 +27,31 @@ where it has one; what propagates is the harness, the gate config and the style 
 
 | Moment | What this skill owes |
 |---|---|
+| A screen is being designed and no plan exists yet | **Step 0**: the harness check, then the design discussion, ending in a standalone `ui-contract.md` |
 | A plan is being written and the work touches UI | the plan's **UI-contract section** (below), with the level proposed |
 | A UI phase is about to close | the three parts of **"verified"** in the Execution log |
 | A visual bug is being fixed | a before/after contact sheet as the proof the regression test cannot be |
 
 If the work touches no screen, this skill owes nothing and costs nothing — say so in one
 line and stop.
+
+## Step 0 — At fire time: the harness, then the design discussion
+
+**Check the harness first, before any plan or discussion.** Detect what the project
+exposes against `references/01-harness-contract.md`. Present: continue. Absent: say so in
+one line, and route a boilerplate fork to its ui-contract harness migration
+(`ui-contract-harness-overlay-runner-one-gate-call-and-spec-derived-gallery-scripts`, number
+140 at the time of writing; it needs entry 132 applied first) or say the harness is missing.
+Without a harness the gallery and the gate stop; the design discussion and `ui-contract.md`
+still proceed. Nothing below is briefed on a harness that may not be there.
+
+**The design discussion is a ui-contract step, not a free chat.** When the screen is not
+decided yet, hold it as a consultation (`/aidex:artifact`) in this skill's vocabulary:
+level (Step 1), reference screen, components reused and new, state matrix (Step 2). The
+decided items are written to a standalone `ui-contract.md` beside the consultation, in the
+five-item shape of Step 3. A plan written later folds that file in (`/aidex:plan` Step 0
+takes it as ratification); a plan is not required for the contract to exist. A screen
+already decided in a plan skips this discussion.
 
 ## Step 1 — Propose the level
 
@@ -58,18 +80,26 @@ blank cell is a state nobody decided about.
 
 Cross each state with light/dark and desktop/mobile wherever the screen is responsive.
 
-**In the same round, ask which variants the owner reviews.** The harness still captures
-every configured variant; this only narrows what the owner looks at. Defaults, which the
-owner may change:
+**Variants are asked at the first gallery review, not here.** Once a gallery exists the
+owner sees what each variant looks like; asked before, the question is abstract and gets
+re-asked. Default: **one colour mode** (light-desktop), reviewed. Each other variant takes
+one of three explicit values, and each lands in one place: reviewed goes to the board's
+`--variants` list, out of scope means the run is not made for that variant (the reason stays in the plan), and
+captured-only needs nothing (the default capture):
 
-| Variant | The owner reviews it when |
+| Value | Meaning |
+|---|---|
+| reviewed | the owner looks at it |
+| captured-only | captured with the automatic verdicts (overflow, contrast, layout) and pixel baseline; the owner does not look |
+| out of scope | not run, with a reason in words |
+
+| Variant | Reviewed when |
 |---|---|
 | light-desktop | always |
-| dark | the screen is new, or the change touches colours or tokens |
-| mobile | the app has a responsive layout AND the change touches layout |
+| dark | only when the change touches colours or tokens; otherwise captured-only |
+| mobile | only with responsive work in scope; an app with no responsive layout has no mobile variant (out of scope) |
 
-An app with no responsive layout has no mobile variant: it is neither reviewed nor
-captured. A cell in a variant nobody chose still reaches the owner if it changes without
+A cell in a variant nobody chose still reaches the owner if it changes without
 being part of the change — as a row marked unrequested, never as a gate summary.
 **Light and dark are the only two modes this contract renders**, also in a project that
 ships more themes (a shared template may allow several): the gate compares two modes per cell,
@@ -80,9 +110,10 @@ the route itself is unauthenticated"), and the harness refuses a blank one at ru
 
 ## Step 3 — Write the plan's UI-contract section
 
-Under the heading `## UI contract`, in the plan file (a modular plan's `00-index.md`) —
-that heading is what makes the plan's phases UI phases for the evidence gate below. Five
-items, in this order. Nothing here is optional; an item with no answer is written as the
+Under the heading `## UI contract`, in the plan file (a modular plan's `00-index.md`), or
+first as the standalone `ui-contract.md` of Step 0 that the plan later folds in. The
+contract does not need a plan to exist. In a plan, that heading is what makes the plan's
+phases UI phases for the evidence gate below. Five items, in this order. Nothing here is optional; an item with no answer is written as the
 open question it is.
 
 1. **Level** — 1, 2 or 3, with the one sentence that justifies it.
@@ -91,9 +122,10 @@ open question it is.
 3. **Components reused / new** — the existing primitives this screen is built from, and
    every genuinely new one. A new component that duplicates an existing primitive is the
    finding, not the plan.
-4. **State matrix** — the pattern's full table from Step 2, every cell filled.
-5. **Review variants** — the variants the owner chose in Step 2 and the cells this change
-   declares. At review time they go to the rows emitter as `--variants`, `--changed` and
+4. **State matrix** — the pattern's full table from Step 2, every cell filled. Add a
+   "proved by" column (pixel, assertion or unit test id; harness contract § 1).
+5. **Review variants** — the value (Step 2's three) per variant, set at the first gallery
+   review, and the cells this change declares. At review time they go to the rows emitter as `--variants`, `--changed` and
    `--actual-dir` (the run's output directory); harness contract § 6.
 
 ## Step 3b — A layout that departs from its reference: skeleton first
@@ -103,21 +135,39 @@ arranges the same components differently (typically a form that groups the same 
 another way). A screen that follows its reference keeps the plain order: build and wire,
 then gallery and gate. A screen with no reference at all is level 3, not this step.
 
-The plan then carries these phases, in this order, each one closing on its own evidence:
+The plan then carries these phases, in this order, each one closing on its own evidence.
+**The skeleton comes before any shared primitive**: a primitive added to a shared
+component is built for a layout, and an unapproved layout makes it rework.
 
 1. **Skeleton of the real page** — the route and the page built from the real components
    against fixture data, no API call behind it. No logic to correct yet, so every layout
-   correction is cheap. Its Execution log records
+   correction is cheap. **Geometry assertions go in before the first owner round**: axis
+   alignment of repeated columns and controls, minimum widths, a height cap; a fixed pixel
+   width tied to the UI scale is the usual miss. The owner spends rounds on design, not on
+   alignment a browser assertion pins. Its Execution log records
    `ui-evidence: phase <n> · skipped — skeleton only, owner review pending in phase <n+1>`,
    because the owner's verdict is the next phase's evidence.
 2. **Review of the skeleton** — the skeleton is rendered as gallery cells and the owner
-   rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired. The
-   owner's verdict on the layout closes this phase; a rejected layout goes back to phase 1
-   and loses only composition, never logic.
-3. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
+   rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired.
+   This review is where the UI is decided. The shape of a round: **a budget of 2 rounds**;
+   **one decision per cell**, each cell shown alone, with a `look` line saying what to look
+   at in it; the previous round's decided cells collapsed. Skeleton **alternatives** (two
+   layouts for one cell) use the gallery's alternatives mode, one which-one choice with the
+   labels the spec writes, never before/after: a baseline-vs-proposed frame asks the owner
+   to approve one alternative against the other as if it were the old state
+   (`/aidex:artifact`, § Gallery rows). The owner's verdict on the layout closes this phase;
+   a rejected layout goes back to phase 1 and loses only composition, never logic.
+3. **Shared primitives** — the new or changed components the approved skeleton needs.
+4. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
    closing line from a run with no snapshot update.
-4. **Wire** — the API behind the approved layout, with the gallery's baselines as the
+5. **Wire** — the API behind the approved layout, with the gallery's baselines as the
    regression guard for what the owner approved.
+
+The phase whose owner page is still open may log `ui-surface: pending-owner · <its page> ·
+cells: ...` so the next phase proceeds, if the next phase touches none of those cells;
+never the skeleton review (Step 3b.2) nor the final phase.
+The grammar is owned by `check-ui-evidence.sh` (see the closing paragraph of the next
+section), and plan-exec's summary lists the pending pages.
 
 Decided 2026-09-22 on the consultation `2026-09-21-ui-contract-consulta` (item B1): the
 alternatives — a throwaway page in the shared template, a drawn round, or the plain order —
@@ -145,6 +195,10 @@ and the limits the gate is known not to cover. Skipping it means briefing an age
 harness that may not be there, and the failure arrives as a confusing run instead of a
 sentence.
 
+**Run the gate once, iterate cheaply.** One `--demo` call carries every gallery of the
+change, so the meta-suite runs once; while iterating, skip it (harness contract § 2b) and
+label that run "not a gate run". Only the closing evidence run carries `meta: N/N`.
+
 **Every cell must be a DISTINCT render.** Measured on the first real gallery: `initial`
 and `invalid` came out pixel-identical because nothing had been submitted yet, and
 `submitting` and `read-only` were indistinguishable without a marker. Two cells with the
@@ -161,7 +215,10 @@ sessions. What each part is:
    (`--rows-json` with item 5's variants and cells), the kit turns each row into a
    before/proposed pair (one capture for a new screen) with zoom, compare, region marks
    and one answer, plus a row per unrequested change, and the pasted reply parses back
-   with `gallery-reply.sh`. The page shows no gate output; an empty rows list (everything
+   with `gallery-reply.sh`, which takes `--rows <rows.json>` (once per gallery) whenever
+   the page has an alternatives row, or the reply is refused. Every shown row carries a
+   `look` line: the spec route (`::: gallery rows=`) refuses a shown row without it, while
+   `gallery-items.sh` alone only shows the gap. The page shows no gate output; an empty rows list (everything
    matched) means no gallery block on the page.
    That page's path is written down, with the owner's verdict per row. The generated
    board (one HTML file over the committed baselines) or the composed image stays the
@@ -193,7 +250,7 @@ a RED shown once and thrown away proves the guard once, a row proves it on every
 is UI, the three `ui-*` lines the Execution log must carry — an exact grammar, anything
 else fails — and the recorded skip for a phase that renders no screen. plan-exec runs it
 at the between-phase checkpoint and bugfix runs it (`--visual`) on a visual fix; its
-header is the grammar to write, and verify-ui prints the `ui-gate:` line ready-made.
+header is the grammar to write (including `ui-surface: pending-owner`), and verify-ui prints the `ui-gate:` line ready-made.
 
 ## Gotchas
 

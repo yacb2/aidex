@@ -829,6 +829,20 @@ Deterministic for a given Graphviz: the same spec builds byte-identical output, 
 Graphviz `id=` and `<title>` is dropped (so two graphs on one page share no id), and the
 Graphviz version is written in a comment inside the `<figure>`.
 
+## `gallery` rows and `item dropped=`
+
+`::: gallery {#id title=… rows=<rows.json>}` reads its rows from a JSON document (shape:
+`04-block-vocabulary.md` § `gallery`, and § Gallery rows of `02-local-first-artifacts.md`).
+Three things of the grammar are worth stating here:
+
+- **`kind`** of a row is `review`, `unrequested`, `sample` (no radios) or `alternatives`
+  (labelled variants declared once in the document's `alternatives`, one which-one radio).
+- **`look`** is required on every shown row by this route: a row without it fails the build
+  (and `--check`), with a message naming the cell. Not-applicable and dropped rows are exempt.
+- **`dropped="<reason>"`** on an `item` (and `"dropped"` on a row) takes it out of the question
+  set: its id stays, it folds like a decided item and reads `Descartada: <reason>` /
+  `Dropped: <reason>`. An empty reason, or `dropped` together with `decided`, is refused.
+
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder

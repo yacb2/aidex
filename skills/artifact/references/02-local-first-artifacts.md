@@ -383,12 +383,21 @@ crashed; its stderr names the cause. Stop and report it the same way.
 
 The shots go to a scratch directory, never beside the page: `<n>-1280.png` and
 `<n>-390.png` under `.context/` would be picked up as page assets and outlive the round.
+Per width the probe also writes viewport-height tiles `<n>-<width>-t01.png`, ... (each
+900 px tall, consecutive tiles overlapping by 100 px, the last pinned to the page bottom: a tall page's full-page shot is downscaled past legibility; each is the viewport scrolled to the tile's y, so a fixed bar or sticky rail sits on every tile where a scrolled reader sees it)
+and `<n>-shots.json`: tiles in order, the `data-id` item ids each tile holds, the ids in page
+order, and the files written this run under one run stamp (stdout repeats them as `SHOT`
+lines). A stale tile of an earlier build is deleted first.
 
-**Step 3, the handoff.** Launch the grader with exactly three things: the user's request
-in their words, the absolute paths of the two shots, and the absolute path of
-`references/05-visual-review.md`. Never the spec, the HTML or your own notes: a builder
+**Step 3, the handoff.** Launch the grader with exactly these things: the user's request
+in their words, the absolute path of the manifest `<n>-shots.json` (not the two full-page
+shots), the files the probe printed as written this run (the caller records them before
+launching, so the grader can refuse a stale tile), the absolute path of
+`references/05-visual-review.md`, and for a round built over a reply the DUTIES list,
+which the grader maps to items by id. Never the spec, the HTML or your own notes: a builder
 that explains its page to the grader is grading it itself. The grader returns the
-rubric's `SCORE` block.
+rubric's `SCORE` block, or `INVALID: <kind> <file>` (unreadable, missing, stale): that is no
+score. Caller: fix the cause (re-run the probe, pass the right regenerated-files list) and re-launch; this counts as a round. If the third round is INVALID, hand over saying that no valid grade was obtained, and why.
 
 **The rounds.** A round is steps 1 to 3 once. The verdict table of `05-visual-review.md`
 says what to do with the score: 9-10 hand over; 7-8 apply the `FIXES` list in its order;
@@ -400,7 +409,7 @@ lines instead.
 
 **A builder that cannot launch an agent** (a subagent: `artifact-sonnet` has no Agent
 tool, and subagents do not nest) runs steps 1 and 2 and stops there. Its reply carries the
-two shot paths and the probe's last line; the session that launched it runs step 3 and,
+manifest path, the `SHOT` lines and the probe's last line; the session that launched it runs step 3 and,
 under 9, sends the `FIXES` back as the next brief. The three-round cap counts across both.
 
 ---
@@ -1602,7 +1611,7 @@ note, Esc drops it).
 [mark after 1.7,0.2 33.0x5.6] el breadcrumb se parte bajo el título
 ```
 
-`gallery-reply.sh <reply.md>` turns the copied block into
+`gallery-reply.sh [--rows <rows.json>]... <reply.md>` (`--rows` is required when the reply holds an alternatives row) turns the copied block into
 `{rows: [{id, gallery, cell, variant, kind, verdict, asks, provisional, notes, marks}], other}`
 (`kind` read off the id suffix, `variant` "" on a not-applicable row; a row pasted from an old
 light/dark page, id `<gallery>-<cell>`, is refused on its line). A mark's
@@ -1614,6 +1623,10 @@ row's marks is refused.
 
 **What drops an answer, by design.**
 
+- Kit 33 added the `look` line to each gallery row, and that line is part of the question: every
+  gallery row's unsent answer is dropped once on the first rebuild that carries it. A spec
+  whose gallery rows lack `look` no longer builds; add `"look": "<one sentence on what to look
+  at>"` to each shown row of the rows JSON (or, for a project emitter, have it emit the key).
 - A row's question fingerprint covers its capture `src` list: a re-capture is a new
   question, so the row's stored answer is dropped. Upgrading a page to this kit drops each gallery
   row's unsent answer once, for the same reason.
@@ -1622,6 +1635,53 @@ row's marks is refused.
   (BL-507): a re-wrap keeps its number and the answers the reader already SENT stay
   restorable until `save-reply.sh` has recorded the reply and the next wrap opens the next
   round. Refresh the kit when a round is due anyway, not between rounds.
+
+**A review of alternatives, not of a change (BL-516).** Two new skeleton variants are not
+"before" and "proposed", and a masthead line does not override the label on the image. The
+rows document declares the variants once and each row shows all of them:
+
+```json
+{"gallery": "skel", "variants": ["light-desktop"],
+ "alternatives": [{"id": "a", "label": "Esqueleto A"}, {"id": "drawer", "label": "Con cajón"}],
+ "rows": [{"cell": "list", "variant": "light-desktop", "kind": "alternatives",
+           "look": "Where the create button sits in each",
+           "captures": {"a": "<rel>", "drawer": "<rel>"}}]}
+```
+
+The block's `data-tiles` are the alternative ids, each caption is the label written in the
+document, and the row's one radio group (which-one) has a radio per label plus a collapsed
+"none of them". The id is `<gallery>-<cell>-<variant>-alternatives`; the reply's `- <label>`
+line comes back from `gallery-reply.sh` as the row's `verdict` when it is one of the labels
+of the rows document passed as `--rows <rows.json>` (repeat per gallery; without it an
+alternatives row is refused, because a bullet typed in the notes cannot otherwise be told from
+an answer). Labels are trimmed, compared case-insensitively, and may not equal the none-of-them
+or Other choice or look like a `[marker]`. A document that declares `alternatives` holds no before/after rows, and an
+alternative id may not be `before` or `after`.
+
+**Every row says what to look at.** `look` (one sentence) prints under the row's intro. The
+spec route (`spec_build.py`) refuses a row without it, naming the cell; `gallery-items.sh`
+on its own only shows it when present, so existing project emitters keep working. A
+not-applicable or dropped row is exempt: its reason is its content.
+
+**The answer is compact by default.** A row shows verdict and note; the third verdict (on an
+alternatives row every alternative stays visible and only "none of them" folds) and the composer's own extras (Other, Not now, the
+ask chips) sit in closed `<details>` inside the same option group. A mark made in one opens
+it, and a restored one opens it after a reload. Each tile carries a visible zoom word
+(`data-zoom`, drawn with CSS), so a tap on touch works the same as a click. A `sample` row
+(`kind: "sample"` in the rows document, which the spec's `gallery rows=` reads) shows no
+radios at all.
+
+**Leaving the question set.** A row with `"dropped": "<reason>"` keeps its exact id, title
+and kind, needs no captures and shows the reason in a `.gal-na`; it is emitted with
+`data-dropped` and a `data-decided="Descartada: <reason>"` line, so the composer folds it and
+counts it nowhere, and the `--prev` id check still finds the id. A row with
+`"decided": "<verdict>"` keeps its captures and folds as a decided row. The spec's `item`
+takes the same `dropped="<reason>"` attribute (not with `decided=`).
+
+**A gallery may precede the questions that ask about it.** The consult-shape check has no
+rule about the order of a gallery block and a question block (`check_shape` judges where an
+item sits, not what precedes it); a page with the gallery first passes, so the owner can try
+the rows before scoring. Evidence still precedes its question inside one block (BL-463).
 
 **Images: copied next to the page at build (BL-474).** `gallery-items.sh --page
 <out.html>` (and `spec_build.py -o`) copies every capture to

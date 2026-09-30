@@ -548,6 +548,43 @@ try:
           r.stdout + r.stderr)
 
     print()
+    print("== a spec that is already unbuildable is named as it stands ==")
+    # BL-522.4 (asset_lab BL-011, round 2): `new-round` on a spec the author
+    # had hand-edited into an unbuildable state said "the edit would leave ...
+    # unbuildable (line N ...)", N counted on the CANDIDATE, which carries the
+    # ledger rows the verb inserted above. The author opened line N of the file
+    # and found nothing there; the edit was never the cause. Both rules are the
+    # grammar's (03-spec-grammar.md: a `section` is top-level only; a png needs
+    # `alt`), so the verb still refuses, naming the file's own line and the fix.
+    UNIT = PAGE.replace(
+        "- YAML anidado — estructura explícita\n",
+        "- YAML anidado — estructura explícita\n\n%s\n", 1)
+    for name, fence, needle in (
+            ("section-in-item",
+             '::: section {#sec-x heading="Ejemplos"}\nTexto.\n:::',
+             "`section` may only appear in the document"),
+            ("png-no-alt", '::: figure {src="shot.png" title="Pantalla"}\n:::',
+             'needs alt="')):
+        spec = fresh("as-it-stands-" + name, UNIT % fence)
+        subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
+                        os.path.join(os.path.dirname(spec), "shot.png"),
+                        "40", "30"], check=True)
+        at = read(spec).split("\n").index(fence.split("\n")[0]) + 1
+        spec_bytes = read(spec, "rb")
+        r = run("new-round", spec)
+        check("new-round on a spec that does not build exits 1 (%s)" % name,
+              r.returncode == 1, r.stdout + r.stderr)
+        check("...says the spec is unbuildable as it stands, not that the "
+              "edit made it so (%s)" % name,
+              "as it stands" in r.stderr
+              and "the edit would leave" not in r.stderr, r.stderr)
+        check("...names line %d of the file on disk and the rule (%s)"
+              % (at, name),
+              "line %d:" % at in r.stderr and needle in r.stderr, r.stderr)
+        check("...and the SPEC is byte-identical (%s)" % name,
+              read(spec, "rb") == spec_bytes)
+
+    print()
     print("== the write path refuses like the read path ==")
     ro = fresh("readonly")
     subprocess.run([sys.executable, BUILD, ro, "-o",
@@ -663,7 +700,7 @@ try:
     with open(os.path.join(gdir, "rows.json"), "w", encoding="utf-8") as fh:
         fh.write('{"gallery": "audit", "variants": ["light-desktop"], "rows": '
                  '[{"cell": "with-data", "variant": "light-desktop", '
-                 '"kind": "review", "after": "%s"}]}' % rel)
+                 '"kind": "review", "look": "the table", "after": "%s"}]}' % rel)
     try:
         gout = spec_verbs.decide_file(gspec, "Q1", V)
         check("decide on a gallery spec returns the page it rebuilt",

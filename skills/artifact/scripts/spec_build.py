@@ -675,7 +675,7 @@ def _split_question(inline):
 
 @emitter("item")
 def emit_item(node, ctx):
-    a = _attrs(node, {"title", "decided", "free", "select"},
+    a = _attrs(node, {"title", "decided", "dropped", "free", "select"},
                required=("title",), need_id=True)
     # `select=many` is a question whose answer is a SET (BL-454): checkboxes,
     # the kit's `.opts` without `one`. Anything else but `one` is a typo that
@@ -748,6 +748,21 @@ def emit_item(node, ctx):
     # recommended; any other value is the verdict line itself.
     decided = a.get("decided", "").strip()
     flag, check_recommended = "", False
+    # `dropped="<reason>"`: the question left the set (BL-516.4). The item and
+    # its id stay on the page, folded and asked of no one, with the reason as
+    # its verdict line, instead of a fake decided item.
+    if "dropped" in a:
+        reason = a["dropped"].strip()
+        if not reason:
+            raise SpecBuildError(
+                node.line, "`item` dropped= needs the reason it left the "
+                "question set, e.g. dropped=\"no longer applies\"")
+        if "decided" in a:
+            raise SpecBuildError(
+                node.line, "`item` is both dropped and decided — it left the "
+                "question set or it was settled, not both")
+        decided = gallery_items.DROPPED_WORD[ctx.lang] + ": " + reason
+        flag = ' data-dropped="%s"' % esc(reason)
     if decided.lower() in contract_defects.NOT_A_VERDICT:
         flag, check_recommended = " data-decided", True
         recommended = sum(1 for t in opts if _option(t)[2])
@@ -766,7 +781,7 @@ def emit_item(node, ctx):
                 "won: keep the marker on the winner, or write the verdict itself "
                 "as decided=\"…\"" % decided)
     elif decided:
-        flag = ' data-decided="%s"' % esc(decided)
+        flag += ' data-decided="%s"' % esc(decided)
     if a.get("free", "").strip() in ("yes", "true"):
         flag += " data-free"
     out = ['<section class="%s" data-id="%s" data-title="%s"%s>'
@@ -860,7 +875,8 @@ def emit_gallery(node, ctx):
         with contextlib.redirect_stderr(err):
             doc = gallery_items.load(rows)
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
-                                        a["title"], lang, page=ctx.page)
+                                        a["title"], lang, page=ctx.page,
+                                        require_look=True)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(

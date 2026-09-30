@@ -24,7 +24,8 @@ marks: an approved row has none and is still a row. Every other item goes to `ot
 body), so a reply mixing gallery rows and ordinary questions loses nothing.
 
 A row's body splits in three, in the order readItem pastes it:
-  answer   the first paragraph, ONLY if every line in it is `- <known label>`,
+  answer   the first paragraph, ONLY if every line in it is `- <known label>`
+           (on an `alternatives` row also the labels of `--rows`: the spec named them),
            optionally ending in ` [provisional]`. Known labels are the verdicts
            (gallery_items.VERDICTS), the kit's two "Other" labels, and markers
            like `[question]` or `[not-now]`. Otherwise that paragraph is notes:
@@ -52,7 +53,8 @@ one row is the paste's defect, and a traceback — or
 half a JSON document — would hide which line it was.
 
 Usage:
-  gallery-reply.sh [--tiles "<t1> <t2> ..."] [<reply.md>]   (no file or `-`: stdin)
+  gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] [<reply.md>]
+                                                    (no file or `-`: stdin)
 """
 
 import argparse
@@ -60,17 +62,15 @@ import json
 import re
 import sys
 
-from gallery_items import KINDS, VERDICTS, row_id
+from gallery_items import KINDS, NONE_OF_THEM, OTHER, VERDICTS, row_id
 
 NUM = r"(\d{1,3}\.\d)"
 MARK = re.compile(r"^\[mark (\S+) %s,%s %sx%s\](?: (.*))?$"
                   % (NUM, NUM, NUM, NUM))
 
 
-# The kit's injected "Other" option, L.other in composer.js's `en` and `es`
-# string tables. A copy is unavoidable (the source is JavaScript); keep it in
-# step with composer.js.
-OTHER = ("Other — see my notes", "Otra — lo explico en las notas")
+# OTHER (the kit's injected "Other" label, L.other in composer.js) lives in
+# gallery_items, which is also what refuses an alternative named like it.
 ANSWERS = {label for pairs in VERDICTS.values() for label, _ in pairs} \
     | set(OTHER)
 MARKER = re.compile(r"^\[[a-z-]+\]$")
@@ -138,8 +138,10 @@ def gallery_key(ident, title, n):
     return None
 
 
-def parse_answer(ident, para):
-    """The answer block, or None when `para` is not one (then it is notes)."""
+def parse_answer(ident, para, extra=(), alt=False):
+    """The answer block, or None when `para` is not one (then it is notes).
+    `extra`: the labels an alternatives row's radios carry, known from the
+    rows document (`--rows`); bullets that are not one of them stay notes."""
     verdict, verdict_line, asks, provisional = "", 0, [], False
     for n, line in para:
         if not line.startswith("- "):
@@ -150,24 +152,37 @@ def parse_answer(ident, para):
             provisional = True
         if MARKER.match(label):
             asks.append(label)
-        elif label in ANSWERS:
+        elif label in (extra if alt else ANSWERS):
             if verdict:
                 die("line %d: row '%s' has more than one answer ('%s' on "
                     "line %d, '%s' here) — the page lets you pick one"
                     % (n, ident, verdict, verdict_line, label))
             verdict, verdict_line = label, n
         else:
+            if alt and label not in ANSWERS:
+                sys.stderr.write('warning: row %s: "%s" is not a label of the '
+                                 '--rows document; kept as a note (stale '
+                                 '--rows?)\n' % (ident, label))
             return None
     return {"verdict": verdict, "asks": asks, "provisional": provisional}
 
 
-def parse_row(ident, key, body, tiles=None):
+def parse_row(ident, key, body, tiles=None, labels=None):
     gallery, cell, variant, kind = key
     body = trim(body)
     first = 0
     while first < len(body) and body[first][1].strip():
         first += 1
-    answer = parse_answer(ident, body[:first]) if first else None
+    extra = ()
+    if kind == "alternatives":
+        if labels is None or gallery not in labels:
+            die("row '%s' is an alternatives row: its labels are the spec's, "
+                "so pass the rows document that built the page with "
+                "--rows <rows.json> (without it a chosen alternative cannot "
+                "be told from a bullet in the notes)" % ident)
+        extra = labels[gallery] | set(OTHER)
+    answer = parse_answer(ident, body[:first], extra,
+                          kind == "alternatives") if first else None
     if answer:
         body = body[first:]
     else:
@@ -192,7 +207,7 @@ def parse_row(ident, key, body, tiles=None):
             "marks": marks}
 
 
-def parse(text, tiles=None):
+def parse(text, tiles=None, labels=None):
     items, cur = [], None
     for n, line in enumerate(text.splitlines(), 1):
         if line.startswith("### "):
@@ -208,7 +223,7 @@ def parse(text, tiles=None):
     for it in items:
         key = gallery_key(it["id"], it["title"], it["line"])
         if key:
-            rows.append(parse_row(it["id"], key, it["body"], tiles))
+            rows.append(parse_row(it["id"], key, it["body"], tiles, labels))
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})
@@ -224,6 +239,11 @@ def main(argv):
                     "copy button produced, nothing added before or after.")
     ap.add_argument("reply", nargs="?", default="-", metavar="<reply.md>",
                     help="the copied reply (default: stdin)")
+    ap.add_argument("--rows", action="append", default=[],
+                    metavar="<rows.json>",
+                    help="the rows document a page was built from (repeat for "
+                         "several galleries): required when the reply holds "
+                         "an alternatives row, whose labels it names")
     ap.add_argument("--tiles", metavar='"<t1> <t2> ..."',
                     help="the page's tile names (the block's data-tiles); a "
                          "mark on any other tile is refused. Without it, any "
@@ -239,7 +259,17 @@ def main(argv):
         die("no such reply file: %s" % args.reply)
     except UnicodeDecodeError:
         die("%s is not UTF-8 text" % args.reply)
-    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None), ensure_ascii=False, indent=2)
+    labels = {}
+    for path in args.rows:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            labels[doc["gallery"]] = {a["label"].strip() for a in
+                                      doc.get("alternatives", [])} \
+                | {pair[0] for pair in NONE_OF_THEM.values()}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            die("--rows %s is not a readable rows document" % path)
+    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None, labels), ensure_ascii=False, indent=2)
                      + "\n")
     return 0
 

@@ -39,6 +39,7 @@
 #   ui-surface: phase <N> · <path>.html · owner: approved
 #   ui-surface: phase <N> · <path>.html · owner: approved <k>/<k>        (both k equal, k >= 1)
 #   ui-surface: phase <N> · <path>.html · owner: <n>/10                 (n is 9 or 10)
+#   ui-surface: phase <N> · pending-owner · <path>.html · cells: <id>[,<id>...]
 #   ui-gate: phase <N> · no-snapshot-update · passed=<n> failed=0       (n >= 1)
 #   ui-gate: phase <N> · no-snapshot-update · passed=<n> failed=0 meta=<k>/<k>
 #   ui-predicates: phase <N> · reviewer: <name> · PASS
@@ -56,26 +57,60 @@
 #   the same phase fails. Step 3b's skeleton phase writes
 #   `skipped — skeleton only, owner review pending in phase <n+1>`.
 #
+# PENDING-OWNER (BL-522.11) — an unattended run cannot get the owner's verdict mid-plan, so a
+# phase may queue its page instead of blocking the next phase. The line is part 1 only: the
+# gate and predicates lines are still required. The rules, all mechanical, all here:
+#   - `<id>` is one cell id ([A-Za-z0-9] then [A-Za-z0-9._-]*, not ending in a dot), ids joined by "," with no spaces;
+#     at least one. The ids are the cells the pending page asks the owner to judge.
+#   - The FINAL phase is the last row of the `## Phases Overview` table whose first column
+#     (the phase id) carries a digit, so a trailing `| Total | - | 3 phases |` row is not a
+#     phase. On the final phase this script FAILS while ANY pending page is open (naming each
+#     by path and pending phase), whatever else that phase records: a pending line, a skip,
+#     or an approval of another page. The plan cannot close with a page the owner has not
+#     judged. A plan with no such table, or a phase not in it (a last row like `**5**` or
+#     `Deploy` matches nothing), cannot prove it is not final, so pending-owner is refused
+#     there too and the open-page check also runs for such a phase (fail closed), naming the
+#     pages queued by OTHER phases.
+#   - THIS SCRIPT DOES NOT CHECK WHETHER A LATER PHASE TOUCHES THE PENDING CELLS. Cell ids are
+#     local to one gallery (`empty`, `error` repeat everywhere), so no text match can answer
+#     it. Whether the next phase leaves those cells alone is the orchestrator's judgement
+#     when it writes the pending line, and the owner's when reading the final summary. The
+#     `cells:` list is that declaration, recorded and listed, never enforced.
+#   - A page is OPEN from its pending line until a later ui-surface line names the same <path>
+#     with a valid owner verdict (any phase number). Nothing else closes it: a rejected or
+#     malformed later line leaves it open (the cells are still unreviewed); a new pending line
+#     for the same phase replaces the old one.
+#     Record the verdict under the phase that queued the page: under a skipped phase it
+#     collides with that phase's skip line.
+#   - `--pending <plan.md>` lists the open pages, one `pending-owner: phase <N> · <path> ·
+#     cells: <ids>` line each (or `no pending-owner pages`); plan-exec puts them in the run's
+#     final summary. It is a listing, never a verdict: exit 0 whatever it prints.
+#
 # In `--visual` mode the whole proof file is the log, records drop `phase <N> · `, and a
 # skip's reason must contain the whole phrase `no gallery harness`.
 #
 # Usage:
 #   check-ui-evidence.sh <plan.md> <phase>     # plan-exec, between-phase checkpoint
 #   check-ui-evidence.sh --visual <proof.md>   # bugfix, a visual bug
+#   check-ui-evidence.sh --pending <plan.md>   # plan-exec, close-out: list open pending pages
 #
 # Exit codes: 0 all three records match, a valid skip, or not a UI plan
 #             1 a record is missing or off-grammar — each part named with its format
 #             2 refused: usage, unreadable or empty file, a phase file instead of the plan,
 #               a UI plan with no or an empty Execution log
+#             (--pending: 0 always, except the same exit 2 refusals)
 
 set -uo pipefail
 
 refuse() { printf 'check-ui-evidence: refused — %s\n' "$*" >&2; exit 2; }
-usage() { printf 'check-ui-evidence: usage: check-ui-evidence.sh <plan.md> <phase> | --visual <proof.md>\n' >&2; exit 2; }
+usage() { printf 'check-ui-evidence: usage: check-ui-evidence.sh <plan.md> <phase> | --visual <proof.md> | --pending <plan.md>\n' >&2; exit 2; }
 
-visual=0
+visual=0; listing=0
 if [ "${1:-}" = "--visual" ]; then
   visual=1; file="${2:-}"; phase=""
+  [ -n "$file" ] || usage
+elif [ "${1:-}" = "--pending" ]; then
+  listing=1; file="${2:-}"; phase="-"
   [ -n "$file" ] || usage
 else
   file="${1:-}"; phase="${2:-}"
@@ -119,6 +154,36 @@ else
   where="phase $phase"; pfx="phase $phase · "
 fi
 
+# open_pending — one `<phase>\t<path>\t<cells>` per page still open (header: PENDING-OWNER).
+open_pending() {
+  awk 'BEGIN { id = "[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?" }
+    { l = $0; sub(/^- /, "", l)
+      if (l !~ /^ui-surface: phase [0-9A-Za-z._-]+ · /) next
+      sub(/^ui-surface: phase /, "", l); ph = l; sub(/ · .*/, "", ph); sub(/^[^ ]+ · /, "", l)
+      n = split(l, f, " · ")
+      if (n == 3 && f[1] == "pending-owner" && f[2] ~ /^[^ <>]+\.html$/ && f[2] !~ /[<>]/ && f[3] ~ ("^cells: " id "(," id ")*$")) {
+        open_[ph] = f[2] "\t" substr(f[3], 8); order[++k] = ph; next }
+      if (n == 2 && f[2] ~ /^owner: /) {
+        v = substr(f[2], 8); ok = 0
+        if (v == "approved" || v ~ /^(9|10)\/10$/) ok = 1
+        else if (v ~ /^approved [1-9][0-9]*\/[1-9][0-9]*$/) { split(substr(v, 10), q, "/"); ok = (q[1] == q[2]) }
+        if (ok) for (x in open_) { split(open_[x], y, "\t"); if (y[1] == f[1]) delete open_[x] }
+      } }
+    END { for (i = 1; i <= k; i++) { x = order[i]; if ((x in open_) && !(x in seen)) { seen[x] = 1; print x "\t" open_[x] } } }' <<<"$log"
+}
+if [ "$listing" -eq 1 ]; then
+  list="$(open_pending)"
+  if [ -z "$list" ]; then echo "check-ui-evidence: no pending-owner pages"
+  else while IFS=$'\t' read -r lp lpath lcells; do printf 'pending-owner: phase %s · %s · cells: %s\n' "$lp" "$lpath" "$lcells"; done <<<"$list"; fi
+  exit 0
+fi
+
+# phase_rows — `<id>\t<row>` per row of the plan's `## Phases Overview` table, in order.
+phase_rows() {
+  awk '/^##[[:space:]]+Phases Overview/ { f = 1; next } f && /^##[[:space:]]/ { f = 0 }
+    f && /^\|/ { split($0, c, "|"); id = c[2]; sub(/^[ \t]+/, "", id); sub(/[ \t]+$/, "", id)
+      if (id ~ /^[0-9A-Za-z._-]+$/ && id ~ /[0-9]/) print id "\t" $0 }' <<<"$body"
+}
 # record <label> — the last line that starts as a record of <label> for this phase, with
 # the `[- ]ui-<label>: [phase <N> · ]` prefix removed. Empty when there is none.
 record() {
@@ -132,6 +197,24 @@ miss() { printf 'check-ui-evidence: %s — MISSING %s\n' "$where" "$*" >&2; miss
 found() { [ -n "$1" ] && printf "found '%s'" "$1" || printf 'no such line'; }
 
 s="$(record surface)"; g="$(record gate)"; p="$(record predicates)"; k="$(record evidence)"
+
+# ---- the final phase never closes with a page still open ----
+if [ "$visual" -eq 0 ]; then
+  rows="$(phase_rows | cut -f1)"; last="$(tail -n 1 <<<"$rows")"
+  # fail closed: a phase that is not a matched row (`**5**`, `Deploy`) may be the real last one
+  if [ "$last" = "$phase" ] || ! grep -qxF -- "$phase" <<<"$rows"; then
+    open="$(open_pending)"
+    # a page this phase itself queues is judged by part 1 (pending-owner), which refuses a non-row phase
+    [ "$last" = "$phase" ] || open="$(awk -F'\t' -v p="$phase" '$1 != p' <<<"$open")"
+    if [ -n "$open" ]; then
+      while IFS=$'\t' read -r pp ppath pcells; do
+        if [ "$last" = "$phase" ]; then who="the final phase ($phase)"; else who="phase $phase (not a row of the Phases Overview, so it may be the final phase)"; fi
+        miss "$who cannot close while the page $ppath (pending since phase $pp) is open — get the owner's verdict on it first"
+      done <<<"$open"
+      exit 1
+    fi
+  fi
+fi
 
 # ---- a skip closes the phase without the three records ----
 if [ -n "$k" ]; then
@@ -153,13 +236,28 @@ if [ -n "$k" ]; then
   exit 1
 fi
 
-# ---- part 1: the review page and the owner's approval ----
+# ---- part 1: the review page and the owner's approval (or its queued state) ----
 ok=0
+pend_re='^pending-owner\ ·\ ([^[:space:]\<\>·]+\.html)\ ·\ cells:\ ([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?(,[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9_-])?)*)$'
 if [[ "$s" =~ ^[^[:space:]\<\>·]+\.html\ ·\ owner:\ (approved|approved\ ([1-9][0-9]*)/([1-9][0-9]*)|(9|10)/10)$ ]]; then
   ok=1
   [ -n "${BASH_REMATCH[2]}" ] && [ "${BASH_REMATCH[2]}" != "${BASH_REMATCH[3]}" ] && ok=0
+elif [ "$visual" -eq 0 ] && [[ "$s" =~ $pend_re ]]; then
+  ok=1
+  # Refused on the final phase; not provable as non-final is refused too (header: PENDING-OWNER).
+  rows="$(phase_rows)"
+  last="$(tail -n 1 <<<"$rows" | cut -f1)"
+  if [ -z "$last" ]; then
+    ok=0; miss "part 1 (pending-owner): no '## Phases Overview' table to prove phase $phase is not the final phase — pending-owner is refused; get the owner's verdict"
+  elif ! cut -f1 <<<"$rows" | grep -qFx -- "$phase"; then
+    ok=0; miss "part 1 (pending-owner): phase $phase is not a row of the '## Phases Overview' table — pending-owner is refused"
+  fi
 fi
-[ "$ok" -eq 1 ] || miss "part 1 (review surface): expected 'ui-surface: ${pfx}<path>.html · owner: approved | approved <k>/<k> | 9/10 | 10/10', $(found "$s")"
+if [ "$ok" -eq 0 ]; then
+  pmsg=""
+  [ "$visual" -eq 0 ] && pmsg=" or 'ui-surface: ${pfx}pending-owner · <path>.html · cells: <id>[,<id>...]'"
+  miss "part 1 (review surface): expected 'ui-surface: ${pfx}<path>.html · owner: approved | approved <k>/<k> | 9/10 | 10/10'$pmsg, $(found "$s")"
+fi
 
 # ---- part 2: the gate's counts, from a run with NO snapshot update ----
 ok=0
@@ -186,3 +284,4 @@ fi
 
 [ "$missing" -eq 0 ] || exit 1
 echo "check-ui-evidence: $where — all three parts of \"verified\" recorded"
+if [[ "$s" == pending-owner* ]]; then echo "check-ui-evidence: $where — pending-owner: the owner's verdict on the page is still open"; fi

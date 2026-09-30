@@ -16,7 +16,11 @@
 # could not look is the defect it exists to catch.
 #
 # Usage: render-probe.sh [--shots <dir>] [--contract <slug>] <page.html>...
-#   --shots <dir>      also write <name>-1280.png and <name>-390.png, full page
+#   --shots <dir>      also write <name>-1280.png and <name>-390.png (full page), viewport-height
+#                      tiles <name>-<width>-t01.png ... and <name>-shots.json (tiles in order,
+#                      the data-id items each holds, ids in page order, files written this run
+#                      with a run stamp); stdout gets `SHOTS run=<stamp> files=<n>` and one
+#                      `SHOT <path>` per file
 #   --contract <slug>  run only that contract class; the last stdout line is
 #                      `CONTRACT <slug> findings=<n>` (absent on a crash)
 # Exit 0 = clean. Exit 1 = at least one defect (each printed). Exit 2 = usage error.

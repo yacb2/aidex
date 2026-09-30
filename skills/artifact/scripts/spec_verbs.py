@@ -591,19 +591,35 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
     new = transform(old)
     base_dir = os.path.dirname(os.path.abspath(spec_path))
     out = out or default_out(spec_path)
+
     # The body is built for a page, because a gallery copies its captures
     # beside the page it goes into and refuses a body with none. The page is
     # named like the real one (the copies' folder is `<stem>-assets`) but sits
     # in a temp dir: a refusal here must leave nothing behind.
-    try:
-        with tempfile.TemporaryDirectory(prefix="spec-verbs-check-") as scratch:
-            spec_build.build(new, lang=lang, base_dir=base_dir,
-                             page=os.path.join(scratch, os.path.basename(out)))
-        title = spec_build.page_title(new)
-    except (SpecSyntaxError, SpecBuildError) as exc:
+    def build_error(text):
+        try:
+            with tempfile.TemporaryDirectory(prefix="spec-verbs-check-") as tmp:
+                spec_build.build(text, lang=lang, base_dir=base_dir,
+                                 page=os.path.join(tmp, os.path.basename(out)))
+        except (SpecSyntaxError, SpecBuildError) as exc:
+            return exc
+        return None
+
+    exc = build_error(new)
+    if exc is not None:
+        # A spec that already fails on disk is not the edit's doing, and the
+        # candidate's line numbers are shifted by whatever the verb inserted
+        # (new-round's ledger rows): name the file's own line instead.
+        before = build_error(old) if new != old else exc
+        if before is not None:
+            raise VerbError(
+                "%s is unbuildable as it stands (line %d: %s) — the verb did "
+                "not cause this; fix that line, then run it again — nothing "
+                "was written" % (spec_path, before.line, before.message))
         raise VerbError(
             "the edit would leave %s unbuildable (line %d: %s) — nothing was "
             "written" % (spec_path, exc.line, exc.message))
+    title = spec_build.page_title(new)
     if not title:
         raise VerbError(
             "%s has no masthead title, so the page it builds has no <title> — "

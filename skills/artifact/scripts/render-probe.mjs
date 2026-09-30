@@ -71,6 +71,36 @@ const check = () => {
   // Only the bottom-pinned form is exempt: in the desktop column the rail pins at the
   // top and never sits over body text, so an overlap there is still a defect.
   const inStickyBottomBar = el => { const r = el.closest('.rail'); if (!r) return false; const s = getComputedStyle(r); return s.position === 'sticky' && s.bottom !== 'auto'; };
+  // What of a text box is drawn (BL-522.4). An ancestor whose overflow is hidden or clip
+  // cuts the box outright. One that scrolls (auto, scroll) is a window: a box past its
+  // edge is unseen by anything OUTSIDE that scroller (a rail entry scrolled below the
+  // list's edge is not over the copy bar under it), while two boxes inside the same
+  // scroller still meet when it is scrolled to them, so between those the window does
+  // not apply (`seen`). An absolute box escapes the clips below its containing block
+  // (the nearest positioned ancestor); a fixed one escapes them all. Overflow only clips
+  // a box that has one and holds block content: not inline, not contents.
+  const cut = (b, c, x, y) => ({ left: x ? Math.max(b.left, c.left) : b.left, right: x ? Math.min(b.right, c.right) : b.right,
+                                 top: y ? Math.max(b.top, c.top) : b.top, bottom: y ? Math.min(b.bottom, c.bottom) : b.bottom });
+  const sized = b => ({ ...b, width: b.right - b.left, height: b.bottom - b.top });
+  const clips = (el, raw) => {
+    let b = { left: raw.left, top: raw.top, right: raw.right, bottom: raw.bottom }, escaping = false;
+    const sc = [];
+    for (let e = el; e && e !== document.body; e = e.parentElement) {
+      const s = getComputedStyle(e);
+      if (escaping && s.position !== 'static') escaping = false;
+      if (!escaping && s.display !== 'inline' && s.display !== 'contents') {
+        const c = e.getBoundingClientRect(), hard = v => v === 'hidden' || v === 'clip', soft = v => v === 'auto' || v === 'scroll';
+        b = cut(b, c, hard(s.overflowX), hard(s.overflowY));
+        if (soft(s.overflowX) || soft(s.overflowY)) sc.push({ e, c, x: soft(s.overflowX), y: soft(s.overflowY) });
+      }
+      if (s.position === 'fixed') break;
+      if (s.position === 'absolute') escaping = true;
+    }
+    return { b: sized(b), sc };
+  };
+  // box `o` as seen from something inside the scrollers `others` (a list of elements)
+  const seen = (o, others) => sized(o.sc.reduce((b, w) => others.includes(w.e) ? b : cut(b, w.c, w.x, w.y), o.b));
+  const within = o => o.sc.map(w => w.e);
   const out = [];
   // text boxes: one per element that owns a non-empty text node
   const boxes = [];
@@ -79,7 +109,7 @@ const check = () => {
     if (!n.textContent.trim()) continue;
     const el = n.parentElement; if (!el || !vis(el) || el.closest('script,style,noscript,[hidden],details:not([open]) > :not(summary)')) continue;
     const r = document.createRange(); r.selectNodeContents(n);
-    for (const b of r.getClientRects()) if (b.width > 1 && b.height > 1) boxes.push({ el, b, fixed: fixedAncestor(el), bar: inStickyBottomBar(el) });
+    for (const raw of r.getClientRects()) { const { b, sc } = clips(el, raw); if (b.width > 1 && b.height > 1) boxes.push({ el, b, sc, fixed: fixedAncestor(el), bar: inStickyBottomBar(el) }); }
   }
   const sy = scrollY;
   // 1. two texts drawn over each other. A fixed text against a non-fixed one is left to
@@ -88,9 +118,10 @@ const check = () => {
   for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
     const a = boxes[i], c = boxes[j]; if (a.el === c.el || a.el.contains(c.el) || c.el.contains(a.el)) continue;
     if (!a.fixed !== !c.fixed || a.bar !== c.bar) continue;
-    const w = Math.min(a.b.right, c.b.right) - Math.max(a.b.left, c.b.left), h = Math.min(a.b.bottom, c.b.bottom) - Math.max(a.b.top, c.b.top);
-    if (w > 2 && h > 2 && w * h > 0.25 * Math.min(a.b.width * a.b.height, c.b.width * c.b.height))
-      out.push({ kind: 'text-overlap', a: name(a.el), b: name(c.el), y: Math.round(a.b.top + sy) });
+    const ra = seen(a, within(c)), rc = seen(c, within(a));
+    const w = Math.min(ra.right, rc.right) - Math.max(ra.left, rc.left), h = Math.min(ra.bottom, rc.bottom) - Math.max(ra.top, rc.top);
+    if (w > 2 && h > 2 && w * h > 0.25 * Math.min(ra.width * ra.height, rc.width * rc.height))
+      out.push({ kind: 'text-overlap', a: name(a.el), b: name(c.el), y: Math.round(ra.top + sy) });
   }
   // 2. svg text outside its svg viewport (clipped axis labels)
   for (const t of document.querySelectorAll('svg text')) {
@@ -121,13 +152,13 @@ const check = () => {
   const areas = [];
   for (const el of document.body.querySelectorAll('*')) {
     if (getComputedStyle(el).position !== 'fixed' || !vis(el)) continue; const r = el.getBoundingClientRect();
-    if (r.width > 1 && r.height > 1) areas.push({ owner: el, label: el, r });
+    if (r.width > 1 && r.height > 1) areas.push({ owner: el, label: el, r, sc: [] });
   }
-  for (const f of boxes) if (f.fixed) areas.push({ owner: f.fixed, label: f.el, r: f.b });
+  for (const f of boxes) if (f.fixed) areas.push({ owner: f.fixed, label: f.el, r: f.b, sc: within(f) });
   const hit = new Set();
-  for (const { owner, label, r } of areas) {
+  for (const { owner, label, r, sc } of areas) {
     if (hit.has(owner)) continue;
-    const t = boxes.find(o => !o.fixed && o.b.right > r.left && o.b.left < r.right && o.b.bottom > r.top && o.b.top < r.bottom);
+    const t = boxes.find(o => { if (o.fixed) return false; const q = seen(o, sc); return q.right > r.left && q.left < r.right && q.bottom > r.top && q.top < r.bottom; });
     if (t) { hit.add(owner); out.push({ kind: 'fixed-over-text', a: name(label), b: name(t.el) }); }
   }
   // 5. horizontal page scroll, naming the innermost element that reaches past the viewport
@@ -394,6 +425,12 @@ catch (e) {
 }
 if (shots) fs.mkdirSync(shots, { recursive: true });
 const report = [];
+// --shots bookkeeping: one run stamp for every file written this run, and one manifest
+// per page (tiles per width, item ids in page order) so the grader reads tiles by id.
+const runStamp = new Date().toISOString();
+const VIEW_H = 900;
+const manifests = new Map();
+const written = [];
 let current = '';
 try {
 for (const f of files) for (const width of [1280, 390]) {
@@ -406,7 +443,7 @@ for (const f of files) for (const width of [1280, 390]) {
     const geometry = !only && scheme === 'dark';
     const classes = CONTRACT.filter(k => (!only || k === only) && (scheme === 'dark' || k === 'figure-text-contrast'));
     if (!geometry && !classes.length) continue;
-    const page = await browser.newPage({ viewport: { width, height: 900 }, colorScheme: scheme });
+    const page = await browser.newPage({ viewport: { width, height: VIEW_H }, colorScheme: scheme });
     await page.goto('file://' + path.resolve(f)); await page.waitForTimeout(400);
     if (classes.length) { const c = await page.evaluate(contract, { classes, scheme, svgFamily: only === 'text-style-drift' }); d.push(...c.out); unmeasured += c.unmeasured; }
     if (geometry) {
@@ -419,8 +456,53 @@ for (const f of files) for (const width of [1280, 390]) {
         for (const x of await page.evaluate(check)) if (x.kind === 'fixed-over-text' && !seen.has(x.a + '|' + x.b)) { seen.add(x.a + '|' + x.b); d.push(x); }
       }
       if (shots) {
+        // instant scrolling and no snapping: a smooth-scroll or snap page would move mid-capture
+        await page.addStyleTag({ content: 'html,body{scroll-behavior:auto !important;scroll-snap-type:none !important}' });
         await page.evaluate(() => scrollTo(0, 0));
-        await page.screenshot({ path: path.join(shots, `${path.basename(f, path.extname(f))}-${width}.png`), fullPage: true });
+        const base = path.basename(f, path.extname(f));
+        const full = path.join(shots, `${base}-${width}.png`);
+        await page.screenshot({ path: full, fullPage: true });
+        written.push(full);
+        // Viewport-height tiles (a tall page's full-page shot is downscaled past legibility),
+        // each tagged with the item ids (data-id) whose box meets it. A stale tile from an
+        // earlier, taller build of the same page is removed first.
+        const tilePat = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-${width}-t\\d+\\.png$`);
+        for (const old of fs.readdirSync(shots)) if (tilePat.test(old)) fs.rmSync(path.join(shots, old));
+        const geo = await page.evaluate(() => {
+          const seen = new Map();
+          for (const el of document.querySelectorAll('[data-id]')) {
+            const id = el.getAttribute('data-id');
+            if (seen.has(id)) continue;
+            const r = el.getBoundingClientRect();
+            if (!r.width || !r.height) continue;
+            seen.set(id, { id, top: Math.floor(r.top + scrollY), bottom: Math.ceil(r.bottom + scrollY) });
+          }
+          return { H: document.documentElement.scrollHeight, items: [...seen.values()] };
+        });
+        if (!manifests.has(f)) manifests.set(f, { page: base, run: runStamp, viewport_height: VIEW_H, ids: geo.items.map(it => it.id), widths: {}, written: [] });
+        const man = manifests.get(f);
+        man.written.push(path.basename(full));
+        // Tiles overlap (stride VIEW_H - 100) so a line cut at one tile's edge is whole in the
+        // next; the last tile is pinned to H - VIEW_H so none is a thin sliver. A page no
+        // taller than the viewport is one tile of its own height.
+        const ys = [0];
+        while (ys[ys.length - 1] + VIEW_H < geo.H) ys.push(Math.min(ys[ys.length - 1] + VIEW_H - 100, geo.H - VIEW_H));
+        const tiles = [];
+        for (const [k, y] of ys.entries()) {
+          const h = Math.min(VIEW_H, geo.H - y);
+          const file = path.join(shots, `${base}-${width}-t${String(k + 1).padStart(2, '0')}.png`);
+          // Each tile is the viewport scrolled to y, not a clip of the scroll-0 full-page capture:
+          // that capture draws a fixed bar once, over the first screen, and a sticky rail on t01
+          // only, and the grader scored both as defects (BL-528). y never exceeds the page's
+          // maximum scroll (H - VIEW_H), so scrollTo lands exactly; a page shorter than the
+          // viewport has y = 0 and is clipped to its own height.
+          await page.evaluate(y => scrollTo(0, y), y); await page.waitForTimeout(100);
+          await page.screenshot({ path: file, clip: { x: 0, y: 0, width, height: h } });
+          written.push(file); man.written.push(path.basename(file));
+          tiles.push({ file: path.basename(file), y, height: h,
+            ids: geo.items.filter(it => it.top < y + h && it.bottom > y).map(it => it.id) });
+        }
+        man.widths[width] = { fullpage: path.basename(full), page_height: geo.H, tiles };
       }
     }
     await page.close();
@@ -435,6 +517,17 @@ await browser.close();
   console.error(`render-probe: CRASH on ${current}: ${String(e && e.message || e).split('\n')[0]}`);
   await browser.close().catch(() => {});
   process.exit(4);
+}
+
+if (shots) {
+  for (const [, m] of manifests) {
+    const mf = path.join(shots, `${m.page}-shots.json`);
+    written.push(mf);
+    m.written.push(path.basename(mf));
+    fs.writeFileSync(mf, JSON.stringify(m, null, 2) + '\n');
+  }
+  console.log(`SHOTS run=${runStamp} files=${written.length}`);
+  for (const w of written) console.log(`SHOT ${path.resolve(w)}`);
 }
 
 const total = report.reduce((n, r) => n + r.d.length, 0);
