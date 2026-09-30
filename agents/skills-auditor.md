@@ -1,7 +1,8 @@
 ---
 name: skills-auditor
 description: Launched by /aidex:aidex audit; not for direct use. Audits skills across all scopes for structural issues, frontmatter compliance, and scope placement.
-model: haiku
+model: sonnet
+effort: low
 tools: Read, Glob, Grep
 context: fork
 user-invocable: false

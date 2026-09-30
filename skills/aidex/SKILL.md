@@ -154,9 +154,9 @@ Launch each agent by type, `subagent_type: aidex:<name>` (definitions in the plu
 
 | Subagent | Launches when | Model | Effort | Tools |
 |----------|--------------|-------|--------|-------|
-| [context-auditor](../../agents/context-auditor.md) (`aidex:context-auditor`) | `.context/` exists | haiku | — | Read, Glob, Grep, Bash |
+| [context-auditor](../../agents/context-auditor.md) (`aidex:context-auditor`) | `.context/` exists | sonnet | low | Read, Glob, Grep, Bash |
 | [conventions-auditor](../../agents/conventions-auditor.md) (`aidex:conventions-auditor`) | `.context/` exists AND `${CLAUDE_PLUGIN_ROOT}/skills/conventions/scripts/validate.sh` is installed | haiku | — | Read, Bash |
-| [skills-auditor](../../agents/skills-auditor.md) (`aidex:skills-auditor`) | `.claude/skills/` exists | haiku | — | Read, Glob, Grep |
+| [skills-auditor](../../agents/skills-auditor.md) (`aidex:skills-auditor`) | `.claude/skills/` exists | sonnet | low | Read, Glob, Grep |
 | [symlink-checker](../../agents/symlink-checker.md) (`aidex:symlink-checker`) | Any symlinks found | haiku | — | Read, Glob, Bash |
 | [memory-auditor](../../agents/memory-auditor.md) (`aidex:memory-auditor`) | `~/.claude/projects/<slug>/memory/` exists and holds at least one memory file | sonnet | medium | Read, Glob, Grep |
 | [freshness-checker](../../agents/freshness-checker.md) (`aidex:freshness-checker`) | `.context/references/`, `.context/docs/`, or `.context/roadmap/` exist | haiku | — | Read, Glob, Grep, Bash, WebFetch |
