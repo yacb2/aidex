@@ -1098,6 +1098,12 @@ def _violations_of(ctx: Path, rule: str) -> list[dict]:
     return [v for v in json.loads(res.stdout)["violations"] if v["rule"] == rule]
 
 
+def _findings_of(ctx: Path, rule: str, severity: str) -> list[dict]:
+    res = subprocess.run([sys.executable, str(VALIDATOR), str(ctx), "--json"],
+                         capture_output=True, text=True)
+    return [v for v in json.loads(res.stdout)[severity + "s"] if v["rule"] == rule]
+
+
 def check_no_emoji(failures: list[str]) -> None:
     """BL-483: an emoji that renders as emoji (Emoji_Presentation=Yes, or any
     codepoint followed by U+FE0F) in .context/ markdown prose is a violation naming
@@ -1145,6 +1151,23 @@ def check_no_emoji(failures: list[str]) -> None:
             got = bool(_violations_of(ctx, "emoji-codepoint"))
             if got != want:
                 failures.append(f"no-emoji: {label} -> flagged={got}, expected {want}")
+        # BL-538: a fence that never closes swallows the rest of the file, so the fence
+        # itself is reported (warning) instead of passing silently
+        note.write_text(head + "```\nnever closed\nShipped \u2705 today.\n", encoding="utf-8")
+        hits = _findings_of(ctx, "unclosed-fence", "warning")
+        if not any(h["file"].endswith("2026-06-01-emoji-probe.md") and "line 10" in h["message"]
+                   for h in hits):
+            failures.append(f"no-emoji: an unclosed fence was not reported as a warning at line 10 "
+                            f"of the probe file (got {hits!r})")
+        if _violations_of(ctx, "unclosed-fence"):
+            failures.append("no-emoji: unclosed-fence must be a warning, not a violation")
+        note.write_text(head + "```\nclosed\n```\nPlain.\n", encoding="utf-8")
+        if _findings_of(ctx, "unclosed-fence", "warning"):
+            failures.append("no-emoji: a closed fence was reported as unclosed")
+        # a backtick fence's info string has no backtick: this line is inline code, not a fence
+        note.write_text(head + "```x``` is inline code\nShipped \u2705 today.\n", encoding="utf-8")
+        if not _violations_of(ctx, "emoji-codepoint") or _findings_of(ctx, "unclosed-fence", "warning"):
+            failures.append("no-emoji: ```x``` on one line opened a fence (emoji swallowed or unclosed-fence)")
         # BL-490 (d): communications/ are verbatim captures, exempt by name
         recv = ctx / "communications" / "received" / "2026-06-17-spring-pricing" / "body.md"
         recv.write_text(recv.read_text(encoding="utf-8") + "\nThanks \u2705 see you.\n", encoding="utf-8")

@@ -289,3 +289,33 @@ archive_companions() {
   done < <(companions_of "$anchors" "$ref")
   return 0
 }
+
+# resolve_worklist [--with-archive] <dir> <slug-or-path> — print the one work-list a slug names.
+# Skips -report(.spec).md companions (they sort before `<wl>.md`); an exact stem
+# (`<slug>.md` or `YYYY-MM-DD-<slug>.md`) wins over longer names that merely contain the
+# slug; otherwise a slug matching several work-lists is refused (exit 2) instead of
+# taking the first (BL-539). --with-archive also searches <dir>/_archive/. Prints
+# nothing when nothing matches; the caller owns the not-found message.
+resolve_worklist() {
+  local arch=0 dir arg m n f b exact=() re
+  [[ "${1:-}" == "--with-archive" ]] && { arch=1; shift; }
+  dir="$1"; arg="$2"
+  if [[ -f "$arg" ]]; then printf '%s\n' "$arg"; return 0; fi
+  if [[ $arch -eq 1 ]]; then
+    m="$(ls "$dir/"*"$arg"*.md "$dir/_archive/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+  else
+    m="$(ls "$dir/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+  fi
+  n="$(grep -c . <<<"$m" || true)"
+  if [[ "$n" -gt 1 ]]; then
+    re='^[0-9]{4}-[0-9]{2}-[0-9]{2}-'
+    while IFS= read -r f; do
+      b="$(basename "$f")"
+      if [[ "$b" == "$arg.md" || ( "$b" =~ $re && "${b:11}" == "$arg.md" ) ]]; then exact+=("$f"); fi
+    done <<<"$m"
+    if [[ ${#exact[@]} -eq 1 ]]; then printf '%s\n' "${exact[0]}"; return 0; fi
+    err "ambiguous worklist slug '$arg' matches more than one ($n) work-list:"; printf '%s\n' "$m" >&2
+    exit 2
+  fi
+  printf '%s\n' "$m"
+}

@@ -1145,8 +1145,11 @@ def check_no_emoji(type_name: str, path: Path, text: str) -> list[Finding]:
         return []
     findings: list[Finding] = []
     fence = ""  # the opening run (e.g. "```") while inside a fenced block
+    fence_line = 0
     for n, line in enumerate(text.splitlines(), 1):
         m = FENCE_RE.match(line)
+        if m and m.group(1)[0] == "`" and "`" in m.group(2):
+            m = None  # a backtick fence's info string has no backtick: "```x```" is inline code
         if fence:
             # only a run of the same character, at least as long, closes the block
             # (any indent: a fence inside a list item is indented past 3 spaces)
@@ -1155,12 +1158,16 @@ def check_no_emoji(type_name: str, path: Path, text: str) -> list[Finding]:
             continue
         if m:
             fence = m.group(1)
+            fence_line = n
             continue
         m = EMOJI_RE.search(INLINE_CODE_RE.sub("", line))
         if m:
             findings.append(Finding(type_name, str(path), "emoji-codepoint", "violation",
                                     f"line {n}: emoji U+{ord(m.group(0)[0]):04X} — "
                                     f"no emojis in .context/ artifacts; use a plain text label"))
+    if fence:  # BL-538: an unclosed fence hides every emoji after it, so say so
+        findings.append(Finding(type_name, str(path), "unclosed-fence", "warning",
+                                f"line {fence_line}: fence never closes; emoji after it are not checked"))
     return findings
 
 

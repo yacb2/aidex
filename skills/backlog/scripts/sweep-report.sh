@@ -45,10 +45,8 @@ WL_DIR="$ROOT/.context/worklists"
 if [[ -f "$ARG" ]]; then WL="$ARG"
 else
   # `<wl>-report.md` sorts before `<wl>.md` (`-` < `.`): on 2026-08-28 the report was
-  # rendered from its own previous output. The companion is never the work-list.
-  # (`<wl>-report.spec.md`, the page's spec, is a companion too.) Two matches are refused.
-  WL="$(ls "$WL_DIR/"*"$ARG"*.md "$WL_DIR/_archive/"*"$ARG"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
-  [[ "$(grep -c . <<<"$WL")" -le 1 ]] || die "worklist slug matches more than one: $ARG"$'\n'"$WL"
+  # rendered from its own previous output. resolve_worklist skips companions and refuses two matches.
+  WL="$(resolve_worklist --with-archive "$WL_DIR" "$ARG")"
 fi
 [[ -n "${WL:-}" && -f "$WL" ]] || die "worklist not found: $ARG"
 

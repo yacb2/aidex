@@ -42,9 +42,8 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "$status" == "done" || "$status" == "dropped" ]] || { echo "--status must be done|dropped" >&2; exit 2; }
 
-# `|| true`: ls exits 2 on no match, which pipefail+errexit would turn into a
-# silent exit 1 before the not-found diagnostic below ever runs.
-if [[ -f "$arg" ]]; then file="$arg"; else file="$(ls "$WL_DIR/"*"$arg"*.md 2>/dev/null | head -1 || true)"; fi
+# resolve_worklist (in _lib.sh) skips -report companions and exits 2 on an ambiguous slug.
+file="$(resolve_worklist "$WL_DIR" "$arg")"
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
 today="$(date +%F)"
 case "$file" in */_archive/*) echo "worklist already archived: $file" >&2; exit 2;; esac

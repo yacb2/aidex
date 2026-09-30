@@ -107,10 +107,9 @@ if [[ -n "$WORKLIST" ]]; then
       *) die "--worklist: $WORKLIST is not under a worklists/ directory" ;;
     esac
   else
-    # companions (`<wl>-report.md`, `<wl>-report.spec.md`) sort before `<wl>.md` and are never the work-list
-    m="$(ls "$WL_DIR/"*"$WORKLIST"*.md "$WL_DIR/_archive/"*"$WORKLIST"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+    # resolve_worklist skips `<wl>-report(.spec).md` companions and refuses an ambiguous slug
+    m="$(resolve_worklist --with-archive "$WL_DIR" "$WORKLIST")"
     [[ -n "$m" ]] || die "--worklist: no work-list matches: $WORKLIST"
-    [[ "$(grep -c . <<<"$m")" -eq 1 ]] || die "--worklist: $WORKLIST matches more than one work-list:"$'\n'"$m"
     WL_STAMP="$(basename "$m")"
   fi
 else

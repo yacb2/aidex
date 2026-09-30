@@ -306,6 +306,9 @@ appended --worklist second
 [[ "$(stamp)" == "2026-09-30-second.md" ]] && ok "12 --worklist <slug> resolves to the file" || bad "12 --worklist slug: [$(stamp)]"
 n0="$(grep -c . "$H")"; printf -- '---\nstatus: done\n---\n' > "$A/2026-09-30-second-old.md"
 run --worklist second >/dev/null; RC=$?
+[[ $RC -eq 0 && "$(grep -c . "$H")" -gt "$n0" ]] && ok "12 an exact slug wins over a longer work-list name containing it" || bad "12 exact slug: rc=$RC"
+n0="$(grep -c . "$H")"
+run --worklist econd >/dev/null; RC=$?
 [[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] && ok "12 a slug matching two work-lists exits 2 and runs nothing (never head -1)" || bad "12 ambiguous slug: rc=$RC"
 rm -f "$A/2026-09-30-second-old.md"
 run --worklist no-such-run >/dev/null; [[ $? -eq 2 ]] && ok "12 unknown --worklist exits 2" || bad "12 unknown --worklist accepted"

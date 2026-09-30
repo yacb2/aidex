@@ -124,8 +124,11 @@ SL="$(bash "$SCRIPTS/sweep-report.sh" slugcase --print 2>/dev/null)"
 grep -q '^origin_ref: worklist/2026-09-29-slugcase.md$' <<<"$SL" \
   && ok "F1: a slug skips -report.md and -report.spec.md companions and reads the work-list" || bad "slug resolved to a companion: $(grep origin_ref <<<"$SL")"
 cp "$AR/2026-09-29-slugcase.md" "$AR/2026-09-30-slugcase-2.md"
-bash "$SCRIPTS/sweep-report.sh" slugcase --print >/dev/null 2>&1; [[ $? -eq 2 ]] \
+bash "$SCRIPTS/sweep-report.sh" lugcase --print >/dev/null 2>&1; [[ $? -eq 2 ]] \
   && ok "F1: a slug matching two work-lists exits 2" || bad "ambiguous slug did not exit 2"
+SL="$(bash "$SCRIPTS/sweep-report.sh" 2026-09-29-slugcase --print 2>/dev/null)"
+grep -q '^origin_ref: worklist/2026-09-29-slugcase.md$' <<<"$SL" \
+  && ok "F1: an exact stem wins over a longer work-list name that contains it" || bad "exact stem: $(grep origin_ref <<<"$SL")"
 rm -f "$AR"/*slugcase*
 grep -q "$EID: not reached" "$OUT" && ok "the appended emergent item that was never worked is reported as not reached" || bad "emergent skip: $(grep "$EID" "$OUT")"
 # the companion survives the work-list's own archive, next to it

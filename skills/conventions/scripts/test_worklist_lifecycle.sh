@@ -80,4 +80,38 @@ file4="$(bash "$DIR/worklist-new.sh" --title "Undated slug $$" --slug "$slug4" \
 assert "new: an undated --slug still gets today's date" "[[ '$(basename "$file4")' == '$(date +%F)-$slug4.md' ]]"
 rm -f "$file4"
 
+# BL-539: a slug resolves to the work-list, never a -report companion (which sorts first:
+# "-" < "."), and two work-lists matching one slug are refused (exit 2), not head -1'd.
+slug5="companion-$$"
+file5="$(bash "$DIR/worklist-new.sh" --title "Companion $$" --slug "$slug5" --ref "inline:x" --publish ask)"
+comp5="${file5%.md}-report.md"; printf 'report\n' > "$comp5"
+rc=0; out5="$(bash "$DIR/worklist-advance.sh" "$slug5" 2>/dev/null)" || rc=$?
+assert "advance: slug with a -report companion advances the work-list" \
+  "[[ $rc -eq 0 && \$(grep -cE '^1\. \[x\] ' '$file5') -eq 1 && \$(cat '$comp5') == report ]]"
+rc=0; out5="$(bash "$DIR/worklist-close.sh" "$slug5" 2>/dev/null)" || rc=$?
+assert "close: slug with a -report companion closes the work-list" \
+  "[[ $rc -eq 0 && '$out5' == CLOSED*/_archive/$(basename "$file5") && -f '$comp5' ]]"
+rm -f "$comp5" "${out5#CLOSED }"
+slug6="ambig-$$"
+f6a="$(bash "$DIR/worklist-new.sh" --title "Ambig one $$" --slug "$slug6-one" --ref "inline:x" --publish ask)"
+f6b="$(bash "$DIR/worklist-new.sh" --title "Ambig two $$" --slug "$slug6-two" --ref "inline:x" --publish ask)"
+before6="$(cat "$f6a" "$f6b")"
+rc=0; err="$(bash "$DIR/worklist-advance.sh" "$slug6" 2>&1 >/dev/null)" || rc=$?
+assert "advance: a slug matching two work-lists is refused (exit 2)" "[[ $rc -eq 2 && \"\$err\" == *ambiguous* ]]"
+rc=0; err="$(bash "$DIR/worklist-close.sh" "$slug6" 2>&1 >/dev/null)" || rc=$?
+assert "close: a slug matching two work-lists is refused (exit 2)" "[[ $rc -eq 2 && \"\$err\" == *ambiguous* ]]"
+after6="$(cat "$f6a" "$f6b")"
+assert "ambiguous slug mutates neither work-list" "[[ \"\$before6\" == \"\$after6\" ]]"
+rm -f "$f6a" "$f6b"
+
+# exact stem wins: `<d>-x.md` and `<d>-x-2.md` both contain the slug `<d>-x`; the exact one is meant
+slug7="exact-$$"
+f7a="$(bash "$DIR/worklist-new.sh" --title "Exact $$" --slug "$slug7" --ref "inline:x" --publish ask)"
+f7b="$(bash "$DIR/worklist-new.sh" --title "Exact two $$" --slug "$slug7-2" --ref "inline:x" --publish ask)"
+before7b="$(cat "$f7b")"
+rc=0; bash "$DIR/worklist-advance.sh" "$(basename "$f7a" .md)" >/dev/null 2>&1 || rc=$?
+assert "advance: an exact stem wins over a longer name containing it" \
+  "[[ $rc -eq 0 && \$(grep -cE '^1\. \[x\] ' '$f7a') -eq 1 && \"\$(cat '$f7b')\" == \"\$before7b\" ]]"
+rm -f "$f7a" "$f7b"
+
 if [[ "$fail" -eq 0 ]]; then echo "all worklist lifecycle assertions passed"; else echo "lifecycle FAILED"; exit 1; fi
