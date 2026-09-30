@@ -1126,12 +1126,31 @@ def check_no_emoji(failures: list[str]) -> None:
              "Pattern:\n\n```\ngrep -n '\u2705\\|\u274c' file\n```\n", False),
             ("a text-style arrowhead U+25B6 alone", "a \u2500\u2500\u25b6 b\n", False),
             ("U+26A0 followed by U+FE0F", "Warning \u26a0\ufe0f here.\n", True),
+            # BL-490 (c): fences are tracked by character and length, at any indent
+            ("U+2705 inside a fence indented 4 spaces in a list",
+             "- item\n\n    ```\n    grep '\u2705' f\n    ```\n", False),
+            ("a ~~~ line inside a backtick fence does not close it",
+             "```\n~~~\n\u2705 still code\n```\n", False),
+            ("U+2705 after a fence closed at 4 spaces is prose again",
+             "- item\n\n  ```\n  code\n    ```\n\nShipped \u2705 today.\n", True),
+            ("a shorter ``` run inside a ```` fence does not close it",
+             "````\n```\n\u2705 code\n````\n", False),
+            ("a ``` line with text after it does not close a fence",
+             "```\n``` not a closer\n\u2705 code\n```\n", False),
+            ("U+2705 after a ~~~ line and the real closing fence is prose",
+             "```\n~~~\n```\n\nShipped \u2705 today.\n", True),
         )
         for label, body, want in cells:
             note.write_text(head + body, encoding="utf-8")
             got = bool(_violations_of(ctx, "emoji-codepoint"))
             if got != want:
                 failures.append(f"no-emoji: {label} -> flagged={got}, expected {want}")
+        # BL-490 (d): communications/ are verbatim captures, exempt by name
+        recv = ctx / "communications" / "received" / "2026-06-17-spring-pricing" / "body.md"
+        recv.write_text(recv.read_text(encoding="utf-8") + "\nThanks \u2705 see you.\n", encoding="utf-8")
+        hits = [h for h in _violations_of(ctx, "emoji-codepoint") if "/communications/" in h["file"]]
+        if hits:
+            failures.append(f"no-emoji: an emoji in a received communication was flagged (exempt): {hits!r}")
 
 
 def check_references_root_unit(failures: list[str]) -> None:

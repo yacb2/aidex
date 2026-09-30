@@ -1131,7 +1131,7 @@ EMOJI_PRESENTATION_RANGES = (
 EMOJI_RE = re.compile(
     "[" + "".join(f"\\U{a:08x}-\\U{b:08x}" for a, b in EMOJI_PRESENTATION_RANGES) + "]"
     "|.\ufe0f")
-FENCE_RE = re.compile(r"^ {0,3}(```|~~~)")
+FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 INLINE_CODE_RE = re.compile(r"(`+).*?\1")
 
 def check_no_emoji(type_name: str, path: Path, text: str) -> list[Finding]:
@@ -1144,12 +1144,17 @@ def check_no_emoji(type_name: str, path: Path, text: str) -> list[Finding]:
     if type_name == "communications":
         return []
     findings: list[Finding] = []
-    in_fence = False
+    fence = ""  # the opening run (e.g. "```") while inside a fenced block
     for n, line in enumerate(text.splitlines(), 1):
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
+        m = FENCE_RE.match(line)
+        if fence:
+            # only a run of the same character, at least as long, closes the block
+            # (any indent: a fence inside a list item is indented past 3 spaces)
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence) and not m.group(2).strip():
+                fence = ""
             continue
-        if in_fence:
+        if m:
+            fence = m.group(1)
             continue
         m = EMOJI_RE.search(INLINE_CODE_RE.sub("", line))
         if m:

@@ -120,6 +120,13 @@ grep -q "^- $CID — charlie gap lane hover   <!-- reason: pulled at kickoff (--
   && ok "--exclude A,B:reason: the second id carries its reason, commas kept and --> escaped" || bad "comma reason/escape: [$NDY]"
 grep -qE "^[0-9]+\. \[ \] .*\b($AID|$CID)\b" "$WLY" && bad "a comma-listed --exclude item was still queued" || ok "every id of a comma list is pulled from the queue"
 sed -i.bak 's/^status: doing/status: done/' "$WLY" && rm -f "$WLY.bak"
+# BL-490 (b): a trailing comma and a space before the colon are typing slips, not unknown ids
+WLZ="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Exclude slips" --slug exclude-slips --exclude "$AID,$CID : waits on design," 2>"$TMP/slip.err" | tail -1)"; RC=${PIPESTATUS[0]}
+NDZ="$(sed -n '/^## Needs decision/,/^## Deferred/p' "$WLZ" 2>/dev/null)"
+grep -q "^- $AID — alpha gap lane   <!-- reason: pulled at kickoff (--exclude) -->$" <<<"$NDZ" \
+  && grep -q "^- $CID — charlie gap lane hover   <!-- reason: pulled at kickoff (--exclude): waits on design -->$" <<<"$NDZ" \
+  && ok "--exclude tolerates a trailing comma and a space before the colon" || bad "exclude slips: rc=$RC $(cat "$TMP/slip.err") [$NDZ]"
+sed -i.bak 's/^status: doing/status: done/' "$WLZ" 2>/dev/null && rm -f "$WLZ.bak"
 # an id in no partition list is a typo: refuse, never write an untitled line
 bash "$SCRIPTS/sweep-kickoff.sh" --title "Exclude typo" --slug exclude-typo --exclude "BL-99999" >/dev/null 2>"$TMP/typo.err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "BL-99999" "$TMP/typo.err" && ! ls .context/worklists/*exclude-typo* >/dev/null 2>&1 \
@@ -136,7 +143,8 @@ S="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title "found mid-sweep" -
 # report reads only the queue, so an item that is merely registered is invisible to it
 SID="$(idof "$S")"
 grep -qE "^[0-9]+\. \[ \] $SID .*<!-- ref: backlog --> <!-- emergent -->" "$WL" \
-  && ok "--origin sweep --worklist appends the item to the queue as emergent" \
+  && [[ "$(grep -cE "^[0-9]+\. \[ \] $SID " "$WL")" -eq 1 ]] \
+  && ok "--origin sweep --worklist appends the item to the queue as emergent, exactly once" \
   || bad "$SID not appended to the queue: $(grep -nE '^[0-9]+\. ' "$WL" | tail -2)"
 S2="$(bash "$SCRIPTS/register-item.sh" --origin sweep --title "no worklist yet" --no-index 2>/dev/null)"
 [[ -f "$S2" && "$(fm "$S2" origin_ref)" == "" ]] && ok "--origin sweep without --worklist is accepted (empty ref)" || bad "origin sweep bare"

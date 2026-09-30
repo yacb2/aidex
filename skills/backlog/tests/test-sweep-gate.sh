@@ -274,5 +274,47 @@ OUT="$(run)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"verdict=PASS legs=4"* && "$OUT" != *"leg=suite"* ]] \
   && ok "11 the four-leg default is unchanged when the leg keys are present" || bad "11 four-leg: rc=$RC $OUT"
 
+# ── 12 · BL-489: the run is stamped with its work-list, so a report can claim only its own ──
+stub be 0 "== 1284 passed in 40.1s =="
+profile "suite_cmd: bin/be"
+H="$P/.context/proofs/sweep-gate/gate-history.jsonl"
+stamp() { tail -1 "$H" | python3 -c 'import json,sys; print(json.load(sys.stdin)[-1].get("worklist",""))'; }
+appended() {  # appended <args...>: one gate run -> rc 0 and exactly one new history line
+  local n0 n1 rc; n0="$(grep -c . "$H")"; run "$@" >/dev/null; rc=$?; n1="$(grep -c . "$H")"
+  [[ $rc -eq 0 && $((n1 - n0)) -eq 1 ]] || { bad "12 run $*: rc=$rc, history lines $n0 -> $n1"; return 1; }
+}
+appended
+[[ -z "$(stamp)" ]] && ok "12 no work-list anywhere -> no stamp (legacy shape)" || bad "12 stamped with nothing to stamp: $(tail -1 "$H")"
+mkdir -p "$P/.context/worklists/_archive"
+printf -- '---\nstatus: doing\n---\n' > "$P/.context/worklists/2026-09-30-only-one.md"
+printf -- '---\nstatus: done\n---\n' > "$P/.context/worklists/2026-09-29-finished.md"
+appended
+[[ "$(stamp)" == "2026-09-30-only-one.md" ]] && ok "12 the sole running work-list is stamped by basename" || bad "12 auto stamp: [$(stamp)] $(tail -1 "$H")"
+printf -- '---\nstatus: doing\n---\n' > "$P/.context/worklists/2026-09-30-second.md"
+appended
+[[ -z "$(stamp)" ]] && ok "12 two running work-lists -> ambiguous, no guess" || bad "12 guessed between two: [$(stamp)]"
+appended --worklist .context/worklists/2026-09-30-second.md
+[[ "$(stamp)" == "2026-09-30-second.md" ]] && ok "12 --worklist <path> names the work-list explicitly" || bad "12 --worklist: [$(stamp)]"
+# an archived work-list sits beside its companions; `<wl>-report.spec.md` sorts before `<wl>.md`
+# and the slug must still resolve to the work-list (F1: it resolved to the spec)
+A="$P/.context/worklists/_archive"
+printf -- '---\nstatus: done\n---\n' > "$A/2026-09-29-third.md"
+printf 'report\n' > "$A/2026-09-29-third-report.md"; printf 'spec\n' > "$A/2026-09-29-third-report.spec.md"
+appended --worklist third
+[[ "$(stamp)" == "2026-09-29-third.md" ]] && ok "12 --worklist <slug> skips the -report.md and -report.spec.md companions" || bad "12 slug resolved to a companion: [$(stamp)]"
+appended --worklist second
+[[ "$(stamp)" == "2026-09-30-second.md" ]] && ok "12 --worklist <slug> resolves to the file" || bad "12 --worklist slug: [$(stamp)]"
+n0="$(grep -c . "$H")"; printf -- '---\nstatus: done\n---\n' > "$A/2026-09-30-second-old.md"
+run --worklist second >/dev/null; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] && ok "12 a slug matching two work-lists exits 2 and runs nothing (never head -1)" || bad "12 ambiguous slug: rc=$RC"
+rm -f "$A/2026-09-30-second-old.md"
+run --worklist no-such-run >/dev/null; [[ $? -eq 2 ]] && ok "12 unknown --worklist exits 2" || bad "12 unknown --worklist accepted"
+# F7: a path must be a file under a worklists/ directory, so the stamp is a plain basename
+printf -- '---\nstatus: doing\n---\n' > "$P/elsewhere.md"
+run --worklist "$P/elsewhere.md" >/dev/null; RC=$?
+[[ $RC -eq 2 ]] && ok "12 --worklist <path> outside worklists/ exits 2" || bad "12 outside path accepted: rc=$RC"
+appended --worklist "$A/2026-09-29-third.md"
+[[ "$(stamp)" == "2026-09-29-third.md" ]] && ok "12 --worklist <path> under worklists/_archive/ is accepted" || bad "12 archived path: [$(stamp)]"
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

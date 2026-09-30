@@ -144,12 +144,12 @@ deferral goes in the report as well as the seed.
 
 ## Stage 5 — Boundary gate, once
 
-Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver).
+Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver). Run it as `sweep-gate.sh --worklist <the work-list path>`: several work-lists are often `doing` at once, and only the flag lets the report claim its own runs.
 
 Merge the trunk **into** the branch first (routine class-4 work, ungated), then run the
 gate: every leg from `testing-profile.md`'s full-suite commands, raw exit code and spec
 count per leg, a countless leg is FAIL, a detached E2E leg is printed and scored from its
-log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl` (durable; the leg logs stay in `_tmp/sweep-gate/`). In a worktree of a project that tracks `.context/`, the work-list, its report, the proofs and this history live in the worktree's copy and vanish at teardown. Do not prescribe a copy-before-teardown step: put the root repo in `WT_PARTICIPANTS` as `.` and `$DEST` is a checkout of it, so the worktree owns the `.context/` it writes to and `find_project_root` stops there. A project that does NOT track `.context/` has nothing to carry. The `.` token is real support, not a convention: `worktree-multi.sh` reorders it first whatever position the config lists it in, and a `WT_LINKS`/`WT_COPIES` entry the root checkout already carries is skipped with a notice instead of failing creation (BL-259, guarded by `skills/worktree/tests/test-root-participant.sh`).
+log. Every run is appended to `.context/proofs/sweep-gate/gate-history.jsonl`, stamped with its work-list (`--worklist`; without it the sole `doing` one, else no stamp; the report counts only its own stamped runs, BL-489) (durable; the leg logs stay in `_tmp/sweep-gate/`). In a worktree of a project that tracks `.context/`, the work-list, its report, the proofs and this history live in the worktree's copy and vanish at teardown. Do not prescribe a copy-before-teardown step: put the root repo in `WT_PARTICIPANTS` as `.` and `$DEST` is a checkout of it, so the worktree owns the `.context/` it writes to and `find_project_root` stops there. A project that does NOT track `.context/` has nothing to carry. The `.` token is real support, not a convention: `worktree-multi.sh` reorders it first whatever position the config lists it in, and a `WT_LINKS`/`WT_COPIES` entry the root checkout already carries is skipped with a notice instead of failing creation (BL-259, guarded by `skills/worktree/tests/test-root-participant.sh`).
 
 *Prose — a conflict whose resolution is per-key across a moved file is not sweep work.*
 Budget for the merge when another session has been working the same repo. Observed: the

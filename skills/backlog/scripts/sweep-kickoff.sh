@@ -84,7 +84,8 @@ listed = {i["id"] for i in d["needs_decision"]}
 ids, lines = [], []
 for arg in sys.argv[1:]:
     for e in re.split(r",\s*(?=BL-\d+\b)", arg):
-        bl, _, why = e.strip().partition(":")
+        bl, _, why = e.strip().rstrip(",").partition(":")
+        bl = bl.strip()
         if not bl or bl in ids:
             continue
         if bl not in titles:

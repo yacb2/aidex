@@ -99,6 +99,34 @@ CW="$(bash "$SCRIPTS/sweep-report.sh" "$CLWL" --print 2>/dev/null)"
   && ok "BL-480: a closed work-list (updated yesterday) does not count today's gate run" || bad "closed window: $(grep -A3 'Boundary gate' <<<"$CW")"
 rm -f "$RUNWL" "$CLWL"
 cp "$TMP/gh.keep" $GH
+# BL-489: the window is a DATE, so two sweeps of one day claimed each other's runs. A run
+# stamped with a work-list belongs to that work-list alone; an unstamped (legacy) run
+# still falls back to the date window.
+TD="$(day 0)"
+mkdir -p .context/worklists
+for w in 2a 2b; do printf -- '---\ntitle: "same day %s"\nstatus: doing\ncreated: %s\nupdated: %s\nmode: sweep\n---\n\n## Queue (in execution order)\n\n## Deferred / emergent\n' "$w" "$TD" "$TD" > ".context/worklists/$TD-same-day-$w.md"; done
+{ printf '[{"leg":"legA","exit":"0","count":"1","secs":"1"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%sT00:00:10","worklist":"%s-same-day-2a.md"}]\n' "$TD" "$TD"
+  printf '[{"leg":"legB","exit":"0","count":"1","secs":"1"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%sT00:00:20","worklist":"%s-same-day-2b.md"}]\n' "$TD" "$TD"
+  printf '[{"leg":"legOld","exit":"0","count":"1","secs":"1"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"%sT00:00:05"}]\n' "$TD"; } > $GH
+SA="$(bash "$SCRIPTS/sweep-report.sh" same-day-2a --print 2>/dev/null)"; SB="$(bash "$SCRIPTS/sweep-report.sh" same-day-2b --print 2>/dev/null)"
+grep -q "leg=legA" <<<"$SA" && ! grep -q "leg=legB" <<<"$SA" && grep -q "leg=legB" <<<"$SB" && ! grep -q "leg=legA" <<<"$SB" \
+  && ok "BL-489: two same-day work-lists each report only the gate run stamped with their own" || bad "same-day: A=[$(grep 'leg=' <<<"$SA" | tr '\n' ' ')] B=[$(grep 'leg=' <<<"$SB" | tr '\n' ' ')]"
+grep -q "leg=legOld" <<<"$SA" && grep -q "leg=legOld" <<<"$SB" \
+  && ok "BL-489: an unstamped legacy run still falls back to the date window" || bad "legacy fallback lost"
+rm -f .context/worklists/*same-day-2?.md
+cp "$TMP/gh.keep" $GH
+# F1: an archived work-list beside `<wl>-report.md` and `<wl>-report.spec.md` (both sort before
+# `<wl>.md`): the slug resolves to the work-list, and two matches are refused, never head -1
+AR=.context/worklists/_archive
+winwl slugcase done "$(day 3)" "$(day 3)" >/dev/null; mv .context/worklists/slugcase.md "$AR/2026-09-29-slugcase.md"
+printf -- '---\ntitle: "spec page"\n---\n' > "$AR/2026-09-29-slugcase-report.spec.md"; printf -- '---\ntitle: "old report"\n---\n' > "$AR/2026-09-29-slugcase-report.md"
+SL="$(bash "$SCRIPTS/sweep-report.sh" slugcase --print 2>/dev/null)"
+grep -q '^origin_ref: worklist/2026-09-29-slugcase.md$' <<<"$SL" \
+  && ok "F1: a slug skips -report.md and -report.spec.md companions and reads the work-list" || bad "slug resolved to a companion: $(grep origin_ref <<<"$SL")"
+cp "$AR/2026-09-29-slugcase.md" "$AR/2026-09-30-slugcase-2.md"
+bash "$SCRIPTS/sweep-report.sh" slugcase --print >/dev/null 2>&1; [[ $? -eq 2 ]] \
+  && ok "F1: a slug matching two work-lists exits 2" || bad "ambiguous slug did not exit 2"
+rm -f "$AR"/*slugcase*
 grep -q "$EID: not reached" "$OUT" && ok "the appended emergent item that was never worked is reported as not reached" || bad "emergent skip: $(grep "$EID" "$OUT")"
 # the companion survives the work-list's own archive, next to it
 bash "$CONV/worklist-close.sh" "$WL" --force >/dev/null 2>&1

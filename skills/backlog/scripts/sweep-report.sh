@@ -17,8 +17,9 @@
 # `## Verification` rows; the OWNER rows aggregated across every item — the one list the
 # owner reads; the NEEDS-DECISION list recorded at kickoff, unchanged; deferrals and
 # mid-flight skips; emergent growth (flagged past 25 % of the kickoff queue); the gate
-# rows from `.context/proofs/sweep-gate/gate-history.jsonl` verbatim, only the runs inside
-# the work-list's window (BL-480); and the per-sweep metrics —
+# rows from `.context/proofs/sweep-gate/gate-history.jsonl` verbatim, only the runs
+# stamped with this work-list (BL-489) or, for an unstamped legacy run, inside its date
+# window (BL-480); and the per-sweep metrics —
 # items, commits, wall time, share of time in gate suites, legs re-run.
 #
 # Anchored `origin_ref: worklist/<file>` (ADR 2026-08-27, worklists are referenceable).
@@ -45,7 +46,9 @@ if [[ -f "$ARG" ]]; then WL="$ARG"
 else
   # `<wl>-report.md` sorts before `<wl>.md` (`-` < `.`): on 2026-08-28 the report was
   # rendered from its own previous output. The companion is never the work-list.
-  WL="$(ls "$WL_DIR/"*"$ARG"*.md "$WL_DIR/_archive/"*"$ARG"*.md 2>/dev/null | grep -v -- '-report\.md$' | head -1 || true)"
+  # (`<wl>-report.spec.md`, the page's spec, is a companion too.) Two matches are refused.
+  WL="$(ls "$WL_DIR/"*"$ARG"*.md "$WL_DIR/_archive/"*"$ARG"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+  [[ "$(grep -c . <<<"$WL")" -le 1 ]] || die "worklist slug matches more than one: $ARG"$'\n'"$WL"
 fi
 [[ -n "${WL:-}" && -f "$WL" ]] || die "worklist not found: $ARG"
 

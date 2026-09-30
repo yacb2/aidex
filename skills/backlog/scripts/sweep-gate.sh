@@ -17,6 +17,8 @@
 #                                     # (a profile that binds only `suite_cmd` and no leg
 #                                     # key defaults to the single `suite` leg instead)
 #   sweep-gate.sh --only <leg> [...]    # a subset (repeatable)
+#   sweep-gate.sh --worklist <path|slug>  # stamp the run with this work-list (default: the sole
+#                                     # work-list with `status: doing`; none or several -> no stamp)
 #   sweep-gate.sh --json                # the same rows as a JSON array (for sweep-report.sh)
 #   sweep-gate.sh --only <leg> --from-log <file>          # any leg, not only e2e: a backend
 #                                                 # rerun on a quiet host goes in the same way
@@ -50,11 +52,12 @@ set -euo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
 ALL_LEGS=(backend frontend build e2e)
-ONLY=() JSON=0 FROM_LOG="" EXIT_RC=""
+ONLY=() JSON=0 FROM_LOG="" EXIT_RC="" WORKLIST=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --only)     [[ $# -ge 2 ]] || die "--only needs a leg"; ONLY+=("$2"); shift 2 ;;
     --exit)     [[ $# -ge 2 ]] || die "--exit needs a code"; EXIT_RC="$2"; shift 2 ;;
+    --worklist) [[ $# -ge 2 ]] || die "--worklist needs a work-list path or slug"; WORKLIST="$2"; shift 2 ;;
     --json)     JSON=1; shift ;;
     --from-log) [[ $# -ge 2 ]] || die "--from-log needs a file"; FROM_LOG="$2"; shift 2 ;;
     -h|--help)  sed -n '2,/^$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
@@ -89,6 +92,35 @@ PROFILE="$ROOT/.context/testing-profile.md"
 PROFILE_ALT="$ROOT/testing-profile.md"
 [[ -f "$PROFILE" ]] || PROFILE="$PROFILE_ALT"
 [[ -f "$PROFILE" ]] || die "no testing profile at $ROOT/.context/testing-profile.md nor $PROFILE_ALT — the gate reads its commands from it (coverage/references/14-testing-profile.md)"
+
+# The work-list this run belongs to, stamped into the history record (BL-489): the report's
+# date window cannot tell two sweeps of one day apart, the stamp can. Explicit --worklist
+# wins; otherwise the sole running work-list; otherwise no stamp and the report falls back
+# to its date window.
+WL_DIR="$ROOT/.context/worklists"
+WL_STAMP=""
+if [[ -n "$WORKLIST" ]]; then
+  if [[ -f "$WORKLIST" ]]; then
+    # a path names a work-list only from a worklists/ directory (active or _archive/)
+    case "$(cd "$(dirname "$WORKLIST")" && pwd -P)" in
+      */worklists|*/worklists/_archive) WL_STAMP="$(basename "$WORKLIST")" ;;
+      *) die "--worklist: $WORKLIST is not under a worklists/ directory" ;;
+    esac
+  else
+    # companions (`<wl>-report.md`, `<wl>-report.spec.md`) sort before `<wl>.md` and are never the work-list
+    m="$(ls "$WL_DIR/"*"$WORKLIST"*.md "$WL_DIR/_archive/"*"$WORKLIST"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
+    [[ -n "$m" ]] || die "--worklist: no work-list matches: $WORKLIST"
+    [[ "$(grep -c . <<<"$m")" -eq 1 ]] || die "--worklist: $WORKLIST matches more than one work-list:"$'\n'"$m"
+    WL_STAMP="$(basename "$m")"
+  fi
+else
+  doing=()
+  for f in "$WL_DIR"/*.md; do
+    [[ -f "$f" && "$f" != *-report.md && "$f" != *-report.spec.md ]] || continue
+    [[ "$(awk '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1=="status:"{print $2; exit}' "$f")" == "doing" ]] && doing+=("$f")
+  done
+  [[ ${#doing[@]} -eq 1 ]] && WL_STAMP="$(basename "${doing[0]}")"
+fi
 
 # Front-matter scalar. Quotes stripped, a trailing ` # comment` dropped (so a command
 # may not itself contain ` #`); a block scalar (`key: |`) is not a command.
@@ -235,7 +267,8 @@ json_rows() {
     [[ $i -gt 0 ]] && printf ','
     printf '{"leg":"%s","exit":"%s","count":"%s","secs":"%s"}' "$l" "$e" "$c" "$s"
   done
-  printf ',{"verdict":"%s","legs":%d,"failed":%d,"pending":%d,"at":"%s"}]\n' "$VERDICT" "${#LEGS[@]}" "$FAILED" "$PENDING" "$(date +%Y-%m-%dT%H:%M:%S)"
+  printf ',{"verdict":"%s","legs":%d,"failed":%d,"pending":%d,"at":"%s"%s}]\n' "$VERDICT" "${#LEGS[@]}" "$FAILED" "$PENDING" "$(date +%Y-%m-%dT%H:%M:%S)" \
+    "${WL_STAMP:+,\"worklist\":\"$WL_STAMP\"}"
 }
 json_rows >> "$HIST_DIR/gate-history.jsonl"
 if [[ $JSON -eq 1 ]]; then

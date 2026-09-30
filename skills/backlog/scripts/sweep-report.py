@@ -120,9 +120,10 @@ def render(root, wl_path):
     forced = [ln.strip() for ln in wl_text.splitlines() if 'with --force, overriding' in ln]
     needs = [ln.strip() for ln in section(wl_body, 'Needs decision (kickoff)').splitlines() if ln.strip().startswith('- ')]
 
-    # the gate, verbatim: every run sweep-gate.sh appended INSIDE this work-list's window
-    # — from its created date to its close (`updated`) or now. The history is shared by
-    # every sweep; unfiltered, the 2026-09-27 report listed 19 runs of earlier ones (BL-480).
+    # the gate, verbatim: every run sweep-gate.sh stamped with THIS work-list (BL-489), plus,
+    # for a legacy run carrying no stamp, those INSIDE its date window — from its created
+    # date to its close (`updated`) or now. The history is shared by every sweep;
+    # unfiltered, the 2026-09-27 report listed 19 runs of earlier ones (BL-480).
     lo = wl_fm.get('created', '') + 'T00:00:00'
     hi = (wl_fm.get('updated', '') + 'T23:59:59') if wl_fm.get('status', 'doing') != 'doing' \
         else datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
@@ -136,8 +137,14 @@ def render(root, wl_path):
                     run = json.loads(ln)
                 except json.JSONDecodeError:
                     continue
-                at = next((r.get('at', '') for r in run if 'verdict' in r), '')
-                if lo <= at <= hi:
+                v = next((r for r in run if 'verdict' in r), {})
+                at = v.get('at', '')
+                # a run stamped with a work-list belongs to it alone (BL-489); a legacy
+                # record without the stamp falls back to the date window
+                if v.get('worklist'):
+                    if v['worklist'] == wl_file:
+                        runs.append(run)
+                elif lo <= at <= hi:
                     runs.append(run)
     gate_secs = sum(int(r['secs']) for run in runs for r in run if 'leg' in r and str(r.get('secs', '')).isdigit())
     leg_reruns = 0
@@ -249,7 +256,7 @@ def render(root, wl_path):
                 if 'leg' in r:
                     out.append(f'  - leg={r["leg"]} exit={r["exit"]} count={r["count"]} secs={r.get("secs", "-")}')
     else:
-        out.append('_no gate run recorded for this sweep (none in `.context/proofs/sweep-gate/gate-history.jsonl` between the work-list\'s created date and its close) — the boundary gate did not run, or ran elsewhere_')
+        out.append('_no gate run recorded for this sweep (none in `.context/proofs/sweep-gate/gate-history.jsonl` stamped with this work-list, or unstamped between its created date and its close) — the boundary gate did not run, or ran elsewhere_')
     out.append('')
     return '\n'.join(out) + '\n'
 
