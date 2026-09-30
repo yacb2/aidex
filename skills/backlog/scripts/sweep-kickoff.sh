@@ -58,6 +58,16 @@ ROOT="$(find_project_root)"
 [[ -d "$ROOT/.context/backlog" ]] || die "no backlog at $ROOT/.context/backlog"
 
 PART="$(cd "$ROOT" && python3 "$SCRIPT_DIR/sweep-eligible.py" --size "$SIZE" --json)"
+# A sweep left `doing` holds its unticked items out of every new queue as NEEDS-DECISION;
+# say so first, or the owner is asked about items whose real fix is resuming or closing it.
+[[ $JSON -eq 1 ]] || printf '%s' "$PART" | python3 -c '
+import json, sys
+wl = json.load(sys.stdin).get("open_worklists", {})
+if wl:
+    print("OPEN WORK-LISTS (%d) — status doing; resume or close each before trusting NEEDS-DECISION" % len(wl))
+    for w, n in sorted(wl.items()):
+        print("  %-60s %d unticked" % (w, n))
+    print()'
 
 # Ordering is pure data work and lives in sweep-order.py (union-find over `touches:`,
 # Kahn over `depends:`, MERGE pairs from `merge:BL-NNN`).

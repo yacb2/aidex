@@ -107,7 +107,7 @@ resolved the 14 safe ones; here are the 3 that are genuinely yours."
 (ADR `decision/2026-08-06-worklist-entry-point-is-backlog`). Its policy is
 **[references/sweep-execution-policy.md](references/sweep-execution-policy.md)** — read it
 before starting a sweep; the six stages there are the run. In short: one interactive
-kickoff (`sweep-eligible.py`, triage verdicts written into the items, `worklist-new.sh
+kickoff (an `OPEN WORK-LISTS` header resolved first, `sweep-eligible.py`, `detect-resolved` over the open set, triage verdicts written into the items, `worklist-new.sh
 --mode sweep`, one consultation artifact), then headless; per item `start-item` →
 proof rows → `close-item --sweep`, which refuses without them; the **checkpoint every
 ~5 items or at any cluster boundary is

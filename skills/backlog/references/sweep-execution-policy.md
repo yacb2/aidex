@@ -18,7 +18,15 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
 `define-item.sh`, `worklist-new.sh --mode sweep`).
 
 1. `sweep-eligible.py --size XS,S` partitions the open set into ELIGIBLE / REVIEW /
-   NEEDS-DECISION.
+   NEEDS-DECISION. **An `OPEN WORK-LISTS` header comes first** when a work-list is still
+   `doing`: its unticked items sit in NEEDS-DECISION only because that queue holds them.
+   Resume or close it before anything else — on 2026-09-30 a sweep left `doing` three days
+   earlier made five plain bugs read as owner decisions.
+   **Then run [`detect-resolved`](02-triage-quick-wins-detect-resolved.md#running-detect-resolved)
+   over the open set**: the partition reads definitions, never the code, so an item a
+   commit already fixed stays ELIGIBLE and the sweep redoes it (the same 2026-09-30 pass
+   found BL-469 fixed by aidex `4f464bb`). Each suspected-resolved item goes into the
+   consultation as a close-with-proof proposal — never closed from the signal alone.
 2. Above **20 eligible items**, fan out readers to triage (about five). Each reader
    writes its verdict **into the item** with `define-item.sh` —
    `estimate` confirmed or corrected (a corrected item is re-laned then and there),

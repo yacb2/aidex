@@ -157,6 +157,11 @@ assert not [i for i in r['eligible'] if i['id']==q], 'still eligible'
 nd=[i for i in r['needs_decision'] if i['id']==q]; assert nd and nd[0]['reason']=='queued in worklist/2026-08-28-other-sweep.md', nd
 PY2
 [[ $? -eq 0 ]] && ok "an item queued in another doing work-list is NEEDS-DECISION: queued in worklist/<file>" || bad "queued elsewhere: $J"
+# 2026-09-30: a sweep left `doing` turned its unticked items into NEEDS-DECISION rows with
+# nothing saying the fix was to resume or close that work-list; the kickoff names it first
+OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"
+grep -qE '^OPEN WORK-LISTS \(1\)' <<<"$OUT" && grep -qE '^  worklist/2026-08-28-other-sweep\.md +1 unticked' <<<"$OUT" \
+  && ok "the kickoff names each open work-list and its unticked count before the queue" || bad "open work-lists header: $OUT"
 sed -i.bak 's/^status: doing/status: done/' .context/worklists/2026-08-28-other-sweep.md && rm -f .context/worklists/2026-08-28-other-sweep.md.bak
 J="$(python3 "$SCRIPTS/sweep-eligible.py" --json 2>/dev/null)"
 python3 -c 'import json,sys; r=json.loads(sys.argv[1]); assert [i for i in r["eligible"] if i["id"]==sys.argv[2]]' "$J" "$QID" \

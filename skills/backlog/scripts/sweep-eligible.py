@@ -210,7 +210,11 @@ def main():
     review.sort(key=lambda i: (i['priority'], rank.get(i['estimate'].upper(), 9), i['file']))
 
     if a.json:
-        print(json.dumps({'eligible': eligible, 'review': review, 'needs_decision': needs}, indent=2))
+        open_wl = {}
+        for where in queued.values():
+            open_wl[where] = open_wl.get(where, 0) + 1
+        print(json.dumps({'eligible': eligible, 'review': review, 'needs_decision': needs,
+                          'open_worklists': open_wl}, indent=2))
         return
 
     if not a.needs_decision:
