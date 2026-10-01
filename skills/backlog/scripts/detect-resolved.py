@@ -53,18 +53,19 @@ def field(block, key):
     return m.group(1).strip() if m else ""
 
 
-def commit_exists(repo, sha):
-    if not repo:
-        return False
-    try:
-        r = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
-                           capture_output=True, timeout=10)
-        return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+def commit_exists(repos, sha):
+    for repo in repos:
+        try:
+            r = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
+                               capture_output=True, timeout=10)
+            if r.returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return False
 
 
-def anchors_for(body, ctx, repo):
+def anchors_for(body, ctx, repos):
     """Everything a reviewer would open to judge this item. Deduped, order-stable, and
     limited — an item citing forty paths gets a subagent a prompt it cannot use."""
     prose = CODE_FENCE.sub("", body)
@@ -73,8 +74,18 @@ def anchors_for(body, ctx, repo):
         if p.startswith(".context/") or p.startswith(CROSSREF_PREFIXES):
             continue  # its own tier or a D-03 marker; the reviewer is checking CODE
         full = os.path.join(os.path.dirname(ctx), p)
+        # A `../` citation is first read relative to the item's own dir (BL-602). If it
+        # exists there inside .context/ it is the same tier as a `.context/` path and is
+        # skipped; if it exists there at all it is that file. Otherwise it is read from the
+        # workspace root, as before, so a root-relative `../sibling/...` is not lost.
+        if p.startswith("../"):
+            near = os.path.normpath(os.path.join(ctx, "backlog", p))
+            if os.path.exists(near):
+                if near.startswith(ctx + os.sep):
+                    continue
+                full = near
         (paths if os.path.exists(full) else missing).append(p)
-    commits = [c for c in dict.fromkeys(SHA.findall(prose)) if commit_exists(repo, c)]
+    commits = [c for c in dict.fromkeys(SHA.findall(prose)) if commit_exists(repos, c)]
     skills = [s for s in dict.fromkeys(SKILL_RE.findall(prose)) if "-" in s]
     return paths[:8], missing[:4], commits[:6], skills[:6]
 
@@ -91,12 +102,14 @@ def main():
     if not os.path.isdir(base):
         print(f"error: no backlog/ under {ctx}", file=sys.stderr)
         return 2
-    repo = os.path.dirname(ctx)
+    root = os.path.dirname(ctx)
     # `.git` is tested with `exists`, not `isdir`: in a linked worktree it is a FILE
     # holding a gitdir pointer, and isdir() there disabled this half silently (BL-351,
     # the same predicate BL-344 fixed in memory-sweep.py).
-    if not os.path.exists(os.path.join(repo, ".git")):
-        repo = None
+    # Workspace layout: the code repos sit in child dirs, whether or not the dir holding
+    # .context/ is itself a (planning) repo (BL-603).
+    repos = [d for d in [root] + [os.path.join(root, n) for n in sorted(os.listdir(root))]
+             if os.path.exists(os.path.join(d, ".git"))]
 
     rows = []
     for name in sorted(os.listdir(base)):
@@ -107,7 +120,7 @@ def main():
         fm, body = split_frontmatter(text)
         if field(fm, "status") not in ("open", "doing"):
             continue
-        paths, missing, commits, skills = anchors_for(body, ctx, repo)
+        paths, missing, commits, skills = anchors_for(body, ctx, repos)
         rows.append({"id": field(fm, "id") or "?", "title": field(fm, "title"),
                      "file": name, "priority": field(fm, "priority"),
                      "paths": paths, "paths_not_found": missing,
@@ -123,8 +136,9 @@ def main():
     checkable = [r for r in rows if r["checkable"]]
     print(f"detect-resolved work-list — {len(rows)} open item(s), {len(checkable)} with "
           f"anchors worth checking")
-    if repo is None:
-        print("  note: no git repo above .context/, so cited commits were not verified")
+    if not repos:
+        print("  note: no git repo above .context/ or in a child dir of it, so cited commits "
+              "were not verified")
     if not rows:
         return 0
 
