@@ -121,7 +121,11 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "docker not found on PATH — skipping Docker orphan sweep (degraded)."
   exit 0
 fi
-if ! docker info >/dev/null 2>&1; then
+# A wedged Docker Desktop accepts the socket and never answers; 30 s covers a cold start.
+dt="${AIDEX_DOCKER_TIMEOUT:-30}" drc=0
+perl -e 'alarm shift; exec @ARGV' "$dt" docker info >/dev/null 2>&1 || drc=$?
+if [[ $drc -ne 0 ]]; then
+  [[ $drc -eq 142 ]] && echo "docker did not answer within ${dt} s."
   echo "docker daemon unreachable — skipping Docker orphan sweep (degraded)."
   exit 0
 fi

@@ -157,6 +157,32 @@ out="$( cd "$TMP/p5" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down blank --for
 grep -q 'no Docker resource remains attributable' <<<"$out" \
   && fail "#16: with the daemon unreachable, a clean teardown was claimed anyway"
 
+# --- #16b. a daemon that never answers is unreachable too, after a deadline --
+# A wedged Docker Desktop accepts the socket and never replies: an unbounded
+# `docker info` hung `down` and orphan-sweep forever. Deadline 2 s here
+# (AIDEX_DOCKER_TIMEOUT, default 30); each run is polled, never waited on unbounded.
+mk_docker '#!/bin/sh
+[ "$1" = info ] && exec sleep 300
+exit 0'
+( cd "$TMP/p5" && bash "$S/worktree.sh" new hang --branch wt/hang --no-infra ) >/dev/null 2>&1 \
+  || fail "#16b: fixture: worktree new failed"
+bounded() {  # bounded <label> <command...>: 20 s to finish; prints its output
+  local label="$1" i; shift
+  ( cd "$TMP/p5" && PATH="$BIN:$PATH" AIDEX_DOCKER_TIMEOUT=2 "$@" ) > "$TMP/bounded.out" 2>&1 & local pid=$!
+  for ((i = 0; i < 80; i++)); do kill -0 "$pid" 2>/dev/null || break; sleep 0.25; done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -9 "$pid"; pkill -f "$BIN/docker" 2>/dev/null
+    fail "$label: still hung on docker info after 20 s (deadline 2 s)"; return 1
+  fi
+  wait "$pid"
+}
+bounded "#16b down" bash "$S/worktree.sh" down hang --force \
+  && ! grep -q 'did not answer' "$TMP/bounded.out" \
+  && fail "#16b down: no 'did not answer' warning: $(cat "$TMP/bounded.out")"
+bounded "#16b orphan-sweep" bash "$S/orphan-sweep.sh" --slug hang \
+  && ! grep -q 'did not answer' "$TMP/bounded.out" \
+  && fail "#16b orphan-sweep: no 'did not answer' line: $(cat "$TMP/bounded.out")"
+
 # --- #19. the eval'd recipe must come from the FRONT MATTER only -----------
 mkdir -p "$TMP/p19/.context/worktrees"
 cat > "$TMP/p19/.context/worktrees/00-index.md" <<'MD'
