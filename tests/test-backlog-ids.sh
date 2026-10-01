@@ -66,7 +66,7 @@ run_reindex() { (cd "$P" && NO_COLOR=1 bash "$SCRIPT" --reindex 2>&1); }
 make_fixture
 out="$(run_reindex)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "(a) clean backlog: expected exit 0, got $rc"
-echo "$out" | grep -qi "duplicate id" && fail "(a) clean backlog: reported a duplicate that does not exist"
+echo "$out" | grep >/dev/null -i "duplicate id" && fail "(a) clean backlog: reported a duplicate that does not exist"
 [[ -f "$B/00-index.md" ]] || fail "(a) clean backlog: index not generated"
 
 # ---------- (b) duplicate id among active entries ----------
@@ -74,9 +74,9 @@ make_fixture
 make_item "$B/2026-01-04-delta.md" "BL-002" "Delta"
 out="$(run_reindex)"; rc=$?
 [[ "$rc" -eq 1 ]] || fail "(b) duplicate id: expected exit 1, got $rc"
-echo "$out" | grep -q "duplicate id BL-002" || fail "(b) duplicate id: did not name the id"
-echo "$out" | grep -q "2026-01-02-beta.md" || fail "(b) duplicate id: did not name the first file"
-echo "$out" | grep -q "2026-01-04-delta.md" || fail "(b) duplicate id: did not name the second file"
+echo "$out" | grep >/dev/null "duplicate id BL-002" || fail "(b) duplicate id: did not name the id"
+echo "$out" | grep >/dev/null "2026-01-02-beta.md" || fail "(b) duplicate id: did not name the first file"
+echo "$out" | grep >/dev/null "2026-01-04-delta.md" || fail "(b) duplicate id: did not name the second file"
 [[ -f "$B/00-index.md" ]] || fail "(b) duplicate id: index should still be written"
 
 # ---------- (c) duplicate spanning the archive ----------
@@ -84,7 +84,7 @@ make_fixture
 make_item "$B/2026-01-05-epsilon.md" "BL-003" "Epsilon"
 out="$(run_reindex)"; rc=$?
 [[ "$rc" -eq 1 ]] || fail "(c) archive duplicate: expected exit 1, got $rc"
-echo "$out" | grep -q "duplicate id BL-003" || fail "(c) archive duplicate: did not name the id"
+echo "$out" | grep >/dev/null "duplicate id BL-003" || fail "(c) archive duplicate: did not name the id"
 
 # ---------- (d) next id clears the highest assigned, wherever it lives ----------
 make_fixture
@@ -101,7 +101,7 @@ new="$( (cd "$P" && NO_COLOR=1 bash "$SCRIPT" --origin manual --title "Theta" 2>
 [[ "$rc" -eq 0 ]] || fail "(e) registration survives: expected exit 0, got $rc"
 [[ -f "$new" ]] || fail "(e) registration survives: entry not written despite pre-existing duplicate"
 err_out="$( (cd "$P" && NO_COLOR=1 bash "$SCRIPT" --origin manual --title "Iota" 2>&1 >/dev/null) )"
-echo "$err_out" | grep -q "duplicate id BL-002" || fail "(e) registration survives: duplicate not warned about"
+echo "$err_out" | grep >/dev/null "duplicate id BL-002" || fail "(e) registration survives: duplicate not warned about"
 
 # ---------- (f) a nonconforming id (not ^BL-[0-9]{3}$) is flagged ----------
 # ns_backoffice's hand-authored BL-20260610 minted BL-20260611 and slipped the
@@ -110,8 +110,8 @@ make_fixture
 make_item "$B/2026-01-07-eta.md" "BL-20260610" "Eta"
 out="$(run_reindex)"; rc=$?
 [[ "$rc" -eq 1 ]] || fail "(f) nonconforming id: expected exit 1, got $rc"
-echo "$out" | grep -q "nonconforming id BL-20260610" || fail "(f) nonconforming id: did not name the id"
-echo "$out" | grep -q "2026-01-07-eta.md" || fail "(f) nonconforming id: did not name the file"
+echo "$out" | grep >/dev/null "nonconforming id BL-20260610" || fail "(f) nonconforming id: did not name the id"
+echo "$out" | grep >/dev/null "2026-01-07-eta.md" || fail "(f) nonconforming id: did not name the file"
 [[ -f "$B/00-index.md" ]] || fail "(f) nonconforming id: index should still be written"
 
 # a short/misshapen id (BL-1) is caught too
@@ -119,13 +119,13 @@ make_fixture
 make_item "$B/2026-01-08-theta.md" "BL-1" "Theta"
 out="$(run_reindex)"; rc=$?
 [[ "$rc" -eq 1 ]] || fail "(f) short id: expected exit 1, got $rc"
-echo "$out" | grep -q "nonconforming id BL-1" || fail "(f) short id: did not name the id"
+echo "$out" | grep >/dev/null "nonconforming id BL-1" || fail "(f) short id: did not name the id"
 
 # ---------- (g) a clean, conforming backlog raises no nonconforming warning ----------
 make_fixture
 out="$(run_reindex)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "(g) conforming ids: expected exit 0, got $rc"
-echo "$out" | grep -qi "nonconforming" && fail "(g) conforming ids: false nonconforming warning on BL-001/002/003"
+echo "$out" | grep >/dev/null -i "nonconforming" && fail "(g) conforming ids: false nonconforming warning on BL-001/002/003"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — ids are unique-by-construction; duplicate AND nonconforming hand-authored ids fail --reindex and warn on register"

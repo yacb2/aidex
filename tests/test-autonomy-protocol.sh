@@ -83,7 +83,7 @@ grep -q 'exists and is executable' "$PLAN_EXEC_ALL" \
 # ---------- (g) plan-exec's between-phase checkpoint writes review evidence before commit ----------
 grep -q 'review: <verdict>' "$PLAN_EXEC" \
   || fail "(g) plan-exec: no 'review: <verdict> · <n> findings' Execution-log pattern"
-grep -q 'before' "$PLAN_EXEC" && grep -B2 'review: <verdict>' "$PLAN_EXEC" | grep -qi 'commit' \
+grep -q 'before' "$PLAN_EXEC" && grep -B2 'review: <verdict>' "$PLAN_EXEC" | grep >/dev/null -i 'commit' \
   || fail "(g) plan-exec: review evidence not tied to landing before the commit step"
 
 # ---------- (h) plan-exec's Orient step checks the prior phase's review entry ----------

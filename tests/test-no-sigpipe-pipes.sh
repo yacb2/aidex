@@ -8,7 +8,7 @@
 # same shape. The safe forms read the whole stream:
 #   grep -q PAT   ->  grep >/dev/null PAT      (same exit status, no early exit)
 #   | head -N     ->  | sed -n 1,Np
-# Scope: skills/**/*.sh. EXCLUDED_PREFIXES lists paths another change is still
+# Scope: skills, tests and hooks (*.sh), this file excluded (it holds the pattern in strings). EXCLUDED_PREFIXES lists paths another change is still
 # converting; delete an entry when its sweep lands.
 #
 # Run with: bash tests/test-no-sigpipe-pipes.sh
@@ -16,7 +16,7 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-EXCLUDED_PREFIXES=(skills/artifact/ skills/conventions/scripts/close-dated-artifact.sh skills/conventions/scripts/test-close-dated-artifact.sh)
+EXCLUDED_PREFIXES=(skills/artifact/ skills/conventions/scripts/close-dated-artifact.sh skills/conventions/scripts/test-close-dated-artifact.sh tests/test-no-sigpipe-pipes.sh)
 
 # Echo "file:line:text" for every unsafe pipe in the pipefail scripts under $1.
 scan() {
@@ -28,7 +28,7 @@ scan() {
     grep >/dev/null -E '^[[:space:]]*set .*pipefail' "$root/$f" || continue
     grep -nE '(^|[^|])\|[[:space:]]*(grep[[:space:]]+(-[A-Za-z]+[[:space:]]+)*-[A-Za-z]*q|grep[[:space:]]+(-[A-Za-z]+[[:space:]]+)*(-m|--max-count)|head([[:space:]]|$))' "$root/$f" \
       | grep -vE '^[0-9]+:[[:space:]]*#' | sed "s|^|$f:|"
-  done < <(cd "$root" && find skills -name '*.sh' | sort)
+  done < <(cd "$root" && find skills tests hooks -name '*.sh' 2>/dev/null | sort)
 }
 
 failures=0

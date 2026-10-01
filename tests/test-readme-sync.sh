@@ -15,8 +15,8 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 pass() { printf 'ok: %s\n' "$*"; }
 
 # --- badge tracks the plugin manifest version ---
-version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$REPO_ROOT/.claude-plugin/plugin.json" | head -1)"
-badge="$(sed -n 's|.*badge/version-\([0-9][^-]*\)-blue.*|\1|p' "$README" | head -1)"
+version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$REPO_ROOT/.claude-plugin/plugin.json" | sed -n 1p)"
+badge="$(sed -n 's|.*badge/version-\([0-9][^-]*\)-blue.*|\1|p' "$README" | sed -n 1p)"
 if [ -n "$version" ] && [ "$badge" = "$version" ]; then
   pass "version badge matches .claude-plugin/plugin.json ($version)"
 else
@@ -41,7 +41,7 @@ done
   || fail "skills missing from the skills table: ${missing_table[*]}"
 
 # --- the "### N skills" heading states the real count ---
-declared="$(sed -n 's/^### \([0-9][0-9]*\) skills$/\1/p' "$README" | head -1)"
+declared="$(sed -n 's/^### \([0-9][0-9]*\) skills$/\1/p' "$README" | sed -n 1p)"
 if [ "$declared" = "${#skills[@]}" ]; then
   pass "the skills heading declares the real count (${#skills[@]})"
 else

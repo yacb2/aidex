@@ -129,7 +129,7 @@ PY
 
 echo "== S1: anchored to a plan =="
 run_scenario s1 "crea un artifact resumen del plan demo-feature (.context/plans/2026-07-01-demo-feature/) para revisarlo offline"
-S1_HTML="$(ls "$FIX/.context/plans/2026-07-01-demo-feature/"*.html 2>/dev/null | head -1)"
+S1_HTML="$(ls "$FIX/.context/plans/2026-07-01-demo-feature/"*.html 2>/dev/null | sed -n 1p)"
 [ -n "$S1_HTML" ] && pass "sibling HTML created inside the plan folder ($(basename "$S1_HTML"))" \
                   || fail "S1: no sibling HTML inside the plan folder"
 grep -q "2026-07-01-demo-feature" "$WORK/open-calls.log" 2>/dev/null \
@@ -142,7 +142,7 @@ read -r DG PUB DASH <<< "$(check_events s1)"
 
 echo "== S2: anchor-less -> .context/reports/ =="
 run_scenario s2 "crea un artifact con un analisis comparativo de estrategias de caching (Redis vs in-memory vs CDN) para leerlo offline; no esta asociado a ningun documento del proyecto"
-S2_HTML="$(ls "$FIX/.context/reports/"*.html 2>/dev/null | head -1)"
+S2_HTML="$(ls "$FIX/.context/reports/"*.html 2>/dev/null | sed -n 1p)"
 [ -n "$S2_HTML" ] && pass "anchor-less HTML landed in .context/reports/ ($(basename "$S2_HTML"))" \
                   || fail "S2: nothing in .context/reports/ (found: $(cd "$FIX" && find .context -name '*.html' | tr '\n' ' '))"
 grep -q "reports/" "$WORK/open-calls.log" 2>/dev/null \
@@ -156,7 +156,7 @@ echo "== S3: anchor discovery (prompt names the subject, never the path) =="
 # would credit S3 with someone else's artifact.
 BEFORE_S3="$(cd "$FIX" && find .context -name '*.html' | sort)"
 run_scenario s3 "crea un artifact con un analisis de por que el renderizado de PDF de facturas esta lento y que opciones tenemos, para revisarlo offline"
-S3_HTML="$(cd "$FIX" && comm -13 <(printf '%s\n' "$BEFORE_S3") <(find .context -name '*.html' | sort) | head -1)"
+S3_HTML="$(cd "$FIX" && comm -13 <(printf '%s\n' "$BEFORE_S3") <(find .context -name '*.html' | sort) | sed -n 1p)"
 # Loose property on purpose: asserting WHICH anchor was picked is a fuzzy
 # judgement that makes a flaky eval. What must hold is that a discoverable
 # anchor stopped the fallback from being the default.

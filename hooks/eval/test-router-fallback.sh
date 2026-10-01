@@ -39,7 +39,7 @@ else
 fi
 
 ctx="$(printf '%s' "$out" | "$REAL_JQ" -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
-if printf '%s' "$ctx" | grep -q '"aidex-plan" intent'; then
+if printf '%s' "$ctx" | grep >/dev/null '"aidex-plan" intent'; then
   echo "  PASS  directive round-trips intact (skill name quoted inside JSON string)"; PASS=$((PASS+1))
 else
   echo "  FAIL  directive lost or mangled: $ctx"; FAIL=$((FAIL+1))
