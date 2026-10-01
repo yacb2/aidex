@@ -81,10 +81,12 @@ dir_loads_slot_env() {
   # only a mention of `.env` was too loose and exempted a global-setup that names
   # the file in an error string. Field-checked: the mention-only files call no
   # file-reading function at all, so the read requirement separates them cleanly.
+  # Node's built-in `process.loadEnvFile(path)` counts as the write: it fills
+  # process.env without any `process.env[` in the file.
   while IFS= read -r f; do
     grep -qE '(readFileSync|readFile|existsSync)\(' "$f" 2>/dev/null \
       && grep -qF '.env' "$f" 2>/dev/null \
-      && grep -qE 'process\.env\[' "$f" 2>/dev/null && return 0
+      && grep -qE 'process\.env\[|process\.loadEnvFile\(' "$f" 2>/dev/null && return 0
   done < <(find "$1" -maxdepth 1 -type f -name '*.ts' 2>/dev/null)
   return 1
 }
