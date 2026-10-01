@@ -24,7 +24,9 @@
 #                                                 # rerun on a quiet host goes in the same way
 #   sweep-gate.sh --only <leg> --from-log <file> --exit <rc>   # a log written by hand (a rerun
 #                                                 # on a quiet host): the marker is missing,
-#                                                 # the exit is yours, the count is the log's
+#                                                 # the exit is yours, the count is the log's;
+#                                                 # from a linked worktree its first line must be
+#                                                 # the header the refusal prints (BL-557)
 #                                       # score a log a DETACHED run wrote (see below)
 #
 # Reads from .context/testing-profile.md: backend_suite_cmd, frontend_suite_cmd,
@@ -111,10 +113,11 @@ PROFILE_ALT="$ROOT/testing-profile.md"
 #      (a worktree.sh DEST mirroring the workspace): ROOT, whose `cd <repo>` lands in it;
 #   4. anything else — the aidex_ws layout, main nested under ROOT and reached as
 #      `cd aidex` — refused: the worktree has no such path.
-# --from-log runs nothing, so it keeps ROOT.
+# --from-log runs nothing, but maps the same way: from a linked worktree the log must name
+# the checkout and HEAD a run here would have tested (BL-557).
 RUN_IN="$ROOT" LINKED=0
 abs() { (cd "$1" 2>/dev/null && pwd -P); }
-if [[ -z "$FROM_LOG" ]] && top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   while sp="$(git -C "$top" rev-parse --show-superproject-working-tree 2>/dev/null)" && [[ -n "$sp" ]]; do top="$sp"; done
   gitdir="$(git -C "$top" rev-parse --absolute-git-dir)"
   common="$(abs "$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)")"
@@ -132,7 +135,7 @@ if [[ -z "$FROM_LOG" ]] && top="$(git rev-parse --show-toplevel 2>/dev/null)"; t
   fi
 fi
 [[ -d "$RUN_IN" ]] || die "the profile's root maps to $RUN_IN in this worktree, which does not exist"
-# What a leg tested, for its log header: the checkout its command lands in and its HEAD,
+# What a leg tested, for its log header (header_of, below the leg tables): the checkout its command lands in and its HEAD,
 # " (dirty)" when that checkout has uncommitted changes. The checkout is RUN_IN/<x> for a
 # leading literal `cd <x> &&`; otherwise RUN_IN's own checkout, but only when it holds no
 # nested repo the command could have gone into. Anything else is "commit unknown" —
@@ -232,6 +235,9 @@ for leg in "${LEGS[@]}"; do
   printf -v "PRE_$leg" '%s' "$(profile_key "${leg}_pre_cmd")"
 done
 pre_of() { local v="PRE_$1"; printf '%s' "${!v}"; }
+# A leg log's first line: the leg, where it ran, the checkout and commit it tested. The leg
+# is named because two legs may share a command, and a suite log scored as e2e passed (BL-557).
+header_of() { printf '# sweep-gate: leg=%s; run in %s; %s' "$1" "$RUN_IN" "$(tested_of "$(cmd_of "$1")")"; }
 
 # The table above only PROPOSES RUN_IN; no table of layouts is complete (a separate git
 # dir, a bare repo's sibling worktree, a symlinked repo, a `cd /abs/main` each passed it
@@ -246,8 +252,11 @@ pre_of() { local v="PRE_$1"; printf '%s' "${!v}"; }
 # refused; and a quoted argument ending in the word cd (`pytest -k 'not cd'`) is refused too.
 # Not detected: a cd the shell assembles by expansion (`$(…)`, `${…}`, `$'\NNN'`, brace
 # expansion such as `{c,…}d`), and a leg that runs main's code by absolute path with no cd
-# at all (BL-560). The invariant guards against a mistake, not against a command built to
-# evade it.
+# at all (BL-560). The check is on the leg's WORKING DIRECTORY, not on the code under test:
+# a `docker compose exec` leg tests whatever the container mounts, chosen by
+# COMPOSE_PROJECT_NAME, so a worktree whose compose project resolves to main's runs main's
+# code from inside the worktree and passes (BL-560). The invariant guards against a
+# mistake, not against a command built to evade it.
 landing_of() {  # landing_of <leg command>: prints the landing dir; fails on a cd it cannot read
   local d="$RUN_IN" rest="$1" lead='^cd[[:space:]]+([^[:space:];&|$`"'"'"']+)[[:space:]]*&&(.*)$' \
         other='(^|[^[:alnum:]_./-])(cd|pushd)($|[^[:alnum:]_./-])'
@@ -266,6 +275,11 @@ if [[ $LINKED -eq 1 ]]; then
     d="$(landing_of "$(cmd_of "$leg")")" \
       || die "the $leg leg changes directory in a form the gate cannot resolve (only a leading literal \`cd <dir> &&\` is read) — refusing rather than risk testing a checkout other than the linked worktree $wt"
     lt="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" && lt="$(abs "$lt")" || lt=""
+    # BL-556 (owner 2026-10-01: refused, not allowed): from a repo worktree inside a worktree.sh
+    # DEST, a leg that lands in the DEST root (no cd, or a cd to the root) tests the root's own
+    # checkout, or no checkout at all, not the repo.
+    [[ "$d" == "$RUN_IN" && "$wt" == "$RUN_IN"/* && "$lt" != "$wt" && "$lt" != "$wt"/* ]] \
+      && die "the $leg leg lands in the profile root $d (${lt:+its own checkout }${lt:-not a checkout}), not in the repo worktree $wt the gate was invoked from (a worktree.sh DEST) — make the leg cd into the repo worktree it tests"
     case "$lt" in
       "$wt"|"$wt"/*) ;;
       *) die "the $leg leg lands in $d (checkout: ${lt:-none}), not in the linked worktree $wt the gate was invoked from — refusing rather than testing another checkout" ;;
@@ -304,6 +318,18 @@ emit_row() { ROWS+=("leg=$1 exit=$2 count=$3 secs=$4"); [[ $JSON -eq 1 ]] || ech
 for leg in "${LEGS[@]}"; do
   log="$LOG_DIR/$leg.log"
   if [[ -n "$FROM_LOG" ]]; then
+    # From a linked worktree a log is scored only when its first line is the header a run of
+    # this leg here, at this HEAD, writes: a hand-written or foreign log with `1 passed` and
+    # the marker scored PASS and wrote a history row (BL-557). `--exit` does not waive it. The
+    # ` (dirty)` suffix is ignored on both sides: it records the tree, not which commit. When
+    # the gate cannot name the commit (no cd, nested repos: the recommended DEST layout), the
+    # header is `commit unknown` and the tie is the leg and `run in` only (owner 2026-10-01).
+    if [[ $LINKED -eq 1 ]]; then
+      want="$(header_of "$leg")"; want="${want% (dirty)}"
+      hdr=""; IFS= read -r hdr < "$FROM_LOG" || true; hdr="${hdr% (dirty)}"
+      [[ "$hdr" == "$want" ]] \
+        || die "--from-log: $FROM_LOG was not written for this worktree at its HEAD by the $leg leg — its first line must be: $want"
+    fi
     rc="$(grep -oE '^sweep-gate-exit=[0-9]+' "$FROM_LOG" | tail -1 | cut -d= -f2 || true)"
     # `--exit` is the marker for a log that was not written by the printed invocation —
     # a rerun on a quiet host after a load-poisoned leg (2026-08-28). The count still
@@ -320,6 +346,10 @@ for leg in "${LEGS[@]}"; do
     : > "$log"
     printf 'detached: leg=e2e log=%s\n' "$log" >&2
     printf 'detached: run with run_in_background (never a foreground call, never a poll wrapper):\n' >&2
+    # The header goes first, as in an inline log: --from-log from a linked worktree scores
+    # only a log naming this checkout and HEAD (BL-557). Pinned now: a commit before the run
+    # makes the score refuse, and the leg is printed again.
+    hdr="$(header_of "$leg")"
     # The pre-command is chained into the printed invocation rather than run here:
     # a detached leg runs elsewhere, and dropping it would leave the one leg that
     # runs in another process as the only one keeping the stale cache.
@@ -327,10 +357,10 @@ for leg in "${LEGS[@]}"; do
     # relative cd must land where the invariant computed (BL-558). The marker between the
     # pre-command and the leg is what count_in scores from (BL-559).
     if [[ -n "$(pre_of "$leg")" ]]; then
-      printf '  cd %q && (unset CDPATH; (%s) && echo && echo %q && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
-        "$RUN_IN" "$(pre_of "$leg")" "$LEG_MARK" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && (unset CDPATH; printf '"'"'%%s\\n'"'"' %q; (%s) && echo && echo %q && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
+        "$RUN_IN" "$hdr" "$(pre_of "$leg")" "$LEG_MARK" "$(cmd_of "$leg")" "$log" "$log" >&2
     else
-      printf '  cd %q && (unset CDPATH; %s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$RUN_IN" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && (unset CDPATH; printf '"'"'%%s\\n'"'"' %q; %s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$RUN_IN" "$hdr" "$(cmd_of "$leg")" "$log" "$log" >&2
     fi
     # the scoring run carries this run's work-list: with two running lists it could not
     # detect one, and an unstamped PASS is claimed by every report of the day (BL-489).
@@ -353,7 +383,7 @@ for leg in "${LEGS[@]}"; do
     # does not run — running the suite anyway against the state the pre-command
     # failed to clear is the flake this exists to remove, now with a green tick.
     # The header names the checkout and commit tested, so a log can be held against the branch.
-    printf '# sweep-gate: run in %s; %s\n' "$RUN_IN" "$(tested_of "$(cmd_of "$leg")")" > "$log"
+    printf '%s\n' "$(header_of "$leg")" > "$log"
     if [[ -n "$(pre_of "$leg")" ]]; then
       printf '# pre_cmd: %s\n' "$(pre_of "$leg")" >> "$log"
       # `if ! (...); then rc=$?` reads the NEGATION's status, which is always 0 — the
