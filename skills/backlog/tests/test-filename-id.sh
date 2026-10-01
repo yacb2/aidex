@@ -37,8 +37,8 @@ echo "== emit_backlog_stub via --escalate-to (both repos) =="
 mkdir -p "$TMP/tgt/.context/backlog"
 bash "$SCRIPTS/register-item.sh" --escalate-to "$TMP/tgt" \
   --title "Host the shared parser" --priority P2 --type improvement >/dev/null 2>&1
-SRC_STUB="$(ls "$TMP/src/.context/backlog"/*host-the-shared-parser*.md 2>/dev/null | head -1)"
-TGT_STUB="$(ls "$TMP/tgt/.context/backlog"/*host-the-shared-parser*.md 2>/dev/null | head -1)"
+SRC_STUB="$(ls "$TMP/src/.context/backlog"/*host-the-shared-parser*.md 2>/dev/null | sed -n 1p)"
+TGT_STUB="$(ls "$TMP/tgt/.context/backlog"/*host-the-shared-parser*.md 2>/dev/null | sed -n 1p)"
 check "source stub uses the new shape" \
   '[[ -n "$SRC_STUB" && "$(basename "$SRC_STUB")" == "$TODAY-bl-003-host-the-shared-parser.md" ]]'
 check "cross-repo counterpart uses the new shape too" \

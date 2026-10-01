@@ -46,7 +46,7 @@ bash "$CONV/worklist-advance.sh" "$WL" --append "inline:loose end, carry to the 
 # outside the window and must count nowhere (the 2026-09-27 report listed 19 old runs)
 # the in-window stamps come from the work-list's own created: date — a date computed
 # here could fall on the next day when the run crosses midnight
-WLC="$(sed -n 's/^created: *//p' "$WL" | head -1)"
+WLC="$(sed -n 's/^created: *//p' "$WL" | sed -n 1p)"
 mkdir -p .context/proofs/sweep-gate
 GH=.context/proofs/sweep-gate/gate-history.jsonl
 printf '[{"leg":"oldsweep","exit":"0","count":"50","secs":"999"},{"verdict":"PASS","legs":1,"failed":0,"pending":0,"at":"2020-01-01T10:00:00"}]\n' > $GH
@@ -138,7 +138,7 @@ bash "$CONV/worklist-close.sh" "$WL" --force >/dev/null 2>&1
 C="$(reg --title "charlie")"; CID="$(idof "$C")"; accept "$C"; row "$C" test "t" "1 passed"
 WL2="$(bash "$CONV/worklist-new.sh" --title "No owner" --mode sweep --ref "backlog:$CID — c")"
 bash "$SCRIPTS/close-item.sh" "$CID" --sweep --no-index >/dev/null 2>&1
-bash "$SCRIPTS/sweep-report.sh" "$WL2" --print 2>/dev/null | grep -q "^human-verification: skipped — no queued item carries an owner row" \
+bash "$SCRIPTS/sweep-report.sh" "$WL2" --print 2>/dev/null | grep >/dev/null "^human-verification: skipped — no queued item carries an owner row" \
   && ok "no owner rows → human-verification: skipped line recorded" || bad "skip line missing"
 bash "$SCRIPTS/sweep-report.sh" no-such-run >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "unknown worklist exits 2" || bad "unknown worklist"
 
@@ -147,7 +147,7 @@ bash "$SCRIPTS/sweep-report.sh" no-such-run >/dev/null 2>&1; [[ $? -eq 2 ]] && o
 M="$(reg --title "multi repo" --estimate XS)"; MID="$(idof "$M")"; accept "$M"; row "$M" test "tests/m.py" "2 passed"
 WL3="$(bash "$SCRIPTS/sweep-kickoff.sh" --title "Multi repo run" --slug multi-repo-run 2>/dev/null | tail -1)"
 bash "$SCRIPTS/close-item.sh" "$MID" --sweep --no-index >/dev/null 2>&1
-MF="$(ls .context/backlog/_archive/*bl-*multi-repo*.md | head -1)"
+MF="$(ls .context/backlog/_archive/*bl-*multi-repo*.md | sed -n 1p)"
 python3 - "$MF" "backend $SHA1 frontend $SHA2" <<'PY2'
 import sys,re;p,v=sys.argv[1:3];t=open(p).read();t=re.sub(r'^commits:.*\n','',t,count=1,flags=re.M)
 t=re.sub(r'^(status:.*\n)', lambda m: m.group(1)+'commits: "'+v+'"\n', t, count=1, flags=re.M);open(p,'w').write(t)
@@ -155,7 +155,7 @@ PY2
 grep -q "^commits: \"backend" "$MF" || bad "fixture: commits not stamped"
 R3="$(bash "$SCRIPTS/sweep-report.sh" multi-repo-run --print 2>/dev/null)"
 grep -q "| commits (from \`commits:\`) | 2 |" <<<"$R3" && ok "repo names beside hashes are not counted as commits (2, not 4)" || bad "commit count: $(grep 'commits (from' <<<"$R3")"
-grep -q "commits: \`$SHA1\`, \`$SHA2\`" <<<"$R3" && ok "only the hashes are listed per item" || bad "per-item commits: $(grep 'commits:' <<<"$R3" | head -2)"
+grep -q "commits: \`$SHA1\`, \`$SHA2\`" <<<"$R3" && ok "only the hashes are listed per item" || bad "per-item commits: $(grep 'commits:' <<<"$R3" | sed -n 1,2p)"
 
 # the companion report sorts before the work-list; a second render by slug must read the
 # work-list, never its own previous report (2026-08-28)
@@ -182,7 +182,7 @@ ERR="$(cat "$TMP/rep.err")"
 [[ ! -d "$P/_tmp/sweep-report" ]] && ! grep -q '^translate:' <<<"$ERR" && ok "no translate source and no translate: line" || bad "translate step still written: $(ls "$P/_tmp/sweep-report" 2>&1) $ERR"
 grep -qF "page: build with /aidex:artifact (Route S) -> ${MD%.md}.spec.md -> ${MD%.md}.html" <<<"$ERR" \
   && ok "stderr names the page step: Route S, the .spec.md and .html beside the report" || bad "no page next-step line: [$ERR]"
-grep -q '^## Owner rows — what only the owner can judge' "$MD" && ok "language: es — the .md keeps its English headings (D-04)" || bad "the .md drifted from English: $(grep '^## ' "$MD" | head -3)"
+grep -q '^## Owner rows — what only the owner can judge' "$MD" && ok "language: es — the .md keeps its English headings (D-04)" || bad "the .md drifted from English: $(grep '^## ' "$MD" | sed -n 1,3p)"
 rm -f .context/artifact-style.md
 
 # a non-.md --out still writes the report, and nothing beside it

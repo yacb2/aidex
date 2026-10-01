@@ -54,13 +54,13 @@ matrix=$(while IFS= read -r b; do [ -n "$b" ] && norm "$b"; done <<< "$matrix_ra
 
 while IFS= read -r t; do
   [ -z "$t" ] && continue
-  echo "$enum" | grep -qx "$t" \
+  echo "$enum" | grep >/dev/null -x "$t" \
     || err "engine '$t' is in the decision matrix but missing from the front-matter enum"
 done <<< "$matrix"
 
 while IFS= read -r t; do
   [ -z "$t" ] && continue
-  echo "$matrix" | grep -qx "$t" \
+  echo "$matrix" | grep >/dev/null -x "$t" \
     || err "engine '$t' is in the enum but not bolded in the decision matrix"
 done <<< "$enum"
 

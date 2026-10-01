@@ -164,7 +164,7 @@ for round in 1 2; do
     || fail "round $round: create failed"
   [[ -d "$TMP/wtfix-wt-a" ]] || fail "round $round: worktree directory missing"
   [[ "$(claims)" == "1" ]] || fail "round $round: expected exactly 1 slot claim, got $(claims)"
-  docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-a" | grep -q . \
+  docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-a" | grep >/dev/null . \
     || fail "round $round: no container for the worktree project"
   docker compose -p wtfix-wt-a exec -T app test -f /data/post-ran >/dev/null 2>&1 \
     || fail "round $round: WT_POST_CMD did not run (the hook projects use to provision an isolated E2E)"
@@ -203,7 +203,7 @@ got="$(cat "$SLOTDIR"/slot-* 2>/dev/null | awk '{print $2}' | sort | tr '\n' ' '
 n_claims="$(claims)"
 [[ "$n_claims" == "4" ]] || fail "concurrent: expected 4 distinct slot claims, got $n_claims (slugs: $got)"
 for s in a b c d; do
-  docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-$s" | grep -q . \
+  docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-$s" | grep >/dev/null . \
     || fail "concurrent: worktree '$s' has no running container — a slot collision would look exactly like this"
 done
 
@@ -237,7 +237,7 @@ rec="$(bash "$WT" list --porcelain 2>/dev/null | grep '^a	')"
 [[ "$(cut -f4 <<<"$rec")" == "down" ]] || fail "list --porcelain must report the stack as down, got: $rec"
 
 bash "$WT" up a >/dev/null 2>&1 || fail "up: must bring a downed stack back"
-docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-a" | grep -q . \
+docker ps -q --filter "label=com.docker.compose.project=wtfix-wt-a" | grep >/dev/null . \
   || fail "up: no running container after resume"
 [[ "$(bash "$WT" list --porcelain 2>/dev/null | grep '^a	' | cut -f4)" == up:* ]] \
   || fail "list must report the stack as up after 'up'"
@@ -645,7 +645,7 @@ p2="$(render_port_for r2 4)"
 [[ "$p1" != "$p2" ]] || fail "render(a): two slots rendered the SAME port -- the template is not slot-aware"
 
 # (b) the do-not-edit header, same guarantee the root .env carries.
-head -1 "$TMP/wtfix-wt-r1/svc/.env.local" | grep -q 'do not edit' \
+head -1 "$TMP/wtfix-wt-r1/svc/.env.local" | grep >/dev/null 'do not edit' \
   || fail "render(b): the rendered file must carry the generated/do-not-edit header"
 
 # (c) a hand-edited file is NOT silently clobbered on `up`.

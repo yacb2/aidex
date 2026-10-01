@@ -67,7 +67,7 @@ item_file() {  # item_file <BL-id> -> path in backlog/ or backlog/_archive/ (or 
 }
 owner_open=""
 while IFS= read -r line; do
-  id="$(grep -oE '\bBL-[0-9]+\b' <<<"$line" | head -1 || true)"; [[ -n "$id" ]] || continue
+  id="$(grep -oE '\bBL-[0-9]+\b' <<<"$line" | sed -n 1p || true)"; [[ -n "$id" ]] || continue
   f="$(item_file "$id")"; [[ -n "$f" ]] || continue
   rows="$(awk 'BEGIN{s=0} /^## /{s=($0 ~ /^## Verification[[:space:]]*$/)} s && /^\|/ {
       l=$0; sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")

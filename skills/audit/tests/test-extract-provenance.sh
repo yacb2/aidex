@@ -79,18 +79,18 @@ for line in open(sys.argv[1], encoding="utf-8"):
 ' "$OUT/dataset.jsonl"; }
 
 # --- machine-authored bodies must not be in the dataset (BL-165 acceptance) ---
-if prompts | grep -q "notes field"; then ok "a typed prompt is kept"
+if prompts | grep >/dev/null "notes field"; then ok "a typed prompt is kept"
 else bad "the typed prompt was dropped — the classifier is now too strict"; fi
 
-if prompts | grep -q "/handoff"; then
+if prompts | grep >/dev/null "/handoff"; then
   bad "an expanded slash-command body entered the dataset as a user prompt"
 else ok "an expanded command body is excluded"; fi
 
-if prompts | grep -qi "security vulnerabilities"; then
+if prompts | grep >/dev/null -i "security vulnerabilities"; then
   bad "an injected harness body entered the dataset as a user prompt"
 else ok "an injected harness body is excluded"; fi
 
-if prompts | grep -qi "durability-arbiter\|design lead"; then
+if prompts | grep >/dev/null -i "durability-arbiter\|design lead"; then
   bad "a session of pure machine records still produced prompts"
 else ok "a machine-only session contributes nothing"; fi
 
@@ -106,7 +106,7 @@ print(sum(1 for l in open(sys.argv[1], encoding="utf-8")
 [[ "$kickoff_n" == "0" ]] && ok "the wrapper kickoff is excluded" \
   || bad "the handoff wrapper's kickoff positional was counted as a typed prompt"
 
-if prompts | grep -q "mide el recall"; then ok "a real prompt in a seeded session is kept"
+if prompts | grep >/dev/null "mide el recall"; then ok "a real prompt in a seeded session is kept"
 else bad "the seeded session's real prompt was dropped with its kickoff"; fi
 
 # --- the count is REPORTED, never silently smaller ---
@@ -166,7 +166,7 @@ print(sum(1 for l in open(sys.argv[1], encoding="utf-8")
 [[ "$n_mockup" == "1" ]] && ok "a prompt replayed into a resumed session counts once" \
                          || bad "the replayed prompt produced $n_mockup records, want 1"
 
-if prompts | grep -q "fase dos"; then ok "the new prompt in the resumed file survives dedup"
+if prompts | grep >/dev/null "fase dos"; then ok "the new prompt in the resumed file survives dedup"
 else bad "dedup dropped the second file's genuinely new prompt"; fi
 
 n_same_ts="$(python3 -c '

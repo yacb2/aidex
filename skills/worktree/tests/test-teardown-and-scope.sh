@@ -176,7 +176,7 @@ worktree_down: rm -rf / --no-preserve-root
 ---
 MD
 got="$( sed -n '/^---$/,/^---$/p' "$TMP/p19/.context/worktrees/00-index.md" \
-        | sed -n 's/^worktree_down: *//p' | head -1 )"
+        | sed -n 's/^worktree_down: *//p' | sed -n 1p )"
 [[ -n "$got" ]] || fail "#19: the fixture no longer reproduces the unbounded range"
 grep -q "awk 'NR==1" "$S/worktree-multi.sh" \
   || fail "#19: worktree-multi.sh must bound the front matter to the leading block"
@@ -220,7 +220,7 @@ grep -qi 'WT_COPIES contains .env' <<<"$out" \
 # "creation is all-or-nothing" contract invites then died on "destination
 # already exists".
 awk '/rbargs=\(remove --slug/,/MULTI" "\$\{rbargs\[@\]\}"/' "$S/worktree.sh" \
-  | grep -q 'for c in $WT_COPIES; do rbargs+=(--copy "$c"); done' \
+  | grep >/dev/null 'for c in $WT_COPIES; do rbargs+=(--copy "$c"); done' \
   || fail "rollback: its remove call must carry the same --copy args as down's"
 
 # --- BL-267. `down` removes a $DEST that is itself a root-repo checkout ------
@@ -268,12 +268,12 @@ mk_docker '#!/bin/sh
 exit 0'
 P267="$TMP/p267"; D267="$TMP/p267-wt-rootco"
 mk_rootco "$P267" >/dev/null 2>&1
-/usr/bin/git -C "$P267" worktree list | grep -q "$D267" \
+/usr/bin/git -C "$P267" worktree list | grep >/dev/null "$D267" \
   || fail "BL-267 setup: \$DEST was not made a checkout of the root repo"
 out="$( cd "$P267" && PATH="$BIN:$PATH" bash "$S/worktree.sh" down rootco 2>&1 )"
 [[ ! -d "$D267" ]] \
   || fail "BL-267: down left \$DEST behind — it is a root-repo checkout and not a participant: $out"
-/usr/bin/git -C "$P267" worktree list | grep -q "$D267" \
+/usr/bin/git -C "$P267" worktree list | grep >/dev/null "$D267" \
   && fail "BL-267: the root repo still lists \$DEST as a live worktree after down"
 [[ -e "$TMPDIR/aidex-wt-slots-p267/slot-3" ]] \
   && fail "BL-267: the slot claim was not released, so slot 3 stays taken: $out"

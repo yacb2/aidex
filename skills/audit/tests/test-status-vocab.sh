@@ -39,7 +39,7 @@ mkdir -p "$A/2026-06-15-usage-retro"
 printf -- '---\ntitle: "Usage retro"\nstatus: done\ncreated: 2026-06-15\nupdated: 2026-06-15\nmethodology: standalone\n---\n' > "$A/2026-06-15-usage-retro/index.md"
 
 out="$(bash "$SCRIPTS/validate-audit.sh" --json "$A" 2>/dev/null)"; rc=$?
-[[ $rc -eq 0 ]] || fail "canon tree should validate clean (rc=$rc): $(printf '%s' "$out" | tr '\n' ' ' | head -c 300)"
+[[ $rc -eq 0 ]] || fail "canon tree should validate clean (rc=$rc): $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)"
 count() { printf '%s' "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d$1)" 2>/dev/null; }
 [[ "$(count "['findings_in_inventory']")" == "5" ]] || fail "expected 5 canon findings parsed, got $(count "['findings_in_inventory']")"
 [[ "$(count "['stats']['open']")" == "1" ]]    || fail "open count: expected 1, got $(count "['stats']['open']")"
@@ -57,7 +57,7 @@ EOF
 echo "# m" > "$A/security/00-methodology.md"; echo "# c" > "$A/security/00-changelog.md"
 bash "$SCRIPTS/validate-audit.sh" "$A" >/dev/null 2>&1 && fail "bare done without Escalated To/Notes should be a violation"
 out2="$(bash "$SCRIPTS/validate-audit.sh" --json "$A" 2>/dev/null || true)"
-printf '%s' "$out2" | grep -q "S-1" || fail "violation should name S-1"
+printf '%s' "$out2" | grep >/dev/null "S-1" || fail "violation should name S-1"
 
 # Legacy status vocabulary reads as a WARNING (mapped, not a crash / not a violation).
 cat > "$A/security/00-inventory.md" <<'EOF'
@@ -67,17 +67,17 @@ cat > "$A/security/00-inventory.md" <<'EOF'
 EOF
 out3="$(bash "$SCRIPTS/validate-audit.sh" --json "$A" 2>/dev/null)"; rc=$?
 [[ $rc -eq 0 ]] || fail "legacy vocab must not be fatal (rc=$rc)"
-printf '%s' "$out3" | grep -qi "legacy status" || fail "expected a legacy-status warning mentioning migration"
+printf '%s' "$out3" | grep >/dev/null -i "legacy status" || fail "expected a legacy-status warning mentioning migration"
 
 # mark_row_escalated writes base vocab + ISO dates + the marker verbatim.
 . "$SCRIPTS/_lib.sh"
 mark_row_escalated "$A/ux/00-inventory.md" F-1 "backlog/$TODAY-fix-token"
 row="$(grep '| F-1 ' "$A/ux/00-inventory.md")"
-printf '%s' "$row" | grep -q "| done |" || fail "mark_row_escalated: status should be 'done', row: $row"
-printf '%s' "$row" | grep -q "backlog/$TODAY-fix-token" || fail "mark_row_escalated: marker not written verbatim"
-printf '%s' "$row" | grep -q "$TODAY" || fail "mark_row_escalated: ISO date missing"
-if printf '%s' "$row" | grep -qE '[0-9]{8}'; then fail "mark_row_escalated: legacy YYYYMMDD date written: $row"; fi
-printf '%s' "$row" | grep -q "2026-06-01, $TODAY" || fail "mark_row_escalated: Audit Runs should append ISO date, row: $row"
+printf '%s' "$row" | grep >/dev/null "| done |" || fail "mark_row_escalated: status should be 'done', row: $row"
+printf '%s' "$row" | grep >/dev/null "backlog/$TODAY-fix-token" || fail "mark_row_escalated: marker not written verbatim"
+printf '%s' "$row" | grep >/dev/null "$TODAY" || fail "mark_row_escalated: ISO date missing"
+if printf '%s' "$row" | grep >/dev/null -E '[0-9]{8}'; then fail "mark_row_escalated: legacy YYYYMMDD date written: $row"; fi
+printf '%s' "$row" | grep >/dev/null "2026-06-01, $TODAY" || fail "mark_row_escalated: Audit Runs should append ISO date, row: $row"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
 echo "OK — canon layout validation, base vocab counts, done-evidence rule, legacy warning, ISO escalation"

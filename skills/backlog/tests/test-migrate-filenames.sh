@@ -76,7 +76,7 @@ check "waiver path rewritten"   'grep -q "2026-06-01-bl-001-grid-selection-lost.
 check "dangling count unchanged" 'grep -q "unchanged — OK" "$TMP/out.txt"'
 
 echo "== backup is restorable =="
-TAR="$(ls _tmp/backlog-rename-*.tar.gz | head -1)"
+TAR="$(ls _tmp/backlog-rename-*.tar.gz | sed -n 1p)"
 check "backup written to _tmp/" '[[ -n "$TAR" && -f "$TAR" ]]'
 mkdir "$TMP/restore" && tar -xzf "$TAR" -C "$TMP/restore"
 check "backup holds the pre-rename names" \

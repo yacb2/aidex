@@ -50,7 +50,7 @@ aidex_owned_md() {
 # Rows look like: | `mechanical` | `sonnet` | `low` | default |
 # The table sits indented inside a bullet's continuation, so leading whitespace
 # is part of the row. Anchoring on `^|` is what made every row invisible.
-row() { grep -E "^[[:space:]]*\|[[:space:]]*\`$1\`[^|]*\|" "$CANON" | head -1; }
+row() { grep -E "^[[:space:]]*\|[[:space:]]*\`$1\`[^|]*\|" "$CANON" | sed -n 1p; }
 cell() { echo "$1" | awk -F'|' -v n="$2" '{gsub(/[ `*]/,"",$n); print $n}'; }
 
 # bash 3.2 on macOS has no associative arrays; four tiers, four pairs of vars.

@@ -50,7 +50,7 @@ bash "$SCRIPTS/define-item.sh" "$CID" --touches "src/gap" --no-index >/dev/null 
 OUT="$(python3 "$SCRIPTS/define-check.py" "$CID" 2>&1)"; RC=$?
 [[ $RC -eq 0 ]] && grep -q "^ok " <<<"$OUT" && ok "surface+verify+touches+Context+Acceptance: defined (exit 0)" || bad "defined: rc=$RC $OUT"
 OUT="$(python3 "$SCRIPTS/sweep-eligible.py" 2>&1)"
-grep -A1 "^ELIGIBLE (1)" <<<"$OUT" | grep -q "$CID" && ok "the defined item is the only eligible one" || bad "eligible: $OUT"
+grep -A1 "^ELIGIBLE (1)" <<<"$OUT" | grep >/dev/null "$CID" && ok "the defined item is the only eligible one" || bad "eligible: $OUT"
 grep -q "underdefined: verify, touches" <<<"$OUT" && ok "sweep-eligible names what the underdefined item lacks" || bad "reason: $OUT"
 
 # deductions: a backticked path that exists -> touches candidate; a sibling project -> cross-repo
@@ -79,7 +79,7 @@ python3 - "$C" <<'PY'
 import sys;p=sys.argv[1];t=open(p).read();t=t.replace('status: open','status: doing\nawaiting: owner',1);open(p,'w').write(t)
 PY
 OUT="$(python3 "$SCRIPTS/sweep-eligible.py" 2>&1)"
-grep -q "awaiting owner" <<<"$OUT" && ! grep -A1 "^ELIGIBLE" <<<"$OUT" | grep -q "$CID" && ok "an item awaiting the owner is NEEDS-DECISION, never eligible" || bad "awaiting: $OUT"
+grep -q "awaiting owner" <<<"$OUT" && ! grep -A1 "^ELIGIBLE" <<<"$OUT" | grep >/dev/null "$CID" && ok "an item awaiting the owner is NEEDS-DECISION, never eligible" || bad "awaiting: $OUT"
 
 # triage.sh carries the check
 OUT="$(bash "$SCRIPTS/triage.sh" 2>&1)"

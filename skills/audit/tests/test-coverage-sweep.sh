@@ -31,7 +31,7 @@ python3 "$MATRIX" "$WS" >/dev/null || fail "(a) matrix generation failed"
 out_a="$(python3 "$SWEEP" "$WS" 2>/dev/null)"
 [[ "$(echo "$out_a" | field billing 5)" == "0" ]] \
   || fail "(a) billing drift should be 0 without drift: $(echo "$out_a" | grep billing)"
-echo "$out_a" | grep -q 'RE-RUN RECOMMENDED' \
+echo "$out_a" | grep >/dev/null 'RE-RUN RECOMMENDED' \
   && fail "(a) no module should be flagged without drift"
 rm -rf "$WS"
 
@@ -52,7 +52,7 @@ out_b="$(python3 "$SWEEP" "$WS" 2>/dev/null)"
   || fail "(b) billing test_commits should be 0: $(echo "$out_b" | grep billing)"
 [[ "$(echo "$out_b" | field billing 4)" == "+1 src" ]] \
   || fail "(b) billing surface delta should be '+1 src': $(echo "$out_b" | grep billing)"
-echo "$out_b" | grep -q 'baseline: coverage-matrix.json' \
+echo "$out_b" | grep >/dev/null 'baseline: coverage-matrix.json' \
   || fail "(b) baseline should be coverage-matrix.json: $out_b"
 rm -rf "$WS"
 
@@ -63,7 +63,7 @@ WS="$(bash "$FIXTURE")"  # no matrix generated
 err_c="$(python3 "$SWEEP" "$WS" 2>&1 >/dev/null)"
 rc=$?
 [[ $rc -eq 0 ]] || fail "(c) sweep must exit 0 even with no matrix (got $rc)"
-echo "$err_c" | grep -q 'no baseline' \
+echo "$err_c" | grep >/dev/null 'no baseline' \
   || fail "(c) expected a 'no baseline' warning line: $err_c"
 rm -rf "$WS"
 
@@ -74,7 +74,7 @@ rm -rf "$WS"
 WS="$(bash "$FIXTURE")"
 python3 "$MATRIX" "$WS" >/dev/null || fail "(d) matrix generation failed"
 out_d="$(python3 "$SWEEP" "$WS" --since 1970-01-01 2>/dev/null)"
-echo "$out_d" | grep -q 'since 1970-01-01 (baseline: --since flag)' \
+echo "$out_d" | grep >/dev/null 'since 1970-01-01 (baseline: --since flag)' \
   || fail "(d) --since flag should override matrix baseline: $out_d"
 # With the matrix baseline (now) instead, billing src_commits would be 0; the
 # 1970 override must include the baseline commits (>=1).
@@ -110,16 +110,16 @@ rm -rf "$WS"
 WS="$(bash "$FIXTURE")"
 out_f="$(python3 "$SWEEP" "$WS" --since garbage 2>/dev/null)"; rc=$?
 [[ $rc -ne 0 ]] || fail "(f) --since garbage must exit non-zero (got $rc)"
-echo "$out_f" | grep -q 'COVERAGE SWEEP' && fail "(f) --since garbage must not print a table: $out_f"
+echo "$out_f" | grep >/dev/null 'COVERAGE SWEEP' && fail "(f) --since garbage must not print a table: $out_f"
 out_f2="$(python3 "$SWEEP" "$WS" --sinc 2020-01-01 2>/dev/null)"; rc=$?
 [[ $rc -ne 0 ]] || fail "(f) unknown flag --sinc must exit non-zero (got $rc)"
-echo "$out_f2" | grep -q 'COVERAGE SWEEP' && fail "(f) unknown flag must not print a table: $out_f2"
+echo "$out_f2" | grep >/dev/null 'COVERAGE SWEEP' && fail "(f) unknown flag must not print a table: $out_f2"
 rm -rf "$WS"
 NOMAP="$(mktemp -d)"
 git -C "$NOMAP" init -q
 err_f="$(python3 "$SWEEP" "$NOMAP" 2>&1 >/dev/null)"; rc=$?
 [[ $rc -eq 2 ]] || fail "(f) missing module-map must exit 2 (got $rc): $err_f"
-echo "$err_f" | grep -q 'ERROR:' || fail "(f) missing module-map must say ERROR: on stderr: $err_f"
+echo "$err_f" | grep >/dev/null 'ERROR:' || fail "(f) missing module-map must say ERROR: on stderr: $err_f"
 rm -rf "$NOMAP"
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ rm -rf "$WS/.context"
 python3 "$MATRIX" "$WS" --out "$OUT" >/dev/null 2>&1 || fail "(h) matrix --out failed"
 err_h="$(python3 "$SWEEP" "$WS" --out "$OUT" 2>&1 >/dev/null)"; rc=$?
 [[ $rc -eq 0 ]] || fail "(h) sweep --out should exit 0 (got $rc): $err_h"
-echo "$err_h" | grep -q 'WARNING: no baseline' \
+echo "$err_h" | grep >/dev/null 'WARNING: no baseline' \
   && fail "(h) sweep --out must read the matrix baseline from the --out dir: $err_h"
 [[ -e "$WS/.context" ]] && fail "(h) sweep --out must not touch the target workspace"
 rm -rf "$WS" "$OUT"
@@ -187,7 +187,7 @@ out_i="$(python3 "$SWEEP" "$WS" 2>/dev/null)"; rc=$?
 err_i="$(python3 "$SWEEP" "$WS" 2>&1 >/dev/null)"
 [[ $rc -eq 2 ]] || fail "(i) a map with every module dead must exit 2 (got $rc)"
 [[ "$err_i" == *"$MAPI"* ]] || fail "(i) the refusal must name the map: $err_i"
-echo "$out_i" | grep -q 'COVERAGE SWEEP' && fail "(i) a dead map must not print a table: $out_i"
+echo "$out_i" | grep >/dev/null 'COVERAGE SWEEP' && fail "(i) a dead map must not print a table: $out_i"
 rm -rf "$WS"
 # a declared repo no module's src reaches (every frontend glob dead, billing
 # still live in backend) is refused the same way, naming the map and the repo

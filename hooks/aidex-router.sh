@@ -63,7 +63,7 @@ fi
 # "consideras que la estructura ... es la correcta?"). Markers are narrow
 # opinion/hypothesis shapes so real imperative asks never contain them.
 META='(supongo que|se supone que|me imagino|imagina que|imaginemos|qu[ée] pasar[íi]a|o me equivoco|mejorar[íi]as|que podemos mejorar|para ver que podemos|analices|eval[úu]es|que te parece|te parece bien|consideras (que|entonces)|dame tu opini[óo]n|qu[ée] opinas|what do you think|do you think we|would you change)'
-printf '%s' "$norm" | grep -iqE "$META" && exit 0
+printf '%s' "$norm" | grep >/dev/null -iE "$META" && exit 0
 
 # Rendered-artifact guard (BL-072, router FP #6): "crea un artifact/reporte/
 # dashboard DEL plan X" names the plan as the artifact's SUBJECT, not a
@@ -74,7 +74,7 @@ printf '%s' "$norm" | grep -iqE "$META" && exit 0
 # so "crea un plan para el dashboard de analytics" (artifact noun as subject of
 # a real create intent) still routes.
 ARTIFACT_ASK='(crea|cr[ée]a|cr[ée]ame|crear|haz|hazme|hacer|genera|gen[ée]rame|generar|arma|[áa]rmame|dame|render|make|create|generate|build|give me)[[:space:]]+(me[[:space:]]+)?((un|una|el|la|a|an|the)[[:space:]]+)?(artifact|artefacto|report\b|reporte|informe|dashboard|tablero|infograf[íi]a|visualizaci[óo]n|p[áa]gina (html|web)|html page|web page)'
-printf '%s' "$norm" | grep -iqE "$ARTIFACT_ASK" && exit 0
+printf '%s' "$norm" | grep >/dev/null -iE "$ARTIFACT_ASK" && exit 0
 
 # Merge / branch-management guard (BL-105, router FP #7): "mezclemos a main y
 # limpiemos esta rama" is a git request; when "worktrees" also appears it is an
@@ -88,7 +88,7 @@ MERGE_ASK='(mezcl[ae]\w*|mezclemos|fusion[ae]\w*|fusionemos|merge\w*|rebase\w*|s
 # Each rule = a create/intent verb context AND an object that names the
 # artifact. grep -iE, accent-tolerant character classes.
 skill=""
-m() { printf '%s' "$norm" | grep -iqE "$1"; }
+m() { printf '%s' "$norm" | grep >/dev/null -iE "$1"; }
 
 # m2 — proximity conjunction (BL-042): both patterns must match within the
 # SAME sentence-ish segment (split on . ! ? ; followed by whitespace, and on
@@ -98,7 +98,7 @@ m() { printf '%s' "$norm" | grep -iqE "$1"; }
 m2() {
   printf '%s\n' "$norm" \
     | awk '{gsub(/[.!?;]+([[:space:]]+|$)/, "\n"); print}' \
-    | grep -iE "$1" | grep -iqE "$2"
+    | grep -iE "$1" | grep >/dev/null -iE "$2"
 }
 
 # \b-anchored: without boundaries, short verbs match inside nouns ("log" inside

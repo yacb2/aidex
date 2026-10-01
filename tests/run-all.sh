@@ -206,7 +206,7 @@ else
       PARITY_ISSUES+=("parity:unreadable:$t")
       continue
     fi
-    if printf '%s\n' "$filtered" | grep -qE "$ROOT_REACHING"; then
+    if printf '%s\n' "$filtered" | grep >/dev/null -E "$ROOT_REACHING"; then
       PARITY+=("$t")
     fi
   done

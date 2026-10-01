@@ -91,7 +91,7 @@ case "$out" in
 esac
 
 # The gate must have seen a real worktree, not an empty run.
-git -C "$MAIN" worktree list | grep -qc . || fail "no worktree was created"
+git -C "$MAIN" worktree list | grep >/dev/null -c . || fail "no worktree was created"
 
 if [[ $FAILURES -gt 0 ]]; then printf '\n%d check(s) failed\n' "$FAILURES"; exit 1; fi
 printf '\nOK — .git-as-a-file: detect-resolved, archive-sweep and root-litter-sweep all keep their git half in a linked worktree\n'

@@ -41,7 +41,7 @@ printf -- '# UX methodology\n' > "$AUD/ux/00-methodology.md"
 WAIVERS="$TMP/.context/.aidex-waivers"
 run() { "$VALIDATE" "$AUD" >"$TMP/out" 2>&1 && echo 0 || echo $?; }
 has_rule() { grep -q "($1)" "$TMP/out"; }
-waived_line() { grep -oE 'waived: [0-9]+' "$TMP/out" | head -1; }
+waived_line() { grep -oE 'waived: [0-9]+' "$TMP/out" | sed -n 1p; }
 
 # ---- 1. baseline: both violations active, nothing waived -------------------
 rc="$(run)"

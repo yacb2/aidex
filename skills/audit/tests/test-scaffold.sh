@@ -72,10 +72,10 @@ A11Y=".context/audits/a11y/00-methodology.md"
 grep -qi 'truncated text recoverable' "$A11Y" \
   || fail "seeded a11y playbook has no truncated-text check in the manual sweep"
 awk '/^## Manual assistive technology sweep/{s=1} /^## Recording findings/{s=0} s' "$A11Y" \
-  | grep -qi 'table column headers' \
+  | grep >/dev/null -i 'table column headers' \
   || fail "the a11y truncation bullet is not inside the Manual AT sweep section"
 awk '/^## WCAG Level A \+ AA checks/{s=1} /^## Manual assistive/{s=0} s' "$A11Y" \
-  | grep -qi 'truncated text recoverable' \
+  | grep >/dev/null -i 'truncated text recoverable' \
   && fail "the truncation bullet leaked into the numbered WCAG list, which stays strictly WCAG"
 
 bash "$SCRIPTS/new-audit.sh" hitl release-signoff >/dev/null 2>&1 || fail "new hitl: exited non-zero"

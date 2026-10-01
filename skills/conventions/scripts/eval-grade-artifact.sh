@@ -55,7 +55,7 @@ if [ "${#matches[@]}" -gt 1 ]; then
     printf '              %s\n' "${matches[@]}"
     exit 2
   fi
-  target=$(ls -t "${matches[@]}" | head -1)
+  target=$(ls -t "${matches[@]}" | sed -n 1p)
 else
   target="${matches[0]}"
 fi

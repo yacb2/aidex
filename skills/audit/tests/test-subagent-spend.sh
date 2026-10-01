@@ -86,7 +86,7 @@ for line in sys.stdin:
 [[ "$(row 'main')" == "5 1010 2000 1000 30300 1571 0.081945*" ]] \
   || fail "(a)(n) main row wrong: '$(row 'main')' (expected '5 1010 2000 1000 30300 1571 0.081945*')"
 
-printf '%s\n' "$OUT" | grep -q '999999' \
+printf '%s\n' "$OUT" | grep >/dev/null '999999' \
   && fail "(a) a <synthetic> turn's usage reached the table"
 
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ a3='claude-mystery-9-20260101 / probe'
 #     (d) asserts a4's numbers; this asserts the row exists at all, so a silent
 #     rename of the label cannot turn (f) into a pass-by-absence.
 # ---------------------------------------------------------------------------
-printf '%s\n' "$OUT" | grep -q 'workflow-subagent' \
+printf '%s\n' "$OUT" | grep >/dev/null 'workflow-subagent' \
   || fail "(f) the nested subagents/workflows/ transcript was not walked"
 
 # ---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ grep -q 'agent-a5.meta.json' "$ERRLOG" \
   || fail "(n) a row with an unpriced turn must be marked: '$(row 'main')'"
 [[ "$(row "$a1")" != *"*" ]] \
   || fail "(n) a fully priced row must NOT be marked: '$(row "$a1")'"
-printf '%s\n' "$OUT" | grep -q '2 turn(s)' \
+printf '%s\n' "$OUT" | grep >/dev/null '2 turn(s)' \
   || fail "(n) the footer must count the unpriced turns (expected 2): $OUT"
 
 # ---------------------------------------------------------------------------
@@ -321,7 +321,7 @@ EMPTY="$(mktemp -d)"
 out_i="$(python3 "$RETRO/subagent_spend.py" --transcripts-root "$EMPTY" 2>&1)"; rc_i=$?
 rm -rf "$EMPTY"
 [[ $rc_i -ne 0 ]] || fail "(i) an empty corpus must not exit 0: $out_i"
-printf '%s\n' "$out_i" | grep -qi 'no assistant turns' \
+printf '%s\n' "$out_i" | grep >/dev/null -i 'no assistant turns' \
   || fail "(i) an empty corpus should say so, not print a table of zeroes: $out_i"
 
 # ---------------------------------------------------------------------------

@@ -85,7 +85,7 @@ check "modular shows phase 2/2"     'grep -q "phase 2/2" "$IDX"'
 check "single not misparsed"        'grep -q "Single file plan.*open · updated 2026-06-02" "$IDX"'
 check "Closed has archived plan"    'grep -q "## Closed" "$IDX" && grep -q "Old done plan" "$IDX"'
 check "done-in-active not vanished"  'grep -q "Stranded done plan" "$IDX" && grep -q "Stranded done plan.*not archived" "$IDX"'
-check "stranded not in Open/Doing"   '! sed -n "/## Open/,/^---/p" "$IDX" | grep -q "Stranded"'
+check "stranded not in Open/Doing"   '! sed -n "/## Open/,/^---/p" "$IDX" | grep >/dev/null "Stranded"'
 check "legacy plan surfaced Untracked" 'grep -q "## Untracked" "$IDX" && grep -q "0007-legacy-format.md" "$IDX"'
 check "README excluded entirely"     '! grep -q "README" "$IDX"'
 check "index backup not read as plan" '! grep -q "manual.bak" "$IDX"'
@@ -94,7 +94,7 @@ check "active counts: Open 1 Doing 1" 'grep -q "\*\*Open:\*\* 1 · \*\*Doing:\*\
 echo "== close-plan regenerates =="
 bash "$CLOSE" 2026-06-01-single >/dev/null 2>&1
 check "single archived"             '[[ -f .context/plans/_archive/2026-06-01-single.md ]]'
-check "single now in Closed"        'grep -q "Single file plan" "$IDX" && sed -n "/## Closed/,\$p" "$IDX" | grep -q "Single file plan"'
+check "single now in Closed"        'grep -q "Single file plan" "$IDX" && sed -n "/## Closed/,\$p" "$IDX" | grep >/dev/null "Single file plan"'
 check "single gone from Open"       '! grep -q "(2026-06-01-single.md)" <(sed -n "/## Open/,/^---/p" "$IDX")'
 
 echo "== --check drift detection =="

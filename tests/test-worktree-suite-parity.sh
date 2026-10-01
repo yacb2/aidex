@@ -105,7 +105,7 @@ mem_out="$(cd "$WT/hooks" && python3 test-memory-save-gate.py 2>&1)"; mem_rc=$?
 
 if [ "$mem_rc" -ne 0 ]; then
   fail "hooks/test-memory-save-gate.py exited $mem_rc in a worktree:"
-  printf '%s\n' "$mem_out" | grep -E '^  FAIL|^FAILED|^ALL' | head -20
+  printf '%s\n' "$mem_out" | grep -E '^  FAIL|^FAILED|^ALL' | sed -n 1,20p
 fi
 
 # Both halves of the unreachable-SHA pair must be asserted, and asserted as PASSes. The

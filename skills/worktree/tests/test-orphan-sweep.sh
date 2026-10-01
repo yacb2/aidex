@@ -56,39 +56,39 @@ run_sweep() {
 
 echo "== orphan detected when worktree dir is missing =="
 out="$(run_sweep)"; code=$?
-if printf '%s' "$out" | grep -q 'ORPHAN compose project: myproj-wt-dead'; then
+if printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myproj-wt-dead'; then
   pass "orphaned compose project reported"
 else
   fail "orphaned compose project not reported: $out"
 fi
-if printf '%s' "$out" | grep -q 'docker compose -p myproj-wt-dead down -v --rmi local --remove-orphans'; then
+if printf '%s' "$out" | grep >/dev/null 'docker compose -p myproj-wt-dead down -v --rmi local --remove-orphans'; then
   pass "exact worktree_down command printed for orphan"
 else
   fail "worktree_down command missing/wrong: $out"
 fi
-if printf '%s' "$out" | grep -q 'ORPHAN volume: myproj-wt-orphanvol_pgdata'; then
+if printf '%s' "$out" | grep >/dev/null 'ORPHAN volume: myproj-wt-orphanvol_pgdata'; then
   pass "orphaned volume reported"
 else
   fail "orphaned volume not reported: $out"
 fi
-if printf '%s' "$out" | grep -q 'ORPHAN image: myproj-wt-orphanimg'; then
+if printf '%s' "$out" | grep >/dev/null 'ORPHAN image: myproj-wt-orphanimg'; then
   pass "orphaned image reported"
 else
   fail "orphaned image not reported: $out"
 fi
 
 echo "== no false positive when the dir exists =="
-if printf '%s' "$out" | grep -q 'ORPHAN compose project: myproj-wt-alive'; then
+if printf '%s' "$out" | grep >/dev/null 'ORPHAN compose project: myproj-wt-alive'; then
   fail "live compose project (dir exists) falsely flagged as orphan"
 else
   pass "live compose project not flagged"
 fi
-if printf '%s' "$out" | grep -q 'ORPHAN volume: myproj-wt-alive_pgdata'; then
+if printf '%s' "$out" | grep >/dev/null 'ORPHAN volume: myproj-wt-alive_pgdata'; then
   fail "live volume falsely flagged as orphan"
 else
   pass "live volume not flagged"
 fi
-if printf '%s' "$out" | grep -q 'ORPHAN image: myproj-wt-alive'; then
+if printf '%s' "$out" | grep >/dev/null 'ORPHAN image: myproj-wt-alive'; then
   fail "live image falsely flagged as orphan"
 else
   pass "live image not flagged"
@@ -136,7 +136,7 @@ echo "== docker-absent degradation =="
 mkdir -p "$TMP/bin-empty"
 out="$( ( cd "$ROOT" && PATH="$TMP/bin-empty:/usr/bin:/bin" bash "$SCRIPT" ) 2>&1 )"
 code=$?
-if printf '%s' "$out" | grep -qi 'docker not found'; then
+if printf '%s' "$out" | grep >/dev/null -i 'docker not found'; then
   pass "docker-absent prints a degradation notice"
 else
   fail "docker-absent notice missing: $out"

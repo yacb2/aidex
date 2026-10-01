@@ -197,10 +197,9 @@ def figures_dropped(node):
 # (composer.js `rec`; test-goal-gate.sh holds BADGE_WORDS to it). So an option
 # label is read in one canonical form: a `.hint` gets the " — " separator in front unless it already starts with one,
 # and one badge word is taken out. Nothing outside an option label is
-# normalised. Whether an option is the recommended one is NOT compared: a spec
-# marks a decided item's chosen option `{recommended}` to check it, where the
-# original page checked it without the attribute (siguientes-pasos q1), and the
-# grammar has no other spelling for that.
+# normalised. Which option is recommended, and which is checked, IS compared
+# (`option_flags`): a decided item's winning option is `{chosen}` in a spec
+# (checked, not recommended), a real recommendation is `{recommended}`.
 OPTION_SEP = "\u2014"
 BADGE_WORDS = {"Recomendada", "Recommended"}
 
@@ -211,6 +210,37 @@ def _option_input(node):
         return None
     return next((n for n in node.walk() if n.tag == "input"
                  and n.attrs.get("type") in ("radio", "checkbox")), None)
+
+
+def option_flags(node, original=False):
+    """`[(label, recommended, checked), ...]`, one per option, in reading order.
+
+    Recommended is the `data-recommended` attribute OR the badge the older
+    pages carried as markup or text (a `.rec` element or a badge word in the
+    label), read on the ORIGINAL side only (`original=True`): the kit draws the
+    badge from the attribute, so the built page has only the attribute. Checked is the input's `checked` attribute, counted
+    only inside a decided item (`data-decided`): the grammar can check an
+    option only to show a verdict, so a pre-checked option of an UNDECIDED item
+    (contracts-sweep-decisions Q17) has no spelling and is not compared.
+    """
+    out = []
+    for el in node.walk():
+        inp = _option_input(el)
+        if inp is None or _dropped(el):
+            continue
+        words = _option_tokens(el)
+        sub = []
+        _collect_option(el, sub)
+        raw = html.unescape("".join(sub)).split()
+        rec = "data-recommended" in inp.attrs or (original and (
+            any(w in BADGE_WORDS for w in raw)
+            or any(n.has("rec") for n in el.walk())))
+        item = el.parent
+        while item is not None and not item.has("consult-item"):
+            item = item.parent
+        decided = item is not None and "data-decided" in item.attrs
+        out.append((" ".join(words), rec, decided and "checked" in inp.attrs))
+    return out
 
 
 def _collect_option(node, out):
@@ -243,8 +273,35 @@ def _option_tokens(label):
     return words
 
 
+def _lead_first(children):
+    """Reading order of an item's children, the situation lead first.
+
+    The builder (BL-514) keeps only an item's closing question in the h3 and
+    moves the situation sentences into a `.consult-lead` paragraph right UNDER it;
+    older pages wrote both in the h3, lead first. A built item is read in the
+    old order: its lead goes in front of the h3. Nothing else is moved.
+    """
+    out, moved = [], set()
+    for i, c in enumerate(children):
+        if c.tag != "h3":
+            continue
+        nxt = next((n for n in children[i + 1:]
+                    if not (n.tag == "#text" and not n.text.strip())), None)
+        if nxt is not None and nxt.has("consult-lead"):
+            moved.add(id(nxt))
+    if not moved:
+        return children
+    for c in children:
+        if id(c) in moved:
+            continue
+        if c.tag == "h3":
+            out.extend(n for n in children if id(n) in moved)
+        out.append(c)
+    return out
+
+
 def _collect(node, out):
-    for child in node.children:
+    for child in _lead_first(node.children):
         if child.tag == "#text":
             out.append(child.text)
             continue

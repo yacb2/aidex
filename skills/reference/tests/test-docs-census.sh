@@ -194,7 +194,7 @@ if [[ -f "$TPL" ]]; then
   # census then reports 100% gap. Caught on the template's first real run.
   if grep -q '\\s' <<<"$block"; then
     bad "template axis commands avoid \\s (not portable in BSD sed)" \
-        "$(grep -n '\\s' <<<"$block" | head -1)"
+        "$(grep -n '\\s' <<<"$block" | sed -n 1p)"
   else
     ok "template axis commands avoid \\s (not portable in BSD sed)"
   fi
@@ -237,7 +237,7 @@ python3 "$CENSUS" --root "$PV" --trust --advisory >/dev/null 2>&1
 [[ -e "$TMP/PWNED" ]] && ok "--trust approves and then runs" || bad "--trust approves and then runs" "payload did not run"
 # Assert on the whole subtree, not two guessed filenames: the claim is that NOTHING
 # approval-shaped lands in the project, so grep the tree for the digest itself.
-digest_in_project="$(grep -rl "$(cut -d' ' -f1 < "$AIDEX_CENSUS_TRUST" | tail -1)" "$PV" 2>/dev/null | head -1)"
+digest_in_project="$(grep -rl "$(cut -d' ' -f1 < "$AIDEX_CENSUS_TRUST" | tail -1)" "$PV" 2>/dev/null | sed -n 1p)"
 [[ -z "$digest_in_project" ]] \
   && ok "approval is stored outside the project (a repo cannot ship its own)" \
   || bad "approval is stored outside the project" "digest found inside the project at $digest_in_project"

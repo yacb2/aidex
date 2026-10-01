@@ -57,7 +57,7 @@ grep -qE '^mode:[[:space:]]*["'"'"']?sweep["'"'"']?[[:space:]]*$' "$file" && swe
 
 BACKLOG_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../backlog/scripts" && pwd -P)"
 ref_kind() { sed -nE 's/.*<!-- ref: ([a-z]+) -->.*/\1/p' <<<"$1"; }
-bl_id()    { grep -oE '\bBL-[0-9]+\b' <<<"$1" | head -1 || true; }
+bl_id()    { grep -oE '\bBL-[0-9]+\b' <<<"$1" | sed -n 1p || true; }
 item_where() {  # item_where <BL-id> -> active | archived | deferred | (empty)
   local d f
   for d in "" "_archive/" "_deferred/"; do
@@ -104,7 +104,7 @@ fi
 # complete the first unchecked numbered queue item — only on a plain advance
 # (not on --peek, not on --append). `|| true`: grep exits 1 when none remain.
 if [[ "$peek" -eq 0 && -z "$append" ]]; then
-  head_line="$(grep -nE '^[0-9]+\. \[ \] ' "$file" | head -1 | cut -d: -f1 || true)"
+  head_line="$(grep -nE '^[0-9]+\. \[ \] ' "$file" | sed -n 1p | cut -d: -f1 || true)"
   if [[ -n "$head_line" ]]; then
     head_text="$(sed -n "${head_line}p" "$file")"
     # Sweep: the head is closed BEFORE its box is ticked, so a refusal (no proof) leaves
@@ -146,7 +146,7 @@ if [[ "$peek" -eq 0 && -z "$append" ]]; then
 fi
 
 # print the next still-unchecked numbered queue item, or DONE
-next="$(grep -E '^[0-9]+\. \[ \] ' "$file" | head -1 || true)"
+next="$(grep -E '^[0-9]+\. \[ \] ' "$file" | sed -n 1p || true)"
 if [[ -n "$next" ]]; then
   # Sweep: opening the next item is the transition to `doing` and, for type: bug, the
   # RED->GREEN route — worklist-advance used to only NAME the next item, and items were

@@ -22,7 +22,7 @@ for pair in "1:sweep-kickoff.sh" "1:sweep-eligible.py" "1:sweep-order.py" "1:def
   n="${pair%%:*}"; s="${pair#*:}"
   sec="$(awk -v n="$n" '/^## Stage /{f=($0 ~ "^## Stage " n " ")} f' "$POLICY")"
   case "$sec" in *"$s"*) ;; *) err "stage $n does not name $s" ;; esac
-  found="$(find "$HERE/scripts" "$HERE/../conventions/scripts" "$HERE/../audit/scripts" -name "$s" 2>/dev/null | head -1)"
+  found="$(find "$HERE/scripts" "$HERE/../conventions/scripts" "$HERE/../audit/scripts" -name "$s" 2>/dev/null | sed -n 1p)"
   [ -n "$found" ] || err "policy names $s but no such script ships"
   # BL-363: existing SOMEWHERE is not the same as the reader being able to find
   # it. This loop searched three skills, so a script the policy names as if it
@@ -62,8 +62,8 @@ done
 # as the next round. A page that asks nothing keeps close-then-open-once.
 sec6="$(awk '/^## Stage 6 /{f=1;next} /^## /{f=0} f' "$POLICY" | tr '\n' ' ' | tr -s ' ')"
 steps6="$(awk '/^## Stage 6 /{f=1;next} /^## |^### /{f=0} f' "$POLICY" | grep -E '^[0-9]+\. ')"
-build_n="$(grep -n 'Route S' <<<"$steps6" | head -1 | cut -d: -f1)"
-close_n="$(grep -n 'worklist-close.sh' <<<"$steps6" | head -1 | cut -d: -f1)"
+build_n="$(grep -n 'Route S' <<<"$steps6" | sed -n 1p | cut -d: -f1)"
+close_n="$(grep -n 'worklist-close.sh' <<<"$steps6" | sed -n 1p | cut -d: -f1)"
 [ -n "$build_n" ] && [ -n "$close_n" ] && [ "$build_n" -lt "$close_n" ] \
   || err "stage 6 does not build the page (Route S) as a step before the first worklist-close.sh step"
 for k in "asks anything" "before \`worklist-close.sh\`" "waits for the answers" "proof cell" "next round" "asks nothing"; do

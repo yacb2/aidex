@@ -33,7 +33,7 @@ SNIPPET="$(awk '/^```bash$/{inb=1; buf=""; next} /^```$/{if (inb && buf ~ /-type
 [[ -n "$SNIPPET" ]] || { echo "FAIL: could not extract a '-type l' bash block from $AGENT"; exit 1; }
 
 # The snippet must not test the raw readlink output — that is the bug itself.
-if printf '%s' "$SNIPPET" | grep -qE '\[\s*!\s*-e\s*"\$(target|raw)"\s*\]'; then
+if printf '%s' "$SNIPPET" | grep >/dev/null -E '\[\s*!\s*-e\s*"\$(target|raw)"\s*\]'; then
   fail "snippet still tests the raw readlink target; relative links will misfire"
 fi
 
@@ -59,8 +59,8 @@ ln -s "$TMP/real/gone-abs.md" "$TMP/.claude/skills/abs-broken.md"
 # cannot accidentally succeed. This is the condition the original bug needed.
 out="$(cd "$REPO_ROOT" && SCAN="$TMP/.claude" bash -c "$SNIPPET" 2>&1)"
 
-expect_ok()     { printf '%s' "$out" | grep -q "^OK: .*$1"     || fail "$2 — expected OK, got: $(printf '%s' "$out" | grep "$1" || echo '<no line>')"; }
-expect_broken() { printf '%s' "$out" | grep -q "^BROKEN: .*$1" || fail "$2 — expected BROKEN, got: $(printf '%s' "$out" | grep "$1" || echo '<no line>')"; }
+expect_ok()     { printf '%s' "$out" | grep >/dev/null "^OK: .*$1"     || fail "$2 — expected OK, got: $(printf '%s' "$out" | grep "$1" || echo '<no line>')"; }
+expect_broken() { printf '%s' "$out" | grep >/dev/null "^BROKEN: .*$1" || fail "$2 — expected BROKEN, got: $(printf '%s' "$out" | grep "$1" || echo '<no line>')"; }
 
 expect_ok     "rel-ok.md"      "(1) healthy relative symlink"
 expect_ok     "abs-ok.md"      "(2) healthy absolute symlink"
@@ -74,7 +74,7 @@ n="$(printf '%s\n' "$out" | grep -cE '^(OK|BROKEN): ')"
 
 # LK2 needs an ABSOLUTE resolved target to judge "unexpected location"; a raw relative
 # path would make a legitimate ~/.myskills/ link read as unexpected.
-printf '%s' "$out" | grep "^OK: .*rel-ok.md" | grep -q -- "-> /" \
+printf '%s' "$out" | grep "^OK: .*rel-ok.md" | grep >/dev/null -- "-> /" \
   || fail "OK line for a relative link does not report an absolute resolved target"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi

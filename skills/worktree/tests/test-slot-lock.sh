@@ -90,9 +90,9 @@ rm -f "$SD"/slot-*
 # --- 4. up takes the same lock as new --------------------------------------
 # Named at the CALL SITE. `up`'s read-check-write is the half that was unlocked,
 # and a body-level assertion on the helper cannot see that.
-awk '/^if \[\[ "\$cmd" == "up" \]\]/,/^# -+ new/' "$WT" | grep -q 'acquire_slot_lock' \
+awk '/^if \[\[ "\$cmd" == "up" \]\]/,/^# -+ new/' "$WT" | grep >/dev/null 'acquire_slot_lock' \
   || fail "up: its slot claim must be taken under acquire_slot_lock"
-awk '/^if \[\[ "\$cmd" == "up" \]\]/,/^# -+ new/' "$WT" | grep -q 'release_slot_lock' \
+awk '/^if \[\[ "\$cmd" == "up" \]\]/,/^# -+ new/' "$WT" | grep >/dev/null 'release_slot_lock' \
   || fail "up: it must release the slot lock it took"
 
 if [[ "$failures" -gt 0 ]]; then

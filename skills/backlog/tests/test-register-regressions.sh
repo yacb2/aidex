@@ -138,7 +138,7 @@ mkdir -p "$TMP/b6tgt/.context/backlog"
 bash "$REG" --origin manual --title "blocked big job" --escalate-to "$TMP/b6tgt" \
   --priority P0 --estimate XL --blocked-by "vendor API" >/dev/null 2>&1
 # Not `*.md` — the auto-generated 00-index.md sorts first and would be read instead.
-S6="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+S6="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | sed -n 1p)"
 if [[ -n "$S6" ]]; then
   [[ "$(fm "$S6" estimate)" == "XL" ]] && ok "B6 --estimate reaches the stub" || bad "B6 estimate is '$(fm "$S6" estimate)', expected XL"
   [[ "$(fm "$S6" blocked_by)" == '"vendor API"' ]] && ok "B6 --blocked-by reaches the stub" || bad "B6 blocked_by is '$(fm "$S6" blocked_by)'"
@@ -157,7 +157,7 @@ LIST="$(NO_COLOR=1 bash "$REG" --list 2>/dev/null)"
 HEADS="$(printf '%s\n' "$LIST" | grep -c '^P[0-3] —\|^Blocked\|^Unclassified' || true)"
 [[ "$HEADS" -eq 1 ]] && ok "B7 one populated priority prints exactly one heading" \
   || bad "B7 printed $HEADS headings for a single P2 item (expected 1)"
-printf '%s\n' "$LIST" | grep -q 'P2 — Medium' && ok "B7 the populated heading is still printed" \
+printf '%s\n' "$LIST" | grep >/dev/null 'P2 — Medium' && ok "B7 the populated heading is still printed" \
   || bad "B7 the P2 heading went missing"
 
 # ── B8 · --list's read_field must stop at the front-matter boundary ───────────
@@ -188,10 +188,10 @@ blocked_by: "a vendor that no longer matters"
 It is not blocked any more, which is why the key is gone from the front-matter.
 EOF
 LIST="$(NO_COLOR=1 bash "$REG" --list 2>/dev/null)"
-printf '%s\n' "$LIST" | grep -q 'Blocked' \
+printf '%s\n' "$LIST" | grep >/dev/null 'Blocked' \
   && bad "B8 body prose routed an unblocked item into Blocked" \
   || ok "B8 body prose cannot supply blocked_by"
-printf '%s\n' "$LIST" | grep -q 'P2 — Medium' \
+printf '%s\n' "$LIST" | grep >/dev/null 'P2 — Medium' \
   && ok "B8 the item stays in its real priority section" \
   || bad "B8 the item vanished from the active queue"
 
@@ -205,7 +205,7 @@ mkdir -p .context/audits/security/2026-01-01-first-pass
 A9="$(bash "$REG" --origin audit --title "grouped run" --finding F-01 --audit-run 2026-01-01-first-pass 2>/dev/null)"
 grep -q 'audits/security/2026-01-01-first-pass/' "$A9" \
   && ok "B9 Notes path carries the D-02 methodology segment" \
-  || bad "B9 Notes path is $(grep -o '\.context/audits/[^`]*' "$A9" | head -1) — the methodology is missing"
+  || bad "B9 Notes path is $(grep -o '\.context/audits/[^`]*' "$A9" | sed -n 1p) — the methodology is missing"
 [[ "$(fm "$A9" origin_ref)" == "audit/security/2026-01-01-first-pass/F-01" ]] \
   && ok "B9 origin_ref still resolves the methodology" \
   || bad "B9 origin_ref is '$(fm "$A9" origin_ref)'"
@@ -233,8 +233,8 @@ grep -q 'Why is this worth doing' "$M10" \
 mkdir -p "$TMP/b10tgt/.context/backlog"
 bash "$REG" --origin manual --title "routed job" --escalate-to "$TMP/b10tgt" >/dev/null 2>&1
 # by title, not `head -1`: the normal-path item registered above sorts first
-S10="$(grep -l 'routed job' .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
-T10="$(grep -l 'routed job' "$TMP/b10tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+S10="$(grep -l 'routed job' .context/backlog/2026-*-bl-*.md 2>/dev/null | sed -n 1p)"
+T10="$(grep -l 'routed job' "$TMP/b10tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | sed -n 1p)"
 grep -q 'Escalated to' "$S10" \
   && ok "B10 escalate source keeps its real Context note" \
   || bad "B10 the escalate stub lost its Context note"
@@ -261,7 +261,7 @@ Q10="$(bash "$REG" --origin manual --title 'a "quoted" word' 2>/dev/null)"
   || bad "B10 front-matter title is $(fm "$Q10" title)"
 grep -q '^# a "quoted" word$' "$Q10" \
   && ok "B10 the body heading is not YAML-escaped" \
-  || bad "B10 body heading is '$(grep '^# ' "$Q10" | head -1)' — YAML escaping leaked into markdown"
+  || bad "B10 body heading is '$(grep '^# ' "$Q10" | sed -n 1p)' — YAML escaping leaked into markdown"
 
 # ── B11 · an audit item with no --audit-run must not report a failed write ────
 # The inverse of every other cell here: the file is written CORRECTLY and the
@@ -290,7 +290,7 @@ mkdir -p "$TMP/b12tgt/.context/backlog"; chmod 555 "$TMP/b12tgt/.context/backlog
 bash "$REG" --origin manual --title "cannot land" --escalate-to "$TMP/b12tgt" >/dev/null 2>&1; RC=$?
 chmod 755 "$TMP/b12tgt/.context/backlog"
 [[ $RC -ne 0 ]] && ok "B12 unwritable target exits non-zero" || bad "B12 exited 0"
-S12="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+S12="$(ls .context/backlog/2026-*-bl-*.md 2>/dev/null | sed -n 1p)"
 [[ -z "$S12" ]] && ok "B12 no source item points at a counterpart that was never written" \
   || bad "B12 left a source item with escalated_to: $(fm "$S12" escalated_to)"
 
@@ -329,7 +329,7 @@ chmod 555 .context/backlog
 bash "$REG" --origin manual --title "source cannot be written" --escalate-to "$TMP/b13tgt" >/dev/null 2>&1; RC=$?
 chmod 755 .context/backlog
 [[ $RC -ne 0 ]] && ok "B13 unwritable source exits non-zero" || bad "B13 exited 0"
-T13="$(ls "$TMP/b13tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | head -1)"
+T13="$(ls "$TMP/b13tgt"/.context/backlog/2026-*-bl-*.md 2>/dev/null | sed -n 1p)"
 [[ -z "$T13" ]] && ok "B13 counterpart rolled back when the source could not be written" \
   || bad "B13 left an orphan counterpart: $T13"
 
@@ -420,7 +420,7 @@ fi
 D="$(fresh b16s)"; cd "$D"
 bash "$REG" --origin manual --title "B16 slug" --slug 'Bad Slug!' >/dev/null 2>&1; RC=$?
 [[ $RC -ne 0 ]] && ok "B16 --slug outside [a-z0-9-] is refused" || bad "B16 --slug 'Bad Slug!' was accepted"
-ls .context/backlog/ | grep -q 'Bad' && bad "B16 a file with the raw slug was written" || ok "B16 no file with the raw slug"
+ls .context/backlog/ | grep >/dev/null 'Bad' && bad "B16 a file with the raw slug was written" || ok "B16 no file with the raw slug"
 
 # ── B17 · a plain registration must not bootstrap a backlog tree (BL-336) ─────
 # Was: `mkdir -p "$BACKLOG_DIR"` ran unguarded on the plain path, so running the
@@ -524,10 +524,10 @@ list_section() {               # list_section <file> <heading prefix> -> the row
 }
 bash "$REG" --reindex >/dev/null 2>&1
 IDX="$D/.context/backlog/00-index.md"
-idx_section "$IDX" "Blocked" | grep -q 'BL-001' \
+idx_section "$IDX" "Blocked" | grep >/dev/null 'BL-001' \
   && ok "B19 index: a both-item is still listed under Blocked" \
   || bad "B19 index: BL-001 is missing from ## Blocked"
-idx_section "$IDX" "Awaiting owner" | grep -q 'BL-001' \
+idx_section "$IDX" "Awaiting owner" | grep >/dev/null 'BL-001' \
   && ok "B19 index: a both-item is also listed under Awaiting owner" \
   || bad "B19 index: BL-001 left ## Awaiting owner the moment blocked_by was set"
 grep -q '\*\*Awaiting owner:\*\* 1' "$IDX" \
@@ -535,19 +535,19 @@ grep -q '\*\*Awaiting owner:\*\* 1' "$IDX" \
   || bad "B19 index: tally is '$(grep -o 'Awaiting owner:\*\* [0-9]*' "$IDX")', expected 1"
 # Mutation — the both-branch must be driven by `awaiting`, not by being in Blocked:
 # BL-002 is blocked and NOT parked, so it may never appear under Awaiting owner.
-idx_section "$IDX" "Awaiting owner" | grep -q 'BL-002' \
+idx_section "$IDX" "Awaiting owner" | grep >/dev/null 'BL-002' \
   && bad "B19 index: a blocked-only item was emitted under Awaiting owner" \
   || ok "B19 index: a blocked-only item stays out of Awaiting owner"
 
 LISTF="$TMP/b19.list"
 NO_COLOR=1 bash "$REG" --list >"$LISTF" 2>/dev/null
-list_section "$LISTF" "Blocked (" | grep -q 'blocked and parked at once' \
+list_section "$LISTF" "Blocked (" | grep >/dev/null 'blocked and parked at once' \
   && ok "B19 --list: a both-item is still listed under Blocked" \
   || bad "B19 --list: the both-item is missing from Blocked"
-list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked and parked at once' \
+list_section "$LISTF" "Awaiting owner (" | grep >/dev/null 'blocked and parked at once' \
   && ok "B19 --list: a both-item is also listed under Awaiting owner" \
   || bad "B19 --list: the both-item left the Awaiting owner section"
-list_section "$LISTF" "Awaiting owner (" | grep -q 'blocked only' \
+list_section "$LISTF" "Awaiting owner (" | grep >/dev/null 'blocked only' \
   && bad "B19 --list: a blocked-only item was printed under Awaiting owner" \
   || ok "B19 --list: a blocked-only item stays out of Awaiting owner"
 
@@ -596,11 +596,11 @@ LISTF="$TMP/b20.list"
 NO_COLOR=1 bash "$REG" --list >"$LISTF" 2>/dev/null
 # Non-vacuous: --list must have produced a report at all before any section assertion.
 grep -q 'plain open item' "$LISTF"   && ok "B20 --list: the ordinary open item is listed (the section checks are not vacuous)"   || bad "B20 --list: produced no report — every assertion below would be vacuous"
-list_section "$LISTF" "Awaiting owner (" | grep -q 'parked mid-sweep'   && ok "B20 --list: a sweep-parked doing item reaches Awaiting owner"   || bad "B20 --list: a parked item with status doing never reached Awaiting owner"
+list_section "$LISTF" "Awaiting owner (" | grep >/dev/null 'parked mid-sweep'   && ok "B20 --list: a sweep-parked doing item reaches Awaiting owner"   || bad "B20 --list: a parked item with status doing never reached Awaiting owner"
 # Mutation on the other axis — widening the status filter must not promote a plain
 # `doing` item into the priority queue, or --list stops meaning "what is open".
-list_section "$LISTF" "P2 —" | grep -q 'plain doing item'   && bad "B20 --list: a plain doing item was promoted into the P2 section"   || ok "B20 --list: a plain doing item stays out of the priority sections"
-list_section "$LISTF" "Awaiting owner (" | grep -q 'plain doing item'   && bad "B20 --list: a plain doing item was printed under Awaiting owner"   || ok "B20 --list: only a parked item reaches Awaiting owner"
+list_section "$LISTF" "P2 —" | grep >/dev/null 'plain doing item'   && bad "B20 --list: a plain doing item was promoted into the P2 section"   || ok "B20 --list: a plain doing item stays out of the priority sections"
+list_section "$LISTF" "Awaiting owner (" | grep >/dev/null 'plain doing item'   && bad "B20 --list: a plain doing item was printed under Awaiting owner"   || ok "B20 --list: only a parked item reaches Awaiting owner"
 
 cd /
 echo

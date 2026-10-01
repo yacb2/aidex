@@ -44,11 +44,11 @@ else [[ $? -eq 2 ]] && grep -q "invalid surface" "$TMP/err" && ok "invalid surfa
 # the --escalate-to source stub goes through emit_backlog_stub — a second positional hand-off
 mkdir -p "$TMP/q/.context/backlog"
 S="$(bash "$REG" --origin manual --title "cross repo" --surface ui --verify "screenshot of /settings" --estimate XS \
-      --escalate-to "$TMP/q" 2>/dev/null | head -1)"
+      --escalate-to "$TMP/q" 2>/dev/null | sed -n 1p)"
 [[ -f "$S" ]] && ok "escalate-to source stub written" || bad "no source stub: $S"
 [[ "$(fm "$S" surface)" == "ui" && "$(fm "$S" verify)" == "screenshot of /settings" && "$(fm "$S" estimate)" == "XS" ]] \
   && ok "source stub keeps surface/verify/estimate through emit_backlog_stub" || bad "stub fields: $(fm "$S" surface) / $(fm "$S" verify) / $(fm "$S" estimate)"
-T="$(ls "$TMP/q/.context/backlog/"*-bl-*.md | head -1)"
+T="$(ls "$TMP/q/.context/backlog/"*-bl-*.md | sed -n 1p)"
 [[ "$(fm "$T" surface)" == "ui" && "$(fm "$T" verify)" == "screenshot of /settings" ]] \
   && ok "the cross-repo TARGET stub carries surface/verify too (the work happens there)" || bad "target stub: $(fm "$T" surface) / $(fm "$T" verify)"
 
@@ -69,7 +69,7 @@ for bad_type in feature chore; do
        esac
 done
 for good_type in bug improvement task idea; do
-  G="$(bash "$REG" --origin manual --title "good type" --type "$good_type" 2>/dev/null | head -1)"
+  G="$(bash "$REG" --origin manual --title "good type" --type "$good_type" 2>/dev/null | sed -n 1p)"
   [[ "$(fm "$G" type)" == "$good_type" ]] && ok "--type '$good_type' round-trips" \
     || bad "--type '$good_type' did not survive: $(fm "$G" type)"
 done
@@ -81,7 +81,7 @@ done
 # orphaned; the source just could not show its own fan-out, and the ten ids had to be
 # written into the body by hand.
 mkdir -p "$TMP/fan/.context/backlog" "$TMP/r1" "$TMP/r2" "$TMP/r3"
-SRC="$(bash "$REG" --origin manual --title "fan me out" 2>/dev/null | head -1)"
+SRC="$(bash "$REG" --origin manual --title "fan me out" 2>/dev/null | sed -n 1p)"
 SRCID="$(fm "$SRC" id)"
 for r in r1 r2 r3; do
   mkdir -p "$TMP/$r/.context/backlog"
@@ -100,7 +100,7 @@ n2="$(fm "$SRC" escalated_to | tr ',' '\n' | grep -c 'BL-')"
   || bad "a repeat escalation left $n2 pointers: '$(fm "$SRC" escalated_to)'"
 # Every element is a well-formed <repo>/BL-NNN, so validate.py can judge them one by one.
 printf '%s' "$(fm "$SRC" escalated_to)" | tr ',' '\n' | sed 's/^ *//' \
-  | grep -qvE '^[A-Za-z0-9_.-]+/BL-[0-9]+$' \
+  | grep >/dev/null -vE '^[A-Za-z0-9_.-]+/BL-[0-9]+$' \
   && bad "a fan-out element is not a <repo>/BL-NNN ref: '$(fm "$SRC" escalated_to)'" \
   || ok "every fan-out element keeps the cross-repo ref format"
 

@@ -41,7 +41,7 @@ echo "$billing_row" | awk -F'|' '{
 # --- people row: NO TESTS ---
 people_row="$(grep -E '^\| people \|' "$MD")"
 [[ -n "$people_row" ]] || fail "people row not found in matrix"
-echo "$people_row" | grep -q 'NO TESTS' || fail "people row should say NO TESTS: $people_row"
+echo "$people_row" | grep >/dev/null 'NO TESTS' || fail "people row should say NO TESTS: $people_row"
 
 # --- json parses and carries a timestamp ---
 out="$(python3 -c "

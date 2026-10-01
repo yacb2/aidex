@@ -53,7 +53,7 @@ trap cleanup EXIT
 report="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" \
   --transcripts-root "$TX" --out "$OUT" --min-mentions 1 2>&1)"
 
-echo "$report" | grep -q 'registry: 6 tracked items' \
+echo "$report" | grep >/dev/null 'registry: 6 tracked items' \
   || fail "(setup) expected 4 registry items: $report"
 
 # span_field <slug> <field> [session] — empty when no such span exists. The
@@ -116,7 +116,7 @@ grep -q 'unrelated.py' "$TX"/*/s2.jsonl \
    "$(span_field 2026-01-04-delta working s5.jsonl)" == "False" ]] \
   || fail "(e) 2 edits on the same item must NOT be a working span"
 
-echo "$report" | grep -q '3 working, 2 below the strict-span rule' \
+echo "$report" | grep >/dev/null '3 working, 2 below the strict-span rule' \
   || fail "(e) the run should report the working/non-working split: $report"
 
 # ---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ EMPTY="$(mktemp -d)"
 out_g="$(python3 "$RETRO/mine_items.py" --projects-root "$EMPTY" \
   --transcripts-root "$TX" --out "$OUT/g" --min-mentions 1 2>&1)"
 rm -rf "$EMPTY"
-echo "$out_g" | grep -q 'registry: 0 tracked items' \
+echo "$out_g" | grep >/dev/null 'registry: 0 tracked items' \
   || fail "(g) --projects-root is not being honoured: $out_g"
 
 # ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ echo "$out_g" | grep -q 'registry: 0 tracked items' \
 out_i="$(env -u AIDEX_PROJECTS_ROOT python3 "$RETRO/mine_items.py" \
   --transcripts-root "$TX" --out "$OUT/i" 2>&1)"; rc_i=$?
 [[ $rc_i -ne 0 ]] || fail "(i) a rootless run must not exit 0 (got $rc_i): $out_i"
-echo "$out_i" | grep -q 'AIDEX_PROJECTS_ROOT' \
+echo "$out_i" | grep >/dev/null 'AIDEX_PROJECTS_ROOT' \
   || fail "(i) the rootless error should name the env var: $out_i"
 
 # ---------------------------------------------------------------------------
@@ -179,9 +179,9 @@ echo "$out_i" | grep -q 'AIDEX_PROJECTS_ROOT' \
 # ---------------------------------------------------------------------------
 out_h="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$PROJ" \
   --transcripts-root "$TX" --denominator all --min-touches 1 2>&1)"
-echo "$out_h" | grep -q 'base rate              : 0.0%' \
+echo "$out_h" | grep >/dev/null 'base rate              : 0.0%' \
   || fail "(h) defect-proneness should see the fixture corpus (0% bug items): $out_h"
-echo "$out_h" | grep -q 'items attributed       : 3' \
+echo "$out_h" | grep >/dev/null 'items attributed       : 3' \
   || fail "(h) defect-proneness should attribute the same 3 items: $out_h"
 
 # ---------------------------------------------------------------------------
@@ -229,9 +229,9 @@ mkdir -p "$CPD"
 
 out_j="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$CP" \
   --transcripts-root "$CPTX" --denominator typed --min-touches 1 2>&1)"
-echo "$out_j" | grep -q 'items attributed       : 1  (bug 0)' \
+echo "$out_j" | grep >/dev/null 'items attributed       : 1  (bug 0)' \
   || fail "(j) a shared BL id must resolve inside its own project, not the last-sorted one: $out_j"
-echo "$out_j" | grep -q 'base rate              : 0.0%' \
+echo "$out_j" | grep >/dev/null 'base rate              : 0.0%' \
   || fail "(j) the base rate must come from aa_ws's own task item, not zz_ws's bug: $out_j"
 
 # The control: zz_ws's own session DOES resolve to zz_ws's bug item, or (j)
@@ -241,7 +241,7 @@ mkdir -p "$CPD2"
 cp "$CPD/c1.jsonl" "$CPD2/c1.jsonl"
 out_j2="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$CP" \
   --transcripts-root "$CPTX" --denominator typed --min-touches 1 2>&1)"
-echo "$out_j2" | grep -q 'items attributed       : 2  (bug 1)' \
+echo "$out_j2" | grep >/dev/null 'items attributed       : 2  (bug 1)' \
   || fail "(j) control: each project's own session should attribute its own item: $out_j2"
 
 # ---------------------------------------------------------------------------
@@ -376,7 +376,7 @@ out_n="$(python3 "$RETRO/mine_defect_proneness.py" --projects-root "$XP" \
   --transcripts-root "$XT" --denominator typed --min-touches 1 --ratio 1.0 2>&1)"
 rm -rf "$XP" "$XT"
 
-share_of() { awk -v f="$1" '$NF ~ f {print $1}' <<<"$out_n" | head -1; }
+share_of() { awk -v f="$1" '$NF ~ f {print $1}' <<<"$out_n" | sed -n 1p; }
 grep -q 'items attributed       : 2  (bug 1)' <<<"$out_n" \
   || fail "(n) both items should be attributed, one of them a bug: $out_n"
 grep -q 'base rate              : 50.0%' <<<"$out_n" \
@@ -399,13 +399,13 @@ grep -q 'base rate              : 50.0%' <<<"$out_n" \
 # ---------------------------------------------------------------------------
 out_o="$(python3 "$RETRO/mine_verification.py" --projects-root "$PROJ" \
   --transcripts-root "$TX" --data-dir "$OUT" --min-edits 1 2>&1)"
-echo "$out_o" | grep -q 'items analysed (real-usage, >=1 edits): 3' \
+echo "$out_o" | grep >/dev/null 'items analysed (real-usage, >=1 edits): 3' \
   || fail "(o) mine_verification did not run against the fixture: $out_o"
 
 out_o2="$(python3 "$RETRO/mine_verification.py" --projects-root "$PROJ" \
   --transcripts-root "$TX" --data-dir "$OUT" --min-edits 1 --since 2099-01-01 2>&1)"; rc_o2=$?
 [[ $rc_o2 -ne 0 ]] || fail "(o) --since 2099-01-01 should exclude everything and exit non-zero: $out_o2"
-echo "$out_o2" | grep -q 'nothing to measure' \
+echo "$out_o2" | grep >/dev/null 'nothing to measure' \
   || fail "(o) an empty window should say so, not print zeroed stats: $out_o2"
 
 # ---------------------------------------------------------------------------
@@ -425,13 +425,13 @@ mkdir -p "$SLOWTX"
 } > "$SLOWTX/s.jsonl"
 
 out_p1="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$(dirname "$SLOWTX")" 2>&1)"
-echo "$out_p1" | grep -q 'timed test invocations : 2' \
+echo "$out_p1" | grep >/dev/null 'timed test invocations : 2' \
   || fail "(p) control: both invocations should count with no --since: $out_p1"
 
 out_p2="$(python3 "$RETRO/mine_slow_tests.py" --transcripts-root "$(dirname "$SLOWTX")" --since 2026-03-01 2>&1)"
-echo "$out_p2" | grep -q 'timed test invocations : 1' \
+echo "$out_p2" | grep >/dev/null 'timed test invocations : 1' \
   || fail "(p) --since 2026-03-01 should keep only the later invocation: $out_p2"
-echo "$out_p2" | grep -q '1 before 2026-03-01' \
+echo "$out_p2" | grep >/dev/null '1 before 2026-03-01' \
   || fail "(p) the excluded pre-window invocation must be counted, not silently dropped: $out_p2"
 rm -rf "$(dirname "$SLOWTX")"
 
@@ -450,7 +450,7 @@ out_q="$(python3 "$RETRO/mine_items.py" --projects-root "$PROJ" --transcripts-ro
   --out "$OUTQ2" --min-mentions 1 --since 2099-01-01 2>&1)"
 n_fut="$(wc -l < "$OUTQ2/spans.jsonl" | tr -d ' ')"
 [[ "$n_fut" -eq 0 ]] || fail "(q) --since 2099-01-01 should keep no span, got $n_fut"
-echo "$out_q" | grep -q "before 2099-01-01" \
+echo "$out_q" | grep >/dev/null "before 2099-01-01" \
   || fail "(q) excluded pre-window spans must be counted out loud: $out_q"
 rm -rf "$PROJ" "$TX" "$OUTQ" "$OUTQ2"
 
@@ -491,7 +491,7 @@ python3 "$RETRO/mine_items.py" --projects-root "$PROJ" --transcripts-root "$TX" 
   --out "$OUTR" --min-mentions 1 >/dev/null 2>&1
 out_r2="$(python3 "$RETRO/mine_verification.py" --projects-root "$PROJ" \
   --transcripts-root "$TX" --data-dir "$OUTR" --min-edits 1 2>&1)"
-echo "$out_r2" | grep -qi 'no comparison group' \
+echo "$out_r2" | grep >/dev/null -i 'no comparison group' \
   || fail "(r) an empty tests-ran group must say 'no comparison group', not vanish: $out_r2"
 rm -rf "$PROJ" "$TX" "$OUTR"
 

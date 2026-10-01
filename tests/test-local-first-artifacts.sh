@@ -94,7 +94,7 @@ if [ -f "$RULE_FILE" ]; then
   if ! grep -q "artifact-design" "$RULE_FILE"; then
     fail "rule does not name the artifact-design skill"
   fi
-  if ! printf '%s' "$RULE_FLAT" | grep -qiE 'before writing any page markup|load design guidance first'; then
+  if ! printf '%s' "$RULE_FLAT" | grep >/dev/null -iE 'before writing any page markup|load design guidance first'; then
     fail "rule missing mandatory load-design-guidance-BEFORE-markup ordering"
   fi
   if ! grep -qi "hand-roll" "$RULE_FILE"; then

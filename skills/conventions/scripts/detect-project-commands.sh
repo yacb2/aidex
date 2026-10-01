@@ -98,7 +98,7 @@ find_cmd_file() {
   local pat="$1"
   [[ -d "$CMD_DIR" ]] || return 0
   local match rel slash
-  match="$(find "$CMD_DIR" -type f -name "$pat" 2>/dev/null | sort | head -n1)"
+  match="$(find "$CMD_DIR" -type f -name "$pat" 2>/dev/null | sort | sed -n 1p)"
   [[ -n "$match" ]] || return 0
   rel="${match#"$CMD_DIR"/}"          # e.g. "version/release.md" or "code-review.md"
   rel="${rel%.md}"                     # strip extension
@@ -128,7 +128,7 @@ if [[ -f "$CLAUDE_MD" ]]; then
   grab_claude_md() {
     # $1 = keyword (BRE alternation like 'release\|deploy'); prints first
     # backtick-quoted match containing keyword.
-    grep -o '`[^`]*`' "$CLAUDE_MD" 2>/dev/null | grep -i "$1" | head -n1 | tr -d '`'
+    grep -o '`[^`]*`' "$CLAUDE_MD" 2>/dev/null | grep -i "$1" | sed -n 1p | tr -d '`'
     return 0
   }
   if [[ -z "$review_command" ]]; then

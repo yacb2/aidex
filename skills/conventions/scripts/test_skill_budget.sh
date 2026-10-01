@@ -42,12 +42,12 @@ fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
 [[ -f "$CANON" ]] || { echo "FAIL: canon not found at $CANON"; exit 1; }
 
 # ---------- read the budget from the canon ----------
-row_lines="$(grep -E '^\| SKILL\.md body *\|.*lines' "$CANON" | head -1)"
-row_tokens="$(grep -E '^\| SKILL\.md body *\|.*tokens' "$CANON" | head -1)"
+row_lines="$(grep -E '^\| SKILL\.md body *\|.*lines' "$CANON" | sed -n 1p)"
+row_tokens="$(grep -E '^\| SKILL\.md body *\|.*tokens' "$CANON" | sed -n 1p)"
 [[ -n "$row_lines" && -n "$row_tokens" ]] \
   || { echo "FAIL: could not find both SKILL.md body rows in $CANON § Size Constraints"; exit 1; }
 
-num() { grep -oE '[0-9]+(\.[0-9]+)?k?' <<<"$1" | sed 's/k/000/' | head -1; }
+num() { grep -oE '[0-9]+(\.[0-9]+)?k?' <<<"$1" | sed 's/k/000/' | sed -n 1p; }
 IDEAL_LINES="$(num "$(cut -d'|' -f3 <<<"$row_lines")")"
 MAX_LINES="$(num "$(cut -d'|' -f4 <<<"$row_lines")")"
 IDEAL_TOKENS="$(num "$(cut -d'|' -f3 <<<"$row_tokens")")"

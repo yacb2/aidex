@@ -133,7 +133,7 @@ type: task
 Body.
 EOF
 ( cd "$P" && bash "$SCRIPT" --origin manual --title "After legacy" --no-index >/dev/null 2>&1 )
-if ! ids_in "$B" | grep -qx "BL-001"; then
+if ! ids_in "$B" | grep >/dev/null -x "BL-001"; then
   fail "(5) a date-shaped legacy id inflated the sequence: got [$(ids_in "$B" | tr '\n' ' ')] — the 3-to-5 digit window must survive the claim rewrite"
 fi
 

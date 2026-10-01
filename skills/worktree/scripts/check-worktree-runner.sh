@@ -96,7 +96,7 @@ dir_loads_slot_env() {
 # missed it on the very project the defect was reported from.
 dev_literals() {  # dev_literals <project-root> -> one literal per line
   local root="$1" cfg="$1/.context/worktrees/config.env" links
-  links="$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | head -1)"
+  links="$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)"
   {
     ( cd "$root" && docker compose --profile '*' config --no-interpolate --format json 2>/dev/null ) \
       | grep -oE '\$\{[A-Z0-9_]+:-[0-9]{4,5}\}' | grep -oE '[0-9]{4,5}'
@@ -113,7 +113,7 @@ scan_project() {  # -> <file>:<line>\t<kind>\t<what>\t<why> per finding
   local parts part d f line lit devlits
 
   [[ -f "$cfg" ]] || return 0
-  parts="$(sed -n 's/^[[:space:]]*WT_PARTICIPANTS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | head -1)"
+  parts="$(sed -n 's/^[[:space:]]*WT_PARTICIPANTS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)"
   [[ -n "$parts" ]] || return 0
   devlits=" $(dev_literals "$root" | tr '\n' ' ')"
 
@@ -127,8 +127,8 @@ scan_project() {  # -> <file>:<line>\t<kind>\t<what>\t<why> per finding
         dir_loads_slot_env "$(dirname "$f")" && continue
         while IFS=: read -r line _; do
           [[ -z "$line" ]] && continue
-          sed -n "${line}p" "$f" | grep -qE '^[[:space:]]*(//|\*|/\*)' && continue
-          lit="$(sed -n "${line}p" "$f" | grep -oE '(\|\||\?\?)[[:space:]]*[0-9]{4,5}' | grep -oE '[0-9]{4,5}' | head -1)"
+          sed -n "${line}p" "$f" | grep >/dev/null -E '^[[:space:]]*(//|\*|/\*)' && continue
+          lit="$(sed -n "${line}p" "$f" | grep -oE '(\|\||\?\?)[[:space:]]*[0-9]{4,5}' | grep -oE '[0-9]{4,5}' | sed -n 1p)"
           # Second source: a DECLARED dev port, in any syntax. This is what
           # catches `port('E2E_BACKEND_PORT', 8710)`, whose default never sits
           # next to a `||`. Restricted to the project's own declared ports so a
@@ -196,7 +196,7 @@ if [[ ! -f "$RUNNER_CFG" ]]; then
   err "no worktree config at $RUNNER_CFG — nothing was checked."
   exit 2
 fi
-if [[ -z "$(sed -n 's/^[[:space:]]*WT_PARTICIPANTS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$RUNNER_CFG" | head -1)" ]]; then
+if [[ -z "$(sed -n 's/^[[:space:]]*WT_PARTICIPANTS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$RUNNER_CFG" | sed -n 1p)" ]]; then
   err "WT_PARTICIPANTS is empty in $RUNNER_CFG — nothing was checked."
   exit 2
 fi

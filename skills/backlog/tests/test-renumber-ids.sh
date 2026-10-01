@@ -85,7 +85,7 @@ python3 "$REN" --root "$TMP" > "$TMP/again.txt" 2>&1
 check "second run finds nothing to do" 'grep -q "nothing to do" "$TMP/again.txt"'
 
 echo "== backup restores =="
-TAR="$(ls _tmp/renumber-ids-*.tar.gz | head -1)"
+TAR="$(ls _tmp/renumber-ids-*.tar.gz | sed -n 1p)"
 mkdir "$TMP/restore" && tar -xzf "$TAR" -C "$TMP/restore"
 check "backup holds the pre-renumber ids" \
   'grep -q "^id: BL-20260705$" "$TMP/restore/.context/backlog/2026-06-02-bravo.md"'

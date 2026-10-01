@@ -50,7 +50,7 @@ lib.load_map('$BAD')
 " 2>&1)"
 rc=$?
 [[ $rc -ne 0 ]] || fail "load_map on module-map missing 'modules' should exit non-zero"
-printf '%s' "$out" | grep -q "ERROR:" || fail "load_map missing-key error should say ERROR:, got: $out"
+printf '%s' "$out" | grep >/dev/null "ERROR:" || fail "load_map missing-key error should say ERROR:, got: $out"
 
 # --- matches(): ** scoping ---
 out="$(python3 -c "
@@ -101,7 +101,7 @@ lib.load_map('$BADREPO')
 " 2>&1)"
 rc=$?
 [[ $rc -ne 0 ]] || fail "load_map on repo missing 'path' should exit non-zero"
-printf '%s' "$out" | grep -q "ERROR:" || fail "load_map repo-missing-path error should say ERROR:, got: $out"
+printf '%s' "$out" | grep >/dev/null "ERROR:" || fail "load_map repo-missing-path error should say ERROR:, got: $out"
 
 # --- commits_since(): >=1 for billing src, 0 for a glob outside the repo ---
 out="$(python3 -c "
@@ -198,7 +198,7 @@ lib.load_map('$D')
 " 2>&1)"
   rc=$?
   [[ $rc -ne 0 ]] || fail "load_map on $name should exit non-zero"
-  printf '%s' "$out" | grep -q "ERROR:" || fail "load_map on $name should say ERROR:, got: $out"
+  printf '%s' "$out" | grep >/dev/null "ERROR:" || fail "load_map on $name should say ERROR:, got: $out"
 done
 
 # --- list_files(): a non-ASCII path arrives unquoted (#46: git's default

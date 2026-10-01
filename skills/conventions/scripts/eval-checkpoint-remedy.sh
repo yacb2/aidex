@@ -55,14 +55,14 @@ EDIT: one sentence naming the concrete code change you make (or 'none' when defe
   for r in $(seq 1 "$RUNS"); do
     total=$((total+1))
     out="$(printf '%s' "$prompt" | claude -p --strict-mcp-config --model "$MODEL" --output-format text 2>/dev/null)"
-    move="$(printf '%s' "$out" | grep -i '^MOVE:' | head -1 | sed 's/^[Mm][Oo][Vv][Ee]:[[:space:]]*//' | tr 'A-Z' 'a-z' | tr -d '[:space:]')"
-    edit="$(printf '%s' "$out" | grep -i '^EDIT:' | head -1 | sed 's/^[Ee][Dd][Ii][Tt]:[[:space:]]*//')"
+    move="$(printf '%s' "$out" | grep -i '^MOVE:' | sed -n 1p | sed 's/^[Mm][Oo][Vv][Ee]:[[:space:]]*//' | tr 'A-Z' 'a-z' | tr -d '[:space:]')"
+    edit="$(printf '%s' "$out" | grep -i '^EDIT:' | sed -n 1p | sed 's/^[Ee][Dd][Ii][Tt]:[[:space:]]*//')"
     # expected is either a move word set (fix|block) or "remove": move=fix AND the
     # edit deletes the component rather than guarding it.
     if [ "$expected" = remove ]; then
-      if [ "$move" = fix ] && printf '%s' "$edit" | grep -qiE 'remov|delet|drop' && ! printf '%s' "$edit" | grep -qiE 'add (a |an )?(check|filter|guard|validat)|restrict|only accept|reject'; then verdict=ok; else verdict=FAIL; fail=$((fail+1)); fi
+      if [ "$move" = fix ] && printf '%s' "$edit" | grep >/dev/null -iE 'remov|delet|drop' && ! printf '%s' "$edit" | grep >/dev/null -iE 'add (a |an )?(check|filter|guard|validat)|restrict|only accept|reject'; then verdict=ok; else verdict=FAIL; fail=$((fail+1)); fi
     else
-      if printf '%s' "$move" | grep -qxE "$expected"; then verdict=ok; else verdict=FAIL; fail=$((fail+1)); fi
+      if printf '%s' "$move" | grep >/dev/null -xE "$expected"; then verdict=ok; else verdict=FAIL; fail=$((fail+1)); fi
     fi
     printf '%-20s run %d  expected %-9s move %-6s %s\n    edit: %s\n' "$name" "$r" "$expected" "${move:-<none>}" "$verdict" "${edit:-<none>}"
   done

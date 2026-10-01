@@ -92,7 +92,7 @@ f_msg()   { printf '%s' "${1##*$US}"; }                       # message
 
 id_seen() {
   local needle="$1"
-  [[ -n "$inventory_ids" ]] && printf '%s\n' "$inventory_ids" | grep -qxF "$needle"
+  [[ -n "$inventory_ids" ]] && printf '%s\n' "$inventory_ids" | grep >/dev/null -xF "$needle"
 }
 
 # Strip HTML comment blocks from a file (multi-line safe).
@@ -310,10 +310,10 @@ for entry in "$AUDITS_DIR"/*/; do
       for cand in "$entry/index.md" "$entry/00-report.md"; do
         [[ -f "$cand" ]] && { main="$cand"; break; }
       done
-      [[ -z "$main" ]] && main="$(ls "$entry"/*.md 2>/dev/null | head -1 || true)"
+      [[ -z "$main" ]] && main="$(ls "$entry"/*.md 2>/dev/null | sed -n 1p || true)"
       if [[ -z "$main" ]]; then
         add_violation audit-standalone-no-main "$entry" "standalone run $name has no main .md file (expected index.md or 00-report.md)"
-      elif ! head -1 "$main" | grep -q '^---'; then
+      elif ! head -1 "$main" | grep >/dev/null '^---'; then
         add_warning audit-standalone-no-frontmatter "$main" "standalone run $name: $(basename "$main") lacks front-matter (title/status/created/updated)"
       fi
     fi
@@ -334,7 +334,7 @@ for entry in "$AUDITS_DIR"/*/; do
   if [[ "$behaves_like_methodology" -eq 0 ]]; then
     if find "${entry%/}" -mindepth 1 -maxdepth 1 -type d \
          \( -name '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*' -o -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-*' \) \
-         2>/dev/null | grep -q .; then
+         2>/dev/null | grep >/dev/null .; then
       behaves_like_methodology=1
     fi
   fi
@@ -375,7 +375,7 @@ done
 BACKLOG_DIR="$(dirname "$AUDITS_DIR")/backlog"
 if [[ -d "$BACKLOG_DIR" ]]; then
   while IFS= read -r bl_entry; do
-    origin_ref_line="$(grep -E '^origin_ref:[[:space:]]*"?audit/' "$bl_entry" 2>/dev/null | head -1 || true)"
+    origin_ref_line="$(grep -E '^origin_ref:[[:space:]]*"?audit/' "$bl_entry" 2>/dev/null | sed -n 1p || true)"
     [[ -z "$origin_ref_line" ]] && continue
     ref="$(printf '%s' "$origin_ref_line" | sed -E 's/^origin_ref:[[:space:]]*"?//; s/"?[[:space:]]*$//')"
     # D-10 archives a finished run into _archive/, which adds a segment and would
@@ -470,7 +470,7 @@ fi
 
 is_waived() {
   [[ -n "$matched_waivers" ]] || return 1
-  printf '%s\n' "$matched_waivers" | grep -qxF "$1$US$2"
+  printf '%s\n' "$matched_waivers" | grep >/dev/null -xF "$1$US$2"
 }
 
 # Partition. Waived findings leave the counts and the exit code but are always

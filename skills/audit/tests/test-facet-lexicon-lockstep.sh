@@ -69,7 +69,7 @@ check_dir() {   # $1 = facet dir, $2 = tag for messages
   # 4. the index lists every facet file
   idx="$(indexed "$dir")"
   for n in $names; do
-    echo "$idx" | grep -qx "$n" || fail "($tag) $dir/00-index.md does not list $n.md"
+    echo "$idx" | grep >/dev/null -x "$n" || fail "($tag) $dir/00-index.md does not list $n.md"
   done
 }
 
@@ -123,14 +123,14 @@ check_dir "$FD" temp
 # the temp facets really loaded (the derived sets are non-empty, so 1-4 saw input)
 n="$(facet_names "$FD" | grep -c .)"
 [ "$n" -eq 2 ] || fail "(temp) expected 2 facets loaded, got $n"
-facet_labels "$FD" | grep -q 'alpha:page' || fail "(temp) lexicon() lacks alpha:page"
-facet_labels "$FD" | grep -q 'alpha:wrap' || fail "(temp) a blank line inside the lexicon block ended it early"
+facet_labels "$FD" | grep >/dev/null 'alpha:page' || fail "(temp) lexicon() lacks alpha:page"
+facet_labels "$FD" | grep >/dev/null 'alpha:wrap' || fail "(temp) a blank line inside the lexicon block ended it early"
 AIDEX_FACETS_DIR="$FD" py 'import facets; s=facets.load("alpha"); assert s["label"]["es"]=="Alfa", s["label"]; assert s["reader"]=="read_zorbal.py"; assert s["sub_objectives"]==["wrap","consult"]; assert s["lens"].startswith("Lens for alpha"); b=facets.load("beta"); assert b["reader"] is None and b["sub_objectives"]==[]' \
   || fail "(temp) parsed shapes differ from the contract"
 
 # 4b. an unlisted facet file is caught by the index check
 cp "$FD/beta.md" "$FD/gamma.md"; sed -i '' 's/^title: "beta"/title: "gamma"/; s/beta:queue/gamma:queue/' "$FD/gamma.md"
-out="$(indexed "$FD")"; echo "$out" | grep -qx gamma && fail "(temp) index check cannot see an unlisted file"
+out="$(indexed "$FD")"; echo "$out" | grep >/dev/null -x gamma && fail "(temp) index check cannot see an unlisted file"
 rm "$FD/gamma.md"
 
 # 5. refusal on a missing required key — one temp copy per key, loader must exit non-zero
@@ -143,7 +143,7 @@ for key in title label lexicon skills slash scripts paths primary_source; do
   fi
   out="$(AIDEX_FACETS_DIR="$R" py 'import facets; facets.load("alpha")' 2>&1)"; rc=$?
   [ $rc -ne 0 ] || fail "(refuse) loader accepted alpha.md without \`$key\`"
-  echo "$out" | grep -q "$key" || fail "(refuse) the error for a missing \`$key\` does not name it: $out"
+  echo "$out" | grep >/dev/null "$key" || fail "(refuse) the error for a missing \`$key\` does not name it: $out"
 done
 # a label owned by two facets is refused too
 D="$TMP/dup"; mkdir -p "$D"; cp "$FD/"*.md "$D/"; sed -i '' 's/beta:queue/alpha:page/' "$D/beta.md"
@@ -175,22 +175,22 @@ with open(sys.argv[1], "w") as fh:
 EOF
 out="$(AIDEX_FACETS_DIR="$FD" python3 "$RETRO/prefilter.py" --in "$DS" --out "$TMP/cands.jsonl" 2>&1)" \
   || fail "(gate) prefilter failed: $out"
-echo "$out" | grep -q 'facet alpha: 3 admitted (2 facet-only' || fail "(gate) alpha summary wrong: $out"
-echo "$out" | grep -q 'facet beta: 1 admitted (0 facet-only'  || fail "(gate) beta summary wrong: $out"
+echo "$out" | grep >/dev/null 'facet alpha: 3 admitted (2 facet-only' || fail "(gate) alpha summary wrong: $out"
+echo "$out" | grep >/dev/null 'facet beta: 1 admitted (0 facet-only'  || fail "(gate) beta summary wrong: $out"
 n="$(grep -c . "$TMP/cands.jsonl")"; [ "$n" -eq 4 ] || fail "(gate) expected 4 candidates, got $n"
 grep -q '"facet:alpha"' "$TMP/cands.jsonl" || fail "(gate) no facet:alpha tag in candidates"
-grep '"/zorbal-dash"' "$TMP/cands.jsonl" | grep -q 'facet:alpha' || fail "(gate) slash command not admitted"
+grep '"/zorbal-dash"' "$TMP/cands.jsonl" | grep >/dev/null 'facet:alpha' || fail "(gate) slash command not admitted"
 # the lexicon match also yields miss?:<skill> for the facet's skills (prefilter's INTENT view)
-grep 'zorbal de ayer' "$TMP/cands.jsonl" | grep -q 'miss?:zorbal-design' || fail "(gate) facet skills do not get miss?: entries"
+grep 'zorbal de ayer' "$TMP/cands.jsonl" | grep >/dev/null 'miss?:zorbal-design' || fail "(gate) facet skills do not get miss?: entries"
 # --facet keeps only that facet's rows; an unknown facet is refused
 out="$(AIDEX_FACETS_DIR="$FD" python3 "$RETRO/prefilter.py" --in "$DS" --out "$TMP/beta.jsonl" --facet beta 2>&1)"
 n="$(grep -c . "$TMP/beta.jsonl")"; [ "$n" -eq 1 ] || fail "(gate) --facet beta expected 1 row, got $n"
-echo "$out" | grep -q 'view: --facet beta' || fail "(gate) --facet view line missing"
+echo "$out" | grep >/dev/null 'view: --facet beta' || fail "(gate) --facet view line missing"
 AIDEX_FACETS_DIR="$FD" python3 "$RETRO/prefilter.py" --in "$DS" --out "$TMP/x.jsonl" --facet nosuch >/dev/null 2>&1 \
   && fail "(gate) --facet nosuch was accepted"
 # mine_repetition's topical pass sees the facet label
 out="$(AIDEX_FACETS_DIR="$FD" python3 "$RETRO/mine_repetition.py" --dataset "$DS" --min 1 2>&1)"
-echo "$out" | grep -q 'alpha:page' || fail "(repetition) facet label absent from the topical pass: $out"
+echo "$out" | grep >/dev/null 'alpha:page' || fail "(repetition) facet label absent from the topical pass: $out"
 
 if [ "$failures" -eq 0 ]; then
   echo "PASS: facet lexicon lockstep (shipped dir: $(facet_names "$SHIPPED" | grep -c .) facets; temp dir: 2 facets; 8 required-key refusals; gate on 5 rows)"

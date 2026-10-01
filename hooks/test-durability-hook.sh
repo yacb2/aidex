@@ -27,7 +27,7 @@ check() {
   local name="$1" want="$2" payload="$3"
   local out got
   out="$(printf '%s' "$payload" | bash "$HOOK" 2>/dev/null || true)"
-  if printf '%s' "$out" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then got=block; else got=allow; fi
+  if printf '%s' "$out" | grep >/dev/null '"decision"[[:space:]]*:[[:space:]]*"block"'; then got=block; else got=allow; fi
   if [ "$got" = "$want" ]; then echo "  PASS  $name ($got)"; PASS=$((PASS+1));
   else echo "  FAIL  $name: want=$want got=$got  out=$out"; FAIL=$((FAIL+1)); fi
 }
@@ -131,7 +131,7 @@ JSONL
 export AIDEX_JUDGE_CMD="cat > '$TMP/judge-stdin'; printf '{\"block\": false}'"
 out="$(pltp 'Here is the final summary report you requested.' "$TMP/transcript.jsonl" | bash "$HOOK" 2>/dev/null || true)"
 # answer-to-user allowed (mock allow honored, no regex override)
-if printf '%s' "$out" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+if printf '%s' "$out" | grep >/dev/null '"decision"[[:space:]]*:[[:space:]]*"block"'; then
   echo "  FAIL  answer-to-user allowed: got block  out=$out"; FAIL=$((FAIL+1))
 else
   echo "  PASS  answer-to-user allowed (allow)"; PASS=$((PASS+1))
@@ -193,7 +193,7 @@ fi
 # status must read the same anchored marker from anywhere in the tree
 ( cd "$SR/frontend/src" && bash "$RUN" start loop ) >/dev/null 2>&1 || true
 statout="$( ( cd "$SR/frontend" && bash "$RUN" status ) 2>&1 || true )"
-if printf '%s' "$statout" | grep -q '"type": "loop"'; then
+if printf '%s' "$statout" | grep >/dev/null '"type": "loop"'; then
   echo "  PASS  run.sh status from another subdir sees the anchored marker"; PASS=$((PASS+1))
 else
   echo "  FAIL  run.sh status did not see the anchored marker: $statout"; FAIL=$((FAIL+1))
@@ -223,7 +223,7 @@ rm -rf "$WS"
 # stop with no marker anywhere must warn loudly (a silent no-op is what leaked)
 NM="$(mktemp -d)"
 warnout="$( ( cd "$NM" && bash "$RUN" stop ) 2>&1 1>/dev/null || true )"
-if printf '%s' "$warnout" | grep -qi 'warning'; then
+if printf '%s' "$warnout" | grep >/dev/null -i 'warning'; then
   echo "  PASS  run.sh stop with no marker warns"; PASS=$((PASS+1))
 else
   echo "  FAIL  run.sh stop with no marker did not warn: $warnout"; FAIL=$((FAIL+1))
@@ -244,7 +244,7 @@ chmod +x "$TMP/bin/claude"
 active remind
 unset AIDEX_JUDGE_CMD
 out="$(pl 'Everything is in a clean state. Here is the summary of phase 2.' false | PATH="$TMP/bin:$PATH" bash "$HOOK" 2>/dev/null || true)"
-if printf '%s' "$out" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' \
+if printf '%s' "$out" | grep >/dev/null '"decision"[[:space:]]*:[[:space:]]*"block"' \
    && grep -q -- '-p' "$TMP/claude-argv" 2>/dev/null \
    && grep -q -- '--model claude-sonnet-5' "$TMP/claude-argv" 2>/dev/null; then
   echo "  PASS  default judge cmd is 'claude -p --model claude-sonnet-5' and verdict honored"; PASS=$((PASS+1))
