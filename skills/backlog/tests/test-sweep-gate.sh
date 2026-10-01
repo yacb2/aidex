@@ -357,5 +357,82 @@ score_follow "12 C" && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-on
   && ok "12 C a work-list archived before scoring still stamps the follow-up's PASS" \
   || bad "12 C follow-up [$FOLLOW]: verdict [$(verdict)] stamp [$(stamp)]"
 
+# ── 13 · the gate runs the suite of the checkout it is invoked in (BL-548) ─────────
+#        2026-10-01: launched from a linked worktree, the gate resolved ROOT to the main
+#        project (for .context/ writes, correctly) and then ran the legs there too, so a
+#        merge was gated on main's suite, not the branch's. ROOT still owns the profile,
+#        _tmp/ and the history; the legs run in the invoking worktree, or the gate refuses.
+gcommit() { git -C "$1" -c user.email=t@t -c user.name=t commit -qam "$2"; }
+G="$TMP/gproj"; mkdir -p "$G"; G="$(cd "$G" && pwd -P)"
+git -C "$G" init -q -b main
+printf '.context/\n_tmp/\n_wt/\n' > "$G/.gitignore"
+printf 'echo "1 passed"\n' > "$G/t.sh"
+git -C "$G" add -A; gcommit "$G" main
+mkdir -p "$G/.context"
+{ echo '---'; echo 'suite_cmd: bash t.sh'; echo 'e2e_suite_cmd: bash t.sh'; echo 'e2e_detached: true'; echo '---'; } > "$G/.context/testing-profile.md"
+GW="$G/_wt/w"; git -C "$G" worktree add -q -b br "$GW" 2>/dev/null
+printf 'echo "2 passed"\n' > "$GW/t.sh"; gcommit "$GW" branch-only
+GS="$TMP/gsib"; git -C "$G" worktree add -q -b br2 "$GS" 2>/dev/null; GS="$(cd "$GS" && pwd -P)"
+printf 'echo "3 passed"\n' > "$GS/t.sh"; gcommit "$GS" sibling-only
+OUT="$(RUN_DIR="$GW" run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=suite exit=0 count=2 "* ]] && ok "13 a worktree inside the project runs the branch's suite, not main's" || bad "13 worktree ran: rc=$RC $OUT"
+IFS= read -r HDR < "$G/_tmp/sweep-gate/suite.log"
+[[ "$HDR" == *"$(git -C "$GW" rev-parse HEAD)"* ]] \
+  && ok "13 the leg log names the branch commit it tested" || bad "13 log header: $HDR"
+[[ -s "$G/.context/proofs/sweep-gate/gate-history.jsonl" && ! -e "$GW/_tmp" && ! -e "$GW/.context" ]] \
+  && ok "13 _tmp/ and the history stay at the project root" || bad "13 artifacts moved into the worktree"
+OUT="$(RUN_DIR="$GS" run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"count=3 "* ]] && ok "13 a sibling worktree (the find_project_root hop) runs its own suite" || bad "13 sibling ran: rc=$RC $OUT"
+OUT="$(RUN_DIR="$G" run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"count=1 "* ]] && ok "13 the main checkout still runs its own suite" || bad "13 main ran: rc=$RC $OUT"
+RUN_DIR="$GW" run --only e2e >/dev/null
+grep -q "^  cd $GW " "$TMP/err" && ok "13 the printed detached invocation cds into the worktree too" || bad "13 detached cd: $(cat "$TMP/err")"
+# nested: the profile lives in a workspace and reaches the repo as `cd repo`, a path the
+# worktree does not have — refused loudly instead of testing main
+N="$TMP/ws"; mkdir -p "$N/.context" "$N/repo"; N="$(cd "$N" && pwd -P)"
+git -C "$N/repo" init -q -b main; printf 'echo "1 passed"\n' > "$N/repo/t.sh"; git -C "$N/repo" add -A; gcommit "$N/repo" main
+{ echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$N/.context/testing-profile.md"
+NW="$N/_wt/w"; git -C "$N/repo" worktree add -q -b br "$NW" 2>/dev/null
+OUT="$(RUN_DIR="$NW" run --only suite)"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "$NW" "$TMP/err" && ok "13 a worktree of a repo nested under the profile's root is refused, naming it" || bad "13 nested: rc=$RC $OUT $(cat "$TMP/err")"
+[[ ! -e "$N/_tmp" && ! -e "$N/.context/proofs/sweep-gate/gate-history.jsonl" ]] \
+  && ok "13 the refusal writes no log and no history" || bad "13 the refused run left _tmp/ or a history line"
+OUT="$(RUN_DIR="$N/repo" run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"count=1 "* ]] && ok "13 the nested repo's main checkout still runs through the profile's cd" || bad "13 nested main: rc=$RC $OUT"
+
+# monorepo: the profile lives in a SUBDIRECTORY of the repo, so ROOT sits under the main
+# checkout; the worktree's copy of that subdirectory is what must run (review of BL-548)
+MR="$TMP/mono"; mkdir -p "$MR/pkg"; MR="$(cd "$MR" && pwd -P)"
+git -C "$MR" init -q -b main; printf '.context/\n_tmp/\n_wt/\n' > "$MR/.gitignore"
+printf 'echo "1 passed"\n' > "$MR/pkg/t.sh"; git -C "$MR" add -A; gcommit "$MR" main
+mkdir -p "$MR/pkg/.context"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$MR/pkg/.context/testing-profile.md"
+MW="$MR/pkg/_wt/w"; git -C "$MR" worktree add -q -b br "$MW" 2>/dev/null
+printf 'echo "2 passed"\n' > "$MW/pkg/t.sh"; gcommit "$MW" branch-only
+OUT="$(RUN_DIR="$MW/pkg" run --only suite)"; RC=$?
+IFS= read -r HDR < "$MR/pkg/_tmp/sweep-gate/suite.log"
+[[ $RC -eq 0 && "$OUT" == *"count=2 "* && "$HDR" == *"$(git -C "$MW" rev-parse HEAD)"* ]] \
+  && ok "13 a profile in a repo subdirectory runs the worktree's copy of that subdirectory" || bad "13 monorepo: rc=$RC $OUT | $HDR"
+# provenance: run from a git WORKSPACE whose profile reaches an untracked nested repo by
+# `cd repo &&` — the header names the repo's commit, not the workspace's
+WS="$TMP/gws"; mkdir -p "$WS/repo"; WS="$(cd "$WS" && pwd -P)"
+git -C "$WS" init -q -b main; printf 'repo/\n.context/\n_tmp/\n' > "$WS/.gitignore"; git -C "$WS" add -A; gcommit "$WS" ws
+git -C "$WS/repo" init -q -b main; printf 'echo "1 passed"\n' > "$WS/repo/t.sh"; git -C "$WS/repo" add -A; gcommit "$WS/repo" repo
+mkdir -p "$WS/.context"; { echo '---'; echo 'suite_cmd: cd repo && bash t.sh'; echo '---'; } > "$WS/.context/testing-profile.md"
+OUT="$(RUN_DIR="$WS" run --only suite)"; RC=$?
+IFS= read -r HDR < "$WS/_tmp/sweep-gate/suite.log"
+[[ $RC -eq 0 && "$HDR" == *"$(git -C "$WS/repo" rev-parse HEAD)"* && "$HDR" != *"$(git -C "$WS" rev-parse HEAD)"* ]] \
+  && ok "13 the header names the commit of the repo the leg's cd lands in" || bad "13 provenance: rc=$RC | $HDR"
+# a submodule is not a linked worktree: run from inside one, the gate behaves as before
+SS="$TMP/subsrc"; mkdir -p "$SS"; git -C "$SS" init -q -b main
+printf 'echo "5 passed"\n' > "$SS/t.sh"; git -C "$SS" add -A; gcommit "$SS" sub
+SP="$TMP/super"; mkdir -p "$SP"; SP="$(cd "$SP" && pwd -P)"; git -C "$SP" init -q -b main
+printf '.context/\n_tmp/\n' > "$SP/.gitignore"; printf 'echo "1 passed"\n' > "$SP/t.sh"
+git -C "$SP" -c protocol.file.allow=always submodule add -q "$SS" sub >/dev/null 2>&1
+git -C "$SP" add -A; gcommit "$SP" super
+mkdir -p "$SP/.context"; { echo '---'; echo 'suite_cmd: bash t.sh'; echo '---'; } > "$SP/.context/testing-profile.md"
+OUT="$(RUN_DIR="$SP/sub" run --only suite)"; RC=$?
+[[ -f "$SP/sub/t.sh" && $RC -eq 0 && "$OUT" == *"count=1 "* ]] \
+  && ok "13 run from inside a submodule, the gate runs the project root's suite as before" || bad "13 submodule: rc=$RC $OUT $(cat "$TMP/err")"
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

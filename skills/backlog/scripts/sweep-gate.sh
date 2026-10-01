@@ -93,6 +93,49 @@ PROFILE_ALT="$ROOT/testing-profile.md"
 [[ -f "$PROFILE" ]] || PROFILE="$PROFILE_ALT"
 [[ -f "$PROFILE" ]] || die "no testing profile at $ROOT/.context/testing-profile.md nor $PROFILE_ALT — the gate reads its commands from it (coverage/references/14-testing-profile.md)"
 
+# ROOT owns the profile, _tmp/ and the history; it does NOT own the checkout under test
+# (BL-548). From a linked worktree, find_project_root answers the MAIN project on purpose
+# (.context/ writes), and running the legs there gated a 2026-10-01 merge on main's suite
+# instead of the branch's. So, from a linked worktree (_lib.sh's predicate: the git dir is
+# not the common dir — a submodule is not one), the legs run where ROOT maps in it:
+#   - ROOT inside the worktree (it tracks .context/): ROOT, as before;
+#   - ROOT is the main checkout or under it (a profile in a repo subdirectory): the same
+#     path inside the worktree;
+#   - the main checkout NESTED under ROOT (a workspace profile that reaches the repo as
+#     `cd <repo>`): the worktree has no such path, so refuse rather than test main;
+#   - ROOT an ancestor of the worktree only (a worktree.sh DEST mirroring the workspace):
+#     ROOT, whose relative paths already land in the worktree.
+# Main checkout, no git, or --from-log (which runs nothing): ROOT, exactly as before.
+RUN_IN="$ROOT"
+if [[ -z "$FROM_LOG" ]] \
+   && gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" \
+   && common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+   && [[ -n "$common" && "$common" != "$gitdir" ]]; then
+  wt="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"; main="$(cd "$(dirname "$common")" && pwd -P)"
+  case "$ROOT" in
+    "$wt"|"$wt"/*) ;;
+    "$main"|"$main"/*) RUN_IN="$wt${ROOT#"$main"}" ;;
+    *) case "$main" in "$ROOT"/*)
+         die "invoked in the linked worktree $wt (HEAD $(git rev-parse -q --verify HEAD || echo none)), but the profile at $ROOT runs its commands from $ROOT, which reaches the main checkout $main, not this worktree — run the gate from a checkout the profile's commands resolve to (a worktree.sh DEST that mirrors $ROOT)" ;;
+       esac ;;
+  esac
+fi
+# What a leg tested, for its log header: the checkout its command lands in — RUN_IN, or
+# RUN_IN/<x> for a leading literal `cd <x> &&` (a workspace profile reaching a nested
+# repo) — and that checkout's HEAD. Not a git checkout, or no commit: "commit unknown",
+# never the sha of whatever repo the gate happened to be invoked in.
+tested_of() {  # tested_of <leg command>
+  local d="$RUN_IN" re='^cd[[:space:]]+([^[:space:];&|$`"'"'"']+)[[:space:]]*&&' top sha
+  if [[ "$1" =~ $re ]]; then
+    case "${BASH_REMATCH[1]}" in /*) d="${BASH_REMATCH[1]}" ;; *) d="$RUN_IN/${BASH_REMATCH[1]}" ;; esac
+  fi
+  if top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" && sha="$(git -C "$d" rev-parse -q --verify HEAD 2>/dev/null)"; then
+    printf 'checkout %s at %s' "$top" "$sha"
+  else
+    printf 'commit unknown'
+  fi
+}
+
 # The work-list this run belongs to, stamped into the history record (BL-489): the report's
 # date window cannot tell two sweeps of one day apart, the stamp can. Explicit --worklist
 # wins; otherwise the sole running work-list; otherwise no stamp and the report falls back
@@ -213,9 +256,9 @@ for leg in "${LEGS[@]}"; do
     # runs in another process as the only one keeping the stale cache.
     if [[ -n "$(pre_of "$leg")" ]]; then
       printf '  cd %q && ((%s) && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
-        "$ROOT" "$(pre_of "$leg")" "$(cmd_of "$leg")" "$log" "$log" >&2
+        "$RUN_IN" "$(pre_of "$leg")" "$(cmd_of "$leg")" "$log" "$log" >&2
     else
-      printf '  cd %q && (%s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$ROOT" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && (%s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$RUN_IN" "$(cmd_of "$leg")" "$log" "$log" >&2
     fi
     # the scoring run carries this run's work-list: with two running lists it could not
     # detect one, and an unstamped PASS is claimed by every report of the day (BL-489).
@@ -232,24 +275,24 @@ for leg in "${LEGS[@]}"; do
     # keeps `set -e` out of it.
     t0="$(date +%s)"
     rc=0
-    # The pre-command opens the log (`>`), the leg appends to it (`>>`): both are
+    # A header opens the log (`>`); the pre-command and the leg append to it (`>>`): both are
     # evidence, and a pre-command that truncated the leg's own output would hide the
     # count the verdict is made of. A non-zero pre-command FAILS the leg and the leg
     # does not run — running the suite anyway against the state the pre-command
     # failed to clear is the flake this exists to remove, now with a green tick.
+    # The header names the checkout and commit tested, so a log can be held against the branch.
+    printf '# sweep-gate: run in %s; %s\n' "$RUN_IN" "$(tested_of "$(cmd_of "$leg")")" > "$log"
     if [[ -n "$(pre_of "$leg")" ]]; then
-      printf '# pre_cmd: %s\n' "$(pre_of "$leg")" > "$log"
+      printf '# pre_cmd: %s\n' "$(pre_of "$leg")" >> "$log"
       # `if ! (...); then rc=$?` reads the NEGATION's status, which is always 0 — the
       # same shape the leg's own run has a comment about, re-made one block above it.
-      if ( cd "$ROOT" && bash -c "$(pre_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
+      if ( cd "$RUN_IN" && bash -c "$(pre_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
       if [[ $rc -ne 0 ]]; then
         printf '# pre_cmd FAILED (exit %s) — the %s leg was not run\n' "$rc" "$leg" >> "$log"
       fi
-    else
-      : > "$log"
     fi
     if [[ $rc -eq 0 ]]; then
-      if ( cd "$ROOT" && bash -c "$(cmd_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
+      if ( cd "$RUN_IN" && bash -c "$(cmd_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
     fi
     secs=$(( $(date +%s) - t0 ))
     count="$(count_in "$leg" "$log")"
