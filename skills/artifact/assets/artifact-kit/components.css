@@ -97,6 +97,10 @@ figure svg { width: 100%; max-width: 100%; height: auto; color: var(--ink); }
 figure svg .acc { color: var(--accent); }
 figure svg .flg { color: var(--flag); }
 figure svg .mut { color: var(--muted); }
+/* A `video` block: the film sits in the column like a figure and never past it.
+   The letterbox is the sunk paper, so it reads in both themes. */
+figure.video video { width: 100%; max-width: 100%; height: auto; display: block;
+                     background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: 4px; }
 figcaption { font-family: var(--sans); font-size: 0.76rem; line-height: 1.5; color: var(--muted); }
 
 ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; }
@@ -263,6 +267,18 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    off the tile NAME, so a matrix that adds a viewport gets the cap by naming it
    `<mode>-mobile` and nothing here has to learn the new tile. */
 .gal figure[data-tile$="-mobile"] img { max-width: 220px; margin: 0 auto; display: block; }
+/* An item's own screenshots (BL-493): the same grid, 2-4 columns by image
+   count (`data-cols`, written by the builder), ONE column under 700 px. The
+   thumbnails are cropped to a common frame from the top; the viewer shows the
+   whole capture. Not a gallery row: no data-tile, no compare, no marks. */
+.gal.shots { grid-template-columns: minmax(0, 1fr); }
+.gal.shots figure { position: relative; cursor: pointer; }
+.gal.shots img { aspect-ratio: 4 / 3; object-fit: cover; object-position: top; }
+@media (min-width: 700px) {
+  .gal.shots[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gal.shots[data-cols="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gal.shots[data-cols="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 /* A before/after review row names its variant on the ROW, not on the tiles. */
 .consult-gallery[data-variant$="-mobile"] .gal img { max-width: 220px; margin: 0 auto; display: block; }
 /* An unrequested change: the one line that tells the owner why the row is here. */
@@ -330,6 +346,9 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
   .kit-zoom-cell:where(:not(svg *)), .kit-zoom-with:where(:not(svg *)), .kit-zoom-cmpgroup > .kit-gallabel:where(:not(svg *)) { display: none; }
   .kit-zoom-cmpgroup { order: 1; flex: 1 1 100%; margin-left: 0; }
 }
+/* Reduced mode, an item's own images: no compare, no marks, no rows. */
+.kit-zoom.shots .kit-zoom-cmpgroup, .kit-zoom.shots .kit-zoom-with { display: none; }
+.kit-zoom.shots .kit-zoom-size { margin-left: auto; }
 .kit-zoom-body { padding: 0.7rem; }
 /* The UA caps the dialog at 100% - 2em - 6px, so 90vw alone overflows it on a
    narrow screen; the height leaves room for the header and the keys line. */

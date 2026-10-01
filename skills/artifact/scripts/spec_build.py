@@ -56,6 +56,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "dash"))
@@ -687,6 +688,11 @@ def _split_question(inline):
     return inline[:cut[-1].start() + 1], inline[cut[-1].end():]
 
 
+def _is_raster_figure(node):
+    return (node.block_type == "figure" and os.path.splitext(
+        node.attrs.get("src", "").strip())[1].lower() in FIGURE_RASTER)
+
+
 @emitter("item")
 def emit_item(node, ctx):
     a = _attrs(node, {"title", "decided", "dropped", "free", "select"},
@@ -734,12 +740,31 @@ def emit_item(node, ctx):
             node.line, "`item` select=many has no options to tick: list them "
             "with `-`, or drop select=many (free=yes alone asks an open answer)")
     def render(segments, ctx=ctx):
-        out = []
+        out, shots = [], []
+
+        def flush():
+            # BL-493: two or more raster figures written together are one
+            # thumbnail grid (the composer's viewer opens it in place), 2-4
+            # columns by count; one raster figure, or an svg, stays full width.
+            if len(shots) > 1:
+                out.append('<div class="gal shots" data-cols="%d">\n%s\n</div>'
+                           % (min(len(shots), 4), "\n".join(shots)))
+            else:
+                out.extend(shots)
+            del shots[:]
+
         for kind, payload in segments:
+            if kind == "block" and _is_raster_figure(payload):
+                shots.append(emit_node(payload, ctx, parent="item"))
+                continue
+            if kind == "prose" and not any(ln.strip() for ln in payload):
+                continue                  # blank lines between figures keep the run
+            flush()
             if kind == "block":
                 out.append(emit_node(payload, ctx, parent="item"))
             else:
                 out.extend(md_body.blocks("\n".join(payload)))
+        flush()
         return out
 
     parts = render(head)
@@ -1317,6 +1342,55 @@ def emit_figure(node, ctx):
     if node.classes:
         head += ' class="%s"' % esc(" ".join(node.classes))
     out = [head + cap + ">", drawing]
+    title = a.get("title", "").strip()
+    if title:
+        out.append("<figcaption>%s</figcaption>" % esc(title))
+    out.append("</figure>")
+    return "\n".join(out)
+
+
+# The film types a `video` references. Never inlined: a film as a base64 data
+# URI would take a page past any size a browser or a reviewer handles (BL-456).
+VIDEO_TYPES = (".mp4", ".webm")
+
+
+@emitter("video")
+def emit_video(node, ctx):
+    """`::: video {#id src="films/a.mp4" title="…"}` — a local film, by reference.
+
+    `src` is relative to the SPEC (as `figure`'s is) and must exist. The page
+    carries a path, never the bytes: with `-o`, the path is rewritten relative
+    to the page, so the film plays wherever the page lands next to it.
+    """
+    a = _attrs(node, {"src", "title"}, required=("src",))
+    _no_children(node)
+    src = a["src"].strip()
+    if os.path.isabs(src):
+        raise SpecBuildError(
+            node.line, "`video` src=%r is absolute — write it relative to the "
+            "spec, so the spec builds from any checkout" % src)
+    ext = os.path.splitext(src)[1].lower()
+    if ext not in VIDEO_TYPES:
+        raise SpecBuildError(
+            node.line, "`video` src=%r has type %r; a video references %s"
+            % (src, ext or "(none)", ", ".join(VIDEO_TYPES)))
+    path = os.path.join(ctx.base_dir, src)
+    if not os.path.isfile(path):
+        raise SpecBuildError(
+            node.line, "`video` src=%r: no such file (looked in %s)"
+            % (src, ctx.base_dir))
+    href = src
+    if ctx.page:
+        href = os.path.relpath(
+            path, os.path.dirname(os.path.abspath(ctx.page))).replace(os.sep, "/")
+    # A path is not a URL: `#` and `?` would cut the name the browser fetches.
+    href = urllib.parse.quote(href, safe="/")
+    head = "<figure"
+    if node.id:
+        head += ' id="%s"' % esc(node.id)
+    head += ' class="%s">' % esc(" ".join(["video"] + list(node.classes)))
+    out = [head, '<video controls preload="metadata" src="%s"></video>'
+           % esc(href)]
     title = a.get("title", "").strip()
     if title:
         out.append("<figcaption>%s</figcaption>" % esc(title))

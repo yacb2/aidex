@@ -776,6 +776,26 @@ would ship a drawing its author never saw. Fix the file (figure-sonnet draws wit
 that is not one of the four, a file that does not exist, a png/jpg with no `alt`, a body,
 a file with no `<svg>` element, and any SVG rule above.
 
+## The `video` block: a local film, by reference
+
+```
+::: video {#v1 src="films/intro.mp4" title="La película, 12 s"}
+:::
+```
+
+A film enters the page through the spec route with no post-build step. It has **no body**.
+
+- `src` is **relative to the spec file**, as `figure`'s is; absolute paths are refused, the
+  file must exist, and the type is `.mp4` or `.webm`.
+- The film is **referenced, never inlined**: a page carries `<video controls
+  preload="metadata" src="…">`, not a data URI (four films would take a page past 15 MB).
+  Built with `-o`, the emitted path is rewritten relative to the PAGE, so the film plays
+  while the page stays next to it; the film is not copied.
+- The `src` is URL-encoded in the page (`#`, `?` and spaces), so the browser fetches the whole file name.
+- A `<video>` counts as the page's visual for check-artifact, like an `<svg>` or `<img>`.
+- `title` is the `<figcaption>`. `#id` and classes land on the `<figure class="video">`,
+  which `components.css` sizes to the column in both themes.
+
 ## The `graph` body: DOT, laid out by Graphviz
 
 The third data body, and the one engine the spec route calls out to: rung 2 of the

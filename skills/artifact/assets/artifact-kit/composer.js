@@ -94,6 +94,7 @@
       zoomClose: 'Close',
       zoomCloseTitle: 'Close this tile and go back to the row (Esc)',
       zoomKeys: 'Left/Right: the tiles of this row · Up/Down: the same tile on the next row',
+      zoomKeysShots: 'Left/Right (or swipe): the images of this question · Esc: back to it',
       galMode: 'Mode',
       galViewport: 'Viewport',
       galBoth: 'Both',
@@ -196,6 +197,7 @@
       zoomClose: 'Cerrar',
       zoomCloseTitle: 'Cierra este tile y vuelve a la fila (Esc)',
       zoomKeys: 'Izquierda/Derecha: los tiles de esta fila \u00b7 Arriba/Abajo: el mismo tile en la fila siguiente',
+      zoomKeysShots: 'Izquierda/Derecha (o desliza): las im\u00e1genes de esta pregunta \u00b7 Esc: volver a ella',
       galMode: 'Modo',
       galViewport: 'Pantalla',
       galBoth: 'Ambos',
@@ -1569,7 +1571,18 @@
    * predicate that knew only the class would go silent on exactly them. */
   function isGalleryRow(el) {
     return el.classList.contains('consult-gallery')
-        || !!el.querySelector('.gal, figure[data-tile]');
+        || !!el.querySelector('.gal:not(.shots), figure[data-tile]');
+  }
+
+  /* A consult item with several raster images renders them as `.gal.shots`
+   * (BL-493): the same grid and the same zoom dialog, in a reduced mode — no
+   * compare, no marks, no row walk — and NOT a gallery row: the item keeps its
+   * own question and options. */
+  function shotFigures(fig) {
+    var grid = fig.closest('.gal.shots');
+    return grid ? [].filter.call(grid.querySelectorAll('figure'), function (f) {
+      return !!f.querySelector('img');
+    }) : [];
   }
 
   /* The block's declared matrix is the keyboard order — the same list the
@@ -1609,7 +1622,9 @@
     var walkRows = rows.filter(function (r) { return !isDecided(r); });
     var groups = [].slice.call(document.querySelectorAll('.consult-group'))
       .filter(function (g) { return (g.getAttribute('data-tiles') || '').trim(); });
-    if (!rows.length && !groups.length) return;
+    var shots = [].slice.call(document.querySelectorAll('.consult-item .gal.shots figure'))
+      .filter(function (f) { return !!f.querySelector('img'); });
+    if (!rows.length && !groups.length && !shots.length) return;
 
     /* ---- the dialog ---- */
     var dlg = document.createElement('dialog');
@@ -1737,8 +1752,12 @@
       hRow.textContent = (row && row.dataset.title) || '';
       hRow.title = hRow.textContent;      /* a narrow header truncates it */
       cancelDraft();
-      hTile.textContent = fig.getAttribute('data-tile') || '';
+      var set = shotFigures(fig);
+      dlg.classList.toggle('shots', set.length > 0);
+      hTile.textContent = set.length ? (set.indexOf(fig) + 1) + ' / ' + set.length
+        : fig.getAttribute('data-tile') || '';
       hCell.textContent = (row && row.dataset.id) || '';
+      if (!draft) keys.textContent = set.length ? L.zoomKeysShots : L.zoomKeys;
       sib = sibling(fig);
       var sImg = sib && sib.querySelector('img');
       if (sImg) other.setAttribute('src', sImg.getAttribute('src'));
@@ -1847,6 +1866,12 @@
      * judge it. */
     function step(dir) {
       if (!opener) return;
+      var set = shotFigures(opener);
+      if (set.length) {                 /* an item's images: its own order, no wrapping */
+        var at = set.indexOf(opener) + dir;
+        if (set[at]) show(set[at]);
+        return;
+      }
       var row = opener.closest('.consult-item');
       var order = tileOrder(row);
       var i = order.indexOf(opener.getAttribute('data-tile'));
@@ -1861,7 +1886,7 @@
      * carry this tile — the not-applicable row is the common case — is stepped
      * over for the same reason. */
     function stepRow(dir) {
-      if (!opener) return;
+      if (!opener || shotFigures(opener).length) return;   /* no rows in this mode */
       var row = opener.closest('.consult-item');
       var name = opener.getAttribute('data-tile');
       var i = walkRows.indexOf(row);
@@ -2214,29 +2239,46 @@
       drag = null;
     });
 
+    /* Swipe: a horizontal touch drag past 40 px walks the item's images, as
+     * Left/Right do. Only in the reduced mode; a gallery row keeps its own. */
+    var swipeFrom = null;
+    body.addEventListener('pointerdown', function (ev) {
+      swipeFrom = ev.pointerType === 'touch' ? ev.clientX : null;
+    });
+    body.addEventListener('pointerup', function (ev) {
+      var from = swipeFrom;
+      swipeFrom = null;
+      if (from === null || !dlg.classList.contains('shots')) return;
+      var dx = ev.clientX - from;
+      if (Math.abs(dx) >= 40) step(dx < 0 ? 1 : -1);
+    });
+
     /* ---- every tile becomes the button ---- */
+    var tiles = [];
     rows.forEach(function (row) {
-      row.querySelectorAll('figure[data-tile]').forEach(function (fig) {
-        if (!fig.querySelector('img')) return;   /* nothing to enlarge */
-        fig.setAttribute('role', 'button');
-        fig.setAttribute('tabindex', '0');
-        fig.setAttribute('title', L.zoomOpen);
-        /* The visible affordance (BL-466): components.css draws this word on the
-         * tile with ::after, so it is an attribute and never text in the row
-         * (the question fingerprint hashes text) and a tap works as a click. */
-        fig.setAttribute('data-zoom', L.zoomLabel);
-        fig.addEventListener('click', function (ev) {
-          /* The round-5 prototype wrapped each tile in an anchor that opened
-           * the file in a new tab, and pages carrying that markup are still on
-           * disk: the zoom must not ALSO navigate away from the answers. */
-          ev.preventDefault();
-          open(fig);
-        });
-        fig.addEventListener('keydown', function (ev) {
-          if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
-          ev.preventDefault();        /* Space would scroll the page */
-          open(fig);
-        });
+      tiles = tiles.concat([].slice.call(row.querySelectorAll('figure[data-tile]')));
+    });
+    tiles = tiles.concat(shots);
+    tiles.forEach(function (fig) {
+      if (!fig.querySelector('img')) return;   /* nothing to enlarge */
+      fig.setAttribute('role', 'button');
+      fig.setAttribute('tabindex', '0');
+      fig.setAttribute('title', L.zoomOpen);
+      /* The visible affordance (BL-466): components.css draws this word on the
+       * tile with ::after, so it is an attribute and never text in the row
+       * (the question fingerprint hashes text) and a tap works as a click. */
+      fig.setAttribute('data-zoom', L.zoomLabel);
+      fig.addEventListener('click', function (ev) {
+        /* The round-5 prototype wrapped each tile in an anchor that opened
+         * the file in a new tab, and pages carrying that markup are still on
+         * disk: the zoom must not ALSO navigate away from the answers. */
+        ev.preventDefault();
+        open(fig);
+      });
+      fig.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
+        ev.preventDefault();        /* Space would scroll the page */
+        open(fig);
       });
     });
 

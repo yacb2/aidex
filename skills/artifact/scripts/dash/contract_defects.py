@@ -297,10 +297,11 @@ def _gallery_sample(item):
     SAMPLE that asks nothing, counted nowhere like the notes item. Same
     predicate as the composer: isGalleryRow (composer.js:1433: class
     `consult-gallery`, or a `.gal` / `figure[data-tile]` anywhere in the
-    subtree) and no `.opts` anywhere in the subtree (querySelector)."""
+    subtree; a `.gal.shots` image grid of a normal item is not one, BL-493) and no `.opts` anywhere in the subtree (querySelector)."""
     sub = list(item.walk())
     gallery = "consult-gallery" in item.classes() or any(
-        "gal" in d.classes() or (d.tag == "figure" and "data-tile" in d.attrs)
+        ("gal" in d.classes() and "shots" not in d.classes())
+        or (d.tag == "figure" and "data-tile" in d.attrs)
         for d in sub)
     return gallery and not any("opts" in d.classes() for d in sub)
 

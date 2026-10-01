@@ -103,6 +103,7 @@ The list is closed — an unknown type is refused by name with the known set pri
 | `diagram` | yes | boxes and arrows in a closed shape: row, pipeline, before-after, cycle, tree, compare (rung 1) | `shape` |
 | `graph` | yes | boxes and edges in DOT, laid out by Graphviz with the kit classes (rung 2) | — |
 | `figure` | yes | a drawing from a file: figure-sonnet's SVG or a screenshot (rung 3) | `src` |
+| `video` | yes | a local film played in the page, by relative path, never inlined | `src` |
 | `prose` | **no** | a run of markdown outside any fence — the implicit default | — |
 | `num` | **no** | a right-aligned numeric column: mark it `\|---:\|` in the table | — |
 | `pill` | **no** | an inline status tag: `[confianza alta]{.pill .high}` | — |

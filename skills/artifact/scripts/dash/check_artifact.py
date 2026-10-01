@@ -562,10 +562,12 @@ def _subtree_closed(text, tag, start):
 def _gal_grids(body):
     """Every `.gal` subtree in an item. The class is a TOKEN: `gal-na` is the
     not-applicable line, not an empty grid, and a substring test reads it as
-    one."""
+    one. A `.gal.shots` grid is an item's own screenshots (BL-493), not a row."""
     out = []
     for m in ANY_OPEN_TAG.finditer(body):
-        if "gal" in _class_tokens(m.group(0)):
+        tokens = _class_tokens(m.group(0))
+        # `.gal.shots` is the image grid of a NORMAL item (BL-493), not a row.
+        if "gal" in tokens and "shots" not in tokens:
             out.append(_subtree(body, m.group(1), m.end()))
     return out
 
@@ -3038,7 +3040,7 @@ def check_consultation(path, text, flat):
     # page passed the check and showed the reader a wall of `graph TD`. A fleet
     # census on 2026-09-07 found zero pages using it, so removing the value costs
     # nothing and makes the route's retirement real in the code.
-    has_visual = bool(re.search(r'<svg|<img|<canvas', text, re.I))
+    has_visual = bool(re.search(r'<svg|<img|<canvas|<video', text, re.I))
     try:
         reason = visual_declaration(text)
     except Exception as e:                          # noqa: BLE001 — fail closed

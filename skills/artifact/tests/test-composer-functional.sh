@@ -2635,6 +2635,116 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-p.html" | head -1)"
 [[ "$tg" == *"BARS=0"* ]] \
   || fail "a before/after review block got the light/dark filter toolbar: $tg"
 
+# ---- BL-493: an item's own screenshots are a thumbnail grid with an in-place viewer ----
+# Built through the real route (spec -> .gal.shots -> wrap, which runs the
+# contract). The viewer is the gallery's dialog in a reduced mode: it walks ONLY
+# this item's images, offers no compare/marks/rows, and the item stays a normal
+# question (not a gallery row). Layer: the browser, because the viewer is behaviour.
+mkdir -p "$TMP/shots"
+for n in 1 2 3 4; do python3 "$SKILL/tests/png_fixture.py" "$TMP/shots/s$n.png" 80 60; done
+cat > "$TMP/shots/page.spec.md" <<'SPEC'
+::: masthead {visual="none: a viewer probe, nothing to draw"}
+# Shots probe
+
+A page with one item that carries four captures.
+:::
+
+::: group {#G title="Grupo"}
+::: item {#Q1 title="Capturas"}
+¿Cuál captura es la correcta?
+
+::: diagram {shape=row}
+a: uno
+b: dos
+:::
+
+::: figure {src="s1.png" alt="uno" title="Uno"}
+:::
+
+::: figure {src="s2.png" alt="dos"}
+:::
+
+::: figure {src="s3.png" alt="tres"}
+:::
+
+::: figure {src="s4.png" alt="cuatro"}
+:::
+
+- Primera — la primera
+- Segunda — la segunda
+:::
+:::
+
+::: notes {title="Notas generales"}
+:::
+SPEC
+python3 "$SKILL/scripts/spec_build.py" "$TMP/shots/page.spec.md" > "$TMP/gbody-shots.html" 2> "$TMP/gshots-build.log" \
+  || fail "the shots probe spec failed to build: $(head -3 "$TMP/gshots-build.log")"
+cat >> "$TMP/gbody-shots.html" <<'HTML'
+<script>
+window.addEventListener('load', function () {
+  var dlg = document.querySelector('dialog.kit-zoom');
+  var item = document.querySelector('[data-id="Q1"]');
+  var grid = item.querySelector('.gal.shots');
+  var figs = grid ? [].slice.call(grid.querySelectorAll('figure')) : [];
+  var tile = function () { return dlg ? dlg.querySelector('.kit-zoom-tile').textContent : ''; };
+  var key = function (k) { dlg.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); };
+  var r = {};
+  r.figs = figs.length;
+  r.cols = grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0;
+  r.svgIn = grid ? grid.querySelectorAll('svg').length : -1;
+  r.svgOut = item.querySelectorAll('figure svg').length;
+  r.galRow = item.querySelector('details.opts-more .kit-other, details.kit-ask-more') ? 1 : 0;
+  r.role = figs.length && figs[0].getAttribute('role');
+  if (figs.length) {
+    figs[0].click();
+    r.open = dlg.open ? 1 : 0;
+    r.t1 = tile();
+    r.cmpHidden = getComputedStyle(dlg.querySelector('.kit-zoom-cmpgroup')).display;
+    key('ArrowRight'); r.t2 = tile();
+    key('ArrowDown'); r.down = tile();
+    key('ArrowRight'); key('ArrowRight'); key('ArrowRight'); r.end = tile();
+    key('ArrowLeft'); r.left = tile();
+    var body = dlg.querySelector('.kit-zoom-body');
+    var touch = function (type, x) { body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', clientX: x, bubbles: true })); };
+    touch('pointerdown', 100); touch('pointerup', 200); r.swR = tile();   // drag right: previous
+    touch('pointerdown', 200); touch('pointerup', 100); r.swL = tile();   // drag left: next
+    touch('pointerdown', 100); touch('pointerup', 120); r.swS = tile();   // under 40 px: stays
+    dlg.querySelector('.kit-zoom-size').click(); r.native = dlg.classList.contains('native') ? 1 : 0;
+    dlg.close();
+    dlg.dispatchEvent(new Event('close'));   // the engine queues the real one; see GZOOM
+    r.focus = item.contains(document.activeElement) ? 1 : 0;
+    document.title = 'GSHOTS|' + JSON.stringify(r).replace(/[|<>]/g, ' ');
+  } else document.title = 'GSHOTS|' + JSON.stringify(r);
+});
+</script>
+HTML
+GPAGE_H="$TMP/reports/gallery-shots.html"
+bash "$WRAP" --title "shots" --lang es --out "$GPAGE_H" < "$TMP/gbody-shots.html" > "$TMP/gwrap-h.log" 2>&1 \
+  || fail "the shots probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-h.log" | head -4)"
+rm -rf "$TMP/profile"
+chrome_dump "$TMP/gdom-h.html" "file://$GPAGE_H" 45 || true
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | head -1)"
+[[ "$tg" == *GSHOTS* ]] || fail "the shots probe did not run: $tg"
+[[ "$tg" == *'"figs":4'* && "$tg" == *'"cols":4'* ]] \
+  || fail "an item with 4 raster figures is not a 4-column .gal grid: $tg"
+[[ "$tg" == *'"svgIn":0'* && "$tg" == *'"svgOut":1'* ]] \
+  || fail "the inline svg diagram was grouped into the thumbnail grid (it stays full width): $tg"
+[[ "$tg" == *'"galRow":0'* ]] \
+  || fail "the item with the image grid was treated as a gallery row: $tg"
+[[ "$tg" == *'"open":1'* && "$tg" == *'"t1":"1 / 4"'* ]] \
+  || fail "clicking a thumbnail did not open the viewer on image 1 of 4: $tg"
+[[ "$tg" == *'"t2":"2 / 4"'* && "$tg" == *'"down":"2 / 4"'* ]] \
+  || fail "Right did not walk to the next image, or Down walked rows in this mode: $tg"
+[[ "$tg" == *'"end":"4 / 4"'* && "$tg" == *'"left":"3 / 4"'* ]] \
+  || fail "the walk wrapped past the item's last image, or Left did not step back: $tg"
+[[ "$tg" == *'"cmpHidden":"none"'* ]] \
+  || fail "the viewer offers compare/mark tools in the item-images mode: $tg"
+[[ "$tg" == *'"swR":"2 / 4"'* && "$tg" == *'"swL":"3 / 4"'* && "$tg" == *'"swS":"3 / 4"'* ]] \
+  || fail "a swipe did not walk the images (or a 20 px drag did): $tg"
+[[ "$tg" == *'"native":1'* && "$tg" == *'"focus":1'* ]] \
+  || fail "the viewer lost the fit/1:1 toggle or Esc did not return the focus to the item: $tg"
+
 # ---- a SAMPLE row asks nothing, so it is not counted (BL-466) ----
 # A gallery row with no verdict group by design illustrates; counting it made
 # a page whose one real question was answered read "1 de 2 · en blanco: …".

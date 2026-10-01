@@ -75,6 +75,11 @@ page c1-sample-tile es "<section class=\"consult-item\" data-id=\"audit-y-sample
 passes $C c1-sample-tile "a row that is a gallery row by its figure[data-tile] alone is judged the same"
 page c1-gal-one es "<section class=\"consult-item consult-gallery\" data-id=\"audit-z\">$FIG$ONE_RADIO<textarea></textarea></section>"
 fails $C c1-gal-one "a gallery pair row with one radio still fails"
+SHOTS='<div class="gal shots" data-cols="2"><figure><img src="a.png" alt="a"></figure><figure><img src="b.png" alt="b"></figure></div>'
+page c1-shots es "<section class=\"consult-item\" data-id=\"Q1\">$SHOTS<textarea></textarea></section>"
+fails $C c1-shots "an item with a .gal.shots image grid and no options is a normal item, not a gallery sample (BL-493)"
+page c1-shots-ok es "<section class=\"consult-item\" data-id=\"Q1\">$SHOTS<div class=\"opts one\"><label><input type=\"radio\" name=\"Q1\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"Q1\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>"
+passes $C c1-shots-ok "...and with two options it passes"
 page c1-free-false es '<section class="consult-item" data-id="Q1" data-free="false"><textarea></textarea></section>'
 fails $C c1-free-false "data-free=\"false\" does not exempt"
 page c1-round es '<section class="consult-item" data-id="Q1" data-decided-round="2"><textarea></textarea></section>'

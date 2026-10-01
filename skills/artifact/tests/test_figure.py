@@ -92,6 +92,7 @@ def main():
     tmp = tempfile.mkdtemp(prefix="spec-figure-")
     try:
         run(tmp)
+        run_shots(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     if failures:
@@ -654,6 +655,64 @@ def run(tmp):
         check(label, (r.returncode == 0) == (want == 0)
               and (want == 0 or "no visual" in said),
               "exit %d: %s" % (r.returncode, said[-600:]))
+
+
+def run_shots(tmp):
+    """BL-493: an item's raster figures written together are one `.gal.shots`
+    grid (2-4 columns by count); one raster figure or an svg stays full width;
+    and the page built from such an item passes the contract (an item with a
+    `.gal` is NOT judged as a gallery row)."""
+    write(tmp, "figures/a.svg", SVG + "\n")
+    for n in "1234567":
+        write(tmp, "figures/s%s.png" % n, PNG)
+
+    def item(*figs):
+        return ('::: item {#Q1 title="T"}\n¿Cuál?\n\n%s\n- A — uno\n- B — dos\n:::'
+                % "".join('::: figure {src="figures/%s"%s}\n:::\n\n'
+                          % (f, "" if f.endswith(".svg") else ' alt="c"')
+                          for f in figs))
+
+    print()
+    print("== an item's images: a thumbnail grid (BL-493) ==")
+    html = build(item("s1.png", "s2.png", "s3.png", "s4.png"), base_dir=tmp)
+    grid = html.split('<div class="gal shots"', 1)[-1].split("</div>", 1)[0]
+    check("four rasters are one grid of four figures, four columns",
+          html.count('<div class="gal shots" data-cols="4">') == 1
+          and grid.count("<figure") == 4, html[:400])
+    check("...between the question and the options",
+          html.index("¿Cuál?") < html.index("gal shots") < html.index('type="radio"'))
+    for n, cols in ((2, 2), (3, 3), (5, 4), (7, 4)):
+        html = build(item(*["s%d.png" % i for i in range(1, n + 1)]), base_dir=tmp)
+        check("%d rasters make %d columns" % (n, cols),
+              'class="gal shots" data-cols="%d"' % cols in html)
+    html = build(item("s1.png"), base_dir=tmp)
+    check("one raster stays a lone full-width figure", 'class="gal' not in html
+          and html.count("<figure") == 1)
+    html = build(item("a.svg", "s1.png"), base_dir=tmp)
+    check("an svg and one raster: no grid, the svg is never grouped", 'class="gal' not in html)
+    html = build(item("s1.png", "a.svg", "s2.png"), base_dir=tmp)
+    check("an svg between two rasters splits the run: no grid", 'class="gal' not in html)
+    prose = ('::: item {#Q1 title="T"}\n¿Cuál?\n\n::: figure {src="figures/s1.png" alt="c"}\n:::\n\n'
+             'Una frase entre las dos.\n\n::: figure {src="figures/s2.png" alt="c"}\n:::\n\n- A — uno\n- B — dos\n:::')
+    html = build(prose, base_dir=tmp)
+    check("prose between two rasters splits the run: no grid, order kept",
+          'class="gal' not in html and html.count("<figure") == 2
+          and html.index("<img") < html.index("Una frase entre las dos.")
+          < html.rindex("<img"), html[:500])
+    html = build(item("s1.png", "s2.png", "a.svg"), base_dir=tmp)
+    grid = html.split('<div class="gal shots"', 1)[-1].split("</div>", 1)[0]
+    check("two rasters then an svg: the grid holds the two, the svg stays outside it",
+          grid.count("<figure") == 2 and "<svg" not in grid and "<svg" in html)
+
+    spec = write(tmp, "shots.spec.md", ('::: masthead {visual="none: capturas, no dibujo"}\n'
+        '# Capturas\n\nUna página con capturas.\n:::\n\n::: group {#G title="Grupo"}\n%s\n:::\n\n'
+        '::: notes {title="Notas generales"}\n:::\n' % item(
+            "s1.png", "s2.png", "s3.png", "s4.png")))
+    out = os.path.join(tmp, "reports", "shots.html")
+    r = subprocess.run([sys.executable, BUILD, spec, "-o", out],
+                       capture_output=True, text=True, cwd="/")
+    check("the page with the grid passes check-artifact (not a gallery row)",
+          r.returncode == 0, (r.stdout + r.stderr)[-500:])
 
 
 if __name__ == "__main__":
