@@ -26,7 +26,8 @@
 # Exit 0 = clean. Exit 1 = at least one defect (each printed). Exit 2 = usage error.
 # Exit 3 = Playwright or its Chromium missing (the install command is printed).
 # Exit 4 = the probe crashed (any other launch error, a page that failed to load, an
-# exception while measuring); the cause is on stderr. Never read as clean or as defects.
+# exception while measuring, no verdict within AIDEX_PROBE_DEADLINE seconds per page,
+# default 60); the cause is on stderr. Never read as clean or as defects.
 
 set -euo pipefail
 

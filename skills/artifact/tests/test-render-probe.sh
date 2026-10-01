@@ -314,6 +314,26 @@ printf '<!doctype html><title>x</title><p>x</p><script>window.getComputedStyle =
 out="$(bash "$PROBE" "$TMP/crash.html" 2>&1)"; rc=$?
 [[ $rc -eq 4 ]] && ok "a crash while measuring exits 4" || bad "crash exit $rc, expected 4: $out"
 grep -q 'CRASH' <<<"$out" && ok "a crash says CRASH" || bad "no CRASH message in: $out"
+# A page whose script never yields blocks page.evaluate forever. Without a deadline
+# of its own the probe hung with a renderer at 100% CPU, and an orphaned probe (its
+# caller killed) never ended. Polled here, never waited on unbounded.
+printf '<!doctype html><title>x</title><p>x</p><script>addEventListener("load",()=>setTimeout(()=>{while(true){}},100))</script>' > "$TMP/hang.html"
+AIDEX_PROBE_DEADLINE=5 bash "$PROBE" "$TMP/hang.html" > "$TMP/hang.out" 2>&1 & ppid=$!
+kids=""
+for ((i = 0; i < 120; i++)); do
+  kids="$kids $(pgrep -P "$ppid" | tr '\n' ' ')"
+  kill -0 "$ppid" 2>/dev/null || break
+  sleep 0.25
+done
+if kill -0 "$ppid" 2>/dev/null; then
+  kill -9 "$ppid"; bad "a page that never yields still hung the probe after 30 s (deadline 5 s)"
+else
+  wait "$ppid"; rc=$?
+  [[ $rc -eq 4 ]] && ok "a page that never yields ends at the deadline with exit 4" || bad "hang exit $rc, expected 4: $(cat "$TMP/hang.out")"
+  grep -q 'CRASH.*deadline' "$TMP/hang.out" && ok "the deadline says CRASH and names it" || bad "no deadline CRASH in: $(cat "$TMP/hang.out")"
+  sleep 1; left=0; for k in $kids; do kill -0 "$k" 2>/dev/null && left=$((left + 1)); done
+  [[ $left -eq 0 ]] && ok "no browser process outlives the deadline" || bad "$left browser process(es) outlived the probe"
+fi
 mkdir -p "$TMP/no-browsers"
 out="$(PLAYWRIGHT_BROWSERS_PATH="$TMP/no-browsers" bash "$PROBE" "$TMP/clean.html" 2>&1)"; rc=$?
 [[ $rc -eq 3 ]] && ok "Playwright without its Chromium exits 3" || bad "no-browser exit $rc, expected 3: $out"
