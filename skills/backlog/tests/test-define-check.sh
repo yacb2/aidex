@@ -68,6 +68,14 @@ bash "$SCRIPTS/define-item.sh" "$DID" --touches "other_ws/backend" --no-index >/
 OUT="$(python3 "$SCRIPTS/sweep-eligible.py" 2>&1)"
 grep -q "cross-repo: other_ws" <<<"$OUT" && ok "an item whose touches live in a sibling project is NEEDS-DECISION: cross-repo" || bad "cross-repo: $OUT"
 
+# BL-645: a not-yet-existing file under a directory INSIDE the project is in-tree, even when
+# a sibling project of the same name exists (aidex_ws/aidex vs ~/projects/aidex)
+mkdir -p "$TMP/p/lib" "$TMP/lib"
+bash "$SCRIPTS/define-item.sh" "$DID" --touches "lib/tests/test-new.sh" --no-index >/dev/null 2>&1
+OUT="$(python3 "$SCRIPTS/define-check.py" --json "$DID" 2>&1)"
+python3 -c "import json,sys;it=json.loads(sys.argv[1])['items'][0];assert not any(x.startswith('lib/') for x in it['cross_repo']),it" "$OUT" \
+  && ok "a new file under an in-project dir is not cross-repo when a same-named sibling exists" || bad "in-tree new file read as cross-repo: $OUT"
+
 # clusters: two items sharing a touches token
 bash "$SCRIPTS/define-item.sh" "$DID" --touches "src/gap" --no-index >/dev/null 2>&1
 OUT="$(python3 "$SCRIPTS/define-check.py" 2>&1)"
