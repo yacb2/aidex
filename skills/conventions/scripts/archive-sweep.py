@@ -53,13 +53,16 @@ def frontmatter(path):
     return (s.group(1) if s else None), (SHA.findall(c.group(1)) if c else [])
 
 
-def commit_landed(repo, sha):
-    try:
-        r = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
-                           capture_output=True, timeout=10)
-        return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        return False
+def commit_landed(repos, sha):
+    for repo in repos:
+        try:
+            r = subprocess.run(["git", "-C", repo, "cat-file", "-e", f"{sha}^{{commit}}"],
+                               capture_output=True, timeout=10)
+            if r.returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return False
 
 
 def tier_units(ctx, tier):
@@ -115,7 +118,7 @@ def tier_units(ctx, tier):
 TIERS = ("plans", "audits", "requests", "backlog", "decisions", "loops")
 
 
-def scan(ctx, repo):
+def scan(ctx, repos):
     unarchived, drift = [], []
     for tier in TIERS:
         for unit, status_file, archive in tier_units(ctx, tier):
@@ -127,8 +130,8 @@ def scan(ctx, repo):
                 unarchived.append({"tier": tier, "path": rel, "status": status,
                                    "archive_to": os.path.relpath(
                                        os.path.join(archive, os.path.basename(unit)), ctx)})
-            elif status in ACTIVE and commits and repo:
-                landed = [c for c in commits if commit_landed(repo, c)]
+            elif status in ACTIVE and commits and repos:
+                landed = [c for c in commits if commit_landed(repos, c)]
                 if landed and len(landed) == len(commits):
                     drift.append({"tier": tier, "path": rel, "status": status,
                                   "commits": landed})
@@ -214,14 +217,17 @@ def main():
     if not os.path.isdir(ctx):
         print(f"error: no .context/ at {ctx}", file=sys.stderr)
         return 2
-    repo = os.path.dirname(ctx)
+    root = os.path.dirname(ctx)
     # `.git` is tested with `exists`, not `isdir`: in a linked worktree it is a FILE
     # holding a gitdir pointer, and isdir() there disabled this half silently (BL-351,
     # the same predicate BL-344 fixed in memory-sweep.py).
-    if not os.path.exists(os.path.join(repo, ".git")):
-        repo = None  # status drift needs git; without it, report the other half only
+    # Workspace layout: the code repos sit in child dirs, whether or not the dir holding
+    # .context/ is itself a (planning) repo (BL-606, as detect-resolved.py for BL-603).
+    # No repo at all: status drift needs git, so report the other half only.
+    repos = [d for d in [root] + [os.path.join(root, n) for n in sorted(os.listdir(root))]
+             if os.path.exists(os.path.join(d, ".git"))]
 
-    unarchived, drift = scan(ctx, repo)
+    unarchived, drift = scan(ctx, repos)
 
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as fh:
@@ -230,7 +236,11 @@ def main():
 
     print(f"Archive sweep — {ctx}")
     if not unarchived and not drift:
-        print("  every tier is clean: nothing terminal left unarchived, no status drift")
+        if repos:
+            print("  every tier is clean: nothing terminal left unarchived, no status drift")
+        else:
+            print("  nothing terminal left unarchived; status drift was not checked (no git "
+                  "repo above .context/ or in a child dir of it)")
         return 0
 
     if unarchived:
@@ -252,8 +262,9 @@ def main():
         for r in drift:
             print(f"  [{r['status']:10}] {r['path']}  ({', '.join(c[:8] for c in r['commits'])})")
 
-    if repo is None:
-        print("\n  note: no git repo above .context/, so status drift was not checked at all")
+    if not repos:
+        print("\n  note: no git repo above .context/ or in a child dir of it, so status drift "
+              "was not checked at all")
 
     if args.apply:
         moved, refused = apply_moves(ctx, unarchived)
