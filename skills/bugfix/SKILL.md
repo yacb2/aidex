@@ -38,6 +38,11 @@ The bug-fix workflow is these nine steps — the agent table and prose below key
    Where the regression test goes and how many to write — one, at the owning layer — is
    `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md` § Bug regressions; read it with the matrix.
 3. Confirm test fails **for the right reason** — the failure message names the buggy behavior, not an import/syntax/setup error. Verify this before writing the fix.
+   **When the bug is a hang or a loop, the RED run executes it.** Run the code under test
+   in its own process group, kill the whole group on timeout, and cap its CPU time with a
+   limit the children inherit (`RLIMIT_CPU`; macOS ignores memory limits). A plain
+   `timeout=` kills only the direct child: on 2026-10-01 two RED runs left awk
+   grandchildren that grew to ~80 GB each and took the machine down.
 4. Implement minimum fix
 5. Confirm test passes — capture the GREEN output as proof (see *Proof of done*)
 6. Run surrounding tests (no regressions) — **select them, don't run everything**:

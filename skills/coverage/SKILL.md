@@ -23,6 +23,10 @@ single-test command, or one spec via `./test-e2e.sh e2e/<spec>.spec.ts`); the wh
 runs once, at plan close-out or pre-merge. A full E2E suite costs ~5 minutes; spending
 that per change is what this rule exists to stop.
 
+**A test that execs a script that can hang runs it bounded** — own process group killed
+on timeout, plus an inherited CPU cap — never a bare `timeout=`, which orphans the
+grandchildren. The rule and its incident live in `${CLAUDE_PLUGIN_ROOT}/skills/bugfix/SKILL.md` step 3.
+
 **Writing a test is `testing`'s.** The four questions asked before a test is added, the
 one-owner rule and the patterns of a test that earns nothing live in
 `${CLAUDE_PLUGIN_ROOT}/skills/testing/SKILL.md`; this skill is the doctrine it points to.
