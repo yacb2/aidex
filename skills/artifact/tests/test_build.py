@@ -832,6 +832,34 @@ try:
     check("…and no <span class=\"pill\"> was emitted",
           'class="pill' not in BUILT[-1][1], BUILT[-1][1])
 
+    # BL-568: a sub-list indented under a list item is that item's, not the
+    # list's. md_body's list branch read every MARKER line as a sibling, so point
+    # 4's a/b/c on a graded page shipped as points 5, 6, 7 — renumbered, silently.
+    # Layer: md_body owns list rendering; built through `build()` because that is
+    # the path the page took, and each row pins the whole nested shape.
+    for label, prose, nested in (
+            ("`-` under `1.`", "1. one\n2. two\n   - a\n   - b\n3. three",
+             "<ol><li>one</li><li>two<ul><li>a</li><li>b</li></ul></li>"
+             "<li>three</li></ol>"),
+            ("`-` under `-`", "- one\n  - a\n  - b\n- two",
+             "<ul><li>one<ul><li>a</li><li>b</li></ul></li><li>two</li></ul>"),
+            ("`1.` under `1.`", "1. one\n   1. a\n   2. b\n2. two",
+             "<ol><li>one<ol><li>a</li><li>b</li></ol></li><li>two</li></ol>"),
+            ("two levels deep", "1. one\n   - a\n     - deep\n   - b\n2. two",
+             "<ol><li>one<ul><li>a<ul><li>deep</li></ul></li><li>b</li></ul>"
+             "</li><li>two</li></ol>"),
+            ("a sub-item's wrapped line stays in it",
+             "1. one\n   - a long\n     wrapped\n2. two",
+             "<ol><li>one<ul><li>a long wrapped</li></ul></li><li>two</li></ol>"),
+            ("a continuation before the sub-list stays in the item",
+             "- item\n  wrapped\n  - sub\n- two",
+             "<ul><li>item wrapped<ul><li>sub</li></ul></li><li>two</li></ul>"),
+            ("a wrapped line starting with a number other than 1 is text",
+             "1. Cascading saves not\n   25. Bulk-mark\n2. two",
+             "<ol><li>Cascading saves not 25. Bulk-mark</li><li>two</li></ol>")):
+        holds("a nested list renders nested: %s" % label,
+              "::: note\n%s\n:::" % prose, nested)
+
     # Phase 6 registered `diagram`, so the line that used to read "not
     # registered yet" now asserts the opposite: the dispatch KNOWS it, and what
     # it refuses is the missing `shape`, at the fence's line. Everything about

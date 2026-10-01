@@ -23,6 +23,17 @@ Prose inside a block is rendered by the existing `scripts/dash/md_body.py` subse
 (headings, paragraphs, `-`/`1.` lists, pipe tables, fenced code, `` ` ``, `**`, `_`).
 This grammar adds fences *around* that; it does not change it.
 
+**A list nests by indentation.** A `-` or `1.` line indented deeper than the first
+marker of its list opens a sub-list inside the item above it, of its own kind, to any
+depth; a marker at the list's own indent or shallower is a sibling. An indented ordered
+marker opens a sub-list only when it counts from `1`; `   25. text` is a wrapped line.
+An `item`'s options list is the exception: it is read by `spec_build`, not this
+renderer, and an indented line under an option folds into the option's label. A blank line ends
+the list, so a sub-list is written with no blank line before it. Before BL-568 every
+marker line was a sibling, and a point's `a`/`b`/`c` shipped renumbered as the points
+after it. (This is the prose renderer's rule; the indentation of a `:::` fence still
+carries no meaning, below.)
+
 ### Backslash escapes, for this renderer's own markers only
 
 `\\`, `` \` ``, `\*`, `\_` and `\[` put the character itself in the page. Nothing
