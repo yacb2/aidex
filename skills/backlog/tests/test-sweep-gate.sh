@@ -474,5 +474,55 @@ printf 'echo "2 passed"\n' > "$D/repo/t.sh"; gcommit "$D/repo" branch-only
 OUT="$(RUN_DIR="$D/repo" run --only suite)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"count=2 "* ]] && ok "13 a worktree.sh DEST runs its worktree through the profile's cd" || bad "13 DEST: rc=$RC $OUT $(cat "$TMP/err")"
 
+# round 4: no layout table can be complete, so the verdict is one invariant — from a linked
+# worktree, every leg must land in a checkout inside that worktree. Each layout below
+# passed the table and ran main; each must now be refused with nothing written.
+refused() {  # refused <label> <W> <run dir> <gate args...>
+  local label="$1" w="$2" d="$3"; shift 3
+  OUT="$(RUN_DIR="$d" run "$@")"; RC=$?
+  [[ $RC -eq 2 && ! -e "$w/_tmp" && ! -e "$w/.context/proofs/sweep-gate/gate-history.jsonl" ]] \
+    && ok "13 $label is refused, nothing written" || bad "13 $label: rc=$RC $OUT $(cat "$TMP/err")"
+}
+wprofile() {  # wprofile <W> <front-matter lines...>
+  local w="$1"; shift; mkdir -p "$w/.context"
+  { echo '---'; for l in "$@"; do echo "$l"; done; echo '---'; } > "$w/.context/testing-profile.md"
+}
+sgd_layout() {  # sgd_layout <W>: W/repo is main with its git dir elsewhere, W/_wt/feat its worktree
+  local w="$1"; mkdir -p "$w"
+  git init -q -b main --separate-git-dir="$w.git" "$w/repo"; printf 'echo "1 passed"\n' > "$w/repo/t.sh"
+  git -C "$w/repo" add -A; gcommit "$w/repo" main
+  git -C "$w/repo" worktree add -q -b feat "$w/_wt/feat" 2>/dev/null
+  printf 'echo "2 passed"\n' > "$w/_wt/feat/t.sh"; gcommit "$w/_wt/feat" branch-only
+}
+W1="$TMP/r4sgd"; sgd_layout "$W1"; wprofile "$W1" 'suite_cmd: cd repo && bash t.sh'
+refused "a separate-git-dir main nested under the profile's root" "$W1" "$W1/_wt/feat" --only suite
+W2="$TMP/r4bare"; mkdir -p "$W2" "$TMP/r4seed"; git -C "$TMP/r4seed" init -q -b main
+printf 'echo "1 passed"\n' > "$TMP/r4seed/t.sh"; git -C "$TMP/r4seed" add -A; gcommit "$TMP/r4seed" main
+git clone -q --bare "$TMP/r4seed" "$TMP/r4bare.git"
+git -C "$TMP/r4bare.git" worktree add -q "$W2/repo" main 2>/dev/null
+git -C "$TMP/r4bare.git" worktree add -q -b feat "$W2/_wt/feat" 2>/dev/null
+printf 'echo "2 passed"\n' > "$W2/_wt/feat/t.sh"; gcommit "$W2/_wt/feat" branch-only
+wprofile "$W2" 'suite_cmd: cd repo && bash t.sh'
+refused "a bare repo whose other worktree is the profile's repo" "$W2" "$W2/_wt/feat" --only suite
+M3="$TMP/r4lmain"; mkdir -p "$M3"; git -C "$M3" init -q -b main
+printf 'echo "1 passed"\n' > "$M3/t.sh"; git -C "$M3" add -A; gcommit "$M3" main
+W3="$TMP/r4link"; mkdir -p "$W3"; ln -s "$M3" "$W3/repo"
+git -C "$M3" worktree add -q -b feat "$W3/_wt/feat" 2>/dev/null
+printf 'echo "2 passed"\n' > "$W3/_wt/feat/t.sh"; gcommit "$W3/_wt/feat" branch-only
+wprofile "$W3" 'suite_cmd: cd repo && bash t.sh'
+refused "a profile repo that is a symlink to main" "$W3" "$W3/_wt/feat" --only suite
+W4="$TMP/r4abs"; mkdir -p "$W4"; W4="$(cd "$W4" && pwd -P)"; git -C "$W4" init -q -b main
+printf '.context/\n_tmp/\n_wt/\n' > "$W4/.gitignore"; printf 'echo "1 passed"\n' > "$W4/t.sh"; git -C "$W4" add -A; gcommit "$W4" main
+git -C "$W4" worktree add -q -b feat "$W4/_wt/feat" 2>/dev/null
+printf 'echo "2 passed"\n' > "$W4/_wt/feat/t.sh"; gcommit "$W4/_wt/feat" branch-only
+wprofile "$W4" "suite_cmd: cd $W4 && bash t.sh"
+refused "a profile that cds to main's absolute path" "$W4" "$W4/_wt/feat" --only suite
+W5="$TMP/r4det"; sgd_layout "$W5"; wprofile "$W5" 'e2e_suite_cmd: cd repo && bash t.sh' 'e2e_detached: true'
+refused "a detached e2e leg landing in main" "$W5" "$W5/_wt/feat" --only e2e
+grep -q 'run_in_background' "$TMP/err" && bad "13 the refused detached leg still printed its command" || ok "13 the refused detached leg prints no command"
+wprofile "$W4" 'suite_cmd: cd "$PWD" && bash t.sh'
+refused "a cd the gate cannot read" "$W4" "$W4/_wt/feat" --only suite
+grep -q 'cannot resolve' "$TMP/err" && ok "13 the unreadable cd is named as the reason" || bad "13 unreadable cd reason: $(cat "$TMP/err")"
+
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

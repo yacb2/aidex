@@ -108,14 +108,14 @@ PROFILE_ALT="$ROOT/testing-profile.md"
 #   4. anything else — the aidex_ws layout, main nested under ROOT and reached as
 #      `cd aidex` — refused: the worktree has no such path.
 # --from-log runs nothing, so it keeps ROOT.
-RUN_IN="$ROOT"
+RUN_IN="$ROOT" LINKED=0
 abs() { (cd "$1" 2>/dev/null && pwd -P); }
 if [[ -z "$FROM_LOG" ]] && top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   while sp="$(git -C "$top" rev-parse --show-superproject-working-tree 2>/dev/null)" && [[ -n "$sp" ]]; do top="$sp"; done
   gitdir="$(git -C "$top" rev-parse --absolute-git-dir)"
   common="$(abs "$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)")"
   if [[ "$(abs "$gitdir")" != "$common" ]]; then
-    wt="$(abs "$top")"
+    wt="$(abs "$top")"; LINKED=1
     main="$(git -C "$top" worktree list --porcelain | sed -n '1s/^worktree //p')"; main="$(abs "$main")"
     rcommon="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && rcommon="$(abs "$rcommon")" || rcommon=""
     if [[ "$rcommon" == "$common" ]]; then
@@ -226,6 +226,36 @@ for leg in "${LEGS[@]}"; do
   printf -v "PRE_$leg" '%s' "$(profile_key "${leg}_pre_cmd")"
 done
 pre_of() { local v="PRE_$1"; printf '%s' "${!v}"; }
+
+# The table above only PROPOSES RUN_IN; no table of layouts is complete (a separate git
+# dir, a bare repo's sibling worktree, a symlinked repo, a `cd /abs/main` each passed it
+# and ran main). The verdict is one invariant, checked before any leg runs and before a
+# detached command is printed: from a linked worktree, every leg must land in a checkout
+# that IS the worktree or lies under it. The landing dir is RUN_IN joined with a leading
+# literal `cd <x> &&`, else RUN_IN; any other cd/pushd in the command is unresolvable and
+# refused. Cost, accepted: a worktree.sh DEST leg with no `cd` lands in the DEST root, a
+# different checkout, and is refused.
+landing_of() {  # landing_of <leg command>: prints the landing dir; fails on a cd it cannot read
+  local d="$RUN_IN" rest="$1" lead='^cd[[:space:]]+([^[:space:];&|$`"'"'"']+)[[:space:]]*&&(.*)$' \
+        other='(^|[;&|(`[:space:]])(cd|pushd)([[:space:]]|$)'
+  if [[ "$1" =~ $lead ]]; then
+    case "${BASH_REMATCH[1]}" in /*) d="${BASH_REMATCH[1]}" ;; *) d="$RUN_IN/${BASH_REMATCH[1]}" ;; esac
+    rest="${BASH_REMATCH[2]}"
+  fi
+  [[ "$rest" =~ $other ]] && return 1
+  printf '%s' "$d"
+}
+if [[ $LINKED -eq 1 ]]; then
+  for leg in "${LEGS[@]}"; do
+    d="$(landing_of "$(cmd_of "$leg")")" \
+      || die "the $leg leg changes directory in a form the gate cannot resolve (only a leading literal \`cd <dir> &&\` is read) — refusing rather than risk testing a checkout other than the linked worktree $wt"
+    lt="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" && lt="$(abs "$lt")" || lt=""
+    case "$lt" in
+      "$wt"|"$wt"/*) ;;
+      *) die "the $leg leg lands in $d (checkout: ${lt:-none}), not in the linked worktree $wt the gate was invoked from — refusing rather than testing another checkout" ;;
+    esac
+  done
+fi
 
 LOG_DIR="$ROOT/_tmp/sweep-gate"; mkdir -p "$LOG_DIR"
 # The history is evidence and outlives the run; _tmp/ is deletable without asking.
