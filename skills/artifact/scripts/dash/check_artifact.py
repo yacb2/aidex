@@ -3423,14 +3423,26 @@ _GROUP_HEAD = re.compile(r"^[ \t]*(?:##[ \t]+[^#\n].*·|###[ \t]+notes[ \t]*·)"
 
 def _live_reply(reply_text):
     """BL-598: a save carrying a composer heading is a FULL composer paste,
-    the reader's whole current state, so the latest one supersedes every
-    earlier save; saves after it still count. Sliced from the original text so
-    the `<!-- reply saved -->` lines that end reply blocks survive. No full
-    paste: text unchanged."""
-    starts = [0] + [m.start() for m in _SAVE_SEP.finditer(reply_text)]
+    the reader's whole current state of ONE page, so within a round the latest
+    one supersedes the earlier full pastes of that round. Chat saves are never
+    in the composer, so nothing supersedes them. A round ends at a separator
+    that is not `same-round` (save_reply.py writes `duty` when the paste came
+    from a rebuilt page; a separator with no mode predates the mode and is
+    read as a round end, i.e. no supersession). Kept saves are joined with
+    their `<!-- reply saved -->` lines, which end reply blocks."""
+    seps = list(_SAVE_SEP.finditer(reply_text))
+    starts = [0] + [m.start() for m in seps]
     ends = starts[1:] + [len(reply_text)]
-    full = [a for a, b in zip(starts, ends) if _GROUP_HEAD.search(reply_text[a:b])]
-    return reply_text[full[-1]:] if full else reply_text
+    new_round = [True] + ["same-round" not in m.group(0) for m in seps]
+    saves = [(a, b, _GROUP_HEAD.search(reply_text[a:b]) is not None)
+             for a, b in zip(starts, ends)]
+    kept, later_full = [], False
+    for k in range(len(saves) - 1, -1, -1):
+        a, b, full = saves[k]
+        if not (full and later_full):
+            kept.append(reply_text[a:b])
+        later_full = (later_full or full) and not new_round[k]
+    return "".join(reversed(kept))
 
 
 def check_decided_trace(path):

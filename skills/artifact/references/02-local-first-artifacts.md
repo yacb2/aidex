@@ -690,13 +690,16 @@ re-asked.
 A duty never expires by being overwritten, and a second `save-reply.sh` cannot
 be used to escape one. If a previous reply exists and the page on disk does
 not yet meet every duty that reply named, a new paste is **appended** to
-`reply.md` under a `<!-- reply saved <iso time> -->` separator and
+`reply.md` under a `<!-- reply saved <iso time> duty -->` separator and
 `answered.html` is **left untouched** — the union of every mark the id has
 ever carried, across every appended block, is what the next check reads.
 The same append happens when the page on disk still equals `answered.html`
-(two saves in one round, no rebuild between): the second paste must not erase
-the first. Only once the page has been rebuilt and satisfies every outstanding
-duty does a fresh reply **replace** `reply.md` and re-snapshot
+(two saves in one round, no rebuild between; separator mode `same-round`): the
+second paste must not erase the first. This page check wins over the duty
+check: a page that still equals `answered.html` is labelled `same-round` even
+with a duty unmet, so a later full composer paste from it supersedes the
+earlier one. Only once the page has been rebuilt
+and satisfies every outstanding duty does a fresh reply **replace** `reply.md` and re-snapshot
 `answered.html`: that is a delivered round, not an unanswered one waved
 through by an unrelated follow-up.
 

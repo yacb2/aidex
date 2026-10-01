@@ -402,6 +402,71 @@ build; rc=$?
   && ok "33. a notes-only composer paste supersedes the earlier answers (FAIL names Q1 and Q2)" \
   || fail "33. NID=$NID rc=$rc out=$(cat "$TMP/build.out")"
 
+# 34. BL-598 review finding 1: a CHAT save is never in the composer, so a later
+# full paste (which cannot hold Q1: it is blank there) does not supersede it
+newpage chatkept
+spec "" ""; build
+printf 'Q1: Sí, ciérralo\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "34. save 1 failed"
+printf '## G1 · x\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "34. save 2 failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
+  && ok "34. a chat answer saved before a full paste without that id still decides it" \
+  || fail "34. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 35. BL-598 review finding 2: a paste appended because a duty is unmet comes
+# from a NEW page (Q1 decided there, so the composer omits it): it must not
+# supersede the previous round's paste. The gate rolls back a page with an
+# unmet duty, so the round-2 page is built beside it and copied in (as
+# test-consultation-round-guards.sh D1 writes its draft directly).
+newpage dutyround
+spec "" ""; build
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n### Q2 · b\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "35. save 1 failed"
+spec "Sí" ""
+mkdir -p "$TMP/alt"; cp "$SPEC" "$TMP/alt/dutyround.spec.md"
+python3 "$BUILD" "$TMP/alt/dutyround.spec.md" -o "$TMP/alt/dutyround.html" >"$TMP/alt.out" 2>&1 \
+  || fail "35. round-2 page build failed: $(cat "$TMP/alt.out")"
+cp "$TMP/alt/dutyround.html" "$PAGE"
+cmp -s "$PAGE" "$D/.aidex-artifact-prev/dutyround.answered.html" \
+  && fail "35. fixture: the round-2 page equals the answered snapshot"
+grep -q 'data-id="Q1"[^>]*data-decided' "$PAGE" || fail "35. fixture: Q1 is not decided on the round-2 page"
+printf '## G1 · x\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save2.out" || fail "35. save 2 failed"
+grep -q 'duty is still outstanding' "$TMP/save2.out" || fail "35. fixture: save 2 was not a duty append: $(cat "$TMP/save2.out")"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
+  && ok "35. a full paste appended in a later round (duty unmet) does not erase the earlier round's Q1" \
+  || fail "35. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 36. a duty outstanding but the page NOT rebuilt: the second paste comes from
+# the same page, so it is same-round and still supersedes (Q1 withdrawn)
+newpage dutysame
+spec "" ""; build
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n### Q2 · b\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "36. save 1 failed"
+printf '## G1 · x\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "36. save 2 failed"
+# fixture guard (couples to the separator wording on purpose): save 2 is same-round
+grep -q 'reply saved .* same-round -->' "$D/.aidex-artifact-prev/dutysame.reply.md" \
+  || fail "36. fixture: save 2 was not labelled same-round: $(cat "$D/.aidex-artifact-prev/dutysame.reply.md")"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "36. same page with a duty outstanding: a later full paste without Q1 still supersedes" \
+  || fail "36. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 37. a legacy separator with no mode (reply.md written before BL-598) is a
+# round end: a later full paste does not supersede across it
+newpage legacysep
+spec "" ""; build
+mkdir -p "$D/.aidex-artifact-prev"
+cp "$PAGE" "$D/.aidex-artifact-prev/legacysep.answered.html"
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n<!-- reply saved 2026-09-30T10:00:00 -->\n\n## G1 · x\n\n### Q2 · b\n\n- No: intentarlo ahora' \
+  > "$D/.aidex-artifact-prev/legacysep.reply.md"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
+  && ok "37. a mode-less legacy separator ends a round: Q1 from before it still counts" \
+  || fail "37. rc=$rc out=$(cat "$TMP/build.out")"
+
 if [[ "$failures" -eq 0 ]]; then
   echo "test-consult-spec-trace.sh: all checks passed"
 else
