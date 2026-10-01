@@ -161,7 +161,9 @@ tested_of() {  # tested_of <leg command>
 WL_DIR="$ROOT/.context/worklists"
 WL_STAMP=""
 if [[ -n "$WORKLIST" ]]; then
-  if [[ -f "$WORKLIST" ]]; then
+  # only a path (it has a `/`) is taken as given: a bare name that is also a file in the
+  # CWD is still a slug, and resolve_worklist decides it (BL-551)
+  if [[ "$WORKLIST" == */* && -f "$WORKLIST" ]]; then
     # a path names a work-list only from a worklists/ directory (active or _archive/)
     case "$(cd "$(dirname "$WORKLIST")" && pwd -P)" in
       */worklists|*/worklists/_archive) WL_STAMP="$(basename "$WORKLIST")" ;;

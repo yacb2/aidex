@@ -120,5 +120,16 @@ OUT="$(bash "$DIR/worklist-advance.sh" ".context/worklists/$(ls .context/worklis
 [[ "$OUT" == *"first of seven"* ]] && ok "a relative path is taken as given" || bad "relative path: $OUT"
 OUT="$(cd .context/worklists && bash "$DIR/worklist-advance.sh" "$(ls | grep slug-seven)" --peek 2>&1)"
 [[ "$OUT" == *"first of seven"* ]] && ok "a bare filename from inside worklists/ is taken as given" || bad "in-dir filename: $OUT"
+# the full dated filename, the form every listing prints, from OUTSIDE worklists/: the glob
+# became `*<name>.md*.md` and matched nothing
+OUT="$(bash "$DIR/worklist-advance.sh" "$(ls .context/worklists | grep slug-seven)" --peek 2>&1)"
+[[ "$OUT" == *"first of seven"* ]] && ok "a full filename with .md from outside worklists/ resolves" || bad "filename from outside: $OUT"
+# without --with-archive, an archived filename from inside _archive/ is not a work-list
+OUT="$(cd .context/worklists/_archive && bash "$DIR/worklist-advance.sh" "$(basename "$WL6")" --peek 2>&1)"; RC=$?
+[[ $RC -ne 0 && "$OUT" == *"not found"* ]] && ok "an archived filename from inside _archive/ is not found without --with-archive" \
+  || bad "archived in-dir filename: rc=$RC $OUT"
+# ".md" alone must not strip to an empty name that globs every work-list
+OUT="$(bash "$DIR/worklist-advance.sh" .md --peek 2>&1)"; RC=$?
+[[ $RC -ne 0 && "$OUT" != *"first of"* ]] && ok "'.md' alone resolves to nothing" || bad "'.md' alone: rc=$RC $OUT"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist close refusal: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

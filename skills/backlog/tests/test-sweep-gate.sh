@@ -349,6 +349,12 @@ appended --worklist third
 [[ "$(stamp)" == "2026-09-29-third.md" ]] && ok "12 --worklist <slug> skips the -report.md and -report.spec.md companions" || bad "12 slug resolved to a companion: [$(stamp)]"
 appended --worklist second
 [[ "$(stamp)" == "2026-09-30-second.md" ]] && ok "12 --worklist <slug> resolves to the file" || bad "12 --worklist slug: [$(stamp)]"
+# BL-551: a same-named file in the CWD is not the work-list; the gate's own `[[ -f ]]` took
+# ./second as a path and died "not under a worklists/ directory"
+printf 'not a work-list\n' > "$P/second"
+appended --worklist second && [[ "$(stamp)" == "2026-09-30-second.md" ]] \
+  && ok "12 --worklist <slug> with ./<slug> in the CWD stamps the work-list" || bad "12 CWD stray: [$(stamp)] $(cat "$TMP/err")"
+rm -f "$P/second"
 n0="$(grep -c . "$H")"; printf -- '---\nstatus: done\n---\n' > "$A/2026-09-30-second-old.md"
 run --worklist second >/dev/null; RC=$?
 [[ $RC -eq 0 && "$(grep -c . "$H")" -gt "$n0" ]] && ok "12 an exact slug wins over a longer work-list name containing it" || bad "12 exact slug: rc=$RC"

@@ -312,6 +312,8 @@ resolve_worklist() {
       printf '%s\n' "$arg"; return 0
     fi
   fi
+  # the full filename (what every listing prints) globbed as `*<name>.md*.md` and matched nothing
+  [[ -n "${arg%.md}" ]] && arg="${arg%.md}"
   if [[ $arch -eq 1 ]]; then
     m="$(ls "$dir/"*"$arg"*.md "$dir/_archive/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
   else
