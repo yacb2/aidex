@@ -1074,6 +1074,88 @@ case("a hint word changed inside an option still fails",
      opt("Uno", "el detalle — sin guion", True) + opt("Dos", "otro"), False,
      "visible text differs", orig=OLD_OPT)
 
+# Which option is recommended and which is checked (BL-496): a built page may
+# not move the recommendation, and a decided item's original checked option must
+# stay checked. {recommended} used as a stand-in for the winner is what this
+# catches. The original side carries the old badge or the attribute alike.
+def item(opts, decided=True):
+    return ('<section class="consult-item" data-id="q"%s>%s</section>'
+            % (" data-decided" if decided else "", opts))
+
+
+def mark(label, rec=False, chk=False):
+    return ('<label><input type="radio" name="q" data-label="%s"%s%s><span>%s</span>'
+            '</label>' % (label, " data-recommended" if rec else "",
+                          " checked" if chk else "", label))
+
+
+RECS = item(mark("Uno", True, True) + mark("Dos"))
+case("the same recommended and checked marks are clean",
+     RECS, True, orig=RECS)
+case("the recommended option moved to another option fails",
+     item(mark("Uno", False, True) + mark("Dos", True)), False,
+     "option marks differ", orig=RECS)
+case("{recommended} as the stand-in for a chosen option fails",
+     item(mark("Uno", True, True) + mark("Dos")), False, "option marks differ",
+     orig=item(mark("Uno", False, True) + mark("Dos", True)))
+case("a chosen, not recommended option is clean",
+     item(mark("Uno", False, True) + mark("Dos", True)), True,
+     orig=item(mark("Uno", False, True) + mark("Dos", True)))
+case("a decided item's original checked option left unchecked fails",
+     item(mark("Uno", True) + mark("Dos")), False, "option marks differ", orig=RECS)
+case("the build checking the recommended option the original left unchecked is clean",
+     item(mark("Uno", True, True) + mark("Dos")), True,
+     orig=item(mark("Uno", True) + mark("Dos")))
+def plain(label, tail=""):
+    return ('<label><input type="radio" name="q"><span>%s %s</span></label>'
+            % (label, tail))
+
+
+OLD_CLASS = item(plain("Uno") + plain('<strong class="rec">Dos</strong>'),
+                 decided=False)
+OLD_WORD = item(plain("Uno") + plain("Dos", "Recomendada"), decided=False)
+BUILT_REC = item(mark("Uno") + mark("Dos", True), decided=False)
+case("the original's class=rec marks its recommended option", BUILT_REC, True,
+     orig=OLD_CLASS)
+case("the original's badge word marks its recommended option", BUILT_REC, True,
+     orig=OLD_WORD)
+case("a built page's class=rec without data-recommended is not recommended",
+     OLD_CLASS, False, "option marks differ", orig=OLD_CLASS)
+case("a built page's badge word without data-recommended is not recommended",
+     OLD_WORD, False, "option marks differ", orig=OLD_WORD)
+case("the build checking an option that is not recommended fails",
+     item(mark("Uno", True) + mark("Dos", False, True)), False,
+     "option marks differ", orig=item(mark("Uno", True) + mark("Dos")))
+
+
+def box(label, rec=False, chk=False):
+    return mark(label, rec, chk).replace('type="radio"', 'type="checkbox"')
+
+
+case("a select=many build checking an extra, not recommended option fails",
+     item(box("Uno", True, True) + box("Dos", False, True)), False,
+     "option marks differ", orig=item(box("Uno", True) + box("Dos")))
+case("a pre-checked option of an undecided item is not compared",
+     item(mark("Uno", True) + mark("Dos"), decided=False), True,
+     orig=item(mark("Uno", True, True) + mark("Dos"), decided=False))
+
+# A situation lead sits in front of the h3's question in an older page and under
+# it in a built one (BL-514): the same words, so the same page.
+LEAD_OLD = ('<section class="consult-item" data-id="q"><h3><span class="consult-id">q'
+            '</span>Hoy falla. ¿Qué hacemos?</h3></section>')
+LEAD_NEW = ('<section class="consult-item" data-id="q"><h3><span class="consult-id">q'
+            '</span>¿Qué hacemos?</h3><p class="consult-lead">Hoy falla.</p></section>')
+case("a built item's situation lead reads in front of its question", LEAD_NEW, True,
+     orig=LEAD_OLD)
+case("a lead placed after the options is not read in front of the question",
+     LEAD_NEW.replace("</section>", "")
+     .replace('<p class="consult-lead">Hoy falla.</p>',
+              '<div class="opts"></div><p class="consult-lead">Hoy falla.</p>')
+     + "</section>", False, "visible text differs", orig=LEAD_OLD)
+case("a lead whose words changed still fails",
+     LEAD_NEW.replace("Hoy falla.", "Hoy no falla."), False, "visible text differs",
+     orig=LEAD_OLD)
+
 # corpus_html.BADGE_WORDS is a hand copy of the kit's `rec` strings, one per
 # language: a language added to the composer, or a word changed there, would
 # leave the old badge word in every converted option label as text.
