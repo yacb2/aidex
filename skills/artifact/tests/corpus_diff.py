@@ -89,16 +89,17 @@ def _first_flag_divergence(want, got):
     """The first option whose marks drifted, or "" when they hold.
 
     Recommended must be identical. Checked must hold for every option the
-    original checked; the build may ALSO check the recommended option of a
-    decided item the original left unchecked (`decided=yes` shows a verdict:
-    the consult contract wins, owner ruling 2026-09-28).
+    original checked; the build may ALSO check the recommended option of an
+    item the ORIGINAL marks decided and in which it checked no option
+    (`open_verdict`; `decided=yes` shows a verdict: the consult contract wins,
+    owner ruling 2026-09-28).
     """
     def show(f):
         return "recommended=%s checked=%s" % (f[1], f[2])
     if len(want) != len(got):
         return "  %d options in the page, %d built" % (len(want), len(got))
     for i, (w, g) in enumerate(zip(want, got)):
-        if w[1] != g[1] or (w[2] and not g[2]) or (g[2] and not w[2] and not g[1]):
+        if w[1] != g[1] or (w[2] and not g[2]) or (g[2] and not w[2] and not (g[1] and w[3])):
             return ("  option %d (%s): original %s, built %s"
                     % (i + 1, w[0][:50], show(w), show(g)))
     return ""

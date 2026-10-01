@@ -64,6 +64,11 @@ else
 fi
 [[ -n "${file:-}" && -f "$file" ]] || die "$TYPE artifact not found: $ARG"
 case "$file" in */_archive/*) die "already archived: $file" ;; esac
+# A path, or resolve_worklist's own `[[ -f ]]`, can name a CWD file (`notes.md` ->
+# ./notes): only a file directly in $DIR is a $TYPE artifact. Both sides resolved (a
+# worktree may link .context), and cd's CDPATH echo silenced.
+[[ "$(cd "$(dirname "$file")" >/dev/null && pwd -P)" == "$(cd "$DIR" >/dev/null && pwd -P)" ]] \
+  || die "not a $TYPE artifact (outside $DIR): $file"
 
 today="$(today_iso)"
 sed -i.bak -E "s|^status: .*|status: $STATUS|" "$file" && rm -f "$file.bak"

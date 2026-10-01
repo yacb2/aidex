@@ -213,7 +213,8 @@ def _option_input(node):
 
 
 def option_flags(node, original=False):
-    """`[(label, recommended, checked), ...]`, one per option, in reading order.
+    """`[(label, recommended, checked, open_verdict), ...]`, one per option,
+    in reading order.
 
     Recommended is the `data-recommended` attribute OR the badge the older
     pages carried as markup or text (a `.rec` element or a badge word in the
@@ -222,12 +223,22 @@ def option_flags(node, original=False):
     only inside a decided item (`data-decided`): the grammar can check an
     option only to show a verdict, so a pre-checked option of an UNDECIDED item
     (contracts-sweep-decisions Q17) has no spelling and is not compared.
+    The fourth flag, `open_verdict`, is whether the option's item is decided
+    with no option checked in it: only there may a build add a check.
     """
-    out = []
+    found = []
     for el in node.walk():
         inp = _option_input(el)
         if inp is None or _dropped(el):
             continue
+        item = el.parent
+        while item is not None and not item.has("consult-item"):
+            item = item.parent
+        found.append((el, inp, item))
+    checked_items = {id(item) for _, inp, item in found
+                     if item is not None and "checked" in inp.attrs}
+    out = []
+    for el, inp, item in found:
         words = _option_tokens(el)
         sub = []
         _collect_option(el, sub)
@@ -235,11 +246,9 @@ def option_flags(node, original=False):
         rec = "data-recommended" in inp.attrs or (original and (
             any(w in BADGE_WORDS for w in raw)
             or any(n.has("rec") for n in el.walk())))
-        item = el.parent
-        while item is not None and not item.has("consult-item"):
-            item = item.parent
         decided = item is not None and "data-decided" in item.attrs
-        out.append((" ".join(words), rec, decided and "checked" in inp.attrs))
+        out.append((" ".join(words), rec, decided and "checked" in inp.attrs,
+                    decided and id(item) not in checked_items))
     return out
 
 
