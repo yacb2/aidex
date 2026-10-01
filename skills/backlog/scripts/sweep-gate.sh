@@ -96,41 +96,55 @@ PROFILE_ALT="$ROOT/testing-profile.md"
 # ROOT owns the profile, _tmp/ and the history; it does NOT own the checkout under test
 # (BL-548). From a linked worktree, find_project_root answers the MAIN project on purpose
 # (.context/ writes), and running the legs there gated a 2026-10-01 merge on main's suite
-# instead of the branch's. So, from a linked worktree (_lib.sh's predicate: the git dir is
-# not the common dir — a submodule is not one), the legs run where ROOT maps in it:
-#   - ROOT inside the worktree (it tracks .context/): ROOT, as before;
-#   - ROOT is the main checkout or under it (a profile in a repo subdirectory): the same
-#     path inside the worktree;
-#   - the main checkout NESTED under ROOT (a workspace profile that reaches the repo as
-#     `cd <repo>`): the worktree has no such path, so refuse rather than test main;
-#   - ROOT an ancestor of the worktree only (a worktree.sh DEST mirroring the workspace):
-#     ROOT, whose relative paths already land in the worktree.
-# Main checkout, no git, or --from-log (which runs nothing): ROOT, exactly as before.
+# instead of the branch's. Where the legs run is an explicit table; a layout no row
+# knows is REFUSED, never run in ROOT (a fall-through to ROOT is the bug itself):
+#   0. climb out of submodules to the outermost superproject: a submodule inside a
+#      linked worktree is the worktree's, not main's;
+#   1. not a linked worktree (_lib.sh's predicate: git dir != common dir): ROOT, as before;
+#   2. ROOT is a checkout of the SAME repo (main, a subdirectory of it, a separate git
+#      dir, or the worktree itself): the same path inside the worktree;
+#   3. ROOT is outside the repo, the main checkout is not under ROOT and the worktree is
+#      (a worktree.sh DEST mirroring the workspace): ROOT, whose `cd <repo>` lands in it;
+#   4. anything else — the aidex_ws layout, main nested under ROOT and reached as
+#      `cd aidex` — refused: the worktree has no such path.
+# --from-log runs nothing, so it keeps ROOT.
 RUN_IN="$ROOT"
-if [[ -z "$FROM_LOG" ]] \
-   && gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" \
-   && common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
-   && [[ -n "$common" && "$common" != "$gitdir" ]]; then
-  wt="$(cd "$(git rev-parse --show-toplevel)" && pwd -P)"; main="$(cd "$(dirname "$common")" && pwd -P)"
-  case "$ROOT" in
-    "$wt"|"$wt"/*) ;;
-    "$main"|"$main"/*) RUN_IN="$wt${ROOT#"$main"}" ;;
-    *) case "$main" in "$ROOT"/*)
-         die "invoked in the linked worktree $wt (HEAD $(git rev-parse -q --verify HEAD || echo none)), but the profile at $ROOT runs its commands from $ROOT, which reaches the main checkout $main, not this worktree — run the gate from a checkout the profile's commands resolve to (a worktree.sh DEST that mirrors $ROOT)" ;;
-       esac ;;
-  esac
+abs() { (cd "$1" 2>/dev/null && pwd -P); }
+if [[ -z "$FROM_LOG" ]] && top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  while sp="$(git -C "$top" rev-parse --show-superproject-working-tree 2>/dev/null)" && [[ -n "$sp" ]]; do top="$sp"; done
+  gitdir="$(git -C "$top" rev-parse --absolute-git-dir)"
+  common="$(abs "$(git -C "$top" rev-parse --path-format=absolute --git-common-dir)")"
+  if [[ "$(abs "$gitdir")" != "$common" ]]; then
+    wt="$(abs "$top")"
+    main="$(git -C "$top" worktree list --porcelain | sed -n '1s/^worktree //p')"; main="$(abs "$main")"
+    rcommon="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" && rcommon="$(abs "$rcommon")" || rcommon=""
+    if [[ "$rcommon" == "$common" ]]; then
+      RUN_IN="$wt/$(git -C "$ROOT" rev-parse --show-prefix)"; RUN_IN="${RUN_IN%/}"
+    elif [[ -n "$main" && "$main" != "$ROOT" && "$main" != "$ROOT"/* && "$wt" == "$ROOT"/* ]]; then
+      RUN_IN="$ROOT"
+    else
+      die "invoked in the linked worktree $wt (HEAD $(git -C "$top" rev-parse -q --verify HEAD || echo none)), but the profile at $ROOT does not map onto it (main checkout: ${main:-unknown}) — its commands would test another checkout; run the gate from a checkout the profile's commands resolve to (a worktree.sh DEST that mirrors $ROOT)"
+    fi
+  fi
 fi
-# What a leg tested, for its log header: the checkout its command lands in — RUN_IN, or
-# RUN_IN/<x> for a leading literal `cd <x> &&` (a workspace profile reaching a nested
-# repo) — and that checkout's HEAD. Not a git checkout, or no commit: "commit unknown",
-# never the sha of whatever repo the gate happened to be invoked in.
+[[ -d "$RUN_IN" ]] || die "the profile's root maps to $RUN_IN in this worktree, which does not exist"
+# What a leg tested, for its log header: the checkout its command lands in and its HEAD,
+# " (dirty)" when that checkout has uncommitted changes. The checkout is RUN_IN/<x> for a
+# leading literal `cd <x> &&`; otherwise RUN_IN's own checkout, but only when it holds no
+# nested repo the command could have gone into. Anything else is "commit unknown" —
+# never a sha the leg may not have run.
 tested_of() {  # tested_of <leg command>
   local d="$RUN_IN" re='^cd[[:space:]]+([^[:space:];&|$`"'"'"']+)[[:space:]]*&&' top sha
   if [[ "$1" =~ $re ]]; then
     case "${BASH_REMATCH[1]}" in /*) d="${BASH_REMATCH[1]}" ;; *) d="$RUN_IN/${BASH_REMATCH[1]}" ;; esac
+  else
+    top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" || top=""
+    [[ -n "$top" && -z "$(find "$top" -mindepth 2 -maxdepth 3 -name .git -print -quit 2>/dev/null)" ]] \
+      || { printf 'commit unknown'; return; }
   fi
   if top="$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)" && sha="$(git -C "$d" rev-parse -q --verify HEAD 2>/dev/null)"; then
     printf 'checkout %s at %s' "$top" "$sha"
+    [[ -z "$(git -C "$d" status --porcelain 2>/dev/null)" ]] || printf ' (dirty)'
   else
     printf 'commit unknown'
   fi
