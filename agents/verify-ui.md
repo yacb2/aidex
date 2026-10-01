@@ -27,9 +27,9 @@ directory, and the result is not this gallery's evidence.
 
 ## Procedure
 
-1. **Detect, do not assume.** Find the runner entry point from the project's testing
-   profile, its package scripts or its E2E wrapper, and find the contact-sheet composer
-   the same way. Report what you found before running it. If you cannot find either, stop
+1. **Detect, do not assume.** Read `gallery_gate_cmd` and `gallery_scripts` from the
+   project's testing profile first. Absent, find the runner entry point from its package
+   scripts or its E2E wrapper, and find the contact-sheet composer the same way. Report what you found before running it. If you cannot find either, stop
    and say which one is missing — an improvised command is not this project's gate.
 2. **Run the gate with NO snapshot update.** Never pass an update-snapshots flag, under
    any circumstance, including "the baseline is obviously stale". Capture the whole

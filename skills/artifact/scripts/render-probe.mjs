@@ -423,6 +423,14 @@ catch (e) {
   console.error(`render-probe: CRASH launching Chromium: ${msg.split('\n')[0]}`);
   process.exit(4);
 }
+// A page whose script never yields blocks page.evaluate forever, and no caller is sure
+// to kill us: the run ends at AIDEX_PROBE_DEADLINE seconds per page (default 60).
+// Chromium needs no kill of its own: it exits when this process's pipe to it closes.
+const deadline = (Number(process.env.AIDEX_PROBE_DEADLINE) || 60) * files.length;
+setTimeout(() => {
+  console.error(`render-probe: CRASH on ${current}: no verdict before the ${deadline} s deadline`);
+  process.exit(4);
+}, deadline * 1000).unref();
 if (shots) fs.mkdirSync(shots, { recursive: true });
 const report = [];
 // --shots bookkeeping: one run stamp for every file written this run, and one manifest

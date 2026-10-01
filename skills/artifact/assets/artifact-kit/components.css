@@ -721,9 +721,30 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* A visible zoom label on every tile once the composer has made it a button.
    Drawn from data-zoom (localised text set by composer.js), so a tap on touch
    reads the same as a click and nothing depends on a hover title. */
-.gal figure[role="button"]::after { content: attr(data-zoom); position: absolute; top: 0.35rem; right: 0.35rem;
-  font-family: var(--sans); font-size: 0.72rem; line-height: 1; padding: 0.3rem 0.5rem; border-radius: 3px;
-  background: var(--paper); color: var(--ink); border: 1px solid var(--rule); pointer-events: none; }
+.gal figure[role="button"]::after { content: attr(data-zoom); display: block; text-align: center;
+  font-family: var(--sans); font-size: 0.78rem; line-height: 1.4; margin-top: 0.1rem;
+  color: var(--accent); text-decoration: underline; pointer-events: none; }
+/* The one instruction of a gallery, under its heading (BL-595), and the variant
+   said once under a row's captures, in words (BL-594). */
+.gal-intro:where(:not(svg *)) { font-family: var(--sans); font-size: 0.9rem; margin: 0.2rem 0 0.6rem; }
+.gal-variant:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); margin: 0.1rem 0 0.5rem; }
+/* A before/after pair on top of each other, each at the column's full width
+   (BL-589): a capture is never cropped to fit a half-width cell. */
+.gal.stacked { grid-template-columns: minmax(0, 1fr); }
+/* The highlight (BL-596): an outline over the capture, in percentages of the
+   image, so it scales with it. The layer is sized by the capture's aspect
+   ratio (written inline) and capped like the image it covers. */
+.gal figure { position: relative; }
+.gal-hl-layer { position: absolute; top: 0; left: 0; right: 0; width: 100%; margin: 0 auto;
+                pointer-events: none; display: block; }
+.gal figure[data-tile$="-mobile"] .gal-hl-layer,
+.consult-gallery[data-variant$="-mobile"] .gal-hl-layer { width: min(100%, 220px); }
+/* An OUTLINE only, drawn outside the region with a few px of padding: no fill
+   and no border on the box, so the text it points at is never covered. */
+.gal-hl { position: absolute; box-sizing: border-box; background: none; border: 0;
+          outline: 3px solid var(--flag); outline-offset: 4px; }
+.kit-hl-layer { position: absolute; pointer-events: none; }
+.kit-zoom:not([data-compare="off"]) .kit-hl-layer { display: none; }
 /* The answer of a gallery row is a verdict and a note: extra options sit in a
    closed <details>, in the same option group so they paste like any other. */
 .opts details.opts-more { grid-column: 1 / -1; }

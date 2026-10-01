@@ -1615,11 +1615,24 @@ the shape and every refusal: `04-block-vocabulary.md` § `gallery`):
 ```json
 {"gallery": "audit", "variants": ["light-desktop"], "shots_dir": "<rel>", "actual_dir": "<rel>",
  "rows": [
-  {"cell": "empty", "variant": "light-desktop", "kind": "review", "before": "<rel>", "after": "<rel>"},
+  {"cell": "empty", "variant": "light-desktop", "kind": "review", "before": "<rel>", "after": "<rel>",
+   "title": "Lista de usuarios: sin usuarios", "highlight": {"x": 40, "y": 20, "w": 80, "h": 40}},
   {"cell": "new-state", "variant": "light-desktop", "kind": "review", "after": "<rel>"},
   {"cell": "loaded", "variant": "dark-mobile", "kind": "unrequested", "before": "<rel>", "after": "<rel>"}
  ]}
 ```
+
+**Write a `title` on every row** (optional field, but the owner reviews by looking and a
+slug heading says nothing): one line in the page's language that names the screen and the
+state, like "Lista de usuarios: menú de acciones de un usuario invitado". It is the row's
+heading and its rail entry; without it the heading is the cell's name read as words. The
+variant is said once under the captures ("Vista: escritorio, tema claro"), the one
+instruction sits at the top of the block, and an optional `highlight` (one `{x, y, w, h}`
+or a list, in the AFTER capture's own pixels) is outlined over the after and in the zoom
+view, outside the region with padding and no fill; the before gets an outline only from
+`highlight_before`, measured on the before capture (the two layouts differ). A before/after pair sits side by side (captures scale, never cropped; owner
+2026-10-01); `"layout": "stacked"` puts before above after at full width. Field table:
+`04-block-vocabulary.md` § `gallery`.
 
 Item ids are `<gallery>-<cell>-<variant>` (`-unrequested` / `-sample` appended for those
 kinds; a `{"cell", "notApplicable": reason}` row is `<gallery>-<cell>-not-applicable`) and stay stable
@@ -1646,6 +1659,9 @@ note, Esc drops it).
 
 ```
 ### audit-empty-light-desktop · audit · empty · light-desktop
+
+(The paste heading is always `<id> · <gallery> · <cell> · <variant>` — the row's `data-title`,
+what `gallery-reply.sh` keys on — even when the page shows the row's human `title`.)
 
 - Necesita cambios
 
@@ -1701,7 +1717,7 @@ an answer). Labels are trimmed, compared case-insensitively, and may not equal t
 or Other choice or look like a `[marker]`. A document that declares `alternatives` holds no before/after rows, and an
 alternative id may not be `before` or `after`.
 
-**Every row says what to look at.** `look` (one sentence) prints under the row's intro. The
+**Every row says what to look at.** `look` (one sentence) prints under the row's heading. The
 spec route (`spec_build.py`) refuses a row without it, naming the cell; `gallery-items.sh`
 on its own only shows it when present, so existing project emitters keep working. A
 not-applicable or dropped row is exempt: its reason is its content.

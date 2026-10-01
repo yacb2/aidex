@@ -14,7 +14,8 @@ in composer.js), nothing before or after it:
   [mark <tile> x,y wxh] note  (one line per region mark, always last)
 
 A GALLERY ROW is an item whose heading title is `<gallery> · <cell> ·
-<variant>` and whose id is `<gallery>-<cell>-<variant>`, with `-<kind>` added
+<variant>` (the row's `data-title`; the human `title` of the rows JSON is only
+what the page shows, so a titled row pastes the same heading) and whose id is `<gallery>-<cell>-<variant>`, with `-<kind>` added
 for a row that is not a review (`-unrequested`, `-sample`); a not-applicable
 row is `<gallery> · <cell>` / `<gallery>-<cell>-not-applicable` (kind
 `not-applicable`, variant "") — exactly what gallery_items.py writes. A row of

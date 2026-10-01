@@ -300,12 +300,24 @@ resolve_worklist() {
   local arch=0 dir arg m n f b exact=() re
   [[ "${1:-}" == "--with-archive" ]] && { arch=1; shift; }
   dir="$1"; arg="$2"
-  # A path (it has a `/`) is taken as given. A bare name is a file only when the CWD is
-  # the work-list dir itself: `foo` beside the caller is not the work-list `foo` names
-  # (BL-551, same class as BL-541). Both sides resolved (a worktree may link .context),
-  # and cd's CDPATH echo silenced.
+  # A path (it has a `/`) is taken as given only inside <dir> or <dir>/_archive/; any
+  # other path is refused, or `./notes.md` was closed and archived as a work-list
+  # (BL-561). A path into _archive/ is returned so a caller that matches a literal
+  # `*/_archive/*` can refuse it as already archived. A bare name is a file only when the
+  # CWD is the work-list dir itself: `foo` beside the caller is not the work-list `foo`
+  # names (BL-551, same class as BL-541). Both sides resolved (a worktree may link
+  # .context), cd's CDPATH echo silenced, CDPATH emptied for the relative `dirname` (an
+  # exported CDPATH sent `cd worklists` to another project's folder), and `cd -P` so
+  # `ext/..` after a symlinked folder means what the kernel opens, not worklists/ itself.
   if [[ -f "$arg" ]]; then
-    if [[ "$arg" == */* ]]; then printf '%s\n' "$arg"; return 0; fi
+    if [[ "$arg" == */* ]]; then
+      local at; at="$(CDPATH= cd -P "$(dirname "$arg")" >/dev/null 2>&1 && pwd -P)"
+      if [[ "$at" == "$(cd "$dir" >/dev/null 2>&1 && pwd -P)" \
+         || "$at" == "$(cd "$dir/_archive" >/dev/null 2>&1 && pwd -P)" ]]; then
+        printf '%s\n' "$arg"; return 0
+      fi
+      err "not under $dir: $arg"; exit 2
+    fi
     local here; here="$(pwd -P)"
     if [[ "$here" == "$(cd "$dir" >/dev/null 2>&1 && pwd -P)" ]] \
        || [[ $arch -eq 1 && "$here" == "$(cd "$dir/_archive" >/dev/null 2>&1 && pwd -P)" ]]; then

@@ -406,8 +406,12 @@ FACTS_MIN = 4           # check_artifact.FACTS_MIN (consult-facts warning, BL-27
 PROSE_SENTENCES = 3
 PATH_RUN = 3
 # A prose sentence: starts with a capital (or ¿/¡), runs at least four words of
-# letters, ends with . ! or ? before whitespace or the end.
-SENTENCE = re.compile(r"[¿¡]?[A-ZÁÉÍÓÚÑ][a-záéíóúñü]*(?:[ ,][^\s.!?]+){3,}?"
+# letters, ends with . ! or ? before whitespace or the end. A token excludes the
+# comma that separates tokens (a trailing one is allowed): when a comma could be both,
+# a comma run with no closing .!? backtracked exponentially (40 commas: days).
+# Exactly three tokens, not {3,}?: the tail absorbs any further word, and the lazy
+# count made a long line cubic.
+SENTENCE = re.compile(r"[¿¡]?[A-ZÁÉÍÓÚÑ][a-záéíóúñü]*(?:[ ,][^\s.!?,]+,?){3}"
                       r"[^.!?\n]*[.!?](?=\s|$)")
 WORD = re.compile(r"^[A-Za-zÁÉÍÓÚÑáéíóúñü¿¡,'’()-]+$")
 PATH = (r"(?:~?[\w.@-]*(?:/[\w.@-]+)+/?|[\w-]+\.(?:py|sh|md|html|js|mjs|json|"

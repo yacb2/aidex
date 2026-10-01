@@ -335,10 +335,23 @@ in dashboard_template), and the kit reads nothing else:
 | no `before` key | the one capture, labelled as a new screen; the row declares `data-tiles="after"` |
 | `kind: "unrequested"` | the same pair plus the line "cambió sin que lo pidieras" (changed without you asking); one row per changed cell, and its optional `also` (the other variants where that cell changed, harness order) adds "también en: …" / "also in: …" to that line |
 | `kind: "sample"` | the pair with no verdict radios — it illustrates, it asks nothing |
-| `{"cell", "notApplicable": reason}` (no variant, no captures) | a declared cell the screen cannot reach: its reason in a `.gal-na` instead of the pair, with one answer; id and title are `<gallery>-<cell>-not-applicable` / `<gallery> · <cell>` |
+| `{"cell", "notApplicable": reason}` (no variant, no captures) | a declared cell the screen cannot reach: its reason in a `.gal-na` instead of the pair, with one answer; id and `data-title` are `<gallery>-<cell>-not-applicable` / `<gallery> · <cell>`; it takes `title` too |
 | `kind: "alternatives"` | with a top-level `"alternatives": [{"id", "label"}, …]`: one row per cell showing every declared variant (`"captures": {id: path}`), captioned with the labels, one which-one radio; the block's `data-tiles` are the ids, so a document that declares them holds no before/after rows |
+| `"title": text` | the row's heading and its rail entry, one line in the page's language ("Lista de usuarios: menú de acciones de un usuario invitado"). Without it the heading is the cell read as words ("Users list menu"), never `<gallery> · <cell> · <variant>`. The slug id is only the anchor; `data-title` stays `<gallery> · <cell> · <variant>` because that is the heading a pasted reply carries and `gallery-reply.sh` keys on |
+| `"highlight": {"x", "y", "w", "h"}` or a list of them | a region in the AFTER capture's own pixels (a new screen's one capture, or each tile of an alternatives row), outlined over it (CSS overlay in percentages, so it scales; nothing is drawn into the image) and again in the zoom view. The outline is drawn outside the region with a few px of padding, no fill, so it never covers the content. Refused when it leaves the capture, or has a missing key, a negative origin or a zero size. The BEFORE gets no outline from it: the two captures have different layouts |
+| `"highlight_before"` | same shape, in the BEFORE capture's pixels, validated against its size; needs a `before`. No outline on the before unless given |
+| `"layout": "stacked"` or `"side"` | a before/after pair sits side by side by default (captures scale to the cell, never cropped; owner 2026-10-01); `stacked` puts before above after at full column width |
 | `"look": text` | what to look at on this row; required through the spec route, shown as the "Qué mirar" line |
 | `"dropped": reason` / `"decided": verdict` | the row left the question set (no captures needed, reason in `.gal-na`, `data-dropped`) / was settled (captures kept); both fold as decided
+
+Each row shows its variant once, under the captures, in words of the page's language
+(`Vista: escritorio, tema claro` / `View: desktop, light theme`; light/dark x
+desktop/mobile/tablet; a variant that does not split is shown as its own name), and the
+block's single instruction ("Marca tu respuesta en cada fila…", plus a sentence for new
+screens, samples, alternatives or not-applicable rows when the block holds any) is one
+`<p class="gal-intro">` under the block's heading, never repeated per row. The Spanish
+approve option reads "Aprobada: lo propuesto queda como referencia". The "Ampliar" word of a
+tile sits on its own line below the caption, never over the capture.
 
 Every row but a sample carries one answer (two verdicts visible, the third and the composer's extras collapsed) and a notes box. The row id is
 `<gallery>-<cell>-<variant>`, with `-<kind>` appended for a non-review row, so it stays

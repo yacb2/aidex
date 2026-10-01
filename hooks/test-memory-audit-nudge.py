@@ -298,6 +298,21 @@ p = subprocess.run(["sh", HOOK], input="{}", env=env2,
                    capture_output=True, text=True, timeout=60)
 check("no cwd exits 0 silently", p.returncode == 0 and not p.stdout.strip(), p.stdout)
 
+# A relative cwd made the upward walk loop forever: dirname "." is ".". The hook
+# runs in its own process group, killed on timeout, with a CPU cap its children
+# inherit, so a RED run cannot leave a looping shell behind (bugfix step 3).
+import resource, signal
+h = subprocess.Popen(["sh", HOOK], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                     stderr=subprocess.PIPE, text=True, env=env2, start_new_session=True,
+                     preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_CPU, (5, 5)))
+try:
+    out, _ = h.communicate(json.dumps({"cwd": "relative/dir", "session_id": "s-rel"}), timeout=5)
+    rc = h.returncode
+except subprocess.TimeoutExpired:
+    os.killpg(h.pid, signal.SIGKILL); h.communicate()
+    rc, out = "HANG", ""
+check("a relative cwd exits 0 silently, never hangs", rc == 0 and not out.strip(), rc)
+
 shutil.rmtree(HOME, ignore_errors=True)
 
 print("\nmemory-audit-nudge: %d checks, %d failed" % (TOTAL[0], len(fails)))

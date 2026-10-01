@@ -50,6 +50,7 @@ the profile stays a list of values.
 | A sweep's per-item selection (`sweep-execution-policy.md`, stage 3) | `blindspot_expansions` — the mandatory widenings of `affected-tests.sh`'s selection, one `- ` line each: a migration ⇒ every app referencing the changed model; a touched `*.test.ts` ⇒ `vue-tsc -b` (not `-p`, which excludes test files); a removed UI surface ⇒ grep `tests/e2e/` for the endpoints and testids it owned. These three account for most of what a sweep's boundary gate catches |
 
 The sweep keys are **optional**: a project with no sweep validates without them, and `sweep-gate.sh` is what refuses (exit 2, naming the key) when a sweep runs against a profile that never filled them. The shape is aidex's; the bindings — `-n 4 --dist loadscope`, which runner, which build — are project facts, which is why they live here and not in a `CLAUDE.md` nobody commits.
+| `ui-contract` Step 0 and its `verify-ui` agent | `gallery_gate_cmd` — the one gallery gate call (`{projects}`, `{spec}` filled per run); `gallery_scripts` — the board and contact-sheet composers. **Optional**: only a project with a UI state-gallery harness sets them, `profile-init.py` never writes them, and absent keys fall back to detection from package scripts or the E2E wrapper |
 | A reader orienting in the project | `personas_ref`, `cross_deps_ref`, `module_map`, `ui_stack`, `ui_locale` |
 
 `cross_deps_ref` names **a folder or several modules, comma-separated** — never one

@@ -99,18 +99,39 @@ rc=0; (cd sib && bash "$SCRIPT" requests linked >/dev/null 2>&1) || rc=$?
   || fail "through a symlinked .context, a request was refused (rc=$rc) or not archived"
 
 # --- BL-551 review: the folder guard and the `.md` strip, each from a fresh project ----
-# A bare name that is a CWD file is taken by the script's own `[[ -f "$ARG" ]]`; only the
-# outside-$DIR guard stops it (the notes.md cell above no longer reaches that guard).
+# A path to a CWD file is taken as given; only the outside-$DIR guard stops it (a bare
+# name no longer reaches that guard: it is a fragment, BL-566).
 G="$(mktemp -d)"; mkdir -p "$G/.context/requests"
 mk "$G/.context/requests/2026-05-01-only-one.md" open
 ( cd "$G" && printf 'x\nstatus: x\n' > notes
-  rc=0; bash "$SCRIPT" requests notes >/dev/null 2>&1 || rc=$?
+  rc=0; bash "$SCRIPT" requests ./notes >/dev/null 2>&1 || rc=$?
   [[ $rc -ne 0 && "$(cat notes)" == $'x\nstatus: x' && ! -e .context/requests/_archive/notes ]] ) \
-  || fail "a bare CWD file name passed the outside-requests/ guard"
+  || fail "a path to a CWD file passed the outside-requests/ guard"
 # `.md` alone must not strip to an empty fragment that globs the only open request.
 rc=0; ( cd "$G" && bash "$SCRIPT" requests .md >/dev/null 2>&1 ) || rc=$?
 [[ $rc -ne 0 && -f "$G/.context/requests/2026-05-01-only-one.md" ]] \
   || fail "'.md' alone closed the only open request (rc=$rc)"
+# BL-566: a bare name that matches a real request is that request even with a same-named
+# CWD file; the script's own `[[ -f "$ARG" ]]` took ./notes and died "outside requests/".
+mk "$G/.context/requests/2026-05-02-notes.md" open
+rc=0; ( cd "$G" && bash "$SCRIPT" requests notes >/dev/null 2>&1 ) || rc=$?
+[[ $rc -eq 0 && -f "$G/.context/requests/_archive/2026-05-02-notes.md" && "$(cat "$G/notes")" == $'x\nstatus: x' ]] \
+  || fail "with a stray ./notes, 'requests notes' did not close 2026-05-02-notes.md (rc=$rc)"
+# An exported CDPATH must not redirect the folder guard: `cd requests` from G/work landed
+# in G/.context/requests, so a user file G/work/requests/notes-cdpath.md passed as a request.
+mkdir -p "$G/work/requests"; printf 'mine\nstatus: doing\n' > "$G/work/requests/notes-cdpath.md"
+rc=0; err="$( cd "$G/work" && CDPATH="$G/.context" bash "$SCRIPT" requests requests/notes-cdpath.md 2>&1 >/dev/null )" || rc=$?
+[[ $rc -ne 0 && "$err" == *"outside"* && "$(cat "$G/work/requests/notes-cdpath.md" 2>/dev/null)" == $'mine\nstatus: doing' \
+   && ! -e "$G/.context/requests/_archive/notes-cdpath.md" ]] \
+  || fail "with CDPATH exported, a user file outside requests/ was closed or not refused as outside (rc=$rc): $err"
+# `..` after a symlinked folder inside requests/: a logical `cd ext/..` lands back in
+# requests/, while the file the kernel opens is beside the link's target.
+mkdir -p "$G/outside/sub" && ln -s "$G/outside/sub" "$G/.context/requests/ext"
+printf 'mine\nstatus: doing\n' > "$G/outside/req-symlink.md"
+rc=0; err="$( cd "$G/.context/requests" && bash "$SCRIPT" requests ext/../req-symlink.md 2>&1 >/dev/null )" || rc=$?
+[[ $rc -ne 0 && "$err" == *"outside"* && "$(cat "$G/outside/req-symlink.md" 2>/dev/null)" == $'mine\nstatus: doing' \
+   && ! -e "$G/.context/requests/_archive/req-symlink.md" ]] \
+  || fail "a symlinked folder plus .. inside requests/ let an outside file through (rc=$rc): $err"
 rm -rf "$G"
 
 # The gate. Without it this file ended on an unconditional `echo`, so it printed OK and
