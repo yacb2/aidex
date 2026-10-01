@@ -292,6 +292,18 @@ passes $C c9-half "a decided item in a half-open group folds in place and needs 
 page c9-group es "<main class=\"main\"><h1>Ronda 2</h1><section class=\"consult-group\" id=\"G1\"><h2>Bloque</h2>
 $DECIDED<section class=\"consult-item\" data-id=\"Q2\" data-decided=\"No\"></section></section></main>"
 fails $C c9-group "a fully decided group with no anchor fails"
+# BL-543: a dropped item carries data-decided too, but it was never decided; the
+# message names it dropped, the same split f49b36b made on the page.
+page c9-dropped es '<main class="main"><h1>Ronda 2</h1><section class="consult-item" data-id="Q1" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica"></section></main>'
+out="$(python3 "$CD" --class $C "$TMP/c9-dropped.html" 2>&1)"
+[[ "$out" == *": 1 dropped item(s) and no anchor"* ]] \
+  && ok "a dropped item's anchor finding says dropped, not decided" \
+  || bad "a dropped item's anchor finding reads: $out"
+page c9-mixed es '<main class="main"><h1>Ronda 2</h1><section class="consult-item" data-id="Q1" data-decided="Sí"></section><section class="consult-item" data-id="Q2" data-decided="Descartada: ya no aplica" data-dropped="ya no aplica"></section></main>'
+out="$(python3 "$CD" --class $C "$TMP/c9-mixed.html" 2>&1)"
+[[ "$out" == *": 1 decided and 1 dropped item(s) and no anchor"* ]] \
+  && ok "a decided and a dropped item are counted apart in the anchor finding" \
+  || bad "a decided plus a dropped item's anchor finding reads: $out"
 
 echo "== img-src-portable =="
 C=img-src-portable

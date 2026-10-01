@@ -2478,7 +2478,10 @@ def check_file(path):
         report("self", "@import of a remote stylesheet")
     # A <video> is a visual like an <img>: its own src or a <source> child.
     # srcset and poster load too; data-src is a script's, and loads nothing.
-    if re.search(r'<(?:img|video|source)\b[^>]*\s(?:src|srcset|poster)=["\']?https?:',
+    # Every srcset candidate loads, not only the first, and <audio> is media
+    # like <video> (BL-553).
+    if re.search(r'<(?:img|video|audio|source)\b[^>]*\s(?:(?:src|poster)=["\']?'
+                 r'|srcset=(?:"(?:[^">]*,)?|\'(?:[^\'>]*,)?|(?:[^\s"\'>]*,)?)\s*)https?:',
                  flat, re.I):
         report("self", "remote image or video — breaks offline and leaks a request")
     # Only a remote src counts: url(data:…) is inlined and honours the contract.
@@ -3537,6 +3540,13 @@ def baseline_hygiene(walk_root):
                 page = page_of(e)
                 path = os.path.join(bdir, e)
                 page_there = os.path.exists(os.path.join(dirpath, page))
+                # save_reply.py's companions are keyed by STEM, not page name:
+                # `<stem>.reply.md` and `<stem>.answered.html` belong to
+                # `<stem>.html` (BL-546). Either spelling being there keeps them.
+                companion = re.sub(r"\.(reply\.md|answered\.html)$", ".html", e)
+                if companion != e:
+                    page_there = page_there or os.path.exists(
+                        os.path.join(dirpath, companion))
                 # A lock is judged on its AGE, not on whether the page is there:
                 # nothing removes it but `--done`, and once it is older than the
                 # window the hook stops honouring it, so an abandoned lock beside a

@@ -137,4 +137,35 @@ note="$(grep "page\.html\.building" "$TMP/err10" | sed -n 1p)"
   && ok "a stale lock whose page is gone is reported with its rm" \
   || fail "the abandoned lock of a deleted page is not reported: $note"
 
+# 11. save-reply.sh refuses while the page is locked (BL-507), but a lock past the
+#     stale window is no running build (BL-542): the refusal must say the lock is
+#     stale, not that a build is still running, and name the --done that clears it.
+#     Same window and bands as artifact-open-once.sh and baseline_hygiene, compared
+#     on the float age: a mtime a few minutes ahead is clock skew over a live build,
+#     one beyond the whole window is stale, and 1200.6 s is past 20 min.
+save_out() { printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/page.html" - 2>&1; }
+lock_at() {   # lock_at OFFSET_SECONDS: lock mtime = now + offset (negative = past)
+  python3 -c 'import os, sys, time; t = time.time() + float(sys.argv[2]); os.utime(sys.argv[1], (t, t))' "$LOCK" "$1"
+}
+bash "$WRAP" --building --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/page.html" >/dev/null 2>&1
+for cell in "fresh:running" "300:running" "-1200.6:stale" "86400:stale" "old:stale"; do
+  at="${cell%%:*}" want="${cell##*:}"
+  case "$at" in
+    fresh) ;;
+    old)   touch -t 200001010000 "$LOCK" ;;
+    *)     lock_at "$at" ;;
+  esac
+  out="$(save_out)"; rc=$?
+  if [[ $want == stale ]]; then
+    [[ $rc -ne 0 && "$out" == *"stale"* && "$out" != *"still running"* \
+       && "$out" == *"--done --out"* ]] \
+      && ok "save-reply on a lock at $at says it is stale and names --done" \
+      || fail "save-reply on a lock at $at should read stale (rc $rc): $out"
+  else
+    [[ $rc -ne 0 && "$out" == *"still running"* && "$out" != *"stale"* ]] \
+      && ok "save-reply on a lock at $at refuses as a running build" \
+      || fail "save-reply on a lock at $at should read still running (rc $rc): $out"
+  fi
+done
+
 [[ $failures -eq 0 ]] && echo "PASS: build lock" || { echo "FAILED: $failures"; exit 1; }

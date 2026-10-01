@@ -74,6 +74,13 @@ mk extsource.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\
 # not the browser's, and loads nothing by itself.
 mk extsrcset.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><picture><source srcset=\"https://x/a.png\"><img src=\"a.png\" alt=\"a\"></picture>"
 mk extposter.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video poster=\"https://x/p.jpg\" src=\"../media/a.mp4\"></video>"
+# BL-553: every srcset candidate loads, not only the first; <audio> is a media
+# element like <video>; an <img> with a remote srcset alone is caught too.
+mk extsrcset2.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"a.png\" srcset=\"a.png 1x, https://x/b.png 2x\" alt=\"a\">"
+mk extaudio.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><audio controls src=\"https://cdn.example.com/a.mp3\"></audio>"
+mk extimgsrcset.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"a.png\" srcset=\"https://x/b.png 2x\" alt=\"a\">"
+# An apostrophe inside a double-quoted srcset is part of the value, not its end.
+mk extsrcsetapos.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"a.png\" srcset=\"it's.png 1x, https://x/b.png 2x\" alt=\"a\">"
 # The font src is on its own line: the block is flattened before matching, so a
 # realistically-formatted @font-face must still be caught.
 mk extfont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>
@@ -95,7 +102,8 @@ mk notitle.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" 
 for case in "fragment doctype" "fragment viewport" "notitle title" \
             "nocharset charset" "nothemes themes" \
             "extcss self" "extjs self" "extimg self" "extfont self" \
-            "extvideo self" "extsource self" "extsrcset self" "extposter self"; do
+            "extvideo self" "extsource self" "extsrcset self" "extposter self" \
+            "extsrcset2 self" "extaudio self" "extimgsrcset self" "extsrcsetapos self"; do
   set -- $case
   out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
   if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
@@ -105,6 +113,12 @@ mk datasrc.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" 
 out="$(bash "$CHECK" "$TMP/datasrc.html" 2>&1)"
 [[ "$out" != *"[self]"* ]] \
   && ok "a data-src loads nothing and passes self" || bad "a data-src was judged a remote load: $out"
+
+# A multi-candidate srcset of local files is not a remote load (BL-553).
+mk localsrcset.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"a.png\" srcset=\"a.png 1x, shots/https-b.png 2x\" alt=\"a\">"
+out="$(bash "$CHECK" "$TMP/localsrcset.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] \
+  && ok "a local multi-candidate srcset passes self" || bad "a local srcset was judged a remote load: $out"
 
 # An inlined font is the compliant form — the remote-font check must not flag it.
 mk datafont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>

@@ -53,6 +53,22 @@ bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/o
 if grep >/dev/null "orphaned baseline.*\.body" "$TMP/err4"; then fail "a live page's body is reported orphaned: $(grep 'orphaned' "$TMP/err4" | sed -n 1p)"
 else ok "a live page's body is not an orphan"; fi
 
+# 4b. BL-546: save-reply.sh's companions (<stem>.reply.md, <stem>.answered.html)
+#     belong to <stem>.html; while it exists they are not orphans, once it is gone they are.
+printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/page.html" - >/dev/null 2>"$TMP/err4s"; rc=$?
+[[ $rc -eq 0 && -f "$PREV/page.reply.md" && -f "$PREV/page.answered.html" ]] \
+  && ok "save-reply wrote page.reply.md and page.answered.html" \
+  || fail "save-reply did not write its companions (rc $rc): $(cat "$TMP/err4s")"
+printf 'x\n' > "$PREV/gone.reply.md"; printf 'x\n' > "$PREV/gone.answered.html"
+bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err4b"
+if grep >/dev/null -E "orphaned baseline.*page\.(reply\.md|answered\.html)" "$TMP/err4b"; then
+  fail "a live page's reply companions are reported orphaned: $(grep 'page\.\(reply\|answered\)' "$TMP/err4b" | sed -n 1p)"
+else ok "a live page's reply and answered snapshot are not orphans"; fi
+[[ "$(grep -cE "gone\.(reply\.md|answered\.html)'" "$TMP/err4b")" == 2 ]] \
+  && ok "the companions of a page that is gone are still reported" \
+  || fail "the companions of a deleted page went unreported: $(cat "$TMP/err4b")"
+rm -f "$PREV/gone.reply.md" "$PREV/gone.answered.html"
+
 # 5. ...and IS reported once the page is gone, or every page is silently doubled again.
 #    CHANGED 2026-09-20 (review): the wording is per KIND of entry now. A `.body` is
 #    the only copy of that page's content, so the note says so instead of offering a

@@ -42,12 +42,10 @@ done
 
 ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
-if [[ -f "$ARG" ]]; then WL="$ARG"
-else
-  # `<wl>-report.md` sorts before `<wl>.md` (`-` < `.`): on 2026-08-28 the report was
-  # rendered from its own previous output. resolve_worklist skips companions and refuses two matches.
-  WL="$(resolve_worklist --with-archive "$WL_DIR" "$ARG")"
-fi
+# `<wl>-report.md` sorts before `<wl>.md` (`-` < `.`): on 2026-08-28 the report was
+# rendered from its own previous output. resolve_worklist skips companions and refuses two
+# matches; it takes a path as given, and never a same-named CWD file for a slug (BL-551).
+WL="$(resolve_worklist --with-archive "$WL_DIR" "$ARG")"
 [[ -n "${WL:-}" && -f "$WL" ]] || die "worklist not found: $ARG"
 
 if [[ $PRINT -eq 1 ]]; then

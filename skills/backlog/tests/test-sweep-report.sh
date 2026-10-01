@@ -130,6 +130,19 @@ SL="$(bash "$SCRIPTS/sweep-report.sh" 2026-09-29-slugcase --print 2>/dev/null)"
 grep -q '^origin_ref: worklist/2026-09-29-slugcase.md$' <<<"$SL" \
   && ok "F1: an exact stem wins over a longer work-list name that contains it" || bad "exact stem: $(grep origin_ref <<<"$SL")"
 rm -f "$AR"/*slugcase*
+# BL-551: a file named <slug> in the CWD is not the work-list the slug names (the
+# script's own `[[ -f ]]` rendered it: origin_ref worklist/<slug>, status `?`)
+winwl strayrun done "$(day 3)" "$(day 3)" >/dev/null; mv .context/worklists/strayrun.md "$AR/2026-09-29-strayrun.md"
+printf 'not a work-list\n' > strayrun
+SL="$(bash "$SCRIPTS/sweep-report.sh" strayrun --print 2>/dev/null)"
+grep -q '^origin_ref: worklist/2026-09-29-strayrun.md$' <<<"$SL" && ! grep -qF 'status `?`' <<<"$SL" \
+  && ok "BL-551: a slug renders the work-list, not a same-named file in the CWD" || bad "stray CWD file: $(grep origin_ref <<<"$SL")"
+rm -f strayrun
+# from inside _archive/, a bare archived filename is that work-list (resolve_worklist's archive branch)
+SL="$(cd "$AR" && bash "$SCRIPTS/sweep-report.sh" 2026-09-29-strayrun.md --print 2>/dev/null)"
+grep -q '^origin_ref: worklist/2026-09-29-strayrun.md$' <<<"$SL" \
+  && ok "BL-551: a bare archived filename from inside _archive/ renders that work-list" || bad "in-archive filename: $(grep origin_ref <<<"$SL")"
+rm -f "$AR"/*strayrun*
 grep -q "$EID: not reached" "$OUT" && ok "the appended emergent item that was never worked is reported as not reached" || bad "emergent skip: $(grep "$EID" "$OUT")"
 # the companion survives the work-list's own archive, next to it
 bash "$CONV/worklist-close.sh" "$WL" --force >/dev/null 2>&1

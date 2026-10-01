@@ -123,11 +123,21 @@ def main(argv):
         return 2
     lock = wrap_report.lock_path(page_path)
     if os.path.exists(lock):
-        age = int(time.time() - os.path.getmtime(lock))
+        age = time.time() - os.path.getmtime(lock)
         # The page on disk is the delegate's intermediate wrap, not what the reader
         # answered; snapshotting it would skip a round (BL-507). No copy of the
         # reader's version is kept, so refuse rather than guess.
-        print(f"ERROR: {lock} exists (age {age // 60} min {age % 60} s) — a build is still running, so {page_path} is "
+        if not -ca.BUILD_LOCK_STALE_AFTER <= age <= ca.BUILD_LOCK_STALE_AFTER:
+            # Past the window artifact-open-once.sh honours (BL-542): no build is
+            # running, the lock is left over from one that died or never ran --done.
+            print(f"ERROR: {lock} is a stale build lock (older than "
+                  f"{ca.BUILD_LOCK_STALE_AFTER // 60} min): no build is running, but "
+                  f"{page_path} may be a half-finished wrap. If it is the page the "
+                  f"reader answered, clear the lock (wrap-report.sh --done --out "
+                  f"{page_path}) and save the reply again.", file=sys.stderr)
+            return 2
+        shown = max(int(age), 0)
+        print(f"ERROR: {lock} exists (age {shown // 60} min {shown % 60} s) — a build is still running, so {page_path} is "
               f"not the page the reader answered. End the build first "
               f"(wrap-report.sh --done --out {page_path}), then save the reply.",
               file=sys.stderr)
