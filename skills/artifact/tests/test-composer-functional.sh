@@ -637,7 +637,7 @@ HTML
 
 wrap_page() {  # wrap_page [lang] — the page's language, es unless a caller says otherwise
   bash "$WRAP" --title "probe" --lang "${1:-es}" --out "$PAGE" < "$TMP/body.html" > "$TMP/wrap.log" 2>&1 \
-    || { fail "the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | head -4)"; echo "1 failure(s)"; exit 1; }
+    || { fail "the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | sed -n 1,4p)"; echo "1 failure(s)"; exit 1; }
 }
 
 # BL-507: `consult-round` is the READER's round. A re-wrap stays in the same round
@@ -660,7 +660,7 @@ run() {  # run <query> — load the page once, print the resulting <title>
   # A wedged Chrome must FAIL the assertion that reads its title, never hang
   # the whole suite waiting on it — chrome_dump carries the watchdog.
   chrome_dump "$TMP/dom.html" "file://$PAGE?$1" 45 || true
-  grep -oE '<title>[^<]*</title>' "$TMP/dom.html" | head -1
+  grep -oE '<title>[^<]*</title>' "$TMP/dom.html" | sed -n 1p
 }
 
 # ---- type -> reload -> restored --------------------------------------------
@@ -802,9 +802,9 @@ window.addEventListener('load', function () {
 </script>
 HTML
 bash "$WRAP" --title "narrow" --lang es --out "$NPAGE" < "$TMP/nbody.html" > "$TMP/nwrap.log" 2>&1 \
-  || fail "the narrow probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/nwrap.log" | head -4)"
+  || fail "the narrow probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/nwrap.log" | sed -n 1,4p)"
 CHROME_WINDOW=390,900 chrome_dump "$TMP/ndom.html" "file://$NPAGE" 45 || true
-tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | head -1)"
+tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | sed -n 1p)"
 [[ "$tn" == *"NARROW|W=390|"* ]] || fail "the narrow phase did not run at 390 px: $tn"
 # BL-532: a dropped item is counted and headed apart from the decided ones.
 [[ "$tn" == *"|DEC=2 preguntas ya resueltas|DECH=Decidido|DEC_HAS_X1=0|"* ]] \
@@ -1480,10 +1480,10 @@ HTML
 
 write_surfaces_body
 bash "$WRAP" --title "surfaces" --lang es --out "$SPAGE" < "$TMP/sbody.html" > "$TMP/swrap.log" 2>&1 \
-  || fail "the surfaces probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/swrap.log" | head -4)"
+  || fail "the surfaces probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/swrap.log" | sed -n 1,4p)"
 srun() {  # srun <query>
   chrome_dump "$TMP/sdom.html" "file://$SPAGE?$1" 45 || true
-  grep -oE '<title>[^<]*</title>' "$TMP/sdom.html" | head -1
+  grep -oE '<title>[^<]*</title>' "$TMP/sdom.html" | sed -n 1p
 }
 rm -rf "$TMP/profile"
 ts="$(srun 'phase=sfill')"
@@ -2223,10 +2223,10 @@ HTML
 
 write_gallery_body
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE" < "$TMP/gbody.html" > "$TMP/gwrap.log" 2>&1 \
-  || fail "the gallery probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap.log" | head -4)"
+  || fail "the gallery probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap.log" | sed -n 1,4p)"
 grun() {  # grun <query>
   chrome_dump "$TMP/gdom.html" "file://$GPAGE?$1" 45 || true
-  grep -oE '<title>[^<]*</title>' "$TMP/gdom.html" | head -1
+  grep -oE '<title>[^<]*</title>' "$TMP/gdom.html" | sed -n 1p
 }
 # Before any filter phase stores a mode or a viewport: a hidden tile would read
 # as a narrow one.
@@ -2330,9 +2330,9 @@ sed 's/data-id="audit-empty" data-title/data-id="audit-empty" data-decided="Appr
   "$TMP/gbody.html" > "$TMP/gbody-decided.html"
 GPAGE_D="$TMP/reports/gallery-decided.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_D" < "$TMP/gbody-decided.html" > "$TMP/gwrap-d.log" 2>&1 \
-  || fail "the decided gallery probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-d.log" | head -4)"
+  || fail "the decided gallery probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-d.log" | sed -n 1,4p)"
 chrome_dump "$TMP/gdom-d.html" "file://$GPAGE_D?phase=gdecided" 45 || true
-tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-d.html" | head -1)"
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-d.html" | sed -n 1p)"
 [[ "$tg" == *"GDECIDED"* && "$tg" == *"FOLDED=1"* ]] \
   || fail "the decided gallery probe did not run, or the decided row was not folded: $tg"
 [[ "$tg" == *"DOWN=audit-with-data"* ]] \
@@ -2354,14 +2354,14 @@ perl -0pe 's{<section class="consult-group" id="E" data-id="E" data-title="The m
   "$TMP/gbody.html" > "$TMP/gbody-unnamed.html"
 GPAGE_U="$TMP/reports/gallery-unnamed.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_U" < "$TMP/gbody-unnamed.html" > "$TMP/gwrap-u.log" 2>&1 \
-  || fail "the unnamed-blocks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-u.log" | head -4)"
+  || fail "the unnamed-blocks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-u.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 chrome_dump "$TMP/gdom-u.html" "file://$GPAGE_U?phase=gunset" 45 || true
-tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-u.html" | head -1)"
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-u.html" | sed -n 1p)"
 [[ "$tg" == *"GUNSET|N=2|M0=light|M1=both"* ]] \
   || fail "the unnamed-blocks probe did not filter the first block alone: $tg"
 chrome_dump "$TMP/gdom-u.html" "file://$GPAGE_U?phase=gunget" 45 || true
-tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-u.html" | head -1)"
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-u.html" | sed -n 1p)"
 [[ "$tg" == *"GUNGET"* && "$tg" == *"M1=both"* ]] \
   || fail "a filter set on one block with no id came back on another block with no id (one shared empty key): $tg"
 
@@ -2425,10 +2425,10 @@ BIG='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAZAAAADICAAAAADjfug+AAABJ0lEQ
 sed "/alt=\"with-data/s|$PX|$BIG|" "$TMP/gbody.html" > "$TMP/gbody-marks.html"
 GPAGE_M="$TMP/reports/gallery-marks.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks.html" > "$TMP/gwrap-m.log" 2>&1 \
-  || fail "the marks probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-m.log" | head -4)"
+  || fail "the marks probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-m.log" | sed -n 1,4p)"
 mrun() {  # mrun <page> <query>
   chrome_dump "$TMP/gdom-m.html" "file://$1?$2" 45 || true
-  grep -oE '<title>[^<]*</title>' "$TMP/gdom-m.html" | head -1
+  grep -oE '<title>[^<]*</title>' "$TMP/gdom-m.html" | sed -n 1p
 }
 rm -rf "$TMP/profile"
 tg="$(mrun "$GPAGE_M" 'phase=gmarks')"
@@ -2455,7 +2455,7 @@ tg="$(mrun "$GPAGE_M" 'phase=gmarks')"
   || fail "with compare on the mark layer is still shown or still draws: $tg"
 [[ "$tg" == *"TILE=2"* ]] \
   || fail "the grid tile does not carry an overlay per mark: $tg"
-b64="$(grep -oE 'data-paste="[^"]*"' "$TMP/gdom-m.html" | head -1 | sed -E 's/^data-paste="(.*)"$/\1/')"
+b64="$(grep -oE 'data-paste="[^"]*"' "$TMP/gdom-m.html" | sed -n 1p | sed -E 's/^data-paste="(.*)"$/\1/')"
 printf '%s' "$b64" | base64 -d > "$TMP/gmarks-paste.txt" 2>/dev/null
 printf '%s\n' '## E · The matrix' '' '### audit-with-data · audit · with-data' '' '- Needs changes' '' \
   'la fila se ve bien' '' \
@@ -2464,7 +2464,7 @@ printf '%s\n' '## E · The matrix' '' '### audit-with-data · audit · with-data
 # The paste has no trailing newline; the expectation file does.
 printf '\n' >> "$TMP/gmarks-paste.txt"
 cmp -s "$TMP/gmarks-paste.txt" "$TMP/gmarks-want.txt" \
-  || fail "the paste with two marks is not the verdict, the notes and one contract line per mark under the row heading: $(diff "$TMP/gmarks-want.txt" "$TMP/gmarks-paste.txt" | head -12)"
+  || fail "the paste with two marks is not the verdict, the notes and one contract line per mark under the row heading: $(diff "$TMP/gmarks-want.txt" "$TMP/gmarks-paste.txt" | sed -n 1,12p)"
 
 # Same profile, a reload: the marks come back through the answer store.
 tg="$(mrun "$GPAGE_M" 'phase=gmrecall')"
@@ -2502,12 +2502,12 @@ tg="$(mrun "$GPAGE_M" 'phase=gmedge')"
 PX="$PX" perl -0pe 's{(<figure data-tile="light-desktop"><img src=")[^"]*(" alt="with-data light-desktop")}{$1$ENV{PX}$2}' \
   "$TMP/gbody-marks.html" > "$TMP/gbody-marks-recap.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks-recap.html" > "$TMP/gwrap-mr.log" 2>&1 \
-  || fail "the re-captured marks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-mr.log" | head -4)"
+  || fail "the re-captured marks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-mr.log" | sed -n 1,4p)"
 tg="$(mrun "$GPAGE_M" 'phase=gmrecall')"
 [[ "$tg" == *"GMRECALL|TILE=0"* && "$tg" == *"DLG=0"* && "$tg" != *"[mark"* ]] \
   || fail "marks drawn on the old capture came back onto a re-captured tile: $tg"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks.html" > "$TMP/gwrap-m.log" 2>&1 \
-  || fail "the marks probe page failed to re-wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-m.log" | head -4)"
+  || fail "the marks probe page failed to re-wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-m.log" | sed -n 1,4p)"
 
 # Entries a Phase-3 page stored: the gallery row's notes answer (no hash, the
 # kit's upgrade path) lands in the visible notes box and not in the kit-marks
@@ -2529,7 +2529,7 @@ perl -0pe 's{(data-id="audit-with-data".*?)<textarea></textarea>}{$1<div content
   "$TMP/gbody-marks.html" > "$TMP/gbody-marks-ce.html"
 GPAGE_MC="$TMP/reports/gallery-marks-ce.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_MC" < "$TMP/gbody-marks-ce.html" > "$TMP/gwrap-mc.log" 2>&1 \
-  || fail "the contenteditable marks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-mc.log" | head -4)"
+  || fail "the contenteditable marks probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-mc.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 tg="$(mrun "$GPAGE_MC" 'phase=gmask')"
 [[ "$tg" == *"GMASK|FOCUSCE=1"* ]] \
@@ -2541,7 +2541,7 @@ perl -0pe 's/data-id="audit-with-data" data-title/data-id="audit-with-data" data
   "$TMP/gbody-marks.html" > "$TMP/gbody-marks-d.html"
 GPAGE_MD="$TMP/reports/gallery-marks-decided.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_MD" < "$TMP/gbody-marks-d.html" > "$TMP/gwrap-md.log" 2>&1 \
-  || fail "the decided marks probe failed to wrap (a hidden kit-marks textarea beside the notes box must pass): $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-md.log" | head -4)"
+  || fail "the decided marks probe failed to wrap (a hidden kit-marks textarea beside the notes box must pass): $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-md.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 tg="$(mrun "$GPAGE_MD" 'phase=gmdecided')"
 [[ "$tg" == *"GMDECIDED|SAME=1"* && "$tg" == *"NOTE=0"* ]] \
@@ -2629,10 +2629,10 @@ window.addEventListener('load', function () {
 HTML
 GPAGE_P="$TMP/reports/gallery-pair.html"
 bash "$WRAP" --title "pair" --lang es --out "$GPAGE_P" < "$TMP/gbody-pair.html" > "$TMP/gwrap-p.log" 2>&1 \
-  || fail "the pair probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-p.log" | head -4)"
+  || fail "the pair probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-p.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 chrome_dump "$TMP/gdom-p.html" "file://$GPAGE_P" 45 || true
-tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-p.html" | head -1)"
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-p.html" | sed -n 1p)"
 [[ "$tg" == *GPAIR* ]] || fail "the pair probe did not run: $tg"
 [[ "$tg" == *"PAIR=2up/empty after"* ]] \
   || fail "compare on a before tile did not pair it with the row's after: $tg"
@@ -2741,10 +2741,10 @@ window.addEventListener('load', function () {
 HTML
 GPAGE_H="$TMP/reports/gallery-shots.html"
 bash "$WRAP" --title "shots" --lang es --out "$GPAGE_H" < "$TMP/gbody-shots.html" > "$TMP/gwrap-h.log" 2>&1 \
-  || fail "the shots probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-h.log" | head -4)"
+  || fail "the shots probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-h.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 chrome_dump "$TMP/gdom-h.html" "file://$GPAGE_H" 45 || true
-tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | head -1)"
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | sed -n 1p)"
 [[ "$tg" == *GSHOTS* ]] || fail "the shots probe did not run: $tg"
 [[ "$tg" == *'"figs":4'* && "$tg" == *'"cols":4'* ]] \
   || fail "an item with 4 raster figures is not a 4-column .gal grid: $tg"
@@ -2820,10 +2820,10 @@ window.addEventListener('load', function () {
 HTML
 GPAGE_S="$TMP/reports/gallery-sample.html"
 bash "$WRAP" --title "sample" --lang es --out "$GPAGE_S" < "$TMP/gbody-sample.html" > "$TMP/gwrap-s.log" 2>&1 \
-  || fail "the sample probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-s.log" | head -4)"
+  || fail "the sample probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-s.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 chrome_dump "$TMP/gdom-s.html" "file://$GPAGE_S" 45 || true
-tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-s.html" | head -1)"
+tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-s.html" | sed -n 1p)"
 [[ "$tg" == *"GSAMPLE|STATUS=1 de 1 respondidas"* ]] \
   || fail "a sample row (no verdict by design) was counted as a question: $tg"
 
@@ -2898,10 +2898,10 @@ window.addEventListener('load', function () {
 HTML
 MPAGE="$TMP/reports/many.html"
 bash "$WRAP" --title "many" --lang es --out "$MPAGE" < "$TMP/mbody.html" > "$TMP/mwrap.log" 2>&1 \
-  || fail "BL-454: the select=many probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/mwrap.log" | head -4)"
+  || fail "BL-454: the select=many probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/mwrap.log" | sed -n 1,4p)"
 rm -rf "$TMP/profile"
 chrome_dump "$TMP/mdom.html" "file://$MPAGE" 45 || true
-tm="$(grep -oE '<title>[^<]*</title>' "$TMP/mdom.html" | head -1)"
+tm="$(grep -oE '<title>[^<]*</title>' "$TMP/mdom.html" | sed -n 1p)"
 [[ "$tm" == *"MANY|"* ]] || fail "BL-454: the multi-select phase did not run: $tm"
 [[ "$tm" == *"TYPES=checkbox,checkbox,checkbox,checkbox,checkbox"* ]] \
   || fail "BL-454: a select=many item's options (and the injected Otra / Todavía no) are not all checkboxes: $tm"
@@ -2998,7 +2998,7 @@ ids_run() {  # ids_run <page> — fill on a fresh profile, then the measured loa
   rm -rf "$TMP/profile"
   chrome_dump "$TMP/idom.html" "file://$1?fill" 45 || true
   chrome_dump "$TMP/idom.html" "file://$1" 45 || true
-  grep -oE '<title>[^<]*</title>' "$TMP/idom.html" | head -1
+  grep -oE '<title>[^<]*</title>' "$TMP/idom.html" | sed -n 1p
 }
 ids_page "$TMP/reports/ids.html" '<aside class="rail"><p class="railhead">Contents</p><nav class="raillist" id="raillist"></nav></aside>'
 ids_page "$TMP/reports/ids-norail.html" ''
@@ -3048,7 +3048,7 @@ window.addEventListener('load', function () {
 HTML
 } > "$TMP/reports/prose.html"
 chrome_dump "$TMP/pdom.html" "file://$TMP/reports/prose.html" 45 || true
-tp="$(grep -oE '<title>[^<]*</title>' "$TMP/pdom.html" | head -1)"
+tp="$(grep -oE '<title>[^<]*</title>' "$TMP/pdom.html" | sed -n 1p)"
 [[ "$tp" == *"PROSE|p-direct=15.2px,p-wrapped=15.2px,p-li=15.2px,p-note=13.12px,p-label=11.52px<"* ]] \
   || fail "text-style-drift: item prose is not one size wherever it sits (or a note/label lost its own size): $tp"
 rm -rf "$TMP/profile"
@@ -3118,7 +3118,7 @@ window.addEventListener('load', function () {
 HTML
 } > "$TMP/reports/svgclass.html"
 chrome_dump "$TMP/svdom.html" "file://$TMP/reports/svgclass.html" 45 || true
-ts="$(grep -oE '<title>[^<]*</title>' "$TMP/svdom.html" | head -1)"
+ts="$(grep -oE '<title>[^<]*</title>' "$TMP/svdom.html" | sed -n 1p)"
 [[ "$ts" =~ SVGCLASS\|([0-9]+)\| && ${BASH_REMATCH[1]} -ge 50 ]] \
   || fail "svg-class-leak: the kit's class list was not read (fewer than 50 classes): $ts"
 [[ "$ts" == *"|none|"* ]] \
@@ -3199,8 +3199,8 @@ window.addEventListener('load', function () {
 HTML
 } > "$TMP/gbody-alt.html"
 bash "$WRAP" --title "alt" --lang es --out "$GPAGE_A" < "$TMP/gbody-alt.html" > "$TMP/gwrap-a.log" 2>&1 \
-  || fail "the alternatives probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-a.log" | head -4)"
-arun() { chrome_dump "$TMP/gdom-a.html" "file://$GPAGE_A?$1" 45 || true; grep -oE '<title>[^<]*</title>' "$TMP/gdom-a.html" | head -1; }
+  || fail "the alternatives probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/gwrap-a.log" | sed -n 1,4p)"
+arun() { chrome_dump "$TMP/gdom-a.html" "file://$GPAGE_A?$1" 45 || true; grep -oE '<title>[^<]*</title>' "$TMP/gdom-a.html" | sed -n 1p; }
 rm -rf "$TMP/profile"
 tg="$(arun 'phase=aset')"
 [[ "$tg" == *GALTSET* ]] || fail "the alternatives phase did not run: $tg"
@@ -3278,11 +3278,11 @@ window.addEventListener('load', function () {
 </script>
 HTML
   bash "$WRAP" --title "fp" --lang es --out "$1" < "$TMP/fp-body.html" > "$TMP/fp-wrap.log" 2>&1 \
-    || fail "the fingerprint probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/fp-wrap.log" | head -4)"
+    || fail "the fingerprint probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/fp-wrap.log" | sed -n 1,4p)"
 }
 FP_FLAT="$TMP/reports/fp-flat.html"; FP_FOLD="$TMP/reports/fp-fold.html"
 fp_page "$FP_FLAT" 0; fp_page "$FP_FOLD" 1
-fprun() { chrome_dump "$TMP/fp.dom" "file://$1?$2" 45 || true; grep -oE '<title>[^<]*</title>' "$TMP/fp.dom" | head -1; }
+fprun() { chrome_dump "$TMP/fp.dom" "file://$1?$2" 45 || true; grep -oE '<title>[^<]*</title>' "$TMP/fp.dom" | sed -n 1p; }
 rm -rf "$TMP/profile"
 tg="$(fprun "$FP_FLAT" 'phase=fpset')"
 fph="$(sed -nE 's/.*FPSET\|H=([0-9a-z]+).*/\1/p' <<<"$tg")"

@@ -35,7 +35,7 @@ done
 # ---------- lockstep with check-artifact.sh --------------------------------
 grep -q 'blank' "$KIT/composer.js" \
   || fail "composer.js never says 'blank' — the contract's composer scan reads the identifier, not the display text"
-tr -d '\n' < "$KIT/components.css" | grep -qE 'data-theme="dark"[^{]*consult-bar' \
+tr -d '\n' < "$KIT/components.css" | grep >/dev/null -E 'data-theme="dark"[^{]*consult-bar' \
   || fail "components.css lost the :root[data-theme=\"dark\"] .consult-bar rule, or split it across selectors"
 # ...and it is satisfied by the RULE, not by prose about the rule. The kit is
 # injected into every page, so a comment that spells a check's tokens answers
@@ -43,7 +43,7 @@ tr -d '\n' < "$KIT/components.css" | grep -qE 'data-theme="dark"[^{]*consult-bar
 # during this file's own construction: once with the copy-button id, which made
 # every read page fail as a consultation, and once here.
 sed '/^:root\[data-theme="dark"\] \.consult-bar/d' "$KIT/components.css" | tr -d '\n' \
-  | grep -qE 'data-theme="dark"[^{]*consult-bar' \
+  | grep >/dev/null -E 'data-theme="dark"[^{]*consult-bar' \
   && fail "components.css satisfies the dark-bar check from a COMMENT — delete the rule and the grep still passes"
 for trigger in 'data-id=' 'data-title=' '<textarea' 'contenteditable=' 'class="consult-item'; do
   grep -qF "$trigger" "$KIT/tokens.css" "$KIT/components.css" "$KIT/composer.js" \
@@ -285,8 +285,8 @@ if [[ -f "$PROJ/.context/reports/d.html" ]]; then
   grep -q '#00FF00' "$page" \
     && fail "a css fence outside the ## Delta section was injected — an example is not the delta"
   # After the kit, or it does not override anything.
-  [[ "$(grep -n '#B4005A' "$page" | head -1 | cut -d: -f1)" -gt \
-     "$(grep -n 'artifact-kit — components' "$page" | head -1 | cut -d: -f1)" ]] \
+  [[ "$(grep -n '#B4005A' "$page" | sed -n 1p | cut -d: -f1)" -gt \
+     "$(grep -n 'artifact-kit — components' "$page" | sed -n 1p | cut -d: -f1)" ]] \
     || fail "the project delta is injected BEFORE the kit, so it cannot override it"
   # The emoji is percent-encoded into an inline SVG data URI, so grep for the
   # encoding rather than the character.
@@ -386,8 +386,8 @@ done
 # default — so the two must stay in lockstep, or retitling the skeleton
 # silently turns the localisation off and every non-English page ships English
 # buttons again (field pages were translating them by hand).
-en_copy="$(sed -nE "s/^[[:space:]]*copy: '([^']*)'.*/\1/p" "$KIT/composer.js" | head -1)"
-en_contents="$(sed -nE "s/^[[:space:]]*contents: '([^']*)'.*/\1/p" "$KIT/composer.js" | head -1)"
+en_copy="$(sed -nE "s/^[[:space:]]*copy: '([^']*)'.*/\1/p" "$KIT/composer.js" | sed -n 1p)"
+en_contents="$(sed -nE "s/^[[:space:]]*contents: '([^']*)'.*/\1/p" "$KIT/composer.js" | sed -n 1p)"
 [[ -n "$en_copy" && -n "$en_contents" ]] \
   || fail "composer.js lost its chrome labels (copy/contents) — the buttons stop being localised"
 grep -qF ">$en_copy<" "$KIT/skeleton.html" \
@@ -410,7 +410,7 @@ grep -q "Array.isArray(s.f)" "$KIT/composer.js" \
 RND="$TMP/rounds"
 mkdir -p "$RND/.context/reports"
 PG="$RND/.context/reports/r.html"
-round_of() { sed -nE 's/.*<meta name="consult-round" content="([0-9]+)">.*/\1/p' "$1" | head -1; }
+round_of() { sed -nE 's/.*<meta name="consult-round" content="([0-9]+)">.*/\1/p' "$1" | sed -n 1p; }
 
 printf '<div class="page"><main class="main"><h1>Round probe</h1></main></div>\n' > "$TMP/rbody.html"
 bash "$WRAP" --title "Round probe" --in "$TMP/rbody.html" --out "$PG" >/dev/null 2>&1 \
@@ -460,7 +460,7 @@ DEC="$TMP/decided"
 mkdir -p "$DEC/.context/reports"
 DPG="$DEC/.context/reports/d.html"
 stamp_of() {  # file id
-  sed -nE 's/.*data-id="'"$2"'"[^>]*data-decided-round="([0-9]+)".*/\1/p' "$1" | head -1
+  sed -nE 's/.*data-id="'"$2"'"[^>]*data-decided-round="([0-9]+)".*/\1/p' "$1" | sed -n 1p
 }
 # BL-507: `consult-round` is the READER's round, so each round of this probe is
 # opened by saving the reply to the one before it. The expected numbers below are
@@ -527,7 +527,7 @@ sed 's|<section class="consult-item" data-id="Q1"|<section class="consult-item" 
   "$TMP/body.html" > "$TMP/dbody.html"
 bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
   || fail "the hand-stamped page failed to wrap"
-q1tag="$(grep -o '<section class="consult-item"[^>]*data-id="Q1"[^>]*>' "$DPG" | head -1)"
+q1tag="$(grep -o '<section class="consult-item"[^>]*data-id="Q1"[^>]*>' "$DPG" | sed -n 1p)"
 [[ "$(grep -o 'data-decided-round=' <<<"$q1tag" | wc -l | tr -d ' ')" == "1" ]] \
   || fail "the item carries more than one data-decided-round after an invalid hand stamp: $q1tag"
 grep -q 'data-decided-round="[0-9]\+"' <<<"$q1tag" \

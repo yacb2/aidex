@@ -100,7 +100,7 @@ bash "$WRAP" --building --title Probe --lang en --in "$TMP/body.html" \
 bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" \
   --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err8"
 grep -q "page\.html\.building" "$TMP/err8" \
-  && fail "a live page's lock is reported by the sweep: $(grep 'building' "$TMP/err8" | head -1)" \
+  && fail "a live page's lock is reported by the sweep: $(grep 'building' "$TMP/err8" | sed -n 1p)" \
   || ok "a fresh lock beside its page is not an orphan"
 
 # 8b. an abandoned lock beside a page that IS there is the other half. Nothing ever
@@ -110,7 +110,7 @@ grep -q "page\.html\.building" "$TMP/err8" \
 touch -t 200001010000 "$LOCK"
 bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" \
   --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err8b"
-note="$(grep "page\.html\.building" "$TMP/err8b" | head -1)"
+note="$(grep "page\.html\.building" "$TMP/err8b" | sed -n 1p)"
 [[ "$note" == *"build lock nobody cleared"* && "$note" == *"rm "* ]] \
   && ok "a stale lock beside a live page is reported with its rm" \
   || fail "an abandoned lock on an existing page is invisible: $note"
@@ -124,7 +124,7 @@ touch "$LOCK"
 bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" \
   --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err9"
 grep -q "page\.html\.building" "$TMP/err9" \
-  && fail "a live build with no page yet is reported: $(grep 'building' "$TMP/err9" | head -1)" \
+  && fail "a live build with no page yet is reported: $(grep 'building' "$TMP/err9" | sed -n 1p)" \
   || ok "a fresh lock with no page is a build in progress, not residue"
 
 # 10. ...and once it goes stale with no page beside it, nobody is coming back for it:
@@ -132,7 +132,7 @@ grep -q "page\.html\.building" "$TMP/err9" \
 touch -t 200001010000 "$LOCK"
 bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" \
   --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err10"
-note="$(grep "page\.html\.building" "$TMP/err10" | head -1)"
+note="$(grep "page\.html\.building" "$TMP/err10" | sed -n 1p)"
 [[ "$note" == *"build lock"* && "$note" == *"rm "* ]] \
   && ok "a stale lock whose page is gone is reported with its rm" \
   || fail "the abandoned lock of a deleted page is not reported: $note"

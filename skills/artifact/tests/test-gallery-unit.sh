@@ -84,7 +84,7 @@ rc=$?
 gen > "$TMP/group2.html" 2>/dev/null
 cmp -s "$TMP/group.html" "$TMP/group2.html" \
   && ok "two runs are byte identical" \
-  || fail "the generator is not deterministic: $(diff "$TMP/group.html" "$TMP/group2.html" | head -5)"
+  || fail "the generator is not deterministic: $(diff "$TMP/group.html" "$TMP/group2.html" | sed -n 1,5p)"
 
 grep -q '<section class="consult-group" id="E" data-id="E" data-title="Revisión audit" data-tiles="before after">' "$TMP/group.html" \
   && ok "the block declares its id, its title and the before/after pair in data-tiles" \
@@ -170,7 +170,7 @@ grep -qF '<p class="gal-flag">cambió sin que lo pidieras · también en: oscuro
   && ok "also adds 'también en: <variants>' to the marker, and the row id stays <gallery>-<cell>-<variant>-unrequested" \
   || fail "the also variants are not on the marker: $(grep gal-flag "$TMP/also.html") $(cat "$TMP/also.err")"
 bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en 2>/dev/null \
-  | grep -qF '<p class="gal-flag">changed without you asking · also in: dark · desktop, light · mobile</p>' \
+  | grep >/dev/null -F '<p class="gal-flag">changed without you asking · also in: dark · desktop, light · mobile</p>' \
   && ok "…and 'also in: …' in English" \
   || fail "the English marker does not carry 'also in'"
 
@@ -528,7 +528,7 @@ ok "components.css carries the grid, the image frame, the mobile cap, the N/A li
 grep -nE '\.gal[ -{]' "$KIT" | grep -E '#[0-9a-fA-F]{3,6}' \
   && fail "a .gal rule hard-codes a colour — the kit's tokens are what a project overrides" \
   || ok "…and none of them hard-codes a colour"
-grep -E '^\.gal img' "$KIT" | grep -q 'var(--line' \
+grep -E '^\.gal img' "$KIT" | grep >/dev/null 'var(--line' \
   && fail "the .gal img border still names --line, a token tokens.css never defines" \
   || ok "the image border uses --rule, the kit's real line token"
 
@@ -618,7 +618,7 @@ rc="$(run "$TMP/r4-dupe-decl.html")"; red "R4 a block declaring a tile twice fai
   "declares tile(s)\? twice: light-desktop"
 
 # (lower) the dead declaration on .gal figure
-grep -E '^\.gal figure \{' "$KIT" | grep -q 'gap:' \
+grep -E '^\.gal figure \{' "$KIT" | grep >/dev/null 'gap:' \
   && fail "the .gal figure rule still sets a gap it does not use" \
   || ok "the .gal figure rule carries no dead declaration"
 

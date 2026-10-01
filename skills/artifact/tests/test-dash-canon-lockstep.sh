@@ -38,7 +38,7 @@ python3 "$DASH" "$WS" audit ux >/dev/null 2>"$WS/err.txt" \
   || fail "render_audit died on a real scaffolded board: $(cat "$WS/err.txt")"
 AU_HTML="$WS/.context/audits/ux/00-inventory.html"
 [[ -f "$AU_HTML" ]] || fail "audit render produced no html"
-head -1 "$AU_HTML" | grep -q '^<!-- GENERATED' || fail "audit html missing GENERATED header"
+head -1 "$AU_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "audit html missing GENERATED header"
 grep -qE 'EX-01-1|EX-FF-2|EX-05-1' "$AU_HTML" \
   && fail "template EXAMPLE rows leaked into the audit render"
 

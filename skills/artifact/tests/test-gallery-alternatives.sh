@@ -73,7 +73,7 @@ for label in "Esqueleto A" "Con cajón"; do
     || fail "no radio data-label='$label' in the row"
 done
 if grep -qiwE 'antes|propuesto|before|proposed' <<<"$row"; then
-  fail "the alternatives row still says antes/propuesto/before/proposed: $(grep -oiwE 'antes|propuesto|before|proposed' <<<"$row" | head -1)"
+  fail "the alternatives row still says antes/propuesto/before/proposed: $(grep -oiwE 'antes|propuesto|before|proposed' <<<"$row" | sed -n 1p)"
 else ok "the row never says antes/propuesto/before/proposed"; fi
 n="$(grep -o 'type="radio" name="skel-list-light-desktop-alternatives"' <<<"$row" | wc -l | tr -d ' ')"
 [[ "$n" -eq 3 ]] && ok "one radio group named for the row (2 alternatives + none of them)" || fail "expected 3 radios in the row, found $n"
@@ -259,7 +259,7 @@ import json, sys
 d = json.load(open(sys.argv[1])); d["alternatives"][0]["label"] = "  Esqueleto Z  "
 json.dump(d, open(sys.argv[2], "w"))
 PY
-gen "$TMP/trim.json" 2>/dev/null | grep -q '<figcaption>Esqueleto Z</figcaption>' \
+gen "$TMP/trim.json" 2>/dev/null | grep >/dev/null '<figcaption>Esqueleto Z</figcaption>' \
   && ok "a label is stored trimmed" || fail "a padded label was not trimmed"
 
 echo "== dropped and decided: out of the question set, id kept =="

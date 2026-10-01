@@ -84,7 +84,7 @@ for p in "${PROJECTS[@]}"; do
     # index drift, so its "done without commit provenance" list is not drift.
     report="$report  reconcile:\n"
     report="$report$(printf '%s\n' "$r_out" \
-      | awk '/Done without commit provenance/{exit} /^  - /{print}' \
+      | awk '/Done without commit provenance/{s=1} !s && /^  - /{print}' \
       | sed -n 1,8p | sed 's/^/    /')\n"
   fi
 

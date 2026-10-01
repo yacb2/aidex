@@ -88,7 +88,7 @@ expect_json "$TMP/real.json" 'd == {"rows": [{"id": "audit-with-data-light-deskt
 bash "$PARSE" < "$FIX" > "$TMP/stdin.json" 2>/dev/null
 cmp -s "$TMP/real.json" "$TMP/stdin.json" \
   && ok "stdin gives the same JSON as a file argument" \
-  || fail "stdin and file input differ: $(diff "$TMP/real.json" "$TMP/stdin.json" | head -5)"
+  || fail "stdin and file input differ: $(diff "$TMP/real.json" "$TMP/stdin.json" | sed -n 1,5p)"
 
 echo "== what is and is not a row =="
 

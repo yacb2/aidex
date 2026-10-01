@@ -324,7 +324,7 @@ echo "== one fixture per defect class =="
 while read -r fx class elem width; do
   out="$(bash "$PROBE" "$TMP/$fx.html" 2>&1)"; rc=$?
   [[ $rc -eq 1 ]] && ok "$fx exits 1" || bad "$fx exit $rc, expected 1"
-  if grep -E "^DEFECT $fx\.html @${width}px $class: " <<<"$out" | grep -qF "$elem"; then
+  if grep -E "^DEFECT $fx\.html @${width}px $class: " <<<"$out" | grep >/dev/null -F "$elem"; then
     ok "$fx: $class at ${width}px names $elem"
   else
     bad "$fx: no '$class' at ${width}px naming $elem in: $out"

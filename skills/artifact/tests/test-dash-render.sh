@@ -142,7 +142,7 @@ run() { python3 "$RENDER" "$1" "${@:2}"; }   # root-parameterized: one spelling 
 BL_HTML="$CTX/backlog/00-index.html"
 run "$WS" backlog >/dev/null || fail "backlog render exited non-zero"
 [[ -f "$BL_HTML" ]] || fail "backlog: sibling 00-index.html not written"
-head -1 "$BL_HTML" | grep -q '^<!-- GENERATED' || fail "backlog: first line missing GENERATED"
+head -1 "$BL_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "backlog: first line missing GENERATED"
 grep -q 'BL-001' "$BL_HTML" || fail "backlog: item id BL-001 missing"
 grep -q 'P1 HIGH' "$BL_HTML" || fail "backlog: priority bar label missing"
 grep -q '<th data-k="2" data-t="s">Type' "$BL_HTML" || fail "backlog: Type column header missing"
@@ -152,14 +152,14 @@ grep -q '>bug<' "$BL_HTML" || fail "backlog: type chip 'bug' missing"
 PL_HTML="$CTX/plans/00-index.html"
 run "$WS" plans >/dev/null || fail "plans rollup render exited non-zero"
 [[ -f "$PL_HTML" ]] || fail "plans: rollup 00-index.html not written"
-head -1 "$PL_HTML" | grep -q '^<!-- GENERATED' || fail "plans rollup: first line missing GENERATED"
+head -1 "$PL_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "plans rollup: first line missing GENERATED"
 grep -q 'Test plan' "$PL_HTML" || fail "plans rollup: plan title missing"
 
 # --- plan progress (multi-file) ---------------------------------------------
 PP_HTML="$CTX/plans/testplan/00-index.html"
 run "$WS" plans testplan >/dev/null || fail "plan progress render exited non-zero"
 [[ -f "$PP_HTML" ]] || fail "plans: testplan progress 00-index.html not written"
-head -1 "$PP_HTML" | grep -q '^<!-- GENERATED' || fail "plan progress: first line missing GENERATED"
+head -1 "$PP_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "plan progress: first line missing GENERATED"
 grep -q '2/3' "$PP_HTML" || fail "plan progress: phase 1 count 2/3 missing"
 grep -q 'Alpha phase' "$PP_HTML" || fail "plan progress: phase description missing"
 
@@ -167,14 +167,14 @@ grep -q 'Alpha phase' "$PP_HTML" || fail "plan progress: phase description missi
 AU_HTML="$CTX/audits/testaudit/00-inventory.html"
 run "$WS" audit testaudit >/dev/null || fail "audit render exited non-zero"
 [[ -f "$AU_HTML" ]] || fail "audit: 00-inventory.html not written"
-head -1 "$AU_HTML" | grep -q '^<!-- GENERATED' || fail "audit: first line missing GENERATED"
+head -1 "$AU_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "audit: first line missing GENERATED"
 grep -q 'FIND-01' "$AU_HTML" || fail "audit: finding id FIND-01 missing"
 
 # --- coverage ---------------------------------------------------------------
 CO_HTML="$CTX/audits/test-coverage/coverage-matrix.html"
 run "$WS" coverage >/dev/null || fail "coverage render exited non-zero"
 [[ -f "$CO_HTML" ]] || fail "coverage: coverage-matrix.html not written"
-head -1 "$CO_HTML" | grep -q '^<!-- GENERATED' || fail "coverage: first line missing GENERATED"
+head -1 "$CO_HTML" | grep >/dev/null '^<!-- GENERATED' || fail "coverage: first line missing GENERATED"
 grep -q 'billing' "$CO_HTML" || fail "coverage: module row billing missing"
 
 # --- coverage route board: the uncovered route must be NAMED ----------------
@@ -255,7 +255,7 @@ run "$WS2" plans >/dev/null 2>"$WS2/err.txt"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "plans: empty active set should render, not exit $rc ($(head -1 "$WS2/err.txt"))"
 EPL="$WS2/.context/plans/00-index.html"
 [[ -f "$EPL" ]] || fail "plans: empty board 00-index.html not written"
-head -1 "$EPL" | grep -q '^<!-- GENERATED' || fail "plans empty board: first line missing GENERATED"
+head -1 "$EPL" | grep >/dev/null '^<!-- GENERATED' || fail "plans empty board: first line missing GENERATED"
 grep -q '<span class="n">0</span><span class="l">plans</span>' "$EPL" \
   || fail "plans empty board: plans=0 tile missing (archive leaked into live set?)"
 grep -q '<span class="n">0</span><span class="l">open</span>' "$EPL" \
@@ -268,7 +268,7 @@ run "$WS2" backlog >/dev/null 2>"$WS2/err2.txt"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "backlog: empty active set should render, not exit $rc ($(head -1 "$WS2/err2.txt"))"
 EBL="$WS2/.context/backlog/00-index.html"
 [[ -f "$EBL" ]] || fail "backlog: empty board 00-index.html not written"
-head -1 "$EBL" | grep -q '^<!-- GENERATED' || fail "backlog empty board: first line missing GENERATED"
+head -1 "$EBL" | grep >/dev/null '^<!-- GENERATED' || fail "backlog empty board: first line missing GENERATED"
 grep -q '<span class="n">0</span><span class="l">active items</span>' "$EBL" \
   || fail "backlog empty board: active=0 tile missing (archive leaked into live set?)"
 grep -q '<span class="n">0</span><span class="l">live files parsed</span>' "$EBL" \
@@ -451,9 +451,9 @@ status: active
 |---|---|---|---|---|---|
 EOF
 run "$WS" audit emptyaudit >/dev/null 2>"$WS/err3.txt"; rc=$?
-[[ "$rc" -eq 0 ]] || fail "audit: zero-row inventory should render, not exit $rc ($(grep '^ERROR:' "$WS/err3.txt" | head -1))"
+[[ "$rc" -eq 0 ]] || fail "audit: zero-row inventory should render, not exit $rc ($(grep '^ERROR:' "$WS/err3.txt" | sed -n 1p))"
 EAU="$WS/.context/audits/emptyaudit/00-inventory.html"
-[[ -f "$EAU" ]] && head -1 "$EAU" | grep -q '^<!-- GENERATED' || fail "audit: empty board missing or missing GENERATED"
+[[ -f "$EAU" ]] && head -1 "$EAU" | grep >/dev/null '^<!-- GENERATED' || fail "audit: empty board missing or missing GENERATED"
 grep -q '<span class="n">0</span><span class="l">findings</span>' "$EAU" \
   || fail "audit: zero-row inventory should show findings=0"
 

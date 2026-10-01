@@ -1037,7 +1037,7 @@ grep -q 'language:' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../assets/templates" &
   && ok "the style template carries a parseable language: field" \
   || bad "artifact-style.md.template has no language: field"
 
-grep -o '<html lang="[a-z]*"' "$LANGP/.context/reports/a.html" | grep -q 'lang="en"' \
+grep -o '<html lang="[a-z]*"' "$LANGP/.context/reports/a.html" | grep >/dev/null 'lang="en"' \
   && ok "no profile falls back to en (D-04)" || bad "wrong default language"
 
 printf '## Language\n\n- language: es\n' > "$LANGP/.context/artifact-style.md"
@@ -1342,10 +1342,10 @@ out="$(bash "$CHECK" --census "$CEN" 2>&1)"; rc=$?
   || bad "census did not name the drifted page: $out"
 # Judged means a FAIL line — the hygiene NOTEs below legitimately name these
 # files, so the assertion reads FAIL lines only, never the whole capture.
-grep -E '^  FAIL' <<<"$out" | grep -q 'old.html' \
+grep -E '^  FAIL' <<<"$out" | grep >/dev/null 'old.html' \
   && bad "census re-judged a page under _archive/: $out" \
   || ok "census: archived pages are closed work, not re-judged"
-grep -E '^  FAIL' <<<"$out" | grep -qE 'ghost.html|dead.html' \
+grep -E '^  FAIL' <<<"$out" | grep >/dev/null -E 'ghost.html|dead.html' \
   && bad "census judged a .aidex-artifact-prev copy: $out" \
   || ok "census: baseline copies are superseded versions, not re-judged"
 [[ "$out" == *"good.html"* ]] \

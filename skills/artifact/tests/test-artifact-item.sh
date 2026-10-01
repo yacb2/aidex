@@ -105,9 +105,9 @@ grep -qx "sec-ref · section · [0-9]* B · Where the figures come from" "$TMP/l
 
 # get — exactly that unit, and the group is a strict superset of the item in it.
 bash "$ITEM" get "$TMP/reports/page.html" c1 > "$TMP/c1.html" 2>&1 || fail "get c1 exits non-zero"
-head -1 "$TMP/c1.html" | grep -q '^<section class="consult-item" data-id="c1"' \
+head -1 "$TMP/c1.html" | grep >/dev/null '^<section class="consult-item" data-id="c1"' \
   || fail "get c1 does not start at the item's own tag: $(head -1 "$TMP/c1.html")"
-tail -1 "$TMP/c1.html" | grep -qx '  </section>' || fail "get c1 does not end at the item's close tag"
+tail -1 "$TMP/c1.html" | grep >/dev/null -x '  </section>' || fail "get c1 does not end at the item's close tag"
 if grep -q 'data-id="c2"' "$TMP/c1.html"; then fail "get c1 ran past the item into its sibling"
 else ok "get c1 returns the item and stops at its close tag"; fi
 bash "$ITEM" get "$TMP/reports/page.html" G1 > "$TMP/G1.html" 2>&1
@@ -116,7 +116,7 @@ if grep -q 'data-id="c1"' "$TMP/G1.html" && grep -q 'data-id="c2"' "$TMP/G1.html
 else fail "get G1 lost an item"; fi
 [[ $(wc -c < "$TMP/G1.html") -gt $(wc -c < "$TMP/c1.html") ]] \
   && ok "the nested item is a strict slice of its group" || fail "the group is not larger than its item"
-bash "$ITEM" get "$TMP/reports/page.html" c2 | grep -q "configuración" \
+bash "$ITEM" get "$TMP/reports/page.html" c2 | grep >/dev/null "configuración" \
   && ok "get returns non-ASCII text intact" || fail "non-ASCII text did not survive get"
 
 # put — the unit is replaced and nothing else moves.
@@ -140,7 +140,7 @@ grep -q "^next: .*wrap-report.sh --title 'Probe page' --lang en --in .*page.html
   || fail "put's next-step line is wrong: $(grep next "$TMP/put.out")"
 grep -q "c1 · [0-9]* B -> [0-9]* B" "$TMP/put.out" \
   || fail "put does not report what it wrote: $(head -1 "$TMP/put.out")"
-bash "$ITEM" get "$TMP/reports/page.html" c1 | grep -q "asked better" \
+bash "$ITEM" get "$TMP/reports/page.html" c1 | grep >/dev/null "asked better" \
   && ok "the outline still addresses the rewritten unit, still nested" || fail "the rewritten unit is not addressable"
 
 # ...and the round closes: the edited sidecar is still a wrappable page.
@@ -178,7 +178,7 @@ grep -q "nested: +c3" "$TMP/add.out" && ok "put names the nested id it added" \
   || fail "put does not say which nested id appeared: $(cat "$TMP/add.out")"
 assert_only_unit_changed "$TMP/before-add.body" "$PREV/page.html.body" \
   "$TMP/G1-before.html" "$TMP/G1-add.html" "the block grew by one item and nothing outside it moved"
-bash "$ITEM" list "$TMP/reports/page.html" | grep -qx "  c3 · item · [0-9]* B · Third claim" \
+bash "$ITEM" list "$TMP/reports/page.html" | grep >/dev/null -x "  c3 · item · [0-9]* B · Third claim" \
   && ok "the item added inside the block is addressable on its own" \
   || fail "the added item is not in the outline"
 bash "$WRAP" --title "Probe page" --lang en --in "$PREV/page.html.body" --out "$TMP/reports/page.html" \
@@ -279,7 +279,7 @@ grep -qx "  c1 · item · [0-9]* B · ¿La primera pregunta?" "$TMP/hlist.txt" \
   || fail "the heading fallback title is wrong: $(grep c1 "$TMP/hlist.txt")"
 grep -qx "G1 · group · [0-9]* B · El bloque" "$TMP/hlist.txt" \
   || fail "the group's heading fallback is wrong: $(grep G1 "$TMP/hlist.txt")"
-bash "$ITEM" get "$TMP/hand/h.html" c1 | grep -q "ghost2" \
+bash "$ITEM" get "$TMP/hand/h.html" c1 | grep >/dev/null "ghost2" \
   && ok "the <pre> the item contains still comes back inside it" \
   || fail "get c1 dropped the <pre> inside the item"
 
@@ -301,7 +301,7 @@ bash "$ITEM" get "$TMP/gt/g.html" fig1 > "$TMP/gt-fig1.txt" 2>&1
 grep -q 'alt="El diagrama">$' "$TMP/gt-fig1.txt" \
   && ok "the unit's span ends at the real end of the tag, not at the '>' inside an attribute" \
   || fail "get truncated the tag at the '>' in its attribute: $(cat "$TMP/gt-fig1.txt")"
-bash "$ITEM" get "$TMP/gt/g.html" c1 | grep -q '</section>$' \
+bash "$ITEM" get "$TMP/gt/g.html" c1 | grep >/dev/null '</section>$' \
   || fail "a container unit with '>' in an attribute is truncated: $(bash "$ITEM" get "$TMP/gt/g.html" c1)"
 cp "$TMP/gt/.aidex-artifact-prev/g.html.body" "$TMP/gt-before.body"
 printf '<img data-id="fig1" data-title="antes>después" src="data:image/gif;base64,R0lGOD" alt="El diagrama, v2">' > "$TMP/gt-new.txt"
@@ -429,7 +429,7 @@ grep -q 'id="sec-notes-2"' "$TMP/reports/md.html" \
   || fail "the md outline invents ids the page does not have"
 
 bash "$ITEM" get "$TMP/reports/md.html" sec-qu-encontramos > "$TMP/md-sec.txt" 2>&1
-head -1 "$TMP/md-sec.txt" | grep -qx "## Qué encontramos" || fail "md get does not start at the heading"
+head -1 "$TMP/md-sec.txt" | grep >/dev/null -x "## Qué encontramos" || fail "md get does not start at the heading"
 grep -q "grep '## Notes'" "$TMP/md-sec.txt" && ok "md get keeps the fenced block that belongs to the section" \
   || fail "md get truncated the section at the fenced heading"
 if grep -q "^## Notes$" "$TMP/md-sec.txt"; then fail "md get ran into the next section"

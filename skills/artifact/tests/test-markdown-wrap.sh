@@ -128,7 +128,7 @@ bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \
      --out "$HV" >/dev/null 2>&1
 grep -q '<html lang="en"' "$HV" \
   && ok "--lang en overrides an artifact-style.md that says es on human-verification" \
-  || fail "--lang did not override the profile language on human-verification: $(grep -o '<html lang="[a-z]*"' "$HV" | head -1)"
+  || fail "--lang did not override the profile language on human-verification: $(grep -o '<html lang="[a-z]*"' "$HV" | sed -n 1p)"
 REC="$TMP/proj/.context/worklists/_archive/report.html"
 bash "$WRAP" --title "Lang probe" --lang en --in "$TMP/proj/report.md" \
      --out "$REC" > "$TMP/lang-page.out" 2>&1
@@ -199,7 +199,7 @@ grep -q 'A fourth-level heading that must not vanish' "$TMP/checklist.html" \
 # No `# ` in the markdown, so --title is the h1. Without it the reader opens a
 # headless wall of paragraphs with an empty rail.
 grep -q '<h1>Checklist page</h1>' "$TMP/checklist.html" \
-  || fail "a report with no '# ' title rendered with no <h1>: $(grep -o '<h1[^<]*' "$TMP/checklist.html" | head -1)"
+  || fail "a report with no '# ' title rendered with no <h1>: $(grep -o '<h1[^<]*' "$TMP/checklist.html" | sed -n 1p)"
 # …and a `# ` in the markdown still beats the flag.
 grep -q '<h1>Sweep report — probe</h1>' "$TMP/report.html" \
   || fail "the markdown's own '# ' title did not win over --title"
@@ -240,7 +240,7 @@ bash "$CHECK" "$TMP/fence.html" >"$TMP/chk3.out" 2>&1   && ok "a page with a fen
 # anything.
 grep -q 'test-e2e.sh' "$TMP/fence.html"   || fail "the fenced command is not on the page at all — the assertions below would be vacuous"
 
-grep -q '<pre><code class="lang-bash">' "$TMP/fence.html"   || fail "no <pre><code class=\"lang-bash\"> block: $(grep -o '<pre[^>]*>[^<]*<[^>]*>' "$TMP/fence.html" | head -1)"
+grep >/dev/null '<pre><code class="lang-bash">' "$TMP/fence.html"   || fail "no <pre><code class=\"lang-bash\"> block: $(grep -o '<pre[^>]*>[^<]*<[^>]*>' "$TMP/fence.html" | sed -n 1p)"
 # Line breaks are preserved: two lines, so one newline inside the block.
 python3 - "$TMP/fence.html" <<'PY' || fail "fence markers leaked into <main>, or the block is not a <pre> with its line breaks"
 import re, sys
@@ -423,7 +423,7 @@ grep -q 'href=' <(sed -n '/<main/,/<\/main>/p' "$TMP/links/bad.html" 2>/dev/null
   && fail "the javascript: target reached an href" || ok "…with no href in the body"
 grep -qF 'x (javascript:alert(1))' "$TMP/links/bad.html" 2>/dev/null \
   && ok "…and the target as plain text, label (target)" || fail "the refused link is not rendered as label (target)"
-bash "$CHECK" "$TMP/links/bad.html" 2>&1 | grep -q 'raw-link' && fail "raw-link fired on the refused link" || ok "…and no raw-link"
+bash "$CHECK" "$TMP/links/bad.html" 2>&1 | grep >/dev/null 'raw-link' && fail "raw-link fired on the refused link" || ok "…and no raw-link"
 
 [[ $failures -eq 0 ]] && echo "OK — markdown wraps into a contract-passing page ($(wc -c < "$TMP/report.html" | tr -d ' ') bytes)"
 exit $(( failures > 0 ))

@@ -46,13 +46,13 @@ for label in unset empty afile $PARTS; do
   check "[$label] prints no gate line at all" "$([ -z "$out" ] && echo 1 || echo 0)" "$out"
   check "[$label] says why, in one line naming AIDEX_SPEC_CORPUS" \
     "$([ "$(printf '%s\n' "$err" | wc -l | tr -d ' ')" -eq 1 ] \
-       && printf '%s' "$err" | grep -q 'AIDEX_SPEC_CORPUS' && echo 1 || echo 0)" "$err"
+       && printf '%s' "$err" | grep >/dev/null 'AIDEX_SPEC_CORPUS' && echo 1 || echo 0)" "$err"
   case "$label" in
     unset|empty) ;;
     afile) check "[afile] says it is not a directory" \
-             "$(printf '%s' "$err" | grep -q 'is not a directory' && echo 1 || echo 0)" "$err" ;;
+             "$(printf '%s' "$err" | grep >/dev/null 'is not a directory' && echo 1 || echo 0)" "$err" ;;
     *) check "[$label] names the path it lacks" \
-         "$(printf '%s' "$err" | grep -qF "lacks $label" && echo 1 || echo 0)" "$err" ;;
+         "$(printf '%s' "$err" | grep >/dev/null -F "lacks $label" && echo 1 || echo 0)" "$err" ;;
   esac
 done
 
@@ -78,20 +78,20 @@ seven_lines() {
     i=$((i + 1))
   done
   check "[$label] no \`diagrams:\` line — it is retired into \`figures:\`" \
-    "$(printf '%s\n' "$out" | grep -q '^diagrams:' && echo 0 || echo 1)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null '^diagrams:' && echo 0 || echo 1)" "$out"
   check "[$label] blind is counted from the blind-trial log, not stubbed" \
-    "$(printf '%s\n' "$out" | grep -qx 'blind: 3/3' && echo 1 || echo 0)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null -x 'blind: 3/3' && echo 1 || echo 0)" "$out"
   check "[$label] figures is counted from the figure census, not stubbed" \
-    "$(printf '%s\n' "$out" | grep -qE '^figures: [0-9]+/[1-9][0-9]*$' && echo 1 || echo 0)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null -E '^figures: [0-9]+/[1-9][0-9]*$' && echo 1 || echo 0)" "$out"
   check "[$label] newly-fail reads unknown when the contract was not measured" \
-    "$(printf '%s\n' "$out" | grep -qx 'newly-fail: unknown' && echo 1 || echo 0)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null -x 'newly-fail: unknown' && echo 1 || echo 0)" "$out"
   check "[$label] the ladder counts every figure of the census, once" \
     "$(printf '%s\n' "$out" | awk -F'[ /]' '
         /^figures:/ { total = $3 }
         /^ladder:/  { sum = $3 + $6 + $9; ok = ($0 ~ /^ladder: r1 [0-9]+ · r2 [0-9]+ · r3 [0-9]+$/) }
         END { print (ok && sum == total) ? 1 : 0 }')" "$out"
   check "[$label] baseline is non-empty" \
-    "$(printf '%s\n' "$out" | grep -qE '^baseline: .+' && echo 1 || echo 0)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null -E '^baseline: .+' && echo 1 || echo 0)" "$out"
 
   # The count `corpus:` is blind to: a build that keeps every word of a page and
   # loses the structure the contract is about reads as clean to the judge. It was
@@ -100,7 +100,7 @@ seven_lines() {
   full="$(AIDEX_SPEC_CORPUS="$dir" bash "$HERE/goal-gate.sh" 2>/dev/null)"
   rcf=$?
   check "[$label] newly-fail is a number once the contract is measured" \
-    "$(printf '%s\n' "$full" | grep -qE '^newly-fail: [0-9]+$' && echo 1 || echo 0)" "$full"
+    "$(printf '%s\n' "$full" | grep >/dev/null -E '^newly-fail: [0-9]+$' && echo 1 || echo 0)" "$full"
   check "[$label] baseline repeats the count from the same contract run" \
     "$(printf '%s\n' "$full" | awk '
         /^newly-fail:/ { n = $2 }
@@ -115,7 +115,7 @@ seven_lines() {
   fc=$(printf '%s\n' "$full" | sed -n 's/^figures: \([0-9]*\)\/[0-9]*$/\1/p')
   ft=$(printf '%s\n' "$full" | sed -n 's/^figures: [0-9]*\/\([0-9]*\)$/\1/p')
   if [ -n "$fc" ] && [ -n "$ft" ] && [ $((fc + ${waived:-0})) -eq "$ft" ] \
-     && printf '%s\n' "$full" | grep -qx 'newly-fail: 0'; then want_rc=0; else want_rc=1; fi
+     && printf '%s\n' "$full" | grep >/dev/null -x 'newly-fail: 0'; then want_rc=0; else want_rc=1; fi
   check "[$label] the contract run exits $want_rc, as its figures/newly-fail lines say" \
     "$([ $rcf -eq $want_rc ] && echo 1 || echo 0)" "exit $rcf: $full"
   out_full="$full"
@@ -125,16 +125,16 @@ echo
 echo "== the seven lines, in the fixed order =="
 seven_lines synthetic "$MINI"
 check "[synthetic] every page of the synthetic corpus builds back to itself" \
-  "$(printf '%s\n' "$out" | grep -qx 'corpus: 3/3' && echo 1 || echo 0)" "$out"
+  "$(printf '%s\n' "$out" | grep >/dev/null -x 'corpus: 3/3' && echo 1 || echo 0)" "$out"
 check "[synthetic] every synthetic figure is carried, and the gate is green" \
-  "$(printf '%s\n' "$out_full" | grep -qx 'figures: 4/4' \
-     && printf '%s\n' "$out_full" | grep -qx 'newly-fail: 0' && echo 1 || echo 0)" "$out_full"
+  "$(printf '%s\n' "$out_full" | grep >/dev/null -x 'figures: 4/4' \
+     && printf '%s\n' "$out_full" | grep >/dev/null -x 'newly-fail: 0' && echo 1 || echo 0)" "$out_full"
 if [ -n "$REAL" ]; then
   seven_lines corpus "$REAL"
   check "[corpus] corpus counts against the frozen 30" \
-    "$(printf '%s\n' "$out" | grep -qE '^corpus: [0-9]+/30$' && echo 1 || echo 0)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null -E '^corpus: [0-9]+/30$' && echo 1 || echo 0)" "$out"
   check "[corpus] figures counts against the census's 45" \
-    "$(printf '%s\n' "$out" | grep -qE '^figures: [0-9]+/45$' && echo 1 || echo 0)" "$out"
+    "$(printf '%s\n' "$out" | grep >/dev/null -E '^figures: [0-9]+/45$' && echo 1 || echo 0)" "$out"
 else
   skip "the seven lines on the real corpus"
 fi
@@ -1195,7 +1195,7 @@ printf '%s\n' "$sample_out"
 # silently stopped running.
 if [ -n "$REAL" ]; then want_sample='^OK'; else want_sample='^(OK|SKIP)'; fi
 check "test_corpus_sample.py exits 0 and says OK (or SKIP without a corpus)" \
-  "$([ $rc -eq 0 ] && printf '%s' "$sample_out" | grep -qE "$want_sample" && echo 1 || echo 0)" \
+  "$([ $rc -eq 0 ] && printf '%s' "$sample_out" | grep >/dev/null -E "$want_sample" && echo 1 || echo 0)" \
   "exit $rc"
 
 echo

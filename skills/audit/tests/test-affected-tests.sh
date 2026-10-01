@@ -495,7 +495,7 @@ echo x >> "$WS/backend/apps/billing/views.py"
 out_v="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
 echo "$out_v" | grep >/dev/null 'apps/billing/tests/test_views.py' \
   || fail "(v) selection should narrow to the colocated test file: $out_v"
-echo "$out_v" | grep -E 'pytest[^#]*apps/billing/tests/( |$)' -q \
+echo "$out_v" | grep >/dev/null -E 'pytest[^#]*apps/billing/tests/( |$)' \
   && fail "(v) the whole-module dir must not ride along once narrowed: $out_v"
 out_v2="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
 echo "$out_v2" | grep >/dev/null 'targeted:' \
@@ -504,7 +504,7 @@ echo "$out_v2" | grep >/dev/null 'targeted:' \
 # (w) partial coverage -> whole module, no narrowing
 echo x >> "$WS/backend/apps/billing/serializers.py"
 out_w="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_w" | grep -E 'pytest[^#]*apps/billing/tests/' -q \
+echo "$out_w" | grep >/dev/null -E 'pytest[^#]*apps/billing/tests/' \
   || fail "(w) a module with an un-targeted changed file keeps the module selection: $out_w"
 rm -rf "$WS"
 

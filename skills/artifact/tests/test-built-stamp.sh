@@ -277,7 +277,7 @@ PY
 PPAGE="$PROJ/.context/reports/printed.html"
 out="$(bash "$WRAP" --title "Printed" --lang en --in "$TMP/report-body.html" --out "$PPAGE" 2>/dev/null)"
 abs="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$PPAGE")"
-[[ "$(tail -n 2 <<<"$out" | head -n 1)" == "$abs" ]] \
+[[ "$(tail -n 2 <<<"$out" | sed -n 1p)" == "$abs" ]] \
   || fail "the absolute path is not the second-to-last line of stdout: $(tail -n 2 <<<"$out")"
 [[ "$(tail -n 1 <<<"$out")" == "$(built_line "$PPAGE")" ]] \
   || fail "the last line of stdout is not the page's own built line: '$(tail -n 1 <<<"$out")'"

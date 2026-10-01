@@ -264,7 +264,7 @@ cmp -s "$TMP/reply.md" "$TMP/pagec/.aidex-artifact-prev/page.reply.md" \
 cmp -s "$PAGEC" "$TMP/pagec/.aidex-artifact-prev/page.answered.html" \
   && ok "C3. the answered snapshot is the page as it stood, verbatim" \
   || fail "C3. the answered snapshot differs from the page that was answered"
-echo "$out" | grep -q 'Q1 \[show-me\]' \
+echo "$out" | grep >/dev/null 'Q1 \[show-me\]' \
   && ok "C4. save-reply.sh prints the show-me duty for Q1" \
   || fail "C4: $out"
 
@@ -288,7 +288,7 @@ STACKED='### Q1 · Q1
 no entiendo nada'
 out3="$(printf '%s' "$STACKED" | bash "$SAVE_REPLY" "$PAGEC2")"
 n="$(printf '%s\n' "$out3" | grep -c '^Q1 \[')"
-[[ "$n" == "1" ]] && printf '%s\n' "$out3" | grep -q 'marker by marker' \
+[[ "$n" == "1" ]] && printf '%s\n' "$out3" | grep >/dev/null 'marker by marker' \
   && ok "C6. 3+ stacked asks print ONE duty line, not one per marker" \
   || fail "C6: got $n duty line(s): $out3"
 
@@ -333,7 +333,7 @@ grep -q 'dame un dibujo' "$TMP/paged/.aidex-artifact-prev/page.reply.md" \
 cmp -s "$TMP/paged/orig.html" "$TMP/paged/.aidex-artifact-prev/page.answered.html" \
   && ok "D2c. answered.html is KEPT at the original snapshot, not re-captured from the unmet draft" \
   || fail "D2c: answered.html was overwritten while the duty was still unmet"
-echo "$out_followup" | grep -q 'Q1 \[show-me\]' \
+echo "$out_followup" | grep >/dev/null 'Q1 \[show-me\]' \
   && ok "D2d. save-reply.sh still prints the outstanding show-me duty on the follow-up" \
   || fail "D2d: $out_followup"
 
@@ -382,7 +382,7 @@ out_e="$(printf '%s' '### Q1 · Q1
 - [not-now]
 
 no entiendo, y además hay un error de encoding en el titulo' | bash "$SAVE_REPLY" "$PAGEE")"
-echo "$out_e" | grep -q 'Q1 \[page-defect\]' \
+echo "$out_e" | grep >/dev/null 'Q1 \[page-defect\]' \
   && ok "E2. [page-defect] prints its own duty line even beside other asks, not stacked" \
   || fail "E2: $out_e"
 
@@ -403,8 +403,8 @@ STACK3='### Q1 · Q1
 no entiendo nada, y el titulo tiene un error de encoding'
 out_e3="$(printf '%s' "$STACK3" | bash "$SAVE_REPLY" "$PAGEE3")"
 n="$(printf '%s\n' "$out_e3" | grep -c '^Q1 \[')"
-[[ "$n" == "2" ]] && printf '%s\n' "$out_e3" | grep -q 'marker by marker' \
-  && printf '%s\n' "$out_e3" | grep -q '\[page-defect\]' \
+[[ "$n" == "2" ]] && printf '%s\n' "$out_e3" | grep >/dev/null 'marker by marker' \
+  && printf '%s\n' "$out_e3" | grep >/dev/null '\[page-defect\]' \
   && ok "E3. 3+ real asks stack to one line; [page-defect] still prints separately" \
   || fail "E3: got $n line(s): $out_e3"
 

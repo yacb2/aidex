@@ -50,7 +50,7 @@ else fail "re-wrapping from the sidecar fails the contract"; fi
 
 # 4. the sidecar is not reported as an orphaned baseline while its page exists
 bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err4"
-if grep -q "orphaned baseline.*\.body" "$TMP/err4"; then fail "a live page's body is reported orphaned: $(grep 'orphaned' "$TMP/err4" | head -1)"
+if grep >/dev/null "orphaned baseline.*\.body" "$TMP/err4"; then fail "a live page's body is reported orphaned: $(grep 'orphaned' "$TMP/err4" | sed -n 1p)"
 else ok "a live page's body is not an orphan"; fi
 
 # 5. ...and IS reported once the page is gone, or every page is silently doubled again.
@@ -85,7 +85,7 @@ else fail "the failing attempt's source is not at $PREV/page.html.failed.body"; 
 
 # 7. neither the kept render nor its source is an orphan while the page exists.
 bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/other.html" >/dev/null 2>"$TMP/err7"
-if grep -q "page\.html\.failed" "$TMP/err7"; then fail "a live page's failing attempt is reported as dead state: $(grep 'page\.html\.failed' "$TMP/err7" | head -1)"
+if grep >/dev/null "page\.html\.failed" "$TMP/err7"; then fail "a live page's failing attempt is reported as dead state: $(grep 'page\.html\.failed' "$TMP/err7" | sed -n 1p)"
 else ok "a live page's .failed and .failed.body are not orphans"; fi
 
 # 8. the spelling flip (the defect the review reproduced): a page wrapped FROM
@@ -158,7 +158,7 @@ bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/o
 grep -q "first\.html\.failed'" "$TMP/err12" \
   && ok "a failing build with no baseline at all still reports its render" \
   || fail "a .failed with no baseline entry beside it is silently kept forever"
-first_note="$(grep "first\.html\.failed\.body'" "$TMP/err12" | head -1)"
+first_note="$(grep "first\.html\.failed\.body'" "$TMP/err12" | sed -n 1p)"
 [[ "$first_note" == *"unfinished attempt"* && "$first_note" == *"--in"* ]] \
   && ok "an unfinished first build is reported as work to resume, not as dead state" \
   || fail "the unfinished first build's advice is wrong or missing: $first_note"

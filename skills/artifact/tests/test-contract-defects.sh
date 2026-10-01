@@ -520,8 +520,8 @@ echo "== census: the contract classes warn, the page being written fails =="
 CEN="$TMP/census-root"; mkdir -p "$CEN/.context/reports"
 cp "$TMP/c1-free.html" "$CEN/.context/reports/old.html"
 cout="$(python3 "$HERE/../scripts/dash/check_artifact.py" --census "$CEN" 2>&1)"; crc=$?
-printf '%s\n' "$cout" | grep -q 'WARN \[decision-item-without-options\] ' \
-  && ! printf '%s\n' "$cout" | grep -q 'FAIL \[decision-item-without-options\]' \
+printf '%s\n' "$cout" | grep >/dev/null 'WARN \[decision-item-without-options\] ' \
+  && ! printf '%s\n' "$cout" | grep >/dev/null 'FAIL \[decision-item-without-options\]' \
   && ok "the census warns a contract finding instead of failing it" \
   || bad "the census did not demote the contract class to a warning: $cout"
 
@@ -614,7 +614,7 @@ gate() {   # gate REGISTRY [PROBE] — stdout only
 
 corpus clean
 out="$(gate "")"; rc=$?
-[[ "$(printf '%s\n' "$out" | head -1)" == "classes: 0/unknown" && $rc -ne 0 ]] \
+[[ "$(printf '%s\n' "$out" | sed -n 1p)" == "classes: 0/unknown" && $rc -ne 0 ]] \
   && ok "an unset registry reads classes: 0/unknown and fails" || bad "unset registry: rc=$rc $(printf '%q' "$out")"
 
 echo "-- the corpus line: specs built on the current kit, full by default, source only on request"
@@ -732,7 +732,7 @@ cp "$TMP/clean.html" "$FULL/mixed-content-types/rebuilt.html"
 
 rm -rf "$FULL/ui-string-language"
 out="$(gate "$FULL")"; rc=$?
-[[ "$(printf '%s\n' "$out" | head -1)" == "classes: 15/16" && $rc -ne 0 ]] \
+[[ "$(printf '%s\n' "$out" | sed -n 1p)" == "classes: 15/16" && $rc -ne 0 ]] \
   && ok "a registry missing a class reads 15/16 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
 
 echo

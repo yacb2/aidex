@@ -1168,7 +1168,7 @@ if [[ "$cmd" == "down" ]]; then
     local p age port cmd
     for p in $1; do
       age="$(ps -o etime= -p "$p" 2>/dev/null | tr -d ' ')"
-      port="$(lsof -nP -a -p "$p" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {n=split($9,a,":"); print a[n]; exit}')"
+      port="$(lsof -nP -a -p "$p" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 && !d {n=split($9,a,":"); print a[n]; d=1}')"
       cmd="$(ps -o comm= -p "$p" 2>/dev/null)"
       printf '  pid %s  age %s  port %s  %s\n' "$p" "${age:-?}" "${port:--}" "${cmd##*/}"
     done

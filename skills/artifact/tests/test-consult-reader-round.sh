@@ -22,7 +22,7 @@ ok()   { printf 'ok   — %s\n' "$*"; }
 
 mkdir -p "$TMP/reports"
 PG="$TMP/reports/c.html"
-round_of() { sed -nE 's/.*<meta name="consult-round" content="([0-9]+)">.*/\1/p' "$1" | head -1; }
+round_of() { sed -nE 's/.*<meta name="consult-round" content="([0-9]+)">.*/\1/p' "$1" | sed -n 1p; }
 wrap() { bash "$WRAP" --title "Consultation" --lang en --in "$KIT/skeleton.html" --out "$PG" "$@" 2>&1; }
 reply() { printf 'Q1: fine as is\n' | bash "$SAVE" "$PG" - >/dev/null 2>&1; }
 
@@ -143,7 +143,7 @@ python3 "$BUILD" "$SP" -o "$SPG" --new-round >/dev/null 2>&1 && [[ "$(round_of "
 # The rail's "ronda N"/"round N" line and the consult-round meta are two
 # renderings of one fact; pin that they agree at every round of the page above
 # (round 4, a replied round, and the spec route in Spanish).
-shown_of() { sed -nE 's/.*class="railbuilt"[^>]*>[^<]*(round|ronda) ([0-9]+).*/\2/p' "$1" | head -1; }
+shown_of() { sed -nE 's/.*class="railbuilt"[^>]*>[^<]*(round|ronda) ([0-9]+).*/\2/p' "$1" | sed -n 1p; }
 for pg in "$PG" "$BP" "$SPG"; do
   [[ -n "$(shown_of "$pg")" && "$(shown_of "$pg")" == "$(round_of "$pg")" ]] \
     && ok "(e) $(basename "$pg"): the rail round ($(shown_of "$pg")) equals consult-round" \

@@ -124,7 +124,7 @@ sleep 1
 kill -9 -- "-$pid" 2>/dev/null
 wait "$pid" 2>/dev/null
 CHROME_PID=""
-t="$(grep -oE '<title>[^<]*</title>' "$TMP/dom.html" | head -1)"
+t="$(grep -oE '<title>[^<]*</title>' "$TMP/dom.html" | sed -n 1p)"
 [[ "$t" == *FIG* ]] || { fail "the script never ran: $t"; echo "$failures failure(s)"; exit 1; }
 [[ "$t" == *THREW* ]] && fail "the canon's script threw: $t"
 
