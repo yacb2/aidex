@@ -46,6 +46,10 @@ round. Four outcomes:
 - **full** — go to Step 0 (full), below.
 - **research** — the *how* is unknown. Hand off to `research`; planning now is invention.
 
+**Screen gate.** When the request adds or changes a screen (anything a user sees), the
+plan names `/aidex:ui-contract` as **step 0**, before any phase is written, in the scoped
+and the full outcome alike. A request that touches no screen is unaffected.
+
 ## Step 0 (scoped) — one confirmation round
 
 For `mode: scoped` only. The scope **is** the file list plus the acceptance criteria, so
