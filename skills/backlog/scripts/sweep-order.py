@@ -6,7 +6,8 @@ parses Python: union-find over `touches:` tokens (items sharing a token cluster
 adjacently), a stable topological order over `depends:` (Kahn; priority, estimate, file
 as the tiebreak so the same backlog always yields the same queue), and `merge:BL-NNN`
 marking a MERGE pair — the same change seen twice, closed in one commit carrying both
-`Backlog:` trailers.
+`Backlog:` trailers. An item whose dependency or MERGE twin is open (or unknown) and not
+in the queue is moved to needs_decision (`depends on open BL-NNN`), never queued.
 
 usage: sweep-order.py <backlog-dir> [--include BL-N,..] [--exclude BL-N,..]
                       [--format json|summary|refs]
@@ -24,16 +25,70 @@ def fm(path):
 RANK = {'XS': 0, 'S': 1, 'M': 2, 'L': 3, 'XL': 4}
 
 
+def kahn(nodes, deps, k):
+    done, pending = [], set(nodes)
+    while pending:
+        ready = sorted([n for n in pending if not (deps[n] & pending)], key=k)
+        if not ready:
+            print('depends: cycle among ' + ', '.join(sorted(pending)), file=sys.stderr)
+            sys.exit(2)
+        done.append(ready[0])
+        pending.remove(ready[0])
+    return done
+
+
 def order(part, bdir, inc, exc):
     queue = [i for i in part['eligible'] if i['id'] not in exc]
     queue += [i for i in part['review'] if i['id'] in inc]
     review_out = [i for i in part['review'] if i['id'] not in inc]
-    by_id = {i['id']: i for i in queue}
     for i in queue:
         f = fm(os.path.join(bdir, i['file']))
         i['touches'] = [t.strip() for t in f.get('touches', '').split(',') if t.strip()]
         i['depends'] = [d.strip() for d in f.get('depends', '').split(',') if d.strip()]
         i['surface'] = f.get('surface') or 'internal'
+    # BL-605: a dependency or MERGE twin that is still open (active or _deferred/) or found
+    # nowhere (a typo) and is not in this queue blocks the item; closed ones live in
+    # _archive/. Repeat until stable so an item depending on a just-blocked item is blocked
+    # too. A cycle is reported first: blocking would otherwise hide it.
+    ids = {i['id'] for i in queue}
+    kahn(ids, {i['id']: {d for d in i['depends'] if d in ids} for i in queue}, lambda n: n)
+    still_open, known = set(), set()
+    for d in (bdir, os.path.join(bdir, '_deferred'), os.path.join(bdir, '_archive')):
+        for f in (sorted(os.listdir(d)) if os.path.isdir(d) else []):
+            if f.endswith('.md') and not f.startswith('00-'):
+                m = fm(os.path.join(d, f))
+                known.add(m.get('id'))
+                if m.get('status') in ('open', 'doing') and not d.endswith('_archive'):
+                    still_open.add(m.get('id'))
+    twins = {}
+    for i in queue:
+        for d in i['depends']:
+            if d.startswith('merge:'):
+                twins.setdefault(i['id'], set()).add(d[6:])
+                twins.setdefault(d[6:], set()).add(i['id'])
+    needs = list(part['needs_decision'])
+    while True:
+        ids = {i['id'] for i in queue}
+        outside = lambda x: x not in ids and (x in still_open or x not in known)
+        blocked = {}
+        for i in queue:
+            deps = [d for d in i['depends'] if not d.startswith('merge:') and outside(d)]
+            opn, unk = [d for d in deps if d in known], [d for d in deps if d not in known]
+            tw = sorted(x for x in twins.get(i['id'], ()) if outside(x))
+            why = (['depends on open ' + ', '.join(opn)] if opn else []) \
+                + (['depends on unknown ' + ', '.join(unk)] if unk else []) \
+                + (['merge partner ' + ', '.join(tw) + ' not queued'] if tw else [])
+            if why:
+                blocked[i['id']] = '; '.join(why)
+        if not blocked:
+            break
+        for i in queue:
+            if i['id'] in blocked:
+                i['reason'] = blocked[i['id']]
+                needs.append(i)
+        queue = [i for i in queue if i['id'] not in blocked]
+    n_blocked = len(needs) - len(part['needs_decision'])
+    by_id = {i['id']: i for i in queue}
     parent = {i['id']: i['id'] for i in queue}
 
     def find(x):
@@ -77,17 +132,6 @@ def order(part, bdir, inc, exc):
             if cid[a] != cid[b]:
                 cl_edges[cid[a]].add(cid[b])
 
-    def kahn(nodes, deps, k):
-        done, pending = [], set(nodes)
-        while pending:
-            ready = sorted([n for n in pending if not (deps[n] & pending)], key=k)
-            if not ready:
-                print('depends: cycle among ' + ', '.join(sorted(pending)), file=sys.stderr)
-                sys.exit(2)
-            done.append(ready[0])
-            pending.remove(ready[0])
-        return done
-
     cl_order = kahn(clusters.keys(), cl_edges, lambda c: min(key(i) for i in clusters[c]))
     out = []
     for c in cl_order:
@@ -97,8 +141,8 @@ def order(part, bdir, inc, exc):
         out.append({'cluster': ', '.join(label) or by_id[seq[0]]['title'][:40],
                     'merge': any(p <= members for p in merge_pairs),
                     'items': [{k: by_id[m][k] for k in ('id', 'title', 'priority', 'estimate', 'surface', 'touches', 'depends')} for m in seq]})
-    return {'queue': out, 'review': review_out, 'needs_decision': part['needs_decision'],
-            'n_eligible': len(queue), 'fan_out': len(queue) > 20}
+    return {'queue': out, 'review': review_out, 'needs_decision': needs,
+            'n_eligible': len(queue), 'n_blocked': n_blocked, 'fan_out': len(queue) > 20}
 
 
 def summary(d):

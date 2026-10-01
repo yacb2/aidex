@@ -104,9 +104,13 @@ INC="$(IFS=,; echo "${INCLUDE[*]:-}")"
 ORDER="$(printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --include "$INC" --exclude "$EXC")"
 [[ $JSON -eq 1 ]] && { printf '%s\n' "$ORDER"; exit 0; }
 
-N="$(printf '%s' "$ORDER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["n_eligible"])')"
+read -r N NB < <(printf '%s' "$ORDER" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["n_eligible"], d["n_blocked"])')
 if [[ "$N" -eq 0 ]]; then
-  echo "empty queue: nothing ELIGIBLE at --size $SIZE — the NEEDS-DECISION list:" >&2
+  if [[ "$NB" -gt 0 ]]; then
+    echo "empty queue: nothing queueable at --size $SIZE — $NB eligible, all blocked by open or unknown depends — the NEEDS-DECISION list:" >&2
+  else
+    echo "empty queue: nothing ELIGIBLE at --size $SIZE — the NEEDS-DECISION list:" >&2
+  fi
   printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --format summary >&2
   exit 2
 fi
@@ -132,7 +136,7 @@ WL="$(cd "$ROOT" && bash "$WL_SCRIPTS/worklist-new.sh" --title "$TITLE" --mode s
 # — inserted BEFORE `## Deferred / emergent`, which must stay the LAST section because
 # worklist-advance.sh --append writes to the end of the file; the size goes in the
 # front-matter (validate-worklist.py ignores keys it does not know).
-NEEDS="$(printf '%s' "$PART" | python3 -c '
+NEEDS="$(printf '%s' "$ORDER" | python3 -c '
 import json, sys
 for i in json.load(sys.stdin)["needs_decision"]:
     print("- %s — %s   <!-- reason: %s -->" % (i["id"], i["title"].replace("\n", " "), i["reason"]))')"

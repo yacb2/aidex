@@ -36,6 +36,8 @@ Enforced by `scripts/sweep-kickoff.sh` (with `sweep-eligible.py`, `sweep-order.p
 3. The work-list is written `mode: sweep`, ordered **by cluster** (`worklist-conventions.md`
    § A sweep queue is ordered by cluster): shared `touches:` adjacent, `depends:` edges
    respected, `merge:BL-NNN` pairs marked MERGE.
+   An item whose dependency (or MERGE twin) is still open, or unknown, and not in the queue
+   is not queued: it goes to NEEDS-DECISION as `depends on open BL-NNN` (BL-605).
 4. **One consultation artifact** for the whole NEEDS-DECISION list — a block page per
    `artifacts-local-first`, explain-before-ask, each option carrying its consequence and a
    recommendation. `AskUserQuestion` is for parameters only (gate policy, scope toggles);
