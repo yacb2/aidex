@@ -1617,8 +1617,8 @@ variant is said once under the captures ("Vista: escritorio, tema claro"), the o
 instruction sits at the top of the block, and an optional `highlight` (one `{x, y, w, h}`
 or a list, in the AFTER capture's own pixels) is outlined over the after and in the zoom
 view, outside the region with padding and no fill; the before gets an outline only from
-`highlight_before`, measured on the before capture (the two layouts differ). A before/after pair stacks (before above after, full width) unless the variant is
-`-mobile` / `-tablet`; `"layout": "side"` / `"stacked"` overrides. Field table:
+`highlight_before`, measured on the before capture (the two layouts differ). A before/after pair sits side by side (captures scale, never cropped; owner
+2026-10-01); `"layout": "stacked"` puts before above after at full width. Field table:
 `04-block-vocabulary.md` § `gallery`.
 
 Item ids are `<gallery>-<cell>-<variant>` (`-unrequested` / `-sample` appended for those

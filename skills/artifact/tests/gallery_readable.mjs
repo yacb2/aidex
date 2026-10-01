@@ -26,7 +26,7 @@ out.desktop = await page.evaluate((ROW) => {
   return {
     heading: row.querySelector('h3').textContent,
     rail,
-    stackedAbove: r(after).t >= r(before).t + r(before).h - 1 && Math.abs(r(after).w - r(before).w) < 2,
+    sideBySide: Math.abs(r(after).t - r(before).t) < 2 && r(after).l >= r(before).l + r(before).w - 1 && Math.abs(r(after).w - r(before).w) < 2,
     frac: [(hb.l - ib.l) / ib.w, (hb.t - ib.t) / ib.h, hb.w / ib.w, hb.h / ib.h].map((v) => Math.round(v * 100)),
     fracBefore: [(hlBefore.l - ibBefore.l) / ibBefore.w, (hlBefore.t - ibBefore.t) / ibBefore.h].map((v) => Math.round(v * 100)),
     hlStyle: (() => { const c = getComputedStyle(hl); return { bg: c.backgroundColor, outline: c.outlineStyle,

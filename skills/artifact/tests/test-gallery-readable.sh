@@ -124,9 +124,9 @@ PY
 msg="$(gen "$TMP/bad2.json" 2>&1 >/dev/null)"; [[ "$msg" == *"runs outside"* ]] \
   && ok "highlight_before is validated against the before capture" || fail "highlight_before not validated: $msg"
 
-echo "== BL-589: the pair stacks on desktop, sits side by side on a phone =="
-grep -qF '<div class="gal stacked">' <<<"$pair" && ! grep -q 'gal stacked' <<<"$(item audit-phone-dark-mobile "$TMP/g.html")" \
-  && ok "a desktop pair is stacked, a mobile pair is not" || fail "the layout class is wrong"
+echo "== layout: a pair sits side by side by default (owner 2026-10-01); stacked only on request =="
+! grep -q 'gal stacked' <<<"$pair" && ! grep -q 'gal stacked' <<<"$(item audit-phone-dark-mobile "$TMP/g.html")" \
+  && ok "a desktop pair and a mobile pair both sit side by side" || fail "the default layout is not side by side"
 
 echo "== BL-577: a reply headed as the titled page pastes it still parses =="
 python3 - "$TMP/reply.md" <<'PY'
@@ -169,7 +169,7 @@ PY
   check 'd["desktop"]["rail"][1] == {"text": "Lista de usuarios: menú de acciones de un usuario invitado", "rid": False}' \
     "the rail lists the row by its title, with no slug beside it"
   check 'd["desktop"]["heading"].startswith("Lista de usuarios")' "the rendered heading is the title"
-  check 'd["desktop"]["stackedAbove"]' "after sits below before at the same width"
+  check 'd["desktop"]["sideBySide"]' "after sits beside before at the same width"
   check 'd["desktop"]["frac"] == [10, 10, 20, 20] and d["desktop"]["fracBefore"] == [50, 50]' \
     "the outline lands on its own fraction of the after and of the before capture"
   check 'd["desktop"]["hlStyle"]["bg"] in ("rgba(0, 0, 0, 0)", "transparent") and d["desktop"]["hlStyle"]["outline"] == "solid" and float(d["desktop"]["hlStyle"]["offset"]) >= 3 and d["desktop"]["hlStyle"]["border"] == "0px"' \
@@ -182,4 +182,4 @@ PY
 fi
 
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
-echo "ok: readable gallery rows — title, variant once, one instruction, highlight, stacked, localized approve"
+echo "ok: readable gallery rows — title, variant once, one instruction, highlight, pair side by side, localized approve"

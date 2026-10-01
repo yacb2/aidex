@@ -737,13 +737,12 @@ def render(doc, root, group_id, group_title, lang, page=None,
         if "look" in r:
             add('    <p class="gal-look"><strong>%s:</strong> %s</p>'
                 % (e(LOOK_LABEL[lang]), e(r["look"])))
-        # A before/after pair stacks (before above after, each at the column's
-        # full width) unless it is a phone or tablet capture, which is narrow
-        # enough to sit side by side (BL-589); `layout` overrides either way.
+        # A before/after pair sits side by side: captures scale to the cell and
+        # are never cropped, and the owner enlarges them anyway (owner
+        # 2026-10-01, reversing BL-589's stacked default); `"layout": "stacked"`
+        # puts before above after at the column's full width.
         pair = kind != "alternatives" and before is not None
-        layout = r.get("layout") or (
-            "stacked" if pair and variant.split("-")[-1] not in ("mobile", "tablet")
-            else "side")
+        layout = r.get("layout") or "side"
         add('    <div class="gal%s">' % (" stacked" if layout == "stacked" and pair
                                          else ""))
         regions = r.get("highlight")
