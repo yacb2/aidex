@@ -402,6 +402,16 @@ mv "$WLD/2026-09-30-only-one.md" "$A/"
 score_follow "12 C" && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-only-one.md" ]] \
   && ok "12 C a work-list archived before scoring still stamps the follow-up's PASS" \
   || bad "12 C follow-up [$FOLLOW]: verdict [$(verdict)] stamp [$(stamp)]"
+# (D) the --worklist path check cds into the path's directory: an exported CDPATH naming another
+# project, whose `notwl` is a worklists/ directory, would make a path outside worklists/ stamp the
+# run. Pins BL-558's global `unset CDPATH` for this call site; it is a guard, not a regression
+# test for a change of its own (it passes on the code before it was added).
+Q="$TMP/qproj"; Q2="$TMP/qother"; mkdir -p "$Q/.context/worklists" "$Q/notwl" "$Q2/.context/worklists"
+printf -- '---\nsuite_cmd: true\n---\n' > "$Q/.context/testing-profile.md"
+printf -- '---\nstatus: doing\n---\n' > "$Q/notwl/b.md"; ln -s "$Q2/.context/worklists" "$Q2/notwl"
+OUT="$(CDPATH="$Q2" RUN_DIR="$Q" run --only suite --worklist notwl/b.md)"; RC=$?
+[[ $RC -eq 2 && ! -e "$Q/.context/proofs/sweep-gate/gate-history.jsonl" ]] && grep -q 'is not under a worklists/ directory' "$TMP/err" \
+  && ok "12 D an exported CDPATH cannot turn a path outside worklists/ into a stamp" || bad "12 D CDPATH stamp: rc=$RC $OUT $(cat "$TMP/err")"
 
 # ── 13 · the gate runs the suite of the checkout it is invoked in (BL-548) ─────────
 #        2026-10-01: launched from a linked worktree, the gate resolved ROOT to the main
@@ -433,6 +443,42 @@ OUT="$(RUN_DIR="$G" run --only suite)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"count=1 "* ]] && ok "13 the main checkout still runs its own suite" || bad "13 main ran: rc=$RC $OUT"
 RUN_DIR="$GW" run --only e2e >/dev/null
 grep -q "^  cd $GW " "$TMP/err" && ok "13 the printed detached invocation cds into the worktree too" || bad "13 detached cd: $(cat "$TMP/err")"
+# BL-557: --from-log tied nothing to the worktree, so a hand-written log scored PASS and wrote
+# a history row. A log is scored only when its header names this worktree's checkout and HEAD.
+DETACHED="$(sed -n 's/^  cd /cd /p' "$TMP/err")"  # kept: the runs below rewrite $TMP/err
+GH="$G/.context/proofs/sweep-gate/gate-history.jsonl"; n0="$(grep -c . "$GH")"
+printf '1 passed\nsweep-gate-exit=0\n' > "$TMP/forged.log"
+OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$TMP/forged.log")"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+  && ok "13 a hand-written log with no provenance header is refused, no history row" || bad "13 forged log scored: rc=$RC $OUT $(cat "$TMP/err")"
+OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$TMP/forged.log" --exit 0)"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+  && ok "13 --exit does not waive the provenance header" || bad "13 forged --exit log scored: rc=$RC $OUT $(cat "$TMP/err")"
+# a forged "commit unknown" header is refused where the gate CAN name the commit
+printf '# sweep-gate: leg=e2e; run in %s; commit unknown\n1 passed\nsweep-gate-exit=0\n' "$GW" > "$TMP/cu.log"
+OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$TMP/cu.log")"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+  && ok "13 a forged commit-unknown header is refused where the commit can be named" || bad "13 forged commit-unknown scored: rc=$RC $OUT $(cat "$TMP/err")"
+( cd "$GW" && bash -c "$DETACHED" )
+OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=2 "* ]] \
+  && ok "13 the printed detached invocation writes a header its own --from-log accepts" || bad "13 detached log refused: rc=$RC $OUT $(cat "$TMP/err")"
+# a commit after the run invalidates its log: the header pins the sha, not only the checkout
+printf '# moved\n' >> "$GW/t.sh"; gcommit "$GW" moved
+OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+  && ok "13 a commit after the detached run makes its log refused" || bad "13 stale-HEAD log scored: rc=$RC $OUT $(cat "$TMP/err")"
+OUT="$(RUN_DIR="$GS" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+  && ok "13 another worktree's detached log is refused" || bad "13 sibling scored the branch log: rc=$RC $OUT $(cat "$TMP/err")"
+RUN_DIR="$GW" run --only suite >/dev/null
+OUT="$(RUN_DIR="$GW" run --only suite --from-log "$G/_tmp/sweep-gate/suite.log" --exit 0)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=suite exit=0 count=2 "* ]] \
+  && ok "13 a log the gate wrote in-process for this worktree and HEAD is accepted" || bad "13 own log refused: rc=$RC $OUT $(cat "$TMP/err")"
+# the header names the leg: the suite leg's log scored as e2e passed (same command, same HEAD)
+OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/suite.log" --exit 0)"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+  && ok "13 another leg's log is refused" || bad "13 suite log scored as e2e: rc=$RC $OUT $(cat "$TMP/err")"
 # nested: the profile lives in a workspace and reaches the repo as `cd repo`, a path the
 # worktree does not have — refused loudly instead of testing main
 N="$TMP/ws"; mkdir -p "$N/.context" "$N/repo"; N="$(cd "$N" && pwd -P)"
@@ -567,6 +613,54 @@ grep -q 'not in the linked worktree' "$TMP/err" && ok "13 the absolute cd is ref
 W5="$TMP/r4det"; sgd_layout "$W5"; wprofile "$W5" 'e2e_suite_cmd: cd repo && bash t.sh' 'e2e_detached: true'
 refused "a detached e2e leg landing in main" "$W5" "$W5/_wt/feat" --only e2e
 grep -q 'run_in_background' "$TMP/err" && bad "13 the refused detached leg still printed its command" || ok "13 the refused detached leg prints no command"
+# a detached leg whose commit the gate cannot name (a nested repo, no cd) is still printed
+# (owner 2026-10-01, option a): its header ties the log to the leg and `run in` only
+W6="$TMP/r4nest"; mkdir -p "$W6"; W6="$(cd "$W6" && pwd -P)"; git -C "$W6" init -q -b main
+printf '.context/\n_tmp/\n_wt/\n' > "$W6/.gitignore"; printf 'echo "1 passed"\n' > "$W6/t.sh"; git -C "$W6" add -A; gcommit "$W6" main
+git -C "$W6" worktree add -q -b feat "$W6/_wt/feat" 2>/dev/null; git init -q "$W6/_wt/feat/sub"
+wprofile "$W6" 'e2e_suite_cmd: bash t.sh' 'e2e_detached: true'
+OUT="$(RUN_DIR="$W6/_wt/feat" run --only e2e)"; RC=$?
+[[ $RC -eq 3 ]] && grep -q '^  cd ' "$TMP/err" \
+  && ok "13 a detached leg whose commit cannot be named is printed, PENDING" || bad "13 nested detached: rc=$RC $OUT $(cat "$TMP/err")"
+# the layout Stage 5 recommends: DEST is a `.` worktree of the workspace repo, with the nested
+# backend repo's worktree inside it; a no-cd detached leg from the DEST root was refused
+# outright by the round-2 print-time refusal (review of BL-557)
+WR="$TMP/r2ws"; mkdir -p "$WR"; WR="$(cd "$WR" && pwd -P)"; git -C "$WR" init -q -b main
+printf '_tmp/\nbackend/\n' > "$WR/.gitignore"; mkdir -p "$WR/.context"; printf 'x\n' > "$WR/.context/keep"
+printf '#!/usr/bin/env bash\necho "4 passed"\n' > "$WR/test-e2e.sh"; chmod +x "$WR/test-e2e.sh"; git -C "$WR" add -A; gcommit "$WR" main
+BR="$WR/backend"; mkdir -p "$BR"; git -C "$BR" init -q -b main; printf 'x\n' > "$BR/f"; git -C "$BR" add -A; gcommit "$BR" main
+DT="$TMP/r2dest"; git -C "$WR" worktree add -q -b feat "$DT" 2>/dev/null; DT="$(cd "$DT" && pwd -P)"
+git -C "$BR" worktree add -q -b feat "$DT/backend" 2>/dev/null
+wprofile "$DT" 'e2e_suite_cmd: ./test-e2e.sh' 'e2e_detached: true'
+OUT="$(RUN_DIR="$DT" run --only e2e)"; RC=$?
+[[ $RC -eq 3 ]] && grep -q '^  cd ' "$TMP/err" \
+  && ok "13 a DEST-root detached leg over a nested repo is printed, PENDING" || bad "13 r2 DEST detached: rc=$RC $OUT $(cat "$TMP/err")"
+( cd "$DT" && bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+OUT="$(RUN_DIR="$DT" run --only e2e --from-log "$DT/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=4 "* && "$(head -1 "$DT/_tmp/sweep-gate/e2e.log")" == *"; commit unknown" ]] \
+  && ok "13 its log, tied by leg and run-in only, is scored" || bad "13 r2 DEST from-log: rc=$RC $OUT $(cat "$TMP/err")"
+# BL-556 (owner 2026-10-01: keep the refusal): a worktree.sh DEST whose root is itself a
+# checkout (the `.` participant) and a leg with no cd lands in that root, not the repo worktree.
+# The refusal names the cause and the fix.
+WS="$TMP/r4ws"; mkdir -p "$WS"; WS="$(cd "$WS" && pwd -P)"; git -C "$WS" init -q -b main
+printf '_tmp/\nrepo/\n' > "$WS/.gitignore"; mkdir -p "$WS/.context"; printf 'x\n' > "$WS/.context/keep"; git -C "$WS" add -A; gcommit "$WS" main
+DR="$TMP/r4dest"; git -C "$WS" worktree add -q -b feat "$DR" 2>/dev/null; DR="$(cd "$DR" && pwd -P)"
+RR="$TMP/r4repo"; mkdir -p "$RR"; git -C "$RR" init -q -b main; printf 'echo "1 passed"\n' > "$RR/t.sh"; git -C "$RR" add -A; gcommit "$RR" main
+git -C "$RR" worktree add -q -b feat "$DR/repo" 2>/dev/null
+wprofile "$DR" 'suite_cmd: bash t.sh'
+refused "a DEST root-participant leg with no cd" "$DR" "$DR/repo" --only suite
+grep -qF "(its own checkout $DR)" "$TMP/err" && grep -q 'make the leg cd into the repo worktree it tests' "$TMP/err" \
+  && ok "13 the DEST root-participant refusal names the cause and the fix (BL-556)" || bad "13 BL-556 message: $(cat "$TMP/err")"
+# the same refusal for a leg that cds to the root by absolute path: no "has no leading cd"
+wprofile "$DR" "suite_cmd: cd $DR && bash t.sh"
+refused "a DEST leg that cds to the DEST root" "$DR" "$DR/repo" --only suite
+grep -q 'make the leg cd into the repo worktree it tests' "$TMP/err" && ! grep -q 'no leading' "$TMP/err" \
+  && ok "13 a cd to the DEST root gets the same cause and fix" || bad "13 BL-556 abs cd message: $(cat "$TMP/err")"
+# a DEST whose root is not a checkout at all: the message names no checkout it does not have
+wprofile "$D" 'suite_cmd: bash t.sh'
+OUT="$(RUN_DIR="$D/repo" run --only suite)"; RC=$?
+[[ $RC -eq 2 ]] && grep -q 'not a checkout' "$TMP/err" && grep -q 'make the leg cd into the repo worktree it tests' "$TMP/err" \
+  && ok "13 a non-git DEST root is named as not a checkout" || bad "13 BL-556 non-git message: rc=$RC $(cat "$TMP/err")"
 wprofile "$W4" 'suite_cmd: cd "$PWD" && bash t.sh'
 refused "a cd the gate cannot read" "$W4" "$W4/_wt/feat" --only suite
 grep -q 'cannot resolve' "$TMP/err" && ok "13 the unreadable cd is named as the reason" || bad "13 unreadable cd reason: $(cat "$TMP/err")"
