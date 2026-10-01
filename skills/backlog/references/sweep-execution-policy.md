@@ -144,7 +144,7 @@ deferral goes in the report as well as the seed.
 
 ## Stage 5 — Boundary gate, once
 
-Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver). Run it as `sweep-gate.sh --worklist <the work-list path>`: several work-lists are often `doing` at once, and only the flag lets the report claim its own runs.
+Enforced by `scripts/sweep-gate.sh` (not `sweep.sh`, the D-10 archiver). Run it as `sweep-gate.sh --worklist <the work-list path>`: several work-lists are often `doing` at once, and only the flag lets the report claim its own runs. Run it from inside the branch's worktree: the legs run in the worktree the gate is invoked in, at the path the profile's root has there (the profile, `_tmp/` and the history stay at the project root), each leg log's first line names the checkout the leg's command lands in and its commit, and from a linked worktree every leg must land in a checkout inside that worktree (a leading literal `cd <dir> &&` is the only directory change read), otherwise the gate refuses before running or printing anything, rather than gating on main — the aidex_ws layout (`suite_cmd: cd aidex && ...`) and a worktree.sh DEST leg with no `cd` are refused (BL-548).
 
 Merge the trunk **into** the branch first (routine class-4 work, ungated), then run the
 gate: every leg from `testing-profile.md`'s full-suite commands, raw exit code and spec
