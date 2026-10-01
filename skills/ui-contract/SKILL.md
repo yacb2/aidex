@@ -38,7 +38,8 @@ line and stop.
 ## Step 0 — At fire time: the harness, then the design discussion
 
 **Check the harness first, before any plan or discussion.** Detect what the project
-exposes against `references/01-harness-contract.md`. Present: continue. Absent: say so in
+exposes against `references/01-harness-contract.md`, reading the testing profile's
+`gallery_gate_cmd` and `gallery_scripts` first (optional keys; absent, detect). Present: continue. Absent: say so in
 one line, and route a boilerplate fork to its ui-contract harness migration
 (`ui-contract-harness-overlay-runner-one-gate-call-and-spec-derived-gallery-scripts`, number
 140 at the time of writing; it needs entry 132 applied first) or say the harness is missing.

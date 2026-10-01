@@ -44,6 +44,10 @@ e2e_suite_cmd:            # FULL isolated E2E runner (leg `e2e`): ./test-e2e.sh
 e2e_detached:             # true|false — the E2E suite outlives the foreground tool ceiling, so the gate prints the detached invocation instead of running it
 seed_e2e_bootstrap_cmd:   # E2E seed orchestrator: bootstrap_e2e_data
 helpers_dir:              # E2E helpers, repo-relative: frontend/tests/helpers
+# optional — only a project with a UI state-gallery runner (ui-contract); omit otherwise,
+# profile-init.py never writes or asks for them
+gallery_gate_cmd:         # one gallery gate call, read first by verify-ui: ./test-e2e.sh --demo --projects {projects} {spec}
+gallery_scripts:          # space-separated board and contact-sheet composers: _scripts/gallery_board.py _scripts/gallery_contact_sheet.py
 # The profile is COMPOSED: the core plus the groups of the packs `testing_packs` names.
 # Delete the groups of packs this project does not use — a key that does not apply is
 # OMITTED, never answered `n/a` (retired 2026-09-08, BL-364: `sweep-gate.sh` runs a key's

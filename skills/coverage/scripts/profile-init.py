@@ -44,7 +44,9 @@ KEYS = ["project_slug", "project_kebab", "dev_frontend_port", "dev_backend_port"
         "backend_suite_cmd", "frontend_suite_cmd", "e2e_suite_cmd", "suite_cmd", "build_cmd", "e2e_detached",
         "blindspot_expansions",
         "seed_bootstrap_cmd", "seed_e2e_bootstrap_cmd", "helpers_dir", "ui_stack", "ui_locale",
-        "personas_ref", "cross_deps_ref", "module_map", "testing_packs"]
+        "personas_ref", "cross_deps_ref", "module_map", "testing_packs",
+        # optional, in no PACK_KEYS group: never written, never named blank
+        "gallery_gate_cmd", "gallery_scripts"]
 
 
 def keys_for(packs):
