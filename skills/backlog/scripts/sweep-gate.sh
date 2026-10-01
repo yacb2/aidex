@@ -48,6 +48,10 @@
 # Exit: 0 PASS · 1 FAIL · 2 usage / missing key · 3 PENDING (a detached leg not yet scored)
 
 set -euo pipefail
+# An exported CDPATH resolves a relative `cd sub` into another tree (main's sub, from a
+# linked worktree) while the landing invariant below computes RUN_IN/sub, and a hit makes
+# `cd` print to stdout inside every $(cd ...). Gone before the first cd (BL-558).
+unset CDPATH
 
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../conventions/scripts" && pwd -P)/_lib.sh"
 
@@ -233,16 +237,26 @@ pre_of() { local v="PRE_$1"; printf '%s' "${!v}"; }
 # detached command is printed: from a linked worktree, every leg must land in a checkout
 # that IS the worktree or lies under it. The landing dir is RUN_IN joined with a leading
 # literal `cd <x> &&`, else RUN_IN; any other cd/pushd in the command is unresolvable and
-# refused. Cost, accepted: a worktree.sh DEST leg with no `cd` lands in the DEST root, a
-# different checkout, and is refused.
+# refused — also after a quote or a backslash (`bash -c 'cd …'`, `\cd`, `eval "cd …"`,
+# BL-558) and before a redirection (`cd>/dev/null`, `$'cd'`): the boundary is any character
+# that cannot be part of a word or path, not a list of allowed neighbours. Cost, accepted:
+# a worktree.sh DEST leg with no `cd` lands in the DEST root, a different checkout, and is
+# refused; and a quoted argument ending in the word cd (`pytest -k 'not cd'`) is refused too.
+# Not detected: a cd the shell assembles by expansion (`$(…)`, `${…}`, `$'\NNN'`, brace
+# expansion such as `{c,…}d`), and a leg that runs main's code by absolute path with no cd
+# at all (BL-560). The invariant guards against a mistake, not against a command built to
+# evade it.
 landing_of() {  # landing_of <leg command>: prints the landing dir; fails on a cd it cannot read
   local d="$RUN_IN" rest="$1" lead='^cd[[:space:]]+([^[:space:];&|$`"'"'"']+)[[:space:]]*&&(.*)$' \
-        other='(^|[;&|(`[:space:]])(cd|pushd)([[:space:]]|$)'
+        other='(^|[^[:alnum:]_./-])(cd|pushd)($|[^[:alnum:]_./-])'
   if [[ "$1" =~ $lead ]]; then
     case "${BASH_REMATCH[1]}" in /*) d="${BASH_REMATCH[1]}" ;; *) d="$RUN_IN/${BASH_REMATCH[1]}" ;; esac
     rest="${BASH_REMATCH[2]}"
   fi
-  [[ "$rest" =~ $other ]] && return 1
+  # quotes and backslashes stripped first: `c\d`, `cd''`, `'cd'`, `"cd"` are each a cd to the
+  # shell and none to the regex (review of BL-558)
+  local norm=${rest//[\\\"\']/}
+  [[ "$norm" =~ $other ]] && return 1
   printf '%s' "$d"
 }
 if [[ $LINKED -eq 1 ]]; then
@@ -264,10 +278,19 @@ HIST_DIR="$ROOT/.context/proofs/sweep-gate"; mkdir -p "$HIST_DIR"
 # The count is what says the runner ran SOMETHING. Per-runner shapes, last match wins:
 #   pytest     "1284 passed"            vitest  "Tests  133 passed"
 #   playwright "12 passed (1.2m)"       build   none — the exit code is the whole verdict
+# Only the LEG's output counts: the pre-command shares its log, and a pre-command printing
+# `5 passed` scored a leg that printed nothing (BL-559). The marker is written right before
+# the leg, after a newline: a pre-command output with no trailing newline glued itself to
+# the marker and the whole log was read again. Fail closed: a leg with a bound pre-command
+# and no marker is countless — except a log written by hand (--from-log --exit), which
+# never has one and is read whole.
+LEG_MARK="# sweep-gate: leg output follows"
 count_in() {  # count_in <leg> <log>
-  local leg="$1" log="$2" n
+  local leg="$1" log="$2" n from
   [[ "$leg" == "build" ]] && { echo "-"; return; }
-  n="$(grep -oE '(Tests[[:space:]]+)?[0-9]+ passed' "$log" 2>/dev/null | grep -oE '[0-9]+' | tail -1 || true)"
+  from="$(grep -nxF "$LEG_MARK" "$log" 2>/dev/null | tail -1 | cut -d: -f1 || true)"
+  [[ -z "$from" && -n "$(pre_of "$leg")" && -z "$EXIT_RC" ]] && { echo "?"; return; }
+  n="$(tail -n +"$(( ${from:-0} + 1 ))" "$log" 2>/dev/null | grep -oE '(Tests[[:space:]]+)?[0-9]+ passed' | grep -oE '[0-9]+' | tail -1 || true)"
   # "0 passed" with exit 0 is a runner that ran nothing and said so politely — the
   # same incident as printing nothing. Countless, never a count.
   if [[ -n "$n" && "$n" != "0" ]]; then echo "$n"; else echo "?"; fi
@@ -298,11 +321,14 @@ for leg in "${LEGS[@]}"; do
     # The pre-command is chained into the printed invocation rather than run here:
     # a detached leg runs elsewhere, and dropping it would leave the one leg that
     # runs in another process as the only one keeping the stale cache.
+    # CDPATH is unset inside: the caller's shell may export it, and the leg's own
+    # relative cd must land where the invariant computed (BL-558). The marker between the
+    # pre-command and the leg is what count_in scores from (BL-559).
     if [[ -n "$(pre_of "$leg")" ]]; then
-      printf '  cd %q && ((%s) && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
-        "$RUN_IN" "$(pre_of "$leg")" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && (unset CDPATH; (%s) && echo && echo %q && (%s)) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' \
+        "$RUN_IN" "$(pre_of "$leg")" "$LEG_MARK" "$(cmd_of "$leg")" "$log" "$log" >&2
     else
-      printf '  cd %q && (%s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$RUN_IN" "$(cmd_of "$leg")" "$log" "$log" >&2
+      printf '  cd %q && (unset CDPATH; %s) > %q 2>&1; echo "sweep-gate-exit=$?" >> %q\n' "$RUN_IN" "$(cmd_of "$leg")" "$log" "$log" >&2
     fi
     # the scoring run carries this run's work-list: with two running lists it could not
     # detect one, and an unstamped PASS is claimed by every report of the day (BL-489).
@@ -336,6 +362,7 @@ for leg in "${LEGS[@]}"; do
       fi
     fi
     if [[ $rc -eq 0 ]]; then
+      printf '\n%s\n' "$LEG_MARK" >> "$log"
       if ( cd "$RUN_IN" && bash -c "$(cmd_of "$leg")" ) >> "$log" 2>&1; then rc=0; else rc=$?; fi
     fi
     secs=$(( $(date +%s) - t0 ))

@@ -188,6 +188,46 @@ grep -q 'bin/pre' "$TMP/err" \
   && ok "8 the printed detached invocation carries the pre-command" \
   || bad "8 a detached leg silently drops its pre-command: $(cat "$TMP/err")"
 
+# the pre-command shares the leg's log, but only the LEG's output is its count (BL-559):
+# a leg that printed nothing after a pre-command printing `5 passed` scored count=5 PASS.
+stub pre5 0 "5 passed"; stub silent 0 ""; stub three 0 "3 passed"
+profile "backend_suite_cmd: bin/silent" "backend_pre_cmd: bin/pre5"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 1 && "$OUT" == *"leg=backend exit=0 count=? "* ]] \
+  && ok "8 a silent leg after a pre-command printing '5 passed' is countless (FAIL)" || bad "8 the pre-command's count scored the leg: rc=$RC $OUT"
+profile "backend_suite_cmd: bin/three" "backend_pre_cmd: bin/pre5"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=3 "* ]] \
+  && ok "8 over-trimming guard: the leg printing '3 passed' still scores 3 (the pre-command's 5 is not it)" || bad "8 leg count: rc=$RC $OUT"
+# the same through the detached path: run the printed invocation, then score its log
+profile "e2e_suite_cmd: bin/silent" "e2e_pre_cmd: bin/pre5" "e2e_detached: true"
+run --only e2e >/dev/null
+( cd "$P" && bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+OUT="$(run --only e2e --from-log "$P/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 1 && "$OUT" == *"leg=e2e exit=0 count=? "* ]] \
+  && ok "8 a detached silent leg after a counting pre-command is countless" || bad "8 detached pre count scored the leg: rc=$RC $OUT"
+# a pre-command whose output has no trailing newline glued `5 passed` onto the marker, the
+# marker was not found, and the whole log scored the leg again (review of BL-559). A leg
+# that DOES count must still be found after the marker (fail-closed alone would say ?).
+printf '#!/usr/bin/env bash\nprintf "5 passed"\n' > "$P/bin/pre5nl"; chmod +x "$P/bin/pre5nl"
+profile "backend_suite_cmd: bin/three" "backend_pre_cmd: bin/pre5nl"
+OUT="$(run --only backend)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=3 "* ]] \
+  && ok "8 a pre-command with no trailing newline cannot swallow the marker" || bad "8 newline-less pre: rc=$RC $OUT"
+profile "e2e_suite_cmd: bin/three" "e2e_pre_cmd: bin/pre5nl" "e2e_detached: true"
+run --only e2e >/dev/null
+( cd "$P" && bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+OUT="$(run --only e2e --from-log "$P/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=3 "* ]] \
+  && ok "8 detached: a newline-less pre-command cannot swallow the marker" || bad "8 detached newline-less pre: rc=$RC $OUT"
+# fail closed: a pre-bound leg's log with no marker (a command printed before the marker
+# existed) is countless
+profile "e2e_suite_cmd: bin/silent" "e2e_pre_cmd: bin/pre5" "e2e_detached: true"
+printf '5 passed\nsweep-gate-exit=0\n' > "$TMP/nomark.log"
+OUT="$(run --only e2e --from-log "$TMP/nomark.log")"; RC=$?
+[[ $RC -eq 1 && "$OUT" == *"leg=e2e exit=0 count=? "* ]] \
+  && ok "8 a pre-bound leg's log with no marker is countless (fail closed)" || bad "8 marker-less log scored: rc=$RC $OUT"
+
 echo
 # ── 9 · a shell-only project binds the gate without misnaming its suite ──────
 # The leg vocabulary was backend|frontend|build|e2e, which has no name for a project
@@ -517,12 +557,46 @@ git -C "$W4" worktree add -q -b feat "$W4/_wt/feat" 2>/dev/null
 printf 'echo "2 passed"\n' > "$W4/_wt/feat/t.sh"; gcommit "$W4/_wt/feat" branch-only
 wprofile "$W4" "suite_cmd: cd $W4 && bash t.sh"
 refused "a profile that cds to main's absolute path" "$W4" "$W4/_wt/feat" --only suite
+grep -q 'not in the linked worktree' "$TMP/err" && ok "13 the absolute cd is refused by the landing invariant" || bad "13 absolute cd reason: $(cat "$TMP/err")"
 W5="$TMP/r4det"; sgd_layout "$W5"; wprofile "$W5" 'e2e_suite_cmd: cd repo && bash t.sh' 'e2e_detached: true'
 refused "a detached e2e leg landing in main" "$W5" "$W5/_wt/feat" --only e2e
 grep -q 'run_in_background' "$TMP/err" && bad "13 the refused detached leg still printed its command" || ok "13 the refused detached leg prints no command"
 wprofile "$W4" 'suite_cmd: cd "$PWD" && bash t.sh'
 refused "a cd the gate cannot read" "$W4" "$W4/_wt/feat" --only suite
 grep -q 'cannot resolve' "$TMP/err" && ok "13 the unreadable cd is named as the reason" || bad "13 unreadable cd reason: $(cat "$TMP/err")"
+# BL-558 (b): a cd after a quote or a backslash is a cd too — `bash -c 'cd <main> ...' -`
+# (the form dynamic_sites_ws wraps its legs in), `\cd`, `eval "cd ..."` each ran main
+for form in "bash -c 'cd $W4 && bash t.sh' -" "\\cd $W4 && bash t.sh" "eval \"cd $W4\" && bash t.sh" \
+            "c\\d $W4 && bash t.sh" "true && 'cd' $W4 && bash t.sh" "cd'' $W4 && bash t.sh" \
+            "cd>/dev/null $W4 && bash t.sh" "\$'cd' $W4 && bash t.sh" "pushd $W4 && bash t.sh"; do
+  wprofile "$W4" "suite_cmd: $form"
+  refused "a quoted or escaped cd [$form]" "$W4" "$W4/_wt/feat" --only suite
+  grep -q 'cannot resolve' "$TMP/err" || bad "13 [$form] refused for another reason: $(cat "$TMP/err")"
+done
+# the boundary is a word boundary, not a list of neighbours: `cd` inside a file or flag name is no cd
+wprofile "$W4" "suite_cmd: bash t.sh cd-check.sh tests/cd/x.sh --x=cd.py"
+OUT="$(RUN_DIR="$W4/_wt/feat" run --only suite)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"count=2 "* ]] && ok "13 'cd' inside a file or flag name is not refused" || bad "13 cd substring refused: rc=$RC $OUT $(cat "$TMP/err")"
+rm -rf "$W4/_tmp" "$W4/.context/proofs"
+# BL-558 (a): an exported CDPATH turns the leg's `cd sub` into main's sub while the
+# invariant computed the worktree's — the leg PASSed on main's code. Inline and detached.
+C="$TMP/r5cdp"; mkdir -p "$C/sub"; C="$(cd "$C" && pwd -P)"; git -C "$C" init -q -b main
+printf '.context/\n_tmp/\n_wt/\n' > "$C/.gitignore"; printf 'echo "1 passed"\n' > "$C/sub/t.sh"; git -C "$C" add -A; gcommit "$C" main
+git -C "$C" worktree add -q -b feat "$C/_wt/feat" 2>/dev/null
+printf 'echo "branch fails"; exit 1\n' > "$C/_wt/feat/sub/t.sh"; gcommit "$C/_wt/feat" branch-only
+wprofile "$C" 'suite_cmd: cd sub && bash t.sh' 'e2e_suite_cmd: cd sub && bash t.sh' 'e2e_detached: true'
+OUT="$(CDPATH="$C" RUN_DIR="$C/_wt/feat" run --only suite)"; RC=$?
+[[ $RC -ne 0 && "$OUT" != *"verdict=PASS"* ]] && grep -q 'branch fails' "$C/_tmp/sweep-gate/suite.log" \
+  && ok "13 with CDPATH=<main> exported, the leg's cd still lands in the worktree" || bad "13 CDPATH ran main: rc=$RC $OUT"
+CDPATH="$C" RUN_DIR="$C/_wt/feat" run --only e2e >/dev/null
+( cd "$C/_wt/feat" && CDPATH="$C" bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+grep -q 'branch fails' "$C/_tmp/sweep-gate/e2e.log" && ! grep -q '1 passed' "$C/_tmp/sweep-gate/e2e.log" \
+  && ok "13 the printed detached invocation lands in the worktree under CDPATH too" || bad "13 detached CDPATH log: $(cat "$C/_tmp/sweep-gate/e2e.log")"
+wprofile "$C" 'e2e_suite_cmd: cd sub && bash t.sh' 'e2e_pre_cmd: true' 'e2e_detached: true'
+CDPATH="$C" RUN_DIR="$C/_wt/feat" run --only e2e >/dev/null
+( cd "$C/_wt/feat" && CDPATH="$C" bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+grep -q 'branch fails' "$C/_tmp/sweep-gate/e2e.log" && ! grep -q '1 passed' "$C/_tmp/sweep-gate/e2e.log" \
+  && ok "13 the printed detached invocation with a pre-command lands in the worktree under CDPATH too" || bad "13 detached+pre CDPATH log: $(cat "$C/_tmp/sweep-gate/e2e.log")"
 
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1
