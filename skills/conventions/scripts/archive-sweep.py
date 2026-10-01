@@ -239,8 +239,8 @@ def main():
         if repos:
             print("  every tier is clean: nothing terminal left unarchived, no status drift")
         else:
-            print("  nothing terminal left unarchived; status drift was not checked (no git "
-                  "repo above .context/ or in a child dir of it)")
+            print("  every tier is clean: nothing terminal left unarchived; status drift was "
+                  "not checked (no git repo above .context/ or in a child dir of it)")
         return 0
 
     if unarchived:
