@@ -747,6 +747,24 @@ out="$(gate "$FULL")"; rc=$?
 [[ "$(printf '%s\n' "$out" | sed -n 1p)" == "classes: 15/16" && $rc -ne 0 ]] \
   && ok "a registry missing a class reads 15/16 and fails" || bad "missing class: rc=$rc $(printf '%q' "$out")"
 
+echo "== SENTENCE stays linear on comma-dense text =="
+# A comma was both separator and token character in SENTENCE, so a run of commas
+# with no closing .!? backtracked exponentially: 22 commas took 0.9 s, 40 would
+# take days. Capped CPU (bugfix step 3): a RED run dies instead of looping.
+sout="$( (ulimit -t 5; python3 - "$CD" <<'PY'
+import importlib.util, sys, time
+spec = importlib.util.spec_from_file_location("cd", sys.argv[1])
+cd = importlib.util.module_from_spec(spec); spec.loader.exec_module(cd)
+t0 = time.time()
+n = cd.prose_sentences("Alpha " + ",a" * 40 + ",")
+print(f"{time.time() - t0:.2f} {n} {cd.prose_sentences('This is a real prose sentence, with a comma.')}")
+PY
+) 2>&1)"
+read -r secs n1 n2 <<<"$sout"
+[[ "$secs" =~ ^[0-9.]+$ ]] && awk -v s="$secs" 'BEGIN { exit !(s < 1) }' && [[ "$n2" == 1 ]] \
+  && ok "40 commas in ${secs}s, and a comma sentence still counts" \
+  || bad "comma-dense SENTENCE: $(printf '%q' "$sout")"
+
 echo
 echo "passed: $PASS  failed: $FAIL"
 [[ $FAIL -eq 0 ]]
