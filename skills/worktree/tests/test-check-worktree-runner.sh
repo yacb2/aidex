@@ -128,6 +128,21 @@ TS
 out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "loads: a harness that loads the slot .env must be CLEAN, got: $out"
 
+# --- 5b. Node's built-in loader, process.loadEnvFile -> CLEAN ---------------
+# Node >= 20.12 loads a .env into process.env natively; no `process.env[` write
+# appears in the file. Seen in asset_lab_ws 2026-10-02: a real load was flagged.
+p="$(mk_project loadenvfile)"
+cat > "$p/frontend/tests/e2e-setup/test-config.ts" <<'TS'
+import { existsSync } from 'fs'
+const rootEnv = new URL('../../../.env', import.meta.url)
+if (existsSync(rootEnv)) process.loadEnvFile(rootEnv)
+export const CONFIG = {
+  BACKEND_URL: process.env.E2E_BACKEND_URL || 'http://localhost:8710',
+}
+TS
+out="$(bash "$CHECK" "$p" 2>&1)"; rc=$?
+[[ "$rc" -eq 0 ]] || fail "loadenvfile: process.loadEnvFile of the slot .env must be CLEAN, got: $out"
+
 # --- 6. the load may live in a SIBLING module -> CLEAN ----------------------
 # Real harnesses put the load in one shared file and the fallbacks in another,
 # which is why the exemption is evaluated per directory rather than per file.
