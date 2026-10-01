@@ -57,6 +57,22 @@ bash "$SCRIPT" decisions 2026-02-02-exact-name.md --status superseded \
 [[ -f ".context/decisions/_archive/2026-02-02-exact-name.md" ]] \
   || fail "the exact filename did not resolve — the glob was *\$ARG*.md, so <name>.md matched nothing"
 
+# --- a fragment naming two artifacts is refused; an exact stem wins (BL-541) ----
+# The fragment lookup was `ls ... | head -1`, so it closed whichever file sorted first.
+mk ".context/requests/2026-03-01-ambig-one.md" open
+mk ".context/requests/2026-03-02-ambig-two.md" open
+before="$(cat .context/requests/2026-03-0[12]-ambig-*.md)"
+rc=0; err="$(bash "$SCRIPT" requests ambig 2>&1 >/dev/null)" || rc=$?
+[[ $rc -eq 2 && "$err" == *ambiguous* ]] || fail "ambiguous fragment: expected exit 2 + 'ambiguous', got rc=$rc: $err"
+[[ "$(cat .context/requests/2026-03-0[12]-ambig-*.md 2>/dev/null)" == "$before" ]] \
+  || fail "ambiguous fragment mutated or archived a request"
+# `stem-two` sorts before `stem`; the stem 2026-03-05-stem is what `stem` names exactly.
+mk ".context/requests/2026-03-04-stem-two.md" open
+mk ".context/requests/2026-03-05-stem.md" open
+bash "$SCRIPT" requests stem >/dev/null 2>&1 || fail "exact stem: close exited non-zero"
+[[ -f ".context/requests/_archive/2026-03-05-stem.md" && -f ".context/requests/2026-03-04-stem-two.md" ]] \
+  || fail "exact stem: 'stem' did not close 2026-03-05-stem.md (closed the longer name instead)"
+
 # The gate. Without it this file ended on an unconditional `echo`, so it printed OK and
 # exited 0 with failures on screen — a suite that cannot fail, which is worse than no
 # suite because the sweep that runs it reports green. Found 2026-09-07 while adding the

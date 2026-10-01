@@ -314,7 +314,7 @@ resolve_worklist() {
       if [[ "$b" == "$arg.md" || ( "$b" =~ $re && "${b:11}" == "$arg.md" ) ]]; then exact+=("$f"); fi
     done <<<"$m"
     if [[ ${#exact[@]} -eq 1 ]]; then printf '%s\n' "${exact[0]}"; return 0; fi
-    err "ambiguous worklist slug '$arg' matches more than one ($n) work-list:"; printf '%s\n' "$m" >&2
+    err "ambiguous slug '$arg' matches more than one ($n) file in $dir:"; printf '%s\n' "$m" >&2
     exit 2
   fi
   printf '%s\n' "$m"
