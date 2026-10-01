@@ -106,7 +106,11 @@ figure.video video { width: 100%; max-width: 100%; height: auto; display: block;
                      background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: 4px; }
 figcaption { font-family: var(--sans); font-size: 0.76rem; line-height: 1.5; color: var(--muted); }
 
-ul { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; }
+ul, ol { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.5rem; }
+/* A sub-list (BL-586) sits tighter than the list it is in: the same 0.5rem gap
+   inside an item read as looser than between its parents, and `ol` had no rule
+   at all, so it kept the UA's 40px indent while `ul` took 1.15rem. */
+li > ul, li > ol { gap: 0.25rem; margin-top: 0.25rem; }
 /* A path is one unbreakable word (`~/.claude/aidex/delegation/*.tsv`), and at 390 px
    it ran past the column and scrolled the whole page sideways (R1, R6 of the
    2026-09-24 A/B set). `anywhere`, not `break-word`: a `li` is a flex item of the
@@ -511,6 +515,14 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
    target is already the floor); what gives is the space between them and the
    lead-in, which takes a line of its own so no chip is orphaned beside it. */
 @media (max-width: 34rem) {
+  /* BL-584: at 390 px the body padding (2 x 1.5rem) and the 100vw - 6rem cap took
+     96px and left 292 for the content; a table of three prose columns then ran to
+     16 lines a row. The page fills the screen minus 2 x 1rem here, and a table
+     takes a smaller face and tighter cell sides (7 lines a row, from 16). */
+  body { padding-inline: 1rem; }
+  .page { max-width: none; }
+  table { font-size: 0.78rem; }
+  th, td { padding-inline: 0.4rem; }
   /* A table with a long prose column squeezed its other columns on a phone: the
      first one shrank to the width of its longest word. A floor on the TABLE
      leaves each column to size itself (an id stays an id, a label keeps its

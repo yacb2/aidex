@@ -28,6 +28,9 @@ answered.html is left untouched; only once every outstanding duty is met
 does a new reply replace the file and re-snapshot the page. The same append
 happens when the page still equals the answered snapshot (two saves in one
 round, no rebuild between): the second paste must not erase the first.
+That page check wins over the duty check: an unchanged page is labelled
+`same-round` even with a duty unmet, so a later full composer paste from it
+supersedes the earlier one (BL-598).
 
 Usage: save-reply.sh <page.html> [<reply-file>|-]
   <reply-file> omitted or "-": read the paste from stdin.
@@ -93,8 +96,10 @@ def save_reply(page_path, reply_text):
     appended = "duty" if outstanding else False
     # Two saves inside one round: the page has not been rebuilt since the last
     # save (it still equals the answered snapshot), so the second paste adds to
-    # the first instead of replacing it.
-    if had_previous and not outstanding:
+    # the first instead of replacing it. Checked even when a duty is
+    # outstanding: the paste came from the same page, so a later full paste
+    # may supersede the earlier one (BL-598).
+    if had_previous:
         with open(page_path, encoding="utf-8", errors="replace") as fh:
             page_now = fh.read()
         with open(answered_path, encoding="utf-8", errors="replace") as fh:
@@ -103,7 +108,9 @@ def save_reply(page_path, reply_text):
     if appended:
         stamp = datetime.datetime.now().isoformat(timespec="seconds")
         with open(reply_path, "a", encoding="utf-8") as fh:
-            fh.write(f"\n\n<!-- reply saved {stamp} -->\n\n{reply_text}")
+            # the mode tells check_artifact._live_reply whether this paste
+            # is from the same page as the one before it (BL-598)
+            fh.write(f"\n\n<!-- reply saved {stamp} {appended} -->\n\n{reply_text}")
         with open(reply_path, encoding="utf-8") as fh:
             combined = fh.read()
         return duties_for(combined), reply_path, answered_path, appended

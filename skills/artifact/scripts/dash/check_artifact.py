@@ -3415,6 +3415,36 @@ def dropped_ids(text):
     return out
 
 
+_SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
+# A composer paste: a group heading, or the general-notes block (it sits
+# outside every group, so a notes-only paste carries no `##` line).
+_GROUP_HEAD = re.compile(r"^[ \t]*(?:##[ \t]+[^#\n].*·|###[ \t]+notes[ \t]*·)", re.M)
+
+
+def _live_reply(reply_text):
+    """BL-598: a save carrying a composer heading is a FULL composer paste,
+    the reader's whole current state of ONE page, so within a round the latest
+    one supersedes the earlier full pastes of that round. Chat saves are never
+    in the composer, so nothing supersedes them. A round ends at a separator
+    that is not `same-round` (save_reply.py writes `duty` when the paste came
+    from a rebuilt page; a separator with no mode predates the mode and is
+    read as a round end, i.e. no supersession). Kept saves are joined with
+    their `<!-- reply saved -->` lines, which end reply blocks."""
+    seps = list(_SAVE_SEP.finditer(reply_text))
+    starts = [0] + [m.start() for m in seps]
+    ends = starts[1:] + [len(reply_text)]
+    new_round = [True] + ["same-round" not in m.group(0) for m in seps]
+    saves = [(a, b, _GROUP_HEAD.search(reply_text[a:b]) is not None)
+             for a, b in zip(starts, ends)]
+    kept, later_full = [], False
+    for k in range(len(saves) - 1, -1, -1):
+        a, b, full = saves[k]
+        if not (full and later_full):
+            kept.append(reply_text[a:b])
+        later_full = (later_full or full) and not new_round[k]
+    return "".join(reversed(kept))
+
+
 def check_decided_trace(path):
     """FAILs for BL-569 (b): an item that was OPEN when the reader answered
     (`.aidex-artifact-prev/<stem>.answered.html`; with no answered snapshot,
@@ -3441,6 +3471,7 @@ def check_decided_trace(path):
     old = read(answered)
     reply_text = (open(reply, encoding="utf-8", errors="replace").read()
                   if os.path.isfile(reply) else "")
+    reply_text = _live_reply(reply_text)
     in_old = {i for i, *_ in consult_items(old)}
     was_open = in_old - decided_ids(old)
     # an item born after the last reply is open in the baseline, not the snapshot

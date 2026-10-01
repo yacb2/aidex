@@ -26,6 +26,7 @@
       progress: function (n, total) { return n + ' of ' + total + ' answered'; },
       missing: function (ids) { return ' · missing ' + ids.join(', '); },
       nothingToCopy: 'Nothing answered yet — there is nothing to copy.',
+      allDecidedNothingToCopy: 'Everything is decided; write a general note if you want to send something.',
       copied: function (n) { return n + ' copied'; },
       blankList: function (ids) { return ' · ' + ids.length + ' blank: ' + ids.join(', '); },
       noneBlank: ' · none blank',
@@ -129,6 +130,7 @@
         return ' · ' + (ids.length === 1 ? 'falta ' : 'faltan ') + ids.join(', ');
       },
       nothingToCopy: 'Todavía no has respondido nada — no hay nada que copiar.',
+      allDecidedNothingToCopy: 'Todo está decidido; escribe una nota general si quieres enviar algo.',
       copied: function (n) { return n + ' copiada(s)'; },
       blankList: function (ids) { return ' · ' + ids.length + ' en blanco: ' + ids.join(', '); },
       noneBlank: ' · ninguna en blanco',
@@ -1423,7 +1425,10 @@
        * sight). Four or more columns keep them and scroll, as BL-248 intends. Measured
        * again on resize, so a phone turned sideways gets its no-wrap cells back. */
       var mark = function () {
-        cells.forEach(function (c) { c.classList.remove('brk'); });
+        /* BL-585: drop the previous run's break hints BEFORE measuring (they change the
+         * width) and re-join the split text, so every run starts from the same DOM. */
+        [].slice.call(tw.querySelectorAll('wbr.kit-slash')).forEach(function (w) { w.remove(); });
+        cells.forEach(function (c) { c.normalize(); c.classList.remove('brk'); });
         tds.forEach(function (td) { td.classList.toggle('nw', td.textContent.trim().length <= 24); });
         if (cols <= 3 && tw.scrollWidth > tw.clientWidth + 1) {
           tds.forEach(function (td) { td.classList.remove('nw'); });
@@ -1431,6 +1436,27 @@
           var still = tw.scrollWidth > tw.clientWidth + 1;
           if (still) cells.forEach(function (c) { c.classList.add('brk'); });
         }
+        /* BL-585: the cut prefers a slash. A <wbr> after each "/" is a break opportunity that
+         * `overflow-wrap: anywhere` only falls back from, so a path breaks between segments and
+         * mid-segment only when one segment alone is wider than the column. <wbr> adds no text. */
+        cells.forEach(function (c) {
+          if (!c.classList.contains('brk')) return;
+          /* A nested cell is also inside its outer cell: each text node belongs to its own cell only. */
+          var walker = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), t, nodes = [];
+          while ((t = walker.nextNode())) {
+            if (t.nodeValue.indexOf('/') !== -1 && t.parentNode.closest('td, th') === c) nodes.push(t);
+          }
+          nodes.forEach(function (n) {
+            for (var i = n.nodeValue.length - 1; i > 0; i--) {
+              if (n.nodeValue.charAt(i - 1) !== '/') continue;
+              /* A date (01/10/2026) or a fraction (1/2) is not a path: digit "/" digit stays whole. */
+              if (/\d/.test(n.nodeValue.charAt(i - 2)) && /\d/.test(n.nodeValue.charAt(i))) continue;
+              var w = document.createElement('wbr');
+              w.className = 'kit-slash';
+              n.parentNode.insertBefore(w, n.splitText(i));
+            }
+          });
+        });
         tw.classList.toggle('overflows', tw.scrollWidth > tw.clientWidth + 1);
       };
       mark();
@@ -1468,7 +1494,8 @@
      * notes has something to send, and `answered` deliberately no longer counts
      * that box. Refusing on the counter would make the notes unsendable. */
     if (!r.markdown) {
-      say(L.nothingToCopy);
+      /* BL-587: on an all-decided page the status line says nothing is left to answer. */
+      say(r.total ? L.nothingToCopy : L.allDecidedNothingToCopy);
       return;
     }
     /* Pressing the button IS sending: from here the session has the answers,

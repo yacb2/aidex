@@ -392,6 +392,10 @@ window.addEventListener('load', function () {
     var ebH = eb ? eb.getBoundingClientRect().height : 0;
     var nt3 = document.querySelector('.consult-notes textarea');
     var acap = '';
+    /* BL-587: copy with the notes box still empty. The message must not contradict
+     * the status line (which says everything is decided). */
+    document.getElementById('consult-copy').click();
+    var emptyCopy = stEl.textContent;
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: function (s) { acap = s; return Promise.resolve(); } }
@@ -403,6 +407,7 @@ window.addEventListener('load', function () {
     var st1 = stEl.textContent;
     document.getElementById('consult-copy').click();
     document.title = 'ALLDECIDED|STATUS=' + st0.replace(/[|<>]/g, ' ')
+      + '|EMPTYCOPY=' + emptyCopy.replace(/[|<>]/g, ' ') + '|'
       + '|AFTERNOTES=' + st1.replace(/[|<>]/g, ' ')
       + '|DECIDED=' + document.querySelectorAll('.consult-item[data-decided]').length
       + '|OPEN=' + document.querySelectorAll('.consult-item:not([data-decided])').length
@@ -780,6 +785,18 @@ cat > "$TMP/nbody.html" <<HTML
     <thead><tr><th>Fecha</th><th>Ruta</th><th>Estado</th></tr></thead>
     <tbody><tr><td>2026-08-21 10:00 UTC</td><td>skills/artifact/scripts</td><td>pendiente de revisar</td></tr></tbody>
   </table></div>
+  <div class="tw"><table id="t-path">
+    <thead><tr><th>Ruta</th><th>Estado</th></tr></thead>
+    <tbody><tr><td id="pathcell">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td><td id="datecell">revisado el 01/10/2026 por el equipo</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-pdate">
+    <thead><tr><th>Ruta</th><th>Estado</th></tr></thead>
+    <tbody><tr><td id="pathcell3">skills/artifact/assets/artifact_kit/2026/10/01/composer_functional.js</td><td>pendiente de revisar</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-pnest">
+    <thead><tr><th>Paso</th><th>Detalle</th><th>Estado</th></tr></thead>
+    <tbody><tr><td>Medir</td><td><table><thead><tr><th>Ruta</th></tr></thead><tbody><tr><td id="pathcell2">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td></tr></tbody></table></td><td>ok</td></tr></tbody>
+  </table></div>
   <div class="tw"><table id="t-nest">
     <thead><tr><th>Paso</th><th>Detalle</th></tr></thead>
     <tbody><tr><td>Medir</td><td><table><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody><tr><td>a</td><td>b</td><td>c</td><td>d</td></tr></tbody></table></td></tr></tbody>
@@ -818,7 +835,60 @@ window.addEventListener('load', function () {
     var row = t.rows[t.rows.length - 1], last = row.cells[row.cells.length - 1].getBoundingClientRect().right;
     return box.scrollWidth <= box.clientWidth + 1 && last <= window.innerWidth ? 1 : 0;
   };
+  /* BL-585: 1 when the path cell is cut (more than one line, the last-resort class on) and
+   * every line starts right after a "/", with the text unchanged; else why not. Lines are
+   * read per character from Range rects, so a mid-word cut is seen where it happens. */
+  var PATH = 'skills/artifact/assets/artifact_kit/scripts/composer_functional.js';
+  var pathBreaks = function (id, want) {
+    var td = document.getElementById(id || 'pathcell');
+    if (!td || td.textContent !== (want || PATH)) return 'text';
+    if (!td.classList.contains('brk')) return 'nobrk' + td.className + '_' + td.getBoundingClientRect().width + '_' + td.closest('.tw').scrollWidth + '_' + td.closest('.tw').clientWidth;
+    var tw = document.createTreeWalker(td, NodeFilter.SHOW_TEXT), n, text = '', tops = [];
+    while ((n = tw.nextNode())) {
+      for (var i = 0; i < n.nodeValue.length; i++) {
+        var r = document.createRange();
+        r.setStart(n, i); r.setEnd(n, i + 1);
+        tops.push(Math.round(r.getBoundingClientRect().top)); text += n.nodeValue.charAt(i);
+      }
+    }
+    var lines = 1;
+    for (var k = 1; k < tops.length; k++) {
+      if (tops[k] > tops[k - 1] + 2) { lines++; if (text.charAt(k - 1) !== '/') return 'mid@' + k; }
+    }
+    return lines > 1 ? 1 : 'oneline';
+  };
+  /* BL-585: a date (digit "/" digit) stays on one line even when the table is cut. */
+  var dateJoined = function () {
+    var td = document.getElementById('datecell'), D = '01/10/2026';
+    var at = td.textContent.indexOf(D), tops = [], tw = document.createTreeWalker(td, NodeFilter.SHOW_TEXT), n, pos = 0;
+    if (!td.classList.contains('brk')) return 'nobrk';
+    while ((n = tw.nextNode())) {
+      for (var i = 0; i < n.nodeValue.length; i++, pos++) {
+        if (pos < at || pos >= at + D.length) continue;
+        var r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+        var tp = Math.round(r.getBoundingClientRect().top);
+        if (tops.indexOf(tp) === -1) tops.push(tp);
+      }
+    }
+    return tops.length === 1 ? 1 : 'split' + tops.length;
+  };
+  var slashWbr = function () { return document.querySelectorAll('#t-path wbr.kit-slash').length; };
+  var PATH3 = 'skills/artifact/assets/artifact_kit/2026/10/01/composer_functional.js';
+  var dateJ = dateJoined(), path3 = pathBreaks('pathcell3', PATH3);
+  /* BL-585: widening the box drops .brk and the hints; narrowing brings them back. */
+  var tw1 = document.getElementById('t-path').closest('.tw'), wb0 = slashWbr();
+  tw1.style.width = '3000px'; tw1.style.maxWidth = 'none'; window.dispatchEvent(new Event('resize'));
+  var wbWide = slashWbr(), brkWide = document.getElementById('pathcell').classList.contains('brk') ? 1 : 0;
+  tw1.style.width = ''; tw1.style.maxWidth = ''; window.dispatchEvent(new Event('resize'));
+  var wbBack = slashWbr();
+  /* BL-585: the same answer after every resize (the cut is re-measured each time). */
+  var first = pathBreaks(), first2 = pathBreaks('pathcell2'), rs = [];
+  for (var q = 0; q < 2; q++) {
+    window.dispatchEvent(new Event('resize'));
+    rs.push(pathBreaks() + '/' + fits('#t-path'));
+  }
   document.title = 'NARROW|W=' + window.innerWidth
+    + '|PATHBRK=' + first + '|DATEJ=' + dateJ + '|PATHDATE=' + path3 + '|WBR=' + (wb0 > 0 ? 1 : 0) + '/' + wbWide + '/' + brkWide + '/' + (wbBack === wb0 ? 1 : 0) + '|PATHBRK2=' + first2 + '|PATHRS=' + rs.join(',')
     + '|BARS=' + ['consult-copy', 'consult-copy-end'].filter(function (i) { return shown(document.getElementById(i)); }).length
     + '|L1=' + w('#t-label td:first-child') + '|L2=' + w('#t-label td:last-child') + '|I1=' + w('#t-id td:first-child')
     + '|FIT2=' + fits('#t-two') + '|FIT3=' + fits('#t-three') + '|FITS2=' + fits('#t-short2') + '|FITS3=' + fits('#t-short3') + '|FITN=' + fits('#t-nest')
@@ -872,6 +942,19 @@ i1="$(sed -nE 's/.*\|I1=([0-9]+)\|.*/\1/p' <<<"$tn")"
 # it now wraps to the screen, and what must hold is that its label column is not
 # squeezed to a single word per line (L1 >= 100) while the prose beside it still fits
 # (the floor itself is pinned by F4C2 below, not by these two).
+# BL-585: the last-resort cut of a path falls after a "/", never inside a segment.
+[[ "$tn" == *"|PATHBRK=1|"* ]] \
+  || fail "BL-585: at 390 px a still-overflowing table cuts a path mid-segment, or never cut it (want every line break after '/'): $tn"
+[[ "$tn" == *"|PATHBRK2=1|"* ]] \
+  || fail "BL-585: a path in a table nested in a cell of a 3-column table is cut mid-segment or never cut on first load: $tn"
+[[ "$tn" == *"|PATHRS=1/1,1/1|"* ]] \
+  || fail "BL-585: after a resize the path cut changes (want 1/1 twice: broken after slashes, table fits): $tn"
+[[ "$tn" == *"|DATEJ=1|"* ]] \
+  || fail "BL-585: a d/m/y date in a prose cell is split across lines when the table is cut (want one line): $tn"
+[[ "$tn" == *"|PATHDATE=1|"* ]] \
+  || fail "BL-585: a path with a dated segment is cut mid-segment or never cut (want breaks after '/' only): $tn"
+[[ "$tn" == *"|WBR=1/0/0/1|"* ]] \
+  || fail "BL-585: widening must drop .brk and every kit-slash wbr, narrowing must bring them back (want 1/0/0/1): $tn"
 fit2="$(sed -nE 's/.*\|FIT2=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
 fit3="$(sed -nE 's/.*\|FIT3=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
 fit4="$(sed -nE 's/.*\|FIT4=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
@@ -1337,6 +1420,10 @@ td="$(run 'phase=alldecided')"
   || fail "BL-341: a page with every question decided does not name that state in its status line (es): $td"
 [[ "$td" == *"STATUS=Sin responder"* ]] \
   && fail "BL-341: a page with every question decided still reads 'nothing answered yet' (es): $td"
+# BL-587: copying with empty notes must not say "nothing answered yet" over a status
+# that says everything is decided.
+[[ "$td" == *"EMPTYCOPY=Todo está decidido; escribe una nota general si quieres enviar algo.|"* ]] \
+  || fail "BL-587: copy on an all-decided page with empty notes contradicts the status line (es): $td"
 # The bar stays. Measured as a real box, not as an attribute: at the harness
 # width the rail collapses to a bottom bar, and a display-only assertion would
 # pass on a bar of zero height.
@@ -1402,6 +1489,8 @@ td="$(run 'phase=alldecided')"
   && fail "BL-341: a page with every question decided still reads 'nothing answered yet' (en): $td"
 [[ "$td" == *"BARH=1"* ]] \
   || fail "BL-341: the copy bar was hidden on an all-decided English page: $td"
+[[ "$td" == *"EMPTYCOPY=Everything is decided; write a general note if you want to send something.|"* ]] \
+  || fail "BL-587: copy on an all-decided page with empty notes contradicts the status line (en): $td"
 
 # ---- BL-380: a decided item inside a HALF-answered block folds in place ----
 #
