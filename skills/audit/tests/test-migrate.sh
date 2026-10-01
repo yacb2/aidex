@@ -3,6 +3,8 @@
 # canon (rebuild 2026-07-02): YYYYMMDD run names -> ISO, legacy status values ->
 # base vocab, YYYYMMDD cell dates -> ISO, root boards -> audits/<methodology>/.
 # Dry-run by default, --apply converts, second --apply is a no-op.
+# Default mode (plans scan): '- [ ]' in a numbered file scores as a plan signal,
+# '- [x]' alone does not, and a folder with no signals does not abort the scan.
 #
 # Run with: bash skills/audit/tests/test-migrate.sh
 
@@ -68,5 +70,31 @@ bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux --apply >/dev/null 2>
 after="$(find "$A" -type f | sort; grep -h '' "$INV")"
 [[ "$before" == "$after" ]] || fail "second --apply was not a no-op"
 
+# --- default (plans scan): numbered files with '- [ ]' score as a plan signal ---
+# BL-549: the pattern began with '-', so grep read it as an option (exit 2,
+# stderr discarded) and the signal never applied. The folder name carries a
+# second signal so the run does not die on an empty signals array (bash 3.2).
+PFX="$TMP/plans-fixture"
+mkdir -p "$PFX/.context/plans/implement-x"
+printf -- '- [ ] task\n' > "$PFX/.context/plans/implement-x/01-x.md"
+mkdir -p "$PFX/.context/plans/implement-done"
+printf -- '- [x] task\n' > "$PFX/.context/plans/implement-done/01-x.md"
+out="$(bash "$SCRIPTS/migrate-audit.sh" "$PFX" 2>&1)"
+printf '%s' "$out" | grep >/dev/null -F "numbered files with checkboxes (plan signal)" \
+  || fail "checkbox plan signal missing from plans scan: $(printf '%s' "$out" | grep -A1 -F implement-x | tr '\n' ' ')"
+# Only '- [x]' (all done) is not a checkbox plan signal.
+if printf '%s' "$out" | grep -A1 -F implement-done | grep >/dev/null -F "checkboxes"; then
+  fail "'- [x]'-only numbered file scored as checkbox plan signal: $(printf '%s' "$out" | grep -A1 -F implement-done | tr '\n' ' ')"
+fi
+
+# --- plans scan: a folder that earns no signals must not abort the scan ---
+# "${signals[*]}" on an empty array is unbound under set -u on bash 3.2.
+PFX2="$TMP/plans-nosignal"
+mkdir -p "$PFX2/.context/plans/p1" "$PFX2/.context/plans/security-review"
+printf '# notes\n' > "$PFX2/.context/plans/p1/notes.md"
+out="$(bash "$SCRIPTS/migrate-audit.sh" "$PFX2" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] || fail "plans scan with a no-signal folder exited $rc: $(printf '%s' "$out" | tail -n 1)"
+printf '%s' "$out" | grep >/dev/null -F "security-review" || fail "folder with a signal not reported next to a no-signal folder"
+
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi
-echo "OK — legacy layout/status/date migration, validator-clean result, idempotent"
+echo "OK — legacy layout/status/date migration, validator-clean result, idempotent; plans scan checkbox signal, - [x] not scored, no-signal folder"
