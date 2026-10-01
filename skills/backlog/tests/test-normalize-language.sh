@@ -103,7 +103,7 @@ check "filters the validator rule by name" \
   'grep -q "body-language-not-english" "$SCRIPTS/normalize-language.sh"'
 # Comments may name the heuristic; CODE must not reimplement it.
 check "carries no stopword list of its own" \
-  '! grep -vE "^[[:space:]]*#" "$SCRIPTS/normalize-language.sh" | grep -qiE "SPANISH_STOPWORDS|stopwords[[:space:]]*=|\\bel\\b.*\\bla\\b.*\\blos\\b"'
+  '! grep -vE "^[[:space:]]*#" "$SCRIPTS/normalize-language.sh" | grep >/dev/null -iE "SPANISH_STOPWORDS|stopwords[[:space:]]*=|\\bel\\b.*\\bla\\b.*\\blos\\b"'
 
 # The register template carries the reminder at the point of writing (BL-226).
 check "register-item.sh template says ENGLISH" \

@@ -52,7 +52,7 @@ FAIL=0
 check() {
   local label="$1" text="$2" m
   for m in "${MARKERS[@]}"; do
-    if ! printf '%s' "$text" | grep -Fiq -- "$m"; then
+    if ! printf '%s' "$text" | grep >/dev/null -Fi -- "$m"; then
       echo "  FAIL: $label missing arbiter policy marker: \"$m\"" >&2
       FAIL=$((FAIL+1))
     fi

@@ -82,7 +82,7 @@ printf '# Coverage Matrix\n\nHand-written by a human, missing the required heade
 out="$(bash "$SCRIPTS/validate-audit.sh" "$WS/.context/audits" 2>&1)"
 rc=$?
 [[ "$rc" -eq 0 ]] || fail "validate should stay exit 0 (warning, not error) for a hand-created matrix, got $rc"
-echo "$out" | grep -qi 'GENERATED' \
+echo "$out" | grep >/dev/null -i 'GENERATED' \
   || fail "validate did not warn about the coverage-matrix.md missing the GENERATED header"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi

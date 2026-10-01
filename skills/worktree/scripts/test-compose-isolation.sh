@@ -107,7 +107,7 @@ bash "$SCRIPT" "$TMP/plainproj/docker-compose.yml" >/dev/null 2>&1 \
   || fail "a build with no explicit image tag is project-scoped by compose — must not be a finding"
 
 # --- --suffix-var "" disables the container_name rule ---
-bash "$SCRIPT" "$BAD/docker-compose.yml" --suffix-var "" 2>&1 | grep -q 'container_name' \
+bash "$SCRIPT" "$BAD/docker-compose.yml" --suffix-var "" 2>&1 | grep >/dev/null 'container_name' \
   && fail "--suffix-var '' must disable the container_name rule"
 
 if [[ "$failures" -gt 0 ]]; then

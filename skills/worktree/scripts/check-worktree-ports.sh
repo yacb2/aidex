@@ -91,7 +91,7 @@ sources_slot_env() {
   # form -- so do not stop at the first one. Comment lines are excluded so a
   # sentence mentioning .env cannot grant an exemption.
   grep -vE '^[[:space:]]*#' "$1" \
-    | grep -qE '(^|[[:space:]]|;|&&|\|\|)(\.|source)[[:space:]]+.*\.env'
+    | grep >/dev/null -E '(^|[[:space:]]|;|&&|\|\|)(\.|source)[[:space:]]+.*\.env'
 }
 
 # One project. Prints findings as <file>\t<kind>\t<what>\t<why>, and nothing when
@@ -102,8 +102,8 @@ scan_project() {
   local port_vars="" links="" pair var f rel line lit
 
   [[ -f "$cfg" ]] || return 0
-  port_vars="$(sed -n 's/^[[:space:]]*WT_PORT_VARS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | head -1)"
-  links="$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | head -1)"
+  port_vars="$(sed -n 's/^[[:space:]]*WT_PORT_VARS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)"
+  links="$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$cfg" | sed -n 1p)"
   [[ -n "$links" ]] || return 0
 
   local names=""
@@ -112,7 +112,7 @@ scan_project() {
   for rel in $links; do
     f="$root/$rel"
     [[ -f "$f" ]] || continue
-    head -1 "$f" | grep -q '^#!.*sh' || continue      # shell scripts only
+    head -1 "$f" | grep >/dev/null '^#!.*sh' || continue      # shell scripts only
 
     # -- shape 1: a pinned assignment to a slot-managed variable --------------
     # Exempt when the script sources the worktree .env: the assignment is then
@@ -122,8 +122,8 @@ scan_project() {
       grep -qE "^[[:space:]]*$var=[0-9]{2,5}([[:space:]]|$|#)" "$f" || continue
       # A ${VAR:-...} anywhere means the environment already has a path in.
       grep -qE "\\\$\{$var:-" "$f" && continue
-      line="$(grep -nE "^[[:space:]]*$var=[0-9]{2,5}" "$f" | head -1 | cut -d: -f1)"
-      lit="$(grep -E "^[[:space:]]*$var=[0-9]{2,5}" "$f" | head -1 | sed "s/.*$var=\([0-9]*\).*/\1/")"
+      line="$(grep -nE "^[[:space:]]*$var=[0-9]{2,5}" "$f" | sed -n 1p | cut -d: -f1)"
+      lit="$(grep -E "^[[:space:]]*$var=[0-9]{2,5}" "$f" | sed -n 1p | sed "s/.*$var=\([0-9]*\).*/\1/")"
       printf '%s:%s\tpinned-assignment\t%s=%s is pinned with no environment path\t%s\n' \
         "$rel" "$line" "$var" "$lit" \
         "a worktree cannot move it; write $var=\${$var:-$lit} and source the worktree .env above it"
@@ -144,8 +144,8 @@ scan_project() {
       # A COMMENT is not a call site. A dev.sh can document Metro's
       # port in prose (`# \`expo start --port 3424\` in package.json`) and was
       # the check's one false positive before this line existed.
-      sed -n "${line}p" "$f" | grep -qE '^[[:space:]]*#' && continue
-      lit="$(sed -n "${line}p" "$f" | grep -oE '(:|--port[= ]|-p |[Pp]ort[a-zA-Z_]*[[:space:]]+)[0-9]{4,5}' | grep -oE '[0-9]{4,5}' | head -1)"
+      sed -n "${line}p" "$f" | grep >/dev/null -E '^[[:space:]]*#' && continue
+      lit="$(sed -n "${line}p" "$f" | grep -oE '(:|--port[= ]|-p |[Pp]ort[a-zA-Z_]*[[:space:]]+)[0-9]{4,5}' | grep -oE '[0-9]{4,5}' | sed -n 1p)"
       [[ -z "$lit" ]] && continue
       printf '%s:%s\tinline-literal\tport %s is written into the call site itself\t%s\n' \
         "$rel" "$line" "$lit" \
@@ -173,18 +173,18 @@ scan_project() {
     while IFS= read -r var; do
       [[ -z "$var" ]] && continue
       case " $names " in *" $var "*) continue ;; esac   # the slot supplies it
-      def_line="$(grep -nE "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | head -1 | cut -d: -f1)"
+      def_line="$(grep -nE "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | sed -n 1p | cut -d: -f1)"
       [[ -z "$def_line" ]] && continue
       # Provenance only exempts when captured ABOVE the default -- the comment
       # above says why: after `VAR=${VAR:-lit}` runs the variable is set either
       # way and `${VAR:+...}` is always-true, so a below-the-default capture is
       # the silenced-checker state this shape exists to report.
-      cap_line="$(grep -nE "\\$\\{$var:\\+" "$f" | head -1 | cut -d: -f1)"
+      cap_line="$(grep -nE "\\$\\{$var:\\+" "$f" | sed -n 1p | cut -d: -f1)"
       [[ -n "$cap_line" && "$cap_line" -lt "$def_line" ]] && continue
-      lit="$(grep -E "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | head -1 \
+      lit="$(grep -E "^[[:space:]]*$var=\\$\\{$var:-[0-9]{2,5}\\}" "$f" | sed -n 1p \
              | sed "s/.*:-\\([0-9]*\\)}.*/\\1/")"
       line="$(grep -nE "[a-zA-Z_]*[Pp]ort[a-zA-Z_]*[[:space:]]+\"?\\$\\{?$var\\b" "$f" \
-              | grep -v '^[0-9]*:[[:space:]]*#' | head -1 | cut -d: -f1)"
+              | grep -v '^[0-9]*:[[:space:]]*#' | sed -n 1p | cut -d: -f1)"
       [[ -z "$line" ]] && continue
       printf '%s:%s\tunsupplied-var\t%s is swept but no slot .env supplies it (resolves to %s)\t%s\n' \
         "$rel" "$line" "$var" "$lit" \
@@ -242,7 +242,7 @@ if [[ ! -f "$PORTS_CFG" ]]; then
   err "no worktree config at $PORTS_CFG — nothing was checked."
   exit 2
 fi
-if [[ -z "$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$PORTS_CFG" | head -1)" ]]; then
+if [[ -z "$(sed -n 's/^[[:space:]]*WT_LINKS=["'"'"']\{0,1\}\([^"'"'"']*\).*/\1/p' "$PORTS_CFG" | sed -n 1p)" ]]; then
   err "WT_LINKS is empty in $PORTS_CFG — nothing was checked."
   exit 2
 fi

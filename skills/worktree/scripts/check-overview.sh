@@ -50,7 +50,7 @@ fm="$(sed -n '/^---$/,/^---$/p' "$DOC")"
 # A field is only useful if it carries a command. `worktree_up: ""` is the shape
 # a doc takes when its mechanism was retired and nobody updated the front-matter.
 for field in worktree_up worktree_down; do
-  line="$(grep -E "^${field}:" <<<"$fm" | head -1 || true)"
+  line="$(grep -E "^${field}:" <<<"$fm" | sed -n 1p || true)"
   if [[ -z "$line" ]]; then
     gaps+=("front-matter: missing '$field' field")
   else

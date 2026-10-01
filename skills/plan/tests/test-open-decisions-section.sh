@@ -24,15 +24,15 @@ echo "plan-conventions.md documents the section:"
 check "carries an '## Open decisions' section" \
   "grep -q '^## Open decisions' '$CANON'"
 check "the section is marked optional" \
-  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep -qi 'optional'"
+  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep >/dev/null -i 'optional'"
 check "names research as an unblocker" \
-  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep -q 'research'"
+  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep >/dev/null 'research'"
 check "names prototype as an unblocker" \
-  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep -q 'prototype'"
+  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep >/dev/null 'prototype'"
 check "names owner conversation as an unblocker" \
-  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep -q 'owner conversation'"
+  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep >/dev/null 'owner conversation'"
 check "states it is not required for direct or scoped plans" \
-  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep -qi 'direct'"
+  "awk '/^## Open decisions/,/^## [^O]/' '$CANON' | grep >/dev/null -i 'direct'"
 check "the plan template carries the section as optional" \
   "grep -q '^## Open decisions .*optional' '$CANON'"
 

@@ -55,7 +55,7 @@ AUDITS_DIR="$ROOT/.context/audits"
 RUN_PATH=""
 if [[ -d "$TARGET" ]]; then RUN_PATH="$TARGET"
 elif [[ -d "$AUDITS_DIR/$TARGET" ]]; then RUN_PATH="$AUDITS_DIR/$TARGET"
-else RUN_PATH="$(find "$AUDITS_DIR" -maxdepth 2 -type d -name "$TARGET" 2>/dev/null | head -1)"; fi
+else RUN_PATH="$(find "$AUDITS_DIR" -maxdepth 2 -type d -name "$TARGET" 2>/dev/null | sed -n 1p)"; fi
 [[ -n "$RUN_PATH" && -d "$RUN_PATH" ]] || die "cannot resolve audit run: $TARGET"
 
 RUN_SLUG="$(basename "$RUN_PATH")"

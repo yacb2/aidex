@@ -74,7 +74,7 @@ for p in "${PROJECTS[@]}"; do
   v_out="$(python3 "$VALIDATE" "$p/.context" 2>&1)"; v_rc=$?
   if [[ $v_rc -ne 0 ]]; then
     report="$report$(printf '  validate: exit %d\n' "$v_rc")\n"
-    report="$report$(printf '%s\n' "$v_out" | grep -E '^\s*\[[a-z-]+\]|violation|NEW' | head -8 | sed 's/^/      /')\n"
+    report="$report$(printf '%s\n' "$v_out" | grep -E '^\s*\[[a-z-]+\]|violation|NEW' | sed -n 1,8p | sed 's/^/      /')\n"
   fi
 
   # 2. Closure that did not propagate. Exit 1 = actionable (category A or index drift).
@@ -85,7 +85,7 @@ for p in "${PROJECTS[@]}"; do
     report="$report  reconcile:\n"
     report="$report$(printf '%s\n' "$r_out" \
       | awk '/Done without commit provenance/{exit} /^  - /{print}' \
-      | head -8 | sed 's/^/    /')\n"
+      | sed -n 1,8p | sed 's/^/    /')\n"
   fi
 
   # 3. Archive-on-close (D-10). sweep.sh exits 0 either way, so count its lines.

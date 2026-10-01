@@ -115,7 +115,7 @@ if [[ "$FORCE" -eq 0 ]]; then
   if [[ -n "$UNRECONCILED" ]]; then
     printf '%serror: this plan has unreconciled deferral(s) — they would vanish with the archive:%s\n' \
       "$C_RED" "$C_RESET" >&2
-    printf '%s\n' "$UNRECONCILED" | head -12 | sed 's/^/    /' >&2
+    printf '%s\n' "$UNRECONCILED" | sed -n 1,12p | sed 's/^/    /' >&2
     N_UNREC="$(printf '%s\n' "$UNRECONCILED" | wc -l | tr -d " ")"
     [[ "$N_UNREC" -gt 12 ]] && printf '    … and %s more\n' "$((N_UNREC - 12))" >&2
     die "reconcile each line before closing: register it with \`register-item.sh --origin plan --plan $(basename "$PLAN_PATH")\` and reference the BL-NNN on that line, or write an explicit \`CLOSE: <reason>\` on it. Pass --force only when the line is prose ABOUT deferring rather than a deferral"

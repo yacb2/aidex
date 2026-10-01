@@ -78,7 +78,7 @@ out="$(python3 "$TMP/$GUARD_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 0 ]; then
   err "a foreign skill under the scan root flipped the verdict to FAIL:"
   echo "$out" | sed 's/^/       /' >&2
-elif echo "$out" | grep -q 'foreign-skill'; then
+elif echo "$out" | grep >/dev/null 'foreign-skill'; then
   err "verdict is OK but the report still names foreign-skill"
 fi
 
@@ -91,7 +91,7 @@ printf -- '---\nname: probe-agent\nmodel: sonnet\n---\n\nBody.\n' \
 out="$(python3 "$TMP/$GUARD_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then
   err "an aidex-owned agent with no effort did not FAIL — the guard was neutered"
-elif ! echo "$out" | grep -q 'probe-agent'; then
+elif ! echo "$out" | grep >/dev/null 'probe-agent'; then
   err "FAILed, but not on probe-agent — check the reason:"
   echo "$out" | sed 's/^/       /' >&2
 fi
@@ -110,7 +110,7 @@ out="$(bash "$TMP/$BUDGET_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 0 ]; then
   err "an oversized foreign SKILL.md flipped the budget guard to FAIL:"
   echo "$out" | sed 's/^/       /' >&2
-elif echo "$out" | grep -q 'foreign-skill'; then
+elif echo "$out" | grep >/dev/null 'foreign-skill'; then
   err "budget verdict is OK but the report still names foreign-skill"
 fi
 
@@ -123,7 +123,7 @@ fi
 out="$(bash "$TMP/$BUDGET_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then
   err "an oversized aidex-owned SKILL.md did not FAIL — the budget guard was neutered"
-elif ! echo "$out" | grep -q 'decision'; then
+elif ! echo "$out" | grep >/dev/null 'decision'; then
   err "budget FAILed, but not on decision — check the reason:"
   echo "$out" | sed 's/^/       /' >&2
 fi
@@ -140,7 +140,7 @@ out="$(bash "$TMP/$DRIFT_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -ne 0 ]; then
   err "a foreign workflow asset flipped the drift-lock to FAIL:"
   echo "$out" | sed 's/^/       /' >&2
-elif echo "$out" | grep -q 'foreign-skill'; then
+elif echo "$out" | grep >/dev/null 'foreign-skill'; then
   err "drift verdict is OK but the report still names foreign-skill"
 fi
 
@@ -152,7 +152,7 @@ printf -- '// === CORE:START ===\nconst drifted = true\n// === CORE:END ===\n// 
 out="$(bash "$TMP/$DRIFT_REL" 2>&1)" && rc=0 || rc=$?
 if [ "$rc" -eq 0 ]; then
   err "a drifted aidex-owned workflow asset did not FAIL — the drift-lock was neutered"
-elif ! echo "$out" | grep -q 'decision'; then
+elif ! echo "$out" | grep >/dev/null 'decision'; then
   err "drift FAILed, but not on decision — check the reason:"
   echo "$out" | sed 's/^/       /' >&2
 fi
@@ -171,7 +171,7 @@ for guard in "$GUARD_REL" "$BUDGET_REL" "$DRIFT_REL"; do
   esac
   if [ "$rc" -eq 0 ]; then
     err "${guard##*/}: an empty manifest passed — it fell back to scanning the whole root"
-  elif ! echo "$out" | grep -qi 'manifest\|no aidex-owned'; then
+  elif ! echo "$out" | grep >/dev/null -i 'manifest\|no aidex-owned'; then
     err "${guard##*/}: FAILed on an empty manifest, but not by saying the install is broken:"
     echo "$out" | sed 's/^/       /' >&2
   fi

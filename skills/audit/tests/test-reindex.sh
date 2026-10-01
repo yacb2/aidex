@@ -95,10 +95,10 @@ check "run archived"              '[[ -d .context/audits/_archive/20260601-foo ]
 # when the message is wrong — verified by mutation. An assertion about a message has
 # to read that message.
 check "the archived-run message names a path that exists" \
-  'line="$(grep "Archived audit run" <<<"$close_out")"; dest="$(grep -oE "/[^ ]*20260601-foo" <<<"$line" | head -1)"; [[ -n "$dest" && -d "$dest" ]]'
+  'line="$(grep "Archived audit run" <<<"$close_out")"; dest="$(grep -oE "/[^ ]*20260601-foo" <<<"$line" | sed -n 1p)"; [[ -n "$dest" && -d "$dest" ]]'
 check "no doubled _archive in the message" '[[ "$close_out" != *"_archive/_archive"* ]]'
-check "now under Archived runs"   'sed -n "/## Archived runs/,\$p" "$IDX" | grep -q "Foo audit"'
-check "gone from Active"          '! sed -n "/## Active runs/,/^---/p" "$IDX" | grep -q "(20260601-foo/index.md)"'
+check "now under Archived runs"   'sed -n "/## Archived runs/,\$p" "$IDX" | grep >/dev/null "Foo audit"'
+check "gone from Active"          '! sed -n "/## Active runs/,/^---/p" "$IDX" | grep >/dev/null "(20260601-foo/index.md)"'
 check "counts survive archive"    'grep -q "1 open / 2 findings" "$IDX"'
 
 echo "== --check drift detection =="

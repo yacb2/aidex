@@ -213,7 +213,7 @@ score_folder() {
 
   # Numbered implementation files with checkboxes
   if compgen -G "$dir/0[1-9]-*.md" > /dev/null; then
-    if grep -l '- \[ \]' "$dir"/0[1-9]-*.md 2>/dev/null | head -1 > /dev/null; then
+    if grep -l '- \[ \]' "$dir"/0[1-9]-*.md 2>/dev/null | sed -n 1p > /dev/null; then
       score=$((score-2)); signals+=("numbered files with checkboxes (plan signal)")
     fi
   fi

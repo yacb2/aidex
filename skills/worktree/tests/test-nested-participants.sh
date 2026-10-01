@@ -61,13 +61,13 @@ WT_SRC="$WT"
 # 1. the gitignore gate must resolve the participant PATH, not the basename.
 grep -q 'PARTICIPANT_PATH()' "$WT_SRC" \
   || fail "gitignore gate: PARTICIPANT_PATH helper is missing"
-awk '/^render_env_files\(\)/,/^}/' "$WT_SRC" | grep -q 'PARTICIPANT_PATH "$part"' \
+awk '/^render_env_files\(\)/,/^}/' "$WT_SRC" | grep >/dev/null 'PARTICIPANT_PATH "$part"' \
   || fail "gitignore gate: the probe must resolve \$part through PARTICIPANT_PATH"
-awk '/^render_env_files\(\)/,/^}/' "$WT_SRC" | grep -q 'ROOT/\$part/\.git' \
+awk '/^render_env_files\(\)/,/^}/' "$WT_SRC" | grep >/dev/null 'ROOT/\$part/\.git' \
   && fail "gitignore gate: still probing \$ROOT/\$part/.git, which no nested participant matches"
 
 # 2. the double-writer guard must test every directory ABOVE the render path.
-awk '/^render_env_files\(\)/,/^}/' "$WT_SRC" | grep -q 'renders inside' \
+awk '/^render_env_files\(\)/,/^}/' "$WT_SRC" | grep >/dev/null 'renders inside' \
   || fail "double-writer guard: a render inside a LINKED directory must be refused"
 
 # --- 3. --delete-branch must find a nested participant's repo --------------

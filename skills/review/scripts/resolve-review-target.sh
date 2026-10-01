@@ -288,7 +288,7 @@ fi
 
 langs() {
   printf '%s\n' "$FILES" | sed -E 's/.*\.([A-Za-z0-9]+)$/\1/' | LC_ALL=C sort | uniq -c \
-    | LC_ALL=C sort -rn | head -5 | awk '{printf "%s:%s,", $2, $1}' | sed 's/,$//'
+    | LC_ALL=C sort -rn | sed -n 1,5p | awk '{printf "%s:%s,", $2, $1}' | sed 's/,$//'
 }
 
 # Surface probes. These COUNT evidence; they never assert absence. A zero means the

@@ -44,7 +44,7 @@ case "$CANON_FLAT" in *"by their remedy"*) ;; *) err "canon does not classify fi
 case "$CANON_FLAT" in *"never deferred"*) ;; *) err "canon does not exempt confirmed security/data-loss defects from remedy-class deferral (BL-314)" ;; esac
 case "$CANON_FLAT" in *"recorded \`anchor=\`"*) ;; *) err "canon does not define the fix-round revert against the recorded anchor (BL-314)" ;; esac
 # the resolver path the canon tells an installed user to run must exist
-named=$(printf '%s' "$CANON_FLAT" | tr ' `' '\n\n' | grep 'resolve-review-scope\.sh' | head -1)
+named=$(printf '%s' "$CANON_FLAT" | tr ' `' '\n\n' | grep 'resolve-review-scope\.sh' | sed -n 1p)
 if [ -n "$named" ]; then
   [ -f "$SKILLS/conventions/scripts/$(basename "$named")" ] || err "canon names '$named' but no such script exists"
 fi

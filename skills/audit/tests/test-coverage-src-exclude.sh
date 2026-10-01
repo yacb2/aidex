@@ -91,7 +91,7 @@ print('OK')
 # --- 4. sweep agrees with the matrix: no phantom src delta ------------------
 sweep="$(python3 "$COV/coverage_sweep.py" "$WS" 2>&1)"
 billing_row="$(printf '%s\n' "$sweep" | grep -E '^billing ')"
-printf '%s\n' "$billing_row" | grep -qE '(\+|-)[0-9]+ src' \
+printf '%s\n' "$billing_row" | grep >/dev/null -E '(\+|-)[0-9]+ src' \
   && fail "sweep reports a phantom surface delta for an excluded file: $billing_row"
 
 # --- 5. affected-tests still attributes a changed fixture to the module ------
@@ -100,9 +100,9 @@ printf '%s\n' "$billing_row" | grep -qE '(\+|-)[0-9]+ src' \
 echo 'export const extraMock = { id: 2 };' >> "$WS/frontend/src/billing/__fixtures__/formMocks.ts"
 aff="$(python3 "$COV/affected_tests.py" "$WS" 2>&1)"
 git -C "$WS/frontend" checkout -- src/billing/__fixtures__/formMocks.ts
-printf '%s\n' "$aff" | grep -q 'billing' \
+printf '%s\n' "$aff" | grep >/dev/null 'billing' \
   || fail "affected-tests dropped a changed co-located fixture: $aff"
-printf '%s\n' "$aff" | grep -qi 'unmapped' \
+printf '%s\n' "$aff" | grep >/dev/null -i 'unmapped' \
   && fail "affected-tests reported the changed fixture as unmapped: $aff"
 
 # --- 5b. defect_prone: an excluded path is not a located-nowhere gap --------

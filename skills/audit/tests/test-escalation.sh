@@ -33,34 +33,34 @@ printf '# Findings\n\n- **F-1** token\n- **F-2** contrast\n' > "$A/ux/2026-06-01
 
 # --- escalate to backlog ---
 bash "$SCRIPTS/escalate-finding.sh" F-1 >/dev/null 2>&1 || fail "escalate F-1 exited non-zero"
-BL_FILE="$(ls .context/backlog/*.md 2>/dev/null | grep -v 00-index | head -1)"
+BL_FILE="$(ls .context/backlog/*.md 2>/dev/null | grep -v 00-index | sed -n 1p)"
 [[ -n "$BL_FILE" ]] || fail "no backlog entry created"
 if [[ -n "$BL_FILE" ]]; then
   grep -q '^origin_ref: audit/ux/2026-06-01-first-pass/F-1' "$BL_FILE" \
     || fail "backlog origin_ref: expected audit/ux/2026-06-01-first-pass/F-1, got: $(grep '^origin_ref' "$BL_FILE")"
 fi
 row="$(grep '| F-1 ' "$A/ux/00-inventory.md")"
-printf '%s' "$row" | grep -q '| done |' || fail "row status should be done, row: $row"
-printf '%s' "$row" | grep -qE 'backlog/[a-z0-9][a-z0-9-]*' || fail "Escalated To should carry a backlog/<filename> marker, row: $row"
-if printf '%s' "$row" | grep -q '](' ; then fail "Escalated To must be a MARKER, not a markdown link: $row"; fi
-if printf '%s' "$row" | grep -qE '\| [0-9]{8} \|'; then fail "row carries legacy YYYYMMDD date: $row"; fi
+printf '%s' "$row" | grep >/dev/null '| done |' || fail "row status should be done, row: $row"
+printf '%s' "$row" | grep >/dev/null -E 'backlog/[a-z0-9][a-z0-9-]*' || fail "Escalated To should carry a backlog/<filename> marker, row: $row"
+if printf '%s' "$row" | grep >/dev/null '](' ; then fail "Escalated To must be a MARKER, not a markdown link: $row"; fi
+if printf '%s' "$row" | grep >/dev/null -E '\| [0-9]{8} \|'; then fail "row carries legacy YYYYMMDD date: $row"; fi
 # the marker must resolve per the conventions validator (cross-ref lookup)
-MARKER="$(printf '%s' "$row" | grep -oE 'backlog/[a-z0-9][a-z0-9._-]*' | head -1)"
+MARKER="$(printf '%s' "$row" | grep -oE 'backlog/[a-z0-9][a-z0-9._-]*' | sed -n 1p)"
 CAND="${MARKER#backlog/}"
 [[ -f ".context/backlog/$CAND" || -f ".context/backlog/$CAND.md" ]] || fail "marker $MARKER does not resolve to the created file"
 
 # --- escalate to loop-spec (--loop): back-link in front-matter ---
 bash "$SCRIPTS/escalate-finding-to-loop.sh" F-2 --loop >/dev/null 2>&1 || fail "escalate --loop F-2 exited non-zero"
-LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | head -1)"
+LOOP_FILE="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | sed -n 1p)"
 [[ -n "$LOOP_FILE" ]] || fail "no loop-spec created"
 if [[ -n "$LOOP_FILE" ]]; then
   grep -q '^origin_ref: audit/ux/2026-06-01-first-pass/F-2' "$LOOP_FILE" \
     || fail "loop-spec front-matter lacks the origin_ref back-link, got: $(grep '^origin_ref' "$LOOP_FILE" || echo '(none)')"
 fi
 row2="$(grep '| F-2 ' "$A/ux/00-inventory.md")"
-printf '%s' "$row2" | grep -q '| done |' || fail "F-2 status should be done, row: $row2"
-printf '%s' "$row2" | grep -qE 'loop/[a-z0-9][a-z0-9._-]*' || fail "F-2 Escalated To should carry a loop/<filename> marker, row: $row2"
-if printf '%s' "$row2" | grep -q '](' ; then fail "F-2 Escalated To must be a MARKER, not a markdown link: $row2"; fi
+printf '%s' "$row2" | grep >/dev/null '| done |' || fail "F-2 status should be done, row: $row2"
+printf '%s' "$row2" | grep >/dev/null -E 'loop/[a-z0-9][a-z0-9._-]*' || fail "F-2 Escalated To should carry a loop/<filename> marker, row: $row2"
+if printf '%s' "$row2" | grep >/dev/null '](' ; then fail "F-2 Escalated To must be a MARKER, not a markdown link: $row2"; fi
 
 # --- the escalated tree still validates clean ---
 bash "$SCRIPTS/validate-audit.sh" "$A" >/dev/null 2>&1 || fail "escalated tree should validate clean"

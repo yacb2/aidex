@@ -66,8 +66,8 @@ if [[ -d "$DEC" ]]; then
   # ADR it amends. Both were wrong, and only comparing against each file's self-declared
   # decision_id caught them.
   while IFS= read -r row; do
-    rid="$(grep -oE 'D-[0-9]{2}' <<<"$row" | head -1)"
-    rfile="$(grep -oE '`[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+\.md`' <<<"$row" | tr -d '`' | head -1)"
+    rid="$(grep -oE 'D-[0-9]{2}' <<<"$row" | sed -n 1p)"
+    rfile="$(grep -oE '`[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+\.md`' <<<"$row" | tr -d '`' | sed -n 1p)"
     [[ -n "$rid" && -n "$rfile" ]] || continue
     path="$DEC/$rfile"; [[ -f "$path" ]] || path="$DEC/_archive/$rfile"
     [[ -f "$path" ]] || continue          # (3) already reported this

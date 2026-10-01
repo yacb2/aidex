@@ -87,7 +87,7 @@ esac
 # exists. A shipped doc naming a path that resolves nowhere is the "shipped ADR
 # map dead for all installed users" failure from the 2026-07-25 audit — and a
 # grep for the bare filename passes happily against it.
-named=$(printf '%s' "$flat" | tr ' `' '\n\n' | grep 'resolve-review-scope\.sh' | head -1)
+named=$(printf '%s' "$flat" | tr ' `' '\n\n' | grep 'resolve-review-scope\.sh' | sed -n 1p)
 if [ -n "$named" ]; then
   base=$(basename "$named")
   [ -f "$SKILLS/conventions/scripts/$base" ] \

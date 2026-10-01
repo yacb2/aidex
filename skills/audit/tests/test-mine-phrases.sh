@@ -73,8 +73,8 @@ PY
 run_miner "ranking dataset" --dataset "$TMP/d.jsonl" --min-n 3 --max-n 5 \
           --top 40 --min-sessions 2
 
-habit_line="$(grep -n 'no te detengas' <<<"$out" | head -1 | cut -d: -f1)"
-topic_line="$(grep -n 'conciliacion bancaria' <<<"$out" | head -1 | cut -d: -f1)"
+habit_line="$(grep -n 'no te detengas' <<<"$out" | sed -n 1p | cut -d: -f1)"
+topic_line="$(grep -n 'conciliacion bancaria' <<<"$out" | sed -n 1p | cut -d: -f1)"
 
 [[ -n "$habit_line" ]] && ok "the habit repeated across sessions is reported" \
                        || bad "the cross-session habit never appeared: $out"

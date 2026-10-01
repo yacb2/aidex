@@ -60,7 +60,7 @@ report="$(run --out "$OUT/full.jsonl")"
 # and reports 6 — a confident wrong number, and the INSTR-01 inflation
 # prompt_kinds.py exists to prevent. If this drifts, every assertion below is
 # measuring a corpus nobody described.
-echo "$report" | grep -qE 'corpus +: 5 human prompts' \
+echo "$report" | grep >/dev/null -E 'corpus +: 5 human prompts' \
   || fail "(setup) expected 5 human prompts (both kickoffs + envelope excluded): $report"
 
 labels_for() {  # labels_for <session-substring-of-prompt>
@@ -137,11 +137,11 @@ print("BAD" if bad else "OK", bad)
   || fail "(e) full text must see a tail preference: '$(labels_for 'flujo completo de creacion')'"
 
 head_only="$(run --window head-tail --head 600 --tail 0)"
-echo "$head_only" | grep -qE 'DETECTED +: 2 ' \
+echo "$head_only" | grep >/dev/null -E 'DETECTED +: 2 ' \
   || fail "(e) head-only 600 should LOSE the tail case (expected 2): $head_only"
 
 head_tail_run="$(run --window head-tail --head 400 --tail 400)"
-echo "$head_tail_run" | grep -qE 'DETECTED +: 3 ' \
+echo "$head_tail_run" | grep >/dev/null -E 'DETECTED +: 3 ' \
   || fail "(e) head+tail should RECOVER the tail case (expected 3): $head_tail_run"
 
 # ---------------------------------------------------------------------------
@@ -174,7 +174,7 @@ EMPTY="$(mktemp -d)"
 out_g="$(python3 "$RETRO/mine_preferences.py" --transcripts-root "$EMPTY" 2>&1)"; rc_g=$?
 rm -rf "$EMPTY"
 [[ $rc_g -ne 0 ]] || fail "(g)(h) an unreadable corpus must not exit 0: $out_g"
-echo "$out_g" | grep -q 'no human prompts' \
+echo "$out_g" | grep >/dev/null 'no human prompts' \
   || fail "(h) an empty corpus should say so, not report 0 findings: $out_g"
 
 # ---------------------------------------------------------------------------

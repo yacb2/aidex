@@ -101,7 +101,7 @@ grep -qi 'defer' "$TMP/err" \
 grep -qE "^2\. \[ \] $IID — deferred emergent .*<!-- deferred -->" "$WL5" \
   && ok "6d the queue line is marked deferred" || bad "6d queue line: $(grep "$IID" "$WL5")"
 NEXT="$(bash "$DIR/worklist-advance.sh" "$WL5" 2>"$TMP/err")"; RC=$?
-IPATH="$(ls "$P/.context/backlog/_deferred/"*"$(echo "$IID" | tr 'A-Z' 'a-z')"* 2>/dev/null | head -1)"
+IPATH="$(ls "$P/.context/backlog/_deferred/"*"$(echo "$IID" | tr 'A-Z' 'a-z')"* 2>/dev/null | sed -n 1p)"
 [[ -n "$IPATH" && "$(fm "$IPATH" status)" == "open" ]] \
   && ok "6d a deferred emergent is never started (status stays open)" \
   || bad "6d the deferred emergent was started: status=$(fm "${IPATH:-/dev/null}" status) rc=$RC $(cat "$TMP/err")"
@@ -162,9 +162,9 @@ if command -v git >/dev/null; then
   ERR="$(bash "$BL/close-item.sh" "$XID" --sweep --commit "$OFFTRUNK" --no-index 2>&1 >/dev/null)"; RC=$?
   [[ $RC -ne 0 && -f "$X" && "$ERR" == *"not on the current branch"* ]] && ok "close-item refuses a commit from another branch and leaves the item active" || bad "off-trunk: rc=$RC $ERR"
   WL5="$(bash "$DIR/worklist-new.sh" --title "Trunk run" --mode sweep --publish never --ref "backlog:$XID — trunk check" 2>/dev/null | tail -1)"
-  [[ -f "$WL5" ]] || WL5="$(ls .context/worklists/*trunk-run*.md | head -1)"
+  [[ -f "$WL5" ]] || WL5="$(ls .context/worklists/*trunk-run*.md | sed -n 1p)"
   bash "$DIR/worklist-advance.sh" "$WL5" --commit "$ONTRUNK" >/dev/null 2>&1; RC=$?
-  XA="$(ls .context/backlog/_archive/*trunk-check*.md 2>/dev/null | head -1)"
+  XA="$(ls .context/backlog/_archive/*trunk-check*.md 2>/dev/null | sed -n 1p)"
   [[ $RC -eq 0 && -n "$XA" ]] && grep -q "^commits: \"$ONTRUNK\"" "$XA" && ok "worklist-advance --commit forwards the trunk commit into commits:" || bad "advance --commit: rc=$RC $(grep '^commits' "$XA" 2>/dev/null)"
   cd "$TMP"
 fi
@@ -202,7 +202,7 @@ if command -v git >/dev/null; then
       && ok "the refusal names the tree it searched" || bad "BL-333: refusal names no tree: $ERR"
 
     ( cd "$TMP/p6-wt" && bash "$BL/close-item.sh" "$Z1" --sweep --commit "$WTSHA" --no-index ) >/dev/null 2>&1; RC=$?
-    ZA="$(ls "$P6"/.context/backlog/_archive/*worktree-commit*.md 2>/dev/null | head -1)"
+    ZA="$(ls "$P6"/.context/backlog/_archive/*worktree-commit*.md 2>/dev/null | sed -n 1p)"
     [[ $RC -eq 0 && -n "$ZA" ]] && grep -q "^commits: \"$WTSHA\"" "$ZA" \
       && ok "close-item accepts the worktree HEAD's hash when run from inside that worktree" \
       || bad "BL-333: the sweep's own commit was refused from its own worktree: rc=$RC $(grep '^commits' "$ZA" 2>/dev/null)"

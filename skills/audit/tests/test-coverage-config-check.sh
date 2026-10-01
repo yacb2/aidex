@@ -88,7 +88,7 @@ out_f="$(python3 "$CHECK" --root "$WS" clean)"; rc_f=$?
 [[ $rc_f -eq 0 ]] || fail "(f) a clean-only run should exit 0, got $rc_f"
 out_f_v="$(python3 "$CHECK" --root "$WS" clean --verbose)"
 [[ -n "$out_f_v" ]] || fail "(f) --verbose should print the table even when clean"
-echo "$out_f_v" | grep -q '^clean ' \
+echo "$out_f_v" | grep >/dev/null '^clean ' \
   || fail "(f) --verbose output should include the clean project's row: $out_f_v"
 
 # ---------------------------------------------------------------------------

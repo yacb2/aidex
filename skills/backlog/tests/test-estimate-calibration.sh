@@ -47,9 +47,9 @@ out="$(python3 "$CAL" --from "$OUT" 2>&1)"; rc=$?
 #     usage-retro-facets page-join fixture, phase 4). A calibration over a quietly-filtered population is how a
 #     flat scale gets mistaken for a well-calibrated one, so every drop is counted.
 # ---------------------------------------------------------------------------
-echo "$out" | grep -q '2 closed items with an estimate and measurable work' \
+echo "$out" | grep >/dev/null '2 closed items with an estimate and measurable work' \
   || fail "(a) expected 2 scored items: $out"
-echo "$out" | grep -q 'excluded: 3 not closed, 0 no estimate, 1 no measurable work' \
+echo "$out" | grep >/dev/null 'excluded: 3 not closed, 0 no estimate, 1 no measurable work' \
   || fail "(a) exclusions should be itemised and counted: $out"
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ echo "$out" | grep -q 'excluded: 3 not closed, 0 no estimate, 1 no measurable wo
 #     also open, so it must not score — but the effort join must ignore it too.
 #     delta's 3 edits ARE working and must show up as 3.
 # ---------------------------------------------------------------------------
-echo "$out" | grep -qE '^ +L +1 +3 +3 +3$' \
+echo "$out" | grep >/dev/null -E '^ +L +1 +3 +3 +3$' \
   || fail "(b) delta (L) should show 3 realized edits from its working span: $out"
 
 # ---------------------------------------------------------------------------
@@ -71,18 +71,18 @@ n_tables="$(echo "$out" | grep -c 'estimate.*n.*median.*p90.*max')"
 # (d) the tail is the other half of the finding and a per-bucket median cannot
 #     show it, so it is reported on its own.
 # ---------------------------------------------------------------------------
-echo "$out" | grep -q 'TAIL RISK' \
+echo "$out" | grep >/dev/null 'TAIL RISK' \
   || fail "(d) expected a separate tail-risk section: $out"
-echo "$out" | grep -q 'top decile absorbs.*of all edits' \
+echo "$out" | grep >/dev/null 'top decile absorbs.*of all edits' \
   || fail "(d) tail risk should report the top decile's share: $out"
 
 # ---------------------------------------------------------------------------
 # (e) SCOPE GUARD. No single accuracy/score/grade number — averaging the flat
 #     middle with the spreading tail would hide exactly what was measured.
 # ---------------------------------------------------------------------------
-echo "$out" | grep -qiE 'accuracy: *[0-9]|score: *[0-9]|calibration score|[0-9]+% accurate' \
+echo "$out" | grep >/dev/null -iE 'accuracy: *[0-9]|score: *[0-9]|calibration score|[0-9]+% accurate' \
   && fail "(e) a single accuracy number must never be printed: $out"
-echo "$out" | grep -q 'No single' \
+echo "$out" | grep >/dev/null 'No single' \
   || fail "(e) the report should say why no single number is given: $out"
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ printf '%s\n' '{"project":"x","slug":"y","status":"open","estimate":"","kind":"b
 out_f="$(python3 "$CAL" --from "$EMPTY" 2>&1)"; rc_f=$?
 rm -rf "$EMPTY"
 [[ $rc_f -eq 0 ]] || fail "(f) an empty population must still exit 0 (got $rc_f)"
-echo "$out_f" | grep -q 'Not a finding' \
+echo "$out_f" | grep >/dev/null 'Not a finding' \
   || fail "(f) an empty result should not read as a finding: $out_f"
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ echo "$out_f" | grep -q 'Not a finding' \
 # ---------------------------------------------------------------------------
 out_g="$(python3 "$CAL" --from "$OUT" --project nonexistent_ws 2>&1)"; rc_g=$?
 [[ $rc_g -eq 0 ]] || fail "(g) an unmatched --project must still exit 0 (got $rc_g)"
-echo "$out_g" | grep -q 'corpus: 0 items' \
+echo "$out_g" | grep >/dev/null 'corpus: 0 items' \
   || fail "(g) --project is not restricting the population: $out_g"
 
 if [[ "$failures" -gt 0 ]]; then echo "$failures failure(s)"; exit 1; fi

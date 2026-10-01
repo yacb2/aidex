@@ -41,7 +41,7 @@ pass "reports what to re-verify and prescribes nothing"
 OUT_OLD="$(python3 "$SCRIPT" --installed 0.0.1 2>&1)"; RC_OLD=$?
 [[ $RC_OLD -eq 0 ]] || fail "an OLDER installed version must exit 0, got $RC_OLD"
 grep -q 'nothing to re-verify' <<<"$OUT_OLD" || fail "older version was reported as drift: $OUT_OLD"
-CURRENT="$(grep -o '| 2\.[0-9]*\.[0-9]* |' "$REF" | head -1 | tr -d '| ')"
+CURRENT="$(grep -o '| 2\.[0-9]*\.[0-9]* |' "$REF" | sed -n 1p | tr -d '| ')"
 OUT_EQ="$(python3 "$SCRIPT" --installed "$CURRENT" 2>&1)"; RC_EQ=$?
 [[ $RC_EQ -eq 0 ]] || fail "the exact recorded version must exit 0, got $RC_EQ"
 pass "equal or older installed version is clean; only newer asks for a look"

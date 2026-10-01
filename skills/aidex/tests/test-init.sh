@@ -56,7 +56,7 @@ out2="$(bash "$INIT" "$d1" </dev/null)"
 exists_count="$(printf '%s\n' "$out2" | grep -c '^exists: \.context/')"
 [[ "$exists_count" -ge 9 ]] || fail "scenario2: expected >=9 exists: lines on re-run, got $exists_count"
 
-if printf '%s\n' "$out2" | grep -q '^created: \.context/backlog$'; then
+if printf '%s\n' "$out2" | grep >/dev/null '^created: \.context/backlog$'; then
   fail "scenario2: backlog/ reported created on re-run"
 else
   pass "scenario2: backlog/ reported exists on re-run"
@@ -78,7 +78,7 @@ printf 'pre-existing\n' > "$d3/.context/plans/canary.md"
 
 out3="$(bash "$INIT" "$d3" </dev/null)"
 
-if printf '%s\n' "$out3" | grep -q '^exists: \.context/plans$'; then
+if printf '%s\n' "$out3" | grep >/dev/null '^exists: \.context/plans$'; then
   pass "scenario3: pre-existing plans/ reported exists"
 else
   fail "scenario3: pre-existing plans/ not reported exists"
@@ -115,7 +115,7 @@ out3b="$(env -u AIDEX_DIR HOME="$home3b" bash "$INIT" "$d3b" </dev/null)"
 if [[ -f "$d3b/.context/backlog/00-index.md" ]]; then
   pass "scenario3b: backlog index seeded with AIDEX_DIR unset"
 else
-  fail "scenario3b: backlog index not seeded with AIDEX_DIR unset: $(printf '%s' "$out3b" | grep -i 'not installed' | head -1)"
+  fail "scenario3b: backlog index not seeded with AIDEX_DIR unset: $(printf '%s' "$out3b" | grep -i 'not installed' | sed -n 1p)"
 fi
 [[ -f "$d3b/.context/references/01-project-commands.md" ]] \
   || fail "scenario3b: 01-project-commands.md not written with AIDEX_DIR unset"
@@ -137,7 +137,7 @@ for sub in backlog plans decisions research references requests \
   [[ -d "$d4/.context/$sub" ]] || fail "scenario4: .context/$sub not scaffolded without suite"
 done
 
-if printf '%s\n' "$out4" | grep -qi 'not installed'; then
+if printf '%s\n' "$out4" | grep >/dev/null -i 'not installed'; then
   pass "scenario4: notes the skipped seeding"
 else
   fail "scenario4: no note about skipped seeding"
@@ -150,7 +150,7 @@ rm -rf "$d4" "$empty_aidex"
 d5="$(mktemp -d)"
 out5="$(bash "$INIT" "$d5" </dev/null)"
 
-if printf '%s\n' "$out5" | grep -qi 'Suggested CLAUDE.md addition'; then
+if printf '%s\n' "$out5" | grep >/dev/null -i 'Suggested CLAUDE.md addition'; then
   pass "scenario5: CLAUDE.md suggestion block printed"
 else
   fail "scenario5: CLAUDE.md suggestion block missing from output"
@@ -190,7 +190,7 @@ else
   fail "scenario6: existing _tmp/README.md was overwritten"
 fi
 
-if printf '%s\n' "$out6" | grep -q '^exists: _tmp/README.md$'; then
+if printf '%s\n' "$out6" | grep >/dev/null '^exists: _tmp/README.md$'; then
   pass "scenario6: re-run reports the README as existing"
 else
   fail "scenario6: re-run did not report _tmp/README.md as existing"
@@ -210,7 +210,7 @@ AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d7" </dev/null >/dev/null
 
 if [[ -f "$d7/.context/references/01-project-commands.md" ]]; then
   pass "scenario7: project commands written as a reference (NN-<slug>.md)"
-  if head -1 "$d7/.context/references/01-project-commands.md" | grep -q '^---$'; then
+  if head -1 "$d7/.context/references/01-project-commands.md" | grep >/dev/null '^---$'; then
     pass "scenario7: the reference carries front-matter"
   else
     fail "scenario7: the reference has no front-matter block"
@@ -220,7 +220,7 @@ else
 fi
 
 val_out="$(cd "$d7" && python3 "$VALIDATE" 2>&1)"
-if printf '%s\n' "$val_out" | grep -qE 'violations: 0 · warnings: 0'; then
+if printf '%s\n' "$val_out" | grep >/dev/null -E 'violations: 0 · warnings: 0'; then
   pass "scenario7: a fresh init validates clean (0 violations, 0 warnings)"
 else
   fail "scenario7: fresh init fails aidex's own validator:
@@ -301,7 +301,7 @@ PYEOF
 d8a="$(mktemp -d)"
 out8a="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8a" </dev/null)"
 
-if printf '%s\n' "$out8a" | grep -q 'no TTY — skipped the artifact-style.md question'; then
+if printf '%s\n' "$out8a" | grep >/dev/null 'no TTY — skipped the artifact-style.md question'; then
   pass "scenario8a: no TTY -> the skipped question is reported"
 else
   fail "scenario8a: no TTY -> nothing reported the skipped question"
@@ -340,7 +340,7 @@ fi
   && pass "scenario8b: an answered question records itself in the shared marker" \
   || fail "scenario8b: the answered question left no record"
 
-printf '%s\n' "$out8b" | grep -q '^created: \.context/artifact-style\.md$' \
+printf '%s\n' "$out8b" | grep >/dev/null '^created: \.context/artifact-style\.md$' \
   && pass "scenario8b: the creation is reported" \
   || fail "scenario8b: the creation was not reported"
 
@@ -352,7 +352,7 @@ if grep -q 'hand-edited' "$d8a/.context/artifact-style.md"; then
 else
   fail "scenario8b: a re-run overwrote the existing profile"
 fi
-printf '%s\n' "$out8b2" | grep -q '^exists: \.context/artifact-style\.md$' \
+printf '%s\n' "$out8b2" | grep >/dev/null '^exists: \.context/artifact-style\.md$' \
   && pass "scenario8b: the existing profile is reported as existing" \
   || fail "scenario8b: the existing profile was not reported"
 
@@ -366,7 +366,7 @@ rc8c=$?
 
 [[ $rc8c -eq 0 ]] || fail "scenario8c: init at a pty exited non-zero ($rc8c)"
 
-if printf '%s\n' "$out8c" | grep -q 'empty declines'; then
+if printf '%s\n' "$out8c" | grep >/dev/null 'empty declines'; then
   pass "scenario8c: at a TTY the question is actually asked"
 else
   fail "scenario8c: no question was asked at a TTY: $out8c"
@@ -394,7 +394,7 @@ out8d="$(AIDEX_DIR="$REPO_ROOT" python3 "$PTY_DRIVER" "" bash "$INIT" "$d8d")"
 
 # The decline must stop the question, at a pty, without a flag.
 out8d2="$(AIDEX_DIR="$REPO_ROOT" python3 "$PTY_DRIVER" "es" bash "$INIT" "$d8d")"
-if printf '%s\n' "$out8d2" | grep -q 'empty declines'; then
+if printf '%s\n' "$out8d2" | grep >/dev/null 'empty declines'; then
   fail "scenario8d: the question was asked a second time after a decline"
 else
   pass "scenario8d: a declined question is not asked again"
@@ -412,7 +412,7 @@ if [[ -x "$WRAP" ]]; then
   wrapbody='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
   wraperr="$(printf '%s\n' "$wrapbody" | bash "$WRAP" --title "T" \
              --out "$d8d/.context/reports/a.html" 2>&1 >/dev/null)"
-  if printf '%s\n' "$wraperr" | grep -q 'Offer the profile to the reader ONCE'; then
+  if printf '%s\n' "$wraperr" | grep >/dev/null 'Offer the profile to the reader ONCE'; then
     fail "scenario8d: the wrap-time offer still fired after init recorded the decline"
   else
     pass "scenario8d: init's decline silences the wrap-time offer (one marker, two surfaces)"
@@ -435,7 +435,7 @@ out8e="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8e" --no-artifact-style </dev/nu
   && pass "scenario8e: --no-artifact-style records the decline" \
   || fail "scenario8e: --no-artifact-style left no record"
 
-printf '%s\n' "$out8e" | grep -q 'declined' \
+printf '%s\n' "$out8e" | grep >/dev/null 'declined' \
   && pass "scenario8e: the decline is reported" \
   || fail "scenario8e: the decline was not reported"
 
@@ -458,7 +458,7 @@ out8f="$(AIDEX_DIR="$empty8f" bash "$INIT" "$d8f" --artifact-style es </dev/null
   && pass "scenario8f: no template -> no profile" \
   || fail "scenario8f: a profile was written without a template"
 
-printf '%s\n' "$out8f" | grep -q 'artifact not installed' \
+printf '%s\n' "$out8f" | grep >/dev/null 'artifact not installed' \
   && pass "scenario8f: the missing template is noted" \
   || fail "scenario8f: the missing template was silent"
 
@@ -510,7 +510,7 @@ out8h="$(AIDEX_DIR="$REPO_ROOT" bash "$INIT" "$d8h" --artifact-style es </dev/nu
   && pass "scenario8h: a dangling symlink is not written through" \
   || fail "scenario8h: the write followed the symlink to $target8h"
 
-printf '%s\n' "$out8h" | grep -q 'symlink' \
+printf '%s\n' "$out8h" | grep >/dev/null 'symlink' \
   && pass "scenario8h: the refusal names the symlink" \
   || fail "scenario8h: the symlink was skipped silently"
 

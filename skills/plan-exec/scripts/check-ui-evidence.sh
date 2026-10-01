@@ -249,7 +249,7 @@ elif [ "$visual" -eq 0 ] && [[ "$s" =~ $pend_re ]]; then
   last="$(tail -n 1 <<<"$rows" | cut -f1)"
   if [ -z "$last" ]; then
     ok=0; miss "part 1 (pending-owner): no '## Phases Overview' table to prove phase $phase is not the final phase — pending-owner is refused; get the owner's verdict"
-  elif ! cut -f1 <<<"$rows" | grep -qFx -- "$phase"; then
+  elif ! cut -f1 <<<"$rows" | grep >/dev/null -Fx -- "$phase"; then
     ok=0; miss "part 1 (pending-owner): phase $phase is not a row of the '## Phases Overview' table — pending-owner is refused"
   fi
 fi

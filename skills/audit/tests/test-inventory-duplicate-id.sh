@@ -50,7 +50,7 @@ check "…and writes no 00-index.md" '[[ ! -f .context/audits/00-index.md ]]'
 
 echo "== renumbered =="
 inventory USAGE-20
-check "validate-audit.sh reports no duplicate once renumbered" '! bash "$VALIDATE" .context/audits 2>&1 | grep -q audit-duplicate-id'
+check "validate-audit.sh reports no duplicate once renumbered" '! bash "$VALIDATE" .context/audits 2>&1 | grep >/dev/null audit-duplicate-id'
 check "reindex-audits.sh regenerates" 'bash "$REINDEX" >/dev/null 2>&1 && [[ -f .context/audits/00-index.md ]]'
 check "…counting one finding per run" 'grep -q "1 open / 1 findings" .context/audits/00-index.md'
 

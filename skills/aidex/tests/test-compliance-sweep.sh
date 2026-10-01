@@ -28,7 +28,7 @@ out="$(bash "$SWEEP" --root "$TMP/fleet" 2>&1)" && rc=0 || rc=$?
 
 # ...but --verbose still accounts for what it looked at.
 out="$(bash "$SWEEP" --root "$TMP/fleet" --verbose 2>&1)" || true
-echo "$out" | grep -q '1 skipped' || err "--verbose did not account for the skipped project: $out"
+echo "$out" | grep >/dev/null '1 skipped' || err "--verbose did not account for the skipped project: $out"
 
 # ---- 2. drift is named, attributed, and fatal -----------------------------
 # A done item still sitting in the active folder is the archive-on-close (D-10)
@@ -49,9 +49,9 @@ MD
 
 out="$(bash "$SWEEP" --root "$TMP/fleet" 2>&1)" && rc=0 || rc=$?
 [ "$rc" = "1" ] || err "a drifting fleet exited $rc, expected 1"
-echo "$out" | grep -q '^dirty$' || err "drift report does not name the project: $out"
-echo "$out" | grep -q 'sweep: 1 done/dropped' || err "sweep drift not attributed: $out"
-echo "$out" | grep -q '1 of 1 project(s) drifted' || err "missing consolidated tally: $out"
+echo "$out" | grep >/dev/null '^dirty$' || err "drift report does not name the project: $out"
+echo "$out" | grep >/dev/null 'sweep: 1 done/dropped' || err "sweep drift not attributed: $out"
+echo "$out" | grep >/dev/null '1 of 1 project(s) drifted' || err "missing consolidated tally: $out"
 
 # ---- 3. read-only ---------------------------------------------------------
 [ -d "$BL/_archive" ] && err "inspecting the fleet created $BL/_archive — the run is not read-only"
@@ -60,7 +60,7 @@ echo "$out" | grep -q '1 of 1 project(s) drifted' || err "missing consolidated t
 # ---- 4. an explicit project list overrides --root -------------------------
 out="$(bash "$SWEEP" --root "$TMP/fleet" "$TMP/fleet/noctx" --verbose 2>&1)" && rc=0 || rc=$?
 [ "$rc" = "0" ] || err "explicit list of one clean project exited $rc, expected 0"
-echo "$out" | grep -q 'dirty' && err "explicit project list did not override --root: $out"
+echo "$out" | grep >/dev/null 'dirty' && err "explicit project list did not override --root: $out"
 
 if [ "$fail" -eq 0 ]; then
   echo "OK: compliance-sweep is silent when clean, attributes drift, stays read-only"

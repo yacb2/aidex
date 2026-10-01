@@ -35,7 +35,7 @@ printf '# Findings\n\n- B-1\n' > "$A/20260610-old-run/findings.md"
 
 # --- dry-run: reports, mutates nothing ---
 out="$(bash "$SCRIPTS/migrate-audit.sh" --layout --methodology ux 2>&1)"
-printf '%s' "$out" | grep -q "20260610-old-run" || fail "dry-run should mention the legacy run rename"
+printf '%s' "$out" | grep >/dev/null "20260610-old-run" || fail "dry-run should mention the legacy run rename"
 [[ -f "$A/00-inventory.md" ]] || fail "dry-run must not move boards"
 [[ -d "$A/20260610-old-run" ]] || fail "dry-run must not rename runs"
 
@@ -49,7 +49,7 @@ grep -q '| done |' "$INV" || fail "escalated/closed rows not mapped to done"
 grep -q '| doing |' "$INV" || fail "in-progress row not mapped to doing"
 grep -q '| open |' "$INV" || fail "triaged row not mapped to open"
 if grep -qE 'escalated \||in-progress \||triaged \||closed \|' "$INV"; then
-  fail "legacy status words survive in status cells: $(grep -E 'B-[0-9]' "$INV" | head -2)"
+  fail "legacy status words survive in status cells: $(grep -E 'B-[0-9]' "$INV" | sed -n 1,2p)"
 fi
 grep -q '2026-06-10' "$INV" || fail "YYYYMMDD cell dates not converted to ISO"
 # (removed 2026-08-21) A `grep -qE '\| 2026061[0-9] \|'` sat here with NO FILE
@@ -57,7 +57,7 @@ grep -q '2026-06-10' "$INV" || fail "YYYYMMDD cell dates not converted to ISO"
 # STDIN — hanging the whole suite forever whenever stdin was not already at EOF.
 # Observed: run-all.sh stuck at 24/83 with no output and no timeout. The check it
 # was reaching for is the next line, which does it against "$INV".
-if grep -qE '20260610|20260611|20260612' "$INV"; then fail "legacy YYYYMMDD dates survive: $(grep -E '2026061' "$INV" | head -1)"; fi
+if grep -qE '20260610|20260611|20260612' "$INV"; then fail "legacy YYYYMMDD dates survive: $(grep -E '2026061' "$INV" | sed -n 1p)"; fi
 
 # --- validator is clean (no violations) after migration ---
 bash "$SCRIPTS/validate-audit.sh" "$A" >/dev/null 2>&1 || fail "migrated tree should validate with no violations"

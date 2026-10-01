@@ -86,7 +86,7 @@ pos() { grep -nE "^[0-9]+\. \[ \] .*\b$1\b" "$WL" | cut -d: -f1; }
 [[ $(pos "$DID") -lt $(pos "$BID") ]] && ok "depends edge orders D before B (across file order)" || bad "depends violated: D=$(pos "$DID") B=$(pos "$BID")"
 # merge pair: E adjacent to B and labelled MERGE
 [[ $(( $(pos "$EID") - $(pos "$BID") )) -eq 1 || $(( $(pos "$BID") - $(pos "$EID") )) -eq 1 ]] && ok "merge pair adjacent" || bad "merge pair split"
-grep -E "^[0-9]+\. \[ \] .*\b$EID\b" "$WL" | grep -q "MERGE" && ok "MERGE marked on the pair" || bad "no MERGE marker: $(grep "$EID" "$WL")"
+grep -E "^[0-9]+\. \[ \] .*\b$EID\b" "$WL" | grep >/dev/null "MERGE" && ok "MERGE marked on the pair" || bad "no MERGE marker: $(grep "$EID" "$WL")"
 grep -q "$NID\|$KID\|$RID\|$MID" <<<"$Q" && bad "a non-eligible item was queued" || ok "REVIEW / NEEDS-DECISION / oversize items are not in the queue"
 
 # --include queues a REVIEW item the kickoff has read; --exclude pulls an eligible one

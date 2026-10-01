@@ -137,7 +137,7 @@ set -a
 # point, and reading one declarative line is all that is needed to find the
 # profile.
 if [[ -f "$CONFIG" ]]; then
-  _prof="$(sed -n 's/^[[:space:]]*WT_PROFILE=["'"'"']\{0,1\}\([A-Za-z0-9._-]*\).*/\1/p' "$CONFIG" | head -1)"
+  _prof="$(sed -n 's/^[[:space:]]*WT_PROFILE=["'"'"']\{0,1\}\([A-Za-z0-9._-]*\).*/\1/p' "$CONFIG" | sed -n 1p)"
   if [[ -n "$_prof" ]]; then
     _profile_file="$SELF_DIR/../assets/profiles/$_prof.defaults.env"
     if [[ -f "$_profile_file" ]]; then
@@ -341,7 +341,7 @@ if [[ "$cmd" == "list" ]]; then
     registered=false
     for pp in $WT_PARTICIPANTS; do
       git -C "$ROOT/$pp" worktree list --porcelain 2>/dev/null \
-        | grep -q "^worktree $dr/" && { registered=true; break; }
+        | grep >/dev/null "^worktree $dr/" && { registered=true; break; }
     done
     if ! $registered && ! CLAIMED_SLOT "$sg" >/dev/null; then
       if $PORCELAIN; then printf '%s\t-\t-\t-\tno\tSTRAY-DIR:%s\n' "$sg" "$d"
@@ -378,7 +378,7 @@ if [[ "$cmd" == "list" ]]; then
       slot_taken "$(SLOTDIR_FOR)" "$cand" && continue
       while IFS= read -r line; do
         hp="${line##*=}"
-        hpid="$(lsof -nP -ti :"$hp" -sTCP:LISTEN 2>/dev/null | head -1)"
+        hpid="$(lsof -nP -ti :"$hp" -sTCP:LISTEN 2>/dev/null | sed -n 1p)"
         [[ -n "$hpid" ]] || continue
         found=1
         hcmd="$(ps -o comm= -p "$hpid" 2>/dev/null)"
@@ -616,7 +616,7 @@ case " $WT_COPIES " in
 esac
 write_wt_env() {
   local dest="$1" slot="$2" f="$1/.env"
-  if [[ -e "$f" || -L "$f" ]] && ! head -1 "$f" 2>/dev/null | grep -qF -- "$WT_ENV_MARKER"; then
+  if [[ -e "$f" || -L "$f" ]] && ! head -1 "$f" 2>/dev/null | grep >/dev/null -F -- "$WT_ENV_MARKER"; then
     die "$f exists and was not written by worktree.sh — refusing to overwrite it"
   fi
   { echo "$WT_ENV_MARKER"
@@ -731,7 +731,7 @@ render_env_files() {  # render_env_files <worktree-dir> <slot>
     fi
 
     mkdir -p "$(dirname "$dest")"
-    if [[ -e "$dest" || -L "$dest" ]] && ! head -1 "$dest" 2>/dev/null | grep -qF -- "$WT_ENV_MARKER"; then
+    if [[ -e "$dest" || -L "$dest" ]] && ! head -1 "$dest" 2>/dev/null | grep >/dev/null -F -- "$WT_ENV_MARKER"; then
       { err "$dest exists and was not written by worktree.sh -- refusing to overwrite it"; return 1; }
     fi
 
@@ -1320,7 +1320,7 @@ if [[ "$cmd" == "down" ]]; then
       if out="$(git -C "$ROOT/$repo" branch -d "$br" 2>&1)"; then
         ok "deleted branch $br in $repo"
       else
-        warn "kept branch $br in $repo — $(printf '%s' "$out" | tr '\n' ' ' | head -c 160)"
+        warn "kept branch $br in $repo — $(printf '%s' "$out" | tr '\n' ' ' | cut -c1-160)"
       fi
     done
     fi

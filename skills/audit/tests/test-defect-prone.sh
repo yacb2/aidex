@@ -53,9 +53,9 @@ echo x >> "$WS/backend/apps/billing/views.py"
 out_a="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
 rc=$?
 [[ $rc -eq 0 ]] || fail "(a) missing data file should exit 0 (got $rc)"
-echo "$out_a" | grep -qi 'defect-prone' \
+echo "$out_a" | grep >/dev/null -i 'defect-prone' \
   && fail "(a) no data file must render nothing: $out_a"
-echo "$out_a" | grep -q '^\[billing\]$' \
+echo "$out_a" | grep >/dev/null '^\[billing\]$' \
   || fail "(a) the primary selection must still render: $out_a"
 rm -rf "$WS"
 
@@ -69,15 +69,15 @@ write_data "$WS" "$PFX" "$META" \
   '{"file": "@backend/apps/people/views.py", "share": 0.46, "bug": 6, "touches": 13, "flagged": true}'
 echo x >> "$WS/backend/apps/people/views.py"
 out_b="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_b" | grep -q 'DEFECT-PRONE CHANGES — 1 changed file' \
+echo "$out_b" | grep >/dev/null 'DEFECT-PRONE CHANGES — 1 changed file' \
   || fail "(b) expected the defect-prone header: $out_b"
-echo "$out_b" | grep -q 'above 2x the base bug rate (15.0%)' \
+echo "$out_b" | grep >/dev/null 'above 2x the base bug rate (15.0%)' \
   || fail "(b) meta base rate/ratio should be stated: $out_b"
-echo "$out_b" | grep -q 'NO E2E: module people — no e2e tests mapped' \
+echo "$out_b" | grep >/dev/null 'NO E2E: module people — no e2e tests mapped' \
   || fail "(b) the gap should name the module: $out_b"
-echo "$out_b" | grep -q 'BEFORE this change lands' \
+echo "$out_b" | grep >/dev/null 'BEFORE this change lands' \
   || fail "(b) expected the before-it-lands instruction: $out_b"
-echo "$out_b" | grep -q 'disposable database, never dev' \
+echo "$out_b" | grep >/dev/null 'disposable database, never dev' \
   || fail "(b) the E2E it asks for must respect the disposable-DB E2E contract (coverage/SKILL.md): $out_b"
 rm -rf "$WS"
 
@@ -91,9 +91,9 @@ write_data "$WS" "$PFX" "$META" \
   '{"file": "@backend/apps/billing/views.py", "share": 0.44, "bug": 39, "touches": 88, "flagged": true}'
 echo x >> "$WS/backend/apps/billing/views.py"
 out_c="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_c" | grep -q 'covered: 1 flagged file already reached by e2e specs' \
+echo "$out_c" | grep >/dev/null 'covered: 1 flagged file already reached by e2e specs' \
   || fail "(c) a covered flagged file should count as covered: $out_c"
-echo "$out_c" | grep -q 'NO E2E' \
+echo "$out_c" | grep >/dev/null 'NO E2E' \
   && fail "(c) a covered file must not be reported as a gap: $out_c"
 rm -rf "$WS"
 
@@ -109,7 +109,7 @@ git -C "$WS/frontend" add -A
 write_data "$WS" "$PFX" "$META" \
   '{"file": "@frontend/src/shared/util.ts", "share": 0.35, "bug": 38, "touches": 109, "flagged": true}'
 out_d="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_d" | grep -q 'NO E2E: no module in the map — the gap cannot even be located' \
+echo "$out_d" | grep >/dev/null 'NO E2E: no module in the map — the gap cannot even be located' \
   || fail "(d) an unmapped flagged file should say the gap cannot be located: $out_d"
 rm -rf "$WS"
 
@@ -125,9 +125,9 @@ git -C "$WS/backend" add -A
 write_data "$WS" "$PFX" "$META" \
   '{"file": "@backend/apps/billing/migrations/0035_rename.py", "share": 0.48, "bug": 12, "touches": 25, "flagged": true}'
 out_e="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_e" | grep -q 'suppressed: 1 migration' \
+echo "$out_e" | grep >/dev/null 'suppressed: 1 migration' \
   || fail "(e) a flagged migration should be suppressed AND counted: $out_e"
-echo "$out_e" | grep -q 'NO E2E' \
+echo "$out_e" | grep >/dev/null 'NO E2E' \
   && fail "(e) a migration must not be asked for an E2E spec: $out_e"
 rm -rf "$WS"
 
@@ -141,9 +141,9 @@ write_data "$WS" "someone_else_ws/" "$META" \
   '{"file": "@backend/apps/people/views.py", "share": 0.46, "bug": 6, "touches": 13, "flagged": true}'
 echo x >> "$WS/backend/apps/people/views.py"
 out_f="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_f" | grep -q 'DEFECT-PRONE DATA — 1 row(s), none for this workspace' \
+echo "$out_f" | grep >/dev/null 'DEFECT-PRONE DATA — 1 row(s), none for this workspace' \
   || fail "(f) a prefix mismatch must be named, not read as an all-clear: $out_f"
-echo "$out_f" | grep -q 'nothing was checked' \
+echo "$out_f" | grep >/dev/null 'nothing was checked' \
   || fail "(f) the warning should say nothing was checked: $out_f"
 rm -rf "$WS"
 
@@ -165,12 +165,12 @@ err_g="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
   || fail "(g) --command stdout changed with a data file present: $after_g"
 [[ "$rc_before" -eq "$rc_after" ]] \
   || fail "(g) --command exit code moved from $rc_before to $rc_after"
-echo "$after_g" | grep -qi 'defect-prone' \
+echo "$after_g" | grep >/dev/null -i 'defect-prone' \
   && fail "(g) the advisory section leaked into executed stdout: $after_g"
 # Both routes into this tooling (bugfix step 6, plan-exec verification)
 # call --command. A section only rendered in human mode would be a check nothing
 # calls — the BL-135 defect again — so it must reach the reader here, on stderr.
-echo "$err_g" | grep -q 'NO E2E: module people' \
+echo "$err_g" | grep >/dev/null 'NO E2E: module people' \
   || fail "(g) --command must still surface the gap on stderr: $err_g"
 rm -rf "$WS"
 
@@ -189,7 +189,7 @@ write_data "$WS" "$PFX" "$META" \
 err_g2="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
 python3 "$AFFECTED" "$WS" --command >/dev/null 2>&1
 [[ $? -eq 3 ]] || fail "(g2) an all-unmapped diff should still exit 3"
-echo "$err_g2" | grep -q 'the gap cannot even be located' \
+echo "$err_g2" | grep >/dev/null 'the gap cannot even be located' \
   || fail "(g2) the gap must be named even on the exit-3 path: $err_g2"
 rm -rf "$WS"
 
@@ -204,7 +204,7 @@ write_data "$WS" "$PFX" \
   '{"file": "@backend/apps/people/views.py", "share": 0.99, "bug": 12, "touches": 13, "flagged": true}'
 echo x >> "$WS/backend/apps/people/views.py"
 out_h="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_h" | grep -q 'denominator typed' \
+echo "$out_h" | grep >/dev/null 'denominator typed' \
   || fail "(h) a typed-denominator data file should be called out: $out_h"
 rm -rf "$WS"
 
@@ -217,7 +217,7 @@ write_data "$WS" "$PFX" "$META" \
   '{"file": "@backend/apps/people/views.py", "share": 0.12, "bug": 2, "touches": 17, "flagged": false}'
 echo x >> "$WS/backend/apps/people/views.py"
 out_i="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_i" | grep -qi 'defect-prone' \
+echo "$out_i" | grep >/dev/null -i 'defect-prone' \
   && fail "(i) a non-flagged row must render nothing: $out_i"
 rm -rf "$WS"
 
@@ -240,7 +240,7 @@ write_data "$WS" "$PFX" "$META" \
   '{"file": "@backend/apps/people/views.py", "share": 0.46, "bug": 6, "touches": 13, "flagged": true}'
 echo x >> "$WS/backend/apps/people/views.py"
 out_j="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_j" | grep -q 'e2e mapped but no spec files exist' \
+echo "$out_j" | grep >/dev/null 'e2e mapped but no spec files exist' \
   || fail "(j) mapped-but-absent e2e specs should still be a gap: $out_j"
 rm -rf "$WS"
 
@@ -257,7 +257,7 @@ write_data "$WT" "$PFX" "$META" \
   '{"file": "@backend/apps/people/views.py", "share": 0.46, "bug": 6, "touches": 13, "flagged": true}'
 echo x >> "$WT/backend/apps/people/views.py"
 out_k="$(python3 "$AFFECTED" "$WT" 2>/dev/null)"
-echo "$out_k" | grep -q 'NO E2E: module people' \
+echo "$out_k" | grep >/dev/null 'NO E2E: module people' \
   || fail "(k) a worktree checkout should still match the collapsed prefix: $out_k"
 rm -rf "$WT"
 
@@ -274,7 +274,7 @@ write_data "$WS" "$PFX" \
   '{"file": "@backend/apps/people/views.py", "share": 0.30, "bug": 4, "touches": 13, "flagged": false}'
 echo x >> "$WS/backend/apps/people/views.py"
 out_l="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_l" | grep -q 'denominator typed' \
+echo "$out_l" | grep >/dev/null 'denominator typed' \
   || fail "(l) a typed data file with nothing flagged must still be called out: $out_l"
 rm -rf "$WS"
 
@@ -291,9 +291,9 @@ write_data "$WS" "$PFX" "$META" \
   '{"file": "@backend/apps/billing/views.py", "share": 0.44, "bug": 39, "touches": 88, "flagged": true}'
 echo x >> "$WS/backend/apps/billing/views.py"
 out_m="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_m" | grep -q 'e2e mapped but no spec files exist' \
+echo "$out_m" | grep >/dev/null 'e2e mapped but no spec files exist' \
   || fail "(m) a non-spec file under the e2e glob is not cover: $out_m"
-echo "$out_m" | grep -q 'covered:' \
+echo "$out_m" | grep >/dev/null 'covered:' \
   && fail "(m) zero specs must not read as covered: $out_m"
 rm -rf "$WS"
 

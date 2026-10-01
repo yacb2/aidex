@@ -224,7 +224,7 @@ echo "== defer a doing item (BL-262) =="
 DD="$(bash "$SCRIPTS/register-item.sh" --origin manual --title "doing then deferred" --no-index 2>/dev/null)"; DD_ID="$(awk '/^---/{c++; if(c==2)exit} c==1 && $1=="id:"{print $2}' "$DD")"
 bash "$SCRIPTS/start-item.sh" "$DD_ID" >/dev/null 2>&1
 bash "$SCRIPTS/defer-item.sh" defer "$DD_ID" --reason "cross-repo" >/dev/null 2>&1
-DDF="$(ls .context/backlog/_deferred/*doing-then-deferred*.md 2>/dev/null | head -1)"
+DDF="$(ls .context/backlog/_deferred/*doing-then-deferred*.md 2>/dev/null | sed -n 1p)"
 check "a deferred item is status: open, never doing" '[[ -n "$DDF" ]] && grep -q "^status: open$" "$DDF"'
 
 

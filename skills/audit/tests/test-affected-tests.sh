@@ -27,11 +27,11 @@ echo x >> "$WS/backend/apps/billing/views.py"
 out_a="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
 rc=$?
 [[ $rc -eq 0 ]] || fail "(a) affected_tests should exit 0 (got $rc)"
-echo "$out_a" | grep -q '^\[billing\]$' \
+echo "$out_a" | grep >/dev/null '^\[billing\]$' \
   || fail "(a) billing module should be listed: $out_a"
-echo "$out_a" | grep -q 'unit: backend/apps/billing/tests/.*hint: cd backend && pytest apps/billing/tests/' \
+echo "$out_a" | grep >/dev/null 'unit: backend/apps/billing/tests/.*hint: cd backend && pytest apps/billing/tests/' \
   || fail "(a) unit group + hint missing: $out_a"
-echo "$out_a" | grep -q 'e2e:.*frontend/tests/e2e/billing/.*hint: \./test-e2e\.sh tests/e2e/billing/' \
+echo "$out_a" | grep >/dev/null 'e2e:.*frontend/tests/e2e/billing/.*hint: \./test-e2e\.sh tests/e2e/billing/' \
   || fail "(a) e2e group + hint missing: $out_a"
 rm -rf "$WS"
 
@@ -43,9 +43,9 @@ mkdir -p "$WS/frontend/src/shared"
 echo "export const x = 1;" > "$WS/frontend/src/shared/util.ts"
 git -C "$WS/frontend" add -A
 out_b="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_b" | grep -q 'Unmapped changes' \
+echo "$out_b" | grep >/dev/null 'Unmapped changes' \
   || fail "(b) expected an Unmapped changes section: $out_b"
-echo "$out_b" | grep -q 'frontend/src/shared/util.ts' \
+echo "$out_b" | grep >/dev/null 'frontend/src/shared/util.ts' \
   || fail "(b) unmapped file should be listed: $out_b"
 rm -rf "$WS"
 
@@ -56,7 +56,7 @@ WS="$(bash "$FIXTURE")"
 out_c="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
 rc=$?
 [[ $rc -eq 0 ]] || fail "(c) clean tree should exit 0 (got $rc)"
-echo "$out_c" | grep -q '0 changed files' \
+echo "$out_c" | grep >/dev/null '0 changed files' \
   || fail "(c) expected '0 changed files': $out_c"
 rm -rf "$WS"
 
@@ -73,9 +73,9 @@ err_d="$(python3 "$AFFECTED" "$WS" --since "$TAG" 2>&1 >/dev/null)"
 out_d="$(python3 "$AFFECTED" "$WS" --since "$TAG" 2>/dev/null)"
 rc=$?
 [[ $rc -eq 0 ]] || fail "(d) partial --since result should still exit 0 (got $rc)"
-echo "$err_d" | grep -qi 'warning' \
+echo "$err_d" | grep >/dev/null -i 'warning' \
   || fail "(d) expected a warning for the missing ref in frontend: $err_d"
-echo "$out_d" | grep -q 'billing' \
+echo "$out_d" | grep >/dev/null 'billing' \
   || fail "(d) billing should still be reported from the backend side: $out_d"
 rm -rf "$WS"
 
@@ -87,9 +87,9 @@ rm -rf "$WS"
 WS="$(bash "$FIXTURE")"
 echo "// touched" >> "$WS/frontend/tests/e2e/billing/a.spec.ts"
 out_e="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_e" | grep -q '^\[billing\]$' \
+echo "$out_e" | grep >/dev/null '^\[billing\]$' \
   || fail "(e) changed spec file should attribute to billing: $out_e"
-echo "$out_e" | grep -q 'Unmapped changes' \
+echo "$out_e" | grep >/dev/null 'Unmapped changes' \
   && fail "(e) changed spec file must NOT appear under Unmapped changes: $out_e"
 rm -rf "$WS"
 
@@ -120,11 +120,11 @@ rc=$?
 [[ $rc -eq 0 ]] || fail "(f) --command with a selection should exit 0 (got $rc)"
 [[ "$(echo "$out_f" | grep -vc '^#')" -eq 1 ]] \
   || fail "(f) two modules in one repo must merge into ONE command: $out_f"
-echo "$out_f" | grep -q '^cd backend && pytest apps/billing/tests/ apps/people/tests/' \
+echo "$out_f" | grep >/dev/null '^cd backend && pytest apps/billing/tests/ apps/people/tests/' \
   || fail "(f) merged unit command missing or unmerged: $out_f"
-echo "$out_f" | grep -q '^# e2e specs affected' \
+echo "$out_f" | grep >/dev/null '^# e2e specs affected' \
   || fail "(f) e2e specs should be a comment, never a command: $out_f"
-echo "$out_f" | grep -vE '^#' | grep -q 'test-e2e' \
+echo "$out_f" | grep -vE '^#' | grep >/dev/null 'test-e2e' \
   && fail "(f) --command must not emit an e2e run command: $out_f"
 rm -rf "$WS"
 
@@ -139,9 +139,9 @@ mkdir -p "$WS/frontend/src/shared"
 echo "export const x = 1;" > "$WS/frontend/src/shared/util.ts"
 git -C "$WS/frontend" add -A
 out_g="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_g" | grep -q '^# INCOMPLETE: 1 changed file' \
+echo "$out_g" | grep >/dev/null '^# INCOMPLETE: 1 changed file' \
   || fail "(g) unmapped change should mark the selection INCOMPLETE: $out_g"
-echo "$out_g" | grep -q 'still requires the full suite' \
+echo "$out_g" | grep >/dev/null 'still requires the full suite' \
   || fail "(g) INCOMPLETE line must name the full-suite requirement: $out_g"
 rm -rf "$WS"
 
@@ -154,7 +154,7 @@ NOMAP="$(mktemp -d)"; mkdir -p "$NOMAP/.context"
 python3 "$AFFECTED" "$NOMAP" --command >/dev/null 2>&1
 [[ $? -eq 3 ]] || fail "(h) no module-map under --command should exit 3"
 err_h="$(python3 "$AFFECTED" "$NOMAP" --command 2>&1 >/dev/null)"
-echo "$err_h" | grep -q 'narrowest paths' \
+echo "$err_h" | grep >/dev/null 'narrowest paths' \
   || fail "(h) the no-map message must name the full-suite fallback: $err_h"
 rm -rf "$NOMAP"
 
@@ -167,7 +167,7 @@ rm -rf "$WS"
 WS="$(bash "$FIXTURE")"
 echo x >> "$WS/backend/apps/billing/views.py"
 out_i="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_i" | grep -q '^AFFECTED TESTS — 1 changed file, 1 module$' \
+echo "$out_i" | grep >/dev/null '^AFFECTED TESTS — 1 changed file, 1 module$' \
   || fail "(i) default report regressed: $out_i"
 rm -rf "$WS"
 
@@ -194,11 +194,11 @@ echo x >> "$WS/backend/apps/billing/views.py"
 out_j="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
 rc=$?
 err_j="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
-echo "$out_j" | grep -q 'touch /tmp/aidex-pwned' \
+echo "$out_j" | grep >/dev/null 'touch /tmp/aidex-pwned' \
   && fail "(j) --command emitted a shell-injectable path on stdout: $out_j"
 [[ -z "$out_j" ]] || fail "(j) stdout must be empty when refusing: $out_j"
 [[ $rc -ne 0 ]] || fail "(j) an unsafe map entry must not exit 0 (got $rc)"
-echo "$err_j" | grep -qi 'unsafe' \
+echo "$err_j" | grep >/dev/null -i 'unsafe' \
   || fail "(j) refusal must name the problem: $err_j"
 rm -rf "$WS"
 
@@ -215,7 +215,7 @@ json.dump(m, open(p, "w"), indent=2)
 PY
 echo x >> "$WS/backend/apps/billing/views.py"
 out_j2="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_j2" | grep -q 'apps/billing/tests/test_\*\.py' \
+echo "$out_j2" | grep >/dev/null 'apps/billing/tests/test_\*\.py' \
   || fail "(j) a legitimate glob must survive the guard: $out_j2"
 rm -rf "$WS"
 
@@ -245,9 +245,9 @@ mkdir -p "$WS/frontend/src/shared"
 echo "export const x = 1;" > "$WS/frontend/src/shared/util.ts"
 git -C "$WS/frontend" add -A
 out_k="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_k" | grep -q '^# INCOMPLETE: 1 affected module(s) have no runnable command' \
+echo "$out_k" | grep >/dev/null '^# INCOMPLETE: 1 affected module(s) have no runnable command' \
   || fail "(k) a module with no test_hint must be announced, not dropped: $out_k"
-echo "$out_k" | grep -q 'webonly' \
+echo "$out_k" | grep >/dev/null 'webonly' \
   || fail "(k) the announcement must name the omitted module: $out_k"
 rm -rf "$WS"
 
@@ -297,10 +297,10 @@ json.dump(m, open(p, "w"), indent=2)
 PY
 echo x >> "$WS/backend/apps/billing/views.py"
 out_m="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_m" | grep -q '^cd backend && pytest apps/billing/tests/ apps/billing/perms_tests/$' \
+echo "$out_m" | grep >/dev/null '^cd backend && pytest apps/billing/tests/ apps/billing/perms_tests/$' \
   || fail "(m) every unit glob must reach the --command selection: $out_m"
 out_m2="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_m2" | grep -q 'unit: backend/apps/billing/perms_tests/' \
+echo "$out_m2" | grep >/dev/null 'unit: backend/apps/billing/perms_tests/' \
   || fail "(m) the human report must list the second unit glob: $out_m2"
 rm -rf "$WS"
 
@@ -314,7 +314,7 @@ WS="$(bash "$FIXTURE")"
 echo x >> "$WS/backend/apps/billing/views.py"
 echo x >> "$WS/backend/apps/people/views.py"   # people maps to {unit: [], e2e: []}
 out_n="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_n" | grep -q '^# INCOMPLETE:.*no tests mapped.*people' \
+echo "$out_n" | grep >/dev/null '^# INCOMPLETE:.*no tests mapped.*people' \
   || fail "(n) a changed module with no mapped tests must be announced: $out_n"
 rm -rf "$WS"
 
@@ -338,9 +338,9 @@ echo "<!-- x -->" >> "$WS/frontend/src/billing/Form.vue"
 err_o="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
 python3 "$AFFECTED" "$WS" --command >/dev/null 2>&1
 [[ $? -eq 3 ]] || fail "(o) an e2e-only match has no runnable selection: exit 3"
-echo "$err_o" | grep -q '# e2e specs affected.*frontend/tests/e2e/billing/' \
+echo "$err_o" | grep >/dev/null '# e2e specs affected.*frontend/tests/e2e/billing/' \
   || fail "(o) the e2e spec pointer must survive when no unit command renders: $err_o"
-echo "$err_o" | grep -q 'match no mapped module' \
+echo "$err_o" | grep >/dev/null 'match no mapped module' \
   && fail "(o) the file DID match a module; the message must not claim otherwise: $err_o"
 rm -rf "$WS"
 
@@ -355,7 +355,7 @@ json.dump(m, open(p, "w"), indent=2)
 PY
 echo x >> "$WS/backend/apps/billing/views.py"
 err_o2="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
-echo "$err_o2" | grep -q 'no test_hint' \
+echo "$err_o2" | grep >/dev/null 'no test_hint' \
   || fail "(o) the no-test_hint reason must be surfaced, not swallowed: $err_o2"
 rm -rf "$WS"
 
@@ -369,9 +369,9 @@ out_p="$(python3 "$AFFECTED" "$WS" --since nosuchref 2>/dev/null)"
 rc=$?
 err_p="$(python3 "$AFFECTED" "$WS" --since nosuchref 2>&1 >/dev/null)"
 [[ $rc -eq 2 ]] || fail "(p) a ref missing from every repo is a hard error, exit 2 (got $rc)"
-echo "$out_p" | grep -q '0 changed files' \
+echo "$out_p" | grep >/dev/null '0 changed files' \
   && fail "(p) 'nothing checked' must not read as 'nothing changed': $out_p"
-echo "$err_p" | grep -q 'not found in any repo' \
+echo "$err_p" | grep >/dev/null 'not found in any repo' \
   || fail "(p) the error must say no repo resolved the ref: $err_p"
 rm -rf "$WS"
 
@@ -392,11 +392,11 @@ echo x >> "$WS/backend/apps/billing/views.py"
 err_q="$(python3 "$AFFECTED" "$WS" --command 2>&1 >/dev/null)"
 python3 "$AFFECTED" "$WS" --command >/dev/null 2>&1
 [[ $? -eq 3 ]] || fail "(q) a hard error under --command still exits 3 (full-suite fallback)"
-echo "$err_q" | grep -q 'ghost' \
+echo "$err_q" | grep >/dev/null 'ghost' \
   || fail "(q) the real error (broken repo path) must reach stderr: $err_q"
-echo "$err_q" | grep -q 'no module-map' \
+echo "$err_q" | grep >/dev/null 'no module-map' \
   && fail "(q) the map exists; the message must not say it is missing: $err_q"
-echo "$err_q" | grep -q 'narrowest paths' \
+echo "$err_q" | grep >/dev/null 'narrowest paths' \
   || fail "(q) the fallback instruction must still be there: $err_q"
 rm -rf "$WS"
 
@@ -429,7 +429,7 @@ rm -rf "$WS"
 # ---------------------------------------------------------------------------
 python3 "$AFFECTED" --help >/dev/null 2>&1
 [[ $? -eq 0 ]] || fail "(s) --help must exit 0"
-python3 "$AFFECTED" --help 2>/dev/null | grep -q 'affected_tests.py <workspace-root>' \
+python3 "$AFFECTED" --help 2>/dev/null | grep >/dev/null 'affected_tests.py <workspace-root>' \
   || fail "(s) --help must print the usage line"
 WS="$(bash "$FIXTURE")"
 echo x >> "$WS/backend/apps/billing/views.py"
@@ -459,9 +459,9 @@ mkdir -p "$WS/backend/apps/people/tests"; echo 'def test_x(): pass' > "$WS/backe
 /usr/bin/git -C "$WS/backend" add -A >/dev/null 2>&1; /usr/bin/git -C "$WS/backend" -c user.email=t@t -c user.name=t commit -qm "third kind" >/dev/null 2>&1
 echo x >> "$WS/backend/apps/people/views.py"
 out_t="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_t" | grep -q 'apps/people/tests/' \
+echo "$out_t" | grep >/dev/null 'apps/people/tests/' \
   || fail "(t) a third test kind must reach the --command selection: $out_t"
-echo "$out_t" | grep -q 'no tests mapped.*people' \
+echo "$out_t" | grep >/dev/null 'no tests mapped.*people' \
   && fail "(t) a module mapped through a third kind is NOT 'no tests mapped': $out_t"
 rm -rf "$WS"
 
@@ -475,7 +475,7 @@ rm -rf "$WS/.context"
 echo x >> "$WS/backend/apps/billing/views.py"
 out_u="$(python3 "$AFFECTED" "$WS" --out "$OUT" 2>/dev/null)"; rc=$?
 [[ $rc -eq 0 ]] || fail "(u) --out run should exit 0 (got $rc)"
-echo "$out_u" | grep -q '^\[billing\]$' \
+echo "$out_u" | grep >/dev/null '^\[billing\]$' \
   || fail "(u) --out must read the map from the --out dir: $out_u"
 rm -rf "$WS" "$OUT"
 
@@ -493,12 +493,12 @@ git -C "$WS/backend" add -A >/dev/null 2>&1
 git -C "$WS/backend" -c user.email=t@t -c user.name=t commit -qm colocated >/dev/null 2>&1
 echo x >> "$WS/backend/apps/billing/views.py"
 out_v="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_v" | grep -q 'apps/billing/tests/test_views.py' \
+echo "$out_v" | grep >/dev/null 'apps/billing/tests/test_views.py' \
   || fail "(v) selection should narrow to the colocated test file: $out_v"
 echo "$out_v" | grep -E 'pytest[^#]*apps/billing/tests/( |$)' -q \
   && fail "(v) the whole-module dir must not ride along once narrowed: $out_v"
 out_v2="$(python3 "$AFFECTED" "$WS" 2>/dev/null)"
-echo "$out_v2" | grep -q 'targeted:' \
+echo "$out_v2" | grep >/dev/null 'targeted:' \
   || fail "(v) human report should show the targeted narrowing: $out_v2"
 
 # (w) partial coverage -> whole module, no narrowing
@@ -516,7 +516,7 @@ git -C "$WS/backend" add -A >/dev/null 2>&1
 git -C "$WS/backend" -c user.email=t@t -c user.name=t commit -qm t >/dev/null 2>&1
 echo x >> "$WS/backend/apps/billing/tests/test_only.py"
 out_x="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_x" | grep -q 'apps/billing/tests/test_only.py' \
+echo "$out_x" | grep >/dev/null 'apps/billing/tests/test_only.py' \
   || fail "(x) a changed test file should target itself: $out_x"
 rm -rf "$WS"
 
@@ -527,9 +527,9 @@ echo "export const x = 1;" > "$WS/frontend/src/shared/util.ts"
 git -C "$WS/frontend" add -A >/dev/null 2>&1
 echo x >> "$WS/backend/apps/billing/views.py"
 out_y="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
-echo "$out_y" | grep -q 'full suite before integration' \
+echo "$out_y" | grep >/dev/null 'full suite before integration' \
   || fail "(y) unmapped gate line should name the integration boundary (ADR 2026-08-24): $out_y"
-echo "$out_y" | grep -q 'before this commit' \
+echo "$out_y" | grep >/dev/null 'before this commit' \
   && fail "(y) the commit-gate wording must be gone: $out_y"
 rm -rf "$WS"
 
@@ -556,9 +556,9 @@ echo x >> "$WS/backend/apps/billing/views.py"
 out_z="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
 [[ "$(echo "$out_z" | grep -c '^cd backend && pytest apps/billing/tests/$')" == "1" ]] \
   || fail "(z) backend-only change must emit the pytest line: $out_z"
-echo "$out_z" | grep -q 'tests/unit/billing' \
+echo "$out_z" | grep >/dev/null 'tests/unit/billing' \
   && fail "(z) backend-only change must NOT emit the frontend unit globs: $out_z"
-echo "$out_z" | grep -q '# e2e specs affected.*frontend/tests/e2e/billing/' \
+echo "$out_z" | grep >/dev/null '# e2e specs affected.*frontend/tests/e2e/billing/' \
   || fail "(z) e2e stays advisory across repos: $out_z"
 rm -rf "$WS"
 WS="$(bash "$FIXTURE")"; tworepo "$WS"
@@ -566,7 +566,7 @@ echo "<!-- x -->" >> "$WS/frontend/src/billing/Form.vue"
 out_z2="$(python3 "$AFFECTED" "$WS" --command 2>/dev/null)"
 [[ "$(echo "$out_z2" | grep -c '^\./test-e2e\.sh tests/unit/billing/$')" == "1" ]] \
   || fail "(z) frontend-only change must emit the frontend unit line: $out_z2"
-echo "$out_z2" | grep -q 'pytest' \
+echo "$out_z2" | grep >/dev/null 'pytest' \
   && fail "(z) frontend-only change must NOT emit the pytest line: $out_z2"
 rm -rf "$WS"
 WS="$(bash "$FIXTURE")"; tworepo "$WS"

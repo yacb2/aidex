@@ -56,12 +56,12 @@ grep -qx "seed_bootstrap_cmd: " "$prof" || fail "seed_bootstrap_cmd must be blan
 if python3 "$SCRIPT" "$TMP/p" >/dev/null 2>&1; then fail "second run must refuse without --force"; fi
 python3 "$SCRIPT" --force "$TMP/p" >/dev/null || fail "--force must overwrite"
 # --print never writes.
-rm "$prof"; python3 "$SCRIPT" --print "$TMP/p" | grep -q "^project_slug: demo_app$" || fail "--print output"
+rm "$prof"; python3 "$SCRIPT" --print "$TMP/p" | grep >/dev/null "^project_slug: demo_app$" || fail "--print output"
 [[ -e "$prof" ]] && fail "--print must not write"
 # A web project (no backend/, root package.json) resolves the web packs, never the app ones.
 mkdir -p "$TMP/w"
 printf '{"dependencies":{"payload":"^3","svelte":"^5"},"devDependencies":{"vitest":"^4","@playwright/test":"^1"}}\n' > "$TMP/w/package.json"
-python3 "$SCRIPT" --print "$TMP/w" | grep -qx "testing_packs: testing-payload testing-svelte testing-playwright-web" \
+python3 "$SCRIPT" --print "$TMP/w" | grep >/dev/null -x "testing_packs: testing-payload testing-svelte testing-playwright-web" \
   || fail "web fixture packs: $(python3 "$SCRIPT" --print "$TMP/w" | grep testing_packs)"
 # --check (BL-271): the profile stays facts-only and no testing module crosses the
 # tripwire. NS's profile grew to 553 words with prose sections, and its
@@ -105,16 +105,16 @@ if out="$(python3 "$SCRIPT" --check "$TMP/n")"; then fail "--check with no profi
 # BL-364: the profile is composed from a stack-neutral core plus the keys each detected
 # pack declares. A web project never sees a Postgres or Django key; a project with no
 # recognised pack gets the core plus suite_cmd and nothing about ports, Vite or E2E.
-python3 "$SCRIPT" --print "$TMP/w" | grep -qE "^(db_port|backend_test_cmd|seed_bootstrap_cmd|dev_backend_port):" \
+python3 "$SCRIPT" --print "$TMP/w" | grep >/dev/null -E "^(db_port|backend_test_cmd|seed_bootstrap_cmd|dev_backend_port):" \
   && fail "web fixture must carry no Django/Postgres key: $(python3 "$SCRIPT" --print "$TMP/w")"
-python3 "$SCRIPT" --print "$TMP/w" | grep -qx "frontend_test_cmd: " || fail "web fixture must still carry the frontend keys"
+python3 "$SCRIPT" --print "$TMP/w" | grep >/dev/null -x "frontend_test_cmd: " || fail "web fixture must still carry the frontend keys"
 mkdir -p "$TMP/bare"; printf 'echo tests\n' > "$TMP/bare/run-all.sh"
 bare="$(python3 "$SCRIPT" --print "$TMP/bare")"
 grep -qx "suite_cmd: " <<<"$bare" || fail "a project with no pack must carry suite_cmd: $bare"
 grep -qx "testing_packs: " <<<"$bare" || fail "a project with no pack must still carry testing_packs: $bare"
 grep -qE "^(db_port|dev_frontend_port|e2e_service|helpers_dir|ui_stack|backend_suite_cmd|e2e_detached):" <<<"$bare" \
   && fail "a project with no pack must carry no port, database, Vite or E2E key: $bare"
-sed -n '/^---$/,/^---$/p' <<<"$bare" | grep -q "n/a" && fail "n/a is retired — an inapplicable key is omitted, never answered"
+sed -n '/^---$/,/^---$/p' <<<"$bare" | grep >/dev/null "n/a" && fail "n/a is retired — an inapplicable key is omitted, never answered"
 # The template and the script name the same keys, or one of them is lying.
 TEMPLATE="$HERE/../assets/templates/testing-profile.md.template"
 # Python, not sed|grep: under LC_ALL=C (the suite's locale) grep treated the template's

@@ -55,14 +55,14 @@ printf '# Findings\n\n- **SEC-1** token\n- **SEC-2** rate limit\n- **SEC-3** csr
 
 # ---------- emit ----------
 bash "$EMIT" 2026-06-21-3mo-retro >/dev/null 2>&1 || fail "emit exited non-zero"
-SPEC="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | head -1)"
+SPEC="$(ls .context/loops/*.md 2>/dev/null | grep -v STATE | sed -n 1p)"
 [[ -n "$SPEC" ]] || { echo "FATAL: no loop-spec emitted"; exit 1; }
 
 # ---------- 1. emit marks rows doing + marker, never done ----------
 for id in SEC-1 SEC-2 SEC-3; do
   row="$(grep "^| $id " "$INV")"
-  printf '%s' "$row" | grep -q '| doing |' || fail "$id should be doing after emit, row: $row"
-  printf '%s' "$row" | grep -qE '\| loop/[0-9]{4}-[0-9]{2}-[0-9]{2}-remediate-[a-z0-9-]+ \|' \
+  printf '%s' "$row" | grep >/dev/null '| doing |' || fail "$id should be doing after emit, row: $row"
+  printf '%s' "$row" | grep >/dev/null -E '\| loop/[0-9]{4}-[0-9]{2}-[0-9]{2}-remediate-[a-z0-9-]+ \|' \
     || fail "$id should carry a loop/<filename> marker, row: $row"
 done
 grep -q '^| SEC-4 .*| done |' "$INV" || fail "SEC-4 (already done) must be untouched"
@@ -93,7 +93,7 @@ sed -i.bak -E 's/^(\| SEC-[123] .*)\| done \|/\1| doing |/' "$INV" && rm -f "$IN
 grep -q '^engine: goal' "$SPEC" || fail "engine must be decided, got: $(grep '^engine:' "$SPEC")"
 grep -q '^engine: undecided' "$SPEC" && fail "engine left undecided"
 ENUM="$(grep -m1 '^engine:' "$LOOPCONV/references/02-loop-spec-conventions.md" | sed 's/.*#//' | tr -d ' ' | tr '|' '\n')"
-printf '%s\n' "$ENUM" | grep -qx 'goal' || fail "chosen engine 'goal' is not in the loop-spec enum"
+printf '%s\n' "$ENUM" | grep >/dev/null -x 'goal' || fail "chosen engine 'goal' is not in the loop-spec enum"
 grep -qi 'TODO (operator)' "$SPEC" && fail "spec carries an operator TODO — it needs hand-editing"
 grep -q '____' "$SPEC" && fail "spec carries unfilled ____ blanks — it needs hand-editing"
 grep -q 'remediate 2026-06-21-3mo-retro --check' "$SPEC" || fail "spec's gate does not name the check command"
@@ -139,17 +139,17 @@ printf -- '---\ntitle: "legacy board"\nstatus: doing\ncreated: 2026-07-04\nupdat
 printf '# Findings\n\n- **PERF-1** n+1\n' > "$A/perf/2026-07-04-legacy-board/findings.md"
 
 bash "$EMIT" 2026-07-04-legacy-board >/dev/null 2>&1 || fail "emit on a legacy 11-column board exited non-zero"
-LSPEC="$(ls .context/loops/*legacy-board*.md 2>/dev/null | head -1)"
+LSPEC="$(ls .context/loops/*legacy-board*.md 2>/dev/null | sed -n 1p)"
 [[ -n "$LSPEC" ]] || fail "no loop-spec emitted for the legacy board"
 if [[ -n "$LSPEC" ]]; then
   grep -q '\*\*PERF-1\*\*' "$LSPEC" || fail "legacy board: PERF-1 missing from the work-list (Audit Runs cell read from the wrong column?)"
   grep -q '\*\*PERF-2\*\*' "$LSPEC" && fail "legacy board: PERF-2 is done — must not be listed"
 fi
 lrow="$(grep '^| PERF-1 ' "$A/perf/00-inventory.md")"
-printf '%s' "$lrow" | grep -q '| doing |' || fail "legacy board: PERF-1 should be doing, row: $lrow"
-printf '%s' "$lrow" | grep -qE '\| loop/[0-9]{4}-[0-9]{2}-[0-9]{2}-remediate-[a-z0-9-]+ \|' \
+printf '%s' "$lrow" | grep >/dev/null '| doing |' || fail "legacy board: PERF-1 should be doing, row: $lrow"
+printf '%s' "$lrow" | grep >/dev/null -E '\| loop/[0-9]{4}-[0-9]{2}-[0-9]{2}-remediate-[a-z0-9-]+ \|' \
   || fail "legacy board: marker written to the wrong column, row: $lrow"
-printf '%s' "$lrow" | grep -qE '\| 2026-05-01 \| 2026-06-02 \| 2026-07-04 \|' \
+printf '%s' "$lrow" | grep >/dev/null -E '\| 2026-05-01 \| 2026-06-02 \| 2026-07-04 \|' \
   || fail "legacy board: the First Seen / Last Updated / Audit Runs cells were disturbed, row: $lrow"
 bash "$EMIT" 2026-07-04-legacy-board --check >/dev/null 2>&1
 [[ $? -eq 1 ]] || fail "legacy board: gate should be RED while PERF-1 is unresolved"
@@ -161,7 +161,7 @@ RE_OUT="$(bash "$EMIT" 2026-06-21-3mo-retro 2>&1)"
 [[ $? -ne 0 ]] || fail "re-emit should refuse while a live remediation spec holds the rows"
 # The refusal must be the MARKER check, not an incidental same-day filename
 # collision -- that one disappears tomorrow and takes the guard with it.
-printf '%s' "$RE_OUT" | grep -q 'already held by loop/' \
+printf '%s' "$RE_OUT" | grep >/dev/null 'already held by loop/' \
   || fail "re-emit refused for the wrong reason (expected the held-marker check), got: $RE_OUT"
 [[ "$(ls .context/loops/*3mo-retro*.md 2>/dev/null | wc -l | tr -d ' ')" == "1" ]] \
   || fail "a refused re-emit must not leave a second spec behind"

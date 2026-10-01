@@ -22,7 +22,7 @@ refused() { # refused <label> <id> <file> <expected message fragment>
   local before rc; before="$(cat "$3")"
   bash "$SCRIPTS/close-item.sh" "$2" --sweep --no-index >/dev/null 2>"$TMP/err"; rc=$?
   [[ $rc -eq 0 ]] && { bad "$1: closed"; return; }
-  [[ $rc -eq 2 ]] && grep -q "$4" "$TMP/err" && ok "$1: exit 2 — $(grep -o "$4" "$TMP/err" | head -1)" || bad "$1: rc=$rc $(cat "$TMP/err")"
+  [[ $rc -eq 2 ]] && grep -q "$4" "$TMP/err" && ok "$1: exit 2 — $(grep -o "$4" "$TMP/err" | sed -n 1p)" || bad "$1: rc=$rc $(cat "$TMP/err")"
   [[ "$(cat "$3")" == "$before" && -f "$3" ]] && ok "$1: file unchanged, still active" || bad "$1: file mutated or moved"
 }
 

@@ -124,8 +124,8 @@ if [[ -e "$D3/.git" ]]; then
     || fail "docker-compose.yml was replaced by a symlink into the main tree"
   [[ -z "$(/usr/bin/git -C "$D3" status --porcelain 2>/dev/null)" ]] \
     && ok "the root checkout is clean, so git worktree remove will not refuse" \
-    || fail "the checkout is dirty: $(/usr/bin/git -C "$D3" status --porcelain | head -2 | tr '\n' ' ')"
-  printf '%s' "$out3" | grep -qi "skip" \
+    || fail "the checkout is dirty: $(/usr/bin/git -C "$D3" status --porcelain | sed -n 1,2p | tr '\n' ' ')"
+  printf '%s' "$out3" | grep >/dev/null -i "skip" \
     && ok "the skip is announced, not silent" \
     || fail "nothing in the output tells the reader the link was skipped"
   # The consequence that makes the dirt matter: IS_DIRTY reads $DEST, so bookkeeping

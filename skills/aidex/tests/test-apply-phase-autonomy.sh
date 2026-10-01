@@ -67,7 +67,7 @@ done <<<"$rows"
 
 # ---------- (3) the non-reversible kinds stay gated ----------
 for needle in 'Plugin uninstall' 'deletes'; do
-  row="$(grep -iE "$needle" <<<"$rows" | head -1)"
+  row="$(grep -iE "$needle" <<<"$rows" | sed -n 1p)"
   if [[ -z "$row" ]]; then
     fail "(3) no apply-phase row mentions '$needle' any more — the non-reversible kinds must stay listed"
   elif ! grep -qiE '\| *1 +—' <<<"$row" || ! grep -qiE '[Ss]till gated' <<<"$row"; then

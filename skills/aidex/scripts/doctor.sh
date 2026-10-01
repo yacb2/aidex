@@ -73,7 +73,7 @@ $(basename "$d")"
     name="$(basename "$d")"
     if [[ "$name" == aidex-* ]]; then
       if [[ -L "$d" ]]; then stray+=("$name|link"); else stray+=("$name|dir"); fi
-    elif printf '%s\n' "$plugin_skills" | grep -qxF "$name"; then
+    elif printf '%s\n' "$plugin_skills" | grep >/dev/null -xF "$name"; then
       shadowed+=("$name")
     fi
   done < <(find "$CLAUDE_DIR/skills" -maxdepth 1 -mindepth 1 \( -type d -o -type l \) 2>/dev/null | sort)
