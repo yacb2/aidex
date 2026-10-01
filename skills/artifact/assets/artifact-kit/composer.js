@@ -453,7 +453,7 @@
       } else {
         k.textContent = u.node.dataset.id || '';
         var line = decidedSummary(u.node);
-        v.textContent = (u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
+        v.textContent = (u.node.dataset.heading || u.node.dataset.title || '') + (line ? ' \u2014 ' + line : '');
       }
       sum.appendChild(k);
       sum.appendChild(v);
@@ -562,7 +562,10 @@
      * which collect() already tolerates. */
     if (isDecided(el) && el.closest('.consult-group')) return;
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
-    var a = railLink(cls, '#' + el.id, el.dataset.id, el.dataset.title || '');
+    /* A row with a human heading (data-heading, a gallery row) lists by it and
+     * without its slug id: the id stays the anchor and what a reply names. */
+    var a = railLink(cls, '#' + el.id, el.dataset.heading ? '' : el.dataset.id,
+                     el.dataset.heading || el.dataset.title || '');
     list.appendChild(a);
     links[i] = a;
   }
@@ -1708,6 +1711,10 @@
     /* The region-mark layer: sized over the current image by placeOver(),
      * never over the sibling, and hidden by components.css whenever compare
      * is on — marks belong to the tile being judged. */
+    var hl = document.createElement('div');   /* the row's highlight outline (BL-596) */
+    hl.className = 'kit-hl-layer';
+    hl.setAttribute('aria-hidden', 'true');
+    stack.appendChild(hl);
     var mlayer = document.createElement('div');
     mlayer.className = 'kit-marks-layer';
     mlayer.title = L.markHint;
@@ -1749,8 +1756,12 @@
       opener = fig;
       img.setAttribute('src', src ? src.getAttribute('src') : '');
       img.setAttribute('alt', src ? (src.getAttribute('alt') || '') : '');
-      hRow.textContent = (row && row.dataset.title) || '';
+      hRow.textContent = (row && (row.dataset.heading || row.dataset.title)) || '';
       hRow.title = hRow.textContent;      /* a narrow header truncates it */
+      /* The tile's highlight, copied as drawn (percentages of the capture). */
+      hl.textContent = '';
+      var hs = fig.querySelector('.gal-hl-layer');
+      if (hs) [].forEach.call(hs.children, function (c) { hl.appendChild(c.cloneNode(true)); });
       cancelDraft();
       var set = shotFigures(fig);
       dlg.classList.toggle('shots', set.length > 0);
@@ -1799,7 +1810,7 @@
         other.naturalWidth + 'x' + other.naturalHeight) : '';
       hWith.textContent = on ? '\u2194 ' + sib.getAttribute('data-tile') : '';
       if (on) cancelDraft();          /* marks are drawn with compare off */
-      placeOver(hlayer, img);
+      placeOver(hlayer, img); placeOver(hl, img);
       /* A disabled control loses the focus to the body, outside the dialog,
        * and the arrows die with it: park the focus on the dialog first. */
       if (!sib && cmpBtns.indexOf(document.activeElement) !== -1) dlg.focus();
@@ -1843,7 +1854,7 @@
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
       /* show() ran while the dialog was closed, when the image had no box. */
       placeOver(mlayer, img);
-      placeOver(hlayer, img);
+      placeOver(hlayer, img); placeOver(hl, img);
     }
 
     bSize.addEventListener('click', function () {
@@ -2059,7 +2070,7 @@
 
     var ro = window.ResizeObserver ? new ResizeObserver(function (entries) {
       entries.forEach(function (e) {
-        if (e.target === img || e.target === stack) { placeOver(mlayer, img); placeOver(hlayer, img); }
+        if (e.target === img || e.target === stack) { placeOver(mlayer, img); placeOver(hlayer, img); placeOver(hl, img); }
         else placeTile(e.target.closest('figure') || e.target);
       });
     }) : null;

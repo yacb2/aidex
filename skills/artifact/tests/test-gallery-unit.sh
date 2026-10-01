@@ -116,8 +116,8 @@ bash "$GEN" "$TMP/rows-reordered.json" --root "$ROOT" --page "$PAGE" --group-id 
 
 # -- the pair -----------------------------------------------------------------
 pair="$(item audit-empty-light-desktop "$TMP/group.html")"
-grep -q 'data-title="audit · empty · light-desktop" data-variant="light-desktop">' <<<"$pair" \
-  && ok "the item carries data-title '<gallery> · <cell> · <variant>' and its variant" \
+grep -q 'data-title="audit · empty · light-desktop" data-heading="Empty" data-variant="light-desktop">' <<<"$pair" \
+  && ok "the item carries data-title '<gallery> · <cell> · <variant>' (the reply's key), its readable data-heading and its variant" \
   || fail "the pair's open tag is not the declared shape: $(head -1 <<<"$pair")"
 grep -q 'data-tiles=' <<<"$pair" \
   && fail "a row with a before narrows the matrix — it must show the whole pair" \
@@ -127,13 +127,13 @@ grep -q 'data-tiles=' <<<"$pair" \
   || fail "the pair is not before then after: $(grep -o 'figure data-tile="[a-z]*"' <<<"$pair")"
 # Each src is the capture's copy beside the page, named by its content (BL-474).
 copy() { printf 'page-assets/gallery/%s.png' "$(shasum -a 256 "$ROOT/$1" | cut -c1-16)"; }
-grep -qF "<figure data-tile=\"before\"><img src=\"$(copy shots/light-desktop/audit-empty.png)\" alt=\"audit · empty · light-desktop · antes\" width=\"160\" height=\"90\" loading=\"lazy\"><figcaption>antes</figcaption></figure>" <<<"$pair" \
+grep -qF "<figure data-tile=\"before\"><img src=\"$(copy shots/light-desktop/audit-empty.png)\" alt=\"Empty · antes\" width=\"160\" height=\"90\" loading=\"lazy\"><figcaption>antes</figcaption></figure>" <<<"$pair" \
   && grep -qF "<figure data-tile=\"after\"><img src=\"$(copy actual/light-desktop/audit-empty.png)\"" <<<"$pair" \
   && grep -qF '<figcaption>propuesto</figcaption>' <<<"$pair" \
   && ok "before is the baseline labelled 'antes', after the run's render labelled 'propuesto', each with its own size" \
   || fail "the pair's figures are not the declared shape: $(grep figure <<<"$pair")"
-grep -q 'Claro · escritorio: antes y propuesto' <<<"$pair" \
-  && ok "the row names its variant in the page's language" \
+grep -q '<p class="gal-variant">Vista: escritorio, tema claro</p>' <<<"$pair" \
+  && ok "the row names its variant once, under the captures, in words of the page's language" \
   || fail "the row does not name its variant: $pair"
 
 # -- a new screen: one capture ------------------------------------------------
@@ -165,12 +165,12 @@ d = json.load(open(sys.argv[1])); d["rows"][2]["also"] = ["dark-desktop", "light
 json.dump(d, open(sys.argv[2], "w"))
 PY
 bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/also.html" 2>"$TMP/also.err"
-grep -qF '<p class="gal-flag">cambió sin que lo pidieras · también en: oscuro · escritorio, claro · móvil</p>' "$TMP/also.html" \
+grep -qF '<p class="gal-flag">cambió sin que lo pidieras · también en: escritorio, tema oscuro; móvil, tema claro</p>' "$TMP/also.html" \
   && [[ -n "$(item audit-loaded-dark-mobile-unrequested "$TMP/also.html")" ]] \
   && ok "also adds 'también en: <variants>' to the marker, and the row id stays <gallery>-<cell>-<variant>-unrequested" \
   || fail "the also variants are not on the marker: $(grep gal-flag "$TMP/also.html") $(cat "$TMP/also.err")"
 bash "$GEN" "$TMP/rows-also.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en 2>/dev/null \
-  | grep >/dev/null -F '<p class="gal-flag">changed without you asking · also in: dark · desktop, light · mobile</p>' \
+  | grep >/dev/null -F '<p class="gal-flag">changed without you asking · also in: desktop, dark theme; mobile, light theme</p>' \
   && ok "…and 'also in: …' in English" \
   || fail "the English marker does not carry 'also in'"
 
@@ -226,7 +226,7 @@ json.dump(d, open(sys.argv[2], "w"))
 PY
 bash "$GEN" "$TMP/rows-na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/na.html" 2>"$TMP/na.err"
 na="$(item audit-no-permission-not-applicable "$TMP/na.html")"
-grep -q 'data-id="audit-no-permission-not-applicable" data-title="audit · no-permission">' <<<"$na" \
+grep -q 'data-id="audit-no-permission-not-applicable" data-title="audit · no-permission" data-heading="No permission">' <<<"$na" \
   && grep -q '<p class="gal-na">Every role that reaches this screen holds the permission.</p>' <<<"$na" \
   && ! grep -q '<figure' <<<"$na" && [[ "$(grep -c 'type="radio"' <<<"$na")" == 3 ]] \
   && ok "a notApplicable row is <gallery>-<cell>-not-applicable, its reason instead of captures, with one answer" \

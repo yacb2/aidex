@@ -61,13 +61,16 @@ TILE_WORDS = {"es": {"before": "antes", "after": "propuesto",
               "en": {"before": "before", "after": "proposed",
                      "new": "new screen"}}
 
-# What a variant name says, in the page's language. A variant is
-# `<mode>-<viewport>`; anything that does not split into two known words is
-# shown as its own name rather than guessed at.
-MODE_WORDS = {"es": {"light": "claro", "dark": "oscuro"},
-              "en": {"light": "light", "dark": "dark"}}
-VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil"},
-              "en": {"desktop": "desktop", "mobile": "mobile"}}
+# What a variant name says, in the page's language (see `variant_label`).
+VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil",
+                     "tablet": "tableta"},
+              "en": {"desktop": "desktop", "mobile": "mobile",
+                     "tablet": "tablet"}}
+# The variant line under a capture (BL-594): said once, in the page's language,
+# `<view>, <theme>`; a variant that does not split is shown as its own name.
+VARIANT_LINE = {"es": "Vista: %s", "en": "View: %s"}
+THEME_WORDS = {"es": {"light": "tema claro", "dark": "tema oscuro"},
+               "en": {"light": "light theme", "dark": "dark theme"}}
 
 # `review` is a row the owner chose (a declared change in a chosen variant);
 # `unrequested` is a cell that moved without being in the change set; `sample`
@@ -78,7 +81,7 @@ VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil"},
 KINDS = ("review", "unrequested", "sample", "alternatives")
 
 VERDICTS = {
-    "es": [("Aprobada", "Aprobada: lo propuesto queda como baseline"),
+    "es": [("Aprobada", "Aprobada: lo propuesto queda como referencia"),
            ("Necesita cambios", "Necesita cambios (di cuáles en las notas)"),
            ("No puedo juzgarla así", "No puedo juzgarla con esta captura")],
     "en": [("Approved", "Approved: the proposed capture becomes the baseline"),
@@ -86,27 +89,27 @@ VERDICTS = {
            ("Cannot judge", "Cannot judge it from this capture")],
 }
 
+# The ONE instruction of a gallery (BL-595), written under the block's heading
+# and assembled from the kinds of row it holds, so a row repeats nothing.
 INTRO = {
-    "es": {"pair": "%s: antes y propuesto. Marca tu respuesta y, si necesita "
-                   "cambios, di cuáles en las notas de esta fila.",
-           "new": "%s: la pantalla es nueva, así que no hay antes. Marca tu "
-                  "respuesta y, si necesita cambios, di cuáles en las notas "
-                  "de esta fila.",
-           "sample": "%s: una muestra, no hay nada que aprobar.",
-           "alt": "%s: variantes de esta celda. Elige una y, si quieres "
-                  "matizar, di por qué en las notas de esta fila.",
-           "na": "Este estado no se puede mostrar, por el motivo de abajo. "
-                 "Marca tu respuesta."},
-    "en": {"pair": "%s: before and proposed. Mark your answer and, if it "
-                   "needs changes, say which in the row's notes.",
-           "new": "%s: the screen is new, so there is no before. Mark your "
-                  "answer and, if it needs changes, say which in the row's "
-                  "notes.",
-           "sample": "%s: a sample, nothing to approve.",
-           "alt": "%s: variants of this cell. Pick one and, if you want to "
-                  "qualify it, say why in the row's notes.",
-           "na": "This state cannot be shown, for the reason below. Mark "
-                 "your answer."},
+    "es": {"ask": "Marca tu respuesta en cada fila y, si necesita cambios, di "
+                  "cuáles en las notas de esa fila.",
+           "new": "Donde hay una sola captura, la pantalla es nueva y no hay "
+                  "antes.",
+           "sample": "Las muestras no piden respuesta.",
+           "alt": "Elige una variante en cada fila y, si quieres matizar, di "
+                  "por qué en las notas de esa fila.",
+           "na": "Un estado que no se puede mostrar explica el motivo en su "
+                 "fila; marca tu respuesta igual."},
+    "en": {"ask": "Mark your answer on each row and, if it needs changes, say "
+                  "which in that row's notes.",
+           "new": "Where there is a single capture, the screen is new and "
+                  "there is no before.",
+           "sample": "Samples ask for no answer.",
+           "alt": "Pick a variant on each row and, if you want to qualify it, "
+                  "say why in that row's notes.",
+           "na": "A state that cannot be shown gives the reason on its row; "
+                 "mark your answer anyway."},
 }
 
 # Verdicts past this many stay behind a <summary>: the row asks verdict + note.
@@ -151,13 +154,31 @@ def e(s):
 
 
 def variant_label(variant, lang):
+    """`escritorio, tema claro`: a variant is `<mode>-<viewport>`, said in the
+    page's language; one that does not split is shown as its own name."""
     parts = variant.split("-")
     if len(parts) == 2:
-        mode = MODE_WORDS[lang].get(parts[0])
+        mode = THEME_WORDS[lang].get(parts[0])
         view = VIEW_WORDS[lang].get(parts[1])
         if mode and view:
-            return mode + " · " + view
+            return view + ", " + mode
     return variant
+
+
+def variant_line(variant, lang):
+    """`Vista: escritorio, tema claro` — the variant once, under the capture."""
+    return VARIANT_LINE[lang] % variant_label(variant, lang)
+
+
+def row_heading(row_title, cell):
+    """What the reader sees as the row's heading and in the rail: the row's own
+    `title`, else the cell's name read as words (`users-list-menu` -> `Users
+    list menu`) — never the `<gallery> · <cell> · <variant>` key, which stays
+    the reply's `data-title` (gallery_reply.py reads rows by it)."""
+    if row_title:
+        return row_title
+    words = cell.replace("-", " ")
+    return words[:1].upper() + words[1:]
 
 
 def row_id(gallery, cell, variant, kind):
@@ -278,6 +299,47 @@ def load(path):
     return doc
 
 
+LAYOUTS = ("stacked", "side")
+
+
+def check_title(row, cell):
+    """The row's optional human heading (BL-577): one line of plain text in the
+    page's language. It is shown, never parsed, so it may say anything."""
+    title = row.get("title")
+    if title is None:
+        return None
+    if not isinstance(title, str) or not title.strip() \
+            or "\n" in title or "\r" in title:
+        die("row '%s': 'title' must be a non-empty single line of text"
+            % cell)
+    return title.strip()
+
+
+def check_highlight(value, cell, key="highlight"):
+    """`highlight`: one region {x, y, w, h} in the capture's own pixels, or a
+    non-empty list of them (BL-596). Returns a list of 4-tuples; whether it
+    fits the capture is checked against its size in `render`."""
+    regions = value if isinstance(value, list) else [value]
+    if not regions:
+        die("row '%s': '%s' is an empty list — leave it out, or give "
+            "at least one {x, y, w, h}" % (cell, key))
+    out = []
+    for r in regions:
+        if not isinstance(r, dict) or set(r) != {"x", "y", "w", "h"}:
+            die("row '%s': a highlight is {\"x\", \"y\", \"w\", \"h\"} in "
+                "capture pixels, not %r (%s)" % (cell, r, key))
+        for k, v in r.items():
+            if isinstance(v, bool) or not isinstance(v, (int, float)) \
+                    or v != v or v in (float("inf"), float("-inf")):
+                die("row '%s': highlight '%s' must be a number, not %r"
+                    % (cell, k, v))
+        if r["x"] < 0 or r["y"] < 0 or r["w"] <= 0 or r["h"] <= 0:
+            die("row '%s': a highlight needs x, y >= 0 and w, h > 0 (got %r)"
+                % (cell, r))
+        out.append((r["x"], r["y"], r["w"], r["h"]))
+    return out
+
+
 def check_row(row, variants, n, alts=None, require_look=False):
     """Every refusal a row can earn, named by cell rather than by index.
     Returns a dict: `cell` and `kind` always; `variant`, `before`, `after`,
@@ -298,7 +360,8 @@ def check_row(row, variants, n, alts=None, require_look=False):
         if "before" in row or "after" in row:
             die("row '%s' carries both captures and 'notApplicable' — a row "
                 "is either shown or not applicable, never both" % cell)
-        out = {"cell": cell, "kind": None, "after": reason.strip()}
+        out = {"cell": cell, "kind": None, "after": reason.strip(),
+               "title": check_title(row, cell)}
         if "dropped" in row:
             gone = row["dropped"]
             if not isinstance(gone, str) or not gone.strip():
@@ -334,13 +397,27 @@ def check_row(row, variants, n, alts=None, require_look=False):
             die("row '%s' is both dropped and decided — it left the "
                 "question set or it was settled, not both" % cell)
         return {"cell": cell, "variant": variant, "kind": kind,
-                "dropped": reason.strip()}
+                "dropped": reason.strip(), "title": check_title(row, cell)}
     # A review row is a variant the owner chose; an unrequested one may be any
     # variant the harness captured — that is the point of it.
     if kind == "review" and variant not in variants:
         die("row '%s' is a review row in variant '%s', which is not one of "
             "the chosen variants (%s)" % (cell, variant, " ".join(variants)))
-    out = {"cell": cell, "variant": variant, "kind": kind}
+    out = {"cell": cell, "variant": variant, "kind": kind,
+           "title": check_title(row, cell)}
+    if "highlight" in row:
+        out["highlight"] = check_highlight(row["highlight"], cell, "highlight")
+    if "highlight_before" in row:
+        if "before" not in row:
+            die("row '%s': 'highlight_before' needs a 'before' capture" % cell)
+        out["highlight_before"] = check_highlight(row["highlight_before"],
+                                                  cell, "highlight_before")
+    layout = row.get("layout")
+    if layout is not None:
+        if layout not in LAYOUTS:
+            die("row '%s': 'layout' is %r, not one of %s"
+                % (cell, layout, ", ".join(LAYOUTS)))
+        out["layout"] = layout
     if "decided" in row:
         if not isinstance(row["decided"], str) or not row["decided"].strip():
             die("row '%s': 'decided' must be a non-empty string (the "
@@ -412,7 +489,33 @@ def check_row(row, variants, n, alts=None, require_look=False):
     return out
 
 
-def figure(root, path, tile, caption, cell, alt, assets, copies):
+def pct(v):
+    return ("%.3f" % v).rstrip("0").rstrip(".") + "%"
+
+
+def highlight_layer(regions, width, height, cell, tile):
+    """The outline layer of a tile (BL-596): a CSS overlay in percentages of
+    THIS capture, so it scales with the image and edits no pixel. A region that
+    leaves the capture it was measured on is refused. `highlight` is the AFTER's
+    (a before has a different layout); a before gets one only from
+    `highlight_before`, measured on the before capture."""
+    boxes = []
+    for x, y, w, h in regions:
+        if x + w > width or y + h > height:
+            die("row '%s': highlight %dx%d at %s,%s runs outside the %s "
+                "capture (%dx%d px) — the region is in that capture's own "
+                "pixels" % (cell, w, h, x, y, tile, width, height))
+        boxes.append('<span class="gal-hl" style="left:%s;top:%s;width:%s;'
+                     'height:%s"></span>'
+                     % (pct(100.0 * x / width), pct(100.0 * y / height),
+                        pct(100.0 * w / width), pct(100.0 * h / height)))
+    return ('<span class="gal-hl-layer" aria-hidden="true" '
+            'style="aspect-ratio:%d / %d">%s</span>'
+            % (width, height, "".join(boxes)))
+
+
+def figure(root, path, tile, caption, cell, alt, assets, copies,
+           regions=None):
     """One tile. `assets` is the page-relative dir of the copies and the src is
     the capture's copy there; the copy is only recorded in `copies` (name ->
     source), and `render` makes it once every row has passed. Without a page
@@ -430,9 +533,11 @@ def figure(root, path, tile, caption, cell, alt, assets, copies):
         name = hashlib.sha256(fh.read()).hexdigest()[:16] + ".png"
     copies[name] = full
     src = urllib.parse.quote("%s/%s" % (assets, name))
+    layer = highlight_layer(regions, width, height, cell, tile) \
+        if regions else ""
     return ('      <figure data-tile="%s"><img src="%s" alt="%s" width="%d"'
-            ' height="%d" loading="lazy"><figcaption>%s</figcaption></figure>'
-            % (e(tile), e(src), e(alt), width, height, e(caption)))
+            ' height="%d" loading="lazy">%s<figcaption>%s</figcaption></figure>'
+            % (e(tile), e(src), e(alt), width, height, layer, e(caption)))
 
 
 def radio(ident, label, text):
@@ -470,21 +575,22 @@ def notes(lang):
 
 
 def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
-           decided=None):
+           decided=None, heading=None):
     """`<gallery>-<cell>-not-applicable`, titled `<gallery> · <cell>`: a
     not-applicable cell has no variant. The suffix keeps the id apart from the
     old light/dark matrix's `<gallery>-<cell>`, whose verdicts were given on
     four captures, not on a reason."""
     ident = "%s-%s-not-applicable" % (gallery, cell)
     title = "%s · %s" % (gallery, cell)
+    heading = row_heading(heading, cell)
     if dropped is not None:
         return "\n".join(
             ['  <section class="consult-item consult-gallery" data-id="%s"'
-             ' data-title="%s" data-decided="%s" data-dropped="%s">'
-             % (e(ident), e(title), e(DROPPED_WORD[lang] + ": " + dropped),
-                e(dropped)),
-             '    <h3><span class="consult-id">%s</span>%s</h3>'
-             % (e(ident), e(title)),
+             ' data-title="%s" data-heading="%s" data-decided="%s"'
+             ' data-dropped="%s">'
+             % (e(ident), e(title), e(heading),
+                e(DROPPED_WORD[lang] + ": " + dropped), e(dropped)),
+             '    <h3>%s</h3>' % e(heading),
              '    <p class="gal-na">%s</p>' % e(dropped)]
             + notes(lang) + ['  </section>'])
     choices = list(VERDICTS[lang])
@@ -493,12 +599,34 @@ def na_row(gallery, cell, reason, lang, alts=False, dropped=None,
     settled = ' data-decided="%s"' % e(decided) if decided else ''
     return "\n".join(
         ['  <section class="consult-item consult-gallery" data-id="%s"'
-         ' data-title="%s"%s>' % (e(ident), e(title), settled),
-         '    <h3><span class="consult-id">%s</span>%s</h3>'
-         % (e(ident), e(title)),
-         '    <p>%s</p>' % e(INTRO[lang]["na"]),
+         ' data-title="%s" data-heading="%s"%s>'
+         % (e(ident), e(title), e(heading), settled),
+         '    <h3>%s</h3>' % e(heading),
          '    <p class="gal-na">%s</p>' % e(reason)]
         + options(ident, lang, choices) + notes(lang) + ['  </section>'])
+
+
+def group_intro(doc, variants, alts, require_look, lang):
+    """The block's one instruction (BL-595): which sentences apply depends on
+    the kinds of row the block holds. Rows are only classified here; `render`
+    still checks every one."""
+    shapes = set()
+    for n, row in enumerate(doc["rows"], 1):
+        r = check_row(row, variants, n, alts, require_look)
+        if "dropped" in r:
+            continue
+        if r["kind"] is None:
+            shapes.add("na")
+        elif r["kind"] == "alternatives":
+            shapes.add("alt")
+        elif r["kind"] == "sample":
+            shapes.add("sample")
+        else:
+            shapes.add("ask")
+            if r.get("before") is None:
+                shapes.add("new")
+    return " ".join(INTRO[lang][k] for k in ("ask", "new", "alt", "sample", "na")
+                    if k in shapes)
 
 
 def render(doc, root, group_id, group_title, lang, page=None,
@@ -531,6 +659,9 @@ def render(doc, root, group_id, group_title, lang, page=None,
     add('  <div class="sec-head">')
     add('    <h2>%s</h2>' % e(group_title))
     add('  </div>')
+    intro = group_intro(doc, variants, alts, require_look, lang)
+    if intro:
+        add('  <p class="gal-intro">%s</p>' % e(intro))
     seen, unrequested, ids = {}, {}, {}
     for n, row in enumerate(doc["rows"], 1):
         r = check_row(row, variants, n, alts, require_look)
@@ -560,7 +691,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
                     % (ids[na_id], n, cell, na_id))
             ids[na_id] = n
             add(na_row(gallery, cell, after, lang, alts=bool(alts),
-                       dropped=r.get("dropped"), decided=r.get("decided")))
+                       dropped=r.get("dropped"), decided=r.get("decided"),
+                       heading=r.get("title")))
             continue
         ident = row_id(gallery, cell, variant, kind)
         if not ROW_ID.match(ident):
@@ -571,18 +703,18 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 % (ids[ident], n, ident))
         ids[ident] = n
         title = "%s · %s · %s" % (gallery, cell, variant)
+        heading = row_heading(r.get("title"), cell)
         # A dropped row is out of the question set: same id, title and kind as
         # when it was asked, the reason where the tiles were, and a decided
         # mark so the composer folds it and counts it nowhere.
         if "dropped" in r:
             reason = r["dropped"]
             add('  <section class="consult-item consult-gallery" data-id="%s"'
-                ' data-title="%s" data-variant="%s" data-decided="%s"'
-                ' data-dropped="%s">'
-                % (e(ident), e(title), e(variant),
+                ' data-title="%s" data-heading="%s" data-variant="%s"'
+                ' data-decided="%s" data-dropped="%s">'
+                % (e(ident), e(title), e(heading), e(variant),
                    e(DROPPED_WORD[lang] + ": " + reason), e(reason)))
-            add('    <h3><span class="consult-id">%s</span>%s</h3>'
-                % (e(ident), e(title)))
+            add('    <h3>%s</h3>' % e(heading))
             add('    <p class="gal-na">%s</p>' % e(reason))
             out.extend(notes(lang))
             add('  </section>')
@@ -593,40 +725,44 @@ def render(doc, root, group_id, group_title, lang, page=None,
             else ' data-tiles="after"'
         settled = ' data-decided="%s"' % e(r["decided"]) if "decided" in r else ''
         add('  <section class="consult-item consult-gallery" data-id="%s"'
-            ' data-title="%s" data-variant="%s"%s%s>'
-            % (e(ident), e(title), e(variant), narrow, settled))
-        add('    <h3><span class="consult-id">%s</span>%s</h3>'
-            % (e(ident), e(title)))
+            ' data-title="%s" data-heading="%s" data-variant="%s"%s%s>'
+            % (e(ident), e(title), e(heading), e(variant), narrow, settled))
+        add('    <h3>%s</h3>' % e(heading))
         if kind == "unrequested":
             flag = FLAG[lang]
             if row.get("also"):
-                flag += " · " + ALSO[lang] + ", ".join(
+                flag += " · " + ALSO[lang] + "; ".join(
                     variant_label(v, lang) for v in row["also"])
             add('    <p class="gal-flag">%s</p>' % e(flag))
-        shape = "alt" if kind == "alternatives" else \
-            "sample" if kind == "sample" else \
-            ("pair" if before is not None else "new")
-        label = variant_label(variant, lang)
-        add('    <p>%s</p>' % e(INTRO[lang][shape]
-                               % (label[:1].upper() + label[1:])))
         if "look" in r:
             add('    <p class="gal-look"><strong>%s:</strong> %s</p>'
                 % (e(LOOK_LABEL[lang]), e(r["look"])))
-        add('    <div class="gal">')
-        alt = "%s · %%s" % title
+        # A before/after pair stacks (before above after, each at the column's
+        # full width) unless it is a phone or tablet capture, which is narrow
+        # enough to sit side by side (BL-589); `layout` overrides either way.
+        pair = kind != "alternatives" and before is not None
+        layout = r.get("layout") or (
+            "stacked" if pair and variant.split("-")[-1] not in ("mobile", "tablet")
+            else "side")
+        add('    <div class="gal%s">' % (" stacked" if layout == "stacked" and pair
+                                         else ""))
+        regions = r.get("highlight")
+        alt = "%s · %%s" % heading
         if kind == "alternatives":
             for a in alts:
                 add(figure(root, r["captures"][a["id"]], a["id"], a["label"],
-                           cell, alt % a["label"], assets, copies))
+                           cell, alt % a["label"], assets, copies, regions))
         elif before is not None:
             add(figure(root, before, "before", words["before"], cell,
-                       alt % words["before"], assets, copies))
+                       alt % words["before"], assets, copies,
+                       r.get("highlight_before")))
             add(figure(root, after, "after", words["after"], cell,
-                       alt % words["after"], assets, copies))
+                       alt % words["after"], assets, copies, regions))
         else:
             add(figure(root, after, "after", words["new"], cell,
-                       alt % words["new"], assets, copies))
+                       alt % words["new"], assets, copies, regions))
         add('    </div>')
+        add('    <p class="gal-variant">%s</p>' % e(variant_line(variant, lang)))
         if kind == "alternatives":
             choices = [(a["label"], a["label"]) for a in alts]
             choices.append(NONE_OF_THEM[lang])
