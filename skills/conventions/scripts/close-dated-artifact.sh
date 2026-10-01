@@ -60,7 +60,7 @@ elif [[ -f "$DIR/$ARG" ]]; then
   file="$DIR/$ARG"
 else
   # resolve_worklist (in _lib.sh): an exact stem wins, an ambiguous fragment exits 2 (BL-541).
-  file="$(resolve_worklist "$DIR" "$ARG")"  # the resolver strips .md itself (and refuses an empty stem)
+  file="$(resolve_worklist "$DIR" "$ARG")"  # the resolver strips .md itself (`.md` alone stays a literal fragment)
 fi
 [[ -n "${file:-}" && -f "$file" ]] || die "$TYPE artifact not found: $ARG"
 case "$file" in */_archive/*) die "already archived: $file" ;; esac

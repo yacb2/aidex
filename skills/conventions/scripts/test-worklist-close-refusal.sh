@@ -122,7 +122,7 @@ OUT="$(cd .context/worklists && bash "$DIR/worklist-advance.sh" "$(ls | grep slu
 [[ "$OUT" == *"first of seven"* ]] && ok "a bare filename from inside worklists/ is taken as given" || bad "in-dir filename: $OUT"
 # the in-dir branch itself: inside worklists/, `twin.md` is taken as given even though the
 # glob would also hit a dated `*-twin.md` (without the branch: ambiguous, exit 2)
-cp "$(ls .context/worklists/*slug-seven*.md | head -1)" .context/worklists/twin.md
+SEVEN=(.context/worklists/*slug-seven*.md); cp "${SEVEN[0]}" .context/worklists/twin.md
 cp .context/worklists/twin.md .context/worklists/2026-10-02-twin.md
 OUT="$(cd .context/worklists && bash "$DIR/worklist-advance.sh" twin.md --peek 2>&1)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"first of seven"* ]] && ok "inside worklists/, a bare filename wins over a glob twin" \
