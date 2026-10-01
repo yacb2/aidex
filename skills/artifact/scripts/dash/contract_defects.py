@@ -689,10 +689,15 @@ def check_decided_section_anchor(path, html_text):
                 and "main" in n.parent.classes())
             for n in nodes):
         return []
+    # A dropped item carries data-decided too but was never decided (BL-543).
+    dropped = sum(1 for n in decided if "data-dropped" in n.attrs)
+    counts = " and ".join(
+        "%d %s" % (k, word) for k, word in
+        ((len(decided) - dropped, "decided"), (dropped, "dropped")) if k)
     return [("decided-section-anchor", decided[0].line,
-             "%d decided item(s) and no anchor for their section: neither "
+             "%s item(s) and no anchor for their section: neither "
              "#sec-ledger nor a <header> directly under .main, so the composer "
-             "appends the settled questions after the general notes" % len(decided))]
+             "appends them after the general notes" % counts)]
 
 
 # --- 10. img-src-portable -------------------------------------------------------
