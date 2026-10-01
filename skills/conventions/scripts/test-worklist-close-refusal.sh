@@ -46,7 +46,8 @@ OUT="$(bash "$DIR/worklist-close.sh" "$WL" 2>/dev/null)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == "CLOSED $P/.context/worklists/_archive/"* ]] && ok "clean close archives to worklists/_archive/" || bad "clean close: rc=$RC $OUT"
 ARCH="${OUT#CLOSED }"
 [[ -f "$ARCH" && ! -f "$WL" ]] && grep -q '^status: done' "$ARCH" && ok "archived file carries status done" || bad "archive state"
-bash "$DIR/worklist-close.sh" "$ARCH" >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "closing an archived worklist is refused" || bad "double close"
+bash "$DIR/worklist-close.sh" "$ARCH" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "already archived" "$TMP/err" && ok "closing an archived worklist is refused as already archived" || bad "double close: rc=$RC $(cat "$TMP/err")"
 
 # 3 · --force closes anyway and records what it overrode, in the file and on stderr
 C="$(reg --title "never answered")"; CID="$(idof "$C")"; row "$C" test "t" "1 passed"; row "$C" owner "colour of the badge" ""
@@ -139,5 +140,46 @@ OUT="$(cd .context/worklists/_archive && bash "$DIR/worklist-advance.sh" "$(base
 # ".md" alone must not strip to an empty name that globs every work-list
 OUT="$(bash "$DIR/worklist-advance.sh" .md --peek 2>&1)"; RC=$?
 [[ $RC -ne 0 && "$OUT" != *"first of"* ]] && ok "'.md' alone resolves to nothing" || bad "'.md' alone: rc=$RC $OUT"
+
+# 6 · a path outside worklists/ is not a work-list (BL-561): the resolver took any `*/*`
+# as given, so `close ./notes.md` rewrote the user's file to done and archived it, and a
+# plain advance ticked its queue. Each cell owns its filename, so one cell's archived
+# copy cannot turn the next one red as an "archive collision".
+note=$'---\nstatus: draft\nupdated: 2026-01-01\n---\n1. [ ] mine'
+printf '%s\n' "$note" > notes-close.md
+bash "$DIR/worklist-close.sh" ./notes-close.md >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -ne 0 && "$(cat notes-close.md 2>/dev/null)" == "$note" && ! -e .context/worklists/_archive/notes-close.md ]] && grep -q "not under" "$TMP/err" \
+  && ok "close of a path outside worklists/ is refused and the file is untouched" || bad "close ./notes-close.md: rc=$RC $(cat "$TMP/err")"
+printf '%s\n' "$note" > notes-advance.md
+bash "$DIR/worklist-advance.sh" ./notes-advance.md >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -ne 0 && "$(cat notes-advance.md)" == "$note" ]] && grep -q "not under" "$TMP/err" \
+  && ok "advance of a path outside worklists/ is refused and the file is untouched" || bad "advance ./notes-advance.md: rc=$RC, $(sed -n 5p notes-advance.md) $(cat "$TMP/err")"
+# the check compares resolved directories, not the spelling: `worklists/../..` is the
+# project root (one `..` is .context/, where no such file exists: a not-found, not this check)
+printf '%s\n' "$note" > notes-dotdot.md
+bash "$DIR/worklist-close.sh" .context/worklists/../../notes-dotdot.md >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -ne 0 && "$(cat notes-dotdot.md)" == "$note" && ! -e .context/worklists/_archive/notes-dotdot.md ]] && grep -q "not under" "$TMP/err" \
+  && ok "a path that spells worklists/ but resolves outside it is refused" || bad "close .context/worklists/../../notes-dotdot.md: rc=$RC $(cat "$TMP/err")"
+# `..` after a symlinked folder inside worklists/: a logical `cd ext/..` lands back in
+# worklists/, while the file the kernel opens is beside the link's target
+mkdir -p outside/sub && ln -s "$P/outside/sub" .context/worklists/ext
+printf '%s\n' "$note" > outside/notes-symlink.md
+(cd .context/worklists && bash "$DIR/worklist-close.sh" ext/../notes-symlink.md >/dev/null 2>"$TMP/err"); RC=$?
+[[ $RC -ne 0 && "$(cat outside/notes-symlink.md 2>/dev/null)" == "$note" && ! -e .context/worklists/_archive/notes-symlink.md ]] && grep -q "not under" "$TMP/err" \
+  && ok "a symlinked folder plus .. inside worklists/ does not let an outside file through" || bad "close ext/../notes-symlink.md: rc=$RC $(cat "$TMP/err")"
+rm -f .context/worklists/ext; rm -rf outside
+# an exported CDPATH must not redirect the directory check: `cd worklists` from P/work
+# landed in P/.context/worklists, so a user file there passed as a work-list
+mkdir -p work/worklists; note2=$'---\nstatus: doing\nupdated: 2026-01-01\n---\n1. [ ] mine'
+printf '%s\n' "$note2" > work/worklists/notes-cdpath.md
+(cd work && CDPATH="$P/.context" bash "$DIR/worklist-close.sh" worklists/notes-cdpath.md >/dev/null 2>"$TMP/err"); RC=$?
+[[ $RC -ne 0 && "$(cat work/worklists/notes-cdpath.md 2>/dev/null)" == "$note2" && ! -e .context/worklists/_archive/notes-cdpath.md ]] && grep -q "not under" "$TMP/err" \
+  && ok "with CDPATH exported, a user file outside worklists/ is still refused" || bad "CDPATH close: rc=$RC $(cat "$TMP/err")"
+rm -rf work
+# and the reverse: CDPATH pointing at another project must not refuse a real work-list
+WL8="$(bash "$DIR/worklist-new.sh" --title "Cdpath reverse" --slug cdpath-reverse --ref "inline:first of reverse")"
+mkdir -p "$TMP/other/.context/worklists"
+OUT="$(CDPATH="$TMP/other" bash "$DIR/worklist-advance.sh" ".context/worklists/$(basename "$WL8")" --peek 2>&1)"
+[[ "$OUT" == *"first of reverse"* ]] && ok "with CDPATH at another project, a path into worklists/ still resolves" || bad "CDPATH reverse: $OUT"
 
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist close refusal: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
