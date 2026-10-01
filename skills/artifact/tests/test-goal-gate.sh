@@ -1078,9 +1078,9 @@ case("a hint word changed inside an option still fails",
 # not move the recommendation, and a decided item's original checked option must
 # stay checked. {recommended} used as a stand-in for the winner is what this
 # catches. The original side carries the old badge or the attribute alike.
-def item(opts, decided=True):
-    return ('<section class="consult-item" data-id="q"%s>%s</section>'
-            % (" data-decided" if decided else "", opts))
+def item(opts, decided=True, ident="q"):
+    return ('<section class="consult-item" data-id="%s"%s>%s</section>'
+            % (ident, " data-decided" if decided else "", opts))
 
 
 def mark(label, rec=False, chk=False):
@@ -1106,6 +1106,15 @@ case("a decided item's original checked option left unchecked fails",
 case("the build checking the recommended option the original left unchecked is clean",
      item(mark("Uno", True, True) + mark("Dos")), True,
      orig=item(mark("Uno", True) + mark("Dos")))
+# The allowance above is the ORIGINAL item's: decided there and nothing checked there.
+case("an open item the build marks decided and checks its recommendation fails",
+     item(mark("Uno", True, True) + mark("Dos")), False, "option marks differ",
+     orig=item(mark("Uno", True) + mark("Dos"), decided=False))
+case("one item's checked option does not close another item's open verdict",
+     item(mark("Uno", False, True) + mark("Dos"), ident="a")
+     + item(mark("Tres", True, True) + mark("Cuatro"), ident="b"), True,
+     orig=item(mark("Uno", False, True) + mark("Dos"), ident="a")
+     + item(mark("Tres", True) + mark("Cuatro"), ident="b"))
 def plain(label, tail=""):
     return ('<label><input type="radio" name="q"><span>%s %s</span></label>'
             % (label, tail))
@@ -1135,6 +1144,9 @@ def box(label, rec=False, chk=False):
 case("a select=many build checking an extra, not recommended option fails",
      item(box("Uno", True, True) + box("Dos", False, True)), False,
      "option marks differ", orig=item(box("Uno", True) + box("Dos")))
+case("a select=many build checking the recommended option beside the original's chosen one fails",
+     item(box("Uno", False, True) + box("Dos", True, True)), False,
+     "option marks differ", orig=item(box("Uno", False, True) + box("Dos", True)))
 case("a pre-checked option of an undecided item is not compared",
      item(mark("Uno", True) + mark("Dos"), decided=False), True,
      orig=item(mark("Uno", True, True) + mark("Dos"), decided=False))

@@ -73,6 +73,31 @@ bash "$SCRIPT" requests stem >/dev/null 2>&1 || fail "exact stem: close exited n
 [[ -f ".context/requests/_archive/2026-03-05-stem.md" && -f ".context/requests/2026-03-04-stem-two.md" ]] \
   || fail "exact stem: 'stem' did not close 2026-03-05-stem.md (closed the longer name instead)"
 
+# --- a name that resolves to a file outside <type>/ is refused ------------------
+# `notes.md` was stripped to `notes` and resolve_worklist's `[[ -f ]]` found ./notes
+# in the CWD, so a file that is no request was rewritten and archived.
+printf 'not an artifact\nstatus: x\n' > notes
+rc=0; bash "$SCRIPT" requests notes.md >/dev/null 2>&1 || rc=$?
+[[ $rc -ne 0 ]] || fail "a CWD file named by the stripped slug was closed (rc=0)"
+[[ -f notes && "$(cat notes)" == $'not an artifact\nstatus: x' && ! -e .context/requests/_archive/notes ]] \
+  || fail "a CWD file outside requests/ was rewritten or archived"
+# A path INTO the type folder is still accepted (the documented path form).
+mk ".context/requests/2026-04-01-by-path.md" open
+bash "$SCRIPT" requests .context/requests/2026-04-01-by-path.md >/dev/null 2>&1 \
+  || fail "a relative path into requests/ was refused"
+[[ -f ".context/requests/_archive/2026-04-01-by-path.md" ]] || fail "the relative path form did not archive"
+# CDPATH makes `cd` echo the directory; the comparison must not read that echo.
+mk ".context/requests/2026-04-02-cdpath.md" open
+CDPATH=".:/usr" bash "$SCRIPT" requests .context/requests/2026-04-02-cdpath.md >/dev/null 2>&1 \
+  || fail "with CDPATH set, a relative path into requests/ was refused"
+# A worktree that links .context (work_hours_ws WT_LINKS): the folder is a symlink,
+# so the file's physical dir differs from the unresolved $DIR — still the same folder.
+mkdir sib && ln -s "$PWD/.context" sib/.context
+mk ".context/requests/2026-04-03-linked.md" open
+rc=0; (cd sib && bash "$SCRIPT" requests linked >/dev/null 2>&1) || rc=$?
+[[ $rc -eq 0 && -f ".context/requests/_archive/2026-04-03-linked.md" ]] \
+  || fail "through a symlinked .context, a request was refused (rc=$rc) or not archived"
+
 # The gate. Without it this file ended on an unconditional `echo`, so it printed OK and
 # exited 0 with failures on screen — a suite that cannot fail, which is worse than no
 # suite because the sweep that runs it reports green. Found 2026-09-07 while adding the
