@@ -24,6 +24,9 @@ command -v jq >/dev/null 2>&1 || exit 0
 CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 SESSION=$(printf '%s' "$INPUT" | jq -r '.session_id // .sessionId // empty' 2>/dev/null)
 [ -n "$CWD" ] || exit 0
+# Absolute only: the upward walk ends at "/", and dirname of a relative path ends at
+# "." forever.
+case "$CWD" in /*) ;; *) exit 0 ;; esac
 
 # The slug is resolved FORWARD from cwd, never decoded backwards from a directory name.
 # Decoding is lossy in three directions at once — `my-app-ws` may be `my_app_ws`,
