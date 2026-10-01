@@ -54,7 +54,9 @@ DIR="$ROOT/.context/$TYPE"
 # nothing, while a fragment worked. Same shape as the documented-invocation failures
 # this suite keeps finding (extract.py's bare `--cursor`, mine_errors' plain `--since`):
 # the path a reader is most likely to type is the one nobody tested.
-if [[ -f "$ARG" ]]; then
+# Only a path (it has a `/`) is taken as given: a bare name that is also a CWD file is
+# still a fragment, or `requests notes` took ./notes over requests/<date>-notes.md (BL-566).
+if [[ "$ARG" == */* && -f "$ARG" ]]; then
   file="$ARG"
 elif [[ -f "$DIR/$ARG" ]]; then
   file="$DIR/$ARG"
@@ -64,11 +66,12 @@ else
 fi
 [[ -n "${file:-}" && -f "$file" ]] || die "$TYPE artifact not found: $ARG"
 case "$file" in */_archive/*) die "already archived: $file" ;; esac
-# A path, or a bare $ARG taken by the `[[ -f "$ARG" ]]` above, can name a CWD file
-# (resolve_worklist no longer returns one for a bare name, BL-551): only a file directly
-# in $DIR is a $TYPE artifact. Both sides resolved (a worktree may link .context), and
-# cd's CDPATH echo silenced.
-[[ "$(cd "$(dirname "$file")" >/dev/null && pwd -P)" == "$(cd "$DIR" >/dev/null && pwd -P)" ]] \
+# A path taken as given above can name a file outside $DIR (a bare name no longer can,
+# BL-551, BL-566): only a file directly in $DIR is a $TYPE artifact. Both sides resolved
+# (a worktree may link .context), cd's CDPATH echo silenced, CDPATH emptied for the
+# relative `dirname` (an exported CDPATH sent `cd requests` into .context/requests), and
+# `cd -P` so `ext/..` after a symlinked folder means what the kernel opens.
+[[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null && pwd -P)" == "$(cd "$DIR" >/dev/null && pwd -P)" ]] \
   || die "not a $TYPE artifact (outside $DIR): $file"
 
 today="$(today_iso)"
