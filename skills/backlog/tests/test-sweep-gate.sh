@@ -403,7 +403,9 @@ score_follow "12 C" && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-on
   && ok "12 C a work-list archived before scoring still stamps the follow-up's PASS" \
   || bad "12 C follow-up [$FOLLOW]: verdict [$(verdict)] stamp [$(stamp)]"
 # (D) the --worklist path check cds into the path's directory: an exported CDPATH naming another
-# project, whose `notwl` is a worklists/ directory, made a path outside worklists/ stamp the run
+# project, whose `notwl` is a worklists/ directory, would make a path outside worklists/ stamp the
+# run. Pins BL-558's global `unset CDPATH` for this call site; it is a guard, not a regression
+# test for a change of its own (it passes on the code before it was added).
 Q="$TMP/qproj"; Q2="$TMP/qother"; mkdir -p "$Q/.context/worklists" "$Q/notwl" "$Q2/.context/worklists"
 printf -- '---\nsuite_cmd: true\n---\n' > "$Q/.context/testing-profile.md"
 printf -- '---\nstatus: doing\n---\n' > "$Q/notwl/b.md"; ln -s "$Q2/.context/worklists" "$Q2/notwl"

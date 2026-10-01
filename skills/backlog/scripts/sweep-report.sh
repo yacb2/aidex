@@ -44,7 +44,8 @@ ROOT="$(find_project_root)"
 WL_DIR="$ROOT/.context/worklists"
 # `<wl>-report.md` sorts before `<wl>.md` (`-` < `.`): on 2026-08-28 the report was
 # rendered from its own previous output. resolve_worklist skips companions and refuses two
-# matches; it takes a path as given, and never a same-named CWD file for a slug (BL-551).
+# matches; it accepts a path only under the worklists folder or its _archive/ (BL-561), and
+# never a same-named CWD file for a slug (BL-551).
 WL="$(resolve_worklist --with-archive "$WL_DIR" "$ARG")"
 [[ -n "${WL:-}" && -f "$WL" ]] || die "worklist not found: $ARG"
 
