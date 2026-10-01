@@ -394,6 +394,9 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
    to the tile's figure (a click still opens the zoom). */
 .kit-marks-layer { position: absolute; cursor: crosshair; touch-action: none; }
 .kit-marks-layer.readonly { cursor: default; }
+/* An item's images at 1:1 draw no marks and do not swipe, so a touch pans the
+   capture; at fit size `none` stays, or the swipe loses its pointerup. */
+.kit-zoom.shots.native .kit-marks-layer { touch-action: pan-x pan-y; }
 .kit-zoom:not([data-compare="off"]) .kit-marks-layer { display: none; }
 .kit-marks-tile { position: absolute; pointer-events: none; }
 .kit-mark { position: absolute; box-sizing: border-box; pointer-events: auto;

@@ -1914,6 +1914,8 @@
       /* A focused slider owns the arrows, as every native range does; the
        * walk is one Tab away. */
       if (!m || ev.target === range) return;
+      /* An item's images have no rows: Up/Down scroll a tall capture. */
+      if (m[0] === stepRow && dlg.classList.contains('shots')) return;
       ev.preventDefault();            /* or the dialog scrolls under the move */
       m[0](m[1]);
     });
@@ -2240,17 +2242,20 @@
     });
 
     /* Swipe: a horizontal touch drag past 40 px walks the item's images, as
-     * Left/Right do. Only in the reduced mode; a gallery row keeps its own. */
+     * Left/Right do. Only in the reduced mode at fit size; a gallery row keeps
+     * its own, and at 1:1 a drag pans the capture (components.css). */
     var swipeFrom = null;
     body.addEventListener('pointerdown', function (ev) {
-      swipeFrom = ev.pointerType === 'touch' ? ev.clientX : null;
+      swipeFrom = ev.pointerType === 'touch' ? { id: ev.pointerId, x: ev.clientX, y: ev.clientY } : null;
     });
     body.addEventListener('pointerup', function (ev) {
+      /* Measured from the same finger's pointerdown, never another one's. */
+      if (swipeFrom && ev.pointerId !== swipeFrom.id) return;
       var from = swipeFrom;
       swipeFrom = null;
-      if (from === null || !dlg.classList.contains('shots')) return;
-      var dx = ev.clientX - from;
-      if (Math.abs(dx) >= 40) step(dx < 0 ? 1 : -1);
+      if (from === null || !dlg.classList.contains('shots') || dlg.classList.contains('native')) return;
+      var dx = ev.clientX - from.x, dy = ev.clientY - from.y;
+      if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
     });
 
     /* ---- every tile becomes the button ---- */

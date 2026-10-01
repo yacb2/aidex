@@ -231,6 +231,15 @@ real page said something the grammar could not:
   them from it. `masthead` and `note` do not: a drawing there is a page-level figure
   in the wrong place (`spec_build.FIGURE_BLOCKS`).
 
+  One exception to "alike" (BL-493): **two or more ADJACENT raster `figure`s**
+  (`.png`/`.jpg`/`.jpeg`) in an item render as one thumbnail grid, `.gal.shots`, with
+  `data-cols` = min(n, 4). Blank lines between them keep the run; any other block (an
+  svg `figure`, a `chart`, a `graph`, a `diagram`, a nested `note`/`callout`), a
+  sentence or the option list ends it. Each run is
+  its own grid and its own viewer walk ("1 / n"), so written order is kept; a lone
+  raster figure stays full width. There is no opt-out: to keep two captures apart,
+  write a sentence between them.
+
   A `masthead`'s **standfirst** is the first paragraph of the masthead's own prose,
   not of whatever it happens to emit first: an aside written above the standfirst
   stays above it and is not promoted.
@@ -795,6 +804,9 @@ A film enters the page through the spec route with no post-build step. It has **
 - A `<video>` counts as the page's visual for check-artifact, like an `<svg>` or `<img>`.
 - `title` is the `<figcaption>`. `#id` and classes land on the `<figure class="video">`,
   which `components.css` sizes to the column in both themes.
+- A `video` is page-level only: an `item` or a `note` refuses it at the fence's line,
+  because neither lists it among the blocks it nests (`_segments`; an item's list is
+  `ASIDES` + `FIGURE_BLOCKS`).
 
 ## The `graph` body: DOT, laid out by Graphviz
 

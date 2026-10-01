@@ -65,6 +65,15 @@ mk nothemes.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\"
 mk extcss.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><link rel=\"stylesheet\" href=\"https://cdn.example/x.css\"><style>@media (prefers-color-scheme: dark){}</style>"
 mk extjs.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><script src=\"https://cdn.example/x.js\"></script><style>@media (prefers-color-scheme: dark){}</style>"
 mk extimg.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"https://example.com/x.png\">"
+# A <video> counts as the page's visual like an <img> (03-spec-grammar.md § The
+# `video` block), so a remote one breaks the file the same way, by its own src
+# or by a <source> child.
+mk extvideo.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video src=\"https://cdn.example.com/r1.mp4\"></video>"
+mk extsource.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video controls><source src=\"https://cdn.example.com/r1.mp4\" type=\"video/mp4\"></video>"
+# srcset and poster are remote loads too; a data-src is a script's business,
+# not the browser's, and loads nothing by itself.
+mk extsrcset.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><picture><source srcset=\"https://x/a.png\"><img src=\"a.png\" alt=\"a\"></picture>"
+mk extposter.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video poster=\"https://x/p.jpg\" src=\"../media/a.mp4\"></video>"
 # The font src is on its own line: the block is flattened before matching, so a
 # realistically-formatted @font-face must still be caught.
 mk extfont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>
@@ -85,11 +94,17 @@ mk notitle.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" 
 # `[viewport]` was asserted nowhere in the file.
 for case in "fragment doctype" "fragment viewport" "notitle title" \
             "nocharset charset" "nothemes themes" \
-            "extcss self" "extjs self" "extimg self" "extfont self"; do
+            "extcss self" "extjs self" "extimg self" "extfont self" \
+            "extvideo self" "extsource self" "extsrcset self" "extposter self"; do
   set -- $case
   out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
   if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
 done
+
+mk datasrc.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video controls><source data-src=\"https://x/a.mp4\" type=\"video/mp4\"></video>"
+out="$(bash "$CHECK" "$TMP/datasrc.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] \
+  && ok "a data-src loads nothing and passes self" || bad "a data-src was judged a remote load: $out"
 
 # An inlined font is the compliant form — the remote-font check must not flag it.
 mk datafont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>

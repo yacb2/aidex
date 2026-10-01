@@ -177,7 +177,7 @@ Six things, five of them carried by this example, each of which costs a rebuild 
 you get it wrong:
 
 - **`visual=` on the masthead is REQUIRED on a consultation page.** A page with
-  questions that carries no `<svg>`, `<img>` or `<canvas>` and no `visual=` fails the
+  questions that carries no `<svg>`, `<img>`, `<canvas>` or `<video>` and no `visual=` fails the
   build with `no visual and no <meta name="consult-visual" content="none: why">`, and
   nothing is written. Three honest values:
   - `visual="svg"` / `visual="img"` — the page HAS a drawing. That is why the example

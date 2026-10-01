@@ -2476,8 +2476,11 @@ def check_file(path):
         report("self", "external script — the file must stand alone offline")
     if re.search(r'@import\s+(url\()?["\']?https?:', flat, re.I):
         report("self", "@import of a remote stylesheet")
-    if re.search(r'<img[^>]+src=["\']?https?:', flat, re.I):
-        report("self", "remote image — breaks offline and leaks a request")
+    # A <video> is a visual like an <img>: its own src or a <source> child.
+    # srcset and poster load too; data-src is a script's, and loads nothing.
+    if re.search(r'<(?:img|video|source)\b[^>]*\s(?:src|srcset|poster)=["\']?https?:',
+                 flat, re.I):
+        report("self", "remote image or video — breaks offline and leaks a request")
     # Only a remote src counts: url(data:…) is inlined and honours the contract.
     if re.search(r'@font-face[^}]*url\(\s*["\']?(https?:)?//', flat, re.I):
         report("self", "remote @font-face src — the font never loads offline "

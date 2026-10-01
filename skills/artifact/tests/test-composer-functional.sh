@@ -1671,6 +1671,10 @@ window.addEventListener('load', function () {
     key('ArrowDown');  var down2 = hcell() + '/' + htile();
     key('ArrowUp');    var up1 = hcell();
     key('ArrowUp');    var up2 = hcell();
+    /* Rows exist here, so Down is the walk and the dialog must not scroll
+       under it (Up puts the walk back where it was). */
+    var downPass = dlg.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true })) ? '1' : '0';
+    key('ArrowUp');
     /* Walk to the row's far end and close THERE: focus must go back to the
        tile that opened the dialog, not to the last one shown (the walk above
        ends on the opener, so without this the FOCUS cell passes by chance). */
@@ -1690,7 +1694,7 @@ window.addEventListener('load', function () {
       + '|SRC=' + (dlg.querySelector('img').getAttribute('src').slice(0, 14))
       + '|FIT=' + fit + '|NATIVE=' + nativeOn + '|NATIVEOFF=' + nativeOff
       + '|RIGHT=' + right1 + '|LEFT=' + left1 + '|LEFTEND=' + left2
-      + '|DOWN=' + down1 + '|DOWNEND=' + down2 + '|UP=' + up1 + '|UPEND=' + up2 + '|RIGHT3=' + right3.trim() + '/' + (right3 === right3.trim() ? 'clean' : 'raw')
+      + '|DOWN=' + down1 + '|DOWNEND=' + down2 + '|UP=' + up1 + '|UPEND=' + up2 + '|DOWNPASS=' + downPass + '|RIGHT3=' + right3.trim() + '/' + (right3 === right3.trim() ? 'clean' : 'raw')
       + '|CLOSED=' + (dlg.open ? '0' : '1')
       + '|FOCUS=' + (document.activeElement === first ? '1' : '0')
       + '|ROLE=' + first.getAttribute('role') + '|TABINDEX=' + first.getAttribute('tabindex')
@@ -2262,6 +2266,8 @@ tg="$(grun 'phase=gzoom')"
   || fail "Up did not move back to the previous row: $tg"
 [[ "$tg" == *"UPEND=audit-with-data"* ]] \
   || fail "Up wrapped around from the first row: $tg"
+[[ "$tg" == *"DOWNPASS=0"* ]] \
+  || fail "Down walked the rows but the dialog was left to scroll under it (only the item-images mode lets Up/Down through): $tg"
 [[ "$tg" == *"CLOSED=1"* ]] \
   || fail "the close button did not close the dialog: $tg"
 [[ "$tg" == *"FOCUS=1"* ]] \
@@ -2689,6 +2695,9 @@ window.addEventListener('load', function () {
   var figs = grid ? [].slice.call(grid.querySelectorAll('figure')) : [];
   var tile = function () { return dlg ? dlg.querySelector('.kit-zoom-tile').textContent : ''; };
   var key = function (k) { dlg.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })); };
+  /* 1 when the dialog let the key through (dispatchEvent is false only when
+   * a listener called preventDefault). */
+  var passes = function (k) { return dlg.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })) ? 1 : 0; };
   var r = {};
   r.figs = figs.length;
   r.cols = grid ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 0;
@@ -2700,17 +2709,28 @@ window.addEventListener('load', function () {
     figs[0].click();
     r.open = dlg.open ? 1 : 0;
     r.t1 = tile();
+    key('ArrowLeft'); r.first = tile();
     r.cmpHidden = getComputedStyle(dlg.querySelector('.kit-zoom-cmpgroup')).display;
     key('ArrowRight'); r.t2 = tile();
     key('ArrowDown'); r.down = tile();
+    r.downPass = passes('ArrowDown'); r.upPass = passes('ArrowUp');
     key('ArrowRight'); key('ArrowRight'); key('ArrowRight'); r.end = tile();
     key('ArrowLeft'); r.left = tile();
     var body = dlg.querySelector('.kit-zoom-body');
-    var touch = function (type, x) { body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', clientX: x, bubbles: true })); };
+    var touch = function (type, x, y, id) { body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id || 0, clientX: x, clientY: y || 0, bubbles: true })); };
     touch('pointerdown', 100); touch('pointerup', 200); r.swR = tile();   // drag right: previous
     touch('pointerdown', 200); touch('pointerup', 100); r.swL = tile();   // drag left: next
     touch('pointerdown', 100); touch('pointerup', 120); r.swS = tile();   // under 40 px: stays
+    touch('pointerdown', 100, 100); touch('pointerup', 150, 300); r.swV = tile();   // mostly vertical: stays
+    touch('pointerdown', 100, 0, 1); touch('pointerdown', 300, 0, 2);
+    touch('pointerup', 95, 0, 1); r.swM = tile();   // finger 1 lifts 5 px from where IT went down: stays
+    touch('pointerdown', 200, 100); touch('pointerup', 100, 160); r.swD = tile();   // diagonal, mostly across: next
+    touch('pointerdown', 100, 100); touch('pointerup', 150, 150); r.swE = tile();   // as far down as across: stays
+    var mlayer = dlg.querySelector('.kit-marks-layer');
+    r.taFit = getComputedStyle(mlayer).touchAction;
     dlg.querySelector('.kit-zoom-size').click(); r.native = dlg.classList.contains('native') ? 1 : 0;
+    r.taNat = getComputedStyle(mlayer).touchAction;
+    touch('pointerdown', 100); touch('pointerup', 200); r.swN = tile();   // 1:1 is panned, not walked
     dlg.close();
     dlg.dispatchEvent(new Event('close'));   // the engine queues the real one; see GZOOM
     r.focus = item.contains(document.activeElement) ? 1 : 0;
@@ -2734,6 +2754,8 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | head -1)"
   || fail "the item with the image grid was treated as a gallery row: $tg"
 [[ "$tg" == *'"open":1'* && "$tg" == *'"t1":"1 / 4"'* ]] \
   || fail "clicking a thumbnail did not open the viewer on image 1 of 4: $tg"
+[[ "$tg" == *'"first":"1 / 4"'* ]] \
+  || fail "Left on the item's first image did not stay on it: $tg"
 [[ "$tg" == *'"t2":"2 / 4"'* && "$tg" == *'"down":"2 / 4"'* ]] \
   || fail "Right did not walk to the next image, or Down walked rows in this mode: $tg"
 [[ "$tg" == *'"end":"4 / 4"'* && "$tg" == *'"left":"3 / 4"'* ]] \
@@ -2742,6 +2764,16 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | head -1)"
   || fail "the viewer offers compare/mark tools in the item-images mode: $tg"
 [[ "$tg" == *'"swR":"2 / 4"'* && "$tg" == *'"swL":"3 / 4"'* && "$tg" == *'"swS":"3 / 4"'* ]] \
   || fail "a swipe did not walk the images (or a 20 px drag did): $tg"
+[[ "$tg" == *'"upPass":1'* && "$tg" == *'"downPass":1'* ]] \
+  || fail "Up/Down were swallowed in the item-images mode, so a tall capture cannot scroll by keyboard: $tg"
+[[ "$tg" == *'"swV":"3 / 4"'* && "$tg" == *'"swE":"4 / 4"'* && "$tg" == *'"swN":"4 / 4"'* ]] \
+  || fail "a mostly vertical drag, or a drag at 1:1 size, walked the images instead of panning: $tg"
+[[ "$tg" == *'"swD":"4 / 4"'* ]] \
+  || fail "a diagonal drag that is mostly across did not walk to the next image: $tg"
+[[ "$tg" == *'"swM":"3 / 4"'* ]] \
+  || fail "a swipe was measured from another finger's pointerdown: $tg"
+[[ "$tg" == *'"taFit":"none"'* && "$tg" == *'"taNat":"'* && "$tg" != *'"taNat":"none"'* ]] \
+  || fail "the 1:1 capture cannot be panned by touch (or the fit-size swipe lost touch-action none): $tg"
 [[ "$tg" == *'"native":1'* && "$tg" == *'"focus":1'* ]] \
   || fail "the viewer lost the fit/1:1 toggle or Esc did not return the focus to the item: $tg"
 
