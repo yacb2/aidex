@@ -98,6 +98,21 @@ rc=0; (cd sib && bash "$SCRIPT" requests linked >/dev/null 2>&1) || rc=$?
 [[ $rc -eq 0 && -f ".context/requests/_archive/2026-04-03-linked.md" ]] \
   || fail "through a symlinked .context, a request was refused (rc=$rc) or not archived"
 
+# --- BL-551 review: the folder guard and the `.md` strip, each from a fresh project ----
+# A bare name that is a CWD file is taken by the script's own `[[ -f "$ARG" ]]`; only the
+# outside-$DIR guard stops it (the notes.md cell above no longer reaches that guard).
+G="$(mktemp -d)"; mkdir -p "$G/.context/requests"
+mk "$G/.context/requests/2026-05-01-only-one.md" open
+( cd "$G" && printf 'x\nstatus: x\n' > notes
+  rc=0; bash "$SCRIPT" requests notes >/dev/null 2>&1 || rc=$?
+  [[ $rc -ne 0 && "$(cat notes)" == $'x\nstatus: x' && ! -e .context/requests/_archive/notes ]] ) \
+  || fail "a bare CWD file name passed the outside-requests/ guard"
+# `.md` alone must not strip to an empty fragment that globs the only open request.
+rc=0; ( cd "$G" && bash "$SCRIPT" requests .md >/dev/null 2>&1 ) || rc=$?
+[[ $rc -ne 0 && -f "$G/.context/requests/2026-05-01-only-one.md" ]] \
+  || fail "'.md' alone closed the only open request (rc=$rc)"
+rm -rf "$G"
+
 # The gate. Without it this file ended on an unconditional `echo`, so it printed OK and
 # exited 0 with failures on screen — a suite that cannot fail, which is worse than no
 # suite because the sweep that runs it reports green. Found 2026-09-07 while adding the
