@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+# test-consult-spec-trace.sh — BL-569: check-artifact fails (a) a built page that
+# omits an item its `<stem>.spec.md` declares, and (b) a page that shows an item
+# as Decided when the saved reply has no block for it.
+#
+# Layer: integration over the real spec_build.py / save-reply.sh / check-artifact.sh
+# (the pieces share the files beside the page, so mocking any of them would
+# test the mock). Owner decision C4 of the 2026-10-01 insights-suite critique:
+# one rebuild listed 14 unanswered questions under "Decided"; another omitted a
+# new question. The brief itself is never on disk — only the spec is checkable.
+set -uo pipefail
+
+SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHECK="$SKILL/scripts/check-artifact.sh"
+BUILD="$SKILL/scripts/spec_build.py"
+SAVE_REPLY="$SKILL/scripts/save-reply.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+failures=0
+fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
+ok()   { printf 'ok   — %s\n' "$*"; }
+
+D="$TMP/proj/.context/reports"; mkdir -p "$D"
+PAGE="$D/consult.html"; SPEC="$D/consult.spec.md"
+
+spec() {  # $1 = decided verdict for Q1, $2 = for Q2 (empty = open), $3 = extra item
+  cat > "$SPEC" <<SP
+::: masthead {visual="none: two short questions, nothing to draw" title="Dos preguntas"}
+Una decision y una pregunta.
+:::
+
+::: group {#G1 title="Lo que falta cerrar"}
+::: item {#${IDA:-Q1} title="¿Cerramos el item ahora?"${1:+ decided="$1"}}
+¿Cerramos el item ahora o lo dejamos para otra ronda?
+
+- Sí: cerrarlo ahora {recommended}
+- No: dejarlo para otra ronda
+:::
+
+::: item {#${IDB:-Q2} title="¿Aplazamos el segundo item?"${2:+ decided="$2"}${4:+ dropped="$4"}}
+¿Aplazamos el segundo item a la próxima ronda?
+
+- Sí: aplazarlo {recommended}
+- No: intentarlo ahora
+:::
+${3:-}:::
+
+::: notes {title="Notas generales"}
+:::
+SP
+}
+build() { python3 "$BUILD" "$SPEC" -o "$PAGE" "$@" > "$TMP/build.out" 2>&1; }
+
+# 1. a correct page passes
+spec "" ""
+build && bash "$CHECK" "$PAGE" >"$TMP/o" 2>&1 \
+  && ok "1. a page built from its spec, nothing decided, passes" \
+  || fail "1. $(cat "$TMP/build.out" "$TMP/o")"
+
+# 2. (a) a spec item the built page omits. Own page: ids never leave a baseline.
+PAGE="$D/other.html"; SPEC="$D/other.spec.md"
+spec "" ""
+build
+spec "" "" '
+::: item {#Q3 title="¿Un tercer item?"}
+¿Hacemos un tercer item?
+
+- Sí: hacerlo {recommended}
+- No: omitirlo
+:::
+'
+out="$(bash "$CHECK" "$PAGE" 2>&1)"; rc=$?
+[[ "$rc" == "1" ]] && grep -q 'consult-spec-items.*Q3' <<<"$out" \
+  && ok "2. (a) a spec item missing from the page FAILS, naming Q3" \
+  || fail "2. rc=$rc out=$out"
+PAGE="$D/consult.html"; SPEC="$D/consult.spec.md"
+
+# 3. (b) Q2 shown Decided while the reply only answered Q1
+spec "" ""
+build
+printf '### Q1 · ¿Cerramos el item ahora?\n\n- Sí: cerrarlo ahora\n' \
+  | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "3. save-reply.sh failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "3. (b) Q2 Decided with no reply block FAILS the build, naming Q2 only" \
+  || fail "3. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 4. the reply names Q2 too: the same rebuild passes
+printf '### Q1 · ¿Cerramos el item ahora?\n\n- Sí: cerrarlo ahora\n\n### Q2 · ¿Aplazamos el segundo item?\n\n- No: intentarlo ahora\n' \
+  | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "4. save-reply.sh failed"
+build && ok "4. with a reply block for each decided item the build passes" \
+  || fail "4. $(cat "$TMP/build.out")"
+
+# 5. an item decided in the answered snapshot is exempt from the next reply
+printf '### notes · Notas\n\nnada\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null
+build && bash "$CHECK" "$PAGE" >/dev/null 2>&1 \
+  && ok "5. items decided in an earlier round need no block in the latest reply" \
+  || fail "5. $(cat "$TMP/build.out")"
+
+# 6. no spec beside the page: nothing to compare. A NO-CRASH GUARD, not a
+#    regression: the silence is also what the check does when absent.
+rm -f "$SPEC"
+out="$(bash "$CHECK" "$PAGE" 2>&1)"; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-spec-items' <<<"$out" \
+  && ok "6. (no-crash guard) no spec beside the page passes without a finding" \
+  || fail "6. rc=$rc out=$out"
+
+# Each of the rows below owns a fresh page: ids never leave a baseline.
+newpage() { PAGE="$D/$1.html"; SPEC="$D/$1.spec.md"; }
+
+# 7. a reply given in chat format (`Q1: ...`) counts as the reply to Q1
+newpage chat
+spec "" ""; build
+printf 'Q1: Sí: cerrarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "7. save-reply.sh failed"
+spec "Sí" ""
+build && ok "7. a chat-format reply (Q1: ...) lets Q1 be decided" \
+  || fail "7. $(cat "$TMP/build.out")"
+
+# 8. a dropped item needs no reply block
+newpage dropped
+spec "" ""; build
+printf 'Q1: Sí: cerrarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "8. save-reply.sh failed"
+spec "Sí" "" "" "ya-no-aplica"
+build && ok "8. Q1 answered, Q2 dropped= : no reply block needed for Q2" \
+  || fail "8. $(cat "$TMP/build.out")"
+
+# 9. no reply saved at all: the baseline shows Q2 was open, so deciding it FAILS
+newpage noreply
+spec "" ""; build
+spec "" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "9. Q2 decided with no saved reply at all FAILS, naming Q2" \
+  || fail "9. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 10. a block holding only a marker line does not decide the item
+newpage marker
+spec "" ""; build
+printf '### Q1 · ¿Cerramos?\n\n- Sí: cerrarlo ahora\n\n### Q2 · x\n\n- [show-me]\n' \
+  | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "10. save-reply.sh failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "10. a marker-only reply block does not decide Q2 (Q1 still passes)" \
+  || fail "10. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 11. a [provisional] answer does not decide the item either
+newpage prov
+spec "" ""; build
+printf 'Q1: Sí: cerrarlo ahora [provisional]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "11. save-reply.sh failed"
+spec "Sí" ""
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "11. a [provisional] answer does not decide Q1" \
+  || fail "11. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 12. the verb's BuildFailed message names the failing check (fix 6)
+newpage verb
+spec "" ""; build
+out="$(python3 "$SKILL/scripts/spec_verbs.py" decide "$SPEC" --id Q2 --verdict No --out "$PAGE" 2>&1)"; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'exited 1.*failing check: FAIL \[consult-decided-trace\]' <<<"$out" \
+  && ok "12. spec_verbs decide with no reply names consult-decided-trace in its error" \
+  || fail "12. rc=$rc out=$out"
+
+# 13. (a) item added AFTER the last reply, then decided: the answered snapshot
+#     never had it, the baseline did and it was open -> needs its own reply.
+newpage h1
+spec "" ""; build
+printf 'Q1: Sí: cerrarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "13. save-reply.sh failed"
+Q3='
+::: item {#Q3 title="¿Un tercer item?"}
+¿Hacemos un tercer item?
+
+- Sí: hacerlo {recommended}
+- No: omitirlo
+:::
+'
+spec "" "" "$Q3"; build || fail "13. adding Q3 failed: $(cat "$TMP/build.out")"
+Q3D="${Q3/\{#Q3 title=\"¿Un tercer item?\"/{#Q3 title=\"¿Un tercer item?\" decided=\"Sí\"}"
+spec "Sí" "" "$Q3D"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q3' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "13. an item added after the last reply and then decided FAILS, naming Q3" \
+  || fail "13. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 14. (b) a marker as the whole answer does not decide: `Q2: [show-me]`
+newpage inlinemark
+spec "" ""; build
+printf 'Q1: Sí\nQ2: [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "14. save-reply.sh failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "14. an inline marker-only answer (Q2: [show-me]) does not decide Q2" \
+  || fail "14. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 15. (c) an empty `Q1:` line is not answered by the NEXT line `Q2: Sí`
+newpage emptyhead
+spec "" ""; build
+printf 'Q1:\nQ2: Sí\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "15. save-reply.sh failed"
+spec "Sí" "Sí"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "15. an empty Q1: line does not borrow the Q2 answer; Q1 FAILS, Q2 passes" \
+  || fail "15. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 16. (d) an ask marker beside prose: the item is provisional, prose decides nothing
+newpage markprose
+spec "" ""; build
+printf '### Q1 · x\n\n- [question]\n\n¿Qué significa cerrar?\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "16. save-reply.sh failed"
+spec "Sí" ""
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "16. an ask marker plus prose does not decide Q1" \
+  || fail "16. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 17. [page-defect] is not an ask about the answer: it does not block an answer
+newpage defect
+spec "" ""; build
+printf '### Q1 · x\n\n- Sí: cerrarlo ahora\n- [page-defect]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "17. save-reply.sh failed"
+spec "Sí" ""
+build && ok "17. an answer carrying only [page-defect] still decides Q1" \
+  || fail "17. $(cat "$TMP/build.out")"
+
+# 18. an inline [page-defect] token is no answer either (the strip, not the ask rule)
+newpage inlinedefect
+spec "" ""; build
+printf 'Q1: Sí\nQ2: [page-defect]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "18. save-reply.sh failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "18. an inline [page-defect]-only answer does not decide Q2" \
+  || fail "18. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 19. (e) ids that are not Letters+digits: `D4a:` empty must not borrow `D4b: Sí`
+newpage idsuffix; IDA=D4a IDB=D4b
+spec "" ""; build
+printf 'D4a:\nD4b: Sí\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "19. save-reply.sh failed"
+spec "Sí" "Sí"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*D4a' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*D4b' "$TMP/build.out" \
+  && ok "19. D4a: (empty) then D4b: Sí FAILS D4a only" \
+  || fail "19. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 20. (e) D4b's marker line must not leak into D4a's block
+newpage idleak; IDA=D4a IDB=D4b
+spec "" ""; build
+printf 'D4a: Sí\nD4b: [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "20. save-reply.sh failed"
+spec "Sí" ""
+build && ok "20. D4a: Sí then D4b: [show-me] decides D4a (no marker leak)" \
+  || fail "20. $(cat "$TMP/build.out")"
+unset IDA IDB
+
+# 21. an option-style line that is not an item id is content, not a boundary
+newpage optline
+spec "" ""; build
+printf 'Q1:\nV2: la segunda\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "21. save-reply.sh failed"
+spec "Sí" ""
+build && ok "21. Q1: then V2: la segunda (V2 not an item) decides Q1" \
+  || fail "21. $(cat "$TMP/build.out")"
+
+# 22. (f) the latest block for an id governs: a later re-ask undoes an earlier answer
+newpage latest
+spec "" ""; build
+printf '### Q1 · x\n\n- Sí: cerrarlo ahora\n\n### Q2 · y\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "22. save 1 failed"
+printf '### Q1 · x\n\n- Sí: cerrarlo ahora [provisional]\n- [question]\n\nespera, ¿qué implica cerrarlo?\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "22. save 2 failed"
+spec "Sí" "" "" "later"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && ok "22. an earlier answer followed by a later re-ask leaves Q1 undecided" \
+  || fail "22. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 23. (g) a spec with items beside a page with zero consult items is not silent
+newpage noitems
+spec "" ""
+printf '<!DOCTYPE html><html lang="es"><body><h1>Sin items</h1></body></html>\n' > "$PAGE"
+bash "$CHECK" "$PAGE" >"$TMP/o" 2>&1; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-spec-items.*Q1' "$TMP/o" \
+  && ok "23. a spec with items next to a page with no items FAILS consult-spec-items" \
+  || fail "23. rc=$rc out=$(cat "$TMP/o")"
+
+# 24. (h) a markdown link in the answer is content, not an ask marker
+newpage mdlink
+spec "" ""; build
+printf 'Q1: Sí, ver [readme](https://x)\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "24. save-reply.sh failed"
+spec "Sí" ""
+build; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
+  && ok "24. Q1: Sí, ver [readme](url) decides Q1" \
+  || fail "24. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 25. (h) a checked task-list line `- [x]` in the answer is content too
+newpage tasklist
+spec "" ""; build
+printf 'Q1: Sí\n- [x] revisado\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "25. save-reply.sh failed"
+spec "Sí" ""
+build; rc=$?
+[[ "$rc" == "0" ]] \
+  && ok "25. Q1: Sí with a '- [x] revisado' line decides Q1" \
+  || fail "25. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 26. (i) two saves in one round, no rebuild between: both answers survive
+newpage twosaves
+spec "" ""; build
+printf 'Q1: Sí\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "26. save 1 failed"
+printf 'Q2: No\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save2.out" || fail "26. save 2 failed"
+# the same-round append owes nothing: its message must not claim a duty
+grep -q 'duty is still outstanding' "$TMP/save2.out" \
+  && fail "26. same-round append claims an outstanding duty: $(cat "$TMP/save2.out")"
+spec "Sí" "No"
+build; rc=$?
+RP="$D/.aidex-artifact-prev/$(basename "$PAGE" .html).reply.md"
+[[ "$rc" == "0" ]] && grep -q 'Q1: Sí' "$RP" && grep -q 'Q2: No' "$RP" \
+  && ok "26. two saves with no rebuild between append; both items decide" \
+  || fail "26. rc=$rc out=$(cat "$TMP/build.out") reply=$(cat "$RP")"
+
+# 27. guard: save, REBUILD the page (a real change), save again -> overwritten
+newpage resave
+spec "" ""; build
+printf 'Q1: Sí\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "27. save 1 failed"
+spec "Sí" ""; build || fail "27. rebuild failed"
+printf 'Q2: No\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "27. save 2 failed"
+RP="$D/.aidex-artifact-prev/$(basename "$PAGE" .html).reply.md"
+grep -q 'Q2: No' "$RP" && ! grep -q 'Q1: Sí' "$RP" \
+  && ok "27. a save after a real rebuild replaces reply.md" \
+  || fail "27. reply=$(cat "$RP")"
+
+if [[ "$failures" -eq 0 ]]; then
+  echo "test-consult-spec-trace.sh: all checks passed"
+else
+  echo "$failures failure(s)"; exit 1
+fi

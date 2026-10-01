@@ -236,7 +236,9 @@ save_reply '' '### Q1 · Q1
 
 - [show-me]
 
-no entiendo'
+no entiendo
+
+Q1: Sí, cerrarlo'   # BL-569: a decided item needs a deciding answer in the reply too
 decided_page "$R/page.html"        # Q1 now carries data-decided, no figure
 rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
 [[ "$rc" == "0" ]] && ok "A7. an item decided this round is exempt from its own marked duty" \

@@ -25,7 +25,9 @@ unrelated) was saved. `save_reply` now checks the page on disk against the
 reply that is already there before writing anything: while a duty is still
 unmet, the new paste is APPENDED under a timestamped separator and
 answered.html is left untouched; only once every outstanding duty is met
-does a new reply replace the file and re-snapshot the page.
+does a new reply replace the file and re-snapshot the page. The same append
+happens when the page still equals the answered snapshot (two saves in one
+round, no rebuild between): the second paste must not erase the first.
 
 Usage: save-reply.sh <page.html> [<reply-file>|-]
   <reply-file> omitted or "-": read the paste from stdin.
@@ -79,21 +81,32 @@ def duties_for(reply_text):
 
 def save_reply(page_path, reply_text):
     """Writes the reply and the answered snapshot (or appends/keeps them when
-    a duty is still outstanding — see the module docstring). Returns
-    (duties, reply_path, answered_path, appended)."""
+    a duty is still outstanding or the round has not been rebuilt — see the
+    module docstring). Returns (duties, reply_path, answered_path, appended),
+    where appended is False, "duty" or "same-round"."""
     prev_dir, reply_path, answered_path = _paths(page_path)
     os.makedirs(prev_dir, exist_ok=True)
     had_previous = os.path.isfile(reply_path) and os.path.isfile(answered_path)
     # The duty check of the OLD reply against the CURRENT page — run BEFORE
     # anything is written, so it reads the files this save is about to touch.
     outstanding = had_previous and bool(ca.check_marker_duties(page_path)[0])
-    if outstanding:
+    appended = "duty" if outstanding else False
+    # Two saves inside one round: the page has not been rebuilt since the last
+    # save (it still equals the answered snapshot), so the second paste adds to
+    # the first instead of replacing it.
+    if had_previous and not outstanding:
+        with open(page_path, encoding="utf-8", errors="replace") as fh:
+            page_now = fh.read()
+        with open(answered_path, encoding="utf-8", errors="replace") as fh:
+            if page_now == fh.read():
+                appended = "same-round"
+    if appended:
         stamp = datetime.datetime.now().isoformat(timespec="seconds")
         with open(reply_path, "a", encoding="utf-8") as fh:
             fh.write(f"\n\n<!-- reply saved {stamp} -->\n\n{reply_text}")
         with open(reply_path, encoding="utf-8") as fh:
             combined = fh.read()
-        return duties_for(combined), reply_path, answered_path, True
+        return duties_for(combined), reply_path, answered_path, appended
     with open(reply_path, "w", encoding="utf-8") as fh:
         fh.write(reply_text)
     with open(page_path, encoding="utf-8", errors="replace") as fh:
@@ -143,7 +156,11 @@ def main(argv):
               file=sys.stderr)
         return 2
     duties, reply_path, answered_path, appended = save_reply(page_path, reply_text)
-    if appended:
+    if appended == "same-round":
+        print(f"reply APPENDED to {reply_path} — the page has not been rebuilt "
+              f"since the last save, so this paste adds to that one and the "
+              f"answered snapshot at {answered_path} was kept")
+    elif appended:
         print(f"reply APPENDED to {reply_path} — an earlier duty is still "
               f"outstanding, so the answered snapshot at {answered_path} was "
               f"kept, not re-captured")

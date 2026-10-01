@@ -693,10 +693,23 @@ not yet meet every duty that reply named, a new paste is **appended** to
 `reply.md` under a `<!-- reply saved <iso time> -->` separator and
 `answered.html` is **left untouched** — the union of every mark the id has
 ever carried, across every appended block, is what the next check reads.
-Only once the page on disk satisfies every outstanding duty does a fresh
-reply **replace** `reply.md` and re-snapshot `answered.html`: that is a
-delivered round, not an unanswered one waved through by an unrelated
-follow-up.
+The same append happens when the page on disk still equals `answered.html`
+(two saves in one round, no rebuild between): the second paste must not erase
+the first. Only once the page has been rebuilt and satisfies every outstanding
+duty does a fresh reply **replace** `reply.md` and re-snapshot
+`answered.html`: that is a delivered round, not an unanswered one waved
+through by an unrelated follow-up.
+
+**A Decided item needs the reply that decided it (BL-569).** `consult-decided-trace`
+FAILS an item shown Decided when it was open in the answered page (or open in the
+baseline and absent from it) and no saved reply decides it. A reply decides an id
+when a line STARTS with that id (`### Q1 · ...` or `Q1: ...`), the block runs to
+the next known item id, heading or `<!--` separator, and the NEWEST block for the
+id governs. A block carrying `[provisional]` or any composer ask marker except
+`[page-defect]` decides nothing, nor does a block left empty once marker tokens
+are stripped. Dropped items are exempt. `consult-spec-items` FAILS a page that
+omits an item its spec declares. The fix for either is never to edit the page:
+save the reply that decided the item with `save-reply.sh`, or reopen it.
 
 **A new round needs the saved reply (BL-507).** On a page with a consult surface,
 `consult-round` is the reader's round: it advances only once `save-reply.sh` has

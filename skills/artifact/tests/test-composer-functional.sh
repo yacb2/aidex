@@ -645,7 +645,7 @@ wrap_page() {  # wrap_page [lang] — the page's language, es unless a caller sa
 # round arrives" saves a reply first. Before BL-507 every wrap was a new round; the
 # cells below that mean a new round call this, and their expectations are unchanged.
 wrap_next_round() {
-  printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$PAGE" - >/dev/null 2>&1 \
+  printf 'Q1: ok\nQ2: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$PAGE" - >/dev/null 2>&1 \
     || fail "save-reply.sh failed on the probe page"
   wrap_page "$@"
 }

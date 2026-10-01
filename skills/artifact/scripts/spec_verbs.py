@@ -701,7 +701,7 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
     # The page is produced HERE and only here, by the same CLI a hand build
     # runs: `build()` for the body, `wrap-report.sh` for the envelope, the kit
     # and the build stamp. No verb writes HTML.
-    rc = spec_build.main([spec_path, "-o", out, "--lang", lang])
+    rc, findings = _rebuild_capturing_findings(spec_path, out, lang)
     if rc != 0:
         rolled = ""
         if new != old:
@@ -710,9 +710,38 @@ def apply_edit(spec_path, transform, out=None, lang="es"):
         raise BuildFailed(
             "rebuilding %s exited %d (the trial build of the same spec "
             "passed, so the difference is in the output folder — a baseline, "
-            "a sibling file); the page on disk is the previous one%s"
-            % (out, rc, rolled))
+            "a sibling file); the page on disk is the previous one%s%s"
+            % (out, rc, rolled, findings))
     return out
+
+
+def _rebuild_capturing_findings(spec_path, out, lang):
+    """(rc, text): spec_build.main with fds 1-2 captured (the wrap's subprocess
+    writes the FAIL lines there), replayed to stderr, and the FAIL lines of
+    the output-folder checks returned for the BuildFailed message."""
+    import tempfile
+    sys.stdout.flush()
+    sys.stderr.flush()
+    saved = (os.dup(1), os.dup(2))
+    with tempfile.TemporaryFile() as tmp:
+        os.dup2(tmp.fileno(), 1)
+        os.dup2(tmp.fileno(), 2)
+        try:
+            rc = spec_build.main([spec_path, "-o", out, "--lang", lang])
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.dup2(saved[0], 1)
+            os.dup2(saved[1], 2)
+            os.close(saved[0])
+            os.close(saved[1])
+        tmp.seek(0)
+        err = tmp.read().decode("utf-8", "replace")
+    sys.stderr.write(err)
+    fails = [l.strip() for l in err.splitlines()
+             if "FAIL [consult-decided-trace]" in l
+             or "FAIL [consult-spec-items]" in l]
+    return rc, ("; failing check: " + " | ".join(fails)) if fails else ""
 
 
 class BuildFailed(Exception):
