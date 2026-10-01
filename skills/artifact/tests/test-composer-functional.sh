@@ -408,6 +408,7 @@ window.addEventListener('load', function () {
       + '|OPEN=' + document.querySelectorAll('.consult-item:not([data-decided])').length
       + '|BARH=' + (barH > 0 ? '1' : '0')
       + '|BARDISP=' + (bar ? getComputedStyle(bar).display : 'none')
+      + '|RAILPOS=' + getComputedStyle(document.querySelector('.rail')).position
       + '|ENDH=' + (ebH > 0 ? '1' : '0')
       + '|NOTESDIS=' + (nt3 ? (nt3.disabled ? '1' : '0') : 'x')
       + '|NOTESEND=' + acap.replace(/[|<>\n]/g, ' ')
@@ -763,6 +764,30 @@ cat > "$TMP/nbody.html" <<HTML
     <thead><tr><th>Fuente</th><th>Tarea</th></tr></thead>
     <tbody><tr><td>BL-489</td><td>El reporte de barridos toma la ventana por d&iacute;a natural, as&iacute; que dos barridos del mismo d&iacute;a se reclaman las corridas de prueba del otro; al terminar, cada corrida queda ligada a su lista de trabajo</td></tr></tbody>
   </table></div>
+  <div class="tw"><table id="t-two">
+    <thead><tr><th>Categor&iacute;a</th><th>Conteo</th></tr></thead>
+    <tbody><tr><td>Herramienta equivocada o llamada repetida en la misma sesi&oacute;n</td><td>41</td></tr><tr><td>Contexto perdido</td><td>12</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-three">
+    <thead><tr><th>Cat</th><th>Nombre de columna muy largo sin cortes</th><th>Otra</th></tr></thead>
+    <tbody><tr><td>a</td><td>El reporte de barridos toma la ventana por d&iacute;a natural</td><td>c</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-short2">
+    <thead><tr><th>Archivo</th><th>Estado</th></tr></thead>
+    <tbody><tr><td>components.css l&iacute;nea 520</td><td>pendiente de la revisi&oacute;n</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-short3">
+    <thead><tr><th>Fecha</th><th>Ruta</th><th>Estado</th></tr></thead>
+    <tbody><tr><td>2026-08-21 10:00 UTC</td><td>skills/artifact/scripts</td><td>pendiente de revisar</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-nest">
+    <thead><tr><th>Paso</th><th>Detalle</th></tr></thead>
+    <tbody><tr><td>Medir</td><td><table><thead><tr><th>A</th><th>B</th><th>C</th><th>D</th></tr></thead><tbody><tr><td>a</td><td>b</td><td>c</td><td>d</td></tr></tbody></table></td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-four">
+    <thead><tr><th>Rol</th><th>Por qu&eacute;</th><th>Cu&aacute;ndo</th><th>Qui&eacute;n</th></tr></thead>
+    <tbody><tr><td>Responsable de la entrega</td><td>El reporte de barridos toma la ventana por d&iacute;a natural, as&iacute; que dos barridos del mismo d&iacute;a se reclaman las corridas de prueba del otro; al terminar, cada corrida queda ligada a su lista de trabajo</td><td>Hoy</td><td>Ana</td></tr></tbody>
+  </table></div>
   <div class="endbar">
     <button type="button" id="consult-copy-end">Copiar mis respuestas</button>
     <span class="consult-status" id="consult-status-end"></span>
@@ -785,9 +810,20 @@ window.addEventListener('load', function () {
   };
   var txt = function (sel) { var e = document.querySelector(sel); return e ? e.textContent.replace(/[|]/g, '/') : 'none'; };
   var w = function (sel) { var e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().width) : -1; };
+  /* BL-567: 1 when the table needs no sideways scroll AND its last cell ends inside the
+   * viewport; the 4-column table is the one that may keep scrolling. */
+  var fits = function (sel) {
+    var t = document.querySelector(sel), box = t && t.closest('.tw');
+    if (!box) return -1;
+    var row = t.rows[t.rows.length - 1], last = row.cells[row.cells.length - 1].getBoundingClientRect().right;
+    return box.scrollWidth <= box.clientWidth + 1 && last <= window.innerWidth ? 1 : 0;
+  };
   document.title = 'NARROW|W=' + window.innerWidth
     + '|BARS=' + ['consult-copy', 'consult-copy-end'].filter(function (i) { return shown(document.getElementById(i)); }).length
     + '|L1=' + w('#t-label td:first-child') + '|L2=' + w('#t-label td:last-child') + '|I1=' + w('#t-id td:first-child')
+    + '|FIT2=' + fits('#t-two') + '|FIT3=' + fits('#t-three') + '|FITS2=' + fits('#t-short2') + '|FITS3=' + fits('#t-short3') + '|FITN=' + fits('#t-nest')
+    + '|FIT4=' + fits('#t-four') + '|F4C2=' + w('#t-four td:nth-child(2)')
+    + '|RAILPOS=' + getComputedStyle(document.querySelector('.rail')).position
     + '|DEC=' + txt('#sec-decided .eyebrow')
     + '|DECH=' + txt('#sec-decided h2')
     + '|DEC_HAS_X1=' + (document.querySelector('#sec-decided [data-id="X1"]') ? 1 : 0)
@@ -797,7 +833,15 @@ window.addEventListener('load', function () {
     + '|DRPHINT=' + txt('#sec-dropped .decided-hint')
     + '|MIX=' + [].map.call(document.querySelectorAll('#sec-decided summary'), function (d) { return d.textContent.replace(/[|]/g, '/'); }).join(';')
     + '|DRP_HAS_X1=' + (document.querySelector('#sec-dropped [data-id="X1"]') ? 1 : 0)
-    + '|RAIL=' + [].map.call(document.querySelectorAll('#raillist .railitem.sec'), function (a) { return a.textContent.trim(); }).join(',');
+    + '|RAIL=' + [].map.call(document.querySelectorAll('#raillist .railitem.sec'), function (a) { return a.textContent.trim(); }).join(',')
+    /* Last, because it mutates: answer the one open question WITHOUT deciding it. Nothing
+     * is left blank, but the question is still open, so the bar must stay pinned. */
+    + (function () {
+      var ce = document.querySelector('[data-id="Q1"] [contenteditable]');
+      ce.textContent = 'answered in the browser';
+      ce.dispatchEvent(new Event('input', { bubbles: true }));
+      return '|RAILANS=' + getComputedStyle(document.querySelector('.rail')).position;
+    })();
 });
 </script>
 HTML
@@ -822,14 +866,49 @@ tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | sed -n 1p)"
 l1="$(sed -nE 's/.*\|L1=([0-9]+)\|.*/\1/p' <<<"$tn")"
 l2="$(sed -nE 's/.*\|L2=([0-9]+)\|.*/\1/p' <<<"$tn")"
 i1="$(sed -nE 's/.*\|I1=([0-9]+)\|.*/\1/p' <<<"$tn")"
-# L2 is the discriminating half: the table keeps its floor and scrolls inside
-# .tw, so the prose column is wider than it could be if the table were squeezed
-# onto a 390 px screen (measured 358 with the floor, 183 without it). L1 alone
-# does not tell the two apart (122 vs 109).
-[[ -n "$l1" && "$l1" -ge 100 && -n "$l2" && "$l2" -ge 300 ]] \
-  || fail "BL-536: at 390 px a short label column (${l1:-?}px) or the prose beside it (${l2:-?}px) is squeezed: the table lost its floor and was fitted to the screen instead of scrolling inside .tw (want >= 100 and >= 300): $tn"
+# BL-567: a table of one to three columns FITS the screen (every column visible, no
+# sideways scroll); only a table of four or more keeps the BL-536 floor and scrolls
+# inside .tw. The 2-column t-label used to be the floor's example (L2 = 358 with it):
+# it now wraps to the screen, and what must hold is that its label column is not
+# squeezed to a single word per line (L1 >= 100) while the prose beside it still fits
+# (the floor itself is pinned by F4C2 below, not by these two).
+fit2="$(sed -nE 's/.*\|FIT2=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+fit3="$(sed -nE 's/.*\|FIT3=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+fit4="$(sed -nE 's/.*\|FIT4=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+[[ "$fit2" == 1 ]] \
+  || fail "BL-567: at 390 px a 2-column table scrolls sideways or ends off screen (FIT2=${fit2:-?}): its answer column is out of sight: $tn"
+[[ "$fit3" == 1 ]] \
+  || fail "BL-567: at 390 px a 3-column table with a long header scrolls sideways or ends off screen (FIT3=${fit3:-?}): $tn"
+[[ "$fit4" == 0 ]] \
+  || fail "BL-536: at 390 px a 4-column table fits the screen (FIT4=${fit4:-?}) so it lost its floor and its columns are squeezed to a word: $tn"
+fits2="$(sed -nE 's/.*\|FITS2=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+fits3="$(sed -nE 's/.*\|FITS3=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+fitn="$(sed -nE 's/.*\|FITN=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+# BL-248 keeps a short cell on one line, but not at the price of the answer column: when
+# the no-wrap cells make a small table wider than the screen, the table wraps instead.
+[[ "$fits2" == 1 ]] \
+  || fail "BL-567: at 390 px a 2-column table of short cells scrolls sideways (FITS2=${fits2:-?}): the no-wrap cells of BL-248 pushed its answer column out of sight: $tn"
+[[ "$fits3" == 1 ]] \
+  || fail "BL-567: at 390 px a 3-column table of short cells scrolls sideways (FITS3=${fits3:-?}): $tn"
+# A 4-column table inside a cell is not the outer table's column count.
+[[ "$fitn" == 1 ]] \
+  || fail "BL-567: at 390 px a 2-column table holding a 4-column table in a cell was given the 4-column floor and scrolls (FITN=${fitn:-?}): $tn"
+# What only the 30rem floor produces: the prose column of the 4-column table stays wide
+# (226 px with the floor, 81 without it, measured at 390 px; the table itself 480 vs 324).
+f4c2="$(sed -nE 's/.*\|F4C2=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
+[[ -n "$f4c2" && "$f4c2" -ge 150 ]] \
+  || fail "BL-536: at 390 px the prose column of a 4-column table is ${f4c2:-?}px: the table lost its 30rem floor and was squeezed onto the screen instead of scrolling inside .tw (want >= 150): $tn"
+[[ -n "$l1" && "$l1" -ge 100 && -n "$l2" && "$l2" -ge 150 ]] \
+  || fail "BL-536/BL-567: at 390 px a short label column (${l1:-?}px) or the prose beside it (${l2:-?}px) is squeezed to a sliver (want >= 100 and >= 150): $tn"
 [[ -n "$i1" && "$i1" -le 80 ]] \
   || fail "BL-536: at 390 px an id column is ${i1:-?}px wide, it should stay narrow (want <= 80: the id plus cell padding): $tn"
+# BL-575: this page has an open item, so its bottom bar stays pinned.
+[[ "$tn" == *"|RAILPOS=sticky|"* ]] \
+  || fail "BL-575: at 390 px with an open question the copy bar is not pinned to the viewport bottom: $tn"
+# ... and it stays pinned after that question is ANSWERED (nothing blank, but not decided):
+# the bar is released only when no question is left to answer, not when none is blank.
+[[ "$tn" == *"|RAILANS=sticky"* ]] \
+  || fail "BL-575: answering the last open question released the copy bar although the question is not decided: $tn"
 
 # ---- the chrome speaks the page's language ----------------------------------
 [[ "$t" == *"BTN=Copiar mis respuestas"* ]] \
@@ -1263,6 +1342,10 @@ td="$(run 'phase=alldecided')"
 # pass on a bar of zero height.
 [[ "$td" == *"BARH=1"* ]] \
   || fail "BL-341: the copy bar was hidden on an all-decided page — the notes box is no longer sendable: $td"
+# BL-575: nothing is left to answer, so the bar must not stay pinned over every
+# viewport; it is still in the page (BARH=1 above), after the content.
+[[ "$td" == *"RAILPOS=static"* ]] \
+  || fail "BL-575: below 62rem an all-decided page still pins the copy bar to the viewport bottom: $td"
 [[ "$td" == *"ENDH=0"* ]] \
   || fail "BL-341/BL-535: below 62rem the rail bar is the sticky bottom bar, so the end bar must not repeat it (exactly one copy bar): $td"
 
