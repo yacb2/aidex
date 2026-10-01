@@ -108,5 +108,15 @@
     "query": "Which files would I need to touch to add a dark mode toggle to settings?",
     "should_trigger": false,
     "expected_behavior": "Published built-in phrasing: plan mode / read-only exploration. No multi-phase plan artifact is wanted."
+  },
+  {
+    "query": "Create a plan for adding a new Team Members screen to the admin app: a table of members, an invite modal and an empty state.",
+    "should_trigger": true,
+    "expected_behavior": "Triage sees a request that adds a screen and the plan names /aidex:ui-contract as step 0, before any phase is written (BL-570)."
+  },
+  {
+    "query": "Create a plan for moving the nightly billing job to a queue worker. Backend only: new worker, retry policy and a data backfill; no UI changes.",
+    "should_trigger": true,
+    "expected_behavior": "Backend-only plan: does NOT name /aidex:ui-contract as step 0; the screen gate leaves non-UI plans unaffected (BL-570)."
   }
 ]

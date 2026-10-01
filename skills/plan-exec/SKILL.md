@@ -52,7 +52,8 @@ The operative rule here:
   cannot resolve (missing credentials, truly unknowable intended behavior).
 - **A phase report is not a stop.** Put the status note in the same message as the next
   phase's first tool call; never close a turn by announcing the next step instead of
-  taking it (both drew a bare "continue" from the user).
+  taking it (both drew a bare "continue" from the user). Waiting on a launched subagent is
+  not a stop: one line naming it closes the turn.
 - **On an ambiguous fork you cannot cleanly classify — consult the
   durability-arbiter before stopping.** Launch it with the Agent tool as
   `subagent_type: aidex:durability-arbiter` (definition:

@@ -9,7 +9,7 @@ markdown renderer at all: "wrap the report" had no mechanism.
 
 This is that mechanism and nothing more. The subset is what those two producers
 emit — front matter, `#`/`##`/`###` and deeper, paragraphs, `-` and `1.` lists with
-their indented continuation lines, pipe tables, `` `code` ``, `**bold**`,
+their indented continuation lines and sub-lists, pipe tables, `` `code` ``, `**bold**`,
 `_italic_`. Anything richer belongs in the page's own author, not here: a general
 markdown implementation is a dependency this repo does not have and a surface this
 one caller does not need.
@@ -113,9 +113,10 @@ FENCE = re.compile(r"^\s*(```|~~~)\s*([A-Za-z0-9_+-]*)\s*$")
 # OPENER, and nothing after it. Reusing FENCE as the closer closed a block on a
 # 4-space-indented marker or on a marker carrying an info string, so the next bare
 # fence line OPENED a block and swallowed the real headings after it (BL-477
-# review). The indent is relative to the opener, not to column 0, because this
-# subset has no list containers: a fence nested in a list item opens at the item's
-# indent and closes at it, and a column-0 cap left every such block unclosed.
+# review). The indent is relative to the opener, not to column 0, because a list
+# item never contains a fence here (an indented fence ends the list): a fence written
+# under a list item opens at the item's indent and closes at it, and a column-0 cap
+# left every such block unclosed.
 # Every tracker goes through `fence_closes` / `fence_state`, never FENCE, to close.
 CLOSER = re.compile(r"^([ \t]*)(`{3,}|~{3,})[ \t]*$")
 
@@ -396,22 +397,38 @@ def _blocks(lines):
             # numbered item would fall out between the <li>s as an orphan <p>.
             # Indentation is required — an unindented line after a list is a new
             # paragraph far more often than it is a lazy continuation.
+            # A marker indented DEEPER than the list's first marker opens a sub-list
+            # of the item above, and every indented line after it is that sub-list's,
+            # rendered by recursing into this branch (BL-568). Read as a sibling, it
+            # renumbered point 4's a/b/c as points 5, 6, 7 on a graded page.
             tag = "ol" if ORDERED.match(ln) else "ul"
-            items = []
+            base = len(ln) - len(ln.lstrip())
+            items = []  # [text, the item's sub-list lines]
             while i < len(lines):
                 cur = lines[i]
-                if MARKER.match(cur):
-                    items.append(MARKER.sub("", cur, count=1).strip())
+                deeper = len(cur) - len(cur.lstrip()) > base
+                if MARKER.match(cur) and not deeper:
+                    items.append([MARKER.sub("", cur, count=1).strip(), []])
                 elif (items and cur.strip() and cur[:1].isspace()
                       and not cur.lstrip().startswith("|")
                       and not HEADING.match(cur.lstrip())
                       and not FENCE.match(cur)):
-                    items[-1] += " " + cur.strip()
+                    # An ordered marker opens a sub-list only when it counts from
+                    # 1 (CommonMark's rule): `   25. Bulk-mark` is a wrapped line
+                    # that happens to start with a number, not a nested list.
+                    opens = (MARKER.match(cur) and deeper
+                             and (not ORDERED.match(cur)
+                                  or re.match(r"\s*1[.)]", cur)))
+                    if items[-1][1] or opens:
+                        items[-1][1].append(cur)
+                    else:
+                        items[-1][0] += " " + cur.strip()
                 else:
                     break
                 i += 1
             out.append(f"<{tag}>"
-                       + "".join(f"<li>{_inline(x)}</li>" for x in items)
+                       + "".join(f"<li>{_inline(x)}{''.join(_blocks(sub))}</li>"
+                                 for x, sub in items)
                        + f"</{tag}>")
         elif HEADING.match(ln):
             # `####` and deeper, or a second `# `. Demoted to an h3 rather than

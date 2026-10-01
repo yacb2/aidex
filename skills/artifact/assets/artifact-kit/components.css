@@ -72,6 +72,9 @@ pre code { background: none; padding: 0; font-size: 1em; }
                              mask-image: linear-gradient(to right, #000 calc(100% - 3.5rem), transparent); }
 th { white-space: nowrap; }
 td.nw { white-space: nowrap; }
+/* Last resort of fitTables() (BL-567): a small table that still overflows once its
+   no-wrap cells give way (a long path with no break point) may cut inside a word. */
+td.brk, th.brk { overflow-wrap: anywhere; }
 table { border-collapse: collapse; width: 100%; font-family: var(--sans); font-size: 0.83rem; }
 th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
 th { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.11em; color: var(--muted); font-weight: 600; background: var(--paper-sunk); }
@@ -513,7 +516,11 @@ dialog.kit-mark-note::backdrop { background: rgba(0, 0, 0, 0.3); }
      leaves each column to size itself (an id stays an id, a label keeps its
      room) and the table scrolls inside .tw once the floor is wider than the
      screen (BL-536). */
-  .tw > table:where(:not(svg *)) { min-width: 30rem; }
+  .tw > table:where(:not(svg *)):has(> thead > tr > :nth-child(4), > tbody > tr > :nth-child(4), > tr > :nth-child(4)) { min-width: 30rem; }
+  /* BL-567: a table of one to three columns fits the screen instead (the floor
+     above pushed the answer column out of sight in every 2-column table), so a
+     long header may wrap here rather than hold a column open. */
+  .tw > table:where(:not(svg *)):not(:has(> thead > tr > :nth-child(4), > tbody > tr > :nth-child(4), > tr > :nth-child(4))) th { white-space: normal; }
   .kit-ask { gap: 0.25rem 0.5rem; }
   .kit-ask-lead { flex-basis: 100%; }
   .kit-ask label { padding: 0.25rem 0.3rem; }
@@ -645,6 +652,10 @@ textarea { resize: vertical; }
      to the viewport bottom still hid a line of whatever scrolled under it (a
      figure heading's second line at 390 px on F2, F3 and F5, 2026-09-25). */
   .rail:not(:has(.consult-bar)):where(:not(svg *)) { display: none; }
+  /* Nothing left to answer (composer sets .settled): a bar pinned over every
+     viewport has no work to point at. It drops to the end of the page, where the
+     notes box can still be sent (BL-575). */
+  .rail.settled:where(:not(svg *)) { position: static; }
   .consult-bar { border-top: none; padding-top: 0; flex-direction: row; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
   .consult-bar button { width: auto; }
 }

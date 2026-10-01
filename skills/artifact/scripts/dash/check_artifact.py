@@ -42,6 +42,12 @@ Checks (per file):
                passing wrap and so cannot be what a round's duties are judged
                against (BL-475, BL-504). With no reply/answered snapshot saved for
                the page at all it only WARNS.
+  consult-spec-items every `item` the `<stem>.spec.md` beside the page declares
+               is on the built page or declared dropped (BL-569); silent when no
+               spec sits beside the page (the brief itself is never on disk)
+  consult-decided-trace an item open in `.aidex-artifact-prev/<stem>.answered.html`
+               (else the baseline `<stem>.html`) and shown Decided now needs an
+               answer in `<stem>.reply.md`; dropped items are exempt (BL-569)
   svg-contrast figure text below 4.5:1 against what it is painted on, in either
                theme (BL-330). The one check with two severities: it FAILS a
                named file — the wrap — and only WARNS in `--census`, because a
@@ -3101,6 +3107,56 @@ def check_consultation(path, text, flat):
 # a reply is saved, EVERY later wrap of the page is judged against that same
 # answered snapshot, until a newer reply replaces it.
 REPLY_ITEM = re.compile(r"^### (\S+) · ", re.M)
+# BL-569: a reply pasted in chat format (`Q1: ...`, `### Q1 · ...`) is a reply
+# too (SKILL.md: chat replies are saved the same way as composer replies).
+_MARK_TOKEN = re.compile(r"\[([a-z][a-z-]*)\]")
+
+
+# composer.js ASKS + `[not-now]` + the `[provisional]` qualifier, minus
+# `[page-defect]` (see composer.js provisionalAskMarks). Filled in below,
+# once MARKER_DUTIES exists.
+_ASK_MARKERS = frozenset()
+
+
+def _reply_has_answer(reply_text, ident, ids=()):
+    """True when the LAST block of the saved reply that starts with `ident`
+    decides it: not only marker lines, not `[provisional]`. reply.md is
+    appended to across saves, so one id can own several blocks; the newest one
+    is what the reader last said. A block ends at a `##`/`###` heading, a
+    `<!--` line, or a chat line starting with one of the page's known item
+    `ids` (exact id, never a prefix) — an option line like `V2: ...` that is
+    not an item id is content."""
+    alts = "|".join(re.escape(i) for i in sorted(set(ids) | {ident},
+                                                 key=len, reverse=True))
+    head_any = re.compile(r"^(?:[ \t]*#{2,3}[ \t]|<!--|[ \t]*(?:" + alts
+                          + r")(?![\w-])[ \t]*[:·])")
+    head = re.compile(r"^[ \t]*(#{2,3}[ \t]+)?" + re.escape(ident)
+                      + r"(?![\w-])[ \t]*[:·](.*)$", re.M)
+    lines = reply_text.split("\n")
+    decided = False
+    for k, line in enumerate(lines):
+        m = head.match(line)
+        if not m:
+            continue
+        # a `### Q1 · title` head carries the item title, not an answer
+        block = [] if m.group(1) else [m.group(2)]
+        for nxt in lines[k + 1:]:
+            if head_any.match(nxt):
+                break
+            block.append(nxt)
+        # composer.js isProvisional: an ask marker other than [page-defect]
+        # beside an answer makes it provisional, so it decides nothing
+        # only the KNOWN marker names count: `[readme](url)`, `- [x] done`
+        # and `[debug]` are content, not asks
+        if any(t in _ASK_MARKERS for t in _MARK_TOKEN.findall("\n".join(block))):
+            decided = False
+            continue
+        body = [b.strip() for b in block if b.strip()]
+        body = [b for b in body if not ASK_LINE.fullmatch(b)]
+        body = [b for b in (_MARK_TOKEN.sub("", b).strip() for b in body) if b]
+        decided = bool(body)
+    return decided
+
 # Generic — every marker in the 02-local-first-artifacts.md asks table pastes
 # this shape (composer.js `readItem`/`markLabel`): `- [token]` on its own line.
 ASK_LINE = re.compile(r"^- \[([a-z][a-z-]*)\]\s*$", re.M)
@@ -3131,6 +3187,7 @@ MARKER_DUTIES = {
     "page-defect": "fix the page defect in place without re-asking",
     "not-now": "carry it open on the ledger; do not redraw it",
 }
+_ASK_MARKERS = (frozenset(MARKER_DUTIES) | {"provisional"}) - {"page-defect"}
 STACKED_DUTY = ("rewrite from the concrete situation with a figure; do not "
                 "answer marker by marker")
 # Markers whose duty is only judged by the item's normalised body changing —
@@ -3309,6 +3366,94 @@ def decided_ids(text):
             ident = next(g for g in m.groups()[1:] if g is not None)
             out.add(ident)
     return out
+
+
+def _spec_item_ids(nodes):
+    out = []
+    for nd in nodes:
+        if nd.block_type == "item" and nd.id:
+            out.append(nd.id)
+        out.extend(_spec_item_ids(nd.children))
+    return out
+
+
+def check_spec_items(path):
+    """(fails, warns) for BL-569 (a): every `item` the `<stem>.spec.md` beside
+    the page declares is on the built page, or declared dropped. The brief is
+    never on disk, so the spec is the only declaration of the item set a
+    checker can read; a page with no spec beside it (wrap-report route) cannot
+    be judged, and stays silent: most hand-written pages have none."""
+    name = os.path.basename(path)
+    if not os.path.isfile(path):
+        return [], []                      # check_file reports an unreadable page
+    spec = os.path.splitext(os.path.abspath(path))[0] + ".spec.md"
+    if not os.path.isfile(spec):
+        return [], []                      # wrap-report route: no spec to compare
+    text = open(path, encoding="utf-8", errors="replace").read()
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        sys.path.insert(0, os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), os.pardir))
+        import spec_parser
+        tree = spec_parser.parse(open(spec, encoding="utf-8").read())
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        return [("consult-spec-items", name,
+                 f"the spec scan did not run ({e})")], []
+    on_page = {i for i, *_ in consult_items(text)} | dropped_declaration(text)
+    return [("consult-spec-items", name,
+             f"{i} is declared in {os.path.basename(spec)} but the built page "
+             f"has no such item — rebuild the page from the spec, or declare "
+             f"the drop") for i in _spec_item_ids(tree) if i not in on_page], []
+
+
+def dropped_ids(text):
+    """The `data-id`s of items carrying `data-dropped` (a spec `dropped=`)."""
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        if re.search(r"\bdata-dropped\b(?!-)", m.group(0), re.I):
+            out.add(next(g for g in m.groups()[1:] if g is not None))
+    return out
+
+
+def check_decided_trace(path):
+    """FAILs for BL-569 (b): an item that was OPEN when the reader answered
+    (`.aidex-artifact-prev/<stem>.answered.html`; with no answered snapshot,
+    the contract baseline `<stem>.html` there) and is decided on this page
+    must have a reply block in `<stem>.reply.md` that decides it — otherwise
+    nothing the reader said decided it. A block counts when a line of the
+    reply starts with the id (`### Q1 · ...` or chat `Q1: ...`) and carries
+    more than marker lines and no `[provisional]`. Exempt: items decided
+    before that snapshot (earlier rounds), items absent from it (born
+    decided), and dropped items (`data-dropped`: they left the question set)."""
+    name = os.path.basename(path)
+    prev_dir = os.path.join(os.path.dirname(os.path.abspath(path)),
+                            ".aidex-artifact-prev")
+    stem = os.path.splitext(name)[0]
+    reply = os.path.join(prev_dir, stem + ".reply.md")
+    answered = os.path.join(prev_dir, stem + ".answered.html")
+    baseline = os.path.join(prev_dir, stem + ".html")
+    if not os.path.isfile(path) or not (os.path.isfile(answered)
+                                        or os.path.isfile(baseline)):
+        return []
+    read = lambda p: (open(p, encoding="utf-8", errors="replace").read()
+                      if os.path.isfile(p) else "")
+    text = read(path)
+    old = read(answered)
+    reply_text = (open(reply, encoding="utf-8", errors="replace").read()
+                  if os.path.isfile(reply) else "")
+    in_old = {i for i, *_ in consult_items(old)}
+    was_open = in_old - decided_ids(old)
+    # an item born after the last reply is open in the baseline, not the snapshot
+    base = read(baseline)
+    was_open |= ({i for i, *_ in consult_items(base)} - decided_ids(base)) - in_old
+    gap = (decided_ids(text) - dropped_ids(text)) & was_open
+    page_ids = in_old | {i for i, *_ in consult_items(base)} \
+        | {i for i, *_ in consult_items(text)}
+    return [("consult-decided-trace", name,
+             f"{i} is shown as Decided but the saved reply has no answer for "
+             f"it — nothing the reader answered decided it. Keep it open, or "
+             f"save the reply that decided it with save-reply.sh")
+            for i in sorted(gap) if not _reply_has_answer(reply_text, i, page_ids)]
 
 
 def check_prev(new_path, prev_path):
@@ -3721,6 +3866,11 @@ def main(argv):
         duty_fails, duty_warns = check_marker_duties(files[0])
         failures.extend(duty_fails)
         warnings.extend(duty_warns)
+    for f in files:
+        spec_fails, spec_warns = check_spec_items(f)
+        failures.extend(spec_fails)
+        warnings.extend(spec_warns)
+        failures.extend(check_decided_trace(f))
 
     for check, name, msg in failures:
         print(f"  FAIL [{check}] {name}: {msg}")

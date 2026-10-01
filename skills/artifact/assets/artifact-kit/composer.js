@@ -1414,10 +1414,25 @@
    * view at the bottom of a tall table. */
   function fitTables() {
     document.querySelectorAll('.tw').forEach(function (tw) {
-      tw.querySelectorAll('td').forEach(function (td) {
-        if (td.textContent.trim().length <= 24) td.classList.add('nw');
-      });
-      var mark = function () { tw.classList.toggle('overflows', tw.scrollWidth > tw.clientWidth + 1); };
+      var table = tw.querySelector('table');
+      /* Columns of the OUTER table only: `.rows` never reaches a table nested in a cell. */
+      var cols = table ? [].reduce.call(table.rows, function (m, r) { return Math.max(m, r.cells.length); }, 0) : 0;
+      var tds = tw.querySelectorAll('td'), cells = tw.querySelectorAll('td, th');
+      /* BL-567: a table of one to three columns must fit the screen, so the no-wrap
+       * cells give way when they alone make it wider (the answer column was out of
+       * sight). Four or more columns keep them and scroll, as BL-248 intends. Measured
+       * again on resize, so a phone turned sideways gets its no-wrap cells back. */
+      var mark = function () {
+        cells.forEach(function (c) { c.classList.remove('brk'); });
+        tds.forEach(function (td) { td.classList.toggle('nw', td.textContent.trim().length <= 24); });
+        if (cols <= 3 && tw.scrollWidth > tw.clientWidth + 1) {
+          tds.forEach(function (td) { td.classList.remove('nw'); });
+          /* Still wider than the screen: a word with no break point (a path) may be cut. */
+          var still = tw.scrollWidth > tw.clientWidth + 1;
+          if (still) cells.forEach(function (c) { c.classList.add('brk'); });
+        }
+        tw.classList.toggle('overflows', tw.scrollWidth > tw.clientWidth + 1);
+      };
       mark();
       window.addEventListener('resize', mark);
       tw.addEventListener('scroll', function () {
@@ -1436,6 +1451,11 @@
      * (BL-341; BL-331 had already taught the checker to accept the page).
      * Only the status changes: the general-notes box is not one of the
      * questions, so it is still fillable and the copy bar still has work. */
+    /* Nothing left to answer: the narrow layout stops pinning the copy bar to the
+     * viewport (`.rail.settled`, components.css, BL-575). The bar stays in the page,
+     * after the content, because the notes box is still sendable. */
+    var railEl = document.querySelector('.rail');
+    if (railEl) railEl.classList.toggle('settled', !r.total);
     if (!r.total) { say(L.allDecided); return; }
     say(r.answered
       ? L.progress(r.answered, r.total) + (r.blank.length ? L.missing(r.blank) : '')

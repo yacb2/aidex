@@ -466,6 +466,12 @@ try:
               "--option", "El de la librería"), "add-item"),
             (("decide", spec, "--id", "Q1", "--verdict", V), "decide"),
             (("new-round", spec), "new-round")):
+        if label == "decide":      # BL-569: a decision needs the reply that made it
+            sr = subprocess.run(["bash", os.path.join(SCRIPTS, "save-reply.sh"),
+                                 page, "-"], input="Q1: Fences\n", text=True,
+                                capture_output=True)
+            check("(setup) the reply for the decision is saved",
+                  sr.returncode == 0, sr.stdout + sr.stderr)
         r = run(*argv)
         check("%s rebuilds the page" % label, r.returncode == 0,
               r.stdout + r.stderr)
@@ -758,7 +764,7 @@ try:
     check("(setup) the first decide builds the page at round 1",
           r.returncode == 0 and rounds(mpage)[0] == ["1"], r.stdout + r.stderr)
     saved = subprocess.run(["bash", os.path.join(SCRIPTS, "save-reply.sh"),
-                            mpage, "-"], input="Q1: A\n", text=True,
+                            mpage, "-"], input="Q1: A\nQ2: No, un atributo nuevo\nQ3: A\nQ4: B\n", text=True,
                            capture_output=True)
     check("(setup) the reader's reply is saved", saved.returncode == 0,
           saved.stdout + saved.stderr)
