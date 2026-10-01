@@ -3415,6 +3415,24 @@ def dropped_ids(text):
     return out
 
 
+_SAVE_SEP = re.compile(r"^<!-- reply saved .*-->[ \t]*$", re.M)
+# A composer paste: a group heading, or the general-notes block (it sits
+# outside every group, so a notes-only paste carries no `##` line).
+_GROUP_HEAD = re.compile(r"^[ \t]*(?:##[ \t]+[^#\n].*·|###[ \t]+notes[ \t]*·)", re.M)
+
+
+def _live_reply(reply_text):
+    """BL-598: a save carrying a composer heading is a FULL composer paste,
+    the reader's whole current state, so the latest one supersedes every
+    earlier save; saves after it still count. Sliced from the original text so
+    the `<!-- reply saved -->` lines that end reply blocks survive. No full
+    paste: text unchanged."""
+    starts = [0] + [m.start() for m in _SAVE_SEP.finditer(reply_text)]
+    ends = starts[1:] + [len(reply_text)]
+    full = [a for a, b in zip(starts, ends) if _GROUP_HEAD.search(reply_text[a:b])]
+    return reply_text[full[-1]:] if full else reply_text
+
+
 def check_decided_trace(path):
     """FAILs for BL-569 (b): an item that was OPEN when the reader answered
     (`.aidex-artifact-prev/<stem>.answered.html`; with no answered snapshot,
@@ -3441,6 +3459,7 @@ def check_decided_trace(path):
     old = read(answered)
     reply_text = (open(reply, encoding="utf-8", errors="replace").read()
                   if os.path.isfile(reply) else "")
+    reply_text = _live_reply(reply_text)
     in_old = {i for i, *_ in consult_items(old)}
     was_open = in_old - decided_ids(old)
     # an item born after the last reply is open in the baseline, not the snapshot

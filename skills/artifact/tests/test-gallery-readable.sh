@@ -64,19 +64,19 @@ grep -qF '<h3>New screen</h3>' <<<"$new" && ! grep -q '<h3>[^<]* · ' <<<"$new" 
 echo "== BL-594: the variant once, below the capture, in words =="
 [[ "$(grep -c 'gal-variant' <<<"$pair")" == 1 ]] \
   && grep -qF '<p class="gal-variant">Vista: escritorio, tema claro</p>' <<<"$pair" \
-  && [[ "$(grep -n 'class="gal' <<<"$pair" | head -1 | cut -d: -f1)" -lt "$(grep -n 'gal-variant' <<<"$pair" | cut -d: -f1)" ]] \
+  && [[ "$(grep -n 'class="gal' <<<"$pair" | sed -n 1p | cut -d: -f1)" -lt "$(grep -n 'gal-variant' <<<"$pair" | cut -d: -f1)" ]] \
   && ok "one 'Vista: escritorio, tema claro' line, after the captures" \
   || fail "the variant line is wrong: $pair"
 grep -qF 'Vista: móvil, tema oscuro' <<<"$(item audit-phone-dark-mobile "$TMP/g.html")" \
   && ok "dark + mobile reads 'móvil, tema oscuro'" || fail "the mobile variant line is wrong"
-gen "$TMP/rows.json" --lang en 2>/dev/null | grep -qF '<p class="gal-variant">View: desktop, light theme</p>' \
+gen "$TMP/rows.json" --lang en 2>/dev/null | grep >/dev/null -F '<p class="gal-variant">View: desktop, light theme</p>' \
   && ok "…and 'View: desktop, light theme' on an English page" || fail "the English variant line is wrong"
 grep -qi 'claro · escritorio' "$TMP/g.html" \
   && fail "the jargon variant label is still on the page" || ok "the jargon label '<mode> · <viewport>' is gone"
 
 echo "== BL-595: the instruction once, at the top =="
 [[ "$(grep -c 'Marca tu respuesta' "$TMP/g.html")" == 1 ]] \
-  && [[ "$(grep -n 'gal-intro' "$TMP/g.html" | cut -d: -f1)" -lt "$(grep -n 'consult-item' "$TMP/g.html" | head -1 | cut -d: -f1)" ]] \
+  && [[ "$(grep -n 'gal-intro' "$TMP/g.html" | cut -d: -f1)" -lt "$(grep -n 'consult-item' "$TMP/g.html" | sed -n 1p | cut -d: -f1)" ]] \
   && ! grep -q 'si necesita cambios' <<<"$pair" \
   && ok "'Marca tu respuesta' appears once, before the first row, and no row repeats it" \
   || fail "the instruction is not once at the top: $(grep -c 'Marca tu respuesta' "$TMP/g.html")"

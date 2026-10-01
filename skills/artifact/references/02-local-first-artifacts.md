@@ -1206,7 +1206,9 @@ fails on any `max-width` inside the column.
 
 Inside `.tw`, the composer marks short cells (≤24 characters: numbers, dates, paths,
 ids) `nowrap`, so a 12-column table scrolls instead of breaking `2026-08-21` in two,
-and prose cells still wrap. A table that overflows gets a right-edge fade until the
+and prose cells still wrap. A table of 4+ columns keeps that floor and scrolls (BL-536).
+A table of 3 columns or fewer that overflows drops `nowrap` from every cell, and if it
+still overflows its cells break anywhere (`.brk`, BL-567). A table that overflows gets a right-edge fade until the
 reader scrolls to its end — the scrollbar alone sits at the bottom of a tall table,
 out of view.
 

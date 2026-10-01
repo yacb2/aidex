@@ -48,7 +48,8 @@ round. Four outcomes:
 
 **Screen gate.** When the request adds or changes a screen (anything a user sees), the
 plan names `/aidex:ui-contract` as **step 0**, before any phase is written, in the scoped
-and the full outcome alike. A request that touches no screen is unaffected.
+and the full outcome alike, unless the request names an already-decided `ui-contract.md`
+(Step 0 full, item 3: carry it over). A request that touches no screen is unaffected.
 
 ## Step 0 (scoped) — one confirmation round
 

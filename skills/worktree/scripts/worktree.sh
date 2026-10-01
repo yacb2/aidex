@@ -1109,7 +1109,11 @@ if [[ "$cmd" == "down" ]]; then
   # slot claim was released on the strength of it. Refusing the teardown would be
   # wrong (a --no-infra worktree has no stack to reach), so what is withheld is
   # the CLAIM, not the teardown.
-  if ! docker info >/dev/null 2>&1; then
+  # A wedged Docker Desktop accepts the socket and never answers; 30 s covers a cold start.
+  dt="${AIDEX_DOCKER_TIMEOUT:-30}" drc=0
+  perl -e 'alarm shift; exec @ARGV' "$dt" docker info >/dev/null 2>&1 || drc=$?
+  if [[ $drc -ne 0 ]]; then
+    [[ $drc -eq 142 ]] && warn "Docker did not answer within ${dt} s."
     warn "Docker daemon unreachable — teardown completed, but nothing could be verified reclaimed."
     warn "Re-run 'orphan-sweep.sh --slug $SLUG' once the daemon is back."
   elif bash "$SWEEP" --slug "$SLUG" >/dev/null 2>&1; then

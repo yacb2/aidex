@@ -331,6 +331,77 @@ grep -q 'Q2: No' "$RP" && ! grep -q 'Q1: Sí' "$RP" \
   && ok "27. a save after a real rebuild replaces reply.md" \
   || fail "27. reply=$(cat "$RP")"
 
+# 28. BL-598: a later full composer paste supersedes earlier saves: Q1 absent
+# from the latest full paste is not answered by the first one
+newpage fullsup
+spec "" ""; build
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "28. save 1 failed"
+printf '## G1 · x\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "28. save 2 failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out"   && ! grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "28. a second full paste without Q1 leaves Q1 unanswered (FAIL names Q1 only)" \
+  || fail "28. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 29. a chat save AFTER the latest full paste still counts
+newpage chatafter
+spec "" ""; build
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "29. save 1 failed"
+printf 'Q2: No\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "29. save 2 failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] \
+  && ok "29. a chat line saved after a full paste still decides its item" \
+  || fail "29. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 30. a chat save BEFORE a full paste that holds the id is not a regression
+newpage chatbefore
+spec "" ""; build
+printf 'Q1: Sí\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "30. save 1 failed"
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "30. save 2 failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] \
+  && ok "30. a full paste after a chat save, holding both ids, decides both" \
+  || fail "30. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 31. BL-598 review: with NO full paste, a free-text follow-up save must not
+# merge into the previous save's block (the save separator ends a block)
+newpage sepq
+spec "" ""; build
+printf 'Q2: [page-defect]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "31. save 1 failed"
+printf 'Lo demás lo vemos luego\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "31. save 2 failed"
+spec "" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "31. a free-text follow-up does not lend its prose to Q2's marker-only block" \
+  || fail "31. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 32. ...and a follow-up save's marker text must not leak back into Q2's answer
+newpage sepr
+spec "" ""; build
+printf 'Q2: No\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "32. save 1 failed"
+printf 'Olvida el [show-me] que pedí antes\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "32. save 2 failed"
+spec "" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] \
+  && ok "32. a later save's [show-me] text does not make Q2's earlier answer provisional" \
+  || fail "32. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 33. a composer paste holding only the general notes is the reader's whole
+# state too: it supersedes the earlier full paste
+newpage notesonly
+spec "" ""; build
+NID=$(grep -o 'consult-notes" data-id="[^"]*"' "$PAGE" | sed -n 1p | sed 's/.*data-id="//; s/"$//')
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "33. save 1 failed"
+printf '### %s · Notas generales\n\nMejor lo pienso otra vez\n' "${NID:-notes}" | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "33. save 2 failed"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q1' "$TMP/build.out" \
+  && grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "33. a notes-only composer paste supersedes the earlier answers (FAIL names Q1 and Q2)" \
+  || fail "33. NID=$NID rc=$rc out=$(cat "$TMP/build.out")"
+
 if [[ "$failures" -eq 0 ]]; then
   echo "test-consult-spec-trace.sh: all checks passed"
 else
