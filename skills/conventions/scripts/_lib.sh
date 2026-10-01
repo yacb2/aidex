@@ -300,7 +300,18 @@ resolve_worklist() {
   local arch=0 dir arg m n f b exact=() re
   [[ "${1:-}" == "--with-archive" ]] && { arch=1; shift; }
   dir="$1"; arg="$2"
-  if [[ -f "$arg" ]]; then printf '%s\n' "$arg"; return 0; fi
+  # A path (it has a `/`) is taken as given. A bare name is a file only when the CWD is
+  # the work-list dir itself: `foo` beside the caller is not the work-list `foo` names
+  # (BL-551, same class as BL-541). Both sides resolved (a worktree may link .context),
+  # and cd's CDPATH echo silenced.
+  if [[ -f "$arg" ]]; then
+    if [[ "$arg" == */* ]]; then printf '%s\n' "$arg"; return 0; fi
+    local here; here="$(pwd -P)"
+    if [[ "$here" == "$(cd "$dir" >/dev/null 2>&1 && pwd -P)" ]] \
+       || [[ $arch -eq 1 && "$here" == "$(cd "$dir/_archive" >/dev/null 2>&1 && pwd -P)" ]]; then
+      printf '%s\n' "$arg"; return 0
+    fi
+  fi
   if [[ $arch -eq 1 ]]; then
     m="$(ls "$dir/"*"$arg"*.md "$dir/_archive/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
   else

@@ -92,4 +92,33 @@ sed -i.bak "s|origin_ref: worklist/.*|origin_ref: worklist/2026-01-01-no-such-ru
 VOUT="$(python3 "$V" --type research 2>&1)"
 grep -q "resolves to no file" <<<"$VOUT" && ok "a worklist ref to a missing run is still caught" || bad "missing worklist ref not flagged: $VOUT $(grep origin_ref "$P/.context/research/2026-08-27-sweep-report.md")"
 
+# 5 · a slug names the work-list even when a same-named file sits in the CWD (BL-551).
+# resolve_worklist's `[[ -f ]]` took ./<slug> first: close rewrote and archived the stray
+# file as `_archive/<slug>`, advance peeked its queue.
+cd "$P"
+stray() { printf 'not a work-list\n1. [ ] stray\n' > "$1"; }
+WL6="$(bash "$DIR/worklist-new.sh" --title "Slug six" --slug slug-six --ref "inline:first of six")"
+stray slug-six
+OUT="$(bash "$DIR/worklist-advance.sh" slug-six --peek 2>&1)"
+[[ "$OUT" == *"first of six"* ]] && ok "advance by slug peeks the work-list, not ./slug-six" || bad "advance by slug: $OUT"
+OUT="$(bash "$DIR/worklist-close.sh" slug-six 2>&1)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == "CLOSED $P/.context/worklists/_archive/$(basename "$WL6")" ]] \
+  && ok "close by slug archives the work-list" || bad "close by slug: rc=$RC $OUT"
+[[ "$(cat slug-six 2>/dev/null)" == $'not a work-list\n1. [ ] stray' && ! -e .context/worklists/_archive/slug-six ]] \
+  && ok "the CWD file is untouched and not archived" || bad "the CWD file was rewritten or archived"
+# a worktree that links .context (WT_LINKS): same answer through the symlink
+mkdir -p "$TMP/sib" && ln -s "$P/.context" "$TMP/sib/.context"
+bash "$DIR/worklist-new.sh" --title "Slug seven" --slug slug-seven --ref "inline:first of seven" >/dev/null
+OUT="$(cd "$TMP/sib" && stray slug-seven && bash "$DIR/worklist-advance.sh" slug-seven --peek 2>&1)"
+[[ "$OUT" == *"first of seven"* ]] && ok "through a symlinked .context, the slug still names the work-list" || bad "linked: $OUT"
+# inside the linked worklists/, the logical CWD differs from the resolved one: only
+# comparing `pwd -P` on both sides accepts the bare filename there
+OUT="$(cd "$TMP/sib/.context/worklists" && bash "$DIR/worklist-advance.sh" "$(ls | grep slug-seven)" --peek 2>&1)"
+[[ "$OUT" == *"first of seven"* ]] && ok "a bare filename from inside a symlinked worklists/ is taken as given" || bad "linked in-dir filename: $OUT"
+# an explicit path, and a bare filename from inside worklists/, still resolve as given
+OUT="$(bash "$DIR/worklist-advance.sh" ".context/worklists/$(ls .context/worklists | grep slug-seven)" --peek 2>&1)"
+[[ "$OUT" == *"first of seven"* ]] && ok "a relative path is taken as given" || bad "relative path: $OUT"
+OUT="$(cd .context/worklists && bash "$DIR/worklist-advance.sh" "$(ls | grep slug-seven)" --peek 2>&1)"
+[[ "$OUT" == *"first of seven"* ]] && ok "a bare filename from inside worklists/ is taken as given" || bad "in-dir filename: $OUT"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist close refusal: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
