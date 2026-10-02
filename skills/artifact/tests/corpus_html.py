@@ -285,17 +285,50 @@ def _option_tokens(label):
     return words
 
 
-def _lead_first(children):
+def _h3_is_title(h3):
+    """True when the h3 reads exactly as its section's data-title (id badge aside)."""
+    title = h3.parent.attrs.get("data-title") if h3.parent else None
+    if not title:
+        return False
+    words = []
+    for n in h3.walk():
+        if n.tag == "#text" and not any(
+                a.has("consult-id") for a in _ancestors(n, h3)):
+            words.append(n.text)
+    return _plain("".join(words)) == _plain(title)
+
+
+def _plain(text):
+    """Words of a title with its inline markup (tags, backticks, emphasis) off."""
+    text = re.sub(r"<[^>]*>", "", html.unescape(text))
+    return " ".join(re.sub(r"[`*_]", "", text).split())
+
+
+def _ancestors(node, stop):
+    n = node.parent
+    while n is not None and n is not stop.parent:
+        yield n
+        n = n.parent
+
+
+def _lead_first(children, lead_first_ids=()):
     """Reading order of an item's children, the situation lead first.
 
     The builder (BL-514) keeps only an item's closing question in the h3 and
     moves the situation sentences into a `.consult-lead` paragraph right UNDER it;
     older pages wrote both in the h3, lead first. A built item is read in the
     old order: its lead goes in front of the h3. Nothing else is moved.
+
+    An item whose first paragraph asks no question keeps its TITLE in the h3 and
+    that paragraph becomes the lead (BL-576): the original read heading, then
+    statement, so a lead under an h3 that is the item's data-title stays put
+    unless the original item with that data-id had content before its h3
+    (`lead_first_ids`: a finding card whose chips precede the title).
     """
     out, moved = [], set()
     for i, c in enumerate(children):
-        if c.tag != "h3":
+        if c.tag != "h3" or (_h3_is_title(c) and (
+                c.parent.attrs.get("data-id") not in lead_first_ids)):
             continue
         nxt = next((n for n in children[i + 1:]
                     if not (n.tag == "#text" and not n.text.strip())), None)
@@ -312,8 +345,8 @@ def _lead_first(children):
     return out
 
 
-def _collect(node, out):
-    for child in _lead_first(node.children):
+def _collect(node, out, lead_first_ids=()):
+    for child in _lead_first(node.children, lead_first_ids):
         if child.tag == "#text":
             out.append(child.text)
             continue
@@ -323,19 +356,37 @@ def _collect(node, out):
         if _option_input(child) is not None:
             out.append(" ".join(_option_tokens(child)))
         else:
-            _collect(child, out)
+            _collect(child, out, lead_first_ids)
         out.append(" ")
 
 
-def visible_text(node):
+def visible_text(node, lead_first_ids=()):
     out = []
-    _collect(node, out)
+    _collect(node, out, lead_first_ids)
     return html.unescape("".join(out))
 
 
-def tokens(node):
+def tokens(node, lead_first_ids=()):
     """The comparison unit: whitespace-collapsed words, in reading order."""
-    return visible_text(node).split()
+    return visible_text(node, lead_first_ids).split()
+
+
+def ids_with_content_before_h3(node):
+    """data-ids of the ORIGINAL's items that show something before their h3."""
+    found = set()
+    for n in node.walk():
+        if "data-id" not in n.attrs:
+            continue
+        for c in n.children:
+            if c.tag == "h3":
+                break
+            if c.tag != "#text" and not _dropped(c) and visible_text(c).strip():
+                found.add(n.attrs["data-id"])
+                break
+            if c.tag == "#text" and c.text.strip():
+                found.add(n.attrs["data-id"])
+                break
+    return found
 
 
 def ids(node, skip=()):

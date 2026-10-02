@@ -6,10 +6,13 @@ Usage:
     python3 corpus_diff.py --quiet <spec.md> <original>  # exit status only
 
 Exit 0 when the conversion is clean: the `data-id` sequence is IDENTICAL and
-the visible-text token sequence is IDENTICAL. One allowance (owner ruling
-2026-09-28, the consult contract wins): a group id or the general-notes item
+the visible-text token sequence is IDENTICAL. Two allowances. (1) Owner ruling
+2026-09-28, the consult contract wins: a group id or the general-notes item
 that only the build has is not counted, the notes item's title with it, as long
-as every original id keeps its order. Each option's input type (radio or
+as every original id keeps its order. (2) A built item's situation lead is
+read in front of its h3 (BL-514), except under a title h3 (BL-576), where it is
+read there only if the ORIGINAL item had content before its h3 (a finding
+card's chips); `corpus_html._lead_first`. Each option's input type (radio or
 checkbox), and which option is recommended and which is checked, are compared
 too (`corpus_html.option_flags`, rule in `_first_flag_divergence`). Inside an option's label the " — "
 separator the builder leaves implicit and the kit's badge word are read in one
@@ -72,7 +75,8 @@ def compare_body(body, page_path):
         problems.append("ids differ\n  original: %s\n  built:    %s\n%s"
                         % (wi, gi, _unified(wi, gi, "id")))
 
-    wt, gt = corpus_html.tokens(want), corpus_html.tokens(got)
+    wt, gt = corpus_html.tokens(want), corpus_html.tokens(
+        got, lead_first_ids=corpus_html.ids_with_content_before_h3(want))
     if wt != gt:
         problems.append("visible text differs (%d words in the page, %d built)\n%s"
                         % (len(wt), len(gt), _first_divergence(wt, gt)))

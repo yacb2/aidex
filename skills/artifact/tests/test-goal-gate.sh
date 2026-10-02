@@ -1166,6 +1166,32 @@ LEAD_NEW = ('<section class="consult-item" data-id="q"><h3><span class="consult-
             '</span>¿Qué hacemos?</h3><p class="consult-lead">Hoy falla.</p></section>')
 case("a built item's situation lead reads in front of its question", LEAD_NEW, True,
      orig=LEAD_OLD)
+# BL-576: an item whose first paragraph is not a question keeps its TITLE in the
+# h3 and that paragraph becomes the lead under it. The original wrote h3 = title,
+# then the statement: the lead is read AFTER the heading there. The hoist of
+# BL-514 stays for question h3s, decided per item (a title h3 hoists only when the
+# ORIGINAL item had content before its h3: a finding card's chips).
+def sec(i, h3, extra="", title=None, pre=""):
+    t = ' data-title="%s"' % title if title else ""
+    return ('<section class="consult-item" data-id="%s"%s>%s<h3><span class="consult-id">%s'
+            '</span>%s</h3>%s</section>' % (i, t, pre, i, h3, extra))
+
+def lead(t):
+    return '<p class="consult-lead">%s</p>' % t
+
+MIX_OLD = (sec("q", "Hoy falla. ¿Qué hacemos?") +
+           sec("s", "Corte", "<p>Ayer cortamos.</p>"))
+MIX_NEW = (sec("q", "¿Qué hacemos?", lead("Hoy falla."), title="Q") +
+           sec("s", "Corte", lead("Ayer cortamos."), title="Corte"))
+case("a page with a question item and a title item reads each lead its own way",
+     MIX_NEW, True, orig=MIX_OLD)
+case("a lead moved from a title item to the next item fails",
+     sec("a", "Corte", title="Corte") + sec("b", "Plan", lead("Hoy falla."), title="Plan"),
+     False, "visible text differs",
+     orig=sec("a", "Corte", "<p>Hoy falla.</p>") + sec("b", "Plan"))
+case("a finding card's chips before the title read in front of it",
+     sec("f", "Corte", lead("P1 bug."), title="Corte"), True,
+     orig=sec("f", "Corte", pre="<p>P1 bug.</p>"))
 case("a lead placed after the options is not read in front of the question",
      LEAD_NEW.replace("</section>", "")
      .replace('<p class="consult-lead">Hoy falla.</p>',
