@@ -402,6 +402,10 @@
     return v || decidedLine(el);
   }
 
+  /* BL-629: the reply to the owner's note on a decided row (data-answer) rides in
+   * the fold's summary, so it is read without opening the fold. */
+  function answerOf(el) { return (el.getAttribute('data-answer') || '').trim(); }
+
   var decidedSection = null, droppedSection = null;
   /* A dropped item (data-dropped, BL-516.4) left the question set unanswered:
    * it is folded like a decided one, but it is not a decision, so it is counted
@@ -461,7 +465,8 @@
         v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
           inner.map(function (el) {
             var verdict = decidedSummary(el) || (isDropped(el) ? L.droppedMark.trim() : '');
-            return (el.dataset.heading || el.dataset.title || el.dataset.id) + (verdict ? ': ' + verdict : '');
+            var ans = answerOf(el);
+            return (el.dataset.heading || el.dataset.title || el.dataset.id) + (verdict ? ': ' + verdict : '') + (ans ? ' \u2014 ' + ans : '');
           }).join('; ');
       } else {
         /* A row with a heading is labelled by it (BL-577); the slug stays on data-id. */
@@ -471,6 +476,12 @@
       }
       if (k.textContent) sum.appendChild(k);
       sum.appendChild(v);
+      if (!u.group && answerOf(u.node)) {
+        var a = document.createElement('span');
+        a.className = 'decided-verdict decided-answer';
+        a.textContent = '\u2014 ' + answerOf(u.node);
+        sum.appendChild(a);
+      }
       d.appendChild(sum);
       return d;
     }
@@ -1048,6 +1059,9 @@
       items.forEach(function (el) {
         var s = data[el.dataset.id];
         if (!s) return;
+        /* A decided row is not a question: its round-1 answer is settled, and its
+         * text changed by design (BL-629), so it is neither restored nor "stale". */
+        if (isDecided(el)) return;
         /* No `h` means an answer set saved before this existed. It is restored,
          * not discarded: upgrading the kit must not blank answers a reader
          * already typed, and the first input event re-saves the entry with a
