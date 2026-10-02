@@ -114,6 +114,12 @@ suite, paying the boundary gate once per item (BL-363).
    meet the item's `surface` minimum (`01-backlog-conventions.md` § Verification).
    `worklist-advance.sh` calls it and will not tick past a refusal.
 
+   *Split workspace (items in the workspace repo, code on a branch in a linked worktree of
+   a sub-repo; BL-646):* closures are **post-merge**. Fill the Verification rows at
+   implementation time, then close each item after the merge into the sub-repo's main,
+   citing the merge sha (or the item's commit, now reachable from main). `close-item.sh`
+   cannot see a worktree branch from the workspace root and says so, naming the branch.
+
 *Prose — a test that DENIES something needs a different proof than one that asserts it.*
 RED→GREEN proves the call site is load-bearing; it does **not** prove the assertion can
 see the thing it denies. Where the test asserts an absence — no dialog, no error toast,

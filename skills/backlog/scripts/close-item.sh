@@ -132,13 +132,33 @@ commit_on_trunk() {  # commit_on_trunk <sha> → prints the tree that carries it
 # a hash that exists nowhere.
 SEARCHED="$(basename "$ROOT") (and any sub-repo)"
 [[ -n "$CALLER_TREE" ]] && SEARCHED="the worktree $(basename "$CALLER_TREE"), then $SEARCHED"
+# BL-646: in a split workspace (items in $ROOT's repo, code in a sub-repo) the item lives
+# in a tree with no worktree of the code branch, so "run from the worktree" cannot work
+# there: closures are post-merge, citing the merge sha. Say that, and name the branch
+# when the sub-repo has the sha only off its current branch.
+split_hint() {  # split_hint <sha> → prints the refusal tail; exit 1 when $ROOT has no sub-repo
+  local sha="$1" repo name branches split=0
+  for repo in "$ROOT"/*/; do
+    [[ -d "$repo/.git" || -f "$repo/.git" ]] || continue
+    split=1; name="$(basename "${repo%/}")"
+    if git -C "$repo" cat-file -e "$sha^{commit}" 2>/dev/null; then
+      branches="$(git -C "$repo" branch --contains "$sha" --format='%(refname:short)' 2>/dev/null | paste -sd, - | sed 's/,/, /g')"
+      [[ -n "$branches" ]] && { printf 'sha found on branch %s of %s, not yet merged into its current branch. In a split workspace close after the merge, citing the merge sha.' "$branches" "$name"; return 0; }
+    fi
+  done
+  [[ $split -eq 1 ]] || return 1
+  printf 'In a split workspace close after the merge, citing the merge sha (or the item commit, now reachable from the sub-repo main).'
+}
 for sha in "${COMMITS[@]:-}"; do
   [[ -n "$sha" ]] || continue
   rc=0; commit_on_trunk "$sha" >/dev/null || rc=$?
   case $rc in
     0) ;;
     3) warn "--commit $sha not verified: no git repository under $ROOT" ;;
-    *) die "--commit $sha is not on the current branch of $SEARCHED — cite a commit that is here. Running from inside the worktree that carries it is what makes a sweep's own hash citable." ;;
+    *) if HINT="$(split_hint "$sha")"; then
+         die "--commit $sha is not on the current branch of $SEARCHED. $HINT"
+       fi
+       die "--commit $sha is not on the current branch of $SEARCHED — cite a commit that is here. In a single repo, run from inside the worktree that carries it; in a split workspace (code in a sub-repo) close after the merge, citing the merge sha." ;;
   esac
 done
 
