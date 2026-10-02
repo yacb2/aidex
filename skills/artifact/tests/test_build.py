@@ -311,6 +311,15 @@ try:
           ITEM.replace("¿La pregunta, preguntada?", "El Sr. López lo pidió."),
           '<h3><span class="consult-id">Q1</span>Short name</h3>',
           '<p class="consult-lead">El Sr. López lo pidió.</p>')
+    # BL-652: `heading=` is the sentence over an item, `title=` its short name
+    # (rail entry, reply heading) — the same split `group` already has. Without
+    # it the h3 is the title (BL-576, the case above).
+    H = ITEM.replace('title="Short name"', 'title="Short name" heading="Una oración larga que encabeza"'
+                     ).replace("¿La pregunta, preguntada?", "Contexto, no pregunta.")
+    holds("item: heading= is the h3 and title= stays the data-title",
+          H, 'data-title="Short name"',
+          '<h3><span class="consult-id">Q1</span>Una oración larga que encabeza</h3>',
+          '<p class="consult-lead">Contexto, no pregunta.</p>')
     # ...but a one-sentence QUESTION still heads the item when it closes on
     # markup or punctuation: the paragraph is rendered HTML, so `**¿…?**` ends
     # in `</strong>` (asset_lab sweep 2026-10-01 Q10, Q11) and a quote in

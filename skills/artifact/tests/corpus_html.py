@@ -311,7 +311,7 @@ def _ancestors(node, stop):
         n = n.parent
 
 
-def _lead_first(children, lead_first_ids=()):
+def _lead_first(children, lead_first_ids=(), same_h3_ids=()):
     """Reading order of an item's children, the situation lead first.
 
     The builder (BL-514) keeps only an item's closing question in the h3 and
@@ -323,12 +323,16 @@ def _lead_first(children, lead_first_ids=()):
     that paragraph becomes the lead (BL-576): the original read heading, then
     statement, so a lead under an h3 that is the item's data-title stays put
     unless the original item with that data-id had content before its h3
-    (`lead_first_ids`: a finding card whose chips precede the title).
+    (`lead_first_ids`: a finding card whose chips precede the title). Likewise
+    an h3 the build wrote exactly as the original did (`same_h3_ids`, BL-652: a
+    `heading=`) keeps its lead after it; every other h3 hoists, so a build that
+    swapped situation and question is not accepted.
     """
     out, moved = [], set()
     for i, c in enumerate(children):
-        if c.tag != "h3" or (_h3_is_title(c) and (
-                c.parent.attrs.get("data-id") not in lead_first_ids)):
+        did = c.parent.attrs.get("data-id")
+        if c.tag != "h3" or ((_h3_is_title(c) or did in same_h3_ids) and (
+                did not in lead_first_ids)):
             continue
         nxt = next((n for n in children[i + 1:]
                     if not (n.tag == "#text" and not n.text.strip())), None)
@@ -345,8 +349,8 @@ def _lead_first(children, lead_first_ids=()):
     return out
 
 
-def _collect(node, out, lead_first_ids=()):
-    for child in _lead_first(node.children, lead_first_ids):
+def _collect(node, out, lead_first_ids=(), same_h3_ids=()):
+    for child in _lead_first(node.children, lead_first_ids, same_h3_ids):
         if child.tag == "#text":
             out.append(child.text)
             continue
@@ -356,19 +360,52 @@ def _collect(node, out, lead_first_ids=()):
         if _option_input(child) is not None:
             out.append(" ".join(_option_tokens(child)))
         else:
-            _collect(child, out, lead_first_ids)
+            _collect(child, out, lead_first_ids, same_h3_ids)
         out.append(" ")
 
 
-def visible_text(node, lead_first_ids=()):
+def visible_text(node, lead_first_ids=(), same_h3_ids=()):
     out = []
-    _collect(node, out, lead_first_ids)
+    _collect(node, out, lead_first_ids, same_h3_ids)
     return html.unescape("".join(out))
 
 
-def tokens(node, lead_first_ids=()):
+def tokens(node, lead_first_ids=(), same_h3_ids=()):
     """The comparison unit: whitespace-collapsed words, in reading order."""
-    return visible_text(node, lead_first_ids).split()
+    return visible_text(node, lead_first_ids, same_h3_ids).split()
+
+
+def h3_texts(node):
+    """data-id -> the words of its first h3, the id badge aside."""
+    found = {}
+    for n in node.walk():
+        if "data-id" not in n.attrs or n.attrs["data-id"] in found:
+            continue
+        for c in n.children:
+            if c.tag == "h3":
+                found[n.attrs["data-id"]] = _plain("".join(
+                    x.text for x in c.walk() if x.tag == "#text" and not any(
+                        a.has("consult-id") for a in _ancestors(x, c))))
+                break
+    return found
+
+
+def data_titles(node):
+    """data-id -> its data-title (the rail entry and reply heading), when it has one."""
+    found = {}
+    for n in node.walk():
+        i, t = n.attrs.get("data-id"), n.attrs.get("data-title")
+        if i and t and i not in found:
+            found[i] = _title_norm(t)
+    return found
+
+
+def _title_norm(t):
+    """A data-title as the reader sees it: an inline <code>x</code> in an
+    original equals the builder's `x`, and whitespace runs collapse. Nothing
+    else is dropped, so ops_lint and opslint stay different."""
+    t = re.sub(r"<code>(.*?)</code>", r"`\1`", html.unescape(t))
+    return " ".join(t.split())
 
 
 def ids_with_content_before_h3(node):
