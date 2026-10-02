@@ -440,37 +440,59 @@ try:
           dl.drawings("before-after", *dl.parse_body(
               [(i + 2, x) for i, x in enumerate(one_word)], "before-after"))[1]
           is None)
-    # A lane title wider than the twin's room must not squeeze every label to
-    # one word per line: the twin is then as wide as the title, no wider.
-    lt_body = list(ba_body)
-    lt_body[4] = ("lane Después: generado desde el canon del proyecto, una vez "
-                  "por tema")
-    lt_parsed = dl.parse_body([(i + 2, x) for i, x in enumerate(lt_body)],
-                              "before-after")
+    # BL-621: a lane title wider than the twin's room wraps like an outcome,
+    # so the twin is at most NARROW_W wide and the title is on several lines.
+    lt_parsed = dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(
+            ba_body[:4] + ["lane Después: generado desde el canon del "
+                           "proyecto, una vez por tema"] + ba_body[5:])],
+        "before-after")
     lt_main, lt_twin = dl.drawings("before-after", *lt_parsed)
     lt_titlew = max(dl.text_width(t, dl.TITLE_FS) for t in lt_parsed[2])
-    lt_wide = by_name(lt_main)
-    lt_keep = [n for n, b in lt_wide.items()
-               if b.w <= lt_titlew and len(b.lines) == 1]
-    check("a before-after whose lane title is wider than NARROW_W keeps a "
-          "one-line label one line in its twin (%d boxes, title %.0f wide)"
-          % (len(lt_keep), lt_titlew),
-          lt_titlew > dl.NARROW_W - 2 * dl.MARGIN and len(lt_keep) >= 2
-          and lt_twin is not None
-          and all(len(by_name(lt_twin)[n].lines) == 1 for n in lt_keep),
-          str({n: by_name(lt_twin)[n].lines for n in lt_keep}
-              if lt_twin else None))
-    # ...and a label wider than that title is still wrapped down to it.
-    lw_body = list(lt_body)
+    check("a before-after whose lane title is wider than NARROW_W wraps it "
+          "in its twin, which is at most NARROW_W wide (title %.0f, twin %s)"
+          % (lt_titlew, lt_twin and "%.1f" % lt_twin.view[2]),
+          lt_titlew > dl.NARROW_W - 2 * dl.MARGIN and lt_twin is not None
+          and lt_twin.view[2] <= dl.NARROW_W + 1e-6
+          and len(lt_twin.titles) > len(lt_parsed[2])
+          and all(dl.text_width(t, dl.TITLE_FS) <= dl.NARROW_W - 2 * dl.MARGIN
+                  for t, _x, _y in lt_twin.titles))
+    # The wrapped lane-2 title sits under the rule and above its boxes, lines
+    # TITLE_LINE_H apart, downward.
+    lt_l1 = [(t, y) for t, _x, y in lt_twin.titles[len(lt_twin.titles) - 2:]]
+    lt_b1 = min(b.y for b in lt_twin.boxes if b.lane == 1)
+    check("BL-621: a wrapped lane title is under the divider, above its boxes, "
+          "lines %g apart" % dl.TITLE_LINE_H,
+          len(lt_twin.titles) >= 3
+          and all(lt_twin.divider[1] < y - 0.8 * dl.TITLE_FS for _t, y in lt_l1)
+          and lt_l1[-1][1] + 0.25 * dl.TITLE_FS < lt_b1
+          and abs(lt_l1[1][1] - lt_l1[0][1] - dl.TITLE_LINE_H) < 1e-6)
+    # A lane title whose single word is wider than the twin's room holds the
+    # twin as wide as that word, with one-line labels kept one line.
+    url_body = ["lane Antes: https://ejemplo.com/canon/proyecto/una-vez-por-"
+                "tema-y-por-cada-pagina-del-sitio",
+                "a1: Copiar el bloque | de otra página",
+                "a2: Editar a mano | cada vez", "a1 -> a2", "lane Después",
+                "b1: Generar desde el canon | una vez"]
+    url_m, url_t = dl.drawings("before-after", *dl.parse_body(
+        [(i + 2, x) for i, x in enumerate(url_body)], "before-after"))
+    check("BL-621: a lane title with one word wider than NARROW_W keeps "
+          "one-line labels one line in its twin",
+          url_t is not None and all(len(by_name(url_t)[n].lines) == 1
+                                    for n in ("a1", "a2", "b1")),
+          str(url_t and {n: by_name(url_t)[n].lines for n in ("a1", "a2", "b1")}))
+    # ...a label wider than the twin wraps too, and the twin still fits.
+    lw_body = list(ba_body)
+    lw_body[4] = ("lane Después: generado desde el canon del proyecto, una "
+                  "vez por tema")
     lw_body[6] = ("e: generado desde el canon del proyecto con una sola fuente "
                   "de verdad para cada tema y cada página")
     lw_parsed = dl.parse_body([(i + 2, x) for i, x in enumerate(lw_body)],
                               "before-after")
     lw_twin = dl.drawings("before-after", *lw_parsed)[1]
-    check("...a label wider than that title wraps, and the twin is as wide as "
-          "the title (%s)" % (lw_twin and "%.1f" % lw_twin.view[2]),
-          lw_twin is not None
-          and lw_twin.view[2] <= lt_titlew + 2 * dl.MARGIN + 1e-6
+    check("...a label wider than that title wraps, and the twin is at most "
+          "NARROW_W wide (%s)" % (lw_twin and "%.1f" % lw_twin.view[2]),
+          lw_twin is not None and lw_twin.view[2] <= dl.NARROW_W + 1e-6
           and len(by_name(lw_twin)["e"].lines) >= 2)
     # The twin's invariants over seeded random bodies: the layer is the layout.
     import random
@@ -2256,6 +2278,34 @@ try:
         check("BL-527: %s has a compare twin within NARROW_W (%s)"
               % (label, nn and "%.1f" % nn.view[2]),
               nn is not None and nn.view[2] <= dl.NARROW_W + 1e-6)
+
+    # BL-621: a long panel title wraps in the 390 px twin like an outcome, so
+    # the twin stays within NARROW_W and its sublabels keep their 11 px floor
+    # (the asset_lab Q11 compare: two row panels, three sublabelled boxes each).
+    q11 = []
+    for t, r in (("Opción a: repo en el servidor + checkout del tag", "a"),
+                 ("Opción b: imagen publicada en el registro", "b")):
+        q11 += ["panel row " + t,
+                r + "1: Código | commit en main",
+                r + "2: Servidor | pull del repo",
+                r + "3: Versión | tag firmado",
+                r + "1 -> " + r + "2", r + "2 -> " + r + "3",
+                "outcome Despliegue reproducible"]
+    _mq, nq = cpair(q11)
+    check("BL-621: the Q11 compare's twin (long panel title) is at most "
+          "NARROW_W wide (%s)" % (nq and "%.1f" % nq.view[2]),
+          nq is not None and nq.view[2] <= dl.NARROW_W + 1e-6)
+    ok_t = nq is not None
+    for pn in (nq.panels if nq else []):
+        fx, fy, fw, fh = pn.frame
+        top = min(b.y for b in nq.boxes if b.name[0] == pn.boxes[0].name[0])
+        ok_t = (ok_t and len(pn.title_lines) >= 2 if pn is nq.panels[0]
+                else ok_t)
+        ok_t = (ok_t and pn.title_lines[-1][2] + 0.25 * dl.FS < top
+                and all(tx + dl.text_width(t, dl.FS) <= fx + fw - dl.PANEL_PAD
+                        + 1e-6 for t, tx, _ty in pn.title_lines))
+    check("BL-621: the Q11 twin wraps the long title, every line inside the "
+          "frame and the last above its boxes", ok_t)
 
     # Property test: seeded random compare figures up to the cap.
     import random

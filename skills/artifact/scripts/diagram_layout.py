@@ -133,6 +133,7 @@ GAP = 32.0             # between two adjacent boxes in a row. Never 0: this is
                        # author cannot set it, so "adjacent boxes with zero gap"
                        # is not a state this layout can reach.
 LANE_V = 46.0          # between the two lanes' rows of a before-after
+TITLE_LINE_H = 14.0    # between two lines of a wrapped lane title
 TITLE_DROP = 9.0       # a lane title's baseline above its boxes' top edge
 ARC = 34.0             # how far a before-after's curved arrow bows out
 # A `row`'s detours are orthogonal and ONE LANE PER ARROW: a lane is the
@@ -312,17 +313,19 @@ class Panel(object):
     """One side of a `compare`: its option `title`, its body (`kind` is `tree`
     or `row`, `boxes` and `arrows` as `parse_body` reads them), its `outcome`
     sentence and whether it is the `recommended` one. `frame` (x, y, w, h),
-    `title_at` (x, baseline y) and `outcome_lines` [(text, x, baseline y)] are
-    set once the panel is placed."""
+    `title_at` (x, baseline y of the first line), `title_lines` and
+    `outcome_lines` [(text, x, baseline y)] are set once the panel is placed."""
 
     __slots__ = ("kind", "title", "outcome", "recommended", "line", "boxes",
-                 "arrows", "frame", "title_at", "outcome_lines", "rec_line")
+                 "arrows", "frame", "title_at", "title_lines", "outcome_lines",
+                 "rec_line")
 
     def __init__(self, kind, title, line):
         self.kind, self.title, self.line = kind, title, line
         self.outcome, self.recommended, self.rec_line = "", False, 0
         self.boxes, self.arrows = [], []
         self.frame, self.title_at, self.outcome_lines = None, None, []
+        self.title_lines = []
 
 
 class Layout(object):
@@ -1749,12 +1752,16 @@ def _layout_compare(panels, mode):
         bodies.append(lay)
     cw = [lay.view[2] - 2 * MARGIN for lay in bodies]
     ch = [lay.view[3] - 2 * MARGIN for lay in bodies]
-    inner = max([MIN_PANEL_W] + cw + [text_width(p.title, FS) for p in panels]
+    ow = lambda t: text_width(t, FS)
+    # On a phone a long title wraps to the frame's room, like an outcome, so
+    # the twin stays within NARROW_W and its text is not scaled under the floor.
+    tlim = NARROW_W - 2 * MARGIN - 2 * PANEL_PAD if mode == "narrow" else None
+    t_lines = [_wrap(p.title, ow, tlim) for p in panels]
+    inner = max([MIN_PANEL_W] + cw
+                + [max(ow(t) for t in tl) for tl in t_lines]
                 + [_widest_word(p.outcome) for p in panels])
     fw = inner + 2 * PANEL_PAD
-    ow = lambda t: text_width(t, FS)
     out_lines = [_wrap(p.outcome, ow, inner) for p in panels]
-    title_h = PANEL_PAD + FS
     side = mode in ("side", "side-narrow")
     y = 0.0
     frames = []
@@ -1763,9 +1770,12 @@ def _layout_compare(panels, mode):
         top = 0.0 if side else y
         body_h = max(ch) if side else ch[i]
         n_out = max(len(o) for o in out_lines) if side else len(out_lines[i])
+        title_h = PANEL_PAD + FS + (len(t_lines[i]) - 1) * LINE_H
         by = top + title_h + PANEL_BODY_GAP
         oy = by + body_h + PANEL_BODY_GAP
         p.title_at = (x + PANEL_PAD, top + PANEL_PAD + 0.8 * FS)
+        p.title_lines = [(t, p.title_at[0], p.title_at[1] + k * LINE_H)
+                         for k, t in enumerate(t_lines[i])]
         _shift(bodies[i], x + PANEL_PAD + (inner - cw[i]) / 2.0
                - (bodies[i].view[0] + MARGIN),
                by - (bodies[i].view[1] + MARGIN))
@@ -1850,14 +1860,18 @@ def layout(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
         # straight drop. One axis for both lanes, so the titles share an edge.
         lanes = [[b for b in boxes if b.lane == 0],
                  [b for b in boxes if b.lane == 1]]
-        title_w = max(text_width(t, TITLE_FS) for t in titles)
+        # A lane title wider than the twin's room wraps, like an outcome, one
+        # line per TITLE_LINE_H; a single word wider than the room holds it.
+        tw = lambda t: text_width(t, TITLE_FS)
+        t_lines = [_wrap(t, tw, budget - 2 * MARGIN) for t in titles]
+        title_w = max(tw(t) for tl in t_lines for t in tl)
         limit, prev = None, None
         while True:
             _fit_tb(boxes, limit)
             widest = max(b.w for b in boxes)
-            # A title wider than the budget cannot be wrapped: the target is
-            # then the title's own width, or `over` would never reach 0 and
-            # every label would be squeezed to one word per line.
+            # A single title word wider than the budget cannot be wrapped: the
+            # target is then that word's width, or `over` would never reach 0
+            # and every label would be squeezed to one word per line.
             over = (max(widest, title_w) + 2 * MARGIN
                     - max(budget, title_w + 2 * MARGIN))
             if over <= 1e-9 or widest == prev:
@@ -1866,11 +1880,17 @@ def layout(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
         axis = widest / 2.0
         routes, y = [], 0.0
         for k, run in enumerate(lanes):
+            # Room for the lines above the first: the last stays TITLE_DROP
+            # above the box, as a one-line title does.
+            y += (len(t_lines[k]) - 1) * TITLE_LINE_H
             _place_tb(run)
             for b in run:
                 b.x, b.y = b.x + axis, b.y + y
                 b.tone = "mut" if k == 0 else "acc"
-            placed_titles.append((titles[k], 0.0, y - TITLE_DROP))
+            for j, line in enumerate(t_lines[k]):
+                placed_titles.append(
+                    (line, 0.0, y - TITLE_DROP
+                     - (len(t_lines[k]) - 1 - j) * TITLE_LINE_H))
             routes += _route_tb(run, [a for a in arrows
                                       if by_name[a.src].lane == k], by_name)
             bottom = run[-1].y + run[-1].h
@@ -1953,7 +1973,7 @@ def drawings(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
         return main, None
     if SHAPE_ALIASES[shape] == "before-after":
         # Its 390 px twin, only when it is the narrower of the two: a title
-        # wider than a phone's column holds the twin as wide as it is.
+        # word wider than a phone's column holds the twin as wide as it is.
         if main.view[2] > budget:
             twin = layout(shape, boxes, arrows, titles, "tb", budget)
             return main, (twin if twin.view[2] < main.view[2] else None)

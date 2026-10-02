@@ -218,10 +218,10 @@ def svg(lay, cls=""):
                    'stroke-width="%s"/>'
                    % (tone, _num(fx), _num(fy), _num(fw), _num(fh),
                       _num(_corner(fw, fh)), _num(STROKE)))
-        out.append('  <text%s x="%s" y="%s" font-size="%s" '
-                   'fill="currentColor">%s</text>'
-                   % (tcls, _num(p.title_at[0]), _num(p.title_at[1]),
-                      _num(dl.FS), esc(p.title)))
+        for text, tx, ty in p.title_lines:
+            out.append('  <text%s x="%s" y="%s" font-size="%s" '
+                       'fill="currentColor">%s</text>'
+                       % (tcls, _num(tx), _num(ty), _num(dl.FS), esc(text)))
         for text, tx, ty in p.outcome_lines:
             out.append('  <text%s x="%s" y="%s" font-size="%s" '
                        'fill="currentColor">%s</text>'
