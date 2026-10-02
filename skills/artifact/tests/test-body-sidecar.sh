@@ -179,4 +179,62 @@ first_note="$(grep "first\.html\.failed\.body'" "$TMP/err12" | sed -n 1p)"
   && ok "an unfinished first build is reported as work to resume, not as dead state" \
   || fail "the unfinished first build's advice is wrong or missing: $first_note"
 
+# 13. BL-624: a baseline folder beside a LIVE page under _archive/ is not dead — the
+#     builder recreates it on every build there, so a note about it would reappear
+#     forever. It is dead per entry, once the page it belongs to is gone.
+ARC="$TMP/arc"
+mkdir -p "$ARC/.context/worklists/_archive/.aidex-artifact-prev"
+cp "$TMP/body.html" "$ARC/.context/worklists/_archive/x-report.html"
+printf 'x\n' > "$ARC/.context/worklists/_archive/.aidex-artifact-prev/x-report.html"
+printf 'x\n' > "$ARC/.context/worklists/_archive/.aidex-artifact-prev/x-report.reply.md"
+hygiene() { PYTHONPATH="$SKILL/scripts/dash" python3 -c \
+  'import sys, check_artifact as c; print("\n".join(c.baseline_hygiene(sys.argv[1])))' "$ARC/.context"; }
+if out="$(hygiene 2>&1)" && [[ -z "$out" ]]; then ok "a baseline folder beside a live page under _archive/ is not reported"
+else fail "a live archived page's baseline is reported: $out"; fi
+rm "$ARC/.context/worklists/_archive/x-report.html"
+notes="$(hygiene 2>&1)"
+[[ "$(grep -c "orphaned baseline" <<<"$notes")" == 2 \
+   && "$notes" == *"x-report.html'"* && "$notes" == *"x-report.reply.md'"* ]] \
+  && ok "with the archived page gone, each orphaned entry gets its own note" \
+  || fail "the orphaned entries of a gone archived page are not each reported: $notes"
+
+# 14. the same through the wrap: building a report with --out under _archive/ twice
+#     prints no 'dead baseline (archived artifact)' line (the builder recreates the folder).
+AW="$TMP/aw/.context/worklists/_archive"
+mkdir -p "$AW"
+bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$AW/x-report.html" >/dev/null 2>"$TMP/err14a"
+bash "$WRAP" --title Probe --lang en --in "$TMP/body.html" --out "$AW/x-report.html" >/dev/null 2>"$TMP/err14"
+if [[ -f "$AW/x-report.html" ]] && ! grep -q "dead baseline (archived artifact)" "$TMP/err14" "$TMP/err14a"; then
+  ok "a report built under _archive/ gets no dead-baseline note"
+else fail "wrap under _archive/ printed the dead-baseline note: $(grep 'dead baseline' "$TMP/err14" "$TMP/err14a" | sed -n 1p)"; fi
+
+# 15. a FAILED first spec build leaves no .aidex-artifact-prev/ it created (the spec is the
+#     source, the kept attempt is redundant), but a pre-existing folder is never touched.
+SB="$SKILL/scripts/spec_build.py"
+cat > "$TMP/fail.spec.md" <<'SPEC'
+::: masthead {eyebrow="x" byline="a"}
+# Probe
+
+Hello there.
+:::
+
+::: item {#Q1 title="t"}
+?
+
+- yes
+- no
+:::
+SPEC
+mkdir -p "$TMP/sb1" "$TMP/sb2/.aidex-artifact-prev"
+printf 'keep\n' > "$TMP/sb2/.aidex-artifact-prev/other.html"
+python3 "$SB" "$TMP/fail.spec.md" -o "$TMP/sb1/p.html" --lang en >/dev/null 2>&1 \
+  && fail "the failing spec unexpectedly builds — assertion 15 is vacuous"
+python3 "$SB" "$TMP/fail.spec.md" -o "$TMP/sb2/p.html" --lang en >/dev/null 2>&1
+[[ ! -e "$TMP/sb1/.aidex-artifact-prev" && ! -e "$TMP/sb1/p.html" ]] \
+  && ok "a failed first spec build leaves no baseline folder it created" \
+  || fail "a failed first spec build left $(ls -a "$TMP/sb1" | tr '\n' ' ')"
+[[ -f "$TMP/sb2/.aidex-artifact-prev/other.html" ]] \
+  && ok "a pre-existing baseline folder survives a failed spec build" \
+  || fail "a failed spec build removed a pre-existing baseline folder"
+
 [[ $failures -eq 0 ]] && echo "PASS: body sidecar" || { echo "FAILED: $failures"; exit 1; }

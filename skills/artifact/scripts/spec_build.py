@@ -1883,11 +1883,37 @@ def main(argv):
     # Through STDIN, not a temp file: `--in` would leave a path beside the page
     # for the window of the wrap, and the wrap keeps the author's source itself
     # (`<baseline>.body`). Content on stdin is page markup, which is what this is.
+    # A failed FIRST build leaves no page, and the wrap keeps its attempt under
+    # `.aidex-artifact-prev/` for an author with no other copy. Here the spec is the
+    # source, so that folder, when THIS build created it, is only residue (BL-624).
+    prev_dir = os.path.join(os.path.dirname(os.path.abspath(args.out)),
+                            ".aidex-artifact-prev")
+    prev_existed = os.path.isdir(prev_dir)
     rc = subprocess.run(["bash", WRAP, "--title", title, "--lang", lang,
                          "--out", args.out]
                         + (["--new-round"] if args.new_round else []),
                         input=body.encode("utf-8")).returncode
     if rc != 0:
+        if not prev_existed and not os.path.exists(args.out):
+            # The folder is shared by every page beside this one: remove only this
+            # page's own names, then the folder if that left it empty.
+            removed = []
+            for suffix in (".failed", ".failed.body", ".failed.body.md"):
+                own = os.path.join(prev_dir, os.path.basename(args.out) + suffix)
+                try:
+                    os.unlink(own)
+                    removed.append(own)
+                except OSError:
+                    pass
+            try:
+                os.rmdir(prev_dir)
+            except OSError:
+                pass
+            if removed:
+                sys.stderr.write("spec-build: removed %s (this build's attempt; "
+                                 "the paths above no longer exist). Fix %s and "
+                                 "build again.\n"
+                                 % (" and ".join(removed), args.spec))
         return rc
     if args.check:
         # wrap-report.sh --out already verified the contract; re-running it is

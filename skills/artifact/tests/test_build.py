@@ -41,6 +41,8 @@ Four claims, in the order the plan's acceptance names them:
 
 Stdlib only, no runner: `python3 test_build.py`, prints OK, exits 0.
 """
+import contextlib
+import io
 import json
 import os
 import re
@@ -1532,6 +1534,51 @@ try:
         del spec_build.EMITTERS["zz-probe"]
     check("`chart` arrived through that same seam (Phase 2)",
           "chart" in spec_build.EMITTERS)
+
+    print()
+    print("== a failed first build removes only its own attempt (BL-624) ==")
+    # `.aidex-artifact-prev/` is shared by every page in the directory: a sibling
+    # page's baseline, source, lock and reply may be written during the wrap.
+    sdir = os.path.join(tmp, "bl624")
+    os.makedirs(sdir)
+    sspec = os.path.join(sdir, "p.spec.md")
+    with open(sspec, "w", encoding="utf-8") as fh:
+        fh.write(PAGE)
+    sprev = os.path.join(sdir, ".aidex-artifact-prev")
+
+    real_run = subprocess.run
+
+    def fake_wrap(cmd, **kw):
+        if spec_build.WRAP not in cmd:    # the profile lookup's own call is real
+            return real_run(cmd, **kw)
+        os.makedirs(sprev, exist_ok=True)
+        for rel in ("a.html.body", "a.html.building", "a.reply.md",
+                    "p.html.failed", "p.html.failed.body"):
+            with open(os.path.join(sprev, rel), "w") as fh:
+                fh.write("x")
+        with open(os.path.join(sdir, "a.html"), "w") as fh:
+            fh.write("x")
+        return subprocess.CompletedProcess(cmd, 1)
+
+    spec_build.subprocess.run = fake_wrap
+    try:
+        with contextlib.redirect_stderr(io.StringIO()) as errbuf:
+            rc = spec_build.main([sspec, "-o", os.path.join(sdir, "p.html"),
+                                  "--lang", "en"])
+    finally:
+        spec_build.subprocess.run = real_run
+    check("the failed build's exit status is propagated", rc == 1)
+    check("a sibling page's baseline, source, lock and reply survive",
+          all(os.path.exists(os.path.join(sprev, n)) for n in
+              ("a.html.body", "a.html.building", "a.reply.md"))
+          and os.path.exists(os.path.join(sdir, "a.html")))
+    check("this build's own .failed and .failed.body are gone",
+          not os.path.exists(os.path.join(sprev, "p.html.failed"))
+          and not os.path.exists(os.path.join(sprev, "p.html.failed.body")))
+    check("no page was left at --out", not os.path.exists(os.path.join(sdir, "p.html")))
+    check("the note names what was removed",
+          "p.html.failed" in errbuf.getvalue()
+          and "p.html.failed.body" in errbuf.getvalue())
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
