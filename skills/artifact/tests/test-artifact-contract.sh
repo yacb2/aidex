@@ -593,6 +593,27 @@ bash "$CHECK" "$TMP/regen-retitle.html" --prev "$TMP/consult-ok.html" >/dev/null
   && ok "case and whitespace changes in a title are not a shift" \
   || bad "a retyped title was reported as a moved claim"
 
+# BL-611: a declared retitle (`consult-retitled` meta) lets ONE named id change
+# its title, as a NOTE with both titles; an id not named still fails.
+C2_NORM="$(python3 -c 'import sys; print(" ".join(sys.argv[1].lower().split()))' "$C2_TITLE")"
+sed 's#<title>#<meta name="consult-retitled" content="c2"><title>#' \
+  "$TMP/regen-shift.html" > "$TMP/regen-retitled.html"
+grep -q 'name="consult-retitled" content="c2"' "$TMP/regen-retitled.html" \
+  || bad "BL-611: fixture drift: the sed did not insert the consult-retitled meta"
+out="$(bash "$CHECK" "$TMP/regen-retitled.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" != *"FAIL [consult-ids]"* && "$out" == *"NOTE [consult-ids]"* && "$out" == *"c2"* \
+   && "$out" == *"$C2_NORM"* && "$out" == *"a different claim"* ]] \
+  && ok "BL-611: a retitle declared by consult-retitled is a NOTE with the old and new title" \
+  || bad "BL-611: a declared retitle did not pass with a NOTE naming both titles: $out"
+sed 's#<title>#<meta name="consult-retitled" content="c1"><title>#' \
+  "$TMP/regen-shift.html" > "$TMP/regen-retitled-other.html"
+grep -q 'name="consult-retitled" content="c1"' "$TMP/regen-retitled-other.html" \
+  || bad "BL-611: fixture drift: the sed did not insert the consult-retitled meta (c1)"
+out="$(bash "$CHECK" "$TMP/regen-retitled-other.html" --prev "$TMP/consult-ok.html" 2>&1)"
+[[ "$out" == *"id reused for a different claim"* && "$out" == *"c2"* ]] \
+  && ok "BL-611: declaring a DIFFERENT id does not excuse the retitle" \
+  || bad "BL-611: an undeclared retitle passed because another id was declared: $out"
+
 # BL-396: an id that DISAPPEARS is a failure too — a claim is closed by marking its
 # item decided, never by removing it. Two decided items vanished from a live
 # consultation under a string-slice rewrite and this check stayed green for two rounds.

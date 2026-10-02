@@ -30,7 +30,9 @@ Checks (per file):
                and no block or item after the general notes — reference
                sections may follow them (BL-457)
   consult-ids  with --prev: an id kept between two regenerations still names
-               the same claim, and no id disappears — a closed claim stays on
+               the same claim (unless the page declares a reword with the
+               `consult-retitled` meta, a note not a failure, BL-611), and no
+               id disappears — a closed claim stays on
                the page; only a page declaring `consult-surfaces: none` (the
                closed-page exit) may drop ids (BL-396)
   consult-marker-duties with --prev: every ask marker a saved reply
@@ -422,6 +424,16 @@ def dropped_declaration(text):
     """The ids the page declares it took off (`consult-dropped` meta, BL-533):
     written only by a spec's masthead `dropped-ids`, i.e. by an explicit drop."""
     m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-dropped["\x27]?'
+                  r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
+                  text, re.I | re.S)
+    return set() if not m else set(
+        next(g for g in m.groups() if g is not None).split())
+
+
+def retitled_declaration(text):
+    """The ids the page declares it reworded on purpose (`consult-retitled`
+    meta, BL-611): written only by a spec's masthead `retitled-ids`."""
+    m = re.search(r'<meta\b[^>]*\bname\s*=\s*["\x27]?consult-retitled["\x27]?'
                   r'[^>]*\bcontent\s*=\s*(?:"([^"]*)"|\x27([^\x27]*)\x27)',
                   text, re.I | re.S)
     return set() if not m else set(
@@ -3636,6 +3648,8 @@ def check_prev(new_path, prev_path):
                       f"change"))
         return fails, notes
     moved = [i for i in sorted(set(old) & set(new)) if old[i] != new[i]]
+    retitled = retitled_declaration(
+        open(new_path, encoding="utf-8", errors="replace").read())
     dropped = sorted(set(old) - set(new))
     if dropped:
         new_text = open(new_path, encoding="utf-8", errors="replace").read()
@@ -3676,6 +3690,11 @@ def check_prev(new_path, prev_path):
                           f'({_page_lang(prev_path)} → {_page_lang(new_path)}) '
                           f'— was "{old[i]}", now "{new[i]}". Read as a '
                           f'translation, not a moved claim; check it is one'))
+        elif i in retitled:
+            notes.append(("consult-ids", os.path.basename(new_path),
+                          f'{i}: retitled, declared by consult-retitled — '
+                          f'was "{old[i]}", now "{new[i]}". The id stays; '
+                          f'check the claim behind it did not change'))
         else:
             fails.append(("consult-ids", os.path.basename(new_path),
                           f'id reused for a different claim — {i}: was '
