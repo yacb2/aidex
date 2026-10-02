@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: aidex-ui-contract-redesign-existing-screen
+tags: ["fired-only"]
+context:
+  scaffold_script: "./setup.sh"
