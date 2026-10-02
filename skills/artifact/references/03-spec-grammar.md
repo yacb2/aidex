@@ -899,7 +899,15 @@ drop. `spec_verbs.py new-round --drop <#id>` (repeatable) records the ids on the
 masthead as `dropped-ids="Q6 Q7"`, which builds `<meta name="consult-dropped">`; the
 check then notes those ids instead of failing. Every drop must be declared: an id left
 out still fails. An id that stays in the spec is an error there (use `dropped="reason"`
-on the item instead).
+on the item instead). Any id the page no longer carries qualifies (BL-612): an item, a
+`group` (`--drop G1`), and a gallery row id (`--drop audit-with-data-light-desktop`, a
+row is never a spec node). The verb only refuses ids still in the spec; it does NOT check a
+row id against the rows document, so drop only rows really gone from it.
+The verb only records and rebuilds; it never opens a round.
+
+Relabelling: a `group` or gallery block whose id stays and whose `title` changes only
+produces a note in `consult-ids` (a block title is a label, not a claim a reply points
+at). An `item` whose title changes still fails unless declared with `--retitle`.
 
 **Rewording an item's title** (BL-611). Changing the title of a kept id fails `consult-ids`
 ("id reused for a different claim"). `spec_verbs.py new-round --retitle <#id>` (repeatable)

@@ -473,7 +473,13 @@ def new_round(spec_text, dropped=(), retitled=()):
     removed the blocks from the spec, and the id-stability check refuses a
     disappearing id unless the page declares it. Each must really be gone from
     the spec; one that stays takes `dropped="reason"` on its item instead.
-    Recorded once, kept by later rounds.
+    Any id the spec no longer carries qualifies: an item, a GROUP (BL-612), or
+    a gallery row id (a row was never a spec node, so the verb accepts any id the
+    spec does not carry and does NOT check it against the rows document: drop
+    only rows that are really gone from it). The verb only
+    records ids on the masthead and rebuilds: it never opens a round (no
+    `--new-round`), so `consult-round` is the wrap's, as in the module
+    docstring. Recorded once, kept by later rounds.
 
     `retitled` (BL-611) is the opposite: ids that STAY with a reworded title, so
     each must still be in the spec; the id never changes, only the check is told
@@ -861,9 +867,11 @@ def main(argv):
     n = common(subs.add_parser(
         "new-round", help="sync the ledger to the decided items and rebuild"))
     n.add_argument("--drop", action="append", default=[], dest="dropped",
-                   metavar="<#id>", help="an item this round removed from the "
-                   "spec; its id is recorded on the masthead so the page may "
-                   "lose it (repeat for several)")
+                   metavar="<#id>", help="any id this round removed: an item, "
+                   "a group, or a gallery row id (only refused while still in "
+                   "the spec; rows are not checked against the rows file, "
+                   "drop only rows really gone); it is recorded on the masthead so the "
+                   "page may lose it (repeat for several)")
     n.add_argument("--retitle", action="append", default=[], dest="retitled",
                    metavar="<#id>", help="an item that stays but whose title "
                    "this round reworded; its id is recorded on the masthead so "
