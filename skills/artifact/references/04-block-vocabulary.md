@@ -289,7 +289,7 @@ option releases it.
 
 ```html
 <section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
-  <h3><span class="consult-id">notes</span>Notas generales</h3>
+  <h3><span class="consult-id">notas</span>Notas generales</h3>
   <p class="fieldlabel">Lo que no encaja arriba</p>
   <textarea placeholder="Lo que sea…"></textarea>
 </section>

@@ -1583,6 +1583,54 @@ t="$(run 'phase=verify')"
 [[ "$t" == *"FL=Notas sobre esta"* ]] \
   || fail "BL-280 upgrade: the label was not localised on the reopened page: $t"
 
+# ---- BL-650b: relabelling the notes badge must not drop the reader's notes ----
+# spec_build now prints the default notes badge as "notas" on an es page. The badge
+# is inside the item, so a questionHash over the raw textContent moves with it and a
+# live page regenerated with the new kit would read the typed "Notas generales" text
+# as "the question changed". The hash must treat the badge as the item's data-id.
+# The rail chip must show the badge the reader sees, not the raw data-id.
+rm -rf "$TMP/profile"
+PAGE_SAVED="$PAGE"; PAGE="$TMP/reports/n650.html"
+n650() {  # n650 <badge text> <phase>: wrap a notes-only es page, load it with ?phase=
+  cat > "$TMP/body.html" <<HTML
+<meta name="consult-visual" content="none: a persistence probe, nothing to draw">
+<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Notes probe</h1></header>
+<section id="sec-ask"><div class="sec-head"><h2>Preguntas</h2></div>
+  <section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+    <h3><span class="consult-id">$1</span>Notas generales</h3>
+    <p class="fieldlabel">Lo que no encaja arriba</p>
+    <textarea></textarea>
+  </section>
+  <div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>
+</section></main>
+<aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>
+<div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>
+<script>window.addEventListener('load', function () {
+  var ta = document.querySelector('[data-id="notes"] textarea');
+  if (location.search.indexOf('phase=fill') !== -1) {
+    ta.value = 'unsent-notes-650';
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.title = 'FILLED';
+  } else {
+    var st = document.getElementById('consult-restored');
+    document.title = 'N650|TA=' + ta.value + '|STALE=' + (/pregunta cambi/.test(st ? st.textContent : '') ? 1 : 0) + '|RS=' + (st ? st.textContent.slice(0,70).replace(/[|]/g, '/') : 'none')
+      + '|RAIL=' + document.getElementById('raillist').textContent.replace(/[|\s]+/g, ' ').trim() + '|';
+  }
+});</script>
+HTML
+  bash "$WRAP" --title "n650" --lang es --out "$PAGE" < "$TMP/body.html" > "$TMP/wrap.log" 2>&1 \
+    || fail "BL-650b: the notes probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/wrap.log" | sed -n 1,4p)"
+  run "$2"
+}
+t="$(n650 notes phase=fill)"
+[[ "$t" == *FILLED* ]] || fail "BL-650b: the fill phase did not run: $t"
+t="$(n650 notas phase=verify)"
+[[ "$t" == *"|TA=unsent-notes-650|"* && "$t" == *"|STALE=0|"* ]] \
+  || fail "BL-650b: relabelling the default notes badge notes->notas dropped the reader's unsent notes or marked them stale: $t"
+[[ "$t" == *"RAIL="*notas* && "$t" != *"RAIL="*notes* ]] \
+  || fail "BL-650b: the rail chip for the notes item shows the raw data-id instead of the visible badge: $t"
+PAGE="$PAGE_SAVED"
+
 # ---- BL-341: a page whose every question is DECIDED --------------------------
 #
 # BL-331 taught the checker to accept such a page; the composer was never taught

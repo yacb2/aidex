@@ -559,7 +559,23 @@ try:
           '::: notes {title="Notas generales"}\n:::',
           '<section class="consult-item consult-notes" data-id="notes" '
           'data-title="Notas generales">',
-          '<h3><span class="consult-id">notes</span>Notas generales</h3>')
+          '<h3><span class="consult-id">notas</span>Notas generales</h3>')
+    holds("notes: a lang=es default-id badge is localised, data-id stays notes",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
+          '::: notes {title="Notas generales"}\n:::',
+          'data-id="notes"', '<span class="consult-id">notas</span>')
+    holds("notes: an explicit {#notes} on a lang=es page is localised too",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
+          '::: notes {#notes title="N"}\n:::',
+          'data-id="notes"', '<span class="consult-id">notas</span>')
+    holds("notes: lang=en keeps the badge notes",
+          '::: masthead {lang="en"}\n# T\n\nS\n:::\n'
+          '::: notes {title="N"}\n:::',
+          '<span class="consult-id">notes</span>')
+    holds("notes: an explicit author id keeps its own badge on lang=es",
+          '::: masthead {lang="es"}\n# T\n\nS\n:::\n'
+          '::: notes {#G9 title="N"}\n:::',
+          'data-id="G9"', '<span class="consult-id">G9</span>')
     holds("ledger: a grid of .k/.v rows and nothing else",
           "::: ledger\n- d4 — **Hecho.** T-100.\n- d12 — Plantilla.\n:::",
           '<div class="ledger">',

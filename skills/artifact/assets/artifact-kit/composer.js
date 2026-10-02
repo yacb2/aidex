@@ -603,7 +603,8 @@
     var cls = el.closest('.consult-group') ? 'railitem sub' : 'railitem';
     /* A row with a human heading (data-heading, a gallery row) lists by it and
      * without its slug id: the id stays the anchor and what a reply names. */
-    var a = railLink(cls, '#' + el.id, el.dataset.heading ? '' : el.dataset.id,
+    var badge = el.querySelector('.consult-id');
+    var a = railLink(cls, '#' + el.id, el.dataset.heading ? '' : ((badge && badge.textContent.trim()) || el.dataset.id),
                      el.dataset.heading || el.dataset.title || '');
     list.appendChild(a);
     links[i] = a;
@@ -1010,6 +1011,11 @@
         if (c.textContent.trim() === L[row[2]]) c.textContent = STRINGS.en[row[2]];
       });
     });
+    /* The id badge prints the item's id, so it IS the id, not question text: a
+     * kit that relabels the default notes badge (notes -> notas on an es page)
+     * must not make every stored note read as "the question changed". Every
+     * badge before that equalled data-id, so older hashes stay byte-identical. */
+    clone.querySelectorAll('.consult-id').forEach(function (c) { c.textContent = el.dataset.id || ''; });
     var text = (clone.textContent || '').replace(/\s+/g, ' ').trim();
     /* A gallery row's question is also WHAT IT SHOWS: a round that re-captures
      * a tile under the same text is a new question, so the marks drawn on the
