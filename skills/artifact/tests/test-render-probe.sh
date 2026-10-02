@@ -377,6 +377,20 @@ label-box svg-label-outside-its-box "anchorfix 1280
 figure-contrast figure-text-contrast "usefix 1280
 EOF
 
+echo "== a table of one to three columns cut by the box it scrolls in (BL-592) =="
+out="$(bash "$PROBE" "$TMP/table-cut.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "table-cut exits 1" || bad "table-cut exit $rc, expected 1"
+grep -qE '^DEFECT table-cut\.html @390px table-cut: table\.threefix ' <<<"$out" \
+  && ok "a three-column table wider than its .tw at 390 px is table-cut" || bad "no table-cut naming table.threefix at 390px in: $out"
+# The four-column table overflows its .tw only through the kit's own 30rem floor on
+# tables of four or more columns (components.css:531, BL-536): a scroll on purpose.
+hit="$(grep -E '^DEFECT table-cut\.html @[0-9]+px table-cut: table\.fourfix ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a four-column table scrolling in its .tw is not table-cut" || bad "$hit"
+# The kit counts the outer table's columns only: a three-column table inside a cell of a
+# four-column one scrolls with it.
+hit="$(grep -E '^DEFECT table-cut\.html @[0-9]+px table-cut: table\.innerfix ' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "a three-column table nested in a four-column one is not table-cut" || bad "$hit"
+
 echo "== the render contract classes (--contract) =="
 # contract-pass holds the passing cell of each class: the kit's own .fieldlabel, .note
 # and .ex inside a consult item (the kit's `.consult-item p` made all three 15.2 px

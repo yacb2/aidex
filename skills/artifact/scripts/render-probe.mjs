@@ -7,6 +7,7 @@
 //   svg-text-clipped  svg text outside its svg viewport (clipped axis labels)
 //   content-spills    a box whose content spills out of it (visible overflow)
 //   content-cut       a box whose content is cut by it (hidden overflow)
+//   table-cut         a table of 1-3 columns wider than the box it scrolls in
 //   fixed-over-text   a position:fixed control drawn over page text (any scroll position)
 //   page-hscroll      the page scrolls horizontally
 // and for the three render contract classes of the defect registry (LOOP-006):
@@ -144,6 +145,18 @@ const check = () => {
       spilling.push({ el, x: { kind: s.overflowX === 'visible' ? 'content-spills' : 'content-cut', a: name(el), dx, dy, y: Math.round(el.getBoundingClientRect().top + sy) } });
   }
   for (const { el, x } of spilling) if (!spilling.some(o => o.el !== el && el.contains(o.el) && o.x.kind === x.kind)) out.push(x);
+  // 3b. a table of one to three columns wider than the box it scrolls in (BL-592). Check 3
+  // skips a scroller, yet the kit makes such a table fit the screen (BL-567): past the edge
+  // the reader sees its last column cut, fade or not. Four or more columns scroll on purpose
+  // (BL-248, BL-536). Columns counted as composer.js does: the most cells in an outer row,
+  // so a table nested in another one's cell is the outer table's to judge.
+  for (const t of document.body.querySelectorAll('table')) {
+    if (!vis(t) || t.parentElement.closest('table') || [].reduce.call(t.rows, (m, r) => Math.max(m, r.cells.length), 0) > 3) continue;
+    let sc = t.parentElement; while (sc && sc !== document.body && !/(auto|scroll)/.test(getComputedStyle(sc).overflowX)) sc = sc.parentElement;
+    if (!sc || sc === document.body || !sc.clientWidth) continue;
+    const r = t.getBoundingClientRect(), dx = Math.round(r.width - sc.clientWidth);
+    if (dx > 1) out.push({ kind: 'table-cut', a: name(t), dx, y: Math.round(r.top + sy) });
+  }
   // 4. a fixed control drawn over page text. Both the container's own rect and each fixed
   // text box are tested. The container rect alone misses a label hanging out of a 0-height
   // (or 0x0) fixed strip; the text boxes alone miss the opaque padding of a pill such as
