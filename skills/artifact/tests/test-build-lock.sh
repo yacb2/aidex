@@ -179,4 +179,12 @@ for cell in "fresh:running" "300:running" "1150:running" "-1200.6:stale" "1260:s
   fi
 done
 
+# 12. the hook keeps its own STALE_AFTER literal (it is shell and must not import
+#     check_artifact); pin it to BUILD_LOCK_STALE_AFTER so the two cannot drift (BL-563).
+hook_win="$(grep -E '^[[:space:]]*STALE_AFTER = ' "$SKILL/../../hooks/artifact-open-once.sh" | head -1)"
+py_win="$(grep -E '^BUILD_LOCK_STALE_AFTER = ' "$SKILL/scripts/dash/check_artifact.py" | head -1)"
+[[ -n "$hook_win" && "${hook_win##*= }" == "${py_win##*= }" ]] \
+  && ok "hook STALE_AFTER matches check_artifact BUILD_LOCK_STALE_AFTER" \
+  || fail "stale window drifted: hook '$hook_win' vs check_artifact '$py_win'"
+
 [[ $failures -eq 0 ]] && echo "PASS: build lock" || { echo "FAILED: $failures"; exit 1; }
