@@ -404,6 +404,12 @@ def check_decision_page_not_interactive(path, html_text):
 
 FACTS_MIN = 4           # check_artifact.FACTS_MIN (consult-facts warning, BL-270)
 PROSE_SENTENCES = 3
+# A source line ("Fuente: ..." / "Source: ..."): it may list several file paths
+# (BL-643), so the <code> count and the path run skip it. check_artifact's
+# facts_paragraphs and its Fuente checks import this one recogniser.
+FUENTE_LEAD = re.compile(r"^\s*(?:fuente|source)s?\s*:", re.I)
+# A sentence break inside a paragraph: ". " / "? " / "! " followed by more text.
+SENTENCE_BREAK = re.compile(r"[.!?]\s+\S")
 PATH_RUN = 3
 # A prose sentence: starts with a capital (or ¿/¡), runs at least four words of
 # letters, ends with . ! or ? before whitespace or the end. A token excludes the
@@ -422,6 +428,12 @@ PATH_SEP = re.compile(r"^(?:\s*[,;]\s*(?:(?:and|y|e)\s+)?|\s+(?:and|y|e)\s+)$")
 # Not paths although they carry a slash: dd/mm and dd/mm/yyyy dates, and
 # `<area>/BL-nnn` backlog references (corpus false positives, 2026-09-27).
 NOT_PATH = re.compile(r"^\d{1,2}/\d{1,2}(?:/\d{2,4})?$|(?:^|/)BL-\d+$")
+
+
+def is_fuente_line(bare):
+    """True when `bare` (a paragraph's text outside <code>) is a source LINE: it
+    starts with Fuente:/Source: and has no internal sentence break (BL-643)."""
+    return bool(FUENTE_LEAD.match(bare)) and not SENTENCE_BREAK.search(bare.strip())
 
 
 def path_run(text):
@@ -467,13 +479,15 @@ def check_mixed_content_types(path, html_text):
             prose = n.text()
             bare = text_outside_code(n)          # a `;` inside <code> is code
             clauses = bare.count(";") + 1 if ";" in bare else 1
-            if codes >= FACTS_MIN or clauses >= FACTS_MIN:
-                shape = ("%d <code> tokens" % codes if codes >= FACTS_MIN
+            fuente = is_fuente_line(bare)
+            if (codes >= FACTS_MIN and not fuente) or clauses >= FACTS_MIN:
+                shape = ("%d <code> tokens" % codes
+                         if codes >= FACTS_MIN and not fuente
                          else "%d semicolon-separated clauses" % clauses)
                 out.append((slug, n.line, "paragraph with %s (\"%s…\"): facts of "
                             "one shape are a list or a table"
                             % (shape, _norm(prose)[:50])))
-            run = path_run(prose)
+            run = "" if fuente else path_run(prose)
             if run:
                 out.append((slug, n.line, "paragraph lists file paths in a "
                             "sentence (\"%s\"): write them as a list"

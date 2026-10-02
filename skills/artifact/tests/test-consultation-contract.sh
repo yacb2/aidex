@@ -537,6 +537,11 @@ mkpage "$TMP/warn-facts.html" "$visual
   <p>The hook runs <code>a; b; c; d</code> once per session.</p>
   <textarea></textarea>
 </section>
+<section class=\"consult-item\" data-id=\"Q4\" data-free data-title=\"Source line\">
+  <h3>Source line</h3>
+  <p>Fuente: sección 4; sección 5; <code>a.py</code>, <code>b.py</code>, <code>c.py</code>, <code>run.sh; exit</code>.</p>
+  <textarea></textarea>
+</section>
 $gclose
 $notesitem
 $bars
@@ -558,6 +563,12 @@ grep -Eq "WARN \[consult-facts\].*'(Q1|G1)'" "$TMP/out" \
 # code to mixed-content-types, and still clauses to consult-facts.
 grep -q "WARN \[consult-facts\].*'Q3' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
   || fail "10b. the paragraph only consult-facts sees lost its warning: $(cat "$TMP/out")"
+# BL-643: a Fuente LINE may list several paths, so its <code> count is no FAIL; the
+# semicolons inside <code> still make the consult-facts warning, named by clauses.
+grep -q "WARN \[consult-facts\].*'Q4' carries a paragraph with 4 semicolon-separated clauses" "$TMP/out" \
+  || fail "10b. BL-643: a Fuente line with in-code semicolons lost its clause warning: $(cat "$TMP/out")"
+grep -q "'Q4'.*<code> tokens\|mixed-content-types.*sección 4" "$TMP/out" \
+  && fail "10b. BL-643: a Fuente line was reported by code count: $(cat "$TMP/out")"
 grep -q "\[mixed-content-types\].*a; b; c; d\|\[mixed-content-types\].*The hook runs" "$TMP/out" \
   && fail "10b. semicolons inside <code> were counted as clauses by mixed-content-types: $(cat "$TMP/out")"
 grep -q "WARN \[consult-facts\].*'Q2'" "$TMP/out" \

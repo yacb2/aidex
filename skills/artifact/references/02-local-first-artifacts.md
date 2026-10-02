@@ -1396,6 +1396,7 @@ messages and the tests; § 8.4 is the block shape.
    checked, not only the text before the id; a product name with a number ("Los Simpson T8") is not an id, so a bare letter plus digits counts only after "decisión/pregunta/fila" (or the English words) or as a Q/M095 prefix, never right after a capitalized word; an id that is the `data-id` of another item on
    the same page ("your answer to Q2") is a cross-reference and does not warn; a `Fuente:` line
    never warns `consult-lead-id`, and the warning is cleared by the rewrite, not by a waiver.
+   A `Fuente:` line may list several file paths: the `mixed-content-types` check (and its `consult-facts` mirror) does not count the `<code>` tokens or the path run of a paragraph that is one source LINE, i.e. starts with `Fuente:`/`Source:` and has no sentence break (". ", "? ", "! " followed by more text outside `<code>`); a multi-sentence paragraph that merely opens with "Fuente:" is prose and still fails. Semicolon clauses still count (BL-643).
 
    **The `Fuente:` line is readable, and the heading is the question (BL-623).** On a
    Spanish page a `Fuente:` line made only of short codes and untranslated English words

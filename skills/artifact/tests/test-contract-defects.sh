@@ -154,6 +154,23 @@ page c3-dates es '<p>Rondas del 12/09, 14/09 y 20/09/2026.</p>'
 passes $C c3-dates "dd/mm and dd/mm/yyyy dates are not paths"
 page c3-bl es '<p>Siguen room_booking/BL-037, work_hours/BL-170 y maintenance_ops/BL-012.</p>'
 passes $C c3-bl "BL-nnn backlog refs are not paths"
+FUENTE4='<code>backend/apps/jobs/a.py</code>, <code>.../b.py</code>, <code>.../c.py</code>, <code>.../d.py</code>.'
+page c3-fuente es "<p>Fuente: investigación, sección 4; $FUENTE4</p>"
+passes $C c3-fuente "a Fuente line may list several <code> paths (BL-643)"
+page c3-notfuente es "<p>Revisa: investigación, sección 4; $FUENTE4</p>"
+fails $C c3-notfuente "the same four paths outside a Fuente line still fail"
+out="$(python3 "$CD" --class $C "$TMP/c3-notfuente.html" 2>&1)"
+[[ "$out" == *"4 <code> tokens"* && "$out" == *"lists file paths"* ]] \
+  && ok "outside a Fuente line both the code count and the path run are reported" \
+  || bad "outside a Fuente line both findings are reported: $out"
+page c3-fuente-clauses es '<p>Fuente: uno; dos; tres; <code>a/b.py</code>, <code>c/d.py</code>, <code>e/f.py</code>, <code>g/h.py</code></p>'
+fails $C c3-fuente-clauses "a Fuente line with four clauses still fails"
+out="$(python3 "$CD" --class $C "$TMP/c3-fuente-clauses.html" 2>&1)"
+[[ "$out" == *"semicolon-separated clauses"* && "$out" != *"<code> tokens"* ]] \
+  && ok "a Fuente line failing on clauses is named by clauses, not code count" \
+  || bad "a Fuente line failing on clauses is named by clauses: $out"
+page c3-fuente-sentences es '<p>Fuente: investigación. Luego sigue <code>a/b.py</code>, <code>c/d.py</code>, <code>e/f.py</code>, <code>g/h.py</code>.</p>'
+fails $C c3-fuente-sentences "a multi-sentence Fuente paragraph is not a source line and still fails"
 page c3-pre en '<pre>The gate reads every page twice. It never writes a file. Each count fails closed.</pre>'
 fails $C c3-pre "three prose sentences inside <pre> fail"
 page c3-code en '<pre>set -euo pipefail

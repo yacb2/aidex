@@ -115,6 +115,7 @@ import os
 import re
 import time
 import sys
+import contract_defects                             # same directory
 import unicodedata
 
 # --- § 8 detection patterns --------------------------------------------------
@@ -812,7 +813,9 @@ def facts_paragraphs(body):
         # warning counts: semicolons inside <code>.
         bare = _html.unescape(re.sub(r'<[^>]+>', ' ', re.sub(
             r'<code\b[^>]*>.*?</code\s*>', ' ', inner, flags=re.I | re.S)))
-        if codes >= FACTS_MIN or bare.count(';') + 1 >= FACTS_MIN:
+        # A Fuente line's <code> count is not a FAIL (BL-643): only clauses decide.
+        owned = codes >= FACTS_MIN and not contract_defects.is_fuente_line(bare)
+        if owned or bare.count(';') + 1 >= FACTS_MIN:
             continue
         if clauses >= FACTS_MIN:
             excerpt = ' '.join(prose.split())
@@ -835,7 +838,7 @@ LEAD_ID_PATTERNS = (
 SENTENCE_END = re.compile(r'[.!?]\s+(?=[A-ZÁÉÍÓÚÑ\u00bf\u00a1])')
 LEAD_ABBREV = {"sr", "sra", "srta", "dr", "dra", "mr", "mrs", "ms", "e.g", "i.e",
                "etc", "vs", "p.ej", "ej", "fig", "no", "núm", "num"}
-FUENTE_LEAD = re.compile(r'^\s*(?:fuente|source)s?\s*:', re.I)
+FUENTE_LEAD = contract_defects.FUENTE_LEAD
 
 
 def _first_sentence(prose):
@@ -2285,7 +2288,8 @@ def warn_file(path):
         except Exception:                           # noqa: BLE001 — advisory
             continue
         for codes, clauses, excerpt in dense:
-            shape = (f"{codes} <code> tokens" if codes >= FACTS_MIN
+            shape = (f"{codes} <code> tokens"
+                     if codes >= FACTS_MIN and not clauses >= FACTS_MIN
                      else f"{clauses} semicolon-separated clauses")
             warns.append(("consult-facts", name,
                           f"'{ident}' carries a paragraph with {shape} "
@@ -2456,7 +2460,6 @@ def svg_contrast_reports(text, name):
 # contract_defects' classes (ruling 2026-09-28, LOOP-006): a page nobody is
 # editing was built by an older kit and is red on them by construction, so the
 # census reports them and the page being written or wrapped is what they block.
-import contract_defects                             # noqa: E402 — same directory
 CENSUS_ADVISORY = ("svg-contrast", "contract") + tuple(contract_defects.CHECKS)
 
 
