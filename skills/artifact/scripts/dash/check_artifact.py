@@ -602,6 +602,27 @@ def _gal_grids(body):
     return out
 
 
+def _is_gallery_item(open_tag, body):
+    """What makes an item a gallery row (see gallery_findings): the class, a
+    `.gal` grid, or any `<figure data-tile>`. `body` has script/style out."""
+    return bool(GALLERY_CLASS.search(open_tag) or _gal_grids(body)
+                or FIGURE_TILE.search(body))
+
+
+def ordinary_item_ids(text):
+    """The `data-id`s of the page's items that are NOT gallery rows. A reply
+    heading with one of these ids is an ordinary question even when its
+    heading happens to have a gallery row's shape (BL-654: `cache-ttl ·
+    cache · ttl` read as an old light/dark matrix row)."""
+    text = strip_html_comments(text)
+    out = set()
+    for m in ITEM_OPEN.finditer(text):
+        body = strip_script_style(_subtree(text, m.group(1), m.end()))
+        if not _is_gallery_item(m.group(0), body):
+            out.add(next(g for g in m.groups()[1:] if g is not None))
+    return out
+
+
 def gallery_findings(text):
     """Every violation of the gallery-row shape, as plain messages.
 
@@ -641,8 +662,7 @@ def gallery_findings(text):
         body = strip_script_style(_subtree(text, m.group(1), m.end()))
 
         grids = _gal_grids(body)
-        if not (GALLERY_CLASS.search(m.group(0)) or grids
-                or FIGURE_TILE.search(body)):
+        if not _is_gallery_item(m.group(0), body):
             continue
 
         if not GALLERY_ID.match(ident):
@@ -3576,6 +3596,39 @@ def check_marker_duties(new_path):
                 f"{ident} was marked {which} and this round answers it with "
                 f"the identical item — the ask was for what is missing, not a "
                 f"re-render of the same text"))
+    # BL-654: a gallery duty (save_reply.gallery_duties_for, BL-632) is unmet
+    # while its row is byte-identical to the answered one — the markup, not
+    # the text: a rebuilt capture changes an `<img>`. Same exemptions and
+    # warnings as a marker above; an unreadable paste has no row to judge.
+    try:
+        import save_reply
+        gallery = save_reply.gallery_duties_for(
+            paste, ordinary_item_ids(text) | ordinary_item_ids(answered_text))
+    except Exception as e:                          # noqa: BLE001 — fail closed
+        return fails + [("consult-marker-duties", name,
+                         f"the gallery-row scan did not run ({e})")], warns
+    tags_by_id = {}
+    for ident, tag, _ in gallery:
+        tags_by_id.setdefault(ident, []).append(tag)
+    for ident, tags in tags_by_id.items():
+        if ident in decided_now:
+            continue
+        if "unreadable" in tags:
+            warns.append(("consult-marker-duties", name,
+                "gallery rows in the saved reply could not be read, so their "
+                "duties are not checked — list them by hand"))
+            continue
+        if ident not in bodies or ident not in answered_bodies:
+            where = "the new page" if ident not in bodies else "the answered snapshot"
+            warns.append(("consult-marker-duties", name,
+                f"the reply owes gallery row {ident}, which is not in {where} "
+                f"— the reply may have been saved against the wrong page"))
+            continue
+        if bodies[ident] == answered_bodies[ident]:
+            fails.append(("consult-marker-duties", name,
+                f"gallery row {ident} owes [{', '.join(tags)}] and this round "
+                f"answers it with the identical row — rebuild what the "
+                f"reader's verdict, note or marks name"))
     return fails, warns
 
 

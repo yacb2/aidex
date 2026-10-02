@@ -702,6 +702,11 @@ not yet meet every duty that reply named, a new paste is **appended** to
 `reply.md` under a `<!-- reply saved <iso time> page:<fingerprint> duty -->` separator and
 `answered.html` is **left untouched** — the union of every mark the id has
 ever carried, across every appended block, is what the next check reads.
+A gallery duty (BL-632) is unmet while its row is still byte-identical to the
+row in `answered.html` (BL-654): the wrap gate refuses that round and this
+guard holds, exactly as for a marker duty. Any change to the row's markup
+clears the duty, as for a body-change marker, including an edit to the look
+text alone.
 The same append happens when the page on disk is the page the save before it
 came from (two saves in one round, no rebuild between; separator mode
 `same-round`): the second paste must not erase the first. That page is the
