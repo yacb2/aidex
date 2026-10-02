@@ -181,6 +181,34 @@ out="$(bash "$PROBE" --shots "$TMP/shots" "$TMP/kit-rows.html" 2>&1)"; rc=$?
 [[ -s "$TMP/shots/kit-rows-1280.png" && -s "$TMP/shots/kit-rows-390.png" ]] \
   && ok "--shots writes kit-rows-1280.png and kit-rows-390.png" || bad "no kit-rows screenshots"
 
+echo "== a five-row ledger leaves no shaded empty track (BL-614) =="
+# Two columns at 1280 px, so five rows leave the sixth track empty. The ledger used
+# to draw a 1px gap over a --rule background, which showed that track as a grey cell.
+# Per-cell borders instead: the container itself paints nothing.
+out="$(bash "$PROBE" "$TMP/ledger-five.html" 2>&1)"; rc=$?
+[[ $rc -eq 0 ]] && ok "ledger-five fixture exits 0" || bad "ledger-five exit $rc: $(grep '^DEFECT' <<<"$out")"
+module="${AIDEX_PLAYWRIGHT_DIR:-}/node_modules/playwright"
+[[ -f "$module/package.json" ]] || module="$g/playwright"
+lg="$(PW="$module" node -e '
+const { chromium } = require(process.env.PW);
+(async () => {
+  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1280, height: 900 } });
+  await p.goto("file://" + process.argv[1]);
+  console.log(await p.evaluate(() => {
+    const l = document.querySelector(".ledger"), cs = getComputedStyle(l);
+    const probe = document.createElement("i"); probe.style.color = "var(--rule)"; document.body.append(probe);
+    const rule = getComputedStyle(probe).color;
+    const cols = cs.gridTemplateColumns.split(" ").length;
+    return [l.children.length, cols, cs.backgroundColor === rule ? "rule-bg" : "no-rule-bg", cs.rowGap, cs.columnGap, getComputedStyle(l.children[0]).borderRightWidth].join(" ");
+  }));
+  await b.close();
+})();' "$TMP/ledger-five.html" 2>&1)"
+read -r rows cols bg rgap cgap cellb <<<"$lg"
+[[ "$rows" == 5 && "$cols" -ge 2 ]] && ok "precondition: 5 rows in $cols columns at 1280 (an empty track exists)" || bad "ledger-five layout: $lg"
+[[ "$bg" == no-rule-bg && "$rgap" =~ ^(normal|0px)$ && "$cgap" =~ ^(normal|0px)$ ]] \
+  && [[ "$cellb" == 1px ]] \
+  && ok ".ledger paints no --rule background and no gap, and each cell draws its own 1px border"  || bad ".ledger shades its empty track: $lg"
+
 echo "== a diagram built from a spec (must pass clean) =="
 # The F-shape flow, built by the real spec_build.py so the page carries today's
 # diagram renderer: lr at 1280, its tb twin at 390. Clean at both widths, and the

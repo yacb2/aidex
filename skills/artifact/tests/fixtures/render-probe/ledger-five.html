@@ -1,0 +1,20 @@
+<!-- render-probe fixture: ledger-five — MUST PASS CLEAN (BL-614). A five-row ledger:
+     at 1280 px the auto-fit grid lays two columns, so the sixth track is empty. The
+     ledger drew its 1px gap over a --rule background, so that empty track showed as a
+     shaded cell the spec cannot control. test-render-probe.sh asserts it does not. -->
+<div class="page"><main class="main">
+<header>
+  <p class="eyebrow">Fixture · render probe · ledger de cinco filas</p>
+  <h1>Cinco decisiones, una celda sobrante</h1>
+</header>
+<section id="sec-ledger">
+  <div class="sec-head"><p class="eyebrow">Decidido</p><h2>Lo que ya se resolvió</h2></div>
+<div class="ledger">
+  <div><span class="k">Q1</span><span class="v">Fences de Pandoc</span></div>
+  <div><span class="k">Q2</span><span class="v">Marcador de columna</span></div>
+  <div><span class="k">Q3</span><span class="v">Ruta de figuras (A)</span></div>
+  <div><span class="k">Q4</span><span class="v">Orden del ledger</span></div>
+  <div><span class="k">Q5</span><span class="v">Pie de página</span></div>
+</div>
+</section>
+</main></div>
