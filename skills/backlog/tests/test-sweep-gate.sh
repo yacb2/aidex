@@ -26,6 +26,9 @@ profile() {  # profile <extra front-matter lines...>
     for l in "$@"; do echo "$l"; done; echo '---'; } > "$P/.context/testing-profile.md"
 }
 run() { ( cd "${RUN_DIR:-$P}" && NO_COLOR=1 bash "$GATE" "$@" 2>"$TMP/err" ); }  # RUN_DIR: run from a subdirectory
+# a hand-written log's first line: the header a run of <leg> in $P writes ($P is no checkout, so
+# `commit unknown`); --from-log refuses a log without it from any checkout (BL-557, BL-590)
+hdr_p() { printf '# sweep-gate: leg=%s; run in %s; commit unknown\n' "$1" "$(cd "$P" && pwd -P)"; }
 
 echo "sweep-gate.sh:"
 
@@ -90,19 +93,20 @@ grep -q 'run_in_background' "$TMP/err" && grep -q 'sweep-gate-exit' "$TMP/err" &
 grep -q 'should not run inline' "$P/_tmp/sweep-gate/e2e.log" 2>/dev/null && bad "5 the detached leg ran inline" || ok "5 the detached leg did not run inline"
 [[ ! -s "$P/_tmp/sweep-gate/e2e.log" ]] && ok "5 the detached log is cleared, so a stale marker cannot score" || bad "5 stale e2e.log kept"
 run --only >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "5 --only with no leg is a usage error, not an unbound-variable crash" || bad "5 --only bare"
-printf '  7 passed (2.0m)\nsweep-gate-exit=0\n' > "$TMP/e2e.log"
+{ hdr_p e2e; printf '  7 passed (2.0m)\nsweep-gate-exit=0\n'; } > "$TMP/e2e.log"
 OUT="$(run --only e2e --from-log "$TMP/e2e.log")"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=7 secs=-"* ]] && ok "5 --from-log scores the detached log" || bad "5 from-log: rc=$RC $OUT"
-printf '  7 passed (2.0m)\n' > "$TMP/e2e.log"
+{ hdr_p e2e; printf '  7 passed (2.0m)\n'; } > "$TMP/e2e.log"
 OUT="$(run --only e2e --from-log "$TMP/e2e.log")"; RC=$?
-[[ $RC -eq 2 ]] && ok "5 a log with no exit marker is refused (the run has not finished)" || bad "5 unmarked log rc=$RC"
+[[ $RC -eq 2 ]] && grep -q 'carries no `sweep-gate-exit' "$TMP/err" \
+  && ok "5 a log with no exit marker is refused (the run has not finished)" || bad "5 unmarked log rc=$RC $(cat "$TMP/err")"
 
 # ── 6 · a log written by hand (rerun on a quiet host) is scored with --exit; the count
 #        still comes from the log, so an empty rerun cannot be passed by hand (BL-254) ──
-printf '  15 passed (2.2m)\n' > "$TMP/rerun.log"
+{ hdr_p e2e; printf '  15 passed (2.2m)\n'; } > "$TMP/rerun.log"
 OUT="$(run --only e2e --from-log "$TMP/rerun.log" --exit 0)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=15"* ]] && ok "6 --exit 0 scores an unmarked rerun log from its count" || bad "6 rc=$RC $OUT"
-: > "$TMP/empty.log"
+hdr_p e2e > "$TMP/empty.log"
 OUT="$(run --only e2e --from-log "$TMP/empty.log" --exit 0)"; RC=$?
 [[ $RC -eq 1 && "$OUT" == *"count=?"* ]] && ok "6 --exit 0 over a log that ran nothing still FAILs (countless)" || bad "6 empty rc=$RC $OUT"
 run --only e2e --exit 0 >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "6 --exit without --from-log is a usage error" || bad "6 --exit alone accepted"
@@ -110,7 +114,7 @@ run --only e2e --exit 0 >/dev/null 2>&1; [[ $? -eq 2 ]] && ok "6 --exit without 
   && ok "6 history lives under .context/proofs/, not _tmp/ (deletable without asking)" || bad "6 history location"
 
 # ── 7 · --from-log --exit is per leg, not e2e-only: a backend rerun on a quiet host (BL-264)
-printf '== 42 passed in 3.1s ==\n' > "$TMP/be-rerun.log"
+{ hdr_p backend; printf '== 42 passed in 3.1s ==\n'; } > "$TMP/be-rerun.log"
 OUT="$(run --only backend --from-log "$TMP/be-rerun.log" --exit 0)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == *"leg=backend exit=0 count=42"* ]] && ok "7 a backend rerun log is scored the same way as e2e" || bad "7 rc=$RC $OUT"
 
@@ -223,7 +227,7 @@ OUT="$(run --only e2e --from-log "$P/_tmp/sweep-gate/e2e.log")"; RC=$?
 # fail closed: a pre-bound leg's log with no marker (a command printed before the marker
 # existed) is countless
 profile "e2e_suite_cmd: bin/silent" "e2e_pre_cmd: bin/pre5" "e2e_detached: true"
-printf '5 passed\nsweep-gate-exit=0\n' > "$TMP/nomark.log"
+{ hdr_p e2e; printf '5 passed\nsweep-gate-exit=0\n'; } > "$TMP/nomark.log"
 OUT="$(run --only e2e --from-log "$TMP/nomark.log")"; RC=$?
 [[ $RC -eq 1 && "$OUT" == *"leg=e2e exit=0 count=? "* ]] \
   && ok "8 a pre-bound leg's log with no marker is countless (fail closed)" || bad "8 marker-less log scored: rc=$RC $OUT"
@@ -378,7 +382,7 @@ verdict() { tail -1 "$H" | python3 -c 'import json,sys; print(json.load(sys.stdi
 score_follow() {  # score_follow <cell>: finish the detached log, run the printed follow-up
   FOLLOW="$(follow)"  # kept: the follow-up run rewrites $TMP/err
   [[ -n "$FOLLOW" ]] || { bad "$1 no follow-up line printed: $(cat "$TMP/err")"; return 1; }
-  printf '  7 passed (2.0m)\nsweep-gate-exit=0\n' > "$P/_tmp/sweep-gate/e2e.log"
+  { hdr_p e2e; printf '  7 passed (2.0m)\nsweep-gate-exit=0\n'; } > "$P/_tmp/sweep-gate/e2e.log"
   eval "set -- $FOLLOW"; RUN_DIR="$P/bin" appended "$@"
 }
 profile "e2e_suite_cmd: bin/e2" "e2e_detached: true"
@@ -402,16 +406,31 @@ mv "$WLD/2026-09-30-only-one.md" "$A/"
 score_follow "12 C" && [[ "$(verdict)" == "PASS" && "$(stamp)" == "2026-09-30-only-one.md" ]] \
   && ok "12 C a work-list archived before scoring still stamps the follow-up's PASS" \
   || bad "12 C follow-up [$FOLLOW]: verdict [$(verdict)] stamp [$(stamp)]"
-# (D) the --worklist path check cds into the path's directory: an exported CDPATH naming another
+# (D) the --worklist path check (resolve_worklist) cds into the path's directory: an exported CDPATH naming another
 # project, whose `notwl` is a worklists/ directory, would make a path outside worklists/ stamp the
-# run. Pins BL-558's global `unset CDPATH` for this call site; it is a guard, not a regression
+# run. Pins the CDPATH handling for this call site; it is a guard, not a regression
 # test for a change of its own (it passes on the code before it was added).
 Q="$TMP/qproj"; Q2="$TMP/qother"; mkdir -p "$Q/.context/worklists" "$Q/notwl" "$Q2/.context/worklists"
 printf -- '---\nsuite_cmd: true\n---\n' > "$Q/.context/testing-profile.md"
 printf -- '---\nstatus: doing\n---\n' > "$Q/notwl/b.md"; ln -s "$Q2/.context/worklists" "$Q2/notwl"
 OUT="$(CDPATH="$Q2" RUN_DIR="$Q" run --only suite --worklist notwl/b.md)"; RC=$?
-[[ $RC -eq 2 && ! -e "$Q/.context/proofs/sweep-gate/gate-history.jsonl" ]] && grep -q 'is not under a worklists/ directory' "$TMP/err" \
+[[ $RC -eq 2 && ! -e "$Q/.context/proofs/sweep-gate/gate-history.jsonl" ]] && grep -q 'not under .*/worklists: notwl/b.md' "$TMP/err" \
   && ok "12 D an exported CDPATH cannot turn a path outside worklists/ into a stamp" || bad "12 D CDPATH stamp: rc=$RC $OUT $(cat "$TMP/err")"
+# (E) BL-600: another project's work-list path matched `*/worklists`, stamped a PENDING row and
+# printed a follow-up the scoring run could not resolve. Refused before any leg, no row.
+printf -- '---\nstatus: doing\n---\n' > "$Q2/.context/worklists/2026-09-30-foreign.md"
+n0="$(grep -c . "$H")"
+OUT="$(run --only e2e --worklist "$Q2/.context/worklists/2026-09-30-foreign.md")"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] \
+  && ok "12 E another project's work-list path exits 2, no history row" || bad "12 E foreign work-list: rc=$RC $OUT $(cat "$TMP/err")"
+# (F) the same through a symlink: `ext` -> the other project's worklists/sub, so `ext/..` is
+# this project's worklists/ to a logical cd and the other project's to the kernel (review of BL-600)
+mkdir -p "$Q2/.context/worklists/sub"; ln -s "$Q2/.context/worklists/sub" "$WLD/ext"
+n0="$(grep -c . "$H")"
+OUT="$(run --only e2e --worklist .context/worklists/ext/../2026-09-30-foreign.md)"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] \
+  && ok "12 F a symlinked path into another project's work-lists exits 2, no history row" || bad "12 F symlinked foreign work-list: rc=$RC $OUT $(cat "$TMP/err")"
+rm "$WLD/ext"
 
 # ── 13 · the gate runs the suite of the checkout it is invoked in (BL-548) ─────────
 #        2026-10-01: launched from a linked worktree, the gate resolved ROOT to the main
@@ -449,15 +468,15 @@ DETACHED="$(sed -n 's/^  cd /cd /p' "$TMP/err")"  # kept: the runs below rewrite
 GH="$G/.context/proofs/sweep-gate/gate-history.jsonl"; n0="$(grep -c . "$GH")"
 printf '1 passed\nsweep-gate-exit=0\n' > "$TMP/forged.log"
 OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$TMP/forged.log")"; RC=$?
-[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 a hand-written log with no provenance header is refused, no history row" || bad "13 forged log scored: rc=$RC $OUT $(cat "$TMP/err")"
 OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$TMP/forged.log" --exit 0)"; RC=$?
-[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 --exit does not waive the provenance header" || bad "13 forged --exit log scored: rc=$RC $OUT $(cat "$TMP/err")"
 # a forged "commit unknown" header is refused where the gate CAN name the commit
 printf '# sweep-gate: leg=e2e; run in %s; commit unknown\n1 passed\nsweep-gate-exit=0\n' "$GW" > "$TMP/cu.log"
 OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$TMP/cu.log")"; RC=$?
-[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 a forged commit-unknown header is refused where the commit can be named" || bad "13 forged commit-unknown scored: rc=$RC $OUT $(cat "$TMP/err")"
 ( cd "$GW" && bash -c "$DETACHED" )
 OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; RC=$?
@@ -466,10 +485,10 @@ OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; R
 # a commit after the run invalidates its log: the header pins the sha, not only the checkout
 printf '# moved\n' >> "$GW/t.sh"; gcommit "$GW" moved
 OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; RC=$?
-[[ $RC -eq 2 ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+[[ $RC -eq 2 ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 a commit after the detached run makes its log refused" || bad "13 stale-HEAD log scored: rc=$RC $OUT $(cat "$TMP/err")"
 OUT="$(RUN_DIR="$GS" run --only e2e --from-log "$G/_tmp/sweep-gate/e2e.log")"; RC=$?
-[[ $RC -eq 2 ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+[[ $RC -eq 2 ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 another worktree's detached log is refused" || bad "13 sibling scored the branch log: rc=$RC $OUT $(cat "$TMP/err")"
 RUN_DIR="$GW" run --only suite >/dev/null
 OUT="$(RUN_DIR="$GW" run --only suite --from-log "$G/_tmp/sweep-gate/suite.log" --exit 0)"; RC=$?
@@ -477,7 +496,7 @@ OUT="$(RUN_DIR="$GW" run --only suite --from-log "$G/_tmp/sweep-gate/suite.log" 
   && ok "13 a log the gate wrote in-process for this worktree and HEAD is accepted" || bad "13 own log refused: rc=$RC $OUT $(cat "$TMP/err")"
 # the header names the leg: the suite leg's log scored as e2e passed (same command, same HEAD)
 OUT="$(RUN_DIR="$GW" run --only e2e --from-log "$G/_tmp/sweep-gate/suite.log" --exit 0)"; RC=$?
-[[ $RC -eq 2 ]] && grep -q "was not written for this worktree at its HEAD" "$TMP/err" \
+[[ $RC -eq 2 ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
   && ok "13 another leg's log is refused" || bad "13 suite log scored as e2e: rc=$RC $OUT $(cat "$TMP/err")"
 # nested: the profile lives in a workspace and reaches the repo as `cd repo`, a path the
 # worktree does not have — refused loudly instead of testing main
@@ -697,6 +716,25 @@ CDPATH="$C" RUN_DIR="$C/_wt/feat" run --only e2e >/dev/null
 ( cd "$C/_wt/feat" && CDPATH="$C" bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
 grep -q 'branch fails' "$C/_tmp/sweep-gate/e2e.log" && ! grep -q '1 passed' "$C/_tmp/sweep-gate/e2e.log" \
   && ok "13 the printed detached invocation with a pre-command lands in the worktree under CDPATH too" || bad "13 detached+pre CDPATH log: $(cat "$C/_tmp/sweep-gate/e2e.log")"
+# BL-590: the provenance check fired only from a linked worktree. From a worktree.sh DEST root
+# (not a git repo: where the fleet's detached e2e logs are scored) and from the main checkout,
+# a hand-written log scored PASS and wrote a history row.
+DN="$TMP/r6dest"; mkdir -p "$DN/.context"; DN="$(cd "$DN" && pwd -P)"
+printf '#!/usr/bin/env bash\necho "4 passed"\n' > "$DN/test-e2e.sh"; chmod +x "$DN/test-e2e.sh"
+wprofile "$DN" 'e2e_suite_cmd: ./test-e2e.sh' 'e2e_detached: true'
+printf '1 passed\nsweep-gate-exit=0\n' > "$TMP/forged.log"
+OUT="$(RUN_DIR="$DN" run --only e2e --from-log "$TMP/forged.log")"; RC=$?
+[[ $RC -eq 2 && ! -e "$DN/.context/proofs/sweep-gate/gate-history.jsonl" ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
+  && ok "13 from a non-git DEST root a hand-written log is refused, no history row" || bad "13 BL-590 DEST forged log: rc=$RC $OUT $(cat "$TMP/err")"
+RUN_DIR="$DN" run --only e2e >/dev/null
+( cd "$DN" && bash -c "$(sed -n 's/^  cd /cd /p' "$TMP/err")" )
+OUT="$(RUN_DIR="$DN" run --only e2e --from-log "$DN/_tmp/sweep-gate/e2e.log")"; RC=$?
+[[ $RC -eq 0 && "$OUT" == *"leg=e2e exit=0 count=4 "* ]] \
+  && ok "13 from a non-git DEST root the printed detached invocation's log is scored" || bad "13 BL-590 DEST own log: rc=$RC $OUT $(cat "$TMP/err")"
+n0="$(grep -c . "$GH")"
+OUT="$(RUN_DIR="$G" run --only e2e --from-log "$TMP/forged.log")"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$GH")" -eq "$n0" ]] && grep -q "was not written for this checkout at its HEAD" "$TMP/err" \
+  && ok "13 from the main checkout a hand-written log is refused, no history row" || bad "13 BL-590 main forged log: rc=$RC $OUT $(cat "$TMP/err")"
 
 [[ $FAIL -eq 0 ]] && { echo "OK — sweep-gate: $PASS cells, countless leg fails, mutation flips it"; exit 0; }
 echo "$FAIL failure(s), $PASS ok"; exit 1

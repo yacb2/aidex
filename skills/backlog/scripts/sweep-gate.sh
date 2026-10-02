@@ -25,8 +25,8 @@
 #   sweep-gate.sh --only <leg> --from-log <file> --exit <rc>   # a log written by hand (a rerun
 #                                                 # on a quiet host): the marker is missing,
 #                                                 # the exit is yours, the count is the log's;
-#                                                 # from a linked worktree its first line must be
-#                                                 # the header the refusal prints (BL-557)
+#                                                 # its first line must be the header the
+#                                                 # refusal prints (BL-557, BL-590)
 #                                       # score a log a DETACHED run wrote (see below)
 #
 # Reads from .context/testing-profile.md: backend_suite_cmd, frontend_suite_cmd,
@@ -113,8 +113,8 @@ PROFILE_ALT="$ROOT/testing-profile.md"
 #      (a worktree.sh DEST mirroring the workspace): ROOT, whose `cd <repo>` lands in it;
 #   4. anything else — the aidex_ws layout, main nested under ROOT and reached as
 #      `cd aidex` — refused: the worktree has no such path.
-# --from-log runs nothing, but maps the same way: from a linked worktree the log must name
-# the checkout and HEAD a run here would have tested (BL-557).
+# --from-log runs nothing, but maps the same way: the log must name the checkout and HEAD a
+# run here would have tested (BL-557; from any checkout, not only a linked worktree, BL-590).
 RUN_IN="$ROOT" LINKED=0
 abs() { (cd "$1" 2>/dev/null && pwd -P); }
 if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
@@ -164,20 +164,15 @@ tested_of() {  # tested_of <leg command>
 WL_DIR="$ROOT/.context/worklists"
 WL_STAMP=""
 if [[ -n "$WORKLIST" ]]; then
-  # only a path (it has a `/`) is taken as given: a bare name that is also a file in the
-  # CWD is still a slug, and resolve_worklist decides it (BL-551)
-  if [[ "$WORKLIST" == */* && -f "$WORKLIST" ]]; then
-    # a path names a work-list only from a worklists/ directory (active or _archive/)
-    case "$(cd "$(dirname "$WORKLIST")" && pwd -P)" in
-      */worklists|*/worklists/_archive) WL_STAMP="$(basename "$WORKLIST")" ;;
-      *) die "--worklist: $WORKLIST is not under a worklists/ directory" ;;
-    esac
-  else
-    # resolve_worklist skips `<wl>-report(.spec).md` companions and refuses an ambiguous slug
-    m="$(resolve_worklist --with-archive "$WL_DIR" "$WORKLIST")"
-    [[ -n "$m" ]] || die "--worklist: no work-list matches: $WORKLIST"
-    WL_STAMP="$(basename "$m")"
-  fi
+  # A path or a slug, one predicate: resolve_worklist takes a path only inside THIS project's
+  # worklists/ (or _archive/), resolved with `cd -P`, and refuses any other path with exit 2.
+  # The gate's own `*/worklists` glob took another project's list, stamped a PENDING row, and
+  # the scoring run could not resolve it; a logical cd let `ext/..` through a symlink do the
+  # same (BL-600). It also skips `<wl>-report(.spec).md` companions, refuses an ambiguous slug,
+  # and reads a bare name in the CWD as a slug (BL-551).
+  m="$(resolve_worklist --with-archive "$WL_DIR" "$WORKLIST")"
+  [[ -n "$m" ]] || die "--worklist: no work-list matches: $WORKLIST"
+  WL_STAMP="$(basename "$m")"
 else
   doing=()
   for f in "$WL_DIR"/*.md; do
@@ -318,18 +313,18 @@ emit_row() { ROWS+=("leg=$1 exit=$2 count=$3 secs=$4"); [[ $JSON -eq 1 ]] || ech
 for leg in "${LEGS[@]}"; do
   log="$LOG_DIR/$leg.log"
   if [[ -n "$FROM_LOG" ]]; then
-    # From a linked worktree a log is scored only when its first line is the header a run of
-    # this leg here, at this HEAD, writes: a hand-written or foreign log with `1 passed` and
-    # the marker scored PASS and wrote a history row (BL-557). `--exit` does not waive it. The
+    # A log is scored only when its first line is the header a run of this leg here, at this
+    # HEAD, writes: a hand-written or foreign log with `1 passed` and the marker scored PASS
+    # and wrote a history row (BL-557). Not only from a linked worktree: from a worktree.sh
+    # DEST root (not a git repo) and from the main checkout the same forged log passed
+    # (BL-590). `--exit` does not waive it. The
     # ` (dirty)` suffix is ignored on both sides: it records the tree, not which commit. When
     # the gate cannot name the commit (no cd, nested repos: the recommended DEST layout), the
     # header is `commit unknown` and the tie is the leg and `run in` only (owner 2026-10-01).
-    if [[ $LINKED -eq 1 ]]; then
-      want="$(header_of "$leg")"; want="${want% (dirty)}"
-      hdr=""; IFS= read -r hdr < "$FROM_LOG" || true; hdr="${hdr% (dirty)}"
-      [[ "$hdr" == "$want" ]] \
-        || die "--from-log: $FROM_LOG was not written for this worktree at its HEAD by the $leg leg — its first line must be: $want"
-    fi
+    want="$(header_of "$leg")"; want="${want% (dirty)}"
+    hdr=""; IFS= read -r hdr < "$FROM_LOG" || true; hdr="${hdr% (dirty)}"
+    [[ "$hdr" == "$want" ]] \
+      || die "--from-log: $FROM_LOG was not written for this checkout at its HEAD by the $leg leg — its first line must be: $want"
     rc="$(grep -oE '^sweep-gate-exit=[0-9]+' "$FROM_LOG" | tail -1 | cut -d= -f2 || true)"
     # `--exit` is the marker for a log that was not written by the printed invocation —
     # a rerun on a quiet host after a load-poisoned leg (2026-08-28). The count still
@@ -346,8 +341,8 @@ for leg in "${LEGS[@]}"; do
     : > "$log"
     printf 'detached: leg=e2e log=%s\n' "$log" >&2
     printf 'detached: run with run_in_background (never a foreground call, never a poll wrapper):\n' >&2
-    # The header goes first, as in an inline log: --from-log from a linked worktree scores
-    # only a log naming this checkout and HEAD (BL-557). Pinned now: a commit before the run
+    # The header goes first, as in an inline log: --from-log from any checkout scores only a
+    # log naming this checkout and HEAD (BL-557, BL-590). Pinned now: a commit before the run
     # makes the score refuse, and the leg is printed again.
     hdr="$(header_of "$leg")"
     # The pre-command is chained into the printed invocation rather than run here:
