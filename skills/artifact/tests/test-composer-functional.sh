@@ -2889,13 +2889,41 @@ window.addEventListener('load', function () {
     key('ArrowRight'); key('ArrowRight'); key('ArrowRight'); r.end = tile();
     key('ArrowLeft'); r.left = tile();
     var body = dlg.querySelector('.kit-zoom-body');
-    var touch = function (type, x, y, id) { body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id || 0, clientX: x, clientY: y || 0, bubbles: true })); };
+    /* isPrimary as the browser sets it: true only for the first finger down
+     * while no other synthetic touch is held (the constructor defaults false). */
+    var held = {};
+    var touch = function (type, x, y, id) {
+      id = id || 0;
+      if (type === 'pointerdown') held[id] = !Object.keys(held).length;
+      var primary = !!held[id];
+      if (type === 'pointerup' || type === 'pointercancel') delete held[id];
+      body.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: primary, clientX: x, clientY: y || 0, bubbles: true }));
+    };
     touch('pointerdown', 100); touch('pointerup', 200); r.swR = tile();   // drag right: previous
     touch('pointerdown', 200); touch('pointerup', 100); r.swL = tile();   // drag left: next
     touch('pointerdown', 100); touch('pointerup', 120); r.swS = tile();   // under 40 px: stays
     touch('pointerdown', 100, 100); touch('pointerup', 150, 300); r.swV = tile();   // mostly vertical: stays
-    touch('pointerdown', 100, 0, 1); touch('pointerdown', 300, 0, 2);
-    touch('pointerup', 95, 0, 1); r.swM = tile();   // finger 1 lifts 5 px from where IT went down: stays
+    /* Each recorded as before~after, and in opposite directions, so a step in
+     * one cannot be undone by the other into a matching value (BL-554). */
+    var b = tile();
+    touch('pointerdown', 200, 0, 5); touch('pointermove', 100, 0, 5);
+    touch('pointercancel', 100, 0, 5); touch('pointerup', 100, 0, 5);
+    r.swC = b + '~' + tile();   // cancelled mid-drag, then an up 100 px left: stays
+    b = tile();
+    touch('pointerdown', 300, 0, 6); touch('pointerdown', 100, 0, 7);
+    touch('pointermove', 200, 0, 7); touch('pointerup', 200, 0, 7);
+    touch('pointerup', 380, 0, 6);
+    r.swP = b + '~' + tile();   // a pinch: neither finger's lift walks, whichever moved 40+ px across
+    b = tile();
+    touch('pointerdown', 300, 0, 8); touch('pointerdown', 100, 0, 9); touch('pointerup', 100, 0, 9);
+    touch('pointerdown', 300, 0, 10); touch('pointerup', 200, 0, 10);
+    touch('pointerup', 300, 0, 8);
+    r.swT = b + '~' + tile();   // a finger put down while another is still held never starts a swipe
+    b = tile();
+    touch('pointerdown', 100, 0, 11);
+    body.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', pointerId: 1, isPrimary: true, clientX: 200, clientY: 0, bubbles: true }));
+    touch('pointerup', 100, 0, 11);
+    r.swX = b + '~' + tile();   // a mouse released 100 px across while a touch is down is not that touch's lift
     touch('pointerdown', 200, 100); touch('pointerup', 100, 160); r.swD = tile();   // diagonal, mostly across: next
     touch('pointerdown', 100, 100); touch('pointerup', 150, 150); r.swE = tile();   // as far down as across: stays
     var mlayer = dlg.querySelector('.kit-marks-layer');
@@ -2942,8 +2970,14 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | sed -n 1p)"
   || fail "a mostly vertical drag, or a drag at 1:1 size, walked the images instead of panning: $tg"
 [[ "$tg" == *'"swD":"4 / 4"'* ]] \
   || fail "a diagonal drag that is mostly across did not walk to the next image: $tg"
-[[ "$tg" == *'"swM":"3 / 4"'* ]] \
-  || fail "a swipe was measured from another finger's pointerdown: $tg"
+[[ "$tg" == *'"swC":"3 / 4~3 / 4"'* ]] \
+  || fail "a touch drag the browser cancelled (pointercancel) still walked the images on a later pointerup: $tg"
+[[ "$tg" == *'"swP":"3 / 4~3 / 4"'* ]] \
+  || fail "a two-finger pinch at fit size walked the images when a finger lifted: $tg"
+[[ "$tg" == *'"swT":"3 / 4~3 / 4"'* ]] \
+  || fail "a finger put down while another was still held started a swipe of its own and walked the images: $tg"
+[[ "$tg" == *'"swX":"3 / 4~3 / 4"'* ]] \
+  || fail "a mouse pointerup was measured from a touch's pointerdown and walked the images: $tg"
 [[ "$tg" == *'"taFit":"none"'* && "$tg" == *'"taNat":"'* && "$tg" != *'"taNat":"none"'* ]] \
   || fail "the 1:1 capture cannot be panned by touch (or the fit-size swipe lost touch-action none): $tg"
 [[ "$tg" == *'"native":1'* && "$tg" == *'"focus":1'* ]] \
