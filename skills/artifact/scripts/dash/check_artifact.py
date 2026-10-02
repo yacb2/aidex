@@ -403,6 +403,13 @@ def consult_items(text):
     return items
 
 
+def group_ids(text):
+    """The data-ids of the blocks (`.consult-group`), which `consult_items`
+    skips: a context, not a claim (BL-612)."""
+    return {next(g for g in m.groups()[1:] if g is not None)
+            for m in ITEM_OPEN.finditer(text) if GROUP_CLASS.search(m.group(0))}
+
+
 def visual_declaration(text):
     """The consult-visual meta's `none:` reason, or "" when there is none.
     Only a `none:` declaration carries a reason — anything else (svg / img) is a
@@ -3648,8 +3655,12 @@ def check_prev(new_path, prev_path):
                       f"change"))
         return fails, notes
     moved = [i for i in sorted(set(old) & set(new)) if old[i] != new[i]]
-    retitled = retitled_declaration(
-        open(new_path, encoding="utf-8", errors="replace").read())
+    new_page = open(new_path, encoding="utf-8", errors="replace").read()
+    retitled = retitled_declaration(new_page)
+    # A block on BOTH pages: an item id that became a block id is a different
+    # claim, not a relabel.
+    groups = group_ids(new_page) & group_ids(
+        open(prev_path, encoding="utf-8", errors="replace").read())
     dropped = sorted(set(old) - set(new))
     if dropped:
         new_text = open(new_path, encoding="utf-8", errors="replace").read()
@@ -3690,6 +3701,13 @@ def check_prev(new_path, prev_path):
                           f'({_page_lang(prev_path)} → {_page_lang(new_path)}) '
                           f'— was "{old[i]}", now "{new[i]}". Read as a '
                           f'translation, not a moved claim; check it is one'))
+        elif i in groups:
+            # BL-612: a block's title is its label, not a claim a reply points
+            # at; only an item's id is the reply key.
+            notes.append(("consult-ids", os.path.basename(new_path),
+                          f'{i}: block relabelled — was "{old[i]}", now '
+                          f'"{new[i]}". The id stays; items inside keep their '
+                          f'own ids'))
         elif i in retitled:
             notes.append(("consult-ids", os.path.basename(new_path),
                           f'{i}: retitled, declared by consult-retitled — '

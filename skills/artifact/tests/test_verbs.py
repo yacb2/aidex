@@ -933,6 +933,124 @@ try:
     check("--drop of an id still in the spec is refused: use item dropped=",
           r.returncode == 1 and "still" in r.stderr, r.stdout + r.stderr)
 
+    # --- BL-612: groups and gallery rows drop too; a group relabel is a note ---
+    print()
+    print("== new-round --drop on groups and gallery rows; a group title is a note ==")
+    R1 = "audit-with-data-light-desktop"
+    ROUND1 = '''::: masthead {eyebrow="Fixture" byline="x" visual="none: formato"}
+# Restructura
+
+Una ronda se reestructura.
+:::
+
+::: group {#G1 title="Bloque uno"}
+Contexto uno.
+
+::: item {#Q1 title="Fences o YAML"}
+¿Fences o YAML?
+
+- Fences {recommended}
+- YAML
+:::
+:::
+
+::: group {#G2 title="Bloque dos"}
+Contexto dos.
+
+::: item {#Q3 title="Marcador"}
+¿Cuál marcador?
+
+- Este {recommended}
+- Otro
+:::
+:::
+
+::: gallery {#E title="Galería" rows="rows.json" root="caps"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+'''
+    rspec2 = fresh("restructure", ROUND1)
+    rdir = os.path.dirname(rspec2)
+    rpage = os.path.join(rdir, "page.html")
+    os.makedirs(os.path.join(rdir, "caps", "shots"))
+    for png in ("a.png", "b.png"):
+        subprocess.run([sys.executable, os.path.join(HERE, "png_fixture.py"),
+                        os.path.join(rdir, "caps", "shots", png), "16", "9"],
+                       check=True)
+
+    def rows_json(cell, png):
+        with open(os.path.join(rdir, "rows.json"), "w", encoding="utf-8") as fh:
+            fh.write('{"gallery": "audit", "variants": ["light-desktop"], '
+                     '"rows": [{"cell": "%s", "variant": "light-desktop", '
+                     '"kind": "review", "look": "la tabla", "after": '
+                     '"shots/%s"}]}' % (cell, png))
+    rows_json("with-data", "a.png")
+    r = run("new-round", rspec2)
+    check("BL-612 fixture: round 1 builds (G1 with Q1, G2, gallery row)",
+          r.returncode == 0 and 'data-id="%s"' % R1 in read(rpage),
+          r.stdout + r.stderr)
+    # round 2: G1, Q1 and the gallery row leave; G2 is relabelled
+    round2 = (read(rspec2).replace(
+        read(rspec2)[read(rspec2).index("::: group {#G1"):
+                     read(rspec2).index("::: group {#G2")], "")
+        .replace('title="Bloque dos"', 'title="Bloque dos, renombrado"'))
+    with open(rspec2, "w", encoding="utf-8") as fh:
+        fh.write(round2)
+    rows_json("loaded", "b.png")
+    r = run("new-round", rspec2)
+    check("BL-612: the removals nobody declared still FAIL (groups and row too)",
+          r.returncode == 1 and "G1" in r.stdout + r.stderr
+          and "dropped between rounds" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
+    round1_page = os.path.join(rdir, "round1-snapshot.html")
+    shutil.copy(rpage, round1_page)
+    r = run("new-round", rspec2, "--drop", "G1", "--drop", "Q1", "--drop", R1)
+    drop_out = r.stdout + r.stderr
+    check("BL-612: --drop <group> --drop <item> --drop <gallery row> exits 0 "
+          "(the G2 relabel is a note, not a FAIL)",
+          r.returncode == 0, r.stdout + r.stderr)
+    check("...the masthead gains dropped-ids=\"G1 Q1 %s\"" % R1,
+          'dropped-ids="G1 Q1 %s"' % R1 in read(rspec2).split("\n", 1)[0],
+          read(rspec2)[:300])
+    c = subprocess.run(["bash", CHECK, rpage, "--prev", round1_page],
+                       capture_output=True, text=True)
+    check("BL-612: check-artifact --prev passes on the old and new pages",
+          c.returncode == 0, c.stdout + c.stderr)
+    check("...and reports the G2 title change as a NOTE naming both titles",
+          re.search(r"NOTE \[consult-ids\][^\n]*G2[^\n]*bloque dos[^\n]*renombrado",
+                    drop_out) is not None
+          and not re.search(r"FAIL \[consult-ids\][^\n]*G2", drop_out), drop_out)
+    # an ITEM retitled in the same shape still FAILs unless declared
+    reworded = read(rspec2).replace('title="Marcador"', 'title="Otra cosa"')
+    with open(rspec2, "w", encoding="utf-8") as fh:
+        fh.write(reworded)
+    r = run("new-round", rspec2)
+    check("BL-612: a retitled ITEM (Q3) still FAILs consult-ids undeclared",
+          r.returncode == 1 and "id reused for a different claim" in r.stdout + r.stderr
+          and "Q3" in r.stdout + r.stderr, r.stdout + r.stderr)
+    r = run("new-round", rspec2, "--retitle", "Q3")
+    check("...and passes when declared with --retitle Q3 (BL-611 intact)",
+          r.returncode == 0, r.stdout + r.stderr)
+    # an item id that becomes a BLOCK id is not a relabel: still a FAIL
+    ispec = fresh("item-to-group")
+    run("new-round", ispec)
+    swapped = read(ispec)
+    q2 = swapped[swapped.index("::: item {#Q2"):swapped.index(":::\n:::\n\n::: notes")]
+    swapped = swapped.replace(q2 + ":::\n", "", 1).replace(
+        "::: notes", '::: group {#Q2 title="Otro bloque"}\nCtx.\n\n'
+        '::: item {#Q9 title="Nueva"}\n¿Nueva?\n\n- A {recommended}\n- B\n:::\n:::\n\n'
+        '::: notes', 1)
+    with open(ispec, "w", encoding="utf-8") as fh:
+        fh.write(swapped)
+    r = run("new-round", ispec)
+    check("BL-612: an item id (Q2) that becomes a group id is NOT a relabel note: "
+          "FAIL consult-ids, no --drop given",
+          r.returncode == 1 and "Q2" in r.stdout + r.stderr
+          and "id reused for a different claim" in r.stdout + r.stderr,
+          r.stdout + r.stderr)
+
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
