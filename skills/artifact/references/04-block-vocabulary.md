@@ -343,6 +343,7 @@ in dashboard_template), and the kit reads nothing else:
 | `"layout": "stacked"` or `"side"` | a before/after pair sits side by side by default (captures scale to the cell, never cropped; owner 2026-10-01); `stacked` puts before above after at full column width |
 | `"look": text` | what to look at on this row; required through the spec route, shown as the "Qué mirar" line |
 | `"note": [text, …]` | optional: a non-empty list of non-empty strings, one `<li>` each in a `<ul class="gal-note">` directly under the look line. The place for explain-why, reframe ("what changed since round 1"), "if removing it fails" and worked-example lines, so `look` stays one sentence. A non-list, an empty list or an empty or non-string entry is refused naming the cell; a row without `note` renders as before. Refused on a not-applicable row (it is still a live question: say it in the reason); not read on a dropped row |
+| `"noBefore": reason` | optional: a non-empty string, only on a row with `after` and no `before`. Replaces the 'pantalla nueva' / 'new screen' caption and alt with `sin antes: reason` / `no before: reason`; the intro's 'la pantalla es nueva' sentence is emitted only while a single-capture row has none. Refused with a `before`, blank or non-string, and on a not-applicable or alternatives row (it would be dropped silently), naming the cell; not read on a dropped row. With a plain single-capture row beside it the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes") |
 | `"dropped": reason` / `"decided": verdict` | the row left the question set (no captures needed, reason in `.gal-na`, `data-dropped`) / was settled (captures kept); both fold as decided
 
 Each row shows its variant once, under the captures, in words of the page's language
@@ -363,7 +364,7 @@ nothing: the page has no gallery block at all.
 Refused (exit 2, one line): a missing `variants` or `rows` key (the old `tiles` matrix shape
 is gone), a `rows` that is not a list, an unknown or missing `kind`, a review row in a variant not in
 `variants` (an unrequested row may be in any), a row with no `after`, a `before` that is
-present but null or empty (a lost baseline is not a new screen), one cell in one variant
+present but null or empty (a lost baseline is not a new screen; a row that has no before on purpose says why with `noBefore`), a `noBefore` that is blank, non-string or beside a `before`, or on a not-applicable or alternatives row, one cell in one variant
 twice, a second unrequested row for one cell, an `also` that is on a non-unrequested row,
 empty, repeats a variant, names the row's own variant or a non-slug, a not-applicable row
 with a blank reason or with captures too, a name that is not

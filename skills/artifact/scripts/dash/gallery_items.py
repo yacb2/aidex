@@ -57,9 +57,9 @@ LANGS = ("es", "en")
 # reader sees is the caption below.
 TILES = ("before", "after")
 TILE_WORDS = {"es": {"before": "antes", "after": "propuesto",
-                     "new": "pantalla nueva"},
+                     "new": "pantalla nueva", "none": "sin antes"},
               "en": {"before": "before", "after": "proposed",
-                     "new": "new screen"}}
+                     "new": "new screen", "none": "no before"}}
 
 # What a variant name says, in the page's language (see `variant_label`).
 VIEW_WORDS = {"es": {"desktop": "escritorio", "mobile": "móvil",
@@ -96,6 +96,9 @@ INTRO = {
                   "cuáles en las notas de esa fila.",
            "new": "Donde hay una sola captura, la pantalla es nueva y no hay "
                   "antes.",
+           "new_mixed": "Donde hay una sola captura, la pantalla es nueva y no "
+                        "hay antes, salvo donde la fila dice por qué no hay "
+                        "antes.",
            "sample": "Las muestras no piden respuesta.",
            "alt": "Elige una variante en cada fila y, si quieres matizar, di "
                   "por qué en las notas de esa fila.",
@@ -105,6 +108,9 @@ INTRO = {
                   "which in that row's notes.",
            "new": "Where there is a single capture, the screen is new and "
                   "there is no before.",
+           "new_mixed": "Where there is a single capture, the screen is new "
+                        "and there is no before, except where the row says "
+                        "why there is no before.",
            "sample": "Samples ask for no answer.",
            "alt": "Pick a variant on each row and, if you want to qualify it, "
                   "say why in that row's notes.",
@@ -354,6 +360,15 @@ def check_row(row, variants, n, alts=None, require_look=False):
     cell = row.get("cell")
     if not isinstance(cell, str) or not SLUG.match(cell):
         die("row %d: 'cell' must be a lowercase slug, not %r" % (n, cell))
+    # `noBefore` (BL-610) is a reason on the one shape that shows a single
+    # capture. Anywhere else it would be dropped silently on a live question
+    # (notApplicable, alternatives), so it is refused there; a dropped row
+    # does not read it, like `note`.
+    if "noBefore" in row and "dropped" not in row and (
+            "notApplicable" in row or row.get("kind") == "alternatives"):
+        die("row '%s': 'noBefore' only goes on a row that shows a single "
+            "'after' capture, not a notApplicable or alternatives row"
+            % cell)
     # A declared cell the screen cannot reach: the emitter sends its reason
     # instead of captures, and the row asks the owner to accept that.
     if "notApplicable" in row:
@@ -498,6 +513,15 @@ def check_row(row, variants, n, alts=None, require_look=False):
     if "after" not in row:
         die("row '%s' (%s) has no 'after' capture" % (cell, variant))
     check_path(row["after"], cell, "after")
+    if "noBefore" in row:
+        why = row["noBefore"]
+        if "before" in row:
+            die("row '%s' carries both 'before' and 'noBefore' — a row has a "
+                "before or says why it has none" % cell)
+        if not isinstance(why, str) or not why.strip():
+            die("row '%s': 'noBefore' must be a non-empty string (why there "
+                "is no before), not %r" % (cell, why))
+        out["noBefore"] = why.strip()
     # Absent is the one way to say "new screen". A present-but-empty `before`
     # is a baseline the emitter lost, and showing it as new would hide that.
     if "before" in row:
@@ -642,8 +666,14 @@ def group_intro(doc, variants, alts, require_look, lang):
         else:
             shapes.add("ask")
             if r.get("before") is None:
-                shapes.add("new")
-    return " ".join(INTRO[lang][k] for k in ("ask", "new", "alt", "sample", "na")
+                shapes.add("new_why" if "noBefore" in r else "new")
+    # Plain single captures say "new"; qualified when a noBefore row sits
+    # beside them so the intro never contradicts that row's caption.
+    if "new" in shapes and "new_why" in shapes:
+        shapes.add("new_mixed")
+        shapes.discard("new")
+    return " ".join(INTRO[lang][k]
+                    for k in ("ask", "new", "new_mixed", "alt", "sample", "na")
                     if k in shapes)
 
 
@@ -788,8 +818,11 @@ def render(doc, root, group_id, group_title, lang, page=None,
             add(figure(root, after, "after", words["after"], cell,
                        alt % words["after"], assets, copies, regions))
         else:
-            add(figure(root, after, "after", words["new"], cell,
-                       alt % words["new"], assets, copies, regions))
+            # A reason replaces the "new screen" label (BL-610).
+            label = "%s: %s" % (words["none"], r["noBefore"]) \
+                if "noBefore" in r else words["new"]
+            add(figure(root, after, "after", label, cell,
+                       alt % label, assets, copies, regions))
         add('    </div>')
         add('    <p class="gal-variant">%s</p>' % e(variant_line(variant, lang)))
         if kind == "alternatives":

@@ -792,5 +792,77 @@ if [[ -s "$TMP/nspec/plain.html" ]] && ! grep -q gal-note "$TMP/nspec/plain.html
   ok "BL-609 N-3 a row without note renders as before, the note adds only its <ul>"
 else fail "BL-609 N-3 a no-note row changed: $(diff "$TMP/nspec/plain.html" "$TMP/nspec/stripped.html" | sed -n 1,4p)"; fi
 
+# -- BL-610: a single capture that says why it has no before ------------------
+# One capture used to be always "pantalla nueva". `noBefore` (a reason) lets a
+# row say there is no before and why; the intro's "the screen is new" sentence
+# then needs a row that is really new.
+echo "== BL-610: noBefore =="
+mkdir -p "$TMP/nb"
+REASON='aprobada en la ronda 3; no se guardó el antes'
+nbrun() {  # nbrun <name> <python expr editing d["rows"]> [lang args]
+  python3 - "$TMP/rows.json" "$TMP/nb/$1.json" "$2" <<'PY2'
+import json, sys
+d = json.load(open(sys.argv[1])); exec(sys.argv[3]); json.dump(d, open(sys.argv[2], "w"))
+PY2
+  bash "$GEN" "$TMP/nb/$1.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nb/$1.out" 2> "$TMP/nb/$1.err"
+}
+# Rows of the fixture: [0] empty (pair), [1] new-state (single), [2] loaded.
+nbrun one "d['rows'][1]['noBefore'] = '$REASON'"; rc=$?
+nbrow="$(item audit-new-state-light-desktop "$TMP/nb/one.out")"
+if [[ "$(grep -c '<figure' <<<"$nbrow")" == 1 ]] && grep -q '<figure data-tile="after">' <<<"$nbrow" \
+    && ! grep -qi 'pantalla nueva' <<<"$nbrow" \
+    && grep -qF "<figcaption>sin antes: $REASON</figcaption>" <<<"$nbrow" \
+    && grep -qF "alt=\"New state · sin antes: $REASON\"" <<<"$nbrow"; then
+  ok "BL-610 1 a single capture with noBefore is one after figure, no 'pantalla nueva', the reason in the row"
+else fail "BL-610 1 noBefore row: $nbrow"; fi
+# 2: the fixture has exactly one single-capture row (new-state; the other two
+# rows carry a before), so with noBefore on it the sentence goes; without it
+# (group.html) the sentence stays.
+if grep -q 'Donde hay una sola captura' "$TMP/group.html" && ! grep -q 'Donde hay una sola captura' "$TMP/nb/one.out"; then
+  ok "BL-610 2 the 'la pantalla es nueva' intro sentence is emitted only while a single capture has no noBefore"
+else fail "BL-610 2 intro sentence: with=$(grep -c 'Donde hay una sola' "$TMP/group.html") without=$(grep -c 'Donde hay una sola' "$TMP/nb/one.out")"; fi
+# 2b: a plain single capture beside a noBefore row gets the sentence qualified;
+# with no noBefore anywhere it is today's sentence (group.html, byte-checked).
+nbrun two "d['rows'][1]['noBefore'] = '$REASON'; d['rows'].append({'cell': 'error', 'variant': 'light-desktop', 'kind': 'review', 'after': 'actual/light-desktop/audit-new-state.png'})"
+if grep -qF 'la pantalla es nueva y no hay antes, salvo donde la fila dice por qué no hay antes.' "$TMP/nb/two.out" \
+    && grep -qF 'Donde hay una sola captura, la pantalla es nueva y no hay antes.' "$TMP/group.html"; then
+  ok "BL-610 2b a mixed gallery qualifies the intro sentence; a gallery with no noBefore keeps today's"
+else fail "BL-610 2b mixed intro: $(grep -o 'Donde hay una sola[^<]*' "$TMP/nb/two.out")"; fi
+# 1b: English page
+bash "$GEN" "$TMP/nb/one.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T --lang en > "$TMP/nb/one-en.out" 2>/dev/null
+grep -qF "<figcaption>no before: $REASON</figcaption>" "$TMP/nb/one-en.out" \
+  && ok "BL-610 1b --lang en captions the row 'no before: <reason>'" \
+  || fail "BL-610 1b english caption: $(grep -o '<figcaption>[^<]*' "$TMP/nb/one-en.out")"
+# 3-4: refusals, exit 2, one line, nothing on stdout.
+for case in \
+  "both|d['rows'][0]['noBefore'] = 'x'" \
+  "blank|d['rows'][1]['noBefore'] = '  '" \
+  "nonstr|d['rows'][1]['noBefore'] = 3" \
+  "na|d['rows'] = [{'cell': 'empty', 'notApplicable': 'no state', 'noBefore': 'x'}]" ; do
+  name="${case%%|*}"
+  nbrun "r$name" "${case#*|}"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/nb/r$name.out" && "$(wc -l < "$TMP/nb/r$name.err" | tr -d ' ')" == 1 ]] \
+      && grep -q "row '[a-z-]*'.*noBefore" "$TMP/nb/r$name.err"; then
+    ok "BL-610 3/4 noBefore ($name) is refused naming the cell, one line"
+  else fail "BL-610 3/4 noBefore ($name): exit $rc, stderr: $(cat "$TMP/nb/r$name.err")"; fi
+done
+
+# alternatives row (document declares alternatives): refused naming the cell.
+png shots/list-a.png 160 90
+cat > "$TMP/nb/alt.json" <<'JSON'
+{"gallery": "skel", "variants": ["light-desktop"],
+ "alternatives": [{"id": "a", "label": "A"}, {"id": "b", "label": "B"}],
+ "rows": [{"cell": "x", "variant": "light-desktop", "kind": "alternatives", "noBefore": "why",
+           "captures": {"a": "shots/list-a.png", "b": "shots/list-a.png"}}]}
+JSON
+bash "$GEN" "$TMP/nb/alt.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nb/alt.out" 2> "$TMP/nb/alt.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/nb/alt.out" && "$(wc -l < "$TMP/nb/alt.err" | tr -d ' ')" == 1 ]] && grep -q "row 'x'.*noBefore" "$TMP/nb/alt.err"; then
+  ok "BL-610 5 noBefore on an alternatives row is refused naming the cell, one line"
+else fail "BL-610 5 alternatives+noBefore: exit $rc, stderr: $(cat "$TMP/nb/alt.err")"; fi
+# a dropped row does not read noBefore (like note): builds, carries no trace of it.
+nbrun drp "d['rows'][1].update({'dropped': 'gone', 'noBefore': 'zzzmarker'})"; rc=$?
+if [[ $rc == 0 ]] && ! grep -q zzzmarker "$TMP/nb/drp.out"; then ok "BL-610 6 noBefore on a dropped row is not read, not refused"
+else fail "BL-610 6 dropped+noBefore: exit $rc $(cat "$TMP/nb/drp.err")"; fi
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"
