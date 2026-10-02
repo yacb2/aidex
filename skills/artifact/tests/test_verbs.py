@@ -883,6 +883,52 @@ try:
     check("re-adding a dropped id is refused, spec unchanged",
           r.returncode == 1 and "dropped in an earlier round" in r.stderr
           and read(dspec, "rb") == before, r.stdout + r.stderr)
+    # --- BL-611: --retitle records ids whose title changed; the id never moves
+    rspec = fresh("retitle")
+    r = run("new-round", rspec, "--retitle", "Q1")
+    head = read(rspec).split("\n", 1)[0]
+    check("new-round --retitle Q1 exits 0 and records it on the masthead",
+          r.returncode == 0 and 'retitled-ids="Q1"' in head, r.stdout + r.stderr)
+    check("...the item keeps its id (still #Q1 in the spec)",
+          "::: item {#Q1" in read(rspec), read(rspec)[:300])
+    check("...and the PAGE carries the consult-retitled meta",
+          '<meta name="consult-retitled" content="Q1">'
+          in read(os.path.join(os.path.dirname(rspec), "page.html")))
+    r = run("new-round", rspec, "--retitle", "Q1", "--retitle", "#")
+    check("...repeating it is idempotent (listed once)",
+          r.returncode == 0 and read(rspec).split("\n", 1)[0].count("Q1") == 1,
+          r.stdout + r.stderr)
+    r = run("new-round", rspec)
+    check("BL-611: a later new-round without --retitle removes retitled-ids "
+          "(one round only), spec still parses",
+          r.returncode == 0 and "retitled-ids" not in read(rspec)
+          and "::: item {#Q1" in read(rspec), r.stdout + r.stderr + read(rspec)[:300])
+    check("...and the page no longer carries the consult-retitled meta",
+          "consult-retitled" not in read(os.path.join(os.path.dirname(rspec), "page.html")))
+    # a retitled id may be dropped in a later round
+    r = run("new-round", rspec, "--retitle", "Q1")
+    trimmed = read(rspec).replace(Q1_BLOCK, "")
+    with open(rspec, "w", encoding="utf-8") as fh:
+        fh.write(trimmed)
+    r = run("new-round", rspec, "--drop", "Q1")
+    head = read(rspec).split("\n", 1)[0]
+    check("BL-611: an id retitled earlier can be dropped (rc 0, dropped-ids set, "
+          "retitled-ids gone)",
+          r.returncode == 0 and 'dropped-ids="Q1"' in head
+          and "retitled-ids" not in head, r.stdout + r.stderr + head)
+    # --drop X --retitle Y in one call
+    xspec = fresh("both")
+    trimmed = read(xspec).replace(Q1_BLOCK, "")
+    with open(xspec, "w", encoding="utf-8") as fh:
+        fh.write(trimmed)
+    r = run("new-round", xspec, "--drop", "Q1", "--retitle", "Q2")
+    head = read(xspec).split("\n", 1)[0]
+    check("BL-611: --drop Q1 --retitle Q2 in one call records both",
+          r.returncode == 0 and 'dropped-ids="Q1"' in head
+          and 'retitled-ids="Q2"' in head, r.stdout + r.stderr + head)
+    r = run("new-round", fresh("retitle-gone"), "--retitle", "Q99")
+    check("--retitle of an id not in the spec is refused",
+          r.returncode == 1 and "Q99" in r.stderr, r.stdout + r.stderr)
     r = run("new-round", fresh("drop-live"), "--drop", "Q1")
     check("--drop of an id still in the spec is refused: use item dropped=",
           r.returncode == 1 and "still" in r.stderr, r.stdout + r.stderr)

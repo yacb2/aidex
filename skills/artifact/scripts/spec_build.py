@@ -385,7 +385,8 @@ def _unfenced(lines):
 
 @emitter("masthead")
 def emit_masthead(node, ctx):
-    a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang", "dropped-ids"},
+    a = _attrs(node, {"title", "eyebrow", "byline", "visual", "lang", "dropped-ids",
+                     "retitled-ids"},
                forbid_id=True)
     # A masthead may carry a framed aside, in the position it was written. One
     # sampled page opens with
@@ -1767,6 +1768,19 @@ def build(spec_text, lang=None, base_dir=".", page=None):
             if gone:
                 head.append('<meta name="consult-dropped" content="%s">'
                             % esc(" ".join(gone)))
+            # BL-611: ids that stay with a reworded title, so the id-stability
+            # check reads the new title as a decision, not a moved claim.
+            reworded = node.attrs.get("retitled-ids", "").split()
+            absent = [i for i in reworded
+                      if not any(n.id == i for n in _walk(tree))]
+            if absent:
+                raise SpecBuildError(
+                    node.line, "`masthead` retitled-ids lists %s, not in the "
+                    "spec: a retitled id stays on the page with a new title"
+                    % ", ".join(absent))
+            if reworded:
+                head.append('<meta name="consult-retitled" content="%s">'
+                            % esc(" ".join(reworded)))
 
     body = [emit_node(n, ctx) for n in tree if not _blank_prose(n)]
 

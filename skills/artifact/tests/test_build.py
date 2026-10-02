@@ -492,6 +492,12 @@ try:
           MAST + CH, '<meta name="consult-dropped" content="Q7 Q8">')
     rejects("masthead: dropped-ids naming an id still in the spec is refused",
             MAST.replace("Q7", "Q1") + CH, 1, "still in the spec")
+    # BL-611: masthead retitled-ids records ids that stay with a reworded title.
+    RMAST = '::: masthead {title="T" retitled-ids="Q1"}\n:::\n\n'
+    holds("masthead: retitled-ids reaches the page as the consult-retitled meta",
+          RMAST + CH, '<meta name="consult-retitled" content="Q1">')
+    rejects("masthead: retitled-ids naming an id not in the spec is refused",
+            RMAST.replace("Q1", "Q9") + CH, 1, "not in the spec")
     qspec = os.path.join(tmp, "quoted.spec.md")
     with open(qspec, "w", encoding="utf-8") as fh:
         fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Quoted\n\nX\n:::\n\n'

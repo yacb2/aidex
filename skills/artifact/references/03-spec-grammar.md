@@ -901,6 +901,16 @@ check then notes those ids instead of failing. Every drop must be declared: an i
 out still fails. An id that stays in the spec is an error there (use `dropped="reason"`
 on the item instead).
 
+**Rewording an item's title** (BL-611). Changing the title of a kept id fails `consult-ids`
+("id reused for a different claim"). `spec_verbs.py new-round --retitle <#id>` (repeatable)
+records the ids on the masthead as `retitled-ids="Q1 Q3"`, which builds
+`<meta name="consult-retitled">`; the check then notes each id with its old and new title
+instead of failing. The id never changes, and an id left out still fails. Unlike `--drop`,
+the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with its own
+`--retitle` list and removes it when the call names none, so a later reword of the same id
+must be declared again. The id must still be in the spec. Start every round with
+`new-round`; a rebuild by other means keeps the previous declaration.
+
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder
