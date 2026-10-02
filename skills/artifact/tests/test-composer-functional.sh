@@ -759,7 +759,7 @@ cat > "$TMP/nbody.html" <<HTML
 <section id="sec-ask">
   <div class="sec-head"><h2>Questions</h2></div>
 <section class="consult-group" id="G1" data-id="G1" data-title="Uno"><div class="sec-head"><h2>Uno</h2></div><p>El contexto de la pregunta, en espa&ntilde;ol.</p>
-  <section class="consult-item" data-id="D1" data-title="Settled" data-decided="Option A">
+  <section class="consult-item" data-id="D1" data-title="Settled" data-decided="**Option A**, con notas">
     <h3><span class="consult-id">D1</span>Pregunta ya resuelta de esta sonda</h3>
     <div class="opts one"><label><input type="radio" name="D1" data-label="Option A" checked><span>Option A</span></label></div>
     <p class="fieldlabel">Notas sobre esta</p><textarea></textarea>
@@ -970,6 +970,12 @@ tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | sed -n 1p)"
   || fail "BL-532: the dropped section reuses the decided hint instead of saying the questions left the set: $tn"
 [[ "$tn" == *"Left two: Descartada: ya no aplica"* && "$tn" != *"Settled two: Descartada"* ]] \
   || fail "BL-532/BL-608: in a mixed block the dropped item X2 must carry its dropped verdict and the decided D2 must not: $tn"
+# BL-545: D1's verdict is written `**Option A**, con notas`, which is NOT its checked
+# label: the fold shows the written verdict, plain (the checked label alone would be
+# decidedLine winning over data-decided).
+mix="${tn#*|MIX=}"; mix="${mix%%|*}"
+[[ "$mix" == *"Settled: Option A, con notas"* && "$mix" != *"**"* ]] \
+  || fail "BL-545: the decided summary does not show D1's written verdict plain (want 'Settled: Option A, con notas', no '**'): MIX=$mix"
 [[ "$tn" == *"RAIL="*"Descartadas"* ]] \
   || fail "BL-532: the rail has no entry for the dropped section: $tn"
 [[ "$tn" == *"|BARS=1|"* ]] \

@@ -826,9 +826,14 @@ try:
           r.returncode == 0, r.stdout + r.stderr)
     # Same option, same verdict: decided="Dos" already records it, so the
     # markdown spelling is a no-op, not a rewrite (idempotence, and the round
-    # stamp that compares the raw decided text).
+    # stamp, which compares the same plain form).
     r = run("decide", cspec, "--id", "Q1", "--verdict", "**Dos**")
     check("...and in the spec's own markdown form, spec byte-identical",
+          r.returncode == 0 and read(cspec, "rb") == cbytes,
+          r.stdout + r.stderr)
+    # BL-545: spaces inside the markers fold away too (strip AFTER the markup goes).
+    r = run("decide", cspec, "--id", "Q1", "--verdict", "** Dos **")
+    check("...and with spaces inside the markers (** Dos **), spec byte-identical",
           r.returncode == 0 and read(cspec, "rb") == cbytes,
           r.stdout + r.stderr)
     mspec2 = fresh("chosen-decide-md", CHOSEN_PAGE.replace(

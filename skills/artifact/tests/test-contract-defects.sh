@@ -245,6 +245,11 @@ for v in yes TRUE 1; do
   page c6-yes es "<section class=\"consult-item\" data-id=\"Q1\" data-decided=\"$v\">$RADIO</section>"
   fails $C c6-yes "data-decided=\"$v\" is no verdict: the fold would show a bare \"$v\""
 done
+# BL-545: the fold strips [`*] before it shows the verdict, so the check reads the same plain form.
+page c6-md-yes es "<section class=\"consult-item\" data-id=\"Q1\" data-decided=\"**yes**\">$RADIO</section>"
+fails $C c6-md-yes "data-decided=\"**yes**\" is no verdict: the fold strips the asterisks and shows a bare \"yes\""
+page c6-md-empty es "<section class=\"consult-item\" data-id=\"Q1\" data-decided=\"**\">$RADIO</section>"
+fails $C c6-md-empty "data-decided=\"**\" with nothing checked is no verdict: the fold strips it to nothing"
 page c6-round es "<section class=\"consult-item\" data-id=\"Q1\" data-decided-round=\"2\">$RADIO</section>"
 passes $C c6-round "data-decided-round alone is not a decided item"
 

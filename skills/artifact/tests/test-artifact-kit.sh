@@ -493,6 +493,20 @@ bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/n
 [[ "$(round_of "$DPG")" == "3" && "$(stamp_of "$DPG" Q1)" == "2" ]] \
   || fail "the item decided in round 2 was re-stamped when the page moved on (round '$(round_of "$DPG")', stamp '$(stamp_of "$DPG" Q1)')"
 
+# BL-545: the same verdict in another markdown spelling is the same decision, the
+# plain form `decide` compares in. No reply here, so an unfixed wrapper stamps 3.
+decided_body "**we keep it**"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "the re-spelled verdict failed to wrap"
+[[ "$(stamp_of "$DPG" Q1)" == "2" ]] \
+  || fail "BL-545: re-spelling a decided verdict in markdown (we keep it -> **we keep it**) reset its round (got '$(stamp_of "$DPG" Q1)', want 2)"
+# ...and the spaces inside the markers fold away too: strip AFTER the markup goes.
+decided_body "** we keep it **"
+bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \
+  || fail "the re-spelled verdict with inner spaces failed to wrap"
+[[ "$(stamp_of "$DPG" Q1)" == "2" ]] \
+  || fail "BL-545: re-spelling a decided verdict as '** we keep it **' reset its round (got '$(stamp_of "$DPG" Q1)', want 2)"
+
 decided_body "no, the other one"
 answer
 bash "$WRAP" --title "Decided probe" --in "$TMP/dbody.html" --out "$DPG" >/dev/null 2>&1 \

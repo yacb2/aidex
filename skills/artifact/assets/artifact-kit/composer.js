@@ -400,9 +400,11 @@
 
   /* A verdict written on the attribute wins over the options it chose: an item
    * whose outcome is not any single option ("both, in this order") has nowhere
-   * else to say so. Bare `data-decided` keeps the derived line. */
+   * else to say so. Bare `data-decided` keeps the derived line. The fold is
+   * text, so a verdict written `**x**` shows plain, the same [`*] strip as the
+   * builder's PLAIN (md_body.py) (BL-545). */
   function decidedSummary(el) {
-    var v = (el.getAttribute('data-decided') || '').trim();
+    var v = (el.getAttribute('data-decided') || '').replace(/[`*]/g, '').trim();
     return v || decidedLine(el);
   }
 

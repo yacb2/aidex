@@ -370,6 +370,20 @@ try:
     rejects("item: decided=yes with no {recommended} option is refused",
             ITEM.replace(" {recommended}", ""), 2,
             "no option marked {recommended}")
+    # BL-545: the fold shows the plain form, so `**yes**` is the same bare flag.
+    rejects("item: decided=\"**yes**\" with no {recommended} option is refused "
+            "like decided=yes",
+            ITEM.replace(" {recommended}", "").replace(
+                "decided=yes", 'decided="**yes**"'), 2,
+            "no option marked {recommended}")
+    # ...and `decided="**"` folds to nothing, so it is `decided=""`: no decision
+    # at all, and a {chosen} winner with no decision is refused the same way.
+    holds("item: decided=\"**\" is no decision, like decided=\"\"",
+          ITEM.replace("decided=yes", 'decided="**"'),
+          '<section class="consult-item" data-id="Q1" data-title="Short name">')
+    rejects("item: {chosen} with decided=\"**\" is refused as not decided",
+            ITEM.replace("decided=yes", 'decided="**"').replace(
+                "{recommended}", "{chosen}"), 2, "not decided")
     # Two checked radios in one name group: the parser keeps the last, and the
     # fold shows that one as the verdict with nothing on the page saying so.
     rejects("item: decided=yes on a select=one item with two {recommended} "
