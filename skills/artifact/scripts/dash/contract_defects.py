@@ -554,14 +554,14 @@ KIT_STRINGS = {
            "Anything the options do not cover…", "Anything the list does not cover…",
            "Anything the value alone does not say…", "The choice", "The value",
            "Anything that does not fit above", "Whatever it is…", "Your answer…",
-           "Notes on this row", "What to change…"},
+           "Notes on this row", "What to change…", "notes"},
     "es": {"Copiar mis respuestas", "Contenido", "Notas sobre esta",
            "Notas sobre esto", "Cualquier cosa que las opciones no cubran…",
            "Lo que las opciones no cubren…", "Cualquier cosa que la lista no cubra…",
            "Cualquier cosa que el valor por sí solo no diga…", "La elección",
            "El valor", "Cualquier cosa que no encaje arriba",
            "Lo que no encaja arriba", "Lo que sea…", "Tu respuesta…",
-           "Notas sobre esta fila", "Qué cambiar…"},
+           "Notas sobre esta fila", "Qué cambiar…", "notas"},
 }
 CHROME_IDS = ("consult-copy", "consult-copy-end")
 CHROME_CLASSES = ("railhead", "fieldlabel", "consult-status")

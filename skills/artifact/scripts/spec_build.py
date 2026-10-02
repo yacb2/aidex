@@ -88,6 +88,7 @@ STRINGS = {
         "item_notes": "Notas sobre esto",
         "item_placeholder": "Lo que las opciones no cubren…",
         "item_open_placeholder": "Tu respuesta…",
+        "notes_badge": "notas",
         "notes_label": "Lo que no encaja arriba",
         "notes_placeholder": "Lo que sea…",
         "copy": "Copiar mis respuestas",
@@ -96,6 +97,7 @@ STRINGS = {
         "item_notes": "Notes on this one",
         "item_placeholder": "Anything the options do not cover…",
         "item_open_placeholder": "Your answer…",
+        "notes_badge": "notes",
         "notes_label": "Anything that does not fit above",
         "notes_placeholder": "Whatever it is…",
         "copy": "Copy my answers",
@@ -909,12 +911,15 @@ def emit_notes(node, ctx):
     a = _attrs(node, {"title"}, required=("title",))
     _no_children(node)
     ident = node.id or "notes"
+    # data-id stays the default id (replies key on it); only the visible badge
+    # is localised, and only for the id `notes` (default or written out).
+    badge = ctx.s["notes_badge"] if ident == "notes" else ident
     return "\n".join([
         '<section class="%s" data-id="%s" data-title="%s">'
         % (_classes("consult-item consult-notes", node), esc(ident),
            esc(a["title"])),
         '  <h3><span class="consult-id">%s</span>%s</h3>'
-        % (esc(ident), esc(a["title"])),
+        % (esc(badge), esc(a["title"])),
         '  <p class="fieldlabel">%s</p>' % esc(ctx.s["notes_label"]),
         '  <textarea placeholder="%s"></textarea>'
         % esc(ctx.s["notes_placeholder"]),
