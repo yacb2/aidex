@@ -88,7 +88,23 @@ GALLERY_MARK_DUTY = ("the reader marked regions of this gallery row's capture: "
                      "fix what each mark's note names")
 
 
-def gallery_duties_for(reply_text):
+def _drop_items(chunk, ordinary):
+    """The chunk with every `### <id>` block whose id is an ordinary item of
+    the page blanked out (lines kept, so refusal line numbers still match).
+    A `### <ordinary-id> · ...` line pasted inside a gallery row's notes blanks
+    what follows it too, marks included: the parser's existing limit, where
+    any such heading hands the rest to that item's block."""
+    out, keep = [], True
+    for line in chunk.splitlines(keepends=True):
+        if line.startswith("### "):
+            keep = line[4:].partition(" · ")[0].strip() not in ordinary
+        elif line.startswith("## "):
+            keep = True
+        out.append(line if keep else "\n")
+    return "".join(out)
+
+
+def gallery_duties_for(reply_text, ordinary=()):
     """[(id, tag, duty text)] for gallery rows (gallery_reply's parser) whose
     answer is anything but Approved, or that carry region marks even when
     approved (BL-632). An approved row with no mark owes nothing. Each saved
@@ -96,13 +112,15 @@ def gallery_duties_for(reply_text):
     read as text after a row's marks) and the LATEST paste wins per row id: a
     row a later paste turns Approved with no marks leaves the list. A paste
     gallery_reply refuses yields an `unreadable` row instead of nothing, so
-    "nothing owed" cannot print over rows nobody read."""
+    "nothing owed" cannot print over rows nobody read. `ordinary`: ids the
+    page shows as ordinary items, never read as gallery rows (BL-654)."""
     by_id, unreadable = {}, []
     for chunk in ca._SAVE_SEP.split(reply_text):
         err = io.StringIO()
         try:
             with contextlib.redirect_stderr(err):
-                rows = gallery_reply.parse(chunk, lenient=True)["rows"]
+                rows = gallery_reply.parse(_drop_items(chunk, ordinary),
+                                           lenient=True)["rows"]
         except SystemExit:
             msg = err.getvalue().strip().replace("gallery-reply: ", "", 1)
             if msg not in unreadable:
@@ -126,7 +144,7 @@ def gallery_duties_for(reply_text):
     return out
 
 
-def duties_for(reply_text):
+def duties_for(reply_text, ordinary=()):
     """[(id, marker, duty text)]. 3+ REAL asks (excluding `[page-defect]` and
     `[not-now]`, review finding 2) collapse to a single STACKED_DUTY row
     instead of one per marker — that is the duty: rewrite the item, not each
@@ -148,7 +166,7 @@ def duties_for(reply_text):
                 duty = ca.MARKER_DUTIES.get(m)
                 if duty is not None:
                     out.append((ident, m, duty))
-    return out + gallery_duties_for(reply_text)
+    return out + gallery_duties_for(reply_text, ordinary)
 
 
 def save_reply(page_path, reply_text):
@@ -171,6 +189,9 @@ def save_reply(page_path, reply_text):
     # separator written before BL-644) it is the answered snapshot. Comparing
     # only with answered.html made two saves from one rebuilt, duty-failing
     # page both `duty`, i.e. two rounds (BL-644).
+    with open(page_path, encoding="utf-8", errors="replace") as fh:
+        page_text = fh.read()
+    ordinary = ca.ordinary_item_ids(page_text)
     if had_previous:
         page_fp = _fingerprint(page_path)
         with open(reply_path, encoding="utf-8", errors="replace") as fh:
@@ -188,14 +209,12 @@ def save_reply(page_path, reply_text):
                      f"\n\n{reply_text}")
         with open(reply_path, encoding="utf-8") as fh:
             combined = fh.read()
-        return duties_for(combined), reply_path, answered_path, appended
+        return duties_for(combined, ordinary), reply_path, answered_path, appended
     with open(reply_path, "w", encoding="utf-8") as fh:
         fh.write(reply_text)
-    with open(page_path, encoding="utf-8", errors="replace") as fh:
-        page_text = fh.read()
     with open(answered_path, "w", encoding="utf-8") as fh:
         fh.write(page_text)
-    return duties_for(reply_text), reply_path, answered_path, False
+    return duties_for(reply_text, ordinary), reply_path, answered_path, False
 
 
 def main(argv):

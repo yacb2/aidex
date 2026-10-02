@@ -367,6 +367,195 @@ cmp -s "$PAGED" "$TMP/paged/.aidex-artifact-prev/page.answered.html" \
   && ok "D3b. once every outstanding duty is met, answered.html is re-snapshotted to the delivered page" \
   || fail "D3b: answered.html was not re-synced after delivery"
 
+# D4. BL-654: a gallery duty (BL-632: a "Necesita cambios" row) holds the same
+# append guard. The page is rebuilt elsewhere with the row byte-identical; a
+# follow-up save must append, keep the snapshot and still print the row.
+PAGEG="$TMP/pageg/page.html"
+mkdir -p "$TMP/pageg"
+gpage() {  # $1=extra markup outside the row  $2=the row's capture file
+  mkpage "$PAGEG" "$1
+<section class=\"consult-item consult-gallery\" data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\">
+  <h3>x full</h3><figure class=\"gal-tile\"><img src=\"$2\"></figure><textarea></textarea>
+</section>"
+}
+gpage '<p>v1</p>' 'x-full-v1.png'
+cp "$PAGEG" "$TMP/pageg/orig.html"
+printf '%s' '### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+el boton se sale del borde' | bash "$SAVE_REPLY" "$PAGEG" >/dev/null
+gpage '<p>v2, rebuilt elsewhere</p>' 'x-full-v1.png'
+out_g="$(printf '%s' '### notes · General notes
+
+gracias' | bash "$SAVE_REPLY" "$PAGEG")"
+grep -q '<!-- reply saved .* duty -->' "$TMP/pageg/.aidex-artifact-prev/page.reply.md" \
+  && cmp -s "$TMP/pageg/orig.html" "$TMP/pageg/.aidex-artifact-prev/page.answered.html" \
+  && echo "$out_g" | grep >/dev/null '^x-full-light-desktop \[needs-changes\]' \
+  && ok "D4. an unaddressed gallery duty holds the append guard like a marker duty" \
+  || fail "D4: $out_g // $(cat "$TMP/pageg/.aidex-artifact-prev/page.reply.md")"
+
+# D5. the row rebuilt (a new capture): the next save REPLACES and re-snapshots.
+gpage '<p>v3</p>' 'x-full-v2.png'
+printf '%s' '### x-full-light-desktop · x · full · light-desktop
+
+- Aprobada' | bash "$SAVE_REPLY" "$PAGEG" >/dev/null
+! grep -q '<!-- reply saved' "$TMP/pageg/.aidex-artifact-prev/page.reply.md" \
+  && cmp -s "$PAGEG" "$TMP/pageg/.aidex-artifact-prev/page.answered.html" \
+  && ok "D5. once the gallery row is rebuilt, reply.md is REPLACED and re-snapshotted" \
+  || fail "D5: $(cat "$TMP/pageg/.aidex-artifact-prev/page.reply.md")"
+
+# D6. BL-654 review: the gated flow, three rounds through spec_build. A round 2
+# that leaves the owed gallery row untouched is REFUSED by the wrap gate (as a
+# marker duty is), so answered.html never freezes behind a shipped round and
+# --new-round keeps working: the row rebuilt wraps, and round 3 builds.
+FL="$TMP/flow"; mkdir -p "$FL/shots" "$FL/actual" "$FL/pages"
+(cd "$FL" && git init -q .)
+python3 "$SKILL/tests/png_fixture.py" "$FL/shots/a.png" 16 9
+python3 "$SKILL/tests/png_fixture.py" "$FL/actual/a.png" 16 9
+cat > "$FL/pages/rows.json" <<'J'
+{"gallery": "audit", "variants": ["light-desktop"], "rows": [
+ {"cell": "with-data", "variant": "light-desktop", "kind": "review", "look": "The header", "before": "shots/a.png", "after": "actual/a.png"}]}
+J
+printf '::: masthead {eyebrow="Rev" byline="aidex"}\n# Galeria prueba\n\nRevisa las capturas.\n:::\n\n::: gallery {#E title="Galeria audit" rows="rows.json"}\n:::\n\n::: notes {title="Notas generales"}\n:::\n' > "$FL/pages/p.spec.md"
+build() { (cd "$FL" && python3 "$SKILL/scripts/spec_build.py" pages/p.spec.md -o pages/p.html "$@") > "$TMP/fl.out" 2>&1; }
+build; rc1=$?
+printf '%s' '### audit-with-data-light-desktop · audit · with-data · light-desktop
+
+- Necesita cambios
+
+el header se corta' | bash "$SAVE_REPLY" "$FL/pages/p.html" >/dev/null
+build --new-round; rc=$?
+[[ "$rc1" == 0 && "$rc" != 0 ]] && grep -q 'consult-marker-duties.*audit-with-data-light-desktop' "$TMP/fl.out" \
+  && ok "D6a. round 2 with the owed gallery row untouched is REFUSED, the row named" \
+  || fail "D6a: rc1=$rc1 rc=$rc $(cat "$TMP/fl.out")"
+python3 "$SKILL/tests/png_fixture.py" "$FL/actual/a.png" 16 10       # the capture rebuilt
+build --new-round; rc=$?
+printf '%s' '### audit-with-data-light-desktop · audit · with-data · light-desktop
+
+- Aprobada' | bash "$SAVE_REPLY" "$FL/pages/p.html" >/dev/null
+build --new-round; rc3=$?
+[[ "$rc" == 0 && "$rc3" == 0 ]] && grep -q 'ronda 3' "$FL/pages/p.html" \
+  && ok "D6b. the row rebuilt wraps, and the next --new-round builds round 3" \
+  || fail "D6b: rc=$rc rc3=$rc3 $(cat "$TMP/fl.out")"
+
+# D7. the stale-snapshot shape outside the gate: a round-2 page saved with the
+# gallery row untouched appends (answered.html frozen at round 1, the BL-504
+# D2c policy), so a round 3 that still leaves the row untouched must FAIL the
+# row — never go green with the duty unmet.
+ST="$TMP/stale"; mkdir -p "$ST"
+spage() {  # $1=Q1 claim  $2=trailing markup
+  mkpage "$ST/page.html" "<section class=\"consult-item\" data-id=\"Q1\" data-title=\"Q1\"><h3>Q1</h3><p>$1</p><textarea></textarea></section>
+<section class=\"consult-item consult-gallery\" data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\"><h3>x full</h3><figure class=\"gal-tile\"><img src=\"v1.png\"></figure><textarea></textarea></section>
+$2"
+}
+spage 'Round one claim about the cache.' ''
+printf '%s' '### Q1 · Q1
+
+- Yes
+
+### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+el boton se sale' | bash "$SAVE_REPLY" "$ST/page.html" >/dev/null
+spage 'Round two claim, rewritten by the author.' ''
+printf '%s' '### Q1 · Q1
+
+- [explain-why]
+
+por que?' | bash "$SAVE_REPLY" "$ST/page.html" >/dev/null
+spage 'Round two claim, rewritten by the author.' '<p>round 3</p>'
+duty_fails() {
+  python3 - "$SKILL/scripts/dash" "$1" <<'P'
+import sys; sys.path.insert(0, sys.argv[1])
+import check_artifact as ca
+for _, _, msg in ca.check_marker_duties(sys.argv[2])[0]: print(msg)
+P
+}
+st_out="$(duty_fails "$ST/page.html")"
+echo "$st_out" | grep -q 'gallery row x-full-light-desktop' \
+  && ok "D7. round 3 with the owed gallery row still untouched FAILS the row" \
+  || fail "D7: $st_out"
+
+# D8. a row DECIDED in the rebuilt round left the question set: no FAIL, and
+# the next save replaces reply.md and re-snapshots.
+DC="$TMP/decided"; mkdir -p "$DC"
+dpage() {  # $1=attributes on the row
+  mkpage "$DC/page.html" "<p>$2</p><section class=\"consult-item consult-gallery\" $1 data-id=\"x-full-light-desktop\" data-title=\"x · full · light-desktop\"><h3>x full</h3><figure class=\"gal-tile\"><img src=\"v1.png\"></figure><textarea></textarea></section>"
+}
+dpage '' 'v1'
+printf '%s' '### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+el boton se sale' | bash "$SAVE_REPLY" "$DC/page.html" >/dev/null
+dpage 'data-decided="Aprobada"' 'v2'
+dc_out="$(duty_fails "$DC/page.html")"
+printf '%s' '### notes · General notes
+
+gracias' | bash "$SAVE_REPLY" "$DC/page.html" >/dev/null
+[[ -z "$dc_out" ]] && ! grep -q '<!-- reply saved' "$DC/.aidex-artifact-prev/page.reply.md" \
+  && cmp -s "$DC/page.html" "$DC/.aidex-artifact-prev/page.answered.html" \
+  && ok "D8. a decided gallery row owes nothing: no FAIL, reply replaced, page re-snapshotted" \
+  || fail "D8: fails=[$dc_out] $(cat "$DC/.aidex-artifact-prev/page.reply.md")"
+
+# D9-D11 share one shape: a page in $1 dir, the reply saved, the page rebuilt.
+duty_warns() {
+  python3 - "$SKILL/scripts/dash" "$1" <<'P'
+import sys; sys.path.insert(0, sys.argv[1])
+import check_artifact as ca
+for _, _, msg in ca.check_marker_duties(sys.argv[2])[1]: print(msg)
+P
+}
+row_html='<section class="consult-item consult-gallery" data-id="x-full-light-desktop" data-title="x · full · light-desktop"><h3>x full</h3><figure class="gal-tile"><img src="v1.png"></figure><textarea></textarea></section>'
+q_html='<section class="consult-item" data-id="Q1" data-title="Q1"><h3>Q1</h3><p>claim</p><textarea></textarea></section>'
+
+# D9. an ORDINARY item whose heading has the old light/dark row shape
+# (`cache-ttl · cache · ttl`) is not a gallery row: no "could not be read"
+# WARN at the gate, and save-reply prints no [unreadable] duty for it.
+P9="$TMP/d9"; mkdir -p "$P9"
+mkpage "$P9/page.html" '<section class="consult-item" data-id="cache-ttl" data-title="cache · ttl"><h3>TTL</h3><p>claim</p><textarea></textarea></section>'
+out9="$(printf '%s' '### cache-ttl · cache · ttl
+
+- [explain-why]
+
+por que' | bash "$SAVE_REPLY" "$P9/page.html")"
+w9="$(duty_warns "$P9/page.html")"
+[[ -z "$w9" ]] && [[ "$out9" != *"[unreadable]"* ]] && [[ "$out9" == *"cache-ttl [explain-why]"* ]] \
+  && ok "D9. an ordinary item shaped like an old matrix row is not read as a gallery row" \
+  || fail "D9: warns=[$w9] save=[$out9]"
+
+# D10. the owed row is gone from the rebuilt page: one WARN, no FAIL.
+P10="$TMP/d10"; mkdir -p "$P10"
+mkpage "$P10/page.html" "$q_html
+$row_html"
+printf '%s' '### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+el boton se sale' | bash "$SAVE_REPLY" "$P10/page.html" >/dev/null
+mkpage "$P10/page.html" "$q_html"
+w10="$(duty_warns "$P10/page.html")"; f10="$(duty_fails "$P10/page.html")"
+[[ "$(printf '%s\n' "$w10" | grep -c .)" == 1 && "$w10" == *"not in the new page"* && -z "$f10" ]] \
+  && ok "D10. an owed gallery row missing from the rebuilt page WARNs once, no FAIL" \
+  || fail "D10: warns=[$w10] fails=[$f10]"
+
+# D11. a gallery paste gallery_reply refuses: one "could not be read" WARN.
+P11="$TMP/d11"; mkdir -p "$P11"
+mkpage "$P11/page.html" "$q_html
+$row_html"
+printf '%s' '### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+[mark after 1.7,0.2 33.0x5.6] nota
+dictated sentence after the marks' | bash "$SAVE_REPLY" "$P11/page.html" >/dev/null
+w11="$(duty_warns "$P11/page.html")"; f11="$(duty_fails "$P11/page.html")"
+[[ "$(printf '%s\n' "$w11" | grep -c .)" == 1 && "$w11" == *"could not be read"* && -z "$f11" ]] \
+  && ok "D11. an unreadable gallery paste WARNs once at the gate, no FAIL" \
+  || fail "D11: warns=[$w11] fails=[$f11]"
+
 # ============================================================================
 # Part E — finding 2: [page-defect] and [not-now] do not count toward the 3+
 # stack, and a [page-defect] duty always reaches the printed duties.
