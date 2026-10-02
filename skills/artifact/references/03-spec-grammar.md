@@ -236,8 +236,8 @@ real page said something the grammar could not:
   volumes: a host that took the quieter one and refused the louder one would be an
   asymmetry with nothing behind it. Everything else these could nest is still
   refused, by the same `PARENTS` table.
-- **An `item` also accepts a nested figure block** — `figure`, `chart`, `graph` or
-  `diagram`, all four alike, in the position it was written. 4 figures of the corpus
+- **An `item` also accepts a nested figure block** — `figure`, `chart`, `graph`, `video` or
+  `diagram`, all alike, in the position it was written. 4 figures of the corpus
   illustrate one decision from inside it, and placing them before the item detached
   them from it. `masthead` and `note` do not: a drawing there is a page-level figure
   in the wrong place (`spec_build.FIGURE_BLOCKS`).
@@ -799,7 +799,7 @@ a file with no `<svg>` element, and any SVG rule above.
 ## The `video` block: a local film, by reference
 
 ```
-::: video {#v1 src="films/intro.mp4" title="La película, 12 s"}
+::: video {#v1 src="films/intro.mp4" poster="films/intro.jpg" title="La película, 12 s"}
 :::
 ```
 
@@ -815,9 +815,13 @@ A film enters the page through the spec route with no post-build step. It has **
 - A `<video>` counts as the page's visual for check-artifact, like an `<svg>` or `<img>`.
 - `title` is the `<figcaption>`. `#id` and classes land on the `<figure class="video">`,
   which `components.css` sizes to the column in both themes.
-- A `video` is page-level only: an `item` or a `note` refuses it at the fence's line,
-  because neither lists it among the blocks it nests (`_segments`; an item's list is
-  `ASIDES` + `FIGURE_BLOCKS`).
+- `poster` (optional, BL-593) is the still the player shows before play: relative to the
+  spec, must exist, `.png`, `.jpg`, `.jpeg` or `.webp`, an absolute path is refused. It is
+  emitted as `<video poster="…">` and rewritten relative to the page under `-o`, like `src`.
+- The kit caps the player at `max-height: 80vh` (BL-593), so a 3:4 film never grows taller
+  than the viewport at 1280 px; the letterbox is the sunk paper.
+- A `video` also nests inside an `item` (BL-547), like a figure, in written order: it is in
+  an item's list (`ASIDES` + `FIGURE_BLOCKS`). A `note` still refuses it at the fence's line.
 
 ## The `graph` body: DOT, laid out by Graphviz
 

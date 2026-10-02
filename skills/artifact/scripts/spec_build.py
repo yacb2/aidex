@@ -630,7 +630,7 @@ ASIDES = ("note", "callout")
 # All four figure blocks, uniformly — which rung draws it is the ladder's call,
 # not the host's. Item only: a masthead or note with a drawing is a page-level
 # figure in the wrong place.
-FIGURE_BLOCKS = ("figure", "chart", "graph", "diagram")
+FIGURE_BLOCKS = ("figure", "chart", "graph", "diagram", "video")
 
 
 def _segments(node, nests, carries="prose"):
@@ -1372,17 +1372,18 @@ def emit_figure(node, ctx):
 # The film types a `video` references. Never inlined: a film as a base64 data
 # URI would take a page past any size a browser or a reviewer handles (BL-456).
 VIDEO_TYPES = (".mp4", ".webm")
+POSTER_TYPES = (".png", ".jpg", ".jpeg", ".webp")
 
 
 @emitter("video")
 def emit_video(node, ctx):
-    """`::: video {#id src="films/a.mp4" title="…"}` — a local film, by reference.
+    """`::: video {#id src="films/a.mp4" poster="films/a.jpg" title="…"}` — a local film, by reference.
 
     `src` is relative to the SPEC (as `figure`'s is) and must exist. The page
     carries a path, never the bytes: with `-o`, the path is rewritten relative
     to the page, so the film plays wherever the page lands next to it.
     """
-    a = _attrs(node, {"src", "title"}, required=("src",))
+    a = _attrs(node, {"src", "title", "poster"}, required=("src",))
     _no_children(node)
     src = a["src"].strip()
     if os.path.isabs(src):
@@ -1399,18 +1400,39 @@ def emit_video(node, ctx):
         raise SpecBuildError(
             node.line, "`video` src=%r: no such file (looked in %s)"
             % (src, ctx.base_dir))
-    href = src
-    if ctx.page:
-        href = os.path.relpath(
-            path, os.path.dirname(os.path.abspath(ctx.page))).replace(os.sep, "/")
-    # A path is not a URL: `#` and `?` would cut the name the browser fetches.
-    href = urllib.parse.quote(href, safe="/")
+    def local_href(rel, path):
+        href = rel
+        if ctx.page:
+            href = os.path.relpath(
+                path, os.path.dirname(os.path.abspath(ctx.page))).replace(os.sep, "/")
+        # A path is not a URL: `#` and `?` would cut the name the browser fetches.
+        return urllib.parse.quote(href, safe="/")
+
+    href = local_href(src, path)
+    poster = ""
+    if a.get("poster", "").strip():
+        pst = a["poster"].strip()
+        if os.path.isabs(pst):
+            raise SpecBuildError(
+                node.line, "`video` poster=%r is absolute — write it relative "
+                "to the spec, so the spec builds from any checkout" % pst)
+        pext = os.path.splitext(pst)[1].lower()
+        if pext not in POSTER_TYPES:
+            raise SpecBuildError(
+                node.line, "`video` poster=%r has type %r; a poster is %s"
+                % (pst, pext or "(none)", ", ".join(POSTER_TYPES)))
+        ppath = os.path.join(ctx.base_dir, pst)
+        if not os.path.isfile(ppath):
+            raise SpecBuildError(
+                node.line, "`video` poster=%r: no such file (looked in %s)"
+                % (pst, ctx.base_dir))
+        poster = ' poster="%s"' % esc(local_href(pst, ppath))
     head = "<figure"
     if node.id:
         head += ' id="%s"' % esc(node.id)
     head += ' class="%s">' % esc(" ".join(["video"] + list(node.classes)))
-    out = [head, '<video controls preload="metadata" src="%s"></video>'
-           % esc(href)]
+    out = [head, '<video controls preload="metadata"%s src="%s"></video>'
+           % (poster, esc(href))]
     title = a.get("title", "").strip()
     if title:
         out.append("<figcaption>%s</figcaption>" % esc(title))
