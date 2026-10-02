@@ -625,6 +625,8 @@ id, and **which** markers is the whole point:
 | **`[more-examples]`** | More worked examples, not a longer explanation | More visuals, tables or example blocks than the last round carried — never the same shape stretched longer. | `check_marker_duties`: visual+table+example count must be higher than the answered snapshot |
 | **`[page-defect]`** | The page itself is broken (encoding, a dead control, a rendering bug) — never a route back to `[reframe]` for it | Fix the page defect in place. Nothing about the item's question changes, so nothing is re-asked. | none — a page defect is not a re-ask |
 
+A gallery row has no body to rewrite, so its explain-why and reframe text go in the row's `note` list (§ Gallery rows), never packed into `look`. `[more-examples]` on a gallery row is answered with another capture or a table, not a note: the duty check counts visuals and tables, not `<li>` lines.
+
 A `[not-now]` deferral (below) carries no re-ask duty either: the item leaves the round and is carried open on the ledger until the reader brings it back.
 
 **3+ markers stacked on one item is not a bigger version of any one of them — it
@@ -1739,6 +1741,12 @@ alternative id may not be `before` or `after`.
 spec route (`spec_build.py`) refuses a row without it, naming the cell; `gallery-items.sh`
 on its own only shows it when present, so existing project emitters keep working. A
 not-applicable or dropped row is exempt: its reason is its content.
+
+**Prose beyond the look goes in `note`.** An optional row key, a non-empty list of non-empty
+strings, printed as a `<ul>` (one `<li>` each) directly under the look line. Use it for what
+`look` cannot hold in one sentence: what changed since the last round, what happens if the
+element is removed, a worked example. Its items are not held to the one-line look limits.
+A non-list, an empty list or an empty entry is refused naming the cell.
 
 **The answer is compact by default.** A row shows verdict and note; the third verdict (on an
 alternatives row every alternative stays visible and only "none of them" folds) and the composer's own extras (Other, Not now, the

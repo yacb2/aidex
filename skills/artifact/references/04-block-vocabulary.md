@@ -342,6 +342,7 @@ in dashboard_template), and the kit reads nothing else:
 | `"highlight_before"` | same shape, in the BEFORE capture's pixels, validated against its size; needs a `before`. No outline on the before unless given |
 | `"layout": "stacked"` or `"side"` | a before/after pair sits side by side by default (captures scale to the cell, never cropped; owner 2026-10-01); `stacked` puts before above after at full column width |
 | `"look": text` | what to look at on this row; required through the spec route, shown as the "Qué mirar" line |
+| `"note": [text, …]` | optional: a non-empty list of non-empty strings, one `<li>` each in a `<ul class="gal-note">` directly under the look line. The place for explain-why, reframe ("what changed since round 1"), "if removing it fails" and worked-example lines, so `look` stays one sentence. A non-list, an empty list or an empty or non-string entry is refused naming the cell; a row without `note` renders as before. Refused on a not-applicable row (it is still a live question: say it in the reason); not read on a dropped row |
 | `"dropped": reason` / `"decided": verdict` | the row left the question set (no captures needed, reason in `.gal-na`, `data-dropped`) / was settled (captures kept); both fold as decided
 
 Each row shows its variant once, under the captures, in words of the page's language

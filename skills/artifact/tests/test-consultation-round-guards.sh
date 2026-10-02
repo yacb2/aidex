@@ -186,6 +186,17 @@ no entiendo"
     || fail "A4 [$marker] pass: rc=$rc $(cat "$TMP/out")"
 done
 
+# ---- A4b. BL-609: a gallery row's note <ul>, and nothing else new, answers [explain-why]
+save_reply '' "### Q1 · Q1
+
+- [explain-why]
+
+no entiendo"
+page "$R/page.html" '<ul class="gal-note"><li>If it is removed, the empty state loses its only guide.</li></ul>'
+rc="$(run "$R/page.html" --prev "$R/.aidex-artifact-prev/page.html")"
+[[ "$rc" == "0" ]] && ok "A4b. [explain-why] answered only by a gal-note list PASSES" \
+  || fail "A4b: rc=$rc $(cat "$TMP/out")"
+
 # ---- A5. [page-defect] and [not-now]: no per-item check at all --------------
 save_reply '' '### Q1 · Q1
 
