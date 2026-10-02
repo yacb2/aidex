@@ -6,8 +6,9 @@
 # Usage:
 #   gallery-reply.sh [--rows <rows.json>]... [--tiles "<t1> <t2> ..."] [<reply.md>]   # no file or `-`: stdin
 #   --rows: the rows document the page was built from; REQUIRED when the reply holds an
-#           alternatives row (its labels are the spec's), repeat once per gallery
+#           alternatives or states row (its labels are the spec's), repeat once per gallery
 #   --tiles: the block's data-tiles; a mark on any other tile is refused
+#            (a states row's marks name its own states instead)
 #   gallery-reply.sh --help
 #
 # The input is exactly the block the page's copy button produced: text added

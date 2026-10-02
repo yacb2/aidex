@@ -44,5 +44,13 @@ if (out.esc.zoom) {
   await page.waitForTimeout(300);
   out.closeEnter = await state();          // Enter pressed Close: no note, no draft left
 }
+// A states row: its arrows walk its own states (data-states), not before/after.
+await page.reload();
+await page.click('[data-id="audit-btn-light-desktop-states"] figure[data-tile="hover"]');
+const tile = () => page.evaluate(() => document.querySelector('dialog.kit-zoom .kit-zoom-tile').textContent);
+await page.keyboard.press('ArrowRight');
+const next = await tile();
+await page.keyboard.press('ArrowLeft');
+out.states = { next, back: await tile() };
 console.log(JSON.stringify(out));
 await browser.close();

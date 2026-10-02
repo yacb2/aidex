@@ -1758,11 +1758,14 @@
   }
   function hasPicture(f) { return !!f.querySelector('img, svg'); }
 
-  /* The block's declared matrix is the keyboard order — the same list the
-   * checker judges completeness against, so the arrows and the rule agree on
-   * what the row's cells are. A row with no block (or a block that declares
-   * nothing) falls back to the order its own figures are written in. */
+  /* The declared matrix is the keyboard order — the same list the checker
+   * judges completeness against, so the arrows and the rule agree on what the
+   * row's cells are: a states row's own `data-states`, else the block's
+   * `data-tiles`. A row with neither falls back to the order its own figures
+   * are written in. */
   function tileOrder(row) {
+    var own = (row.getAttribute('data-states') || '').split(/\s+/).filter(Boolean);
+    if (own.length) return own;
     var g = row.closest('.consult-group');
     var declared = g ? (g.getAttribute('data-tiles') || '').split(/\s+/) : [];
     declared = declared.filter(Boolean);

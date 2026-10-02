@@ -24,6 +24,16 @@ refused on its line. It is recognised by that heading, never by carrying
 marks: an approved row has none and is still a row. Every other item goes to `other` untouched (id, title, raw
 body), so a reply mixing gallery rows and ordinary questions loses nothing.
 
+A STATES row (`-states`, N captures of one component, one checkbox each) answers
+with its ticked labels: given `--rows` the row carries `states: [{id, label,
+approved}]` for every declared state; without it the row is refused (an
+unticked state cannot be told from one that does not exist), except under
+`lenient`, which returns `states: [{label, approved: true}]` for the ticked
+labels only. `verdict` is "" unless the composer's "Other" choice was ticked:
+that label is then the verdict, in both modes, and never a state. A mark on a
+states row names one of ITS states (`--tiles` is the block's before/after
+matrix and does not apply to it; under `lenient` any one-token tile is read).
+
 A row's body splits in three, in the order readItem pastes it:
   answer   the first paragraph, ONLY if every line in it is `- <known label>`
            (on an `alternatives` row also the labels of `--rows`: the spec named them),
@@ -139,13 +149,14 @@ def gallery_key(ident, title, n):
     return None
 
 
-def parse_answer(ident, para, extra=(), alt=False):
+def parse_answer(ident, para, extra=(), alt=False, many=False):
     """The answer block, or None when `para` is not one (then it is notes).
     `extra`: the labels an alternatives row's radios carry, known from the
     rows document (`--rows`); bullets that are not one of them stay notes.
     `extra=None` on an alternatives row means the labels are unknown (BL-632,
     `parse(..., lenient=True)`): the first bullet is taken as the choice."""
     verdict, verdict_line, asks, provisional = "", 0, [], False
+    checked = []
     for n, line in para:
         if not line.startswith("- "):
             return None
@@ -155,6 +166,12 @@ def parse_answer(ident, para, extra=(), alt=False):
             provisional = True
         if MARKER.match(label):
             asks.append(label)
+        elif many and label in OTHER:
+            # The composer adds "Other" to every `.opts` group: it is the
+            # row's verdict, never a state (a states row has no other verdict).
+            verdict, verdict_line = label, n
+        elif many and (extra is None or label in extra):
+            checked.append(label)
         elif (alt and extra is None and not verdict) \
                 or label in (extra if alt else ANSWERS):
             if verdict:
@@ -163,15 +180,17 @@ def parse_answer(ident, para, extra=(), alt=False):
                     % (n, ident, verdict, verdict_line, label))
             verdict, verdict_line = label, n
         else:
-            if alt and label not in ANSWERS:
+            if (alt or many) and label not in ANSWERS:
                 sys.stderr.write('warning: row %s: "%s" is not a label of the '
                                  '--rows document; kept as a note (stale '
                                  '--rows?)\n' % (ident, label))
             return None
-    return {"verdict": verdict, "asks": asks, "provisional": provisional}
+    return {"verdict": verdict, "asks": asks, "provisional": provisional,
+            "checked": checked}
 
 
-def parse_row(ident, key, body, tiles=None, labels=None, lenient=False):
+def parse_row(ident, key, body, tiles=None, labels=None, lenient=False,
+              states=None):
     gallery, cell, variant, kind = key
     body = trim(body)
     first = 0
@@ -188,12 +207,29 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False):
                 "be told from a bullet in the notes)" % ident)
         else:
             extra = labels[gallery] | set(OTHER)
+    declared = None
+    if kind == "states":
+        declared = (states or {}).get(ident)
+        if declared is not None:
+            extra = {st["label"] for st in declared}
+        elif lenient:
+            extra = None
+        else:
+            die("row '%s' is a states row: an unticked state cannot be told "
+                "from one that does not exist, so pass the rows document "
+                "that built the page with --rows <rows.json>" % ident)
+    if declared is not None:
+        tiles = [st["id"] for st in declared]    # a mark is on a state's figure
+    elif kind == "states":
+        tiles = None                             # unknown ids under lenient
     answer = parse_answer(ident, body[:first], extra,
-                          kind == "alternatives") if first else None
+                          kind == "alternatives",
+                          kind == "states") if first else None
     if answer:
         body = body[first:]
     else:
-        answer = {"verdict": "", "asks": [], "provisional": False}
+        answer = {"verdict": "", "asks": [], "provisional": False,
+                  "checked": []}
     notes, marks, in_marks = [], [], False
     for n, line in body:
         if line.startswith("[mark "):
@@ -206,15 +242,21 @@ def parse_row(ident, key, body, tiles=None, labels=None, lenient=False):
                     "page's copy button produced" % (n, line, ident))
         else:
             notes.append((n, line))
-    return {"id": ident, "gallery": gallery, "cell": cell,
-            "variant": variant, "kind": kind,
-            "verdict": answer["verdict"],
-            "notes": "\n".join(l for _, l in trim(notes)),
-            "asks": answer["asks"], "provisional": answer["provisional"],
-            "marks": marks}
+    row = {"id": ident, "gallery": gallery, "cell": cell,
+           "variant": variant, "kind": kind,
+           "verdict": answer["verdict"],
+           "notes": "\n".join(l for _, l in trim(notes)),
+           "asks": answer["asks"], "provisional": answer["provisional"],
+           "marks": marks}
+    if kind == "states":
+        row["states"] = [{"id": st["id"], "label": st["label"],
+                          "approved": st["label"] in answer["checked"]}
+                         for st in declared] if declared is not None else \
+            [{"label": l, "approved": True} for l in answer["checked"]]
+    return row
 
 
-def parse(text, tiles=None, labels=None, lenient=False):
+def parse(text, tiles=None, labels=None, lenient=False, states=None):
     """`lenient`: an alternatives row needs no --rows document (its chosen
     label is read as the first bullet); save_reply uses it, which only wants
     to know what is owed, not which alternative was chosen."""
@@ -234,7 +276,7 @@ def parse(text, tiles=None, labels=None, lenient=False):
         key = gallery_key(it["id"], it["title"], it["line"])
         if key:
             rows.append(parse_row(it["id"], key, it["body"], tiles, labels,
-                                  lenient))
+                                  lenient, states))
         else:
             other.append({"id": it["id"], "title": it["title"],
                           "body": "\n".join(l for _, l in trim(it["body"]))})
@@ -270,7 +312,7 @@ def main(argv):
         die("no such reply file: %s" % args.reply)
     except UnicodeDecodeError:
         die("%s is not UTF-8 text" % args.reply)
-    labels = {}
+    labels, states = {}, {}
     for path in args.rows:
         try:
             with open(path, encoding="utf-8") as fh:
@@ -278,9 +320,15 @@ def main(argv):
             labels[doc["gallery"]] = {a["label"].strip() for a in
                                       doc.get("alternatives", [])} \
                 | {pair[0] for pair in NONE_OF_THEM.values()}
+            for r in doc["rows"]:
+                if r.get("kind") == "states" and "states" in r:
+                    states[row_id(doc["gallery"], r["cell"], r["variant"],
+                                  "states")] = [
+                        {"id": st["id"], "label": st["label"].strip()}
+                        for st in r["states"]]
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             die("--rows %s is not a readable rows document" % path)
-    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None, labels), ensure_ascii=False, indent=2)
+    sys.stdout.write(json.dumps(parse(text, args.tiles.split() if args.tiles is not None else None, labels, states=states), ensure_ascii=False, indent=2)
                      + "\n")
     return 0
 
