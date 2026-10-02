@@ -697,9 +697,17 @@
        * offsetTop, which is relative to an offsetParent this code does not own. */
       var lr = list.getBoundingClientRect(), cr = current.getBoundingClientRect();
       var top = cr.top - lr.top + list.scrollTop;
+      /* The entry AFTER the current one is kept in view too (BL-599): with
+       * only the current entry shown, the general notes listed last stayed
+       * below the list's edge until the page bottom. Capped so keeping the
+       * next entry never pushes the current one's top out; the separator is skipped. */
+      var next = current.nextElementSibling;
+      while (next && !next.classList.contains('railitem')) next = next.nextElementSibling;
+      var bottom = top + cr.height;
+      if (next) bottom = Math.min(next.getBoundingClientRect().bottom - lr.top + list.scrollTop, top + list.clientHeight);
       if (top < list.scrollTop) list.scrollTop = top;
-      else if (top + cr.height > list.scrollTop + list.clientHeight) {
-        list.scrollTop = top + cr.height - list.clientHeight;
+      else if (bottom > list.scrollTop + list.clientHeight) {
+        list.scrollTop = bottom - list.clientHeight;
       }
     }
 

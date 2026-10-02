@@ -608,7 +608,7 @@ textarea { resize: vertical; }
 .railitem.sec.grp:where(:not(svg *)) { color: var(--ink-soft); margin-top: 0.3rem; }
 .railitem.sub { padding-left: 1.4rem; }
 .railitem.sec .dot { border: none; background: none; }
-.railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; }
+.railsep { height: 1px; background: var(--rule); margin: 0.5rem 0; flex: none; }
 /* When this page was built (BL-439), written by the wrap and not by the
    composer: the reader who cannot tell a stale tab from a fresh one is often
    the one whose viewer shows the file as a static snapshot with no script. At
