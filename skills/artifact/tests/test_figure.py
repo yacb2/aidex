@@ -751,8 +751,9 @@ def run(tmp):
 
 
 def run_shots(tmp):
-    """BL-493: an item's raster figures written together are one `.gal.shots`
-    grid (2-4 columns by count); one raster figure or an svg stays full width;
+    """BL-493/BL-626: an item's figures (raster or svg) written together are one
+    `.gal.shots` grid (2-4 columns by count); a lone figure stays full width and
+    carries `data-viewer`;
     and the page built from such an item passes the contract (an item with a
     `.gal` is NOT judged as a gallery row)."""
     write(tmp, "figures/a.svg", SVG + "\n")
@@ -779,12 +780,22 @@ def run_shots(tmp):
         check("%d rasters make %d columns" % (n, cols),
               'class="gal shots" data-cols="%d"' % cols in html)
     html = build(item("s1.png"), base_dir=tmp)
-    check("one raster stays a lone full-width figure", 'class="gal' not in html
-          and html.count("<figure") == 1)
+    check("one raster stays a lone full-width figure, marked for the viewer (BL-626)",
+          'class="gal' not in html and html.count("<figure") == 1
+          and html.count("<figure data-viewer") == 1)
+    html = build(item("a.svg"), base_dir=tmp)
+    check("one svg stays a lone full-width figure, marked for the viewer (BL-626)",
+          'class="gal' not in html and html.count("<figure data-viewer") == 1)
     html = build(item("a.svg", "s1.png"), base_dir=tmp)
-    check("an svg and one raster: no grid, the svg is never grouped", 'class="gal' not in html)
+    grid = html.split('<div class="gal shots"', 1)[-1].split("</div>", 1)[0]
+    check("an svg and one raster are one mixed grid of two, in written order (BL-626)",
+          'class="gal shots" data-cols="2"' in html and grid.count("<figure") == 2
+          and grid.index("<svg") < grid.index("<img") and "data-viewer" not in html, html[:500])
     html = build(item("s1.png", "a.svg", "s2.png"), base_dir=tmp)
-    check("an svg between two rasters splits the run: no grid", 'class="gal' not in html)
+    grid = html.split('<div class="gal shots"', 1)[-1].split("</div>", 1)[0]
+    check("an svg between two rasters stays inside the one grid of three (BL-626)",
+          'class="gal shots" data-cols="3"' in html and grid.count("<figure") == 3
+          and grid.index("<img") < grid.index("<svg") < grid.rindex("<img"), html[:500])
     prose = ('::: item {#Q1 title="T"}\n¿Cuál?\n\n::: figure {src="figures/s1.png" alt="c"}\n:::\n\n'
              'Una frase entre las dos.\n\n::: figure {src="figures/s2.png" alt="c"}\n:::\n\n- A — uno\n- B — dos\n:::')
     html = build(prose, base_dir=tmp)
@@ -794,8 +805,13 @@ def run_shots(tmp):
           < html.rindex("<img"), html[:500])
     html = build(item("s1.png", "s2.png", "a.svg"), base_dir=tmp)
     grid = html.split('<div class="gal shots"', 1)[-1].split("</div>", 1)[0]
-    check("two rasters then an svg: the grid holds the two, the svg stays outside it",
-          grid.count("<figure") == 2 and "<svg" not in grid and "<svg" in html)
+    check("two rasters then an svg: the grid holds all three (BL-626)",
+          grid.count("<figure") == 3 and "<svg" in grid)
+    html = build(item("s1.png", "s2.png").replace("- A — uno", "::: chart {type=bar title=\"c\"}\nx,1\n:::\n\n- A — uno"),
+                 base_dir=tmp)
+    check("a chart after the figures is not a figure: it ends the run, outside the grid",
+          'data-cols="2"' in html and "<svg" not in html.split('<div class="gal shots"', 1)[-1].split("</div>", 1)[0]
+          and "<svg" in html)
 
     spec = write(tmp, "shots.spec.md", ('::: masthead {visual="none: capturas, no dibujo"}\n'
         '# Capturas\n\nUna página con capturas.\n:::\n\n::: group {#G title="Grupo"}\n%s\n:::\n\n'
@@ -806,6 +822,15 @@ def run_shots(tmp):
                        capture_output=True, text=True, cwd="/")
     check("the page with the grid passes check-artifact (not a gallery row)",
           r.returncode == 0, (r.stdout + r.stderr)[-500:])
+    spec = write(tmp, "mixed.spec.md", ('::: masthead {visual="none: capturas, no dibujo"}\n'
+        '# Mixta\n\nUna página con una cuadrícula png + svg.\n:::\n\n::: group {#G title="Grupo"}\n%s\n:::\n\n'
+        '::: notes {title="Notas generales"}\n:::\n' % item("s1.png", "a.svg")))
+    out = os.path.join(tmp, "reports", "mixed.html")
+    r = subprocess.run([sys.executable, BUILD, spec, "-o", out],
+                       capture_output=True, text=True, cwd="/")
+    check("the page with a mixed png+svg grid passes check-artifact (BL-626)",
+          r.returncode == 0 and 'class="gal shots" data-cols="2"' in open(out, encoding="utf-8").read(),
+          (r.stdout + r.stderr)[-500:])
 
 
 if __name__ == "__main__":
