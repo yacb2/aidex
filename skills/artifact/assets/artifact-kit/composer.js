@@ -2304,11 +2304,14 @@
      * its own, and at 1:1 a drag pans the capture (components.css). */
     var swipeFrom = null;
     body.addEventListener('pointerdown', function (ev) {
-      swipeFrom = ev.pointerType === 'touch' ? { id: ev.pointerId, x: ev.clientX, y: ev.clientY } : null;
+      /* Only a primary touch (no other touch held) starts one; any other
+       * finger down drops it, so a pinch never walks. */
+      swipeFrom = ev.isPrimary && ev.pointerType === 'touch' ? { x: ev.clientX, y: ev.clientY } : null;
     });
+    body.addEventListener('pointercancel', function () { swipeFrom = null; });
     body.addEventListener('pointerup', function (ev) {
-      /* Measured from the same finger's pointerdown, never another one's. */
-      if (swipeFrom && ev.pointerId !== swipeFrom.id) return;
+      /* Only the tracked finger's lift: no other touch, mouse or pen. */
+      if (!ev.isPrimary || ev.pointerType !== 'touch') return;
       var from = swipeFrom;
       swipeFrom = null;
       if (from === null || !dlg.classList.contains('shots') || dlg.classList.contains('native')) return;
