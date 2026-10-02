@@ -1538,7 +1538,14 @@ def find_context_dir(start: Path) -> Path | None:
             return None
         cur = cur.parent
 
-def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding], dict]:
+def validate(context_dir: Path, type_filter: str | None,
+             only: Path | None = None) -> tuple[list[Finding], dict]:
+    """`only` (resolved) limits the run to one file or folder inside context_dir."""
+    def in_scope(p) -> bool:
+        if only is None:
+            return True
+        rp = Path(p).resolve()
+        return rp == only or only in rp.parents
     findings: list[Finding] = []
     summary_by_type: dict[str, dict] = {}
     files_scanned = 0
@@ -1574,7 +1581,10 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
                         folder_findings.append(pf)
 
         # Per-file checks
+        folder_findings = [f for f in folder_findings if in_scope(f.file)]
         for path in iter_files_for_type(context_dir, type_name):
+            if not in_scope(path):
+                continue
             # Ignored subtrees are skipped before ANY rule runs, so the exemption
             # is uniform across every check rather than per-rule (BL-037).
             if is_ignored(context_dir, path, ignore_prefixes):
@@ -1641,6 +1651,8 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
         # Rendered pages: the language check only. Same type_name, so the
         # communications exemption applies here exactly as it does to bodies.
         for path in iter_html_for_type(context_dir, type_name):
+            if not in_scope(path):
+                continue
             if is_ignored(context_dir, path, ignore_prefixes):
                 files_ignored += 1
                 continue
@@ -1684,7 +1696,7 @@ def validate(context_dir: Path, type_filter: str | None) -> tuple[list[Finding],
     # and front-matter rule, and OPTIONAL_TYPES is not consulted on this path at
     # all. Only the language check runs, and only on a full (unscoped) run, since
     # a --type run is asking about one type and this is not one.
-    if not type_filter:
+    if not type_filter and only is None:
         for path in iter_html_for_type(context_dir, "reports"):
             if is_ignored(context_dir, path, ignore_prefixes):
                 files_ignored += 1
@@ -1934,10 +1946,27 @@ def main() -> int:
                         f"(<context>/{BASELINE_NAME}); later runs report/exit only on NEW violations")
     args = p.parse_args()
 
+    only = None
+    type_filter = args.type
     if args.path:
         context_dir = Path(args.path)
         if context_dir.name != ".context" and (context_dir / ".context").is_dir():
             context_dir = context_dir / ".context"
+        # A file, or a folder inside .context/, scopes the run to that path (BL-616).
+        target = context_dir.resolve()
+        root = None if target.name == ".context" else next(
+            (a for a in target.parents if a.name == ".context"), None)
+        if root is not None and context_dir.exists():
+            only = target
+            context_dir = root
+            top = target.relative_to(root).parts[0]
+            if top in TYPES and not type_filter:
+                type_filter = top
+        elif context_dir.is_dir() and not any((context_dir / t).is_dir() for t in TYPES):
+            print(f"error: {context_dir} holds no .context/ type folders "
+                  f"({', '.join(TYPES[:3])}, ...); pass a .context/ directory, "
+                  f"a type folder inside it, or a file inside one", file=sys.stderr)
+            return 2
     else:
         found = find_context_dir(Path.cwd())
         if not found:
@@ -1954,13 +1983,17 @@ def main() -> int:
     # a baseline holding only type X, unfreezing every other type's accepted violations
     # so they returned as NEW (rc=1) on the next full run — reachable by following the
     # scoped commands 8 SKILL.md files prescribe.
-    if args.baseline and args.type:
-        print("error: --baseline cannot be combined with --type. A scoped run only sees "
-              f"'{args.type}', so freezing it would discard every other type's accepted "
+    if args.baseline and (args.type or only):
+        what = "--type" if args.type else "a file or folder path"
+        print(f"error: --baseline cannot be combined with {what}. A scoped run only sees "
+              f"'{args.type or args.path}', so freezing it would discard every other type's accepted "
               "debt and report it as NEW. Run --baseline unscoped.", file=sys.stderr)
         return 2
 
-    findings, summary = validate(context_dir, args.type)
+    findings, summary = validate(context_dir, type_filter, only)
+    if only and not summary["files_scanned"] and not summary.get("ignored"):
+        print(f"error: nothing to validate at {args.path}", file=sys.stderr)
+        return 2
     findings = [to_relative(context_dir, f) for f in findings]
 
     # Pre-waiver snapshot: the ratchet must remember what the tree actually contains.
@@ -2024,7 +2057,7 @@ def main() -> int:
         # made it read as "no longer present" — so the two suppression mechanisms
         # cancelled out and the advised refresh would drop a violation that is still
         # in the tree. Pinned by test_validate.py::check_waived_is_not_resolved.
-        resolved_keys = ([] if args.type
+        resolved_keys = ([] if type_filter or only
                          else sorted(baseline - {key_of(f) for f in prewaiver_violations}))
         summary["baseline"] = {"present": True, "version": baseline_version,
                                "accepted": len(baseline),
