@@ -1652,7 +1652,9 @@ heading and its rail entry; without it the heading is the cell's name read as wo
 variant is said once under the captures ("Vista: escritorio, tema claro"), the one
 instruction sits at the top of the block, and an optional `highlight` (one `{x, y, w, h}`
 or a list, in the AFTER capture's own pixels) is outlined over the after and in the zoom
-view, outside the region with padding and no fill; the before gets an outline only from
+view, outside the region with padding and no fill (prefer `"highlight": "@name"`, resolved
+from the `<capture>.regions.json` sidecar the capture step writes, over hand-measured pixels,
+which stay as the fallback; refused when the sidecar, the name or the fit is wrong); the before gets an outline only from
 `highlight_before`, measured on the before capture (the two layouts differ). A before/after pair sits side by side (captures scale, never cropped; owner
 2026-10-01); `"layout": "stacked"` puts before above after at full width. Field table:
 `04-block-vocabulary.md` § `gallery`.
