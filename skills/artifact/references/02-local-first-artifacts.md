@@ -311,6 +311,11 @@ screen wireframes and mockups only, and `graph` is not used for consult figures
 A figure that illustrates one decision goes INSIDE that `item`, where it was written;
 `masthead` and `note` do not nest one.
 
+**An item that decides where something sits or moves** (placement on a screen, a move between
+screens) carries its own figure INSIDE the item: one drawn option (`figure` or `diagram`) or
+one gallery alternative per option. A page-level visual does not cover it, and prose alone
+is never enough: the owner will ask for the mockup and a round is lost (BL-630).
+
 ### The `chart` block
 
 The one block whose body is **data, not prose**. Two forms, chosen by the first non-blank

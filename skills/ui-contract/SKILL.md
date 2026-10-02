@@ -159,6 +159,8 @@ component is built for a layout, and an unapproved layout makes it rework.
    to approve one alternative against the other as if it were the old state
    (`/aidex:artifact`, § Gallery rows). The owner's verdict on the layout closes this phase;
    a rejected layout goes back to phase 1 and loses only composition, never logic.
+   A cross-screen placement question gets one drawn or gallery alternative per option inside its
+   own item, never prose only (`/aidex:artifact`, `02-local-first-artifacts.md`, the figure rule).
 3. **Shared primitives** — the new or changed components the approved skeleton needs.
 4. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
    closing line from a run with no snapshot update.
