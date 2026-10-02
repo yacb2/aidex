@@ -927,8 +927,8 @@ tn="$(grep -oE '<title>[^<]*</title>' "$TMP/ndom.html" | sed -n 1p)"
   || fail "BL-532: a dropped item was not shown as dropped, or the count is not what the section holds: $tn"
 [[ "$tn" == *"|DRPHINT=Estas preguntas salieron del conjunto"* ]] \
   || fail "BL-532: the dropped section reuses the decided hint instead of saying the questions left the set: $tn"
-[[ "$tn" == *"X2 (descartada)"* ]] \
-  || fail "BL-532: a dropped item inside a mixed block is filed under the decided section with no dropped marker: $tn"
+[[ "$tn" == *"Left two: Descartada: ya no aplica"* && "$tn" != *"Settled two: Descartada"* ]] \
+  || fail "BL-532/BL-608: in a mixed block the dropped item X2 must carry its dropped verdict and the decided D2 must not: $tn"
 [[ "$tn" == *"RAIL="*"Descartadas"* ]] \
   || fail "BL-532: the rail has no entry for the dropped section: $tn"
 [[ "$tn" == *"|BARS=1|"* ]] \
@@ -992,6 +992,58 @@ f4c2="$(sed -nE 's/.*\|F4C2=(-?[0-9]+)\|.*/\1/p' <<<"$tn")"
 # the bar is released only when no question is left to answer, not when none is blank.
 [[ "$tn" == *"|RAILANS=sticky"* ]] \
   || fail "BL-575: answering the last open question released the copy bar although the question is not decided: $tn"
+
+# ---- BL-608: the Decidido fold names each row and counts what it shows ----
+# A block of six gallery rows, every one decided: two approved, four "to redo" (a verdict the
+# owner gave, written decided="Se rehace ...", never dropped=). The summary must carry each
+# row's title with the verdict written on it (no bare "(descartada)", no slug) and the eyebrow
+# must equal the rows listed, in rows. Three pages: es rows, es rows mixed with a plain
+# question ("elementos"), en rows.
+rows_body() {  # rows_body <lang: es|en> <extra decided plain question: 0|1>
+  local lang="$1" plain="$2" n attr ok redo head=Contenido
+  [[ "$lang" == en ]] && head=Contents
+  if [[ "$lang" == es ]]; then ok="Aprobada: se ve bien"; redo="Se rehace seg&uacute;n Q1"; else ok="Approved: looks right"; redo="Redo per Q1"; fi
+  printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+    '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Decided rows</h1></header>' \
+    '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>' \
+    '<section class="consult-group" id="E" data-id="E" data-title="La matriz" data-tiles="after"><div class="sec-head"><h2>La matriz</h2></div><p>Seis filas.</p>'
+  for n in 1 2 3 4 5 6; do
+    if (( n <= 2 )); then attr="data-decided=\"$ok $n\""; else attr="data-decided=\"$redo\""; fi
+    printf '<section class="consult-item consult-gallery" data-id="audit-row%s-after" data-title="audit &middot; row%s &middot; after" data-heading="Fila %s" %s><h3>Fila %s</h3><p class="gal-na">no aplica</p><textarea></textarea></section>\n' "$n" "$n" "$n" "$attr" "$n"
+  done
+  printf '%s\n' '</section>'
+  if (( plain )); then
+    printf '%s\n' '<section class="consult-group" id="P" data-id="P" data-title="Plain"><div class="sec-head"><h2>Plain</h2></div><p>One plain question.</p><section class="consult-item" data-id="P1" data-title="Plain" data-decided="Option A"><h3><span class="consult-id">P1</span>Una pregunta normal</h3><div class="opts one"><label><input type="radio" name="P1" data-label="Option A" checked><span>Option A</span></label></div><textarea></textarea></section></section>'
+  fi
+  printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+    '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+    '</section></main><aside class="rail"><p class="railhead">'"$head"'</p><nav class="raillist" id="raillist"></nav>' \
+    '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
+    '<script>window.addEventListener("load", function () {' \
+    ' var t = function (q) { return ((document.querySelector(q) || {}).textContent || "").replace(/[|]/g, "/"); };' \
+    ' document.title = "ROWS|EYEBROW=" + t("#sec-decided .eyebrow") + "|SUM=" + t("#sec-decided summary") + "|ENTRIES=" + document.querySelectorAll("#sec-decided .consult-item").length;' \
+    '});</script>'
+}
+rows_title() {  # rows_title <lang> <plain> -> the probe's <title>
+  rows_body "$1" "$2" > "$TMP/rbody.html"
+  bash "$WRAP" --title "rows" --lang "$1" --out "$TMP/reports/rows-$1-$2.html" < "$TMP/rbody.html" > "$TMP/rwrap.log" 2>&1 \
+    || fail "BL-608: the decided-rows probe ($1/$2) failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/rwrap.log" | sed -n 1,4p)"
+  CHROME_WINDOW=1280,900 chrome_dump "$TMP/rdom.html" "file://$TMP/reports/rows-$1-$2.html" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/rdom.html" | sed -n 1p
+}
+tr="$(rows_title es 0)"
+[[ "$tr" == *"ROWS|EYEBROW=6 filas ya resueltas|"* && "$tr" == *"|ENTRIES=6"* ]] \
+  || fail "BL-608: the Decidido eyebrow does not equal the six rows it holds, or does not say filas: $tr"
+[[ "$tr" == *"Fila 1: Aprobada: se ve bien 1; Fila 2: Aprobada: se ve bien 2; Fila 3: Se rehace según Q1; "* && "$tr" == *"Fila 6: Se rehace según Q1"* ]] \
+  || fail "BL-608: the Decidido summary does not give each row its title and the verdict written on it: $tr"
+[[ "$tr" != *"(descartada)"* && "$tr" != *"audit-row"* ]] \
+  || fail "BL-608: the Decidido summary shows the bare '(descartada)' mark or a raw slug: $tr"
+tr="$(rows_title es 1)"
+[[ "$tr" == *"EYEBROW=7 elementos ya resueltos|"* ]] \
+  || fail "BL-608: a Decidido holding gallery rows and a plain question must count 'elementos', not rows or questions: $tr"
+tr="$(rows_title en 0)"
+[[ "$tr" == *"EYEBROW=6 rows already settled|"* ]] \
+  || fail "BL-608: on an English page the Decidido eyebrow must read '6 rows already settled': $tr"
 
 # ---- the chrome speaks the page's language ----------------------------------
 [[ "$t" == *"BTN=Copiar mis respuestas"* ]] \
