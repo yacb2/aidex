@@ -99,10 +99,12 @@ the branch's whole diff (its review-yield row carries `hardening` in the phrase)
 specs the screen touches on `gate-runner`, and the gallery with the gate and a bare
 `meta: N/N` (Step 4, "verified" part 2). A DO NOT SHIP goes back to the same impl agent
 through `SendMessage`; only what that fix touches re-runs. Then the commit to main, and
-the branch is deleted.
+the branch is deleted. Wiring the API (Step 3b.5) comes after, on main, through the normal
+impl loop with its own review: hardening covers the approved screen, not the feature.
 
-**Trial readout** (from 2026-10-02): each round appends one line to `rounds.tsv` beside
-the consultation folder: `<round> <owner answer time> <next page open time>`. After 3
+**Trial readout** (from 2026-10-02): right after opening each next consultation page, the
+main session appends one line to `<consultation dir>/rounds.tsv`:
+`<round> <owner answer time> <next page open time>`. After 3
 screens, compare minutes from answer to next page (baseline 21-24, echo_lab 11.3) and
 count the hardening rows of review-yield. A behaviour defect that escapes hardening to
 the owner reverts sketch mode.
