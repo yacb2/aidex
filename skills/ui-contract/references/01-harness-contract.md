@@ -78,7 +78,11 @@ per cell. What it must guarantee:
   volatile-region or mask list below, where the checks still see it.
 - Volatile regions (a ticking timer panel, an auto-dismissing toaster) are removed from
   the DOM for the evidence pass, and a version string in the chrome is masked. Both exist
-  because they otherwise decide whether a run is green.
+  because they otherwise decide whether a run is green. **A mask is painted in the
+  colour of what it covers**: pass `maskColor` (Playwright's `toHaveScreenshot` /
+  `screenshot` option) set to the surrounding background token, never the default
+  `#FF00FF`. A magenta bar on every capture reads to a reviewer as a leftover highlight
+  and gets explained page by page; a background-coloured mask reads as nothing.
 
 ## 1b. The meta-suite — every predicate proven able to fail, before the galleries
 
