@@ -7,7 +7,8 @@
 # For a SWEEP work-list (`mode: sweep`) refuses — exit 2, nothing mutated — while either
 # holds (sweep plan, Q14/Q16); a plain work-list closes as before:
 #   · a queued backlog item (active or archived) carries a `## Verification` row of
-#     kind `owner` whose proof cell is empty: the owner has not answered, and a run
+#     kind `owner` whose proof cell is empty or a placeholder (placeholder-proofs.txt):
+#     the owner has not answered, and a run
 #     that closes over it silently converts "outstanding" into "done";
 #   · `## Deferred / emergent` holds an unchecked line that names no BL-NNN and no
 #     `CLOSE:` — a deferral that would vanish with the run (close-plan.sh's guard, on
@@ -69,12 +70,15 @@ owner_open=""
 while IFS= read -r line; do
   id="$(grep -oE '\bBL-[0-9]+\b' <<<"$line" | sed -n 1p || true)"; [[ -n "$id" ]] || continue
   f="$(item_file "$id")"; [[ -n "$f" ]] || continue
-  rows="$(awk 'BEGIN{s=0} /^## /{s=($0 ~ /^## Verification[[:space:]]*$/)} s && /^\|/ {
+  # unanswered = empty OR a placeholder ("awaiting owner"), the definition close-item.sh
+  # parks on (proof_is_placeholder, _lib.sh); an empty-only test let a parked item's run end
+  while IFS=$'\037' read -r what proof; do
+    if [[ -z "$proof" ]] || proof_is_placeholder "$proof"; then owner_open="$owner_open
+    - $id: $what"; fi
+  done < <(awk 'BEGIN{s=0} /^## /{s=($0 ~ /^## Verification[[:space:]]*$/)} s && /^\|/ {
       l=$0; sub(/^\|/,"",l); sub(/\|[[:space:]]*$/,"",l); n=split(l,c,"|")
       for(i=1;i<=n;i++){gsub(/^[[:space:]]+|[[:space:]]+$/,"",c[i])}
-      if (c[1]=="owner" && c[3]=="") print "    - " id_ ": " c[2] }' id_="$id" "$f")"
-  [[ -z "$rows" ]] || owner_open="$owner_open
-$rows"
+      if (c[1]=="owner") printf "%s\037%s\n", c[2], c[3] }' "$f")
 done < <(grep -E '^[0-9]+\. \[[ x]\] .*<!-- ref: backlog -->' "$file" || true)
 # `[[ -n ]]`-free: an empty section is fine; an unchecked deferral with no BL-NNN / CLOSE: is not
 unreconciled="$(awk '/^## Deferred/{s=1; next} /^## /{s=0} s && /^- \[ \]/' "$file" | grep -v -E 'BL-[0-9]+|CLOSE:' || true)"

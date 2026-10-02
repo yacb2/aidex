@@ -65,6 +65,16 @@ WL5="$(bash "$DIR/worklist-new.sh" --title "Ghost id" --mode sweep --ref "backlo
 bash "$DIR/worklist-close.sh" "$WL5" >/dev/null 2>"$TMP/err"; RC=$?
 [[ $RC -eq 0 ]] && ok "a sweep list whose queued id resolves to no item still closes (no set -e death)" || bad "ghost id: rc=$RC $(cat "$TMP/err")"
 
+# 3a' · an owner cell holding a placeholder ("awaiting owner") is unanswered here too, the
+# same definition close-item.sh parks on — the run must not end over it (BL-656)
+D="$(reg --title "placeholder owner")"; DID="$(idof "$D")"
+row "$D" test "t" "1 passed"; row "$D" owner "wording" "awaiting owner (chain ledger d10)"
+WL9="$(bash "$DIR/worklist-new.sh" --title "Placeholder owner" --mode sweep --ref "backlog:$DID — d")"
+bash "$BL/close-item.sh" "$DID" --sweep --no-index >/dev/null 2>&1
+bash "$DIR/worklist-close.sh" "$WL9" >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 ]] && grep -q "owner rows still unanswered" "$TMP/err" && grep -q "$DID: wording" "$TMP/err" \
+  && ok "refused over an owner row whose proof is a placeholder ('awaiting owner')" || bad "placeholder owner: rc=$RC $(cat "$TMP/err")"
+
 # 3b · a PLAIN work-list is not gated: an unchecked emergent line still closes (audit kickoffs use this)
 WL3="$(bash "$DIR/worklist-new.sh" --title "Plain" --ref "inline:only inline")"
 bash "$DIR/worklist-advance.sh" "$WL3" --append "inline:loose end" >/dev/null 2>&1

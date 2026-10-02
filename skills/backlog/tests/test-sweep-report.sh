@@ -67,6 +67,25 @@ grep -q "| test | tests/a.py | 3 passed |" "$OUT" && ok "verification rows carri
 grep -q "| $CID — charlie | menu order | \*\*unanswered\*\* |" "$OUT" && grep -q "| $BID — bravo | badge colour | fine — owner 2026-08-27 |" "$OUT" \
   && ok "owner rows aggregated across items, answered and unanswered" || bad "owner rows: $(grep -A4 'Owner rows' "$OUT")"
 grep -q "^- $CID — charlie: menu order" "$OUT" && ! grep -q "### $CID" "$OUT" && ok "the parked item is listed under Awaiting owner, not among the closed" || bad "parked: $(grep -A3 'Awaiting owner' "$OUT")"
+# an owner cell holding a placeholder is unanswered, not the owner's answer (BL-656): same
+# definition close-item.sh parks on
+sed -i.bak 's/| owner | menu order |  |/| owner | menu order | awaiting owner (chain ledger d10) |/' "$C" && rm -f "$C.bak"
+RP="$(bash "$SCRIPTS/sweep-report.sh" report-run --print 2>/dev/null)"
+grep -q "| $CID — charlie | menu order | \*\*unanswered\*\* |" <<<"$RP" && ok "a placeholder owner proof renders as **unanswered**" || bad "placeholder owner row: $(grep "$CID — charlie |" <<<"$RP")"
+grep -q "^- $CID — charlie: menu order$" <<<"$RP" && ok "Awaiting-owner line names the judgement behind a placeholder cell" || bad "awaiting line: $(grep "^- $CID" <<<"$RP")"
+sed -i.bak 's/| owner | menu order | awaiting owner (chain ledger d10) |/| owner | menu order |  |/' "$C" && rm -f "$C.bak"
+# one definition, two readers: _lib.sh proof_is_placeholder (bash) and sweep-report.py
+# answered() (python) both read placeholder-proofs.txt; each must give the expected value
+PARITY=$'1\tnot run: no data in dev\n1\tNot run: no data in dev\n1\tconsultation 2026-10-02 Q6, unanswered\n1\tTODO: run it on staging\n1\tTBD\n0\ttodo verde: 12 passed\n0\tpendientes 0, 5 passed\n1\tpending C PATCHed onto approved ... 400 se solapa\n0\tscreenshot shots/x.png\n0\tanswered 2026-10-02, consultation Q6: yes'
+PY_OUT="$(python3 -c '
+import importlib.util,sys
+spec=importlib.util.spec_from_file_location("sr",sys.argv[1]); sr=importlib.util.module_from_spec(spec); spec.loader.exec_module(sr)
+for ln in sys.stdin.read().splitlines():
+    print("0" if sr.answered(ln.split("\t",1)[1]) else "1")' "$SCRIPTS/sweep-report.py" <<<"$PARITY")"
+SH_OUT="$(bash -c '. "$1/_lib.sh"; while IFS=$'"'"'\t'"'"' read -r _ c; do proof_is_placeholder "$c" && echo 1 || echo 0; done' _ "$CONV" <<<"$PARITY")"
+EXP="$(cut -f1 <<<"$PARITY")"
+[[ "$SH_OUT" == "$EXP" && "$PY_OUT" == "$EXP" ]] && ok "placeholder parity: bash and python agree with the expected value on $(wc -l <<<"$EXP" | tr -d ' ') cells" \
+  || bad "placeholder parity: $(paste <(echo "$EXP") <(echo "$SH_OUT") <(echo "$PY_OUT") <(cut -f2 <<<"$PARITY") | awk -F'\t' '$1!=$2||$1!=$3{print "exp="$1" bash="$2" py="$3" | "$4}')"
 grep -q "^- $NID — needs a decision   <!-- reason: underdefined: touches, Acceptance -->" "$OUT" && ok "NEEDS-DECISION recorded at kickoff, carried unchanged" || bad "needs decision: $(grep -A3 'Needs decision' "$OUT")"
 grep -q "loose end, carry to the next sweep" "$OUT" && ok "deferrals listed" || bad "deferrals"
 grep -q "| items queued at kickoff | 3 |" "$OUT" && grep -q "| items closed | 2 |" "$OUT" && ok "metrics: queued 3, closed 2 (the parked one is not closed)" || bad "metrics: $(grep -A6 '## Metrics' "$OUT")"

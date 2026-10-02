@@ -26,6 +26,30 @@ def section(body, name):
     return m.group(1) if m else ''
 
 
+def _placeholder_patterns():
+    # The ONE phrase list, shared with close-item.sh and worklist-close.sh through _lib.sh
+    # proof_is_placeholder: a placeholder owner cell ("awaiting owner") is unanswered here
+    # exactly where the item was parked (BL-656). Same anchors as the bash side.
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'conventions', 'scripts', 'placeholder-proofs.txt')
+    kinds = {'lead': [], 'lead-upper': [], 'tail': []}
+    for ln in open(path, encoding='utf-8'):
+        parts = ln.strip().split(None, 1)
+        if len(parts) == 2 and parts[0] in kinds:
+            kinds[parts[0]].append(re.escape(parts[1]))
+    alt = lambda k: '|'.join(kinds[k])
+    return (re.compile(r'^(?:' + alt('lead') + r')(?![^\W_])', re.I),
+            re.compile(r'^(?:' + alt('lead-upper') + r')(?![^\W_])'),
+            re.compile(r'(?:^|[\s,;(])(?:' + alt('tail') + r')[\W_]*$', re.I))
+
+
+_PLACEHOLDER = _placeholder_patterns()
+
+
+def answered(proof):
+    """An owner cell is answered when it is neither empty nor a placeholder."""
+    return bool(proof) and not any(p.search(proof) for p in _PLACEHOLDER)
+
+
 def verification_rows(text):
     rows = []
     for ln in section(fm_and_body(text)[1], 'Verification').splitlines():
@@ -116,7 +140,7 @@ def render(root, wl_path):
             skipped.append((bl, f'closed as {st}'))
         elif it['fm'].get('awaiting'):
             parked.append({'id': bl, 'title': it['fm'].get('title', ''), 'rows': rows,
-                           'open': [r for r in rows if r['kind'] == 'owner' and not r['proof']]})
+                           'open': [r for r in rows if r['kind'] == 'owner' and not answered(r['proof'])]})
         elif it['state'] == 'deferred':
             skipped.append((bl, f"deferred — blocked_by: {it['fm'].get('blocked_by', '')}"))
         elif ticked:
@@ -237,7 +261,7 @@ def render(root, wl_path):
         out.append('| item | what | answer |')
         out.append('|---|---|---|')
         for r in owner_rows:
-            out.append(f'| {r["id"]} — {r["title"]} | {r["what"]} | {r["proof"] or "**unanswered**"} |')
+            out.append(f'| {r["id"]} — {r["title"]} | {r["what"]} | {r["proof"] if answered(r["proof"]) else "**unanswered**"} |')
     else:
         out.append('human-verification: skipped — no queued item carries an owner row (nothing only a person can judge)')
     out.append('')
