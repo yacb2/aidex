@@ -1772,6 +1772,13 @@ decided row folds away and seals its notes and the correction offer would vanish
 values and a not-applicable row (no captures to sit under) are refused naming the cell; a dropped row
 does not read it.
 
+**A decided row answers the owner's note in `answer`.** An optional row key (BL-629), a non-empty
+string on a row that also carries `decided`: the reply to the note the owner left on it. The row
+still folds, takes no verdict radios and keeps the id of a plain review row of that cell, so
+`consult-ids` passes against the previous round; the fold's summary shows the answer, so it is read
+without opening the fold. Without `decided` it is refused (an open row carries its own text), as are
+blank or non-string values and dropped, not-applicable or alternatives rows, naming the cell.
+
 **The answer is compact by default.** A row shows verdict and note; the third verdict (on an
 alternatives row every alternative stays visible and only "none of them" folds) and the composer's own extras (Other, Not now, the
 ask chips) sit in closed `<details>` inside the same option group. A mark made in one opens

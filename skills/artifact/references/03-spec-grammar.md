@@ -886,6 +886,9 @@ Three things of the grammar are worth stating here:
   (labelled variants declared once in the document's `alternatives`, one which-one radio).
 - **`look`** is required on every shown row by this route: a row without it fails the build
   (and `--check`), with a message naming the cell. Not-applicable and dropped rows are exempt.
+- **`answer`** (BL-629) on a `decided` row is the reply to the owner's note on it: the row folds,
+  keeps its id, has no radios, and the fold's summary shows the text. Refused on a row without
+  `decided`, blank, or on a dropped, not-applicable or alternatives row.
 - **`dropped="<reason>"`** on an `item` (and `"dropped"` on a row) takes it out of the question
   set: its id stays, it folds like a decided item and reads `Descartada: <reason>` /
   `Dropped: <reason>`. An empty reason, or `dropped` together with `decided`, is refused.

@@ -938,5 +938,72 @@ bash "$GEN" "$TMP/dn/dr.json" --root "$ROOT" --page "$PAGE" --group-id E --group
 if [[ $rc == 0 ]] && ! grep -q zzzdecided "$TMP/dn/dr.out"; then ok "BL-613 D-4 decided_note on a dropped row is not read, not refused"
 else fail "BL-613 D-4 dropped+decided_note: exit $rc $(cat "$TMP/dn/dr.err")"; fi
 
+# -- BL-629: a decided row's optional `answer` ----------------------------------
+# The reply to the owner's note on an approved row. It rides on a decided row only
+# (the fold shows it); the row keeps its id, drops the verdict radios, and the page
+# still passes the checker. Refusals name the cell.
+echo "== BL-629: answer =="
+mkdir -p "$TMP/an"
+cat > "$TMP/an/an.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "shots_dir": "shots", "actual_dir": "actual",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "look": "El estado vacío", "decided": "Aprobada en la ronda 2",
+   "answer": "Respuesta zzzanswer a tu nota",
+   "before": "shots/light-desktop/audit-empty.png", "after": "actual/light-desktop/audit-empty.png"}
+ ]}
+JSON
+bash "$GEN" "$TMP/an/an.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/an/ok.out" 2> "$TMP/an/ok.err"; rc=$?
+if [[ $rc == 0 ]] && grep -q 'data-answer="Respuesta zzzanswer a tu nota"' "$TMP/an/ok.out" \
+   && grep -q 'data-id="audit-empty-light-desktop"' "$TMP/an/ok.out" && ! grep -q 'type="radio"' "$TMP/an/ok.out"; then
+  ok "BL-629 A-1 a decided row with an answer renders data-answer, keeps its id, has no radios"
+else fail "BL-629 A-1 decided+answer: exit $rc $(cat "$TMP/an/ok.err")"; fi
+for bad in '"answer": ""' '"answer": " "' '"answer": ["x"]' '"answer": 3' '"decided": null' '"kind": "alternatives"'; do
+  lab629="$bad"; [[ "$bad" == *null* ]] && lab629="answer without decided"
+  python3 - "$TMP/an/an.json" "$TMP/an/bad.json" "$bad" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0].update(json.loads("{%s}" % sys.argv[3]))
+if d["rows"][0].get("decided", 1) is None:   # an answer on a row that is not decided
+    del d["rows"][0]["decided"]
+json.dump(d, open(sys.argv[2], "w"))
+PY
+  bash "$GEN" "$TMP/an/bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/an/bad.out" 2> "$TMP/an/bad.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/an/bad.out" ]] && grep -q "row 'empty'.*answer" "$TMP/an/bad.err"; then ok "BL-629 A-2 ${lab629} is refused naming the cell"
+  else fail "BL-629 A-2 $lab629: exit $rc, stderr: $(cat "$TMP/an/bad.err")"; fi
+done
+cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/an/" 2>/dev/null
+cat > "$TMP/an/a.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una fila decidida con respuesta.
+:::
+
+::: gallery {#G title="Revisión" rows="an.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/an" && python3 "$SKILL/scripts/spec_build.py" a.spec.md -o a.html > "$TMP/an/b.out" 2>&1 ); rc=$?
+if [[ $rc == 0 && -f "$TMP/an/a.html" ]] && bash "$CHECK" "$TMP/an/a.html" > "$TMP/an/c.out" 2>&1 \
+   && grep -q zzzanswer "$TMP/an/a.html"; then ok "BL-629 A-3 the built page with a decided answered row passes check-artifact"
+else fail "BL-629 A-3 built page: $(tail -3 "$TMP/an/b.out") $(grep -v "^$" "$TMP/an/c.out" | head -6)"; fi
+python3 - "$TMP/an/an.json" "$TMP/an/na.json" "$TMP/an/dr.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"] = [{"cell": "empty", "notApplicable": "no state", "decided": "Bien", "answer": "x"}]
+json.dump(d, open(sys.argv[2], "w"))
+d["rows"] = [{"cell": "empty", "variant": "light-desktop", "kind": "review", "dropped": "gone", "answer": "x"}]
+json.dump(d, open(sys.argv[3], "w"))
+PY
+for f in na dr; do
+  bash "$GEN" "$TMP/an/$f.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/an/$f.out" 2> "$TMP/an/$f.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/an/$f.out" ]] && grep -q "row 'empty'.*answer" "$TMP/an/$f.err"; then ok "BL-629 A-2 an answer on a $f row is refused naming the cell"
+  else fail "BL-629 A-2 $f+answer: exit $rc, stderr: $(cat "$TMP/an/$f.err")"; fi
+done
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"

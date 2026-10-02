@@ -396,6 +396,24 @@ def check_row(row, variants, n, alts=None, require_look=False):
     cell = row.get("cell")
     if not isinstance(cell, str) or not SLUG.match(cell):
         die("row %d: 'cell' must be a lowercase slug, not %r" % (n, cell))
+    # `answer` (BL-629): the reply to the owner's note on a row that is decided.
+    # The fold shows it in its summary; an open row carries its own text, and a
+    # notApplicable or dropped row has no slot for it, so it is refused there.
+    if "answer" in row:
+        ans = row["answer"]
+        if not isinstance(ans, str) or not ans.strip():
+            die("row '%s': 'answer' must be a non-empty string, not %r"
+                % (cell, ans))
+        if "decided" not in row:
+            die("row '%s': 'answer' goes on a decided row — an open row "
+                "carries its own text" % cell)
+        if "dropped" in row or "notApplicable" in row:
+            die("row '%s': 'answer' goes on a decided review row — a dropped "
+                "or notApplicable row has nowhere to show it" % cell)
+        if row.get("kind") == "alternatives":
+            die("row '%s': 'answer' does not go on an alternatives row — its "
+                "choice radios stay visible, so the fold would not hide it "
+                "and the row would still ask" % cell)
     # `noBefore` (BL-610) is a reason on the one shape that shows a single
     # capture. Anywhere else it would be dropped silently on a live question
     # (notApplicable, alternatives), so it is refused there; a dropped row
@@ -486,6 +504,8 @@ def check_row(row, variants, n, alts=None, require_look=False):
             die("row '%s': 'decided' must be a non-empty string (the "
                 "verdict)" % cell)
         out["decided"] = row["decided"].strip()
+    if "answer" in row:
+        out["answer"] = row["answer"].strip()
     # What the owner should look at on THIS row (BL-516: a cell with no stated
     # reason could not be judged). The spec route requires it; the CLI, which
     # existing project emitters feed, only shows it when present.
@@ -834,6 +854,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
         narrow = '' if kind == "alternatives" or before is not None \
             else ' data-tiles="after"'
         settled = ' data-decided="%s"' % e(r["decided"]) if "decided" in r else ''
+        if "answer" in r:
+            settled += ' data-answer="%s"' % e(r["answer"])
         add('  <section class="consult-item consult-gallery" data-id="%s"'
             ' data-title="%s" data-heading="%s" data-variant="%s"%s%s>'
             % (e(ident), e(title), e(heading), e(variant), narrow, settled))
@@ -883,12 +905,14 @@ def render(doc, root, group_id, group_title, lang, page=None,
         if "decided_note" in r:
             add('    <div class="callout"><p>%s</p></div>'
                 % e(r["decided_note"]))
+        if "answer" in r:
+            add('    <div class="callout"><p>%s</p></div>' % e(r["answer"]))
         if kind == "alternatives":
             choices = [(a["label"], a["label"]) for a in alts]
             choices.append(NONE_OF_THEM[lang])
             # Peer choices are all visible; only "none of them" collapses.
             out.extend(options(ident, lang, choices, visible=len(alts)))
-        elif kind != "sample":
+        elif kind != "sample" and "answer" not in r:
             out.extend(verdicts(ident, lang))
         out.extend(notes(lang))
         add('  </section>')

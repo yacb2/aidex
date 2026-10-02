@@ -1045,6 +1045,96 @@ tr="$(rows_title en 0)"
 [[ "$tr" == *"EYEBROW=6 rows already settled|"* ]] \
   || fail "BL-608: on an English page the Decidido eyebrow must read '6 rows already settled': $tr"
 
+# ---- BL-629: a decided row carries the answer to the owner's note, visible while folded ----
+# The owner approved a row and attached a worry; the next round's decided row folds, so the
+# reply was hidden. `answer` on a decided row must show inside the folded summary, the row
+# keeps its verdict-less shape (no radios) and the id a plain review row of that cell has,
+# so consult-ids passes against the previous round. Layer: browser, because visibility
+# (the text with the fold closed) and the restore of round 1's answer are what the composer decides.
+mkdir -p "$TMP/g629/shots/light-desktop" "$TMP/g629/actual/light-desktop"
+for c629 in empty loaded; do
+  python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/shots/light-desktop/audit-$c629.png" 160 90
+  python3 "$SKILL/tests/png_fixture.py" "$TMP/g629/actual/light-desktop/audit-$c629.png" 160 90
+done
+row629() {  # row629 <cell> <extra row keys, json fragment starting with a comma, or empty>
+  printf '{"cell": "%s", "variant": "light-desktop", "kind": "review", "look": "El estado", "before": "shots/light-desktop/audit-%s.png", "after": "actual/light-desktop/audit-%s.png"%s}' "$1" "$1" "$1" "$2"
+}
+ANS629=', "decided": "Aprobada en la ronda 2", "answer": "Respuesta zzzanswer a tu nota"'
+gen629() {  # gen629 <out html> <row json>...
+  local out="$1"; shift
+  local IFS=,; printf '{"gallery": "audit", "variants": ["light-desktop"], "shots_dir": "shots", "actual_dir": "actual", "rows": [%s]}\n' "$*" > "$TMP/g629/rows.json"
+  bash "$SKILL/scripts/gallery-items.sh" "$TMP/g629/rows.json" --root "$TMP/g629" --page "$TMP/reports/g629.html" \
+    --group-id E --group-title "La matriz" > "$out" 2> "$TMP/g629/gen.err" \
+    || fail "BL-629: gallery-items.sh failed: $(cat "$TMP/g629/gen.err")"
+}
+PROBE629='<script>window.addEventListener("load", function () {
+  var row = document.querySelector("[data-id=audit-empty-light-desktop]"), vis = 0;
+  if (location.search.indexOf("phase=fill") > -1) {
+    var r = row.querySelector("input[type=radio]"); r.checked = true; r.dispatchEvent(new Event("change", { bubbles: true }));
+    document.title = "FILLED"; return;
+  }
+  [].forEach.call(document.querySelectorAll("*"), function (n) { if (!n.children.length && (n.textContent || "").indexOf("zzzanswer") > -1 && n.offsetParent !== null && n.checkVisibility()) vis++; });
+  var fold = row && row.closest("details.decided-unit");
+  var rest = document.getElementById("consult-restored");
+  document.title = "ANS|FOLDED=" + (fold && !fold.open && !row.checkVisibility() ? 1 : 0) + "|INPLACE=" + (fold && fold.classList.contains("inplace") ? 1 : 0) + "|VIS=" + vis + "|RADIOS=" + (row ? row.querySelectorAll("input[type=radio]").length : -1) + "|ID=" + (row ? row.dataset.id : "") + "|REST=" + (rest ? rest.textContent.replace(/[|]/g, "/").slice(0, 80) : "none") + "|";
+});</script>'
+page629() {  # page629 <rows html> <out page>: wraps a probe page around a generated block
+  { printf '%s\n' '<meta name="consult-visual" content="none: a layout probe, nothing to draw">' \
+      '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Answered row</h1></header>' \
+      '<section id="sec-ask"><div class="sec-head"><h2>Questions</h2></div>'
+    cat "$1"
+    printf '%s\n' '<div class="endbar"><button type="button" id="consult-copy-end">Copy</button><span class="consult-status" id="consult-status-end"></span></div>' \
+      '<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3>Notas generales</h3><textarea></textarea></section>' \
+      '</section></main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav>' \
+      '<div class="consult-bar"><button type="button" id="consult-copy">Copy</button><span class="consult-status" id="consult-status"></span></div></aside></div>' \
+      "$PROBE629"
+  } > "$TMP/g629/body.html"
+  bash "$WRAP" --title "ans" --lang es --out "$2" < "$TMP/g629/body.html" > "$TMP/g629/wrap.log" 2>&1 \
+    || fail "BL-629: the answered-row probe failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/g629/wrap.log" | sed -n 1,4p)"
+}
+title629() {  # title629 <page> [query]
+  CHROME_WINDOW=1280,900 chrome_dump "$TMP/g629/dom.html" "file://$1${2:+?$2}" 45 || true
+  grep -oE '<title>[^<]*</title>' "$TMP/g629/dom.html" | sed -n 1p
+}
+id629() { grep -oE 'data-id="audit-[a-z0-9-]+"' "$1" | sed -n 1p; }
+gen629 "$TMP/g629/plain.html" "$(row629 empty '')"
+gen629 "$TMP/g629/ans.html" "$(row629 empty "$ANS629")"
+id_plain="$(id629 "$TMP/g629/plain.html")"; id_ans="$(id629 "$TMP/g629/ans.html")"
+slug629="${id_plain#data-id=\"}"; slug629="${slug629%\"}"
+
+# Whole block decided: the block folds as one unit.
+page629 "$TMP/g629/ans.html" "$TMP/reports/ans629.html"
+ta="$(title629 "$TMP/reports/ans629.html")"
+[[ "$ta" == *"|FOLDED=1|"* ]] \
+  || fail "BL-629: a decided row with an answer is not folded (FOLDED=1 wanted): $ta"
+[[ "$ta" == *"|VIS=1|"* ]] \
+  || fail "BL-629: the answer text is not visible with the fold closed (a closed fold hides the row; the summary must carry the text): $ta"
+[[ "$ta" == *"|RADIOS=0|"* ]] \
+  || fail "BL-629: a decided row with an answer carries verdict radios: $ta"
+[[ -n "$slug629" && "$id_plain" == "$id_ans" && "$ta" == *"|ID=$slug629|"* ]] \
+  || fail "BL-629: the answered row's id (${id_ans:-none}) differs from a plain review row's (${id_plain:-none}), so consult-ids would fail: $ta"
+
+# Block with an open sibling: the answered row folds in place, and its summary says so with a separator.
+gen629 "$TMP/g629/mix.html" "$(row629 empty "$ANS629")" "$(row629 loaded '')"
+page629 "$TMP/g629/mix.html" "$TMP/reports/mix629.html"
+tm="$(title629 "$TMP/reports/mix629.html")"
+[[ "$tm" == *"|FOLDED=1|INPLACE=1|VIS=1|RADIOS=0|ID=$slug629|"* ]] \
+  || fail "BL-629: in a block with an open sibling the answered row must fold in place (details.decided-unit.inplace) with the answer visible once: $tm"
+grep -qE 'decided-answer">— [^<]*zzzanswer' "$TMP/g629/dom.html" \
+  || fail "BL-629: the in-place answer span does not start with the em dash separator the group path uses: $(grep -oE 'decided-verdict decided-answer">[^<]{0,60}' "$TMP/g629/dom.html" | sed -n 1p)"
+
+# Round 2: round 1's approval of this row (open, radio ticked, saved under the page's path) must not be
+# reported as 'left blank because the question changed' once the row is decided and answered.
+gen629 "$TMP/g629/open.html" "$(row629 empty '')"
+page629 "$TMP/g629/open.html" "$TMP/reports/r629.html"
+[[ "$(title629 "$TMP/reports/r629.html" "phase=fill")" == *FILLED* ]] || fail "BL-629: round 1 fill phase did not run"
+printf 'audit-empty-light-desktop: Aprobada\n' | bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/r629.html" - >/dev/null 2>&1 \
+  || fail "BL-629: save-reply.sh failed on the round-1 page"
+page629 "$TMP/g629/ans.html" "$TMP/reports/r629.html"
+tr2="$(title629 "$TMP/reports/r629.html")"
+[[ "$tr2" == *"|FOLDED=1|"* && "$tr2" == *"|REST=none|"* ]] \
+  || fail "BL-629: round 2 reports the owner's round-1 approval of a now decided+answer row as restored or stale ('se dejaron en blanco'): $tr2"
+
 # ---- the chrome speaks the page's language ----------------------------------
 [[ "$t" == *"BTN=Copiar mis respuestas"* ]] \
   || fail "the copy button stayed in English on a lang=es page: $t"
