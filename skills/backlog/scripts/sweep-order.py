@@ -52,7 +52,9 @@ def order(part, bdir, inc, exc):
     # too. A cycle is reported first: blocking would otherwise hide it.
     ids = {i['id'] for i in queue}
     kahn(ids, {i['id']: {d for d in i['depends'] if d in ids} for i in queue}, lambda n: n)
-    still_open, known = set(), set()
+    # Twins come from every backlog file, not only queued ones: the item holding the
+    # `merge:` edge may sit outside the queue (off --size, review not included).
+    still_open, known, twins = set(), set(), {}
     for d in (bdir, os.path.join(bdir, '_deferred'), os.path.join(bdir, '_archive')):
         for f in (sorted(os.listdir(d)) if os.path.isdir(d) else []):
             if f.endswith('.md') and not f.startswith('00-'):
@@ -60,12 +62,10 @@ def order(part, bdir, inc, exc):
                 known.add(m.get('id'))
                 if m.get('status') in ('open', 'doing') and not d.endswith('_archive'):
                     still_open.add(m.get('id'))
-    twins = {}
-    for i in queue:
-        for d in i['depends']:
-            if d.startswith('merge:'):
-                twins.setdefault(i['id'], set()).add(d[6:])
-                twins.setdefault(d[6:], set()).add(i['id'])
+                for dep in (x.strip() for x in m.get('depends', '').split(',')):
+                    if dep.startswith('merge:'):
+                        twins.setdefault(m.get('id'), set()).add(dep[6:])
+                        twins.setdefault(dep[6:], set()).add(m.get('id'))
     needs = list(part['needs_decision'])
     while True:
         ids = {i['id'] for i in queue}

@@ -111,7 +111,7 @@ if [[ "$N" -eq 0 ]]; then
   else
     echo "empty queue: nothing ELIGIBLE at --size $SIZE — the NEEDS-DECISION list:" >&2
   fi
-  printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --format summary >&2
+  printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --include "$INC" --exclude "$EXC" --format summary >&2
   exit 2
 fi
 printf '%s' "$PART" | python3 "$SCRIPT_DIR/sweep-order.py" "$ROOT/.context/backlog" --include "$INC" --exclude "$EXC" --format summary

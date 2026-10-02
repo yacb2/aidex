@@ -233,6 +233,10 @@ bash "$SCRIPTS/define-item.sh" "$MAID" --depends "merge:$XID" --no-index >/dev/n
 bash "$SCRIPTS/define-item.sh" "$PID" --depends "merge:$QID, $OID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/define-item.sh" "$DDID" --depends "$DID" --no-index >/dev/null 2>&1
 bash "$SCRIPTS/define-item.sh" "$UID_" --depends "BL-9999" --no-index >/dev/null 2>&1
+# the merge edge held by an item OUTSIDE the queue (estimate M, off --size) still binds its twin
+SI="$(reg --title "sierra twin of an M holder" --estimate S)"; SIID="$(idof "$SI")"; accept "$SI"
+H="$(reg --title "hotel holds merge, medium" --estimate M)"; HID="$(idof "$H")"; accept "$H"
+bash "$SCRIPTS/define-item.sh" "$HID" --depends "merge:$SIID" --no-index >/dev/null 2>&1
 OUT="$(bash "$SCRIPTS/sweep-kickoff.sh" --dry-run 2>&1)"
 QS="$(sed -n '/^QUEUE/,/^$/p' <<<"$OUT")"; NDS="$(sed -n '/^NEEDS-DECISION/,/^$/p' <<<"$OUT")"
 qpos() { grep -nE "^ +[0-9]+\. $1 " <<<"$QS" | cut -d: -f1; }   # the item column, not a depends: tail
@@ -245,6 +249,8 @@ grep -qE "^  $TID .*depends on open $XID" <<<"$NDS" && ok "the transitive block 
 grep -qE "^  $MAID .*merge partner $XID not queued" <<<"$NDS" && ok "it is listed naming the merge partner" || bad "merge holder reason: $NDS"
 grep -qE "^  $QID .*merge partner $PID not queued" <<<"$NDS" && [[ -z "$(qpos "$QID")" ]] \
   && ok "the twin named by a blocked merge holder is blocked too" || bad "merge target: $OUT"
+grep -qE "^  $SIID .*merge partner $HID not queued" <<<"$NDS" && [[ -z "$(qpos "$SIID")" ]] \
+  && ok "a merge edge held by an item outside the queue blocks its queued twin" || bad "outside merge holder: $OUT"
 grep -qE "^  $DDID .*depends on open $DID" <<<"$NDS" && [[ -z "$(qpos "$DDID")" ]] \
   && ok "a dependency parked in _deferred/ blocks (still open)" || bad "deferred dep: $OUT"
 grep -qE "^  $UID_ .*depends on unknown BL-9999" <<<"$NDS" && [[ -z "$(qpos "$UID_")" ]] \
@@ -260,6 +266,8 @@ sed -i.bak 's/^status: doing/status: done/' "$WLD" 2>/dev/null && rm -f "$WLD.ba
 bash "$SCRIPTS/sweep-kickoff.sh" --dry-run --exclude "$VID,$YID" >/dev/null 2>"$TMP/allblocked.err"; RC=$?
 [[ $RC -eq 2 ]] && grep -q "nothing queueable at --size XS,S — [0-9]* eligible, all blocked by open or unknown depends" "$TMP/allblocked.err" \
   && ok "an all-blocked queue exits 2 saying the eligible items are blocked" || bad "all blocked: rc=$RC $(head -2 "$TMP/allblocked.err")"
+grep -q "QUEUE (0 items" "$TMP/allblocked.err" \
+  && ok "the all-blocked summary is computed with the same --include/--exclude" || bad "all-blocked summary: $(cat "$TMP/allblocked.err")"
 # a depends cycle still exits 2 when an open dependency would otherwise block its members
 CA="$(reg --title "cycle a" --estimate S)"; CAID="$(idof "$CA")"; accept "$CA"
 CB="$(reg --title "cycle b" --estimate S)"; CBID="$(idof "$CB")"; accept "$CB"
