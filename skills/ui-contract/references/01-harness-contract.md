@@ -12,6 +12,22 @@ not to improvise a gallery — it is to say the harness is missing and stop.
 
 ---
 
+## Presence check — before saying "absent"
+
+Run these in the repo (quote globs; in zsh an unmatched glob is an error, so use `find`).
+One marker found means the harness is present: continue and cite the file.
+
+1. The testing profile's `gallery_gate_cmd` and `gallery_scripts` keys, if set.
+2. A gallery spec set: `find <frontend> -path '*/node_modules' -prune -o -name '*.demo.spec.ts' -print`
+   (shipped tree: `frontend/tests/demo/`).
+3. The harness module and its meta-suite: `state-gallery.ts` and
+   `state-gallery.meta.demo.spec.ts` in that directory, plus `meta-count-reporter.ts`.
+4. The runner config: `playwright.demo.config.ts` next to `playwright.config.ts`.
+5. The contact-sheet scripts: `gallery_board.py` / `gallery_contact_sheet.py` (shipped
+   tree: `_scripts/` or the repo's scripts directory).
+
+A research note or memory saying "missing" is not evidence; the repo is.
+
 ## 1. The harness module and its matrix validation
 
 One module, imported by every gallery spec, that turns a declared matrix into one test
