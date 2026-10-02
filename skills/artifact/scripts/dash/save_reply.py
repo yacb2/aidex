@@ -26,17 +26,21 @@ reply that is already there before writing anything: while a duty is still
 unmet, the new paste is APPENDED under a timestamped separator and
 answered.html is left untouched; only once every outstanding duty is met
 does a new reply replace the file and re-snapshot the page. The same append
-happens when the page still equals the answered snapshot (two saves in one
-round, no rebuild between): the second paste must not erase the first.
-That page check wins over the duty check: an unchanged page is labelled
-`same-round` even with a duty unmet, so a later full composer paste from it
-supersedes the earlier one (BL-598).
+happens when the page is the one the previous save came from (two saves in
+one round, no rebuild between): the second paste must not erase the first.
+Each separator carries that page's fingerprint; with none, the previous
+page is the answered snapshot (BL-644). That page check wins over the duty
+check: a page unchanged since the last save is labelled `same-round` even
+with a duty unmet, so a later full composer paste from it supersedes the
+earlier one (BL-598).
 
 Usage: save-reply.sh <page.html> [<reply-file>|-]
   <reply-file> omitted or "-": read the paste from stdin.
 """
 import datetime
+import hashlib
 import os
+import re
 import sys
 import time
 
@@ -55,6 +59,16 @@ def _paths(page_path):
     stem = os.path.splitext(os.path.basename(page_path))[0]
     return (prev_dir, os.path.join(prev_dir, stem + ".reply.md"),
            os.path.join(prev_dir, stem + ".answered.html"))
+
+
+_PAGE_FP = re.compile(r" page:([0-9a-f]+) ")
+
+
+def _fingerprint(path):
+    # the decoded text, read the way the replace path below reads the page it
+    # writes to answered.html: raw bytes of a CRLF page never match that copy
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return hashlib.sha256(fh.read().encode("utf-8")).hexdigest()[:16]
 
 
 def duties_for(reply_text):
@@ -94,23 +108,29 @@ def save_reply(page_path, reply_text):
     # anything is written, so it reads the files this save is about to touch.
     outstanding = had_previous and bool(ca.check_marker_duties(page_path)[0])
     appended = "duty" if outstanding else False
-    # Two saves inside one round: the page has not been rebuilt since the last
-    # save (it still equals the answered snapshot), so the second paste adds to
-    # the first instead of replacing it. Checked even when a duty is
-    # outstanding: the paste came from the same page, so a later full paste
-    # may supersede the earlier one (BL-598).
+    # Two saves inside one round: this paste comes from the same page as the
+    # save before it, so it adds to that one instead of replacing it. Checked
+    # even when a duty is outstanding: a later full paste from the same page
+    # may supersede the earlier one (BL-598). The page of the save before is
+    # the fingerprint its separator carries; with none (the first save, or a
+    # separator written before BL-644) it is the answered snapshot. Comparing
+    # only with answered.html made two saves from one rebuilt, duty-failing
+    # page both `duty`, i.e. two rounds (BL-644).
     if had_previous:
-        with open(page_path, encoding="utf-8", errors="replace") as fh:
-            page_now = fh.read()
-        with open(answered_path, encoding="utf-8", errors="replace") as fh:
-            if page_now == fh.read():
-                appended = "same-round"
+        page_fp = _fingerprint(page_path)
+        with open(reply_path, encoding="utf-8", errors="replace") as fh:
+            seps = ca._SAVE_SEP.findall(fh.read())
+        last = _PAGE_FP.search(seps[-1]) if seps else None
+        if page_fp == (last.group(1) if last else _fingerprint(answered_path)):
+            appended = "same-round"
     if appended:
         stamp = datetime.datetime.now().isoformat(timespec="seconds")
         with open(reply_path, "a", encoding="utf-8") as fh:
             # the mode tells check_artifact._live_reply whether this paste
-            # is from the same page as the one before it (BL-598)
-            fh.write(f"\n\n<!-- reply saved {stamp} {appended} -->\n\n{reply_text}")
+            # is from the same page as the one before it (BL-598); the page
+            # fingerprint is what the next save compares with (BL-644)
+            fh.write(f"\n\n<!-- reply saved {stamp} page:{page_fp} {appended} -->"
+                     f"\n\n{reply_text}")
         with open(reply_path, encoding="utf-8") as fh:
             combined = fh.read()
         return duties_for(combined), reply_path, answered_path, appended

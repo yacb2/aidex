@@ -320,6 +320,19 @@ RP="$D/.aidex-artifact-prev/$(basename "$PAGE" .html).reply.md"
   && ok "26. two saves with no rebuild between append; both items decide" \
   || fail "26. rc=$rc out=$(cat "$TMP/build.out") reply=$(cat "$RP")"
 
+# 26b. BL-644 review: a CRLF page. answered.html is written from the decoded
+# text (universal newlines), so a raw-byte fingerprint of the page never
+# matches it: the second save from the SAME page replaced the first
+newpage crlf
+spec "" ""; build
+python3 -c 'import sys; p=sys.argv[1]; b=open(p,"rb").read(); open(p,"wb").write(b.replace(b"\n", b"\r\n"))' "$PAGE"
+printf '### Q1 · a\n\n- Sí: cerrarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "26b. save 1 failed"
+printf '### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "26b. save 2 failed"
+RP="$D/.aidex-artifact-prev/crlf.reply.md"
+grep -q 'reply saved .* same-round -->' "$RP" && grep -q '^### Q1' "$RP" \
+  && ok "26b. two saves from one CRLF page are same-round; the first paste survives" \
+  || fail "26b. reply=$(cat "$RP")"
+
 # 27. guard: save, REBUILD the page (a real change), save again -> overwritten
 newpage resave
 spec "" ""; build
@@ -466,6 +479,59 @@ build; rc=$?
 [[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
   && ok "37. a mode-less legacy separator ends a round: Q1 from before it still counts" \
   || fail "37. rc=$rc out=$(cat "$TMP/build.out")"
+
+# 38. BL-644: two duty-labelled saves from the SAME ungated page (answered.html
+# is still round 1's) are one round: the later full paste withdrew Q3, so a
+# page showing Q3 decided FAILS naming it. Repro steps from the item.
+newpage dutytwice
+Q3='
+::: item {#Q3 title="¿Un tercer item?"}
+¿Hacemos un tercer item?
+
+- Sí: hacerlo {recommended}
+- No: omitirlo
+:::
+'
+spec "" "" "$Q3"; build || fail "38. round-1 build failed: $(cat "$TMP/build.out")"
+printf '## G1 · x\n\n### Q1 · a\n\n- [show-me]\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "38. save 1 failed"
+# round 2 built outside the gate, Q1 still without its figure (a reworded
+# masthead is the only change, so the page differs from the snapshot)
+mkdir -p "$TMP/alt38"; sed 's/Una decision y una pregunta./Tres preguntas, ronda dos./' "$SPEC" > "$TMP/alt38/dutytwice.spec.md"
+python3 "$BUILD" "$TMP/alt38/dutytwice.spec.md" -o "$TMP/alt38/dutytwice.html" >"$TMP/alt38.out" 2>&1 \
+  || fail "38. round-2 page build failed: $(cat "$TMP/alt38.out")"
+cp "$TMP/alt38/dutytwice.html" "$PAGE"
+cmp -s "$PAGE" "$D/.aidex-artifact-prev/dutytwice.answered.html" \
+  && fail "38. fixture: the round-2 page equals the answered snapshot"
+printf '## G1 · x\n\n### Q2 · b\n\n- No\n\n### Q3 · c\n\n- Sí\n' | bash "$SAVE_REPLY" "$PAGE" >"$TMP/save2.out" || fail "38. save 2 failed"
+grep -q 'duty is still outstanding' "$TMP/save2.out" || fail "38. fixture: save 2 was not a duty append: $(cat "$TMP/save2.out")"
+printf '## G1 · x\n\n### Q2 · b\n\n- No\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "38. save 3 failed"
+Q3D="${Q3/\{#Q3 title=\"¿Un tercer item?\"/{#Q3 title=\"¿Un tercer item?\" decided=\"Sí\"}"
+spec "" "No" "$Q3D"
+build; rc=$?
+[[ "$rc" != "0" ]] && grep -q 'consult-decided-trace.*Q3' "$TMP/build.out" \
+  && ! grep -q 'consult-decided-trace.*Q2' "$TMP/build.out" \
+  && ok "38. two saves from one rebuilt page with a duty unmet: the later full paste withdraws Q3" \
+  || fail "38. rc=$rc out=$(cat "$TMP/build.out") reply=$(cat "$D/.aidex-artifact-prev/dutytwice.reply.md")"
+
+# 39. backward compatibility: a reply.md whose last separator predates the
+# page fingerprint (BL-598 wording, `duty` and no `page:`) falls back to the
+# answered snapshot: a save from a page equal to it is same-round, and the
+# legacy separator still ends the round before it (Q1 still counts)
+newpage legacyfp
+spec "" ""; build
+mkdir -p "$D/.aidex-artifact-prev"
+cp "$PAGE" "$D/.aidex-artifact-prev/legacyfp.answered.html"
+printf '## G1 · x\n\n### Q1 · a\n\n- Sí: cerrarlo ahora\n\n<!-- reply saved 2026-10-01T10:00:00 duty -->\n\n## G1 · x\n\n### Q2 · b\n\n- [show-me]\n' \
+  > "$D/.aidex-artifact-prev/legacyfp.reply.md"
+printf '## G1 · x\n\n### Q2 · b\n\n- No: intentarlo ahora\n' | bash "$SAVE_REPLY" "$PAGE" >/dev/null || fail "39. save failed"
+grep -q 'reply saved .* page:[0-9a-f]* same-round -->' "$D/.aidex-artifact-prev/legacyfp.reply.md" \
+  && ok "39a. after a fingerprint-less separator, a save from the answered page is same-round" \
+  || fail "39a. $(cat "$D/.aidex-artifact-prev/legacyfp.reply.md")"
+spec "Sí" "No"
+build; rc=$?
+[[ "$rc" == "0" ]] && ! grep -q 'consult-decided-trace' "$TMP/build.out" \
+  && ok "39b. a legacy duty separator still ends a round: Q1 from before it counts" \
+  || fail "39b. rc=$rc out=$(cat "$TMP/build.out")"
 
 if [[ "$failures" -eq 0 ]]; then
   echo "test-consult-spec-trace.sh: all checks passed"
