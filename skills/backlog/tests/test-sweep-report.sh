@@ -203,4 +203,46 @@ TXT="$TMP/report-run.txt"
 bash "$SCRIPTS/sweep-report.sh" report-run --out "$TXT" 2>"$TMP/txt.err" >/dev/null
 [[ -s "$TXT" && ! -e "$TXT.html" ]] && ok "a non-.md --out writes the report and no page" || bad "non-.md --out: report=$(wc -c <"$TXT" 2>/dev/null) err=$(cat "$TMP/txt.err")"
 
+# BL-640: in a split workspace the `commits:` hashes live in backend/ and frontend/, not
+# in the root repo that holds the items; the report asked only the root and wrote
+# '? (fewer than two dated commits)' for wall time
+for sub in backend frontend; do
+  mkdir -p "$P/$sub"; git -C "$P/$sub" init -q . 2>/dev/null
+done
+GIT_AUTHOR_DATE="2026-09-01T10:00:00Z" GIT_COMMITTER_DATE="2026-09-01T10:00:00Z" \
+  git -C "$P/backend" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "be"
+GIT_AUTHOR_DATE="2026-09-01T11:00:00Z" GIT_COMMITTER_DATE="2026-09-01T11:00:00Z" \
+  git -C "$P/frontend" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "fe"
+BSHA="$(git -C "$P/backend" rev-parse --short HEAD)"; FSHA="$(git -C "$P/frontend" rev-parse --short HEAD)"
+git -C "$P" cat-file -e "$BSHA^{commit}" 2>/dev/null && bad "fixture: the backend sha resolves in the root repo"
+S1="$(reg --title "split backend" --estimate XS)"; S1ID="$(idof "$S1")"; accept "$S1"; row "$S1" test "tests/s1.py" "1 passed"
+S2="$(reg --title "split frontend" --estimate XS)"; S2ID="$(idof "$S2")"; accept "$S2"; row "$S2" test "tests/s2.py" "1 passed"
+WL5="$(bash "$CONV/worklist-new.sh" --title "Split run" --mode sweep --ref "backlog:$S1ID — s1" --ref "backlog:$S2ID — s2")"
+bash "$SCRIPTS/close-item.sh" "$S1ID" --sweep --commit "$BSHA" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/close-item.sh" "$S2ID" --sweep --commit "$FSHA" --no-index >/dev/null 2>&1
+R5="$(bash "$SCRIPTS/sweep-report.sh" "$WL5" --print 2>/dev/null)"
+grep -q "| items closed | 2 |" <<<"$R5" || bad "fixture: the two split items did not close: $(grep 'items closed' <<<"$R5")"
+grep -q "| wall time (first → last resolving commit) | 1.0 h |" <<<"$R5" \
+  && ok "BL-640: hashes found only in backend/ and frontend/ give the wall time (1.0 h)" || bad "split wall time: $(grep 'wall time' <<<"$R5")"
+# no gate run recorded: the share of wall time in gate suites is unmeasured, not 0 %
+cp $GH "$TMP/gh.keep2"; : > $GH
+R6="$(bash "$SCRIPTS/sweep-report.sh" "$WL5" --print 2>/dev/null)"
+cp "$TMP/gh.keep2" $GH
+grep -q "| gate runs / legs re-run | 0 / 0 |" <<<"$R6" || bad "fixture: a gate run was still counted: $(grep 'gate runs' <<<"$R6")"
+grep -q "| share of wall time in gate suites | ? — " <<<"$R6" \
+  && ok "no gate run recorded -> the share of wall time in gate suites is '?', not 0 %" || bad "share with no gate run: $(grep 'share of wall' <<<"$R6")"
+# two items citing ONE merge sha (normal in a split workspace, BL-646) are one commit and
+# one date: no span, and the commit is counted once
+D1="$(reg --title "dup one" --estimate XS)"; D1ID="$(idof "$D1")"; accept "$D1"; row "$D1" test "tests/d1.py" "1 passed"
+D2="$(reg --title "dup two" --estimate XS)"; D2ID="$(idof "$D2")"; accept "$D2"; row "$D2" test "tests/d2.py" "1 passed"
+WL7="$(bash "$CONV/worklist-new.sh" --title "Dup run" --mode sweep --ref "backlog:$D1ID — d1" --ref "backlog:$D2ID — d2")"
+bash "$SCRIPTS/close-item.sh" "$D1ID" --sweep --commit "$BSHA" --no-index >/dev/null 2>&1
+bash "$SCRIPTS/close-item.sh" "$D2ID" --sweep --commit "$BSHA" --no-index >/dev/null 2>&1
+R7="$(bash "$SCRIPTS/sweep-report.sh" "$WL7" --print 2>/dev/null)"
+grep -q "| items closed | 2 |" <<<"$R7" || bad "fixture: the two dup items did not close: $(grep 'items closed' <<<"$R7")"
+grep -q "| wall time (first → last resolving commit) | ? (fewer than two dated commits) |" <<<"$R7" \
+  && ok "two items citing one sha give no wall time (one dated commit), not 0.0 h" || bad "dup-sha wall time: $(grep 'wall time' <<<"$R7")"
+grep -q "| commits (from \`commits:\`) | 1 |" <<<"$R7" \
+  && ok "one sha cited by two items counts as one commit" || bad "dup-sha commit count: $(grep 'commits (from' <<<"$R7")"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — sweep report: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1

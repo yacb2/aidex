@@ -669,10 +669,17 @@ LANG_EXEMPT_PREFIX = "human-verification."     # D-04, owner ruling LOOP-006
 _CONTEXT_DIRS = {}                             # page directory -> .context or None
 
 
+def is_bare_svg(html_text):
+    """A bare .svg figure file: its one top-level element is <svg>, no <html>
+    around it. It has no lang to carry, so no language check judges it (BL-657)."""
+    top = [c for c in parse(html_text).root.children if isinstance(c, Node)]
+    return len(top) == 1 and top[0].tag == "svg"
+
+
 def check_lang_follows_profile(path, html_text):
     import os
     import wrap_report                   # the profile's one reader (find + field)
-    if os.path.basename(path).startswith(LANG_EXEMPT_PREFIX):
+    if os.path.basename(path).startswith(LANG_EXEMPT_PREFIX) or is_bare_svg(html_text):
         return []
     here = os.path.dirname(os.path.abspath(path))
     if here not in _CONTEXT_DIRS:        # one bash spawn per directory, not per page

@@ -2638,7 +2638,9 @@ def check_file(path):
         report("themes", "no prefers-color-scheme — unreadable for a "
                          "dark-mode reader")
 
-    mm = language_mismatch(text)
+    # a bare .svg figure has no <html lang>; read as "en" it failed every Spanish
+    # figure (BL-657)
+    mm = None if contract_defects.is_bare_svg(text) else language_mismatch(text)
     if mm:
         declared, dominant, es, en = mm
         report("lang", f'<html lang="{declared}"> but the body reads {dominant} '

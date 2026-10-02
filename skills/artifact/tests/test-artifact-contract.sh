@@ -1586,6 +1586,33 @@ grep -q "FAIL \[lang\]" <<<"$(bash "$CHECK" "$TMP/es-under-en.html" 2>&1)" && ok
 printf '%s\n' '<div class="page"><main class="main"><h1>x</h1><p>ok</p></main></div>' | bash "$WRAP" --title "t" --lang es > "$TMP/thin.html" 2>/dev/null
 bash "$CHECK" "$TMP/thin.html" >/dev/null 2>&1 && ok "a page too short to judge is not flagged" || bad "thin page flagged for language"
 
+# BL-657: a bare .svg figure file (root element <svg>, no <html>) has no lang to carry.
+# Under a language: es profile it failed [lang] (no lang read as "en" against a Spanish
+# body) and [lang-follows-profile] (lang="" against es). Shape of the reported figure,
+# with its client data replaced.
+SVGP="$TMP/svgproj"; mkdir -p "$SVGP/.context/research/figs"; git -C "$SVGP" init -q . 2>/dev/null
+printf -- '- language: es\n' > "$SVGP/.context/artifact-style.md"
+cat > "$SVGP/.context/research/figs/fig-transfer.svg" <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" id="fig-transfer" viewBox="0 0 880 420" role="img" aria-label="Barras apiladas de los GB descargados por mes, por la red de entrega y directo desde el almacén, con el costo de la descarga directa de cada mes.">
+  <style>
+    #fig-transfer { font-family: system-ui, sans-serif; color: var(--ink); }
+    #fig-transfer text { fill: currentColor; font-size: 13px; }
+  </style>
+  <rect x="80" y="60" width="90" height="200" style="fill: var(--s1)"/>
+  <text x="80" y="40">Por la red de entrega</text>
+  <text x="200" y="40">Directo desde el almacén</text>
+  <text x="80" y="300">Jun 2026</text>
+  <text x="80" y="330">28 ago: tras la mudanza, las descargas salen directo del almacén</text>
+  <text x="80" y="350">22 sep: corregido por el equipo, con aviso automático</text>
+  <text x="80" y="370">el plan de la red empezó a fines de junio</text>
+  <text x="80" y="390">Fuente: el panel de costos de la cuenta, con los datos del mes.</text>
+</svg>
+SVG
+out="$(bash "$CHECK" "$SVGP/.context/research/figs/fig-transfer.svg" 2>&1)"
+grep -q 'FAIL \[doctype\]' <<<"$out" && ! grep -q 'FAIL \[lang' <<<"$out" \
+  && ok "BL-657: a bare .svg figure under a language: es profile fails no language check" \
+  || bad "BL-657: a bare svg failed a language check: $(grep 'FAIL \[lang' <<<"$out")"
+
 echo
 echo "artifact contract: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]
