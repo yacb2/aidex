@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: aidex-artifact-placement-question-figure
+context:
+  scaffold_script: "./setup.sh"
