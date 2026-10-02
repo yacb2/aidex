@@ -89,6 +89,10 @@ VERDICTS = {
            ("Cannot judge", "Cannot judge it from this capture")],
 }
 
+# The narrow-screen hint (BL-615): the button word is the composer's zoomLabel.
+NARROW_HINT = {"es": "En el móvil, toca Ampliar para leer cada captura.",
+               "en": "On a phone, tap Enlarge to read each capture."}
+
 # The ONE instruction of a gallery (BL-595), written under the block's heading
 # and assembled from the kinds of row it holds, so a row repeats nothing.
 INTRO = {
@@ -784,7 +788,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
     add('  </div>')
     intro = group_intro(doc, variants, alts, require_look, lang)
     if intro:
-        add('  <p class="gal-intro">%s</p>' % e(intro))
+        add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
+            % (e(intro), e(NARROW_HINT[lang])))
     seen, unrequested, ids = {}, {}, {}
     cell_variants = {}
     for row in doc["rows"]:
