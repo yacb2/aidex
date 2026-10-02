@@ -12,7 +12,8 @@ the HTML, not the builder's reasoning. A builder who grades its own page approve
 ## What the probe already measured
 
 `render-probe.sh` runs before the grader and fails on geometry (text over text, svg text
-outside its svg, a spill or cut, a fixed control over text, sideways scroll) and on the
+outside its svg, svg text drawn under 11 px at 390 px, an unfilled outline whose stroke
+crosses figure text, a spill or cut, a fixed control over text, sideways scroll) and on the
 three rendered contract classes: `text-style-drift` (a kit class rendering at another
 font size than it declares), `figure-text-contrast` (svg text under 4.5:1, light and
 dark scheme) and `svg-label-outside-its-box`. A page reaches the grader clean of those,

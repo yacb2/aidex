@@ -391,6 +391,31 @@ hit="$(grep -E '^DEFECT table-cut\.html @[0-9]+px table-cut: table\.fourfix ' <<
 hit="$(grep -E '^DEFECT table-cut\.html @[0-9]+px table-cut: table\.innerfix ' <<<"$out" || true)"
 [[ -z "$hit" ]] && ok "a three-column table nested in a four-column one is not table-cut" || bad "$hit"
 
+echo "== svg text under the legible floor and an outline over text (BL-648) =="
+out="$(bash "$PROBE" "$TMP/svg-text-small.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "svg-text-small exits 1" || bad "svg-text-small exit $rc, expected 1"
+grep -qE '^DEFECT svg-text-small\.html @390px svg-text-small: text "diminutofix' <<<"$out" \
+  && ok "svg text drawn at about 10.4 px at 390 is svg-text-small" || bad "no svg-text-small naming diminutofix at 390px in: $out"
+hit="$(grep -E '^DEFECT svg-text-small\.html @1280px svg-text-small' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "the floor is a phone-width rule: nothing at 1280" || bad "$hit"
+hit="$(grep -E '^DEFECT svg-text-small\.html .*limitefix' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "svg text drawn at about 11.2 px is not svg-text-small" || bad "$hit"
+out="$(bash "$PROBE" "$TMP/outline-over-text.html" 2>&1)"; rc=$?
+[[ $rc -eq 1 ]] && ok "outline-over-text exits 1" || bad "outline-over-text exit $rc, expected 1"
+grep -qE '^DEFECT outline-over-text\.html @1280px outline-over-text: rect\.outcross "" over text "cruzafix' <<<"$out" \
+  && ok "an unfilled stroked rect whose edge crosses a label is outline-over-text" || bad "no outline-over-text naming outcross in: $out"
+hit="$(grep -E '^DEFECT outline-over-text\.html .*(outclear|card|librefix|cardfix)' <<<"$out" || true)"
+[[ -z "$hit" ]] && ok "an outline around a label with clearance, and a filled card, are not outline-over-text" || bad "$hit"
+
+# The diagram engine's tree badge straddles its box's top edge on purpose, over a page-ground
+# fill (diagram_layout.py:181-184, 03-spec-grammar.md:613): an unfilled stroked rect with a
+# text crossing it, but the text sits on a filled pill drawn after the box.
+( cd "$TMP" && python3 "$SCRIPTS/spec_build.py" "$FIX/tree-badge.spec.md" -o "$TMP/tree-badge.html" ) >/dev/null 2>&1 \
+  && ok "built tree-badge from its spec" || bad "spec_build.py failed on tree-badge.spec.md"
+out="$(bash "$PROBE" "$TMP/tree-badge.html" 2>&1)"; rc=$?
+hit="$(grep -E 'outline-over-text' <<<"$out" || true)"
+[[ $rc -eq 0 && -z "$hit" ]] && ok "the canon tree example (a badge on its box's edge) is clean" || bad "tree-badge exit $rc: $hit"
+
 echo "== the render contract classes (--contract) =="
 # contract-pass holds the passing cell of each class: the kit's own .fieldlabel, .note
 # and .ex inside a consult item (the kit's `.consult-item p` made all three 15.2 px
