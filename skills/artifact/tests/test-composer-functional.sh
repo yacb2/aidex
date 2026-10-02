@@ -2414,6 +2414,42 @@ window.addEventListener('load', function () {
       var esc = (ndlg().open ? 'noteopen' : 'noteclosed') + '/' + (dlg.open ? 'zoomopen' : 'zoomclosed')
         + '/' + (dlg.contains(aeE) ? 'in' : 'out:' + (aeE ? aeE.tagName : 'none'))
         + '/' + (chanE.value === vEsc ? 'same' : 'changed');
+      /* Two fingers (BL-649): a second finger down, moved, lifted, and a third
+         one cancelled while the first draws neither starts a box of its own
+         nor reshapes or ends the first one's. isPrimary as the browser sets it:
+         only the first finger down is primary. The saved line is the first
+         finger's rectangle (50,68 to 210,89), and no drawing box is left. */
+      var mly = layer(), mr = mly.getBoundingClientRect();
+      var mev = function (type, id, x, y) {
+        mly.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: id, isPrimary: id === 21,
+          button: 0, clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+      };
+      mev('pointerdown', 21, 50, 68); mev('pointerdown', 22, 300, 150);
+      mev('pointermove', 21, 210, 89); mev('pointermove', 22, 350, 180);
+      /* The box on screen is still the first finger's (left, width). */
+      var mbox = [].map.call(dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing'), function (d) {
+        return d.style.left + ',' + d.style.width;
+      }).join(';');
+      mev('pointerup', 22, 350, 180);
+      mev('pointerdown', 23, 100, 100); mev('pointercancel', 23, 100, 100);
+      mev('pointerup', 21, 210, 89);
+      note('multi', 'save');
+      var multi = chanE.value.split('\n')[2] || '';
+      var stray = dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length;
+      /* A primary press while a drag is still open (here a mouse while a
+         finger draws; also a drag whose up never came) replaces it: one box. */
+      var drawn = function () { return dlg.querySelectorAll('.kit-marks-layer .kit-mark.drawing').length; };
+      var mouse = function (type, x, y) {
+        mly.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', pointerId: 1, isPrimary: true,
+          button: 0, clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+      };
+      mev('pointerdown', 21, 60, 20); mev('pointermove', 21, 100, 40);
+      mouse('pointerdown', 200, 100);
+      var replaced = drawn();
+      mouse('pointerup', 240, 140);
+      if (ndlg().open) note(null, 'cancel');
+      mev('pointerup', 21, 100, 40);
+      replaced += '/' + drawn();
       dlg.querySelector('.kit-zoom-close').click();
       /* The grid tile: the note shows on hover, and a click on a mark is still
          a click on the tile, which opens the zoom. */
@@ -2425,7 +2461,9 @@ window.addEventListener('load', function () {
       document.title = 'GMEDGE|DEG1=' + deg1 + '|DEG2=' + deg2
         + '|REV=' + rev.replace(/[|<>\n]/g, ' ') + '|CLAMP=' + clamp.replace(/[|<>\n]/g, ' ')
         + '|PEDLG=' + peDlg + '|HIT=' + hitE + '|ESC=' + esc
-        + '|PETILE=' + peTile + '|TILEZOOM=' + tileZoom;
+        + '|PETILE=' + peTile + '|TILEZOOM=' + tileZoom
+        + '|MULTI=' + multi.replace(/[|<>\n]/g, ' ') + '|STRAY=' + stray
+        + '|MBOX=' + mbox + '|REPLACED=' + replaced;
     } else if (q.indexOf('phase=gmask') !== -1) {
       /* The row's notes box is a contenteditable; the hidden kit-marks
          textarea is the only textarea in it. The chip must reach the box the
@@ -2910,11 +2948,19 @@ tg="$(mrun "$GPAGE_M" 'phase=gmedge')"
   || fail "Esc on the note dialog closed the zoom dialog too, left the focus outside it, or wrote something: $tg"
 [[ "$tg" == *"TILEZOOM=light-desktop"* ]] \
   || fail "a click on a mark of the grid tile no longer opens the tile in the zoom dialog: $tg"
+[[ "$tg" == *"MULTI=[mark light-desktop 12.5,34.0 40.0x10.5] multi|"* ]] \
+  || fail "a second finger reshaped or ended the first finger's mark (or a third finger's cancel dropped it): $tg"
+[[ "$tg" == *"STRAY=0|"* ]] \
+  || fail "a second finger down during a mark drag left a stray drawing box behind: $tg"
+[[ "$tg" == *"MBOX=12.5%,40%|"* ]] \
+  || fail "a second finger's move reshaped the first finger's drawing box: $tg"
+[[ "$tg" == *"REPLACED=1/0"* ]] \
+  || fail "a primary press during an open mark drag left the old drawing box behind: $tg"
 
 # A round that RE-CAPTURES a tile is a new question for the row (marks are
 # answers, and the question-hash covers the tiles' image src): the unsent
 # marks of the old capture must not come back onto a different screenshot.
-# Same profile as gmedge, which left two marks on light-desktop.
+# Same profile as gmedge, which left three marks on light-desktop.
 PX="$PX" perl -0pe 's{(<figure data-tile="light-desktop"><img src=")[^"]*(" alt="with-data light-desktop")}{$1$ENV{PX}$2}' \
   "$TMP/gbody-marks.html" > "$TMP/gbody-marks-recap.html"
 bash "$WRAP" --title "gallery" --lang es --out "$GPAGE_M" < "$TMP/gbody-marks-recap.html" > "$TMP/gwrap-mr.log" 2>&1 \
@@ -3063,7 +3109,7 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-p.html" | sed -n 1p)"
 # this item's images, offers no compare/marks/rows, and the item stays a normal
 # question (not a gallery row). Layer: the browser, because the viewer is behaviour.
 mkdir -p "$TMP/shots"
-for n in 1 2 3 4; do python3 "$SKILL/tests/png_fixture.py" "$TMP/shots/s$n.png" 80 60; done
+for n in 1 2 3 4 5 6; do python3 "$SKILL/tests/png_fixture.py" "$TMP/shots/s$n.png" 80 60; done
 cat > "$TMP/shots/page.spec.md" <<'SPEC'
 ::: masthead {visual="none: a viewer probe, nothing to draw"}
 # Shots probe
@@ -3095,6 +3141,19 @@ b: dos
 - Primera — la primera
 - Segunda — la segunda
 :::
+
+::: item {#Q2 title="Otras capturas"}
+¿Y entre estas dos?
+
+::: figure {src="s5.png" alt="cinco"}
+:::
+
+::: figure {src="s6.png" alt="seis"}
+:::
+
+- Quinta — la quinta
+- Sexta — la sexta
+:::
 :::
 
 ::: notes {title="Notas generales"}
@@ -3102,6 +3161,9 @@ b: dos
 SPEC
 python3 "$SKILL/scripts/spec_build.py" "$TMP/shots/page.spec.md" > "$TMP/gbody-shots.html" 2> "$TMP/gshots-build.log" \
   || fail "the shots probe spec failed to build: $(head -3 "$TMP/gshots-build.log")"
+# The item carries a kit-marks channel of its own (the page may write one; the
+# checker accepts it), so a touch drag on the viewer image draws a mark (BL-649).
+perl -0pi -e 's{(<section class="consult-item" data-id="Q1".*?)(</section>)}{$1  <textarea class="kit-marks" hidden></textarea>\n$2}s' "$TMP/gbody-shots.html"
 cat >> "$TMP/gbody-shots.html" <<'HTML'
 <script>
 window.addEventListener('load', function () {
@@ -3171,6 +3233,18 @@ window.addEventListener('load', function () {
     touch('pointerdown', 200, 100); touch('pointerup', 100, 160); r.swD = tile();   // diagonal, mostly across: next
     touch('pointerdown', 100, 100); touch('pointerup', 150, 150); r.swE = tile();   // as far down as across: stays
     var mlayer = dlg.querySelector('.kit-marks-layer');
+    /* A touch mark 60 px across on the image is a mark, not a swipe: the
+     * viewer stays on its image (BL-649). */
+    var mr = mlayer.getBoundingClientRect();
+    var mtouch = function (type, x, y) {
+      mlayer.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 12, isPrimary: true, button: 0,
+        clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+    };
+    b = tile();
+    mtouch('pointerdown', 5, 5); mtouch('pointermove', 65, 15); mtouch('pointerup', 65, 15);
+    var mnote = document.querySelector('dialog.kit-mark-note');
+    r.swK = b + '~' + tile();
+    if (mnote && mnote.open) mnote.querySelector('button[data-act="cancel"]').click();
     r.taFit = getComputedStyle(mlayer).touchAction;
     dlg.querySelector('.kit-zoom-size').click(); r.native = dlg.classList.contains('native') ? 1 : 0;
     r.taNat = getComputedStyle(mlayer).touchAction;
@@ -3178,6 +3252,23 @@ window.addEventListener('load', function () {
     dlg.close();
     dlg.dispatchEvent(new Event('close'));   // the engine queues the real one; see GZOOM
     r.focus = item.contains(document.activeElement) ? 1 : 0;
+    /* Q2 has no kit-marks channel, so its marks layer is read-only, and a
+     * real finger's swipe starts on that layer (it covers the image), not on
+     * the body: it still walks (BL-649). */
+    var figs2 = [].slice.call(document.querySelectorAll('[data-id="Q2"] .gal.shots figure'));
+    if (figs2.length) {
+      figs2[0].click();
+      var ly2 = dlg.querySelector('.kit-marks-layer'), lr2 = ly2.getBoundingClientRect();
+      var ltouch = function (type, x) {
+        ly2.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 13, isPrimary: true, button: 0,
+          clientX: lr2.left + x, clientY: lr2.top + 10, bubbles: true, cancelable: true }));
+      };
+      b = tile();
+      ltouch('pointerdown', 75); ltouch('pointerup', 5);
+      r.swLy = b + '~' + tile() + '~' + (ly2.classList.contains('readonly') ? 'ro' : 'rw');
+      dlg.close();
+      dlg.dispatchEvent(new Event('close'));
+    }
     document.title = 'GSHOTS|' + JSON.stringify(r).replace(/[|<>]/g, ' ');
   } else document.title = 'GSHOTS|' + JSON.stringify(r);
 });
@@ -3222,6 +3313,10 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | sed -n 1p)"
   || fail "a finger put down while another was still held started a swipe of its own and walked the images: $tg"
 [[ "$tg" == *'"swX":"3 / 4~3 / 4"'* ]] \
   || fail "a mouse pointerup was measured from a touch's pointerdown and walked the images: $tg"
+[[ "$tg" == *'"swK":"4 / 4~4 / 4"'* ]] \
+  || fail "a touch mark drawn 60 px across on the viewer image walked the images: $tg"
+[[ "$tg" == *'"swLy":"1 / 2~2 / 2~ro"'* ]] \
+  || fail "a touch swipe that starts on the read-only marks layer (where a finger lands on the image) no longer walks the images: $tg"
 [[ "$tg" == *'"taFit":"none"'* && "$tg" == *'"taNat":"'* && "$tg" != *'"taNat":"none"'* ]] \
   || fail "the 1:1 capture cannot be panned by touch (or the fit-size swipe lost touch-action none): $tg"
 [[ "$tg" == *'"native":1'* && "$tg" == *'"focus":1'* ]] \

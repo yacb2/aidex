@@ -2338,7 +2338,10 @@
 
     var drag = null;
     mlayer.addEventListener('pointerdown', function (ev) {
-      if (ev.button !== 0 || !opener || pending) return;
+      /* Only a primary pointer draws: a second finger neither starts a box
+       * nor takes over the first one's (BL-649). */
+      if (ev.button !== 0 || !ev.isPrimary || !opener || pending) return;
+      if (drag) { drag.box.remove(); drag = null; }   /* a drag whose up never came */
       cancelDraft();
       var row = opener.closest('.consult-item');
       if (isDecided(row) || !marksBox(row) || dlg.getAttribute('data-compare') !== 'off') return;
@@ -2347,7 +2350,7 @@
       var box = document.createElement('div');
       box.className = 'kit-mark drawing';
       mlayer.appendChild(box);
-      drag = { x: ev.clientX, y: ev.clientY, box: box, row: row, tile: opener.getAttribute('data-tile') };
+      drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, box: box, row: row, tile: opener.getAttribute('data-tile') };
     });
 
     function rectOf(d, ev) {
@@ -2363,7 +2366,7 @@
     }
 
     mlayer.addEventListener('pointermove', function (ev) {
-      if (!drag) return;
+      if (!drag || ev.pointerId !== drag.id) return;
       var k = rectOf(drag, ev);
       if (!k) return;
       drag.box.style.left = k.x + '%';
@@ -2373,7 +2376,7 @@
     });
 
     mlayer.addEventListener('pointerup', function (ev) {
-      if (!drag) return;
+      if (!drag || ev.pointerId !== drag.id) return;
       var d = drag;
       drag = null;
       /* Under 4 px either way is a click: it opens the mark under it, if any,
@@ -2400,8 +2403,9 @@
       if (!k || k.w < 1 || k.h < 1) { d.box.remove(); return; }
       openNote({ row: d.row, index: null, mark: k, box: d.box });
     });
-    mlayer.addEventListener('pointercancel', function () {
-      if (drag) drag.box.remove();
+    mlayer.addEventListener('pointercancel', function (ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      drag.box.remove();
       drag = null;
     });
 
@@ -2411,8 +2415,9 @@
     var swipeFrom = null;
     body.addEventListener('pointerdown', function (ev) {
       /* Only a primary touch (no other touch held) starts one; any other
-       * finger down drops it, so a pinch never walks. */
-      swipeFrom = ev.isPrimary && ev.pointerType === 'touch' ? { x: ev.clientX, y: ev.clientY } : null;
+       * finger down drops it, so a pinch never walks. A press the mark layer
+       * took (its handler runs first) is a mark, never a swipe (BL-649). */
+      swipeFrom = ev.isPrimary && ev.pointerType === 'touch' && !drag ? { x: ev.clientX, y: ev.clientY } : null;
     });
     body.addEventListener('pointercancel', function () { swipeFrom = null; });
     body.addEventListener('pointerup', function (ev) {
