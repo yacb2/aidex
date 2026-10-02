@@ -57,15 +57,22 @@ def find_item(root, bl_id):
 
 
 def git_times(root, shas):
+    # BL-640: in a split workspace the hashes live in a sub-repo (backend/, frontend/),
+    # not in the root that holds the items; look where close-item.sh looks — the root,
+    # then every immediate subdirectory that is a git checkout
+    repos = [root] + [os.path.join(root, d) for d in sorted(os.listdir(root))
+                      if os.path.exists(os.path.join(root, d, '.git'))]
     times = []
     for sha in shas:
-        try:
-            out = subprocess.run(['git', 'log', '-1', '--format=%ct', sha], cwd=root,
-                                 capture_output=True, text=True, timeout=10)
+        for repo in repos:
+            try:
+                out = subprocess.run(['git', 'log', '-1', '--format=%ct', sha], cwd=repo,
+                                     capture_output=True, text=True, timeout=10)
+            except (OSError, subprocess.SubprocessError):
+                continue
             if out.returncode == 0 and out.stdout.strip():
                 times.append(int(out.stdout.strip()))
-        except (OSError, subprocess.SubprocessError):
-            pass
+                break
     return times
 
 
@@ -103,7 +110,8 @@ def render(root, wl_path):
             closed.append({'id': bl, 'title': it['fm'].get('title', ''), 'commits': shas, 'rows': rows,
                            'surface': it['fm'].get('surface', 'internal'), 'estimate': it['fm'].get('estimate', '-'),
                            'emergent': '<!-- emergent -->' in ln})
-            all_shas += shas
+            # one merge sha cited by several items is one commit (BL-646 closes post-merge)
+            all_shas += [s for s in shas if s not in all_shas]
         elif it['state'] == 'archived':
             skipped.append((bl, f'closed as {st}'))
         elif it['fm'].get('awaiting'):
@@ -158,7 +166,7 @@ def render(root, wl_path):
 
     times = git_times(root, all_shas)
     wall = (max(times) - min(times)) if len(times) >= 2 else None
-    share = (100.0 * gate_secs / wall) if wall else None
+    share = (100.0 * gate_secs / wall) if wall and runs else None
 
     today = datetime.now().strftime('%Y-%m-%d')
     out = []

@@ -292,6 +292,8 @@ page proj/.context/reports/es_ES es_ES '<main><p>Informe.</p></main>'
 passes $C proj/.context/reports/es_ES "lang=es_ES under a language: es profile passes"
 page proj/.context/proofs/human-verification en '<main><p>Record.</p></main>'
 passes $C proj/.context/proofs/human-verification "human-verification.* stays exempt (owner question)"
+printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40" role="img" aria-label="Una figura"><text x="1" y="20">Una figura</text></svg>\n' > "$TMP/proj/.context/reports/bare-svg.html"
+passes $C proj/.context/reports/bare-svg "a bare svg figure (no <html>, no lang to carry) under a language: es profile passes (BL-657)"
 page noprof en '<main><p>Report.</p></main>'
 passes $C noprof "a page with no project profile is not judged"
 
