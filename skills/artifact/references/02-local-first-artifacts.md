@@ -1392,7 +1392,7 @@ messages and the tests; § 8.4 is the block shape.
    what the user would see. `check-artifact.sh` warns (`consult-lead-id`) when the first
    sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an
    HTTP verb, "fila N" or "gate N"; only that first sentence counts, and all of it is
-   checked, not only the text before the id; an id that is the `data-id` of another item on
+   checked, not only the text before the id; a product name with a number ("Los Simpson T8") is not an id, so a bare letter plus digits counts only after "decisión/pregunta/fila" (or the English words) or as a Q/M095 prefix, never right after a capitalized word; an id that is the `data-id` of another item on
    the same page ("your answer to Q2") is a cross-reference and does not warn; a `Fuente:` line
    never warns, and the warning is cleared by the rewrite, not by a waiver.
 
@@ -1821,7 +1821,7 @@ on a page nobody is editing is noise no one can clear.
 | `consult-independent` | a checkbox group whose option labels each name a distinct tracked id (`BL-NNN`, a dated plan slug) — several decisions drawn as one item. Each is its own two-option radio item (BL-375). Cleared by the rewrite |
 | `consult-rec` | a `data-label` spells "(recommended)" / "(recomendada)" — the marker then travels in the pasted reply and is invisible on the page. Use `data-recommended` |
 | `consult-facts` | a paragraph in a block context or an item body carries four or more `<code>` tokens or semicolon-separated clauses — facts written as prose (§8.4, BL-269/BL-270). Cleared by the rewrite, never by a waiver |
-| `consult-lead-id` | the first sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an HTTP verb, "fila N" or "gate N" (§8.4, BL-503). The lead is the product situation; ids go on a `Fuente:` line. Cleared by the rewrite, never by a waiver |
+| `consult-lead-id` | the first sentence of an item's lead paragraph cites a BL-/M095-style id, a backticked path, an HTTP verb, "fila N" or "gate N" (§8.4, BL-503); a product name with a number ("Los Simpson T8") is not an id. The lead is the product situation; ids go on a `Fuente:` line. Cleared by the rewrite, never by a waiver |
 | `consult-order` | a block's last item is followed, before the block ends, by a figure, img, svg, video, table, canvas or a `<p>@@VIDEO …@@</p>` marker (a project post-build step turns those into `<video>`) — the answer box renders above the material it asks about (§8.4, BL-463). Cleared by moving the evidence above its item |
 | `svg-text` | two inline-SVG labels whose estimated boxes intersect, a label that leaves its `viewBox`, or a label wider than the rect it is centred in (BL-310). A static estimate, ±5 %; see § Figures below for the browser check that settles it. Runs on every page, read or consultation |
 | `svg-scope` | a bare element selector inside an embedded `<style>` — it is a stylesheet in the page, so it paints every matching node in the document (BL-330). Cleared by scoping it to the figure's id, never by a waiver |
