@@ -2645,12 +2645,15 @@ def check_file(path):
     # --- self: one file, no network -------------------------------------------
     # BL-647: a commented-out example loads nothing, and a /* */ comment in a
     # <style> is not CSS. skeleton.html carries both as examples. HTML comments
-    # go only in markup context: script/style/textarea/title bodies and whole
+    # go only in markup context: raw-text bodies (script, style, textarea, title,
+    # xmp, noembed, noframes, noscript, iframe) and whole
     # tags are kept, so a "<!--" inside a string or an attribute value cannot
-    # swallow the real loads after it. Known limit, accepted: content:"/*"
+    # swallow the real loads after it. A comment ends where the HTML parser ends
+    # it: "<!-->", "<!--->" and "--!>" close it too, else the regex would run on
+    # to the next "-->" past a live load. Known limit, accepted: content:"/*"
     # inside a <style> can still swallow the rules that follow it.
     sflat = flatten(re.sub(
-        r'(<(script|style|textarea|title)\b[^>]*>.*?</\2\s*>)|(<[a-z][^>]*>)|<!--.*?-->',
+        r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)|(<[a-z][^>]*>)|<!--(?:-?>|.*?--!?>)',
         lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ',
         text, flags=re.S | re.I))
     sflat = re.sub(

@@ -191,8 +191,16 @@ out="$(bash "$CHECK" "$TMP/localnew.html" 2>&1)"
 mk hidescript.html "$HEAD5<script>var s=\"<!--\";</script><img src=\"https://x/a.png\" alt=\"a\"><!-- c -->"
 mk hidetextarea.html "$HEAD5<textarea><!-- </textarea><iframe src=\"https://x\"></iframe><!-- c -->"
 mk hideattr.html "$HEAD5<img alt=\"<!--\" src=\"https://x/a.png\"><!-- c -->"
+# Security review: the HTML parser ends a comment at "<!-->", "<!--->" and "--!>";
+# a regex that waits for the next "-->" hides the live load in between.
+mk hideempty.html "$HEAD5<!--><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+mk hidedash.html "$HEAD5<!---><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+mk hidebang.html "$HEAD5<!-- a --!><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+for e in xmp noembed noframes noscript iframe; do
+  mk "hide$e.html" "$HEAD5<$e><!--</$e><img src=\"https://x/a.png\" alt=\"a\"><p>e</p><!-- c -->"
+done
 mk iconlabel.html "$HEAD5<link rel=preload href=https://x/icon.png>"
-for f in hidescript hidetextarea hideattr; do
+for f in hidescript hidetextarea hideattr hideempty hidedash hidebang hidexmp hidenoembed hidenoframes hidenoscript hideiframe; do
   out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
   if [[ "$out" == *"[self]"* ]]; then ok "catches self ($f.html)"; else bad "a comment opener hid a remote load in $f.html: $out"; fi
 done
