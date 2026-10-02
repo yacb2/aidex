@@ -49,6 +49,8 @@ import struct
 import sys
 import urllib.parse
 
+import md_body
+
 LANGS = ("es", "en")
 
 # The two tiles of a row, in reading order. English tokens on purpose: they are
@@ -457,7 +459,8 @@ def check_row(row, variants, n, alts=None, require_look=False):
                     "question set or it was settled, not both" % cell)
             out["dropped"] = gone.strip()
         elif "decided" in row:
-            if not isinstance(row["decided"], str) or not row["decided"].strip():
+            if not isinstance(row["decided"], str) \
+                    or not md_body.PLAIN.sub("", row["decided"]).strip():
                 die("row '%s': 'decided' must be a non-empty string (the "
                     "verdict)" % cell)
             out["decided"] = row["decided"].strip()
@@ -504,7 +507,9 @@ def check_row(row, variants, n, alts=None, require_look=False):
                 % (cell, layout, ", ".join(LAYOUTS)))
         out["layout"] = layout
     if "decided" in row:
-        if not isinstance(row["decided"], str) or not row["decided"].strip():
+        # Blank in the plain form the fold shows (BL-545): "**" is no verdict.
+        if not isinstance(row["decided"], str) \
+                or not md_body.PLAIN.sub("", row["decided"]).strip():
             die("row '%s': 'decided' must be a non-empty string (the "
                 "verdict)" % cell)
         out["decided"] = row["decided"].strip()

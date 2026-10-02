@@ -399,8 +399,8 @@ def decide(spec_text, item_id, verdict):
                         % (item_id, exc.line, exc.message))
     # Compared in the plain form the page's data-label carries (and the
     # reader's reply with it): `Use uv` is the option written `Use **uv**`.
-    plain = [spec_build.PLAIN.sub("", c) for c in chosen]
-    if chosen and (spec_build.PLAIN.sub("", verdict.strip())
+    plain = [spec_build.PLAIN.sub("", c).strip() for c in chosen]
+    if chosen and (spec_build.PLAIN.sub("", verdict).strip()
                    not in plain + [", ".join(plain)]):
         raise VerbError(
             "#%s carries {chosen} on %s, so deciding %r would leave the page "
@@ -409,9 +409,9 @@ def decide(spec_text, item_id, verdict):
                                          verdict.strip()))
     # The same verdict in another spelling (`Dos` for a recorded `**Dos**`, or
     # back) is already recorded: rewriting it would break idempotence and reset
-    # the round stamp, which compares the raw decided text.
-    if (spec_build.PLAIN.sub("", node.attrs.get("decided", "").strip())
-            == spec_build.PLAIN.sub("", verdict.strip())):
+    # the round stamp (wrap_report compares this plain form too since BL-545).
+    if (spec_build.PLAIN.sub("", node.attrs.get("decided", "")).strip()
+            == spec_build.PLAIN.sub("", verdict).strip()):
         return spec_text
     lines = _split(spec_text)
     if not _set_attr(lines, node, "decided", verdict):

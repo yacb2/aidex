@@ -111,13 +111,8 @@ RECOMMENDED = "{recommended}"
 CHOSEN = "{chosen}"       # BL-496: a decided item's winning option, checked, not recommended
 REC_MARK = re.compile(r"\s*(?:" + re.escape(RECOMMENDED) + "|" + re.escape(CHOSEN)
                       + r")\s*")
-# What `data-label` carries is TEXT: the composer copies that attribute into the
-# reply, so a backtick or a `**` written for the page's own rendering would
-# travel into the paste as punctuation the reader never wrote. Backticks and
-# asterisks only — `_` is stripped by NO rule here, because `md_body` italicises
-# it only in pairs and a label naming `a_file.py` must not come back as
-# `afile.py`.
-PLAIN = re.compile(r"[`*]")
+# The plain form of a label or verdict: one definition, in md_body (BL-545).
+PLAIN = md_body.PLAIN
 
 # The two inline types. They are NOT fences: a one-word span in the middle of a
 # sentence cannot be a block, and a fence for it would only be a way to get it
@@ -812,6 +807,9 @@ def emit_item(node, ctx):
     # decided-item-without-verdict). So the flag checks the option the author
     # recommended; any other value is the verdict line itself.
     decided = a.get("decided", "").strip()
+    # Blank in the plain form the fold shows (BL-545): `decided="**"` is `decided=""`.
+    if not PLAIN.sub("", decided).strip():
+        decided = ""
     flag, check_recommended = "", False
     # `dropped="<reason>"`: the question left the set (BL-516.4). The item and
     # its id stay on the page, folded and asked of no one, with the reason as
@@ -834,12 +832,13 @@ def emit_item(node, ctx):
             node.line, "`item` marks more than one option {chosen} on a "
             "select=one item: it has one winner; keep the marker on it (only "
             "select=many can choose several)")
-    if chosen_n and not a.get("decided", "").strip():
+    if chosen_n and not PLAIN.sub("", a.get("decided", "")).strip():
         raise SpecBuildError(
             node.line, "`item` marks an option {chosen} but is not decided: "
             "{chosen} is the winner of a decided item (decided=yes), so add "
             "decided or drop the marker")
-    if decided.lower() in contract_defects.NOT_A_VERDICT:
+    # Read in the plain form the fold shows (BL-545): `**yes**` folds to "yes".
+    if PLAIN.sub("", decided).strip().lower() in contract_defects.NOT_A_VERDICT:
         flag, check_recommended = " data-decided", True
         recommended = sum(1 for t in opts if _option(t)[2])
         if not recommended and not chosen_n:

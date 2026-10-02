@@ -63,14 +63,15 @@ ui-string-language
 decided-item-without-verdict
     A `.consult-item` carrying `data-decided` must carry the verdict its fold
     shows, read the way composer.js decidedSummary/decidedLine read it: a
-    non-blank `data-decided` value, or anywhere in its subtree (nested items
+    `data-decided` value non-blank once its [`*] markup is stripped (md_body.PLAIN,
+    as the fold strips it), or anywhere in its subtree (nested items
     included, as querySelectorAll walks them) a `checked` radio/checkbox whose
     label (data-label, else value, else "on") is non-blank, or an explicitly
     `selected` <option> whose value (value attribute, else its text) is
     non-empty — a selected placeholder `value=""` is no verdict. Two rules are
     deliberately STRICTER than the runtime: a select's implicit first option
     is not a verdict (the source does not say it was chosen), and a
-    `data-decided` of "yes"/"true"/"1" (any case) is not one either — the fold
+    `data-decided` of "yes"/"true"/"1" (any case, any [`*] markup) is not one either — the fold
     would show a bare "yes". A verdict only in the item's prose is hidden by
     the fold.
 
@@ -157,6 +158,10 @@ import re
 import sys
 import unicodedata
 from html.parser import HTMLParser
+
+# Loaders by file path (tests, the usage-retro reader) need not put dash/ on the path.
+sys.path.insert(0, __file__.rsplit("/", 1)[0])
+import md_body                                              # noqa: E402
 
 # --- a small tree ------------------------------------------------------------
 
@@ -603,7 +608,8 @@ NOT_A_VERDICT = ("yes", "true", "1")      # stricter than the runtime, on purpos
 
 
 def _has_verdict(item):
-    v = (item.attrs.get("data-decided") or "").strip()
+    # The fold strips [`*] before it shows the verdict (BL-545): read it the same way.
+    v = md_body.PLAIN.sub("", item.attrs.get("data-decided") or "").strip()
     if v:
         return v.lower() not in NOT_A_VERDICT
     for d in item.walk():                     # composer.js:346, the whole subtree
