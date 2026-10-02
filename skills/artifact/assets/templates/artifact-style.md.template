@@ -63,6 +63,12 @@ stack from them, so changing values restyles the whole system without touching
 a single rule. And keep worked examples OUT of this section: whatever sits in
 the first fence here becomes the project's real palette.
 
+## Viewports
+
+Optional. Declare `viewports: desktop` on its own line for a desktop-only project (an
+internal POC): the visual review then scores rubric line 5 (390 px legibility) as a full
+point marked `n/a (desktop-only profile)`. Leave it out and nothing changes.
+
 ## Language
 
 - language: en
