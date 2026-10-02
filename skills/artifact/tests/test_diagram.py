@@ -1602,6 +1602,18 @@ try:
     check("...and across processes with different PYTHONHASHSEED",
           outs[0] == outs[1] == outs[2] and outs[0].decode("utf-8") == a,
           "%d distinct outputs" % len(set(outs)))
+    # Asked of the built body, before any wrapping, and through check_artifact's
+    # own item recogniser: the wrapped page inlines the kit, whose comments say
+    # "data-id" in prose (BL-650, BL-577), and a bare substring test on it went
+    # red with no figure wearing one (BL-651). On the wrapped page the cell was
+    # also unreachable for the real defect: `--check` refuses such a page and
+    # never writes it.
+    items = check_artifact.consult_items(a)
+    check("a diagram is never given a data-id",
+          not items,
+          "data-id on a figure is how check_artifact recognises a consultation "
+          "ITEM: the page then failed eight consult rules with no question in "
+          "it; items found: %r" % (items,))
 
     print()
     print("== the fixture page, end to end, through check-artifact ==")
@@ -1622,10 +1634,6 @@ try:
     check("...and its ids survive byte-exactly",
           '<figure id="d1">' in page and '<figure id="d2">' in page
           and '<figure id="d3">' in page)
-    check("a diagram is never given a data-id",
-          'data-id' not in page,
-          "data-id on a figure is how check_artifact recognises a consultation "
-          "ITEM: the page then failed eight consult rules with no question in it")
     said = r.stdout + r.stderr
     # The one warning this page carries is the documented "nothing could be
     # measured" note: `currentColor` is what the canon prescribes for figure
