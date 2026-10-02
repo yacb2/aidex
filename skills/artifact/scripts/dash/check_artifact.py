@@ -2249,14 +2249,22 @@ FIGURE_TALL_BLOCK = re.compile(r'<figure\b([^>]*)>(.*?)</figure>', re.S | re.I)
 
 
 def figure_tall_findings(text):
-    """Messages for every <figure> whose root <svg> (its first; a nested svg is
+    """Messages for every <figure> (or a bare-svg file) whose root <svg> (its first; a nested svg is
     part of the drawing, not the figure) has a viewBox taller than
     FIGURE_TALL."""
     out = []
     body = strip_html_comments(strip_script_style(text))
-    for n, f in enumerate(FIGURE_TALL_BLOCK.finditer(body), 1):
-        ident = _svg_attrs(f.group(1)).get('id')
-        m = re.search(r'<svg\b([^>]*)>', f.group(2), re.I)
+    blocks = [(f.group(1), f.group(2))
+              for f in FIGURE_TALL_BLOCK.finditer(body)]
+    # BL-620: a bare .svg file (root element <svg>, optional xml prolog or
+    # doctype before it) is one figure with no wrapper, so the drawer's own
+    # gate run sees the verdict too.
+    if not blocks and re.match(r'\ufeff?\s*(?:<\?xml\b[^>]*>\s*|<!doctype\b[^>]*>\s*)*<svg\b',
+                               body, re.I):
+        blocks = [('', body)]
+    for n, (fattrs, inner) in enumerate(blocks, 1):
+        ident = _svg_attrs(fattrs).get('id')
+        m = re.search(r'<svg\b([^>]*)>', inner, re.I)
         if not m:
             continue
         vb = _svg_attrs(m.group(1)).get('viewbox') or ''

@@ -1069,6 +1069,23 @@ rc="$(run "$TMP/siete.html")"
 grep -q "WARN \[figure-tall\].*#siete:.*fewer boxes per column, or a wider layout" "$TMP/out" \
   || fail "10c3. a 7-box diagram (508 units) did not warn with advice that fits an engine figure: $(cat "$TMP/out")"
 
+# BL-620: the same verdict on a bare .svg file (root element <svg>), so the
+# figure drawer's own gate run sees it. 1200x820 and 960x508 warn, 960x500 does not.
+for dims in "1200 820" "960 508" "960 500"; do
+  set -- $dims
+  printf '<?xml version="1.0"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %s %s" role="img" aria-label="bare"><rect x="1" y="1" width="9" height="9"/></svg>\n' "$1" "$2" > "$TMP/bare-$2.svg"
+done
+# A UTF-8 BOM before the prolog is a valid deliverable (the embedder accepts it).
+{ printf '\xef\xbb\xbf'; cat "$TMP/bare-820.svg"; } > "$TMP/bare-bom.svg"
+grep -q "WARN \[figure-tall\].*820 units tall" <(bash "$CHECK" "$TMP/bare-bom.svg" 2>&1) \
+  || fail "10c3. BL-620: a BOM-prefixed bare 1200x820 svg file got no figure-tall verdict"
+grep -q "WARN \[figure-tall\].*820 units tall" <(bash "$CHECK" "$TMP/bare-820.svg" 2>&1) \
+  || fail "10c3. BL-620: a bare 1200x820 svg file got no figure-tall verdict"
+grep -q "WARN \[figure-tall\].*508 units tall" <(bash "$CHECK" "$TMP/bare-508.svg" 2>&1) \
+  || fail "10c3. BL-620: a bare 960x508 svg file got no figure-tall verdict"
+grep -q "WARN \[figure-tall\]" <(bash "$CHECK" "$TMP/bare-500.svg" 2>&1) \
+  && fail "10c3. BL-620: a bare svg at the 500-unit cap was reported"
+
 # ---- 10d. BL-330: an embedded <style> is a stylesheet in the PAGE, and the
 # text nobody measured. Reported by the owner on a bench page: "los textos que
 # están en un azul no se leen prácticamente". One figure's own

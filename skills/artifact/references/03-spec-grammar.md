@@ -775,7 +775,7 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   at 1280). The drawing itself stays byte for byte; a root with no viewBox, or one that
   is not four numbers with a positive width, gets no cap. So author at display size, with
   text at about 12-14 units. check-artifact WARNs (`figure-tall`) on any figure whose
-  root viewBox is over 500 units tall.
+  root viewBox is over 500 units tall. The same check runs on a bare `.svg` file (root element `<svg>`) given to check-artifact.sh, so a figure drawer's own gate run shows it.
 
 An `.svg` is checked before it is inlined, by `check_artifact.svg_embed_sanitize` —
 the rules live there and the builder keeps no copy. It is an **allowlist over a real
