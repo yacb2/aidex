@@ -80,7 +80,9 @@ THEME_WORDS = {"es": {"light": "tema claro", "dark": "tema oscuro"},
 # `alternatives` is N labelled variants of one cell (a skeleton review): the
 # labels come from the rows document, so nothing says "before" of a state that
 # has no before (BL-516).
-KINDS = ("review", "unrequested", "sample", "alternatives")
+# `states` is N locator-scoped captures of ONE component, each ticked or not:
+# one item, one checkbox per state (BL-659).
+KINDS = ("review", "unrequested", "sample", "alternatives", "states")
 
 VERDICTS = {
     "es": [("Aprobada", "Aprobada: lo propuesto queda como referencia"),
@@ -109,7 +111,9 @@ INTRO = {
            "alt": "Elige una variante en cada fila y, si quieres matizar, di "
                   "por qué en las notas de esa fila.",
            "na": "Un estado que no se puede mostrar explica el motivo en su "
-                 "fila; marca tu respuesta igual."},
+                 "fila; marca tu respuesta igual.",
+           "states": "Marca cada estado que apruebas y, para el resto, di qué "
+                     "cambiar en las notas."},
     "en": {"ask": "Mark your answer on each row and, if it needs changes, say "
                   "which in that row's notes.",
            "new": "Where there is a single capture, the screen is new and "
@@ -121,7 +125,9 @@ INTRO = {
            "alt": "Pick a variant on each row and, if you want to qualify it, "
                   "say why in that row's notes.",
            "na": "A state that cannot be shown gives the reason on its row; "
-                 "mark your answer anyway."},
+                 "mark your answer anyway.",
+           "states": "Tick each state you approve and, for the rest, say what "
+                     "to change in the notes."},
 }
 
 # Verdicts past this many stay behind a <summary>: the row asks verdict + note.
@@ -574,6 +580,45 @@ def check_row(row, variants, n, alts=None, require_look=False):
                 "alternative" % (cell, extra[0]))
         out["captures"] = caps
         return out
+    if kind == "states":
+        for k in ("before", "after", "highlight", "highlight_before", "layout",
+                  "noBefore", "also", "captures"):
+            if k in row:
+                die("row '%s': a states row takes no '%s' — its captures are "
+                    "the 'states' list" % (cell, k))
+        sts = row.get("states")
+        if not isinstance(sts, list) or len(sts) < 2:
+            die("row '%s': a states row needs 'states', a list of at least two "
+                "{\"id\": slug, \"label\": text, \"capture\": path}" % cell)
+        reserved = {x.casefold() for x in OTHER}
+        ids, labels = set(), set()
+        for st in sts:
+            if not isinstance(st, dict) or not isinstance(st.get("id"), str) \
+                    or not SLUG.match(st["id"]) \
+                    or not isinstance(st.get("label"), str) \
+                    or not st["label"].strip() or "capture" not in st:
+                die("row '%s': every state is {\"id\": slug, \"label\": text, "
+                    "\"capture\": path}, not %r" % (cell, st))
+            label = st["label"].strip()
+            if st["id"] in ids:
+                die("row '%s' names the state id '%s' twice" % (cell, st["id"]))
+            if label.casefold() in labels:
+                die("row '%s': the label %r is used by two states (labels are "
+                    "compared case-insensitively)" % (cell, label))
+            if label.casefold() in reserved or MARKER_LABEL.match(label):
+                die("row '%s': state label %r is reserved (the Other choice "
+                    "or a [marker] the reply parser reads as an ask)"
+                    % (cell, label))
+            if st["id"] in TILES:
+                die("row '%s': state id '%s' is a before/after tile name — "
+                    "the composer's compare keys on it, so name the state "
+                    "something else" % (cell, st["id"]))
+            check_path(st["capture"], cell, st["id"])
+            ids.add(st["id"])
+            labels.add(label.casefold())
+        out["states"] = [{"id": st["id"], "label": st["label"].strip(),
+                          "capture": st["capture"]} for st in sts]
+        return out
     # `also`: the other variants where an unrequested cell changed too. One
     # row per unrequested change, so the owner answers it once.
     if "also" in row:
@@ -747,6 +792,8 @@ def group_intro(doc, variants, alts, require_look, lang):
             shapes.add("alt")
         elif r["kind"] == "sample":
             shapes.add("sample")
+        elif r["kind"] == "states":
+            shapes.add("states")
         else:
             shapes.add("ask")
             if r.get("before") is None:
@@ -757,7 +804,8 @@ def group_intro(doc, variants, alts, require_look, lang):
         shapes.add("new_mixed")
         shapes.discard("new")
     return " ".join(INTRO[lang][k]
-                    for k in ("ask", "new", "new_mixed", "alt", "sample", "na")
+                    for k in ("ask", "new", "new_mixed", "alt", "states",
+                              "sample", "na")
                     if k in shapes)
 
 
@@ -864,9 +912,13 @@ def render(doc, root, group_id, group_title, lang, page=None,
             continue
         # A new screen shows one capture, so the row narrows the block's
         # matrix to that tile; the checker holds it to exactly that.
-        narrow = '' if kind == "alternatives" or before is not None \
+        narrow = '' if kind in ("alternatives", "states") \
+            or before is not None \
             else ' data-tiles="after"'
         settled = ' data-decided="%s"' % e(r["decided"]) if "decided" in r else ''
+        if kind == "states":
+            narrow = ' data-states="%s"' % e(" ".join(
+                st["id"] for st in r["states"]))
         if "answer" in r:
             settled += ' data-answer="%s"' % e(r["answer"])
         add('  <section class="consult-item consult-gallery" data-id="%s"'
@@ -891,13 +943,17 @@ def render(doc, root, group_id, group_title, lang, page=None,
         # are never cropped, and the owner enlarges them anyway (owner
         # 2026-10-01, reversing BL-589's stacked default); `"layout": "stacked"`
         # puts before above after at the column's full width.
-        pair = kind != "alternatives" and before is not None
+        pair = kind not in ("alternatives", "states") and before is not None
         layout = r.get("layout") or "side"
         add('    <div class="gal%s">' % (" stacked" if layout == "stacked" and pair
                                          else ""))
         regions = r.get("highlight")
         alt = "%s · %%s" % heading
-        if kind == "alternatives":
+        if kind == "states":
+            for st in r["states"]:
+                add(figure(root, st["capture"], st["id"], st["label"], cell,
+                           alt % st["label"], assets, copies))
+        elif kind == "alternatives":
             for a in alts:
                 add(figure(root, r["captures"][a["id"]], a["id"], a["label"],
                            cell, alt % a["label"], assets, copies, regions))
@@ -920,7 +976,14 @@ def render(doc, root, group_id, group_title, lang, page=None,
                 % e(r["decided_note"]))
         if "answer" in r:
             add('    <div class="callout"><p>%s</p></div>' % e(r["answer"]))
-        if kind == "alternatives":
+        if kind == "states":
+            add('    <div class="opts">')
+            for st in r["states"]:
+                add('      <label><input type="checkbox" name="%s-%s" '
+                    'data-label="%s"><span>%s</span></label>'
+                    % (e(ident), e(st["id"]), e(st["label"]), e(st["label"])))
+            add('    </div>')
+        elif kind == "alternatives":
             choices = [(a["label"], a["label"]) for a in alts]
             choices.append(NONE_OF_THEM[lang])
             # Peer choices are all visible; only "none of them" collapses.

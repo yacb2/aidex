@@ -40,6 +40,7 @@ Usage: save-reply.sh <page.html> [<reply-file>|-]
 import contextlib
 import datetime
 import hashlib
+import html
 import io
 import os
 import re
@@ -104,7 +105,46 @@ def _drop_items(chunk, ordinary):
     return "".join(out)
 
 
-def gallery_duties_for(reply_text, ordinary=()):
+def _states_owe(row):
+    """A states row owes changes when some declared state is ticked and some is
+    not (partial approval: the rest needs changes), or when none is ticked and
+    notes say why. All ticked owes nothing, even with notes; none ticked and no
+    notes is a blank row, which owes nothing exactly like a review row with no
+    verdict. Without the page's declared states (`id` absent) the ticked labels
+    alone cannot say what is unticked, so only the notes count."""
+    ticked = sum(1 for s in row["states"] if s["approved"])
+    if row["states"] and "id" in row["states"][0]:
+        if 0 < ticked < len(row["states"]):
+            return True
+        return ticked == 0 and bool(row["notes"].strip())
+    return bool(row["notes"].strip())
+
+
+_STATE_BOX = re.compile(r'<input\b[^>]*type="checkbox"[^>]*\bname="([^"]*)"'
+                        r'[^>]*\bdata-label="([^"]*)"')
+
+
+def states_in_page(page_text):
+    """{states row id: [{id, label}]} read from the page's own states items, so
+    a reply is parsed against the labels the reader was shown."""
+    out = {}
+    text = ca.strip_html_comments(page_text)
+    for m in ca.ITEM_OPEN.finditer(text):
+        if ca.GROUP_CLASS.search(m.group(0)):
+            continue                  # a block is a context, never a row
+        ident = html.unescape(next(g for g in m.groups()[1:] if g is not None))
+        if not ident.endswith("-states"):
+            continue
+        body = ca.strip_script_style(ca._subtree(text, m.group(1), m.end()))
+        boxes = [{"id": html.unescape(b.group(1))[len(ident) + 1:],
+                  "label": html.unescape(b.group(2))}
+                 for b in _STATE_BOX.finditer(body)]
+        if boxes:
+            out[ident] = boxes
+    return out
+
+
+def gallery_duties_for(reply_text, ordinary=(), states=None):
     """[(id, tag, duty text)] for gallery rows (gallery_reply's parser) whose
     answer is anything but Approved, or that carry region marks even when
     approved (BL-632). An approved row with no mark owes nothing. Each saved
@@ -120,7 +160,8 @@ def gallery_duties_for(reply_text, ordinary=()):
         try:
             with contextlib.redirect_stderr(err):
                 rows = gallery_reply.parse(_drop_items(chunk, ordinary),
-                                           lenient=True)["rows"]
+                                           lenient=True,
+                                           states=states)["rows"]
         except SystemExit:
             msg = err.getvalue().strip().replace("gallery-reply: ", "", 1)
             if msg not in unreadable:
@@ -132,6 +173,8 @@ def gallery_duties_for(reply_text, ordinary=()):
                 duties.append((row["id"], "needs-changes", GALLERY_NEEDS_DUTY))
             elif row["verdict"] in OWING_VERDICTS:
                 duties.append((row["id"], "other-verdict", GALLERY_OTHER_DUTY))
+            elif row["kind"] == "states" and _states_owe(row):
+                duties.append((row["id"], "needs-changes", GALLERY_NEEDS_DUTY))
             if row["marks"]:
                 duties.append((row["id"], "region-marks", GALLERY_MARK_DUTY))
             by_id.pop(row["id"], None)
@@ -144,7 +187,7 @@ def gallery_duties_for(reply_text, ordinary=()):
     return out
 
 
-def duties_for(reply_text, ordinary=()):
+def duties_for(reply_text, ordinary=(), states=None):
     """[(id, marker, duty text)]. 3+ REAL asks (excluding `[page-defect]` and
     `[not-now]`, review finding 2) collapse to a single STACKED_DUTY row
     instead of one per marker — that is the duty: rewrite the item, not each
@@ -166,7 +209,7 @@ def duties_for(reply_text, ordinary=()):
                 duty = ca.MARKER_DUTIES.get(m)
                 if duty is not None:
                     out.append((ident, m, duty))
-    return out + gallery_duties_for(reply_text, ordinary)
+    return out + gallery_duties_for(reply_text, ordinary, states)
 
 
 def save_reply(page_path, reply_text):
@@ -192,6 +235,7 @@ def save_reply(page_path, reply_text):
     with open(page_path, encoding="utf-8", errors="replace") as fh:
         page_text = fh.read()
     ordinary = ca.ordinary_item_ids(page_text)
+    states = states_in_page(page_text)
     if had_previous:
         page_fp = _fingerprint(page_path)
         with open(reply_path, encoding="utf-8", errors="replace") as fh:
@@ -209,12 +253,12 @@ def save_reply(page_path, reply_text):
                      f"\n\n{reply_text}")
         with open(reply_path, encoding="utf-8") as fh:
             combined = fh.read()
-        return duties_for(combined, ordinary), reply_path, answered_path, appended
+        return duties_for(combined, ordinary, states), reply_path, answered_path, appended
     with open(reply_path, "w", encoding="utf-8") as fh:
         fh.write(reply_text)
     with open(answered_path, "w", encoding="utf-8") as fh:
         fh.write(page_text)
-    return duties_for(reply_text, ordinary), reply_path, answered_path, False
+    return duties_for(reply_text, ordinary, states), reply_path, answered_path, False
 
 
 def main(argv):

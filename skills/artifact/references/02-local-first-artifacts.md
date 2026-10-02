@@ -1709,8 +1709,8 @@ what `gallery-reply.sh` keys on — even when the page shows the row's human `ti
 [mark after 1.7,0.2 33.0x5.6] el breadcrumb se parte bajo el título
 ```
 
-`gallery-reply.sh [--rows <rows.json>]... <reply.md>` (`--rows` is required when the reply holds an alternatives row) turns the copied block into
-`{rows: [{id, gallery, cell, variant, kind, verdict, asks, provisional, notes, marks}], other}`
+`gallery-reply.sh [--rows <rows.json>]... <reply.md>` (`--rows` is required when the reply holds an alternatives or a `states` row) turns the copied block into
+`{rows: [{id, gallery, cell, variant, kind, verdict, asks, provisional, notes, marks}], other}` (a `states` row also carries `states: [{id, label, approved}]`, one per declared state, and takes its marks on its own state ids, whatever `--tiles` says)
 (`kind` read off the id suffix, `variant` "" on a not-applicable row; a row pasted from an old
 light/dark page, id `<gallery>-<cell>`, is refused on its line). A mark's
 tile is any one-token name — the matrix is the page's, and the paste does not carry it —

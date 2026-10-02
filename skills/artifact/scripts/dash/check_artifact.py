@@ -705,6 +705,27 @@ def gallery_findings(text):
                        f"counts as a cell no row can show, so a missing tile "
                        f"passes as present")
             continue
+        # A states row (BL-659) is N captures of one component: the item names
+        # them in `data-states`, and THAT list is its matrix, judged as
+        # strictly as the block's (complete, no repeats, nothing else). Only an
+        # id ending in `-states` may carry it, with at least two entries that
+        # are none of the block's own tiles: anywhere else the attribute would
+        # let a row shrink its matrix.
+        states = (_tag_attr(m.group(0), "data-states") or "").split()
+        if states or re.search(r"\sdata-states\s*=", m.group(0)):
+            if not ident.endswith("-states"):
+                out.append(f"gallery item '{ident}' carries data-states but "
+                           f"is not a states row (its id does not end in "
+                           f"-states) — a row may not shrink its own matrix")
+                continue
+            if len(states) < 2 or len(set(states)) != len(states) \
+                    or set(states) & set(tiles):
+                out.append(f"gallery item '{ident}' declares data-states="
+                           f"\"{' '.join(states)}\": a states row needs at "
+                           f"least two distinct state ids, none of them a "
+                           f"block tile ({' '.join(tiles)})")
+                continue
+            tiles = states
         # A row may declare its own `data-tiles` for ONE case only: a new
         # screen has no baseline, so in a `before after` block its row shows
         # `after` alone. Any other row-level list — a widening, a repeat, or

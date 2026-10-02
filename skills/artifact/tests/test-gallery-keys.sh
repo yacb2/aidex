@@ -43,7 +43,17 @@ for d in shots actual; do for cell in with-data empty; do
     mkdir -p "$GROOT/$d/$t" && python3 "$HERE/png_fixture.py" "$GROOT/$d/$t/audit-$cell.png" 100 200
   done
 done; done
-bash "$SCRIPTS/gallery-items.sh" "$FIX/rows.json" --root "$GROOT" --page "$TMP/page.html" --group-id E \
+# A states row rides along: its arrows walk ITS states, not the block's before/after.
+for st in default hover loading; do python3 "$HERE/png_fixture.py" "$GROOT/shots/btn-$st.png" 120 60; done
+python3 - "$FIX/rows.json" "$TMP/rows.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"].append({"cell": "btn", "variant": "light-desktop", "kind": "states",
+                  "states": [{"id": i, "label": i.title(), "capture": "shots/btn-%s.png" % i}
+                             for i in ("default", "hover", "loading")]})
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$SCRIPTS/gallery-items.sh" "$TMP/rows.json" --root "$GROOT" --page "$TMP/page.html" --group-id E \
   --group-title "Galería audit" > "$TMP/group.html" || { echo "FAIL: gallery-items.sh refused the fixture"; exit 1; }
 python3 - "$FIX/frame.html" "$TMP/group.html" "$TMP/body.html" <<'PY'
 import sys
@@ -61,6 +71,8 @@ check() {  # check <python expression over d> <label>
 }
 check 'd["arrow"]["drafts"] == 1 and d["arrow"]["left"] == "41%" and d["arrow"]["tile"] == "before"' \
   "a real ArrowRight moves the draft one percent and does not walk the tile"
+check 'd["states"]["next"] == "loading" and d["states"]["back"] == "hover"' \
+  "a real ArrowRight/ArrowLeft in the zoom dialog walks a states row's own states"
 check 'd["esc"]["zoom"] and d["esc"]["drafts"] == 0 and d["esc"]["marks"] == ""' \
   "a real Esc during a draft drops the draft and leaves the dialog open"
 check 'd["enter"]["note"] and d["enter"]["zoom"]' \

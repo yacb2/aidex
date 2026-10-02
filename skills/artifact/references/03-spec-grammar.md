@@ -901,7 +901,8 @@ These things of the grammar are worth stating here:
   row, so context the brief placed before the tiles does not need a group of its own. Prose
   only: a nested block is refused. The lead goes with the block: an empty `rows` (D2) drops
   both, silently.
-- **`kind`** of a row is `review`, `unrequested`, `sample` (no radios) or `alternatives`
+- **`kind`** of a row is `review`, `unrequested`, `sample` (no radios), `states` (N captures of one
+  component, a checkbox each; `04-block-vocabulary.md`) or `alternatives`
   (labelled variants declared once in the document's `alternatives`, one which-one radio).
 - **`look`** is required on every shown row by this route: a row without it fails the build
   (and `--check`), with a message naming the cell. Not-applicable and dropped rows are exempt.

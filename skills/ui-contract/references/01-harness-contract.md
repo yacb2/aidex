@@ -317,10 +317,9 @@ carries ONE item with every state of it, the owner approving all or some of them
 (checkboxes), not one full-screen item per state. The full screen stays the default
 whenever context matters (placement, neighbours, the AFTER beside the BEFORE). The
 component's cells still go through the gate like any other (a distinct render each, `ready`
-specific to the state). **Tooling gap:** the gallery items emitter cannot yet put several
-captures in one item with per-capture approval; until it can, such an item is written by
-hand as a plain checkbox item (`select=many`) and the gap is a filed follow-up, not a
-reason to fall back to a full-screen item per state.
+specific to the state). The gallery rows document carries it as
+one row of `kind: "states"` (`04-block-vocabulary.md` § `gallery`): N captures in one item,
+a checkbox per state, and `gallery-reply.sh --rows` returns which states were approved.
 
 A small composer script turns one gallery's baselines into a single image: rows are the
 matrix cells, columns the four projects.
