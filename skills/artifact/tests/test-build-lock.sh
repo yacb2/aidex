@@ -142,13 +142,16 @@ note="$(grep "page\.html\.building" "$TMP/err10" | sed -n 1p)"
 #     stale, not that a build is still running, and name the --done that clears it.
 #     Same window and bands as artifact-open-once.sh and baseline_hygiene, compared
 #     on the float age: a mtime a few minutes ahead is clock skew over a live build,
-#     one beyond the whole window is stale, and 1200.6 s is past 20 min.
+#     one beyond the whole window is stale, and 1200.6 s is past 20 min. A stale lock
+#     dated in the FUTURE is not "older than" anything (BL-562): the message must say
+#     which side of the window it fell off.
 save_out() { printf 'Q1: ok\n' | bash "$SKILL/scripts/save-reply.sh" "$TMP/reports/page.html" - 2>&1; }
 lock_at() {   # lock_at OFFSET_SECONDS: lock mtime = now + offset (negative = past)
   python3 -c 'import os, sys, time; t = time.time() + float(sys.argv[2]); os.utime(sys.argv[1], (t, t))' "$LOCK" "$1"
 }
 bash "$WRAP" --building --title Probe --lang en --in "$TMP/body.html" --out "$TMP/reports/page.html" >/dev/null 2>&1
-for cell in "fresh:running" "300:running" "-1200.6:stale" "86400:stale" "old:stale"; do
+for cell in "fresh:running" "300:running" "1150:running" "-1200.6:stale" "1260:stale" \
+            "86400:stale" "old:stale"; do
   at="${cell%%:*}" want="${cell##*:}"
   case "$at" in
     fresh) ;;
@@ -161,11 +164,27 @@ for cell in "fresh:running" "300:running" "-1200.6:stale" "86400:stale" "old:sta
        && "$out" == *"--done --out"* ]] \
       && ok "save-reply on a lock at $at says it is stale and names --done" \
       || fail "save-reply on a lock at $at should read stale (rc $rc): $out"
+    case "$at" in
+      -*|old) [[ "$out" == *"older than"* ]] \
+                && ok "a past lock at $at is called older than the window" \
+                || fail "a past stale lock at $at does not say older than: $out" ;;
+      *)      [[ "$out" != *"older than"* && "$out" == *"future"* ]] \
+                && ok "a future lock at $at is not called older than anything" \
+                || fail "a future-dated lock at $at is called older (BL-562): $out" ;;
+    esac
   else
     [[ $rc -ne 0 && "$out" == *"still running"* && "$out" != *"stale"* ]] \
       && ok "save-reply on a lock at $at refuses as a running build" \
       || fail "save-reply on a lock at $at should read still running (rc $rc): $out"
   fi
 done
+
+# 12. the hook keeps its own STALE_AFTER literal (it is shell and must not import
+#     check_artifact); pin it to BUILD_LOCK_STALE_AFTER so the two cannot drift (BL-563).
+hook_win="$(grep -E '^[[:space:]]*STALE_AFTER = ' "$SKILL/../../hooks/artifact-open-once.sh" | head -1)"
+py_win="$(grep -E '^BUILD_LOCK_STALE_AFTER = ' "$SKILL/scripts/dash/check_artifact.py" | head -1)"
+[[ -n "$hook_win" && "${hook_win##*= }" == "${py_win##*= }" ]] \
+  && ok "hook STALE_AFTER matches check_artifact BUILD_LOCK_STALE_AFTER" \
+  || fail "stale window drifted: hook '$hook_win' vs check_artifact '$py_win'"
 
 [[ $failures -eq 0 ]] && echo "PASS: build lock" || { echo "FAILED: $failures"; exit 1; }

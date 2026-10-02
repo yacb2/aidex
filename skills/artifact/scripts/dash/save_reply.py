@@ -150,8 +150,12 @@ def main(argv):
         if not -ca.BUILD_LOCK_STALE_AFTER <= age <= ca.BUILD_LOCK_STALE_AFTER:
             # Past the window artifact-open-once.sh honours (BL-542): no build is
             # running, the lock is left over from one that died or never ran --done.
-            print(f"ERROR: {lock} is a stale build lock (older than "
-                  f"{ca.BUILD_LOCK_STALE_AFTER // 60} min): no build is running, but "
+            # A lock dated beyond the window in the FUTURE is stale too (the hook's
+            # "absurd" band), but it is not older than anything (BL-562).
+            window = ca.BUILD_LOCK_STALE_AFTER // 60
+            when = (f"older than {window} min" if age > 0 else
+                    f"dated more than {window} min in the future")
+            print(f"ERROR: {lock} is a stale build lock ({when}): no build is running, but "
                   f"{page_path} may be a half-finished wrap. If it is the page the "
                   f"reader answered, clear the lock (wrap-report.sh --done --out "
                   f"{page_path}) and save the reply again.", file=sys.stderr)

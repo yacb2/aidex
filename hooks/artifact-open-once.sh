@@ -171,7 +171,7 @@ try:
         # stale, and the age printed is never negative.
         absurd = age < -STALE_AFTER
         (stale if age > STALE_AFTER or absurd else locked).append(
-            (p, lock, max(age, 0)))
+            (p, lock, max(age, 0), absurd))
 
     # ONE hook answer, always. The stale notice used to be printed on its own and
     # then fall through to the per-turn rule, so a second open of a stale-locked
@@ -180,22 +180,24 @@ try:
     # whatever this invocation decides, never an answer of its own.
     stale_msg = None
     if stale:
-        p, lock, age = stale[0]
-        stale_msg = ("stale build lock ignored (%s, last touched %d minutes ago): the "
+        p, lock, age, future = stale[0]
+        when = ("dated more than %d minutes in the future" % (STALE_AFTER // 60)
+                if future else "last touched %d minutes ago" % int(age // 60))
+        stale_msg = ("stale build lock ignored (%s, %s): the "
                      "agent that was building %s never ran `wrap-report.sh --done`, so "
                      "this page may be a half-finished state. Opening anyway."
-                     % (lock, int(age // 60), p))
+                     % (lock, when, p))
 
     if locked:
         lines = ["An agent is still building this page:", ""]
-        lines += ["  %s" % p for p, _, _ in locked]
+        lines += ["  %s" % p for p, _, _, _ in locked]
         lines += ["",
                   "The build lock beside it (.aidex-artifact-prev/<page>.building) was "
                   "refreshed %d minute(s) ago by the last wrap of that agent. An artifact "
                   "agent writes its --out path several times mid-run, so neither the "
                   "file changing nor check-artifact.sh passing means it has finished: "
                   "an intermediate wrap passes the contract."
-                  % int(min(a for _, _, a in locked) // 60),
+                  % int(min(a for _, _, a, _ in locked) // 60),
                   "",
                   "The only signal that the agent is done is its own hand-back. Wait "
                   "for it — do not watch the file, do not poll it — and open the page "
