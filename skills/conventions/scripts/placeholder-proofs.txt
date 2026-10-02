@@ -1,0 +1,29 @@
+# placeholder-proofs.txt — the ONE list of phrases that make a `## Verification` proof
+# cell say "no proof exists" (BL-641) or "the owner has not answered" (BL-656).
+# Read by _lib.sh proof_is_placeholder (close-item.sh, worklist-close.sh) and by
+# backlog/scripts/sweep-report.py — never copy this list into a script.
+#
+# One phrase per line, `<where> <phrase>`; phrases are plain words, no regex.
+#   lead        the cell OPENS with it (any case), then a non-alphanumeric char or the end
+#   lead-upper  same, capitals only (lowercase "todo" is Spanish prose)
+#   tail        the cell ENDS with it (any case), after a space , ; or ( — trailing
+#               punctuation allowed
+# Narrow on purpose: a real proof that mentions a word in passing still counts. A real
+# proof that OPENS with one of these is refused anyway (fail closed): reword it.
+lead not run
+lead no se corrió
+lead no se corrio
+lead not done
+lead not delivered
+lead pending
+lead pendiente
+lead awaiting
+lead unanswered
+lead sin respuesta
+lead deferred
+lead blocked
+lead skipped
+lead-upper TODO
+lead-upper TBD
+tail unanswered
+tail sin respuesta

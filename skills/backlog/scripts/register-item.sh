@@ -436,7 +436,9 @@ $acceptance
      an e2e or seeded smoke; ui -> a browser smoke with a screenshot; ops -> one proven row
      (a smoke with the command output, a test, or an answered owner). In a sweep,
      close-item.sh --sweep refuses \`done\` while any non-owner row has an empty proof cell,
-     and PARKS the item (awaiting: owner, never archived) while an owner row is unanswered. -->
+     and PARKS the item (awaiting: owner, never archived) while an owner row is unanswered.
+     A cell that says no proof exists ("not run", "pending", "awaiting owner") counts as
+     empty: for what the run cannot prove, write an owner row. -->
 | kind | what | proof |
 |---|---|---|
 

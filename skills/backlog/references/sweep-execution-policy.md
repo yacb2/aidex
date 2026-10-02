@@ -216,7 +216,9 @@ The sweep is the third consumer of
 [`human-verification-conventions.md`](../../conventions/references/human-verification-conventions.md).
 Its proof artifact is **not** a per-item `human-verification.md`: what only the owner can
 judge is an `owner` row in the item's `## Verification` table — a judgement, never
-something the run could have checked in a browser. An unanswered one **parks** the item
+something the run could have checked in a browser. A proof cell that says no proof exists
+("not run: ...", "awaiting owner") counts as empty: a non-owner row refuses, an owner row is
+unanswered. An unanswered one **parks** the item
 (`close-item.sh --sweep` writes `awaiting: owner`; not `done`, not archived) and
 `sweep-report.sh` lists the parked items and aggregates every owner row across the run
 into one list. `worklist-close.sh` refuses to end the run while one is parked (`--force`

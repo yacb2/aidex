@@ -66,6 +66,50 @@ sed -i.bak 's/| owner | wording of the new toast |  |/| owner | wording of the n
 OUT="$(bash "$SCRIPTS/close-item.sh" "$OID" --sweep --no-index 2>/dev/null)"; RC=$?
 [[ $RC -eq 0 && "$OUT" == */_archive/* ]] && ! grep -q '^awaiting:' "$OUT" && grep -q '^status: done' "$OUT" && ok "answered owner row: closes, archives, awaiting line dropped" || bad "answered close: rc=$RC $OUT"
 
+# A proof cell that says the proof does NOT exist is not a proof (BL-641) and an owner
+# cell that says the answer is still owed is not an answer (BL-656). The recognizer is a
+# short phrase list, anchored, so a real proof that merely contains one of the words
+# still counts — those boundary rows are the control half of this block.
+NR="$(reg --title "negated smoke" --surface behaviour)"; NRID="$(idof "$NR")"
+add_row "$NR" test "tests/test_x.py" "2 passed"
+add_row "$NR" smoke "browser" "not run: no data in dev"
+NEG='the proof says no proof exists: "'
+refused "behaviour/smoke proof 'not run: ...'" "$NRID" "$NR" "$NEG"
+for ph in "Not run: no data in dev" "no se corrió: sin datos en dev" "pending" "TBD" "TODO: run it on staging" \
+          "deferred: the dev copy has no employee" "blocked: waits on plan chain-ledger" "skipped" \
+          "NOT DONE, the sync is missing" "NOT delivered: the export"; do
+  sed -i.bak "s/| smoke | browser | [^|]* |$/| smoke | browser | $ph |/" "$NR" && rm -f "$NR.bak"
+  refused "behaviour/smoke proof '$ph'" "$NRID" "$NR" "$NEG"
+done
+# Decided trade-off (fail closed): a REAL proof that opens with one of these words is still
+# refused — the author rewords it. Field cases: work_hours BL-283, BL-143.
+for ph in "pending C PATCHed onto approved ... 400 se solapa" "Not run as a separate step: ... 2388 passed"; do
+  sed -i.bak "s/| smoke | browser | [^|]* |$/| smoke | browser | $ph |/" "$NR" && rm -f "$NR.bak"
+  refused "decided: real proof opening '$ph' is refused (reword it)" "$NRID" "$NR" "$NEG"
+done
+sed -i.bak 's/| smoke | browser | [^|]* |$/| smoke | browser | screenshot shots\/x.png |/' "$NR" && rm -f "$NR.bak"
+OUT="$(bash "$SCRIPTS/close-item.sh" "$NRID" --sweep --no-index 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == */_archive/* ]] && ok "control: same row with 'screenshot shots/x.png' closes" || bad "control screenshot: rc=$RC $OUT"
+# boundary: the listed words inside a real proof do not make it a placeholder
+for real in "3 passed (test_pending_rows_park)" "shots/x.png — captured after not running CI" "todo verde: 12 passed" "pendientes 0, 5 passed" "tests/test_o.py::test_owner_unanswered 1 passed"; do
+  R="$(reg --title "real proof" --surface internal)"; RID="$(idof "$R")"
+  add_row "$R" test "tests/test_r.py" "$real"
+  bash "$SCRIPTS/close-item.sh" "$RID" --sweep --no-index >/dev/null 2>"$TMP/err" && ok "real proof '$real' closes" || bad "real proof '$real' refused: $(cat "$TMP/err")"
+done
+# an owner cell holding a placeholder parks exactly like an empty one
+for ph in "awaiting owner (chain ledger d10)" "pending: consultation Q6, unanswered" "consultation 2026-10-02 Q6, unanswered" "sin respuesta" "blocked: waits on plan chain-ledger"; do
+  PO="$(reg --title "placeholder owner" --surface behaviour)"; POID="$(idof "$PO")"
+  add_row "$PO" test "tests/test_x.py" "2 passed"
+  add_row "$PO" smoke "/editor" "proofs/bl/editor.png"
+  add_row "$PO" owner "wording of the toast" "$ph"
+  OUT="$(bash "$SCRIPTS/close-item.sh" "$POID" --sweep --no-index 2>/dev/null)"; RC=$?
+  [[ $RC -eq 0 ]] && grep -q "^parked:" <<<"$OUT" && [[ -f "$PO" ]] && grep -q '^awaiting: owner$' "$PO" && grep -q '^status: open$' "$PO" \
+    && ok "owner proof '$ph' parks, not archived" || bad "owner placeholder '$ph': rc=$RC $OUT"
+done
+sed -i.bak 's/| owner | wording of the toast | [^|]* |$/| owner | wording of the toast | answered 2026-10-02, consultation Q6: yes |/' "$PO" && rm -f "$PO.bak"
+OUT="$(bash "$SCRIPTS/close-item.sh" "$POID" --sweep --no-index 2>/dev/null)"; RC=$?
+[[ $RC -eq 0 && "$OUT" == */_archive/* ]] && ! grep -q '^awaiting:' "$OUT" && grep -q '^status: done' "$OUT" && ok "owner proof 'answered 2026-10-02, consultation Q6: yes' closes" || bad "answered owner: rc=$RC $OUT"
+
 # ops: no test surface — one proven row of any kind is the minimum
 P="$(reg --title "ops" --surface ops)"; PID_="$(idof "$P")"
 add_row "$P" owner "bucket decision" ""

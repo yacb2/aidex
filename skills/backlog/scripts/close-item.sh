@@ -15,9 +15,12 @@
 #   --reason "<text>"           appended under ## Notes
 #   --no-index                  skip index regeneration
 #   --sweep                     sweep mode: closing `done` REQUIRES a ## Verification
-#                               section whose non-owner rows all carry a proof and
-#                               whose rows meet the item's `surface` minimum; otherwise
-#                               exit 2, nothing mutated, nothing archived. Outside sweep
+#                               section whose non-owner rows all carry a proof (a cell
+#                               that is empty or a placeholder — "not run", "pending",
+#                               placeholder-proofs.txt — is no proof) and whose rows
+#                               meet the item's `surface` minimum; otherwise exit 2,
+#                               nothing mutated, nothing archived. An owner row that is
+#                               empty or a placeholder PARKS the item. Outside sweep
 #                               mode the type: bug warning below is all there is.
 #
 # Resolves <BL-id> against active backlog items' front-matter `id:` field.
@@ -176,7 +179,7 @@ done
 # again). Owner's call 2026-08-27: an item that still needs a judgement must never read
 # as closed, or it gets archived by mistake. worklist-close.sh refuses to end the run
 # while any queued item is parked; the report aggregates every parked row.
-# Every other empty proof cell refuses.
+# Every other empty proof cell refuses. A placeholder cell (proof_is_placeholder) counts as empty.
 read_fm() { awk -v k="$2" '/^---[[:space:]]*$/{c++; if(c==2)exit} c==1 && $1==k":"{
   sub(/^[^:]*:[[:space:]]*/,""); gsub(/^"|"$/,""); print; exit}' "$1"; }
 verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row
@@ -192,6 +195,12 @@ verification_rows() {  # -> "kind<TAB>what<TAB>proof" per data row
       printf "%s\037%s\037%s\n", c[1], c[2], c[3]
     }' "$1"
 }
+# A proof cell that SAYS no proof exists is an empty cell (BL-641: "not run: no data in
+# dev" closed a behaviour item), and an owner cell that says the answer is still owed is
+# an unanswered one (BL-656: "awaiting owner (chain ledger d10)" archived an item that
+# should have parked). proof_is_placeholder (_lib.sh) reads the one phrase list,
+# conventions/scripts/placeholder-proofs.txt, shared with worklist-close.sh and
+# sweep-report.py so all three agree on what "unanswered" means.
 if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
   SURFACE="$(read_fm "$FILE" surface)"; SURFACE="${SURFACE:-internal}"
   ROWS="$(verification_rows "$FILE")"
@@ -203,12 +212,17 @@ if [[ $SWEEP -eq 1 && "$STATUS" == "done" ]]; then
       test|e2e|smoke|owner) ;;
       *) die "sweep close refused: ## Verification row has kind '$kind' (test|e2e|smoke|owner)" ;;
     esac
+    if [[ -n "$proof" ]] && proof_is_placeholder "$proof"; then
+      [[ "$kind" != "owner" ]] && { missing="$missing
+    - $kind: $what (the proof says no proof exists: \"$proof\")"; continue; }
+      proof=""
+    fi
     if [[ -z "$proof" && "$kind" != "owner" ]]; then missing="$missing
     - $kind: $what"; continue; fi
     if [[ -z "$proof" ]]; then owner_open=$((owner_open+1)); continue; fi
     case "$kind" in test) has_test=1;; e2e) has_e2e=1;; smoke) has_smoke=1;; owner) has_owner_proof=1;; esac
   done <<<"$ROWS"
-  [[ -z "$missing" ]] || die "sweep close refused: ## Verification rows with an empty proof cell:$missing"
+  [[ -z "$missing" ]] || die "sweep close refused: ## Verification rows with an empty proof cell, or one that says no proof exists (use an owner row for what the run cannot prove):$missing"
   case "$SURFACE" in
     internal)  [[ $has_test -eq 1 ]] || die "sweep close refused: surface internal needs a proven \`test\` row" ;;
     behaviour) [[ $has_test -eq 1 && ( $has_e2e -eq 1 || $has_smoke -eq 1 ) ]] \

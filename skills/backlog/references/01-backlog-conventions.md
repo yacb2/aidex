@@ -237,6 +237,13 @@ spec, page or judgement; `proof` is the evidence — a count, a path under
 **In a sweep the rows are a precondition, not a warning.** `close-item.sh --sweep` refuses
 to set `done` — exit 2, nothing mutated, nothing archived — while the section is empty,
 while any non-owner row has an empty proof cell, or while the surface minimum is unmet.
+A cell that says the proof does not exist — `not run: ...`, `pending`, `awaiting owner` —
+counts as empty: it refuses on a non-owner row and parks on an owner row (BL-641, BL-656).
+The phrase list has one owner, `skills/conventions/scripts/placeholder-proofs.txt`, read by
+`close-item.sh`, `worklist-close.sh` and `sweep-report.py`. What the run cannot prove is an
+owner row, never a negated proof.
+**A real proof must not open with one of these words** ("pending C PATCHed ..." is refused
+like a placeholder — fail closed): reword it so the evidence comes first.
 The plain close path keeps its `type: bug` warning and nothing more: a mandate that is
 only written down is not a mandate; a precondition is.
 

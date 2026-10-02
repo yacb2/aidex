@@ -344,3 +344,32 @@ resolve_worklist() {
   fi
   printf '%s\n' "$m"
 }
+
+# proof_is_placeholder <cell> — 0 when a `## Verification` proof cell says no proof exists
+# (or, on an owner row, that the answer is still owed). The phrases live in
+# placeholder-proofs.txt beside this file, the one list sweep-report.py reads too.
+# BASH_SOURCE[0] inside a function is the file that defined it: this one.
+_PH_LEAD="" _PH_UPPER="" _PH_TAIL=""
+proof_is_placeholder() {
+  if [[ -z "$_PH_LEAD" ]]; then
+    local where phrase lead="" upper="" tail=""
+    # tolerant like the python reader: a CRLF file and a last line with no newline
+    while read -r where phrase || [[ -n "$where" ]]; do
+      phrase="${phrase%$'\r'}"
+      case "$where" in
+        lead)       lead="$lead|$phrase" ;;
+        lead-upper) upper="$upper|$phrase" ;;
+        tail)       tail="$tail|$phrase" ;;
+      esac
+    done < "$(dirname "${BASH_SOURCE[0]}")/placeholder-proofs.txt"
+    _PH_LEAD="^(${lead#|})([^[:alnum:]]|$)"
+    _PH_UPPER="^(${upper#|})([^[:alnum:]]|$)"
+    _PH_TAIL="(^|[[:space:],;(])(${tail#|})[^[:alnum:]]*$"
+  fi
+  [[ "$1" =~ $_PH_UPPER ]] && return 0
+  local rc=1
+  shopt -s nocasematch   # restored on every path: callers match `case` arms after this
+  if [[ "$1" =~ $_PH_LEAD || "$1" =~ $_PH_TAIL ]]; then rc=0; fi
+  shopt -u nocasematch
+  return $rc
+}
