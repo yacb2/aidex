@@ -746,6 +746,65 @@ ts="$(CHROME_WINDOW=1100,600 run 'phase=spy')"
 [[ "$ts" == *"BACK=#sec-ask"* ]] \
   || fail "BL-326: scrolling back up did not move the current entry back: $ts"
 
+# ---- BL-599: an overflowing rail shows the entry AFTER the current one -------
+# 21 entries at 1280x900 overflow the list. With Q3 current the general notes
+# entry is the next one; the tracker used to scroll the list only far enough for
+# Q3, so notes stayed below the list's edge until the page bottom, and the
+# separator above it shrank to 0 px as an empty flex child.
+PAGE_SAVED="$PAGE"; PAGE="$TMP/reports/rail599.html"
+{
+  echo '<meta name="consult-visual" content="none: a rail probe, nothing to draw">'
+  echo '<div class="page"><main class="main"><header><p class="eyebrow">PROBE</p><h1>Rail probe</h1></header>'
+  echo '<section class="consult-group" id="G1" data-id="G1" data-title="Estados"><div class="sec-head"><h2>Estados de la página</h2></div><p>Contexto.</p>'
+  for i in $(seq 1 14); do
+    echo "<section class=\"consult-item\" data-id=\"R$i\" data-title=\"Cambiar persona: el servidor lo rechaza $i\"><h3><span class=\"consult-id\">R$i</span>¿Cambiar persona en el caso $i?</h3><div class=\"opts one\"><label><input type=\"radio\" name=\"R$i\" data-label=\"Si\"><span>Sí</span></label><label><input type=\"radio\" name=\"R$i\" data-label=\"No\"><span>No</span></label></div><textarea></textarea></section>"
+  done
+  echo '</section><section class="consult-group" id="G2" data-id="G2" data-title="Detalles"><div class="sec-head"><h2>Tres detalles de la página</h2></div><p>Contexto.</p>'
+  for i in 1 2 3; do
+    echo "<section class=\"consult-item\" data-id=\"Q$i\" data-title=\"¿Un solo botón Dar acceso cuando la persona no tiene accesos $i?\"><h3><span class=\"consult-id\">Q$i</span>¿Un solo botón Dar acceso $i?</h3><div class=\"opts one\"><label><input type=\"radio\" name=\"Q$i\" data-label=\"Si\"><span>Sí</span></label><label><input type=\"radio\" name=\"Q$i\" data-label=\"No\"><span>No</span></label></div><textarea></textarea></section>"
+  done
+  echo '</section><section class="consult-item consult-notes" data-id="notes" data-title="Notas generales"><h3><span class="consult-id">notas</span>Notas generales</h3><textarea></textarea></section>'
+  echo '<div class="endbar"><button type="button" id="consult-copy-end">Copiar</button><span class="consult-status" id="consult-status-end"></span></div>'
+  echo '</main><aside class="rail"><p class="railhead">Contenido</p><nav class="raillist" id="raillist"></nav><div class="consult-bar"><button type="button" id="consult-copy">Copiar</button><span class="consult-status" id="consult-status"></span></div></aside></div>'
+  cat <<'HTML'
+<script>window.addEventListener('load', function () {
+  var rl = document.getElementById('raillist');
+  scrollTo(0, document.getElementById('Q3').getBoundingClientRect().top + scrollY - 100);
+  dispatchEvent(new Event('scroll'));
+  var cur = rl.querySelector('[aria-current]'), lr = rl.getBoundingClientRect();
+  var nr = rl.querySelector('a[href="#notes"]').getBoundingClientRect();
+  var cr = cur ? cur.getBoundingClientRect() : nr;
+  document.title = 'R599|OVER=' + (rl.scrollHeight > rl.clientHeight ? 1 : 0)
+    + '|CUR=' + (cur ? cur.getAttribute('href') : 'none')
+    + '|CURVIS=' + (cr.top >= lr.top - 1 && cr.bottom <= lr.bottom + 1 ? 1 : 0)
+    + '|NOTESVIS=' + (nr.top >= lr.top - 1 && nr.bottom <= lr.bottom + 1 ? 1 : 0)
+    + '|SEPH=' + rl.querySelector('.railsep').getBoundingClientRect().height
+    + '|CURTOP=' + (cr.top >= lr.top - 1 ? 1 : 0)
+    + '|PAIR=' + (function () {
+        var n = cur && cur.nextElementSibling;
+        while (n && !n.classList.contains('railitem')) n = n.nextElementSibling;
+        return n && n.getBoundingClientRect().bottom - cr.top > rl.clientHeight ? 1 : 0;
+      })() + '|';
+});</script>
+HTML
+} > "$TMP/body.html"
+wrap_page es
+tr="$(CHROME_WINDOW=1280,900 run 'phase=rail599')"
+[[ "$tr" == *"|OVER=1|"* && "$tr" == *"|CUR=#Q3|"* && "$tr" == *"|CURVIS=1|"* ]] \
+  || fail "BL-599: the probe did not reach an overflowing rail with Q3 current and in view, so the cell proves nothing: $tr"
+[[ "$tr" == *"|NOTESVIS=1|"* ]] \
+  || fail "BL-599: with Q3 current the next rail entry (general notes) is below the list's visible edge: $tr"
+[[ "$tr" =~ \|SEPH=([0-9.]+)\| ]] && python3 -c "import sys; sys.exit(abs(float('${BASH_REMATCH[1]}') - 1) > 0.5)" \
+  || fail "BL-599: the rail separator is not its declared 1 px in an overflowing list: $tr"
+# A short window: the current entry and the one after it no longer fit together, so the current
+# entry wins and its top stays inside the list.
+tr="$(CHROME_WINDOW=1280,300 run 'phase=rail599')"
+[[ "$tr" == *"|OVER=1|"* && "$tr" != *"|CUR=none|"* && "$tr" == *"|PAIR=1|"* ]] \
+  || fail "BL-599: the short-window probe did not reach a current+next pair taller than the list, so the cap cell proves nothing: $tr"
+[[ "$tr" == *"|CURTOP=1|"* ]] \
+  || fail "BL-599: keeping the next entry in view scrolled the current entry's top out of the list: $tr"
+PAGE="$PAGE_SAVED"
+
 # ---- BL-532 / BL-535 / BL-536: dropped items, one copy bar, the table's first column
 # One small page: a decided item, a DROPPED one (never answered), an open one, a
 # table whose second column is long prose, and both copy bars. Read at 390 px
