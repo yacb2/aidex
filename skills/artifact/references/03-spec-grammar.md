@@ -890,8 +890,13 @@ Graphviz version is written in a comment inside the `<figure>`.
 
 `::: gallery {#id title=… rows=<rows.json>}` reads its rows from a JSON document (shape:
 `04-block-vocabulary.md` § `gallery`, and § Gallery rows of `02-local-first-artifacts.md`).
-Three things of the grammar are worth stating here:
+These things of the grammar are worth stating here:
 
+- **Prose body** (BL-625): the block may carry one or more paragraphs between its fences. They
+  render inside the gallery's group as an author lead, above the generated intro and the first
+  row, so context the brief placed before the tiles does not need a group of its own. Prose
+  only: a nested block is refused. The lead goes with the block: an empty `rows` (D2) drops
+  both, silently.
 - **`kind`** of a row is `review`, `unrequested`, `sample` (no radios) or `alternatives`
   (labelled variants declared once in the document's `alternatives`, one which-one radio).
 - **`look`** is required on every shown row by this route: a row without it fails the build

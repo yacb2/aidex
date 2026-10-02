@@ -929,7 +929,10 @@ def emit_notes(node, ctx):
 def emit_gallery(node, ctx):
     a = _attrs(node, {"title", "rows", "lang", "root"},
                required=("title", "rows"), need_id=True)
-    _no_children(node)
+    # The body is an optional author lead (prose only) rendered above the
+    # generated intro; any nested block is refused by `_prose_lines`.
+    lead = "\n".join(_prose_lines(node)).strip()
+    lead_html = md_body.fragment(lead) if lead else ""
     lang = a.get("lang", ctx.lang)
     if lang not in gallery_items.LANGS:
         raise SpecBuildError(node.line, "`gallery` lang=%r is not one of %s"
@@ -964,7 +967,7 @@ def emit_gallery(node, ctx):
             doc = gallery_items.load(rows)
             html = gallery_items.render(doc, os.path.normpath(root), node.id,
                                         a["title"], lang, page=ctx.page,
-                                        require_look=True)
+                                        require_look=True, lead=lead_html)
     except SystemExit:
         said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
         raise SpecBuildError(

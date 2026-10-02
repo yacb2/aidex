@@ -762,7 +762,7 @@ def group_intro(doc, variants, alts, require_look, lang):
 
 
 def render(doc, root, group_id, group_title, lang, page=None,
-           require_look=False):
+           require_look=False, lead=""):
     """The block, or "" for an empty `rows`: when every capture matches its
     baseline (D2) the owner's page carries no gallery block and no text about
     it — not an empty heading, not a "nothing changed" line.
@@ -771,7 +771,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
     beside it (see the module docstring). None is refused at the first tile:
     a capture linked where it is breaks on this page's next reader.
     `require_look` refuses a row with no "what to look at" line (the spec
-    route sets it)."""
+    route sets it). `lead` is the author's own prose as ready HTML, placed
+    between the heading and the generated intro."""
     if not doc["rows"]:
         return ""
     assets, copies = None, {}
@@ -791,6 +792,8 @@ def render(doc, root, group_id, group_title, lang, page=None,
     add('  <div class="sec-head">')
     add('    <h2>%s</h2>' % e(group_title))
     add('  </div>')
+    if lead:
+        add(lead)
     intro = group_intro(doc, variants, alts, require_look, lang)
     if intro:
         add('  <p class="gal-intro">%s <span class="gal-intro-narrow">%s</span></p>'
