@@ -203,6 +203,11 @@ sentence.
 change, so the meta-suite runs once; while iterating, skip it (harness contract § 2b) and
 label that run "not a gate run". Only the closing evidence run carries `meta: N/N`.
 
+**Contact-sheet images are the gate's own baselines**, never a separate capture script; a
+scroll-owning shell sets the window to the full content first (harness contract § 4b).
+**One component changing, no screen context needed:** capture just that component and put
+all its states in one item (harness contract § 6, component-scoped consultation).
+
 **Every cell must be a DISTINCT render.** Measured on the first real gallery: `initial`
 and `invalid` came out pixel-identical because nothing had been submitted yet, and
 `submitting` and `read-only` were indistinguishable without a marker. Two cells with the
