@@ -843,6 +843,29 @@ def _first_sentence(prose):
     return prose
 
 
+# BL-631: a bare letter+digits ("T8" in "Los Simpson T8") is a product name, not
+# an id. It counts only after an id word, or as a known prefix (Q3, M095), and
+# never right after a capitalized word. The hyphenated form (BL-12) always counts.
+ID_WORD_BEFORE = re.compile(
+    r'\b(?:decisi[oó]n|pregunta|fila|decision|question|row)(?:es|s)?\s*[:«"“(]?\s*$',
+    re.I)
+KNOWN_BARE_ID = re.compile(r'Q\d{1,4}|M\d{3}')
+
+
+def _id_hits(sentence):
+    out = []
+    for m in LEAD_ID_PATTERNS[0][1].finditer(sentence):
+        tok = m.group(0)
+        if '-' not in tok:
+            before = sentence[:m.start()]
+            if not (ID_WORD_BEFORE.search(before) or (
+                    KNOWN_BARE_ID.fullmatch(tok)
+                    and not re.search(r'\S\s+[A-ZÁÉÍÓÚÑ][\wáéíóúñ]*\s+$', before))):
+                continue
+        out.append(tok)
+    return out
+
+
 def lead_id_finding(body, item_ids=frozenset()):
     """(kind, first_sentence) when the lead's first sentence cites an internal
     id, else None. Skips fieldlabels, empty paragraphs and "Fuente:" paragraphs
@@ -870,7 +893,8 @@ def lead_id_finding(body, item_ids=frozenset()):
             continue
         sentence = _first_sentence(prose)
         for kind, rx in LEAD_ID_PATTERNS:
-            hits = [h for h in rx.findall(sentence)
+            hits = [h for h in (_id_hits(sentence) if kind == "an id"
+                                else rx.findall(sentence))
                     if not (kind == "an id" and h in item_ids)]
             if hits:
                 return kind, sentence

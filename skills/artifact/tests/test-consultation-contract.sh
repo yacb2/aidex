@@ -829,6 +829,34 @@ grep -q "WARN \[consult-lead-id\].*'E2'" "$TMP/out" \
 grep -q "WARN \[consult-lead-id\].*'E3'" "$TMP/out" \
   || fail "10b4c. a situation lead opening with M095 above its question did not warn: $(cat "$TMP/out")"
 
+# 10b4d. BL-631: a product name with a number ("Los Simpson T8") is not an id.
+# A bare letter+digits counts only after an id word or as a Q/M095 prefix, and
+# never right after a capitalized proper-noun word.
+mkpage "$TMP/lead-ids3.html" "$visual
+$gopen
+$(idem F1 'Ana sube el archivo X al proyecto Los Simpson T8 y al día siguiente llega E0804_v2.')
+$(idem F2 'La decisión B10 fija el límite del proyecto.')
+$(idem F3 'The Q3 decides the scope of the project.')
+$(idem F4 'Per M095 the manager cannot delete the project.')
+$(idem F5 'Ana buys a Samsung Q80 and plugs it in.')
+$(idem F6 'The decisions B10 and B11 set the project limit.')
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/lead-ids3.html")"
+[[ "$rc" == "0" ]] || fail "10b4d. consult-lead-id changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[consult-lead-id\].*'F1'" "$TMP/out" \
+  && fail "10b4d. BL-631: a product name with a number is not an id, F1 must not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-lead-id\].*'F2'" "$TMP/out" \
+  || fail "10b4d. BL-631: 'La decisión B10' must still warn: $(cat "$TMP/out")"
+for id in F3 F4 F6; do
+  grep -q "WARN \[consult-lead-id\].*'$id'" "$TMP/out" \
+    || fail "10b4d. BL-631: $id opens with a known id and must warn: $(cat "$TMP/out")"
+done
+grep -q "WARN \[consult-lead-id\].*'F5'" "$TMP/out" \
+  && fail "10b4d. BL-631: F5 (Samsung Q80) is a product name and must not warn: $(cat "$TMP/out")"
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact
