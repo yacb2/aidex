@@ -2100,7 +2100,9 @@
      * answer, Clear empties it. The checker does not count it as a notes box.
      *
      * Drawing needs an open row and compare off; a decided row shows its marks
-     * (a page may carry them in its own kit-marks textarea) and draws none. */
+     * (a page may carry them in its own kit-marks textarea) and draws none.
+     * Neither does an item's images (shots mode, BL-493): its figures carry no
+     * tile, so a mark there could never be redrawn or opened (BL-655). */
     var MARK_LINE = /^\[mark (\S+) (\d{1,3}(?:\.\d)?),(\d{1,3}(?:\.\d)?) (\d{1,3}(?:\.\d)?)x(\d{1,3}(?:\.\d)?)\](?: (.*))?$/;
 
     function marksBox(row) { return row.querySelector('textarea.kit-marks'); }
@@ -2119,7 +2121,8 @@
       draft.box.style.height = draft.h + '%';
     }
     function canMark(row) {
-      return !!row && !isDecided(row) && !!marksBox(row) && dlg.getAttribute('data-compare') === 'off';
+      return !!row && !isDecided(row) && !!marksBox(row) && !dlg.classList.contains('shots')
+        && dlg.getAttribute('data-compare') === 'off';
     }
     function startDraft() {
       if (!opener || pending || drag) return;
@@ -2251,9 +2254,9 @@
       if (!opener) return;
       var row = opener.closest('.consult-item');
       var tile = opener.getAttribute('data-tile');
-      mlayer.classList.toggle('readonly', isDecided(row) || !marksBox(row));
       /* Parked first: a disabled button drops the focus out of the dialog. */
-      var noMark = isDecided(row) || !marksBox(row);
+      var noMark = isDecided(row) || !marksBox(row) || dlg.classList.contains('shots');
+      mlayer.classList.toggle('readonly', noMark);
       if (noMark && document.activeElement === bMark) dlg.focus();
       bMark.disabled = noMark;
       drawBoxes(mlayer, readMarks(row).filter(function (k) { return k.tile === tile; }));
@@ -2344,7 +2347,7 @@
       if (drag) { drag.box.remove(); drag = null; }   /* a drag whose up never came */
       cancelDraft();
       var row = opener.closest('.consult-item');
-      if (isDecided(row) || !marksBox(row) || dlg.getAttribute('data-compare') !== 'off') return;
+      if (!canMark(row)) return;
       ev.preventDefault();
       try { mlayer.setPointerCapture(ev.pointerId); } catch (e) { /* synthetic pointer */ }
       var box = document.createElement('div');
