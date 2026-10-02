@@ -91,16 +91,19 @@
       droppedHint: 'These questions left the set without an answer. Open one to re-read what it asked and why it was dropped.',
       droppedCount: function (n) { return n + (n === 1 ? ' question dropped, never answered' : ' questions dropped, never answered'); },
       decidedHint: 'Collapsed so the open questions stay in view. Open one to re-read what it asked and what it chose.',
-      zoomOpen: 'Open this tile at full size',
+      zoomOpen: 'Open this image at full size',
       zoomLabel: 'Enlarge',
       moreOptions: 'More options',
       zoomNative: 'Native size (1:1)',
       zoomFit: 'Fit to the window',
-      zoomSizeTitle: 'Switch between fitting the window and the capture’s own pixels',
+      zoomSizeTitle: 'Switch between fitting the window and the image’s own size',
       zoomClose: 'Close',
-      zoomCloseTitle: 'Close this tile and go back to the row (Esc)',
+      zoomPrev: 'Previous',
+      zoomNext: 'Next',
+      zoomCloseTitle: 'Close this image and go back (Esc)',
       zoomKeys: 'Left/Right: the tiles of this row · Up/Down: the same tile on the next row',
       zoomKeysShots: 'Left/Right (or swipe): the images of this question · Esc: back to it',
+      zoomKeysPan: 'Left/Right: the images of this question · drag to pan the image · Esc: back to it',
       galMode: 'Mode',
       galViewport: 'Viewport',
       galBoth: 'Both',
@@ -201,16 +204,19 @@
       droppedHint: 'Estas preguntas salieron del conjunto sin respuesta. Abre una para releer qu\u00e9 preguntaba y por qu\u00e9 se descart\u00f3.',
       droppedCount: function (n) { return n + (n === 1 ? ' pregunta descartada, sin responder' : ' preguntas descartadas, sin responder'); },
       decidedHint: 'Plegadas para que las preguntas abiertas queden a la vista. Abre una para releer qu\u00e9 preguntaba y qu\u00e9 se eligi\u00f3.',
-      zoomOpen: 'Abre este tile a tama\u00f1o completo',
+      zoomOpen: 'Abre esta imagen a tama\u00f1o completo',
       zoomLabel: 'Ampliar',
       moreOptions: 'M\u00e1s opciones',
       zoomNative: 'Tama\u00f1o original (1:1)',
       zoomFit: 'Ajustar a la ventana',
-      zoomSizeTitle: 'Alterna entre ajustar a la ventana y los p\u00edxeles propios de la captura',
+      zoomSizeTitle: 'Alterna entre ajustar a la ventana y el tama\u00f1o propio de la imagen',
       zoomClose: 'Cerrar',
-      zoomCloseTitle: 'Cierra este tile y vuelve a la fila (Esc)',
-      zoomKeys: 'Izquierda/Derecha: los tiles de esta fila \u00b7 Arriba/Abajo: el mismo tile en la fila siguiente',
+      zoomPrev: 'Anterior',
+      zoomNext: 'Siguiente',
+      zoomCloseTitle: 'Cierra esta imagen y vuelve (Esc)',
+      zoomKeys: 'Izquierda/Derecha: las capturas de esta fila \u00b7 Arriba/Abajo: la misma captura en la fila siguiente',
       zoomKeysShots: 'Izquierda/Derecha (o desliza): las im\u00e1genes de esta pregunta \u00b7 Esc: volver a ella',
+      zoomKeysPan: 'Izquierda/Derecha: las im\u00e1genes de esta pregunta \u00b7 arrastra para mover la imagen \u00b7 Esc: volver a ella',
       galMode: 'Modo',
       galViewport: 'Pantalla',
       galBoth: 'Ambos',
@@ -218,15 +224,15 @@
       galDark: 'Oscuro',
       galDesktop: 'Escritorio',
       galMobile: 'M\u00f3vil',
-      galBarTitle: 'Oculta tiles mientras lees. Lo que copias no cambia.',
+      galBarTitle: 'Oculta capturas mientras lees. Lo que copias no cambia.',
       cmp: 'Comparar',
       cmpOff: 'No',
       cmp2up: 'Lado a lado',
       cmpSwipe: 'Deslizar',
       cmpOnion: 'Superponer',
-      cmpTitle: 'Compara este tile con su par: antes y propuesto, o el otro modo de la misma pantalla',
-      cmpNone: 'Este tile no tiene par en esta fila con el que compararse',
-      cmpRange: 'Derecha: m\u00e1s de este tile \u00b7 izquierda: m\u00e1s del otro modo',
+      cmpTitle: 'Compara esta captura con su par: antes y propuesto, o el otro modo de la misma pantalla',
+      cmpNone: 'Esta captura no tiene par en esta fila con el que compararse',
+      cmpRange: 'Derecha: m\u00e1s de esta captura \u00b7 izquierda: m\u00e1s del otro modo',
       cmpSize: function (a, b) { return 'Las dos capturas tienen tama\u00f1os distintos (' + a + ' frente a ' + b + '): se muestran lado a lado.'; },
       markHint: 'Arrastra para marcar una zona \u00b7 haz clic en una marca para editarla o borrarla',
       markNote: 'Nota para esta marca',
@@ -1744,10 +1750,13 @@
    * own question and options. */
   function shotFigures(fig) {
     var grid = fig.closest('.gal.shots');
-    return grid ? [].filter.call(grid.querySelectorAll('figure'), function (f) {
-      return !!f.querySelector('img');
-    }) : [];
+    /* BL-597/626: a lone figure of an item (`data-viewer`, written by the
+     * builder) is a walk of one; a run of figures, svg ones included, is the
+     * grid's. */
+    return grid ? [].filter.call(grid.querySelectorAll('figure'), hasPicture)
+      : fig.hasAttribute('data-viewer') && hasPicture(fig) ? [fig] : [];
   }
+  function hasPicture(f) { return !!f.querySelector('img, svg'); }
 
   /* The block's declared matrix is the keyboard order — the same list the
    * checker judges completeness against, so the arrows and the rule agree on
@@ -1786,8 +1795,8 @@
     var walkRows = rows.filter(function (r) { return !isDecided(r); });
     var groups = [].slice.call(document.querySelectorAll('.consult-group'))
       .filter(function (g) { return (g.getAttribute('data-tiles') || '').trim(); });
-    var shots = [].slice.call(document.querySelectorAll('.consult-item .gal.shots figure'))
-      .filter(function (f) { return !!f.querySelector('img'); });
+    var shots = [].slice.call(document.querySelectorAll(
+      '.consult-item .gal.shots figure, .consult-item figure[data-viewer]')).filter(hasPicture);
     if (!rows.length && !groups.length && !shots.length) return;
 
     /* ---- the dialog ---- */
@@ -1850,8 +1859,23 @@
     bMark.textContent = L.markAdd;
     bMark.title = L.markAddTitle;
     cmpWrap.appendChild(bMark);
+    /* The item's images, one at a time: visible previous/next beside the keys
+     * and the swipe (BL-597). Shown only in that mode, only for 2+ images. */
+    var nav = document.createElement('span');
+    nav.className = 'kit-zoom-nav';
+    var bPrev = document.createElement('button');
+    bPrev.type = 'button';
+    bPrev.className = 'kit-zoom-prev';
+    bPrev.textContent = '\u2039 ' + L.zoomPrev;
+    var bNext = document.createElement('button');
+    bNext.type = 'button';
+    bNext.className = 'kit-zoom-next';
+    bNext.textContent = L.zoomNext + ' \u203a';
+    nav.appendChild(bPrev);
+    nav.appendChild(bNext);
     head.appendChild(hRow);
     head.appendChild(hTile);
+    head.appendChild(nav);
     head.appendChild(hWith);
     head.appendChild(hCell);
     head.appendChild(cmpWrap);
@@ -1890,7 +1914,19 @@
     handle.className = 'kit-swipe-handle';
     hlayer.appendChild(handle);
     stack.appendChild(hlayer);
+    /* A figure that is an inline svg is shown as that svg (a clone: it keeps
+     * the page's CSS and currentColor, which an img element would lose; the
+     * kit's accent classes are scoped to `.kit-zoom-svg` in components.css)
+     * at the size it was drawn (BL-626). */
+    var svgBox = document.createElement('div');
+    svgBox.className = 'kit-zoom-svg';
+    stack.appendChild(svgBox);
+    /* The scroller of a drawing wider than the dialog (the caption stays out of
+     * it). Focusable in svg mode so the keyboard can pan it. */
     body.appendChild(stack);
+    var cap = document.createElement('p');   /* the figure's title, per image */
+    cap.className = 'kit-zoom-cap';
+    body.appendChild(cap);
     var keys = document.createElement('p');
     keys.className = 'kit-zoom-keys';
     keys.textContent = L.zoomKeys;
@@ -1911,12 +1947,57 @@
       bSize.setAttribute('aria-pressed', dlg.classList.contains('native') ? 'true' : 'false');
     }
 
+    /* A fresh open, or a change of kind (capture <-> drawing): back to the top
+     * left. A step between images of one kind keeps the reader's vertical place
+     * (a tall capture read at 1:1); each new image still starts at the left. */
+    function resetScroll() {
+      stack.scrollLeft = 0; stack.scrollTop = 0; body.scrollTop = 0; dlg.scrollTop = 0;
+    }
+
+    /* A drawing (or a capture at 1:1) wider than the viewer pans by touch; one
+     * that fits has nothing to pan, so a horizontal swipe is the walk. The class
+     * decides components.css's touch-action, which is what lets the browser
+     * deliver the swipe's pointerup instead of cancelling the pointer. */
+    function syncPan() {
+      dlg.classList.toggle('pan', dlg.classList.contains('native') && stack.scrollWidth > stack.clientWidth + 1);
+      /* The hint offers a swipe only where a swipe walks. */
+      if (!draft && dlg.classList.contains('shots') && !keys.hidden)
+        keys.textContent = dlg.classList.contains('pan') ? L.zoomKeysPan : L.zoomKeysShots;
+    }
+    /* The scroller is Tab-focusable while it overflows (Chrome); when it stops
+     * overflowing the focus would fall to the body and the arrows with it. */
+    function keepFocus() { if (document.activeElement === stack) dlg.focus(); }
+    window.addEventListener('resize', function () { keepFocus(); syncPan(); });
+
     function show(fig) {
+      keepFocus();
       var row = fig.closest('.consult-item');
       var src = fig.querySelector('img');
+      var svg = src ? null : fig.querySelector('svg');
       opener = fig;
       img.setAttribute('src', src ? src.getAttribute('src') : '');
       img.setAttribute('alt', src ? (src.getAttribute('alt') || '') : '');
+      svgBox.textContent = '';
+      var c = null;
+      if (svg) {
+        c = svg.cloneNode(true);
+        var vb = (svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/);
+        var vw = vb.length === 4 ? parseFloat(vb[2]) : 0;
+        /* No viewBox: the width attribute, when it is a plain number; with
+         * neither there is no drawn size, and the drawing stays at Fit. */
+        if (!(vw > 0) && /^\s*\d+(\.\d+)?(px)?\s*$/.test(svg.getAttribute('width') || '')) vw = parseFloat(svg.getAttribute('width'));
+        if (vw > 0) c.style.setProperty('--kit-svg-w', vw + 'px');
+        svgBox.appendChild(c);
+      }
+      /* Each kind has its own default size: a capture fits the window, a
+       * drawing opens at the size it was drawn (scaled to the window it is the
+       * same 3-5 px text the page already showed). Only a change of kind resets
+       * it, so walking capture to capture keeps the reader's size. */
+      var changed = !!svg !== dlg.classList.contains('svgmode');
+      if (changed) dlg.classList.toggle('native', !!svg && !!c && c.style.getPropertyValue('--kit-svg-w') !== '');
+      dlg.classList.toggle('svgmode', !!svg);
+      if (changed) resetScroll(); else stack.scrollLeft = 0;
+      sizeLabel();
       hRow.textContent = (row && (row.dataset.heading || row.dataset.title)) || '';
       hRow.title = hRow.textContent;      /* a narrow header truncates it */
       /* The tile's highlight, copied as drawn (percentages of the capture). */
@@ -1926,10 +2007,24 @@
       cancelDraft();
       var set = shotFigures(fig);
       dlg.classList.toggle('shots', set.length > 0);
+      dlg.classList.toggle('multi', set.length > 1);   /* a stable width: the buttons stay where they are */
+      hTile.hidden = set.length === 1;      /* "1 / 1" counts nothing */
+      keys.hidden = set.length === 1;       /* nor is there a walk to explain */
       hTile.textContent = set.length ? (set.indexOf(fig) + 1) + ' / ' + set.length
         : fig.getAttribute('data-tile') || '';
       hCell.textContent = (row && row.dataset.id) || '';
       if (!draft) keys.textContent = set.length ? L.zoomKeysShots : L.zoomKeys;
+      var capEl = set.length ? fig.querySelector('figcaption') : null;
+      cap.textContent = capEl ? capEl.textContent.trim() : '';
+      cap.hidden = !cap.textContent;
+      nav.hidden = set.length < 2;
+      var at = set.indexOf(fig);
+      /* A disabled control drops the focus to the body, outside the dialog,
+       * and the arrows die with it (as in compare()). */
+      if ((at === 0 && document.activeElement === bPrev)
+          || (at === set.length - 1 && document.activeElement === bNext)) dlg.focus();
+      bPrev.disabled = at <= 0;
+      bNext.disabled = at === set.length - 1;
       sib = sibling(fig);
       var sImg = sib && sib.querySelector('img');
       if (sImg) other.setAttribute('src', sImg.getAttribute('src'));
@@ -1937,6 +2032,7 @@
       other.setAttribute('alt', sImg ? (sImg.getAttribute('alt') || '') : '');
       compare();
       drawDialog();
+      syncPan();
     }
 
     /* The tile to compare against, looked up among ALL the row's figures (a
@@ -1997,10 +2093,12 @@
     range.addEventListener('change', function (ev) { ev.stopPropagation(); });
 
     function open(fig) {
-      /* Fit size on every fresh open: the reader asked to see the tile, not to
-       * resume the last tile's magnification. Moving with the arrows keeps
-       * whatever size is on screen — there it IS the same look, continued. */
-      dlg.classList.remove('native');
+      /* The image's own default size on every fresh open (a capture fits the
+       * window, a drawing opens at its drawn size; show() sets it): the reader
+       * asked to see this image, not to resume the last one's magnification.
+       * Moving with the arrows between images of one kind keeps whatever size
+       * is on screen — there it IS the same look, continued. */
+      dlg.classList.remove('native', 'svgmode');
       sizeLabel();
       /* Compare too: off, the slider in the middle. The arrows keep both,
        * like the size — moving on is the same look, continued. */
@@ -2013,21 +2111,28 @@
        * size button is the one a fresh open has always handed the focus to. */
       if (dlg.showModal) { dlg.showModal(); bSize.focus(); }
       else dlg.setAttribute('open', '');   /* no modal support: still readable */
+      resetScroll();                       /* the layout of the last open survives a close */
       /* show() ran while the dialog was closed, when the image had no box. */
       placeOver(mlayer, img);
       placeOver(hlayer, img); placeOver(hl, img);
+      syncPan();
     }
 
     bSize.addEventListener('click', function () {
       dlg.classList.toggle('native');
       sizeLabel();
+      syncPan();
     });
     bClose.addEventListener('click', function () { dlg.close(); });
+    bPrev.addEventListener('click', function () { step(-1); });
+    bNext.addEventListener('click', function () { step(1); });
     /* Esc closes without a listener of its own; `close` fires for both paths,
      * so the focus return is written once. */
     dlg.addEventListener('close', function () {
       cancelDraft();
-      if (origin) origin.focus();
+      /* An item's images: the one shown. A gallery row: the tile that opened it. */
+      var back = dlg.classList.contains('shots') && opener && document.contains(opener) ? opener : origin;
+      if (back) back.focus();
     });
 
     /* The tiles, in the order the matrix declares. A tile the row does not
@@ -2436,7 +2541,10 @@
       if (!ev.isPrimary || ev.pointerType !== 'touch') return;
       var from = swipeFrom;
       swipeFrom = null;
-      if (from === null || !dlg.classList.contains('shots') || dlg.classList.contains('native')) return;
+      /* At 1:1 a drag pans — a drawing that fits the dialog has nothing to pan. */
+      var pans = dlg.classList.contains('native')
+        && !(dlg.classList.contains('svgmode') && !dlg.classList.contains('pan'));
+      if (from === null || !dlg.classList.contains('shots') || pans) return;
       var dx = ev.clientX - from.x, dy = ev.clientY - from.y;
       if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
     });
@@ -2448,7 +2556,9 @@
     });
     tiles = tiles.concat(shots);
     tiles.forEach(function (fig) {
-      if (!fig.querySelector('img')) return;   /* nothing to enlarge */
+      /* Nothing to enlarge. A gallery-row tile is img-only: Mark would stay
+       * live over an empty img box for a drawing. */
+      if (fig.hasAttribute('data-tile') ? !fig.querySelector('img') : !hasPicture(fig)) return;
       fig.setAttribute('role', 'button');
       fig.setAttribute('tabindex', '0');
       fig.setAttribute('title', L.zoomOpen);

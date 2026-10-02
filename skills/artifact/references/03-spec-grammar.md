@@ -242,14 +242,18 @@ real page said something the grammar could not:
   them from it. `masthead` and `note` do not: a drawing there is a page-level figure
   in the wrong place (`spec_build.FIGURE_BLOCKS`).
 
-  One exception to "alike" (BL-493): **two or more ADJACENT raster `figure`s**
-  (`.png`/`.jpg`/`.jpeg`) in an item render as one thumbnail grid, `.gal.shots`, with
-  `data-cols` = min(n, 4). Blank lines between them keep the run; any other block (an
-  svg `figure`, a `chart`, a `graph`, a `diagram`, a nested `note`/`callout`), a
-  sentence or the option list ends it. Each run is
-  its own grid and its own viewer walk ("1 / n"), so written order is kept; a lone
-  raster figure stays full width. There is no opt-out: to keep two captures apart,
-  write a sentence between them.
+  One exception to "alike" (BL-493, BL-626): **two or more ADJACENT `figure`s**
+  (`.png`/`.jpg`/`.jpeg`/`.svg`, mixed or not) in an item render as one thumbnail
+  grid, `.gal.shots`, with `data-cols` = min(n, 4). Blank lines between them keep the
+  run; any other block (a `chart`, a `graph`, a `diagram`, a nested `note`/`callout`),
+  a sentence or the option list ends it. Each run is its own grid and its own viewer
+  walk ("1 / n"), so written order is kept; a lone figure stays full width. There is
+  no opt-out: to keep two figures apart, write a sentence between them.
+
+  Every `figure` of an item has the viewer, grid or not (the builder marks a lone one
+  `data-viewer`): "Ampliar" opens one image at a time, its `title` as caption, Left/Right
+  or the previous/next buttons to page, an svg at its viewBox width so its text stays as
+  drawn. `chart`, `diagram` and `graph` are not `figure` blocks and get no viewer.
 
   A `masthead`'s **standfirst** is the first paragraph of the masthead's own prose,
   not of whatever it happens to emit first: an aside written above the standfirst

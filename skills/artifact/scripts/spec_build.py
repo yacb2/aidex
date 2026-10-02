@@ -707,9 +707,8 @@ def _split_question(inline):
     return inline[:cut[-1].start() + 1], inline[cut[-1].end():]
 
 
-def _is_raster_figure(node):
-    return (node.block_type == "figure" and os.path.splitext(
-        node.attrs.get("src", "").strip())[1].lower() in FIGURE_RASTER)
+def _is_figure(node):
+    return node.block_type == "figure"
 
 
 @emitter("item")
@@ -762,18 +761,20 @@ def emit_item(node, ctx):
         out, shots = [], []
 
         def flush():
-            # BL-493: two or more raster figures written together are one
-            # thumbnail grid (the composer's viewer opens it in place), 2-4
-            # columns by count; one raster figure, or an svg, stays full width.
+            # BL-493/BL-626: two or more figures (png, jpg or svg) written
+            # together are one thumbnail grid (the composer's viewer opens it
+            # in place), 2-4 columns by count; a lone figure stays full width
+            # and is marked `data-viewer`, so the same viewer opens it.
             if len(shots) > 1:
                 out.append('<div class="gal shots" data-cols="%d">\n%s\n</div>'
                            % (min(len(shots), 4), "\n".join(shots)))
             else:
-                out.extend(shots)
+                out.extend(f.replace("<figure", "<figure data-viewer", 1)
+                           for f in shots)
             del shots[:]
 
         for kind, payload in segments:
-            if kind == "block" and _is_raster_figure(payload):
+            if kind == "block" and _is_figure(payload):
                 shots.append(emit_node(payload, ctx, parent="item"))
                 continue
             if kind == "prose" and not any(ln.strip() for ln in payload):

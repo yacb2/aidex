@@ -105,9 +105,9 @@ figure svg { width: 100%; max-width: 100%; height: auto; color: var(--ink); }
 .fig-hl:where(:not(svg *)) { position: relative; }
 .fig-hl:where(:not(svg *)) > img { display: block; width: 100%; height: auto; }
 .gal.shots .fig-hl:where(:not(svg *)) > img { aspect-ratio: auto; object-fit: fill; }
-figure svg .acc { color: var(--accent); }
-figure svg .flg { color: var(--flag); }
-figure svg .mut { color: var(--muted); }
+:is(figure, .kit-zoom-svg) svg .acc { color: var(--accent); }
+:is(figure, .kit-zoom-svg) svg .flg { color: var(--flag); }
+:is(figure, .kit-zoom-svg) svg .mut { color: var(--muted); }
 /* A `video` block: the film sits in the column like a figure and never past it, and never taller than the viewport (BL-593: a 3:4 film).
    The letterbox is the sunk paper, so it reads in both themes. */
 figure.video video { width: 100%; max-width: 100%; height: auto; max-height: 80vh; display: block;
@@ -316,8 +316,8 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    composer.js, never written into the markup): a click or Enter opens it in
    the zoom dialog. Keyed off the role, so a page read with scripts off keeps
    the plain grid and shows no affordance it cannot honour. */
-.gal figure[role="button"] { cursor: zoom-in; border-radius: 4px; position: relative; }
-.gal figure[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gal figure[role="button"], figure[data-viewer][role="button"] { cursor: zoom-in; border-radius: 4px; position: relative; }
+.gal figure[role="button"]:focus-visible, figure[data-viewer][role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* The ZOOM DIALOG. One per page, built and reused by the composer.
    `showModal()` brings the backdrop, the focus trap and Esc for nothing.
@@ -344,7 +344,8 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 .kit-zoom-cmpgroup { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center;
                       gap: 0.25rem; min-width: 0; }
 .kit-zoom-cmp { white-space: nowrap; }
-.kit-zoom-size:where(:not(svg *)), .kit-zoom-close:where(:not(svg *)), .kit-zoom-cmp:where(:not(svg *)) { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
+.kit-zoom-size:where(:not(svg *)), .kit-zoom-close:where(:not(svg *)), .kit-zoom-cmp:where(:not(svg *)),
+.kit-zoom-prev:where(:not(svg *)), .kit-zoom-next:where(:not(svg *)) { font: inherit; padding: 0.15rem 0.6rem; cursor: pointer;
                                   border: 1px solid var(--rule); border-radius: 4px;
                                   background: var(--paper); color: var(--ink); }
 .kit-zoom-size[aria-pressed="true"]:where(:not(svg *)), .kit-zoom-cmp[aria-pressed="true"]:where(:not(svg *)) { border-color: var(--accent); color: var(--accent); }
@@ -368,6 +369,48 @@ dialog.kit-zoom::backdrop { background: rgba(0, 0, 0, 0.62); }
 /* Reduced mode, an item's own images: no compare, no marks, no rows. */
 .kit-zoom.shots .kit-zoom-cmpgroup, .kit-zoom.shots .kit-zoom-with { display: none; }
 .kit-zoom.shots .kit-zoom-size { margin-left: auto; }
+/* The item's images, one at a time (BL-597): previous/next in the header, only
+   when there is more than one image; the group takes the push to the right. */
+.kit-zoom-nav:where(:not(svg *)) { display: none; }
+.kit-zoom.shots .kit-zoom-nav:not([hidden]) { display: flex; gap: 0.3rem; margin-left: auto; }
+.kit-zoom.shots .kit-zoom-nav:not([hidden]) ~ .kit-zoom-size { margin-left: 0; }
+.kit-zoom-prev:where(:not(svg *)), .kit-zoom-next:where(:not(svg *)) { white-space: nowrap; }
+.kit-zoom-prev:disabled:where(:not(svg *)), .kit-zoom-next:disabled:where(:not(svg *)) { cursor: default; opacity: 0.5; }
+/* The figure's title under the image it names. */
+.kit-zoom-cap:where(:not(svg *)) { margin: 0.5rem 0 0; text-align: center; font-family: var(--sans); font-size: 0.88rem; }
+.kit-zoom-cap[hidden] { display: none; }
+/* An inline svg figure (BL-626): drawn at its viewBox width, never scaled to
+   the window at 1:1 (its text keeps the size it was authored at; the dialog
+   scrolls); "Fit" shrinks it to the window like a capture. */
+.kit-zoom-svg { display: none; grid-area: 1 / 1; }
+.kit-zoom.svgmode .kit-zoom-svg { display: block; }
+.kit-zoom.svgmode .kit-compare > img { display: none; }
+.kit-zoom-svg svg { display: block; margin: 0 auto; width: var(--kit-svg-w, auto); max-width: 100%; height: auto; color: var(--ink); }
+.kit-zoom.native .kit-zoom-svg svg { max-width: none; }
+.kit-zoom:not(.native) .kit-zoom-svg svg { max-height: calc(90vh - 6rem); }
+/* A drawing wider than the dialog scrolls sideways from its left edge: the
+   centring (justify-items also centres block children) would push the overflow
+   off the left, where nothing reaches it. */
+.kit-zoom.svgmode .kit-compare, .kit-zoom.shots.native .kit-compare { display: block; justify-items: start; overflow-x: auto; }
+.kit-zoom.native .kit-zoom-svg { width: max-content; min-width: 100%; }
+/* An item's images only (a gallery row keeps its grid): the viewer is the
+   scroller, so the header and the caption stay put and the padding is the same
+   on both sides. A drawing that fits lets the browser deliver a horizontal
+   swipe (the walk); one that overflows pans (the composer sets .pan). */
+.kit-zoom.svgmode .kit-compare { touch-action: pan-y pinch-zoom; }
+.kit-zoom.svgmode.pan .kit-compare { touch-action: pan-x pan-y pinch-zoom; }
+/* A walk through several images keeps one dialog width, so Previous/Next do not
+   jump under the finger when a narrower image follows a wider one; it is pinned to
+   the top for the same reason (an image's height must not re-centre it). */
+dialog.kit-zoom.multi { width: min(calc(100% - 2em - 6px), 64rem); margin-top: 2rem; margin-bottom: auto;
+                        scrollbar-gutter: stable; }
+/* Its label changes with the image (1:1 / Fit), which would move the buttons beside it. */
+.kit-zoom.multi .kit-zoom-size { min-width: 12em; text-align: center; }
+/* A lone figure's caption and Ampliar are centred like a grid's, and in a grid
+   the caption goes to the cell's bottom so figures of different heights share
+   one line for it and for Ampliar. */
+figure[data-viewer] figcaption { text-align: center; }
+.gal.shots figcaption { margin-top: auto; }
 .kit-zoom-body { padding: 0.7rem; }
 /* The UA caps the dialog at 100% - 2em - 6px, so 90vw alone overflows it on a
    narrow screen; the height leaves room for the header and the keys line. */
@@ -745,7 +788,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 /* A visible zoom label on every tile once the composer has made it a button.
    Drawn from data-zoom (localised text set by composer.js), so a tap on touch
    reads the same as a click and nothing depends on a hover title. */
-.gal figure[role="button"]::after { content: attr(data-zoom); display: block; text-align: center;
+.gal figure[role="button"]::after, figure[data-viewer][role="button"]::after { content: attr(data-zoom); display: block; text-align: center;
   font-family: var(--sans); font-size: 0.78rem; line-height: 1.4; margin-top: 0.1rem;
   color: var(--accent); text-decoration: underline; pointer-events: none; }
 /* The one instruction of a gallery, under its heading (BL-595), and the variant
