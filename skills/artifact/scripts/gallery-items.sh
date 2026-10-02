@@ -6,8 +6,8 @@
 #   gallery-items.sh <rows.json> --root <abs repo root> --page <out.html> \
 #       --group-id <id> --group-title <title> [--lang es|en]
 #
-# The project decides which rows exist and emits them (dashboard_template's
-# `_scripts/gallery_board.py --rows-json <gallery>`): one row per cell in a
+# The project decides which rows exist and emits them (for example
+# a `gallery_board.py --rows-json <gallery>` script): one row per cell in a
 # variant the owner chose, as the pair before (baseline) / after (proposed), or
 # `after` alone for a new screen, plus every cell that changed unrequested. This
 # turns them into `consult-item consult-gallery` sections the kit's composer and

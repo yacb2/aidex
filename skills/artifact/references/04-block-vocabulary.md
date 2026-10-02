@@ -105,7 +105,7 @@ Source: `.context/requests/_archive/conference-talk-transcript.txt` (1,840 lines
 ```
 
 A masthead may carry a framed aside too, and it keeps the position it was
-written in. `echo_lab_ws/.context/reports/2026-07-24-localization-ux-mockups.html`
+written in. A sample report page
 opens with two `.note` divs under its standfirst — both about the page as a
 whole rather than about any one block, which is the opening block's job:
 
@@ -126,7 +126,7 @@ The **standfirst is the first paragraph of the masthead's own prose**, not the
 first thing it emits: an aside written above the standfirst stays above it and
 is not promoted into it.
 
-### `section` — `work_hours_ws/.context/reports/2026-09-09-sweep5-kickoff.html`
+### `section`
 
 The page's ledger section, as the page writes it:
 
@@ -316,8 +316,8 @@ option releases it.
 :::
 ```
 
-**The rows document** is what the project's emitter prints (`gallery_board.py --rows-json`
-in dashboard_template), and the kit reads nothing else:
+**The rows document** is what the project's emitter prints (for example a
+`gallery_board.py --rows-json` script), and the kit reads nothing else:
 
 ```json
 {"gallery": "audit", "variants": ["light-desktop"], "shots_dir": "<rel>", "actual_dir": "<rel>",
@@ -505,7 +505,7 @@ todavía. Si quieres perseguirlo, dilo en las notas generales.
 ```
 
 A `note` may nest a `note` or a `callout`, in the position it was written.
-`echo_lab_ws/.context/reports/2026-08-24-barrido-xs-s.html` closes an aside
+A sample report page closes an aside
 with a second, quieter one inside it. The two alternative spellings both lie
 about the page: siblings say the second aside qualifies the prose around it
 rather than the first, and folding them into one says the author drew one frame

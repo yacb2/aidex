@@ -334,8 +334,8 @@ matrix cells, columns the four projects.
   That path is what the Execution log records and what the word "verified" points at.
 - Desktop tiles are scaled down and mobile tiles stay native: a desktop frame squeezed to
   a mobile column is unreadable evidence.
-- `gallery_board.py` and `gallery_contact_sheet.py` are tracked shared infrastructure since
-  boilerplate migration 140: they read the fork's own gallery matrix (cells,
+- `gallery_board.py` and `gallery_contact_sheet.py` are tracked shared infrastructure in a
+  project that adopted the harness: they read the fork's own gallery matrix (cells,
   not-applicable reasons, `look` lines) from its `frontend/tests/demo/*-gallery.demo.spec.ts`,
   so a project adopting them edits no list, it keeps its specs. They need `uv` and `pillow`.
 

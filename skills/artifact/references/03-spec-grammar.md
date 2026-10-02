@@ -170,7 +170,7 @@ any number:
   The escape is an ADDITION; the rule used to be "there are no escape sequences, so a
   value cannot itself contain a `"`". It was the one gap in the grammar that a page in
   the frozen sample could not be converted around:
-  `dynamic_sites_ws/.context/reports/2026-09-03-cierre-del-proyecto.html` writes an
+  one sample report page writes an
   `<h2>` with a phrase in straight double quotes (in shape, `<h2>Dos tareas quedaron
   "en espera" …</h2>`), and a `group`'s `heading` is **visible text**. The alternatives were all worse. Rewriting the quote to a
   typographic `”` — what the drafting aid did, on stderr, where nobody read it — changes

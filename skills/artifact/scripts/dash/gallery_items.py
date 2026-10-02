@@ -5,7 +5,7 @@ A review row is ONE screen state in ONE variant (`light-desktop`, …), shown as
 the pair the owner rules on: "before" (the committed baseline) and "after" (the
 run's proposed render). A state whose screen is new has no baseline, so its row
 shows the one capture, labelled as new. The project owns which rows exist and
-emits them as rows JSON (`gallery_board.py --rows-json` in dashboard_template):
+emits them as rows JSON (for example a `gallery_board.py --rows-json` script):
 the variants the owner chose to review, plus every cell that changed without
 being asked for (`kind: "unrequested"`). This script turns that document into
 markup the kit already understands — `consult-item consult-gallery` sections
