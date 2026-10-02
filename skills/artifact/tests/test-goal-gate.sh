@@ -1147,6 +1147,12 @@ case("a select=many build checking an extra, not recommended option fails",
 case("a select=many build checking the recommended option beside the original's chosen one fails",
      item(box("Uno", False, True) + box("Dos", True, True)), False,
      "option marks differ", orig=item(box("Uno", False, True) + box("Dos", True)))
+# The input type is the item's select (BL-550): checkboxes are select=many,
+# radios select=one, and a build that turns one into the other asks a
+# different question with the same words.
+case("an original's checkbox options built as radios fail",
+     item(mark("Uno", True) + mark("Dos"), decided=False), False,
+     "option marks differ", orig=item(box("Uno", True) + box("Dos"), decided=False))
 case("a pre-checked option of an undecided item is not compared",
      item(mark("Uno", True) + mark("Dos"), decided=False), True,
      orig=item(mark("Uno", True, True) + mark("Dos"), decided=False))
