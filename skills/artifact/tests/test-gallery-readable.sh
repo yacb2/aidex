@@ -189,7 +189,7 @@ r = json.load(sys.stdin)["rows"]
 sys.exit(0 if len(r) == 1 and r[0]["cell"] == "users-list-menu" and r[0]["verdict"] == "Necesita cambios" else 1)' \
   && ok "the row id, cell and verdict come back" || fail "the reply did not round-trip"
 
-gen "$TMP/rows.json" --lang en 2>/dev/null | grep -qF '<span class="gal-intro-narrow">On a phone, tap Enlarge to read each capture.</span>' \
+gen "$TMP/rows.json" --lang en 2>/dev/null | grep >/dev/null -F '<span class="gal-intro-narrow">On a phone, tap Enlarge to read each capture.</span>' \
   && ok "BL-615: an English page carries the English hint" || fail "BL-615: the English hint is missing"
 
 echo "== the browser: rail, label, outline, overflow =="

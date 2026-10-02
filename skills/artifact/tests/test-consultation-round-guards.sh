@@ -474,7 +474,7 @@ for _, _, msg in ca.check_marker_duties(sys.argv[2])[0]: print(msg)
 P
 }
 st_out="$(duty_fails "$ST/page.html")"
-echo "$st_out" | grep -q 'gallery row x-full-light-desktop' \
+echo "$st_out" | grep >/dev/null 'gallery row x-full-light-desktop' \
   && ok "D7. round 3 with the owed gallery row still untouched FAILS the row" \
   || fail "D7: $st_out"
 

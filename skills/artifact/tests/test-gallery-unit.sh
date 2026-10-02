@@ -232,7 +232,7 @@ json.dump(d, open(sys.argv[2], "w"))
 PY
 bash "$GEN" "$TMP/rows-var.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/var.html" 2>"$TMP/var.err"
 bash "$GEN" "$TMP/rows-var-open.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/varo.html" 2>>"$TMP/var.err"
-hl() { item "$1" "$2" | grep -o 'data-heading="[^"]*"' | head -1; }
+hl() { item "$1" "$2" | grep -o 'data-heading="[^"]*"' | sed -n 1,1p; }
 [[ -n "$(hl audit-new-state-light-desktop "$TMP/var.html")" \
    && "$(hl audit-new-state-light-desktop "$TMP/var.html")" != "$(hl audit-new-state-dark-desktop "$TMP/var.html")" ]] \
   && [[ "$(hl audit-empty-light-desktop "$TMP/var.html")" == 'data-heading="Empty"' ]] \
@@ -990,7 +990,7 @@ MD
 ( cd "$TMP/an" && python3 "$SKILL/scripts/spec_build.py" a.spec.md -o a.html > "$TMP/an/b.out" 2>&1 ); rc=$?
 if [[ $rc == 0 && -f "$TMP/an/a.html" ]] && bash "$CHECK" "$TMP/an/a.html" > "$TMP/an/c.out" 2>&1 \
    && grep -q zzzanswer "$TMP/an/a.html"; then ok "BL-629 A-3 the built page with a decided answered row passes check-artifact"
-else fail "BL-629 A-3 built page: $(tail -3 "$TMP/an/b.out") $(grep -v "^$" "$TMP/an/c.out" | head -6)"; fi
+else fail "BL-629 A-3 built page: $(tail -3 "$TMP/an/b.out") $(grep -v "^$" "$TMP/an/c.out" | sed -n 1,6p)"; fi
 python3 - "$TMP/an/an.json" "$TMP/an/na.json" "$TMP/an/dr.json" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
