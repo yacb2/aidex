@@ -33,9 +33,11 @@ import base64
 import hashlib
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.dirname(HERE)
@@ -88,11 +90,102 @@ def refused(label, spec, base, line, *needles):
     check(label, False, "built without complaint")
 
 
+def png_of(w, h):
+    """A real PNG of w x h (all-black rows), so the builder reads a true size."""
+    def chunk(tag, body):
+        return (struct.pack(">I", len(body)) + tag + body
+                + struct.pack(">I", zlib.crc32(tag + body) & 0xffffffff))
+    raw = b"".join(b"\x00" + b"\x00" * w for _ in range(h))
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def run_highlight(tmp):
+    """BL-619: a png figure takes highlight="x,y,w,h" in image pixels and
+    emits the gallery's percentage overlay; layer: the builder (a decision on
+    the spec text, no browser needed)."""
+    print("== highlight ==")
+    write(tmp, "figures/big.png", png_of(200, 100))
+
+    def fig(extra, src="figures/big.png"):
+        return ('::: figure {#f1 src="%s" alt="la lista" %s}\n:::\n'
+                % (src, extra))
+
+    html = build(fig('highlight="20,10,60,30"'), base_dir=tmp)
+    check("highlight: the gallery overlay in percentages of the image",
+          'class="gal-hl-layer"' in html and 'aspect-ratio:200 / 100' in html
+          and 'style="left:10%;top:10%;width:30%;height:30%"' in html, html[-600:])
+    check("highlight: the overlay sits in the figure, after the img",
+          html.index("<img") < html.index("gal-hl-layer") < html.index("</figure>"))
+    check("no highlight: no overlay",
+          "gal-hl" not in build(fig(""), base_dir=tmp))
+    check("highlight touching the far edges is accepted",
+          'width:100%;height:100%' in build(fig('highlight="0,0,200,100"'),
+                                            base_dir=tmp))
+    refused("highlight past the right edge is refused, naming the figure",
+            fig('highlight="150,0,60,10"'), tmp, 1, "figures/big.png",
+            "runs outside", "200x100")
+    refused("highlight past the bottom edge is refused",
+            fig('highlight="0,95,10,10"'), tmp, 1, "runs outside")
+    refused("zero width is refused", fig('highlight="0,0,0,10"'), tmp, 1,
+            "w, h > 0")
+    refused("negative x is refused", fig('highlight="-1,0,10,10"'), tmp, 1,
+            "x, y >= 0")
+    refused("three numbers are refused", fig('highlight="1,2,3"'), tmp, 1,
+            "x,y,w,h")
+    refused("a non-number is refused", fig('highlight="a,2,3,4"'), tmp, 1,
+            "x,y,w,h")
+    refused("highlight on an svg is refused", fig('highlight="0,0,5,5"',
+            "figures/a.svg").replace(' alt="la lista"', ""), tmp, 1,
+            "highlight", "png/jpg")
+    # APP0 (JFIF, 16 bytes) sits before SOF0: the walk must step over it.
+    write(tmp, "figures/real.jpg", b"\xff\xd8" + b"\xff\xe0\x00\x10" + b"JFIF\x00" + b"\x00" * 9
+          + b"\xff\xc0\x00\x11\x08\x00\x40\x00\x80\x03" + b"\x00" * 12 + b"\xff\xd9")
+    html = build(fig('highlight="0,0,64,32"', "figures/real.jpg"), base_dir=tmp)
+    check("a jpg is measured from its SOF marker past an APP0 segment (128x64)",
+          'aspect-ratio:128 / 64' in html and 'width:50%;height:50%' in html,
+          html[-400:])
+    write(tmp, "figures/fake.png", b"not a png at all, only bytes\n" * 3)
+    refused("a .png that is not a PNG is refused, naming the figure",
+            fig('highlight="0,0,5,5"', "figures/fake.png"), tmp, 1,
+            "figures/fake.png", "not a PNG")
+    try:
+        build(fig('highlight="150,0,60,10"'), base_dir=tmp)
+    except SpecBuildError as exc:
+        check("a refusal names the figure, not a gallery row",
+              "row '" not in exc.message and "gallery-items" not in exc.message
+              and "`figure`" in exc.message, exc.message)
+
+    print("== highlight inside an item (the verify's shape) ==")
+    write(tmp, "figures/tall.png", png_of(100, 300))
+    one = ('::: item {#Q1 title="T"}\n¿Cuál?\n\n%s\n- A — uno\n- B — dos\n:::\n'
+           % fig('highlight="10,20,30,40"').replace("#f1 ", ""))
+    html = build(one, base_dir=tmp)
+    check("item, one highlighted png: wrapped in the kit class, overlay inside it, no grid",
+          '<div class="fig-hl"><img' in html and 'gal-hl-layer' in html
+          and '<div class="gal' not in html and 'max-width' not in html
+          and 'left:5%;top:20%;width:15%;height:40%' in html, html[:900])
+    two = ('::: item {#Q1 title="T"}\n¿Cuál?\n\n'
+           '::: figure {src="figures/big.png" alt="a" highlight="20,10,60,30"}\n:::\n\n'
+           '::: figure {src="figures/tall.png" alt="b" highlight="10,200,50,50"}\n:::\n\n'
+           '- A — uno\n- B — dos\n:::\n')
+    html = build(two, base_dir=tmp)
+    grid = html.split('<div class="gal shots"', 1)[-1].split("\n</div>\n", 1)[0]
+    check("item, two rasters with highlights: one shots grid, each overlay measured on ITS image",
+          html.count('<div class="gal shots"') == 1 and grid.count("<figure") == 2
+          and grid.count('<div class="fig-hl">') == 2
+          and 'aspect-ratio:200 / 100' in grid and 'aspect-ratio:100 / 300' in grid
+          and 'top:66.667%' in grid, grid[:1200])
+
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="spec-figure-")
     try:
         run(tmp)
         run_shots(tmp)
+        run_highlight(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     if failures:

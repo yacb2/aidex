@@ -758,6 +758,16 @@ the page here, still on the spec route. It has **no body** — the drawing is th
   inline SVG carries its own text.
 - `title` is the `<figcaption>`, as on `chart` and `diagram`. `#id` and classes land on
   the `<figure>`.
+- `highlight="x,y,w,h"` (BL-619, `.png`/`.jpg` only) outlines one region of the capture,
+  in the **image's own pixels** (x, y from the top-left). It becomes the same
+  percentage overlay a gallery row's `highlight` draws (`gal-hl-layer`), so it scales with
+  the image. The builder measures the file (PNG header or JPEG SOF marker) and refuses a
+  region outside it, naming the figure: x, y >= 0, w, h > 0, x+w <= image width,
+  y+h <= image height (touching the far edge is allowed). Four plain numbers only: no
+  `@name`, no list. On an `.svg` it is refused: outline inside the drawing instead.
+  The figure is wrapped in `.fig-hl` (kit class), its img at the width a plain figure's gets;
+  in an item's thumbnail grid a highlighted figure is shown whole, not cropped to 4:3, so the
+  outline stays on its region.
 - An `.svg` is **never shown wider than its viewBox** (BL-511): the builder reads the
   root's viewBox width and writes `style="max-width:<width>px"` on the `<figure>`, so a
   360-wide drawing shows at 360 px on a wide screen and still shrinks to the column at

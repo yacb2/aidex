@@ -3722,5 +3722,120 @@ tsl="$(grep -oE '<title>[^<]*</title>' "$TMP/slugdom.html" | sed -n 1p)"
 [[ "$tsl" == *"plain-row-id"* ]] \
   || fail "BL-577: a decided row with no heading must keep its id as the label: $tsl"
 
+# ---- a highlighted figure (BL-619): same size as a plain one, outline on its region ----
+# Layout only a browser decides: (a) a png figure with highlight= renders its
+# img at exactly the width a plain one gets, at 1280 and 390; (b) in an item's
+# thumbnail grid (cropped 4:3 by the kit) a highlighted figure is shown whole,
+# so every .gal-hl box lies inside its own img.
+FHL="$TMP/fhl"
+mkdir -p "$FHL/figures"
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/mid.png" 800 500
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/small.png" 300 200
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/tall.png" 390 844
+python3 "$SKILL/tests/png_fixture.py" "$FHL/figures/wide.png" 1200 400
+cat > "$FHL/p.spec.md" <<'SPEC'
+::: masthead {visual="none: probe"}
+# Probe
+
+Probe page.
+:::
+
+::: group {#G title="Grupo"}
+::: item {#Q1 title="Mid plain"}
+Texto.
+
+::: figure {src="figures/mid.png" alt="mid"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q2 title="Mid highlighted"}
+Texto.
+
+::: figure {src="figures/mid.png" alt="mid" highlight="300,200,200,100"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q3 title="Small plain"}
+Texto.
+
+::: figure {src="figures/small.png" alt="small"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q4 title="Small highlighted"}
+Texto.
+
+::: figure {src="figures/small.png" alt="small" highlight="100,50,100,50"}
+:::
+
+- A — bien
+- B — mal
+:::
+
+::: item {#Q5 title="Shots highlighted"}
+Texto.
+
+::: figure {src="figures/wide.png" alt="wide" highlight="100,100,300,100" title="wide"}
+:::
+
+::: figure {src="figures/tall.png" alt="tall" highlight="20,700,200,100" title="tall"}
+:::
+
+- A — bien
+- B — mal
+:::
+:::
+
+::: notes {title="Notas generales"}
+:::
+SPEC
+python3 "$SKILL/scripts/spec_build.py" "$FHL/p.spec.md" > "$FHL/body.html" 2> "$FHL/build.log" \
+  || fail "BL-619: the highlighted-figure probe spec failed to build: $(head -3 "$FHL/build.log")"
+cat >> "$FHL/body.html" <<'HTML'
+<script>
+window.addEventListener('load', function () {
+  (function () {
+    var w = function (id) { return document.querySelector('[data-id="' + id + '"] figure img').getBoundingClientRect().width; };
+    var inside = 0, outside = 0;
+    [].forEach.call(document.querySelectorAll('[data-id="Q5"] .gal.shots figure'), function (f) {
+      var ir = f.querySelector('img').getBoundingClientRect();
+      [].forEach.call(f.querySelectorAll('.gal-hl'), function (b) {
+        var r = b.getBoundingClientRect();
+        if (r.left >= ir.left - 1 && r.right <= ir.right + 1 && r.top >= ir.top - 1 && r.bottom <= ir.bottom + 1) inside++; else outside++;
+      });
+    });
+    document.title = 'FHL|mid=' + Math.round(w('Q1')) + ',' + Math.round(w('Q2')) +
+      '|small=' + Math.round(w('Q3')) + ',' + Math.round(w('Q4')) +
+      '|in=' + inside + '|out=' + outside + '|';
+  })();
+});
+</script>
+HTML
+FHL_PAGE="$TMP/reports/fhl.html"
+bash "$WRAP" --title "fhl" --lang es --out "$FHL_PAGE" < "$FHL/body.html" > "$FHL/wrap.log" 2>&1 \
+  || fail "BL-619: the probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$FHL/wrap.log" | sed -n 1,4p)"
+for vp in 1280,900 390,900; do
+  rm -rf "$TMP/profile"
+  CHROME_WINDOW=$vp chrome_dump "$TMP/fhl-$vp.dom" "file://$FHL_PAGE" 45 || true
+  tf="$(grep -oE '<title>[^<]*</title>' "$TMP/fhl-$vp.dom" | sed -n 1p)"
+  [[ "$tf" =~ mid=([0-9]+),([0-9]+)\|small=([0-9]+),([0-9]+)\|in=([0-9]+)\|out=([0-9]+) ]] \
+    || fail "BL-619 $vp: the highlighted-figure probe did not report: $tf"
+  [[ "${BASH_REMATCH[1]}" -gt 0 && "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]] \
+    || fail "BL-619 $vp: a highlighted 800x500 figure's img is not as wide as a plain one: $tf"
+  [[ "${BASH_REMATCH[3]}" -gt 0 && "${BASH_REMATCH[3]}" == "${BASH_REMATCH[4]}" ]] \
+    || fail "BL-619 $vp: a highlighted 300x200 figure's img is not as wide as a plain one: $tf"
+  [[ "${BASH_REMATCH[5]}" == 2 && "${BASH_REMATCH[6]}" == 0 ]] \
+    || fail "BL-619 $vp: in a thumbnail grid an outline leaves its image (want in=2 out=0): $tf"
+done
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
