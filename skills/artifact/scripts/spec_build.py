@@ -714,8 +714,8 @@ def _is_raster_figure(node):
 
 @emitter("item")
 def emit_item(node, ctx):
-    a = _attrs(node, {"title", "decided", "dropped", "free", "select"},
-               required=("title",), need_id=True)
+    a = _attrs(node, {"title", "heading", "decided", "dropped", "free",
+                     "select"}, required=("title",), need_id=True)
     # `select=many` is a question whose answer is a SET (BL-454): checkboxes,
     # the kit's `.opts` without `one`. Anything else but `one` is a typo that
     # would otherwise ship radios silently.
@@ -791,7 +791,13 @@ def emit_item(node, ctx):
     # is headed with — two different strings on every corpus item. The first
     # paragraph of the body is the question; an item that opens with something
     # else keeps it and asks its title instead.
-    if parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
+    if a.get("heading", "").strip():
+        # BL-652: an explicit `heading=` is the h3 whole. A first paragraph is
+        # the situation lead under it, as for a title-headed item (BL-576).
+        question = md_body._inline(a["heading"].strip())
+        if parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
+            parts[0] = '<p class="consult-lead">%s</p>' % _unwrap_p(parts[0])
+    elif parts and parts[0].startswith("<p>") and parts[0].endswith("</p>"):
         question, parts = _unwrap_p(parts[0]), parts[1:]
         # A situation lead (BL-514): only its closing question is the heading,
         # or the title when it asks none; the situation is body text under it.

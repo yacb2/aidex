@@ -934,6 +934,17 @@ the declaration lasts ONE round: every `new-round` replaces `retitled-ids` with 
 must be declared again. The id must still be in the spec. Start every round with
 `new-round`; a rebuild by other means keeps the previous declaration.
 
+## An `item`'s heading: `heading=` over `title=` (BL-652)
+
+The `<h3>` of an item is its first paragraph when that paragraph closes on a question,
+else its `title=` (BL-576). When the sentence over the item is not a question and the
+rail entry and the reply heading must stay a short name, write `heading="…"` beside
+`title="…"`: the h3 is the heading whole, `data-title` stays the title, and the first paragraph
+becomes the situation lead (`.consult-lead`) under the h3, as for a title-headed item. It is the same attr `group` and
+`section` already take, with the same meaning (`title` the NAME, `heading` the sentence).
+Without `heading=` nothing changes. Adding `heading=` to an item on a live page changes its h3, so its `questionHash` changes once and typed-but-unsent text reads blank once (as BL-576). `heading=` follows the `title=` quoting rules and is
+not a retitle: `consult-ids` and `check_prev` read `data-title` only.
+
 ## An `item`'s option list: one choice or a set
 
 The first markdown list in an `item` body is its option list, and the `item` builder

@@ -1226,6 +1226,30 @@ case("a lead placed after the options is not read in front of the question",
 case("a lead whose words changed still fails",
      LEAD_NEW.replace("Hoy falla.", "Hoy no falla."), False, "visible text differs",
      orig=LEAD_OLD)
+# BL-652: a `heading=` h3 is the original's h3 word for word, so its lead reads
+# after it. The hoist is decided per item from the ORIGINAL's h3, never from the
+# built h3's shape: a build that put the situation in the h3 and the question
+# in the lead still fails.
+case("a question built as the lead under its situation fails",
+     sec("q", "Hoy falla.", lead("¿Qué hacemos?"), title="Q"), False,
+     "visible text differs", orig=sec("q", "Hoy falla. ¿Qué hacemos?"))
+case("a heading= h3 equal to the original's reads its lead after it",
+     sec("q", "Frase larga", lead("Contexto."), title="Corta"), True,
+     orig=sec("q", "Frase larga", "<p>Contexto.</p>"))
+case("a heading= h3 that closes on a question reads its lead after it too",
+     sec("q", "¿Seguimos así?", lead("Contexto."), title="Corta"), True,
+     orig=sec("q", "¿Seguimos así?", "<p>Contexto.</p>"))
+# The title is the rail entry and the reply heading: a build that rewords it
+# keeps every visible word and still moves what the reader pastes back.
+case("an item whose data-title differs from the original's fails",
+     sec("q", "Frase larga", title="Larga una"), False, "data-titles differ",
+     orig=sec("q", "Frase larga", title="Corta"))
+case("a data-title that loses an underscore fails",
+     sec("q", "H", title="opslint"), False, "data-titles differ",
+     orig=sec("q", "H", title="ops_lint"))
+case("a build that drops an item's data-title fails",
+     sec("q", "H"), False, "data-titles differ",
+     orig=sec("q", "H", title="Corta"))
 
 # corpus_html.BADGE_WORDS is a hand copy of the kit's `rec` strings, one per
 # language: a language added to the composer, or a word changed there, would
