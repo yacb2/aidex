@@ -667,7 +667,9 @@ saved the same way, no bypass — runs `scripts/save-reply.sh <page.html>
 `.aidex-artifact-prev/<stem>.reply.md` AND snapshots the page exactly as the
 reader answered it to `.aidex-artifact-prev/<stem>.answered.html`, then prints
 one DUTY line per marked item (the Gate column above) — paste that list into
-the brief.
+the brief. DUTIES also include every gallery row whose verdict is
+anything but Approved (Needs changes, Other, Cannot judge) and every gallery row that carries region
+marks, approved or not (BL-632); an approved row with no mark owes nothing.
 
 `.aidex-artifact-prev/<stem>.html`, the contract baseline `consult-ids` uses for
 id stability, is advanced on **every** passing wrap, by design. A check keyed to

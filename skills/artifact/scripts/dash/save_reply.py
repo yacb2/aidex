@@ -37,8 +37,10 @@ earlier one (BL-598).
 Usage: save-reply.sh <page.html> [<reply-file>|-]
   <reply-file> omitted or "-": read the paste from stdin.
 """
+import contextlib
 import datetime
 import hashlib
+import io
 import os
 import re
 import sys
@@ -46,6 +48,8 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_artifact as ca  # noqa: E402
+import gallery_reply  # noqa: E402
+from gallery_items import VERDICTS  # noqa: E402
 import wrap_report  # noqa: E402
 
 
@@ -71,6 +75,57 @@ def _fingerprint(path):
         return hashlib.sha256(fh.read().encode("utf-8")).hexdigest()[:16]
 
 
+APPROVED = {"Aprobada", "Approved"}
+NEEDS_CHANGES = {pairs[1][0] for pairs in VERDICTS.values()}
+# Every answer a reader can give that is not the approval: Needs changes,
+# Cannot judge and the kit's two "Other" labels.
+OWING_VERDICTS = set(gallery_reply.ANSWERS) - APPROVED
+GALLERY_NEEDS_DUTY = ("the reader said this gallery row needs changes: read "
+                      "its note and change what it names")
+GALLERY_OTHER_DUTY = ("the reader did not approve this gallery row (Other / "
+                      "Cannot judge): read its note and answer what it says")
+GALLERY_MARK_DUTY = ("the reader marked regions of this gallery row's capture: "
+                     "fix what each mark's note names")
+
+
+def gallery_duties_for(reply_text):
+    """[(id, tag, duty text)] for gallery rows (gallery_reply's parser) whose
+    answer is anything but Approved, or that carry region marks even when
+    approved (BL-632). An approved row with no mark owes nothing. Each saved
+    paste is parsed on its own (the separator an appended save writes would
+    read as text after a row's marks) and the LATEST paste wins per row id: a
+    row a later paste turns Approved with no marks leaves the list. A paste
+    gallery_reply refuses yields an `unreadable` row instead of nothing, so
+    "nothing owed" cannot print over rows nobody read."""
+    by_id, unreadable = {}, []
+    for chunk in ca._SAVE_SEP.split(reply_text):
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                rows = gallery_reply.parse(chunk, lenient=True)["rows"]
+        except SystemExit:
+            msg = err.getvalue().strip().replace("gallery-reply: ", "", 1)
+            if msg not in unreadable:
+                unreadable.append(msg)
+            continue
+        for row in rows:
+            duties = []
+            if row["verdict"] in NEEDS_CHANGES:
+                duties.append((row["id"], "needs-changes", GALLERY_NEEDS_DUTY))
+            elif row["verdict"] in OWING_VERDICTS:
+                duties.append((row["id"], "other-verdict", GALLERY_OTHER_DUTY))
+            if row["marks"]:
+                duties.append((row["id"], "region-marks", GALLERY_MARK_DUTY))
+            by_id.pop(row["id"], None)
+            by_id[row["id"]] = duties
+    out = [d for duties in by_id.values() for d in duties]
+    for msg in unreadable:
+        out.append(("(gallery)", "unreadable",
+                    "gallery rows in this paste could not be read: %s; list "
+                    "their duties by hand" % msg))
+    return out
+
+
 def duties_for(reply_text):
     """[(id, marker, duty text)]. 3+ REAL asks (excluding `[page-defect]` and
     `[not-now]`, review finding 2) collapse to a single STACKED_DUTY row
@@ -93,7 +148,7 @@ def duties_for(reply_text):
                 duty = ca.MARKER_DUTIES.get(m)
                 if duty is not None:
                     out.append((ident, m, duty))
-    return out
+    return out + gallery_duties_for(reply_text)
 
 
 def save_reply(page_path, reply_text):
