@@ -84,6 +84,10 @@ a census warning on a page nobody is editing is noise no one can clear.
                id: a BL-/M095-style id, a backticked path, an HTTP verb, "fila N"
                or "gate N". The lead is the product situation in plain language;
                ids go on a trailing "Fuente:" line (BL-503)
+  consult-fuente-unreadable on a Spanish page, an item's "Fuente:" line made only
+               of short codes (d4, M4) and a few untranslated English words (phase,
+               empty, notes); a line of backlog ids alone is clean (BL-623)
+  consult-heading-statement an item with options whose <h3> has no "?" (BL-623)
   consult-order a block whose last item is followed by evidence (figure, img,
                svg, video, table, canvas, a `@@VIDEO` marker paragraph) before
                the block ends — the answer box rendered above the material it
@@ -864,6 +868,43 @@ def _id_hits(sentence):
                 continue
         out.append(tok)
     return out
+
+
+# BL-623: a "Fuente:" line the reader cannot follow. On a Spanish page it is
+# unreadable when every word is a short code (d4, M4, BL-12) or one of a few
+# untranslated English words; a real word beside the code ("decisión d4 ...,
+# fase 8") keeps it clean. A number alone is neither code nor word.
+FUENTE_CODE = re.compile(r'[A-Za-z]{1,2}\d+|[A-Z]{1,5}-\d+')
+# A line of backlog ids alone ("Fuente: BL-617.") is what consult-lead-id asks for.
+BACKLOG_ID = re.compile(r'[A-Z]{1,5}-\d+')
+FUENTE_ENGLISH = {"phase", "empty", "notes", "note", "row", "rows", "gate",
+                  "gates", "question", "decision", "step"}
+
+
+def fuente_unreadable(body):
+    """The text of the first item "Fuente:" paragraph made only of codes and
+    English words, else None."""
+    own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
+    for _, raw in (m.groups() for m in P_BLOCK.finditer(own)):
+        prose = ' '.join(_html.unescape(re.sub(r'<[^>]+>', ' ', raw)).split())
+        if not FUENTE_LEAD.match(prose):
+            continue
+        words = [w for w in re.findall(r'[\w-]+', FUENTE_LEAD.sub('', prose, 1))
+                 if not w.isdigit()]
+        if (words and all(FUENTE_CODE.fullmatch(w) or w.lower() in FUENTE_ENGLISH
+                          for w in words)
+                and not all(BACKLOG_ID.fullmatch(w) for w in words)):
+            return prose
+    return None
+
+
+def heading_statement(body):
+    """True when an item with radio/checkbox options has an <h3> with no
+    question mark."""
+    own = strip_html_comments(strip_script_style(body))
+    h3 = re.search(r'<h3\b[^>]*>(.*?)</h3\s*>', own, re.I | re.S)
+    return bool(h3 and MARK_INPUT.search(own)
+                and not re.search(r'[?\u00bf]', re.sub(r'<[^>]+>', '', h3.group(1))))
 
 
 def lead_id_finding(body, item_ids=frozenset()):
@@ -2273,6 +2314,39 @@ def warn_file(path):
                           f"(who, which screen, what they do, what happens today); "
                           f"internal ids go on a trailing \"Fuente:\" line "
                           f"(§8.4, BL-503). Cleared by the rewrite, not by a waiver"))
+
+    # Gallery rows (heading = state name) and decided items (heading = statement
+    # on purpose) are not asked, so only the rest owes a question mark.
+    asked = {next(g for g in m.groups()[1:] if g is not None)
+             for m in ITEM_OPEN.finditer(text)
+             if re.search(r'\bconsult-item\b', m.group(0))
+             and not ITEM_DECIDED.search(m.group(0))
+             and not GALLERY_CLASS.search(m.group(0))}
+    lang = HTML_LANG.search(text)
+    es_page = bool(lang) and lang.group(1).lower() == "es"
+    for ident, body in bodies:
+        if ident not in item_ids:
+            continue
+        try:
+            fuente = fuente_unreadable(body) if es_page else None
+            statement = ident in asked and heading_statement(body)
+        except Exception:                           # noqa: BLE001 — advisory
+            continue
+        if fuente:
+            warns.append(("consult-fuente-unreadable", name,
+                          f"'{ident}' has a source line (\"{fuente[:60]}\") made "
+                          f"only of short codes or untranslated English words — "
+                          f"write it in the page language so a reader can follow "
+                          f"it, or drop it (§8.4, BL-623). Cleared by the rewrite, "
+                          f"not by a waiver"))
+        if statement:
+            warns.append(("consult-heading-statement", name,
+                          f"'{ident}' has options but its heading states instead "
+                          f"of asking — the <h3> is the decision question. In a "
+                          f"spec, end the item's question paragraph with \"?\" "
+                          f"(the builder uses it as the heading) rather than "
+                          f"editing the h3 (§8.4, BL-623). Cleared by the "
+                          f"rewrite, not by a waiver"))
 
     try:
         trailing = trailing_evidence(text)

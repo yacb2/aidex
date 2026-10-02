@@ -568,7 +568,7 @@ grep -q "WARN \[consult-facts\].*'Q2'" "$TMP/out" \
 mkpage "$TMP/warn-clean.html" "$visual
 $gopen
 <section class=\"consult-item\" data-id=\"Q1\" data-title=\"Declared properly\">
-  <h3>Declared properly</h3>
+  <h3>Declared properly?</h3>
   <div class=\"opts one\">
     <label><input type=\"radio\" name=\"Q1\" data-label=\"A\" data-recommended><span>A</span></label>
     <label><input type=\"radio\" name=\"Q1\" data-label=\"B\" data-recommended=\"no\"><span>B</span></label>
@@ -856,6 +856,71 @@ for id in F3 F4 F6; do
 done
 grep -q "WARN \[consult-lead-id\].*'F5'" "$TMP/out" \
   && fail "10b4d. BL-631: F5 (Samsung Q80) is a product name and must not warn: $(cat "$TMP/out")"
+
+# 10b4e. BL-623: a Fuente line made only of short codes / untranslated English
+# words on a Spanish page, and an item with options whose h3 states instead of
+# asking. WARN only. A real word beside the code ("decisión d4 ... fase 8") and
+# an English page ("phase") stay clean. mkpage is lang=en, so sed swaps it.
+qitem() {  # id, h3 text, fuente text
+  printf '<section class=\"consult-item\" data-id=\"%s\" data-title=\"T %s\"><h3>%s</h3><p>Ana abre el proyecto y no ve el botón.</p><p>%s</p><div class=\"opts\"><label><input type=\"radio\" name=\"%s\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"%s\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>' "$1" "$1" "$2" "$3" "$1" "$1"
+}
+mkpage "$TMP/fuente-es.html" "$visual
+$gopen
+$(qitem H1 '¿Mostramos el botón?' 'Fuente: d4, M4, phase 8.')
+$(qitem H2 'La columna Idiomas muestra el texto cortado.' 'Fuente: decisión d4 del contrato de pantallas, fase 8.')
+$(qitem H3 '¿Mostramos el botón?' 'Fuente: decisión d4 del contrato de pantallas, fase 8.')
+$gclose
+$notesitem
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/fuente-es.html"
+rc="$(run "$TMP/fuente-es.html")"
+[[ "$rc" == "0" ]] || fail "10b4e. the new warnings changed the exit code: $(cat "$TMP/out")"
+grep -q "WARN \[consult-fuente-unreadable\].*'H1'" "$TMP/out" \
+  || fail "10b4e. BL-623: 'Fuente: d4, M4, phase 8.' on a Spanish page was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[consult-heading-statement\].*'H2'" "$TMP/out" \
+  || fail "10b4e. BL-623: an item with options and a statement h3 was not reported: $(cat "$TMP/out")"
+for id in H2 H3; do
+  grep -q "WARN \[consult-fuente-unreadable\].*'$id'" "$TMP/out" \
+    && fail "10b4e. BL-623: $id has a readable Fuente and must not warn: $(cat "$TMP/out")"
+done
+for id in H1 H3; do
+  grep -q "WARN \[consult-heading-statement\].*'$id'" "$TMP/out" \
+    && fail "10b4e. BL-623: $id heading is a question and must not warn: $(cat "$TMP/out")"
+done
+# 10b4e review round: gallery rows and decided items are not asked, backlog-id
+# Fuente lines are what consult-lead-id tells authors to write.
+radios2='<div class="opts"><label><input type="radio" name="g" data-label="A"><span>A</span></label><label><input type="radio" name="g" data-label="B"><span>B</span></label></div>'
+mkpage "$TMP/fuente-es2.html" "$visual
+$gopen
+<section class=\"consult-item consult-gallery\" data-id=\"g-a-b\" data-title=\"g · a · b\"><h3>Lista vacía</h3>$radios2<textarea></textarea></section>
+$(qitem K1 'La columna muestra el texto cortado.' 'Fuente: decisión d4 del contrato.' | sed 's/data-title=/data-decided=\"Aprobada\" data-title=/')
+$(qitem K2 '¿Mostramos el botón?' 'Fuente: BL-617.')
+$(qitem K3 '¿Mostramos el botón?' 'Fuente: BL-716, BL-708, P11.')
+$gclose
+$notesitem
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/fuente-es2.html"
+rc="$(run "$TMP/fuente-es2.html")"
+grep -q "WARN \[consult-heading-statement\].*'g-a-b'" "$TMP/out" \
+  && fail "10b4e. BL-623: a gallery row heading is a state name and must not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-heading-statement\].*'K1'" "$TMP/out" \
+  && fail "10b4e. BL-623: a decided item is not asked and must not warn: $(cat "$TMP/out")"
+grep -q "WARN \[consult-fuente-unreadable\].*'K2'" "$TMP/out" \
+  && fail "10b4e. BL-623: 'Fuente: BL-617.' is what consult-lead-id asks for and must stay clean: $(cat "$TMP/out")"
+grep -q "WARN \[consult-fuente-unreadable\].*'K3'" "$TMP/out" \
+  || fail "10b4e. BL-623: 'Fuente: BL-716, BL-708, P11.' was not reported: $(cat "$TMP/out")"
+mkpage "$TMP/fuente-en.html" "$visual
+$gopen
+$(qitem J1 'Do we show the button?' 'Source: d4, M4, phase 8.')
+$gclose
+$notesitem
+$bars
+$composer"
+rc="$(run "$TMP/fuente-en.html")"
+grep -q "WARN \[consult-fuente-unreadable\]" "$TMP/out" \
+  && fail "10b4e. BL-623: 'phase' on an English page is not untranslated: $(cat "$TMP/out")"
 
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
