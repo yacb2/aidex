@@ -148,6 +148,13 @@ locator until it passes, with no cause, is neither. The harness warms the dev se
 the first cell and one retry absorbs a host hiccup; the closing line prints the retries
 (`retries: N`), so a green run that retried is visible. Read it beside `meta:`.
 
+**Charts animate in JavaScript, which the freeze does not reach.** Freezing CSS motion
+and `reducedMotion` stop CSS transitions only; a d3/unovis chart (or any JS-driven
+transition) keeps animating, so a shot can land between frames and a cell passes some
+runs and fails others. Fix the cause: set the chart's animation duration to 0 under the
+gallery, or make the cell's `ready` mean the final frame (a marker set when the animation
+ends). Never a fixed `waitForTimeout`, which is a guess about speed, not a cause.
+
 ## 2. The runner invocation — ALWAYS with a spec path
 
 Galleries run through a dedicated runner config, inside the project's existing isolated
@@ -330,4 +337,5 @@ the harness copies this table into its own record and edits the rows its setup c
 | **Known-defect guards proven on seeded input only** | The meta-suite exercises the scoping and the rot guard against seeded defects; a list with no real entry has still never been exercised against real input. |
 | **The lockstep test parses source by regex** | A reformat is a false red, not a false green — but it is still a red nobody caused. |
 | **Overflow does not see clipped or spilling boxes** | An `overflow: hidden`/`clip` box (a truncated label is wider than its box on purpose) and a visible-overflow child spilling out without growing any scroller are not findings; the pixels have to show them. |
+| **JS-driven animation is not frozen** | Freezing CSS motion and `reducedMotion` do not stop d3/unovis chart transitions; a cell whose `ready` resolves mid-animation gets a baseline of an intermediate frame and flakes. The chart's duration must be 0 under the gallery, or `ready` must mean the final frame (§ 1c). |
 | **Taste is not gated** | Overflow, contrast, layout churn and pixel drift, and nothing else. Whether the screen is good is the owner's call on the contact sheet. |
