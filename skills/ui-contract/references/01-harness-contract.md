@@ -253,7 +253,7 @@ does. A NEW screen has no baseline and no `before`: the emitter takes a `--new` 
 variants. Every shown row carries a `look` line (one sentence: what to look at in this
 picture); the spec route (`::: gallery rows=`) refuses a shown row without it, while
 `gallery-items.sh` alone renders the row and exits 0, so an emitter that does not write it
-gets it added before the page is built. The same goes for `noBefore` (a reason string on a single-capture row whose before is lost or unreachable, instead of the "new screen" label): the emitters never write it, the author adds it to the emitted rows before the build. For alternatives (N labelled variants of one cell)
+gets it added before the page is built. The same goes for `noBefore` (a reason string on a single-capture row whose before is lost or unreachable, instead of the "new screen" label): the emitters never write it, the author adds it to the emitted rows before the build and likewise `decided_note` (the "decidido, corrígeme si no" text of a still-open row, rendered as a callout under the captures). For alternatives (N labelled variants of one cell)
 the rows document declares them once and the reply parses back with `--rows` (SKILL.md,
 "Verified" part 1). An empty `rows` (everything matched) means no gallery block on the page. The
 artifact kit's `gallery-items.sh` turns that document into consultation items

@@ -864,5 +864,79 @@ nbrun drp "d['rows'][1].update({'dropped': 'gone', 'noBefore': 'zzzmarker'})"; r
 if [[ $rc == 0 ]] && ! grep -q zzzmarker "$TMP/nb/drp.out"; then ok "BL-610 6 noBefore on a dropped row is not read, not refused"
 else fail "BL-610 6 dropped+noBefore: exit $rc $(cat "$TMP/nb/drp.err")"; fi
 
+# -- BL-613: a row's optional `decided_note` ----------------------------------
+# A reversible decision ("decidido, corrígeme si no") had no slot in a gallery,
+# so builders crammed it into the Qué mirar line. `decided_note` renders as the
+# kit's callout under the captures, never in the look line.
+echo "== BL-613: decided_note =="
+mkdir -p "$TMP/dn"
+cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/dn/" 2>/dev/null
+cat > "$TMP/dn/dn.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "shots_dir": "shots", "actual_dir": "actual",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "look": "El estado vacío",
+   "decided_note": "Decidido, corrígeme si no: dejamos el icono actual zzzdecided",
+   "before": "shots/light-desktop/audit-empty.png", "after": "actual/light-desktop/audit-empty.png"}
+ ]}
+JSON
+cat > "$TMP/dn/d.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una fila con decisión tomada.
+:::
+
+::: gallery {#G title="Revisión" rows="dn.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/dn" && python3 "$SKILL/scripts/spec_build.py" d.spec.md -o d.html > "$TMP/dn/b.out" 2>&1 ); rc=$?
+if [[ $rc == 0 && -f "$TMP/dn/d.html" ]]; then
+  python3 - "$TMP/dn/d.html" <<'PY' && ok "BL-613 D-1 decided_note is a callout element after the gal-variant line; the Qué mirar line does not hold it" || fail "BL-613 D-1 decided_note is not a callout under the captures (see above)"
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<div class="callout[^"]*"[^>]*>(?:(?!</div>).)*zzzdecided(?:(?!</div>).)*</div>', html, re.S)
+if not m: sys.exit("no callout element holds the decided note")
+look = re.search(r'<p class="gal-look">.*?</p>', html, re.S).group(0)
+if "zzzdecided" in look: sys.exit("the look line holds the decided note")
+row = html[html.index('class="consult-item consult-gallery"'):]
+if row.index("zzzdecided") < row.index('class="gal-variant"'): sys.exit("callout is not after the gal-variant line")
+PY
+  bash "$CHECK" "$TMP/dn/d.html" > "$TMP/dn/c.out" 2>&1; crc=$?
+  if [[ $crc == 0 ]] && grep -q zzzdecided "$TMP/dn/d.html" && ! grep -q "consult-shape" "$TMP/dn/c.out"; then ok "BL-613 D-2 check-artifact.sh exits 0 and raises no consult-shape finding on the page"
+  else fail "BL-613 D-2 consult-shape finding: $(grep consult-shape "$TMP/dn/c.out")"; fi
+else fail "BL-613 D-1 the spec with a decided_note did not build: $(tail -3 "$TMP/dn/b.out")"; fi
+for bad in '"decided": "Bien"' '"decided_note": ""' '"decided_note": " "' '"decided_note": ["x"]' '"decided_note": 3'; do
+  python3 - "$TMP/dn/dn.json" "$TMP/dn/bad.json" "$bad" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0].update(json.loads("{%s}" % sys.argv[3]))
+json.dump(d, open(sys.argv[2], "w"))
+PY
+  bash "$GEN" "$TMP/dn/bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dn/bad.out" 2> "$TMP/dn/bad.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/dn/bad.out" ]] && grep -q "row 'empty'.*decided_note" "$TMP/dn/bad.err"; then ok "BL-613 D-3 $bad is refused naming the cell"
+  else fail "BL-613 D-3 $bad: exit $rc, stderr: $(cat "$TMP/dn/bad.err")"; fi
+done
+# A notApplicable row is a live question with no captures: a decided_note there
+# would be dropped silently, so it is refused; a dropped row does not read it.
+python3 - "$TMP/dn/dn.json" "$TMP/dn/na.json" "$TMP/dn/dr.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"] = [{"cell": "empty", "notApplicable": "no permission state", "decided_note": "x"}]
+json.dump(d, open(sys.argv[2], "w"))
+d["rows"] = [{"cell": "empty", "notApplicable": "no permission state", "dropped": "gone", "decided_note": "zzzdecided"}]
+json.dump(d, open(sys.argv[3], "w"))
+PY
+bash "$GEN" "$TMP/dn/na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dn/na.out" 2> "$TMP/dn/na.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/dn/na.out" ]] && grep -q "row 'empty'.*decided_note" "$TMP/dn/na.err"; then ok "BL-613 D-3 a decided_note on a notApplicable row is refused naming the cell"
+else fail "BL-613 D-3 notApplicable+decided_note: exit $rc, stderr: $(cat "$TMP/dn/na.err")"; fi
+bash "$GEN" "$TMP/dn/dr.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/dn/dr.out" 2> "$TMP/dn/dr.err"; rc=$?
+if [[ $rc == 0 ]] && ! grep -q zzzdecided "$TMP/dn/dr.out"; then ok "BL-613 D-4 decided_note on a dropped row is not read, not refused"
+else fail "BL-613 D-4 dropped+decided_note: exit $rc $(cat "$TMP/dn/dr.err")"; fi
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"
