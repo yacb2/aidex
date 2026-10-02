@@ -191,6 +191,17 @@ WL8="$(bash "$DIR/worklist-new.sh" --title "Cdpath reverse" --slug cdpath-revers
 mkdir -p "$TMP/other/.context/worklists"
 OUT="$(CDPATH="$TMP/other" bash "$DIR/worklist-advance.sh" ".context/worklists/$(basename "$WL8")" --peek 2>&1)"
 [[ "$OUT" == *"first of reverse"* ]] && ok "with CDPATH at another project, a path into worklists/ still resolves" || bad "CDPATH reverse: $OUT"
+# a SLUG with `..` climbs out through the glob: `*` matches the `_archive` entry, so
+# `$dir/*_archive/../../../../q/...*.md` is another project's work-list (review of BL-600).
+# Each match must sit in worklists/ or _archive/ once resolved, like a path.
+mkdir -p "$TMP/q/.context/worklists"; FW="$TMP/q/.context/worklists/2026-10-02-foreign.md"
+printf -- '---\nstatus: doing\nupdated: 2026-01-01\n---\n1. [ ] first of foreign\n' > "$FW"; fsum="$(cksum < "$FW")"
+OUT="$(bash "$DIR/worklist-advance.sh" _archive/../../../../q/.context/worklists/2026-10-02-foreign --peek 2>&1)"; RC=$?
+[[ $RC -eq 2 && "$OUT" == *"not under"* && "$OUT" != *"first of foreign"* ]] \
+  && ok "a slug whose glob climbs out of worklists/ through _archive/.. is refused" || bad "advance foreign slug: rc=$RC $OUT"
+bash "$DIR/worklist-close.sh" _archive/../../../../q/.context/worklists/2026-10-02-foreign >/dev/null 2>"$TMP/err"; RC=$?
+[[ $RC -eq 2 && "$(cksum < "$FW")" == "$fsum" && ! -e .context/worklists/_archive/2026-10-02-foreign.md ]] && grep -q "not under" "$TMP/err" \
+  && ok "close of that slug is refused and the other project's list is untouched" || bad "close foreign slug: rc=$RC $(cat "$TMP/err")"
 
 # 7 · an ARCHIVED work-list reached by a path without a literal `_archive/` (BL-591): close
 # matched the string `*/_archive/*`, so `cd _archive && close ./x.md` rewrote status and

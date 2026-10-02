@@ -430,7 +430,18 @@ n0="$(grep -c . "$H")"
 OUT="$(run --only e2e --worklist .context/worklists/ext/../2026-09-30-foreign.md)"; RC=$?
 [[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] \
   && ok "12 F a symlinked path into another project's work-lists exits 2, no history row" || bad "12 F symlinked foreign work-list: rc=$RC $OUT $(cat "$TMP/err")"
+# (F2) the slug form through the same symlink: only `cd -P` sees `ext/..` as the other project
+n0="$(grep -c . "$H")"
+OUT="$(run --only e2e --worklist ext/../2026-09-30-foreign)"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] && grep -q 'not under' "$TMP/err" \
+  && ok "12 F2 a symlinked slug into another project's work-lists exits 2, no history row" || bad "12 F2 symlinked foreign slug: rc=$RC $OUT $(cat "$TMP/err")"
 rm "$WLD/ext"
+# (G) the same as a SLUG: the resolver's glob `*` matched `_archive`, so `_archive/../..` climbed
+# out to the other project's list and stamped a PENDING row (review of BL-600)
+n0="$(grep -c . "$H")"
+OUT="$(run --only e2e --worklist _archive/../../../../qother/.context/worklists/2026-09-30-foreign)"; RC=$?
+[[ $RC -eq 2 && "$(grep -c . "$H")" -eq "$n0" ]] && grep -q 'not under' "$TMP/err" \
+  && ok "12 G a slug that climbs out through _archive/.. exits 2, no history row" || bad "12 G foreign slug: rc=$RC rows $n0 -> $(grep -c . "$H") $OUT $(cat "$TMP/err")"
 
 # ── 13 · the gate runs the suite of the checkout it is invoked in (BL-548) ─────────
 #        2026-10-01: launched from a linked worktree, the gate resolved ROOT to the main
