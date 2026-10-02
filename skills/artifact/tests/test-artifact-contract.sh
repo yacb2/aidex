@@ -23,7 +23,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 BODY='<style>:root{--ink:#111}
-@media (prefers-color-scheme: dark){:root{--ink:#eee}}</style>
+@media (prefers-color-scheme: dark){:root{--ink:#eee}</style>
 <div class="page"><main class="main"><h1>Informe</h1><p>Acentuaci&oacute;n y datos.</p></main></div>'
 
 echo "== wrap-report.sh =="
@@ -120,6 +120,52 @@ out="$(bash "$CHECK" "$TMP/localsrcset.html" 2>&1)"
 [[ "$out" != *"[self]"* ]] \
   && ok "a local multi-candidate srcset passes self" || bad "a local srcset was judged a remote load: $out"
 
+# BL-564: remote loads via track, iframe, embed, object, protocol-relative and CSS url().
+mk exttrack.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video><track src=\"https://x/a.vtt\"></video>"
+mk extiframe.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><iframe src=\"https://x/p\"></iframe>"
+mk extembed.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><embed src=\"https://x/a.swf\">"
+mk extobject.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><object data=\"https://x/a.pdf\"></object>"
+mk extproto.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img src=\"//x/a.png\" alt=\"a\">"
+mk extprotoaudio.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><audio src=\"//x/a.mp3\"></audio>"
+mk extprotosrcset.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><img srcset=\"a.png 1x, //x/b.png 2x\" alt=\"a\">"
+mk extstyleurl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><div style=\"background:url(https://x/a.png)\">x</div>"
+mk extcssurl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(//x/a.png)}@media (prefers-color-scheme: dark){}</style>"
+for case in "exttrack self" "extiframe self" "extembed self" "extobject self" "extproto self" "extprotoaudio self" "extprotosrcset self" "extstyleurl self" "extcssurl self"; do
+  set -- $case
+  out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
+  if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
+done
+mk localforms.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(data:image/png;base64,AAAA)}.b{background:url(a.png)}@media (prefers-color-scheme: dark){}</style><video><track src=\"a.vtt\"></video><iframe src=\"p.html\"></iframe><embed src=\"a.swf\"><object data=\"a.pdf\"></object><img src=\"data:image/png;base64,AAAA\" alt=\"a\"><div style=\"background:url(a.png)\">x</div><svg><rect fill=\"url(#g)\"/></svg>"
+out="$(bash "$CHECK" "$TMP/localforms.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] \
+  && ok "local, relative and data: URLs in the same forms pass self" || bad "a local URL was judged a remote load: $out"
+
+# BL-564 review notes: whitespace in the quote, unquoted/single-quoted style, @import string, // on every tag.
+mk extiframews.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><iframe src=\" https://x/p\"></iframe>"
+mk extcsswsurl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(\" //x/a.png\")}@media (prefers-color-scheme: dark){}</style>"
+mk extstyleunq.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><div style=background:url(//x/a.png)>x</div>"
+mk extstylesq.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><div style='background:url(//x/a.png)'>x</div>"
+mk extimportstr.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@import \"//x/a.css\";@media (prefers-color-scheme: dark){}</style>"
+mk extprotoiframe.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><iframe src=\"//x/p\"></iframe>"
+mk extprototrack.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><video><track src=\"//x/a.vtt\"></video>"
+mk extprotoembed.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><embed src=\"//x/a.swf\">"
+mk extprotoobject.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@media (prefers-color-scheme: dark){}</style><object data=\"//x/a.pdf\"></object>"
+mk extimporturl.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>@import url(https://x/a.css);@media (prefers-color-scheme: dark){}</style>"
+for case in "extiframews self" "extcsswsurl self" "extstyleunq self" "extstylesq self" "extimportstr self" "extprotoiframe self" "extprototrack self" "extprotoembed self" "extprotoobject self" "extimporturl self"; do
+  set -- $case
+  out="$(bash "$CHECK" "$TMP/$1.html" 2>&1)"
+  if [[ "$out" == *"[$2]"* ]]; then ok "catches $2 ($1.html)"; else bad "did not catch $2 in $1.html: $out"; fi
+done
+# One defect, one finding: @font-face and @import url() are not also reported as CSS url().
+for f in extfont extimporturl; do
+  n="$(bash "$CHECK" "$TMP/$f.html" 2>&1 | grep -c '\[self\]')"
+  [[ "$n" == 1 ]] && ok "$f yields exactly one [self] finding" || bad "$f yields $n [self] findings"
+done
+# An svg data: URI naming an http namespace is inlined, not a remote load.
+mk datasvg.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E\")}@media (prefers-color-scheme: dark){}</style>"
+out="$(bash "$CHECK" "$TMP/datasvg.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "a data:image/svg+xml url() passes self" || bad "a data: svg url() was judged remote: $out"
+
 # An inlined font is the compliant form — the remote-font check must not flag it.
 mk datafont.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>
 @font-face{font-family:Inter;src:url(data:font/woff2;base64,AAAA) format('woff2');}
@@ -147,7 +193,7 @@ bash "$CHECK" "$TMP/does-not-exist.html" >/dev/null 2>&1 \
 # showing the check fired once — a probe samples behaviour, this makes skipping impossible.
 WRAP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts" && pwd -P)/wrap-report.sh"
 
-GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>ok</h1></main></div>'
+GOOD='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}</style><div class="page"><main class="main"><h1>ok</h1></main></div>'
 printf '%s\n' "$GOOD" | bash "$WRAP" --title "T" --out "$TMP/coupled-ok.html" >/dev/null 2>&1 \
   && ok "--out writes and passes a conforming page" || bad "--out rejected a conforming page"
 [[ -f "$TMP/coupled-ok.html" ]] && ok "--out actually wrote the file" || bad "--out wrote nothing"
@@ -967,7 +1013,7 @@ out3b="$(shifted "A different claim")"; rc3b=$?
 # --- BL-168: the style profile is a FIELD the wrapper reads (D2) --------------
 echo "== style profile =="
 LANGP="$TMP/langproj"; mkdir -p "$LANGP/.context/reports"
-GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
+GOODB='<style>body{color:#111}@media (prefers-color-scheme: dark){body{color:#eee}</style><div class="page"><main class="main"><h1>x</h1></main></div>'
 
 # The one-time offer: it fires when the project has no profile, and records itself
 # so it cannot become the 14-offers-across-7-projects nag the usage-retro measured.
@@ -1227,7 +1273,7 @@ bash "$CHECK" "$TMP/halfwrap.html" >/dev/null 2>&1 \
 
 # A page that does NOT carry the kit is out of scope: it has no .page rule to be
 # inside of, and judging it would fail every pre-kit artifact on disk.
-printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><h1>Pre-kit</h1></body></html>\n' > "$TMP/prekit.html"
+printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}</style>\n</head>\n<body><h1>Pre-kit</h1></body></html>\n' > "$TMP/prekit.html"
 bash "$CHECK" "$TMP/prekit.html" >/dev/null 2>&1 \
   && ok "a page without the kit stamp is not judged on the kit's layout" \
   || bad "a pre-kit page was failed for a container it never had"
@@ -1319,7 +1365,7 @@ bash "$CHECK" "$TMP/norail-wrapped.html" >/dev/null 2>&1 \
 
 # Route A boards are full of tables and are not kit pages: the same stamp gate as
 # the layout check keeps them out of it.
-printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}}</style>\n</head>\n<body><table><tr><td>a</td></tr></table></body></html>\n' > "$TMP/board.html"
+printf '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n<meta name="viewport" content="width=device-width">\n<title>t</title>\n<style>@media (prefers-color-scheme: dark){body{background:#111}</style>\n</head>\n<body><table><tr><td>a</td></tr></table></body></html>\n' > "$TMP/board.html"
 bash "$CHECK" "$TMP/board.html" >/dev/null 2>&1 \
   && ok "a page without the kit stamp is not judged on the kit's table wrapper" \
   || bad "a non-kit page was failed for the kit's table wrapper"

@@ -2480,16 +2480,34 @@ def check_file(path):
         report("self", "external stylesheet — the file must stand alone offline")
     if re.search(r'<script[^>]+src=', flat, re.I):
         report("self", "external script — the file must stand alone offline")
-    if re.search(r'@import\s+(url\()?["\']?https?:', flat, re.I):
+    REMOTE = r'(?:https?:|//)'
+    if re.search(r'@import\s+(?:url\(\s*)?["\']?\s*' + REMOTE, flat, re.I):
         report("self", "@import of a remote stylesheet")
     # A <video> is a visual like an <img>: its own src or a <source> child.
     # srcset and poster load too; data-src is a script's, and loads nothing.
     # Every srcset candidate loads, not only the first, and <audio> is media
     # like <video> (BL-553).
-    if re.search(r'<(?:img|video|audio|source)\b[^>]*\s(?:(?:src|poster)=["\']?'
-                 r'|srcset=(?:"(?:[^">]*,)?|\'(?:[^\'>]*,)?|(?:[^\s"\'>]*,)?)\s*)https?:',
+    # Protocol-relative //host loads like https: (BL-564); <track>, <iframe>,
+    # <embed> src and <object data> load too.
+    if re.search(r'<(?:img|video|audio|source)\b[^>]*\s(?:(?:src|poster)=["\']?\s*'
+                 r'|srcset=(?:"(?:[^">]*,)?|\'(?:[^\'>]*,)?|(?:[^\s"\'>]*,)?)\s*)' + REMOTE,
                  flat, re.I):
         report("self", "remote image or video — breaks offline and leaks a request")
+    if re.search(r'<(?:track|iframe|embed)\b[^>]*\ssrc=["\']?\s*' + REMOTE
+                 + r'|<object\b[^>]*\sdata=["\']?\s*' + REMOTE, flat, re.I):
+        report("self", "remote track, iframe, embed or object — breaks offline "
+                       "and leaks a request")
+    # CSS url() in a <style> block or a style= attribute (url(data:) and
+    # url(#id) are local and do not match).
+    # An @import or @font-face url() is reported by its own rule: one defect,
+    # one finding.
+    css_url = r'url\(\s*["\']?\s*' + REMOTE
+    style_css = re.sub(r'@import[^;}]*|@font-face[^}]*', ' ',
+                       "\n".join(SVG_STYLE_BLOCK.findall(flat)), flags=re.I)
+    if (re.search(css_url, style_css, re.I)
+            or re.search(r'\sstyle=(?:"[^"]*|\'[^\']*|[^\s"\'>]*)' + css_url,
+                         flat, re.I)):
+        report("self", "remote CSS url() — breaks offline and leaks a request")
     # Only a remote src counts: url(data:…) is inlined and honours the contract.
     if re.search(r'@font-face[^}]*url\(\s*["\']?(https?:)?//', flat, re.I):
         report("self", "remote @font-face src — the font never loads offline "
