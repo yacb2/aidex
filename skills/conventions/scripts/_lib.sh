@@ -331,6 +331,17 @@ resolve_worklist() {
   else
     m="$(ls "$dir/"*"$arg"*.md 2>/dev/null | grep -Ev -- '-report(\.spec)?\.md$' || true)"
   fi
+  # A slug with `..` climbs out through the glob: `*` matches the `_archive` entry, so
+  # `_archive/../../../../q/...` named another project's list. Every match must resolve,
+  # like a path, into <dir> or <dir>/_archive (review of BL-600).
+  local wd ad
+  wd="$(CDPATH= cd -P "$dir" >/dev/null 2>&1 && pwd -P)" || true
+  ad="$(CDPATH= cd -P "$dir/_archive" >/dev/null 2>&1 && pwd -P)" || true
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    b="$(CDPATH= cd -P "$(dirname "$f")" >/dev/null 2>&1 && pwd -P)"
+    [[ "$b" == "$wd" || "$b" == "$ad" ]] || { err "not under $dir: $arg"; exit 2; }
+  done <<<"$m"
   n="$(grep -c . <<<"$m" || true)"
   if [[ "$n" -gt 1 ]]; then
     re='^[0-9]{4}-[0-9]{2}-[0-9]{2}-'
