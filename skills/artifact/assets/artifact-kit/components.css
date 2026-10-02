@@ -205,8 +205,11 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
    interface instead of being asked again. */
 /* `min(20rem, 100%)`: at 390 px the column is 294 px and a bare 20rem track spilled
    every row 28 px past the ledger's border. */
-.ledger { border: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); gap: 1px; background: var(--rule); }
-.ledger > div { background: var(--paper); display: flex; gap: 0.7rem; align-items: baseline;
+/* Per-cell borders, not a 1px gap over a --rule background: an odd last row left
+   the unused track shaded as an empty cell (BL-614). The container carries the top
+   and left edge, each cell its right and bottom one. */
+.ledger { border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); display: grid; grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr)); }
+.ledger > div { background: var(--paper); border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); display: flex; gap: 0.7rem; align-items: baseline;
                 padding: 0.55rem 0.9rem; font-family: var(--sans); font-size: 0.82rem; line-height: 1.5; }
 /* The key column is sized by its key, up to 40% of the row, and wraps beyond it:
    the value keeps at least 60% (its `min-width`, not a `max-width` on the key, which
