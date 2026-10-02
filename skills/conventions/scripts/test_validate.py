@@ -416,6 +416,68 @@ def check_baseline_ratchet(failures: list[str]) -> None:
                             f"(rc={dirty.returncode}, new={[x['file'] for x in new]})")
 
 
+def check_path_scope(failures: list[str]) -> None:
+    """BL-616: a type folder or a file inside .context/ scopes the run to that path;
+    a directory with no type folders is an error, not 'scanned: 0 · OK'."""
+    with tempfile.TemporaryDirectory() as td:
+        ctx = Path(td) / ".context"
+        (ctx / "backlog").mkdir(parents=True)
+        (ctx / "decisions").mkdir()
+        bad = ctx / "backlog" / "2026-10-02-bad-item.md"
+        bad.write_text("no front-matter at all\n", encoding="utf-8")
+        (ctx / "decisions" / "2026-10-02-other.md").write_text("also bad\n", encoding="utf-8")
+        def run_v(path):
+            return subprocess.run([sys.executable, str(VALIDATOR), str(path), "--json"],
+                                  capture_output=True, text=True)
+        (ctx / "backlog" / "2026-10-02-bad-two.md").write_text("bad too\n", encoding="utf-8")
+        for label, target, scanned in (("folder", ctx / "backlog", 2), ("file", bad, 1)):
+            r = run_v(target)
+            try:
+                d = json.loads(r.stdout)
+            except ValueError:
+                failures.append(f"path-scope {label}: no JSON (rc={r.returncode}): {r.stderr[:120]}")
+                continue
+            files = {x["file"] for x in d["violations"]}
+            if r.returncode != 1 or not files or any("decisions" in f for f in files):
+                failures.append(f"path-scope {label}: want rc=1 and only backlog violations "
+                                f"(rc={r.returncode}, files={files})")
+            if d["summary"]["files_scanned"] != scanned:
+                failures.append(f"path-scope {label}: files_scanned="
+                                f"{d['summary']['files_scanned']}")
+        (ctx / "reports").mkdir()
+        (ctx / "reports" / "x.html").write_text("<p>x</p>", encoding="utf-8")
+        for label, args_ in (("reports page", [ctx / "reports" / "x.html"]),
+                             ("--type mismatch", ["--type", "plans", ctx / "backlog"])):
+            r = subprocess.run([sys.executable, str(VALIDATOR), *map(str, args_)],
+                               capture_output=True, text=True)
+            if r.returncode != 2 or "nothing to validate" not in r.stderr:
+                failures.append(f"path-scope {label}: want rc=2 'nothing to validate' "
+                                f"(rc={r.returncode}, out={r.stdout[-60:]!r})")
+        r = subprocess.run([sys.executable, str(VALIDATOR), str(ctx / "backlog"), "--baseline"],
+                           capture_output=True, text=True)
+        if r.returncode != 2 or "file or folder path" not in r.stderr:
+            failures.append(f"path-scope baseline: want rc=2 naming the path (rc={r.returncode})")
+        nested = ctx / "experiments" / "fx" / ".context" / "backlog"
+        nested.mkdir(parents=True)
+        (nested / "2026-10-02-bad.md").write_text("no front-matter\n", encoding="utf-8")
+        for label, target in (("nested .context", nested.parent), ("nested project root", nested.parent.parent)):
+            r = run_v(target)
+            try:
+                d = json.loads(r.stdout)
+            except ValueError:
+                failures.append(f"path-scope {label}: no JSON (rc={r.returncode}): {r.stderr[:120]}")
+                continue
+            if (r.returncode != 1 or d["summary"]["files_scanned"] != 1
+                    or not d["context_dir"].endswith("fx/.context")):
+                failures.append(f"path-scope {label}: want rc=1, 1 scanned, fx/.context "
+                                f"(rc={r.returncode}, {d['summary']['files_scanned']}, {d['context_dir']})")
+        empty = Path(td) / "empty"
+        empty.mkdir()
+        r = run_v(empty)
+        if r.returncode != 2:
+            failures.append(f"path-scope: dir with no type folders should exit 2 (rc={r.returncode})")
+
+
 def check_baseline_key_granularity(failures: list[str]) -> None:
     """BL-043: the v1 `file|rule` baseline key masked a NEW violation of a rule the
     file was ALREADY dirty for. The v2 key adds the message, so a second missing
@@ -1564,6 +1626,7 @@ def main() -> int:
     check_backlog_type_unit(failures)
     check_references_root_unit(failures)
     check_backlog_priority_unit(failures)
+    check_path_scope(failures)
     check_waivers(failures)
     check_waiver_moved_path(failures)
     check_comm_paste_safe_unit(failures)
