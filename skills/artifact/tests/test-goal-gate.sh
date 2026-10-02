@@ -131,8 +131,9 @@ check "[synthetic] every synthetic figure is carried, and the gate is green" \
      && printf '%s\n' "$out_full" | grep >/dev/null -x 'newly-fail: 0' && echo 1 || echo 0)" "$out_full"
 if [ -n "$REAL" ]; then
   seven_lines corpus "$REAL"
-  check "[corpus] corpus counts against the frozen 30" \
-    "$(printf '%s\n' "$out" | grep >/dev/null -E '^corpus: [0-9]+/30$' && echo 1 || echo 0)" "$out"
+  # 30/30, not the N/30 shape: the shape held at 25/30 (BL-552).
+  check "[corpus] every page of the frozen 30 builds back to itself" \
+    "$(printf '%s\n' "$out" | grep >/dev/null -x 'corpus: 30/30' && echo 1 || echo 0)" "$out"
   check "[corpus] figures counts against the census's 45" \
     "$(printf '%s\n' "$out" | grep >/dev/null -E '^figures: [0-9]+/45$' && echo 1 || echo 0)" "$out"
 else
@@ -1208,6 +1209,9 @@ echo
 if [ -n "$REAL" ]; then real_note="at $REAL"; else real_note="SKIPPED (AIDEX_SPEC_CORPUS not set)"; fi
 if [ "$fails" -eq 0 ]; then
   echo "OK — goal-gate.sh: no corpus means exit 2 and no line; seven lines in the fixed order, every figure counted from the figure census on its assigned rung (and every malformed or non-covering census refusing to count), newly-fail blocking, the blind trial counted from its log (and every malformed log refusing to read 3/3), the naming rule, all four escape detectors (including the two no corpus page can fire), and the hand-advanced floor — on the synthetic corpus, and on the real one $real_note"
+  # Exit 2 is run-all's SKIP: an exit 0 prints one PASS row and none of the
+  # SKIP lines above, so the real-corpus cases went unrun in silence (BL-552).
+  [ -n "$REAL" ] || exit 2
   exit 0
 fi
 echo "NOT OK — $fails failure(s)"
