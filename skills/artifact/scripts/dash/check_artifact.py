@@ -2643,12 +2643,30 @@ def check_file(path):
     # prefilled reply box holding the marker is pasted back as the leak.
 
     # --- self: one file, no network -------------------------------------------
-    if re.search(r'<link[^>]+rel=["\']?stylesheet', flat, re.I):
+    # BL-647: a commented-out example loads nothing, and a /* */ comment in a
+    # <style> is not CSS. skeleton.html carries both as examples. HTML comments
+    # go only in markup context: raw-text bodies (script, style, textarea, title,
+    # xmp, noembed, noframes, noscript, iframe) and whole
+    # tags are kept, so a "<!--" inside a string or an attribute value cannot
+    # swallow the real loads after it. A comment ends where the HTML parser ends
+    # it: "<!-->", "<!--->" and "--!>" close it too, else the regex would run on
+    # to the next "-->" past a live load. Known limit, accepted: content:"/*"
+    # inside a <style> can still swallow the rules that follow it.
+    sflat = flatten(re.sub(
+        r'(<(script|style|textarea|title|xmp|noembed|noframes|noscript|iframe)\b[^>]*>.*?</\2\s*>)|(<[a-z][^>]*>)|<!--(?:-?>|.*?--!?>)',
+        lambda m: m.group(0) if (m.group(1) or m.group(3)) else ' ',
+        text, flags=re.S | re.I))
+    sflat = re.sub(
+        r'(<style\b[^>]*>)(.*?)(</style)',
+        lambda m: m.group(1) + re.sub(r'/\*.*?\*/', ' ', m.group(2), flags=re.S)
+        + m.group(3), sflat, flags=re.S | re.I)
+    if re.search(r'<link[^>]+rel=["\']?stylesheet', sflat, re.I):
         report("self", "external stylesheet — the file must stand alone offline")
-    if re.search(r'<script[^>]+src=', flat, re.I):
+    if re.search(r'<script[^>]+src=', sflat, re.I):
         report("self", "external script — the file must stand alone offline")
-    REMOTE = r'(?:https?:|//)'
-    if re.search(r'@import\s+(?:url\(\s*)?["\']?\s*' + REMOTE, flat, re.I):
+    # A backslash is a slash in a URL: \\host and /\host load like //host (BL-647).
+    REMOTE = r'(?:https?:|[/\\]{2})'
+    if re.search(r'@import\s+(?:url\(\s*)?["\']?\s*' + REMOTE, sflat, re.I):
         report("self", "@import of a remote stylesheet")
     # A <video> is a visual like an <img>: its own src or a <source> child.
     # srcset and poster load too; data-src is a script's, and loads nothing.
@@ -2658,25 +2676,45 @@ def check_file(path):
     # <embed> src and <object data> load too.
     if re.search(r'<(?:img|video|audio|source)\b[^>]*\s(?:(?:src|poster)=["\']?\s*'
                  r'|srcset=(?:"(?:[^">]*,)?|\'(?:[^\'>]*,)?|(?:[^\s"\'>]*,)?)\s*)' + REMOTE,
-                 flat, re.I):
+                 sflat, re.I):
         report("self", "remote image or video — breaks offline and leaks a request")
     if re.search(r'<(?:track|iframe|embed)\b[^>]*\ssrc=["\']?\s*' + REMOTE
-                 + r'|<object\b[^>]*\sdata=["\']?\s*' + REMOTE, flat, re.I):
+                 + r'|<object\b[^>]*\sdata=["\']?\s*' + REMOTE, sflat, re.I):
         report("self", "remote track, iframe, embed or object — breaks offline "
                        "and leaks a request")
+    # <base href> turns every relative URL on the page remote; an inline SVG
+    # <image> / <feImage> href or xlink:href loads; so does a url() in a loading
+    # presentation attribute (fill, stroke, filter, mask, clip-path, markers),
+    # style= apart (reported below); and a remote favicon is fetched on open (BL-647).
+    if re.search(r'<base\b[^>]*\shref=["\']?\s*' + REMOTE, sflat, re.I):
+        report("self", "remote <base href> — every relative URL becomes a "
+                       "network request")
+    if re.search(r'<(?:image|feimage)\b[^>]*\s(?:xlink:)?href=["\']?\s*' + REMOTE,
+                 sflat, re.I):
+        report("self", "remote SVG <image> — breaks offline and leaks a request")
+    if re.search(r'<[a-z][^>]*\s(?:fill|stroke|filter|mask|clip-path|marker-start'
+                 r'|marker-mid|marker-end)=["\']?\s*url\(\s*["\']?\s*' + REMOTE,
+                 strip_script_style(sflat), re.I):
+        report("self", "remote url() in an SVG attribute — breaks offline and "
+                       "leaks a request")
+    for tag in re.findall(r'<link\b[^>]*>', sflat, re.I):
+        if (re.search(r'\srel=(?:"[^"]*icon|\'[^\']*icon|[^\s"\'>]*icon)', tag, re.I)
+                and re.search(r'\shref=["\']?\s*' + REMOTE, tag, re.I)):
+            report("self", "remote <link rel=icon> — the favicon is fetched "
+                           "on open")
     # CSS url() in a <style> block or a style= attribute (url(data:) and
     # url(#id) are local and do not match).
     # An @import or @font-face url() is reported by its own rule: one defect,
     # one finding.
     css_url = r'url\(\s*["\']?\s*' + REMOTE
     style_css = re.sub(r'@import[^;}]*|@font-face[^}]*', ' ',
-                       "\n".join(SVG_STYLE_BLOCK.findall(flat)), flags=re.I)
+                       "\n".join(SVG_STYLE_BLOCK.findall(sflat)), flags=re.I)
     if (re.search(css_url, style_css, re.I)
             or re.search(r'\sstyle=(?:"[^"]*|\'[^\']*|[^\s"\'>]*)' + css_url,
-                         flat, re.I)):
+                         sflat, re.I)):
         report("self", "remote CSS url() — breaks offline and leaks a request")
     # Only a remote src counts: url(data:…) is inlined and honours the contract.
-    if re.search(r'@font-face[^}]*url\(\s*["\']?(https?:)?//', flat, re.I):
+    if re.search(r'@font-face[^}]*url\(\s*["\']?(https?:)?//', sflat, re.I):
         report("self", "remote @font-face src — the font never loads offline "
                        "and leaks a request")
 
