@@ -54,6 +54,7 @@ import html as htmllib
 import io
 import os
 import re
+import struct
 import subprocess
 import sys
 import urllib.parse
@@ -1268,6 +1269,66 @@ FIGURE_RASTER = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg
 FIGURE_TYPES = (".svg",) + tuple(FIGURE_RASTER)
 
 
+def _jpeg_size(path):
+    """(width, height) of a JPEG from its SOF marker, walking the segments
+    before it (APPn, DQT, ...). None when there is no SOF to read."""
+    with open(path, "rb") as fh:
+        data = fh.read()
+    if data[:2] != b"\xff\xd8":
+        return None
+    i = 2
+    while i + 9 <= len(data) and data[i] == 0xFF:
+        marker = data[i + 1]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            h, w = struct.unpack(">HH", data[i + 5:i + 9])
+            return (w, h) if w and h else None
+        i += 2 + struct.unpack(">H", data[i + 2:i + 4])[0]
+    return None
+
+
+def _highlighted(img, path, src, value, node):
+    """BL-619: `highlight="x,y,w,h"` in the image's own pixels becomes the
+    gallery's outline overlay (`gal-hl-layer`, percentages of the image), over
+    the picture. The gallery's own `check_highlight`, `highlight_layer` and
+    `png_size` decide (numbers, x,y >= 0, w,h > 0, inside the image, a real
+    PNG); their `die()` is a SystemExit, carried here as the documented
+    refusal like `gallery` does. A JPEG is measured here (`_jpeg_size`)."""
+    def refuse(why):
+        raise SpecBuildError(
+            node.line, "`figure` src=%r highlight=%r was refused: %s"
+            % (src, value, why)) from None
+
+    parts = [p.strip() for p in value.split(",")]
+    try:
+        x, y, w, h = [float(p) for p in parts] if len(parts) == 4 else (None,) * 4
+    except ValueError:
+        x = None
+    if x is None:
+        refuse("it must be four numbers x,y,w,h in the image's pixels")
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            regions = gallery_items.check_highlight(
+                {"x": x, "y": y, "w": w, "h": h}, src)
+            with open(path, "rb") as fh:
+                is_jpeg = fh.read(2) == b"\xff\xd8"
+            size = _jpeg_size(path) if is_jpeg \
+                else gallery_items.png_size("/", path, src, "figure")
+            if size is None:
+                gallery_items.die("row '%s': the JPEG has no readable size"
+                                  % src)
+            layer = gallery_items.highlight_layer(
+                regions, size[0], size[1], src, "figure")
+    except SystemExit:
+        said = [ln for ln in err.getvalue().splitlines() if ln.strip()]
+        why = said[-1].strip() if said else "not usable"
+        why = why.replace("gallery-items: row '%s': " % src, "", 1)
+        refuse(why)
+    # The kit class gives the wrapper `position: relative` and the img the
+    # width an unhighlighted figure's img gets, so the overlay is exact.
+    return '<div class="fig-hl">%s%s</div>' % (img, layer)
+
+
 @emitter("figure")
 def emit_figure(node, ctx):
     """`::: figure {#id src="rel/path.svg" title="…"}` — a drawing from a file.
@@ -1285,7 +1346,7 @@ def emit_figure(node, ctx):
     never repaired: a builder that rewrote a colour would ship a drawing its
     author never saw.
     """
-    a = _attrs(node, {"src", "title", "alt"}, required=("src",))
+    a = _attrs(node, {"src", "title", "alt", "highlight"}, required=("src",))
     _no_children(node)
     src = a["src"].strip()
     if os.path.isabs(src):
@@ -1305,6 +1366,10 @@ def emit_figure(node, ctx):
     alt = a.get("alt", "").strip()
     cap = ""
     if ext == ".svg":
+        if "highlight" in a:
+            raise SpecBuildError(
+                node.line, "`figure` highlight= is for a png/jpg capture; an "
+                "inline SVG is drawn, so outline inside the drawing")
         if alt:
             raise SpecBuildError(
                 node.line, "`figure` alt= is for a png/jpg; an inline SVG "
@@ -1357,6 +1422,8 @@ def emit_figure(node, ctx):
                 % (src, exc)) from None
         drawing = '<img src="data:%s;base64,%s" alt="%s">' % (
             FIGURE_RASTER[ext], data, esc(alt))
+        if "highlight" in a:
+            drawing = _highlighted(drawing, path, src, a["highlight"], node)
     head = "<figure"
     if node.id:
         head += ' id="%s"' % esc(node.id)
