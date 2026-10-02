@@ -933,6 +933,54 @@ rc="$(run "$TMP/fuente-en.html")"
 grep -q "WARN \[consult-fuente-unreadable\]" "$TMP/out" \
   && fail "10b4e. BL-623: 'phase' on an English page is not untranslated: $(cat "$TMP/out")"
 
+# 10b4f. BL-650: a raw gallery-row slug, or a bare "notes" label, in the visible
+# prose of a Spanish page WARNs (consult-raw-label). The same strings inside a
+# Fuente line, <code> or a data attribute stay clean, and so does ordinary
+# hyphenated content (a date, BL-123, a file name, a URL, an e-mail).
+slug='users-list-actions-menu-invited-light-desktop'
+mkpage "$TMP/raw-label-es.html" "$visual
+$(printf '%s' "$gopen" | sed 's/data-title=\"The context\"/data-title=\"The context\" data-tiles=\"light-desktop\"/')
+<section class=\"consult-item consult-gallery\" data-id=\"$slug\" data-title=\"users · list\"><h3><span class=\"consult-id\">$slug</span>Menú de acciones</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R1\" data-title=\"Titulo 1\"><h3>¿Cambiamos el menú?</h3><p>Ana abre la lista. La fila $slug se ve cortada.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R2\" data-title=\"Titulo 2\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto.</p><label>notes</label><div class=\"opts\"><label><input type=\"radio\" name=\"R2\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R2\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R3\" data-title=\"Titulo 3\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto; ver <code>$slug</code>.</p><p>Fuente: $slug, notes.</p><p>Fuente: <em>notes</em></p><p data-x=\"$slug\">Sin ids a la vista.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R3\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R3\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"R4\" data-title=\"Titulo 4\"><h3>¿Mostramos el botón?</h3><p>Ana abre el proyecto. Desde 2026-10-02 (BL-123) el archivo foo-bar-baz.md y https://x.dev/a-b-c-d no cambian; escríbenos a e-mail@x.dev. Es un cambio socio-económico.</p><div class=\"opts\"><label><input type=\"radio\" name=\"R4\" data-label=\"A\"><span>A</span></label><label><input type=\"radio\" name=\"R4\" data-label=\"B\"><span>B</span></label></div><textarea></textarea></section>
+$gclose
+$(printf '%s' "$notesitem" | sed 's|<h3>General notes</h3>|<h3><span class="consult-id">notes</span>Notas generales</h3>|')
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/raw-label-es.html"
+rc="$(run "$TMP/raw-label-es.html")"
+[[ "$rc" == "0" ]] || fail "10b4f. BL-650: consult-raw-label changed the exit code — it is a warning: $(cat "$TMP/out")"
+grep -q "WARN \[consult-raw-label\].*'R1'.*$slug" "$TMP/out" \
+  || fail "10b4f. BL-650: a row slug in visible prose was not reported: $(cat "$TMP/out")"
+grep -q "WARN \[consult-raw-label\].*'R2'.*'notes'" "$TMP/out" \
+  || fail "10b4f. BL-650: a bare notes label on a Spanish page was not reported: $(cat "$TMP/out")"
+for id in "$slug" R3 R4 notes; do
+  grep -q "WARN \[consult-raw-label\] [^:]*: '$id' shows" "$TMP/out" \
+    && fail "10b4f. BL-650: $id has only Fuente/code/attribute/ordinary hyphens and must stay clean: $(cat "$TMP/out")"
+done
+
+sed -i.bak 's/<html lang="es">/<html lang="en">/' "$TMP/raw-label-es.html"
+rc="$(run "$TMP/raw-label-es.html")"
+grep -q "WARN \[consult-raw-label\]" "$TMP/out" \
+  && fail "10b4f. BL-650: an English page is not judged for a Spanish label: $(cat "$TMP/out")"
+
+# A hand-written row id of fewer than three segments ("vacio") is ordinary prose
+# elsewhere; the gallery contract FAILs such a page, but the WARN must not add noise.
+mkpage "$TMP/raw-short.html" "$visual
+$(printf '%s' "$gopen" | sed 's/data-title=\"The context\"/data-title=\"The context\" data-tiles=\"light-desktop\"/')
+<section class=\"consult-item consult-gallery\" data-id=\"vacio\" data-title=\"vacio\"><h3>Estado vacío</h3><p class=\"gal-na\">No aplica a este estado.</p>$radios2<textarea></textarea></section>
+<section class=\"consult-item\" data-id=\"S1\" data-title=\"Titulo S1\"><h3>¿Mostramos el botón?</h3><p>Ana abre la lista y se ve vacio hoy.</p>$radios2<textarea></textarea></section>
+$gclose
+$notesitem
+$bars
+$composer"
+sed -i.bak 's/<html lang="en">/<html lang="es">/' "$TMP/raw-short.html"
+rc="$(run "$TMP/raw-short.html")"
+grep -q "WARN \[consult-raw-label\]" "$TMP/out" \
+  && fail "10b4f. BL-650: a gallery id of fewer than three segments is prose and must not warn: $(cat "$TMP/out")"
+
 # ---- 10c. BL-310: SVG text that overlaps, leaves the viewBox or outgrows
 # its box. A consultation shipped with two hand-authored figures whose labels
 # collided and two labels wider than their boxes, and passed 'artifact

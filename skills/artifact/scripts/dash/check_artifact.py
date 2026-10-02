@@ -920,6 +920,38 @@ def fuente_unreadable(body):
     return None
 
 
+# BL-650: a raw row slug or the raw "notes" label in the visible prose of an
+# item. The slug arm matches the page's OWN gallery-row data-ids (the exact ids
+# the kit derived), never a generic "3 hyphen-joined segments" shape: that shape
+# also matches tool, skill and package names (claude-session-handoff, markdown-it-py)
+# that are ordinary prose, and 2026-10 census of 85 real pages put it there.
+NOTES_LABEL = re.compile(r'>\s*notes\s*<', re.I)
+
+
+def raw_label_findings(body, row_ids=frozenset()):
+    """[token] raw ids/slugs, plus "notes" when it stands alone as an element's
+    text, found in the visible prose of one item (Spanish pages only). Fuente lines,
+    <code>/<pre>, svg, comments and attributes are not visible prose."""
+    own = _strip_subtrees(strip_html_comments(strip_script_style(body)), ITEM_OPEN)
+    own = re.sub(r'<(code|pre|svg)\b.*?</\1\s*>', ' ', own, flags=re.I | re.S)
+    # The kit's own id badge (<span class="consult-id">) prints every item's id,
+    # a gallery slug and "notes" included: it is chrome an author cannot edit.
+    own = re.sub(r'<span\b[^>]*\bconsult-id\b[^>]*>.*?</span\s*>', ' ', own,
+                 flags=re.I | re.S)
+    own = P_BLOCK.sub(lambda m: ' ' if FUENTE_LEAD.match(' '.join(_html.unescape(
+        re.sub(r'<[^>]+>', ' ', m.group(2))).split())) else m.group(0), own)
+    out = []
+    if NOTES_LABEL.search(own):
+        out.append("notes")
+    prose = _html.unescape(re.sub(r'<[^>]+>', ' ', own))
+    for rid in row_ids:
+        if rid.count('-') < 2:
+            continue                # "vacio" collides with prose
+        if re.search(r'(?<![\w-])' + re.escape(rid) + r'(?![\w-])', prose):
+            out.append(rid)
+    return list(dict.fromkeys(out))
+
+
 def heading_statement(body):
     """True when an item with radio/checkbox options has an <h3> with no
     question mark."""
@@ -2347,6 +2379,9 @@ def warn_file(path):
              and not GALLERY_CLASS.search(m.group(0))}
     lang = HTML_LANG.search(text)
     es_page = bool(lang) and lang.group(1).lower() == "es"
+    gallery_ids = {next(g for g in m.groups()[1:] if g is not None)
+                   for m in ITEM_OPEN.finditer(text)
+                   if GALLERY_CLASS.search(m.group(0))}
     for ident, body in bodies:
         if ident not in item_ids:
             continue
@@ -2362,6 +2397,18 @@ def warn_file(path):
                           f"write it in the page language so a reader can follow "
                           f"it, or drop it (§8.4, BL-623). Cleared by the rewrite, "
                           f"not by a waiver"))
+        try:
+            raw = raw_label_findings(body, gallery_ids) if es_page else []
+        except Exception:                           # noqa: BLE001 — advisory
+            raw = []
+        if raw:
+            warns.append(("consult-raw-label", name,
+                          f"'{ident}' shows {', '.join(repr(r) for r in raw[:3])} "
+                          f"in its visible text — a row slug, raw id or the "
+                          f"English label \"notes\" is internal shorthand; write "
+                          f"the state or label in the page language, and keep ids "
+                          f"in <code>, a Fuente line or a data attribute (§8.4, "
+                          f"BL-650). Cleared by the rewrite, not by a waiver"))
         if statement:
             warns.append(("consult-heading-statement", name,
                           f"'{ident}' has options but its heading states instead "
