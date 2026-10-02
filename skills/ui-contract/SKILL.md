@@ -218,6 +218,11 @@ and the limits the gate is known not to cover. Skipping it means briefing an age
 harness that may not be there, and the failure arrives as a confusing run instead of a
 sentence.
 
+**A re-capture is not a first build.** After a code round on a screen whose gallery
+exists, brief `aidex:gallery-builder` with the gallery spec path, its fixtures path and a
+three-line harness summary; it then skips rediscovering the harness (measured: 26 calls of
+read-only preparation per re-capture on echo_lab 11.3).
+
 **Run the gate once, iterate cheaply.** One `--demo` call carries every gallery of the
 change, so the meta-suite runs once; while iterating, skip it (harness contract § 2b) and
 label that run "not a gate run". Only the closing evidence run carries `meta: N/N`.

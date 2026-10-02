@@ -16,6 +16,10 @@ passes every check and produces confident, false evidence.
 
 ## Read first, in this order
 
+**A re-capture brief** (the gallery exists, the code under it changed) names the gallery
+spec, its fixtures and a harness summary. Then read those and skip steps 1-4 below, unless
+the brief says the harness module changed since the last build.
+
 1. `${CLAUDE_PLUGIN_ROOT}/skills/ui-contract/references/01-harness-contract.md` — what the
    project must expose and what the gate does not cover.
 2. The project's **harness module** itself. Its declaration shape, its cell type, its
