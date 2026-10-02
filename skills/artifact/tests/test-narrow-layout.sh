@@ -8,6 +8,9 @@
 # Layer: browser, because the widths and gaps are what the cascade computes, not
 # something a grep of the CSS can say. Headless Chrome dumps the DOM after a harness
 # script wrote its numbers into <title>. Without Chrome it SKIPs (exit 2), never passes.
+# --hide-scrollbars: a phone draws an overlay scrollbar, but the macOS headless shell
+# draws a 15 px classic one when the system scroller style says so (BL-667), which took
+# the column from 358 to 343 px on the same CSS.
 # Run with: bash skills/artifact/tests/test-narrow-layout.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -56,7 +59,7 @@ bash "$WRAP" --title "narrow" --lang es --out "$TMP/page.html" < "$TMP/body.html
   || fail "the fixture failed to wrap: $(sed -n 1,4p "$TMP/wrap.log")"
 
 : > "$TMP/dom.html"
-perl -e 'setpgrp(0,0); exec @ARGV' "$CHROME" --headless=new --disable-gpu --no-first-run --disable-extensions \
+perl -e 'setpgrp(0,0); exec @ARGV' "$CHROME" --headless=new --disable-gpu --no-first-run --disable-extensions --hide-scrollbars \
   --window-size=390,900 --user-data-dir="$TMP/profile" --dump-dom "file://$TMP/page.html" > "$TMP/dom.html" 2>/dev/null &
 CHROME_PID=$!
 for ((i = 0; i < 90; i++)); do
