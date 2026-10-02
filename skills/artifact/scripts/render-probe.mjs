@@ -5,6 +5,10 @@
 // Each page is loaded headless at 1280 and 390 px (dark scheme) and checked for:
 //   text-overlap      two texts drawn over each other
 //   svg-text-clipped  svg text outside its svg viewport (clipped axis labels)
+//   svg-text-small    svg text drawn under 10.5 px on screen at 390 px (the kit's floor is
+//                     11 px, references/05-visual-review.md row 5; one line per svg)
+//   outline-over-text an unfilled stroked rect whose stroke crosses an svg text of the same svg
+//                     (not one sitting on a filled rect drawn after it: the tree badge pill)
 //   content-spills    a box whose content spills out of it (visible overflow)
 //   content-cut       a box whose content is cut by it (hidden overflow)
 //   table-cut         a table of 1-3 columns wider than the box it scrolls in
@@ -129,6 +133,47 @@ const check = () => {
     const s = t.ownerSVGElement; if (!s || !vis(t)) continue; const a = t.getBoundingClientRect(), b = s.getBoundingClientRect();
     if (a.width && (a.left < b.left - 1 || a.right > b.right + 1 || a.top < b.top - 1 || a.bottom > b.bottom + 1))
       out.push({ kind: 'svg-text-clipped', a: name(t), y: Math.round(a.top + sy) });
+  }
+  // 2b. svg text drawn smaller than the kit's legible floor, as the reader sees it (font size
+  // times the viewBox scale), at phone width only (BL-648). 11 px is the floor
+  // references/05-visual-review.md names; a text at exactly 11 may measure 10.99, hence 10.5.
+  // One line per root svg, naming its smallest text.
+  const rootOf = el => { let s = el.ownerSVGElement; while (s && s.ownerSVGElement) s = s.ownerSVGElement; return s; };
+  const inertSvg = 'defs,clipPath,mask,marker,pattern,symbol';
+  if (innerWidth <= 390) {
+    const small = new Map();
+    for (const t of document.querySelectorAll('svg text')) {
+      const m = t.getScreenCTM(); if (!m || !t.textContent.trim() || !vis(t) || t.closest(inertSvg) || !t.getBoundingClientRect().width) continue;
+      const px = parseFloat(getComputedStyle(t).fontSize) * Math.hypot(m.a, m.b), r = rootOf(t);
+      const o = small.get(r); if (!o) small.set(r, { t, px, n: 1 }); else { o.n++; if (px < o.px) { o.t = t; o.px = px; } }
+    }
+    for (const { t, px, n } of small.values()) if (px < 10.5)
+      out.push({ kind: 'svg-text-small', a: name(t), msg: `${px.toFixed(1)}px on screen, under the 11 px floor (smallest of ${n} text${n > 1 ? 's' : ''} in its svg)`, y: Math.round(t.getBoundingClientRect().top + sy) });
+  }
+  // 2c. a highlight outline (an unfilled rect with a stroke) whose stroke band crosses a text
+  // of the same svg (BL-648). A text wholly inside the inner edge or wholly outside the
+  // outer edge is clear; one touching the band by more than 1 px is crossed. Rects only,
+  // read as screen boxes (no rotation); a filled rect is a card, not an outline.
+  for (const r of document.querySelectorAll('svg rect')) {
+    if (!vis(r) || r.closest(inertSvg)) continue;
+    const cs = getComputedStyle(r), m = r.getScreenCTM(); if (!m || cs.stroke === 'none' || !(parseFloat(cs.strokeWidth) > 0)) continue;
+    if (!(cs.fill === 'none' || /^rgba\(.*,\s*0\)$/.test(cs.fill) || parseFloat(cs.fillOpacity) === 0)) continue;
+    const q = r.getBoundingClientRect(), hw = parseFloat(cs.strokeWidth) * Math.hypot(m.a, m.b) / 2, root = rootOf(r);
+    for (const t of document.querySelectorAll('svg text')) {
+      if (rootOf(t) !== root || !t.textContent.trim() || !vis(t) || t.closest(inertSvg)) continue;
+      const b = t.getBoundingClientRect(); if (!b.width) continue;
+      const touches = b.right > q.left - hw + 1 && b.left < q.right + hw - 1 && b.bottom > q.top - hw + 1 && b.top < q.bottom + hw - 1;
+      const inside = b.left >= q.left + hw - 1 && b.right <= q.right - hw + 1 && b.top >= q.top + hw - 1 && b.bottom <= q.bottom - hw + 1;
+      // a filled rect drawn after the outline that holds the text is what the text sits on
+      // (the diagram engine's badge pill straddles its box's edge over a page-ground fill)
+      const padded = [...root.querySelectorAll('rect')].some(p => {
+        if (p === r || !(r.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING) || !vis(p) || p.closest(inertSvg)) return false;
+        const ps = getComputedStyle(p); if (ps.fill === 'none' || /^rgba\(.*,\s*0\)$/.test(ps.fill) || parseFloat(ps.fillOpacity) < 0.9) return false;
+        const pb = p.getBoundingClientRect();
+        return pb.left <= b.left + 1 && pb.right >= b.right - 1 && pb.top <= b.top + 1 && pb.bottom >= b.bottom - 1;
+      });
+      if (touches && !inside && !padded) { out.push({ kind: 'outline-over-text', a: name(r), b: name(t), y: Math.round(b.top + sy) }); break; }
+    }
   }
   // 3. a box whose content spills out of it (visible overflow) or is cut by it (hidden
   // overflow). One wide child makes every ancestor up to the page overflow by the same

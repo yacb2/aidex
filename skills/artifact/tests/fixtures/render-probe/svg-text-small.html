@@ -1,0 +1,19 @@
+<!-- render-probe fixture (BL-648): svg text against the kit's 11 px legible floor at 390 px.
+     The kit's `figure svg { width: 100% }` beats the width attribute, so each svg is sized
+     with max-width in its own style and the rendered size follows from the viewBox scale.
+     Text is 12 units, so the svg's drawn width sets its size on screen:
+       diminutofix  viewBox 300 wide, max-width 260 px: about 10.4 px (under the floor)
+       limitefix    viewBox 300 wide, max-width 280 px: about 11.2 px (over the floor) -->
+<div class="page"><main class="main">
+<h1>Texto de figura</h1>
+<figure>
+<svg viewBox="0 0 300 40" style="max-width:260px" role="img" aria-label="Bajo el piso">
+  <text x="10" y="25" font-size="12" fill="currentColor">diminutofix etiqueta</text>
+</svg>
+</figure>
+<figure>
+<svg viewBox="0 0 300 40" style="max-width:280px" role="img" aria-label="Sobre el piso">
+  <text x="10" y="25" font-size="12" fill="currentColor">limitefix etiqueta</text>
+</svg>
+</figure>
+</main></div>
