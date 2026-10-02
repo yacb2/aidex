@@ -361,6 +361,10 @@ def check_row(row, variants, n, alts=None, require_look=False):
         if not isinstance(reason, str) or not reason.strip():
             die("row '%s': 'notApplicable' must be a non-empty string (the "
                 "reason)" % cell)
+        if "note" in row:
+            die("row '%s': a 'notApplicable' row takes no 'note' — it is "
+                "still a live question, so put the explanation in the "
+                "reason" % cell)
         if "before" in row or "after" in row:
             die("row '%s' carries both captures and 'notApplicable' — a row "
                 "is either shown or not applicable, never both" % cell)
@@ -439,6 +443,16 @@ def check_row(row, variants, n, alts=None, require_look=False):
             % cell)
     if look is not None:
         out["look"] = look.strip()
+    # `note` (BL-609): the explain-why / reframe / example lines a row used to
+    # cram into `look`. A list, one <li> each, shown under the look line; it is
+    # not a paragraph, so the one-line look limits do not apply to it.
+    if "note" in row:
+        note = row["note"]
+        if not isinstance(note, list) or not note \
+                or not all(isinstance(x, str) and x.strip() for x in note):
+            die("row '%s': 'note' must be a non-empty list of non-empty "
+                "strings, not %r" % (cell, note))
+        out["note"] = [x.strip() for x in note]
     if alts is not None and kind != "alternatives":
         die("row '%s' is a %s row in a document that declares 'alternatives' "
             "— every row of that document is an alternatives row (or dropped "
@@ -748,6 +762,11 @@ def render(doc, root, group_id, group_title, lang, page=None,
         if "look" in r:
             add('    <p class="gal-look"><strong>%s:</strong> %s</p>'
                 % (e(LOOK_LABEL[lang]), e(r["look"])))
+        if "note" in r:
+            add('    <ul class="gal-note">')
+            for item in r["note"]:
+                add('      <li>%s</li>' % e(item))
+            add('    </ul>')
         # A before/after pair sits side by side: captures scale to the cell and
         # are never cropped, and the owner enlarges them anyway (owner
         # 2026-10-01, reversing BL-589's stacked default); `"layout": "stacked"`

@@ -712,5 +712,85 @@ page "$TMP/n8.html" "$(block "$tiles_attr" "$(nrow ' data-tiles="light-desktop"'
 rc="$(run "$TMP/n8.html")"; red "N8 a row of a four-tile matrix narrowed to one tile fails" \
   "audit-new-state-light-desktop.*declares data-tiles=\"light-desktop\".*only narrowing"
 
+# -- BL-609: a row's optional `note` -----------------------------------------
+# Explain-why / reframe / more-examples had no slot but the one-line `look`, and
+# the mixed-content check refused a four-clause look. `note` is a list of
+# strings rendered as a <ul> right under the look line.
+echo "== BL-609: the row note =="
+mkdir -p "$TMP/nspec"
+cp -R "$ROOT/shots" "$ROOT/actual" "$TMP/nspec/" 2>/dev/null
+cat > "$TMP/nspec/note.json" <<'JSON'
+{"gallery": "audit", "variants": ["light-desktop"],
+ "shots_dir": "shots", "actual_dir": "actual",
+ "rows": [
+  {"cell": "empty", "variant": "light-desktop", "kind": "review",
+   "look": "El estado vacío",
+   "note": ["Qué cambió desde la ronda 1: el título; el botón; el icono; el color",
+            "Si quitar falla: queda sin guía; se pierde el contexto",
+            "Ejemplo: Diego abre la lista; no ve nada; pulsa crear"],
+   "before": "shots/light-desktop/audit-empty.png", "after": "actual/light-desktop/audit-empty.png"}
+ ]}
+JSON
+cat > "$TMP/nspec/n.spec.md" <<MD
+::: masthead {eyebrow="Fixture" byline="Fuente: fixture" visual="none: fixture"}
+# Galería
+
+Una fila con nota.
+:::
+
+::: gallery {#G title="Revisión" rows="note.json" root="$ROOT"}
+:::
+
+::: notes {title="Notas generales"}
+:::
+MD
+( cd "$TMP/nspec" && python3 "$SKILL/scripts/spec_build.py" n.spec.md -o n.html > "$TMP/nb.out" 2>&1 ); rc=$?
+if [[ $rc == 0 && -f "$TMP/nspec/n.html" ]]; then
+  python3 - "$TMP/nspec/n.html" <<'PY' && ok "BL-609 N-1 a row note builds from a spec (no mixed-content refusal) as a <ul> of 3 <li> right under the look line" || fail "BL-609 N-1 the note is not a 3-item <ul> under the look line (see above)"
+import re, sys
+html = open(sys.argv[1], encoding="utf-8").read()
+m = re.search(r'<p class="gal-look">.*?</p>\s*<ul class="gal-note">(.*?)</ul>', html, re.S)
+if not m: sys.exit("no <ul class=gal-note> directly after the look line")
+n = len(re.findall(r'<li>', m.group(1)))
+if n != 3: sys.exit("expected 3 <li>, found %d" % n)
+PY
+else fail "BL-609 N-1 the spec with a note did not build: $(tail -3 "$TMP/nb.out")"; fi
+for bad in '"note": "texto"' '"note": []' '"note": ["ok", ""]' '"note": ["ok", 3]' '"note": [" "]'; do
+  python3 - "$TMP/nspec/note.json" "$TMP/nspec/bad.json" "$bad" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"][0].update(json.loads("{%s}" % sys.argv[3]))
+json.dump(d, open(sys.argv[2], "w"))
+PY
+  bash "$GEN" "$TMP/nspec/bad.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nspec/bad.out" 2> "$TMP/nspec/bad.err"; rc=$?
+  if [[ $rc == 2 && ! -s "$TMP/nspec/bad.out" ]] && grep -q "row 'empty'.*note" "$TMP/nspec/bad.err"; then ok "BL-609 N-2 $bad is refused naming the cell"
+  else fail "BL-609 N-2 $bad: exit $rc, stderr: $(cat "$TMP/nspec/bad.err")"; fi
+done
+# A not-applicable row is still a live question: a note there would be dropped
+# silently, so it is refused.
+python3 - "$TMP/nspec/note.json" "$TMP/nspec/na.json" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+d["rows"] = [{"cell": "empty", "notApplicable": "no permission state", "note": ["x"]}]
+json.dump(d, open(sys.argv[2], "w"))
+PY
+bash "$GEN" "$TMP/nspec/na.json" --root "$ROOT" --page "$PAGE" --group-id E --group-title T > "$TMP/nspec/na.out" 2> "$TMP/nspec/na.err"; rc=$?
+if [[ $rc == 2 && ! -s "$TMP/nspec/na.out" ]] && grep -q "row 'empty'.*note" "$TMP/nspec/na.err"; then ok "BL-609 N-2 a note on a notApplicable row is refused naming the cell"
+else fail "BL-609 N-2 notApplicable+note: exit $rc, stderr: $(cat "$TMP/nspec/na.err")"; fi
+# N-3: a row without `note` carries no note markup, and the same row with a
+# note differs only by its <ul class="gal-note"> block.
+python3 - "$TMP/nspec/note.json" "$TMP/nspec/plain.json" <<'PY2'
+import json, sys
+d = json.load(open(sys.argv[1])); del d["rows"][0]["note"]
+json.dump(d, open(sys.argv[2], "w"))
+PY2
+G="--root $ROOT --page $PAGE --group-id E --group-title T"
+bash "$GEN" "$TMP/nspec/plain.json" $G > "$TMP/nspec/plain.html" 2>/dev/null
+bash "$GEN" "$TMP/nspec/note.json" $G | sed '/<ul class="gal-note">/,/<\/ul>/d' > "$TMP/nspec/stripped.html" 2>/dev/null
+if [[ -s "$TMP/nspec/plain.html" ]] && ! grep -q gal-note "$TMP/nspec/plain.html" \
+    && cmp -s "$TMP/nspec/plain.html" "$TMP/nspec/stripped.html"; then
+  ok "BL-609 N-3 a row without note renders as before, the note adds only its <ul>"
+else fail "BL-609 N-3 a no-note row changed: $(diff "$TMP/nspec/plain.html" "$TMP/nspec/stripped.html" | sed -n 1,4p)"; fi
+
 if (( failures )); then echo "$failures failure(s)"; exit 1; fi
 echo "ok: the gallery unit — generator, refusals, wrapped page and every RED control"
