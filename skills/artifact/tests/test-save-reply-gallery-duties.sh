@@ -1,0 +1,181 @@
+#!/usr/bin/env bash
+# BL-632: save-reply.sh must list gallery rows that carry a "Necesita cambios" /
+# "Needs changes" verdict or region marks (even on an approved row) as DUTIES,
+# and never print "nothing owed" when such rows exist. An approved row with no
+# mark is not a duty. Layer: script boundary (stdout of save-reply.sh), the
+# only place the owner-visible line is decided.
+set -uo pipefail
+
+SKILL="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SAVE_REPLY="$SKILL/scripts/save-reply.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+failures=0
+fail() { printf 'FAIL: %s\n' "$*"; failures=$((failures + 1)); }
+ok()   { printf '  ok: %s\n' "$*"; }
+
+# save <dir> <reply text>: a fresh page, the reply piped on stdin; stdout in $out.
+save() {
+  mkdir -p "$1"
+  printf '<!doctype html><html><body><p>gallery page</p></body></html>\n' > "$1/page.html"
+  out="$(printf '%s' "$2" | bash "$SAVE_REPLY" "$1/page.html" - 2>&1)"
+}
+
+ES='## E · La matriz
+
+### x-empty-light-desktop · x · empty · light-desktop
+
+- Aprobada
+
+[mark after 1.7,0.2 33.0x5.6] nota
+
+### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+nota larga
+
+### x-ok-light-desktop · x · ok · light-desktop
+
+- Aprobada
+'
+save "$TMP/es" "$ES"
+[[ "$out" != *"nothing owed"* ]] && ok "es: no 'nothing owed' line" || fail "es: printed 'nothing owed': $out"
+[[ "$out" == *"DUTIES the next round owes:"* ]] && ok "es: DUTIES header" || fail "es: no DUTIES header: $out"
+[[ "$out" == *"x-empty-light-desktop ["*"region"* ]] && ok "es: marked approved row listed" || fail "es: marked row missing: $out"
+[[ "$out" == *"x-full-light-desktop ["*"needs"* ]] && ok "es: needs-changes row listed" || fail "es: needs-changes row missing: $out"
+[[ "$out" != *"x-ok-light-desktop"* ]] && ok "es: approved row without marks not listed" || fail "es: approved unmarked row listed: $out"
+
+EN='### y-a-light-desktop · y · a · light-desktop
+
+- Needs changes
+
+say which
+
+### y-b-light-desktop · y · b · light-desktop
+
+- Approved
+'
+save "$TMP/en" "$EN"
+[[ "$out" != *"nothing owed"* && "$out" == *"y-a-light-desktop ["* && "$out" != *"y-b-light-desktop"* ]] \
+  && ok "en: Needs changes listed, Approved not" || fail "en: $out"
+
+# A second paste from the same page is appended behind a separator line; the
+# gallery parser must not choke on it or lose the first paste's rows.
+out="$(printf '%s' "$ES" | bash "$SAVE_REPLY" "$TMP/es/page.html" - 2>&1)"
+[[ "$out" == *"APPENDED"* && "$out" == *"x-full-light-desktop ["* && "$out" != *"nothing owed"* ]] \
+  && ok "appended save still lists the rows" || fail "appended: $out"
+
+# Control: a reply with nothing owed still says so.
+save "$TMP/none" '### z-a-light-desktop · z · a · light-desktop
+
+- Aprobada
+'
+[[ "$out" == *"nothing owed"* ]] && ok "approved-only reply: nothing owed" || fail "none: $out"
+
+# --- review round 2 (coordinator) -------------------------------------------
+# 1. one refused / alternatives row must not drop the other rows' duties.
+ALT="$ES
+### x-alt-light-desktop-alternatives · x · alt · light-desktop
+
+- Opción B
+"
+save "$TMP/alt" "$ALT"
+[[ "$out" != *"nothing owed"* && "$out" == *"x-full-light-desktop ["* && "$out" != *"unreadable"* ]] \
+  && ok "alternatives row (no --rows) parses; other rows still listed" || fail "alt: $out"
+
+BAD='### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+nota
+
+### x-empty-light-desktop · x · empty · light-desktop
+
+- Aprobada
+
+[mark after 1.7,0.2 33.0x5.6] nota
+dictated sentence after the marks'
+save "$TMP/bad" "$BAD"
+[[ "$out" != *"nothing owed"* && "$out" == *"[unreadable]"* && "$out" == *"by hand"* ]] \
+  && ok "a refused paste prints an unreadable duty, never nothing owed" || fail "bad: $out"
+
+# 2. any answered verdict other than Approved is a duty.
+save "$TMP/otra" '### w-a-light-desktop · w · a · light-desktop
+
+- Otra — lo explico en las notas
+
+creo que ya teniamos un filtro
+'
+[[ "$out" != *"nothing owed"* && "$out" == *"w-a-light-desktop ["* ]] \
+  && ok "Otra verdict is a duty" || fail "otra: $out"
+save "$TMP/cj" '### w-b-light-desktop · w · b · light-desktop
+
+- Cannot judge
+'
+[[ "$out" == *"w-b-light-desktop ["* ]] && ok "Cannot judge verdict is a duty" || fail "cj: $out"
+
+# the real echo_lab reply (s1-review): 1 approved+mark, 2 Otra, 3 approved
+REAL='## G1 · Estados
+
+### users-list-with-data-light-desktop · users-list · with-data · light-desktop
+
+- Aprobada
+
+cambios menores
+
+[mark after 65.2,27.1 7.9x4.0] otro color
+
+### users-list-filters-access-open-light-desktop · users-list · filters-access-open · light-desktop
+
+- Otra — lo explico en las notas
+
+un filtro custom?
+
+### users-list-filters-status-open-light-desktop · users-list · filters-status-open · light-desktop
+
+- Otra — lo explico en las notas
+
+un filtro custom?
+
+### users-list-actions-menu-active-light-desktop · users-list · actions-menu-active · light-desktop
+
+- Aprobada
+'
+save "$TMP/real" "$REAL"
+n=$(printf '%s\n' "$out" | grep -c '^users-list-')
+[[ "$n" == 3 && "$out" != *"nothing owed"* && "$out" != *"actions-menu-active"* ]] \
+  && ok "real s1-review shape: three rows listed" || fail "real($n): $out"
+
+# 3. appended pastes: each id once, latest paste wins for a row.
+out="$(printf '%s' "$ES" | bash "$SAVE_REPLY" "$TMP/es/page.html" - 2>&1)"
+[[ "$(printf '%s\n' "$out" | grep -c '^x-full-light-desktop \[')" == 1 ]] \
+  && ok "appended: each id listed once" || fail "dedupe: $out"
+LATER='### x-full-light-desktop · x · full · light-desktop
+
+- Aprobada
+'
+out="$(printf '%s' "$LATER" | bash "$SAVE_REPLY" "$TMP/es/page.html" - 2>&1)"
+[[ "$out" != *"x-full-light-desktop ["* && "$out" == *"x-empty-light-desktop ["* ]] \
+  && ok "latest paste wins: row turned Aprobada leaves the duties" || fail "latest: $out"
+
+# 4. mixed paste: an ordinary [show-me] item plus a gallery row.
+save "$TMP/mixed" '### Q1 · Q1
+
+- [show-me]
+- Yes
+
+no entiendo
+
+### x-full-light-desktop · x · full · light-desktop
+
+- Necesita cambios
+
+nota
+'
+[[ "$out" == *"Q1 [show-me]"* && "$out" == *"x-full-light-desktop ["* ]] \
+  && ok "mixed paste: show-me and gallery duties both print" || fail "mixed: $out"
+
+echo
+[[ $failures -eq 0 ]] && { echo "test-save-reply-gallery-duties: PASS"; exit 0; }
+echo "test-save-reply-gallery-duties: $failures FAIL"; exit 1

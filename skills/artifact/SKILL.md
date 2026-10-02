@@ -149,7 +149,7 @@ on the HTML route) has passed `check-artifact`:
    holds) instead of the two full-page shots, the list of files the probe printed as
    written this run (`SHOT <path>` lines, one run stamp), the path of
    `references/05-visual-review.md`, and — for a consultation round built over a reply —
-   the DUTIES list `save-reply.sh` printed: the grader maps each duty to its item by id and
+   the DUTIES list `save-reply.sh` printed (it includes gallery rows with a non-approved verdict and region-mark rows): the grader maps each duty to its item by id and
    scores it met/not-met alongside the rubric. A delegate builds, probes and returns the
    shot paths and the manifest; the main session launches the grader (a subagent cannot
    launch agents). `INVALID: <kind> <file>` (unreadable, missing, stale) is no score: fix the
