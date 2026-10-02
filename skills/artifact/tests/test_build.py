@@ -796,6 +796,33 @@ try:
     else:
         fail("gallery: `git init` failed in the temp dir, so the checkout-root "
              "default could not be exercised")
+    # BL-625: a gallery may carry a prose body, an author lead inside its
+    # consult-group above the first consult-gallery item. It was refused
+    # (`gallery` takes no body); the page built with it must pass the gate.
+    lspec = os.path.join(tmp, "lead.spec.md")
+    with open(lspec, "w", encoding="utf-8") as fh:
+        fh.write('::: masthead {eyebrow="P" visual="none: probe"}\n# Lead\n\nX\n:::\n\n'
+                 '::: gallery {#G1 title="Galería audit" rows="rows.json" root="%s"}\n'
+                 'LEADMARK context the brief placed before the tiles.\n:::\n\n'
+                 '::: notes {title="Notas"}\n:::\n' % checkout)
+    lout = os.path.join(tmp, "lead.html")
+    r = subprocess.run([sys.executable, BUILD, lspec, "-o", lout, "--check"],
+                       capture_output=True, text=True)
+    check("gallery: a prose body builds and the page passes check-artifact "
+          "(consult-shape and gallery 0 FAIL)", r.returncode == 0,
+          r.stdout + r.stderr)
+    if r.returncode == 0:
+        with open(lout, encoding="utf-8") as fh:
+            lead = fh.read()
+        grp = lead.find('<section class="consult-group" id="G1"')
+        mark = lead.find("LEADMARK")
+        item = lead.find('class="consult-item consult-gallery"')
+        check("gallery: the prose body sits inside the group, above the first item",
+              0 <= grp < mark < item, "group %d lead %d item %d" % (grp, mark, item))
+    rejects("gallery: a nested block in the body is refused",
+            '::: gallery {#E title="G" rows="rows.json" root="%s"}\nPara.\n\n'
+            '::: note\nhi\n:::\n:::' % checkout, 4, "its body is prose",
+            base_dir=tmp)
     outside = os.path.join(tmp, "outside")
     os.makedirs(outside)
 
