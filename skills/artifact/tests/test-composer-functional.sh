@@ -3162,7 +3162,7 @@ SPEC
 python3 "$SKILL/scripts/spec_build.py" "$TMP/shots/page.spec.md" > "$TMP/gbody-shots.html" 2> "$TMP/gshots-build.log" \
   || fail "the shots probe spec failed to build: $(head -3 "$TMP/gshots-build.log")"
 # The item carries a kit-marks channel of its own (the page may write one; the
-# checker accepts it), so a touch drag on the viewer image draws a mark (BL-649).
+# checker accepts it); shots mode still draws no marks on it (BL-655).
 perl -0pi -e 's{(<section class="consult-item" data-id="Q1".*?)(</section>)}{$1  <textarea class="kit-marks" hidden></textarea>\n$2}s' "$TMP/gbody-shots.html"
 cat >> "$TMP/gbody-shots.html" <<'HTML'
 <script>
@@ -3233,18 +3233,33 @@ window.addEventListener('load', function () {
     touch('pointerdown', 200, 100); touch('pointerup', 100, 160); r.swD = tile();   // diagonal, mostly across: next
     touch('pointerdown', 100, 100); touch('pointerup', 150, 150); r.swE = tile();   // as far down as across: stays
     var mlayer = dlg.querySelector('.kit-marks-layer');
-    /* A touch mark 60 px across on the image is a mark, not a swipe: the
-     * viewer stays on its image (BL-649). */
     var mr = mlayer.getBoundingClientRect();
+    var mnote = document.querySelector('dialog.kit-mark-note');
+    /* Shots mode draws no marks (BL-493), even on an item that carries a
+     * kit-marks channel: a mouse drag on the image opens no note and, saved
+     * if one did open, writes no line (its tile would be null, so it could
+     * never be redrawn, opened or deleted: BL-655). */
+    var mmouse = function (type, x, y) {
+      mlayer.dispatchEvent(new PointerEvent(type, { pointerType: 'mouse', pointerId: 1, isPrimary: true, button: 0,
+        clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
+    };
+    mmouse('pointerdown', 5, 5); mmouse('pointermove', 65, 45); mmouse('pointerup', 65, 45);
+    var mopened = mnote && mnote.open;
+    if (mopened) mnote.querySelector('button[data-act="save"]').click();
+    r.mkS = (mopened ? 'note' : 'nonote') + '~'
+      + (item.querySelector('textarea.kit-marks').value.indexOf('[mark') !== -1 ? 'mark' : 'nomark') + '~'
+      + (mlayer.classList.contains('readonly') ? 'ro' : 'rw');
+    /* So the layer is read-only there, and a touch 60 px across on it is a
+     * swipe like on any read-only layer: it walks back one image (BL-655). */
     var mtouch = function (type, x, y) {
       mlayer.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 12, isPrimary: true, button: 0,
         clientX: mr.left + x, clientY: mr.top + y, bubbles: true, cancelable: true }));
     };
     b = tile();
     mtouch('pointerdown', 5, 5); mtouch('pointermove', 65, 15); mtouch('pointerup', 65, 15);
-    var mnote = document.querySelector('dialog.kit-mark-note');
-    r.swK = b + '~' + tile();
+    r.swK = b + '~' + tile() + '~' + (mnote && mnote.open ? 'note' : 'nonote');
     if (mnote && mnote.open) mnote.querySelector('button[data-act="cancel"]').click();
+    key('ArrowRight');   // back to 4 / 4 for the cells below
     r.taFit = getComputedStyle(mlayer).touchAction;
     dlg.querySelector('.kit-zoom-size').click(); r.native = dlg.classList.contains('native') ? 1 : 0;
     r.taNat = getComputedStyle(mlayer).touchAction;
@@ -3313,8 +3328,10 @@ tg="$(grep -oE '<title>[^<]*</title>' "$TMP/gdom-h.html" | sed -n 1p)"
   || fail "a finger put down while another was still held started a swipe of its own and walked the images: $tg"
 [[ "$tg" == *'"swX":"3 / 4~3 / 4"'* ]] \
   || fail "a mouse pointerup was measured from a touch's pointerdown and walked the images: $tg"
-[[ "$tg" == *'"swK":"4 / 4~4 / 4"'* ]] \
-  || fail "a touch mark drawn 60 px across on the viewer image walked the images: $tg"
+[[ "$tg" == *'"mkS":"nonote~nomark~ro"'* ]] \
+  || fail "a mouse drag on a shots viewer image (item with a kit-marks channel) opened a note or saved a mark, or the layer is not read-only (BL-655): $tg"
+[[ "$tg" == *'"swK":"4 / 4~3 / 4~nonote"'* ]] \
+  || fail "a touch swipe 60 px across on a shots viewer image (item with a kit-marks channel) drew a mark instead of walking back one image (BL-655): $tg"
 [[ "$tg" == *'"swLy":"1 / 2~2 / 2~ro"'* ]] \
   || fail "a touch swipe that starts on the read-only marks layer (where a finger lands on the image) no longer walks the images: $tg"
 [[ "$tg" == *'"taFit":"none"'* && "$tg" == *'"taNat":"'* && "$tg" != *'"taNat":"none"'* ]] \
