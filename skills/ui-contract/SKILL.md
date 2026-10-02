@@ -55,6 +55,22 @@ five-item shape of Step 3. A plan written later folds that file in (`/aidex:plan
 takes it as ratification); a plan is not required for the contract to exist. A screen
 already decided in a plan skips this discussion.
 
+**Open with an inventory.** Before any level or layout question, list every screen the
+change reaches, secondary views (a project or production access view, a detail panel) and
+their states included, and ask the owner the **target form** of each (page, dialog, panel).
+Never inherit today's form: a control that is a dialog now is not a dialog by default, and
+a view named only in passing gets its own state matrix. A target form that only copies
+today's is written as an open question, not as a decision. The path through the inventory
+is the **user's path** (list, add, detail, dialog, edit), and that path is the order of the
+consultation rounds, never the plan's technical order (backend, shared component, page).
+
+**What a round shows.** A redesign round shows a **real AFTER** — the proposed screen built
+from the project's own components and fixture data — beside the BEFORE (the screen as it
+is), corrected round by round. A new screen shows only the AFTER. When the host screen of
+a change does not exist yet (a dialog whose page is new), build that host first; never
+capture the new piece on the old host. Never show the BEFORE alone as if it were the
+proposal.
+
 ## Step 1 — Propose the level
 
 The level is sized to the change. **The plan proposes it; the owner may raise or lower
@@ -64,10 +80,11 @@ it.** Never decide it silently.
 |---|---|---|
 | 1 — Adjustment (one property on an existing screen) | contact sheet of that one screen, light and dark | one image |
 | 2 — New screen on an existing pattern | reference screen named + state gallery + gate | one sheet before, one after |
-| 3 — New visual direction | a drawn, explicitly **non-binding** low-fi round first, then the full level-2 flow | direction first, then the gallery |
+| 3 — New visual direction | a skeleton of real components on fixture data with gallery captures first (Step 3b), then the full level-2 flow | direction first, then the gallery |
 
-Level 3 is the only place a drawing is legitimate, and only as a throwaway: the moment
-the direction is agreed, the contract goes back to real components.
+Nothing is drawn at any level. Level 3 starts from the same skeleton of the project's real
+components as a departing layout; when the screen exists, the current page is the
+reference screen and the skeleton is built from its components.
 
 ## Step 2 — Fix the state matrix
 
@@ -119,12 +136,13 @@ phases UI phases for the evidence gate below. Five items, in this order. Nothing
 open question it is.
 
 1. **Level** — 1, 2 or 3, with the one sentence that justifies it.
-2. **Reference screen** — the existing screen this one is modelled on, named by path or
+2. **Screen inventory and reference screen** — every screen the change reaches with its
+   target form (Step 0), and the existing screen this one is modelled on, named by path or
    route. "None, this is new" is an answer, and it raises the level.
 3. **Components reused / new** — the existing primitives this screen is built from, and
    every genuinely new one. A new component that duplicates an existing primitive is the
    finding, not the plan.
-4. **State matrix** — the pattern's full table from Step 2, every cell filled. Add a
+4. **State matrix** — the pattern's full table from Step 2 for **each inventoried screen**, every cell filled. Add a
    "proved by" column (pixel, assertion or unit test id; harness contract § 1).
 5. **Review variants** — the value (Step 2's three) per variant, set at the first gallery
    review, and the cells this change declares. At review time they go to the rows emitter as `--variants`, `--changed` and
@@ -132,10 +150,11 @@ open question it is.
 
 ## Step 3b — A layout that departs from its reference: skeleton first
 
-Applies only when item 2 of the section names a reference screen AND the new screen
+Applies when item 2 of the section names a reference screen AND the new screen
 arranges the same components differently (typically a form that groups the same fields
-another way). A screen that follows its reference keeps the plain order: build and wire,
-then gallery and gate. A screen with no reference at all is level 3, not this step.
+another way), and to every level-3 change. A screen that follows its reference keeps the
+plain order: build and wire, then gallery and gate. A screen with no reference at all is
+level 3: this step with the skeleton built from the project's primitives.
 
 The plan then carries these phases, in this order, each one closing on its own evidence.
 **The skeleton comes before any shared primitive**: a primitive added to a shared
@@ -159,8 +178,8 @@ component is built for a layout, and an unapproved layout makes it rework.
    to approve one alternative against the other as if it were the old state
    (`/aidex:artifact`, § Gallery rows). The owner's verdict on the layout closes this phase;
    a rejected layout goes back to phase 1 and loses only composition, never logic.
-   A cross-screen placement question gets one drawn or gallery alternative per option inside its
-   own item, never prose only (`/aidex:artifact`, `02-local-first-artifacts.md`, the figure rule).
+   A cross-screen placement question gets one gallery alternative per option inside its
+   own item, built from real components, never prose only (`/aidex:artifact`, § Gallery rows).
 3. **Shared primitives** — the new or changed components the approved skeleton needs.
 4. **Gallery and gate** — the full state matrix over the approved skeleton, with the gate's
    closing line from a run with no snapshot update.
