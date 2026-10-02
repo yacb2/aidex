@@ -13,6 +13,7 @@ model-policy: per-stage
 > a harness adoption, each in a different project. Each run found mechanism defects as well as
 > product gaps, and all of them are fixed in this text. It has not run on a project whose
 > harness the owner did not shape. Say so to the user before relying on it.
+> Sketch mode (Step 0) is a trial from 2026-10-02; its readout and revert are there.
 
 The contract for what "matches" means is a **state gallery rendered by the project's real
 components** against fixture data — one entry per state-matrix cell — reviewed through a
@@ -64,12 +65,47 @@ today's is written as an open question, not as a decision. The path through the 
 is the **user's path** (list, add, detail, dialog, edit), and that path is the order of the
 consultation rounds, never the plan's technical order (backend, shared component, page).
 
+**One drawn exception: the target-form question before its host exists.** When the
+owner must choose page, dialog or panel for a piece whose host screen does not exist yet,
+that one question may carry a figure from `figure-sonnet` (one per option, inline SVG in
+the consultation page). The figure is a question aid: it is never a round, never the
+contract, and it is dropped once the host's skeleton exists. A redesign of an existing
+screen never qualifies (the current screen is the host), nor does any question about
+layout, states or styling. The contract stays a gallery of real components.
+
 **What a round shows.** A redesign round shows a **real AFTER** — the proposed screen built
 from the project's own components and fixture data — beside the BEFORE (the screen as it
 is), corrected round by round. A new screen shows only the AFTER. When the host screen of
 a change does not exist yet (a dialog whose page is new), build that host first; never
 capture the new piece on the old host. Never show the BEFORE alone as if it were the
 proposal.
+
+**Sketch mode: how a round is built until the owner approves the whole screen** (trial,
+see below). Every round before that approval is a sketch round:
+
+- **Where:** a throwaway branch in its own worktree (`sketch/<screen>`), named in the
+  impl brief's worktree section. Nothing from it reaches main before the hardening round;
+  a rejected direction is dropped with the branch.
+- **What the implementer runs:** the real components on the gallery's fixtures, and only
+  the tests of the files it touched plus the type check (vue-tsc in a Vue project). The
+  brief says so in "tests that must pass" and says outright: no E2E, no full suite.
+- **On the hand-back:** only the gallery re-capture (Step 4, "a re-capture is not a first
+  build"), a run labelled "not a gate run" (Step 4, "run the gate once"), then the next
+  consultation page. No `review-diff-opus`, no E2E, no commit.
+
+**One hardening round, when the owner approves the whole screen.** The approved branch
+is what gets hardened, not rebuilt. Launch together, in one message: `review-diff-opus` on
+the branch's whole diff (its review-yield row carries `hardening` in the phrase), the E2E
+specs the screen touches on `gate-runner`, and the gallery with the gate and a bare
+`meta: N/N` (Step 4, "verified" part 2). A DO NOT SHIP goes back to the same impl agent
+through `SendMessage`; only what that fix touches re-runs. Then the commit to main, and
+the branch is deleted.
+
+**Trial readout** (from 2026-10-02): each round appends one line to `rounds.tsv` beside
+the consultation folder: `<round> <owner answer time> <next page open time>`. After 3
+screens, compare minutes from answer to next page (baseline 21-24, echo_lab 11.3) and
+count the hardening rows of review-yield. A behaviour defect that escapes hardening to
+the owner reverts sketch mode.
 
 ## Step 1 — Propose the level
 
@@ -82,8 +118,8 @@ it.** Never decide it silently.
 | 2 — New screen on an existing pattern | reference screen named + state gallery + gate | one sheet before, one after |
 | 3 — New visual direction | a skeleton of real components on fixture data with gallery captures first (Step 3b), then the full level-2 flow | direction first, then the gallery |
 
-Nothing is drawn at any level. Level 3 starts from the same skeleton of the project's real
-components as a departing layout; when the screen exists, the current page is the
+Nothing is drawn at any level, save the target-form figure of Step 0. Level 3 starts
+from the same skeleton of the project's real components as a departing layout; when the screen exists, the current page is the
 reference screen and the skeleton is built from its components.
 
 ## Step 2 — Fix the state matrix
@@ -170,7 +206,8 @@ component is built for a layout, and an unapproved layout makes it rework.
    because the owner's verdict is the next phase's evidence.
 2. **Review of the skeleton** — the skeleton is rendered as gallery cells and the owner
    rules on them in a consultation page (part 1 of "verified") BEFORE anything is wired.
-   This review is where the UI is decided. The shape of a round: **a budget of 2 rounds**;
+   This review is where the UI is decided, and its rounds are sketch rounds (Step 0).
+   The shape of a round: **a budget of 2 rounds**;
    **one decision per cell**, each cell shown alone, with a `look` line saying what to look
    at in it; the previous round's decided cells collapsed. Skeleton **alternatives** (two
    layouts for one cell) use the gallery's alternatives mode, one which-one choice with the
