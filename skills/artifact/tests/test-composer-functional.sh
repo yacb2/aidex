@@ -3499,5 +3499,86 @@ tg="$(fprun "$FP_FOLD" 'phase=fpget')"
   || fail "an answer stored against the flat row was dropped once the row folded its third verdict (the fingerprint moved): $tg"
 rm -rf "$TMP/profile"
 
+# ---- BL-577 addendum: folded decided rows show the heading, never the row slug
+# Layer: browser (the fold is built by the kit's own script). One block of two
+# decided rows (folds as a group), one standalone decided row, one decided row with
+# no heading (control: keeps its id), one open question so the page is not all-decided.
+SLUGPAGE="$TMP/reports/slug.html"
+cat > "$TMP/slugbody.html" <<HTML
+<meta name="consult-visual" content="none: a layout probe, nothing to draw">
+<div class="page">
+<main class="main">
+<header><p class="eyebrow">PROBE</p><h1>Slug probe</h1></header>
+<section id="sec-ask">
+  <div class="sec-head"><h2>Questions</h2></div>
+<section class="consult-group" id="GA" data-id="GA" data-title="Menus"><div class="sec-head"><h2>Menus</h2></div><p>Contexto.</p>
+  <section class="consult-item" data-id="g-users-list-menu-light-desktop" data-title="menu light" data-heading="Men&uacute; de usuarios" data-decided="Option A">
+    <h3><span class="consult-id">g-users-list-menu-light-desktop</span>Men&uacute; de usuarios</h3>
+    <div class="opts one"><label><input type="radio" name="g-users-list-menu-light-desktop" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="g-users-list-menu-light-desktop" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="g-users-list-menu-dark-desktop" data-title="menu dark" data-heading="Men&uacute; oscuro" data-decided="Option A">
+    <h3><span class="consult-id">g-users-list-menu-dark-desktop</span>Men&uacute; oscuro</h3>
+    <div class="opts one"><label><input type="radio" name="g-users-list-menu-dark-desktop" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="g-users-list-menu-dark-desktop" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+</section>
+<section class="consult-group" id="GB" data-id="GB" data-title="Mixed"><div class="sec-head"><h2>Mixed</h2></div><p>Contexto.</p>
+  <section class="consult-item" data-id="g-users-list-access-link-tooltip-light-desktop" data-title="tip" data-heading="Tooltip de acceso" data-decided="Option A">
+    <h3><span class="consult-id">g-users-list-access-link-tooltip-light-desktop</span>Tooltip de acceso</h3>
+    <div class="opts one"><label><input type="radio" name="g-users-list-access-link-tooltip-light-desktop" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="g-users-list-access-link-tooltip-light-desktop" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="plain-row-id" data-title="Plain title" data-decided="Option A">
+    <h3><span class="consult-id">plain-row-id</span>Plain title</h3>
+    <div class="opts one"><label><input type="radio" name="plain-row-id" data-label="Option A" checked><span>Option A</span></label><label><input type="radio" name="plain-row-id" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+  <section class="consult-item" data-id="OPEN1" data-title="Open one">
+    <h3><span class="consult-id">OPEN1</span>Open question</h3>
+    <div class="opts one"><label><input type="radio" name="OPEN1" data-label="Option A"><span>Option A</span></label><label><input type="radio" name="OPEN1" data-label="Option B"><span>Option B</span></label></div>
+    <textarea></textarea>
+  </section>
+</section>
+<section class="consult-item consult-notes" data-id="notes" data-title="Notas generales">
+  <h3><span class="consult-id">notes</span>Notas generales</h3>
+  <textarea></textarea>
+</section>
+<div class="endbar"><button type="button" id="consult-copy-end">Copiar mis respuestas</button><span class="consult-status" id="consult-status-end"></span></div>
+</main>
+<aside class="rail">
+  <p class="railhead">Contenido</p>
+  <nav class="raillist" id="raillist"></nav>
+  <div class="consult-bar">
+    <button type="button" id="consult-copy">Copiar mis respuestas</button>
+    <span class="consult-status" id="consult-status"></span>
+  </div>
+</aside>
+</div>
+<script>
+window.addEventListener('load', function () {
+  var sums = [].map.call(document.querySelectorAll('details.decided-unit > summary'), function (d) { return d.textContent.replace(/[|]/g, '/'); });
+  var emptyId = [].filter.call(document.querySelectorAll('details.decided-unit > summary > .consult-id'), function (e) { return !e.textContent; }).length;
+  document.title = 'SLUG|SUMS=' + sums.join(';;') + '|EMPTYID=' + emptyId;
+});
+</script>
+HTML
+bash "$WRAP" --title "slug" --lang es --out "$SLUGPAGE" < "$TMP/slugbody.html" > "$TMP/slugwrap.log" 2>&1 \
+  || fail "the slug probe page failed to wrap: $(grep -E '^  (FAIL|NOTE)' "$TMP/slugwrap.log" | sed -n 1,4p)"
+chrome_dump "$TMP/slugdom.html" "file://$SLUGPAGE" 45 || true
+tsl="$(grep -oE '<title>[^<]*</title>' "$TMP/slugdom.html" | sed -n 1p)"
+[[ "$tsl" == *"SLUG|SUMS="*"de usuarios"* ]] \
+  || fail "BL-577: the decided-group summary does not show the row headings: $tsl"
+[[ "$tsl" != *"users-list-menu"* ]] \
+  || fail "BL-577: a folded decided row still shows its raw slug (group summary or its own fold): $tsl"
+[[ "$tsl" != *"access-link-tooltip"* ]] \
+  || fail "BL-577: a decided row folded in place still shows its slug: $tsl"
+[[ "$tsl" == *"Tooltip de acceso"* ]] \
+  || fail "BL-577: a decided row folded in place lost its heading: $tsl"
+[[ "$tsl" == *"EMPTYID=0"* ]] \
+  || fail "BL-577: a headed fold carries an empty .consult-id span (margin, misalignment): $tsl"
+[[ "$tsl" == *"plain-row-id"* ]] \
+  || fail "BL-577: a decided row with no heading must keep its id as the label: $tsl"
+
 [[ "$failures" -eq 0 ]] || { echo "$failures failure(s)"; exit 1; }
 echo "OK — type, reload, restore proven in a real engine; rounds, sent answers, per-item clear, the recommendation badge, the item count, the releasable radio, the injected other, the not-now choice, the multi-select item built from a spec, the ask row and the provisional state, the explicit theme, v4 answer sets, the all-decided page, the half-answered block, the gallery zoom dialog with its keyboard walk, the block filters that never reach the paste, the light/dark compare with its slider kept out of the paste, and the localised chrome included"
