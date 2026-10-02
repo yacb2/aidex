@@ -161,6 +161,53 @@ for f in extfont extimporturl; do
   n="$(bash "$CHECK" "$TMP/$f.html" 2>&1 | grep -c '\[self\]')"
   [[ "$n" == 1 ]] && ok "$f yields exactly one [self] finding" || bad "$f yields $n [self] findings"
 done
+# BL-647: the remaining remote-load forms, and comments that load nothing.
+HEAD5='<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>t</title><style>@media (prefers-color-scheme: dark){}</style>'
+mk extbase.html "$HEAD5<base href=\"https://x/\"><img src=\"a.png\" alt=\"a\">"
+mk extsvgimage.html "$HEAD5<svg><image href=\"https://x/a.png\"/></svg>"
+mk extsvgxlink.html "$HEAD5<svg><image xlink:href=\"//x/a.png\"/></svg>"
+mk extsvgfill.html "$HEAD5<svg><rect fill=\"url(https://x/g.svg#g)\"/></svg>"
+mk extsvgfilter.html "$HEAD5<svg><rect filter=\"url(//x/f.svg#f)\"/></svg>"
+mk extsvgmask.html "$HEAD5<svg><rect mask='url(\"https://x/m.svg#m\")'/></svg>"
+mk exticon.html "$HEAD5<link rel=\"icon\" href=\"https://x/f.ico\">"
+mk exticonunq.html "$HEAD5<link rel=icon href=https://x/f.ico>"
+mk extbackslash.html "$HEAD5<img src=\"\\\\x/a.png\" alt=\"a\">"
+for f in extbase extsvgimage extsvgxlink extsvgfill extsvgfilter extsvgmask exticon exticonunq extbackslash; do
+  out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
+  if [[ "$out" == *"[self]"* ]]; then ok "catches self ($f.html)"; else bad "did not catch self in $f.html: $out"; fi
+done
+mk commentedremote.html "$HEAD5<!-- <iframe src=\"https://x\"></iframe> <link rel=\"stylesheet\" href=\"https://x/a.css\"> --><p>x</p>"
+out="$(bash "$CHECK" "$TMP/commentedremote.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "a remote URL in an HTML comment passes self" || bad "an HTML comment was judged a remote load: $out"
+mk csscomment.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>/* a{background:url(https://x/a.png)} */
+@media (prefers-color-scheme: dark){}</style>"
+out="$(bash "$CHECK" "$TMP/csscomment.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "a remote url() in a CSS comment passes self" || bad "a CSS comment was judged a remote load: $out"
+mk localnew.html "$HEAD5<base href=\"sub/\"><link rel=\"icon\" href=\"f.ico\"><link rel=\"canonical\" href=\"https://x/p\"><svg><image href=\"a.png\"/><rect fill=\"url(#g)\" xmlns=\"http://www.w3.org/2000/svg\"/></svg>"
+out="$(bash "$CHECK" "$TMP/localnew.html" 2>&1)"
+[[ "$out" != *"[self]"* ]] && ok "local base, icon, image and url(#id) pass self" || bad "a local form was judged remote: $out"
+
+# BL-647 review: a "<!--" in a script string, a textarea or an attribute is not a comment.
+mk hidescript.html "$HEAD5<script>var s=\"<!--\";</script><img src=\"https://x/a.png\" alt=\"a\"><!-- c -->"
+mk hidetextarea.html "$HEAD5<textarea><!-- </textarea><iframe src=\"https://x\"></iframe><!-- c -->"
+mk hideattr.html "$HEAD5<img alt=\"<!--\" src=\"https://x/a.png\"><!-- c -->"
+mk iconlabel.html "$HEAD5<link rel=preload href=https://x/icon.png>"
+for f in hidescript hidetextarea hideattr; do
+  out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
+  if [[ "$out" == *"[self]"* ]]; then ok "catches self ($f.html)"; else bad "a comment opener hid a remote load in $f.html: $out"; fi
+done
+out="$(bash "$CHECK" "$TMP/iconlabel.html" 2>&1)"
+[[ "$out" != *"rel=icon"* ]] && ok "a preload href naming icon is not labelled rel=icon" || bad "preload mislabelled as icon: $out"
+# Quoted prose and non-loading attributes that merely spell url(https://...) are not loads.
+mk prose1.html "$HEAD5<pre><code>&lt;rect fill=\"url(https://x/g.svg#g)\"/&gt;</code></pre>"
+mk prose2.html "$HEAD5<p>set a=url(https://example.com) in config</p>"
+mk prose3.html "$HEAD5<div data-bg=\"url(https://x/a.png)\">x</div>"
+mk prose4.html "$HEAD5<span title=\"url(https://x)\">x</span>"
+for f in prose1 prose2 prose3 prose4; do
+  out="$(bash "$CHECK" "$TMP/$f.html" 2>&1)"
+  [[ "$out" != *"[self]"* ]] && ok "$f.html passes self" || bad "$f.html was judged a remote load: $out"
+done
+
 # An svg data: URI naming an http namespace is inlined, not a remote load.
 mk datasvg.html "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\"><title>t</title><style>.a{background:url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E\")}@media (prefers-color-scheme: dark){}</style>"
 out="$(bash "$CHECK" "$TMP/datasvg.html" 2>&1)"
