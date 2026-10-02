@@ -380,6 +380,10 @@ def check_row(row, variants, n, alts=None, require_look=False):
             die("row '%s': a 'notApplicable' row takes no 'note' — it is "
                 "still a live question, so put the explanation in the "
                 "reason" % cell)
+        if "decided_note" in row and "dropped" not in row:
+            die("row '%s': a 'notApplicable' row takes no 'decided_note' — "
+                "it shows no captures to put it under, so it would be "
+                "dropped silently" % cell)
         if "before" in row or "after" in row:
             die("row '%s' carries both captures and 'notApplicable' — a row "
                 "is either shown or not applicable, never both" % cell)
@@ -468,6 +472,18 @@ def check_row(row, variants, n, alts=None, require_look=False):
             die("row '%s': 'note' must be a non-empty list of non-empty "
                 "strings, not %r" % (cell, note))
         out["note"] = [x.strip() for x in note]
+    # `decided_note` (BL-613): the "decidido, corrígeme si no" text of a row,
+    # shown as the kit's callout under the captures, never in the look line.
+    if "decided_note" in row:
+        dn = row["decided_note"]
+        if not isinstance(dn, str) or not dn.strip():
+            die("row '%s': 'decided_note' must be a non-empty string, not %r"
+                % (cell, dn))
+        if "decided" in row:
+            die("row '%s': 'decided_note' goes on a row still open — a "
+                "'decided' row folds away and seals its notes, so the "
+                "correction offer would vanish" % cell)
+        out["decided_note"] = dn.strip()
     if alts is not None and kind != "alternatives":
         die("row '%s' is a %s row in a document that declares 'alternatives' "
             "— every row of that document is an alternatives row (or dropped "
@@ -825,6 +841,9 @@ def render(doc, root, group_id, group_title, lang, page=None,
                        alt % label, assets, copies, regions))
         add('    </div>')
         add('    <p class="gal-variant">%s</p>' % e(variant_line(variant, lang)))
+        if "decided_note" in r:
+            add('    <div class="callout"><p>%s</p></div>'
+                % e(r["decided_note"]))
         if kind == "alternatives":
             choices = [(a["label"], a["label"]) for a in alts]
             choices.append(NONE_OF_THEM[lang])

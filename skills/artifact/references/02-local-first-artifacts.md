@@ -1412,7 +1412,9 @@ messages and the tests; § 8.4 is the block shape.
    decisions: one that is reversible in minutes and carries a recommendation is
    DECIDED, not asked. It goes in a block titled "decidido, corrígeme si no" (one line
    each: the situation, what was chosen, why) and the reader only corrects. Only the
-   rest become items.
+   rest become items. Inside a gallery, that
+   block goes in the `decided_note` of a row still open (a callout under the captures), never in the
+   row's Qué mirar line.
 
    **An item that comes back with 3+ ask markers is rewritten, not patched.** Three or
    more of `[explain-state]`, `[explain-options]`, `[explain-simpler]`, `[explain-why]`,
@@ -1757,6 +1759,13 @@ is emitted only while at least one single-capture row has no `noBefore`. `noBefo
 blank or non-string value, or on a not-applicable or alternatives row (it would be dropped silently)
 is refused naming the cell; a dropped row does not read it. When a plain single-capture row sits beside
 a `noBefore` row, the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes").
+
+**A row carries its "decidido, corrígeme si no" text in `decided_note`.** An optional row key, a
+non-empty string, rendered as the kit's `callout` after the row's variant line, under the captures and
+outside the "Qué mirar" line. It goes on a row still open: beside `decided` it is refused, because a
+decided row folds away and seals its notes and the correction offer would vanish. Blank or non-string
+values and a not-applicable row (no captures to sit under) are refused naming the cell; a dropped row
+does not read it.
 
 **The answer is compact by default.** A row shows verdict and note; the third verdict (on an
 alternatives row every alternative stays visible and only "none of them" folds) and the composer's own extras (Other, Not now, the
