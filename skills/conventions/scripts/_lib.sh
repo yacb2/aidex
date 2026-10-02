@@ -302,8 +302,8 @@ resolve_worklist() {
   dir="$1"; arg="$2"
   # A path (it has a `/`) is taken as given only inside <dir> or <dir>/_archive/; any
   # other path is refused, or `./notes.md` was closed and archived as a work-list
-  # (BL-561). A path into _archive/ is returned so a caller that matches a literal
-  # `*/_archive/*` can refuse it as already archived. A bare name is a file only when the
+  # (BL-561). A path into _archive/ is returned; a caller that must refuse an archived list
+  # compares the resolved directory with `$WL_DIR/_archive` (BL-591), never the path text. A bare name is a file only when the
   # CWD is the work-list dir itself: `foo` beside the caller is not the work-list `foo`
   # names (BL-551, same class as BL-541). Both sides resolved (a worktree may link
   # .context), cd's CDPATH echo silenced, CDPATH emptied for the relative `dirname` (an

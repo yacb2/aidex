@@ -47,7 +47,10 @@ done
 file="$(resolve_worklist "$WL_DIR" "$arg")"
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
 today="$(date +%F)"
-case "$file" in */_archive/*) echo "worklist already archived: $file" >&2; exit 2;; esac
+# archived-ness from the RESOLVED directory, never the spelling: `cd _archive && ./x.md`
+# or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
+[[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
+  && { echo "worklist already archived: $file" >&2; exit 2; }
 
 # --- the two refusals, BEFORE any mutation — SWEEP work-lists only ---
 # A plain work-list (audit kickoff, a chain of plans) keeps its old close: its emergent

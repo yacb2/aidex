@@ -50,6 +50,10 @@ done
 # resolve_worklist (in _lib.sh) skips -report companions and exits 2 on an ambiguous slug.
 file="$(resolve_worklist "$WL_DIR" "$arg")"
 [[ -n "${file:-}" && -f "$file" ]] || { echo "worklist not found: $arg" >&2; exit 2; }
+# archived-ness from the RESOLVED directory, never the spelling: `cd _archive && ./x.md`
+# or a symlinked dir reaches an archived list with no literal `_archive/` in it (BL-591)
+[[ "$(CDPATH= cd -P "$(dirname "$file")" >/dev/null 2>&1 && pwd -P)" == "$(CDPATH= cd -P "$WL_DIR/_archive" >/dev/null 2>&1 && pwd -P)" ]] \
+  && { echo "worklist already archived: $file" >&2; exit 2; }
 today="$(date +%F)"
 # quotes allowed: validate-worklist.py strips them, so `mode: "sweep"` validates and
 # must mean sweep here too, or the queue silently advances past unproven work
