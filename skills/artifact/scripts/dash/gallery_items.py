@@ -325,6 +325,34 @@ def check_title(row, cell):
     return title.strip()
 
 
+NAMED = re.compile(r"^@[A-Za-z0-9][A-Za-z0-9_.-]*$")
+
+
+def named_region(root, path, name, cell, tile):
+    """BL-607: the {x, y, w, h} of "@name", read from `<capture>.regions.json`
+    (the capture's path with `.png` swapped), a {"name": {x, y, w, h}} map in
+    the capture's own pixels written by the harness's capture step."""
+    side = os.path.join(root or "/", re.sub(r"\.png$", "", path, flags=re.I)
+                        + ".regions.json")
+    try:
+        with open(side, encoding="utf-8") as fh:
+            table = json.load(fh)
+    except OSError:
+        die("row '%s': highlight '%s' on the %s capture needs %s, which is "
+            "missing — the capture step writes it" % (cell, name, tile, side))
+    except ValueError:
+        die("row '%s': %s is not valid JSON" % (cell, side))
+    if not isinstance(table, dict) or name[1:] not in table:
+        die("row '%s': highlight '%s' is not in %s (it has: %s)"
+            % (cell, name, side,
+               ", ".join(sorted(table)) if isinstance(table, dict) else "none"))
+    entry = table[name[1:]]
+    if not isinstance(entry, dict):
+        die("row '%s': highlight '%s' in %s must be one {\"x\", \"y\", \"w\", "
+            "\"h\"} object, not %r" % (cell, name, side, entry))
+    return check_highlight(entry, cell, "%s in %s" % (name, side))[0]
+
+
 def check_highlight(value, cell, key="highlight"):
     """`highlight`: one region {x, y, w, h} in the capture's own pixels, or a
     non-empty list of them (BL-596). Returns a list of 4-tuples; whether it
@@ -335,6 +363,14 @@ def check_highlight(value, cell, key="highlight"):
             "at least one {x, y, w, h}" % (cell, key))
     out = []
     for r in regions:
+        if isinstance(r, str):
+            # BL-607: "@name" is resolved from the capture's regions.json
+            # sidecar in `figure`, where the capture path is known.
+            if not NAMED.match(r):
+                die("row '%s': a named highlight is \"@name\" (letters, "
+                    "digits, - _ .), not %r (%s)" % (cell, r, key))
+            out.append(r)
+            continue
         if not isinstance(r, dict) or set(r) != {"x", "y", "w", "h"}:
             die("row '%s': a highlight is {\"x\", \"y\", \"w\", \"h\"} in "
                 "capture pixels, not %r (%s)" % (cell, r, key))
@@ -591,6 +627,9 @@ def figure(root, path, tile, caption, cell, alt, assets, copies,
         name = hashlib.sha256(fh.read()).hexdigest()[:16] + ".png"
     copies[name] = full
     src = urllib.parse.quote("%s/%s" % (assets, name))
+    if regions:
+        regions = [named_region(root, path, r, cell, tile)
+                   if isinstance(r, str) else r for r in regions]
     layer = highlight_layer(regions, width, height, cell, tile) \
         if regions else ""
     return ('      <figure data-tile="%s"><img src="%s" alt="%s" width="%d"'
