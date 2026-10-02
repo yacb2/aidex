@@ -1533,7 +1533,12 @@
          * `overflow-wrap: anywhere` only falls back from, so a path breaks between segments and
          * mid-segment only when one segment alone is wider than the column. <wbr> adds no text. */
         cells.forEach(function (c) {
-          if (!c.classList.contains('brk')) return;
+          /* BL-604: a cell of a nested .tw inherits `anywhere` from its outer cell.brk (the
+           * outer .tw is measured first), and its own box then fits: it is cut all the same.
+           * Only an outer CELL counts: p, li and the rest inherit `anywhere` too, and a table
+           * that fits inside them is not cut. */
+          if (!c.classList.contains('brk') && !c.parentNode.closest('td.brk, th.brk')) return;
+          c.classList.add('brk');
           /* A nested cell is also inside its outer cell: each text node belongs to its own cell only. */
           var walker = document.createTreeWalker(c, NodeFilter.SHOW_TEXT), t, nodes = [];
           while ((t = walker.nextNode())) {

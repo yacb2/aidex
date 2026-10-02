@@ -823,6 +823,7 @@ cat > "$TMP/nbody.html" <<HTML
     <thead><tr><th>Ruta</th><th>Estado</th></tr></thead>
     <tbody><tr><td id="pathcell">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td><td id="datecell">revisado el 01/10/2026 por el equipo</td></tr></tbody>
   </table></div>
+  <ul><li><div class="tw"><table id="t-li"><tbody><tr><td id="liprose">entrada/salida y/o errores</td></tr></tbody></table></div></li></ul>
   <div class="tw"><table id="t-pdate">
     <thead><tr><th>Ruta</th><th>Estado</th></tr></thead>
     <tbody><tr><td id="pathcell3">skills/artifact/assets/artifact_kit/2026/10/01/composer_functional.js</td><td>pendiente de revisar</td></tr></tbody>
@@ -830,6 +831,10 @@ cat > "$TMP/nbody.html" <<HTML
   <div class="tw"><table id="t-pnest">
     <thead><tr><th>Paso</th><th>Detalle</th><th>Estado</th></tr></thead>
     <tbody><tr><td>Medir</td><td><table><thead><tr><th>Ruta</th></tr></thead><tbody><tr><td id="pathcell2">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td></tr></tbody></table></td><td>ok</td></tr></tbody>
+  </table></div>
+  <div class="tw"><table id="t-pnestw">
+    <thead><tr><th>Paso</th><th>Detalle</th><th>Estado</th></tr></thead>
+    <tbody><tr><td>Medir</td><td><div class="tw"><table><thead><tr><th>Ruta</th></tr></thead><tbody><tr><td id="pathcell4">skills/artifact/assets/artifact_kit/scripts/composer_functional.js</td></tr></tbody></table></div></td><td>ok</td></tr></tbody>
   </table></div>
   <div class="tw"><table id="t-nest">
     <thead><tr><th>Paso</th><th>Detalle</th></tr></thead>
@@ -913,16 +918,18 @@ window.addEventListener('load', function () {
   var tw1 = document.getElementById('t-path').closest('.tw'), wb0 = slashWbr();
   tw1.style.width = '3000px'; tw1.style.maxWidth = 'none'; window.dispatchEvent(new Event('resize'));
   var wbWide = slashWbr(), brkWide = document.getElementById('pathcell').classList.contains('brk') ? 1 : 0;
+  /* BL-604: a table that fits, inside an <li> (which inherits overflow-wrap: anywhere), is not cut. */
+  var liWbr = document.querySelectorAll('#t-li wbr.kit-slash').length + '/' + (document.getElementById('liprose').classList.contains('brk') ? 1 : 0);
   tw1.style.width = ''; tw1.style.maxWidth = ''; window.dispatchEvent(new Event('resize'));
   var wbBack = slashWbr();
   /* BL-585: the same answer after every resize (the cut is re-measured each time). */
-  var first = pathBreaks(), first2 = pathBreaks('pathcell2'), rs = [];
+  var first = pathBreaks(), first2 = pathBreaks('pathcell2'), first2w = pathBreaks('pathcell4'), rs = [];
   for (var q = 0; q < 2; q++) {
     window.dispatchEvent(new Event('resize'));
     rs.push(pathBreaks() + '/' + fits('#t-path'));
   }
   document.title = 'NARROW|W=' + window.innerWidth
-    + '|PATHBRK=' + first + '|DATEJ=' + dateJ + '|PATHDATE=' + path3 + '|WBR=' + (wb0 > 0 ? 1 : 0) + '/' + wbWide + '/' + brkWide + '/' + (wbBack === wb0 ? 1 : 0) + '|PATHBRK2=' + first2 + '|PATHRS=' + rs.join(',')
+    + '|PATHBRK=' + first + '|DATEJ=' + dateJ + '|PATHDATE=' + path3 + '|WBR=' + (wb0 > 0 ? 1 : 0) + '/' + wbWide + '/' + brkWide + '/' + (wbBack === wb0 ? 1 : 0) + '|PATHBRK2=' + first2 + '|PATHBRK2W=' + first2w + '|LIWBR=' + liWbr + '|PATHRS=' + rs.join(',')
     + '|BARS=' + ['consult-copy', 'consult-copy-end'].filter(function (i) { return shown(document.getElementById(i)); }).length
     + '|L1=' + w('#t-label td:first-child') + '|L2=' + w('#t-label td:last-child') + '|I1=' + w('#t-id td:first-child')
     + '|FIT2=' + fits('#t-two') + '|FIT3=' + fits('#t-three') + '|FITS2=' + fits('#t-short2') + '|FITS3=' + fits('#t-short3') + '|FITN=' + fits('#t-nest')
@@ -981,6 +988,13 @@ i1="$(sed -nE 's/.*\|I1=([0-9]+)\|.*/\1/p' <<<"$tn")"
   || fail "BL-585: at 390 px a still-overflowing table cuts a path mid-segment, or never cut it (want every line break after '/'): $tn"
 [[ "$tn" == *"|PATHBRK2=1|"* ]] \
   || fail "BL-585: a path in a table nested in a cell of a 3-column table is cut mid-segment or never cut on first load: $tn"
+# BL-604: the same nested table with its OWN .tw wrapper. The inner .tw is measured after the
+# outer one and its box fits (the outer cell's overflow-wrap reaches the path), so it used to
+# drop the slash hints and the path was cut mid-segment.
+[[ "$tn" == *"|PATHBRK2W=1|"* ]] \
+  || fail "BL-604: a path in a nested table with its own .tw wrapper is cut mid-segment or never cut (want breaks after '/' only): $tn"
+[[ "$tn" == *"|LIWBR=0/0|"* ]] \
+  || fail "BL-604: a fitting table inside an <li> got .brk or slash <wbr> from the li's inherited overflow-wrap (want 0/0): $tn"
 [[ "$tn" == *"|PATHRS=1/1,1/1|"* ]] \
   || fail "BL-585: after a resize the path cut changes (want 1/1 twice: broken after slashes, table fits): $tn"
 [[ "$tn" == *"|DATEJ=1|"* ]] \
