@@ -494,7 +494,12 @@ for (const f of files) for (const width of [1280, 390]) {
           for (const el of document.querySelectorAll('[data-id]')) {
             const id = el.getAttribute('data-id');
             if (seen.has(id)) continue;
-            const r = el.getBoundingClientRect();
+            // a closed details shows only its summary row: measure the outermost closed one,
+            // so a folded id sits on the tile showing its fold row and on none below it
+            let box = el;
+            for (let d = el.closest('details:not([open])'); d; d = d.parentElement && d.parentElement.closest('details:not([open])')) box = d;
+            if (!box.checkVisibility({ contentVisibilityAuto: true, opacityProperty: true, visibilityProperty: true })) continue;
+            const r = box.getBoundingClientRect();
             if (!r.width || !r.height) continue;
             seen.set(id, { id, top: Math.floor(r.top + scrollY), bottom: Math.ceil(r.bottom + scrollY) });
           }

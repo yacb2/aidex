@@ -622,5 +622,37 @@ bash "$PROBE" >/dev/null 2>&1; rc=$?
 bash "$PROBE" "$TMP/missing.html" >/dev/null 2>&1; rc=$?
 [[ $rc -eq 2 ]] && ok "missing page exits 2" || bad "missing page exit $rc, expected 2"
 
+echo "== manifest ids of collapsed content =="
+# Production shape (composer fold): 2400 px of filler, then a CLOSED
+# <details class="decided-unit"> whose summary names Q11 and whose body is the data-id
+# carrier, then an OPEN details holding QO and a plain section QP. A closed details shows
+# only its summary row, so Q11 belongs on the tile(s) showing that row (y ~2400) and on no
+# tile below it; QO (y ~2440-2740) and QP (~2740-3040) sit on the tiles that show them.
+{
+  printf '<!doctype html><html><body style="margin:0">\n'
+  printf '<div style="height:2400px;font:32px monospace">filler</div>\n'
+  printf '<details class="decided-unit"><summary>Q11 verdict</summary><section data-id="Q11" style="height:2500px">hidden-body</section></details>\n'
+  printf '<details open><summary>open</summary><section data-id="QO" style="height:300px">shown-qo</section></details>\n'
+  printf '<section data-id="QP" style="height:300px">shown-qp</section>\n'
+  printf '<div style="height:1200px">tail</div></body></html>\n'
+} > "$TMP/collapsed.html"
+bash "$PROBE" --shots "$TMP/collapsed-shots" "$TMP/collapsed.html" >/dev/null 2>&1
+chk="$(python3 - "$TMP/collapsed-shots/collapsed-shots.json" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+# id -> (point a tile must contain, lowest y a tile may end at or before, y a tile may start at or after)
+want = {"Q11": (2405, 2400, 2440), "QO": (2600, 2430, 2800), "QP": (2900, 2700, 3100)}
+for w in ("1280", "390"):
+    tiles = m["widths"][w]["tiles"]
+    for i, (pt, below, above) in want.items():
+        for t in tiles:
+            has = i in t["ids"]
+            if t["y"] <= pt < t["y"] + t["height"] and not has: print(f"{w}: {i} missing from {t['file']}"); sys.exit()
+            if (t["y"] + t["height"] <= below or t["y"] >= above) and has: print(f"{w}: {i} wrongly on {t['file']}"); sys.exit()
+print("ok")
+PY
+)"
+[[ "$chk" == ok ]] && ok "a closed fold's id is on the tile showing its summary row and none below; visible ids on theirs" || bad "collapsed ids: $chk"
+
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
