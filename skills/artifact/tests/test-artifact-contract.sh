@@ -1416,8 +1416,8 @@ grep -E '^  FAIL' <<<"$out" | grep >/dev/null -E 'ghost.html|dead.html' \
 [[ "$out" == *"orphaned baseline"* && "$out" == *"ghost.html"* ]] \
   && ok "census: an orphaned baseline is reported with its rm" \
   || bad "the orphaned baseline went unreported: $out"
-[[ "$out" == *"dead baseline"* ]] \
-  && ok "census: a baseline under _archive/ is reported as dead" \
+grep -q "orphaned baseline.*_archive/.aidex-artifact-prev/dead.html'" <<<"$out" \
+  && ok "census: a baseline under _archive/ whose page is gone is reported as orphaned" \
   || bad "the archived baseline went unreported: $out"
 [[ -f "$CEN/.context/reports/.aidex-artifact-prev/ghost.html" \
    && -f "$CEN/.context/backlog/_archive/.aidex-artifact-prev/dead.html" ]] \

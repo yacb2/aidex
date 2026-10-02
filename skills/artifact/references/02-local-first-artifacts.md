@@ -1174,9 +1174,10 @@ artifact-layout | .context/reports/x.html | sha256:<prefix> | pre-.tw page, thre
 Anchored waivers resurface when the file changes; waived findings are reported as
 `waived: N`, never dropped. Fix a drifted page by re-wrapping it; waive it when the
 thread is closed and the page is kept as a record. The census also reports **baseline
-hygiene** — orphaned `.aidex-artifact-prev/` copies whose artifact is gone, and baseline
-dirs that followed an artifact into `_archive/` — with the exact `rm` to run. It reports;
-it never deletes.
+hygiene** — `.aidex-artifact-prev/` entries whose artifact is gone, one note per entry
+(also under `_archive/`; a folder beside a live archived page is not reported, the builder
+recreates it) — with the exact `rm` to run. It reports; it never deletes. A first spec build
+that fails removes the `.aidex-artifact-prev/` it created; a pre-existing one is never touched.
 
 ### 6. Save it as a sibling of the anchor
 

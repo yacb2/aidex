@@ -3715,22 +3715,17 @@ BUILD_LOCK_STALE_AFTER = 20 * 60
 
 def baseline_hygiene(walk_root):
     """Dead .aidex-artifact-prev content, as note strings with the exact rm to
-    run. Report-only, never deletes: a baseline is dead when its artifact is
-    gone (nothing will ever compare against it) or when the whole set was moved
-    into _archive/ (the artifact is closed, so no wrap runs at that path
-    again). Without this, every report is silently doubled on disk forever —
-    field-observed following archived items into _archive/."""
+    run. Report-only, never deletes: an entry is dead when its artifact is
+    gone (nothing will ever compare against it), wherever the folder sits. A
+    folder beside a LIVE page under _archive/ is not dead: the builder recreates
+    it on every build there (BL-624). Without this, every report is silently
+    doubled on disk forever."""
     notes = []
     for dirpath, dirnames, filenames in os.walk(walk_root):
         for d in list(dirnames):
             if d != ".aidex-artifact-prev":
                 continue
             bdir = os.path.join(dirpath, d)
-            if "_archive" in dirpath.split(os.sep):
-                notes.append(f"dead baseline (archived artifact): rm -r "
-                             f"'{bdir}'")
-                dirnames.remove(d)
-                continue
             entries = os.listdir(bdir)
             # Five spellings live here and all of them are the PAGE's, not files with
             # a life of their own: the baseline `<page>`, its source `<page>.body`
