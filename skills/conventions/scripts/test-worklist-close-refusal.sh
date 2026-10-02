@@ -192,4 +192,27 @@ mkdir -p "$TMP/other/.context/worklists"
 OUT="$(CDPATH="$TMP/other" bash "$DIR/worklist-advance.sh" ".context/worklists/$(basename "$WL8")" --peek 2>&1)"
 [[ "$OUT" == *"first of reverse"* ]] && ok "with CDPATH at another project, a path into worklists/ still resolves" || bad "CDPATH reverse: $OUT"
 
+# 7 · an ARCHIVED work-list reached by a path without a literal `_archive/` (BL-591): close
+# matched the string `*/_archive/*`, so `cd _archive && close ./x.md` rewrote status and
+# updated and only then died on "archive collision"; advance had no archived check and
+# ticked the archived queue. `updated` is backdated, or a buggy close rewrites the file
+# byte-identical (status done, updated today) and the checksum cell passes for nothing.
+OUT="$(bash "$DIR/worklist-close.sh" "$(bash "$DIR/worklist-new.sh" --title "Archived" --slug archived-seven \
+  --ref "inline:a1" --ref "inline:a2" --ref "inline:a3" --ref "inline:a4")" 2>/dev/null)"
+AR="${OUT#CLOSED }"; ARN="$(basename "$AR")"
+sed -i.bak 's/^updated: .*/updated: 2026-01-01/' "$AR" && rm -f "$AR.bak"
+archived_refused() {  # archived_refused <label> <cmd...> — rc 2, "already archived", bytes unchanged
+  local label="$1" sum rc; shift; sum="$(cksum < "$AR")"
+  "$@" >/dev/null 2>"$TMP/err"; rc=$?
+  [[ $rc -eq 2 && "$(cksum < "$AR")" == "$sum" && -f "$AR" ]] && grep -q "already archived" "$TMP/err" \
+    && ok "$label is refused as already archived, file untouched" || bad "$label: rc=$rc $(cat "$TMP/err")"
+}
+in_archive() { (cd .context/worklists/_archive && "$@"); }
+archived_refused "close ./x.md from inside _archive/" in_archive bash "$DIR/worklist-close.sh" "./$ARN"
+ln -s _archive .context/worklists/arch
+archived_refused "close through a symlinked dir to _archive/" bash "$DIR/worklist-close.sh" ".context/worklists/arch/$ARN"
+rm -f .context/worklists/arch
+archived_refused "advance ./x.md from inside _archive/" in_archive bash "$DIR/worklist-advance.sh" "./$ARN"
+archived_refused "advance of a literal _archive/ path" bash "$DIR/worklist-advance.sh" ".context/worklists/_archive/$ARN"
+
 echo; [[ $FAIL -eq 0 ]] && { echo "OK — worklist close refusal: $PASS cells"; exit 0; }; echo "$FAIL failure(s)"; exit 1
