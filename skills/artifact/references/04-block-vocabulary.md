@@ -348,6 +348,8 @@ in dashboard_template), and the kit reads nothing else:
 | `"noBefore": reason` | optional: a non-empty string, only on a row with `after` and no `before`. Replaces the 'pantalla nueva' / 'new screen' caption and alt with `sin antes: reason` / `no before: reason`; the intro's 'la pantalla es nueva' sentence is emitted only while a single-capture row has none. Refused with a `before`, blank or non-string, and on a not-applicable or alternatives row (it would be dropped silently), naming the cell; not read on a dropped row. With a plain single-capture row beside it the intro sentence is qualified ("…, salvo donde la fila dice por qué no hay antes") |
 | `"dropped": reason` / `"decided": verdict` | the row left the question set (no captures needed, reason in `.gal-na`, `data-dropped`) / was settled (captures kept); both fold as decided
 
+A row to be redone is `decided="Se rehace según Q1"`, never `dropped`: dropped means the row left the set and is counted nowhere; a redo verdict is a decision, listed in Decidido with the text as written.
+
 Each row shows its variant once, under the captures, in words of the page's language
 (`Vista: escritorio, tema claro` / `View: desktop, light theme`; light/dark x
 desktop/mobile/tablet; a variant that does not split is shown as its own name), and the

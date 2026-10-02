@@ -80,7 +80,10 @@
       toDark: 'Dark',
       themeTitle: 'Switch this page between light and dark',
       decided: 'Decided',
-      decidedCount: function (n) { return n + (n === 1 ? ' question already settled' : ' questions already settled'); },
+      decidedCount: function (n, w) {
+        var word = w === 'row' ? 'row' : w === 'item' ? 'item' : 'question';
+        return n + ' ' + word + (n === 1 ? ' already settled' : 's already settled');
+      },
       dropped: 'Dropped',
       droppedMark: ' (dropped)',
       droppedHint: 'These questions left the set without an answer. Open one to re-read what it asked and why it was dropped.',
@@ -184,7 +187,11 @@
       toDark: 'Oscuro',
       themeTitle: 'Cambia esta p\u00e1gina entre claro y oscuro',
       decided: 'Decidido',
-      decidedCount: function (n) { return n + (n === 1 ? ' pregunta ya resuelta' : ' preguntas ya resueltas'); },
+      decidedCount: function (n, w) {
+        var word = w === 'row' ? 'fila' : w === 'item' ? 'elemento' : 'pregunta';
+        var done = w === 'item' ? 'resuelto' : 'resuelta';
+        return n + ' ' + word + (n === 1 ? ' ya ' + done : 's ya ' + done + 's');
+      },
       dropped: 'Descartadas',
       droppedMark: ' (descartada)',
       droppedHint: 'Estas preguntas salieron del conjunto sin respuesta. Abre una para releer qu\u00e9 preguntaba y por qu\u00e9 se descart\u00f3.',
@@ -448,10 +455,14 @@
       if (u.group) {
         var inner = [].slice.call(u.node.querySelectorAll('.consult-item'));
         k.textContent = u.node.dataset.id || u.node.id || '';
+        /* Each row: its title, then the verdict as written on it (BL-608), dropped
+         * rows included (their data-decided reads "Descartada: reason"). The id and
+         * the generic droppedMark are fallbacks, never the first choice. */
         v.textContent = (u.node.dataset.title || '') + ' \u2014 ' +
           inner.map(function (el) {
-            return (el.dataset.heading || el.dataset.id) + (isDropped(el) ? L.droppedMark : '');
-          }).join(', ');
+            var verdict = decidedSummary(el) || (isDropped(el) ? L.droppedMark.trim() : '');
+            return (el.dataset.heading || el.dataset.title || el.dataset.id) + (verdict ? ': ' + verdict : '');
+          }).join('; ');
       } else {
         /* A row with a heading is labelled by it (BL-577); the slug stays on data-id. */
         k.textContent = u.node.dataset.heading ? '' : (u.node.dataset.id || '');
@@ -512,19 +523,29 @@
     var settled = units.filter(function (u) { return !u.dropped; });
     var gone = units.filter(function (u) { return u.dropped; });
     /* Counts are what each section HOLDS: a dropped item inside a block that is
-     * otherwise decided stays in that block's unit, marked "(dropped)" in its
-     * summary, and is neither a decision nor counted as a dropped section item. */
+     * otherwise decided stays in that block's unit, marked with its written
+     * verdict in the summary, and is neither a decision nor counted as a dropped
+     * section item. A row to redo is a verdict, not a drop: decided="Se rehace…". */
     function held(list) {
       return list.reduce(function (n, u) {
         return n + (u.group ? u.node.querySelectorAll('.consult-item').length : 1);
       }, 0);
     }
+    /* Gallery rows are rows, not questions: say so when every counted entry is
+     * one, and use the neutral word when the two are mixed. */
+    var shown = [];
+    settled.forEach(function (u) {
+      if (u.group) shown = shown.concat([].slice.call(u.node.querySelectorAll('.consult-item')).filter(function (el) { return !isDropped(el); }));
+      else shown.push(u.node);
+    });
     var mixedDropped = settled.reduce(function (n, u) {
       return n + (u.group ? [].slice.call(u.node.querySelectorAll('.consult-item')).filter(isDropped).length : 0);
     }, 0);
+    var galleryRows = shown.filter(function (el) { return el.classList.contains('consult-gallery'); }).length;
+    var countWord = !galleryRows ? 'question' : galleryRows === shown.length ? 'row' : 'item';
     if (settled.length) {
       place(decidedSection = section('sec-decided', 'decided',
-        L.decidedCount(held(settled) - mixedDropped),
+        L.decidedCount(held(settled) - mixedDropped, countWord),
         L.decided, L.decidedHint, settled));
     }
     if (gone.length) {
