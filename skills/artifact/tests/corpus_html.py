@@ -197,8 +197,8 @@ def figures_dropped(node):
 # (composer.js `rec`; test-goal-gate.sh holds BADGE_WORDS to it). So an option
 # label is read in one canonical form: a `.hint` gets the " — " separator in front unless it already starts with one,
 # and one badge word is taken out. Nothing outside an option label is
-# normalised. Which option is recommended, and which is checked, IS compared
-# (`option_flags`): a decided item's winning option is `{chosen}` in a spec
+# normalised. Which option is recommended, which is checked, and its input type
+# (radio/checkbox, BL-550) IS compared (`option_flags`): a decided item's winning option is `{chosen}` in a spec
 # (checked, not recommended), a real recommendation is `{recommended}`.
 OPTION_SEP = "\u2014"
 BADGE_WORDS = {"Recomendada", "Recommended"}
@@ -213,8 +213,8 @@ def _option_input(node):
 
 
 def option_flags(node, original=False):
-    """`[(label, recommended, checked, open_verdict), ...]`, one per option,
-    in reading order.
+    """`[(label, recommended, checked, open_verdict, type), ...]`, one per
+    option, in reading order.
 
     Recommended is the `data-recommended` attribute OR the badge the older
     pages carried as markup or text (a `.rec` element or a badge word in the
@@ -225,6 +225,8 @@ def option_flags(node, original=False):
     (contracts-sweep-decisions Q17) has no spelling and is not compared.
     The fourth flag, `open_verdict`, is whether the option's item is decided
     with no option checked in it: only there may a build add a check.
+    The fifth, `type`, is the input's `radio` or `checkbox`: the item's
+    select=one or select=many (BL-550).
     """
     found = []
     for el in node.walk():
@@ -248,7 +250,8 @@ def option_flags(node, original=False):
             or any(n.has("rec") for n in el.walk())))
         decided = item is not None and "data-decided" in item.attrs
         out.append((" ".join(words), rec, decided and "checked" in inp.attrs,
-                    decided and id(item) not in checked_items))
+                    decided and id(item) not in checked_items,
+                    inp.attrs.get("type")))
     return out
 
 

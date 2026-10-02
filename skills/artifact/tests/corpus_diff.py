@@ -9,8 +9,9 @@ Exit 0 when the conversion is clean: the `data-id` sequence is IDENTICAL and
 the visible-text token sequence is IDENTICAL. One allowance (owner ruling
 2026-09-28, the consult contract wins): a group id or the general-notes item
 that only the build has is not counted, the notes item's title with it, as long
-as every original id keeps its order. Which option is recommended and which is
-checked is compared too (`corpus_html.option_flags`, rule in `_first_flag_divergence`). Inside an option's label the " — "
+as every original id keeps its order. Each option's input type (radio or
+checkbox), and which option is recommended and which is checked, are compared
+too (`corpus_html.option_flags`, rule in `_first_flag_divergence`). Inside an option's label the " — "
 separator the builder leaves implicit and the kit's badge word are read in one
 canonical form (`corpus_html.py`). Exit 1 otherwise, with the first
 divergence printed in context — a conversion is never eyeballed, so the failure
@@ -88,18 +89,19 @@ def compare_body(body, page_path):
 def _first_flag_divergence(want, got):
     """The first option whose marks drifted, or "" when they hold.
 
-    Recommended must be identical. Checked must hold for every option the
-    original checked; the build may ALSO check the recommended option of an
-    item the ORIGINAL marks decided and in which it checked no option
+    The input type (radio or checkbox) and recommended must be identical.
+    Checked must hold for every option the original checked; the build may
+    ALSO check the recommended option of an item the ORIGINAL marks decided
+    and in which it checked no option
     (`open_verdict`; `decided=yes` shows a verdict: the consult contract wins,
     owner ruling 2026-09-28).
     """
     def show(f):
-        return "recommended=%s checked=%s" % (f[1], f[2])
+        return "%s recommended=%s checked=%s" % (f[4], f[1], f[2])
     if len(want) != len(got):
         return "  %d options in the page, %d built" % (len(want), len(got))
     for i, (w, g) in enumerate(zip(want, got)):
-        if w[1] != g[1] or (w[2] and not g[2]) or (g[2] and not w[2] and not (g[1] and w[3])):
+        if w[4] != g[4] or w[1] != g[1] or (w[2] and not g[2]) or (g[2] and not w[2] and not (g[1] and w[3])):
             return ("  option %d (%s): original %s, built %s"
                     % (i + 1, w[0][:50], show(w), show(g)))
     return ""
