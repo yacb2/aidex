@@ -36,6 +36,8 @@
       stale: function (n) { return ' ' + n + ' were left blank because their question changed since you answered it.'; },
       consumed: function (n) { return ' ' + n + ' were left blank because you already sent them in an earlier round.'; },
       discard: 'Discard them',
+      staleTab: 'A newer version of this page is open in another tab: ',
+      staleReload: 'reload this one',
       copy: 'Copy my answers',
       contents: 'Contents',
       notes: 'Notes on this one',
@@ -143,6 +145,8 @@
       stale: function (n) { return ' ' + n + ' se dejaron en blanco porque su pregunta cambió desde que la respondiste.'; },
       consumed: function (n) { return ' ' + n + ' se dejaron en blanco porque ya las enviaste en una ronda anterior.'; },
       discard: 'Descartarlas',
+      staleTab: 'Hay una versión más nueva de esta página en otra pestaña: ',
+      staleReload: 'recárgala',
       copy: 'Copiar mis respuestas',
       contents: 'Contenido',
       notes: 'Notas sobre esta',
@@ -1106,6 +1110,59 @@
       });
     } catch (e) { return { n: 0, stale: 0, spent: 0 }; }
     return { n: n, stale: stale, spent: spent };
+  }
+
+  /* BL-635. Each round re-opens the same file in a new tab, and the older tabs
+   * never said they were old. On load the page records its build stamp under
+   * its own path; a `storage` event from another tab carrying a LATER stamp for
+   * the same path marks this tab stale. The stamp is wrap_report.py's
+   * "YYYY-MM-DD HH:MM" (fixed width, so a string comparison orders it), with
+   * round and file mtime as tie-breaks (see newer()); an equal or older one
+   * shows nothing, and a tab never reacts to its own write
+   * (the event does not fire in the writing tab). No stamp meta, or storage
+   * that throws, means no watch. */
+  function watchStaleTab() {
+    var bm = document.querySelector('meta[name="artifact-built"]');
+    var built = bm ? (bm.getAttribute('content') || '') : '';
+    if (!built) return;
+    var key = 'aidex-kit-built:' + location.pathname;
+    function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+    function parse(raw) {
+      var o = {};
+      try { o = JSON.parse(raw) || {}; } catch (e) {}
+      return { b: o.b || '', r: num(o.r), m: num(o.m) };
+    }
+    /* The stamp has minute resolution, so a re-wrap inside the same minute ties
+     * on it: then the round decides (a number), then the file's own mtime
+     * (document.lastModified, second resolution on file://). */
+    function newer(x, y) {
+      if (x.b !== y.b) return x.b > y.b;
+      if (x.r !== y.r) return x.r > y.r;
+      return x.m > y.m;
+    }
+    var mine = { b: built, r: num(ROUND), m: num(Date.parse(document.lastModified)) };
+    try {
+      if (newer(mine, parse(localStorage.getItem(key)))) {
+        localStorage.setItem(key, JSON.stringify({ b: mine.b, r: mine.r, m: mine.m }));
+      }
+    } catch (e) { return; }
+    window.addEventListener('storage', function (ev) {
+      if (ev.key !== key || !newer(parse(ev.newValue), mine)) return;
+      var main = document.querySelector('.main');
+      if (!main || document.getElementById('consult-stale')) return;
+      var note = document.createElement('div');
+      note.className = 'note warn kit-stale';
+      claimId(note, 'consult-stale');
+      note.setAttribute('role', 'status');
+      note.appendChild(document.createTextNode(L.staleTab));
+      var a = document.createElement('a');
+      a.href = '#';
+      a.textContent = L.staleReload;
+      a.addEventListener('click', function (e) { e.preventDefault(); location.reload(); });
+      note.appendChild(a);
+      note.appendChild(document.createTextNode('.'));
+      main.insertBefore(note, main.firstChild);
+    });
   }
 
   function showRestoredNote(n, stale, spent) {
@@ -2488,6 +2545,7 @@
     if (recovered.n || recovered.stale || recovered.spent) {
       showRestoredNote(recovered.n, recovered.stale, recovered.spent);
     }
+    watchStaleTab();
     markRecommendations();
     addClearControls();
     document.addEventListener('input', function () { refresh(); save(); });

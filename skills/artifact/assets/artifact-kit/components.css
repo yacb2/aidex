@@ -124,6 +124,7 @@ li::marker { color: var(--muted); }
 
 .note:where(:not(svg *)) { font-family: var(--sans); font-size: 0.82rem; line-height: 1.55; color: var(--ink-soft);
         background: var(--paper-sunk); border-left: 2px solid var(--accent-dim); padding: 0.75rem 0.95rem; }
+.note.kit-stale:where(:not(svg *)) { position: sticky; top: 0; z-index: 20; background: var(--paper-sunk); box-shadow: 0 1px 0 var(--rule); }
 .note.warn { border-left-color: var(--flag); }
 .ex:where(:not(svg *)) { font-family: var(--sans); font-size: 0.8rem; line-height: 1.55; color: var(--ink-soft);
       border-left: 2px solid var(--rule); padding-left: 0.8rem; }
