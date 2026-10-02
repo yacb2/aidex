@@ -82,5 +82,27 @@ else
   pass "no repo at all: a clean run says status drift was not checked"
 fi
 
+# --- layout D: a child repo, the cited commit not in it: drift WAS checked ------------
+WS="$TMP/ws-d"
+mk_repo_commit "$WS/code" >/dev/null
+mk_item "$WS/.context" "abcdef1234567"
+out="$(python3 "$AS" "$WS/.context" 2>&1)"
+if grep -q "no status drift" <<<"$out" && ! grep -q "status drift was not checked" <<<"$out"; then
+  pass "child repo, nothing landed: a clean run says no status drift"
+else
+  fail "child repo, nothing landed: the clean line does not say drift was checked (got: '${out//$'\n'/ | }')"
+fi
+
+# --- layout E: the only .git is a dangling worktree pointer: no repo was checked ----
+WS="$TMP/ws-e"
+mkdir -p "$WS/code"; echo "gitdir: $TMP/nonexistent/wt" > "$WS/code/.git"
+mk_item "$WS/.context" "abcdef1234567"
+out="$(python3 "$AS" "$WS/.context" 2>&1)"
+if grep -q "status drift was not checked" <<<"$out"; then
+  pass "dangling child .git: a clean run says status drift was not checked"
+else
+  fail "dangling child .git: counted as a repo nobody could ask (got: '${out//$'\n'/ | }')"
+fi
+
 if [[ $FAILURES -gt 0 ]]; then printf '\n%d check(s) failed\n' "$FAILURES"; exit 1; fi
 printf '\nOK: archive-sweep checks status drift in the root repo and every child repo\n'

@@ -53,6 +53,14 @@ def frontmatter(path):
     return (s.group(1) if s else None), (SHA.findall(c.group(1)) if c else [])
 
 
+def is_repo(d):
+    try:
+        return subprocess.run(["git", "-C", d, "rev-parse", "--git-dir"],
+                              capture_output=True, timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def commit_landed(repos, sha):
     for repo in repos:
         try:
@@ -223,9 +231,11 @@ def main():
     # the same predicate BL-344 fixed in memory-sweep.py).
     # Workspace layout: the code repos sit in child dirs, whether or not the dir holding
     # .context/ is itself a (planning) repo (BL-606, as detect-resolved.py for BL-603).
-    # No repo at all: status drift needs git, so report the other half only.
+    # No repo at all: status drift needs git, so report the other half only. A `.git`
+    # git cannot open (a dangling worktree pointer) is no repo: counting it printed
+    # "no status drift" with not one commit checked.
     repos = [d for d in [root] + [os.path.join(root, n) for n in sorted(os.listdir(root))]
-             if os.path.exists(os.path.join(d, ".git"))]
+             if os.path.exists(os.path.join(d, ".git")) and is_repo(d)]
 
     unarchived, drift = scan(ctx, repos)
 
