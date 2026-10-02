@@ -302,9 +302,33 @@ try:
               'Hoy recibe un error.</p>')
     check("...and the situation reads between the question and the options",
           -1 < h.find("</h3>") < h.find("consult-lead") < h.find('type="radio"'), h)
-    holds("item: a one-sentence lead stays whole in the h3",
+    # BL-576: a one-sentence situation has no sentence boundary, and it took
+    # the h3 whole instead of the title ("Quien entra a Inicio hoy ve ocho
+    # tarjetas…" headed an item titled KPIs; a second sentence fixed it).
+    holds("item: a one-sentence situation with no question asks the title",
           ITEM.replace("¿La pregunta, preguntada?", "El Sr. López lo pidió."),
-          '<h3><span class="consult-id">Q1</span>El Sr. López lo pidió.</h3>')
+          '<h3><span class="consult-id">Q1</span>Short name</h3>',
+          '<p class="consult-lead">El Sr. López lo pidió.</p>')
+    # ...but a one-sentence QUESTION still heads the item when it closes on
+    # markup or punctuation: the paragraph is rendered HTML, so `**¿…?**` ends
+    # in `</strong>` (asset_lab sweep 2026-10-01 Q10, Q11) and a quote in
+    # `&quot;` or `”`.
+    for label, body, heading in (
+            ("in bold", "**¿La pregunta, preguntada?**",
+             "<strong>¿La pregunta, preguntada?</strong>"),
+            ("in a closing quote", 'Lo llamamos "¿Inicio?"',
+             "Lo llamamos &quot;¿Inicio?&quot;"),
+            ("in parentheses", "(¿Lo cambiamos?)", "(¿Lo cambiamos?)"),
+            # A trailing parenthetical qualifies the answer, not the question;
+            # it headed the item before BL-576 and a rebuild must not move a
+            # live page's h3 for it.
+            ("before a parenthetical", "¿Lo cambiamos? (sí o no)",
+             "¿Lo cambiamos? (sí o no)")):
+        h = holds("item: a one-sentence question %s still heads the item"
+                  % label, ITEM.replace("¿La pregunta, preguntada?", body),
+                  '<h3><span class="consult-id">Q1</span>%s</h3>' % heading)
+        check("...and leaves no consult-lead (%s)" % label,
+              "consult-lead" not in h, h)
     holds("item: a situation with no closing question asks the title",
           ITEM.replace("¿La pregunta, preguntada?",
                        "Ana silencia una pista. Hoy recibe un error."),

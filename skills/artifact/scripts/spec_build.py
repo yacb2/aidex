@@ -662,12 +662,32 @@ def _segments(node, nests, carries="prose"):
     return out
 
 
+# What may follow a closing `?` in a rendered paragraph: closing inline tags,
+# quotes (raw or as the entities md_body emits) and closing brackets.
+_QUESTION_CLOSERS = re.compile(
+    r'(?:\s|</[a-z]+>|["\'\u201d\u2019\u00bb)\]]|&quot;|&#x27;|&#39;|'
+    r'&rsquo;|&rdquo;|&raquo;)+$')
+_TRAILING_PAREN = re.compile(r'\s*\([^()]*\)\s*$')
+
+
+def _closes_on_question(inline):
+    """A one-sentence paragraph is a question when its `?` comes last but for
+    closing markup, quotes and brackets (`**¿…?**`, `"¿…?"`, `(¿…?)`), or a
+    trailing parenthetical (`¿…? (sí o no)`) that qualifies the answer."""
+    for text in (inline, _TRAILING_PAREN.sub("", inline)):
+        if _QUESTION_CLOSERS.sub("", text).endswith("?"):
+            return True
+    return False
+
+
 def _split_question(inline):
-    """(situation, heading) for an item's rendered first paragraph. One
-    sentence is the heading whole. Several sentences are a situation lead: the
-    closing run of `?` sentences is the heading, or None (ask the title) when
-    it does not close on a question. Sentence ends and abbreviations are
-    check_artifact's; a boundary inside a tag does not count."""
+    """(situation, heading) for an item's rendered first paragraph. A
+    paragraph that does not close on a question is all situation, one sentence
+    or several, and the heading is None (ask the title — BL-576). One sentence
+    that does (`_closes_on_question`) is the heading whole; several are a
+    situation lead and the closing run of `?` sentences is the heading.
+    Sentence ends and abbreviations are check_artifact's; a boundary inside a
+    tag does not count."""
     ends = []
     for m in check_artifact.SENTENCE_END.finditer(inline):
         before = inline[:m.start()]
@@ -679,7 +699,7 @@ def _split_question(inline):
             continue
         ends.append(m)
     if not ends:
-        return "", inline
+        return ("", inline) if _closes_on_question(inline) else (inline, None)
     if not inline.rstrip().endswith("?"):
         return inline, None
     cut = [m for m in ends if inline[m.start()] != "?"]
