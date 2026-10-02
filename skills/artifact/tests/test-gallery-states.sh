@@ -70,7 +70,7 @@ grep -q 'type="radio"' "$TMP/st.html" && fail "a states row carries a verdict ra
 grep -qiwE 'antes|propuesto' "$TMP/st.html" && fail "the states row says antes/propuesto" || ok "no before/after pair"
 grep -q '<textarea' "$TMP/st.html" && ok "the notes textarea is there" || fail "no notes textarea"
 grep -q 'Marca cada estado que apruebas' "$TMP/st.html" && ok "the intro has the states sentence (es)" || fail "no states sentence in the es intro"
-gen "$TMP/st.json" --lang en 2>/dev/null | grep -q 'Tick each state you approve' \
+gen "$TMP/st.json" --lang en 2>/dev/null | grep >/dev/null 'Tick each state you approve' \
   && ok "the intro has the states sentence (en)" || fail "no states sentence in the en intro"
 # The sentence is emitted only when the block holds a states row.
 python3 - "$TMP/st.json" "$TMP/rev.json" <<'PY'
@@ -80,7 +80,7 @@ d["rows"] = [{"cell": "page", "variant": "light-desktop", "kind": "review",
               "before": "shots/default.png", "after": "shots/hover.png"}]
 json.dump(d, open(sys.argv[2], "w"))
 PY
-gen "$TMP/rev.json" 2>/dev/null | grep -q 'Marca cada estado que apruebas' \
+gen "$TMP/rev.json" 2>/dev/null | grep >/dev/null 'Marca cada estado que apruebas' \
   && fail "a block with no states row carries the states sentence" || ok "no states sentence without a states row"
 
 echo "== the reply =="
@@ -150,7 +150,7 @@ r = json.load(sys.stdin)["rows"][0]
 assert r["states"][0]["approved"] is True and r["notes"] == "", r' \
   && ok "a label with trailing space still reads as ticked" || fail "a stripped label did not read as ticked"
 printf '## B · Botón\n### %s · btn · save · light-desktop\n\n- Fantasma\n' "$ID" > "$TMP/rg.md"
-bash "$REPLY" --rows "$TMP/st.json" "$TMP/rg.md" 2>&1 >/dev/null | grep -q 'warning: row .*"Fantasma" is not a label' \
+bash "$REPLY" --rows "$TMP/st.json" "$TMP/rg.md" 2>&1 >/dev/null | grep >/dev/null 'warning: row .*"Fantasma" is not a label' \
   && ok "an undeclared bullet in a states answer warns (stale --rows)" || fail "no stale --rows warning for an undeclared states bullet"
 printf '## B · Botón\n### %s · btn · save · light-desktop\n\n- Hover\n- Otra — lo explico en las notas\n\nel reposo no\n' "$ID" > "$TMP/ro.md"
 bash "$REPLY" --rows "$TMP/st.json" "$TMP/ro.md" 2>/dev/null | python3 -c '
