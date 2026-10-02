@@ -237,6 +237,28 @@ allowed more pixels than a whole layout fix. The bracket, in that one runner:
 no-tolerance runs below, its own smallest real change above — rather than inheriting
 them.
 
+## 4b. A scroll-owning shell: the cell captures the full content
+
+When the app scrolls inside a panel (the shell owns the scroll, so the document never grows),
+a viewport shot sees only the first screen. **The cell makes the gate's own baseline
+full-page; the review images are those baselines, never a second hand-written capture
+script** (a throwaway script with its own login, scenarios and paths drifts from the gate
+and shows pixels the gate never compared). The recipe, in the cell, after `ready` and
+before the shot:
+
+1. Measure the scrolling panel: `extra = scroller.scrollHeight - scroller.clientHeight`.
+2. Set the viewport height to `innerHeight + extra` (`page.setViewportSize`), width
+   unchanged, and wait for the layout to settle (the same `ready`).
+3. Assert `scroller.scrollHeight === scroller.clientHeight`: the panel no longer scrolls,
+   so nothing is below the fold. A panel that still scrolls fails the cell instead of
+   shipping a partial baseline.
+4. Screenshot. Overflow, layout and contrast now see the whole panel too.
+
+A baseline taller than the viewport is expected (about 1600x1455 on a 900 px viewport).
+A change below the old fold now fails as a pixel diff. The "Viewport-only shots" and
+"Contrast judged on the first screenful" limits below apply only to a project that has
+not adopted this rule.
+
 ## 5. Known-defect entries need `projects`, and there is a rot guard
 
 A defect the gate finds that this work will not fix is registered per cell, never
@@ -287,6 +309,19 @@ artifact kit's `gallery-items.sh` turns that document into consultation items
 (`/aidex:artifact`, `04-block-vocabulary.md` § `gallery` pins the shape). The board and
 the image remain the developer's lens while building.
 
+**A component-scoped consultation** (owner 2026-10-02): when only one component changes
+(a button's hover, tooltip, loading and disabled states; a dialog; a card; a section; a
+menu) and the surrounding screen adds nothing to the decision, the cell captures only that
+component, with a locator-scoped screenshot (`locator.screenshot()`), and the consultation
+carries ONE item with every state of it, the owner approving all or some of them
+(checkboxes), not one full-screen item per state. The full screen stays the default
+whenever context matters (placement, neighbours, the AFTER beside the BEFORE). The
+component's cells still go through the gate like any other (a distinct render each, `ready`
+specific to the state). **Tooling gap:** the gallery items emitter cannot yet put several
+captures in one item with per-capture approval; until it can, such an item is written by
+hand as a plain checkbox item (`select=many`) and the gap is a filed follow-up, not a
+reason to fall back to a full-screen item per state.
+
 A small composer script turns one gallery's baselines into a single image: rows are the
 matrix cells, columns the four projects.
 
@@ -329,9 +364,9 @@ the harness copies this table into its own record and edits the rows its setup c
 
 | Limit | What it means |
 |---|---|
-| **Viewport-only shots** | The app shell owns the scroll, so the document never grows and a full-page capture is byte-identical to a viewport one. **A change below the fold reds nothing.** |
+| **Viewport-only shots** (unless the full-height cell rule of § 4b is adopted) | The app shell owns the scroll, so the document never grows and a full-page capture is byte-identical to a viewport one. **A change below the fold reds nothing.** |
 | **`-darwin` baselines only** | Baselines exist for one platform. On any other OS every cell fails as a missing snapshot. |
-| **Contrast judged on the first screenful** | The accessibility pass sees what is rendered in the viewport; anything below it is reported as "incomplete" and is not gated. |
+| **Contrast judged on the first screenful** (unless § 4b is adopted) | The accessibility pass sees what is rendered in the viewport; anything below it is reported as "incomplete" and is not gated. |
 | **The layout check is a settle check, not a layout-shift metric** | Both samples are taken *after* the cell reports ready, so a shift between first paint and ready is invisible to it. Its positive control is the meta-suite's seeded moving element; it has not fired on a real gallery cell. |
 | **Breakpoint duplicated** | The harness restates the CSS framework's breakpoint as a number; a theme that changes it drifts silently. |
 | **Known-defect guards proven on seeded input only** | The meta-suite exercises the scoping and the rot guard against seeded defects; a list with no real entry has still never been exercised against real input. |
