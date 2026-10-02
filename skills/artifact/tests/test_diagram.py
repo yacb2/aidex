@@ -919,25 +919,33 @@ try:
           is not None, mid_html[:600])
     # Which drawing shows at which column width is the cascade's call: owned by
     # test-diagram-container-swap.sh in a real browser, not by selector text.
-    # B: `one_row` is the wrapped drawing's twin, never a drawing beside a `tb`
-    # main. A 99-char label wraps to a row still over 720, so `drawings()` falls
-    # back to `tb`; the one-row drawing must not ship beside it.
+    # BL-530: a 99-char label wraps to a row still over 720, so `drawings()`
+    # falls back to `tb`; its one-row drawing (802 wide, under COL_MAX) is
+    # still the better drawing at a wide column, so it ships beside the tb main
+    # and the main is tagged so the container hides it while it holds the row.
     tbf = ["a: " + "el servicio de facturación valida cada pedido contra el "
            "catálogo vigente del mes y el stock real de cada almacén"[:99],
            "b: listo", "a -> b"]
     tbf_rows = [(i + 2, x) for i, x in enumerate(tbf)]
     tbf_main = dl.drawings("row", *dl.parse_body(tbf_rows, "row"))[0]
-    check("a row whose wrapped drawing falls back to tb has no one-row "
-          "drawing (main dir=%s)" % tbf_main.dir,
-          tbf_main.dir == "tb"
-          and dl.one_row("row", *dl.parse_body(tbf_rows, "row")) is None)
+    tbf_one = dl.one_row("row", *dl.parse_body(tbf_rows, "row"))
+    check("a row whose wrapped drawing falls back to tb gets its one-row "
+          "drawing (main dir=%s, one row %s)"
+          % (tbf_main.dir, tbf_one and "%.0f wide" % tbf_one.view[2]),
+          tbf_main.dir == "tb" and tbf_one is not None and tbf_one.dir == "lr"
+          and dl.MAX_BOX_W < tbf_one.view[2] <= dl.COL_MAX
+          and dl.one_row("row", *dl.parse_body(tbf_rows, "row"),
+                         direction="tb") is None)
     tbf_html = build(fence("row", *tbf))
     tbf_svgs = re.findall(r"<svg\b[^>]*>", tbf_html)
-    check("...and in the built figure every svg carries dg-full, dg-wide or "
-          "dg-narrow whenever one carries dg-full",
-          "dg-full" not in tbf_html or all(
-              re.search(r'class="[^"]*\bdg-(full|wide|narrow)\b', t)
-              for t in tbf_svgs), str(tbf_svgs))
+    tbf_w = math.ceil(tbf_one.view[2] * dl.MAX_SCALE) if tbf_one else 0
+    check("...built as the one row first, then the tb main, in a container "
+          "that shows the row from its own width (the swap itself is "
+          "test-diagram-container-swap.sh's)",
+          len(tbf_svgs) == 2 and "dg-full" in tbf_svgs[0]
+          and "container-type:inline-size" in tbf_html
+          and re.search(r"@container \(min-width: *%dpx\)" % tbf_w, tbf_html)
+          is not None, str(tbf_svgs))
     got = findings(mid_html)
     check("...no svg-text finding on any of the three", not got, "\n".join(got))
     long_rows = [(i + 2, x) for i, x in enumerate(long_f.split("\n")[1:-1])]

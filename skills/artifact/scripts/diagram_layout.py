@@ -1992,16 +1992,12 @@ def drawings(shape, boxes, arrows, titles, direction=None, budget=NARROW_W):
 
 
 def one_row(shape, boxes, arrows, titles, direction=None):
-    """The `lr` drawing of a `row` that `drawings()` wrapped although the
-    widest column holds it (over MAX_BOX_W, at most COL_MAX); None otherwise.
-    A forced `direction` is the author's and gets no alternative."""
+    """The `lr` drawing of a `row` that `drawings()` did not draw in one row
+    although the widest column holds it (over MAX_BOX_W, at most COL_MAX): its
+    main is the wrapped `lr` drawing, or `tb` when even the wrapped one is over
+    MAX_BOX_W (BL-530). None otherwise. A forced `direction` is the author's
+    and gets no alternative."""
     if SHAPE_ALIASES[shape] != "row" or direction is not None:
-        return None
-    # Only when the wrapped lr drawing is `drawings()`'s main: a wrapped
-    # attempt still over MAX_BOX_W falls back to `tb`, and no one-row drawing
-    # may sit beside that.
-    main = drawings(shape, boxes, arrows, titles)[0]
-    if main.dir != "lr" or main.view[2] > MAX_BOX_W:
         return None
     lay = layout(shape, boxes, arrows, titles, None)
     return (lay if lay.dir == "lr" and MAX_BOX_W < lay.view[2] <= COL_MAX

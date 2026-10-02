@@ -51,8 +51,9 @@ there is at least 672 px, where a 720-unit drawing still draws 12-unit
 sublabels at 11 px. The rule lives HERE, not in `components.css`, only because
 the kit is another phase's file; it is `SWAP_CSS` and moves there verbatim.
 
-A wrapped `row` that fits the widest column in one row (`diagram_layout.one_row`)
-adds a third svg, `dg-full`, first: the figure becomes a size container and
+A wrapped or `tb` `row` that fits the widest column in one row
+(`diagram_layout.one_row`; a `tb` main is tagged `dg-main`, which `full_css`
+alone hides) adds a third svg, `dg-full`, first: the figure becomes a size container and
 `full_css` shows it in place of `dg-wide` while the figure is at least its width.
 A container query, not a media query, because the column's width depends on
 the rail and the page cap, not on the viewport alone (BL-525).
@@ -308,7 +309,9 @@ def full_css(width):
     k = "dg-w%d" % width
     return ("figure svg.dg-full.%s{display:none}"
             "@container (min-width: %dpx){figure svg.dg-full.%s{display:block}"
-            "figure svg.%s~svg.dg-wide{display:none}}" % (k, width, k, k))
+            "figure svg.%s~svg.dg-wide{display:none}"
+            "figure svg.%s~svg.dg-main{display:none}}"
+            % (k, width, k, k, k))
 
 
 def figure(lay, title="", classes="", ident="", narrow=None, full=None):
@@ -329,7 +332,10 @@ def figure(lay, title="", classes="", ident="", narrow=None, full=None):
         # The figure is the container its own width is queried on.
         head += ' style="container-type:inline-size"'
     if narrow is None:
-        out = [head + ">", svg(lay)]
+        # A `tb` main beside a one-row drawing gets its own class: `dg-wide`
+        # is hidden by SWAP_CSS at 390 px, where this main must show. Only
+        # `full_css` hides it, inside the container query (BL-530).
+        out = [head + ">", svg(lay, "dg-main" if full is not None else "")]
     else:
         out = [head + ">", "<style>%s</style>" % SWAP_CSS,
                svg(lay, "dg-wide"), svg(narrow, "dg-narrow")]
