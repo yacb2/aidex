@@ -1,0 +1,37 @@
+<!-- render-probe fixture (BL-592): a three-column table held wider than the screen by a
+     30rem floor, the rule kit 35 applied to every table at 390 px (BL-567 later limited
+     it to four or more columns). Its .tw scrolls, so the reader sees the last column cut
+     at the right edge, and no geometry check looked inside a scroller. The four-column
+     table scrolls on purpose (BL-248, BL-536: the kit's own 30rem floor on four or more
+     columns) and must not be reported, nor the three-column table nested in one of its
+     cells: the kit counts the columns of the outer table only. -->
+<style>
+.tw > table.threefix { min-width: 30rem; }
+table.innerfix { min-width: 25rem; }
+</style>
+<div class="page"><main class="main">
+<h1>Tablas a 390</h1>
+<div class="tw"><table class="threefix">
+<thead><tr><th>Plano</th><th>Lugar</th><th>Valor</th></tr></thead>
+<tbody>
+<tr><td>Apertura</td><td>Ciudad</td><td>Un plano general al amanecer, con la cámara fija.</td></tr>
+<tr><td>Cierre</td><td>Ciudad</td><td>El mismo encuadre al anochecer, con las luces encendidas.</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table class="fourfix">
+<thead><tr><th>Toma</th><th>Inicio</th><th>Fin</th><th>Archivo</th></tr></thead>
+<tbody>
+<tr><td>01</td><td>2026-10-01 08:00</td><td>2026-10-01 08:04</td><td>toma-01-final.mp4</td></tr>
+<tr><td>02</td><td>2026-10-01 09:10</td><td>2026-10-01 09:12</td><td>toma-02-final.mp4</td></tr>
+</tbody>
+</table></div>
+<div class="tw"><table class="outerfix">
+<thead><tr><th>Toma</th><th>Inicio</th><th>Fin</th><th>Detalle</th></tr></thead>
+<tbody>
+<tr><td>03</td><td>10:00</td><td>10:05</td><td><table class="innerfix">
+<tr><th>Cámara</th><th>Lente</th><th>Nota</th></tr>
+<tr><td>A</td><td>35 mm</td><td>Plano fijo desde la azotea del edificio.</td></tr>
+</table></td></tr>
+</tbody>
+</table></div>
+</main></div>
